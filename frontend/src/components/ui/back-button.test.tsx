@@ -30,7 +30,7 @@ describe("BackButton", () => {
     const button = screen.getByRole("button");
     fireEvent.click(button);
 
-    expect(mockPush).toHaveBeenCalledWith("/dashboard");
+    expect(mockPush).toHaveBeenCalledWith("/test-tenant/dashboard");
   });
 
   it("has md:hidden class for mobile-only visibility", () => {

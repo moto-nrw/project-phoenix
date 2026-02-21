@@ -40,6 +40,7 @@ export interface SSEHookOptions {
   reconnectInterval?: number;
   maxReconnectAttempts?: number;
   enabled?: boolean; // when false, do not establish EventSource
+  reconnectKey?: string | number; // when this changes, force teardown+reconnect (e.g. tenantId)
 }
 
 export interface SSEHookState {

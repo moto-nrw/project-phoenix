@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { signOut } from "next-auth/react";
 import { useToast } from "~/contexts/ToastContext";
-import { useRouter } from "next/navigation";
+import { useTenantRouter } from "~/lib/tenant-router";
 import { Input } from "~/components/ui";
 import { getRoleDisplayName } from "~/lib/auth-helpers";
 import { acceptInvitation } from "~/lib/invitation-api";
@@ -57,7 +57,7 @@ export function InvitationAcceptForm({
   token,
   invitation,
 }: InvitationAcceptFormProps) {
-  const router = useRouter();
+  const router = useTenantRouter();
   const [firstName, setFirstName] = useState(invitation.firstName ?? "");
   const [lastName, setLastName] = useState(invitation.lastName ?? "");
   const [password, setPassword] = useState("");

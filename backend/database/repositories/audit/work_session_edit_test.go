@@ -1,7 +1,6 @@
 package audit_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -24,7 +23,7 @@ func TestWorkSessionEditRepository_CreateBatch(t *testing.T) {
 
 	repo := repositories.NewFactory(db).WorkSessionEdit
 	sessionRepo := repositories.NewFactory(db).WorkSession
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
@@ -205,7 +204,7 @@ func TestWorkSessionEditRepository_GetBySessionID(t *testing.T) {
 
 	repo := repositories.NewFactory(db).WorkSessionEdit
 	sessionRepo := repositories.NewFactory(db).WorkSession
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
@@ -342,7 +341,7 @@ func TestWorkSessionEditRepository_CountBySessionID(t *testing.T) {
 
 	repo := repositories.NewFactory(db).WorkSessionEdit
 	sessionRepo := repositories.NewFactory(db).WorkSession
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
@@ -412,7 +411,7 @@ func TestWorkSessionEditRepository_CountBySessionIDs(t *testing.T) {
 
 	repo := repositories.NewFactory(db).WorkSessionEdit
 	sessionRepo := repositories.NewFactory(db).WorkSession
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)

@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { renderHook, waitFor } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { renderHook, waitFor, act } from "@testing-library/react";
 import { OperatorAuthProvider, useOperatorAuth } from "./auth-context";
 import type { ReactNode } from "react";
 
@@ -60,6 +60,68 @@ describe("OperatorAuthProvider", () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,
       });
+
+      const { result } = renderHook(() => useOperatorAuth(), { wrapper });
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      expect(result.current.isAuthenticated).toBe(false);
+      expect(result.current.operator).toBeNull();
+    });
+
+    it("recovers session via refresh when access token is expired on mount", async () => {
+      // /me returns 401 (access token expired)
+      mockFetch.mockResolvedValueOnce({ ok: false, status: 401 });
+      // refresh succeeds
+      mockFetch.mockResolvedValueOnce({ ok: true });
+      // retry /me succeeds with fresh access token
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          id: "1",
+          displayName: "Recovered User",
+          email: "recovered@example.com",
+        }),
+      });
+
+      const { result } = renderHook(() => useOperatorAuth(), { wrapper });
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      expect(result.current.isAuthenticated).toBe(true);
+      expect(result.current.operator?.displayName).toBe("Recovered User");
+      expect(mockFetch).toHaveBeenCalledWith("/api/operator/refresh", {
+        method: "POST",
+      });
+    });
+
+    it("clears operator when both access token and refresh token are expired on mount", async () => {
+      // /me returns 401
+      mockFetch.mockResolvedValueOnce({ ok: false, status: 401 });
+      // refresh also fails
+      mockFetch.mockResolvedValueOnce({ ok: false, status: 401 });
+
+      const { result } = renderHook(() => useOperatorAuth(), { wrapper });
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      expect(result.current.isAuthenticated).toBe(false);
+      expect(result.current.operator).toBeNull();
+    });
+
+    it("clears operator when refresh succeeds but retry /me still fails", async () => {
+      // /me returns 401
+      mockFetch.mockResolvedValueOnce({ ok: false, status: 401 });
+      // refresh succeeds
+      mockFetch.mockResolvedValueOnce({ ok: true });
+      // retry /me still fails (e.g. backend issue)
+      mockFetch.mockResolvedValueOnce({ ok: false, status: 500 });
 
       const { result } = renderHook(() => useOperatorAuth(), { wrapper });
 
@@ -318,6 +380,348 @@ describe("OperatorAuthProvider", () => {
       expect(() => {
         renderHook(() => useOperatorAuth());
       }).toThrow("useOperatorAuth must be used within an OperatorAuthProvider");
+    });
+  });
+
+  describe("token refresh polling", () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("calls refresh endpoint every 4 minutes when authenticated", async () => {
+      // Initial auth check succeeds
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          id: "1",
+          displayName: "Test",
+          email: "test@example.com",
+        }),
+      });
+
+      const { result } = renderHook(() => useOperatorAuth(), { wrapper });
+
+      // Flush initial auth check (avoid runAllTimersAsync with setInterval)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+      expect(result.current.isAuthenticated).toBe(true);
+
+      // Mock refresh response
+      mockFetch.mockResolvedValue({ ok: true });
+
+      // Advance 4 minutes
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(4 * 60 * 1000);
+      });
+
+      // Should have called refresh
+      expect(mockFetch).toHaveBeenCalledWith("/api/operator/refresh", {
+        method: "POST",
+      });
+    });
+
+    it("does not poll when not authenticated", async () => {
+      mockFetch.mockResolvedValueOnce({ ok: false });
+
+      const { result } = renderHook(() => useOperatorAuth(), { wrapper });
+
+      await vi.runAllTimersAsync();
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      mockFetch.mockClear();
+
+      await vi.advanceTimersByTimeAsync(4 * 60 * 1000);
+
+      // Only the redirect may happen, but no refresh call
+      const refreshCalls = mockFetch.mock.calls.filter(
+        (call) => call[0] === "/api/operator/refresh",
+      );
+      expect(refreshCalls).toHaveLength(0);
+    });
+
+    it("clears operator on 401 refresh response", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          id: "1",
+          displayName: "Test",
+          email: "test@example.com",
+        }),
+      });
+
+      const { result } = renderHook(() => useOperatorAuth(), { wrapper });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      await waitFor(() => {
+        expect(result.current.isAuthenticated).toBe(true);
+      });
+
+      // Mock refresh returning 401
+      mockFetch.mockResolvedValue({ ok: false, status: 401 });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(4 * 60 * 1000);
+      });
+
+      await waitFor(() => {
+        expect(result.current.operator).toBeNull();
+      });
+    });
+
+    it("does not force logout on 5xx refresh response", async () => {
+      const consoleWarnSpy = vi
+        .spyOn(console, "warn")
+        .mockImplementation(() => {
+          // noop
+        });
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          id: "1",
+          displayName: "Test",
+          email: "test@example.com",
+        }),
+      });
+
+      const { result } = renderHook(() => useOperatorAuth(), { wrapper });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      await waitFor(() => {
+        expect(result.current.isAuthenticated).toBe(true);
+      });
+
+      // Mock refresh returning 500 (transient server error)
+      mockFetch.mockResolvedValue({ ok: false, status: 500 });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(4 * 60 * 1000);
+      });
+
+      // Operator should still be authenticated — 5xx is transient
+      expect(result.current.isAuthenticated).toBe(true);
+      expect(result.current.operator?.displayName).toBe("Test");
+
+      consoleWarnSpy.mockRestore();
+    });
+
+    it("forces logout on 403 refresh response (operator deactivated)", async () => {
+      const consoleWarnSpy = vi
+        .spyOn(console, "warn")
+        .mockImplementation(() => {
+          // noop
+        });
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          id: "1",
+          displayName: "Test",
+          email: "test@example.com",
+        }),
+      });
+
+      const { result } = renderHook(() => useOperatorAuth(), { wrapper });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      await waitFor(() => {
+        expect(result.current.isAuthenticated).toBe(true);
+      });
+
+      // Mock refresh returning 403 (operator deactivated)
+      mockFetch.mockResolvedValue({ ok: false, status: 403 });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(4 * 60 * 1000);
+      });
+
+      await waitFor(() => {
+        expect(result.current.operator).toBeNull();
+      });
+
+      consoleWarnSpy.mockRestore();
+    });
+
+    it("logs error on refresh network failure", async () => {
+      const consoleErrorSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {
+          // noop
+        });
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          id: "1",
+          displayName: "Test",
+          email: "test@example.com",
+        }),
+      });
+
+      const { result } = renderHook(() => useOperatorAuth(), { wrapper });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      await waitFor(() => {
+        expect(result.current.isAuthenticated).toBe(true);
+      });
+
+      // Mock refresh throwing
+      mockFetch.mockRejectedValue(new Error("Network failure"));
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(4 * 60 * 1000);
+      });
+
+      await waitFor(() => {
+        expect(consoleErrorSpy).toHaveBeenCalledWith(
+          "operator_token_refresh_error",
+          { error: "Network failure" },
+        );
+      });
+
+      consoleErrorSpy.mockRestore();
+    });
+
+    it("cleans up interval on unmount", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          id: "1",
+          displayName: "Test",
+          email: "test@example.com",
+        }),
+      });
+
+      const { result, unmount } = renderHook(() => useOperatorAuth(), {
+        wrapper,
+      });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      await waitFor(() => {
+        expect(result.current.isAuthenticated).toBe(true);
+      });
+
+      mockFetch.mockClear();
+      unmount();
+
+      await vi.advanceTimersByTimeAsync(4 * 60 * 1000);
+
+      const refreshCalls = mockFetch.mock.calls.filter(
+        (call) => call[0] === "/api/operator/refresh",
+      );
+      expect(refreshCalls).toHaveLength(0);
+    });
+
+    it("refreshes proactively when within expiry buffer window", async () => {
+      // Initial auth check succeeds
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          id: "1",
+          displayName: "Test",
+          email: "test@example.com",
+        }),
+      });
+
+      const { result } = renderHook(() => useOperatorAuth(), { wrapper });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      await waitFor(() => {
+        expect(result.current.isAuthenticated).toBe(true);
+      });
+
+      // Mount sets conservative default (5 min from now), which is within
+      // the 5-min refresh buffer — so refresh should fire on first check
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({ success: true, expiresAt: null }),
+      });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(30_000);
+      });
+
+      const refreshCalls = mockFetch.mock.calls.filter(
+        (call) => call[0] === "/api/operator/refresh",
+      );
+      expect(refreshCalls.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it("does not refresh when token expiry is far in the future", async () => {
+      // Initial auth check succeeds
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          id: "1",
+          displayName: "Test",
+          email: "test@example.com",
+        }),
+      });
+
+      const { result } = renderHook(() => useOperatorAuth(), { wrapper });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      await waitFor(() => {
+        expect(result.current.isAuthenticated).toBe(true);
+      });
+
+      mockFetch.mockClear();
+
+      // The conservative default is 5 min — but advance only 30s.
+      // Since 5 min minus 5 min buffer = fires immediately (Date.now() >= expiresAt - buffer).
+      // To test "far in the future", we need the token to have a long expiry.
+      // Unfortunately we can't set tokenExpiresAtRef from outside.
+      // Instead, we test that after a successful refresh returns a far-future expiry,
+      // the next check interval does NOT trigger another refresh.
+
+      // First refresh fires (within buffer of conservative default)
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          success: true,
+          expiresAt: Date.now() + 60 * 60 * 1000, // 1 hour from now
+        }),
+      });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(30_000);
+      });
+
+      mockFetch.mockClear();
+
+      // Next interval: should NOT refresh since expiry is 1 hour away
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(30_000);
+      });
+
+      const refreshCalls = mockFetch.mock.calls.filter(
+        (call) => call[0] === "/api/operator/refresh",
+      );
+      expect(refreshCalls).toHaveLength(0);
     });
   });
 });

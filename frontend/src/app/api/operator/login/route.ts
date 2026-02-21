@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { setOperatorTokens } from "~/lib/operator/cookies";
+import { extractJwtExpiry } from "~/lib/operator/jwt-utils";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "OperatorLoginRoute" });
@@ -66,6 +67,8 @@ export async function POST(request: NextRequest) {
 
     await setOperatorTokens(data.access_token, data.refresh_token);
 
+    const expiresAt = extractJwtExpiry(data.access_token);
+
     return NextResponse.json({
       success: true,
       operator: {
@@ -73,6 +76,7 @@ export async function POST(request: NextRequest) {
         email: data.operator.email,
         displayName: data.operator.display_name,
       },
+      ...(expiresAt !== null && { expiresAt }),
     });
   } catch (error) {
     logger.error("operator_login_error", {

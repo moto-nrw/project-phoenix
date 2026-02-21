@@ -31,7 +31,7 @@ func setupConfigService(t *testing.T, db *bun.DB) configSvc.Service {
 func createTestSetting(t *testing.T, db *bun.DB, key, value, category string) *config.Setting {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
 	defer cancel()
 
 	// Make key unique to avoid conflicts
@@ -43,6 +43,7 @@ func createTestSetting(t *testing.T, db *bun.DB, key, value, category string) *c
 		Category:    category,
 		Description: "Test setting: " + key,
 	}
+	setting.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(setting).
@@ -57,7 +58,7 @@ func createTestSetting(t *testing.T, db *bun.DB, key, value, category string) *c
 func cleanupConfigFixtures(t *testing.T, db *bun.DB, settingIDs []int64) {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
 	defer cancel()
 
 	for _, id := range settingIDs {
@@ -73,7 +74,7 @@ func cleanupConfigFixtures(t *testing.T, db *bun.DB, settingIDs []int64) {
 func createTestSettingWithExactKey(t *testing.T, db *bun.DB, key, value, category string) *config.Setting {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
 	defer cancel()
 
 	// Delete any existing setting with this key first
@@ -89,6 +90,7 @@ func createTestSettingWithExactKey(t *testing.T, db *bun.DB, key, value, categor
 		Category:    category,
 		Description: "Test setting: " + key,
 	}
+	setting.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(setting).
@@ -108,7 +110,7 @@ func TestConfigService_CreateSetting(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupConfigService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates setting successfully", func(t *testing.T) {
 		// ARRANGE
@@ -156,7 +158,7 @@ func TestConfigService_GetSettingByID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupConfigService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns setting for valid ID", func(t *testing.T) {
 		// ARRANGE
@@ -197,7 +199,7 @@ func TestConfigService_UpdateSetting(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupConfigService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates setting successfully", func(t *testing.T) {
 		// ARRANGE
@@ -247,7 +249,7 @@ func TestConfigService_DeleteSetting(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupConfigService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes setting successfully", func(t *testing.T) {
 		// ARRANGE
@@ -279,7 +281,7 @@ func TestConfigService_ListSettings(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupConfigService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("lists all settings with nil filters", func(t *testing.T) {
 		// ARRANGE
@@ -329,7 +331,7 @@ func TestConfigService_GetSettingByKey(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupConfigService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns setting for valid key", func(t *testing.T) {
 		// ARRANGE
@@ -369,7 +371,7 @@ func TestConfigService_UpdateSettingValue(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupConfigService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates setting value by key", func(t *testing.T) {
 		// ARRANGE
@@ -402,7 +404,7 @@ func TestConfigService_GetStringValue(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupConfigService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns string value for existing key", func(t *testing.T) {
 		// ARRANGE
@@ -432,7 +434,7 @@ func TestConfigService_GetBoolValue(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupConfigService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns true for true value", func(t *testing.T) {
 		// ARRANGE
@@ -489,7 +491,7 @@ func TestConfigService_GetIntValue(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupConfigService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns int value for existing key", func(t *testing.T) {
 		// ARRANGE
@@ -533,7 +535,7 @@ func TestConfigService_GetFloatValue(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupConfigService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns float value for existing key", func(t *testing.T) {
 		// ARRANGE
@@ -581,7 +583,7 @@ func TestConfigService_GetSettingsByCategory(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupConfigService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns settings by category", func(t *testing.T) {
 		// ARRANGE
@@ -627,7 +629,7 @@ func TestConfigService_GetSettingByKeyAndCategory(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupConfigService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns setting by key and category", func(t *testing.T) {
 		// ARRANGE
@@ -666,7 +668,7 @@ func TestConfigService_ImportSettings(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupConfigService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("imports multiple settings", func(t *testing.T) {
 		// ARRANGE
@@ -756,7 +758,7 @@ func TestConfigService_InitializeDefaultSettings(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupConfigService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("initializes default settings", func(t *testing.T) {
 		// ACT
@@ -779,7 +781,7 @@ func TestConfigService_RequiresRestart(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupConfigService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns restart status", func(t *testing.T) {
 		// ACT
@@ -797,7 +799,7 @@ func TestConfigService_RequiresDatabaseReset(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupConfigService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns database reset status", func(t *testing.T) {
 		// ACT
@@ -818,7 +820,7 @@ func TestConfigService_GetTimeoutSettings(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupConfigService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns timeout settings", func(t *testing.T) {
 		// ACT
@@ -837,7 +839,7 @@ func TestConfigService_UpdateTimeoutSettings(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupConfigService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates timeout settings when settings exist", func(t *testing.T) {
 		// ARRANGE - First create the required settings with exact keys (no timestamp suffix)
@@ -903,7 +905,7 @@ func TestConfigService_GetDeviceTimeoutSettings(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupConfigService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns timeout settings for device", func(t *testing.T) {
 		// ACT

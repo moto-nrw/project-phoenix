@@ -734,6 +734,10 @@ func (noopAccountRoleRepository) FindByAccountID(context.Context, int64) ([]*aut
 	panic("FindByAccountID not implemented")
 }
 
+func (noopAccountRoleRepository) FindByAccountIDForTenant(context.Context, int64, int64) ([]*authModel.AccountRole, error) {
+	panic("FindByAccountIDForTenant not implemented")
+}
+
 func (noopAccountRoleRepository) FindByRoleID(context.Context, int64) ([]*authModel.AccountRole, error) {
 	panic("FindByRoleID not implemented")
 }

@@ -31,7 +31,7 @@ func TestRolePermissionRepository_Create(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).RolePermission
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates role permission mapping", func(t *testing.T) {
 		role := testpkg.CreateTestRole(t, db, "test_rp_create_role")
@@ -89,7 +89,7 @@ func TestRolePermissionRepository_FindByRoleID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).RolePermission
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds permissions by role ID", func(t *testing.T) {
 		role := testpkg.CreateTestRole(t, db, "test_rp_find_by_role")
@@ -126,7 +126,7 @@ func TestRolePermissionRepository_FindByPermissionID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).RolePermission
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds roles by permission ID", func(t *testing.T) {
 		role1 := testpkg.CreateTestRole(t, db, "test_rp_find_by_perm1")
@@ -162,7 +162,7 @@ func TestRolePermissionRepository_FindByRoleAndPermission(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).RolePermission
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds specific role-permission mapping", func(t *testing.T) {
 		role := testpkg.CreateTestRole(t, db, "test_rp_find_specific")
@@ -192,7 +192,7 @@ func TestRolePermissionRepository_Update(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).RolePermission
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates role permission mapping", func(t *testing.T) {
 		role1 := testpkg.CreateTestRole(t, db, "test_rp_update_role1")
@@ -239,7 +239,7 @@ func TestRolePermissionRepository_DeleteByRoleAndPermission(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).RolePermission
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes specific role-permission mapping", func(t *testing.T) {
 		role := testpkg.CreateTestRole(t, db, "test_rp_delete_specific")
@@ -271,7 +271,7 @@ func TestRolePermissionRepository_DeleteByRoleID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).RolePermission
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes all permissions for a role", func(t *testing.T) {
 		role := testpkg.CreateTestRole(t, db, "test_rp_delete_by_role")
@@ -316,7 +316,7 @@ func TestRolePermissionRepository_DeleteByPermissionID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).RolePermission
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes all roles for a permission", func(t *testing.T) {
 		role1 := testpkg.CreateTestRole(t, db, "test_rp_delete_by_perm1")
@@ -360,7 +360,7 @@ func TestRolePermissionRepository_List(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).RolePermission
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("lists all role permissions", func(t *testing.T) {
 		role := testpkg.CreateTestRole(t, db, "test_rp_list")
@@ -420,7 +420,7 @@ func TestRolePermissionRepository_FindRolePermissionsWithDetails(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).RolePermission
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds role permissions with role and permission details", func(t *testing.T) {
 		role := testpkg.CreateTestRole(t, db, "test_rp_with_details")

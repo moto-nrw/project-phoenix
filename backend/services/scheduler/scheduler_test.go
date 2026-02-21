@@ -1130,10 +1130,14 @@ func (m *mockActiveService) ToggleStudentAttendance(_ context.Context, _, _, _ i
 func (m *mockActiveService) CheckTeacherStudentAccess(_ context.Context, _, _ int64) (bool, error) {
 	return false, nil
 }
+func (m *mockActiveService) BroadcastDailyCheckout(_ context.Context, _ int64) {}
 func (m *mockActiveService) GetUnclaimedActiveGroups(_ context.Context) ([]*active.Group, error) {
 	return nil, nil
 }
 func (m *mockActiveService) ClaimActiveGroup(_ context.Context, _, _ int64, _ string) (*active.GroupSupervisor, error) {
+	return nil, nil
+}
+func (m *mockActiveService) GetCrossTenantStudents(_ context.Context, _ int64) ([]active.CrossTenantStudent, error) {
 	return nil, nil
 }
 

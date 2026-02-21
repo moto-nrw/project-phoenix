@@ -267,7 +267,7 @@ func TestSSEEvents_StaffReachesStreamingPath(t *testing.T) {
 
 	// Create request with timeout context FIRST, then add claims on top
 	// This ensures the claims are in the context that will timeout
-	baseCtx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	baseCtx, cancel := context.WithTimeout(testpkg.TenantContext(1), 100*time.Millisecond)
 	defer cancel()
 
 	// Add claims to the timeout context
@@ -298,7 +298,7 @@ func TestSSEEvents_ResponseHeaders(t *testing.T) {
 	router.Get("/events", tctx.resource.EventsHandler())
 
 	// Use context with timeout, then add claims
-	baseCtx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	baseCtx, cancel := context.WithTimeout(testpkg.TenantContext(1), 50*time.Millisecond)
 	defer cancel()
 
 	claims := testutil.TeacherTestClaims(int(account.ID))

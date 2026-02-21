@@ -23,7 +23,8 @@ func ResetDatabase() error {
 		return fmt.Errorf("failed to disable triggers: %w", err)
 	}
 
-	// List of schemas to drop and recreate
+	// List of schemas to drop and recreate.
+	// NOTE: keep in sync with all CREATE SCHEMA calls across migrations.
 	schemas := []string{
 		"auth",
 		"users",
@@ -36,6 +37,9 @@ func ResetDatabase() error {
 		"active",
 		"config",
 		"meta",
+		"audit",       // created by migration 1.3.7
+		"suggestions", // created by migration 1.9.1
+		"platform",    // created by migration 1.11.1
 	}
 
 	// 1. Drop all schemas with CASCADE to remove all objects inside them

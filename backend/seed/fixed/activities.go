@@ -161,9 +161,9 @@ func (s *Seeder) seedActivities(ctx context.Context) error {
 			existing.PlannedRoomID = roomID
 			existing.IsOpen = true
 			existing.UpdatedAt = time.Now()
-			// Update created_by if it's 0 (legacy data)
-			if existing.CreatedBy == 0 {
-				existing.CreatedBy = defaultCreatorID
+			// Update created_by if it's nil (legacy / system-created data)
+			if existing.CreatedBy == nil {
+				existing.CreatedBy = &defaultCreatorID
 			}
 
 			if _, err := s.tx.NewUpdate().Model(existing).
@@ -184,7 +184,7 @@ func (s *Seeder) seedActivities(ctx context.Context) error {
 				MaxParticipants: data.maxParticipants,
 				PlannedRoomID:   roomID,
 				IsOpen:          true,
-				CreatedBy:       creatorID,
+				CreatedBy:       &creatorID,
 			}
 			group.CreatedAt = time.Now()
 			group.UpdatedAt = group.CreatedAt

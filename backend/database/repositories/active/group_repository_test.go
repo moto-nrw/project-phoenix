@@ -1,7 +1,6 @@
 package active_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -24,7 +23,7 @@ func cleanupActiveGroupRecords(t *testing.T, db *bun.DB, groupIDs ...int64) {
 		return
 	}
 
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// First remove any visits
 	_, _ = db.NewDelete().
@@ -57,7 +56,7 @@ func TestActiveGroupRepository_Create(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveGroup
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates active group with valid data", func(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "CreateTest")
@@ -114,7 +113,7 @@ func TestActiveGroupRepository_FindByID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveGroup
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds existing active group", func(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "FindByID")
@@ -150,7 +149,7 @@ func TestActiveGroupRepository_Update(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveGroup
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates active group", func(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "Update")
@@ -184,7 +183,7 @@ func TestActiveGroupRepository_Delete(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveGroup
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes existing active group", func(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "Delete")
@@ -219,7 +218,7 @@ func TestActiveGroupRepository_List(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveGroup
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("lists all active groups", func(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "List")
@@ -249,7 +248,7 @@ func TestActiveGroupRepository_FindActiveGroups(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveGroup
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds only active groups (no end_time)", func(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "ActiveGroups")
@@ -293,7 +292,7 @@ func TestActiveGroupRepository_FindActiveByRoomID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveGroup
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds active groups by room ID", func(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "ByRoom")
@@ -342,7 +341,7 @@ func TestActiveGroupRepository_FindActiveByGroupID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveGroup
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds active instances of activity group", func(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "ByGroupID")
@@ -381,7 +380,7 @@ func TestActiveGroupRepository_FindByTimeRange(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveGroup
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds groups active during time range", func(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "TimeRange")
@@ -428,7 +427,7 @@ func TestActiveGroupRepository_EndSession(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveGroup
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("ends active session", func(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "EndSession")
@@ -461,7 +460,7 @@ func TestActiveGroupRepository_UpdateLastActivity(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveGroup
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates last activity timestamp", func(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "LastActivity")
@@ -526,7 +525,7 @@ func TestActiveGroupRepository_FindActiveByDeviceID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveGroup
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds active session by device ID", func(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "ByDeviceID")
@@ -572,7 +571,7 @@ func TestActiveGroupRepository_FindActiveByDeviceIDWithNames(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveGroup
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds active session with activity and room names", func(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "WithNames")
@@ -621,7 +620,7 @@ func TestActiveGroupRepository_GetOccupiedRoomIDs(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveGroup
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns occupied room IDs", func(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "OccupiedRooms")
@@ -682,7 +681,7 @@ func TestActiveGroupRepository_GetOccupiedActivityGroupIDs(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveGroup
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns occupied activity group IDs", func(t *testing.T) {
 		activityGroup1 := testpkg.CreateTestActivityGroup(t, db, "OccupiedActivity1")
@@ -768,7 +767,7 @@ func TestActiveGroupRepository_FindInactiveSessions(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveGroup
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds inactive sessions exceeding timeout", func(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "InactiveSessions")
@@ -811,7 +810,7 @@ func TestActiveGroupRepository_CheckRoomConflict(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveGroup
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("detects room conflict", func(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "RoomConflict")
@@ -882,7 +881,7 @@ func TestActiveGroupRepository_FindByIDs(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveGroup
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds multiple groups by IDs", func(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "FindByIDs")
@@ -936,7 +935,7 @@ func TestActiveGroupRepository_FindWithRelations(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveGroup
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds group with relations", func(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "WithRelations")
@@ -972,7 +971,7 @@ func TestActiveGroupRepository_FindWithVisits(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveGroup
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds group with visits", func(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "WithVisits")
@@ -993,12 +992,14 @@ func TestActiveGroupRepository_FindWithVisits(t *testing.T) {
 		defer cleanupActiveGroupRecords(t, db, group.ID)
 
 		// Create a visit for this group using ModelTableExpr
+		visit := &active.Visit{
+			StudentID:     student.ID,
+			ActiveGroupID: group.ID,
+			EntryTime:     now,
+		}
+		visit.SetTenantID(1)
 		_, err = db.NewInsert().
-			Model(&active.Visit{
-				StudentID:     student.ID,
-				ActiveGroupID: group.ID,
-				EntryTime:     now,
-			}).
+			Model(visit).
 			ModelTableExpr("active.visits").
 			Exec(ctx)
 		require.NoError(t, err)
@@ -1023,7 +1024,7 @@ func TestActiveGroupRepository_FindWithSupervisors(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveGroup
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds group with supervisors", func(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "WithSupervisors")
@@ -1044,13 +1045,15 @@ func TestActiveGroupRepository_FindWithSupervisors(t *testing.T) {
 		defer cleanupActiveGroupRecords(t, db, group.ID)
 
 		// Create a supervisor for this group using ModelTableExpr
+		groupSup := &active.GroupSupervisor{
+			GroupID:   group.ID,
+			StaffID:   staff.ID,
+			Role:      "supervisor",
+			StartDate: now,
+		}
+		groupSup.SetTenantID(1)
 		_, err = db.NewInsert().
-			Model(&active.GroupSupervisor{
-				GroupID:   group.ID,
-				StaffID:   staff.ID,
-				Role:      "supervisor",
-				StartDate: now,
-			}).
+			Model(groupSup).
 			ModelTableExpr("active.group_supervisors").
 			Exec(ctx)
 		require.NoError(t, err)

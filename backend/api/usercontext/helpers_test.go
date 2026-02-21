@@ -213,7 +213,7 @@ func TestValidateAvatarPath_ValidPath(t *testing.T) {
 
 	for _, path := range validPaths {
 		t.Run(path, func(t *testing.T) {
-			filePath, errRenderer := validateAvatarPath(path)
+			filePath, errRenderer := validateAvatarPath(path, 1)
 			assert.Nil(t, errRenderer, "Expected no error for valid path")
 			assert.NotEmpty(t, filePath, "Expected non-empty file path")
 		})
@@ -233,7 +233,7 @@ func TestValidateAvatarPath_InvalidPath(t *testing.T) {
 
 	for _, tt := range invalidPaths {
 		t.Run(tt.name, func(t *testing.T) {
-			_, errRenderer := validateAvatarPath(tt.path)
+			_, errRenderer := validateAvatarPath(tt.path, 1)
 			assert.NotNil(t, errRenderer, "Expected error for invalid path: %s", tt.path)
 		})
 	}

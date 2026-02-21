@@ -43,6 +43,11 @@ const (
 	RoomConflictWarn
 )
 
+// CrossTenantRepo defines the interface for cross-tenant student queries.
+type CrossTenantRepo interface {
+	FindCrossTenantStudents(ctx context.Context, hostingTenantID int64) ([]active.CrossTenantStudent, error)
+}
+
 // ServiceDependencies contains all dependencies required by the active service
 type ServiceDependencies struct {
 	// Active domain repositories
@@ -52,6 +57,9 @@ type ServiceDependencies struct {
 	CombinedGroupRepo active.CombinedGroupRepository
 	GroupMappingRepo  active.GroupMappingRepository
 	AttendanceRepo    active.AttendanceRepository
+
+	// Cross-tenant query repository (optional - nil-safe)
+	CrossTenantRepo CrossTenantRepo
 
 	// User domain repositories
 	StudentRepo userModels.StudentRepository
@@ -88,6 +96,9 @@ type service struct {
 	supervisorRepo    active.GroupSupervisorRepository
 	combinedGroupRepo active.CombinedGroupRepository
 	groupMappingRepo  active.GroupMappingRepository
+
+	// Cross-tenant query repository (optional - nil-safe)
+	crossTenantRepo CrossTenantRepo
 
 	// Additional repositories for dashboard analytics
 	studentRepo        userModels.StudentRepository
@@ -133,6 +144,7 @@ func NewService(deps ServiceDependencies) Service {
 		supervisorRepo:     deps.SupervisorRepo,
 		combinedGroupRepo:  deps.CombinedGroupRepo,
 		groupMappingRepo:   deps.GroupMappingRepo,
+		crossTenantRepo:    deps.CrossTenantRepo,
 		studentRepo:        deps.StudentRepo,
 		roomRepo:           deps.RoomRepo,
 		activityGroupRepo:  deps.ActivityGroupRepo,
@@ -834,6 +846,25 @@ func (s *service) GetStaffActiveSupervisions(ctx context.Context, staffID int64)
 	}
 
 	return activeSupervisions, nil
+}
+
+// GetCrossTenantStudents returns students visiting from other tenants.
+func (s *service) GetCrossTenantStudents(ctx context.Context, hostingTenantID int64) ([]active.CrossTenantStudent, error) {
+	if s.crossTenantRepo == nil {
+		return []active.CrossTenantStudent{}, nil
+	}
+
+	students, err := s.crossTenantRepo.FindCrossTenantStudents(ctx, hostingTenantID)
+	if err != nil {
+		return nil, &ActiveError{Op: "GetCrossTenantStudents", Err: fmt.Errorf("query failed: %w", err)}
+	}
+
+	s.getLogger().Info("cross-tenant students queried",
+		slog.Int64("hosting_tenant_id", hostingTenantID),
+		slog.Int("count", len(students)),
+	)
+
+	return students, nil
 }
 
 // visitSSEData holds data needed for SSE broadcasts after a visit is ended

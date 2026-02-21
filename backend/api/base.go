@@ -82,8 +82,8 @@ type API struct {
 
 // New creates a new API instance
 func New(enableCORS bool, logger *slog.Logger) (*API, error) {
-	// Get database connection
-	db, err := database.DBConn()
+	// Get database connection as phoenix_auth (least-privilege for serve)
+	db, err := database.DBConnForServe()
 	if err != nil {
 		return nil, err
 	}
@@ -149,31 +149,74 @@ func setupBasicMiddleware(router chi.Router, logger *slog.Logger) {
 	router.Use(customMiddleware.SecurityHeaders)
 }
 
-// setupCORS configures CORS middleware with allowed origins from environment
+// setupCORS configures CORS middleware with allowed origins from environment.
+// Supports wildcard subdomain patterns like "*.example.com" via AllowOriginFunc.
 func setupCORS(router chi.Router) {
-	allowedOrigins := parseAllowedOrigins()
-	router.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   allowedOrigins,
+	exactOrigins, wildcardSuffixes := parseAllowedOrigins()
+
+	opts := cors.Options{
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token", "X-Staff-PIN", "X-Staff-ID", "X-Device-Key"},
 		ExposedHeaders:   []string{"Link"},
 		AllowCredentials: true,
 		MaxAge:           300,
-	}))
+	}
+
+	if len(wildcardSuffixes) > 0 {
+		// Build a set for O(1) exact-match lookups
+		exactSet := make(map[string]bool, len(exactOrigins))
+		for _, o := range exactOrigins {
+			exactSet[o] = true
+		}
+		opts.AllowOriginFunc = func(_ *http.Request, origin string) bool {
+			if exactSet[origin] {
+				return true
+			}
+			// Extract the host portion of the origin (e.g. "https://school-a.example.com" → "school-a.example.com")
+			host := origin
+			if idx := strings.Index(origin, "://"); idx >= 0 {
+				host = origin[idx+3:]
+			}
+			for _, suffix := range wildcardSuffixes {
+				if strings.HasSuffix(host, suffix) && len(host) > len(suffix) {
+					return true
+				}
+			}
+			return false
+		}
+	} else {
+		opts.AllowedOrigins = exactOrigins
+	}
+
+	router.Use(cors.Handler(opts))
 }
 
-// parseAllowedOrigins parses CORS_ALLOWED_ORIGINS environment variable
-func parseAllowedOrigins() []string {
+// parseAllowedOrigins parses CORS_ALLOWED_ORIGINS and splits entries into
+// exact-match origins and wildcard subdomain suffixes (e.g. "*.example.com"
+// becomes suffix ".example.com").
+func parseAllowedOrigins() (exact []string, wildcardSuffixes []string) {
 	originsEnv := os.Getenv("CORS_ALLOWED_ORIGINS")
 	if originsEnv == "" {
-		return []string{"*"}
+		return []string{"*"}, nil
 	}
 
-	origins := strings.Split(originsEnv, ",")
-	for i := range origins {
-		origins[i] = strings.TrimSpace(origins[i])
+	for _, raw := range strings.Split(originsEnv, ",") {
+		origin := strings.TrimSpace(raw)
+		if origin == "" {
+			continue
+		}
+		if strings.HasPrefix(origin, "*.") {
+			// "*.example.com" → match any subdomain of ".example.com"
+			wildcardSuffixes = append(wildcardSuffixes, origin[1:]) // ".example.com"
+		} else {
+			exact = append(exact, origin)
+		}
 	}
-	return origins
+
+	if len(exact) == 0 && len(wildcardSuffixes) == 0 {
+		return []string{"*"}, nil
+	}
+	return exact, wildcardSuffixes
 }
 
 // setupSecurityLogging configures security logging middleware if enabled
@@ -219,7 +262,7 @@ func parsePositiveInt(envVar string, defaultValue int) int {
 
 // initializeAPIResources initializes all API resource instances
 func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun.DB, logger *slog.Logger) {
-	api.Auth = authAPI.NewResource(api.Services.Auth, api.Services.Invitation)
+	api.Auth = authAPI.NewResource(api.Services.Auth, api.Services.Invitation, repoFactory.School)
 	api.Rooms = roomsAPI.NewResource(api.Services.Facilities, db)
 	api.Students = studentsAPI.NewResource(studentsAPI.ResourceConfig{
 		PersonService:         api.Services.Users,

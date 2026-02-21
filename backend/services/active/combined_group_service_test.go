@@ -36,7 +36,7 @@ func TestActiveService_GetCombinedGroup(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := buildCombinedGroupService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns combined group when found", func(t *testing.T) {
 		// ARRANGE
@@ -86,7 +86,7 @@ func TestActiveService_CreateCombinedGroup(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := buildCombinedGroupService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates combined group successfully", func(t *testing.T) {
 		// ARRANGE
@@ -140,7 +140,7 @@ func TestActiveService_UpdateCombinedGroup(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := buildCombinedGroupService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates combined group end time successfully", func(t *testing.T) {
 		// ARRANGE
@@ -200,7 +200,7 @@ func TestActiveService_DeleteCombinedGroup(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := buildCombinedGroupService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes combined group successfully", func(t *testing.T) {
 		// ARRANGE
@@ -248,7 +248,7 @@ func TestActiveService_ListCombinedGroups(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := buildCombinedGroupService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns combined groups with no options", func(t *testing.T) {
 		// ARRANGE
@@ -292,7 +292,7 @@ func TestActiveService_FindActiveCombinedGroups(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := buildCombinedGroupService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns active combined groups", func(t *testing.T) {
 		// ARRANGE - active group has no end_time
@@ -326,7 +326,7 @@ func TestActiveService_FindCombinedGroupsByTimeRange(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := buildCombinedGroupService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns groups in time range", func(t *testing.T) {
 		// ARRANGE
@@ -360,7 +360,7 @@ func TestActiveService_EndCombinedGroup(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := buildCombinedGroupService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("ends combined group successfully", func(t *testing.T) {
 		// ARRANGE
@@ -416,7 +416,7 @@ func TestActiveService_GetCombinedGroupWithGroups(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := buildCombinedGroupService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns combined group with mapped groups", func(t *testing.T) {
 		// ARRANGE
@@ -456,7 +456,7 @@ func TestActiveService_AddGroupToCombination(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := buildCombinedGroupService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("adds group to combination successfully", func(t *testing.T) {
 		// ARRANGE
@@ -516,7 +516,7 @@ func TestActiveService_RemoveGroupFromCombination(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := buildCombinedGroupService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("removes group from combination successfully", func(t *testing.T) {
 		// ARRANGE
@@ -561,7 +561,7 @@ func TestActiveService_GetGroupMappingsByActiveGroupID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := buildCombinedGroupService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns mappings for active group", func(t *testing.T) {
 		// ARRANGE
@@ -617,7 +617,7 @@ func TestActiveService_GetGroupMappingsByCombinedGroupID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := buildCombinedGroupService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns mappings for combined group", func(t *testing.T) {
 		// ARRANGE
@@ -676,7 +676,7 @@ func TestActiveService_FindCombinedGroupsByTimeRange_InvalidRange(t *testing.T) 
 	defer func() { _ = db.Close() }()
 
 	service := buildCombinedGroupService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error when start is after end", func(t *testing.T) {
 		// ARRANGE
@@ -703,7 +703,7 @@ func TestActiveService_AddGroupToCombination_Duplicate(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := buildCombinedGroupService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error when group already in combination", func(t *testing.T) {
 		// ARRANGE
@@ -743,7 +743,7 @@ func TestActiveService_DeleteCombinedGroup_WithMappings(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := buildCombinedGroupService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes combined group with mappings successfully", func(t *testing.T) {
 		// ARRANGE: Create combined group with mappings
@@ -835,7 +835,7 @@ func TestActiveService_CreateCombinedGroupWithGroups(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := buildCombinedGroupService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates group with multiple groups atomically", func(t *testing.T) {
 		// ARRANGE

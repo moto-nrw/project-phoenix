@@ -75,7 +75,7 @@ describe("POST /api/auth/register", () => {
     global.fetch = originalFetch;
   });
 
-  it("registers user without authentication (public registration)", async () => {
+  it("forwards unauthenticated request to backend", async () => {
     const registrationPayload = {
       email: "newuser@example.com",
       password: "Test1234!",

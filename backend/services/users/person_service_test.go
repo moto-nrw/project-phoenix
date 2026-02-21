@@ -9,7 +9,6 @@
 package users_test
 
 import (
-	"context"
 	"log/slog"
 	"testing"
 
@@ -41,7 +40,7 @@ func TestPersonService_Get(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPersonService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns person when found", func(t *testing.T) {
 		// ARRANGE
@@ -103,7 +102,7 @@ func TestPersonService_GetByIDs(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPersonService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns multiple persons when found", func(t *testing.T) {
 		// ARRANGE
@@ -154,7 +153,7 @@ func TestPersonService_Create(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPersonService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates person successfully", func(t *testing.T) {
 		// ARRANGE
@@ -232,7 +231,7 @@ func TestPersonService_Update(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPersonService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates person successfully", func(t *testing.T) {
 		// ARRANGE
@@ -281,7 +280,7 @@ func TestPersonService_Delete(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPersonService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes person successfully", func(t *testing.T) {
 		// ARRANGE
@@ -319,7 +318,7 @@ func TestPersonService_List(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPersonService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns persons list", func(t *testing.T) {
 		// ARRANGE
@@ -355,7 +354,7 @@ func TestPersonService_FindByTagID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPersonService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds person by tag ID", func(t *testing.T) {
 		// ARRANGE
@@ -397,7 +396,7 @@ func TestPersonService_FindByAccountID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPersonService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds person by account ID", func(t *testing.T) {
 		// ARRANGE
@@ -438,7 +437,7 @@ func TestPersonService_FindByName(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPersonService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds persons by first name", func(t *testing.T) {
 		// ARRANGE
@@ -503,7 +502,7 @@ func TestPersonService_LinkToAccount(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPersonService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("links person to account successfully", func(t *testing.T) {
 		// ARRANGE
@@ -562,7 +561,7 @@ func TestPersonService_UnlinkFromAccount(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPersonService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("unlinks person from account successfully", func(t *testing.T) {
 		// ARRANGE
@@ -613,7 +612,7 @@ func TestPersonService_LinkToRFIDCard(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPersonService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("links person to RFID card successfully", func(t *testing.T) {
 		// ARRANGE
@@ -688,7 +687,7 @@ func TestPersonService_UnlinkFromRFIDCard(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPersonService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("unlinks person from RFID card successfully", func(t *testing.T) {
 		// ARRANGE
@@ -742,7 +741,7 @@ func TestPersonService_GetFullProfile(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPersonService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns full profile with account", func(t *testing.T) {
 		// ARRANGE
@@ -807,7 +806,7 @@ func TestPersonService_ListAvailableRFIDCards(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPersonService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns unassigned cards", func(t *testing.T) {
 		// ARRANGE
@@ -852,7 +851,7 @@ func TestPersonService_GetStudentsByTeacher(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPersonService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns students for valid teacher", func(t *testing.T) {
 		// ARRANGE
@@ -907,7 +906,7 @@ func TestPersonService_GetStudentsWithGroupsByTeacher(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPersonService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns students with group info for valid teacher", func(t *testing.T) {
 		// ARRANGE
@@ -949,7 +948,7 @@ func TestPersonService_GetAllStudentsWithGroups(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPersonService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns all students including those without groups", func(t *testing.T) {
 		// ARRANGE - student with group
@@ -1036,7 +1035,7 @@ func TestPersonService_ValidateStaffPIN_EmptyPIN(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPersonService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error for empty PIN", func(t *testing.T) {
 		// ACT
@@ -1054,7 +1053,7 @@ func TestPersonService_ValidateStaffPINForSpecificStaff_EmptyPIN(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPersonService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error for empty PIN", func(t *testing.T) {
 		// ACT
@@ -1072,7 +1071,7 @@ func TestPersonService_ValidateStaffPINForSpecificStaff_StaffNotFound(t *testing
 	defer func() { _ = db.Close() }()
 
 	service := setupPersonService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error for nonexistent staff", func(t *testing.T) {
 		// ACT
@@ -1089,7 +1088,7 @@ func TestPersonService_FindByGuardianID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPersonService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns empty list for nonexistent guardian", func(t *testing.T) {
 		// ACT
@@ -1131,7 +1130,7 @@ func TestPersonService_LinkToRFIDCard_PersonNotFound(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPersonService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error for nonexistent person", func(t *testing.T) {
 		// ACT - LinkToRFIDCard takes tagID as string and returns only error
@@ -1147,7 +1146,7 @@ func TestPersonService_LinkToRFIDCard_RFIDNotFound(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPersonService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error for nonexistent RFID card", func(t *testing.T) {
 		// ARRANGE
@@ -1171,7 +1170,7 @@ func TestPersonService_Get_NotFound(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPersonService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error for nonexistent person", func(t *testing.T) {
 		// ACT
@@ -1188,7 +1187,7 @@ func TestPersonService_Update_NotFound(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPersonService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error for nonexistent person", func(t *testing.T) {
 		// ARRANGE
@@ -1211,7 +1210,7 @@ func TestPersonService_Create_ValidationError(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPersonService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error for invalid person", func(t *testing.T) {
 		// ARRANGE - empty names should fail validation
@@ -1235,7 +1234,7 @@ func TestPersonService_ValidateStaffPIN_Success(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPersonService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("validates correct PIN and returns staff", func(t *testing.T) {
 		// ARRANGE - create staff with UNIQUE PIN (avoid collision with seed data)
@@ -1259,7 +1258,7 @@ func TestPersonService_ValidateStaffPIN_WrongPIN(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPersonService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error for incorrect PIN", func(t *testing.T) {
 		// ARRANGE - create staff with known PIN
@@ -1281,7 +1280,7 @@ func TestPersonService_ValidateStaffPIN_NoPINSet(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPersonService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error when trying unique PIN that doesn't exist", func(t *testing.T) {
 		// ARRANGE - create staff without PIN (default from CreateTestStaffWithAccount)
@@ -1302,7 +1301,7 @@ func TestPersonService_ValidateStaffPINForSpecificStaff_Success(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPersonService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("validates correct PIN for specific staff", func(t *testing.T) {
 		// ARRANGE
@@ -1325,7 +1324,7 @@ func TestPersonService_ValidateStaffPINForSpecificStaff_WrongPIN(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPersonService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error for incorrect PIN on specific staff", func(t *testing.T) {
 		// ARRANGE
@@ -1347,7 +1346,7 @@ func TestPersonService_ValidateStaffPINForSpecificStaff_NoPINSet(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPersonService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error when specific staff has no PIN", func(t *testing.T) {
 		// ARRANGE - staff without PIN
@@ -1372,7 +1371,7 @@ func TestPersonService_Create_WithRFIDCard(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPersonService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates person with RFID card link", func(t *testing.T) {
 		// ARRANGE
@@ -1426,7 +1425,7 @@ func TestPersonService_Update_WithChangedAccount(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPersonService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates person with new valid account", func(t *testing.T) {
 		// ARRANGE - create person without account, then link to new account
@@ -1492,7 +1491,7 @@ func TestPersonService_Update_WithChangedRFID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPersonService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates person with new valid RFID card", func(t *testing.T) {
 		// ARRANGE
@@ -1566,7 +1565,7 @@ func TestPersonService_LinkToAccount_SamePersonRelink(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPersonService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("allows re-linking same person to same account", func(t *testing.T) {
 		// ARRANGE - person already linked to account
@@ -1592,7 +1591,7 @@ func TestPersonService_GetFullProfile_WithBothRelations(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPersonService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns profile with both account and RFID", func(t *testing.T) {
 		// ARRANGE - person with both account and RFID
@@ -1634,7 +1633,7 @@ func TestPersonService_ListAvailableRFIDCards_Extended(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPersonService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns empty list when all cards assigned", func(t *testing.T) {
 		// ARRANGE - create card and assign it
@@ -1672,7 +1671,7 @@ func TestPersonService_List_WithPagination(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPersonService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns persons with query options", func(t *testing.T) {
 		// ARRANGE - create some persons
@@ -1695,7 +1694,7 @@ func TestPersonService_Delete_WithRelations(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPersonService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes person with RFID card", func(t *testing.T) {
 		// ARRANGE
@@ -1727,7 +1726,7 @@ func TestPersonService_Get_WithIntID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPersonService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("accepts int ID and converts to int64", func(t *testing.T) {
 		// ARRANGE

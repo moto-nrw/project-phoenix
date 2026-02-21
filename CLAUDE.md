@@ -11,6 +11,17 @@
 | Database | PostgreSQL 17+ (multi-schema, SSL) |
 | Auth | JWT (15min access, 1hr refresh) |
 
+## Ecosystem
+
+Project Phoenix is part of a three-repo system. All repos live side-by-side (`../`):
+
+| Repo | Role | Relationship |
+|------|------|-------------|
+| **PyrePortal** (`../PyrePortal/`) | Raspberry Pi kiosk app (Tauri + React) | Consumes `/api/iot/*` endpoints with device API key + staff PIN auth |
+| **moto-balenaOS** (`../moto-balenaOS/`) | Balena OS deployment layer | Runs PyrePortal + Phoenix backend on Raspberry Pi hardware |
+
+**If you change IoT endpoints, error messages, or auth headers**: PyrePortal will break silently. Error messages are hardcoded in `PyrePortal/src/services/api.ts` and mapped to German UI text. Coordinate changes across repos.
+
 ## Core Architecture
 
 **Handler → Service → Repository → Database** (always, no exceptions)
@@ -78,6 +89,8 @@ devbox add <tool>@latest # Add to devbox.json — never rely on global installs
 | Run migrations | `cd backend && go run main.go migrate` |
 | Reset + seed DB | `cd backend && go run main.go migrate reset && go run main.go seed` |
 | Generate docs | `cd backend && go run main.go gendoc --routes` |
+
+**Seeder is DEV-ONLY**: `go run main.go seed` creates fake test data and must NEVER run on staging or production. Production infrastructure (system rooms, categories, activities) must be created via data migrations or admin UI — never via the seeder.
 
 ### Test Database (port 5433)
 ```bash

@@ -7,6 +7,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
+// int64Ptr returns a pointer to the given int64 value.
+func int64Ptr(v int64) *int64 { return &v }
+
 func TestGroupValidate(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -20,7 +23,7 @@ func TestGroupValidate(t *testing.T) {
 				MaxParticipants: 10,
 				IsOpen:          true,
 				CategoryID:      1,
-				CreatedBy:       1,
+				CreatedBy:       int64Ptr(1),
 			},
 			wantErr: false,
 		},
@@ -31,8 +34,19 @@ func TestGroupValidate(t *testing.T) {
 				MaxParticipants: 15,
 				IsOpen:          false,
 				CategoryID:      2,
-				CreatedBy:       1,
+				CreatedBy:       int64Ptr(1),
 				PlannedRoomID:   func() *int64 { id := int64(3); return &id }(),
+			},
+			wantErr: false,
+		},
+		{
+			name: "Valid group with nil CreatedBy (system-created)",
+			group: &Group{
+				Name:            "System Group",
+				MaxParticipants: 10,
+				IsOpen:          true,
+				CategoryID:      1,
+				CreatedBy:       nil,
 			},
 			wantErr: false,
 		},
@@ -42,7 +56,7 @@ func TestGroupValidate(t *testing.T) {
 				MaxParticipants: 10,
 				IsOpen:          true,
 				CategoryID:      1,
-				CreatedBy:       1,
+				CreatedBy:       int64Ptr(1),
 			},
 			wantErr: true,
 		},
@@ -53,7 +67,7 @@ func TestGroupValidate(t *testing.T) {
 				MaxParticipants: 0,
 				IsOpen:          true,
 				CategoryID:      1,
-				CreatedBy:       1,
+				CreatedBy:       int64Ptr(1),
 			},
 			wantErr: true,
 		},
@@ -64,7 +78,7 @@ func TestGroupValidate(t *testing.T) {
 				MaxParticipants: -5,
 				IsOpen:          true,
 				CategoryID:      1,
-				CreatedBy:       1,
+				CreatedBy:       int64Ptr(1),
 			},
 			wantErr: true,
 		},
@@ -74,7 +88,7 @@ func TestGroupValidate(t *testing.T) {
 				Name:            "Test Group",
 				MaxParticipants: 10,
 				IsOpen:          true,
-				CreatedBy:       1,
+				CreatedBy:       int64Ptr(1),
 			},
 			wantErr: true,
 		},
@@ -85,7 +99,7 @@ func TestGroupValidate(t *testing.T) {
 				MaxParticipants: 10,
 				IsOpen:          true,
 				CategoryID:      -1,
-				CreatedBy:       1,
+				CreatedBy:       int64Ptr(1),
 			},
 			wantErr: true,
 		},
@@ -263,6 +277,8 @@ func TestGroup_GetUpdatedAt(t *testing.T) {
 	}
 }
 
+// TestGroupValidate_CreatedBy verifies that Validate() does not require CreatedBy.
+// CreatedBy is nullable (system-created groups have created_by = NULL).
 func TestGroupValidate_CreatedBy(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -270,37 +286,26 @@ func TestGroupValidate_CreatedBy(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "Valid group with CreatedBy",
+			name: "Valid group with CreatedBy set",
 			group: &Group{
 				Name:            "Test Group",
 				MaxParticipants: 10,
 				IsOpen:          true,
 				CategoryID:      1,
-				CreatedBy:       42,
+				CreatedBy:       int64Ptr(42),
 			},
 			wantErr: false,
 		},
 		{
-			name: "Missing CreatedBy (zero)",
+			name: "Valid group with nil CreatedBy (system-created)",
 			group: &Group{
 				Name:            "Test Group",
 				MaxParticipants: 10,
 				IsOpen:          true,
 				CategoryID:      1,
-				CreatedBy:       0,
+				CreatedBy:       nil,
 			},
-			wantErr: true,
-		},
-		{
-			name: "Invalid CreatedBy (negative)",
-			group: &Group{
-				Name:            "Test Group",
-				MaxParticipants: 10,
-				IsOpen:          true,
-				CategoryID:      1,
-				CreatedBy:       -1,
-			},
-			wantErr: true,
+			wantErr: false,
 		},
 	}
 
@@ -324,7 +329,7 @@ func TestGroup_IsOwnedBy(t *testing.T) {
 		{
 			name: "Staff is owner",
 			group: &Group{
-				CreatedBy: 42,
+				CreatedBy: int64Ptr(42),
 			},
 			staffID: 42,
 			want:    true,
@@ -332,7 +337,7 @@ func TestGroup_IsOwnedBy(t *testing.T) {
 		{
 			name: "Staff is not owner",
 			group: &Group{
-				CreatedBy: 42,
+				CreatedBy: int64Ptr(42),
 			},
 			staffID: 99,
 			want:    false,
@@ -340,9 +345,17 @@ func TestGroup_IsOwnedBy(t *testing.T) {
 		{
 			name: "Staff ID is zero",
 			group: &Group{
-				CreatedBy: 42,
+				CreatedBy: int64Ptr(42),
 			},
 			staffID: 0,
+			want:    false,
+		},
+		{
+			name: "System-created group (nil CreatedBy) is not owned by any staff",
+			group: &Group{
+				CreatedBy: nil,
+			},
+			staffID: 42,
 			want:    false,
 		},
 	}

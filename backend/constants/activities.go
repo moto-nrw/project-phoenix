@@ -27,4 +27,28 @@ const (
 
 	// SchulhofMaxParticipants is the default max participants for the Schulhof activity.
 	SchulhofMaxParticipants = 100
+
+	// WCActivityName is the name of the permanent WC (toilet) activity.
+	// This activity is auto-created on first use if not found.
+	WCActivityName = "WC"
+
+	// WCCategoryName is the name of the WC activity category.
+	// Auto-created alongside the WC activity if not found.
+	WCCategoryName = "WC"
+
+	// WCCategoryDescription is the description for the WC activity category.
+	WCCategoryDescription = "Bathroom/toilet break"
+
+	// WCColor is the default color for WC elements (blue).
+	WCColor = "#60A5FA"
+
+	// WCRoomName is the name of the WC room.
+	// Auto-created alongside the WC activity if not found.
+	WCRoomName = "WC"
+
+	// WCRoomCapacity is the default capacity for the WC room.
+	WCRoomCapacity = 20
+
+	// WCMaxParticipants is the default max participants for the WC activity.
+	WCMaxParticipants = 20
 )

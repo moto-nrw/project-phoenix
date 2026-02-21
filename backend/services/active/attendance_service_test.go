@@ -27,6 +27,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
+	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -86,7 +87,7 @@ func TestGetStudentAttendanceStatus_NotCheckedIn(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// ARRANGE: Create a student (but NO attendance record)
 	student := testpkg.CreateTestStudent(t, db, "NotCheckedIn", "Student", "2a")
@@ -115,7 +116,7 @@ func TestGetStudentAttendanceStatus_CheckedIn(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// ARRANGE: Create fixtures
 	student := testpkg.CreateTestStudent(t, db, "CheckedIn", "Student", "2b")
@@ -145,7 +146,7 @@ func TestGetStudentAttendanceStatus_CheckedOut(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// ARRANGE: Create fixtures
 	student := testpkg.CreateTestStudent(t, db, "CheckedOut", "Student", "2c")
@@ -176,7 +177,7 @@ func TestGetStudentsAttendanceStatuses(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// ARRANGE: Create three students with different attendance states
 	studentNotCheckedIn := testpkg.CreateTestStudent(t, db, "NotIn", "Student1", "3a")
@@ -235,7 +236,7 @@ func TestGetStudentsAttendanceStatuses_EmptyInput(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// ACT: Get statuses with empty input
 	statuses, err := service.GetStudentsAttendanceStatuses(ctx, []int64{})
@@ -255,7 +256,7 @@ func TestToggleStudentAttendance_CheckIn(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// ARRANGE: Create a student (not checked in)
 	student := testpkg.CreateTestStudent(t, db, "Toggle", "CheckIn", "4a")
@@ -282,7 +283,7 @@ func TestToggleStudentAttendance_CheckOut(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// ARRANGE: Create a student and check them in first
 	student := testpkg.CreateTestStudent(t, db, "Toggle", "CheckOut", "4b")
@@ -312,7 +313,7 @@ func TestToggleStudentAttendance_CheckOutWithZeroStaffID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// ARRANGE: Create a student and check them in
 	student := testpkg.CreateTestStudent(t, db, "ZeroStaff", "Checkout", "4z")
@@ -347,7 +348,7 @@ func TestToggleStudentAttendance_ReCheckIn(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// ARRANGE: Create a student who was checked in and then checked out
 	student := testpkg.CreateTestStudent(t, db, "Toggle", "ReCheckIn", "4c")
@@ -381,7 +382,7 @@ func TestToggleStudentAttendance_WebAuthorizationPath(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("web authorization fails when staff has no access to student", func(t *testing.T) {
 		// ARRANGE: Create student and staff with NO relationship
@@ -405,7 +406,7 @@ func TestCheckTeacherStudentAccess(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns false for staff without teacher record", func(t *testing.T) {
 		// ARRANGE: Create student and staff (staff is not a teacher)
@@ -478,7 +479,7 @@ func TestGetUnclaimedActiveGroups(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns unclaimed groups without error", func(t *testing.T) {
 		// ARRANGE: Create an active group without supervisors
@@ -511,7 +512,7 @@ func TestClaimActiveGroup(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("claims group successfully", func(t *testing.T) {
 		// ARRANGE
@@ -611,7 +612,7 @@ func TestCheckRoomSupervisorAccess(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("staff supervising student's room can toggle attendance", func(t *testing.T) {
 		// ARRANGE: Create fixtures
@@ -685,7 +686,7 @@ func TestToggleStudentAttendance_IoTDevice(t *testing.T) {
 		testpkg.CreateTestGroupSupervisor(t, db, staff.ID, activeGroup.ID, "supervisor")
 
 		// Create IoT device context using device package constants
-		ctx := context.WithValue(context.Background(), device.CtxIsIoTDevice, true)
+		ctx := context.WithValue(testpkg.TenantContext(1), device.CtxIsIoTDevice, true)
 		ctx = context.WithValue(ctx, device.CtxDevice, testDevice)
 
 		// ACT: Toggle attendance (check-in)
@@ -704,7 +705,7 @@ func TestToggleStudentAttendance_IoTDevice(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, testDevice.ID, student.ID)
 
 		// Create IoT device context using device package constants
-		ctx := context.WithValue(context.Background(), device.CtxIsIoTDevice, true)
+		ctx := context.WithValue(testpkg.TenantContext(1), device.CtxIsIoTDevice, true)
 		ctx = context.WithValue(ctx, device.CtxDevice, testDevice)
 
 		// ACT: Toggle attendance
@@ -721,7 +722,7 @@ func TestGetStudentAttendanceStatus_WithStaffNames(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns staff names for check-in and check-out", func(t *testing.T) {
 		// ARRANGE: Create fixtures with staff that has a person record
@@ -758,5 +759,89 @@ func TestGetStudentAttendanceStatus_WithStaffNames(t *testing.T) {
 		assert.NotEmpty(t, result.CheckedOutBy, "Expected check-out staff name")
 		assert.Contains(t, result.CheckedInBy, "CheckIn")
 		assert.Contains(t, result.CheckedOutBy, "CheckOut")
+	})
+}
+
+// =============================================================================
+// BroadcastDailyCheckout Tests
+// =============================================================================
+
+// TestBroadcastDailyCheckout_WithStudent tests the happy path: student exists,
+// has a person record. Verifies the method completes without panic.
+func TestBroadcastDailyCheckout_WithStudent(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActiveService(t, db)
+	ctx := context.Background()
+
+	// ARRANGE: Create a student (has person record via CreateTestStudent)
+	student := testpkg.CreateTestStudent(t, db, "Broadcast", "Student", "9a")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+	// ACT: Should complete without panic — broadcaster exists but has no connected clients
+	service.BroadcastDailyCheckout(ctx, student.ID)
+
+	// ASSERT: No panic, no error — method is fire-and-forget
+}
+
+// TestBroadcastDailyCheckout_NonExistentStudent tests the path where the student ID
+// doesn't exist in the database. getStudentDisplayData returns ("", nil), and
+// broadcastToEducationalGroup exits early on nil student.
+func TestBroadcastDailyCheckout_NonExistentStudent(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActiveService(t, db)
+	ctx := context.Background()
+
+	// ACT: Call with a non-existent student ID — should not panic
+	service.BroadcastDailyCheckout(ctx, 99999999)
+
+	// ASSERT: No panic, no error — broadcastToEducationalGroup returns early on nil student
+}
+
+// TestBroadcastDailyCheckout_StudentWithEducationGroup tests the full broadcast path:
+// student exists and is assigned to an education (OGS) group (GroupID != nil).
+// This exercises broadcastToEducationalGroup with a real group topic.
+func TestBroadcastDailyCheckout_StudentWithEducationGroup(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActiveService(t, db)
+	ctx := context.Background()
+
+	// ARRANGE: Create education group and student assigned to it
+	eduGroup := testpkg.CreateTestEducationGroup(t, db, "OGS-Broadcast")
+	student := testpkg.CreateTestStudent(t, db, "EduBroadcast", "Student", "9b")
+	defer testpkg.CleanupActivityFixtures(t, db, eduGroup.ID, student.ID)
+
+	// Assign student to education group (set GroupID)
+	_, err := db.NewUpdate().
+		Model(student).
+		ModelTableExpr(`users.students`).
+		Set("group_id = ?", eduGroup.ID).
+		Where("id = ?", student.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	// ACT: Should complete without panic — exercises broadcastToEducationalGroup
+	// with a real edu:{groupID} topic. No connected SSE clients, so BroadcastToGroup
+	// succeeds silently.
+	service.BroadcastDailyCheckout(ctx, student.ID)
+
+	// ASSERT: No panic, no error — fire-and-forget broadcast completed
+}
+
+// TestBroadcastDailyCheckout_NilBroadcaster tests the nil-broadcaster early-return guard.
+// When the service is constructed without a broadcaster, BroadcastDailyCheckout should
+// return immediately without panicking or accessing any repository.
+func TestBroadcastDailyCheckout_NilBroadcaster(t *testing.T) {
+	// ARRANGE: Construct service with all nil deps — no broadcaster
+	svc := activeService.NewService(activeService.ServiceDependencies{})
+
+	// ACT: Should hit the `if s.broadcaster == nil { return }` guard and exit safely
+	assert.NotPanics(t, func() {
+		svc.BroadcastDailyCheckout(context.Background(), 12345)
 	})
 }

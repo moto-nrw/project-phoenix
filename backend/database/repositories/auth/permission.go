@@ -69,22 +69,45 @@ func (r *PermissionRepository) FindByResourceAction(ctx context.Context, resourc
 	return permission, nil
 }
 
-// FindByAccountID retrieves all permissions assigned to an account (direct + role-based)
+// FindByAccountID retrieves all permissions assigned to an account (direct + role-based).
+// When tenant context is available, filters assignments by tenant_id for tenant isolation.
 func (r *PermissionRepository) FindByAccountID(ctx context.Context, accountID int64) ([]*auth.Permission, error) {
+	return r.FindByAccountIDForTenant(ctx, accountID, 0)
+}
+
+// FindByAccountIDForTenant retrieves all permissions for an account scoped to a specific tenant.
+// tenantID > 0: filter account_permissions and account_roles by that tenant (login/switch flows).
+// tenantID == 0: fall back to context-based filtering via TenantWhere (authenticated requests).
+func (r *PermissionRepository) FindByAccountIDForTenant(ctx context.Context, accountID int64, tenantID int64) ([]*auth.Permission, error) {
 	var permissions []*auth.Permission
 
-	// This query combines permissions from direct assignments and role-based permissions
+	// Build direct permissions CTE with tenant filter
+	directCTE := base.GetDB(ctx, r.db).NewSelect().
+		Table("auth.account_permissions").
+		Where("account_id = ? AND granted = true", accountID)
+
+	// Build role-based permissions CTE with tenant filter
+	roleCTE := base.GetDB(ctx, r.db).NewSelect().
+		Table(rolePermissionsTable).
+		Join("JOIN auth.account_roles ar ON ar.role_id = role_permissions.role_id").
+		Where("ar.account_id = ?", accountID)
+
+	// Apply tenant filtering: explicit tenant ID takes priority, then context
+	if tenantID > 0 {
+		directCTE = directCTE.Where("account_permissions.tenant_id = ?", tenantID)
+		roleCTE = roleCTE.Where("ar.tenant_id = ?", tenantID)
+	} else if where, val, ok := base.TenantWhere(ctx, "account_permissions"); ok {
+		directCTE = directCTE.Where(where, val)
+		// Use same tenant ID for role CTE
+		roleCTE = roleCTE.Where(`ar.tenant_id = ?`, val)
+	}
+
 	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&permissions).
 		ModelTableExpr(permissionTableAlias).
 		Distinct().
-		With("account_permissions_direct", base.GetDB(ctx, r.db).NewSelect().
-			Table("auth.account_permissions").
-			Where("account_id = ? AND granted = true", accountID)).
-		With("account_permissions_from_roles", base.GetDB(ctx, r.db).NewSelect().
-			Table(rolePermissionsTable).
-			Join("JOIN auth.account_roles ar ON ar.role_id = role_permissions.role_id").
-			Where("ar.account_id = ?", accountID)).
+		With("account_permissions_direct", directCTE).
+		With("account_permissions_from_roles", roleCTE).
 		With("all_account_permissions", base.GetDB(ctx, r.db).NewSelect().
 			Column("permission_id").
 			TableExpr("account_permissions_direct").

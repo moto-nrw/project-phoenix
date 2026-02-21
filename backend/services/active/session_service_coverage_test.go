@@ -1,7 +1,6 @@
 package active_test
 
 import (
-	"context"
 	"log/slog"
 	"testing"
 	"time"
@@ -30,7 +29,7 @@ func TestGetDeviceCurrentSession_HasSession(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	service := setupSessionService(t, db)
 
 	// Create fixtures
@@ -62,7 +61,7 @@ func TestGetDeviceCurrentSession_NoSession(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	service := setupSessionService(t, db)
 
 	// Create device with no session
@@ -82,7 +81,7 @@ func TestProcessSessionTimeout_WithActiveSession(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	service := setupSessionService(t, db)
 
 	// Create fixtures
@@ -113,7 +112,7 @@ func TestProcessSessionTimeout_NoSession(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	service := setupSessionService(t, db)
 
 	// Create device with no session
@@ -133,7 +132,7 @@ func TestProcessSessionTimeout_WithVisits(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	service := setupSessionService(t, db)
 
 	// Create fixtures
@@ -169,7 +168,7 @@ func TestProcessSessionTimeout_AlreadyEnded(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	service := setupSessionService(t, db)
 
 	// Create fixtures
@@ -200,7 +199,7 @@ func TestEndDailySessions_WithActiveSessions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	service := setupSessionService(t, db)
 
 	// Create fixtures
@@ -240,7 +239,7 @@ func TestEndDailySessions_NoActiveSessions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	service := setupSessionService(t, db)
 
 	// ARRANGE: First, end any existing sessions to start with a clean slate
@@ -263,7 +262,7 @@ func TestEndDailySessions_WithOrphanedSupervisors(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	service := setupSessionService(t, db)
 
 	// Create fixtures
@@ -296,6 +295,7 @@ func TestEndDailySessions_WithOrphanedSupervisors(t *testing.T) {
 			"role":       "supervisor",
 			"start_date": yesterday,
 			"end_date":   nil, // Orphaned - no end date
+			"tenant_id":  int64(1),
 		}).
 		Exec(ctx)
 	require.NoError(t, err)
@@ -315,7 +315,7 @@ func TestCleanupAbandonedSessions_OfflineDevice(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	service := setupSessionService(t, db)
 
 	// Create fixtures
@@ -361,7 +361,7 @@ func TestCleanupAbandonedSessions_OnlineDevice(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	service := setupSessionService(t, db)
 
 	// Create fixtures
@@ -408,7 +408,7 @@ func TestCleanupAbandonedSessions_NoAbandoned(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	service := setupSessionService(t, db)
 
 	// ACT: Cleanup with no sessions
@@ -427,7 +427,7 @@ func TestUpdateActiveGroupSupervisors_ReactivateEndedSupervisor(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	service := setupSessionService(t, db)
 
 	// Create fixtures
@@ -470,7 +470,7 @@ func TestEndDailySessions_WithMultipleVisitsAndSupervisors(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	service := setupSessionService(t, db)
 
 	// Create fixtures
@@ -511,7 +511,7 @@ func TestProcessSessionTimeout_WithMultipleActiveVisits(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	service := setupSessionService(t, db)
 
 	// Create fixtures
@@ -549,7 +549,7 @@ func TestEndActivitySession_BySessionID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	service := setupSessionService(t, db)
 
 	// Create fixtures

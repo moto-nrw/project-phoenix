@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -334,6 +335,32 @@ func (s *service) CheckTeacherStudentAccess(ctx context.Context, teacherID, stud
 	}
 
 	return false, nil
+}
+
+// BroadcastDailyCheckout sends an SSE student_checkout event to the student's
+// educational (OGS) group topic so the "Meine Gruppe" page updates in real time.
+// Called after the daily checkout attendance toggle succeeds.
+func (s *service) BroadcastDailyCheckout(ctx context.Context, studentID int64) {
+	if s.broadcaster == nil {
+		return
+	}
+
+	studentIDStr := fmt.Sprintf("%d", studentID)
+	studentName, studentRec := s.getStudentDisplayData(ctx, studentID)
+
+	source := "daily_checkout"
+	event := realtime.NewEvent(
+		realtime.EventStudentCheckOut,
+		"", // no active group — student already left their room
+		realtime.EventData{
+			StudentID:   &studentIDStr,
+			StudentName: &studentName,
+			Source:      &source,
+		},
+	)
+
+	// Broadcast to educational (OGS) group topic so the "Meine Gruppe" page updates
+	s.broadcastToEducationalGroup(ctx, studentRec, event)
 }
 
 // ======== Unclaimed Groups Management (Deviceless Claiming) ========

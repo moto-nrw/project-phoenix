@@ -51,19 +51,20 @@ func (rs *Resource) Router() chi.Router {
 		r.Use(tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
 		r.Use(jwt.TenantMiddleware)
+		withTx := tenant.TenantTxMiddleware(rs.db)
 
 		// Read operations require feedback:read permission
-		r.With(authorize.RequiresPermission(permissions.FeedbackRead)).Get("/", rs.listFeedback)
-		r.With(authorize.RequiresPermission(permissions.FeedbackRead)).Get("/{id}", rs.getFeedback)
-		r.With(authorize.RequiresPermission(permissions.FeedbackRead)).Get("/student/{id}", rs.getStudentFeedback)
-		r.With(authorize.RequiresPermission(permissions.FeedbackRead)).Get("/date/{date}", rs.getDateFeedback)
-		r.With(authorize.RequiresPermission(permissions.FeedbackRead)).Get("/mensa", rs.getMensaFeedback)
-		r.With(authorize.RequiresPermission(permissions.FeedbackRead)).Get("/date-range", rs.getDateRangeFeedback)
+		r.With(authorize.RequiresPermission(permissions.FeedbackRead), withTx).Get("/", rs.listFeedback)
+		r.With(authorize.RequiresPermission(permissions.FeedbackRead), withTx).Get("/{id}", rs.getFeedback)
+		r.With(authorize.RequiresPermission(permissions.FeedbackRead), withTx).Get("/student/{id}", rs.getStudentFeedback)
+		r.With(authorize.RequiresPermission(permissions.FeedbackRead), withTx).Get("/date/{date}", rs.getDateFeedback)
+		r.With(authorize.RequiresPermission(permissions.FeedbackRead), withTx).Get("/mensa", rs.getMensaFeedback)
+		r.With(authorize.RequiresPermission(permissions.FeedbackRead), withTx).Get("/date-range", rs.getDateRangeFeedback)
 
 		// Write operations require specific permissions
-		r.With(authorize.RequiresPermission(permissions.FeedbackCreate)).Post("/", rs.createFeedback)
-		r.With(authorize.RequiresPermission(permissions.FeedbackCreate)).Post("/batch", rs.createBatchFeedback)
-		r.With(authorize.RequiresPermission(permissions.FeedbackDelete)).Delete("/{id}", rs.deleteFeedback)
+		r.With(authorize.RequiresPermission(permissions.FeedbackCreate), withTx).Post("/", rs.createFeedback)
+		r.With(authorize.RequiresPermission(permissions.FeedbackCreate), withTx).Post("/batch", rs.createBatchFeedback)
+		r.With(authorize.RequiresPermission(permissions.FeedbackDelete), withTx).Delete("/{id}", rs.deleteFeedback)
 	})
 
 	return r

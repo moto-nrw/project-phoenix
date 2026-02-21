@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/render"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -1107,8 +1106,7 @@ func setupCombinedGroupRouter(t *testing.T) (*testContext, chi.Router) {
 
 	tc := setupTestContext(t)
 
-	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
+	router := testutil.NewTenantRouter(tc.db)
 
 	router.Route("/active/combined", func(r chi.Router) {
 		r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/", tc.resource.ListCombinedGroupsHandler())
@@ -1130,8 +1128,7 @@ func setupMappingsRouter(t *testing.T) (*testContext, chi.Router) {
 
 	tc := setupTestContext(t)
 
-	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
+	router := testutil.NewTenantRouter(tc.db)
 
 	router.Route("/active/mappings", func(r chi.Router) {
 		r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/group/{groupId}", tc.resource.GetGroupMappingsHandler())
@@ -1149,8 +1146,7 @@ func setupUnclaimedRouter(t *testing.T) (*testContext, chi.Router) {
 
 	tc := setupTestContext(t)
 
-	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
+	router := testutil.NewTenantRouter(tc.db)
 
 	router.Route("/active", func(r chi.Router) {
 		r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/unclaimed", tc.resource.ListUnclaimedGroupsHandler())
@@ -1168,8 +1164,7 @@ func setupSupervisorRouter(t *testing.T) (*testContext, chi.Router) {
 
 	tc := setupTestContext(t)
 
-	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
+	router := testutil.NewTenantRouter(tc.db)
 
 	router.Route("/active/supervisors", func(r chi.Router) {
 		r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/group/{groupId}", tc.resource.GetSupervisorsByGroupHandler())
@@ -1184,8 +1179,7 @@ func setupVisitsRouter(t *testing.T) (*testContext, chi.Router) {
 
 	tc := setupTestContext(t)
 
-	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
+	router := testutil.NewTenantRouter(tc.db)
 
 	router.Route("/active/visits", func(r chi.Router) {
 		r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/group/{groupId}", tc.resource.GetVisitsByGroupHandler())
@@ -1200,8 +1194,7 @@ func setupAnalyticsRouter(t *testing.T) (*testContext, chi.Router) {
 
 	tc := setupTestContext(t)
 
-	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
+	router := testutil.NewTenantRouter(tc.db)
 
 	router.Route("/active/analytics", func(r chi.Router) {
 		r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/counts", tc.resource.GetCountsHandler())
@@ -1219,8 +1212,7 @@ func setupActiveGroupsRouter(t *testing.T) (*testContext, chi.Router) {
 
 	tc := setupTestContext(t)
 
-	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
+	router := testutil.NewTenantRouter(tc.db)
 
 	router.Route("/active/groups", func(r chi.Router) {
 		r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/", tc.resource.ListActiveGroupsHandler())
@@ -1245,8 +1237,7 @@ func setupVisitsCRUDRouter(t *testing.T) (*testContext, chi.Router) {
 
 	tc := setupTestContext(t)
 
-	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
+	router := testutil.NewTenantRouter(tc.db)
 
 	router.Route("/active/visits", func(r chi.Router) {
 		r.With(authorize.RequiresPermission(permissions.VisitsRead)).Get("/", tc.resource.ListVisitsHandler())
@@ -1269,8 +1260,7 @@ func setupSupervisorsCRUDRouter(t *testing.T) (*testContext, chi.Router) {
 
 	tc := setupTestContext(t)
 
-	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
+	router := testutil.NewTenantRouter(tc.db)
 
 	router.Route("/active/supervisors", func(r chi.Router) {
 		r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/", tc.resource.ListSupervisorsHandler())
@@ -1291,12 +1281,13 @@ func setupSupervisorsCRUDRouter(t *testing.T) (*testContext, chi.Router) {
 func createTestCombinedGroup(t *testing.T, db *bun.DB) *active.CombinedGroup {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
 	defer cancel()
 
 	combinedGroup := &active.CombinedGroup{
 		StartTime: time.Now(),
 	}
+	combinedGroup.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(combinedGroup).
@@ -1311,7 +1302,7 @@ func createTestCombinedGroup(t *testing.T, db *bun.DB) *active.CombinedGroup {
 func cleanupCombinedGroup(t *testing.T, db *bun.DB, id int64) {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
 	defer cancel()
 
 	// First delete any mappings
@@ -1336,13 +1327,14 @@ func cleanupCombinedGroup(t *testing.T, db *bun.DB, id int64) {
 func createTestGroupMapping(t *testing.T, db *bun.DB, activeGroupID, combinedGroupID int64) *active.GroupMapping {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
 	defer cancel()
 
 	mapping := &active.GroupMapping{
 		ActiveGroupID:         activeGroupID,
 		ActiveCombinedGroupID: combinedGroupID,
 	}
+	mapping.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(mapping).
@@ -1357,7 +1349,7 @@ func createTestGroupMapping(t *testing.T, db *bun.DB, activeGroupID, combinedGro
 func cleanupGroupMapping(t *testing.T, db *bun.DB, id int64) {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
 	defer cancel()
 
 	_, err := db.NewDelete().

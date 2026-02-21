@@ -1,7 +1,6 @@
 package auth_test
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -23,7 +22,7 @@ func TestTokenRepository_Create(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Token
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates token with valid data", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "tokenCreate")
@@ -66,7 +65,7 @@ func TestTokenRepository_FindByID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Token
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds existing token", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "tokenFindByID")
@@ -90,7 +89,7 @@ func TestTokenRepository_FindByToken(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Token
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds token by token string", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "tokenFindByToken")
@@ -114,7 +113,7 @@ func TestTokenRepository_Update(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Token
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates token identifier", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "tokenUpdate")
@@ -139,7 +138,7 @@ func TestTokenRepository_Delete(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Token
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes existing token", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "tokenDelete")
@@ -163,7 +162,7 @@ func TestTokenRepository_List(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Token
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("lists all tokens", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "tokenList")
@@ -182,7 +181,7 @@ func TestTokenRepository_FindByAccountID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Token
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds tokens by account ID", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "tokenByAccount")
@@ -223,7 +222,7 @@ func TestTokenRepository_DeleteExpiredTokens(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Token
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes expired tokens", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "expiredToken")
@@ -233,8 +232,8 @@ func TestTokenRepository_DeleteExpiredTokens(t *testing.T) {
 		expiredTokenStr := uuid.Must(uuid.NewV4()).String()
 		var expiredTokenID int64
 		err := db.NewRaw(`
-			INSERT INTO auth.tokens (account_id, token, expiry, mobile, family_id)
-			VALUES (?, ?, ?, false, ?)
+			INSERT INTO auth.tokens (account_id, token, expiry, mobile, family_id, tenant_id)
+			VALUES (?, ?, ?, false, ?, 1)
 			RETURNING id
 		`, account.ID, expiredTokenStr, time.Now().Add(-time.Hour), uuid.Must(uuid.NewV4()).String()).
 			Scan(ctx, &expiredTokenID)
@@ -264,7 +263,7 @@ func TestTokenRepository_DeleteByAccountID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Token
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes all tokens for account", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "deleteByAccount")
@@ -292,7 +291,7 @@ func TestTokenRepository_FindByFamilyID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Token
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds tokens by family ID", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "tokenFamily")
@@ -333,7 +332,7 @@ func TestTokenRepository_DeleteByFamilyID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Token
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes all tokens in family", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "deleteFamily")
@@ -376,7 +375,7 @@ func TestTokenRepository_CleanupOldTokensForAccount(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Token
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("keeps only specified number of tokens", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "cleanupTokens")
@@ -417,7 +416,7 @@ func TestTokenRepository_FindByAccountIDAndIdentifier(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Token
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds token by account ID and identifier", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "tokenIdentifier")
@@ -454,7 +453,7 @@ func TestTokenRepository_DeleteByAccountIDAndIdentifier(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Token
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes token by account ID and identifier", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "deleteIdentifier")
@@ -482,7 +481,7 @@ func TestTokenRepository_FindValidTokens(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Token
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds only non-expired tokens", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "validTokens")
@@ -496,8 +495,8 @@ func TestTokenRepository_FindValidTokens(t *testing.T) {
 		expiredTokenStr := uuid.Must(uuid.NewV4()).String()
 		var expiredTokenID int64
 		err := db.NewRaw(`
-			INSERT INTO auth.tokens (account_id, token, expiry, mobile, family_id)
-			VALUES (?, ?, ?, false, ?)
+			INSERT INTO auth.tokens (account_id, token, expiry, mobile, family_id, tenant_id)
+			VALUES (?, ?, ?, false, ?, 1)
 			RETURNING id
 		`, account.ID, expiredTokenStr, time.Now().Add(-time.Hour), uuid.Must(uuid.NewV4()).String()).
 			Scan(ctx, &expiredTokenID)
@@ -530,7 +529,7 @@ func TestTokenRepository_GetLatestTokenInFamily(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Token
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("gets token with highest generation", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "familyLatest")
@@ -590,7 +589,7 @@ func TestTokenRepository_ListWithFilters(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Token
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("filters by mobile", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "mobileFilter")
@@ -646,7 +645,7 @@ func TestTokenRepository_CreateValidation(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Token
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("rejects nil token", func(t *testing.T) {
 		err := repo.Create(ctx, nil)

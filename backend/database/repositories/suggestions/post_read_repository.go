@@ -31,6 +31,8 @@ func (r *PostReadRepository) MarkViewed(ctx context.Context, accountID, postID i
 		ViewedAt:   time.Now(),
 	}
 
+	base.EnsureTenantID(ctx, pr)
+
 	_, err := base.GetDB(ctx, r.db).NewInsert().
 		Model(pr).
 		On("CONFLICT (account_id, post_id, reader_type) DO UPDATE").

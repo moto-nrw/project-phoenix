@@ -1,7 +1,6 @@
 package activities_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -22,13 +21,14 @@ import (
 func createEnrollment(t *testing.T, db *bun.DB, studentID, groupID int64, enrollmentDate time.Time, status *string) *activities.StudentEnrollment {
 	t.Helper()
 
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	enrollment := &activities.StudentEnrollment{
 		StudentID:        studentID,
 		ActivityGroupID:  groupID,
 		EnrollmentDate:   enrollmentDate,
 		AttendanceStatus: status,
 	}
+	enrollment.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(enrollment).
@@ -48,7 +48,7 @@ func TestStudentEnrollmentRepository_Create(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentEnrollment
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates enrollment with valid data", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -96,7 +96,7 @@ func TestStudentEnrollmentRepository_Create_WithNil(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentEnrollment
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error when enrollment is nil", func(t *testing.T) {
 		err := repo.Create(ctx, nil)
@@ -110,7 +110,7 @@ func TestStudentEnrollmentRepository_FindByID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentEnrollment
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds existing enrollment", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Find", "Student", "1a")
@@ -138,7 +138,7 @@ func TestStudentEnrollmentRepository_Update(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentEnrollment
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates enrollment attendance status", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Update", "Student", "1a")
@@ -166,7 +166,7 @@ func TestStudentEnrollmentRepository_Update_WithNil(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentEnrollment
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error when enrollment is nil", func(t *testing.T) {
 		err := repo.Update(ctx, nil)
@@ -180,7 +180,7 @@ func TestStudentEnrollmentRepository_Delete(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentEnrollment
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes existing enrollment", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Delete", "Student", "1a")
@@ -208,7 +208,7 @@ func TestStudentEnrollmentRepository_List(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentEnrollment
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("lists all enrollments", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "List", "Student", "1a")
@@ -248,7 +248,7 @@ func TestStudentEnrollmentRepository_FindByStudentID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentEnrollment
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds enrollments for a student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Student", "Enrollments", "1a")
@@ -291,7 +291,7 @@ func TestStudentEnrollmentRepository_FindByGroupID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentEnrollment
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds enrollments for a group", func(t *testing.T) {
 		student1 := testpkg.CreateTestStudent(t, db, "Student", "One", "1a")
@@ -340,7 +340,7 @@ func TestStudentEnrollmentRepository_CountByGroupID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentEnrollment
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("counts enrollments in a group", func(t *testing.T) {
 		student1 := testpkg.CreateTestStudent(t, db, "Count", "One", "1a")
@@ -379,7 +379,7 @@ func TestStudentEnrollmentRepository_FindByEnrollmentDateRange(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentEnrollment
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds enrollments within date range", func(t *testing.T) {
 		// Create multiple students for multiple enrollments (unique constraint: student_id + group_id)
@@ -438,7 +438,7 @@ func TestStudentEnrollmentRepository_UpdateAttendanceStatus(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentEnrollment
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates attendance status to present", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Status", "Update", "1a")
@@ -523,7 +523,7 @@ func TestStudentEnrollmentRepository_Delete_NonExistent(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentEnrollment
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("does not error when deleting non-existent enrollment", func(t *testing.T) {
 		err := repo.Delete(ctx, int64(999999))

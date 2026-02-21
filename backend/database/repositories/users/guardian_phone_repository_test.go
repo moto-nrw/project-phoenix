@@ -1,7 +1,6 @@
 package users_test
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
@@ -21,7 +20,7 @@ func TestGuardianPhoneNumberRepository_Create(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianPhoneNumber
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates phone number with valid data", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "create-phone")
@@ -102,7 +101,7 @@ func TestGuardianPhoneNumberRepository_FindByID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianPhoneNumber
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds existing phone number", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "find-phone")
@@ -142,7 +141,7 @@ func TestGuardianPhoneNumberRepository_FindByGuardianID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianPhoneNumber
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds all phone numbers for guardian", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "find-all-phones")
@@ -205,7 +204,7 @@ func TestGuardianPhoneNumberRepository_GetPrimary(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianPhoneNumber
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("gets primary phone number", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "get-primary")
@@ -272,7 +271,7 @@ func TestGuardianPhoneNumberRepository_Update(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianPhoneNumber
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates phone number fields", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "update-phone")
@@ -334,7 +333,7 @@ func TestGuardianPhoneNumberRepository_Delete(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianPhoneNumber
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes existing phone number", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "delete-phone")
@@ -374,7 +373,7 @@ func TestGuardianPhoneNumberRepository_SetPrimary(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianPhoneNumber
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("sets phone as primary and unsets others", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "set-primary")
@@ -438,7 +437,7 @@ func TestGuardianPhoneNumberRepository_UnsetAllPrimary(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianPhoneNumber
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("unsets all primary flags", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "unset-primary")
@@ -483,7 +482,7 @@ func TestGuardianPhoneNumberRepository_CountByGuardianID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianPhoneNumber
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("counts phone numbers correctly", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "count-phones")
@@ -527,7 +526,7 @@ func TestGuardianPhoneNumberRepository_DeleteByGuardianID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianPhoneNumber
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes all phone numbers for guardian", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "delete-all")
@@ -574,7 +573,7 @@ func TestGuardianPhoneNumberRepository_GetNextPriority(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianPhoneNumber
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns 1 for guardian with no phones", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "next-priority-empty")

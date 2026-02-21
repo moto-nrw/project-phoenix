@@ -173,6 +173,7 @@ func (s *Seeder) resetData(ctx context.Context) error {
 		"users.persons",
 
 		// Auth
+		"auth.account_tenants",
 		"auth.tokens",
 		"auth.account_roles",
 		"auth.accounts",
@@ -328,8 +329,11 @@ func (s *Seeder) printSummary(result *Result) {
 		fmt.Printf("  Students Checked In: %d\n", checkedIn)
 	}
 
+	fmt.Println("\nMulti-Tenant Setup:")
+	fmt.Println("  school-a.localhost:3000 — Grundschule Am Park (primary, all seed data)")
+	fmt.Println("  school-b.localhost:3000 — Grundschule Sonnenweg (minimal data, isolation testing)")
 	fmt.Println("\nThe database is now ready for testing RFID check-ins/check-outs!")
-	fmt.Println("Use the admin account: admin@example.com / Test1234%")
+	fmt.Println("Use the admin account: admin@example.com / Test1234% (has access to both schools)")
 	if result.Fixed != nil && len(result.Fixed.Operators) > 0 {
 		fmt.Println("\nOperator dashboard account: operator@example.com / Test1234%")
 	}

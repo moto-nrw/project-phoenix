@@ -498,8 +498,8 @@ func (s *Service) CanModifyActivity(ctx context.Context, groupID int64, staffID 
 		return false, &ActivityError{Op: opCheckPermissions, Err: err}
 	}
 
-	// Check if user is the creator
-	if group.CreatedBy == staffID {
+	// Check if user is the creator (system-created groups with NULL created_by are not owned by any staff)
+	if group.CreatedBy != nil && *group.CreatedBy == staffID {
 		return true, nil
 	}
 

@@ -145,16 +145,17 @@ func (rs *Resource) Router() chi.Router {
 		r.Use(tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
 		r.Use(jwt.TenantMiddleware)
+		withTx := tenant.TenantTxMiddleware(rs.db)
 
 		// Read operations require substitutions:read permission
-		r.With(authorize.RequiresPermission(permissions.SubstitutionsRead)).Get("/", rs.list)
-		r.With(authorize.RequiresPermission(permissions.SubstitutionsRead)).Get("/active", rs.listActive)
-		r.With(authorize.RequiresPermission(permissions.SubstitutionsRead)).Get("/{id}", rs.get)
+		r.With(authorize.RequiresPermission(permissions.SubstitutionsRead), withTx).Get("/", rs.list)
+		r.With(authorize.RequiresPermission(permissions.SubstitutionsRead), withTx).Get("/active", rs.listActive)
+		r.With(authorize.RequiresPermission(permissions.SubstitutionsRead), withTx).Get("/{id}", rs.get)
 
 		// Write operations require substitutions:create/update/delete permissions
-		r.With(authorize.RequiresPermission(permissions.SubstitutionsCreate)).Post("/", rs.create)
-		r.With(authorize.RequiresPermission(permissions.SubstitutionsUpdate)).Put("/{id}", rs.update)
-		r.With(authorize.RequiresPermission(permissions.SubstitutionsDelete)).Delete("/{id}", rs.delete)
+		r.With(authorize.RequiresPermission(permissions.SubstitutionsCreate), withTx).Post("/", rs.create)
+		r.With(authorize.RequiresPermission(permissions.SubstitutionsUpdate), withTx).Put("/{id}", rs.update)
+		r.With(authorize.RequiresPermission(permissions.SubstitutionsDelete), withTx).Delete("/{id}", rs.delete)
 	})
 
 	return r

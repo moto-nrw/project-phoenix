@@ -62,6 +62,13 @@ func (rs *Resource) Router() chi.Router {
 		r.Post("/login", rs.authResource.Login)
 	})
 
+	// Refresh token route (requires valid refresh JWT, no scope check)
+	r.Group(func(r chi.Router) {
+		r.Use(rs.tokenAuth.Verifier())
+		r.Use(jwt.AuthenticateRefreshJWT)
+		r.Post("/auth/refresh", rs.authResource.RefreshToken)
+	})
+
 	// Protected routes (require operator auth)
 	r.Group(func(r chi.Router) {
 		r.Use(rs.tokenAuth.Verifier())

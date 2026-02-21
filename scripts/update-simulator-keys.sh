@@ -21,7 +21,7 @@ while IFS=, read -r device_id api_key; do
     continue
   fi
   echo "Updating $device_id -> $api_key"
-  yq -i "
+  yq -y -i "
     (.devices[] | select(.device_id == \"$device_id\") | .api_key) = \"$api_key\"
   " "$tmp"
 done <<< "$rows"

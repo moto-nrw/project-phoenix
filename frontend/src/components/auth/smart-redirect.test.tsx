@@ -59,7 +59,7 @@ describe("SmartRedirect", () => {
     render(<SmartRedirect />);
 
     await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith("/dashboard");
+      expect(mockPush).toHaveBeenCalledWith("/test-tenant/dashboard");
       expect(mockRefresh).toHaveBeenCalled();
     });
   });
@@ -133,7 +133,7 @@ describe("SmartRedirect", () => {
     render(<SmartRedirect />);
 
     await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith("/active-supervisions");
+      expect(mockPush).toHaveBeenCalledWith("/test-tenant/active-supervisions");
     });
   });
 

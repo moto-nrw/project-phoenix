@@ -476,3 +476,4 @@ node_modules/
 .playwright-mcp
 .husky/
 .gitattributes
+.beads/

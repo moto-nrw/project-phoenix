@@ -100,7 +100,7 @@ func CreateTestActivityGroup(tb testing.TB, db *bun.DB, name string) *activities
 		MaxParticipants: 20,
 		IsOpen:          true,
 		CategoryID:      category.ID,
-		CreatedBy:       staff.ID,
+		CreatedBy:       &staff.ID,
 	}
 	group.SetTenantID(1)
 
@@ -1931,6 +1931,37 @@ func EnsureTestTenant(tb testing.TB, db *bun.DB, tenantID int64) {
 	require.NoError(tb, err, "Failed to ensure test school")
 }
 
+// MapAccountToTenant creates an active account_tenants mapping without
+// ensuring the tenant infrastructure (organization/school) exists first.
+// Use this when the tenant has already been ensured via EnsureTestTenant.
+func MapAccountToTenant(t *testing.T, db *bun.DB, accountID, tenantID int64) {
+	t.Helper()
+	_, err := db.ExecContext(context.Background(),
+		`INSERT INTO auth.account_tenants (account_id, tenant_id, status, created_at, updated_at)
+		 VALUES (?, ?, 'active', NOW(), NOW())
+		 ON CONFLICT (account_id, tenant_id) DO NOTHING`, accountID, tenantID)
+	require.NoError(t, err)
+}
+
+// EnsureAccountTenant creates an active account_tenants mapping so that
+// resolveAccountTenantDefault can find a tenant for the account during login.
+// Uses ON CONFLICT DO NOTHING so it is safe to call multiple times.
+func EnsureAccountTenant(tb testing.TB, db *bun.DB, accountID, tenantID int64) {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	EnsureTestTenant(tb, db, tenantID)
+
+	_, err := db.ExecContext(ctx, `
+		INSERT INTO auth.account_tenants (account_id, tenant_id, status, created_at, updated_at)
+		VALUES (?, ?, 'active', NOW(), NOW())
+		ON CONFLICT (account_id, tenant_id) DO NOTHING`,
+		accountID, tenantID)
+	require.NoError(tb, err, "Failed to ensure account tenant mapping")
+}
+
 // CreateTestPersonForTenant creates a person belonging to a specific tenant.
 func CreateTestPersonForTenant(tb testing.TB, db *bun.DB, tenantID int64, firstName, lastName string) *users.Person {
 	tb.Helper()
@@ -2228,7 +2259,7 @@ func CreateTestActivityGroupForTenant(tb testing.TB, db *bun.DB, tenantID int64,
 		MaxParticipants: 20,
 		IsOpen:          true,
 		CategoryID:      category.ID,
-		CreatedBy:       staff.ID,
+		CreatedBy:       &staff.ID,
 	}
 	group.SetTenantID(tenantID)
 
@@ -2269,6 +2300,30 @@ func CreateTestActiveGroupForTenant(tb testing.TB, db *bun.DB, tenantID int64) *
 	require.NoError(tb, err, "Failed to create test active group for tenant")
 
 	return activeGroup
+}
+
+// CreateTestVisitForTenant creates a visit belonging to a specific tenant.
+func CreateTestVisitForTenant(tb testing.TB, db *bun.DB, tenantID int64, studentID, activeGroupID int64, entryTime time.Time, exitTime *time.Time) *active.Visit {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	visit := &active.Visit{
+		StudentID:     studentID,
+		ActiveGroupID: activeGroupID,
+		EntryTime:     entryTime,
+		ExitTime:      exitTime,
+	}
+	visit.SetTenantID(tenantID)
+
+	err := db.NewInsert().
+		Model(visit).
+		ModelTableExpr(`active.visits`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test visit for tenant")
+
+	return visit
 }
 
 // CreateTestSuggestionPostForTenant creates a suggestion post belonging to a specific tenant.

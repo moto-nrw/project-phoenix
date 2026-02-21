@@ -175,6 +175,7 @@ describe("authService", () => {
       name: "New User",
       password: "password123",
       confirmPassword: "password123",
+      roleId: 2,
     };
 
     it("registers user in server context", async () => {
@@ -215,6 +216,56 @@ describe("authService", () => {
       await expect(authService.register(registerData)).rejects.toThrow(
         "Registration failed: 400",
       );
+    });
+
+    it("always includes role_id in browser registration request", async () => {
+      vi.stubGlobal("window", {});
+
+      const mockResponse = {
+        ok: true,
+        json: async () => ({ data: sampleBackendAccount }),
+      };
+      const browserFetch = vi.fn().mockResolvedValueOnce(mockResponse);
+      vi.stubGlobal("fetch", browserFetch);
+
+      const registerDataWithRole: RegisterRequest = {
+        email: "new@example.com",
+        username: "newuser",
+        name: "New User",
+        password: "password123",
+        confirmPassword: "password123",
+        roleId: 2,
+      };
+
+      await authService.register(registerDataWithRole);
+
+      const fetchBody = JSON.parse(
+        (browserFetch.mock.calls[0] as [string, { body: string }])[1].body,
+      ) as Record<string, unknown>;
+      expect(fetchBody.role_id).toBe(2);
+    });
+
+    it("always includes role_id in server registration request", async () => {
+      mockedApiPost.mockResolvedValueOnce({
+        data: { data: sampleBackendAccount },
+      });
+
+      const registerDataWithRole: RegisterRequest = {
+        email: "new@example.com",
+        username: "newuser",
+        name: "New User",
+        password: "password123",
+        confirmPassword: "password123",
+        roleId: 2,
+      };
+
+      await authService.register(registerDataWithRole);
+
+      const postBody = mockedApiPost.mock.calls[0]?.[1] as Record<
+        string,
+        unknown
+      >;
+      expect(postBody.role_id).toBe(2);
     });
   });
 

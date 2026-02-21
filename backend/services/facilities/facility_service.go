@@ -300,7 +300,10 @@ func (s *service) ListRooms(ctx context.Context, options *base.QueryOptions) ([]
 func (s *service) FindRoomByName(ctx context.Context, name string) (*facilities.Room, error) {
 	room, err := s.roomRepo.FindByName(ctx, name)
 	if err != nil {
-		return nil, &FacilitiesError{Op: "find room by name", Err: ErrRoomNotFound}
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, &FacilitiesError{Op: "find room by name", Err: ErrRoomNotFound}
+		}
+		return nil, &FacilitiesError{Op: "find room by name", Err: err}
 	}
 
 	return room, nil

@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/render"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -26,6 +25,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -43,7 +43,7 @@ func setupTestContext(t *testing.T) *testContext {
 	t.Helper()
 
 	db, svc := testutil.SetupAPITest(t)
-	resource := authAPI.NewResource(svc.Auth, svc.Invitation)
+	resource := authAPI.NewResource(svc.Auth, svc.Invitation, nil)
 
 	t.Cleanup(func() {
 		if err := db.Close(); err != nil {
@@ -72,8 +72,7 @@ func setupPublicRouterWithDB(t *testing.T) (*bun.DB, chi.Router) {
 
 	tc := setupTestContext(t)
 
-	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
+	router := testutil.NewTenantRouter(tc.db)
 	router.Mount("/auth", tc.resource.Router())
 
 	return tc.db, router
@@ -86,8 +85,7 @@ func setupProtectedRouter(t *testing.T) (*testContext, chi.Router) {
 
 	tc := setupTestContext(t)
 
-	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
+	router := testutil.NewTenantRouter(tc.db)
 
 	// Mount routes without JWT middleware for testing
 	// We'll set context values directly in tests
@@ -142,8 +140,7 @@ func setupExtendedProtectedRouter(t *testing.T) (*testContext, chi.Router) {
 
 	tc := setupTestContext(t)
 
-	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
+	router := testutil.NewTenantRouter(tc.db)
 
 	// Mount routes without JWT middleware for testing
 	router.Route("/auth", func(r chi.Router) {
@@ -250,7 +247,7 @@ func cleanupRoleRecords(t *testing.T, db *bun.DB, roleIDs ...int64) {
 		return
 	}
 
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Remove role-permission mappings
 	_, _ = db.NewDelete().
@@ -281,7 +278,7 @@ func cleanupPermissionRecords(t *testing.T, db *bun.DB, permissionIDs ...int64) 
 		return
 	}
 
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Remove role-permission mappings
 	_, _ = db.NewDelete().
@@ -313,14 +310,14 @@ func cleanupPermissionRecords(t *testing.T, db *bun.DB, permissionIDs ...int64) 
 func TestLogin(t *testing.T) {
 	tc := setupTestContext(t)
 
-	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
+	router := testutil.NewTenantRouter(tc.db)
 	router.Mount("/auth", tc.resource.Router())
 
 	// Create a fresh test account to avoid stale tokens from seed data
 	testEmail := fmt.Sprintf("logintest-%d@example.com", time.Now().UnixNano())
 	testPassword := "Test1234%"
 	account := testpkg.CreateTestAccountWithPassword(t, tc.db, testEmail, testPassword)
+	testpkg.EnsureAccountTenant(t, tc.db, account.ID, 1)
 
 	t.Run("success with valid credentials", func(t *testing.T) {
 		body := map[string]string{
@@ -364,8 +361,9 @@ func TestLogin(t *testing.T) {
 
 	// Cleanup test account
 	t.Cleanup(func() {
-		ctx := context.Background()
+		ctx := testpkg.TenantContext(1)
 		_, _ = tc.db.NewDelete().TableExpr("auth.tokens").Where("account_id = ?", account.ID).Exec(ctx)
+		_, _ = tc.db.NewDelete().TableExpr("auth.account_tenants").Where("account_id = ?", account.ID).Exec(ctx)
 		_, _ = tc.db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(ctx)
 	})
 
@@ -400,9 +398,68 @@ func TestLogin(t *testing.T) {
 	})
 }
 
-// TestRegister tests the registration endpoint
+// loginAsAdmin creates an admin account, assigns it the "admin" role, logs in via the
+// router, and returns a valid JWT access token plus a valid non-admin role ID that can
+// be used as role_id in registration payloads.
+func loginAsAdmin(t *testing.T, db *bun.DB, router chi.Router) (token string, validRoleID int64) {
+	t.Helper()
+	ctx := context.Background()
+
+	// Belt-and-suspenders: ensure FK target row for tenant_id=1 exists.
+	// SetupTestDB already calls EnsureTestTenant, but parallel test packages
+	// sharing the same database may interfere.
+	testpkg.EnsureTestTenant(t, db, 1)
+
+	// 1. Create admin account with known password
+	adminEmail := fmt.Sprintf("registeradmin_%d@example.com", time.Now().UnixNano())
+	adminPassword := "AdminPass123!"
+	adminAccount := testpkg.CreateTestAccountWithPassword(t, db, adminEmail, adminPassword)
+
+	// Map account to tenant 1 so Login can resolve the tenant for JWT/token creation
+	testpkg.EnsureAccountTenant(t, db, adminAccount.ID, 1)
+
+	// 2. Get or create "admin" role and assign it
+	adminRole := testpkg.GetOrCreateTestRole(t, db, "admin")
+	accountRole := &authModel.AccountRole{
+		AccountID: adminAccount.ID,
+		RoleID:    adminRole.ID,
+	}
+	accountRole.SetTenantID(1)
+	_, err := db.NewInsert().Model(accountRole).ModelTableExpr("auth.account_roles").Exec(ctx)
+	require.NoError(t, err, "Failed to assign admin role")
+
+	// 3. Get or create a "user" role to use as valid role_id in test payloads
+	userRole := testpkg.GetOrCreateTestRole(t, db, "user")
+
+	// 4. Login to get a real JWT token
+	loginBody := map[string]string{
+		"email":    adminEmail,
+		"password": adminPassword,
+	}
+	loginReq := testutil.NewJSONRequest(t, "POST", "/auth/login", loginBody)
+	loginRR := testutil.ExecuteRequest(router, loginReq)
+	require.Equal(t, http.StatusOK, loginRR.Code, "Admin login failed: %s", loginRR.Body.String())
+
+	loginResp := testutil.ParseJSONResponse(t, loginRR.Body.Bytes())
+	accessToken, ok := loginResp["access_token"].(string)
+	require.True(t, ok, "Expected access_token string in login response")
+
+	// 5. Cleanup admin account on test completion
+	t.Cleanup(func() {
+		_, _ = db.NewDelete().TableExpr("auth.account_roles").Where("account_id = ?", adminAccount.ID).Exec(ctx)
+		_, _ = db.NewDelete().TableExpr("auth.tokens").Where("account_id = ?", adminAccount.ID).Exec(ctx)
+		testpkg.CleanupAccount(t, db, adminAccount.ID)
+	})
+
+	return accessToken, userRole.ID
+}
+
+// TestRegister tests the registration endpoint (requires admin auth + valid role_id)
 func TestRegister(t *testing.T) {
 	db, router := setupPublicRouterWithDB(t)
+
+	// Get admin token and a valid role ID for all subtests
+	adminToken, validRoleID := loginAsAdmin(t, db, router)
 
 	// Helper to extract account ID from successful registration response
 	extractAccountID := func(t *testing.T, rr *httptest.ResponseRecorder) int64 {
@@ -421,14 +478,16 @@ func TestRegister(t *testing.T) {
 		email := fmt.Sprintf("testregister_%d@example.com", time.Now().UnixNano())
 		username := fmt.Sprintf("user_%d", time.Now().UnixNano())
 
-		body := map[string]string{
+		body := map[string]interface{}{
 			"email":            email,
 			"username":         username,
 			"password":         "SecurePass123!",
 			"confirm_password": "SecurePass123!",
+			"role_id":          validRoleID,
 		}
 
 		req := testutil.NewJSONRequest(t, "POST", "/auth/register", body)
+		req.Header.Set("Authorization", "Bearer "+adminToken)
 		rr := testutil.ExecuteRequest(router, req)
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
@@ -450,13 +509,15 @@ func TestRegister(t *testing.T) {
 		username1 := fmt.Sprintf("user1_%d", time.Now().UnixNano())
 
 		// First registration
-		body := map[string]string{
+		body := map[string]interface{}{
 			"email":            uniqueEmail,
 			"username":         username1,
 			"password":         "SecurePass123!",
 			"confirm_password": "SecurePass123!",
+			"role_id":          validRoleID,
 		}
 		req := testutil.NewJSONRequest(t, "POST", "/auth/register", body)
+		req.Header.Set("Authorization", "Bearer "+adminToken)
 		rr := testutil.ExecuteRequest(router, req)
 		require.Equal(t, http.StatusCreated, rr.Code, "First registration should succeed. Body: %s", rr.Body.String())
 
@@ -467,6 +528,7 @@ func TestRegister(t *testing.T) {
 		// Second registration with same email, different username
 		body["username"] = fmt.Sprintf("user2_%d", time.Now().UnixNano())
 		req = testutil.NewJSONRequest(t, "POST", "/auth/register", body)
+		req.Header.Set("Authorization", "Bearer "+adminToken)
 		rr = testutil.ExecuteRequest(router, req)
 
 		testutil.AssertBadRequest(t, rr)
@@ -474,14 +536,16 @@ func TestRegister(t *testing.T) {
 
 	t.Run("bad request with weak password", func(t *testing.T) {
 		// Use unique identifiers even though registration should fail
-		body := map[string]string{
+		body := map[string]interface{}{
 			"email":            fmt.Sprintf("weakpass_%d@example.com", time.Now().UnixNano()),
 			"username":         fmt.Sprintf("weakpassuser_%d", time.Now().UnixNano()),
 			"password":         "weak",
 			"confirm_password": "weak",
+			"role_id":          validRoleID,
 		}
 
 		req := testutil.NewJSONRequest(t, "POST", "/auth/register", body)
+		req.Header.Set("Authorization", "Bearer "+adminToken)
 		rr := testutil.ExecuteRequest(router, req)
 
 		testutil.AssertBadRequest(t, rr)
@@ -489,14 +553,16 @@ func TestRegister(t *testing.T) {
 
 	t.Run("bad request with password mismatch", func(t *testing.T) {
 		// Use unique identifiers even though registration should fail
-		body := map[string]string{
+		body := map[string]interface{}{
 			"email":            fmt.Sprintf("mismatch_%d@example.com", time.Now().UnixNano()),
 			"username":         fmt.Sprintf("mismatchuser_%d", time.Now().UnixNano()),
 			"password":         "SecurePass123!",
 			"confirm_password": "DifferentPass123!",
+			"role_id":          validRoleID,
 		}
 
 		req := testutil.NewJSONRequest(t, "POST", "/auth/register", body)
+		req.Header.Set("Authorization", "Bearer "+adminToken)
 		rr := testutil.ExecuteRequest(router, req)
 
 		testutil.AssertBadRequest(t, rr)
@@ -504,14 +570,16 @@ func TestRegister(t *testing.T) {
 
 	t.Run("bad request with invalid email", func(t *testing.T) {
 		// Use unique username even though registration should fail
-		body := map[string]string{
+		body := map[string]interface{}{
 			"email":            "invalid-email",
 			"username":         fmt.Sprintf("invaliduser_%d", time.Now().UnixNano()),
 			"password":         "SecurePass123!",
 			"confirm_password": "SecurePass123!",
+			"role_id":          validRoleID,
 		}
 
 		req := testutil.NewJSONRequest(t, "POST", "/auth/register", body)
+		req.Header.Set("Authorization", "Bearer "+adminToken)
 		rr := testutil.ExecuteRequest(router, req)
 
 		testutil.AssertBadRequest(t, rr)
@@ -519,17 +587,187 @@ func TestRegister(t *testing.T) {
 
 	t.Run("bad request with short username", func(t *testing.T) {
 		// Email should be unique, username is intentionally short (invalid)
-		body := map[string]string{
+		body := map[string]interface{}{
 			"email":            fmt.Sprintf("shortuser_%d@example.com", time.Now().UnixNano()),
 			"username":         "ab",
+			"password":         "SecurePass123!",
+			"confirm_password": "SecurePass123!",
+			"role_id":          validRoleID,
+		}
+
+		req := testutil.NewJSONRequest(t, "POST", "/auth/register", body)
+		req.Header.Set("Authorization", "Bearer "+adminToken)
+		rr := testutil.ExecuteRequest(router, req)
+
+		testutil.AssertBadRequest(t, rr)
+	})
+}
+
+// TestRegisterRequiresAdminAuth tests that the register endpoint enforces admin authentication
+func TestRegisterRequiresAdminAuth(t *testing.T) {
+	db, router := setupPublicRouterWithDB(t)
+
+	// Valid registration payload (would succeed if auth were present)
+	validBody := func() map[string]interface{} {
+		return map[string]interface{}{
+			"email":            fmt.Sprintf("authtest_%d@example.com", time.Now().UnixNano()),
+			"username":         fmt.Sprintf("authuser_%d", time.Now().UnixNano()),
+			"password":         "SecurePass123!",
+			"confirm_password": "SecurePass123!",
+			"role_id":          1,
+		}
+	}
+
+	t.Run("unauthenticated returns unauthorized", func(t *testing.T) {
+		req := testutil.NewJSONRequest(t, "POST", "/auth/register", validBody())
+		rr := testutil.ExecuteRequest(router, req)
+
+		testutil.AssertUnauthorized(t, rr)
+	})
+
+	t.Run("invalid token returns unauthorized", func(t *testing.T) {
+		req := testutil.NewJSONRequest(t, "POST", "/auth/register", validBody())
+		req.Header.Set("Authorization", "Bearer garbage-token-value")
+		rr := testutil.ExecuteRequest(router, req)
+
+		testutil.AssertUnauthorized(t, rr)
+	})
+
+	t.Run("non-admin returns unauthorized", func(t *testing.T) {
+		// Create a regular (non-admin) account and log in
+		userEmail := fmt.Sprintf("nonadmin_%d@example.com", time.Now().UnixNano())
+		userPassword := "UserPass123!"
+		userAccount := testpkg.CreateTestAccountWithPassword(t, db, userEmail, userPassword)
+		testpkg.EnsureAccountTenant(t, db, userAccount.ID, 1)
+
+		// Assign a "user" role (not admin)
+		userRole := testpkg.GetOrCreateTestRole(t, db, "user")
+		ctx := context.Background()
+		userAccountRole := &authModel.AccountRole{
+			AccountID: userAccount.ID,
+			RoleID:    userRole.ID,
+		}
+		userAccountRole.SetTenantID(1)
+		_, err := db.NewInsert().Model(userAccountRole).ModelTableExpr("auth.account_roles").Exec(ctx)
+		require.NoError(t, err)
+
+		t.Cleanup(func() {
+			_, _ = db.NewDelete().TableExpr("auth.account_roles").Where("account_id = ?", userAccount.ID).Exec(ctx)
+			_, _ = db.NewDelete().TableExpr("auth.tokens").Where("account_id = ?", userAccount.ID).Exec(ctx)
+			testpkg.CleanupAccount(t, db, userAccount.ID)
+		})
+
+		// Login to get a real token
+		loginReq := testutil.NewJSONRequest(t, "POST", "/auth/login", map[string]string{
+			"email":    userEmail,
+			"password": userPassword,
+		})
+		loginRR := testutil.ExecuteRequest(router, loginReq)
+		require.Equal(t, http.StatusOK, loginRR.Code, "Login failed: %s", loginRR.Body.String())
+
+		loginResp := testutil.ParseJSONResponse(t, loginRR.Body.Bytes())
+		accessToken := loginResp["access_token"].(string)
+
+		// Try to register with non-admin token
+		req := testutil.NewJSONRequest(t, "POST", "/auth/register", validBody())
+		req.Header.Set("Authorization", "Bearer "+accessToken)
+		rr := testutil.ExecuteRequest(router, req)
+
+		testutil.AssertUnauthorized(t, rr)
+	})
+
+	t.Run("admin without role_id returns bad request", func(t *testing.T) {
+		adminToken, _ := loginAsAdmin(t, db, router)
+
+		body := map[string]interface{}{
+			"email":            fmt.Sprintf("norole_%d@example.com", time.Now().UnixNano()),
+			"username":         fmt.Sprintf("noroleuser_%d", time.Now().UnixNano()),
 			"password":         "SecurePass123!",
 			"confirm_password": "SecurePass123!",
 		}
 
 		req := testutil.NewJSONRequest(t, "POST", "/auth/register", body)
+		req.Header.Set("Authorization", "Bearer "+adminToken)
 		rr := testutil.ExecuteRequest(router, req)
 
 		testutil.AssertBadRequest(t, rr)
+	})
+
+	t.Run("admin with role_id zero returns bad request", func(t *testing.T) {
+		adminToken, _ := loginAsAdmin(t, db, router)
+
+		body := map[string]interface{}{
+			"email":            fmt.Sprintf("zerorole_%d@example.com", time.Now().UnixNano()),
+			"username":         fmt.Sprintf("zerorole_%d", time.Now().UnixNano()),
+			"password":         "SecurePass123!",
+			"confirm_password": "SecurePass123!",
+			"role_id":          0,
+		}
+
+		req := testutil.NewJSONRequest(t, "POST", "/auth/register", body)
+		req.Header.Set("Authorization", "Bearer "+adminToken)
+		rr := testutil.ExecuteRequest(router, req)
+
+		testutil.AssertBadRequest(t, rr)
+	})
+
+	t.Run("admin with negative role_id returns bad request", func(t *testing.T) {
+		adminToken, _ := loginAsAdmin(t, db, router)
+
+		body := map[string]interface{}{
+			"email":            fmt.Sprintf("negrole_%d@example.com", time.Now().UnixNano()),
+			"username":         fmt.Sprintf("negrole_%d", time.Now().UnixNano()),
+			"password":         "SecurePass123!",
+			"confirm_password": "SecurePass123!",
+			"role_id":          -1,
+		}
+
+		req := testutil.NewJSONRequest(t, "POST", "/auth/register", body)
+		req.Header.Set("Authorization", "Bearer "+adminToken)
+		rr := testutil.ExecuteRequest(router, req)
+
+		testutil.AssertBadRequest(t, rr)
+	})
+
+	t.Run("admin with non-existent role_id returns bad request", func(t *testing.T) {
+		adminToken, _ := loginAsAdmin(t, db, router)
+		body := map[string]interface{}{
+			"email":            fmt.Sprintf("badrole_%d@example.com", time.Now().UnixNano()),
+			"username":         fmt.Sprintf("badrole_%d", time.Now().UnixNano()),
+			"password":         "SecurePass123!",
+			"confirm_password": "SecurePass123!",
+			"role_id":          99999,
+		}
+		req := testutil.NewJSONRequest(t, "POST", "/auth/register", body)
+		req.Header.Set("Authorization", "Bearer "+adminToken)
+		rr := testutil.ExecuteRequest(router, req)
+		testutil.AssertBadRequest(t, rr)
+	})
+
+	t.Run("admin with valid role_id succeeds", func(t *testing.T) {
+		adminToken, validRoleID := loginAsAdmin(t, db, router)
+
+		email := fmt.Sprintf("adminsuccess_%d@example.com", time.Now().UnixNano())
+		username := fmt.Sprintf("adminsuc_%d", time.Now().UnixNano())
+		body := map[string]interface{}{
+			"email":            email,
+			"username":         username,
+			"password":         "SecurePass123!",
+			"confirm_password": "SecurePass123!",
+			"role_id":          validRoleID,
+		}
+
+		req := testutil.NewJSONRequest(t, "POST", "/auth/register", body)
+		req.Header.Set("Authorization", "Bearer "+adminToken)
+		rr := testutil.ExecuteRequest(router, req)
+
+		testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
+
+		// Cleanup created account
+		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+		data := response["data"].(map[string]interface{})
+		accountID := int64(data["id"].(float64))
+		testpkg.CleanupAccount(t, db, accountID)
 	})
 }
 
@@ -1607,8 +1845,7 @@ func setupRefreshTokenRouter(t *testing.T) (*testContext, chi.Router) {
 
 	tc := setupTestContext(t)
 
-	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
+	router := testutil.NewTenantRouter(tc.db)
 
 	// Use the full public router for refresh/logout
 	// These routes require JWT middleware which we bypass via context

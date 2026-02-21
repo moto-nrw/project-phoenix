@@ -19,7 +19,7 @@ type Group struct {
 	IsOpen          bool   `bun:"is_open,notnull,default:false" json:"is_open"`
 	CategoryID      int64  `bun:"category_id,notnull" json:"category_id"`
 	PlannedRoomID   *int64 `bun:"planned_room_id" json:"planned_room_id,omitempty"`
-	CreatedBy       int64  `bun:"created_by,notnull" json:"created_by"`
+	CreatedBy       *int64 `bun:"created_by" json:"created_by"`
 
 	// Relations - populated when using the ORM's relations
 	Category       *Category            `bun:"rel:belongs-to,join:category_id=id" json:"category,omitempty"`
@@ -74,16 +74,12 @@ func (g *Group) Validate() error {
 		return errors.New("category ID is required")
 	}
 
-	if g.CreatedBy <= 0 {
-		return errors.New("created_by is required")
-	}
-
 	return nil
 }
 
 // IsOwnedBy checks if the group was created by the given staff member
 func (g *Group) IsOwnedBy(staffID int64) bool {
-	return g.CreatedBy == staffID
+	return g.CreatedBy != nil && *g.CreatedBy == staffID
 }
 
 // IsSupervisedBy checks if the given staff member is a supervisor of this group

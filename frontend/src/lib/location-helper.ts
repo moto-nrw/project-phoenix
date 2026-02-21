@@ -70,7 +70,7 @@ function normalizeStatusKeyword(rawStatus: string): string {
   const key = trimmed.toLowerCase();
 
   if (key === "wc" || key === "bathroom" || key === "toilette") {
-    return `${LOCATION_STATUSES.PRESENT} - WC`;
+    return `${LOCATION_STATUSES.PRESENT} - Toilette`;
   }
 
   const mapped = LEGACY_STATUS_MAP[key];
@@ -100,7 +100,9 @@ export function normalizeLocation(location?: string | null): string {
     return normalizedStatus;
   }
 
-  return `${normalizedStatus} - ${room}`;
+  const normalizedRoom = room.toLowerCase() === "wc" ? "Toilette" : room;
+
+  return `${normalizedStatus} - ${normalizedRoom}`;
 }
 
 /**

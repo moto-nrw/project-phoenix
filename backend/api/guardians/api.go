@@ -10,6 +10,7 @@ import (
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	userContextSvc "github.com/moto-nrw/project-phoenix/services/usercontext"
 	guardianSvc "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -59,41 +60,42 @@ func (rs *Resource) Router() chi.Router {
 		r.Use(tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
 		r.Use(jwt.TenantMiddleware)
+		withTx := tenant.TenantTxMiddleware(rs.db)
 
 		// Guardian profile CRUD operations
 		// Read operations require users:read permission
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/", rs.listGuardians)
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}", rs.getGuardian)
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/without-account", rs.listGuardiansWithoutAccount)
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/invitable", rs.listInvitableGuardians)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/", rs.listGuardians)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}", rs.getGuardian)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/without-account", rs.listGuardiansWithoutAccount)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/invitable", rs.listInvitableGuardians)
 
 		// Write operations - guardian profile creation allowed for all staff
 		// Security enforced when linking guardians to students
-		r.Post("/", rs.createGuardian)
-		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Put("/{id}", rs.updateGuardian)
-		r.With(authorize.RequiresPermission(permissions.UsersDelete)).Delete("/{id}", rs.deleteGuardian)
+		r.With(withTx).Post("/", rs.createGuardian)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}", rs.updateGuardian)
+		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Delete("/{id}", rs.deleteGuardian)
 
 		// Guardian invitations
-		r.With(authorize.RequiresPermission(permissions.UsersCreate)).Post("/{id}/invite", rs.sendInvitation)
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/invitations/pending", rs.listPendingInvitations)
+		r.With(authorize.RequiresPermission(permissions.UsersCreate), withTx).Post("/{id}/invite", rs.sendInvitation)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/invitations/pending", rs.listPendingInvitations)
 
 		// Student-guardian relationships
 		// Anyone with users:read can view guardians (for emergency cases)
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/students/{studentId}/guardians", rs.getStudentGuardians)
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}/students", rs.getGuardianStudents)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/students/{studentId}/guardians", rs.getStudentGuardians)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/students", rs.getGuardianStudents)
 
 		// Create/Update/Delete relationships - custom supervisor permissions checked in handlers
-		r.Post("/students/{studentId}/guardians", rs.linkGuardianToStudent)
-		r.Put("/relationships/{relationshipId}", rs.updateStudentGuardianRelationship)
-		r.Delete("/students/{studentId}/guardians/{guardianId}", rs.removeGuardianFromStudent)
+		r.With(withTx).Post("/students/{studentId}/guardians", rs.linkGuardianToStudent)
+		r.With(withTx).Put("/relationships/{relationshipId}", rs.updateStudentGuardianRelationship)
+		r.With(withTx).Delete("/students/{studentId}/guardians/{guardianId}", rs.removeGuardianFromStudent)
 
 		// Phone number management (nested under guardian)
 		r.Route("/{id}/phone-numbers", func(r chi.Router) {
-			r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/", rs.listGuardianPhoneNumbers)
-			r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Post("/", rs.addPhoneNumber)
-			r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Put("/{phoneId}", rs.updatePhoneNumber)
-			r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Delete("/{phoneId}", rs.deletePhoneNumber)
-			r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Post("/{phoneId}/set-primary", rs.setPrimaryPhone)
+			r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/", rs.listGuardianPhoneNumbers)
+			r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/", rs.addPhoneNumber)
+			r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{phoneId}", rs.updatePhoneNumber)
+			r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Delete("/{phoneId}", rs.deletePhoneNumber)
+			r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/{phoneId}/set-primary", rs.setPrimaryPhone)
 		})
 	})
 

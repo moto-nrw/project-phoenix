@@ -12,8 +12,14 @@ vi.mock("swr", () => ({
   default: vi.fn(),
 }));
 
+// Mock tenant provider — tests run outside a TenantProvider, so slug is null.
+vi.mock("~/components/tenant/tenant-provider", () => ({
+  useTenantSlugSafe: () => null,
+}));
+
 // Import mocked modules
 import { useSession } from "next-auth/react";
+// eslint-disable-next-line no-restricted-imports -- test mock at module boundary
 import useSWR from "swr";
 
 // Helper to create mock session data

@@ -64,29 +64,30 @@ func NewResource(service usercontext.UserContextService, substitutionRepo educat
 	r.router.Use(tokenAuth.Verifier())
 	r.router.Use(jwt.Authenticator)
 	r.router.Use(jwt.TenantMiddleware)
+	withTx := tenant.TenantTxMiddleware(r.db)
 
 	// User profile endpoints
-	r.router.Get("/", r.getCurrentUser)
-	r.router.Get("/profile", r.getCurrentProfile)
-	r.router.Put("/profile", r.updateCurrentProfile)
-	r.router.Post("/profile/avatar", r.uploadAvatar)
-	r.router.Delete("/profile/avatar", r.deleteAvatar)
-	r.router.Get("/profile/avatar/{filename}", r.serveAvatar)
-	r.router.Get("/staff", r.getCurrentStaff)
-	r.router.Get("/teacher", r.getCurrentTeacher)
+	r.router.With(withTx).Get("/", r.getCurrentUser)
+	r.router.With(withTx).Get("/profile", r.getCurrentProfile)
+	r.router.With(withTx).Put("/profile", r.updateCurrentProfile)
+	r.router.With(withTx).Post("/profile/avatar", r.uploadAvatar)
+	r.router.With(withTx).Delete("/profile/avatar", r.deleteAvatar)
+	r.router.With(withTx).Get("/profile/avatar/{filename}", r.serveAvatar)
+	r.router.With(withTx).Get("/staff", r.getCurrentStaff)
+	r.router.With(withTx).Get("/teacher", r.getCurrentTeacher)
 
 	// Group endpoints - authenticated users can access their own groups
 	r.router.Route("/groups", func(router chi.Router) {
 		// No additional permissions needed - users can always access their own data
-		router.Get("/", r.getMyGroups)
-		router.Get("/activity", r.getMyActivityGroups)
-		router.Get("/active", r.getMyActiveGroups)
-		router.Get("/supervised", r.getMySupervisedGroups)
+		router.With(withTx).Get("/", r.getMyGroups)
+		router.With(withTx).Get("/activity", r.getMyActivityGroups)
+		router.With(withTx).Get("/active", r.getMyActiveGroups)
+		router.With(withTx).Get("/supervised", r.getMySupervisedGroups)
 
 		// Group details (requires group ID)
 		router.Route("/{groupID}", func(router chi.Router) {
-			router.Get("/students", r.getGroupStudents)
-			router.Get("/visits", r.getGroupVisits)
+			router.With(withTx).Get("/students", r.getGroupStudents)
+			router.With(withTx).Get("/visits", r.getGroupVisits)
 		})
 	})
 
@@ -340,15 +341,15 @@ func (res *Resource) uploadAvatar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	filePath, err := res.saveAvatarFile(file, header, contentType, user.ID)
+	tenantID := tenant.FromContext(r.Context())
+	filePath, err := res.saveAvatarFile(file, header, contentType, user.ID, tenantID)
 	if err != nil {
 		render.Status(r, http.StatusInternalServerError)
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
-	avatarURL := fmt.Sprintf("/uploads/avatars/%s", filepath.Base(filePath))
-	tenantID := tenant.FromContext(r.Context())
+	avatarURL := fmt.Sprintf("/uploads/avatars/%d/%s", tenantID, filepath.Base(filePath))
 	var updatedProfile interface{}
 	if err := tenant.WithTenantTx(r.Context(), res.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		var txErr error
@@ -404,7 +405,7 @@ func detectAndValidateContentType(file io.ReadSeeker) (string, error) {
 }
 
 // saveAvatarFile saves the uploaded file and returns the file path
-func (res *Resource) saveAvatarFile(file io.Reader, header *multipart.FileHeader, contentType string, userID int64) (string, error) {
+func (res *Resource) saveAvatarFile(file io.Reader, header *multipart.FileHeader, contentType string, userID, tenantID int64) (string, error) {
 	fileExt := getFileExtension(header.Filename, contentType)
 	randomStr, err := generateRandomString(8)
 	if err != nil {
@@ -412,9 +413,10 @@ func (res *Resource) saveAvatarFile(file io.Reader, header *multipart.FileHeader
 	}
 
 	filename := fmt.Sprintf("%d_%s%s", userID, randomStr, fileExt)
-	filePath := filepath.Join(avatarDir, filename)
+	tenantDir := filepath.Join(avatarDir, fmt.Sprintf("%d", tenantID))
+	filePath := filepath.Join(tenantDir, filename)
 
-	if os.MkdirAll(avatarDir, 0755) != nil {
+	if os.MkdirAll(tenantDir, 0755) != nil {
 		return "", errors.New("failed to create upload directory")
 	}
 
@@ -534,9 +536,10 @@ func (res *Resource) serveAvatar(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Construct and validate file path
-	filePath, err := validateAvatarPath(filename)
-	if err != nil {
-		common.RenderError(w, r, err)
+	tenantID := tenant.FromContext(r.Context())
+	filePath, rendErr := validateAvatarPath(filename, tenantID)
+	if rendErr != nil {
+		common.RenderError(w, r, rendErr)
 		return
 	}
 
@@ -565,25 +568,38 @@ func (res *Resource) validateAvatarAccess(r *http.Request, filename string) rend
 	return nil
 }
 
-// validateAvatarPath validates the file path is within the avatar directory
-func validateAvatarPath(filename string) (string, render.Renderer) {
-	filePath := filepath.Join(avatarDir, filename)
-
-	absPath, err := filepath.Abs(filePath)
-	if err != nil {
-		return "", common.ErrorInternalServer(errors.New("failed to process path"))
-	}
-
+// validateAvatarPath validates the file path is within the avatar directory.
+// It checks for the file in the tenant-namespaced subdirectory first, falling
+// back to the flat directory for avatars uploaded before tenant namespacing.
+func validateAvatarPath(filename string, tenantID int64) (string, render.Renderer) {
 	absAvatarDir, err := filepath.Abs(avatarDir)
 	if err != nil {
 		return "", common.ErrorInternalServer(errors.New("failed to process avatar directory"))
 	}
 
+	// Try tenant-namespaced path first
+	tenantPath := filepath.Join(avatarDir, fmt.Sprintf("%d", tenantID), filename)
+	absPath, err := filepath.Abs(tenantPath)
+	if err != nil {
+		return "", common.ErrorInternalServer(errors.New("failed to process path"))
+	}
+	if strings.HasPrefix(absPath, absAvatarDir) {
+		if _, statErr := os.Stat(tenantPath); statErr == nil {
+			return tenantPath, nil
+		}
+	}
+
+	// Fall back to legacy flat path (pre-tenant-namespacing)
+	flatPath := filepath.Join(avatarDir, filename)
+	absPath, err = filepath.Abs(flatPath)
+	if err != nil {
+		return "", common.ErrorInternalServer(errors.New("failed to process path"))
+	}
 	if !strings.HasPrefix(absPath, absAvatarDir) {
 		return "", common.ErrorForbidden(errors.New("invalid path"))
 	}
 
-	return filePath, nil
+	return flatPath, nil
 }
 
 // serveAvatarFile opens and serves the avatar file

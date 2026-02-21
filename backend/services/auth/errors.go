@@ -50,6 +50,10 @@ var (
 	// ErrParentAccountNotFound returned when parent account doesn't exist
 	ErrParentAccountNotFound = errors.New("parent account not found")
 
+	// Tenant errors
+	ErrTenantNotFound     = errors.New("tenant not found")
+	ErrTenantAccessDenied = errors.New("account does not have access to this tenant")
+
 	// Invitation errors
 	ErrInvitationNotFound     = errors.New("invitation not found")
 	ErrInvitationExpired      = errors.New("invitation has expired")

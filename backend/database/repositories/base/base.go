@@ -56,6 +56,13 @@ func (r *Repository[T]) Create(ctx context.Context, entity T) error {
 		}
 	}
 
+	// Auto-set tenant_id from context if the entity is tenant-scoped and tenant_id is not yet set
+	if ts, ok := any(entity).(modelBase.TenantScoped); ok && ts.GetTenantID() == 0 {
+		if tid := tenant.FromContext(ctx); tid != 0 {
+			ts.SetTenantID(tid)
+		}
+	}
+
 	// Explicitly set the table name with schema
 	_, err := GetDB(ctx, r.DB).NewInsert().
 		Model(entity).

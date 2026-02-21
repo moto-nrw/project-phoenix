@@ -36,6 +36,8 @@ func (r *AuthEventRepository) Create(ctx context.Context, event *audit.AuthEvent
 		return err
 	}
 
+	base.EnsureTenantID(ctx, event)
+
 	_, err := base.GetDB(ctx, r.db).NewInsert().
 		Model(event).
 		ModelTableExpr("audit.auth_events").

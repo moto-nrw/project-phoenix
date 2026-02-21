@@ -13,7 +13,7 @@ type AuthService interface {
 
 	// Existing methods
 	Login(ctx context.Context, email, password string) (accessToken, refreshToken string, err error)
-	LoginWithAudit(ctx context.Context, email, password, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
+	LoginWithAudit(ctx context.Context, email, password, ipAddress, userAgent, tenantSlug string) (accessToken, refreshToken string, err error)
 	Register(ctx context.Context, email, username, password string, roleID *int64) (*auth.Account, error)
 	ValidateToken(ctx context.Context, token string) (*auth.Account, error)
 	RefreshToken(ctx context.Context, refreshToken string) (accessToken, newRefreshToken string, err error)
@@ -69,6 +69,9 @@ type AuthService interface {
 	CleanupExpiredPasswordResetTokens(ctx context.Context) (int, error)
 	RevokeAllTokens(ctx context.Context, accountID int) error
 	GetActiveTokens(ctx context.Context, accountID int) ([]*auth.Token, error)
+
+	// Tenant Switching
+	SwitchTenant(ctx context.Context, accountID int64, tenantSlug string) (accessToken, refreshToken string, err error)
 
 	// Parent Account Management
 	CreateParentAccount(ctx context.Context, email, username, password string) (*auth.AccountParent, error)

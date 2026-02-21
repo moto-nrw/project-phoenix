@@ -3,6 +3,7 @@ package migrations
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/uptrace/bun/migrate"
@@ -14,6 +15,33 @@ var Migrations = migrate.NewMigrations()
 // MigrationRegistry keeps track of all registered migrations with their metadata
 var MigrationRegistry = make(map[string]*Migration)
 
+// compareVersionsSemantic compares two "X.Y.Z" version strings numerically per segment.
+// Returns true if a < b (a should be ordered before b).
+// Lexicographic comparison would incorrectly order "1.12.7" < "1.8.3" because "1" < "8".
+func compareVersionsSemantic(a, b string) bool {
+	partsA := strings.Split(a, ".")
+	partsB := strings.Split(b, ".")
+
+	maxLen := len(partsA)
+	if len(partsB) > maxLen {
+		maxLen = len(partsB)
+	}
+
+	for i := 0; i < maxLen; i++ {
+		var numA, numB int
+		if i < len(partsA) {
+			numA, _ = strconv.Atoi(partsA[i])
+		}
+		if i < len(partsB) {
+			numB, _ = strconv.Atoi(partsB[i])
+		}
+		if numA != numB {
+			return numA < numB
+		}
+	}
+	return false
+}
+
 // RegisteredMigrations returns all registered migrations sorted by version
 func RegisteredMigrations() []*Migration {
 	migrations := make([]*Migration, 0, len(MigrationRegistry))
@@ -21,9 +49,9 @@ func RegisteredMigrations() []*Migration {
 		migrations = append(migrations, m)
 	}
 
-	// Sort migrations by version (semantically)
+	// Sort migrations by version semantically (numeric per segment, not lexicographic)
 	sort.Slice(migrations, func(i, j int) bool {
-		return migrations[i].Version < migrations[j].Version
+		return compareVersionsSemantic(migrations[i].Version, migrations[j].Version)
 	})
 
 	return migrations

@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import { HelpButton } from "@/components/ui/help_button";
 import { getHelpContent } from "@/lib/help-content";
 import { LogoutModal } from "~/components/ui/logout-modal";
+import { TenantSwitcher } from "~/components/tenant/tenant-switcher";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { useBreadcrumb } from "~/lib/breadcrumb-context";
 
@@ -146,6 +147,9 @@ export function Header() {
               <SessionWarning isExpired={isSessionExpired} variant="mobile" />
               <RefreshButton />
             </div>
+
+            {/* Tenant switcher */}
+            <TenantSwitcher />
 
             {/* User menu */}
             <div className="relative">

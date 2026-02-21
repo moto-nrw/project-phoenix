@@ -1,7 +1,6 @@
 package suggestions_test
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -19,7 +18,7 @@ func TestVoteRepository_Upsert(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewVoteRepository(db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	account := testpkg.CreateTestAccount(t, db, "vote-upsert")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -76,7 +75,7 @@ func TestVoteRepository_DeleteByPostAndVoter(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewVoteRepository(db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	account := testpkg.CreateTestAccount(t, db, "vote-delete")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -106,7 +105,7 @@ func TestVoteRepository_FindByPostAndVoter(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewVoteRepository(db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	account := testpkg.CreateTestAccount(t, db, "vote-find")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)

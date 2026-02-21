@@ -55,6 +55,7 @@ func TestGetStudentPickupSchedules(t *testing.T) {
 			Notes:      &notes,
 			CreatedBy:  1,
 		}
+		schedule.SetTenantID(1)
 		_, err := tc.db.NewInsert().Model(schedule).
 			ModelTableExpr("schedule.student_pickup_schedules").
 			Returning("id").
@@ -78,6 +79,7 @@ func TestGetStudentPickupSchedules(t *testing.T) {
 			Reason:        &arztterminReason,
 			CreatedBy:     1,
 		}
+		exception.SetTenantID(1)
 		_, err = tc.db.NewInsert().Model(exception).
 			ModelTableExpr("schedule.student_pickup_exceptions").
 			Returning("id").
@@ -469,6 +471,7 @@ func TestUpdateStudentPickupException(t *testing.T) {
 			Reason:        &originalReason,
 			CreatedBy:     1,
 		}
+		exception.SetTenantID(1)
 		_, err := tc.db.NewInsert().Model(exception).
 			ModelTableExpr("schedule.student_pickup_exceptions").
 			Returning("id").
@@ -511,6 +514,7 @@ func TestUpdateStudentPickupException(t *testing.T) {
 			Reason:        &testReason,
 			CreatedBy:     1,
 		}
+		exception.SetTenantID(1)
 		_, err := tc.db.NewInsert().Model(exception).
 			ModelTableExpr("schedule.student_pickup_exceptions").
 			Returning("id").
@@ -612,6 +616,7 @@ func TestDeleteStudentPickupException(t *testing.T) {
 			Reason:        &deleteReason,
 			CreatedBy:     1,
 		}
+		exception.SetTenantID(1)
 		_, err := tc.db.NewInsert().Model(exception).
 			ModelTableExpr("schedule.student_pickup_exceptions").
 			Returning("id").
@@ -642,6 +647,7 @@ func TestDeleteStudentPickupException(t *testing.T) {
 			Reason:        &deleteTestReason,
 			CreatedBy:     1,
 		}
+		exception.SetTenantID(1)
 		_, err := tc.db.NewInsert().Model(exception).
 			ModelTableExpr("schedule.student_pickup_exceptions").
 			Returning("id").
@@ -824,6 +830,7 @@ func TestGetBulkPickupTimes(t *testing.T) {
 			Notes:      &notes,
 			CreatedBy:  1,
 		}
+		schedule.SetTenantID(1)
 		_, err := tc.db.NewInsert().Model(schedule).
 			ModelTableExpr("schedule.student_pickup_schedules").
 			Returning("id").
@@ -862,6 +869,7 @@ func TestGetBulkPickupTimes(t *testing.T) {
 			PickupTime: baseTime,
 			CreatedBy:  1,
 		}
+		schedule.SetTenantID(1)
 		_, err := tc.db.NewInsert().Model(schedule).
 			ModelTableExpr("schedule.student_pickup_schedules").
 			Returning("id").
@@ -885,6 +893,7 @@ func TestGetBulkPickupTimes(t *testing.T) {
 			Reason:        &earlyPickupReason,
 			CreatedBy:     1,
 		}
+		exception.SetTenantID(1)
 		_, err = tc.db.NewInsert().Model(exception).
 			ModelTableExpr("schedule.student_pickup_exceptions").
 			Returning("id").
@@ -1048,6 +1057,7 @@ func TestUpdateStudentPickupNote(t *testing.T) {
 			Content:   originalContent,
 			CreatedBy: 1,
 		}
+		note.SetTenantID(1)
 		_, err := tc.db.NewInsert().Model(note).
 			ModelTableExpr("schedule.student_pickup_notes").
 			Returning("id").
@@ -1087,6 +1097,7 @@ func TestUpdateStudentPickupNote(t *testing.T) {
 			Content:   testContent,
 			CreatedBy: 1,
 		}
+		note.SetTenantID(1)
 		_, err := tc.db.NewInsert().Model(note).
 			ModelTableExpr("schedule.student_pickup_notes").
 			Returning("id").
@@ -1165,6 +1176,7 @@ func TestDeleteStudentPickupNote(t *testing.T) {
 			Content:   deleteContent,
 			CreatedBy: 1,
 		}
+		note.SetTenantID(1)
 		_, err := tc.db.NewInsert().Model(note).
 			ModelTableExpr("schedule.student_pickup_notes").
 			Returning("id").
@@ -1194,6 +1206,7 @@ func TestDeleteStudentPickupNote(t *testing.T) {
 			Content:   deleteTestContent,
 			CreatedBy: 1,
 		}
+		note.SetTenantID(1)
 		_, err := tc.db.NewInsert().Model(note).
 			ModelTableExpr("schedule.student_pickup_notes").
 			Returning("id").

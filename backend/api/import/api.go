@@ -61,17 +61,18 @@ func (rs *Resource) Router() chi.Router {
 		r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
 		r.Use(jwt.Authenticator)
 		r.Use(jwt.TenantMiddleware)
+		withTx := tenant.TenantTxMiddleware(rs.db)
 
 		// Student import endpoints
 		r.Route("/students", func(r chi.Router) {
 			// Template download - requires UsersRead
-			r.With(authorize.RequiresPermission("users:read")).Get("/template", rs.downloadStudentTemplate)
+			r.With(authorize.RequiresPermission("users:read"), withTx).Get("/template", rs.downloadStudentTemplate)
 
 			// Preview - requires UsersCreate
-			r.With(authorize.RequiresPermission("users:create")).Post("/preview", rs.previewStudentImport)
+			r.With(authorize.RequiresPermission("users:create"), withTx).Post("/preview", rs.previewStudentImport)
 
 			// Actual import - requires UsersCreate
-			r.With(authorize.RequiresPermission("users:create")).Post("/import", rs.importStudents)
+			r.With(authorize.RequiresPermission("users:create"), withTx).Post("/import", rs.importStudents)
 		})
 
 		// Future: Teacher import endpoints

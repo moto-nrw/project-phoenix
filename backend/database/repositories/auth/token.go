@@ -216,6 +216,8 @@ func (r *TokenRepository) Create(ctx context.Context, token *auth.Token) error {
 		return err
 	}
 
+	base.EnsureTenantID(ctx, token)
+
 	// Explicitly set the table name with schema
 	_, err := base.GetDB(ctx, r.db).NewInsert().
 		Model(token).

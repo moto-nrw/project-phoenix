@@ -15,7 +15,7 @@ import { renderHook } from "@testing-library/react";
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(() => ({
     status: "authenticated",
-    data: { user: { token: "test-token" } },
+    data: { user: { token: "test-token", tenantId: 1 } },
   })),
 }));
 
@@ -105,6 +105,57 @@ describe("useGlobalSSE", () => {
         "/api/sse/events",
         expect.objectContaining({
           enabled: false,
+        }),
+      );
+    });
+
+    it("passes tenantId as reconnectKey to useSSE", () => {
+      vi.mocked(useSession).mockReturnValueOnce({
+        status: "authenticated",
+        data: { user: { token: "test-token", tenantId: 42 } } as never,
+        update: vi.fn(),
+      });
+
+      renderHook(() => useGlobalSSE());
+
+      expect(useSSE).toHaveBeenCalledWith(
+        "/api/sse/events",
+        expect.objectContaining({
+          reconnectKey: 42,
+        }),
+      );
+    });
+
+    it("reconnects SSE when tenantId changes", () => {
+      // First render with tenant 1
+      vi.mocked(useSession).mockReturnValue({
+        status: "authenticated",
+        data: { user: { token: "test-token", tenantId: 1 } } as never,
+        update: vi.fn(),
+      });
+
+      const { rerender } = renderHook(() => useGlobalSSE());
+
+      expect(useSSE).toHaveBeenLastCalledWith(
+        "/api/sse/events",
+        expect.objectContaining({
+          reconnectKey: 1,
+        }),
+      );
+
+      // Simulate tenant switch to tenant 2
+      vi.mocked(useSession).mockReturnValue({
+        status: "authenticated",
+        data: { user: { token: "new-token", tenantId: 2 } } as never,
+        update: vi.fn(),
+      });
+
+      rerender();
+
+      expect(useSSE).toHaveBeenLastCalledWith(
+        "/api/sse/events",
+        expect.objectContaining({
+          reconnectKey: 2,
         }),
       );
     });
@@ -202,6 +253,197 @@ describe("useGlobalSSE", () => {
       vi.advanceTimersByTime(500);
 
       expect(mutate).toHaveBeenCalled();
+    });
+
+    it("student_checkout without active_group_id invalidates ogs-students caches", () => {
+      renderHook(() => useGlobalSSE());
+
+      const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
+
+      // Daily checkout: has student_id but NO active_group_id
+      onMessage?.({
+        type: "student_checkout",
+        active_group_id: "",
+        data: { student_id: "42" },
+        timestamp: new Date().toISOString(),
+      });
+
+      vi.advanceTimersByTime(500);
+
+      // Find the mutate call with the ogs-students matcher
+      const mutateCalls = vi.mocked(mutate).mock.calls;
+      const ogsStudentCall = mutateCalls.find((call) => {
+        const matcher = call[0];
+        return (
+          typeof matcher === "function" &&
+          (matcher as (key: string) => boolean)("ogs-students-5")
+        );
+      });
+      expect(ogsStudentCall).toBeDefined();
+    });
+
+    it("student_checkout without active_group_id invalidates dashboard caches", () => {
+      renderHook(() => useGlobalSSE());
+
+      const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
+
+      onMessage?.({
+        type: "student_checkout",
+        active_group_id: "",
+        data: { student_id: "42" },
+        timestamp: new Date().toISOString(),
+      });
+
+      vi.advanceTimersByTime(500);
+
+      const mutateCalls = vi.mocked(mutate).mock.calls;
+      const dashboardCall = mutateCalls.find((call) => {
+        const matcher = call[0];
+        return (
+          typeof matcher === "function" &&
+          (matcher as (key: string) => boolean)("active-supervision-dashboard")
+        );
+      });
+      expect(dashboardCall).toBeDefined();
+    });
+
+    it("student_checkout without active_group_id invalidates student-detail cache", () => {
+      renderHook(() => useGlobalSSE());
+
+      const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
+
+      onMessage?.({
+        type: "student_checkout",
+        active_group_id: "",
+        data: { student_id: "42" },
+        timestamp: new Date().toISOString(),
+      });
+
+      vi.advanceTimersByTime(500);
+
+      const mutateCalls = vi.mocked(mutate).mock.calls;
+      const studentDetailCall = mutateCalls.find((call) => {
+        return call[0] === "student-detail-42";
+      });
+      expect(studentDetailCall).toBeDefined();
+    });
+
+    it("student_checkout without active_group_id does NOT invalidate supervision-visits", () => {
+      renderHook(() => useGlobalSSE());
+
+      const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
+
+      // Daily checkout: no active_group_id means pendingGroupIds stays empty
+      onMessage?.({
+        type: "student_checkout",
+        active_group_id: "",
+        data: { student_id: "42" },
+        timestamp: new Date().toISOString(),
+      });
+
+      vi.advanceTimersByTime(500);
+
+      // supervision-visits should NOT be invalidated (requires pendingGroupIds)
+      const mutateCalls = vi.mocked(mutate).mock.calls;
+      const supervisionCall = mutateCalls.find((call) => {
+        const matcher = call[0];
+        return (
+          typeof matcher === "function" &&
+          (matcher as (key: string) => boolean)("supervision-visits-999")
+        );
+      });
+      expect(supervisionCall).toBeUndefined();
+    });
+
+    it("handles mutate rejection for ogs-students gracefully", async () => {
+      // Make mutate reject to exercise the .catch() error handler
+      vi.mocked(mutate).mockRejectedValue(new Error("SWR error"));
+
+      const consoleSpy = vi
+        .spyOn(console, "debug")
+        .mockImplementation(() => undefined);
+
+      renderHook(() => useGlobalSSE());
+
+      const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
+
+      // Daily checkout: has student_id but empty active_group_id
+      onMessage?.({
+        type: "student_checkout",
+        active_group_id: "",
+        data: { student_id: "42" },
+        timestamp: new Date().toISOString(),
+      });
+
+      vi.advanceTimersByTime(500);
+
+      // Flush microtask queue so .catch() handlers execute
+      await vi.runAllTimersAsync();
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "swr_revalidation_failed",
+        expect.objectContaining({ scope: "ogs_students" }),
+      );
+
+      consoleSpy.mockRestore();
+    });
+
+    it("handles mutate rejection for student-detail gracefully", async () => {
+      vi.mocked(mutate).mockRejectedValue(new Error("SWR error"));
+
+      const consoleSpy = vi
+        .spyOn(console, "debug")
+        .mockImplementation(() => undefined);
+
+      renderHook(() => useGlobalSSE());
+
+      const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
+
+      onMessage?.({
+        type: "student_checkout",
+        active_group_id: "",
+        data: { student_id: "42" },
+        timestamp: new Date().toISOString(),
+      });
+
+      vi.advanceTimersByTime(500);
+      await vi.runAllTimersAsync();
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "swr_revalidation_failed",
+        expect.objectContaining({ scope: "student_detail" }),
+      );
+
+      consoleSpy.mockRestore();
+    });
+
+    it("handles mutate rejection for dashboard gracefully", async () => {
+      vi.mocked(mutate).mockRejectedValue(new Error("SWR error"));
+
+      const consoleSpy = vi
+        .spyOn(console, "debug")
+        .mockImplementation(() => undefined);
+
+      renderHook(() => useGlobalSSE());
+
+      const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
+
+      onMessage?.({
+        type: "student_checkout",
+        active_group_id: "",
+        data: { student_id: "42" },
+        timestamp: new Date().toISOString(),
+      });
+
+      vi.advanceTimersByTime(500);
+      await vi.runAllTimersAsync();
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "swr_revalidation_failed",
+        expect.objectContaining({ scope: "dashboard" }),
+      );
+
+      consoleSpy.mockRestore();
     });
 
     it("silently ignores unknown event types without invalidating caches", () => {

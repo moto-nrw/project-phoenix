@@ -1,7 +1,6 @@
 package schedule_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -21,7 +20,7 @@ func TestDateframeRepository_Create(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Dateframe
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates dateframe with valid data", func(t *testing.T) {
 		startDate := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -81,7 +80,7 @@ func TestDateframeRepository_FindByID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Dateframe
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds existing dateframe", func(t *testing.T) {
 		startDate := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -113,7 +112,7 @@ func TestDateframeRepository_Update(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Dateframe
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates dateframe", func(t *testing.T) {
 		startDate := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -151,7 +150,7 @@ func TestDateframeRepository_Delete(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Dateframe
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes existing dateframe", func(t *testing.T) {
 		startDate := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -183,7 +182,7 @@ func TestDateframeRepository_List(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Dateframe
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("lists all dateframes", func(t *testing.T) {
 		startDate := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -216,7 +215,7 @@ func TestDateframeRepository_FindByName(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Dateframe
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds dateframe by name", func(t *testing.T) {
 		startDate := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -268,7 +267,7 @@ func TestDateframeRepository_FindByDate(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Dateframe
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds dateframes containing specific date", func(t *testing.T) {
 		startDate := time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC)
@@ -357,7 +356,7 @@ func TestDateframeRepository_FindOverlapping(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Dateframe
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds overlapping dateframes", func(t *testing.T) {
 		startDate := time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC)
