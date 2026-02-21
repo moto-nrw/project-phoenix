@@ -1123,7 +1123,7 @@ func createSchulhofRoom(t *testing.T, db *bun.DB) *facilities.Room {
 	}
 	room.SetTenantID(1)
 
-	err = db.NewInsert().
+	_, err = db.NewInsert().
 		Model(room).
 		ModelTableExpr("facilities.rooms").
 		On("CONFLICT (tenant_id, name) DO NOTHING").
