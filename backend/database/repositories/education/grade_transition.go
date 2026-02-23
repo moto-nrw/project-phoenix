@@ -493,7 +493,7 @@ func (r *GradeTransitionRepository) GetStudentsByClasses(ctx context.Context, cl
 		ColumnExpr(`s.school_class`).
 		TableExpr(`users.students AS s`).
 		Join(`INNER JOIN users.persons AS p ON p.id = s.person_id`).
-		Where(`s.school_class IN (?)`, bun.In(classes)).
+		Where(`s.school_class IN (?)`, bun.List(classes)).
 		Order(`s.school_class ASC, p.last_name ASC, p.first_name ASC`).
 		Scan(ctx, &students)
 
@@ -560,7 +560,7 @@ func (r *GradeTransitionRepository) DeleteStudentsByClasses(ctx context.Context,
 	result, err := db.NewDelete().
 		Model((*struct{})(nil)).
 		ModelTableExpr(`users.students`).
-		Where(`school_class IN (?)`, bun.In(classes)).
+		Where(`school_class IN (?)`, bun.List(classes)).
 		Exec(ctx)
 
 	if err != nil {

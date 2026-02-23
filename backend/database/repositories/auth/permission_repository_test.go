@@ -30,19 +30,19 @@ func cleanupPermissionRecords(t *testing.T, db *bun.DB, permissionIDs ...int64) 
 	// First remove any role-permission mappings
 	_, _ = db.NewDelete().
 		TableExpr("auth.role_permissions").
-		Where("permission_id IN (?)", bun.In(permissionIDs)).
+		Where("permission_id IN (?)", bun.List(permissionIDs)).
 		Exec(ctx)
 
 	// Then remove any account-permission mappings
 	_, _ = db.NewDelete().
 		TableExpr("auth.account_permissions").
-		Where("permission_id IN (?)", bun.In(permissionIDs)).
+		Where("permission_id IN (?)", bun.List(permissionIDs)).
 		Exec(ctx)
 
 	// Finally remove the permissions
 	_, err := db.NewDelete().
 		TableExpr("auth.permissions").
-		Where("id IN (?)", bun.In(permissionIDs)).
+		Where("id IN (?)", bun.List(permissionIDs)).
 		Exec(ctx)
 	if err != nil {
 		t.Logf("Warning: failed to cleanup permissions: %v", err)

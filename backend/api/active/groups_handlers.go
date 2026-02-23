@@ -83,7 +83,7 @@ func (rs *Resource) loadRoomsMap(r *http.Request, groups []*active.Group) map[in
 		err := rs.db.NewSelect().
 			Model(&rooms).
 			ModelTableExpr(`facilities.rooms AS "room"`).
-			Where(`"room".id IN (?)`, bun.In(roomIDs)).
+			Where(`"room".id IN (?)`, bun.List(roomIDs)).
 			Scan(r.Context())
 		if err == nil {
 			for _, room := range rooms {

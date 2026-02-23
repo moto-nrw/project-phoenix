@@ -112,7 +112,7 @@ func (r *WorkSessionEditRepository) CountBySessionIDs(ctx context.Context, sessi
 		ModelTableExpr(tableWorkSessionEdits).
 		ColumnExpr("session_id").
 		ColumnExpr("COUNT(*) AS count").
-		Where("session_id IN (?)", bun.In(sessionIDs)).
+		Where("session_id IN (?)", bun.List(sessionIDs)).
 		GroupExpr("session_id").
 		Scan(ctx, &results)
 	if err != nil {

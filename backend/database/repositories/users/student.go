@@ -60,7 +60,7 @@ func (r *StudentRepository) FindByIDs(ctx context.Context, ids []int64) (map[int
 	err := r.db.NewSelect().
 		Model(&students).
 		ModelTableExpr(`users.students AS "student"`).
-		Where(`"student".id IN (?)`, bun.In(ids)).
+		Where(`"student".id IN (?)`, bun.List(ids)).
 		Scan(ctx)
 
 	if err != nil {
@@ -107,7 +107,7 @@ func (r *StudentRepository) FindByGroupIDs(ctx context.Context, groupIDs []int64
 	err := r.db.NewSelect().
 		Model(&students).
 		ModelTableExpr(tableExprUsersStudentsAsStudent).
-		Where("group_id IN (?)", bun.In(groupIDs)).
+		Where("group_id IN (?)", bun.List(groupIDs)).
 		Scan(ctx)
 
 	if err != nil {
@@ -313,7 +313,7 @@ func (r *StudentRepository) CountByGroupIDs(ctx context.Context, groupIDs []int6
 		TableExpr("users.students").
 		ColumnExpr("group_id").
 		ColumnExpr("COUNT(*) AS count").
-		Where("group_id IN (?)", bun.In(groupIDs)).
+		Where("group_id IN (?)", bun.List(groupIDs)).
 		GroupExpr("group_id").
 		Scan(ctx, &results)
 

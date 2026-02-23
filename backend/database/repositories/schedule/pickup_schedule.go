@@ -102,7 +102,7 @@ func (r *StudentPickupScheduleRepository) FindByStudentIDsAndWeekday(ctx context
 	err := r.db.NewSelect().
 		Model(&schedules).
 		ModelTableExpr(`schedule.student_pickup_schedules AS "student_pickup_schedule"`).
-		Where(`"student_pickup_schedule".student_id IN (?)`, bun.In(studentIDs)).
+		Where(`"student_pickup_schedule".student_id IN (?)`, bun.List(studentIDs)).
 		Where(`"student_pickup_schedule".weekday = ?`, weekday).
 		Scan(ctx)
 
@@ -325,7 +325,7 @@ func (r *StudentPickupExceptionRepository) FindByStudentIDsAndDate(ctx context.C
 	err := r.db.NewSelect().
 		Model(&exceptions).
 		ModelTableExpr(`schedule.student_pickup_exceptions AS "student_pickup_exception"`).
-		Where(`"student_pickup_exception".student_id IN (?)`, bun.In(studentIDs)).
+		Where(`"student_pickup_exception".student_id IN (?)`, bun.List(studentIDs)).
 		Where(`"student_pickup_exception".exception_date = ?`, dateOnly).
 		Scan(ctx)
 
@@ -516,7 +516,7 @@ func (r *StudentPickupNoteRepository) FindByStudentIDsAndDate(ctx context.Contex
 	err := r.db.NewSelect().
 		Model(&notes).
 		ModelTableExpr(`schedule.student_pickup_notes AS "student_pickup_note"`).
-		Where(`"student_pickup_note".student_id IN (?)`, bun.In(studentIDs)).
+		Where(`"student_pickup_note".student_id IN (?)`, bun.List(studentIDs)).
 		Where(`"student_pickup_note".note_date = ?`, dateOnly).
 		Order(orderCreatedAtASC).
 		Scan(ctx)

@@ -179,7 +179,7 @@ func (r *SupervisorPlannedRepository) FindByGroupIDs(ctx context.Context, groupI
 	var results []supervisorResult
 
 	query := applySupervisorColumnMapping(r.db.NewSelect().Model(&results)).
-		Where(`"supervisor".group_id IN (?)`, bun.In(groupIDs)).
+		Where(`"supervisor".group_id IN (?)`, bun.List(groupIDs)).
 		Order("supervisor.is_primary DESC")
 
 	if err := query.Scan(ctx); err != nil {

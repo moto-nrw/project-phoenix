@@ -86,7 +86,7 @@ func cleanupComments(t *testing.T, db *bun.DB, commentIDs ...int64) {
 
 	_, err := db.NewDelete().
 		TableExpr("suggestions.comments").
-		Where("id IN (?)", bun.In(commentIDs)).
+		Where("id IN (?)", bun.List(commentIDs)).
 		Exec(ctx)
 	if err != nil {
 		t.Logf("cleanup comments: %v", err)
@@ -105,7 +105,7 @@ func cleanupOperators(t *testing.T, db *bun.DB, operatorIDs ...int64) {
 
 	_, err := db.NewDelete().
 		TableExpr("platform.operators").
-		Where("id IN (?)", bun.In(operatorIDs)).
+		Where("id IN (?)", bun.List(operatorIDs)).
 		Exec(ctx)
 	if err != nil {
 		t.Logf("cleanup operators: %v", err)

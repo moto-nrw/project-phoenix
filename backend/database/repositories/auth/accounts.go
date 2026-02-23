@@ -276,7 +276,7 @@ func (r *AccountRepository) loadAllAccountRolesAndPermissions(ctx context.Contex
 		ColumnExpr(`ar.account_id`).
 		ColumnExpr(`"role".id, "role".created_at, "role".updated_at, "role".name, "role".description, "role".is_system`).
 		Join(`JOIN auth.account_roles AS ar ON ar.role_id = "role".id`).
-		Where("ar.account_id IN (?)", bun.In(accountIDs)).
+		Where("ar.account_id IN (?)", bun.List(accountIDs)).
 		Scan(ctx, &roleResults)
 	if err != nil {
 		return err
@@ -296,7 +296,7 @@ func (r *AccountRepository) loadAllAccountRolesAndPermissions(ctx context.Contex
 		ColumnExpr(`ap.account_id`).
 		ColumnExpr(`"permission".id, "permission".created_at, "permission".updated_at, "permission".name, "permission".description, "permission".resource, "permission".action`).
 		Join(`JOIN auth.account_permissions AS ap ON ap.permission_id = "permission".id`).
-		Where("ap.account_id IN (?)", bun.In(accountIDs)).
+		Where("ap.account_id IN (?)", bun.List(accountIDs)).
 		Where("ap.granted = true").
 		Scan(ctx, &directPermResults)
 	if err != nil {
@@ -318,7 +318,7 @@ func (r *AccountRepository) loadAllAccountRolesAndPermissions(ctx context.Contex
 		ColumnExpr(`"permission".id, "permission".created_at, "permission".updated_at, "permission".name, "permission".description, "permission".resource, "permission".action`).
 		Join(`JOIN auth.role_permissions AS rp ON rp.permission_id = "permission".id`).
 		Join(`JOIN auth.account_roles AS ar ON ar.role_id = rp.role_id`).
-		Where("ar.account_id IN (?)", bun.In(accountIDs)).
+		Where("ar.account_id IN (?)", bun.List(accountIDs)).
 		Scan(ctx, &rolePermResults)
 	if err != nil {
 		return err

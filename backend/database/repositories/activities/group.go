@@ -111,7 +111,7 @@ func (r *GroupRepository) FindWithEnrollmentCounts(ctx context.Context) ([]*acti
 		ModelTableExpr("activities.student_enrollments").
 		Column("activity_group_id").
 		ColumnExpr("COUNT(*) AS count").
-		Where("activity_group_id IN (?)", bun.In(groupIDs)).
+		Where("activity_group_id IN (?)", bun.List(groupIDs)).
 		Group("activity_group_id").
 		Scan(ctx, &counts)
 

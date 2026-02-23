@@ -363,7 +363,7 @@ func (r *TokenRepository) CleanupOldTokensForAccount(ctx context.Context, accoun
 			_, err = r.db.NewDelete().
 				Model((*auth.Token)(nil)).
 				ModelTableExpr(`auth.tokens AS "token"`).
-				Where(`"token".id IN (?)`, bun.In(idsToDelete)).
+				Where(`"token".id IN (?)`, bun.List(idsToDelete)).
 				Exec(ctx)
 
 			if err != nil {

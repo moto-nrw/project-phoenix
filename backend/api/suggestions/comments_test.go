@@ -83,7 +83,7 @@ func cleanupComments(t *testing.T, db *bun.DB, commentIDs ...int64) {
 	defer cancel()
 	_, _ = db.NewDelete().
 		TableExpr("suggestions.comments").
-		Where("id IN (?)", bun.In(commentIDs)).
+		Where("id IN (?)", bun.List(commentIDs)).
 		Exec(ctx)
 }
 
@@ -96,11 +96,11 @@ func cleanupCommentPosts(t *testing.T, db *bun.DB, postIDs ...int64) {
 	defer cancel()
 	_, _ = db.NewDelete().
 		TableExpr("suggestions.votes").
-		Where("post_id IN (?)", bun.In(postIDs)).
+		Where("post_id IN (?)", bun.List(postIDs)).
 		Exec(ctx)
 	_, _ = db.NewDelete().
 		TableExpr("suggestions.posts").
-		Where("id IN (?)", bun.In(postIDs)).
+		Where("id IN (?)", bun.List(postIDs)).
 		Exec(ctx)
 }
 

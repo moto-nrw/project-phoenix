@@ -75,7 +75,7 @@ func (r *GroupRepository) FindByIDs(ctx context.Context, ids []int64) (map[int64
 	err := r.db.NewSelect().
 		Model(&groups).
 		ModelTableExpr(`education.groups AS "group"`).
-		Where(`"group".id IN (?)`, bun.In(ids)).
+		Where(`"group".id IN (?)`, bun.List(ids)).
 		Scan(ctx)
 
 	if err != nil {

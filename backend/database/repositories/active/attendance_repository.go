@@ -165,7 +165,7 @@ func (r *AttendanceRepository) GetTodayByStudentIDs(ctx context.Context, student
 	err := r.db.NewSelect().
 		Model(&attendances).
 		ModelTableExpr(`active.attendance AS "attendance"`).
-		Where(`"attendance".student_id IN (?)`, bun.In(uniqueIDs)).
+		Where(`"attendance".student_id IN (?)`, bun.List(uniqueIDs)).
 		Where(`"attendance".date = ?`, today).
 		OrderExpr(`"attendance".student_id ASC`).
 		OrderExpr(`"attendance".check_in_time DESC`).

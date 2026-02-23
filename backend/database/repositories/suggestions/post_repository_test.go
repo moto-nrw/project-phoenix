@@ -76,7 +76,7 @@ func cleanupPosts(t *testing.T, db *bun.DB, postIDs ...int64) {
 	// Delete votes first (FK constraint)
 	_, err := db.NewDelete().
 		TableExpr("suggestions.votes").
-		Where("post_id IN (?)", bun.In(postIDs)).
+		Where("post_id IN (?)", bun.List(postIDs)).
 		Exec(ctx)
 	if err != nil {
 		t.Logf("cleanup votes: %v", err)
@@ -84,7 +84,7 @@ func cleanupPosts(t *testing.T, db *bun.DB, postIDs ...int64) {
 
 	_, err = db.NewDelete().
 		TableExpr("suggestions.posts").
-		Where("id IN (?)", bun.In(postIDs)).
+		Where("id IN (?)", bun.List(postIDs)).
 		Exec(ctx)
 	if err != nil {
 		t.Logf("cleanup posts: %v", err)
