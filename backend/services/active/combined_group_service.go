@@ -164,7 +164,7 @@ func (s *service) CreateCombinedGroupWithGroups(ctx context.Context, group *acti
 		err = tx.NewSelect().
 			TableExpr("active.groups").
 			ColumnExpr("COUNT(*)").
-			Where("id IN (?)", bun.In(groupIDs)).
+			Where("id IN (?)", bun.List(groupIDs)).
 			Scan(ctx, &existCount)
 		if err != nil {
 			return fmt.Errorf("verify group IDs: %w", err)

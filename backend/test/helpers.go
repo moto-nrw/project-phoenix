@@ -136,7 +136,7 @@ func CleanupTableRecords(tb testing.TB, db *bun.DB, table string, ids ...int64) 
 
 	_, err := db.NewDelete().
 		TableExpr(table).
-		Where("id IN (?)", bun.In(ids)).
+		Where("id IN (?)", bun.List(ids)).
 		Exec(ctx)
 	if err != nil {
 		tb.Logf("Warning: failed to cleanup %s: %v", table, err)
@@ -156,7 +156,7 @@ func CleanupTableRecordsByStringID(tb testing.TB, db *bun.DB, table string, ids 
 
 	_, err := db.NewDelete().
 		TableExpr(table).
-		Where("id IN (?)", bun.In(ids)).
+		Where("id IN (?)", bun.List(ids)).
 		Exec(ctx)
 	if err != nil {
 		tb.Logf("Warning: failed to cleanup %s: %v", table, err)
@@ -181,7 +181,7 @@ func CleanupRateLimitsByEmail(tb testing.TB, db *bun.DB, emails ...string) {
 
 	_, err := db.NewDelete().
 		TableExpr("auth.password_reset_rate_limits").
-		Where("email IN (?)", bun.In(emails)).
+		Where("email IN (?)", bun.List(emails)).
 		Exec(ctx)
 	if err != nil {
 		tb.Logf("Warning: failed to cleanup auth.password_reset_rate_limits: %v", err)

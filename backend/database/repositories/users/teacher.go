@@ -61,7 +61,7 @@ func (r *TeacherRepository) FindByStaffIDs(ctx context.Context, staffIDs []int64
 	err := r.db.NewSelect().
 		Model(&teachers).
 		ModelTableExpr(`users.teachers AS "teacher"`).
-		Where(`"teacher".staff_id IN (?)`, bun.In(staffIDs)).
+		Where(`"teacher".staff_id IN (?)`, bun.List(staffIDs)).
 		Scan(ctx)
 
 	if err != nil {
@@ -383,7 +383,7 @@ func (r *TeacherRepository) FindWithStaffAndPersonByIDs(ctx context.Context, ids
 		// JOINs
 		Join(`INNER JOIN users.staff AS "staff" ON "staff".id = "teacher".staff_id`).
 		Join(`INNER JOIN users.persons AS "person" ON "person".id = "staff".person_id`).
-		Where(`"teacher".id IN (?)`, bun.In(ids)).
+		Where(`"teacher".id IN (?)`, bun.List(ids)).
 		Scan(ctx)
 
 	if err != nil {

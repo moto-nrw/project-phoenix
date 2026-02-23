@@ -123,7 +123,7 @@ func (r *PersonRepository) FindByIDs(ctx context.Context, ids []int64) (map[int6
 	err := r.db.NewSelect().
 		Model(&persons).
 		ModelTableExpr(`users.persons AS "person"`).
-		Where(`"person".id IN (?)`, bun.In(ids)).
+		Where(`"person".id IN (?)`, bun.List(ids)).
 		Scan(ctx)
 
 	if err != nil {

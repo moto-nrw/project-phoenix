@@ -32,7 +32,7 @@ func cleanupTeacherStaffRecords(t *testing.T, db *bun.DB, staffIDs ...int64) {
 	err := db.NewSelect().
 		TableExpr("users.staff").
 		Column("person_id").
-		Where("id IN (?)", bun.In(staffIDs)).
+		Where("id IN (?)", bun.List(staffIDs)).
 		Scan(ctx, &personIDs)
 	if err != nil {
 		t.Logf("Warning: failed to get person IDs for cleanup: %v", err)
@@ -40,7 +40,7 @@ func cleanupTeacherStaffRecords(t *testing.T, db *bun.DB, staffIDs ...int64) {
 
 	_, err = db.NewDelete().
 		TableExpr("users.staff").
-		Where("id IN (?)", bun.In(staffIDs)).
+		Where("id IN (?)", bun.List(staffIDs)).
 		Exec(ctx)
 	if err != nil {
 		t.Logf("Warning: failed to cleanup staff: %v", err)
@@ -49,7 +49,7 @@ func cleanupTeacherStaffRecords(t *testing.T, db *bun.DB, staffIDs ...int64) {
 	if len(personIDs) > 0 {
 		_, err = db.NewDelete().
 			TableExpr("users.persons").
-			Where("id IN (?)", bun.In(personIDs)).
+			Where("id IN (?)", bun.List(personIDs)).
 			Exec(ctx)
 		if err != nil {
 			t.Logf("Warning: failed to cleanup persons: %v", err)
@@ -65,7 +65,7 @@ func cleanupTeacherEducationData(t *testing.T, db *bun.DB, groupIDs []int64) {
 	if len(groupIDs) > 0 {
 		_, err := db.NewDelete().
 			TableExpr("education.group_teacher").
-			Where("group_id IN (?)", bun.In(groupIDs)).
+			Where("group_id IN (?)", bun.List(groupIDs)).
 			Exec(ctx)
 		if err != nil {
 			t.Logf("Warning: failed to cleanup group-teacher assignments: %v", err)
@@ -73,7 +73,7 @@ func cleanupTeacherEducationData(t *testing.T, db *bun.DB, groupIDs []int64) {
 
 		_, err = db.NewDelete().
 			TableExpr("education.groups").
-			Where("id IN (?)", bun.In(groupIDs)).
+			Where("id IN (?)", bun.List(groupIDs)).
 			Exec(ctx)
 		if err != nil {
 			t.Logf("Warning: failed to cleanup education groups: %v", err)
@@ -95,7 +95,7 @@ func cleanupTeacherRecords(t *testing.T, db *bun.DB, teacherIDs ...int64) {
 	err := db.NewSelect().
 		TableExpr("users.teachers").
 		Column("staff_id").
-		Where("id IN (?)", bun.In(teacherIDs)).
+		Where("id IN (?)", bun.List(teacherIDs)).
 		Scan(ctx, &staffIDs)
 	if err != nil {
 		t.Logf("Warning: failed to get staff IDs for cleanup: %v", err)
@@ -104,7 +104,7 @@ func cleanupTeacherRecords(t *testing.T, db *bun.DB, teacherIDs ...int64) {
 	// Delete teachers first
 	_, err = db.NewDelete().
 		TableExpr("users.teachers").
-		Where("id IN (?)", bun.In(teacherIDs)).
+		Where("id IN (?)", bun.List(teacherIDs)).
 		Exec(ctx)
 	if err != nil {
 		t.Logf("Warning: failed to cleanup teachers: %v", err)
@@ -116,7 +116,7 @@ func cleanupTeacherRecords(t *testing.T, db *bun.DB, teacherIDs ...int64) {
 		err := db.NewSelect().
 			TableExpr("users.staff").
 			Column("person_id").
-			Where("id IN (?)", bun.In(staffIDs)).
+			Where("id IN (?)", bun.List(staffIDs)).
 			Scan(ctx, &personIDs)
 		if err != nil {
 			t.Logf("Warning: failed to get person IDs for cleanup: %v", err)
@@ -124,7 +124,7 @@ func cleanupTeacherRecords(t *testing.T, db *bun.DB, teacherIDs ...int64) {
 
 		_, err = db.NewDelete().
 			TableExpr("users.staff").
-			Where("id IN (?)", bun.In(staffIDs)).
+			Where("id IN (?)", bun.List(staffIDs)).
 			Exec(ctx)
 		if err != nil {
 			t.Logf("Warning: failed to cleanup staff: %v", err)
@@ -133,7 +133,7 @@ func cleanupTeacherRecords(t *testing.T, db *bun.DB, teacherIDs ...int64) {
 		if len(personIDs) > 0 {
 			_, err = db.NewDelete().
 				TableExpr("users.persons").
-				Where("id IN (?)", bun.In(personIDs)).
+				Where("id IN (?)", bun.List(personIDs)).
 				Exec(ctx)
 			if err != nil {
 				t.Logf("Warning: failed to cleanup persons: %v", err)

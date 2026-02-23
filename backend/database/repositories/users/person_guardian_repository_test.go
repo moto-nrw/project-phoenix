@@ -69,7 +69,7 @@ func cleanupPersonGuardianRecords(t *testing.T, db *bun.DB, pgIDs ...int64) {
 
 	_, err := db.NewDelete().
 		TableExpr("users.persons_guardians").
-		Where("id IN (?)", bun.In(pgIDs)).
+		Where("id IN (?)", bun.List(pgIDs)).
 		Exec(ctx)
 	if err != nil {
 		t.Logf("Warning: failed to cleanup person guardians: %v", err)
@@ -87,7 +87,7 @@ func cleanupParentAccounts(t *testing.T, db *bun.DB, accountIDs ...int64) {
 
 	_, err := db.NewDelete().
 		TableExpr("auth.accounts_parents").
-		Where("id IN (?)", bun.In(accountIDs)).
+		Where("id IN (?)", bun.List(accountIDs)).
 		Exec(ctx)
 	if err != nil {
 		t.Logf("Warning: failed to cleanup parent accounts: %v", err)

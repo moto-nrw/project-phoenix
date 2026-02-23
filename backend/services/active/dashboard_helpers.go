@@ -175,7 +175,7 @@ func (s *service) loadStudentsWithGroups(ctx context.Context, studentIDs []int64
 	err := s.db.NewSelect().
 		Model(&studentsWithGroups).
 		ModelTableExpr(`users.students AS "student"`).
-		Where(`"student".id IN (?)`, bun.In(studentIDs)).
+		Where(`"student".id IN (?)`, bun.List(studentIDs)).
 		Scan(ctx)
 
 	return studentsWithGroups, err
@@ -212,7 +212,7 @@ func (s *service) loadEducationGroupsForActive(ctx context.Context, activeGroups
 	err := s.db.NewSelect().
 		Model(&eduGroups).
 		ModelTableExpr(`education.groups AS "group"`).
-		Where(`"group".id IN (?)`, bun.In(groupIDs)).
+		Where(`"group".id IN (?)`, bun.List(groupIDs)).
 		Scan(ctx)
 	if err != nil {
 		return

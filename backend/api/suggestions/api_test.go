@@ -85,12 +85,12 @@ func cleanupPosts(t *testing.T, db *bun.DB, postIDs ...int64) {
 
 	_, _ = db.NewDelete().
 		TableExpr("suggestions.votes").
-		Where("post_id IN (?)", bun.In(postIDs)).
+		Where("post_id IN (?)", bun.List(postIDs)).
 		Exec(ctx)
 
 	_, _ = db.NewDelete().
 		TableExpr("suggestions.posts").
-		Where("id IN (?)", bun.In(postIDs)).
+		Where("id IN (?)", bun.List(postIDs)).
 		Exec(ctx)
 }
 

@@ -411,7 +411,7 @@ func (r *GroupSubstitutionRepository) loadGroupsByIDs(ctx context.Context, group
 	err := r.db.NewSelect().
 		Model(&groups).
 		ModelTableExpr(`education.groups AS "group"`).
-		Where(`"group".id IN (?)`, bun.In(groupIDSlice)).
+		Where(`"group".id IN (?)`, bun.List(groupIDSlice)).
 		Scan(ctx)
 
 	if err == nil {
@@ -437,7 +437,7 @@ func (r *GroupSubstitutionRepository) loadStaffWithPersonsByIDs(ctx context.Cont
 	err := r.db.NewSelect().
 		Model(&staffList).
 		ModelTableExpr(`users.staff AS "staff"`).
-		Where(`"staff".id IN (?)`, bun.In(staffIDSlice)).
+		Where(`"staff".id IN (?)`, bun.List(staffIDSlice)).
 		Scan(ctx)
 
 	if err != nil || len(staffList) == 0 {
@@ -469,7 +469,7 @@ func (r *GroupSubstitutionRepository) linkPersonsToStaff(ctx context.Context, st
 	err := r.db.NewSelect().
 		Model(&persons).
 		ModelTableExpr(`users.persons AS "person"`).
-		Where(`"person".id IN (?)`, bun.In(personIDs)).
+		Where(`"person".id IN (?)`, bun.List(personIDs)).
 		Scan(ctx)
 
 	if err != nil {
