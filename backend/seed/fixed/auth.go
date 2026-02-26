@@ -35,9 +35,9 @@ func (s *Seeder) seedRolesAndPermissions(ctx context.Context) error {
 
 		// Use raw query to avoid schema issues
 		err := s.tx.NewRaw(`
-			INSERT INTO auth.roles (name, description, created_at, updated_at) 
+			INSERT INTO auth.roles (name, description, created_at, updated_at)
 			VALUES (?, ?, ?, ?)
-			ON CONFLICT (name) DO UPDATE SET updated_at = EXCLUDED.updated_at
+			ON CONFLICT (name) WHERE tenant_id IS NULL DO UPDATE SET updated_at = EXCLUDED.updated_at
 			RETURNING id, created_at, updated_at
 		`, role.Name, role.Description, role.CreatedAt, role.UpdatedAt).
 			Scan(ctx, &role.ID, &role.CreatedAt, &role.UpdatedAt)

@@ -57,12 +57,13 @@ func (s *Seeder) seedActivities(ctx context.Context) error {
 			Description: data.description,
 			Color:       data.color,
 		}
+		category.TenantID = DefaultTenantID
 		category.CreatedAt = time.Now()
 		category.UpdatedAt = time.Now()
 
 		_, err := s.tx.NewInsert().Model(category).
 			ModelTableExpr("activities.categories").
-			On("CONFLICT (name) DO UPDATE").
+			On("CONFLICT (tenant_id, name) DO UPDATE").
 			Set(SQLExcludedUpdatedAt).
 			Exec(ctx)
 		if err != nil {
@@ -186,6 +187,7 @@ func (s *Seeder) seedActivities(ctx context.Context) error {
 				IsOpen:          true,
 				CreatedBy:       &creatorID,
 			}
+			group.TenantID = DefaultTenantID
 			group.CreatedAt = time.Now()
 			group.UpdatedAt = group.CreatedAt
 
@@ -254,12 +256,13 @@ func (s *Seeder) assignActivitySupervisors(ctx context.Context) error {
 				StaffID:   staff.ID,
 				IsPrimary: i == 0, // First supervisor is primary
 			}
+			assignment.TenantID = DefaultTenantID
 			assignment.CreatedAt = time.Now()
 			assignment.UpdatedAt = time.Now()
 
 			_, err := s.tx.NewInsert().Model(assignment).
 				ModelTableExpr("activities.supervisors").
-				On("CONFLICT (group_id, staff_id) DO UPDATE").
+				On("CONFLICT (tenant_id, staff_id, group_id) DO UPDATE").
 				Set("is_primary = EXCLUDED.is_primary").
 				Set(SQLExcludedUpdatedAt).
 				Returning("created_at, updated_at").
@@ -406,12 +409,13 @@ func (s *Seeder) seedActivitySchedules(ctx context.Context) error {
 					TimeframeID:     &timeframeID,
 					Weekday:         weekdayInt,
 				}
+				sched.TenantID = DefaultTenantID
 				sched.CreatedAt = time.Now()
 				sched.UpdatedAt = time.Now()
 
 				_, err := s.tx.NewInsert().Model(sched).
 					ModelTableExpr("activities.schedules").
-					On("CONFLICT (weekday, timeframe_id, activity_group_id) WHERE (timeframe_id IS NOT NULL) DO UPDATE").
+					On("CONFLICT (tenant_id, weekday, timeframe_id, activity_group_id) WHERE (timeframe_id IS NOT NULL) DO UPDATE").
 					Set(SQLExcludedUpdatedAt).
 					Returning(SQLBaseColumns).
 					Exec(ctx)

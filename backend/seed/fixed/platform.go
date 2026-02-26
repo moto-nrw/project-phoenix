@@ -185,7 +185,7 @@ func (s *Seeder) seedSchoolBData(ctx context.Context) error {
 			_, err = s.tx.NewRaw(`
 				INSERT INTO auth.account_roles (account_id, role_id, tenant_id, created_at, updated_at)
 				VALUES (?, ?, ?, ?, ?)
-				ON CONFLICT (account_id, role_id) DO NOTHING
+				ON CONFLICT (account_id, role_id, tenant_id) DO NOTHING
 			`, accountID, s.result.Roles[1].ID, tenantID, now, now).Exec(ctx)
 			if err != nil {
 				return fmt.Errorf("failed to assign role for school-b staff: %w", err)

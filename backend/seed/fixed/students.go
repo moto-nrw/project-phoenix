@@ -46,12 +46,13 @@ func (s *Seeder) seedStudents(ctx context.Context) error {
 				GuardianPhone:   nil, // Deprecated: Use guardian_profiles table
 				GroupID:         &classGroup.ID,
 			}
+			student.TenantID = DefaultTenantID
 			student.CreatedAt = time.Now()
 			student.UpdatedAt = time.Now()
 
 			_, err := s.tx.NewInsert().Model(student).
 				ModelTableExpr("users.students").
-				On("CONFLICT (person_id) DO UPDATE").
+				On("CONFLICT (tenant_id, person_id) DO UPDATE").
 				Set("school_class = EXCLUDED.school_class").
 				Set("guardian_name = EXCLUDED.guardian_name").
 				Set("guardian_contact = EXCLUDED.guardian_contact").
@@ -215,13 +216,14 @@ func (s *Seeder) seedGuardianRelationships(ctx context.Context) error {
 				PreferredContactMethod: "mobile",
 				LanguagePreference:     "de",
 			}
+			guardian.TenantID = DefaultTenantID
 			guardian.CreatedAt = time.Now()
 			guardian.UpdatedAt = time.Now()
 
 			_, err := s.tx.NewInsert().
 				Model(guardian).
 				ModelTableExpr("users.guardian_profiles").
-				On("CONFLICT (email) DO UPDATE").
+				On("CONFLICT (tenant_id, email) DO UPDATE").
 				Set("first_name = EXCLUDED.first_name").
 				Set("last_name = EXCLUDED.last_name").
 				Set("address_street = EXCLUDED.address_street").
@@ -253,6 +255,7 @@ func (s *Seeder) seedGuardianRelationships(ctx context.Context) error {
 				CanPickup:          rng.Float32() < 0.8, // 80% can pickup
 				EmergencyPriority:  emergencyPriority,
 			}
+			relationship.TenantID = DefaultTenantID
 			relationship.CreatedAt = time.Now()
 			relationship.UpdatedAt = time.Now()
 
@@ -265,7 +268,7 @@ func (s *Seeder) seedGuardianRelationships(ctx context.Context) error {
 			_, err = s.tx.NewInsert().
 				Model(relationship).
 				ModelTableExpr("users.students_guardians").
-				On("CONFLICT (student_id, guardian_profile_id) DO UPDATE").
+				On("CONFLICT (tenant_id, student_id, guardian_profile_id) DO UPDATE").
 				Set("relationship_type = EXCLUDED.relationship_type").
 				Set("is_primary = EXCLUDED.is_primary").
 				Set("is_emergency_contact = EXCLUDED.is_emergency_contact").

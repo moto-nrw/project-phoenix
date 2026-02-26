@@ -100,10 +100,10 @@ func (s *Seeder) seedAdminAccount(ctx context.Context) error {
 
 	// Use raw SQL to avoid schema issues
 	_, err = s.tx.NewRaw(`
-		INSERT INTO auth.account_roles (account_id, role_id, created_at, updated_at)
-		VALUES (?, ?, ?, ?)
-		ON CONFLICT (account_id, role_id) DO NOTHING
-	`, accountRole.AccountID, accountRole.RoleID, accountRole.CreatedAt, accountRole.UpdatedAt).
+		INSERT INTO auth.account_roles (account_id, role_id, tenant_id, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?)
+		ON CONFLICT (account_id, role_id, tenant_id) DO NOTHING
+	`, accountRole.AccountID, accountRole.RoleID, DefaultTenantID, accountRole.CreatedAt, accountRole.UpdatedAt).
 		Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to assign admin role: %w", err)
@@ -115,6 +115,7 @@ func (s *Seeder) seedAdminAccount(ctx context.Context) error {
 		LastName:  "Administrator",
 	}
 	now := time.Now()
+	person.TenantID = DefaultTenantID
 	person.CreatedAt = now
 	person.UpdatedAt = now
 	accountID := admin.ID
@@ -122,7 +123,7 @@ func (s *Seeder) seedAdminAccount(ctx context.Context) error {
 
 	_, err = s.tx.NewInsert().Model(person).
 		ModelTableExpr("users.persons").
-		On("CONFLICT (account_id) DO UPDATE").
+		On("CONFLICT (tenant_id, account_id) DO UPDATE").
 		Set("first_name = EXCLUDED.first_name").
 		Set("last_name = EXCLUDED.last_name").
 		Set(SQLExcludedUpdatedAt).
@@ -137,12 +138,13 @@ func (s *Seeder) seedAdminAccount(ctx context.Context) error {
 		PersonID:   person.ID,
 		StaffNotes: "Systemadministrator",
 	}
+	adminStaff.TenantID = DefaultTenantID
 	adminStaff.CreatedAt = now
 	adminStaff.UpdatedAt = now
 
 	_, err = s.tx.NewInsert().Model(adminStaff).
 		ModelTableExpr("users.staff").
-		On("CONFLICT (person_id) DO UPDATE").
+		On("CONFLICT (tenant_id, person_id) DO UPDATE").
 		Set("staff_notes = EXCLUDED.staff_notes").
 		Set(SQLExcludedUpdatedAt).
 		Returning(SQLBaseColumns).
@@ -185,6 +187,7 @@ func (s *Seeder) seedPersonsWithAccounts(ctx context.Context) error {
 		rfidCard := &users.RFIDCard{
 			Active: true,
 		}
+		rfidCard.TenantID = DefaultTenantID
 		// Use hardcoded RFID tags for first 3 students (for integration tests)
 		switch i {
 		case 30:
@@ -277,12 +280,13 @@ func (s *Seeder) seedPersonsWithAccounts(ctx context.Context) error {
 					AccountID: account.ID,
 					RoleID:    roleID,
 				}
+				accountRole.TenantID = DefaultTenantID
 				accountRole.CreatedAt = time.Now()
 				accountRole.UpdatedAt = time.Now()
 
 				_, err = s.tx.NewInsert().Model(accountRole).
 					ModelTableExpr("auth.account_roles").
-					On("CONFLICT (account_id, role_id) DO UPDATE").
+					On("CONFLICT (account_id, role_id, tenant_id) DO UPDATE").
 					Set(SQLExcludedUpdatedAt).
 					Returning("created_at, updated_at").
 					Exec(ctx)
@@ -299,12 +303,13 @@ func (s *Seeder) seedPersonsWithAccounts(ctx context.Context) error {
 			TagID:     &rfidCard.ID,
 			AccountID: accountID,
 		}
+		person.TenantID = DefaultTenantID
 		person.CreatedAt = time.Now()
 		person.UpdatedAt = time.Now()
 
 		_, err = s.tx.NewInsert().Model(person).
 			ModelTableExpr("users.persons").
-			On("CONFLICT (tag_id) DO UPDATE").
+			On("CONFLICT (tenant_id, tag_id) DO UPDATE").
 			Set("first_name = EXCLUDED.first_name").
 			Set("last_name = EXCLUDED.last_name").
 			Set("account_id = EXCLUDED.account_id").

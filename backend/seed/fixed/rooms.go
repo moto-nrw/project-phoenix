@@ -92,12 +92,13 @@ func (s *Seeder) seedRooms(ctx context.Context) error {
 			Category: &category,
 			Color:    &color,
 		}
+		room.TenantID = DefaultTenantID
 		room.CreatedAt = time.Now()
 		room.UpdatedAt = time.Now()
 
 		_, err := s.tx.NewInsert().Model(room).
 			ModelTableExpr("facilities.rooms").
-			On("CONFLICT (name) DO UPDATE").
+			On("CONFLICT (tenant_id, name) DO UPDATE").
 			Set("building = EXCLUDED.building").
 			Set("floor = EXCLUDED.floor").
 			Set("capacity = EXCLUDED.capacity").

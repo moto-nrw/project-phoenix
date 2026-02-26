@@ -147,6 +147,7 @@ func (s *Seeder) createDaySchedule(ctx context.Context, rng *rand.Rand, studentI
 		Notes:      generateRandomNote(rng),
 		CreatedBy:  createdBy,
 	}
+	pickupSchedule.TenantID = DefaultTenantID
 	pickupSchedule.CreatedAt = time.Now()
 	pickupSchedule.UpdatedAt = time.Now()
 
@@ -227,6 +228,7 @@ func (s *Seeder) createException(ctx context.Context, rng *rand.Rand, studentID 
 		Reason:        &reason,
 		CreatedBy:     createdBy,
 	}
+	exception.TenantID = DefaultTenantID
 	exception.CreatedAt = time.Now()
 	exception.UpdatedAt = time.Now()
 

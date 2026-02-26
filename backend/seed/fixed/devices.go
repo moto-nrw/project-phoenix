@@ -62,12 +62,13 @@ func (s *Seeder) seedIoTDevices(ctx context.Context) error {
 			RegisteredByID: &registrarID,
 			APIKey:         &placement.apiKey,
 		}
+		device.TenantID = DefaultTenantID
 		device.CreatedAt = time.Now()
 		device.UpdatedAt = time.Now()
 
 		_, err := s.tx.NewInsert().Model(device).
 			ModelTableExpr("iot.devices").
-			On("CONFLICT (device_id) DO UPDATE").
+			On("CONFLICT (tenant_id, device_id) DO UPDATE").
 			Set("device_type = EXCLUDED.device_type").
 			Set("name = EXCLUDED.name").
 			Set("status = EXCLUDED.status").
