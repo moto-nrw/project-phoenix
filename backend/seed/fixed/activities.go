@@ -331,6 +331,7 @@ func (s *Seeder) seedTimeframes(ctx context.Context) error {
 				StartTime:   startTime,
 				EndTime:     &endTime,
 			}
+			timeframe.TenantID = DefaultTenantID
 			timeframe.CreatedAt = time.Now()
 			timeframe.UpdatedAt = timeframe.CreatedAt
 
@@ -497,6 +498,7 @@ func (s *Seeder) seedStudentEnrollments(ctx context.Context) error {
 				ActivityGroupID: activity.ID,
 				EnrollmentDate:  time.Now().AddDate(0, 0, -rng.Intn(30)),
 			}
+			enrollment.TenantID = DefaultTenantID
 			enrollment.CreatedAt = time.Now()
 			enrollment.UpdatedAt = time.Now()
 

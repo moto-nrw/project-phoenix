@@ -116,6 +116,7 @@ func (s *Seeder) seedPrivacyConsents(ctx context.Context) error {
 				RenewalRequired:   renewalRequired,
 				DataRetentionDays: 30, // Default 30 days retention
 			}
+			consent.TenantID = DefaultTenantID
 			consent.CreatedAt = time.Now()
 			consent.UpdatedAt = time.Now()
 
@@ -319,6 +320,7 @@ func (s *Seeder) seedGuardianPhoneNumbers(ctx context.Context, guardianID int64,
 		IsPrimary:         true,
 		Priority:          1,
 	}
+	mobilePhoneRecord.TenantID = DefaultTenantID
 	mobilePhoneRecord.CreatedAt = now
 	mobilePhoneRecord.UpdatedAt = now
 
@@ -338,6 +340,7 @@ func (s *Seeder) seedGuardianPhoneNumbers(ctx context.Context, guardianID int64,
 		IsPrimary:         false,
 		Priority:          2,
 	}
+	homePhoneRecord.TenantID = DefaultTenantID
 	homePhoneRecord.CreatedAt = now
 	homePhoneRecord.UpdatedAt = now
 
@@ -365,6 +368,7 @@ func (s *Seeder) seedGuardianPhoneNumbers(ctx context.Context, guardianID int64,
 			IsPrimary:         false,
 			Priority:          3,
 		}
+		workPhoneRecord.TenantID = DefaultTenantID
 		workPhoneRecord.CreatedAt = now
 		workPhoneRecord.UpdatedAt = now
 
