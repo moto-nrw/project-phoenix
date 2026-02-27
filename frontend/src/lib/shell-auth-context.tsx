@@ -83,10 +83,8 @@ export function TeacherShellProvider({
       status,
       isSessionExpired: session?.error === "RefreshTokenExpired",
       logout: async () => {
-        await signOut({
-          callbackUrl:
-            typeof window !== "undefined" ? window.location.origin : "/",
-        });
+        await signOut({ redirect: false });
+        window.location.href = "/";
       },
       mode: "teacher" as const,
       homeUrl: "/dashboard",
