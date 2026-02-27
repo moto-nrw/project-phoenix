@@ -152,6 +152,7 @@ func (s *Seeder) addActivitySession(ctx context.Context, currentTime time.Time, 
 		DeviceID:       deviceID,
 		RoomID:         *activity.PlannedRoomID,
 	}
+	activeGroup.TenantID = fixed.DefaultTenantID
 	activeGroup.CreatedAt = time.Now()
 	activeGroup.UpdatedAt = time.Now()
 
@@ -182,6 +183,7 @@ func (s *Seeder) addActivitySession(ctx context.Context, currentTime time.Time, 
 				StaffID: sup.StaffID,
 				Role:    role,
 			}
+			supervisor.TenantID = fixed.DefaultTenantID
 			supervisor.CreatedAt = time.Now()
 			supervisor.UpdatedAt = time.Now()
 
@@ -252,6 +254,7 @@ func (s *Seeder) checkInStudents(ctx context.Context, currentTime time.Time) err
 				ActiveGroupID: activeGroup.ID,
 				EntryTime:     entryTime,
 			}
+			visit.TenantID = fixed.DefaultTenantID
 			visit.CreatedAt = time.Now()
 			visit.UpdatedAt = time.Now()
 
@@ -376,7 +379,7 @@ func (s *Seeder) createAttendanceRecords(ctx context.Context, currentTime time.T
 			CheckedInBy: checkedInByID,
 			DeviceID:    deviceID,
 		}
-
+		attendance.TenantID = fixed.DefaultTenantID
 		attendance.CreatedAt = time.Now()
 		attendance.UpdatedAt = time.Now()
 
@@ -414,7 +417,7 @@ func (s *Seeder) createAttendanceRecords(ctx context.Context, currentTime time.T
 			CheckedInBy: checkedInByID,
 			DeviceID:    deviceID,
 		}
-
+		attendance.TenantID = fixed.DefaultTenantID
 		attendance.CreatedAt = time.Now()
 		attendance.UpdatedAt = time.Now()
 
@@ -450,6 +453,7 @@ func (s *Seeder) createCombinedGroup(ctx context.Context, currentTime time.Time)
 	combined := &active.CombinedGroup{
 		StartTime: currentTime,
 	}
+	combined.TenantID = fixed.DefaultTenantID
 	combined.CreatedAt = time.Now()
 	combined.UpdatedAt = time.Now()
 
@@ -462,16 +466,16 @@ func (s *Seeder) createCombinedGroup(ctx context.Context, currentTime time.Time)
 
 	// Link first two active groups to the combined group
 	for i := 0; i < 2 && i < len(s.result.ActiveGroups); i++ {
-		mapping := struct {
-			CombinedGroupID int64 `bun:"active_combined_group_id"`
-			ActiveGroupID   int64 `bun:"active_group_id"`
-		}{
-			CombinedGroupID: combined.ID,
-			ActiveGroupID:   s.result.ActiveGroups[i].ID,
+		mapping := &active.GroupMapping{
+			ActiveCombinedGroupID: combined.ID,
+			ActiveGroupID:         s.result.ActiveGroups[i].ID,
 		}
+		mapping.TenantID = fixed.DefaultTenantID
+		mapping.CreatedAt = time.Now()
+		mapping.UpdatedAt = time.Now()
 
 		_, err = s.tx.NewInsert().
-			Model(&mapping).
+			Model(mapping).
 			ModelTableExpr("active.group_mappings").
 			Exec(ctx)
 		if err != nil {
@@ -479,7 +483,7 @@ func (s *Seeder) createCombinedGroup(ctx context.Context, currentTime time.Time)
 		}
 
 		s.result.GroupMappings = append(s.result.GroupMappings, GroupMapping{
-			CombinedGroupID: mapping.CombinedGroupID,
+			CombinedGroupID: mapping.ActiveCombinedGroupID,
 			ActiveGroupID:   mapping.ActiveGroupID,
 		})
 	}

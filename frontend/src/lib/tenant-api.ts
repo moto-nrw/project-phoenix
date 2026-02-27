@@ -46,7 +46,11 @@ export async function resolveTenant(slug: string): Promise<TenantInfo | null> {
       return null;
     }
 
-    const data = (await response.json()) as TenantResolveResponse;
+    const json = (await response.json()) as {
+      status: string;
+      data: TenantResolveResponse;
+    };
+    const data = json.data;
     return {
       tenantId: data.tenant_id,
       slug: data.slug,
