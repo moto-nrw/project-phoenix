@@ -61,12 +61,13 @@ func (s *Seeder) seedStaff(ctx context.Context) error {
 			PersonID:   person.ID,
 			StaffNotes: staffNotes[i%len(staffNotes)],
 		}
+		staff.TenantID = DefaultTenantID
 		staff.CreatedAt = time.Now()
 		staff.UpdatedAt = time.Now()
 
 		_, err := s.tx.NewInsert().Model(staff).
 			ModelTableExpr("users.staff").
-			On("CONFLICT (person_id) DO UPDATE").
+			On("CONFLICT (tenant_id, person_id) DO UPDATE").
 			Set("staff_notes = EXCLUDED.staff_notes").
 			Set(SQLExcludedUpdatedAt).
 			Returning(SQLBaseColumns).
@@ -99,12 +100,13 @@ func (s *Seeder) seedTeachers(ctx context.Context) error {
 			Role:           data.role,
 			Qualifications: data.qualifications,
 		}
+		teacher.TenantID = DefaultTenantID
 		teacher.CreatedAt = time.Now()
 		teacher.UpdatedAt = time.Now()
 
 		_, err := s.tx.NewInsert().Model(teacher).
 			ModelTableExpr("users.teachers").
-			On("CONFLICT (staff_id) DO UPDATE").
+			On("CONFLICT (tenant_id, staff_id) DO UPDATE").
 			Set("specialization = EXCLUDED.specialization").
 			Set("role = EXCLUDED.role").
 			Set("qualifications = EXCLUDED.qualifications").

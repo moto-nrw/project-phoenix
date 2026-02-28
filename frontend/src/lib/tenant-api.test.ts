@@ -41,13 +41,16 @@ describe("tenant-api", () => {
   describe("resolveTenant", () => {
     it("resolves a tenant slug to TenantInfo", async () => {
       const backendData = {
-        tenant_id: 1,
-        slug: "demo-school",
-        name: "Demo School",
-        subdomain: "demo",
-        organization_id: 10,
-        organization_name: "Org A",
-        settings: { primaryColor: "#ff0000" },
+        status: "success",
+        data: {
+          tenant_id: 1,
+          slug: "demo-school",
+          name: "Demo School",
+          subdomain: "demo",
+          organization_id: 10,
+          organization_name: "Org A",
+          settings: { primaryColor: "#ff0000" },
+        },
       };
 
       vi.mocked(global.fetch).mockResolvedValueOnce(
@@ -93,13 +96,16 @@ describe("tenant-api", () => {
 
     it("defaults settings to empty object when not provided", async () => {
       const backendData = {
-        tenant_id: 1,
-        slug: "demo",
-        name: "Demo",
-        subdomain: "demo",
-        organization_id: 10,
-        organization_name: "Org",
-        settings: null,
+        status: "success",
+        data: {
+          tenant_id: 1,
+          slug: "demo",
+          name: "Demo",
+          subdomain: "demo",
+          organization_id: 10,
+          organization_name: "Org",
+          settings: null,
+        },
       };
 
       vi.mocked(global.fetch).mockResolvedValueOnce(

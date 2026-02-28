@@ -50,7 +50,7 @@ vi.mock("~/components/tenant/tenant-provider", () => ({
 
 vi.mock("~/env", () => ({
   env: {
-    NEXT_PUBLIC_TENANT_DOMAIN: "",
+    NEXT_PUBLIC_TENANT_DOMAIN: "localhost",
   },
 }));
 
@@ -108,11 +108,11 @@ describe("TenantSwitcher", () => {
     mockSignIn.mockResolvedValue({ ok: true });
     mockMutate.mockResolvedValue(undefined);
 
-    // Mock window.location
+    // Mock window.location with realistic values for subdomain-based redirect
     originalLocation = window.location;
     Object.defineProperty(window, "location", {
       writable: true,
-      value: { ...originalLocation, href: "" },
+      value: { ...originalLocation, href: "", protocol: "http:", port: "3000" },
     });
   });
 
@@ -219,8 +219,10 @@ describe("TenantSwitcher", () => {
     expect(mockMutate).toHaveBeenCalled();
     expect(mockClearSessionCache).toHaveBeenCalled();
 
-    // Should redirect (path-based since TENANT_DOMAIN is empty)
-    expect(window.location.href).toBe("/school-b/dashboard");
+    // Should redirect to the new tenant subdomain
+    expect(window.location.href).toBe(
+      "http://school-b.localhost:3000/dashboard",
+    );
   });
 
   it("handles switch error gracefully", async () => {

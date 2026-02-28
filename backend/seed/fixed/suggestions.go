@@ -50,6 +50,7 @@ func (s *Seeder) seedSuggestions(ctx context.Context) error {
 			Status:      data.status,
 			Score:       0,
 		}
+		post.TenantID = DefaultTenantID
 		post.CreatedAt = now.Add(-time.Duration(len(posts)-i) * 24 * time.Hour) // stagger creation dates
 		post.UpdatedAt = post.CreatedAt
 
@@ -81,6 +82,7 @@ func (s *Seeder) seedSuggestions(ctx context.Context) error {
 				VoterID:   voter.ID,
 				Direction: direction,
 			}
+			vote.TenantID = DefaultTenantID
 			vote.CreatedAt = post.CreatedAt.Add(time.Duration(j) * time.Hour)
 			vote.UpdatedAt = vote.CreatedAt
 

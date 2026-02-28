@@ -45,12 +45,13 @@ func (s *Seeder) seedEducationGroups(ctx context.Context) error {
 			Name:   data.name,
 			RoomID: roomID,
 		}
+		group.TenantID = DefaultTenantID
 		group.CreatedAt = time.Now()
 		group.UpdatedAt = time.Now()
 
 		_, err := s.tx.NewInsert().Model(group).
 			ModelTableExpr("education.groups").
-			On("CONFLICT (name) DO UPDATE").
+			On("CONFLICT (tenant_id, name) DO UPDATE").
 			Set("room_id = EXCLUDED.room_id").
 			Set(SQLExcludedUpdatedAt).
 			Returning(SQLBaseColumns).
@@ -102,12 +103,13 @@ func (s *Seeder) seedEducationGroups(ctx context.Context) error {
 			Name:   data.name,
 			RoomID: roomID,
 		}
+		group.TenantID = DefaultTenantID
 		group.CreatedAt = time.Now()
 		group.UpdatedAt = time.Now()
 
 		_, err := s.tx.NewInsert().Model(group).
 			ModelTableExpr("education.groups").
-			On("CONFLICT (name) DO UPDATE").
+			On("CONFLICT (tenant_id, name) DO UPDATE").
 			Set("room_id = EXCLUDED.room_id").
 			Set(SQLExcludedUpdatedAt).
 			Returning(SQLBaseColumns).
@@ -160,13 +162,14 @@ func (s *Seeder) assignTeachersToGroups(ctx context.Context) error {
 				GroupID:   group.ID,
 				TeacherID: teacher.ID,
 			}
+			groupTeacher.TenantID = DefaultTenantID
 			groupTeacher.CreatedAt = time.Now()
 			groupTeacher.UpdatedAt = time.Now()
 
 			_, err := s.tx.NewInsert().
 				Model(groupTeacher).
 				ModelTableExpr("education.group_teacher").
-				On("CONFLICT (group_id, teacher_id) DO NOTHING").
+				On("CONFLICT (tenant_id, group_id, teacher_id) DO NOTHING").
 				Exec(ctx)
 			if err != nil {
 				return fmt.Errorf("failed to assign teacher %d to group %d: %w",
@@ -185,13 +188,14 @@ func (s *Seeder) assignTeachersToGroups(ctx context.Context) error {
 			GroupID:   group3.ID,
 			TeacherID: teacher1.ID,
 		}
+		groupTeacher.TenantID = DefaultTenantID
 		groupTeacher.CreatedAt = time.Now()
 		groupTeacher.UpdatedAt = time.Now()
 
 		_, err := s.tx.NewInsert().
 			Model(groupTeacher).
 			ModelTableExpr("education.group_teacher").
-			On("CONFLICT (group_id, teacher_id) DO NOTHING").
+			On("CONFLICT (tenant_id, group_id, teacher_id) DO NOTHING").
 			Exec(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to ensure teacher 1 assigned to group 3: %w", err)

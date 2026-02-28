@@ -131,13 +131,13 @@ func (s *Service) newRefreshToken(accountID int64) *auth.Token {
 	}
 }
 
-// persistTokenInTransaction saves the token and updates last login in a transaction
+// persistTokenInTransaction saves the token and updates last login in a transaction.
 //
-// Phase 3 deviation: RunInTx retained because this is a public login route (no JWT/tenant context).
-// Handler-level WithTenantTx requires authenticated tenant context, which doesn't exist
-// at login time. Tenant is resolved from DB during the transaction.
+// Uses WithAdminTx (BYPASSRLS) because this is a public login route with no JWT/tenant
+// context. The phoenix_auth connection role cannot pass RLS policies on auth.tokens,
+// so we switch to phoenix_admin for the token write.
 func (s *Service) persistTokenInTransaction(ctx context.Context, account *auth.Account, token *auth.Token, tenantID int64) error {
-	return s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+	return tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
 		txService := s.WithTx(tx).(*Service)
 
 		// Clean up old tokens (keep 5 most recent)

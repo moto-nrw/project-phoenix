@@ -97,6 +97,37 @@ func createTenantRoles(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error granting roles to phoenix_auth: %w", err)
 	}
 
+	// phoenix_auth: direct permissions for pre-auth operations (login, tenant resolve).
+	// These endpoints run WITHOUT WithAdminTx/WithTenantTx because there is no
+	// authenticated context yet. phoenix_auth is NOINHERIT, so it needs explicit grants.
+	// search_path includes platform so BUN's Relation() joins resolve correctly.
+	_, err = tx.ExecContext(ctx, `
+		-- Tenant resolution (public, pre-auth)
+		GRANT USAGE ON SCHEMA platform TO phoenix_auth;
+		GRANT SELECT ON platform.schools, platform.organizations TO phoenix_auth;
+		ALTER ROLE phoenix_auth SET search_path TO public, platform;
+
+		-- Platform announcements (no tx wrapper, runs as phoenix_auth directly)
+		GRANT SELECT ON platform.announcements, platform.announcement_views TO phoenix_auth;
+		GRANT INSERT, UPDATE ON platform.announcement_views TO phoenix_auth;
+		GRANT USAGE ON ALL SEQUENCES IN SCHEMA platform TO phoenix_auth;
+
+		-- Login flow: credential validation, role/permission loading, token management
+		GRANT USAGE ON SCHEMA auth, users, audit TO phoenix_auth;
+		GRANT SELECT ON auth.accounts, auth.account_tenants, auth.account_roles,
+			auth.roles, auth.permissions, auth.account_permissions,
+			auth.role_permissions TO phoenix_auth;
+		GRANT UPDATE ON auth.accounts TO phoenix_auth;
+		GRANT SELECT, INSERT, DELETE ON auth.tokens TO phoenix_auth;
+		GRANT USAGE ON ALL SEQUENCES IN SCHEMA auth TO phoenix_auth;
+		GRANT SELECT ON users.persons TO phoenix_auth;
+		GRANT INSERT ON audit.auth_events TO phoenix_auth;
+		GRANT USAGE ON ALL SEQUENCES IN SCHEMA audit TO phoenix_auth;
+	`)
+	if err != nil {
+		return fmt.Errorf("error granting pre-auth permissions to phoenix_auth: %w", err)
+	}
+
 	// phoenix_tenant: CRUD on all tenant-scoped schemas + SELECT on platform.schools
 	// USAGE on platform schema required for SELECT on platform.schools to work
 	_, err = tx.ExecContext(ctx, `
@@ -107,7 +138,8 @@ func createTenantRoles(ctx context.Context, db *bun.DB) error {
 			auth, users, education, facilities, activities, active,
 			schedule, iot, feedback, config, suggestions, audit TO phoenix_tenant;
 
-		GRANT SELECT ON platform.schools TO phoenix_tenant;
+		GRANT SELECT ON platform.schools, platform.announcements TO phoenix_tenant;
+		GRANT SELECT, INSERT, UPDATE ON platform.announcement_views TO phoenix_tenant;
 
 		GRANT USAGE ON ALL SEQUENCES IN SCHEMA
 			auth, users, education, facilities, activities, active,
@@ -241,9 +273,20 @@ func rollbackTenantRoles(ctx context.Context, db *bun.DB) error {
 		REVOKE ALL ON ALL SEQUENCES IN SCHEMA
 			auth, users, education, facilities, activities, active,
 			schedule, iot, feedback, config, suggestions, audit FROM phoenix_tenant;
-		REVOKE SELECT ON platform.schools FROM phoenix_tenant;
+		REVOKE SELECT ON platform.schools, platform.announcements FROM phoenix_tenant;
+		REVOKE SELECT, INSERT, UPDATE ON platform.announcement_views FROM phoenix_tenant;
 		REVOKE USAGE ON SCHEMA auth, users, education, facilities, activities, active,
 			schedule, iot, feedback, config, suggestions, audit, platform FROM phoenix_tenant;
+
+		ALTER ROLE phoenix_auth RESET search_path;
+		REVOKE ALL ON ALL TABLES IN SCHEMA auth, audit FROM phoenix_auth;
+		REVOKE ALL ON ALL SEQUENCES IN SCHEMA auth, audit FROM phoenix_auth;
+		REVOKE SELECT ON users.persons FROM phoenix_auth;
+		REVOKE SELECT ON platform.schools, platform.organizations,
+			platform.announcements, platform.announcement_views FROM phoenix_auth;
+		REVOKE INSERT, UPDATE ON platform.announcement_views FROM phoenix_auth;
+		REVOKE USAGE ON ALL SEQUENCES IN SCHEMA platform FROM phoenix_auth;
+		REVOKE USAGE ON SCHEMA platform, auth, users, audit FROM phoenix_auth;
 
 		REVOKE phoenix_tenant FROM phoenix_auth;
 		REVOKE phoenix_admin FROM phoenix_auth;

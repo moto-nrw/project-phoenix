@@ -112,26 +112,25 @@ func (s *Seeder) seedSchoolBData(ctx context.Context) error {
 
 	// --- Rooms ---
 	roomNames := []struct {
-		name       string
-		roomNumber string
-		building   string
-		capacity   int
-		roomType   string
+		name     string
+		building string
+		capacity int
+		category string
 	}{
-		{"Klassenraum Sonne", "S101", "Hauptgebäude", 28, "classroom"},
-		{"Klassenraum Mond", "S102", "Hauptgebäude", 28, "classroom"},
-		{"Betreuungsraum", "S201", "OGS-Gebäude", 20, "activity_room"},
-		{"Mensa", "S301", "OGS-Gebäude", 60, "cafeteria"},
+		{"Klassenraum Sonne", "Hauptgebäude", 28, "Classroom"},
+		{"Klassenraum Mond", "Hauptgebäude", 28, "Classroom"},
+		{"Betreuungsraum", "OGS-Gebäude", 20, "Activity Room"},
+		{"Mensa", "OGS-Gebäude", 60, "Cafeteria"},
 	}
 
 	var roomIDs []int64
 	for _, r := range roomNames {
 		var roomID int64
 		err := s.tx.NewRaw(`
-			INSERT INTO facilities.rooms (name, room_number, building, floor, capacity, room_type, tenant_id, created_at, updated_at)
-			VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?)
+			INSERT INTO facilities.rooms (name, building, floor, capacity, category, tenant_id, created_at, updated_at)
+			VALUES (?, ?, 0, ?, ?, ?, ?, ?)
 			RETURNING id
-		`, r.name, r.roomNumber, r.building, r.capacity, r.roomType, tenantID, now, now).Scan(ctx, &roomID)
+		`, r.name, r.building, r.capacity, r.category, tenantID, now, now).Scan(ctx, &roomID)
 		if err != nil {
 			return fmt.Errorf("failed to create school-b room %s: %w", r.name, err)
 		}
@@ -185,7 +184,7 @@ func (s *Seeder) seedSchoolBData(ctx context.Context) error {
 			_, err = s.tx.NewRaw(`
 				INSERT INTO auth.account_roles (account_id, role_id, tenant_id, created_at, updated_at)
 				VALUES (?, ?, ?, ?, ?)
-				ON CONFLICT (account_id, role_id) DO NOTHING
+				ON CONFLICT (account_id, role_id, tenant_id) DO NOTHING
 			`, accountID, s.result.Roles[1].ID, tenantID, now, now).Exec(ctx)
 			if err != nil {
 				return fmt.Errorf("failed to assign role for school-b staff: %w", err)
@@ -221,8 +220,8 @@ func (s *Seeder) seedSchoolBData(ctx context.Context) error {
 	// --- Education group (one class) ---
 	var groupID int64
 	err := s.tx.NewRaw(`
-		INSERT INTO education.groups (name, grade, section, room_id, capacity, tenant_id, created_at, updated_at)
-		VALUES ('1A', 1, 'A', ?, 28, ?, ?, ?)
+		INSERT INTO education.groups (name, room_id, tenant_id, created_at, updated_at)
+		VALUES ('1A', ?, ?, ?, ?)
 		RETURNING id
 	`, roomIDs[0], tenantID, now, now).Scan(ctx, &groupID)
 	if err != nil {

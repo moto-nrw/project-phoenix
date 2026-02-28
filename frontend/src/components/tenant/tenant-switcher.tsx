@@ -89,15 +89,14 @@ export function TenantSwitcher() {
           to_slug: targetTenant.slug,
         });
 
-        // 5. Hard-navigate to the new tenant URL
-        const tenantDomain = env.NEXT_PUBLIC_TENANT_DOMAIN;
-        if (tenantDomain && tenantDomain !== "localhost") {
-          // Production: subdomain-based routing
-          window.location.href = `https://${targetTenant.subdomain}.${tenantDomain}/dashboard`;
-        } else {
-          // Development: path-based routing
-          window.location.href = `/${targetTenant.slug}/dashboard`;
-        }
+        // 5. Hard-navigate to the new tenant subdomain.
+        // Always use subdomain routing — the middleware rewrites subdomains
+        // to path segments, so navigating to a path directly on the old
+        // subdomain creates a broken double-prefixed URL.
+        const tenantDomain = env.NEXT_PUBLIC_TENANT_DOMAIN || "localhost";
+        const port = window.location.port ? `:${window.location.port}` : "";
+        const protocol = window.location.protocol;
+        window.location.href = `${protocol}//${targetTenant.subdomain}.${tenantDomain}${port}/dashboard`;
       } catch (err) {
         logger.error("tenant_switch_failed", {
           error: err instanceof Error ? err.message : String(err),

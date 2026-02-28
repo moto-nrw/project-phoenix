@@ -181,7 +181,7 @@ describe("TeacherShellProvider", () => {
     expect(result.current.isSessionExpired).toBe(true);
   });
 
-  it("calls signOut with callbackUrl on logout", async () => {
+  it("calls signOut with redirect:false and navigates manually on logout", async () => {
     mockUseSession.mockReturnValue({
       data: { user: { name: "User", email: "user@example.com", roles: [] } },
       status: "authenticated",
@@ -191,7 +191,7 @@ describe("TeacherShellProvider", () => {
 
     await result.current.logout();
 
-    expect(mockSignOut).toHaveBeenCalledWith({ callbackUrl: "/" });
+    expect(mockSignOut).toHaveBeenCalledWith({ redirect: false });
   });
 
   it("provides empty roles array when not specified", () => {

@@ -27,7 +27,11 @@ async function fetchTenantInfo(slug: string): Promise<TenantInfo | null> {
 
     if (!res.ok) return null;
 
-    const data = (await res.json()) as TenantResolveResponse;
+    const json = (await res.json()) as {
+      status: string;
+      data: TenantResolveResponse;
+    };
+    const data = json.data;
     return {
       tenantId: data.tenant_id,
       slug: data.slug,

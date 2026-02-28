@@ -10,4 +10,8 @@ const (
 
 	// SQLBaseColumns is used in RETURNING clauses for base model fields
 	SQLBaseColumns = "id, created_at, updated_at"
+
+	// DefaultTenantID is used by seed data for the primary test school (school-a).
+	// School-b (tenant_id=2) data is seeded separately in seedSchoolBData with raw SQL.
+	DefaultTenantID int64 = 1
 )

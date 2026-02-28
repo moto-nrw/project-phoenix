@@ -86,6 +86,7 @@ func (s *Seeder) seedSingleWorkSession(ctx context.Context, staffID int64, staff
 		BreakMinutes: breakMins,
 		CreatedBy:    staffID,
 	}
+	session.TenantID = DefaultTenantID
 	session.CreatedAt = time.Now()
 	session.UpdatedAt = time.Now()
 
@@ -118,6 +119,7 @@ func (s *Seeder) insertWorkSession(ctx context.Context, session *active.WorkSess
 func (s *Seeder) insertSessionBreaks(ctx context.Context, sessionID int64, breaks []*active.WorkSessionBreak) error {
 	for _, b := range breaks {
 		b.SessionID = sessionID
+		b.TenantID = DefaultTenantID
 		b.CreatedAt = time.Now()
 		b.UpdatedAt = time.Now()
 
