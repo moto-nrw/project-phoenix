@@ -194,34 +194,49 @@ type accountMetadata struct {
 // D13 revision: tenant is resolved FIRST so that roles and permissions can be scoped to
 // the resolved tenant, preventing cross-tenant privilege leakage in JWT tokens.
 func (s *Service) loadAccountMetadata(ctx context.Context, account *auth.Account, tenantSlug string) (*accountMetadata, error) {
-	// Step 1: Resolve tenant FIRST — roles/permissions depend on the target tenant.
-	tenantID, orgID, err := s.resolveAccountTenant(ctx, account.ID, tenantSlug)
+	// Use WithAdminTx (BYPASSRLS) because this runs during login/switch/refresh
+	// where no tenant context exists yet. RLS policies on auth.account_roles and
+	// auth.account_permissions require app.current_tenant_id to be set, which only
+	// happens inside tenant-scoped transactions. Without BYPASSRLS the role/permission
+	// queries return zero rows and the JWT gets empty permissions.
+	var result *accountMetadata
+	err := tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
+		txService := s.WithTx(tx).(*Service)
+
+		// Step 1: Resolve tenant FIRST — roles/permissions depend on the target tenant.
+		tenantID, orgID, err := txService.resolveAccountTenant(ctx, account.ID, tenantSlug)
+		if err != nil {
+			return err
+		}
+
+		// Step 2: Load roles scoped to the resolved tenant (D13 §6.1 step 6).
+		txService.ensureAccountRolesLoadedForTenant(ctx, account, tenantID)
+
+		// Step 3: Load permissions scoped to the resolved tenant (D13 §6.1 step 7).
+		permissions := txService.loadAccountPermissionsForTenant(ctx, account.ID, tenantID)
+		roleNames := txService.extractRoleNames(account.Roles)
+		permissionStrs := txService.extractPermissionNames(permissions)
+
+		username := txService.extractUsername(account)
+		firstName, lastName := txService.loadPersonNames(ctx, account.ID)
+		isAdmin := txService.checkRoleFlags(roleNames)
+
+		result = &accountMetadata{
+			roleNames:      roleNames,
+			permissionStrs: permissionStrs,
+			username:       username,
+			firstName:      firstName,
+			lastName:       lastName,
+			isAdmin:        isAdmin,
+			tenantID:       tenantID,
+			orgID:          orgID,
+		}
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
-
-	// Step 2: Load roles scoped to the resolved tenant (D13 §6.1 step 6).
-	s.ensureAccountRolesLoadedForTenant(ctx, account, tenantID)
-
-	// Step 3: Load permissions scoped to the resolved tenant (D13 §6.1 step 7).
-	permissions := s.loadAccountPermissionsForTenant(ctx, account.ID, tenantID)
-	roleNames := s.extractRoleNames(account.Roles)
-	permissionStrs := s.extractPermissionNames(permissions)
-
-	username := s.extractUsername(account)
-	firstName, lastName := s.loadPersonNames(ctx, account.ID)
-	isAdmin := s.checkRoleFlags(roleNames)
-
-	return &accountMetadata{
-		roleNames:      roleNames,
-		permissionStrs: permissionStrs,
-		username:       username,
-		firstName:      firstName,
-		lastName:       lastName,
-		isAdmin:        isAdmin,
-		tenantID:       tenantID,
-		orgID:          orgID,
-	}, nil
+	return result, nil
 }
 
 // ensureAccountRolesLoaded loads account roles if not already loaded.
