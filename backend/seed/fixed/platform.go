@@ -250,8 +250,8 @@ func (s *Seeder) seedSchoolBData(ctx context.Context) error {
 		}
 
 		_, err = s.tx.NewRaw(`
-			INSERT INTO users.students (person_id, group_id, tenant_id, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?)
+			INSERT INTO users.students (person_id, school_class, group_id, tenant_id, created_at, updated_at)
+			VALUES (?, '1A', ?, ?, ?, ?)
 		`, personID, groupID, tenantID, now, now).Exec(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to create school-b student %s: %w", sd.first, err)
