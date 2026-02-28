@@ -70,6 +70,7 @@ func (rs *Resource) Router() chi.Router {
 	r.Get("/invitations/{token}", rs.validateInvitation)
 	r.Post("/invitations/{token}/accept", rs.acceptInvitation)
 	r.Get("/tenant/resolve", rs.resolveTenant)
+	r.Get("/tenants", rs.listTenants)
 
 	// Protected routes that require refresh token
 	r.Group(func(r chi.Router) {
@@ -338,6 +339,33 @@ func (rs *Resource) listAccountTenants(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Account tenants retrieved successfully")
+}
+
+// listTenants handles GET /auth/tenants (public, no auth required)
+func (rs *Resource) listTenants(w http.ResponseWriter, r *http.Request) {
+	schools, err := rs.SchoolRepo.ListActive(r.Context())
+	if err != nil {
+		common.RenderError(w, r, ErrorInternalServer(err))
+		return
+	}
+
+	responses := make([]AccountTenantResponse, 0, len(schools))
+	for _, school := range schools {
+		var orgName string
+		if school.Organization != nil {
+			orgName = school.Organization.Name
+		}
+		responses = append(responses, AccountTenantResponse{
+			TenantID:         school.ID,
+			Slug:             school.Slug,
+			Name:             school.Name,
+			Subdomain:        school.Subdomain,
+			OrganizationID:   school.OrganizationID,
+			OrganizationName: orgName,
+		})
+	}
+
+	common.Respond(w, r, http.StatusOK, responses, "Tenants retrieved successfully")
 }
 
 // LoginRequest represents the login request payload

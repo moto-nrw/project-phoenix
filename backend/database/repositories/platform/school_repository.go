@@ -69,6 +69,7 @@ func (r *SchoolRepository) ListActive(ctx context.Context) ([]platform.School, e
 	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&schools).
 		ModelTableExpr(schoolTableAlias).
+		Relation("Organization").
 		Where(`"school".active = true`).
 		OrderExpr(`"school".name ASC`).
 		Scan(ctx)

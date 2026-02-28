@@ -65,6 +65,32 @@ export async function resolveTenant(slug: string): Promise<TenantInfo | null> {
   }
 }
 
+/**
+ * List all active tenants.
+ * This is a public (no-auth) call used on the root tenant selector page.
+ */
+export async function listAllTenants(): Promise<TenantInfo[]> {
+  try {
+    const response = await fetch("/api/tenant/list");
+    if (!response.ok) {
+      return [];
+    }
+    const json = (await response.json()) as { data?: AccountTenantBackend[] };
+    const items = json.data ?? [];
+    return items.map((t) => ({
+      tenantId: t.tenant_id,
+      slug: t.slug,
+      name: t.name,
+      subdomain: t.subdomain,
+      organizationId: t.organization_id,
+      organizationName: t.organization_name,
+      settings: {},
+    }));
+  } catch {
+    return [];
+  }
+}
+
 /** Backend response shape for account tenants (snake_case) */
 interface AccountTenantBackend {
   tenant_id: number;
