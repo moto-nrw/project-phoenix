@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
@@ -172,7 +173,7 @@ func (s *service) loadStudentsWithGroups(ctx context.Context, studentIDs []int64
 	}
 
 	var studentsWithGroups []*userModels.Student
-	err := s.db.NewSelect().
+	err := base.GetDB(ctx, s.db).NewSelect().
 		Model(&studentsWithGroups).
 		ModelTableExpr(`users.students AS "student"`).
 		Where(`"student".id IN (?)`, bun.In(studentIDs)).
@@ -209,7 +210,7 @@ func (s *service) loadEducationGroupsForActive(ctx context.Context, activeGroups
 	}
 
 	var eduGroups []*educationModels.Group
-	err := s.db.NewSelect().
+	err := base.GetDB(ctx, s.db).NewSelect().
 		Model(&eduGroups).
 		ModelTableExpr(`education.groups AS "group"`).
 		Where(`"group".id IN (?)`, bun.In(groupIDs)).
