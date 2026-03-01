@@ -95,6 +95,17 @@ func (s *Seeder) seedAccountTenants(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to map admin to school-b: %w", err)
 		}
+
+		// Assign admin role for school-b so the admin can actually operate there
+		adminRole := s.result.Roles[0] // Admin role
+		_, err = s.tx.NewRaw(`
+			INSERT INTO auth.account_roles (account_id, role_id, tenant_id, created_at, updated_at)
+			VALUES (?, ?, 2, ?, ?)
+			ON CONFLICT (account_id, role_id, tenant_id) DO NOTHING
+		`, s.result.AdminAccount.ID, adminRole.ID, now, now).Exec(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to assign admin role for school-b: %w", err)
+		}
 	}
 
 	if s.verbose {
