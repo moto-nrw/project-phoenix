@@ -6,29 +6,50 @@ import { useMemo } from "react";
 import { useTenant } from "~/components/tenant/tenant-provider";
 
 /**
- * Tenant-aware router that automatically prefixes paths with the tenant slug.
- * Use this instead of `useRouter()` for all in-app navigation within tenant-scoped routes.
+ * Detect whether the browser is running in subdomain-based tenant routing.
+ * When a subdomain matches the tenant slug (e.g. school-a.localhost),
+ * the middleware already rewrites paths internally, so the router must
+ * NOT add the slug to the path — otherwise URLs become redundant:
+ *   school-a.localhost:3000/school-a/dashboard  (wrong, double slug)
+ *   school-a.localhost:3000/dashboard            (correct, middleware handles it)
+ */
+function useIsSubdomainMode(tenantSlug: string): boolean {
+  // Safe for SSR: window check prevents server-side errors.
+  // No hydration mismatch because the result is only used in callbacks, not rendered.
+  if (typeof window === "undefined") return false;
+  return window.location.hostname.startsWith(`${tenantSlug}.`);
+}
+
+/**
+ * Tenant-aware router that handles both subdomain and path-based routing.
+ *
+ * - **Subdomain mode** (school-a.localhost:3000): pushes bare paths (`/dashboard`),
+ *   the middleware rewrites them internally to `/school-a/dashboard`.
+ * - **Path mode** (localhost:3000/school-a): prefixes paths with the tenant slug.
  *
  * Returns a memoized object so it can safely appear in useEffect dependency arrays
  * without causing infinite re-render loops.
  *
  * Example:
  *   const router = useTenantRouter();
- *   router.push("/dashboard");  // navigates to /school-a/dashboard
+ *   router.push("/dashboard");
+ *   // subdomain mode → /dashboard  (browser URL stays clean)
+ *   // path mode      → /school-a/dashboard
  */
 export function useTenantRouter() {
   const { tenantSlug } = useTenant();
   const router = useRouter();
+  const isSubdomain = useIsSubdomainMode(tenantSlug);
 
-  return useMemo(
-    () => ({
-      push: (path: string) => router.push(`/${tenantSlug}${path}`),
-      replace: (path: string) => router.replace(`/${tenantSlug}${path}`),
+  return useMemo(() => {
+    const prefix = isSubdomain ? "" : `/${tenantSlug}`;
+    return {
+      push: (path: string) => router.push(`${prefix}${path}`),
+      replace: (path: string) => router.replace(`${prefix}${path}`),
       back: () => router.back(),
       forward: () => router.forward(),
       refresh: () => router.refresh(),
-      prefetch: (path: string) => router.prefetch(`/${tenantSlug}${path}`),
-    }),
-    [tenantSlug, router],
-  );
+      prefetch: (path: string) => router.prefetch(`${prefix}${path}`),
+    };
+  }, [tenantSlug, router, isSubdomain]);
 }
