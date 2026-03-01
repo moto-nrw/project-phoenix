@@ -22,7 +22,7 @@ import { ConfirmationModal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
 import { useIsMobile } from "~/hooks/useIsMobile";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
-import { useSWRAuth, mutate } from "~/lib/swr";
+import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 
 export default function GroupsPage() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -54,6 +54,7 @@ export default function GroupsPage() {
   });
 
   const service = useMemo(() => createCrudService(groupsConfig), []);
+  const tenantMutate = useTenantMutate();
 
   // Fetch groups with SWR (automatic caching, deduplication, revalidation)
   const {
@@ -157,7 +158,7 @@ export default function GroupsPage() {
         ),
       );
       setShowCreateModal(false);
-      await mutate("database-groups-list");
+      await tenantMutate("database-groups-list");
     } finally {
       setCreateLoading(false);
     }
@@ -181,7 +182,7 @@ export default function GroupsPage() {
       setSelectedGroup(refreshed);
       setShowEditModal(false);
       setShowDetailModal(true);
-      await mutate("database-groups-list");
+      await tenantMutate("database-groups-list");
     } finally {
       setDetailLoading(false);
     }
@@ -201,7 +202,7 @@ export default function GroupsPage() {
       );
       setShowDetailModal(false);
       setSelectedGroup(null);
-      await mutate("database-groups-list");
+      await tenantMutate("database-groups-list");
     } finally {
       setDetailLoading(false);
     }

@@ -25,7 +25,7 @@ import { ConfirmationModal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
 import { useIsMobile } from "~/hooks/useIsMobile";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
-import { useSWRAuth, mutate } from "~/lib/swr";
+import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 
 export default function RoomsPage() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -59,6 +59,7 @@ export default function RoomsPage() {
   });
 
   const service = useMemo(() => createCrudService(roomsConfig), []);
+  const tenantMutate = useTenantMutate();
 
   // Fetch rooms with SWR (automatic caching, deduplication, revalidation)
   const {
@@ -172,7 +173,7 @@ export default function RoomsPage() {
         ),
       );
       setShowCreateModal(false);
-      await mutate("database-rooms-list");
+      await tenantMutate("database-rooms-list");
     } finally {
       setCreateLoading(false);
     }
@@ -196,7 +197,7 @@ export default function RoomsPage() {
       setSelectedRoom(refreshed);
       setShowEditModal(false);
       setShowDetailModal(true);
-      await mutate("database-rooms-list");
+      await tenantMutate("database-rooms-list");
     } catch (e) {
       logger.error("failed to update room", {
         error: e instanceof Error ? e.message : String(e),
@@ -222,7 +223,7 @@ export default function RoomsPage() {
       );
       setShowDetailModal(false);
       setSelectedRoom(null);
-      await mutate("database-rooms-list");
+      await tenantMutate("database-rooms-list");
     } finally {
       setDetailLoading(false);
     }

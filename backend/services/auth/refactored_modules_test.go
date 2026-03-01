@@ -54,7 +54,7 @@ func TestAuthService_DeleteRole_Extended(t *testing.T) {
 
 		// Create account and assign role
 		email := fmt.Sprintf("delete-role-user-%d@test.local", time.Now().UnixNano())
-		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", time.Now().UnixNano()), "Test1234%", nil)
+		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", time.Now().UnixNano()), "Test1234%", nil, 0)
 		if account != nil {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
@@ -113,7 +113,7 @@ func TestAuthService_AssignRoleToAccount_Extended(t *testing.T) {
 	t.Run("returns error for non-existent role", func(t *testing.T) {
 		// ARRANGE
 		email := fmt.Sprintf("assign-role-user-%d@test.local", time.Now().UnixNano())
-		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", time.Now().UnixNano()), "Test1234%", nil)
+		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", time.Now().UnixNano()), "Test1234%", nil, 0)
 		if account != nil {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
@@ -129,7 +129,7 @@ func TestAuthService_AssignRoleToAccount_Extended(t *testing.T) {
 	t.Run("is idempotent - assigning same role twice succeeds", func(t *testing.T) {
 		// ARRANGE
 		email := fmt.Sprintf("idempotent-role-%d@test.local", time.Now().UnixNano())
-		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", time.Now().UnixNano()), "Test1234%", nil)
+		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", time.Now().UnixNano()), "Test1234%", nil, 0)
 		if account != nil {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
@@ -172,7 +172,7 @@ func TestAuthService_RemoveRoleFromAccount_Extended(t *testing.T) {
 	t.Run("removes role from account successfully", func(t *testing.T) {
 		// ARRANGE
 		email := fmt.Sprintf("remove-role-%d@test.local", time.Now().UnixNano())
-		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", time.Now().UnixNano()), "Test1234%", nil)
+		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", time.Now().UnixNano()), "Test1234%", nil, 0)
 		if account != nil {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
@@ -210,7 +210,7 @@ func TestAuthService_GetAccountRoles_Extended(t *testing.T) {
 	t.Run("returns empty list for account with no roles", func(t *testing.T) {
 		// ARRANGE
 		email := fmt.Sprintf("no-roles-%d@test.local", time.Now().UnixNano())
-		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", time.Now().UnixNano()), "Test1234%", nil)
+		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", time.Now().UnixNano()), "Test1234%", nil, 0)
 		if account != nil {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
@@ -279,7 +279,7 @@ func TestAuthService_DeletePermission_Extended(t *testing.T) {
 
 		// Create account and grant permission
 		email := fmt.Sprintf("delete-perm-user-%s@test.local", uniqueID)
-		account, err := service.Register(ctx, email, fmt.Sprintf("user-%s", uniqueID), "Test1234%", nil)
+		account, err := service.Register(ctx, email, fmt.Sprintf("user-%s", uniqueID), "Test1234%", nil, 0)
 		if account != nil {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
@@ -310,7 +310,7 @@ func TestAuthService_GrantPermissionToAccount_Extended(t *testing.T) {
 	t.Run("returns error for non-existent permission", func(t *testing.T) {
 		// ARRANGE
 		email := fmt.Sprintf("grant-perm-user-%d@test.local", time.Now().UnixNano())
-		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", time.Now().UnixNano()), "Test1234%", nil)
+		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", time.Now().UnixNano()), "Test1234%", nil, 0)
 		if account != nil {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
@@ -340,7 +340,7 @@ func TestAuthService_RemovePermissionFromAccount_Extended(t *testing.T) {
 		require.NoError(t, err)
 
 		email := fmt.Sprintf("remove-perm-user-%s@test.local", uniqueID)
-		account, err := service.Register(ctx, email, fmt.Sprintf("user-%s", uniqueID), "Test1234%", nil)
+		account, err := service.Register(ctx, email, fmt.Sprintf("user-%s", uniqueID), "Test1234%", nil, 0)
 		if account != nil {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
@@ -497,7 +497,7 @@ func TestAuthService_ActivateAccount_Extended(t *testing.T) {
 	t.Run("activates already active account (idempotent)", func(t *testing.T) {
 		// ARRANGE
 		email := fmt.Sprintf("already-active-%d@test.local", time.Now().UnixNano())
-		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", time.Now().UnixNano()), "Test1234%", nil)
+		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", time.Now().UnixNano()), "Test1234%", nil, 0)
 		if account != nil {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
@@ -528,7 +528,7 @@ func TestAuthService_DeactivateAccount_Extended(t *testing.T) {
 	t.Run("deactivates account and invalidates tokens", func(t *testing.T) {
 		// ARRANGE
 		email := fmt.Sprintf("deactivate-tokens-%d@test.local", time.Now().UnixNano())
-		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", time.Now().UnixNano()), "Test1234%", nil)
+		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", time.Now().UnixNano()), "Test1234%", nil, 0)
 		if account != nil {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
@@ -557,7 +557,7 @@ func TestAuthService_DeactivateAccount_Extended(t *testing.T) {
 	t.Run("deactivates already inactive account (idempotent)", func(t *testing.T) {
 		// ARRANGE
 		email := fmt.Sprintf("already-inactive-%d@test.local", time.Now().UnixNano())
-		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", time.Now().UnixNano()), "Test1234%", nil)
+		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", time.Now().UnixNano()), "Test1234%", nil, 0)
 		if account != nil {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
@@ -585,7 +585,7 @@ func TestAuthService_UpdateAccount_Extended(t *testing.T) {
 	t.Run("preserves password hash when not provided", func(t *testing.T) {
 		// ARRANGE
 		email := fmt.Sprintf("preserve-hash-%d@test.local", time.Now().UnixNano())
-		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", time.Now().UnixNano()), "Test1234%", nil)
+		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", time.Now().UnixNano()), "Test1234%", nil, 0)
 		if account != nil {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
@@ -636,7 +636,7 @@ func TestAuthService_ListAccounts_Extended(t *testing.T) {
 	t.Run("returns accounts with email filter", func(t *testing.T) {
 		// ARRANGE
 		email := fmt.Sprintf("filter-email-%d@test.local", time.Now().UnixNano())
-		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", time.Now().UnixNano()), "Test1234%", nil)
+		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", time.Now().UnixNano()), "Test1234%", nil, 0)
 		if account != nil {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
@@ -676,7 +676,7 @@ func TestAuthService_GetAccountsByRole_Extended(t *testing.T) {
 		require.NoError(t, err)
 
 		email := fmt.Sprintf("role-specific-%s@test.local", uniqueID)
-		account, err := service.Register(ctx, email, fmt.Sprintf("user-%s", uniqueID), "Test1234%", nil)
+		account, err := service.Register(ctx, email, fmt.Sprintf("user-%s", uniqueID), "Test1234%", nil, 0)
 		if account != nil {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
@@ -775,7 +775,7 @@ func TestAuthService_RevokeAllTokens_Extended(t *testing.T) {
 	t.Run("succeeds for account with no tokens", func(t *testing.T) {
 		// ARRANGE
 		email := fmt.Sprintf("no-tokens-%d@test.local", time.Now().UnixNano())
-		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", time.Now().UnixNano()), "Test1234%", nil)
+		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", time.Now().UnixNano()), "Test1234%", nil, 0)
 		if account != nil {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
@@ -803,7 +803,7 @@ func TestAuthService_GetActiveTokens_Extended(t *testing.T) {
 	t.Run("returns multiple tokens after multiple logins", func(t *testing.T) {
 		// ARRANGE
 		email := fmt.Sprintf("multi-token-%d@test.local", time.Now().UnixNano())
-		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", time.Now().UnixNano()), "Test1234%", nil)
+		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", time.Now().UnixNano()), "Test1234%", nil, 0)
 		if account != nil {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
@@ -974,7 +974,7 @@ func TestAuthService_ResetPassword_Extended(t *testing.T) {
 	t.Run("returns error for weak new password", func(t *testing.T) {
 		// ARRANGE
 		email := fmt.Sprintf("reset-weak-%d@test.local", time.Now().UnixNano())
-		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", time.Now().UnixNano()), "Test1234%", nil)
+		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", time.Now().UnixNano()), "Test1234%", nil, 0)
 		if account != nil {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
@@ -1013,7 +1013,7 @@ func TestAuthService_InitiatePasswordReset_Extended(t *testing.T) {
 		// ARRANGE
 		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
 		email := fmt.Sprintf("reset-case-%s@test.local", uniqueID)
-		account, err := service.Register(ctx, email, fmt.Sprintf("user-%s", uniqueID), "Test1234%", nil)
+		account, err := service.Register(ctx, email, fmt.Sprintf("user-%s", uniqueID), "Test1234%", nil, 0)
 		if account != nil {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
@@ -1044,7 +1044,7 @@ func TestAuthService_Login_Extended(t *testing.T) {
 		// ARRANGE
 		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
 		email := fmt.Sprintf("login-case-%s@test.local", uniqueID)
-		account, err := service.Register(ctx, email, fmt.Sprintf("user-%s", uniqueID), "Test1234%", nil)
+		account, err := service.Register(ctx, email, fmt.Sprintf("user-%s", uniqueID), "Test1234%", nil, 0)
 		if account != nil {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
@@ -1062,7 +1062,7 @@ func TestAuthService_Login_Extended(t *testing.T) {
 	t.Run("fails for deactivated account", func(t *testing.T) {
 		// ARRANGE
 		email := fmt.Sprintf("deactivated-login-%d@test.local", time.Now().UnixNano())
-		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", time.Now().UnixNano()), "Test1234%", nil)
+		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", time.Now().UnixNano()), "Test1234%", nil, 0)
 		if account != nil {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
@@ -1093,7 +1093,7 @@ func TestAuthService_Register_Extended(t *testing.T) {
 		email := fmt.Sprintf("REGISTER-CASE-%s@TEST.LOCAL", uniqueID)
 
 		// ACT
-		account, err := service.Register(ctx, email, fmt.Sprintf("user-%s", uniqueID), "Test1234%", nil)
+		account, err := service.Register(ctx, email, fmt.Sprintf("user-%s", uniqueID), "Test1234%", nil, 0)
 		if account != nil {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
@@ -1107,7 +1107,7 @@ func TestAuthService_Register_Extended(t *testing.T) {
 
 	t.Run("allows empty username", func(t *testing.T) {
 		// ACT - Register allows empty/nil username
-		account, err := service.Register(ctx, fmt.Sprintf("empty-user-%d@test.local", time.Now().UnixNano()), "", "Test1234%", nil)
+		account, err := service.Register(ctx, fmt.Sprintf("empty-user-%d@test.local", time.Now().UnixNano()), "", "Test1234%", nil, 0)
 		if account != nil {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
@@ -1128,7 +1128,7 @@ func TestAuthService_ValidateToken_Extended(t *testing.T) {
 	t.Run("returns error for deactivated account token", func(t *testing.T) {
 		// ARRANGE
 		email := fmt.Sprintf("validate-deactivated-%d@test.local", time.Now().UnixNano())
-		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", time.Now().UnixNano()), "Test1234%", nil)
+		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", time.Now().UnixNano()), "Test1234%", nil, 0)
 		if account != nil {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
@@ -1159,7 +1159,7 @@ func TestAuthService_RefreshToken_Extended(t *testing.T) {
 	t.Run("fails for deactivated account", func(t *testing.T) {
 		// ARRANGE
 		email := fmt.Sprintf("refresh-deactivated-%d@test.local", time.Now().UnixNano())
-		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", time.Now().UnixNano()), "Test1234%", nil)
+		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", time.Now().UnixNano()), "Test1234%", nil, 0)
 		if account != nil {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
@@ -1190,7 +1190,7 @@ func TestAuthService_Logout_Extended(t *testing.T) {
 	t.Run("is idempotent - double logout succeeds", func(t *testing.T) {
 		// ARRANGE
 		email := fmt.Sprintf("double-logout-%d@test.local", time.Now().UnixNano())
-		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", time.Now().UnixNano()), "Test1234%", nil)
+		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", time.Now().UnixNano()), "Test1234%", nil, 0)
 		if account != nil {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
@@ -1229,7 +1229,7 @@ func TestAuthService_ChangePassword_Extended(t *testing.T) {
 	t.Run("returns error for same old and new password", func(t *testing.T) {
 		// ARRANGE
 		email := fmt.Sprintf("same-pwd-%d@test.local", time.Now().UnixNano())
-		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", time.Now().UnixNano()), "Test1234%", nil)
+		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", time.Now().UnixNano()), "Test1234%", nil, 0)
 		if account != nil {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
@@ -1255,7 +1255,7 @@ func TestAuthService_GetAccountByEmail_Extended(t *testing.T) {
 		// ARRANGE
 		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
 		email := fmt.Sprintf("get-email-case-%s@test.local", uniqueID)
-		account, err := service.Register(ctx, email, fmt.Sprintf("user-%s", uniqueID), "Test1234%", nil)
+		account, err := service.Register(ctx, email, fmt.Sprintf("user-%s", uniqueID), "Test1234%", nil, 0)
 		if account != nil {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}

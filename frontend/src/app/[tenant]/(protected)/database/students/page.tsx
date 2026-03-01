@@ -24,7 +24,7 @@ import { createCrudService } from "@/lib/database/service-factory";
 import { studentsConfig } from "@/lib/database/configs/students.config";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import type { Student } from "@/lib/api";
-import { useSWRAuth, mutate } from "~/lib/swr";
+import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 
 export default function StudentsPage() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -69,6 +69,7 @@ export default function StudentsPage() {
 
   // Create service instance
   const service = useMemo(() => createCrudService(studentsConfig), []);
+  const tenantMutate = useTenantMutate();
 
   // Fetch students with SWR (automatic caching, deduplication, revalidation)
   const {
@@ -248,7 +249,7 @@ export default function StudentsPage() {
     );
 
     setShowCreateModal(false);
-    await mutate("database-students-list");
+    await tenantMutate("database-students-list");
   };
 
   // Handle update student
@@ -288,7 +289,7 @@ export default function StudentsPage() {
       setShowEditModal(false);
       setShowDetailModal(true);
 
-      await mutate("database-students-list");
+      await tenantMutate("database-students-list");
     } catch (err) {
       logger.error("failed to update student", {
         error: err instanceof Error ? err.message : String(err),
@@ -323,7 +324,7 @@ export default function StudentsPage() {
 
       setShowDetailModal(false);
       setSelectedStudent(null);
-      await mutate("database-students-list");
+      await tenantMutate("database-students-list");
     } catch (err) {
       logger.error("failed to delete student", {
         error: err instanceof Error ? err.message : String(err),

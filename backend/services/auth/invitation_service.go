@@ -438,6 +438,10 @@ func (s *invitationService) createAccountWithRole(
 		return nil, &AuthError{Op: "link person to account", Err: err}
 	}
 
+	if err := s.createAccountTenant(ctx, account.ID, invitation.TenantID); err != nil {
+		return nil, err
+	}
+
 	if err := s.assignRole(ctx, account.ID, invitation.RoleID, invitation.TenantID); err != nil {
 		return nil, err
 	}
@@ -491,6 +495,25 @@ func (s *invitationService) assignRole(ctx context.Context, accountID, roleID, t
 	accountRole.SetTenantID(tenantID)
 	if err := s.accountRoleRepo.Create(ctx, accountRole); err != nil {
 		return &AuthError{Op: "assign role", Err: err}
+	}
+	return nil
+}
+
+// createAccountTenant maps an account to a tenant so the user can log into this school.
+// Must be called within a RunInTx block (tx stored in context).
+func (s *invitationService) createAccountTenant(ctx context.Context, accountID, tenantID int64) error {
+	tx, ok := modelBase.TxFromContext(ctx)
+	if !ok || tx == nil {
+		return &AuthError{Op: "create account-tenant mapping", Err: fmt.Errorf("no transaction in context")}
+	}
+	now := time.Now()
+	_, err := tx.NewRaw(`
+		INSERT INTO auth.account_tenants (account_id, tenant_id, status, activated_at, created_at, updated_at)
+		VALUES (?, ?, 'active', ?, ?, ?)
+		ON CONFLICT (account_id, tenant_id) DO NOTHING
+	`, accountID, tenantID, now, now, now).Exec(ctx)
+	if err != nil {
+		return &AuthError{Op: "create account-tenant mapping", Err: err}
 	}
 	return nil
 }

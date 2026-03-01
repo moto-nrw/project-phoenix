@@ -45,7 +45,7 @@ func setupTestContext(t *testing.T) *testContext {
 	t.Helper()
 
 	db, svc := testutil.SetupAPITest(t)
-	resource := authAPI.NewResource(svc.Auth, svc.Invitation, nil)
+	resource := authAPI.NewResource(svc.Auth, svc.Invitation, nil, db)
 
 	t.Cleanup(func() {
 		if err := db.Close(); err != nil {
@@ -1919,7 +1919,7 @@ func TestListTenants(t *testing.T) {
 	}()
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
-	resource := authAPI.NewResource(svc.Auth, svc.Invitation, schoolRepo)
+	resource := authAPI.NewResource(svc.Auth, svc.Invitation, schoolRepo, db)
 
 	router := chi.NewRouter()
 	router.Mount("/auth", resource.Router())

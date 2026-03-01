@@ -54,6 +54,7 @@ func setupTestContext(t *testing.T) *testContext {
 		svc.Active,
 		svc.Users,
 		svc.UserContext,
+		db,
 		slog.Default(),
 	)
 

@@ -533,7 +533,7 @@ func (s *Service) logFailedLogin(ctx context.Context, accountID int64, ipAddress
 }
 
 // Register creates a new user account
-func (s *Service) Register(ctx context.Context, email, username, password string, roleID *int64) (*auth.Account, error) {
+func (s *Service) Register(ctx context.Context, email, username, password string, roleID *int64, tenantID int64) (*auth.Account, error) {
 	// Validate and normalize registration inputs
 	if err := s.validateRegistrationInputs(ctx, email, username, password); err != nil {
 		return nil, err
@@ -546,7 +546,7 @@ func (s *Service) Register(ctx context.Context, email, username, password string
 	}
 
 	// Persist account and assign role in transaction
-	if err := s.persistAccountWithRole(ctx, account, roleID); err != nil {
+	if err := s.persistAccountWithRole(ctx, account, roleID, tenantID); err != nil {
 		return nil, err
 	}
 
@@ -597,79 +597,54 @@ func (s *Service) createAccountObject(email, username, password string) (*auth.A
 	}, nil
 }
 
-// persistAccountWithRole saves account and assigns role in a transaction
-//
-// Phase 3 deviation: RunInTx retained because this is a public registration route (no JWT/tenant context).
-// Handler-level WithTenantTx requires authenticated tenant context, which doesn't exist
-// at registration time. Tenant is resolved from DB during the transaction.
-func (s *Service) persistAccountWithRole(ctx context.Context, account *auth.Account, roleID *int64) error {
-	return s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+// persistAccountWithRole saves account, maps it to a tenant, and assigns a role.
+// Uses WithTenantTx so that RLS on auth.account_roles enforces tenant isolation
+// at the database level. phoenix_tenant has CRUD on all tables in the auth schema
+// (including auth.accounts which has no RLS), so no admin escalation is needed.
+// The WITH CHECK policy on auth.account_roles guarantees the inserted tenant_id
+// matches the transaction's app.current_tenant_id — a code bug cannot silently
+// create cross-tenant role assignments.
+func (s *Service) persistAccountWithRole(ctx context.Context, account *auth.Account, roleID *int64, tenantID int64) error {
+	if tenantID <= 0 {
+		// No tenant context (e.g. tests) — fall back to admin tx for the account insert only.
+		return tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
+			return s.WithTx(tx).(*Service).repos.Account.Create(ctx, account)
+		})
+	}
+
+	return tenant.WithTenantTx(ctx, s.db, tenantID, func(ctx context.Context, tx bun.Tx) error {
 		txService := s.WithTx(tx).(*Service)
 
-		// Create account
+		// Create account (auth.accounts has no tenant_id, no RLS — plain INSERT)
 		if err := txService.repos.Account.Create(ctx, account); err != nil {
 			return err
 		}
 
-		// Assign role to account
-		return s.assignRoleToNewAccount(ctx, txService, account.ID, roleID)
+		// Map account to tenant so the user can log into this school
+		now := time.Now()
+		_, err := tx.NewRaw(`
+			INSERT INTO auth.account_tenants (account_id, tenant_id, status, activated_at, created_at, updated_at)
+			VALUES (?, ?, 'active', ?, ?, ?)
+			ON CONFLICT (account_id, tenant_id) DO NOTHING
+		`, account.ID, tenantID, now, now, now).Exec(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to create account-tenant mapping: %w", err)
+		}
+
+		// Assign role scoped to this tenant (RLS WITH CHECK enforces tenant_id match)
+		if roleID != nil && *roleID > 0 {
+			_, err = tx.NewRaw(`
+				INSERT INTO auth.account_roles (account_id, role_id, tenant_id, created_at, updated_at)
+				VALUES (?, ?, ?, ?, ?)
+				ON CONFLICT (account_id, role_id, tenant_id) DO NOTHING
+			`, account.ID, *roleID, tenantID, now, now).Exec(ctx)
+			if err != nil {
+				return fmt.Errorf("failed to assign role to account: %w", err)
+			}
+		}
+
+		return nil
 	})
-}
-
-// assignRoleToNewAccount determines and assigns appropriate role to new account
-func (s *Service) assignRoleToNewAccount(ctx context.Context, txService *Service, accountID int64, roleID *int64) error {
-	targetRoleID, err := s.determineRoleForNewAccount(ctx, txService, roleID)
-	if err != nil {
-		return err
-	}
-
-	// No role to assign (default role lookup failed, continue without role)
-	if targetRoleID == 0 {
-		return nil
-	}
-
-	// Require tenant context for role assignment. BUN always writes
-	// TenantModel.TenantID (even when 0), so the DB DEFAULT won't apply.
-	// Public routes (Register) have no tenant — skip role creation and
-	// defer it to when the account is mapped to a tenant.
-	tid := tenant.FromContext(ctx)
-	if tid == 0 {
-		s.getLogger().Warn("skipping role assignment — no tenant context",
-			slog.Int64("account_id", accountID),
-			slog.Int64("role_id", targetRoleID),
-		)
-		return nil
-	}
-
-	// Create account role mapping
-	accountRole := &auth.AccountRole{
-		AccountID: accountID,
-		RoleID:    targetRoleID,
-	}
-	accountRole.SetTenantID(tid)
-
-	if err := txService.repos.AccountRole.Create(ctx, accountRole); err != nil {
-		s.getLogger().Error("failed to create account role", "error", err)
-		return err // Roll back transaction if role assignment fails
-	}
-
-	return nil
-}
-
-// determineRoleForNewAccount returns the role ID to assign (provided or default)
-func (s *Service) determineRoleForNewAccount(ctx context.Context, txService *Service, roleID *int64) (int64, error) {
-	if roleID != nil {
-		return *roleID, nil
-	}
-
-	// Find default user role
-	userRole, err := txService.getRoleByName(ctx, "user")
-	if err != nil || userRole == nil {
-		s.getLogger().Warn("failed to find default user role", "error", err)
-		return 0, nil // Return 0 to indicate no role (continue without role assignment)
-	}
-
-	return userRole.ID, nil
 }
 
 // ValidateToken validates an access token and returns the associated account
@@ -703,10 +678,24 @@ func (s *Service) ValidateToken(ctx context.Context, tokenString string) (*auth.
 
 	// Load roles and permissions scoped to the JWT's tenant (D13 revision:
 	// never load cross-tenant roles/permissions, even in secondary paths).
+	// Use WithTenantTx so that app.current_tenant_id is set for RLS policies.
+	// ValidateToken may be called from public routes (e.g. /register) where
+	// no tenant middleware exists. Without a tenant-scoped tx, RLS on
+	// auth.account_roles and auth.account_permissions returns zero rows.
 	if appClaims.TenantID > 0 {
-		s.ensureAccountRolesLoadedForTenant(ctx, account, appClaims.TenantID)
-		permissions := s.loadAccountPermissionsForTenant(ctx, account.ID, appClaims.TenantID)
-		account.Permissions = permissions
+		err = tenant.WithTenantTx(ctx, s.db, appClaims.TenantID, func(ctx context.Context, tx bun.Tx) error {
+			txService := s.WithTx(tx).(*Service)
+			txService.ensureAccountRolesLoadedForTenant(ctx, account, appClaims.TenantID)
+			account.Permissions = txService.loadAccountPermissionsForTenant(ctx, account.ID, appClaims.TenantID)
+			return nil
+		})
+		if err != nil {
+			s.getLogger().Warn("failed to load roles/permissions in tenant tx",
+				slog.Int64("account_id", account.ID),
+				slog.Int64("tenant_id", appClaims.TenantID),
+				slog.Any("error", err),
+			)
+		}
 	} else {
 		s.ensureAccountRolesLoaded(ctx, account)
 		s.ensureAccountPermissionsLoaded(ctx, account)
@@ -1105,9 +1094,4 @@ func (s *Service) getAccountPermissions(ctx context.Context, accountID int64) ([
 	// FindByAccountID already uses a CTE to combine direct and role-based permissions
 	// in a single query, avoiding N+1 queries
 	return s.repos.Permission.FindByAccountID(ctx, accountID)
-}
-
-// getRoleByName retrieves a role by its name
-func (s *Service) getRoleByName(ctx context.Context, name string) (*auth.Role, error) {
-	return s.repos.Permission.FindByRoleByName(ctx, name)
 }
