@@ -69,13 +69,10 @@ export default function RootPage() {
     if (!tenant) return;
 
     const tenantDomain = env.NEXT_PUBLIC_TENANT_DOMAIN ?? "localhost";
-    const port = typeof window !== "undefined" ? window.location.port : "3000";
-    const protocol =
-      typeof window !== "undefined" ? window.location.protocol : "http:";
-    const portSuffix = port ? `:${port}` : "";
+    const portSuffix = window.location.port ? `:${window.location.port}` : "";
     const host = `${tenant.subdomain}.${tenantDomain}${portSuffix}`;
 
-    window.location.href = `${protocol}//${host}/`;
+    window.location.href = `${window.location.protocol}//${host}/`;
   };
 
   return (
