@@ -21,8 +21,8 @@ services:
       DB_DSN: ${DB_DSN:-postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/postgres?sslmode=require}
       DB_DEBUG: ${DB_DEBUG:-"true"}
       AUTH_JWT_SECRET: ${AUTH_JWT_SECRET}
-      AUTH_JWT_EXPIRY: ${AUTH_JWT_EXPIRY:-1h}
-      AUTH_JWT_REFRESH_EXPIRY: ${AUTH_JWT_REFRESH_EXPIRY:-168h}
+      AUTH_JWT_EXPIRY: ${AUTH_JWT_EXPIRY:-15m}
+      AUTH_JWT_REFRESH_EXPIRY: ${AUTH_JWT_REFRESH_EXPIRY:-1h}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
       PHOENIX_AUTH_PASSWORD: ${PHOENIX_AUTH_PASSWORD}
@@ -70,7 +70,7 @@ services:
       - "3000:3000"
     environment:
       TZ: ${TZ:-Europe/Berlin}
-      AUTH_JWT_REFRESH_EXPIRY: ${AUTH_JWT_REFRESH_EXPIRY:-168h}
+      AUTH_JWT_REFRESH_EXPIRY: ${AUTH_JWT_REFRESH_EXPIRY:-24h}
       # Server-side API URL (internal Docker network, never leaves container network)
       API_URL: "http://server:8080"
       # Client-side API URL (browser-accessible, must be reachable from user's browser)
@@ -110,7 +110,7 @@ services:
       start_period: 10s
 
   postgres:
-    image: postgres:17
+    image: postgres:17-alpine
     restart: unless-stopped
     ports:
       - 5432:5432
@@ -142,10 +142,9 @@ services:
   # Or run all tests: docker compose --profile test up -d
   # Uses isolated network to prevent "network still in use" on `docker compose down`
   postgres-test:
-    image: postgres:17
+    image: postgres:17-alpine
     profiles: ["test"]
     restart: unless-stopped
-    networks: [test]
     ports:
       - "${TEST_DB_PORT:-5433}:5432"
     volumes:
@@ -159,10 +158,6 @@ services:
       interval: 1s
       timeout: 1s
       retries: 5
-
-networks:
-  test:
-    # Isolated network for test services — not removed by `docker compose down`
 
 volumes:
   postgres:
