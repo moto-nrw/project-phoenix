@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { signIn, useSession } from "next-auth/react";
+import { signIn, signOut, useSession } from "next-auth/react";
 import { mutate } from "~/lib/swr";
 import { clearSessionCache } from "~/lib/session-cache";
 import { switchTenant } from "~/lib/tenant-api";
@@ -47,6 +47,15 @@ export function TenantGuard({ children }: { children: React.ReactNode }) {
     if (switchAttempted.current) return;
     switchAttempted.current = true;
 
+    // Break infinite loops: if we already failed for this slug on this page load,
+    // sign out immediately instead of retrying.
+    const SWITCH_FAIL_KEY = "tenant-switch-failed";
+    if (sessionStorage.getItem(SWITCH_FAIL_KEY) === urlSlug) {
+      sessionStorage.removeItem(SWITCH_FAIL_KEY);
+      void signOut({ callbackUrl: "/" });
+      return;
+    }
+
     logger.info("tenant_mismatch_detected", {
       session_tenant_id: sessionTenantId,
       url_tenant_id: urlTenantId,
@@ -57,6 +66,9 @@ export function TenantGuard({ children }: { children: React.ReactNode }) {
       try {
         // 1. Get new tokens for the URL tenant
         const tokens = await switchTenant(urlSlug!);
+
+        // Clear the failure flag on success
+        sessionStorage.removeItem(SWITCH_FAIL_KEY);
 
         // 2. Update NextAuth session with the new tokens
         await signIn("credentials", {
@@ -84,8 +96,10 @@ export function TenantGuard({ children }: { children: React.ReactNode }) {
           error: err instanceof Error ? err.message : String(err),
           target_slug: urlSlug,
         });
-        // User lacks access to this tenant — redirect to root
-        window.location.href = "/";
+        // Mark this slug as failed so the next page load breaks the loop
+        sessionStorage.setItem(SWITCH_FAIL_KEY, urlSlug ?? "");
+        // Sign out to clear the stale session, then redirect to login
+        await signOut({ callbackUrl: "/" });
       }
     })();
   }, [status, tenant, sessionTenantId, urlTenantId, urlSlug, update]);

@@ -5,6 +5,7 @@ import { Suspense, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
+import { useTenant } from "~/components/tenant/tenant-provider";
 import { useSession } from "next-auth/react";
 import { useSupervision } from "~/lib/supervision-context";
 import { useShellAuth } from "~/lib/shell-auth-context";
@@ -207,11 +208,21 @@ interface SidebarProps {
 }
 
 function SidebarContent({ className = "" }: SidebarProps) {
-  const pathname = usePathname();
+  const rawPathname = usePathname();
+  const { tenantSlug } = useTenant();
   const searchParams = useSearchParams();
   const router = useTenantRouter();
   const { data: session } = useSession();
   const { mode } = useShellAuth();
+
+  // Strip tenant prefix so all path checks use unprefixed paths (e.g. "/database").
+  // useTenantRouter().push() produces paths like "/school-a/database" while <Link href="/database">
+  // goes through middleware rewrite and keeps "/database". Normalizing here avoids mismatches.
+  const pathname = rawPathname.startsWith(`/${tenantSlug}/`)
+    ? rawPathname.slice(tenantSlug.length + 1)
+    : rawPathname === `/${tenantSlug}`
+      ? "/"
+      : rawPathname;
 
   // Get supervision state
   const { isLoadingGroups, isLoadingSupervision, groups, supervisedRooms } =

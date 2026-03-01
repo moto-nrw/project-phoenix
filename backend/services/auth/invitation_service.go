@@ -197,7 +197,7 @@ func (s *invitationService) CreateInvitation(ctx context.Context, req Invitation
 	if invitation.Role != nil {
 		roleName = invitation.Role.Name
 	}
-	s.sendInvitationEmail(invitation, roleName)
+	s.sendInvitationEmail(invitation, roleName, req.SchoolName)
 
 	return invitation, nil
 }
@@ -580,7 +580,8 @@ func (s *invitationService) ResendInvitation(ctx context.Context, invitationID i
 		slog.Int64("invitation_id", invitation.ID),
 		slog.Int64("actor_account_id", actorAccountID))
 
-	s.sendInvitationEmail(invitation, roleName)
+	schoolName := s.lookupSchoolName(ctx, invitation.TenantID)
+	s.sendInvitationEmail(invitation, roleName, schoolName)
 	return nil
 }
 
@@ -673,7 +674,27 @@ var invitationEmailBackoff = []time.Duration{
 	15 * time.Second,
 }
 
-func (s *invitationService) sendInvitationEmail(invitation *authModels.InvitationToken, roleName string) {
+// lookupSchoolName resolves the tenant display name for use in emails.
+// Returns empty string on failure (best-effort, never blocks the caller).
+func (s *invitationService) lookupSchoolName(ctx context.Context, tenantID int64) string {
+	if tenantID == 0 {
+		return ""
+	}
+	tx, ok := modelBase.TxFromContext(ctx)
+	if !ok || tx == nil {
+		return ""
+	}
+	var name string
+	if err := tx.NewSelect().TableExpr("platform.schools").Column("name").Where("id = ?", tenantID).Scan(ctx, &name); err != nil {
+		s.getLogger().Warn("failed to lookup school name for invitation email",
+			slog.Int64("tenant_id", tenantID),
+			slog.String("error", err.Error()))
+		return ""
+	}
+	return name
+}
+
+func (s *invitationService) sendInvitationEmail(invitation *authModels.InvitationToken, roleName string, schoolName string) {
 	if s.dispatcher == nil {
 		s.getLogger().Warn("email dispatcher unavailable, skipping invitation email",
 			slog.Int64("invitation_id", invitation.ID))
@@ -689,10 +710,15 @@ func (s *invitationService) sendInvitationEmail(invitation *authModels.Invitatio
 	logoURL := fmt.Sprintf("%s/images/moto_transparent.png", frontend)
 	expiryHours := int(s.invitationExpiry / time.Hour)
 
+	subject := "Einladung zu moto"
+	if schoolName != "" {
+		subject = fmt.Sprintf("Einladung zu moto – %s", schoolName)
+	}
+
 	message := email.Message{
 		From:     s.defaultFrom,
 		To:       email.NewEmail("", invitation.Email),
-		Subject:  "Einladung zu moto",
+		Subject:  subject,
 		Template: "invitation.html",
 		Content: map[string]any{
 			"InvitationURL": invitationURL,
@@ -701,6 +727,7 @@ func (s *invitationService) sendInvitationEmail(invitation *authModels.Invitatio
 			"LastName":      invitation.LastName,
 			"ExpiryHours":   expiryHours,
 			"LogoURL":       logoURL,
+			"SchoolName":    schoolName,
 		},
 	}
 

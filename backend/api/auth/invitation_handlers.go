@@ -87,6 +87,14 @@ func (rs *Resource) createInvitation(w http.ResponseWriter, r *http.Request) {
 		CreatedBy: int64(claims.ID),
 	}
 
+	// Resolve tenant display name for the invitation email.
+	if rs.SchoolRepo != nil {
+		tenantID := tenant.FromContext(r.Context())
+		if school, err := rs.SchoolRepo.FindByID(r.Context(), tenantID); err == nil {
+			invitationReq.SchoolName = school.Name
+		}
+	}
+
 	if req.FirstName != "" {
 		first := req.FirstName
 		invitationReq.FirstName = &first
@@ -161,7 +169,13 @@ func (rs *Resource) validateInvitation(w http.ResponseWriter, r *http.Request) {
 	token := strings.TrimSpace(chi.URLParam(r, "token"))
 	slog.Default().Info("invitation validation requested")
 
-	result, err := rs.InvitationService.ValidateInvitation(r.Context(), token)
+	// Public route — no JWT/tenant context. Use WithAdminTx (BYPASSRLS) to read invitation_tokens.
+	var result *authService.InvitationValidationResult
+	err := tenant.WithAdminTx(r.Context(), rs.db, func(txCtx context.Context, _ bun.Tx) error {
+		var txErr error
+		result, txErr = rs.InvitationService.ValidateInvitation(txCtx, token)
+		return txErr
+	})
 	if err != nil {
 		if renderInvitationError(w, r, err) {
 			return
@@ -216,7 +230,14 @@ func (rs *Resource) acceptInvitation(w http.ResponseWriter, r *http.Request) {
 		ConfirmPassword: req.ConfirmPassword,
 	}
 
-	account, err := rs.InvitationService.AcceptInvitation(r.Context(), token, userData)
+	// Public route — no JWT/tenant context. Use WithAdminTx (BYPASSRLS) so the service's
+	// inner RunInTx reuses the admin tx from context (TxHandler.GetTx checks context first).
+	var account *authModels.Account
+	err := tenant.WithAdminTx(r.Context(), rs.db, func(txCtx context.Context, _ bun.Tx) error {
+		var txErr error
+		account, txErr = rs.InvitationService.AcceptInvitation(txCtx, token, userData)
+		return txErr
+	})
 	if err != nil {
 		if errors.Is(err, authService.ErrPasswordTooWeak) || errors.Is(err, authService.ErrPasswordMismatch) {
 			common.RenderError(w, r, ErrorInvalidRequest(err))

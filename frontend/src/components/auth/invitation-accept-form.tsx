@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+// eslint-disable-next-line no-restricted-imports -- redirect targets root login, not tenant route
+import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { useToast } from "~/contexts/ToastContext";
-import { useTenantRouter } from "~/lib/tenant-router";
 import { Input } from "~/components/ui";
 import { getRoleDisplayName } from "~/lib/auth-helpers";
 import { acceptInvitation } from "~/lib/invitation-api";
@@ -57,7 +58,7 @@ export function InvitationAcceptForm({
   token,
   invitation,
 }: InvitationAcceptFormProps) {
-  const router = useTenantRouter();
+  const router = useRouter();
   const [firstName, setFirstName] = useState(invitation.firstName ?? "");
   const [lastName, setLastName] = useState(invitation.lastName ?? "");
   const [password, setPassword] = useState("");
