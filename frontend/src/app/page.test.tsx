@@ -130,6 +130,86 @@ describe("RootPage", () => {
     expect(button).toBeEnabled();
   });
 
+  it("navigates to tenant subdomain when clicking Weiter", async () => {
+    mockListAllTenants.mockResolvedValue([
+      {
+        tenantId: 0,
+        slug: "school-a",
+        name: "School A",
+        subdomain: "school-a",
+        organizationId: 0,
+        organizationName: "",
+        settings: {},
+      },
+    ]);
+
+    render(<RootPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("combobox")).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByRole("combobox"), {
+      target: { value: "school-a" },
+    });
+
+    // Mock window.location.href setter
+    const hrefSpy = vi.spyOn(window.location, "href", "set");
+
+    fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+
+    expect(hrefSpy).toHaveBeenCalledWith(expect.stringContaining("school-a."));
+
+    hrefSpy.mockRestore();
+  });
+
+  it("does not navigate when selected slug has no matching tenant", async () => {
+    mockListAllTenants.mockResolvedValue([
+      {
+        tenantId: 0,
+        slug: "school-a",
+        name: "School A",
+        subdomain: "school-a",
+        organizationId: 0,
+        organizationName: "",
+        settings: {},
+      },
+    ]);
+
+    render(<RootPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("combobox")).toBeInTheDocument();
+    });
+
+    // Force a slug value that doesn't match any tenant
+    fireEvent.change(screen.getByRole("combobox"), {
+      target: { value: "nonexistent" },
+    });
+
+    const hrefSpy = vi.spyOn(window.location, "href", "set");
+
+    fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+
+    expect(hrefSpy).not.toHaveBeenCalled();
+
+    hrefSpy.mockRestore();
+  });
+
+  it("shows fallback when error is not an Error instance", async () => {
+    mockListAllTenants.mockRejectedValue("string error");
+
+    render(<RootPage />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          "Backend nicht erreichbar — statische Links werden angezeigt.",
+        ),
+      ).toBeInTheDocument();
+    });
+  });
+
   it("shows fallback notice when backend is unreachable", async () => {
     mockListAllTenants.mockRejectedValue(new Error("Network error"));
 
