@@ -65,9 +65,18 @@ export async function resolveTenant(slug: string): Promise<TenantInfo | null> {
   }
 }
 
+/** Public tenant response (no internal IDs) */
+interface PublicTenantBackend {
+  slug: string;
+  name: string;
+  subdomain: string;
+  organization_name: string;
+}
+
 /**
  * List all active tenants.
  * This is a public (no-auth) call used on the root tenant selector page.
+ * The backend omits internal IDs from this public endpoint.
  */
 export async function listAllTenants(): Promise<TenantInfo[]> {
   try {
@@ -75,14 +84,14 @@ export async function listAllTenants(): Promise<TenantInfo[]> {
     if (!response.ok) {
       return [];
     }
-    const json = (await response.json()) as { data?: AccountTenantBackend[] };
+    const json = (await response.json()) as { data?: PublicTenantBackend[] };
     const items = json.data ?? [];
     return items.map((t) => ({
-      tenantId: t.tenant_id,
+      tenantId: 0,
       slug: t.slug,
       name: t.name,
       subdomain: t.subdomain,
-      organizationId: t.organization_id,
+      organizationId: 0,
       organizationName: t.organization_name,
       settings: {},
     }));

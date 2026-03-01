@@ -341,6 +341,16 @@ func (rs *Resource) listAccountTenants(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, responses, "Account tenants retrieved successfully")
 }
 
+// PublicTenantResponse is the public-facing tenant info returned by the
+// unauthenticated /auth/tenants endpoint. It intentionally omits internal
+// database IDs (tenant_id, organization_id) to prevent enumeration.
+type PublicTenantResponse struct {
+	Slug             string `json:"slug"`
+	Name             string `json:"name"`
+	Subdomain        string `json:"subdomain"`
+	OrganizationName string `json:"organization_name"`
+}
+
 // listTenants handles GET /auth/tenants (public, no auth required)
 func (rs *Resource) listTenants(w http.ResponseWriter, r *http.Request) {
 	schools, err := rs.SchoolRepo.ListActive(r.Context())
@@ -349,18 +359,16 @@ func (rs *Resource) listTenants(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	responses := make([]AccountTenantResponse, 0, len(schools))
+	responses := make([]PublicTenantResponse, 0, len(schools))
 	for _, school := range schools {
 		var orgName string
 		if school.Organization != nil {
 			orgName = school.Organization.Name
 		}
-		responses = append(responses, AccountTenantResponse{
-			TenantID:         school.ID,
+		responses = append(responses, PublicTenantResponse{
 			Slug:             school.Slug,
 			Name:             school.Name,
 			Subdomain:        school.Subdomain,
-			OrganizationID:   school.OrganizationID,
 			OrganizationName: orgName,
 		})
 	}

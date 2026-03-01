@@ -11,6 +11,7 @@ import Image from "next/image";
 import { listAllTenants } from "~/lib/tenant-api";
 import type { TenantInfo } from "~/lib/tenant-api";
 import { createLogger } from "~/lib/logger";
+import { env } from "~/env";
 
 const logger = createLogger({ component: "RootPage" });
 
@@ -46,9 +47,13 @@ function TenantCardSkeleton() {
 }
 
 function TenantCard({ tenant }: { readonly tenant: TenantInfo }) {
+  const tenantDomain = env.NEXT_PUBLIC_TENANT_DOMAIN ?? "localhost";
   const port = typeof window !== "undefined" ? window.location.port : "3000";
-  const host = `${tenant.subdomain}.localhost${port ? `:${port}` : ""}`;
-  const href = `http://${host}/`;
+  const protocol =
+    typeof window !== "undefined" ? window.location.protocol : "http:";
+  const portSuffix = port ? `:${port}` : "";
+  const host = `${tenant.subdomain}.${tenantDomain}${portSuffix}`;
+  const href = `${protocol}//${host}/`;
 
   return (
     <a
@@ -74,7 +79,7 @@ export default function RootPage() {
         if (result.length > 0) {
           setTenants(result);
         } else {
-          logger.warn("tenant_list_empty_or_failed, using fallback");
+          logger.warn("tenant_list_empty_or_failed");
           setTenants(FALLBACK_TENANTS);
           setIsFallback(true);
         }
