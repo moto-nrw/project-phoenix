@@ -10,6 +10,7 @@ package auth_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -25,6 +26,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -1904,5 +1906,76 @@ func TestLogout(t *testing.T) {
 
 		// JWT middleware rejects invalid tokens
 		assert.Equal(t, http.StatusUnauthorized, rr.Code, "Body: %s", rr.Body.String())
+	})
+}
+
+// TestListTenants tests the public GET /auth/tenants endpoint
+func TestListTenants(t *testing.T) {
+	db, svc := testutil.SetupAPITest(t)
+	defer func() {
+		if err := db.Close(); err != nil {
+			t.Logf("Failed to close database: %v", err)
+		}
+	}()
+
+	schoolRepo := platformRepo.NewSchoolRepository(db)
+	resource := authAPI.NewResource(svc.Auth, svc.Invitation, schoolRepo)
+
+	router := chi.NewRouter()
+	router.Mount("/auth", resource.Router())
+
+	t.Run("returns active tenants without internal IDs", func(t *testing.T) {
+		// EnsureTestTenant (called by SetupTestDB) creates tenant 1 with active=true
+		req := testutil.NewRequest("GET", "/auth/tenants", nil)
+		rr := testutil.ExecuteRequest(router, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+
+		var response struct {
+			Status string `json:"status"`
+			Data   []struct {
+				Slug             string `json:"slug"`
+				Name             string `json:"name"`
+				Subdomain        string `json:"subdomain"`
+				OrganizationName string `json:"organization_name"`
+			} `json:"data"`
+		}
+		err := json.Unmarshal(rr.Body.Bytes(), &response)
+		require.NoError(t, err, "Failed to parse response: %s", rr.Body.String())
+
+		assert.Equal(t, "success", response.Status)
+		require.NotEmpty(t, response.Data, "Expected at least one tenant")
+
+		// Verify response contains expected fields
+		tenant := response.Data[0]
+		assert.NotEmpty(t, tenant.Slug, "Slug should not be empty")
+		assert.NotEmpty(t, tenant.Name, "Name should not be empty")
+		assert.NotEmpty(t, tenant.Subdomain, "Subdomain should not be empty")
+
+		// Verify no internal IDs are exposed in JSON
+		var rawResponse map[string]json.RawMessage
+		err = json.Unmarshal(rr.Body.Bytes(), &rawResponse)
+		require.NoError(t, err)
+
+		var rawItems []map[string]json.RawMessage
+		err = json.Unmarshal(rawResponse["data"], &rawItems)
+		require.NoError(t, err)
+		require.NotEmpty(t, rawItems)
+
+		for _, item := range rawItems {
+			_, hasTenantID := item["tenant_id"]
+			_, hasOrgID := item["organization_id"]
+			assert.False(t, hasTenantID, "Public endpoint must not expose tenant_id")
+			assert.False(t, hasOrgID, "Public endpoint must not expose organization_id")
+		}
+	})
+
+	t.Run("does not require authentication", func(t *testing.T) {
+		// No auth headers — endpoint should still work
+		req := httptest.NewRequest("GET", "/auth/tenants", nil)
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code, "Public endpoint should not require auth")
 	})
 }
