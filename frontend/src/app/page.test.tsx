@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 
 // ============================================================================
@@ -32,16 +32,19 @@ describe("RootPage", () => {
     vi.clearAllMocks();
   });
 
-  it("shows loading skeletons initially", () => {
+  it("shows loading skeleton initially", () => {
     // eslint-disable-next-line @typescript-eslint/no-empty-function
     mockListAllTenants.mockReturnValue(new Promise(() => {})); // never resolves
 
     render(<RootPage />);
 
-    expect(screen.getByText("Schule auswählen")).toBeInTheDocument();
+    expect(screen.getByText("Willkommen bei moto!")).toBeInTheDocument();
+    expect(screen.getByText("Einrichtung")).toBeInTheDocument();
+    // Select should not be rendered while loading
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
   });
 
-  it("renders tenant cards after loading", async () => {
+  it("renders tenant options in select after loading", async () => {
     mockListAllTenants.mockResolvedValue([
       {
         tenantId: 0,
@@ -66,13 +69,18 @@ describe("RootPage", () => {
     render(<RootPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Testschule A")).toBeInTheDocument();
+      expect(screen.getByRole("combobox")).toBeInTheDocument();
     });
 
-    expect(screen.getByText("Testschule B")).toBeInTheDocument();
+    const select = screen.getByRole("combobox");
+    const options = select.querySelectorAll("option");
+    // Placeholder + 2 tenants
+    expect(options).toHaveLength(3);
+    expect(options[1]?.textContent).toBe("Testschule A");
+    expect(options[2]?.textContent).toBe("Testschule B");
   });
 
-  it("uses NEXT_PUBLIC_TENANT_DOMAIN for tenant links", async () => {
+  it("disables button when no tenant is selected", async () => {
     mockListAllTenants.mockResolvedValue([
       {
         tenantId: 0,
@@ -88,13 +96,38 @@ describe("RootPage", () => {
     render(<RootPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("School A")).toBeInTheDocument();
+      expect(screen.getByRole("combobox")).toBeInTheDocument();
     });
 
-    const link = screen.getByText("School A").closest("a");
-    expect(link).toBeInTheDocument();
-    // href should contain the subdomain (not hardcoded localhost)
-    expect(link?.href).toContain("school-a.");
+    const button = screen.getByRole("button", { name: "Weiter" });
+    expect(button).toBeDisabled();
+  });
+
+  it("enables button when a tenant is selected", async () => {
+    mockListAllTenants.mockResolvedValue([
+      {
+        tenantId: 0,
+        slug: "school-a",
+        name: "School A",
+        subdomain: "school-a",
+        organizationId: 0,
+        organizationName: "",
+        settings: {},
+      },
+    ]);
+
+    render(<RootPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("combobox")).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByRole("combobox"), {
+      target: { value: "school-a" },
+    });
+
+    const button = screen.getByRole("button", { name: "Weiter" });
+    expect(button).toBeEnabled();
   });
 
   it("shows fallback notice when backend is unreachable", async () => {
@@ -124,8 +157,11 @@ describe("RootPage", () => {
       ).toBeInTheDocument();
     });
 
-    // Fallback tenants should be rendered
-    expect(screen.getByText("Testschule A")).toBeInTheDocument();
-    expect(screen.getByText("Testschule B")).toBeInTheDocument();
+    // Fallback tenants should be in the dropdown
+    const select = screen.getByRole("combobox");
+    const options = select.querySelectorAll("option");
+    expect(options).toHaveLength(3); // placeholder + 2 fallbacks
+    expect(options[1]?.textContent).toBe("Testschule A");
+    expect(options[2]?.textContent).toBe("Testschule B");
   });
 });
