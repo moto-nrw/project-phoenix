@@ -122,6 +122,87 @@ describe("tenant-api", () => {
   });
 
   // --------------------------------------------------------------------------
+  // listAllTenants (uses plain fetch, no auth — public tenant selector)
+  // --------------------------------------------------------------------------
+
+  describe("listAllTenants", () => {
+    it("returns mapped tenants without internal IDs", async () => {
+      const data = {
+        data: [
+          {
+            slug: "school-a",
+            name: "School A",
+            subdomain: "school-a",
+            organization_name: "Org Alpha",
+          },
+          {
+            slug: "school-b",
+            name: "School B",
+            subdomain: "school-b",
+            organization_name: "Org Beta",
+          },
+        ],
+      };
+
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        new Response(JSON.stringify(data), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+
+      const { listAllTenants } = await import("./tenant-api");
+      const result = await listAllTenants();
+
+      expect(global.fetch).toHaveBeenCalledWith("/api/tenant/list");
+      expect(result).toHaveLength(2);
+      expect(result[0]).toEqual({
+        tenantId: 0,
+        slug: "school-a",
+        name: "School A",
+        subdomain: "school-a",
+        organizationId: 0,
+        organizationName: "Org Alpha",
+        settings: {},
+      });
+    });
+
+    it("returns empty array on error response", async () => {
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        new Response("Server Error", { status: 500 }),
+      );
+
+      const { listAllTenants } = await import("./tenant-api");
+      const result = await listAllTenants();
+
+      expect(result).toEqual([]);
+    });
+
+    it("returns empty array when data field is missing", async () => {
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        new Response(JSON.stringify({}), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+
+      const { listAllTenants } = await import("./tenant-api");
+      const result = await listAllTenants();
+
+      expect(result).toEqual([]);
+    });
+
+    it("returns empty array on network error", async () => {
+      vi.mocked(global.fetch).mockRejectedValueOnce(new Error("Network error"));
+
+      const { listAllTenants } = await import("./tenant-api");
+      const result = await listAllTenants();
+
+      expect(result).toEqual([]);
+    });
+  });
+
+  // --------------------------------------------------------------------------
   // listAvailableTenants (uses sessionFetch, requires auth)
   // --------------------------------------------------------------------------
 

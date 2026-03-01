@@ -65,6 +65,41 @@ export async function resolveTenant(slug: string): Promise<TenantInfo | null> {
   }
 }
 
+/** Public tenant response (no internal IDs) */
+interface PublicTenantBackend {
+  slug: string;
+  name: string;
+  subdomain: string;
+  organization_name: string;
+}
+
+/**
+ * List all active tenants.
+ * This is a public (no-auth) call used on the root tenant selector page.
+ * The backend omits internal IDs from this public endpoint.
+ */
+export async function listAllTenants(): Promise<TenantInfo[]> {
+  try {
+    const response = await fetch("/api/tenant/list");
+    if (!response.ok) {
+      return [];
+    }
+    const json = (await response.json()) as { data?: PublicTenantBackend[] };
+    const items = json.data ?? [];
+    return items.map((t) => ({
+      tenantId: 0,
+      slug: t.slug,
+      name: t.name,
+      subdomain: t.subdomain,
+      organizationId: 0,
+      organizationName: t.organization_name,
+      settings: {},
+    }));
+  } catch {
+    return [];
+  }
+}
+
 /** Backend response shape for account tenants (snake_case) */
 interface AccountTenantBackend {
   tenant_id: number;

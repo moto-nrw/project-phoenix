@@ -70,6 +70,7 @@ func (rs *Resource) Router() chi.Router {
 	r.Get("/invitations/{token}", rs.validateInvitation)
 	r.Post("/invitations/{token}/accept", rs.acceptInvitation)
 	r.Get("/tenant/resolve", rs.resolveTenant)
+	r.Get("/tenants", rs.listTenants)
 
 	// Protected routes that require refresh token
 	r.Group(func(r chi.Router) {
@@ -338,6 +339,41 @@ func (rs *Resource) listAccountTenants(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Account tenants retrieved successfully")
+}
+
+// PublicTenantResponse is the public-facing tenant info returned by the
+// unauthenticated /auth/tenants endpoint. It intentionally omits internal
+// database IDs (tenant_id, organization_id) to prevent enumeration.
+type PublicTenantResponse struct {
+	Slug             string `json:"slug"`
+	Name             string `json:"name"`
+	Subdomain        string `json:"subdomain"`
+	OrganizationName string `json:"organization_name"`
+}
+
+// listTenants handles GET /auth/tenants (public, no auth required)
+func (rs *Resource) listTenants(w http.ResponseWriter, r *http.Request) {
+	schools, err := rs.SchoolRepo.ListActive(r.Context())
+	if err != nil {
+		common.RenderError(w, r, ErrorInternalServer(err))
+		return
+	}
+
+	responses := make([]PublicTenantResponse, 0, len(schools))
+	for _, school := range schools {
+		var orgName string
+		if school.Organization != nil {
+			orgName = school.Organization.Name
+		}
+		responses = append(responses, PublicTenantResponse{
+			Slug:             school.Slug,
+			Name:             school.Name,
+			Subdomain:        school.Subdomain,
+			OrganizationName: orgName,
+		})
+	}
+
+	common.Respond(w, r, http.StatusOK, responses, "Tenants retrieved successfully")
 }
 
 // LoginRequest represents the login request payload
