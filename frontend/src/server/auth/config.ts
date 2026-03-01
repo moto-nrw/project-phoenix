@@ -597,7 +597,14 @@ export const authConfig = {
   },
   cookies: {
     // Set cookie domain to .{TENANT_DOMAIN} so cookies are shared across subdomains.
-    // This allows school-a.localhost and school-b.localhost to share the same session.
+    // This allows school-a.moto-app.de and school-b.moto-app.de to share the same session.
+    //
+    // IMPORTANT: This is SKIPPED for localhost because browsers treat "localhost" as a
+    // public suffix (PSL). Setting Domain=localhost from school-a.localhost is silently
+    // rejected by Chrome/Firefox/Safari, breaking CSRF validation and login entirely.
+    // For local dev, cookies are scoped to the exact hostname (e.g. school-a.localhost),
+    // which means tenant switching requires re-authentication on the target subdomain.
+    // To test seamless switching locally, use TENANT_DOMAIN=lvh.me (resolves to 127.0.0.1).
     ...(process.env.TENANT_DOMAIN && process.env.TENANT_DOMAIN !== "localhost"
       ? {
           sessionToken: {

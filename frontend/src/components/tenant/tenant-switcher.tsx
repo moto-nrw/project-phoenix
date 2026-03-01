@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { signIn } from "next-auth/react";
 import { mutate } from "~/lib/swr";
 import { clearSessionCache } from "~/lib/session-cache";
 import {
@@ -70,18 +69,8 @@ export function TenantSwitcher() {
         // 1. Get new tokens for the target tenant
         const tokens = await switchTenant(targetTenant.slug);
 
-        // 2. Update NextAuth session with the new tokens
-        await signIn("credentials", {
-          redirect: false,
-          internalRefresh: true,
-          token: tokens.access_token,
-          refreshToken: tokens.refresh_token,
-        });
-
-        // 3. Clear SWR cache to prevent stale cross-tenant data
+        // 2. Clear caches before leaving this subdomain
         await mutate(() => true, undefined, { revalidate: false });
-
-        // 4. Clear session cache for fresh token resolution
         clearSessionCache();
 
         logger.info("tenant_switched", {
@@ -89,14 +78,19 @@ export function TenantSwitcher() {
           to_slug: targetTenant.slug,
         });
 
-        // 5. Hard-navigate to the new tenant subdomain.
-        // Always use subdomain routing — the middleware rewrites subdomains
-        // to path segments, so navigating to a path directly on the old
-        // subdomain creates a broken double-prefixed URL.
+        // 3. Navigate to the new subdomain's callback page with tokens
+        // in the hash fragment. The callback page establishes a NextAuth
+        // session on the target subdomain, then redirects to /dashboard.
+        //
+        // Why hash fragment? It is never sent to the server (no log
+        // exposure, no referrer leaks). This avoids cross-subdomain
+        // cookie issues entirely — works on localhost, lvh.me, and
+        // production domains without any cookie domain configuration.
         const tenantDomain = env.NEXT_PUBLIC_TENANT_DOMAIN || "localhost";
         const port = window.location.port ? `:${window.location.port}` : "";
         const protocol = window.location.protocol;
-        window.location.href = `${protocol}//${targetTenant.subdomain}.${tenantDomain}${port}/dashboard`;
+        const callbackUrl = `${protocol}//${targetTenant.subdomain}.${tenantDomain}${port}/auth/tenant-callback`;
+        window.location.href = `${callbackUrl}#t=${encodeURIComponent(tokens.access_token)}&r=${encodeURIComponent(tokens.refresh_token)}`;
       } catch (err) {
         logger.error("tenant_switch_failed", {
           error: err instanceof Error ? err.message : String(err),
