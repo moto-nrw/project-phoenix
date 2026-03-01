@@ -146,6 +146,11 @@ func (s *Seeder) SeedAll(ctx context.Context) (*Result, error) {
 		return nil, fmt.Errorf("failed to seed school-b data: %w", err)
 	}
 
+	// 21. Träger Nord schools (second organization with 3 schools for multi-org testing)
+	if err := s.seedTraegerNordData(ctx); err != nil {
+		return nil, fmt.Errorf("failed to seed Träger Nord data: %w", err)
+	}
+
 	if s.verbose {
 		log.Printf("Fixed data seeding completed successfully")
 	}
