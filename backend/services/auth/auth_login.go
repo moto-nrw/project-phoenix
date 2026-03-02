@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
-	jwx "github.com/lestrrat-go/jwx/v2/jwt"
+	jwx "github.com/lestrrat-go/jwx/v3/jwt"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/auth/userpass"
 	"github.com/moto-nrw/project-phoenix/models/audit"
@@ -1083,17 +1083,12 @@ func (s *Service) GetAccountByEmail(ctx context.Context, email string) (*auth.Ac
 func extractClaims(token jwx.Token) map[string]interface{} {
 	claims := make(map[string]interface{})
 
-	// Extract private claims
-	for k, v := range token.PrivateClaims() {
-		claims[k] = v
-	}
-
-	// Add registered claims if present
-	if sub, ok := token.Get(jwx.SubjectKey); ok {
-		claims[jwx.SubjectKey] = sub
-	}
-	if exp, ok := token.Get(jwx.ExpirationKey); ok {
-		claims[jwx.ExpirationKey] = exp
+	// Extract all claims via Keys() + Get()
+	for _, k := range token.Keys() {
+		var v interface{}
+		if err := token.Get(k, &v); err == nil {
+			claims[k] = v
+		}
 	}
 
 	return claims
