@@ -11,10 +11,6 @@ const { mockListAvailableTenants, mockSwitchTenant } = vi.hoisted(() => ({
   mockSwitchTenant: vi.fn(),
 }));
 
-const { mockSignIn } = vi.hoisted(() => ({
-  mockSignIn: vi.fn(),
-}));
-
 const { mockMutate } = vi.hoisted(() => ({
   mockMutate: vi.fn(),
 }));
@@ -30,10 +26,6 @@ const { mockUseTenantSlugSafe } = vi.hoisted(() => ({
 vi.mock("~/lib/tenant-api", () => ({
   listAvailableTenants: mockListAvailableTenants,
   switchTenant: mockSwitchTenant,
-}));
-
-vi.mock("next-auth/react", () => ({
-  signIn: mockSignIn,
 }));
 
 vi.mock("~/lib/swr", () => ({
@@ -105,7 +97,6 @@ describe("TenantSwitcher", () => {
       access_token: "new-access",
       refresh_token: "new-refresh",
     });
-    mockSignIn.mockResolvedValue({ ok: true });
     mockMutate.mockResolvedValue(undefined);
 
     // Mock window.location with realistic values for subdomain-based redirect
@@ -209,19 +200,13 @@ describe("TenantSwitcher", () => {
       expect(mockSwitchTenant).toHaveBeenCalledWith("school-b");
     });
 
-    expect(mockSignIn).toHaveBeenCalledWith("credentials", {
-      redirect: false,
-      internalRefresh: true,
-      token: "new-access",
-      refreshToken: "new-refresh",
-    });
-
+    // Should clear caches before navigating away
     expect(mockMutate).toHaveBeenCalled();
     expect(mockClearSessionCache).toHaveBeenCalled();
 
-    // Should redirect to the new tenant subdomain
+    // Should redirect to callback page with tokens in hash fragment
     expect(window.location.href).toBe(
-      "http://school-b.localhost:3000/dashboard",
+      "http://school-b.localhost:3000/auth/tenant-callback#t=new-access&r=new-refresh",
     );
   });
 
@@ -245,8 +230,6 @@ describe("TenantSwitcher", () => {
 
     // Should NOT redirect
     expect(window.location.href).toBe("");
-    // Should NOT have called signIn
-    expect(mockSignIn).not.toHaveBeenCalled();
   });
 
   it("shows organization headers when tenants span multiple orgs", async () => {
@@ -279,5 +262,128 @@ describe("TenantSwitcher", () => {
     // Should render nothing
     expect(container.innerHTML).toBe("");
     consoleError.mockRestore();
+  });
+
+  it("omits port from redirect URL when no port is set", async () => {
+    Object.defineProperty(window, "location", {
+      writable: true,
+      value: { ...window.location, href: "", protocol: "https:", port: "" },
+    });
+
+    mockListAvailableTenants.mockResolvedValue([tenantA, tenantB]);
+
+    render(<TenantSwitcher />);
+
+    await waitFor(() => {
+      expect(screen.getByText("School A")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("School A"));
+    fireEvent.click(screen.getByText("School B"));
+
+    await waitFor(() => {
+      expect(mockSwitchTenant).toHaveBeenCalledWith("school-b");
+    });
+
+    expect(window.location.href).toBe(
+      "https://school-b.localhost/auth/tenant-callback#t=new-access&r=new-refresh",
+    );
+  });
+
+  it("falls back to slug when current tenant is not in list", async () => {
+    mockUseTenantSlugSafe.mockReturnValue("unknown-slug");
+    mockListAvailableTenants.mockResolvedValue([tenantA, tenantB]);
+
+    render(<TenantSwitcher />);
+
+    await waitFor(() => {
+      // Should fall back to showing the slug since no tenant matches
+      expect(screen.getByText("unknown-slug")).toBeInTheDocument();
+    });
+  });
+
+  it("uses 'Andere' as fallback org name when organizationName is empty", async () => {
+    const tenantNoOrg = {
+      ...tenantB,
+      tenantId: 99,
+      slug: "no-org",
+      name: "No Org Tenant",
+      subdomain: "no-org",
+      organizationName: "",
+    };
+
+    mockListAvailableTenants.mockResolvedValue([tenantA, tenantC, tenantNoOrg]);
+
+    render(<TenantSwitcher />);
+
+    await waitFor(() => {
+      expect(screen.getByText("School A")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("School A"));
+
+    // Should show org headers including the fallback
+    expect(screen.getByText("Org Beta")).toBeInTheDocument();
+    expect(screen.getByText("Andere")).toBeInTheDocument();
+  });
+
+  it("logs non-Error exceptions as strings on switch failure", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(vi.fn());
+    mockListAvailableTenants.mockResolvedValue([tenantA, tenantB]);
+    mockSwitchTenant.mockRejectedValue("string error");
+
+    render(<TenantSwitcher />);
+
+    await waitFor(() => {
+      expect(screen.getByText("School A")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("School A"));
+    fireEvent.click(screen.getByText("School B"));
+
+    await waitFor(() => {
+      expect(consoleError).toHaveBeenCalledWith("tenant_switch_failed", {
+        error: "string error",
+        target_slug: "school-b",
+      });
+    });
+
+    consoleError.mockRestore();
+  });
+
+  it("prevents concurrent switches when already switching", async () => {
+    // Make switchTenant hang to keep isSwitching=true
+    let resolveSwitchTenant: (value: unknown) => void;
+    mockSwitchTenant.mockReturnValue(
+      new Promise((resolve) => {
+        resolveSwitchTenant = resolve;
+      }),
+    );
+
+    mockListAvailableTenants.mockResolvedValue([tenantA, tenantB, tenantC]);
+
+    render(<TenantSwitcher />);
+
+    await waitFor(() => {
+      expect(screen.getByText("School A")).toBeInTheDocument();
+    });
+
+    // Start first switch
+    fireEvent.click(screen.getByText("School A"));
+    fireEvent.click(screen.getByText("School B"));
+
+    await waitFor(() => {
+      expect(mockSwitchTenant).toHaveBeenCalledTimes(1);
+    });
+
+    // The trigger button should now be disabled
+    const trigger = screen.getByRole("button");
+    expect(trigger).toBeDisabled();
+
+    // Resolve the pending switch to clean up
+    resolveSwitchTenant!({
+      access_token: "tok",
+      refresh_token: "ref",
+    });
   });
 });
