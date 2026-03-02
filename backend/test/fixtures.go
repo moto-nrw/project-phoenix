@@ -2420,7 +2420,7 @@ func CleanupTenantTestData(tb testing.TB, db *bun.DB, tenantIDs ...int64) {
 	for _, table := range tables {
 		_, err := db.NewDelete().
 			TableExpr(table).
-			Where("tenant_id IN (?)", bun.In(tenantIDs)).
+			Where("tenant_id IN (?)", bun.List(tenantIDs)).
 			Exec(ctx)
 		if err != nil {
 			tb.Logf("cleanup %s for tenants %v: %v", table, tenantIDs, err)
