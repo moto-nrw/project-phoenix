@@ -1,7 +1,6 @@
 package jwt
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -104,7 +103,8 @@ func TestTokenAuth_CreateJWT_SetsExpiry(t *testing.T) {
 	require.NotNil(t, decoded)
 
 	// Check expiration is in the future
-	expTime := decoded.Expiration()
+	expTime, ok := decoded.Expiration()
+	require.True(t, ok, "token should have expiration")
 	assert.True(t, expTime.After(beforeCreate))
 	assert.True(t, expTime.Before(beforeCreate.Add(auth.JwtExpiry+time.Minute)))
 }
@@ -198,7 +198,8 @@ func TestTokenAuth_CreateRefreshJWT_SetsExpiry(t *testing.T) {
 	require.NotNil(t, decoded)
 
 	// Check expiration is in the future
-	expTime := decoded.Expiration()
+	expTime, ok := decoded.Expiration()
+	require.True(t, ok, "token should have expiration")
 	assert.True(t, expTime.After(beforeCreate))
 	assert.True(t, expTime.Before(beforeCreate.Add(auth.JwtRefreshExpiry+time.Minute)))
 }
@@ -470,10 +471,11 @@ func TestTokenAuth_CreateJWT_SpecialCharactersInClaims(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, decoded)
 
-	claimsMap, err := decoded.AsMap(context.Background())
-	require.NoError(t, err)
-	assert.Equal(t, "José", claimsMap["first_name"])
-	assert.Equal(t, "O'Connor-Smith", claimsMap["last_name"])
+	var firstName, lastName string
+	require.NoError(t, decoded.Get("first_name", &firstName))
+	require.NoError(t, decoded.Get("last_name", &lastName))
+	assert.Equal(t, "José", firstName)
+	assert.Equal(t, "O'Connor-Smith", lastName)
 }
 
 func TestTokenAuth_CreateJWT_EmptyUsername(t *testing.T) {
