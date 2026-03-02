@@ -3,7 +3,7 @@
 // eslint-disable-next-line no-restricted-imports -- this IS the tenant-aware wrapper
 import { useRouter } from "next/navigation";
 import { useMemo } from "react";
-import { useTenant } from "~/components/tenant/tenant-provider";
+import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
 
 /**
  * Detect whether the browser is running in subdomain-based tenant routing.
@@ -37,12 +37,12 @@ function useIsSubdomainMode(tenantSlug: string): boolean {
  *   // path mode      → /school-a/dashboard
  */
 export function useTenantRouter() {
-  const { tenantSlug } = useTenant();
+  const tenantSlug = useTenantSlugSafe();
   const router = useRouter();
-  const isSubdomain = useIsSubdomainMode(tenantSlug);
+  const isSubdomain = useIsSubdomainMode(tenantSlug ?? "");
 
   return useMemo(() => {
-    const prefix = isSubdomain ? "" : `/${tenantSlug}`;
+    const prefix = !tenantSlug || isSubdomain ? "" : `/${tenantSlug}`;
     return {
       push: (path: string) => router.push(`${prefix}${path}`),
       replace: (path: string) => router.replace(`${prefix}${path}`),

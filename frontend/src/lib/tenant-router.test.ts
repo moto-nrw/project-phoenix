@@ -5,8 +5,8 @@ import { renderHook } from "@testing-library/react";
 // Mocks
 // ============================================================================
 
-const { mockUseTenant } = vi.hoisted(() => ({
-  mockUseTenant: vi.fn(),
+const { mockUseTenantSlugSafe } = vi.hoisted(() => ({
+  mockUseTenantSlugSafe: vi.fn((): string | null => null),
 }));
 
 const {
@@ -26,7 +26,7 @@ const {
 }));
 
 vi.mock("~/components/tenant/tenant-provider", () => ({
-  useTenant: mockUseTenant,
+  useTenantSlugSafe: mockUseTenantSlugSafe,
 }));
 
 vi.mock("next/navigation", () => ({
@@ -66,7 +66,7 @@ describe("useTenantRouter", () => {
 
   describe("path mode (no subdomain)", () => {
     beforeEach(() => {
-      mockUseTenant.mockReturnValue({ tenantSlug: "school-a" });
+      mockUseTenantSlugSafe.mockReturnValue("school-a");
       // Hostname does NOT start with the slug — path mode
       Object.defineProperty(window, "location", {
         value: { ...window.location, hostname: "localhost" },
@@ -113,7 +113,7 @@ describe("useTenantRouter", () => {
 
   describe("subdomain mode", () => {
     beforeEach(() => {
-      mockUseTenant.mockReturnValue({ tenantSlug: "school-a" });
+      mockUseTenantSlugSafe.mockReturnValue("school-a");
       // Hostname starts with the slug — subdomain mode
       Object.defineProperty(window, "location", {
         value: { ...window.location, hostname: "school-a.localhost" },
