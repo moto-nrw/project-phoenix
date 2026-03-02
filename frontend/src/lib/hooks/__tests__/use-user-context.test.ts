@@ -16,6 +16,7 @@ vi.mock("~/lib/swr", () => ({
     isLoading: true,
     error: undefined,
   })),
+  useTenantMutate: vi.fn(() => vi.fn()),
 }));
 
 // Import after mocking

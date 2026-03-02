@@ -6,9 +6,10 @@ import "@testing-library/jest-dom/vitest";
 // Mocks
 // ============================================================================
 
-const { mockUseSession, mockSignIn } = vi.hoisted(() => ({
+const { mockUseSession, mockSignIn, mockSignOut } = vi.hoisted(() => ({
   mockUseSession: vi.fn(),
   mockSignIn: vi.fn(),
+  mockSignOut: vi.fn(),
 }));
 
 const { mockUseTenant } = vi.hoisted(() => ({
@@ -30,6 +31,7 @@ const { mockClearSessionCache } = vi.hoisted(() => ({
 vi.mock("next-auth/react", () => ({
   useSession: mockUseSession,
   signIn: mockSignIn,
+  signOut: mockSignOut,
 }));
 
 vi.mock("~/components/tenant/tenant-provider", () => ({
@@ -85,6 +87,8 @@ describe("TenantGuard", () => {
     vi.clearAllMocks();
     mockMutate.mockResolvedValue(undefined);
     mockSignIn.mockResolvedValue({ ok: true });
+    mockSignOut.mockResolvedValue(undefined);
+    sessionStorage.clear();
 
     // Mock window.location for redirect assertions
     originalLocation = window.location;
@@ -99,6 +103,7 @@ describe("TenantGuard", () => {
       writable: true,
       value: originalLocation,
     });
+    sessionStorage.clear();
   });
 
   it("renders children when session tenant matches URL tenant", () => {
@@ -203,7 +208,7 @@ describe("TenantGuard", () => {
     expect(mockUpdate).toHaveBeenCalled();
   });
 
-  it("redirects to root when switchTenant fails", async () => {
+  it("signs out when switchTenant fails", async () => {
     mockUseSession.mockReturnValue({
       data: { user: { tenantId: 1 } },
       status: "authenticated",
@@ -222,8 +227,11 @@ describe("TenantGuard", () => {
     );
 
     await waitFor(() => {
-      expect(window.location.href).toBe("/");
+      expect(mockSignOut).toHaveBeenCalledWith({ callbackUrl: "/" });
     });
+
+    // Should mark the slug as failed in sessionStorage
+    expect(sessionStorage.getItem("tenant-switch-failed")).toBe("school-b");
   });
 
   it("skips check when session tenantId is undefined", () => {
@@ -246,6 +254,71 @@ describe("TenantGuard", () => {
     // Should render children without attempting a switch
     expect(screen.getByText("Protected Content")).toBeInTheDocument();
     expect(mockSwitchTenant).not.toHaveBeenCalled();
+  });
+
+  it("breaks loop by signing out when previous switch to same slug failed", async () => {
+    // Simulate a previous failed switch attempt stored in sessionStorage
+    sessionStorage.setItem("tenant-switch-failed", "school-b");
+
+    mockUseSession.mockReturnValue({
+      data: { user: { tenantId: 1 } },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+    mockUseTenant.mockReturnValue({
+      tenantSlug: "school-b",
+      tenant: tenantB,
+    });
+
+    render(
+      <TenantGuard>
+        <div>Protected Content</div>
+      </TenantGuard>,
+    );
+
+    await waitFor(() => {
+      expect(mockSignOut).toHaveBeenCalledWith({ callbackUrl: "/" });
+    });
+
+    // Should NOT attempt the actual switch
+    expect(mockSwitchTenant).not.toHaveBeenCalled();
+
+    // Should clean up the sessionStorage flag
+    expect(sessionStorage.getItem("tenant-switch-failed")).toBeNull();
+  });
+
+  it("clears failure flag on successful switch", async () => {
+    // Set a stale failure flag for a different slug
+    sessionStorage.setItem("tenant-switch-failed", "school-c");
+
+    mockUseSession.mockReturnValue({
+      data: { user: { tenantId: 1 } },
+      status: "authenticated",
+      update: vi.fn().mockResolvedValue(undefined),
+    });
+    mockUseTenant.mockReturnValue({
+      tenantSlug: "school-b",
+      tenant: tenantB,
+    });
+    mockSwitchTenant.mockResolvedValue({
+      access_token: "new-access",
+      refresh_token: "new-refresh",
+    });
+
+    render(
+      <TenantGuard>
+        <div>Protected Content</div>
+      </TenantGuard>,
+    );
+
+    await waitFor(() => {
+      expect(mockSwitchTenant).toHaveBeenCalledWith("school-b");
+    });
+
+    // Success should clear the failure flag
+    await waitFor(() => {
+      expect(sessionStorage.getItem("tenant-switch-failed")).toBeNull();
+    });
   });
 
   it("renders children when tenant context is null", () => {
