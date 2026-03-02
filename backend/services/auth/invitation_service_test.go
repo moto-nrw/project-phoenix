@@ -465,3 +465,71 @@ func TestAcceptInvitationSecondAttemptFails(t *testing.T) {
 	require.Error(t, err)
 	require.True(t, errors.Is(err, ErrInvitationUsed), "Second acceptance should fail with ErrInvitationUsed")
 }
+
+// =============================================================================
+// lookupSchoolName error-path tests (invitation_service.go lines 679-695)
+// =============================================================================
+
+func TestLookupSchoolNameZeroTenant(t *testing.T) {
+	service, _, _, _, _, _, _, _, cleanup := newInvitationTestEnv(t)
+	t.Cleanup(cleanup)
+
+	svc := service.(*invitationService)
+	result := svc.lookupSchoolName(context.Background(), 0)
+	require.Equal(t, "", result, "tenantID=0 must return empty string")
+}
+
+func TestLookupSchoolNameNoTransaction(t *testing.T) {
+	service, _, _, _, _, _, _, _, cleanup := newInvitationTestEnv(t)
+	t.Cleanup(cleanup)
+
+	svc := service.(*invitationService)
+	// context.Background() has no transaction, so TxFromContext returns false.
+	result := svc.lookupSchoolName(context.Background(), 42)
+	require.Equal(t, "", result, "missing transaction must return empty string")
+}
+
+func TestLookupSchoolNameQueryError(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+
+	svc := &invitationService{
+		db:     bunDB,
+		logger: slog.Default(),
+	}
+
+	mock.ExpectBegin()
+	tx, err := bunDB.BeginTx(context.Background(), nil)
+	require.NoError(t, err)
+
+	ctx := baseModel.ContextWithTx(context.Background(), &tx)
+
+	mock.ExpectQuery(`SELECT`).WillReturnError(fmt.Errorf("connection refused"))
+
+	result := svc.lookupSchoolName(ctx, 99)
+	require.Equal(t, "", result, "SQL error must return empty string")
+
+	mock.ExpectRollback()
+	_ = tx.Rollback()
+
+	mock.ExpectClose()
+	require.NoError(t, bunDB.Close())
+	require.NoError(t, sqlDB.Close())
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+// =============================================================================
+// createAccountTenant error-path test (invitation_service.go line 508)
+// =============================================================================
+
+func TestCreateAccountTenantNoTransaction(t *testing.T) {
+	service, _, _, _, _, _, _, _, cleanup := newInvitationTestEnv(t)
+	t.Cleanup(cleanup)
+
+	svc := service.(*invitationService)
+	// context.Background() has no transaction.
+	err := svc.createAccountTenant(context.Background(), 100, 200)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "no transaction in context")
+}
