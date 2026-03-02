@@ -256,11 +256,11 @@ func applyOperatorWithColumnRef(query *bun.SelectQuery, columnRef string, condit
 		return query.Where(columnRef + " IS NOT NULL")
 	case OpIn:
 		if values, ok := condition.Value.([]interface{}); ok {
-			return query.Where(columnRef+" IN (?)", bun.In(values))
+			return query.Where(columnRef+" IN (?)", bun.List(values))
 		}
 	case OpNotIn:
 		if values, ok := condition.Value.([]interface{}); ok {
-			return query.Where(columnRef+" NOT IN (?)", bun.In(values))
+			return query.Where(columnRef+" NOT IN (?)", bun.List(values))
 		}
 	case OpContains:
 		return query.Where(columnRef+" @> ?", condition.Value)
@@ -298,11 +298,11 @@ func applyOperatorWithIdent(query *bun.SelectQuery, field string, condition Filt
 		return query.Where("? IS NOT NULL", fieldIdent)
 	case OpIn:
 		if values, ok := condition.Value.([]interface{}); ok {
-			return query.Where("? IN (?)", fieldIdent, bun.In(values))
+			return query.Where("? IN (?)", fieldIdent, bun.List(values))
 		}
 	case OpNotIn:
 		if values, ok := condition.Value.([]interface{}); ok {
-			return query.Where("? NOT IN (?)", fieldIdent, bun.In(values))
+			return query.Where("? NOT IN (?)", fieldIdent, bun.List(values))
 		}
 	case OpContains:
 		return query.Where("? @> ?", fieldIdent, condition.Value)

@@ -67,7 +67,7 @@ func (r *StudentRepository) FindByIDs(ctx context.Context, ids []int64) (map[int
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&students).
 		ModelTableExpr(`users.students AS "student"`).
-		Where(`"student".id IN (?)`, bun.In(ids))
+		Where(`"student".id IN (?)`, bun.List(ids))
 
 	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
 		query = query.Where(where, val)
@@ -124,7 +124,7 @@ func (r *StudentRepository) FindByGroupIDs(ctx context.Context, groupIDs []int64
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&students).
 		ModelTableExpr(tableExprUsersStudentsAsStudent).
-		Where("group_id IN (?)", bun.In(groupIDs))
+		Where("group_id IN (?)", bun.List(groupIDs))
 
 	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
 		query = query.Where(where, val)
@@ -358,7 +358,7 @@ func (r *StudentRepository) CountByGroupIDs(ctx context.Context, groupIDs []int6
 		TableExpr(`users.students AS "student"`).
 		ColumnExpr(`"student".group_id`).
 		ColumnExpr("COUNT(*) AS count").
-		Where(`"student".group_id IN (?)`, bun.In(groupIDs)).
+		Where(`"student".group_id IN (?)`, bun.List(groupIDs)).
 		GroupExpr(`"student".group_id`)
 
 	if where, val, ok := base.TenantWhere(ctx, "student"); ok {

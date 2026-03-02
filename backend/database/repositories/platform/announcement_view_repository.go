@@ -101,7 +101,7 @@ func (r *AnnouncementViewRepository) GetUnreadForUser(ctx context.Context, userI
 			AND (a.target_roles = '{}' OR EXISTS (
 				SELECT 1 FROM unnest(a.target_roles) AS r WHERE r IN (?)))
 		ORDER BY a.published_at DESC
-	`, userID, now, now, bun.In(userRoles)).Scan(ctx, &announcements)
+	`, userID, now, now, bun.List(userRoles)).Scan(ctx, &announcements)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -130,7 +130,7 @@ func (r *AnnouncementViewRepository) CountUnread(ctx context.Context, userID int
 			AND v.seen_at IS NULL
 			AND (a.target_roles = '{}' OR EXISTS (
 				SELECT 1 FROM unnest(a.target_roles) AS r WHERE r IN (?)))
-	`, userID, now, now, bun.In(userRoles)).Scan(ctx, &count)
+	`, userID, now, now, bun.List(userRoles)).Scan(ctx, &count)
 
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
@@ -176,7 +176,7 @@ func (r *AnnouncementViewRepository) GetStats(ctx context.Context, announcementI
 			JOIN auth.account_roles ar ON ar.account_id = acc.id
 			JOIN auth.roles r ON r.id = ar.role_id
 			WHERE r.name IN (?)
-		`, bun.In(targetRoles)).Scan(ctx, &stats.TargetCount)
+		`, bun.List(targetRoles)).Scan(ctx, &stats.TargetCount)
 	}
 	if err != nil {
 		return nil, &modelBase.DatabaseError{

@@ -586,31 +586,31 @@ func CleanupAuthFixtures(tb testing.TB, db *bun.DB, accountIDs ...int64) {
 	// Delete tokens first (depends on accounts)
 	cleanupDelete(tb, db.NewDelete().
 		Table("auth.tokens").
-		Where(whereAccountIDIn, bun.In(accountIDs)),
+		Where(whereAccountIDIn, bun.List(accountIDs)),
 		"auth.tokens")
 
 	// Delete account_roles (by account_id only - never by role_id!)
 	cleanupDelete(tb, db.NewDelete().
 		Table("auth.account_roles").
-		Where(whereAccountIDIn, bun.In(accountIDs)),
+		Where(whereAccountIDIn, bun.List(accountIDs)),
 		"auth.account_roles")
 
 	// Delete account_permissions (by account_id only - never by permission_id!)
 	cleanupDelete(tb, db.NewDelete().
 		Table("auth.account_permissions").
-		Where(whereAccountIDIn, bun.In(accountIDs)),
+		Where(whereAccountIDIn, bun.List(accountIDs)),
 		"auth.account_permissions")
 
 	// Delete grade_transitions that reference these accounts (created_by FK)
 	cleanupDelete(tb, db.NewDelete().
 		Table(tableEducationGradeTransition).
-		Where("created_by IN (?)", bun.In(accountIDs)),
+		Where("created_by IN (?)", bun.List(accountIDs)),
 		tableEducationGradeTransition)
 
 	// Finally delete the accounts themselves
 	cleanupDelete(tb, db.NewDelete().
 		Table("auth.accounts").
-		Where(whereIDIn, bun.In(accountIDs)),
+		Where(whereIDIn, bun.List(accountIDs)),
 		"auth.accounts")
 }
 
@@ -624,7 +624,7 @@ func CleanupParentAccountFixtures(tb testing.TB, db *bun.DB, accountIDs ...int64
 
 	cleanupDelete(tb, db.NewDelete().
 		Table("auth.accounts_parents").
-		Where(whereIDIn, bun.In(accountIDs)),
+		Where(whereIDIn, bun.List(accountIDs)),
 		"auth.accounts_parents")
 }
 
@@ -1884,19 +1884,19 @@ func CleanupGradeTransitionFixtures(tb testing.TB, db *bun.DB, transitionIDs ...
 	// Delete history first (depends on transition)
 	_, _ = db.NewDelete().
 		TableExpr("education.grade_transition_history").
-		Where("transition_id IN (?)", bun.In(transitionIDs)).
+		Where("transition_id IN (?)", bun.List(transitionIDs)).
 		Exec(ctx)
 
 	// Delete mappings (depends on transition)
 	_, _ = db.NewDelete().
 		TableExpr("education.grade_transition_mappings").
-		Where("transition_id IN (?)", bun.In(transitionIDs)).
+		Where("transition_id IN (?)", bun.List(transitionIDs)).
 		Exec(ctx)
 
 	// Delete transitions
 	_, _ = db.NewDelete().
 		TableExpr(tableEducationGradeTransition).
-		Where(whereIDIn, bun.In(transitionIDs)).
+		Where(whereIDIn, bun.List(transitionIDs)).
 		Exec(ctx)
 }
 

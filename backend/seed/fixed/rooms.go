@@ -76,7 +76,7 @@ func (s *Seeder) seedRooms(ctx context.Context) error {
 		{Name: "Lehrerzimmer", RoomNumber: "STAFF", Building: BuildingMain, Floor: 0, Capacity: 40, RoomType: "staff_room", IsAccessible: true, HasProjector: true, HasSmartboard: true, Description: "Lehrerzimmer mit Arbeitsplätzen"},
 
 		// Outdoor areas
-		{Name: "Schulhof", RoomNumber: "OUTDOOR", Building: "Außenbereich", Floor: 0, Capacity: 100, RoomType: "schulhof", IsAccessible: true, HasProjector: false, HasSmartboard: false, Description: "Schulhof für Freispiel und Pausen"},
+		{Name: "Schulhof", RoomNumber: "OUTDOOR", Building: "Außenbereich", Floor: 0, Capacity: 300, RoomType: "schulhof", IsAccessible: true, HasProjector: false, HasSmartboard: false, Description: "Schulhof für Freispiel und Pausen"},
 	}
 
 	for _, data := range rooms {

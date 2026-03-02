@@ -98,7 +98,7 @@ func (r *GroupRepository) FindActiveByGroupIDs(ctx context.Context, groupIDs []i
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groups).
 		ModelTableExpr(`active.groups AS "group"`).
-		Where(`"group".group_id IN (?) AND "group".end_time IS NULL`, bun.In(groupIDs))
+		Where(`"group".group_id IN (?) AND "group".end_time IS NULL`, bun.List(groupIDs))
 
 	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
 		query = query.Where(where, val)
@@ -751,7 +751,7 @@ func (r *GroupRepository) queryGroupsByIDs(ctx context.Context, ids []int64) ([]
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groups).
 		ModelTableExpr(`active.groups AS "group"`).
-		Where(`"group".id IN (?)`, bun.In(ids))
+		Where(`"group".id IN (?)`, bun.List(ids))
 
 	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
 		query = query.Where(where, val)
@@ -801,7 +801,7 @@ func (r *GroupRepository) queryRoomsByIDs(ctx context.Context, ids []int64, op s
 	if err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&rooms).
 		ModelTableExpr(`facilities.rooms AS "room"`).
-		Where(`"room".id IN (?)`, bun.In(ids)).
+		Where(`"room".id IN (?)`, bun.List(ids)).
 		Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: op, Err: err}
 	}
@@ -941,7 +941,7 @@ func (r *GroupRepository) queryActivityGroupsByIDs(ctx context.Context, ids []in
 	if err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groups).
 		ModelTableExpr(`activities.groups AS "group"`).
-		Where(`"group".id IN (?)`, bun.In(ids)).
+		Where(`"group".id IN (?)`, bun.List(ids)).
 		Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "batch load activity groups for unclaimed groups", Err: err}
 	}
@@ -973,7 +973,7 @@ func (r *GroupRepository) GetOccupiedRoomIDs(ctx context.Context, roomIDs []int6
 	query := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(tableExprActiveGroupsAG).
 		ColumnExpr("DISTINCT ag.room_id").
-		Where("ag.room_id IN (?)", bun.In(roomIDs)).
+		Where("ag.room_id IN (?)", bun.List(roomIDs)).
 		Where(whereEndTimeIsNull)
 
 	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
@@ -1009,7 +1009,7 @@ func (r *GroupRepository) EndSessionsByIDs(ctx context.Context, ids []int64) (in
 		Model((*active.Group)(nil)).
 		ModelTableExpr(`active.groups AS "group"`).
 		Set("end_time = ?", time.Now()).
-		Where(`"group".id IN (?)`, bun.In(ids)).
+		Where(`"group".id IN (?)`, bun.List(ids)).
 		Where(`"group".end_time IS NULL`)
 
 	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
@@ -1048,7 +1048,7 @@ func (r *GroupRepository) GetOccupiedActivityGroupIDs(ctx context.Context, group
 	query := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(tableExprActiveGroupsAG).
 		ColumnExpr("DISTINCT ag.group_id").
-		Where("ag.group_id IN (?)", bun.In(groupIDs)).
+		Where("ag.group_id IN (?)", bun.List(groupIDs)).
 		Where(whereEndTimeIsNull)
 
 	if tenantID := tenant.FromContext(ctx); tenantID > 0 {

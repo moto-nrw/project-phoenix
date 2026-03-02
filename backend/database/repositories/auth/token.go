@@ -411,7 +411,7 @@ func (r *TokenRepository) CleanupOldTokensForAccount(ctx context.Context, accoun
 			delQuery := base.GetDB(ctx, r.db).NewDelete().
 				Model((*auth.Token)(nil)).
 				ModelTableExpr(`auth.tokens AS "token"`).
-				Where(`"token".id IN (?)`, bun.In(idsToDelete))
+				Where(`"token".id IN (?)`, bun.List(idsToDelete))
 
 			if where, val, ok := base.TenantWhere(ctx, "token"); ok {
 				delQuery = delQuery.Where(where, val)

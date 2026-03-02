@@ -83,7 +83,7 @@ func (r *GroupTeacherRepository) FindByGroupIDs(ctx context.Context, groupIDs []
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groupTeachers).
 		ModelTableExpr(`education.group_teacher AS "group_teacher"`).
-		Where(`"group_teacher".group_id IN (?)`, bun.In(groupIDs))
+		Where(`"group_teacher".group_id IN (?)`, bun.List(groupIDs))
 
 	if where, val, ok := base.TenantWhere(ctx, "group_teacher"); ok {
 		query = query.Where(where, val)

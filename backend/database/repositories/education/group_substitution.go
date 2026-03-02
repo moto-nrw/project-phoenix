@@ -453,7 +453,7 @@ func (r *GroupSubstitutionRepository) loadGroupsByIDs(ctx context.Context, group
 	groupQuery := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groups).
 		ModelTableExpr(`education.groups AS "group"`).
-		Where(`"group".id IN (?)`, bun.In(groupIDSlice))
+		Where(`"group".id IN (?)`, bun.List(groupIDSlice))
 
 	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
 		groupQuery = groupQuery.Where(where, val)
@@ -483,7 +483,7 @@ func (r *GroupSubstitutionRepository) loadStaffWithPersonsByIDs(ctx context.Cont
 	staffQuery := base.GetDB(ctx, r.db).NewSelect().
 		Model(&staffList).
 		ModelTableExpr(`users.staff AS "staff"`).
-		Where(`"staff".id IN (?)`, bun.In(staffIDSlice))
+		Where(`"staff".id IN (?)`, bun.List(staffIDSlice))
 
 	if where, val, ok := base.TenantWhere(ctx, "staff"); ok {
 		staffQuery = staffQuery.Where(where, val)
@@ -520,7 +520,7 @@ func (r *GroupSubstitutionRepository) linkPersonsToStaff(ctx context.Context, st
 	personQuery := base.GetDB(ctx, r.db).NewSelect().
 		Model(&persons).
 		ModelTableExpr(`users.persons AS "person"`).
-		Where(`"person".id IN (?)`, bun.In(personIDs))
+		Where(`"person".id IN (?)`, bun.List(personIDs))
 
 	if where, val, ok := base.TenantWhere(ctx, "person"); ok {
 		personQuery = personQuery.Where(where, val)

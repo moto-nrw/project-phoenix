@@ -29,13 +29,13 @@ func cleanupCombinedGroupRecords(t *testing.T, db *bun.DB, groupIDs ...int64) {
 	// First remove any mappings
 	_, _ = db.NewDelete().
 		TableExpr("active.group_mappings").
-		Where("active_combined_group_id IN (?)", bun.In(groupIDs)).
+		Where("active_combined_group_id IN (?)", bun.List(groupIDs)).
 		Exec(ctx)
 
 	// Then remove the combined groups
 	_, err := db.NewDelete().
 		TableExpr("active.combined_groups").
-		Where("id IN (?)", bun.In(groupIDs)).
+		Where("id IN (?)", bun.List(groupIDs)).
 		Exec(ctx)
 	if err != nil {
 		t.Logf("Warning: failed to cleanup combined groups: %v", err)

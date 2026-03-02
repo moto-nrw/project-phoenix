@@ -104,7 +104,7 @@ func (r *GroupSupervisorRepository) FindByActiveGroupIDs(ctx context.Context, ac
 		ColumnExpr(`"person"."id" AS "staff__person__id", "person"."first_name" AS "staff__person__first_name", "person"."last_name" AS "staff__person__last_name"`).
 		Join(`LEFT JOIN users.staff AS "staff" ON "staff"."id" = "group_supervisor"."staff_id"`).
 		Join(`LEFT JOIN users.persons AS "person" ON "person"."id" = "staff"."person_id"`).
-		Where(`"group_supervisor".group_id IN (?)`, bun.In(activeGroupIDs))
+		Where(`"group_supervisor".group_id IN (?)`, bun.List(activeGroupIDs))
 
 	if activeOnly {
 		query = query.Where(`"group_supervisor".end_date IS NULL`)
@@ -340,7 +340,7 @@ func (r *GroupSupervisorRepository) EndSupervisionsByActiveGroupIDs(ctx context.
 		Model((*active.GroupSupervisor)(nil)).
 		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
 		Set("end_date = now()").
-		Where(`"group_supervisor".group_id IN (?)`, bun.In(activeGroupIDs)).
+		Where(`"group_supervisor".group_id IN (?)`, bun.List(activeGroupIDs)).
 		Where(`"group_supervisor".end_date IS NULL`)
 
 	if where, val, ok := base.TenantWhere(ctx, "group_supervisor"); ok {

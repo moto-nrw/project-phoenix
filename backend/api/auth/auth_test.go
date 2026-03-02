@@ -254,19 +254,19 @@ func cleanupRoleRecords(t *testing.T, db *bun.DB, roleIDs ...int64) {
 	// Remove role-permission mappings
 	_, _ = db.NewDelete().
 		TableExpr("auth.role_permissions").
-		Where("role_id IN (?)", bun.In(roleIDs)).
+		Where("role_id IN (?)", bun.List(roleIDs)).
 		Exec(ctx)
 
 	// Remove account-role mappings
 	_, _ = db.NewDelete().
 		TableExpr("auth.account_roles").
-		Where("role_id IN (?)", bun.In(roleIDs)).
+		Where("role_id IN (?)", bun.List(roleIDs)).
 		Exec(ctx)
 
 	// Remove roles
 	_, err := db.NewDelete().
 		TableExpr("auth.roles").
-		Where("id IN (?)", bun.In(roleIDs)).
+		Where("id IN (?)", bun.List(roleIDs)).
 		Exec(ctx)
 	if err != nil {
 		t.Logf("Warning: failed to cleanup roles: %v", err)
@@ -285,19 +285,19 @@ func cleanupPermissionRecords(t *testing.T, db *bun.DB, permissionIDs ...int64) 
 	// Remove role-permission mappings
 	_, _ = db.NewDelete().
 		TableExpr("auth.role_permissions").
-		Where("permission_id IN (?)", bun.In(permissionIDs)).
+		Where("permission_id IN (?)", bun.List(permissionIDs)).
 		Exec(ctx)
 
 	// Remove account-permission mappings
 	_, _ = db.NewDelete().
 		TableExpr("auth.account_permissions").
-		Where("permission_id IN (?)", bun.In(permissionIDs)).
+		Where("permission_id IN (?)", bun.List(permissionIDs)).
 		Exec(ctx)
 
 	// Remove permissions
 	_, err := db.NewDelete().
 		TableExpr("auth.permissions").
-		Where("id IN (?)", bun.In(permissionIDs)).
+		Where("id IN (?)", bun.List(permissionIDs)).
 		Exec(ctx)
 	if err != nil {
 		t.Logf("Warning: failed to cleanup permissions: %v", err)

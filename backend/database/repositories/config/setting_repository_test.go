@@ -32,7 +32,7 @@ func cleanupSettingRecords(t *testing.T, db *bun.DB, settingIDs ...int64) {
 	ctx := testpkg.TenantContext(1)
 	_, err := db.NewDelete().
 		TableExpr("config.settings").
-		Where("id IN (?)", bun.In(settingIDs)).
+		Where("id IN (?)", bun.List(settingIDs)).
 		Exec(ctx)
 	if err != nil {
 		t.Logf("Warning: failed to cleanup settings: %v", err)

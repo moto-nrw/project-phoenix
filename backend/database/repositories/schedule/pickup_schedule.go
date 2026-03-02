@@ -111,7 +111,7 @@ func (r *StudentPickupScheduleRepository) FindByStudentIDsAndWeekday(ctx context
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&schedules).
 		ModelTableExpr(`schedule.student_pickup_schedules AS "student_pickup_schedule"`).
-		Where(`"student_pickup_schedule".student_id IN (?)`, bun.In(studentIDs)).
+		Where(`"student_pickup_schedule".student_id IN (?)`, bun.List(studentIDs)).
 		Where(`"student_pickup_schedule".weekday = ?`, weekday)
 
 	if where, val, ok := base.TenantWhere(ctx, "student_pickup_schedule"); ok {
@@ -370,7 +370,7 @@ func (r *StudentPickupExceptionRepository) FindByStudentIDsAndDate(ctx context.C
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&exceptions).
 		ModelTableExpr(`schedule.student_pickup_exceptions AS "student_pickup_exception"`).
-		Where(`"student_pickup_exception".student_id IN (?)`, bun.In(studentIDs)).
+		Where(`"student_pickup_exception".student_id IN (?)`, bun.List(studentIDs)).
 		Where(`"student_pickup_exception".exception_date = ?`, dateOnly)
 
 	if where, val, ok := base.TenantWhere(ctx, "student_pickup_exception"); ok {
@@ -594,7 +594,7 @@ func (r *StudentPickupNoteRepository) FindByStudentIDsAndDate(ctx context.Contex
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&notes).
 		ModelTableExpr(`schedule.student_pickup_notes AS "student_pickup_note"`).
-		Where(`"student_pickup_note".student_id IN (?)`, bun.In(studentIDs)).
+		Where(`"student_pickup_note".student_id IN (?)`, bun.List(studentIDs)).
 		Where(`"student_pickup_note".note_date = ?`, dateOnly).
 		Order(orderCreatedAtASC)
 
