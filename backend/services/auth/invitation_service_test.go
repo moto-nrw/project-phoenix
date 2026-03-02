@@ -257,6 +257,7 @@ func TestAcceptInvitationCreatesAccountAndPerson(t *testing.T) {
 	require.NoError(t, invitations.Create(ctx, token))
 
 	mock.ExpectBegin()
+	mock.ExpectExec(`INSERT INTO auth.account_tenants`).WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 
 	account, err := service.AcceptInvitation(ctx, "accept", UserRegistrationData{
@@ -442,6 +443,7 @@ func TestAcceptInvitationSecondAttemptFails(t *testing.T) {
 
 	// First acceptance
 	mock.ExpectBegin()
+	mock.ExpectExec(`INSERT INTO auth.account_tenants`).WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 
 	account, err := service.AcceptInvitation(ctx, "second-attempt-token", UserRegistrationData{
