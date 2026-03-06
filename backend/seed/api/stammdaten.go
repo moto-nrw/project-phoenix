@@ -860,7 +860,7 @@ func (s *FixedSeeder) seedDevices(_ context.Context, result *FixedResult) error 
 			return fmt.Errorf("failed to parse device response: %w", err)
 		}
 
-		// Store device API key for later use in RuntimeSeeder
+		// Store device API key for seed state output
 		s.deviceKeys[device.DeviceID] = resp.Data.APIKey
 
 		result.DeviceCount++

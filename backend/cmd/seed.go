@@ -27,7 +27,10 @@ DEMO DATA:
 - 100 students (10 groups x 10)
 - 10 activities (homework, sports, crafts, etc.)
 - 10 IoT devices for RFID scanning
-- Active sessions with checked-in students
+
+OUTPUT FILES:
+- .seed-state.json — all created IDs, credentials, and API keys
+- simulator.yaml   — ready-to-use simulator configuration
 
 Usage:
   go run main.go seed --email admin@example.com --password 'Test1234%' --pin 1234
