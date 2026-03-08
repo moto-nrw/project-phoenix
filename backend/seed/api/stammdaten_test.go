@@ -33,9 +33,9 @@ func apiMock(t *testing.T) *httptest.Server {
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success",
 				"data": []map[string]any{
-					{"id": 1, "name": "admin"},
-					{"id": 2, "name": "user"},
-					{"id": 3, "name": "guest"},
+					{"id": 10, "name": "admin"},
+					{"id": 20, "name": "user"},
+					{"id": 30, "name": "guest"},
 				},
 			})
 
@@ -87,9 +87,9 @@ func TestFixedSeeder_FetchRoles(t *testing.T) {
 	err := fs.fetchRoles(context.TODO())
 	require.NoError(t, err)
 
-	assert.Equal(t, int64(1), fs.roleIDs["admin"])
-	assert.Equal(t, int64(2), fs.roleIDs["user"])
-	assert.Equal(t, int64(3), fs.roleIDs["guest"])
+	assert.Equal(t, int64(10), fs.roleIDs["admin"])
+	assert.Equal(t, int64(20), fs.roleIDs["user"])
+	assert.Equal(t, int64(30), fs.roleIDs["guest"])
 }
 
 func TestFixedSeeder_SeedRooms(t *testing.T) {

@@ -29,9 +29,9 @@ func TestCollectSeedState_BasicFields(t *testing.T) {
 		{Email: "demo12@mail.de", Password: "pass12", PIN: "1011", Name: "Markus Wolf", Position: "Pädagogische Fachkraft"},
 	}
 	fs.staffIDs = map[string]int64{
-		"Anna Müller": 1,
-		"Julia Klein": 2,
-		"Markus Wolf": 3,
+		"Anna Müller": 11,
+		"Julia Klein": 12,
+		"Markus Wolf": 13,
 	}
 	fs.teacherIDs = map[string]int64{
 		"Anna Müller": 10,
@@ -64,7 +64,7 @@ func TestCollectSeedState_BasicFields(t *testing.T) {
 	// Admin accounts
 	assert.Len(t, state.Accounts.Admin, 1)
 	assert.Equal(t, "demo1@mail.de", state.Accounts.Admin[0].Email)
-	assert.Equal(t, int64(1), state.Accounts.Admin[0].StaffID)
+	assert.Equal(t, int64(11), state.Accounts.Admin[0].StaffID)
 	assert.Equal(t, int64(10), state.Accounts.Admin[0].TeacherID)
 
 	// Betreuer accounts

@@ -20,15 +20,15 @@ import (
 
 func TestFindRoomForActivity_KnownActivity(t *testing.T) {
 	rooms := map[string]int64{
-		"OGS-Raum 1": 1,
-		"Sporthalle": 2,
-		"Schulhof":   3,
+		"OGS-Raum 1": 10,
+		"Sporthalle": 20,
+		"Schulhof":   30,
 	}
 
-	assert.Equal(t, int64(1), findRoomForActivity("Hausaufgaben", rooms))
-	assert.Equal(t, int64(2), findRoomForActivity("Fußball", rooms))
-	assert.Equal(t, int64(3), findRoomForActivity("Garten", rooms))
-	assert.Equal(t, int64(3), findRoomForActivity("Freispiel", rooms))
+	assert.Equal(t, int64(10), findRoomForActivity("Hausaufgaben", rooms))
+	assert.Equal(t, int64(20), findRoomForActivity("Fußball", rooms))
+	assert.Equal(t, int64(30), findRoomForActivity("Garten", rooms))
+	assert.Equal(t, int64(30), findRoomForActivity("Freispiel", rooms))
 }
 
 func TestFindRoomForActivity_AllMappings(t *testing.T) {

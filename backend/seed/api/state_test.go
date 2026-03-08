@@ -32,8 +32,8 @@ func TestWriteAndLoadSeedState_Roundtrip(t *testing.T) {
 		Students: []SeedStudent{
 			{ID: 100, FirstName: "Felix", LastName: "Schneider", GroupKey: "sternengruppe", Class: "Klasse 1a"},
 		},
-		Rooms:      map[string]int64{"OGS-Raum 1": 1, "Sporthalle": 2},
-		Activities: map[string]int64{"Fußball": 5, "Basteln": 6},
+		Rooms:      map[string]int64{"OGS-Raum 1": 10, "Sporthalle": 20},
+		Activities: map[string]int64{"Fußball": 50, "Basteln": 60},
 		Groups:     map[string]int64{"sternengruppe": 50},
 	}
 
@@ -55,8 +55,8 @@ func TestWriteAndLoadSeedState_Roundtrip(t *testing.T) {
 	assert.Equal(t, "key-abc", loaded.Devices["device-001"].APIKey)
 	assert.Len(t, loaded.Students, 1)
 	assert.Equal(t, int64(100), loaded.Students[0].ID)
-	assert.Equal(t, int64(1), loaded.Rooms["OGS-Raum 1"])
-	assert.Equal(t, int64(5), loaded.Activities["Fußball"])
+	assert.Equal(t, int64(10), loaded.Rooms["OGS-Raum 1"])
+	assert.Equal(t, int64(50), loaded.Activities["Fußball"])
 	assert.Equal(t, int64(50), loaded.Groups["sternengruppe"])
 }
 
