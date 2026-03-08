@@ -301,7 +301,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Users = usersAPI.NewResource(api.Services.Users, db)
 	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext, repoFactory.GroupSubstitution, db)
 	api.Substitutions = substitutionsAPI.NewResource(api.Services.Education, db)
-	api.Database = databaseAPI.NewResource(api.Services.Database)
+	api.Database = databaseAPI.NewResource(api.Services.Database, db)
 	api.GradeTransitions = adminAPI.NewGradeTransitionResource(api.Services.GradeTransition, db)
 	api.TimeTracking = timeTrackingAPI.NewResource(api.Services.WorkSession, api.Services.StaffAbsence, api.Services.Users, db)
 

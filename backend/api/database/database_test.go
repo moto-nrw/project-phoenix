@@ -32,7 +32,7 @@ func setupTestContext(t *testing.T) *testContext {
 	db, svc := testutil.SetupAPITest(t)
 
 	// Create database resource
-	resource := databaseAPI.NewResource(svc.Database)
+	resource := databaseAPI.NewResource(svc.Database, db)
 
 	return &testContext{
 		db:       db,
