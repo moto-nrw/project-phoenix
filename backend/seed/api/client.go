@@ -155,7 +155,7 @@ func (c *Client) logResponse(statusCode int, body []byte) {
 }
 
 // ============================================================================
-// Package-level logging functions (shared by Client and RuntimeSeeder)
+// Package-level logging functions (shared by Client and seeders)
 // ============================================================================
 
 // logAPIRequest logs an HTTP request with optional auth context

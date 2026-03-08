@@ -105,6 +105,14 @@ func (s *FixedSeeder) Seed(ctx context.Context) (*FixedResult, error) {
 		return nil, fmt.Errorf("failed to seed staff: %w", err)
 	}
 
+	// 5b. Re-login as first OGS-Büro staff member.
+	// The admin account (from migration) has no staff record, so endpoints
+	// like activities that require a staff context will reject it.
+	// OGS-Büro staff have admin role + a staff/person/teacher record.
+	if err := s.switchToStaffAccount(); err != nil {
+		return nil, fmt.Errorf("failed to switch to staff account: %w", err)
+	}
+
 	// 6. Create education groups
 	if err := s.seedGroups(ctx, result); err != nil {
 		return nil, fmt.Errorf("failed to seed groups: %w", err)
@@ -150,6 +158,22 @@ func (s *FixedSeeder) Seed(ctx context.Context) (*FixedResult, error) {
 
 	fmt.Println("✅ Fixed data creation complete!")
 	return result, nil
+}
+
+// switchToStaffAccount re-authenticates as the first OGS-Büro staff member.
+// This is needed because many endpoints (activities, groups, etc.) require the
+// caller to have a staff record, which the migration-created admin account lacks.
+func (s *FixedSeeder) switchToStaffAccount() error {
+	for _, cred := range s.staffCredentials {
+		if cred.Position == "OGS-Büro" {
+			fmt.Printf("  Switching to staff account %s (%s)...\n", cred.Name, cred.Email)
+			if err := s.client.Login(cred.Email, cred.Password); err != nil {
+				return fmt.Errorf("failed to login as %s: %w", cred.Email, err)
+			}
+			return nil
+		}
+	}
+	return fmt.Errorf("no OGS-Büro staff credential found")
 }
 
 func (s *FixedSeeder) seedRooms(_ context.Context, result *FixedResult) error {
@@ -860,7 +884,7 @@ func (s *FixedSeeder) seedDevices(_ context.Context, result *FixedResult) error 
 			return fmt.Errorf("failed to parse device response: %w", err)
 		}
 
-		// Store device API key for later use in RuntimeSeeder
+		// Store device API key for seed state output
 		s.deviceKeys[device.DeviceID] = resp.Data.APIKey
 
 		result.DeviceCount++

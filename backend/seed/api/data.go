@@ -38,13 +38,6 @@ type DemoDevice struct {
 	Name     string
 }
 
-// RuntimeConfig configures the runtime snapshot creation
-type RuntimeConfig struct {
-	ActiveSessions    int // Number of activity sessions to start (3-4)
-	CheckedInStudents int // Number of students to check in (~30)
-	StudentsUnterwegs int // Students "on the way" (1-2)
-}
-
 // Floor helper for creating floor pointers
 func floor(f int) *int { return &f }
 
@@ -257,18 +250,6 @@ var DemoDevices = []DemoDevice{
 	{DeviceID: "demo-device-008", Name: "Schulhof Scanner"},
 	{DeviceID: "demo-device-009", Name: "Musikraum Scanner"},
 	{DeviceID: "demo-device-010", Name: "Bewegungsraum Scanner"},
-}
-
-// DefaultRuntimeConfig provides default values for runtime snapshot creation
-// Configured for 100 students across 10 groups, with realistic attendance
-// - 85 checked in and in rooms
-// - 5 "unterwegs" (moving between rooms)
-// - 10 not checked in (sick at home, not yet arrived, etc.)
-var DefaultRuntimeConfig = RuntimeConfig{
-	ActiveSessions:    10, // Start 10 activity sessions (one per Betreuer)
-	CheckedInStudents: 85, // 85 students in rooms
-	StudentsUnterwegs: 5,  // 5 students "on the way" between rooms
-	// Remaining 10 students: not checked in (sick/absent)
 }
 
 // DemoGuardian represents a guardian to be created via API

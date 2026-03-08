@@ -269,6 +269,10 @@ func TestSchulhofService_GetSchulhofStatus_WithMultipleSupervisors(t *testing.T)
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
+	// Clean up any Schulhof artifacts left by parallel test packages
+	cleanupSchulhofArtifacts(t, db)
+	defer cleanupSchulhofArtifacts(t, db)
+
 	service := setupSchulhofService(t, db)
 	ctx := testpkg.TenantContext(1)
 
