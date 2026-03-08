@@ -2618,17 +2618,33 @@ describe("TimeTrackingPage", () => {
     });
 
     it("changes start date", () => {
-      openAbsenceModal();
-      const startInput = screen.getByLabelText("Von");
-      fireEvent.change(startInput, { target: { value: "2026-03-01" } });
-      expect((startInput as HTMLInputElement).value).toBe("2026-03-01");
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-01-15T10:00:00"));
+      try {
+        openAbsenceModal();
+        const startInput = screen.getByLabelText("Von");
+        fireEvent.change(startInput, {
+          target: { value: "2026-03-01" },
+        });
+        expect((startInput as HTMLInputElement).value).toBe("2026-03-01");
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it("changes end date", () => {
-      openAbsenceModal();
-      const endInput = screen.getByLabelText("Bis");
-      fireEvent.change(endInput, { target: { value: "2026-03-05" } });
-      expect((endInput as HTMLInputElement).value).toBe("2026-03-05");
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-01-15T10:00:00"));
+      try {
+        openAbsenceModal();
+        const endInput = screen.getByLabelText("Bis");
+        fireEvent.change(endInput, {
+          target: { value: "2026-03-05" },
+        });
+        expect((endInput as HTMLInputElement).value).toBe("2026-03-05");
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it("closes modal on Abbrechen", () => {
