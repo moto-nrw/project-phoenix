@@ -18,7 +18,7 @@ vi.mock("next/navigation", () => ({
 // Mock SWR hooks
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: vi.fn(),
-  mutate: vi.fn(),
+  useTenantMutate: vi.fn(() => vi.fn()),
 }));
 
 // Mock service factory

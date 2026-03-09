@@ -24,7 +24,7 @@ import { createCrudService } from "@/lib/database/service-factory";
 import { studentsConfig } from "@/lib/database/configs/students.config";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import type { Student } from "@/lib/api";
-import { useSWRAuth, mutate } from "~/lib/swr";
+import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 
 export default function StudentsPage() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -49,6 +49,7 @@ export default function StudentsPage() {
   } = useDeleteConfirmation(setShowDetailModal);
 
   const { success: toastSuccess, error: toastError } = useToast();
+  const mutate = useTenantMutate();
 
   // Track mounted state to prevent race conditions
   const isMountedRef = useRef(true);

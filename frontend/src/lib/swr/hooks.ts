@@ -16,6 +16,8 @@
 import useSWR, { type SWRConfiguration, type SWRResponse } from "swr";
 import { useSession } from "next-auth/react";
 import { swrConfig, immutableConfig } from "./config";
+import { useSWRConfig } from "swr";
+import { useCallback } from "react";
 import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
 
 /**
@@ -134,5 +136,28 @@ export function useSWRWithId<T, E = Error>(
       ...swrConfig,
       ...options,
     },
+  );
+}
+
+/**
+ * Returns a tenant-aware mutate function.
+ *
+ * The global `mutate("key")` from SWR won't work with `useSWRAuth` because
+ * cache keys are prefixed with the tenant slug (e.g., `school-a:key`).
+ * This hook returns a mutate function that automatically applies the same prefix.
+ *
+ * @example
+ * ```tsx
+ * const mutate = useTenantMutate();
+ * await mutate("database-rooms-list"); // actually mutates "school-a:database-rooms-list"
+ * ```
+ */
+export function useTenantMutate() {
+  const { mutate } = useSWRConfig();
+  const slug = useTenantSlugSafe();
+
+  return useCallback(
+    (key: string) => mutate(slug ? `${slug}:${key}` : key),
+    [mutate, slug],
   );
 }

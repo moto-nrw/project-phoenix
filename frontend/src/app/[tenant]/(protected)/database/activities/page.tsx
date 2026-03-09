@@ -23,7 +23,7 @@ import {
 } from "@/components/activities";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
-import { useSWRAuth, mutate } from "~/lib/swr";
+import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 
 const logger = createLogger({ component: "DatabaseActivitiesPage" });
 
@@ -53,6 +53,7 @@ export default function ActivitiesPage() {
   // Secondary management modals (disabled for now)
 
   const { success: toastSuccess } = useToast();
+  const mutate = useTenantMutate();
 
   const { status } = useSession({
     required: true,

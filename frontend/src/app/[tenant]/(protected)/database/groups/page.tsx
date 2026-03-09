@@ -22,7 +22,7 @@ import { ConfirmationModal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
 import { useIsMobile } from "~/hooks/useIsMobile";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
-import { useSWRAuth, mutate } from "~/lib/swr";
+import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 
 export default function GroupsPage() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -45,6 +45,7 @@ export default function GroupsPage() {
   } = useDeleteConfirmation(setShowDetailModal);
 
   const { success: toastSuccess } = useToast();
+  const mutate = useTenantMutate();
 
   const { status } = useSession({
     required: true,

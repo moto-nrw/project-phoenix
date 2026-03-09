@@ -25,7 +25,7 @@ import { teachersConfig } from "@/lib/database/configs/teachers.config";
 import type { Teacher } from "@/lib/teacher-api";
 import { Modal, ConfirmationModal } from "~/components/ui/modal";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
-import { useSWRAuth, mutate } from "~/lib/swr";
+import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 
 // Helper function to get teacher initials without nested ternary
 function getTeacherInitials(
@@ -74,6 +74,7 @@ export default function TeachersPage() {
   const [permissionModalOpen, setPermissionModalOpen] = useState(false);
 
   const { success: toastSuccess } = useToast();
+  const mutate = useTenantMutate();
 
   const { status } = useSession({
     required: true,
