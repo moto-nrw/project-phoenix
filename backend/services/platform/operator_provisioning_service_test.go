@@ -13,6 +13,7 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
@@ -22,6 +23,7 @@ type mockOrganizationRepo struct {
 	findByIDFn   func(context.Context, int64) (*platformModels.Organization, error)
 	findBySlugFn func(context.Context, string) (*platformModels.Organization, error)
 	createFn     func(context.Context, *platformModels.Organization) error
+	listFn       func(context.Context) ([]*platformModels.Organization, error)
 }
 
 func (m *mockOrganizationRepo) Create(ctx context.Context, organization *platformModels.Organization) error {
@@ -43,6 +45,9 @@ func (m *mockOrganizationRepo) FindBySlug(ctx context.Context, slug string) (*pl
 	return nil, nil
 }
 func (m *mockOrganizationRepo) List(context.Context) ([]*platformModels.Organization, error) {
+	if m.listFn != nil {
+		return m.listFn(context.Background())
+	}
 	return nil, nil
 }
 
@@ -51,6 +56,7 @@ type mockSchoolRepo struct {
 	findByOrgAndSlugFn func(context.Context, int64, string) (*platformModels.School, error)
 	findBySubdomainFn  func(context.Context, string) (*platformModels.School, error)
 	createFn           func(context.Context, *platformModels.School) error
+	listFn             func(context.Context) ([]*platformModels.School, error)
 }
 
 func (m *mockSchoolRepo) Create(ctx context.Context, school *platformModels.School) error {
@@ -81,6 +87,9 @@ func (m *mockSchoolRepo) FindBySubdomain(ctx context.Context, subdomain string) 
 	return nil, nil
 }
 func (m *mockSchoolRepo) List(context.Context) ([]*platformModels.School, error) {
+	if m.listFn != nil {
+		return m.listFn(context.Background())
+	}
 	return nil, nil
 }
 func (m *mockSchoolRepo) ListActive(context.Context) ([]platformModels.School, error) {
@@ -96,10 +105,14 @@ type mockRoleRepo struct {
 }
 
 type mockCategoryRepo struct {
-	created []*activityModels.Category
+	created  []*activityModels.Category
+	createFn func(context.Context, *activityModels.Category) error
 }
 
 func (m *mockCategoryRepo) Create(_ context.Context, category *activityModels.Category) error {
+	if m.createFn != nil {
+		return m.createFn(context.Background(), category)
+	}
 	if category != nil {
 		m.created = append(m.created, category)
 	}
@@ -229,6 +242,99 @@ func TestOperatorProvisioningService_CreateSchool_AllowsDuplicateSlugAcrossOrgan
 	require.Equal(t, int64(55), school.ID)
 }
 
+func TestOperatorProvisioningService_CreateOrganization_Success(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectCommit()
+
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		OrganizationRepo: &mockOrganizationRepo{
+			findBySlugFn: func(context.Context, string) (*platformModels.Organization, error) {
+				return nil, nil
+			},
+			createFn: func(_ context.Context, organization *platformModels.Organization) error {
+				organization.ID = 77
+				return nil
+			},
+		},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+		DB:           bunDB,
+	})
+
+	org, err := service.CreateOrganization(context.Background(), &platformModels.Organization{
+		Name:   "Stadt Koeln",
+		Slug:   "stadt-koeln",
+		Active: true,
+	}, 7, net.IPv4(127, 0, 0, 1))
+	require.NoError(t, err)
+	require.NotNil(t, org)
+	require.Equal(t, int64(77), org.ID)
+}
+
+func TestOperatorProvisioningService_CreateOrganization_Conflict(t *testing.T) {
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		OrganizationRepo: &mockOrganizationRepo{
+			findBySlugFn: func(context.Context, string) (*platformModels.Organization, error) {
+				return &platformModels.Organization{Model: base.Model{ID: 5}, Name: "Existing", Slug: "stadt-koeln", Active: true}, nil
+			},
+		},
+	})
+
+	org, err := service.CreateOrganization(context.Background(), &platformModels.Organization{
+		Name:   "Stadt Koeln",
+		Slug:   "stadt-koeln",
+		Active: true,
+	}, 7, net.IPv4(127, 0, 0, 1))
+	require.Nil(t, org)
+	require.Error(t, err)
+	var conflictErr *platformSvc.ConflictError
+	require.ErrorAs(t, err, &conflictErr)
+}
+
+func TestOperatorProvisioningService_ListOrganizations(t *testing.T) {
+	expected := []*platformModels.Organization{
+		{Model: base.Model{ID: 1}, Name: "Org A", Slug: "org-a", Active: true},
+	}
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		OrganizationRepo: &mockOrganizationRepo{
+			listFn: func(context.Context) ([]*platformModels.Organization, error) {
+				return expected, nil
+			},
+		},
+	})
+
+	organizations, err := service.ListOrganizations(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, expected, organizations)
+}
+
+func TestOperatorProvisioningService_ListSchools(t *testing.T) {
+	expected := []*platformModels.School{
+		{Model: base.Model{ID: 2}, OrganizationID: 1, Name: "School A", Slug: "school-a", Subdomain: "school-a", Active: true},
+	}
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SchoolRepo: &mockSchoolRepo{
+			listFn: func(context.Context) ([]*platformModels.School, error) {
+				return expected, nil
+			},
+		},
+	})
+
+	schools, err := service.ListSchools(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, expected, schools)
+}
+
 func TestOperatorProvisioningService_InviteSchoolAdmin_DoesNotRequireAuthCreatorAccount(t *testing.T) {
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
@@ -266,4 +372,172 @@ func TestOperatorProvisioningService_InviteSchoolAdmin_DoesNotRequireAuthCreator
 	require.NoError(t, err)
 	require.NotNil(t, invitation)
 	require.Equal(t, int64(0), invitations.req.CreatedBy)
+}
+
+func TestOperatorProvisioningService_CreateSchool_OrganizationNotFound(t *testing.T) {
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		OrganizationRepo: &mockOrganizationRepo{},
+		SchoolRepo:       &mockSchoolRepo{},
+	})
+
+	school, err := service.CreateSchool(context.Background(), &platformModels.School{
+		OrganizationID: 99,
+		Name:           "Missing Org School",
+		Slug:           "missing-org-school",
+		Subdomain:      "missing-org-school",
+		Active:         true,
+	}, 1, net.IPv4(127, 0, 0, 1))
+	require.Nil(t, school)
+	require.Error(t, err)
+	var notFoundErr *platformSvc.OrganizationNotFoundError
+	require.ErrorAs(t, err, &notFoundErr)
+}
+
+func TestOperatorProvisioningService_CreateSchool_SlugConflict(t *testing.T) {
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		OrganizationRepo: &mockOrganizationRepo{
+			findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
+				return &platformModels.Organization{Model: base.Model{ID: 2}, Name: "Org", Slug: "org", Active: true}, nil
+			},
+		},
+		SchoolRepo: &mockSchoolRepo{
+			findByOrgAndSlugFn: func(context.Context, int64, string) (*platformModels.School, error) {
+				return &platformModels.School{Model: base.Model{ID: 8}, OrganizationID: 2, Name: "Existing", Slug: "shared", Subdomain: "existing", Active: true}, nil
+			},
+		},
+	})
+
+	school, err := service.CreateSchool(context.Background(), &platformModels.School{
+		OrganizationID: 2,
+		Name:           "New School",
+		Slug:           "shared",
+		Subdomain:      "new-school",
+		Active:         true,
+	}, 1, net.IPv4(127, 0, 0, 1))
+	require.Nil(t, school)
+	require.Error(t, err)
+	var conflictErr *platformSvc.ConflictError
+	require.ErrorAs(t, err, &conflictErr)
+}
+
+func TestOperatorProvisioningService_CreateSchool_SubdomainConflict(t *testing.T) {
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		OrganizationRepo: &mockOrganizationRepo{
+			findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
+				return &platformModels.Organization{Model: base.Model{ID: 2}, Name: "Org", Slug: "org", Active: true}, nil
+			},
+		},
+		SchoolRepo: &mockSchoolRepo{
+			findByOrgAndSlugFn: func(context.Context, int64, string) (*platformModels.School, error) {
+				return nil, nil
+			},
+			findBySubdomainFn: func(context.Context, string) (*platformModels.School, error) {
+				return &platformModels.School{Model: base.Model{ID: 8}, OrganizationID: 3, Name: "Existing", Slug: "existing", Subdomain: "shared-subdomain", Active: true}, nil
+			},
+		},
+	})
+
+	school, err := service.CreateSchool(context.Background(), &platformModels.School{
+		OrganizationID: 2,
+		Name:           "New School",
+		Slug:           "new-school",
+		Subdomain:      "shared-subdomain",
+		Active:         true,
+	}, 1, net.IPv4(127, 0, 0, 1))
+	require.Nil(t, school)
+	require.Error(t, err)
+	var conflictErr *platformSvc.ConflictError
+	require.ErrorAs(t, err, &conflictErr)
+}
+
+func TestOperatorProvisioningService_CreateSchool_CategorySeedError(t *testing.T) {
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		OrganizationRepo: &mockOrganizationRepo{
+			findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
+				return &platformModels.Organization{Model: base.Model{ID: 2}, Name: "Org", Slug: "org", Active: true}, nil
+			},
+		},
+		SchoolRepo: &mockSchoolRepo{
+			findByOrgAndSlugFn: func(context.Context, int64, string) (*platformModels.School, error) {
+				return nil, nil
+			},
+			findBySubdomainFn: func(context.Context, string) (*platformModels.School, error) {
+				return nil, nil
+			},
+			createFn: func(_ context.Context, school *platformModels.School) error {
+				school.ID = 55
+				return nil
+			},
+		},
+		CategoryRepo: &mockCategoryRepo{
+			createFn: func(context.Context, *activityModels.Category) error {
+				return assert.AnError
+			},
+		},
+	})
+
+	school, err := service.CreateSchool(context.Background(), &platformModels.School{
+		OrganizationID: 2,
+		Name:           "Seed Error School",
+		Slug:           "seed-error-school",
+		Subdomain:      "seed-error-school",
+		Active:         true,
+	}, 1, net.IPv4(127, 0, 0, 1))
+	require.Nil(t, school)
+	require.ErrorIs(t, err, assert.AnError)
+}
+
+func TestOperatorProvisioningService_InviteSchoolAdmin_SchoolNotFound(t *testing.T) {
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SchoolRepo: &mockSchoolRepo{},
+		RoleRepo:   &mockRoleRepo{role: &authModels.Role{Model: base.Model{ID: 4}, Name: "admin", IsSystem: true}},
+	})
+
+	invitation, err := service.InviteSchoolAdmin(context.Background(), 404, 11, net.IPv4(127, 0, 0, 1), authSvc.InvitationRequest{
+		Email: "principal@example.com",
+	})
+	require.Nil(t, invitation)
+	require.Error(t, err)
+	var schoolErr *platformSvc.SchoolNotFoundError
+	require.ErrorAs(t, err, &schoolErr)
+}
+
+func TestOperatorProvisioningService_InviteSchoolAdmin_InactiveSchool(t *testing.T) {
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SchoolRepo: &mockSchoolRepo{
+			findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+				return &platformModels.School{Model: base.Model{ID: 9}, OrganizationID: 3, Name: "School", Slug: "school", Subdomain: "school", Active: false}, nil
+			},
+		},
+		RoleRepo: &mockRoleRepo{role: &authModels.Role{Model: base.Model{ID: 4}, Name: "admin", IsSystem: true}},
+	})
+
+	invitation, err := service.InviteSchoolAdmin(context.Background(), 9, 11, net.IPv4(127, 0, 0, 1), authSvc.InvitationRequest{
+		Email: "principal@example.com",
+	})
+	require.Nil(t, invitation)
+	require.Error(t, err)
+	var invalidErr *platformSvc.InvalidDataError
+	require.ErrorAs(t, err, &invalidErr)
+}
+
+func TestOperatorProvisioningService_InviteSchoolAdmin_AdminRoleMissing(t *testing.T) {
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SchoolRepo: &mockSchoolRepo{
+			findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+				return &platformModels.School{Model: base.Model{ID: 9}, OrganizationID: 3, Name: "School", Slug: "school", Subdomain: "school", Active: true}, nil
+			},
+		},
+		RoleRepo: &mockRoleRepo{roles: []*authModels.Role{
+			{Model: base.Model{ID: 5}, Name: "admin", IsSystem: false, TenantID: base.Int64Ptr(9)},
+		}},
+	})
+
+	invitation, err := service.InviteSchoolAdmin(context.Background(), 9, 11, net.IPv4(127, 0, 0, 1), authSvc.InvitationRequest{
+		Email: "principal@example.com",
+	})
+	require.Nil(t, invitation)
+	require.Error(t, err)
+	var invalidErr *platformSvc.InvalidDataError
+	require.ErrorAs(t, err, &invalidErr)
 }

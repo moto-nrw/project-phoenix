@@ -14,6 +14,38 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestGenerateSeedPassword(t *testing.T) {
+	password, err := generateSeedPassword()
+	require.NoError(t, err)
+	assert.Len(t, password, seedPasswordLength)
+	for _, char := range password {
+		assert.Contains(t, seedPasswordAlphabet, string(char))
+	}
+}
+
+func TestExtractBootstrapInvitationToken(t *testing.T) {
+	s := NewSeeder("http://localhost:8080", false)
+
+	token, err := s.extractBootstrapInvitationToken([]byte(`{"data":{"token":"seed-token"}}`))
+	require.NoError(t, err)
+	assert.Equal(t, "seed-token", token)
+}
+
+func TestExtractBootstrapInvitationToken_MissingToken(t *testing.T) {
+	s := NewSeeder("http://localhost:8080", false)
+
+	token, err := s.extractBootstrapInvitationToken([]byte(`{"data":{}}`))
+	require.Error(t, err)
+	assert.Empty(t, token)
+	assert.Contains(t, err.Error(), "bootstrap invite token not available")
+}
+
+func TestMakeBootstrapSeedState_Nil(t *testing.T) {
+	bootstrap := makeBootstrapSeedState(nil)
+	assert.Zero(t, bootstrap.OrganizationID)
+	assert.Empty(t, bootstrap.SchoolAdmin.Email)
+}
+
 func TestCollectSeedState_BasicFields(t *testing.T) {
 	s := &Seeder{
 		client:  &Client{baseURL: "http://localhost:8080"},
