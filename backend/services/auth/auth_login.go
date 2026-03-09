@@ -386,7 +386,7 @@ func (s *Service) resolveAccountTenant(ctx context.Context, accountID int64, ten
 func (s *Service) resolveAccountTenantBySlug(ctx context.Context, accountID int64, tenantSlug string) (int64, int64, error) {
 	// Look up the school by subdomain
 	school, err := s.repos.School.FindBySubdomain(ctx, tenantSlug)
-	if err != nil {
+	if err != nil || school == nil {
 		s.getLogger().Warn("tenant slug not found",
 			slog.Int64("account_id", accountID),
 			slog.String("tenant_slug", tenantSlug),
@@ -468,6 +468,12 @@ func (s *Service) resolveAccountTenantDefault(ctx context.Context, accountID int
 		s.getLogger().Warn("failed to resolve school for tenant",
 			slog.Int64("tenant_id", tenantID),
 			slog.Any("error", err),
+		)
+		return tenantID, 0, nil
+	}
+	if school == nil {
+		s.getLogger().Warn("school lookup returned no result for tenant",
+			slog.Int64("tenant_id", tenantID),
 		)
 		return tenantID, 0, nil
 	}

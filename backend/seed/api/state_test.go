@@ -18,6 +18,21 @@ func TestWriteAndLoadSeedState_Roundtrip(t *testing.T) {
 		CreatedAt: time.Date(2026, 3, 9, 12, 0, 0, 0, time.UTC),
 		BaseURL:   "http://localhost:8080",
 		DevicePIN: "1234",
+		Bootstrap: SeedStateBootstrap{
+			OrganizationID:   1,
+			OrganizationName: "Stadt Koeln",
+			OrganizationSlug: "stadt-koeln",
+			SchoolID:         2,
+			SchoolName:       "GGS Europaschule",
+			SchoolSlug:       "ggs-europaschule",
+			TenantSlug:       "ggs-europaschule",
+			SchoolAdmin: BootstrapAdminCredentials{
+				Email:    "school-admin@example.com",
+				Password: "Test1234%",
+				Name:     "Seed Admin",
+				Position: "OGS-Buero",
+			},
+		},
 		Accounts: SeedStateAccounts{
 			Admin: []AccountCredentials{
 				{Email: "admin@test.de", Password: "pass1", PIN: "0001", Name: "Admin User", StaffID: 10},
@@ -46,6 +61,9 @@ func TestWriteAndLoadSeedState_Roundtrip(t *testing.T) {
 	assert.Equal(t, original.BaseURL, loaded.BaseURL)
 	assert.Equal(t, original.DevicePIN, loaded.DevicePIN)
 	assert.Equal(t, original.CreatedAt, loaded.CreatedAt)
+	assert.Equal(t, original.Bootstrap.OrganizationSlug, loaded.Bootstrap.OrganizationSlug)
+	assert.Equal(t, original.Bootstrap.TenantSlug, loaded.Bootstrap.TenantSlug)
+	assert.Equal(t, original.Bootstrap.SchoolAdmin.Email, loaded.Bootstrap.SchoolAdmin.Email)
 	assert.Len(t, loaded.Accounts.Admin, 1)
 	assert.Equal(t, "admin@test.de", loaded.Accounts.Admin[0].Email)
 	assert.Len(t, loaded.Accounts.Betreuer, 1)

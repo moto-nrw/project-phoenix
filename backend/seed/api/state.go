@@ -14,6 +14,7 @@ type SeedState struct {
 	CreatedAt  time.Time             `json:"created_at"`
 	BaseURL    string                `json:"base_url"`
 	DevicePIN  string                `json:"device_pin"`
+	Bootstrap  SeedStateBootstrap    `json:"bootstrap"`
 	Accounts   SeedStateAccounts     `json:"accounts"`
 	Devices    map[string]SeedDevice `json:"devices"`
 	Students   []SeedStudent         `json:"students"`
@@ -22,9 +23,27 @@ type SeedState struct {
 	Groups     map[string]int64      `json:"groups"`
 }
 
+type SeedStateBootstrap struct {
+	OrganizationID   int64                     `json:"organization_id"`
+	OrganizationName string                    `json:"organization_name"`
+	OrganizationSlug string                    `json:"organization_slug"`
+	SchoolID         int64                     `json:"school_id"`
+	SchoolName       string                    `json:"school_name"`
+	SchoolSlug       string                    `json:"school_slug"`
+	TenantSlug       string                    `json:"tenant_slug"`
+	SchoolAdmin      BootstrapAdminCredentials `json:"school_admin"`
+}
+
 type SeedStateAccounts struct {
 	Admin    []AccountCredentials `json:"admin"`
 	Betreuer []AccountCredentials `json:"betreuer"`
+}
+
+type BootstrapAdminCredentials struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+	Name     string `json:"name"`
+	Position string `json:"position"`
 }
 
 type AccountCredentials struct {

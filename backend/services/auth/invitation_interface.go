@@ -12,6 +12,7 @@ import (
 type InvitationRequest struct {
 	Email      string
 	RoleID     int64
+	TenantID   int64
 	FirstName  *string
 	LastName   *string
 	Position   *string

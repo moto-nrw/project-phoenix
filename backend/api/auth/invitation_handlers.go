@@ -143,7 +143,7 @@ func (rs *Resource) createInvitation(w http.ResponseWriter, r *http.Request) {
 		FirstName:       invitation.FirstName,
 		LastName:        invitation.LastName,
 		Position:        invitation.Position,
-		CreatedBy:       invitation.CreatedBy,
+		CreatedBy:       invitationCreatedByValue(invitation.CreatedBy),
 		DeliveryStatus:  deriveDeliveryStatus(invitation.EmailSentAt, invitation.EmailError),
 		EmailSentAt:     invitation.EmailSentAt,
 		EmailError:      invitation.EmailError,
@@ -301,7 +301,7 @@ func (rs *Resource) listPendingInvitations(w http.ResponseWriter, r *http.Reques
 			FirstName:       invitation.FirstName,
 			LastName:        invitation.LastName,
 			Position:        invitation.Position,
-			CreatedBy:       invitation.CreatedBy,
+			CreatedBy:       invitationCreatedByValue(invitation.CreatedBy),
 			DeliveryStatus:  deriveDeliveryStatus(invitation.EmailSentAt, invitation.EmailError),
 			EmailSentAt:     invitation.EmailSentAt,
 			EmailError:      invitation.EmailError,
@@ -327,6 +327,13 @@ func deriveDeliveryStatus(sentAt *time.Time, emailError *string) string {
 		return string(email.DeliveryStatusFailed)
 	}
 	return string(email.DeliveryStatusPending)
+}
+
+func invitationCreatedByValue(createdBy *int64) int64 {
+	if createdBy == nil {
+		return 0
+	}
+	return *createdBy
 }
 
 func (rs *Resource) resendInvitation(w http.ResponseWriter, r *http.Request) {

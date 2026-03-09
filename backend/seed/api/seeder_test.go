@@ -19,6 +19,19 @@ func TestCollectSeedState_BasicFields(t *testing.T) {
 		client:  &Client{baseURL: "http://localhost:8080"},
 		verbose: false,
 	}
+	bootstrap := &bootstrapSeedState{
+		OrganizationID:   1,
+		OrganizationName: "Stadt Koeln",
+		OrganizationSlug: "stadt-koeln",
+		SchoolID:         2,
+		SchoolName:       "GGS Europaschule",
+		SchoolSlug:       "ggs-europaschule",
+		TenantSlug:       "ggs-europaschule",
+		AdminEmail:       "school-admin@example.com",
+		AdminPassword:    "Test1234%",
+		AdminName:        "Seed Admin",
+		AdminPosition:    "OGS-Buero",
+	}
 
 	fs := NewFixedSeeder(nil, false)
 
@@ -56,10 +69,16 @@ func TestCollectSeedState_BasicFields(t *testing.T) {
 		1: 501,
 	}
 
-	state := s.collectSeedState(fs, "9999")
+	state := s.collectSeedState(fs, "9999", bootstrap)
 
 	assert.Equal(t, "http://localhost:8080", state.BaseURL)
 	assert.Equal(t, "9999", state.DevicePIN)
+	assert.Equal(t, bootstrap.OrganizationID, state.Bootstrap.OrganizationID)
+	assert.Equal(t, bootstrap.OrganizationName, state.Bootstrap.OrganizationName)
+	assert.Equal(t, bootstrap.SchoolID, state.Bootstrap.SchoolID)
+	assert.Equal(t, bootstrap.TenantSlug, state.Bootstrap.TenantSlug)
+	assert.Equal(t, bootstrap.AdminEmail, state.Bootstrap.SchoolAdmin.Email)
+	assert.Equal(t, bootstrap.AdminPassword, state.Bootstrap.SchoolAdmin.Password)
 
 	// Admin accounts
 	assert.Len(t, state.Accounts.Admin, 1)
@@ -99,10 +118,11 @@ func TestCollectSeedState_EmptySeeder(t *testing.T) {
 	}
 	fs := NewFixedSeeder(nil, false)
 
-	state := s.collectSeedState(fs, "0000")
+	state := s.collectSeedState(fs, "0000", nil)
 
 	assert.Equal(t, "http://test:9090", state.BaseURL)
 	assert.Equal(t, "0000", state.DevicePIN)
+	assert.Zero(t, state.Bootstrap.OrganizationID)
 	assert.Empty(t, state.Accounts.Admin)
 	assert.Empty(t, state.Accounts.Betreuer)
 	assert.Empty(t, state.Devices)
@@ -193,7 +213,7 @@ func TestSeeder_Seed_LoginFails(t *testing.T) {
 		switch r.URL.Path {
 		case "/health":
 			w.WriteHeader(http.StatusOK)
-		case "/auth/login":
+		case "/operator/auth/login":
 			w.WriteHeader(http.StatusUnauthorized)
 			_, _ = fmt.Fprint(w, `{"error":"bad creds"}`)
 		}
@@ -244,7 +264,7 @@ func TestPrintSuccessSummary_DoesNotPanic(t *testing.T) {
 		},
 	}
 	// Should not panic
-	s.printSuccessSummary("admin@test.de", result)
+	s.printSuccessSummary("admin@test.de", "generated-password", result)
 }
 
 // fullSeedAPIMock creates a comprehensive mock server for the full seed workflow.
@@ -260,6 +280,57 @@ func fullSeedAPIMock(t *testing.T) *httptest.Server {
 		switch r.URL.Path {
 		case "/health":
 			_, _ = fmt.Fprint(w, `"OK"`)
+
+		case "/operator/auth/login":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success",
+				"data": map[string]any{
+					"access_token":  "operator-token",
+					"refresh_token": "operator-refresh",
+				},
+			})
+
+		case "/operator/organizations":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success",
+				"data": map[string]any{
+					"id":   1,
+					"name": "Demo Organization",
+					"slug": "demo-organization",
+				},
+			})
+
+		case "/operator/schools":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success",
+				"data": map[string]any{
+					"id":              1,
+					"name":            "Demo School",
+					"slug":            "demo-school",
+					"subdomain":       "demo-school",
+					"active":          true,
+					"organization_id": 1,
+				},
+			})
+
+		case "/operator/schools/1/invite-admin":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success",
+				"data": map[string]any{
+					"id":    1,
+					"token": "seed-invite-token",
+					"email": "school-admin@example.com",
+				},
+			})
+
+		case "/auth/invitations/seed-invite-token/accept":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success",
+				"data": map[string]any{
+					"account_id": 1,
+					"email":      "school-admin@example.com",
+				},
+			})
 
 		case "/auth/login":
 			_ = json.NewEncoder(w).Encode(map[string]string{

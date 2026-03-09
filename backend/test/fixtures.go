@@ -16,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/auth"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
@@ -1678,8 +1679,10 @@ func CreateTestInvitationToken(tb testing.TB, db *bun.DB, email string, roleID, 
 		Email:     uniqueEmail,
 		Token:     token,
 		RoleID:    roleID,
-		CreatedBy: createdBy,
 		ExpiresAt: expiresAt,
+	}
+	if createdBy > 0 {
+		invitation.CreatedBy = base.Int64Ptr(createdBy)
 	}
 	invitation.SetTenantID(1)
 
@@ -1707,8 +1710,10 @@ func CreateTestInvitationTokenWithOptions(tb testing.TB, db *bun.DB, email strin
 		Email:     uniqueEmail,
 		Token:     token,
 		RoleID:    roleID,
-		CreatedBy: createdBy,
 		ExpiresAt: expiresAt,
+	}
+	if createdBy > 0 {
+		invitation.CreatedBy = base.Int64Ptr(createdBy)
 	}
 
 	if opts != nil {
