@@ -56,6 +56,22 @@ export function Modal({
     }
   }, [isOpen]);
 
+  // Reset exit animation when transitioning between content (e.g. multi-step announcements).
+  // When onClose identity changes while the modal stays open, the previous exit animation
+  // completed and new content is being shown — restart the enter animation.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    if (isOpen && onCloseRef.current !== onClose) {
+      setIsExiting(false);
+      setIsAnimating(false);
+      // Re-trigger enter animation
+      const timer = setTimeout(() => setIsAnimating(true), 10);
+      onCloseRef.current = onClose;
+      return () => clearTimeout(timer);
+    }
+    onCloseRef.current = onClose;
+  }, [isOpen, onClose]);
+
   // Handle escape key and animations
   useEffect(() => {
     if (!isOpen) {
