@@ -1,0 +1,203 @@
+package auth
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/email"
+	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
+)
+
+type mockInvitationService struct {
+	createFn   func(context.Context, authService.InvitationRequest) (*authModels.InvitationToken, error)
+	validateFn func(context.Context, string) (*authService.InvitationValidationResult, error)
+	acceptFn   func(context.Context, string, authService.UserRegistrationData) (*authModels.Account, error)
+	listFn     func(context.Context) ([]*authModels.InvitationToken, error)
+}
+
+func (m *mockInvitationService) CreateInvitation(ctx context.Context, req authService.InvitationRequest) (*authModels.InvitationToken, error) {
+	return m.createFn(ctx, req)
+}
+func (m *mockInvitationService) ValidateInvitation(ctx context.Context, token string) (*authService.InvitationValidationResult, error) {
+	return m.validateFn(ctx, token)
+}
+func (m *mockInvitationService) AcceptInvitation(ctx context.Context, token string, userData authService.UserRegistrationData) (*authModels.Account, error) {
+	return m.acceptFn(ctx, token, userData)
+}
+func (m *mockInvitationService) ResendInvitation(context.Context, int64, int64) error { return nil }
+func (m *mockInvitationService) ListPendingInvitations(ctx context.Context) ([]*authModels.InvitationToken, error) {
+	return m.listFn(ctx)
+}
+func (m *mockInvitationService) RevokeInvitation(context.Context, int64, int64) error { return nil }
+func (m *mockInvitationService) CleanupExpiredInvitations(context.Context) (int, error) {
+	return 0, nil
+}
+func (m *mockInvitationService) WithTx(_ bun.Tx) interface{} { return m }
+
+func decodeJSONBody(t *testing.T, rr *httptest.ResponseRecorder) map[string]any {
+	t.Helper()
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body), rr.Body.String())
+	return body
+}
+
+func TestInvitationHandlers_CreateInvitationAndListPending(t *testing.T) {
+	first := "Ada"
+	last := "Lovelace"
+	position := "Principal"
+	roleName := "admin"
+	creator := "creator@example.com"
+	tokenErr := "smtp failed"
+	now := time.Now().UTC()
+
+	service := &mockInvitationService{
+		createFn: func(_ context.Context, req authService.InvitationRequest) (*authModels.InvitationToken, error) {
+			assert.Equal(t, "invitee@example.com", req.Email)
+			assert.Equal(t, int64(7), req.RoleID)
+			assert.Equal(t, int64(44), req.CreatedBy)
+			return &authModels.InvitationToken{
+				Model:           modelBase.Model{ID: 1},
+				Email:           req.Email,
+				RoleID:          req.RoleID,
+				Token:           "tok-1",
+				ExpiresAt:       now,
+				FirstName:       &first,
+				LastName:        &last,
+				Position:        &position,
+				CreatedBy:       nil,
+				Role:            &authModels.Role{Name: roleName},
+				Creator:         &authModels.Account{Email: creator},
+				EmailError:      &tokenErr,
+				EmailRetryCount: 2,
+			}, nil
+		},
+		listFn: func(context.Context) ([]*authModels.InvitationToken, error) {
+			return []*authModels.InvitationToken{{
+				Model:           modelBase.Model{ID: 2},
+				Email:           "pending@example.com",
+				RoleID:          9,
+				Token:           "tok-2",
+				ExpiresAt:       now,
+				Role:            &authModels.Role{Name: "teacher"},
+				EmailSentAt:     &now,
+				EmailRetryCount: 1,
+			}}, nil
+		},
+	}
+
+	resource := NewResource(nil, service, nil)
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/invitations", bytes.NewBufferString(`{"email":" INVITEE@EXAMPLE.COM ","role_id":7,"first_name":" Ada ","last_name":" Lovelace ","position":" Principal "}`))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(context.WithValue(req.Context(), jwt.CtxClaims, jwt.AppClaims{ID: 44}))
+	rr := httptest.NewRecorder()
+	resource.createInvitation(rr, req)
+	require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
+	body := decodeJSONBody(t, rr)
+	data := body["data"].(map[string]any)
+	assert.Equal(t, float64(0), data["created_by"])
+	assert.Equal(t, "failed", data["delivery_status"])
+	assert.Equal(t, creator, data["creator"])
+
+	listReq := httptest.NewRequest(http.MethodGet, "/auth/invitations", nil)
+	listRR := httptest.NewRecorder()
+	resource.listPendingInvitations(listRR, listReq)
+	require.Equal(t, http.StatusOK, listRR.Code, listRR.Body.String())
+	listBody := decodeJSONBody(t, listRR)
+	items := listBody["data"].([]any)
+	require.Len(t, items, 1)
+	item := items[0].(map[string]any)
+	assert.Equal(t, "sent", item["delivery_status"])
+	assert.Equal(t, float64(0), item["created_by"])
+}
+
+func TestInvitationHandlers_ValidateAndAccept(t *testing.T) {
+	service := &mockInvitationService{
+		validateFn: func(_ context.Context, token string) (*authService.InvitationValidationResult, error) {
+			assert.Equal(t, "abc123", token)
+			return &authService.InvitationValidationResult{Email: "invitee@example.com", RoleName: "admin", ExpiresAt: time.Now().Add(time.Hour)}, nil
+		},
+		acceptFn: func(_ context.Context, token string, userData authService.UserRegistrationData) (*authModels.Account, error) {
+			assert.Equal(t, "abc123", token)
+			assert.Equal(t, "Grace", userData.FirstName)
+			return &authModels.Account{Model: modelBase.Model{ID: 77}, Email: "invitee@example.com"}, nil
+		},
+	}
+	resource := NewResource(nil, service, nil)
+
+	validateReq := httptest.NewRequest(http.MethodGet, "/auth/invitations/abc123", nil)
+	validateCtx := chi.NewRouteContext()
+	validateCtx.URLParams.Add("token", "abc123")
+	validateReq = validateReq.WithContext(context.WithValue(validateReq.Context(), chi.RouteCtxKey, validateCtx))
+	validateRR := httptest.NewRecorder()
+	resource.validateInvitation(validateRR, validateReq)
+	assert.Equal(t, http.StatusOK, validateRR.Code)
+
+	acceptReq := httptest.NewRequest(http.MethodPost, "/auth/invitations/abc123/accept", bytes.NewBufferString(`{"first_name":"Grace","last_name":"Hopper","password":"Password123!","confirm_password":"Password123!"}`))
+	acceptReq.Header.Set("Content-Type", "application/json")
+	acceptCtx := chi.NewRouteContext()
+	acceptCtx.URLParams.Add("token", "abc123")
+	acceptReq = acceptReq.WithContext(context.WithValue(acceptReq.Context(), chi.RouteCtxKey, acceptCtx))
+	acceptRR := httptest.NewRecorder()
+	resource.acceptInvitation(acceptRR, acceptReq)
+	assert.Equal(t, http.StatusCreated, acceptRR.Code)
+}
+
+func TestInvitationHandlerHelpersAndErrors(t *testing.T) {
+	assert.Equal(t, string(email.DeliveryStatusPending), deriveDeliveryStatus(nil, nil))
+	errText := "failed"
+	assert.Equal(t, string(email.DeliveryStatusFailed), deriveDeliveryStatus(nil, &errText))
+	now := time.Now()
+	assert.Equal(t, string(email.DeliveryStatusSent), deriveDeliveryStatus(&now, &errText))
+	assert.Equal(t, int64(0), invitationCreatedByValue(nil))
+	assert.Equal(t, int64(4), invitationCreatedByValue(ptr64(4)))
+
+	resource := NewResource(nil, nil, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/auth/invitations/token", nil)
+	rr := httptest.NewRecorder()
+	resource.validateInvitation(rr, req)
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+
+	errService := &mockInvitationService{
+		validateFn: func(context.Context, string) (*authService.InvitationValidationResult, error) {
+			return nil, errors.New("db fail")
+		},
+		acceptFn: func(context.Context, string, authService.UserRegistrationData) (*authModels.Account, error) {
+			return nil, authService.ErrPasswordMismatch
+		},
+	}
+	resource = NewResource(nil, errService, nil)
+
+	validateCtx := chi.NewRouteContext()
+	validateCtx.URLParams.Add("token", "boom")
+	req = httptest.NewRequest(http.MethodGet, "/auth/invitations/boom", nil)
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, validateCtx))
+	rr = httptest.NewRecorder()
+	resource.validateInvitation(rr, req)
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+
+	acceptCtx := chi.NewRouteContext()
+	acceptCtx.URLParams.Add("token", "boom")
+	acceptReq := httptest.NewRequest(http.MethodPost, "/auth/invitations/boom/accept", bytes.NewBufferString(`{"password":"a","confirm_password":"b"}`))
+	acceptReq.Header.Set("Content-Type", "application/json")
+	acceptReq = acceptReq.WithContext(context.WithValue(acceptReq.Context(), chi.RouteCtxKey, acceptCtx))
+	acceptRR := httptest.NewRecorder()
+	resource.acceptInvitation(acceptRR, acceptReq)
+	assert.Equal(t, http.StatusBadRequest, acceptRR.Code)
+}
+
+func ptr64(v int64) *int64 { return &v }
