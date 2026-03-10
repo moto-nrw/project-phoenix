@@ -32,6 +32,7 @@ vi.mock("next/navigation", () => ({
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: vi.fn(),
   useImmutableSWR: vi.fn(),
+  useTenantMutate: vi.fn(() => vi.fn()),
 }));
 
 // Mock toast context

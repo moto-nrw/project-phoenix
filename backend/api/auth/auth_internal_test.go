@@ -280,7 +280,7 @@ func TestUpdateAccountRequest_Fields(t *testing.T) {
 
 func TestNewResource_ReturnsResource(t *testing.T) {
 	// Create resource with nil services (just testing initialization)
-	resource := NewResource(nil, nil, nil)
+	resource := NewResource(nil, nil, nil, nil)
 
 	assert.NotNil(t, resource)
 }

@@ -16,6 +16,7 @@ type Resource struct {
 	activeSvc active.Service
 	personSvc users.PersonService
 	userCtx   usercontext.UserContextService
+	db        *bun.DB
 	logger    *slog.Logger
 	db        *bun.DB
 }
@@ -34,6 +35,7 @@ func NewResource(
 	activeSvc active.Service,
 	personSvc users.PersonService,
 	userCtx usercontext.UserContextService,
+	db *bun.DB,
 	logger *slog.Logger,
 	db *bun.DB,
 ) *Resource {
@@ -42,6 +44,7 @@ func NewResource(
 		activeSvc: activeSvc,
 		personSvc: personSvc,
 		userCtx:   userCtx,
+		db:        db,
 		logger:    logger,
 		db:        db,
 	}

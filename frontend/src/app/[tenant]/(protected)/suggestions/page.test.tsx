@@ -39,6 +39,7 @@ const mockUseSWRAuth = vi.hoisted(() => vi.fn());
 
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: mockUseSWRAuth,
+  useTenantMutate: vi.fn(() => vi.fn()),
 }));
 
 vi.mock("~/lib/suggestions-api", () => ({

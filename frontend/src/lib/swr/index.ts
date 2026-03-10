@@ -18,7 +18,12 @@
  */
 
 // Re-export hooks
-export { useSWRAuth, useImmutableSWR, useSWRWithId } from "./hooks";
+export {
+  useSWRAuth,
+  useImmutableSWR,
+  useSWRWithId,
+  useTenantMutate,
+} from "./hooks";
 
 // Re-export config for advanced usage
 export { swrConfig, immutableConfig } from "./config";

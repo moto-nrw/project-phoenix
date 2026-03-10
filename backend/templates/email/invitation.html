@@ -11,7 +11,11 @@
     {{else}}
     <p>Hallo,</p>
     {{end}}
+    {{if .SchoolName}}
+    <p>du wurdest als <strong>{{.RoleName}}</strong> bei <strong>{{.SchoolName}}</strong> zur moto-Plattform eingeladen. Klicke auf den Button unten, um dein Konto einzurichten.</p>
+    {{else}}
     <p>du wurdest als <strong>{{.RoleName}}</strong> zur moto-Plattform eingeladen. Klicke auf den Button unten, um dein Konto einzurichten.</p>
+    {{end}}
 
     <div class="button-wrapper" style="text-align: center;">
         <a class="button" href="{{.InvitationURL}}">Einladung annehmen</a>

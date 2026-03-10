@@ -297,20 +297,22 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	}
 
 	invitationService := auth.NewInvitationService(auth.InvitationServiceConfig{
-		InvitationRepo:   repos.InvitationToken,
-		AccountRepo:      repos.Account,
-		RoleRepo:         repos.Role,
-		AccountRoleRepo:  repos.AccountRole,
-		PersonRepo:       repos.Person,
-		StaffRepo:        repos.Staff,
-		TeacherRepo:      repos.Teacher,
-		Mailer:           mailer,
-		Dispatcher:       dispatcher,
-		FrontendURL:      frontendURL,
-		DefaultFrom:      defaultFrom,
-		InvitationExpiry: invitationTokenExpiry,
-		DB:               db,
-		Logger:           authLogger,
+		InvitationRepo:    repos.InvitationToken,
+		AccountRepo:       repos.Account,
+		RoleRepo:          repos.Role,
+		AccountRoleRepo:   repos.AccountRole,
+		AccountTenantRepo: repos.AccountTenant,
+		PersonRepo:        repos.Person,
+		StaffRepo:         repos.Staff,
+		TeacherRepo:       repos.Teacher,
+		SchoolRepo:        repos.School,
+		Mailer:            mailer,
+		Dispatcher:        dispatcher,
+		FrontendURL:       frontendURL,
+		DefaultFrom:       defaultFrom,
+		InvitationExpiry:  invitationTokenExpiry,
+		DB:                db,
+		Logger:            authLogger,
 	})
 
 	// Initialize authorization

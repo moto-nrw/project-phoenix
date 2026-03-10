@@ -13,7 +13,12 @@
 "use client";
 
 // eslint-disable-next-line no-restricted-imports -- this IS the tenant-aware wrapper
-import useSWR, { type SWRConfiguration, type SWRResponse } from "swr";
+import useSWR, {
+  mutate as swrMutate,
+  type SWRConfiguration,
+  type SWRResponse,
+} from "swr";
+import { useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { swrConfig, immutableConfig } from "./config";
 import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
@@ -93,6 +98,25 @@ export function useImmutableSWR<T, E = Error>(
   fetcher: () => Promise<T>,
 ): SWRResponse<T, E> {
   return useSWRAuth<T, E>(key, fetcher, immutableConfig);
+}
+
+/**
+ * Hook that returns a tenant-aware mutate function.
+ *
+ * SWR cache keys are prefixed with the tenant slug by useSWRAuth, so plain
+ * `mutate("my-key")` misses the cache. This hook returns a function that
+ * applies the same tenant prefix before calling SWR mutate.
+ *
+ * @example
+ * ```tsx
+ * const tenantMutate = useTenantMutate();
+ * await tenantMutate("database-teachers-list");
+ * ```
+ */
+export function useTenantMutate() {
+  const slug = useTenantSlugSafe();
+
+  return useCallback((key: string) => swrMutate(tenantKey(key, slug)), [slug]);
 }
 
 /**

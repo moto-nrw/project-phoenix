@@ -20,6 +20,7 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: vi.fn(),
+  useTenantMutate: vi.fn(() => vi.fn()),
 }));
 
 vi.mock("~/contexts/ToastContext", () => ({

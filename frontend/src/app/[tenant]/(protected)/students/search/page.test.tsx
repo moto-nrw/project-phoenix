@@ -162,6 +162,7 @@ vi.mock("~/lib/swr", () => ({
   useImmutableSWR: vi.fn(),
   useSWRAuth: vi.fn(),
   mutate: vi.fn(),
+  useTenantMutate: vi.fn(() => vi.fn()),
 }));
 
 // Mock API services

@@ -145,6 +145,7 @@ vi.mock("~/components/students/student-card", () => ({
 // Mock SWR hook
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: vi.fn(),
+  useTenantMutate: vi.fn(() => vi.fn()),
 }));
 
 import { useSWRAuth } from "~/lib/swr";

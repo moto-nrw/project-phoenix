@@ -25,6 +25,7 @@ vi.mock("~/lib/swr", () => ({
     error: null,
     mutate: vi.fn(() => Promise.resolve()),
   })),
+  useTenantMutate: vi.fn(() => vi.fn()),
 }));
 
 vi.mock("~/lib/api", () => ({

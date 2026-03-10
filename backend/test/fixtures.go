@@ -589,6 +589,12 @@ func CleanupAuthFixtures(tb testing.TB, db *bun.DB, accountIDs ...int64) {
 		Where(whereAccountIDIn, bun.List(accountIDs)),
 		"auth.tokens")
 
+	// Delete account_tenants (by account_id)
+	cleanupDelete(tb, db.NewDelete().
+		Table("auth.account_tenants").
+		Where(whereAccountIDIn, bun.List(accountIDs)),
+		"auth.account_tenants")
+
 	// Delete account_roles (by account_id only - never by role_id!)
 	cleanupDelete(tb, db.NewDelete().
 		Table("auth.account_roles").

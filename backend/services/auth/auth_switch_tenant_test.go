@@ -38,7 +38,7 @@ func TestAuthService_SwitchTenant(t *testing.T) {
 		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
 		email := fmt.Sprintf("inactive-%s@test.local", uniqueID)
 		username := fmt.Sprintf("inactive-%s", uniqueID)
-		account, err := service.Register(ctx, email, username, testPassword, nil)
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -65,7 +65,7 @@ func TestAuthService_SwitchTenant(t *testing.T) {
 		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
 		email := fmt.Sprintf("badslug-%s@test.local", uniqueID)
 		username := fmt.Sprintf("badslug-%s", uniqueID)
-		account, err := service.Register(ctx, email, username, testPassword, nil)
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -83,7 +83,7 @@ func TestAuthService_SwitchTenant(t *testing.T) {
 		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
 		email := fmt.Sprintf("noaccess-%s@test.local", uniqueID)
 		username := fmt.Sprintf("noaccess-%s", uniqueID)
-		account, err := service.Register(ctx, email, username, testPassword, nil)
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -104,7 +104,7 @@ func TestAuthService_SwitchTenant(t *testing.T) {
 		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
 		email := fmt.Sprintf("switch-%s@test.local", uniqueID)
 		username := fmt.Sprintf("switch-%s", uniqueID)
-		account, err := service.Register(ctx, email, username, testPassword, nil)
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 

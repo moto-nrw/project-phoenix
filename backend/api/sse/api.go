@@ -2,6 +2,7 @@ package sse
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -32,6 +33,14 @@ func (rs *Resource) Router() chi.Router {
 	return r
 }
 
+// sseSetupError carries HTTP error info out of a tenant transaction.
+type sseSetupError struct {
+	msg    string
+	status int
+}
+
+func (e *sseSetupError) Error() string { return fmt.Sprintf("SSE setup: %s", e.msg) }
+
 // eventsHandler handles Server-Sent Events connections
 // Orchestrates: connection setup → staff resolution → topic subscription → event streaming
 func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
@@ -47,47 +56,32 @@ func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
 	// Step 2: Extract tenant ID from JWT context (set by TenantMiddleware)
 	conn.tenantID = tenant.FromContext(ctx)
 
-	// Step 3: Resolve staff and build topics inside a short-lived tenant transaction.
-	// SSE is a long-lived streaming connection, so we cannot wrap the entire handler
-	// in TenantTxMiddleware (that would hold a DB connection open for the stream's lifetime).
-	// Instead we open a scoped transaction for the setup queries only.
+	// Steps 3-4 require a tenant transaction because RLS on users.persons
+	// and users.staff requires app.current_tenant_id to be set.
 	var staff *users.Staff
 	var topics *sseTopics
-	if conn.tenantID > 0 {
-		err := tenant.WithTenantTx(ctx, rs.db, conn.tenantID, func(txCtx context.Context, _ bun.Tx) error {
-			var errMsg string
-			var statusCode int
-			staff, errMsg, statusCode = rs.resolveStaff(txCtx)
-			if staff == nil {
-				http.Error(w, errMsg, statusCode)
-				return nil
-			}
+	err := tenant.WithTenantTx(ctx, rs.db, conn.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		// Step 3: Resolve staff member from JWT claims
+		resolved, errMsg, code := rs.resolveStaff(txCtx)
+		if resolved == nil {
+			return &sseSetupError{msg: errMsg, status: code}
+		}
+		staff = resolved
 
-			var topicErr error
-			topics, topicErr = rs.buildSubscriptionTopics(txCtx, staff.ID)
-			return topicErr
-		})
+		// Step 4: Build subscription topics (active groups + educational groups)
+		built, err := rs.buildSubscriptionTopics(txCtx, staff.ID)
 		if err != nil {
-			http.Error(w, "Failed to initialize SSE connection", http.StatusInternalServerError)
-			return
+			return err
 		}
-	} else {
-		var errMsg string
-		var statusCode int
-		staff, errMsg, statusCode = rs.resolveStaff(ctx)
-		if staff == nil {
-			http.Error(w, errMsg, statusCode)
-			return
-		}
-		var err error
-		topics, err = rs.buildSubscriptionTopics(ctx, staff.ID)
-		if err != nil {
+		topics = built
+		return nil
+	})
+	if err != nil {
+		if setupErr, ok := err.(*sseSetupError); ok {
+			http.Error(w, setupErr.msg, setupErr.status)
+		} else {
 			http.Error(w, "Failed to determine supervised groups", http.StatusInternalServerError)
-			return
 		}
-	}
-	if staff == nil {
-		// Error response already sent inside the tx callback
 		return
 	}
 	conn.staffID = staff.ID

@@ -49,19 +49,21 @@ func newInvitationTestEnvWithMailer(t *testing.T, mailer email.Mailer) (Invitati
 	dispatcher.SetDefaults(3, []time.Duration{10 * time.Millisecond, 20 * time.Millisecond, 40 * time.Millisecond})
 
 	service := NewInvitationService(InvitationServiceConfig{
-		InvitationRepo:   invitationRepo,
-		AccountRepo:      accountRepo,
-		RoleRepo:         roleRepo,
-		AccountRoleRepo:  accountRoleRepo,
-		PersonRepo:       personRepo,
-		StaffRepo:        staffRepo,
-		TeacherRepo:      teacherRepo,
-		Mailer:           mailer,
-		Dispatcher:       dispatcher,
-		FrontendURL:      "http://localhost:3000",
-		DefaultFrom:      newDefaultFromEmail(),
-		InvitationExpiry: 48 * time.Hour,
-		DB:               bunDB,
+		InvitationRepo:    invitationRepo,
+		AccountRepo:       accountRepo,
+		RoleRepo:          roleRepo,
+		AccountRoleRepo:   accountRoleRepo,
+		AccountTenantRepo: newStubAccountTenantRepository(),
+		PersonRepo:        personRepo,
+		StaffRepo:         staffRepo,
+		TeacherRepo:       teacherRepo,
+		SchoolRepo:        &stubSchoolRepository{},
+		Mailer:            mailer,
+		Dispatcher:        dispatcher,
+		FrontendURL:       "http://localhost:3000",
+		DefaultFrom:       newDefaultFromEmail(),
+		InvitationExpiry:  48 * time.Hour,
+		DB:                bunDB,
 	})
 
 	cleanup := func() {
@@ -462,4 +464,25 @@ func TestAcceptInvitationSecondAttemptFails(t *testing.T) {
 	})
 	require.Error(t, err)
 	require.True(t, errors.Is(err, ErrInvitationUsed), "Second acceptance should fail with ErrInvitationUsed")
+}
+
+// =============================================================================
+// lookupSchoolName error-path tests
+// =============================================================================
+
+func TestLookupSchoolNameZeroTenant(t *testing.T) {
+	service, _, _, _, _, _, _, _, cleanup := newInvitationTestEnv(t)
+	t.Cleanup(cleanup)
+
+	svc := service.(*invitationService)
+	result := svc.lookupSchoolName(context.Background(), 0)
+	require.Equal(t, "", result, "tenantID=0 must return empty string")
+}
+
+func TestLookupSchoolNameNilRepo(t *testing.T) {
+	svc := &invitationService{
+		logger: slog.Default(),
+	}
+	result := svc.lookupSchoolName(context.Background(), 42)
+	require.Equal(t, "", result, "nil schoolRepo must return empty string")
 }
