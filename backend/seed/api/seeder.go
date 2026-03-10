@@ -234,14 +234,41 @@ func (s *Seeder) createSeedSchool(organizationID int64, name, slug, subdomain st
 }
 
 func generateSeedPassword() (string, error) {
+	// Character sets that must each appear at least once to satisfy
+	// ValidatePasswordStrength (upper, lower, digit, special).
+	required := []string{
+		"abcdefghijkmnopqrstuvwxyz",
+		"ABCDEFGHJKLMNPQRSTUVWXYZ",
+		"23456789",
+		"!@#$%",
+	}
+
 	bytes := make([]byte, seedPasswordLength)
 	random := make([]byte, seedPasswordLength)
 	if _, err := rand.Read(random); err != nil {
 		return "", err
 	}
-	for i := range bytes {
+
+	// Place one character from each required set in the first positions.
+	for i, charset := range required {
+		bytes[i] = charset[int(random[i])%len(charset)]
+	}
+
+	// Fill remaining positions from the full alphabet.
+	for i := len(required); i < seedPasswordLength; i++ {
 		bytes[i] = seedPasswordAlphabet[int(random[i])%len(seedPasswordAlphabet)]
 	}
+
+	// Shuffle using Fisher-Yates to avoid predictable positions.
+	shuffleRandom := make([]byte, seedPasswordLength)
+	if _, err := rand.Read(shuffleRandom); err != nil {
+		return "", err
+	}
+	for i := seedPasswordLength - 1; i > 0; i-- {
+		j := int(shuffleRandom[i]) % (i + 1)
+		bytes[i], bytes[j] = bytes[j], bytes[i]
+	}
+
 	return string(bytes), nil
 }
 

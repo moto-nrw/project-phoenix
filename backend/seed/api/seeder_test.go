@@ -15,11 +15,19 @@ import (
 )
 
 func TestGenerateSeedPassword(t *testing.T) {
-	password, err := generateSeedPassword()
-	require.NoError(t, err)
-	assert.Len(t, password, seedPasswordLength)
-	for _, char := range password {
-		assert.Contains(t, seedPasswordAlphabet, string(char))
+	// Run multiple times to verify deterministic compliance (was probabilistic before fix).
+	for i := 0; i < 50; i++ {
+		password, err := generateSeedPassword()
+		require.NoError(t, err)
+		assert.Len(t, password, seedPasswordLength)
+		for _, char := range password {
+			assert.Contains(t, seedPasswordAlphabet, string(char))
+		}
+		// Every generated password must satisfy ValidatePasswordStrength.
+		assert.Regexp(t, `[a-z]`, password, "must contain lowercase")
+		assert.Regexp(t, `[A-Z]`, password, "must contain uppercase")
+		assert.Regexp(t, `[0-9]`, password, "must contain digit")
+		assert.Regexp(t, `[^a-zA-Z0-9]`, password, "must contain special char")
 	}
 }
 
