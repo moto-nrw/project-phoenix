@@ -506,7 +506,7 @@ func (r *GradeTransitionRepository) GetStudentsByClasses(ctx context.Context, cl
 		ColumnExpr(`s.school_class`).
 		TableExpr(`users.students AS s`).
 		Join(`INNER JOIN users.persons AS p ON p.id = s.person_id`).
-		Where(`s.school_class IN (?)`, bun.In(classes)).
+		Where(`s.school_class IN (?)`, bun.List(classes)).
 		Order(`s.school_class ASC, p.last_name ASC, p.first_name ASC`)
 
 	if where, val, ok := base.TenantWhere(ctx, "s"); ok {
@@ -575,7 +575,7 @@ func (r *GradeTransitionRepository) DeleteStudentsByClasses(ctx context.Context,
 	delQuery := base.GetDB(ctx, r.db).NewDelete().
 		Model((*struct{})(nil)).
 		ModelTableExpr(`users.students AS "student"`).
-		Where(`"student".school_class IN (?)`, bun.In(classes))
+		Where(`"student".school_class IN (?)`, bun.List(classes))
 
 	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
 		delQuery = delQuery.Where(where, val)

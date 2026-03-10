@@ -189,7 +189,7 @@ func (r *SupervisorPlannedRepository) FindByGroupIDs(ctx context.Context, groupI
 	var results []supervisorResult
 
 	query := applySupervisorColumnMapping(base.GetDB(ctx, r.db).NewSelect().Model(&results)).
-		Where(`"supervisor".group_id IN (?)`, bun.In(groupIDs)).
+		Where(`"supervisor".group_id IN (?)`, bun.List(groupIDs)).
 		Order("supervisor.is_primary DESC")
 
 	if where, val, ok := base.TenantWhere(ctx, "supervisor"); ok {

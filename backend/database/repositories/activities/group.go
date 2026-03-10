@@ -132,7 +132,7 @@ func (r *GroupRepository) FindWithEnrollmentCounts(ctx context.Context) ([]*acti
 		ModelTableExpr("activities.student_enrollments AS se").
 		ColumnExpr("se.activity_group_id").
 		ColumnExpr("COUNT(*) AS count").
-		Where("se.activity_group_id IN (?)", bun.In(groupIDs)).
+		Where("se.activity_group_id IN (?)", bun.List(groupIDs)).
 		Group("se.activity_group_id")
 
 	if tenantID := tenant.FromContext(ctx); tenantID > 0 {

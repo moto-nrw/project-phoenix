@@ -604,7 +604,7 @@ func TestGradeTransitionRepository_DeleteStudentsByClasses(t *testing.T) {
 		var count int
 		count, err = db.NewSelect().
 			TableExpr(`users.students`).
-			Where("id IN (?)", bun.In([]int64{student1.ID, student2.ID})).
+			Where("id IN (?)", bun.List([]int64{student1.ID, student2.ID})).
 			Count(ctx)
 		require.NoError(t, err)
 		assert.Equal(t, 0, count)

@@ -68,7 +68,7 @@ func (r *TeacherRepository) FindByStaffIDs(ctx context.Context, staffIDs []int64
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&teachers).
 		ModelTableExpr(`users.teachers AS "teacher"`).
-		Where(`"teacher".staff_id IN (?)`, bun.In(staffIDs))
+		Where(`"teacher".staff_id IN (?)`, bun.List(staffIDs))
 
 	if where, val, ok := base.TenantWhere(ctx, "teacher"); ok {
 		query = query.Where(where, val)
@@ -428,7 +428,7 @@ func (r *TeacherRepository) FindWithStaffAndPersonByIDs(ctx context.Context, ids
 		// JOINs
 		Join(`INNER JOIN users.staff AS "staff" ON "staff".id = "teacher".staff_id`).
 		Join(`INNER JOIN users.persons AS "person" ON "person".id = "staff".person_id`).
-		Where(`"teacher".id IN (?)`, bun.In(ids))
+		Where(`"teacher".id IN (?)`, bun.List(ids))
 
 	if where, val, ok := base.TenantWhere(ctx, "teacher"); ok {
 		query = query.Where(where, val)

@@ -140,7 +140,7 @@ func (r *PersonRepository) FindByIDs(ctx context.Context, ids []int64) (map[int6
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&persons).
 		ModelTableExpr(`users.persons AS "person"`).
-		Where(`"person".id IN (?)`, bun.In(ids))
+		Where(`"person".id IN (?)`, bun.List(ids))
 
 	if where, val, ok := base.TenantWhere(ctx, "person"); ok {
 		query = query.Where(where, val)

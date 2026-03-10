@@ -426,7 +426,7 @@ func (r *VisitRepository) GetCurrentByStudentIDs(ctx context.Context, studentIDs
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&visits).
 		ModelTableExpr(tableExprActiveVisitsAsVisit).
-		Where(`"visit".student_id IN (?)`, bun.In(uniqueIDs)).
+		Where(`"visit".student_id IN (?)`, bun.List(uniqueIDs)).
 		Where(`"visit".exit_time IS NULL`).
 		OrderExpr(`"visit".student_id ASC`).
 		OrderExpr(`"visit".entry_time DESC`)
@@ -462,7 +462,7 @@ func (r *VisitRepository) EndVisitsByActiveGroupIDs(ctx context.Context, activeG
 	query := base.GetDB(ctx, r.db).NewUpdate().
 		Table(tableActiveVisits).
 		Set("exit_time = now()").
-		Where("active_group_id IN (?)", bun.In(activeGroupIDs)).
+		Where("active_group_id IN (?)", bun.List(activeGroupIDs)).
 		Where("exit_time IS NULL")
 
 	if tenantID := tenant.FromContext(ctx); tenantID > 0 {

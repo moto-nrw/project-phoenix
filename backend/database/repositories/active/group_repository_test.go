@@ -28,19 +28,19 @@ func cleanupActiveGroupRecords(t *testing.T, db *bun.DB, groupIDs ...int64) {
 	// First remove any visits
 	_, _ = db.NewDelete().
 		TableExpr("active.visits").
-		Where("active_group_id IN (?)", bun.In(groupIDs)).
+		Where("active_group_id IN (?)", bun.List(groupIDs)).
 		Exec(ctx)
 
 	// Remove any supervisors
 	_, _ = db.NewDelete().
 		TableExpr("active.group_supervisors").
-		Where("group_id IN (?)", bun.In(groupIDs)).
+		Where("group_id IN (?)", bun.List(groupIDs)).
 		Exec(ctx)
 
 	// Finally remove the groups
 	_, err := db.NewDelete().
 		TableExpr("active.groups").
-		Where("id IN (?)", bun.In(groupIDs)).
+		Where("id IN (?)", bun.List(groupIDs)).
 		Exec(ctx)
 	if err != nil {
 		t.Logf("Warning: failed to cleanup active groups: %v", err)

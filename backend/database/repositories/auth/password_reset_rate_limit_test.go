@@ -26,7 +26,7 @@ func cleanupRateLimitRecords(t *testing.T, db *bun.DB, emails ...string) {
 	ctx := testpkg.TenantContext(1)
 	_, err := db.NewDelete().
 		TableExpr("auth.password_reset_rate_limits").
-		Where("email IN (?)", bun.In(emails)).
+		Where("email IN (?)", bun.List(emails)).
 		Exec(ctx)
 	if err != nil {
 		t.Logf("Warning: failed to cleanup rate limits: %v", err)

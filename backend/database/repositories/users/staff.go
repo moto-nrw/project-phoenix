@@ -278,7 +278,7 @@ func (r *StaffRepository) ListStaffByRoles(ctx context.Context, roles []string) 
 		Join(`INNER JOIN auth.accounts AS "account" ON "account".id = "person".account_id`).
 		Join(`INNER JOIN auth.account_roles AS "ar" ON "ar".account_id = "account".id`).
 		Join(`INNER JOIN auth.roles AS "role" ON "ar".role_id = "role".id`).
-		Where(`LOWER("role".name) IN (?)`, bun.In(lowerRoles))
+		Where(`LOWER("role".name) IN (?)`, bun.List(lowerRoles))
 
 	if where, val, ok := base.TenantWhere(ctx, "staff"); ok {
 		query = query.Where(where, val)

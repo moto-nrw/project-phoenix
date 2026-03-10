@@ -10,7 +10,6 @@
     "fd@latest",
     "bat@latest",
     "eza@latest",
-    "fzf@latest",
     "btop@latest",
     "pgcli@latest",
     "dotenv-linter@latest",
@@ -32,7 +31,8 @@
     "pg_activity@latest",
     "go-swag@latest",
     "govulncheck@latest",
-    "golangci-lint@2.8.0"
+    "golangci-lint@2.8.0",
+    "fzf@0.68.0"
   ],
   "env": {
     "GOPATH":      "$PWD/.devbox/go",
