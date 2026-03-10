@@ -539,6 +539,10 @@ func (s *Service) Register(ctx context.Context, email, username, password string
 		return nil, err
 	}
 
+	if roleID != nil && *roleID > 0 && tenantID <= 0 {
+		return nil, &AuthError{Op: "register", Err: ErrTenantRequiredForRoleAssignment}
+	}
+
 	// Create account object with hashed password
 	account, err := s.createAccountObject(email, username, password)
 	if err != nil {

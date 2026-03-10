@@ -121,6 +121,30 @@ func TestAuthService_Register(t *testing.T) {
 		assert.Nil(t, account)
 	})
 
+	t.Run("rejects role assignment without tenant context", func(t *testing.T) {
+		role := testpkg.CreateTestRole(t, db, fmt.Sprintf("platform-role-%d", time.Now().UnixNano()))
+		defer testpkg.CleanupTableRecords(t, db, "auth.roles", role.ID)
+
+		email := fmt.Sprintf("tenantless-role-%d@test.local", time.Now().UnixNano())
+		username := fmt.Sprintf("tenantless-role-%d", time.Now().UnixNano())
+		roleID := role.ID
+
+		account, err := service.Register(ctx, email, username, testPassword, &roleID, 0)
+
+		require.Error(t, err)
+		assert.Nil(t, account)
+		assert.True(t, errors.Is(err, auth.ErrTenantRequiredForRoleAssignment))
+
+		var accountCount int
+		err = db.NewSelect().
+			TableExpr("auth.accounts").
+			ColumnExpr("COUNT(*)").
+			Where("email = ?", strings.ToLower(email)).
+			Scan(context.Background(), &accountCount)
+		require.NoError(t, err)
+		assert.Equal(t, 0, accountCount, "registration should fail before creating an unusable account")
+	})
+
 	t.Run("returns error for duplicate email", func(t *testing.T) {
 		// ARRANGE - create first account
 		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())

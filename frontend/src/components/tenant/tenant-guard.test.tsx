@@ -40,6 +40,21 @@ vi.mock("~/components/tenant/tenant-provider", () => ({
 
 vi.mock("~/lib/tenant-api", () => ({
   switchTenant: mockSwitchTenant,
+  TenantSwitchError: class TenantSwitchError extends Error {
+    status: number;
+    code: "access_denied" | "unknown";
+
+    constructor(
+      message: string,
+      status: number,
+      code: "access_denied" | "unknown" = "unknown",
+    ) {
+      super(message);
+      this.name = "TenantSwitchError";
+      this.status = status;
+      this.code = code;
+    }
+  },
 }));
 
 vi.mock("~/lib/swr", () => ({
@@ -51,6 +66,7 @@ vi.mock("~/lib/session-cache", () => ({
 }));
 
 import { TenantGuard } from "./tenant-guard";
+import { TenantSwitchError } from "~/lib/tenant-api";
 
 // ============================================================================
 // Test Data
@@ -208,7 +224,7 @@ describe("TenantGuard", () => {
     expect(mockUpdate).toHaveBeenCalled();
   });
 
-  it("signs out when switchTenant fails", async () => {
+  it("signs out when switchTenant reports access denied", async () => {
     mockUseSession.mockReturnValue({
       data: { user: { tenantId: 1 } },
       status: "authenticated",
@@ -218,7 +234,13 @@ describe("TenantGuard", () => {
       tenantSlug: "school-b",
       tenant: tenantB,
     });
-    mockSwitchTenant.mockRejectedValue(new Error("No access to tenant"));
+    mockSwitchTenant.mockRejectedValue(
+      new TenantSwitchError(
+        "account does not have access to this tenant",
+        401,
+        "access_denied",
+      ),
+    );
 
     render(
       <TenantGuard>
@@ -229,9 +251,6 @@ describe("TenantGuard", () => {
     await waitFor(() => {
       expect(mockSignOut).toHaveBeenCalledWith({ callbackUrl: "/" });
     });
-
-    // Should mark the slug as failed in sessionStorage
-    expect(sessionStorage.getItem("tenant-switch-failed")).toBe("school-b");
   });
 
   it("skips check when session tenantId is undefined", () => {
@@ -256,10 +275,7 @@ describe("TenantGuard", () => {
     expect(mockSwitchTenant).not.toHaveBeenCalled();
   });
 
-  it("breaks loop by signing out when previous switch to same slug failed", async () => {
-    // Simulate a previous failed switch attempt stored in sessionStorage
-    sessionStorage.setItem("tenant-switch-failed", "school-b");
-
+  it("does not sign out on transient switch failures", async () => {
     mockUseSession.mockReturnValue({
       data: { user: { tenantId: 1 } },
       status: "authenticated",
@@ -269,41 +285,7 @@ describe("TenantGuard", () => {
       tenantSlug: "school-b",
       tenant: tenantB,
     });
-
-    render(
-      <TenantGuard>
-        <div>Protected Content</div>
-      </TenantGuard>,
-    );
-
-    await waitFor(() => {
-      expect(mockSignOut).toHaveBeenCalledWith({ callbackUrl: "/" });
-    });
-
-    // Should NOT attempt the actual switch
-    expect(mockSwitchTenant).not.toHaveBeenCalled();
-
-    // Should clean up the sessionStorage flag
-    expect(sessionStorage.getItem("tenant-switch-failed")).toBeNull();
-  });
-
-  it("clears failure flag on successful switch", async () => {
-    // Set a stale failure flag for a different slug
-    sessionStorage.setItem("tenant-switch-failed", "school-c");
-
-    mockUseSession.mockReturnValue({
-      data: { user: { tenantId: 1 } },
-      status: "authenticated",
-      update: vi.fn().mockResolvedValue(undefined),
-    });
-    mockUseTenant.mockReturnValue({
-      tenantSlug: "school-b",
-      tenant: tenantB,
-    });
-    mockSwitchTenant.mockResolvedValue({
-      access_token: "new-access",
-      refresh_token: "new-refresh",
-    });
+    mockSwitchTenant.mockRejectedValue(new Error("network down"));
 
     render(
       <TenantGuard>
@@ -315,10 +297,47 @@ describe("TenantGuard", () => {
       expect(mockSwitchTenant).toHaveBeenCalledWith("school-b");
     });
 
-    // Success should clear the failure flag
-    await waitFor(() => {
-      expect(sessionStorage.getItem("tenant-switch-failed")).toBeNull();
+    expect(mockSignOut).not.toHaveBeenCalled();
+  });
+
+  it("retries after a remount instead of persisting a failed slug marker", async () => {
+    mockUseSession.mockReturnValue({
+      data: { user: { tenantId: 1 } },
+      status: "authenticated",
+      update: vi.fn(),
     });
+    mockUseTenant.mockReturnValue({
+      tenantSlug: "school-b",
+      tenant: tenantB,
+    });
+    mockSwitchTenant.mockRejectedValue(new Error("temporary failure"));
+
+    const { unmount } = render(
+      <TenantGuard>
+        <div>Protected Content</div>
+      </TenantGuard>,
+    );
+
+    await waitFor(() => {
+      expect(mockSwitchTenant).toHaveBeenCalledWith("school-b");
+    });
+
+    expect(mockSwitchTenant).toHaveBeenCalledTimes(1);
+
+    unmount();
+    mockSwitchTenant.mockRejectedValueOnce(new Error("temporary failure"));
+
+    render(
+      <TenantGuard>
+        <div>Protected Content</div>
+      </TenantGuard>,
+    );
+
+    await waitFor(() => {
+      expect(mockSwitchTenant).toHaveBeenCalledTimes(2);
+    });
+
+    expect(mockSignOut).not.toHaveBeenCalled();
   });
 
   it("renders children when tenant context is null", () => {

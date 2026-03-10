@@ -540,6 +540,12 @@ func (rs *Resource) authorizeRoleAssignment(w http.ResponseWriter, r *http.Reque
 		return nil, 0, true
 	}
 
+	if callerClaims.TenantID <= 0 {
+		common.RenderError(w, r, ErrorInvalidRequest(
+			authService.ErrTenantRequiredForRoleAssignment))
+		return nil, 0, true
+	}
+
 	// Verify the role actually exists in the database
 	if _, err := rs.AuthService.GetRoleByID(r.Context(), int(*requestedRoleID)); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -589,6 +595,8 @@ func (rs *Resource) handleRegistrationError(w http.ResponseWriter, r *http.Reque
 		common.RenderError(w, r, ErrorInvalidRequest(authService.ErrUsernameAlreadyExists))
 	case errors.Is(authErr.Err, authService.ErrPasswordTooWeak):
 		common.RenderError(w, r, ErrorInvalidRequest(authService.ErrPasswordTooWeak))
+	case errors.Is(authErr.Err, authService.ErrTenantRequiredForRoleAssignment):
+		common.RenderError(w, r, ErrorInvalidRequest(authService.ErrTenantRequiredForRoleAssignment))
 	default:
 		common.RenderError(w, r, ErrorInternalServer(err))
 	}
