@@ -7,6 +7,7 @@ import (
 
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -23,6 +24,7 @@ func TestSchoolRepository_Create(t *testing.T) {
 	t.Run("creates school", func(t *testing.T) {
 		now := time.Now().UnixNano()
 		org := &platformModels.Organization{
+			Model:  modelBase.Model{ID: now},
 			Name:   fmt.Sprintf("Org %d", now),
 			Slug:   fmt.Sprintf("org-%d", now),
 			Active: true,
@@ -34,6 +36,7 @@ func TestSchoolRepository_Create(t *testing.T) {
 		})
 
 		school := &platformModels.School{
+			Model:          modelBase.Model{ID: now + 1},
 			OrganizationID: org.ID,
 			Name:           fmt.Sprintf("School %d", now),
 			Slug:           fmt.Sprintf("school-%d", now),
@@ -68,12 +71,13 @@ func TestSchoolRepository_QueryMethods(t *testing.T) {
 	ctx := testpkg.TenantContext(1)
 	now := time.Now().UnixNano()
 
-	orgA := &platformModels.Organization{Name: fmt.Sprintf("OrgA %d", now), Slug: fmt.Sprintf("orga-%d", now), Active: true}
-	orgB := &platformModels.Organization{Name: fmt.Sprintf("OrgB %d", now), Slug: fmt.Sprintf("orgb-%d", now), Active: true}
+	orgA := &platformModels.Organization{Model: modelBase.Model{ID: now}, Name: fmt.Sprintf("OrgA %d", now), Slug: fmt.Sprintf("orga-%d", now), Active: true}
+	orgB := &platformModels.Organization{Model: modelBase.Model{ID: now + 1}, Name: fmt.Sprintf("OrgB %d", now), Slug: fmt.Sprintf("orgb-%d", now), Active: true}
 	require.NoError(t, orgRepo.Create(ctx, orgA))
 	require.NoError(t, orgRepo.Create(ctx, orgB))
 
 	schoolA := &platformModels.School{
+		Model:          modelBase.Model{ID: now + 2},
 		OrganizationID: orgA.ID,
 		Name:           fmt.Sprintf("Alpha School %d", now),
 		Slug:           fmt.Sprintf("shared-slug-%d", now),
@@ -81,6 +85,7 @@ func TestSchoolRepository_QueryMethods(t *testing.T) {
 		Active:         true,
 	}
 	schoolB := &platformModels.School{
+		Model:          modelBase.Model{ID: now + 3},
 		OrganizationID: orgB.ID,
 		Name:           fmt.Sprintf("Beta School %d", now),
 		Slug:           fmt.Sprintf("shared-slug-%d", now),

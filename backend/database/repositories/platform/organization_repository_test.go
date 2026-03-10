@@ -6,6 +6,7 @@ import (
 	"time"
 
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -20,9 +21,11 @@ func TestOrganizationRepository_Create(t *testing.T) {
 	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates organization", func(t *testing.T) {
+		now := time.Now().UnixNano()
 		org := &platformModels.Organization{
-			Name:   fmt.Sprintf("Org %d", time.Now().UnixNano()),
-			Slug:   fmt.Sprintf("org-%d", time.Now().UnixNano()),
+			Model:  modelBase.Model{ID: now},
+			Name:   fmt.Sprintf("Org %d", now),
+			Slug:   fmt.Sprintf("org-%d", now),
 			Active: true,
 		}
 
@@ -57,11 +60,13 @@ func TestOrganizationRepository_FindByIDAndSlugAndList(t *testing.T) {
 
 	now := time.Now().UnixNano()
 	orgA := &platformModels.Organization{
+		Model:  modelBase.Model{ID: now},
 		Name:   fmt.Sprintf("Alpha %d", now),
 		Slug:   fmt.Sprintf("alpha-%d", now),
 		Active: true,
 	}
 	orgB := &platformModels.Organization{
+		Model:  modelBase.Model{ID: now + 1},
 		Name:   fmt.Sprintf("Beta %d", now),
 		Slug:   fmt.Sprintf("beta-%d", now),
 		Active: true,
