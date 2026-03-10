@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/email"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -48,37 +49,41 @@ func translateRoleNameToGerman(roleName string) string {
 
 // InvitationServiceConfig holds configuration for the invitation service
 type InvitationServiceConfig struct {
-	InvitationRepo   authModels.InvitationTokenRepository
-	AccountRepo      authModels.AccountRepository
-	RoleRepo         authModels.RoleRepository
-	AccountRoleRepo  authModels.AccountRoleRepository
-	PersonRepo       userModels.PersonRepository
-	StaffRepo        userModels.StaffRepository
-	TeacherRepo      userModels.TeacherRepository
-	Mailer           email.Mailer
-	Dispatcher       *email.Dispatcher
-	FrontendURL      string
-	DefaultFrom      email.Email
-	InvitationExpiry time.Duration
-	DB               *bun.DB
-	Logger           *slog.Logger
+	InvitationRepo    authModels.InvitationTokenRepository
+	AccountRepo       authModels.AccountRepository
+	RoleRepo          authModels.RoleRepository
+	AccountRoleRepo   authModels.AccountRoleRepository
+	AccountTenantRepo authModels.AccountTenantRepository
+	PersonRepo        userModels.PersonRepository
+	StaffRepo         userModels.StaffRepository
+	TeacherRepo       userModels.TeacherRepository
+	SchoolRepo        platformModels.SchoolRepository
+	Mailer            email.Mailer
+	Dispatcher        *email.Dispatcher
+	FrontendURL       string
+	DefaultFrom       email.Email
+	InvitationExpiry  time.Duration
+	DB                *bun.DB
+	Logger            *slog.Logger
 }
 
 type invitationService struct {
-	invitationRepo   authModels.InvitationTokenRepository
-	accountRepo      authModels.AccountRepository
-	roleRepo         authModels.RoleRepository
-	accountRoleRepo  authModels.AccountRoleRepository
-	personRepo       userModels.PersonRepository
-	staffRepo        userModels.StaffRepository
-	teacherRepo      userModels.TeacherRepository
-	dispatcher       *email.Dispatcher
-	frontendURL      string
-	defaultFrom      email.Email
-	invitationExpiry time.Duration
-	db               *bun.DB
-	txHandler        *modelBase.TxHandler
-	logger           *slog.Logger
+	invitationRepo    authModels.InvitationTokenRepository
+	accountRepo       authModels.AccountRepository
+	roleRepo          authModels.RoleRepository
+	accountRoleRepo   authModels.AccountRoleRepository
+	accountTenantRepo authModels.AccountTenantRepository
+	personRepo        userModels.PersonRepository
+	staffRepo         userModels.StaffRepository
+	teacherRepo       userModels.TeacherRepository
+	schoolRepo        platformModels.SchoolRepository
+	dispatcher        *email.Dispatcher
+	frontendURL       string
+	defaultFrom       email.Email
+	invitationExpiry  time.Duration
+	db                *bun.DB
+	txHandler         *modelBase.TxHandler
+	logger            *slog.Logger
 }
 
 // getLogger returns the service's logger, falling back to slog.Default() if nil.
@@ -101,20 +106,22 @@ func NewInvitationService(config InvitationServiceConfig) InvitationService {
 		dispatcher = email.NewDispatcher(config.Mailer, logger.With("component", "email"))
 	}
 	return &invitationService{
-		invitationRepo:   config.InvitationRepo,
-		accountRepo:      config.AccountRepo,
-		roleRepo:         config.RoleRepo,
-		accountRoleRepo:  config.AccountRoleRepo,
-		personRepo:       config.PersonRepo,
-		staffRepo:        config.StaffRepo,
-		teacherRepo:      config.TeacherRepo,
-		dispatcher:       dispatcher,
-		frontendURL:      trimmedFrontend,
-		defaultFrom:      config.DefaultFrom,
-		invitationExpiry: config.InvitationExpiry,
-		db:               config.DB,
-		txHandler:        modelBase.NewTxHandler(config.DB),
-		logger:           logger,
+		invitationRepo:    config.InvitationRepo,
+		accountRepo:       config.AccountRepo,
+		roleRepo:          config.RoleRepo,
+		accountRoleRepo:   config.AccountRoleRepo,
+		accountTenantRepo: config.AccountTenantRepo,
+		personRepo:        config.PersonRepo,
+		staffRepo:         config.StaffRepo,
+		teacherRepo:       config.TeacherRepo,
+		schoolRepo:        config.SchoolRepo,
+		dispatcher:        dispatcher,
+		frontendURL:       trimmedFrontend,
+		defaultFrom:       config.DefaultFrom,
+		invitationExpiry:  config.InvitationExpiry,
+		db:                config.DB,
+		txHandler:         modelBase.NewTxHandler(config.DB),
+		logger:            logger,
 	}
 }
 
@@ -151,20 +158,22 @@ func (s *invitationService) WithTx(tx bun.Tx) interface{} {
 	}
 
 	return &invitationService{
-		invitationRepo:   invitationRepo,
-		accountRepo:      accountRepo,
-		roleRepo:         roleRepo,
-		accountRoleRepo:  accountRoleRepo,
-		personRepo:       personRepo,
-		staffRepo:        staffRepo,
-		teacherRepo:      teacherRepo,
-		dispatcher:       s.dispatcher,
-		frontendURL:      s.frontendURL,
-		defaultFrom:      s.defaultFrom,
-		invitationExpiry: s.invitationExpiry,
-		db:               s.db,
-		txHandler:        s.txHandler.WithTx(tx),
-		logger:           s.logger,
+		invitationRepo:    invitationRepo,
+		accountRepo:       accountRepo,
+		roleRepo:          roleRepo,
+		accountRoleRepo:   accountRoleRepo,
+		accountTenantRepo: s.accountTenantRepo,
+		personRepo:        personRepo,
+		staffRepo:         staffRepo,
+		teacherRepo:       teacherRepo,
+		schoolRepo:        s.schoolRepo,
+		dispatcher:        s.dispatcher,
+		frontendURL:       s.frontendURL,
+		defaultFrom:       s.defaultFrom,
+		invitationExpiry:  s.invitationExpiry,
+		db:                s.db,
+		txHandler:         s.txHandler.WithTx(tx),
+		logger:            s.logger,
 	}
 }
 
@@ -500,19 +509,16 @@ func (s *invitationService) assignRole(ctx context.Context, accountID, roleID, t
 }
 
 // createAccountTenant maps an account to a tenant so the user can log into this school.
-// Must be called within a RunInTx block (tx stored in context).
+// Must be called within a RunInTx block (tx stored in context for base.GetDB).
 func (s *invitationService) createAccountTenant(ctx context.Context, accountID, tenantID int64) error {
-	tx, ok := modelBase.TxFromContext(ctx)
-	if !ok || tx == nil {
-		return &AuthError{Op: "create account-tenant mapping", Err: fmt.Errorf("no transaction in context")}
-	}
 	now := time.Now()
-	_, err := tx.NewRaw(`
-		INSERT INTO auth.account_tenants (account_id, tenant_id, status, activated_at, created_at, updated_at)
-		VALUES (?, ?, 'active', ?, ?, ?)
-		ON CONFLICT (account_id, tenant_id) DO NOTHING
-	`, accountID, tenantID, now, now, now).Exec(ctx)
-	if err != nil {
+	mapping := &authModels.AccountTenant{
+		AccountID:   accountID,
+		TenantID:    tenantID,
+		Status:      authModels.AccountTenantStatusActive,
+		ActivatedAt: &now,
+	}
+	if err := s.accountTenantRepo.Create(ctx, mapping); err != nil {
 		return &AuthError{Op: "create account-tenant mapping", Err: err}
 	}
 	return nil
@@ -677,21 +683,17 @@ var invitationEmailBackoff = []time.Duration{
 // lookupSchoolName resolves the tenant display name for use in emails.
 // Returns empty string on failure (best-effort, never blocks the caller).
 func (s *invitationService) lookupSchoolName(ctx context.Context, tenantID int64) string {
-	if tenantID == 0 {
+	if tenantID == 0 || s.schoolRepo == nil {
 		return ""
 	}
-	tx, ok := modelBase.TxFromContext(ctx)
-	if !ok || tx == nil {
-		return ""
-	}
-	var name string
-	if err := tx.NewSelect().TableExpr("platform.schools").Column("name").Where("id = ?", tenantID).Scan(ctx, &name); err != nil {
+	school, err := s.schoolRepo.FindByID(ctx, tenantID)
+	if err != nil {
 		s.getLogger().Warn("failed to lookup school name for invitation email",
 			slog.Int64("tenant_id", tenantID),
 			slog.String("error", err.Error()))
 		return ""
 	}
-	return name
+	return school.Name
 }
 
 func (s *invitationService) sendInvitationEmail(invitation *authModels.InvitationToken, roleName string, schoolName string) {

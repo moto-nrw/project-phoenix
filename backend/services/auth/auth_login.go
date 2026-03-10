@@ -622,23 +622,24 @@ func (s *Service) persistAccountWithRole(ctx context.Context, account *auth.Acco
 
 		// Map account to tenant so the user can log into this school
 		now := time.Now()
-		_, err := tx.NewRaw(`
-			INSERT INTO auth.account_tenants (account_id, tenant_id, status, activated_at, created_at, updated_at)
-			VALUES (?, ?, 'active', ?, ?, ?)
-			ON CONFLICT (account_id, tenant_id) DO NOTHING
-		`, account.ID, tenantID, now, now, now).Exec(ctx)
-		if err != nil {
+		mapping := &auth.AccountTenant{
+			AccountID:   account.ID,
+			TenantID:    tenantID,
+			Status:      auth.AccountTenantStatusActive,
+			ActivatedAt: &now,
+		}
+		if err := txService.repos.AccountTenant.Create(ctx, mapping); err != nil {
 			return fmt.Errorf("failed to create account-tenant mapping: %w", err)
 		}
 
 		// Assign role scoped to this tenant (RLS WITH CHECK enforces tenant_id match)
 		if roleID != nil && *roleID > 0 {
-			_, err = tx.NewRaw(`
-				INSERT INTO auth.account_roles (account_id, role_id, tenant_id, created_at, updated_at)
-				VALUES (?, ?, ?, ?, ?)
-				ON CONFLICT (account_id, role_id, tenant_id) DO NOTHING
-			`, account.ID, *roleID, tenantID, now, now).Exec(ctx)
-			if err != nil {
+			accountRole := &auth.AccountRole{
+				AccountID: account.ID,
+				RoleID:    *roleID,
+			}
+			accountRole.SetTenantID(tenantID)
+			if err := txService.repos.AccountRole.Create(ctx, accountRole); err != nil {
 				return fmt.Errorf("failed to assign role to account: %w", err)
 			}
 		}
@@ -647,12 +648,12 @@ func (s *Service) persistAccountWithRole(ctx context.Context, account *auth.Acco
 	})
 }
 
-// ValidateToken validates an access token and returns the associated account
-func (s *Service) ValidateToken(ctx context.Context, tokenString string) (*auth.Account, error) {
+// ValidateToken validates an access token and returns the associated account and parsed claims.
+func (s *Service) ValidateToken(ctx context.Context, tokenString string) (*auth.Account, *jwt.AppClaims, error) {
 	// Parse and validate JWT token
 	jwtToken, err := s.tokenAuth.JwtAuth.Decode(tokenString)
 	if err != nil {
-		return nil, &AuthError{Op: "validate token", Err: ErrInvalidToken}
+		return nil, nil, &AuthError{Op: "validate token", Err: ErrInvalidToken}
 	}
 
 	// Extract claims
@@ -662,18 +663,18 @@ func (s *Service) ValidateToken(ctx context.Context, tokenString string) (*auth.
 	var appClaims jwt.AppClaims
 	err = appClaims.ParseClaims(claims)
 	if err != nil {
-		return nil, &AuthError{Op: "parse claims", Err: ErrInvalidToken}
+		return nil, nil, &AuthError{Op: "parse claims", Err: ErrInvalidToken}
 	}
 
 	// Get account by ID
 	account, err := s.repos.Account.FindByID(ctx, int64(appClaims.ID))
 	if err != nil {
-		return nil, &AuthError{Op: opGetAccount, Err: ErrAccountNotFound}
+		return nil, nil, &AuthError{Op: opGetAccount, Err: ErrAccountNotFound}
 	}
 
 	// Ensure account is active
 	if !account.Active {
-		return nil, &AuthError{Op: "validate token", Err: ErrAccountInactive}
+		return nil, nil, &AuthError{Op: "validate token", Err: ErrAccountInactive}
 	}
 
 	// Load roles and permissions scoped to the JWT's tenant (D13 revision:
@@ -701,7 +702,7 @@ func (s *Service) ValidateToken(ctx context.Context, tokenString string) (*auth.
 		s.ensureAccountPermissionsLoaded(ctx, account)
 	}
 
-	return account, nil
+	return account, &appClaims, nil
 }
 
 // RefreshToken generates new token pair from a refresh token

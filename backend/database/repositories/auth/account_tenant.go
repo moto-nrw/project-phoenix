@@ -23,6 +23,18 @@ func NewAccountTenantRepository(db *bun.DB) auth.AccountTenantRepository {
 	return &AccountTenantRepository{db: db}
 }
 
+// Create inserts a new account-tenant mapping, ignoring duplicates.
+// ModelTableExpr is set explicitly because BUN's BeforeAppendModel hook does not
+// reliably schema-qualify the INSERT INTO clause — it only affects the alias.
+func (r *AccountTenantRepository) Create(ctx context.Context, mapping *auth.AccountTenant) error {
+	_, err := base.GetDB(ctx, r.db).NewInsert().
+		Model(mapping).
+		ModelTableExpr(accountTenantTable).
+		On("CONFLICT (account_id, tenant_id) DO NOTHING").
+		Exec(ctx)
+	return err
+}
+
 // FindActiveByAccountID returns all active tenant mappings for an account.
 func (r *AccountTenantRepository) FindActiveByAccountID(ctx context.Context, accountID int64) ([]auth.AccountTenant, error) {
 	var items []auth.AccountTenant

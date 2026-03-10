@@ -2,6 +2,7 @@
 package auth_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -248,17 +249,18 @@ func TestAuthService_ValidateToken(t *testing.T) {
 		require.NoError(t, err)
 
 		// ACT
-		validatedAccount, err := service.ValidateToken(ctx, accessToken)
+		validatedAccount, claims, err := service.ValidateToken(ctx, accessToken)
 
 		// ASSERT
 		require.NoError(t, err)
 		assert.NotNil(t, validatedAccount)
+		assert.NotNil(t, claims)
 		assert.Equal(t, account.ID, validatedAccount.ID)
 	})
 
 	t.Run("returns error for invalid token", func(t *testing.T) {
 		// ACT
-		account, err := service.ValidateToken(ctx, "invalid.token.here")
+		account, _, err := service.ValidateToken(ctx, "invalid.token.here")
 
 		// ASSERT
 		require.Error(t, err)
@@ -267,7 +269,7 @@ func TestAuthService_ValidateToken(t *testing.T) {
 
 	t.Run("returns error for empty token", func(t *testing.T) {
 		// ACT
-		account, err := service.ValidateToken(ctx, "")
+		account, _, err := service.ValidateToken(ctx, "")
 
 		// ASSERT
 		require.Error(t, err)
@@ -2472,4 +2474,172 @@ func TestRateLimitError_RetryAfterSeconds(t *testing.T) {
 		// ASSERT
 		assert.Equal(t, 0, result)
 	})
+}
+
+// =============================================================================
+// WithTenantTx Production Path Tests (Item 4)
+// =============================================================================
+
+func TestRegister_WithTenantID_CreatesAccountTenantAndRole(t *testing.T) {
+	// Register with a real tenantID > 0 should exercise the WithTenantTx path
+	// in persistAccountWithRole, creating account + account_tenant mapping +
+	// account_role assignment atomically.
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+
+	const tenantID int64 = 50
+	testpkg.EnsureTestTenant(t, db, tenantID)
+
+	// Create a role to assign
+	role := testpkg.CreateTestRole(t, db, fmt.Sprintf("test-role-%d", time.Now().UnixNano()))
+	defer testpkg.CleanupTableRecords(t, db, "auth.roles", role.ID)
+
+	ctx := testpkg.TenantContext(tenantID)
+	email, username := uniqueTestCredentials("tenant-register")
+	roleID := role.ID
+
+	// ACT
+	account, err := service.Register(ctx, email, username, testPassword, &roleID, tenantID)
+
+	// ASSERT
+	require.NoError(t, err)
+	require.NotNil(t, account)
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+	// Verify account_tenant mapping was created
+	var tenantCount int
+	err = db.NewSelect().
+		TableExpr("auth.account_tenants").
+		ColumnExpr("COUNT(*)").
+		Where("account_id = ? AND tenant_id = ?", account.ID, tenantID).
+		Scan(context.Background(), &tenantCount)
+	require.NoError(t, err)
+	assert.Equal(t, 1, tenantCount, "account_tenant mapping should exist")
+
+	// Verify account_role was created with correct tenant_id
+	var roleCount int
+	err = db.NewSelect().
+		TableExpr("auth.account_roles").
+		ColumnExpr("COUNT(*)").
+		Where("account_id = ? AND role_id = ? AND tenant_id = ?", account.ID, roleID, tenantID).
+		Scan(context.Background(), &roleCount)
+	require.NoError(t, err)
+	assert.Equal(t, 1, roleCount, "account_role should be scoped to the correct tenant")
+}
+
+func TestRegister_WithTenantID_NoRole(t *testing.T) {
+	// Register with tenantID > 0 but no roleID should still create the
+	// account_tenant mapping (without role assignment).
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+
+	const tenantID int64 = 51
+	testpkg.EnsureTestTenant(t, db, tenantID)
+
+	ctx := testpkg.TenantContext(tenantID)
+	email, username := uniqueTestCredentials("tenant-norole")
+
+	// ACT — nil roleID
+	account, err := service.Register(ctx, email, username, testPassword, nil, tenantID)
+
+	// ASSERT
+	require.NoError(t, err)
+	require.NotNil(t, account)
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+	// Verify account_tenant mapping exists
+	var tenantCount int
+	err = db.NewSelect().
+		TableExpr("auth.account_tenants").
+		ColumnExpr("COUNT(*)").
+		Where("account_id = ? AND tenant_id = ?", account.ID, tenantID).
+		Scan(context.Background(), &tenantCount)
+	require.NoError(t, err)
+	assert.Equal(t, 1, tenantCount, "account_tenant mapping should exist even without role")
+
+	// Verify no account_role was created
+	var roleCount int
+	err = db.NewSelect().
+		TableExpr("auth.account_roles").
+		ColumnExpr("COUNT(*)").
+		Where("account_id = ?", account.ID).
+		Scan(context.Background(), &roleCount)
+	require.NoError(t, err)
+	assert.Equal(t, 0, roleCount, "no role assignment should exist")
+}
+
+func TestAcceptInvitation_WithTenantID_CreatesAccountTenant(t *testing.T) {
+	// AcceptInvitation with an invitation that has a real TenantID should
+	// create the account, person, account_tenant mapping, and role assignment.
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	invService := setupInvitationService(t, db)
+
+	const tenantID int64 = 52
+	testpkg.EnsureTestTenant(t, db, tenantID)
+
+	// Create a role for the invitation
+	role := testpkg.CreateTestRole(t, db, fmt.Sprintf("invite-role-%d", time.Now().UnixNano()))
+	defer testpkg.CleanupTableRecords(t, db, "auth.roles", role.ID)
+
+	// Create invitation with tenant context so it gets tenant_id set
+	ctx := testpkg.TenantContext(tenantID)
+	email := fmt.Sprintf("invite-tenant-%d@test.local", time.Now().UnixNano())
+
+	invitation, err := invService.CreateInvitation(ctx, auth.InvitationRequest{
+		Email:     email,
+		RoleID:    role.ID,
+		CreatedBy: 1,
+		FirstName: strPtr("Test"),
+		LastName:  strPtr("User"),
+	})
+	require.NoError(t, err)
+	require.NotNil(t, invitation)
+
+	// ACT — accept the invitation (public route, no tenant in ctx)
+	account, err := invService.AcceptInvitation(context.Background(), invitation.Token, auth.UserRegistrationData{
+		FirstName:       "Test",
+		LastName:        "User",
+		Password:        testPassword,
+		ConfirmPassword: testPassword,
+	})
+
+	// ASSERT
+	require.NoError(t, err)
+	require.NotNil(t, account)
+	defer func() {
+		// Clean up: staff, person, invitation tokens, then auth fixtures (includes account_tenants)
+		_, _ = db.ExecContext(context.Background(),
+			`DELETE FROM users.staff WHERE person_id IN (SELECT id FROM users.persons WHERE account_id = ?)`, account.ID)
+		_, _ = db.ExecContext(context.Background(),
+			`DELETE FROM users.persons WHERE account_id = ?`, account.ID)
+		_, _ = db.ExecContext(context.Background(),
+			`DELETE FROM auth.invitation_tokens WHERE email = ?`, email)
+		testpkg.CleanupAuthFixtures(t, db, account.ID)
+	}()
+
+	// Verify account_tenant mapping was created
+	var tenantCount int
+	err = db.NewSelect().
+		TableExpr("auth.account_tenants").
+		ColumnExpr("COUNT(*)").
+		Where("account_id = ? AND tenant_id = ?", account.ID, tenantID).
+		Scan(context.Background(), &tenantCount)
+	require.NoError(t, err)
+	assert.Equal(t, 1, tenantCount, "account_tenant mapping should exist after invitation acceptance")
+
+	// Verify account_role was created scoped to tenant
+	var roleCount int
+	err = db.NewSelect().
+		TableExpr("auth.account_roles").
+		ColumnExpr("COUNT(*)").
+		Where("account_id = ? AND role_id = ? AND tenant_id = ?", account.ID, role.ID, tenantID).
+		Scan(context.Background(), &roleCount)
+	require.NoError(t, err)
+	assert.Equal(t, 1, roleCount, "role should be scoped to invitation tenant")
 }

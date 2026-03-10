@@ -2,7 +2,6 @@ package auth
 
 import (
 	"database/sql"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -520,7 +519,7 @@ func (rs *Resource) authorizeRoleAssignment(w http.ResponseWriter, r *http.Reque
 	}
 
 	token := authHeader[7:]
-	callerAccount, err := rs.AuthService.ValidateToken(r.Context(), token)
+	callerAccount, callerClaims, err := rs.AuthService.ValidateToken(r.Context(), token)
 	if err != nil {
 		common.RenderError(w, r, ErrorUnauthorized(
 			errors.New("invalid or expired token")))
@@ -557,31 +556,7 @@ func (rs *Resource) authorizeRoleAssignment(w http.ResponseWriter, r *http.Reque
 		return nil, 0, true
 	}
 
-	// Extract caller's tenant ID from the verified JWT so the new account
-	// gets mapped to the same tenant as the admin who created it.
-	callerTenantID := extractTenantIDFromJWT(token)
-
-	return requestedRoleID, callerTenantID, false
-}
-
-// extractTenantIDFromJWT reads the tenant_id claim from a verified JWT payload.
-// The JWT must already be verified via ValidateToken before calling this.
-func extractTenantIDFromJWT(token string) int64 {
-	parts := strings.SplitN(token, ".", 3)
-	if len(parts) < 2 {
-		return 0
-	}
-	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
-	if err != nil {
-		return 0
-	}
-	var claims struct {
-		TenantID int64 `json:"tenant_id"`
-	}
-	if err := json.Unmarshal(payload, &claims); err != nil {
-		return 0
-	}
-	return claims.TenantID
+	return requestedRoleID, callerClaims.TenantID, false
 }
 
 // isValidAuthHeader checks if the Authorization header contains a valid Bearer token format

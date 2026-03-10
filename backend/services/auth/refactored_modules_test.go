@@ -1142,7 +1142,7 @@ func TestAuthService_ValidateToken_Extended(t *testing.T) {
 		require.NoError(t, err)
 
 		// ACT
-		_, err = service.ValidateToken(ctx, accessToken)
+		_, _, err = service.ValidateToken(ctx, accessToken)
 
 		// ASSERT
 		require.Error(t, err)

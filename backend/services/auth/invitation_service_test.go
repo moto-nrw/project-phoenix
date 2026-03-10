@@ -49,19 +49,21 @@ func newInvitationTestEnvWithMailer(t *testing.T, mailer email.Mailer) (Invitati
 	dispatcher.SetDefaults(3, []time.Duration{10 * time.Millisecond, 20 * time.Millisecond, 40 * time.Millisecond})
 
 	service := NewInvitationService(InvitationServiceConfig{
-		InvitationRepo:   invitationRepo,
-		AccountRepo:      accountRepo,
-		RoleRepo:         roleRepo,
-		AccountRoleRepo:  accountRoleRepo,
-		PersonRepo:       personRepo,
-		StaffRepo:        staffRepo,
-		TeacherRepo:      teacherRepo,
-		Mailer:           mailer,
-		Dispatcher:       dispatcher,
-		FrontendURL:      "http://localhost:3000",
-		DefaultFrom:      newDefaultFromEmail(),
-		InvitationExpiry: 48 * time.Hour,
-		DB:               bunDB,
+		InvitationRepo:    invitationRepo,
+		AccountRepo:       accountRepo,
+		RoleRepo:          roleRepo,
+		AccountRoleRepo:   accountRoleRepo,
+		AccountTenantRepo: newStubAccountTenantRepository(),
+		PersonRepo:        personRepo,
+		StaffRepo:         staffRepo,
+		TeacherRepo:       teacherRepo,
+		SchoolRepo:        &stubSchoolRepository{},
+		Mailer:            mailer,
+		Dispatcher:        dispatcher,
+		FrontendURL:       "http://localhost:3000",
+		DefaultFrom:       newDefaultFromEmail(),
+		InvitationExpiry:  48 * time.Hour,
+		DB:                bunDB,
 	})
 
 	cleanup := func() {
@@ -257,7 +259,6 @@ func TestAcceptInvitationCreatesAccountAndPerson(t *testing.T) {
 	require.NoError(t, invitations.Create(ctx, token))
 
 	mock.ExpectBegin()
-	mock.ExpectExec(`INSERT INTO auth.account_tenants`).WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 
 	account, err := service.AcceptInvitation(ctx, "accept", UserRegistrationData{
@@ -443,7 +444,6 @@ func TestAcceptInvitationSecondAttemptFails(t *testing.T) {
 
 	// First acceptance
 	mock.ExpectBegin()
-	mock.ExpectExec(`INSERT INTO auth.account_tenants`).WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 
 	account, err := service.AcceptInvitation(ctx, "second-attempt-token", UserRegistrationData{
@@ -467,7 +467,7 @@ func TestAcceptInvitationSecondAttemptFails(t *testing.T) {
 }
 
 // =============================================================================
-// lookupSchoolName error-path tests (invitation_service.go lines 679-695)
+// lookupSchoolName error-path tests
 // =============================================================================
 
 func TestLookupSchoolNameZeroTenant(t *testing.T) {
@@ -479,57 +479,10 @@ func TestLookupSchoolNameZeroTenant(t *testing.T) {
 	require.Equal(t, "", result, "tenantID=0 must return empty string")
 }
 
-func TestLookupSchoolNameNoTransaction(t *testing.T) {
-	service, _, _, _, _, _, _, _, cleanup := newInvitationTestEnv(t)
-	t.Cleanup(cleanup)
-
-	svc := service.(*invitationService)
-	// context.Background() has no transaction, so TxFromContext returns false.
-	result := svc.lookupSchoolName(context.Background(), 42)
-	require.Equal(t, "", result, "missing transaction must return empty string")
-}
-
-func TestLookupSchoolNameQueryError(t *testing.T) {
-	sqlDB, mock, err := sqlmock.New()
-	require.NoError(t, err)
-	bunDB := bun.NewDB(sqlDB, pgdialect.New())
-
+func TestLookupSchoolNameNilRepo(t *testing.T) {
 	svc := &invitationService{
-		db:     bunDB,
 		logger: slog.Default(),
 	}
-
-	mock.ExpectBegin()
-	tx, err := bunDB.BeginTx(context.Background(), nil)
-	require.NoError(t, err)
-
-	ctx := baseModel.ContextWithTx(context.Background(), &tx)
-
-	mock.ExpectQuery(`SELECT`).WillReturnError(fmt.Errorf("connection refused"))
-
-	result := svc.lookupSchoolName(ctx, 99)
-	require.Equal(t, "", result, "SQL error must return empty string")
-
-	mock.ExpectRollback()
-	_ = tx.Rollback()
-
-	mock.ExpectClose()
-	require.NoError(t, bunDB.Close())
-	require.NoError(t, sqlDB.Close())
-	require.NoError(t, mock.ExpectationsWereMet())
-}
-
-// =============================================================================
-// createAccountTenant error-path test (invitation_service.go line 508)
-// =============================================================================
-
-func TestCreateAccountTenantNoTransaction(t *testing.T) {
-	service, _, _, _, _, _, _, _, cleanup := newInvitationTestEnv(t)
-	t.Cleanup(cleanup)
-
-	svc := service.(*invitationService)
-	// context.Background() has no transaction.
-	err := svc.createAccountTenant(context.Background(), 100, 200)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "no transaction in context")
+	result := svc.lookupSchoolName(context.Background(), 42)
+	require.Equal(t, "", result, "nil schoolRepo must return empty string")
 }
