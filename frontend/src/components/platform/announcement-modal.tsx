@@ -52,13 +52,16 @@ export function AnnouncementModal() {
     UnreadAnnouncement[]
   >([]);
   const dismissedIdsRef = useRef<Set<number>>(new Set());
+  // Track IDs the user has seen (closed without dismissing) to avoid re-opening
+  const closedIdsRef = useRef<Set<number>>(new Set());
 
   // Show modal when we have announcements - capture stable snapshot
   useEffect(() => {
     if (!isLoading && announcements.length > 0 && !isVisible) {
-      // Filter out any we've already dismissed in this session
+      // Filter out any we've already dismissed or closed in this session
       const unprocessed = announcements.filter(
-        (a) => !dismissedIdsRef.current.has(a.id),
+        (a) =>
+          !dismissedIdsRef.current.has(a.id) && !closedIdsRef.current.has(a.id),
       );
       if (unprocessed.length > 0) {
         setQueuedAnnouncements(unprocessed);
@@ -68,6 +71,7 @@ export function AnnouncementModal() {
     }
   }, [announcements, isLoading, isVisible]);
 
+  // Dismiss current and advance to next announcement ("Weiter" / "Verstanden")
   const handleDismiss = useCallback(async () => {
     const current = queuedAnnouncements[currentIndex];
     if (!current) return;
@@ -92,6 +96,23 @@ export function AnnouncementModal() {
     }
   }, [queuedAnnouncements, currentIndex, dismiss, refresh]);
 
+  // Close modal entirely (X button, backdrop, Escape key)
+  // Dismiss all queued announcements on the backend so they don't reappear on next login
+  const handleClose = useCallback(() => {
+    for (const a of queuedAnnouncements) {
+      closedIdsRef.current.add(a.id);
+      if (!dismissedIdsRef.current.has(a.id)) {
+        dismissedIdsRef.current.add(a.id);
+        dismiss(a.id).catch((error) => {
+          logger.error("announcement_dismiss_failed", {
+            error: error instanceof Error ? error.message : String(error),
+          });
+        });
+      }
+    }
+    setIsVisible(false);
+  }, [queuedAnnouncements, dismiss]);
+
   const current = queuedAnnouncements[currentIndex];
   if (!current || !isVisible) return null;
 
@@ -115,12 +136,7 @@ export function AnnouncementModal() {
   );
 
   return (
-    <Modal
-      isOpen={isVisible}
-      onClose={() => void handleDismiss()}
-      title=""
-      footer={footer}
-    >
+    <Modal isOpen={isVisible} onClose={handleClose} title="" footer={footer}>
       {/* Header section with icon and titles */}
       <div className="mb-5">
         <div className="flex items-start gap-3">
