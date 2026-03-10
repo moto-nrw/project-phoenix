@@ -167,7 +167,7 @@ func (s *FixedSeeder) switchToStaffAccount() error {
 	for _, cred := range s.staffCredentials {
 		if cred.Position == "OGS-Büro" {
 			fmt.Printf("  Switching to staff account %s (%s)...\n", cred.Name, cred.Email)
-			if err := s.client.Login(cred.Email, cred.Password); err != nil {
+			if err := s.client.Login(cred.Email, cred.Password, ""); err != nil {
 				return fmt.Errorf("failed to login as %s: %w", cred.Email, err)
 			}
 			return nil

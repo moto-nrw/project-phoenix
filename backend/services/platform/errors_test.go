@@ -58,6 +58,12 @@ func TestInvalidDataError_WithNilError(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid data")
 }
 
+func TestConflictError(t *testing.T) {
+	err := &platform.ConflictError{Err: errors.New("duplicate slug")}
+	assert.Contains(t, err.Error(), "conflict")
+	assert.Contains(t, err.Error(), "duplicate slug")
+}
+
 func TestPostNotFoundError(t *testing.T) {
 	err := &platform.PostNotFoundError{PostID: 111}
 	assert.Contains(t, err.Error(), "111")
@@ -73,4 +79,16 @@ func TestCommentNotFoundError(t *testing.T) {
 func TestPasswordMismatchError(t *testing.T) {
 	err := &platform.PasswordMismatchError{}
 	assert.Equal(t, "current password is incorrect", err.Error())
+}
+
+func TestOrganizationNotFoundError(t *testing.T) {
+	err := &platform.OrganizationNotFoundError{OrganizationID: 333}
+	assert.Contains(t, err.Error(), "333")
+	assert.Contains(t, err.Error(), "not found")
+}
+
+func TestSchoolNotFoundError(t *testing.T) {
+	err := &platform.SchoolNotFoundError{SchoolID: 444}
+	assert.Contains(t, err.Error(), "444")
+	assert.Contains(t, err.Error(), "not found")
 }

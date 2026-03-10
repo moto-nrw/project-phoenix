@@ -45,6 +45,15 @@ func ErrNotFound(message string) render.Renderer {
 	}
 }
 
+// ErrConflict creates a conflict error response.
+func ErrConflict(message string) render.Renderer {
+	return &ErrResponse{
+		HTTPStatusCode: http.StatusConflict,
+		StatusText:     "error",
+		ErrorText:      message,
+	}
+}
+
 // ErrForbidden creates a forbidden error response
 func ErrForbidden(message string) render.Renderer {
 	return &ErrResponse{

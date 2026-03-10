@@ -57,6 +57,12 @@ func TestParseAllowedOrigins(t *testing.T) {
 			expectedWildcards: []string{".example.com"},
 		},
 		{
+			name:              "only blanks fall back to wildcard",
+			envValue:          " ,  , ",
+			expectedExact:     []string{"*"},
+			expectedWildcards: nil,
+		},
+		{
 			name:              "only wildcard patterns",
 			envValue:          "*.example.com, *.test.local",
 			expectedExact:     nil,

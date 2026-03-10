@@ -17,7 +17,7 @@ type InvitationToken struct {
 	Email           string     `bun:"email,notnull" json:"email"`
 	Token           string     `bun:"token,notnull" json:"token"`
 	RoleID          int64      `bun:"role_id,notnull" json:"role_id"`
-	CreatedBy       int64      `bun:"created_by,notnull" json:"created_by"`
+	CreatedBy       *int64     `bun:"created_by,nullzero" json:"created_by,omitempty"`
 	ExpiresAt       time.Time  `bun:"expires_at,notnull" json:"expires_at"`
 	UsedAt          *time.Time `bun:"used_at,nullzero" json:"used_at,omitempty"`
 	FirstName       *string    `bun:"first_name,nullzero" json:"first_name,omitempty"`
@@ -63,8 +63,8 @@ func (t *InvitationToken) Validate() error {
 	if t.RoleID <= 0 {
 		return errors.New("role id is required")
 	}
-	if t.CreatedBy <= 0 {
-		return errors.New("created_by is required")
+	if t.CreatedBy != nil && *t.CreatedBy <= 0 {
+		return errors.New("created_by must be positive when set")
 	}
 	if t.ExpiresAt.IsZero() {
 		return errors.New("expires_at is required")

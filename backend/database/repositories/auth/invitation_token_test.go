@@ -26,8 +26,10 @@ func createTestInvitationToken(t *testing.T, db *bun.DB, email string, roleID, c
 		Email:     email,
 		Token:     uuid.Must(uuid.NewV4()).String(),
 		RoleID:    roleID,
-		CreatedBy: createdBy,
 		ExpiresAt: expiresAt,
+	}
+	if createdBy > 0 {
+		token.CreatedBy = &createdBy
 	}
 	token.SetTenantID(1)
 

@@ -308,6 +308,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	// Initialize operator dashboard resources
 	api.Operator = operatorAPI.NewResource(operatorAPI.ResourceConfig{
 		AuthService:          api.Services.OperatorAuth,
+		ProvisioningService:  api.Services.OperatorProvisioning,
 		SuggestionsService:   api.Services.OperatorSuggestions,
 		AnnouncementsService: api.Services.Announcement,
 		TokenAuth:            nil, // Created internally by operator API

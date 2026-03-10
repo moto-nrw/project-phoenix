@@ -24,7 +24,7 @@ func TestInvitationToken_Validate(t *testing.T) {
 				Email:     "invite@example.com",
 				Token:     "abc123token",
 				RoleID:    1,
-				CreatedBy: 1,
+				CreatedBy: base.Int64Ptr(1),
 				ExpiresAt: futureTime,
 			},
 			wantErr: false,
@@ -35,7 +35,7 @@ func TestInvitationToken_Validate(t *testing.T) {
 				Email:     "invite@example.com",
 				Token:     "abc123token",
 				RoleID:    1,
-				CreatedBy: 1,
+				CreatedBy: base.Int64Ptr(1),
 				ExpiresAt: futureTime,
 				FirstName: base.StringPtr("John"),
 				LastName:  base.StringPtr("Doe"),
@@ -49,7 +49,7 @@ func TestInvitationToken_Validate(t *testing.T) {
 				Email:     "",
 				Token:     "abc123token",
 				RoleID:    1,
-				CreatedBy: 1,
+				CreatedBy: base.Int64Ptr(1),
 				ExpiresAt: futureTime,
 			},
 			wantErr: true,
@@ -60,7 +60,7 @@ func TestInvitationToken_Validate(t *testing.T) {
 				Email:     "   ",
 				Token:     "abc123token",
 				RoleID:    1,
-				CreatedBy: 1,
+				CreatedBy: base.Int64Ptr(1),
 				ExpiresAt: futureTime,
 			},
 			wantErr: true,
@@ -71,7 +71,7 @@ func TestInvitationToken_Validate(t *testing.T) {
 				Email:     "invite@example.com",
 				Token:     "",
 				RoleID:    1,
-				CreatedBy: 1,
+				CreatedBy: base.Int64Ptr(1),
 				ExpiresAt: futureTime,
 			},
 			wantErr: true,
@@ -82,7 +82,7 @@ func TestInvitationToken_Validate(t *testing.T) {
 				Email:     "invite@example.com",
 				Token:     "abc123token",
 				RoleID:    0,
-				CreatedBy: 1,
+				CreatedBy: base.Int64Ptr(1),
 				ExpiresAt: futureTime,
 			},
 			wantErr: true,
@@ -93,18 +93,28 @@ func TestInvitationToken_Validate(t *testing.T) {
 				Email:     "invite@example.com",
 				Token:     "abc123token",
 				RoleID:    -1,
-				CreatedBy: 1,
+				CreatedBy: base.Int64Ptr(1),
 				ExpiresAt: futureTime,
 			},
 			wantErr: true,
 		},
 		{
-			name: "zero created by",
+			name: "nil created by is allowed for system/operator-created invitations",
 			token: &InvitationToken{
 				Email:     "invite@example.com",
 				Token:     "abc123token",
 				RoleID:    1,
-				CreatedBy: 0,
+				ExpiresAt: futureTime,
+			},
+			wantErr: false,
+		},
+		{
+			name: "zero created by is invalid when set",
+			token: &InvitationToken{
+				Email:     "invite@example.com",
+				Token:     "abc123token",
+				RoleID:    1,
+				CreatedBy: base.Int64Ptr(0),
 				ExpiresAt: futureTime,
 			},
 			wantErr: true,
@@ -115,7 +125,7 @@ func TestInvitationToken_Validate(t *testing.T) {
 				Email:     "invite@example.com",
 				Token:     "abc123token",
 				RoleID:    1,
-				CreatedBy: 1,
+				CreatedBy: base.Int64Ptr(1),
 				ExpiresAt: time.Time{},
 			},
 			wantErr: true,
@@ -126,7 +136,7 @@ func TestInvitationToken_Validate(t *testing.T) {
 				Email:     "invite@example.com",
 				Token:     "abc123token",
 				RoleID:    1,
-				CreatedBy: 1,
+				CreatedBy: base.Int64Ptr(1),
 				ExpiresAt: pastTime,
 			},
 			wantErr: true,
@@ -275,7 +285,7 @@ func TestInvitationToken_MarkAsUsed(t *testing.T) {
 		Email:     "test@example.com",
 		Token:     "abc123",
 		RoleID:    1,
-		CreatedBy: 1,
+		CreatedBy: base.Int64Ptr(1),
 		ExpiresAt: time.Now().Add(time.Hour),
 		UsedAt:    nil,
 	}
@@ -385,7 +395,7 @@ func TestInvitationToken_BeforeAppendModel(t *testing.T) {
 	// It doesn't set timestamps - those are handled by the base model or repository
 
 	t.Run("handles nil query", func(t *testing.T) {
-		token := &InvitationToken{Email: "test@example.com", Token: "test", RoleID: 1, CreatedBy: 1, ExpiresAt: time.Now().Add(48 * time.Hour)}
+		token := &InvitationToken{Email: "test@example.com", Token: "test", RoleID: 1, CreatedBy: base.Int64Ptr(1), ExpiresAt: time.Now().Add(48 * time.Hour)}
 		err := token.BeforeAppendModel(nil)
 		if err != nil {
 			t.Errorf("BeforeAppendModel() error = %v", err)
@@ -393,7 +403,7 @@ func TestInvitationToken_BeforeAppendModel(t *testing.T) {
 	})
 
 	t.Run("returns no error for unknown query type", func(t *testing.T) {
-		token := &InvitationToken{Email: "test@example.com", Token: "test", RoleID: 1, CreatedBy: 1, ExpiresAt: time.Now().Add(48 * time.Hour)}
+		token := &InvitationToken{Email: "test@example.com", Token: "test", RoleID: 1, CreatedBy: base.Int64Ptr(1), ExpiresAt: time.Now().Add(48 * time.Hour)}
 		err := token.BeforeAppendModel("some string")
 		if err != nil {
 			t.Errorf("BeforeAppendModel() error = %v", err)

@@ -2,8 +2,12 @@ package platform
 
 import (
 	"context"
+	"database/sql"
+	"errors"
+	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/uptrace/bun"
 )
@@ -20,6 +24,24 @@ func NewSchoolRepository(db *bun.DB) platform.SchoolRepository {
 	return &SchoolRepository{db: db}
 }
 
+// Create inserts a new school record.
+func (r *SchoolRepository) Create(ctx context.Context, school *platform.School) error {
+	if school == nil {
+		return fmt.Errorf("school cannot be nil")
+	}
+	if err := school.Validate(); err != nil {
+		return err
+	}
+	_, err := base.GetDB(ctx, r.db).NewInsert().
+		Model(school).
+		ModelTableExpr("platform.schools").
+		Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "create school", Err: err}
+	}
+	return nil
+}
+
 // FindByID returns a school by its ID.
 func (r *SchoolRepository) FindByID(ctx context.Context, id int64) (*platform.School, error) {
 	school := new(platform.School)
@@ -29,6 +51,9 @@ func (r *SchoolRepository) FindByID(ctx context.Context, id int64) (*platform.Sc
 		Where(`"school".id = ?`, id).
 		Scan(ctx)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, &modelBase.DatabaseError{Op: "find school by id", Err: err}
+		}
 		return nil, err
 	}
 	return school, nil
@@ -43,7 +68,28 @@ func (r *SchoolRepository) FindBySlug(ctx context.Context, slug string) (*platfo
 		Where(`"school".slug = ?`, slug).
 		Scan(ctx)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
 		return nil, err
+	}
+	return school, nil
+}
+
+// FindByOrganizationAndSlug returns a school by its organization-scoped slug.
+func (r *SchoolRepository) FindByOrganizationAndSlug(ctx context.Context, organizationID int64, slug string) (*platform.School, error) {
+	school := new(platform.School)
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(school).
+		ModelTableExpr(schoolTableAlias).
+		Where(`"school".organization_id = ?`, organizationID).
+		Where(`"school".slug = ?`, slug).
+		Scan(ctx)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, &modelBase.DatabaseError{Op: "find school by organization and slug", Err: err}
 	}
 	return school, nil
 }
@@ -58,9 +104,27 @@ func (r *SchoolRepository) FindBySubdomain(ctx context.Context, subdomain string
 		Where(`"school".subdomain = ?`, subdomain).
 		Scan(ctx)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
 		return nil, err
 	}
 	return school, nil
+}
+
+// List returns all schools.
+func (r *SchoolRepository) List(ctx context.Context) ([]*platform.School, error) {
+	var schools []*platform.School
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(&schools).
+		ModelTableExpr(schoolTableAlias).
+		Relation("Organization").
+		OrderExpr(`"school".name ASC`).
+		Scan(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return schools, nil
 }
 
 // ListActive returns all active schools.

@@ -28,11 +28,14 @@ func NewClient(baseURL string, verbose bool) *Client {
 	}
 }
 
-// Login authenticates with the API and stores the JWT token
-func (c *Client) Login(email, password string) error {
+// Login authenticates with the tenant API and stores the JWT token.
+func (c *Client) Login(email, password string, tenantSlug ...string) error {
 	body := map[string]string{
 		"email":    email,
 		"password": password,
+	}
+	if len(tenantSlug) > 0 && tenantSlug[0] != "" {
+		body["tenant_slug"] = tenantSlug[0]
 	}
 
 	resp, err := c.doRequest("POST", "/auth/login", body, false)
@@ -58,6 +61,39 @@ func (c *Client) Login(email, password string) error {
 	return nil
 }
 
+// LoginOperator authenticates against the operator API and stores the JWT token.
+func (c *Client) LoginOperator(email, password string) error {
+	body := map[string]string{
+		"email":    email,
+		"password": password,
+	}
+
+	resp, err := c.doRequest("POST", "/operator/auth/login", body, false)
+	if err != nil {
+		return fmt.Errorf("operator login request failed: %w", err)
+	}
+
+	var loginResp struct {
+		Status string `json:"status"`
+		Data   struct {
+			AccessToken string `json:"access_token"`
+		} `json:"data"`
+		AccessToken string `json:"access_token"`
+	}
+	if err := json.Unmarshal(resp, &loginResp); err != nil {
+		return fmt.Errorf("failed to parse operator login response: %w", err)
+	}
+	if loginResp.Data.AccessToken != "" {
+		c.token = loginResp.Data.AccessToken
+		return nil
+	}
+	if loginResp.AccessToken == "" {
+		return fmt.Errorf("no access token in operator login response")
+	}
+	c.token = loginResp.AccessToken
+	return nil
+}
+
 // CheckHealth verifies the server is reachable
 func (c *Client) CheckHealth() error {
 	resp, err := c.httpClient.Get(c.baseURL + "/health")
@@ -74,21 +110,35 @@ func (c *Client) CheckHealth() error {
 
 // Post makes an authenticated POST request
 func (c *Client) Post(path string, body any) ([]byte, error) {
-	return c.doRequest("POST", path, body, true)
+	return c.doRequestWithHeaders("POST", path, body, true, nil)
+}
+
+// PostPublic makes an unauthenticated POST request.
+func (c *Client) PostPublic(path string, body any) ([]byte, error) {
+	return c.doRequestWithHeaders("POST", path, body, false, nil)
+}
+
+// PostWithHeaders makes an authenticated POST request with extra headers.
+func (c *Client) PostWithHeaders(path string, body any, headers map[string]string) ([]byte, error) {
+	return c.doRequestWithHeaders("POST", path, body, true, headers)
 }
 
 // Get makes an authenticated GET request
 func (c *Client) Get(path string) ([]byte, error) {
-	return c.doRequest("GET", path, nil, true)
+	return c.doRequestWithHeaders("GET", path, nil, true, nil)
 }
 
 // Put makes an authenticated PUT request
 func (c *Client) Put(path string, body any) ([]byte, error) {
-	return c.doRequest("PUT", path, body, true)
+	return c.doRequestWithHeaders("PUT", path, body, true, nil)
 }
 
 // doRequest is the central method for all HTTP requests with verbose logging
 func (c *Client) doRequest(method, path string, body any, auth bool) ([]byte, error) {
+	return c.doRequestWithHeaders(method, path, body, auth, nil)
+}
+
+func (c *Client) doRequestWithHeaders(method, path string, body any, auth bool, headers map[string]string) ([]byte, error) {
 	var jsonBody []byte
 	var err error
 
@@ -114,6 +164,9 @@ func (c *Client) doRequest(method, path string, body any, auth bool) ([]byte, er
 	}
 	if auth && c.token != "" {
 		req.Header.Set("Authorization", "Bearer "+c.token)
+	}
+	for key, value := range headers {
+		req.Header.Set(key, value)
 	}
 
 	// Log request in verbose mode

@@ -19,6 +19,14 @@ type OperatorRepository interface {
 	UpdateLastLogin(ctx context.Context, id int64) error
 }
 
+// OrganizationRepository defines operations for managing organizations.
+type OrganizationRepository interface {
+	Create(ctx context.Context, organization *Organization) error
+	FindByID(ctx context.Context, id int64) (*Organization, error)
+	FindBySlug(ctx context.Context, slug string) (*Organization, error)
+	List(ctx context.Context) ([]*Organization, error)
+}
+
 // AnnouncementRepository defines operations for managing announcements
 type AnnouncementRepository interface {
 	// Core CRUD operations
@@ -60,9 +68,12 @@ type AnnouncementViewRepository interface {
 
 // SchoolRepository defines read operations for school (tenant) records.
 type SchoolRepository interface {
+	Create(ctx context.Context, school *School) error
 	FindByID(ctx context.Context, id int64) (*School, error)
 	FindBySlug(ctx context.Context, slug string) (*School, error)
+	FindByOrganizationAndSlug(ctx context.Context, organizationID int64, slug string) (*School, error)
 	FindBySubdomain(ctx context.Context, subdomain string) (*School, error)
+	List(ctx context.Context) ([]*School, error)
 	ListActive(ctx context.Context) ([]School, error)
 	FindActiveByAccountID(ctx context.Context, accountID int64) ([]School, error)
 }

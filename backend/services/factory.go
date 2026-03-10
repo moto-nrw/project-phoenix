@@ -66,9 +66,10 @@ type Factory struct {
 	PasswordResetTokenExpiry time.Duration
 
 	// Platform domain (operator dashboard)
-	OperatorAuth        platform.OperatorAuthService
-	Announcement        platform.AnnouncementService
-	OperatorSuggestions platform.OperatorSuggestionsService
+	OperatorAuth         platform.OperatorAuthService
+	OperatorProvisioning platform.OperatorProvisioningService
+	Announcement         platform.AnnouncementService
+	OperatorSuggestions  platform.OperatorSuggestionsService
 }
 
 // NewFactory creates a new services factory
@@ -299,9 +300,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	invitationService := auth.NewInvitationService(auth.InvitationServiceConfig{
 		InvitationRepo:    repos.InvitationToken,
 		AccountRepo:       repos.Account,
+		AccountTenantRepo: repos.AccountTenant,
 		RoleRepo:          repos.Role,
 		AccountRoleRepo:   repos.AccountRole,
-		AccountTenantRepo: repos.AccountTenant,
 		PersonRepo:        repos.Person,
 		StaffRepo:         repos.Staff,
 		TeacherRepo:       repos.Teacher,
@@ -407,6 +408,17 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:          platformLogger,
 	})
 
+	operatorProvisioningService := platform.NewOperatorProvisioningService(platform.OperatorProvisioningServiceConfig{
+		OrganizationRepo:  repos.Organization,
+		SchoolRepo:        repos.School,
+		CategoryRepo:      repos.ActivityCategory,
+		RoleRepo:          repos.Role,
+		InvitationService: invitationService,
+		AuditLogRepo:      repos.OperatorAuditLog,
+		DB:                db,
+		Logger:            platformLogger,
+	})
+
 	return &Factory{
 		Auth:                     authService,
 		Active:                   activeService,
@@ -438,8 +450,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		PasswordResetTokenExpiry: passwordResetTokenExpiry,
 
 		// Platform services
-		OperatorAuth:        operatorAuthService,
-		Announcement:        announcementService,
-		OperatorSuggestions: operatorSuggestionsService,
+		OperatorAuth:         operatorAuthService,
+		OperatorProvisioning: operatorProvisioningService,
+		Announcement:         announcementService,
+		OperatorSuggestions:  operatorSuggestionsService,
 	}, nil
 }

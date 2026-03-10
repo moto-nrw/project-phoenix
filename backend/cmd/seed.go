@@ -18,8 +18,7 @@ Seeds via HTTP API calls against a running server. This ensures all data
 passes through validation, middleware, and tenant resolution — exactly
 like real users would interact with the system.
 
-REQUIRES: A running server with an admin account already created
-(via migrations or manual setup).
+REQUIRES: A running server with an operator account already created.
 
 DEMO DATA:
 - 12 rooms (OGS rooms, gym, schoolyard, cafeteria)
@@ -33,9 +32,9 @@ OUTPUT FILES:
 - simulator.yaml   — ready-to-use simulator configuration
 
 Usage:
-  go run main.go seed --email admin@example.com --password 'Test1234%' --pin 1234
-  go run main.go seed --email admin@example.com --password 'Test1234%' --pin 1234 --verbose
-  go run main.go seed --email admin@example.com --password 'Test1234%' --pin 1234 --url http://localhost:8080`,
+  go run main.go seed --email operator@example.com --password 'Test1234%' --pin 1234
+  go run main.go seed --email operator@example.com --password 'Test1234%' --pin 1234 --verbose
+  go run main.go seed --email operator@example.com --password 'Test1234%' --pin 1234 --url http://localhost:8080`,
 	Run: func(cmd *cobra.Command, args []string) {
 		ctx := context.Background()
 
@@ -50,7 +49,6 @@ Usage:
 		}
 
 		seeder := seedapi.NewSeeder(url, verbose)
-
 		result, err := seeder.Seed(ctx, email, password, pin)
 		if err != nil {
 			log.Fatal(err)
@@ -62,8 +60,8 @@ Usage:
 
 func init() {
 	RootCmd.AddCommand(seedCmd)
-	seedCmd.Flags().String("email", "", "Admin email for API authentication (required)")
-	seedCmd.Flags().String("password", "", "Admin password for API authentication (required)")
+	seedCmd.Flags().String("email", "", "Operator email for API authentication (required)")
+	seedCmd.Flags().String("password", "", "Operator password for API authentication (required)")
 	seedCmd.Flags().String("pin", "", "Staff PIN for IoT authentication (required)")
 	seedCmd.Flags().String("url", "http://localhost:8080", "Backend API URL")
 	seedCmd.Flags().Bool("verbose", false, "Enable verbose logging")

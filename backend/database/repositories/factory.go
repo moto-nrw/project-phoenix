@@ -121,6 +121,7 @@ type Factory struct {
 	WorkSessionEdit auditModels.WorkSessionEditRepository
 
 	// Platform domain (operator dashboard)
+	Organization     platformModels.OrganizationRepository
 	Operator         platformModels.OperatorRepository
 	Announcement     platformModels.AnnouncementRepository
 	AnnouncementView platformModels.AnnouncementViewRepository
@@ -218,6 +219,7 @@ func NewFactory(db *bun.DB) *Factory {
 		WorkSessionEdit: audit.NewWorkSessionEditRepository(db),
 
 		// Platform repositories
+		Organization:     platformRepo.NewOrganizationRepository(db),
 		Operator:         platformRepo.NewOperatorRepository(db),
 		Announcement:     platformRepo.NewAnnouncementRepository(db),
 		AnnouncementView: platformRepo.NewAnnouncementViewRepository(db),

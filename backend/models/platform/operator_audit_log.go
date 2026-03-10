@@ -29,6 +29,9 @@ const (
 	ResourceSuggestion   = "suggestion"
 	ResourceComment      = "operator_comment"
 	ResourceOperator     = "operator"
+	ResourceOrganization = "organization"
+	ResourceSchool       = "school"
+	ResourceInvitation   = "invitation"
 )
 
 // OperatorAuditLog tracks operator actions for auditing
