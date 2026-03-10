@@ -35,7 +35,6 @@ func newInvitationTestEnvWithMailer(t *testing.T, mailer email.Mailer) (Invitati
 
 	invitationRepo := newStubInvitationTokenRepository()
 	accountRepo := newStubAccountRepository()
-	accountTenantRepo := newStubAccountTenantRepository()
 	roleRepo := newStubRoleRepository(
 		&authModel.Role{Model: baseModel.Model{ID: 1}, Name: "Admin"},
 		&authModel.Role{Model: baseModel.Model{ID: 2}, Name: "Teacher"},

@@ -115,31 +115,7 @@ func TestResolveAccountTenantDefault_ReturnsTenantWithoutOrgWhenSchoolLookupRetu
 	assert.Zero(t, orgID)
 }
 
-func TestCreateAccountTenantMapping_PersistsActiveMapping(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupInternalAuthService(t, db)
-	ctx := testpkg.TenantContext(1)
-	account := testpkg.CreateTestAccount(t, db, "tenantmap")
-	testpkg.EnsureTestTenant(t, db, 2)
-	t.Cleanup(func() {
-		_, _ = db.ExecContext(ctx, `DELETE FROM auth.account_tenants WHERE account_id = ?`, account.ID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM auth.accounts WHERE id = ?`, account.ID)
-	})
-
-	err := service.createAccountTenantMapping(ctx, account.ID, 2)
-	require.NoError(t, err)
-
-	mappings, err := service.repos.AccountTenant.FindActiveByAccountID(ctx, account.ID)
-	require.NoError(t, err)
-	require.Len(t, mappings, 1)
-	assert.Equal(t, authModels.AccountTenantStatusActive, mappings[0].Status)
-	require.NotNil(t, mappings[0].ActivatedAt)
-	assert.WithinDuration(t, time.Now(), *mappings[0].ActivatedAt, time.Minute)
-}
-
-func TestPersistAccountWithRole_CreatesTenantMappingWhenTenantContextExists(t *testing.T) {
+func TestPersistAccountWithRole_CreatesTenantMappingWhenTenantIDProvided(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
@@ -161,7 +137,7 @@ func TestPersistAccountWithRole_CreatesTenantMappingWhenTenantContextExists(t *t
 		_, _ = db.ExecContext(ctx, `DELETE FROM auth.roles WHERE id = ?`, role.ID)
 	})
 
-	err := service.persistAccountWithRole(ctx, account, &role.ID)
+	err := service.persistAccountWithRole(ctx, account, &role.ID, 1)
 	require.NoError(t, err)
 	assert.NotZero(t, account.ID)
 

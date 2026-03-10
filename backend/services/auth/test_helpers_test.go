@@ -1190,51 +1190,12 @@ func (r *stubTeacherRepository) FindWithStaffAndPersonByIDs(context.Context, []i
 	panic("FindWithStaffAndPersonByIDs not implemented")
 }
 
-// stubAccountTenantRepository is an in-memory implementation of AccountTenantRepository for tests.
-type stubAccountTenantRepository struct {
-	mu       sync.Mutex
-	mappings map[string]*authModel.AccountTenant // key: "accountID-tenantID"
-}
-
-func newStubAccountTenantRepository() *stubAccountTenantRepository {
-	return &stubAccountTenantRepository{
-		mappings: make(map[string]*authModel.AccountTenant),
-	}
-}
-
-func (r *stubAccountTenantRepository) Create(_ context.Context, mapping *authModel.AccountTenant) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	key := fmt.Sprintf("%d-%d", mapping.AccountID, mapping.TenantID)
-	// ON CONFLICT DO NOTHING semantics
-	if _, exists := r.mappings[key]; !exists {
-		r.mappings[key] = mapping
-	}
-	return nil
-}
-
-func (r *stubAccountTenantRepository) FindActiveByAccountID(_ context.Context, accountID int64) ([]authModel.AccountTenant, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	var result []authModel.AccountTenant
-	for _, m := range r.mappings {
-		if m.AccountID == accountID && m.Status == authModel.AccountTenantStatusActive {
-			result = append(result, *m)
-		}
-	}
-	return result, nil
-}
-
-func (r *stubAccountTenantRepository) ExistsByAccountAndTenant(_ context.Context, accountID, tenantID int64) (bool, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	key := fmt.Sprintf("%d-%d", accountID, tenantID)
-	_, exists := r.mappings[key]
-	return exists, nil
-}
-
 // stubSchoolRepository is a minimal stub for SchoolRepository in tests.
 type stubSchoolRepository struct{}
+
+func (r *stubSchoolRepository) Create(context.Context, *platformModel.School) error {
+	return fmt.Errorf("not implemented")
+}
 
 func (r *stubSchoolRepository) FindByID(context.Context, int64) (*platformModel.School, error) {
 	return nil, fmt.Errorf("not found")
@@ -1244,8 +1205,16 @@ func (r *stubSchoolRepository) FindBySlug(context.Context, string) (*platformMod
 	return nil, fmt.Errorf("not found")
 }
 
+func (r *stubSchoolRepository) FindByOrganizationAndSlug(context.Context, int64, string) (*platformModel.School, error) {
+	return nil, fmt.Errorf("not found")
+}
+
 func (r *stubSchoolRepository) FindBySubdomain(context.Context, string) (*platformModel.School, error) {
 	return nil, fmt.Errorf("not found")
+}
+
+func (r *stubSchoolRepository) List(context.Context) ([]*platformModel.School, error) {
+	return nil, nil
 }
 
 func (r *stubSchoolRepository) ListActive(context.Context) ([]platformModel.School, error) {
