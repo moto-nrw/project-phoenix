@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/auth"
@@ -27,6 +28,13 @@ func NewAccountTenantRepository(db *bun.DB) auth.AccountTenantRepository {
 // ModelTableExpr is set explicitly because BUN's BeforeAppendModel hook does not
 // reliably schema-qualify the INSERT INTO clause — it only affects the alias.
 func (r *AccountTenantRepository) Create(ctx context.Context, mapping *auth.AccountTenant) error {
+	if mapping == nil {
+		return fmt.Errorf("account tenant cannot be nil")
+	}
+	if mapping.AccountID == 0 {
+		return fmt.Errorf("account_id is required")
+	}
+
 	_, err := base.GetDB(ctx, r.db).NewInsert().
 		Model(mapping).
 		ModelTableExpr(accountTenantTable).
