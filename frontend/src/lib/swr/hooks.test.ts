@@ -1,20 +1,34 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook } from "@testing-library/react";
-import { useSWRAuth, useImmutableSWR, useSWRWithId } from "./hooks";
+import {
+  useSWRAuth,
+  useImmutableSWR,
+  useSWRWithId,
+  useTenantMutate,
+} from "./hooks";
 
 // Mock next-auth/react
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(),
 }));
 
+const { mockSwrMutate } = vi.hoisted(() => ({
+  mockSwrMutate: vi.fn(),
+}));
+
 // Mock swr
 vi.mock("swr", () => ({
   default: vi.fn(),
+  mutate: mockSwrMutate,
 }));
 
-// Mock tenant provider — tests run outside a TenantProvider, so slug is null.
+const { mockUseTenantSlugSafe } = vi.hoisted(() => ({
+  mockUseTenantSlugSafe: vi.fn((): string | null => null),
+}));
+
+// Mock tenant provider — default returns null (no tenant context).
 vi.mock("~/components/tenant/tenant-provider", () => ({
-  useTenantSlugSafe: () => null,
+  useTenantSlugSafe: mockUseTenantSlugSafe,
 }));
 
 // Import mocked modules
@@ -46,6 +60,7 @@ describe("SWR Hooks", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUseTenantSlugSafe.mockReturnValue(null);
 
     // Default SWR mock return value
     vi.mocked(useSWR).mockReturnValue({
@@ -263,6 +278,76 @@ describe("SWR Hooks", () => {
         await wrappedFetcher("entity-123");
         expect(mockIdFetcher).toHaveBeenCalledWith("123");
       }
+    });
+  });
+
+  describe("tenant key prefixing", () => {
+    it("prefixes useSWRAuth key with tenant slug", () => {
+      mockUseTenantSlugSafe.mockReturnValue("school-a");
+      vi.mocked(useSession).mockReturnValue(
+        createMockSession("test-token") as ReturnType<typeof useSession>,
+      );
+
+      renderHook(() => useSWRAuth("students-list", mockFetcher));
+
+      expect(useSWR).toHaveBeenCalledWith(
+        "school-a:students-list",
+        mockFetcher,
+        expect.any(Object),
+      );
+    });
+
+    it("uses plain key when no tenant context", () => {
+      mockUseTenantSlugSafe.mockReturnValue(null);
+      vi.mocked(useSession).mockReturnValue(
+        createMockSession("test-token") as ReturnType<typeof useSession>,
+      );
+
+      renderHook(() => useSWRAuth("students-list", mockFetcher));
+
+      expect(useSWR).toHaveBeenCalledWith(
+        "students-list",
+        mockFetcher,
+        expect.any(Object),
+      );
+    });
+
+    it("prefixes useSWRWithId key with tenant slug", () => {
+      mockUseTenantSlugSafe.mockReturnValue("school-b");
+      vi.mocked(useSession).mockReturnValue(
+        createMockSession("test-token") as ReturnType<typeof useSession>,
+      );
+
+      const idFetcher = vi.fn(() => Promise.resolve({ id: "42" }));
+      renderHook(() => useSWRWithId("student", "42", idFetcher));
+
+      expect(useSWR).toHaveBeenCalledWith(
+        "school-b:student-42",
+        expect.any(Function),
+        expect.any(Object),
+      );
+    });
+  });
+
+  describe("useTenantMutate", () => {
+    it("calls swr mutate with tenant-prefixed key", () => {
+      mockUseTenantSlugSafe.mockReturnValue("school-a");
+
+      const { result } = renderHook(() => useTenantMutate());
+      void result.current("database-teachers-list");
+
+      expect(mockSwrMutate).toHaveBeenCalledWith(
+        "school-a:database-teachers-list",
+      );
+    });
+
+    it("calls swr mutate with plain key when no tenant context", () => {
+      mockUseTenantSlugSafe.mockReturnValue(null);
+
+      const { result } = renderHook(() => useTenantMutate());
+      void result.current("some-key");
+
+      expect(mockSwrMutate).toHaveBeenCalledWith("some-key");
     });
   });
 });

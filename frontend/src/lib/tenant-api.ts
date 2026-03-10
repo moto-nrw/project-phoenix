@@ -6,6 +6,9 @@
 
 import { sessionFetch } from "./session-cache";
 
+const TENANT_ACCESS_DENIED_MESSAGE =
+  "account does not have access to this tenant";
+
 export interface TenantSettings {
   logoUrl?: string;
   primaryColor?: string;
@@ -138,6 +141,42 @@ interface SwitchTenantResponse {
   refresh_token: string;
 }
 
+interface ErrorResponseBody {
+  error?: string;
+  message?: string;
+}
+
+export class TenantSwitchError extends Error {
+  status: number;
+  code: "access_denied" | "unknown";
+
+  constructor(
+    message: string,
+    status: number,
+    code: "access_denied" | "unknown" = "unknown",
+  ) {
+    super(message);
+    this.name = "TenantSwitchError";
+    this.status = status;
+    this.code = code;
+  }
+}
+
+async function parseErrorMessage(response: Response): Promise<string> {
+  const text = await response.text();
+
+  if (!text) {
+    return "Failed to switch tenant";
+  }
+
+  try {
+    const payload = JSON.parse(text) as ErrorResponseBody;
+    return payload.error ?? payload.message ?? text;
+  } catch {
+    return text;
+  }
+}
+
 /**
  * Switch the current session to a different tenant.
  * Returns new JWT tokens scoped to the target tenant.
@@ -150,8 +189,12 @@ export async function switchTenant(
     body: JSON.stringify({ tenant_slug: slug }),
   });
   if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || "Failed to switch tenant");
+    const message = await parseErrorMessage(response);
+    const code =
+      response.status === 401 && message === TENANT_ACCESS_DENIED_MESSAGE
+        ? "access_denied"
+        : "unknown";
+    throw new TenantSwitchError(message, response.status, code);
   }
   return (await response.json()) as SwitchTenantResponse;
 }

@@ -16,6 +16,7 @@ import (
 	"github.com/go-chi/render"
 	validation "github.com/go-ozzo/ozzo-validation"
 	"github.com/go-ozzo/ozzo-validation/is"
+	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
@@ -43,14 +44,16 @@ type Resource struct {
 	AuthService       authService.AuthService
 	InvitationService authService.InvitationService
 	SchoolRepo        platform.SchoolRepository
+	db                *bun.DB
 }
 
 // NewResource creates a new auth resource
-func NewResource(authService authService.AuthService, invitationService authService.InvitationService, schoolRepo platform.SchoolRepository) *Resource {
+func NewResource(authService authService.AuthService, invitationService authService.InvitationService, schoolRepo platform.SchoolRepository, db *bun.DB) *Resource {
 	return &Resource{
 		AuthService:       authService,
 		InvitationService: invitationService,
 		SchoolRepo:        schoolRepo,
+		db:                db,
 	}
 }
 
@@ -488,12 +491,12 @@ func (rs *Resource) register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Authorize role assignment (if role_id specified)
-	roleID, shouldReturn := rs.authorizeRoleAssignment(w, r, req.RoleID)
+	roleID, callerTenantID, shouldReturn := rs.authorizeRoleAssignment(w, r, req.RoleID)
 	if shouldReturn {
 		return
 	}
 
-	account, err := rs.AuthService.Register(r.Context(), req.Email, req.Username, req.Password, roleID)
+	account, err := rs.AuthService.Register(r.Context(), req.Email, req.Username, req.Password, roleID, callerTenantID)
 	if err != nil {
 		rs.handleRegistrationError(w, r, err)
 		return
@@ -504,22 +507,23 @@ func (rs *Resource) register(w http.ResponseWriter, r *http.Request) {
 }
 
 // authorizeRoleAssignment checks if the caller is an authenticated admin and has provided a valid role_id.
-// Registration always requires admin authentication. Returns the authorized role ID and a boolean
-// indicating if the handler should return early (true = error was rendered, caller should return).
-func (rs *Resource) authorizeRoleAssignment(w http.ResponseWriter, r *http.Request, requestedRoleID *int64) (*int64, bool) {
+// Registration always requires admin authentication. Returns the authorized role ID, the caller's
+// tenant ID (from JWT), and a boolean indicating if the handler should return early (true = error
+// was rendered, caller should return).
+func (rs *Resource) authorizeRoleAssignment(w http.ResponseWriter, r *http.Request, requestedRoleID *int64) (*int64, int64, bool) {
 	authHeader := r.Header.Get("Authorization")
 	if !isValidAuthHeader(authHeader) {
 		common.RenderError(w, r, ErrorUnauthorized(
 			errors.New("admin authentication required to create accounts")))
-		return nil, true
+		return nil, 0, true
 	}
 
 	token := authHeader[7:]
-	callerAccount, err := rs.AuthService.ValidateToken(r.Context(), token)
+	callerAccount, callerClaims, err := rs.AuthService.ValidateToken(r.Context(), token)
 	if err != nil {
 		common.RenderError(w, r, ErrorUnauthorized(
 			errors.New("invalid or expired token")))
-		return nil, true
+		return nil, 0, true
 	}
 
 	if !hasAdminRole(callerAccount.Roles) {
@@ -527,13 +531,19 @@ func (rs *Resource) authorizeRoleAssignment(w http.ResponseWriter, r *http.Reque
 			slog.Int64("account_id", callerAccount.ID))
 		common.RenderError(w, r, ErrorUnauthorized(
 			errors.New("only administrators can create accounts")))
-		return nil, true
+		return nil, 0, true
 	}
 
 	if requestedRoleID == nil || *requestedRoleID <= 0 {
 		common.RenderError(w, r, ErrorInvalidRequest(
 			errors.New("role_id is required when creating accounts")))
-		return nil, true
+		return nil, 0, true
+	}
+
+	if callerClaims.TenantID <= 0 {
+		common.RenderError(w, r, ErrorInvalidRequest(
+			authService.ErrTenantRequiredForRoleAssignment))
+		return nil, 0, true
 	}
 
 	// Verify the role actually exists in the database
@@ -549,10 +559,10 @@ func (rs *Resource) authorizeRoleAssignment(w http.ResponseWriter, r *http.Reque
 			common.RenderError(w, r, ErrorInternalServer(
 				errors.New("failed to verify role")))
 		}
-		return nil, true
+		return nil, 0, true
 	}
 
-	return requestedRoleID, false
+	return requestedRoleID, callerClaims.TenantID, false
 }
 
 // isValidAuthHeader checks if the Authorization header contains a valid Bearer token format
@@ -585,6 +595,8 @@ func (rs *Resource) handleRegistrationError(w http.ResponseWriter, r *http.Reque
 		common.RenderError(w, r, ErrorInvalidRequest(authService.ErrUsernameAlreadyExists))
 	case errors.Is(authErr.Err, authService.ErrPasswordTooWeak):
 		common.RenderError(w, r, ErrorInvalidRequest(authService.ErrPasswordTooWeak))
+	case errors.Is(authErr.Err, authService.ErrTenantRequiredForRoleAssignment):
+		common.RenderError(w, r, ErrorInvalidRequest(authService.ErrTenantRequiredForRoleAssignment))
 	default:
 		common.RenderError(w, r, ErrorInternalServer(err))
 	}

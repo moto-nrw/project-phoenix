@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { signIn, useSession } from "next-auth/react";
+import { signIn, signOut, useSession } from "next-auth/react";
 import { mutate } from "~/lib/swr";
 import { clearSessionCache } from "~/lib/session-cache";
-import { switchTenant } from "~/lib/tenant-api";
+import { TenantSwitchError, switchTenant } from "~/lib/tenant-api";
 import { useTenant } from "~/components/tenant/tenant-provider";
 import { createLogger } from "~/lib/logger";
 
@@ -84,8 +84,10 @@ export function TenantGuard({ children }: { children: React.ReactNode }) {
           error: err instanceof Error ? err.message : String(err),
           target_slug: urlSlug,
         });
-        // User lacks access to this tenant — redirect to root
-        window.location.href = "/";
+
+        if (err instanceof TenantSwitchError && err.code === "access_denied") {
+          await signOut({ callbackUrl: "/" });
+        }
       }
     })();
   }, [status, tenant, sessionTenantId, urlTenantId, urlSlug, update]);

@@ -10,12 +10,13 @@ import (
 
 // InvitationRequest describes the data required to create a new invitation.
 type InvitationRequest struct {
-	Email     string
-	RoleID    int64
-	FirstName *string
-	LastName  *string
-	Position  *string
-	CreatedBy int64
+	Email      string
+	RoleID     int64
+	FirstName  *string
+	LastName   *string
+	Position   *string
+	CreatedBy  int64
+	SchoolName string // Display name of the tenant (shown in invitation email)
 }
 
 // UserRegistrationData captures the information supplied when accepting an invitation.

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import type { TenantSwitchError } from "./tenant-api";
 
 // ============================================================================
 // Mocks
@@ -304,22 +305,37 @@ describe("tenant-api", () => {
       expect(result).toEqual(tokens);
     });
 
-    it("throws error on failure", async () => {
+    it("throws classified access-denied error on tenant authorization failure", async () => {
       mockSessionFetch.mockResolvedValueOnce(
-        new Response("Tenant not found", { status: 404 }),
+        new Response(
+          JSON.stringify({
+            status: "error",
+            error: "account does not have access to this tenant",
+          }),
+          {
+            status: 401,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
       );
 
-      await expect(switchTenant("nonexistent")).rejects.toThrow(
-        "Tenant not found",
-      );
+      await expect(switchTenant("nonexistent")).rejects.toMatchObject({
+        name: "TenantSwitchError",
+        message: "account does not have access to this tenant",
+        status: 401,
+        code: "access_denied",
+      } satisfies Partial<TenantSwitchError>);
     });
 
     it("throws generic error when response body is empty", async () => {
       mockSessionFetch.mockResolvedValueOnce(new Response("", { status: 500 }));
 
-      await expect(switchTenant("bad")).rejects.toThrow(
-        "Failed to switch tenant",
-      );
+      await expect(switchTenant("bad")).rejects.toMatchObject({
+        name: "TenantSwitchError",
+        message: "Failed to switch tenant",
+        status: 500,
+        code: "unknown",
+      } satisfies Partial<TenantSwitchError>);
     });
   });
 });

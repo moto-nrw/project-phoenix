@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -12,11 +13,14 @@ import (
 	"github.com/go-chi/render"
 	validation "github.com/go-ozzo/ozzo-validation"
 	"github.com/go-ozzo/ozzo-validation/is"
+	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/email"
+	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Error messages (S1192 - avoid duplicate string literals)
@@ -83,6 +87,14 @@ func (rs *Resource) createInvitation(w http.ResponseWriter, r *http.Request) {
 		CreatedBy: int64(claims.ID),
 	}
 
+	// Resolve tenant display name for the invitation email.
+	if rs.SchoolRepo != nil {
+		tenantID := tenant.FromContext(r.Context())
+		if school, err := rs.SchoolRepo.FindByID(r.Context(), tenantID); err == nil {
+			invitationReq.SchoolName = school.Name
+		}
+	}
+
 	if req.FirstName != "" {
 		first := req.FirstName
 		invitationReq.FirstName = &first
@@ -96,7 +108,14 @@ func (rs *Resource) createInvitation(w http.ResponseWriter, r *http.Request) {
 		invitationReq.Position = &position
 	}
 
-	invitation, err := rs.InvitationService.CreateInvitation(r.Context(), invitationReq)
+	var invitation *authModels.InvitationToken
+	ctx := r.Context()
+	tenantID := tenant.FromContext(ctx)
+	err := tenant.WithTenantTx(ctx, rs.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		inv, txErr := rs.InvitationService.CreateInvitation(txCtx, invitationReq)
+		invitation = inv
+		return txErr
+	})
 	if err != nil {
 		// Check for email already exists error
 		if errors.Is(err, authService.ErrEmailAlreadyExists) {
@@ -150,7 +169,13 @@ func (rs *Resource) validateInvitation(w http.ResponseWriter, r *http.Request) {
 	token := strings.TrimSpace(chi.URLParam(r, "token"))
 	slog.Default().Info("invitation validation requested")
 
-	result, err := rs.InvitationService.ValidateInvitation(r.Context(), token)
+	// Public route — no JWT/tenant context. Use WithAdminTx (BYPASSRLS) to read invitation_tokens.
+	var result *authService.InvitationValidationResult
+	err := tenant.WithAdminTx(r.Context(), rs.db, func(txCtx context.Context, _ bun.Tx) error {
+		var txErr error
+		result, txErr = rs.InvitationService.ValidateInvitation(txCtx, token)
+		return txErr
+	})
 	if err != nil {
 		if renderInvitationError(w, r, err) {
 			return
@@ -205,7 +230,14 @@ func (rs *Resource) acceptInvitation(w http.ResponseWriter, r *http.Request) {
 		ConfirmPassword: req.ConfirmPassword,
 	}
 
-	account, err := rs.InvitationService.AcceptInvitation(r.Context(), token, userData)
+	// Public route — no JWT/tenant context. Use WithAdminTx (BYPASSRLS) so the service's
+	// inner RunInTx reuses the admin tx from context (TxHandler.GetTx checks context first).
+	var account *authModels.Account
+	err := tenant.WithAdminTx(r.Context(), rs.db, func(txCtx context.Context, _ bun.Tx) error {
+		var txErr error
+		account, txErr = rs.InvitationService.AcceptInvitation(txCtx, token, userData)
+		return txErr
+	})
 	if err != nil {
 		if errors.Is(err, authService.ErrPasswordTooWeak) || errors.Is(err, authService.ErrPasswordMismatch) {
 			common.RenderError(w, r, ErrorInvalidRequest(err))
@@ -246,7 +278,13 @@ func (rs *Resource) listPendingInvitations(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	invitations, err := rs.InvitationService.ListPendingInvitations(r.Context())
+	var invitations []*authModels.InvitationToken
+	ctx := r.Context()
+	err := tenant.WithTenantTx(ctx, rs.db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
+		inv, txErr := rs.InvitationService.ListPendingInvitations(txCtx)
+		invitations = inv
+		return txErr
+	})
 	if err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
@@ -306,7 +344,10 @@ func (rs *Resource) resendInvitation(w http.ResponseWriter, r *http.Request) {
 
 	claims := jwt.ClaimsFromCtx(r.Context())
 
-	err = rs.InvitationService.ResendInvitation(r.Context(), invitationID, int64(claims.ID))
+	ctx := r.Context()
+	err = tenant.WithTenantTx(ctx, rs.db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
+		return rs.InvitationService.ResendInvitation(txCtx, invitationID, int64(claims.ID))
+	})
 	if err != nil {
 		if errors.Is(err, authService.ErrInvitationExpired) {
 			common.RenderError(w, r, ErrorInvalidRequest(authService.ErrInvitationExpired))
@@ -340,7 +381,10 @@ func (rs *Resource) revokeInvitation(w http.ResponseWriter, r *http.Request) {
 
 	claims := jwt.ClaimsFromCtx(r.Context())
 
-	if err := rs.InvitationService.RevokeInvitation(r.Context(), invitationID, int64(claims.ID)); err != nil {
+	ctx := r.Context()
+	if err := tenant.WithTenantTx(ctx, rs.db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
+		return rs.InvitationService.RevokeInvitation(txCtx, invitationID, int64(claims.ID))
+	}); err != nil {
 		if renderInvitationError(w, r, err) {
 			return
 		}

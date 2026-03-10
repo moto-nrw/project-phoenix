@@ -2,6 +2,7 @@
 package auth_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -83,7 +84,7 @@ func TestAuthService_Register(t *testing.T) {
 		password := testPassword
 
 		// ACT
-		account, err := service.Register(ctx, email, username, password, nil)
+		account, err := service.Register(ctx, email, username, password, nil, 0)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -95,7 +96,7 @@ func TestAuthService_Register(t *testing.T) {
 
 	t.Run("returns error for empty email", func(t *testing.T) {
 		// ACT
-		account, err := service.Register(ctx, "", "username", testPassword, nil)
+		account, err := service.Register(ctx, "", "username", testPassword, nil, 0)
 
 		// ASSERT
 		require.Error(t, err)
@@ -104,7 +105,7 @@ func TestAuthService_Register(t *testing.T) {
 
 	t.Run("returns error for empty password", func(t *testing.T) {
 		// ACT
-		account, err := service.Register(ctx, "test@example.com", "username", "", nil)
+		account, err := service.Register(ctx, "test@example.com", "username", "", nil, 0)
 
 		// ASSERT
 		require.Error(t, err)
@@ -113,11 +114,35 @@ func TestAuthService_Register(t *testing.T) {
 
 	t.Run("returns error for weak password", func(t *testing.T) {
 		// ACT
-		account, err := service.Register(ctx, "weak@example.com", "username", "weak", nil)
+		account, err := service.Register(ctx, "weak@example.com", "username", "weak", nil, 0)
 
 		// ASSERT
 		require.Error(t, err)
 		assert.Nil(t, account)
+	})
+
+	t.Run("rejects role assignment without tenant context", func(t *testing.T) {
+		role := testpkg.CreateTestRole(t, db, fmt.Sprintf("platform-role-%d", time.Now().UnixNano()))
+		defer testpkg.CleanupTableRecords(t, db, "auth.roles", role.ID)
+
+		email := fmt.Sprintf("tenantless-role-%d@test.local", time.Now().UnixNano())
+		username := fmt.Sprintf("tenantless-role-%d", time.Now().UnixNano())
+		roleID := role.ID
+
+		account, err := service.Register(ctx, email, username, testPassword, &roleID, 0)
+
+		require.Error(t, err)
+		assert.Nil(t, account)
+		assert.True(t, errors.Is(err, auth.ErrTenantRequiredForRoleAssignment))
+
+		var accountCount int
+		err = db.NewSelect().
+			TableExpr("auth.accounts").
+			ColumnExpr("COUNT(*)").
+			Where("email = ?", strings.ToLower(email)).
+			Scan(context.Background(), &accountCount)
+		require.NoError(t, err)
+		assert.Equal(t, 0, accountCount, "registration should fail before creating an unusable account")
 	})
 
 	t.Run("returns error for duplicate email", func(t *testing.T) {
@@ -125,13 +150,13 @@ func TestAuthService_Register(t *testing.T) {
 		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
 		email := fmt.Sprintf("duplicate-%s@test.local", uniqueID)
 		username1 := fmt.Sprintf("user1-%s", uniqueID)
-		account1, err := service.Register(ctx, email, username1, testPassword, nil)
+		account1, err := service.Register(ctx, email, username1, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account1.ID)
 
 		// ACT - try to register with same email
 		username2 := fmt.Sprintf("user2-%s", uniqueID)
-		account2, err := service.Register(ctx, email, username2, testPassword, nil)
+		account2, err := service.Register(ctx, email, username2, testPassword, nil, 0)
 
 		// ASSERT
 		require.Error(t, err)
@@ -156,7 +181,7 @@ func TestAuthService_Login(t *testing.T) {
 		email := fmt.Sprintf("login-%s@test.local", uniqueID)
 		username := fmt.Sprintf("loginuser-%s", uniqueID)
 		password := testPassword
-		account, err := service.Register(ctx, email, username, password, nil)
+		account, err := service.Register(ctx, email, username, password, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -174,7 +199,7 @@ func TestAuthService_Login(t *testing.T) {
 		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
 		email := fmt.Sprintf("wrongpwd-%s@test.local", uniqueID)
 		username := fmt.Sprintf("wrongpwd-%s", uniqueID)
-		account, err := service.Register(ctx, email, username, testPassword, nil)
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -212,7 +237,7 @@ func TestAuthService_Login(t *testing.T) {
 		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
 		email := fmt.Sprintf("emptypwd-%s@test.local", uniqueID)
 		username := fmt.Sprintf("emptypwd-%s", uniqueID)
-		account, err := service.Register(ctx, email, username, testPassword, nil)
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -240,7 +265,7 @@ func TestAuthService_ValidateToken(t *testing.T) {
 	t.Run("validates token successfully", func(t *testing.T) {
 		// ARRANGE
 		email, username := uniqueTestCredentials("validate")
-		account, err := service.Register(ctx, email, username, testPassword, nil)
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -248,17 +273,18 @@ func TestAuthService_ValidateToken(t *testing.T) {
 		require.NoError(t, err)
 
 		// ACT
-		validatedAccount, err := service.ValidateToken(ctx, accessToken)
+		validatedAccount, claims, err := service.ValidateToken(ctx, accessToken)
 
 		// ASSERT
 		require.NoError(t, err)
 		assert.NotNil(t, validatedAccount)
+		assert.NotNil(t, claims)
 		assert.Equal(t, account.ID, validatedAccount.ID)
 	})
 
 	t.Run("returns error for invalid token", func(t *testing.T) {
 		// ACT
-		account, err := service.ValidateToken(ctx, "invalid.token.here")
+		account, _, err := service.ValidateToken(ctx, "invalid.token.here")
 
 		// ASSERT
 		require.Error(t, err)
@@ -267,7 +293,7 @@ func TestAuthService_ValidateToken(t *testing.T) {
 
 	t.Run("returns error for empty token", func(t *testing.T) {
 		// ACT
-		account, err := service.ValidateToken(ctx, "")
+		account, _, err := service.ValidateToken(ctx, "")
 
 		// ASSERT
 		require.Error(t, err)
@@ -289,7 +315,7 @@ func TestAuthService_RefreshToken(t *testing.T) {
 	t.Run("refreshes token successfully", func(t *testing.T) {
 		// ARRANGE
 		email, username := uniqueTestCredentials("refresh")
-		account, err := service.Register(ctx, email, username, testPassword, nil)
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -339,7 +365,7 @@ func TestAuthService_RefreshToken_ConcurrentSingleflight(t *testing.T) {
 
 	// ARRANGE: create account and get a refresh token
 	email, username := uniqueTestCredentials("singleflight")
-	account, err := service.Register(ctx, email, username, testPassword, nil)
+	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 	require.NoError(t, err)
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -401,7 +427,7 @@ func TestAuthService_Logout(t *testing.T) {
 	t.Run("logout succeeds", func(t *testing.T) {
 		// ARRANGE
 		email, username := uniqueTestCredentials("logout")
-		account, err := service.Register(ctx, email, username, testPassword, nil)
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -444,7 +470,7 @@ func TestAuthService_ChangePassword(t *testing.T) {
 		email, username := uniqueTestCredentials("changepwd")
 		oldPassword := testPassword
 		newPassword := "NewPassword1%"
-		account, err := service.Register(ctx, email, username, oldPassword, nil)
+		account, err := service.Register(ctx, email, username, oldPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -462,7 +488,7 @@ func TestAuthService_ChangePassword(t *testing.T) {
 	t.Run("returns error for wrong current password", func(t *testing.T) {
 		// ARRANGE
 		email, username := uniqueTestCredentials("wrongcurrent")
-		account, err := service.Register(ctx, email, username, testPassword, nil)
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -476,7 +502,7 @@ func TestAuthService_ChangePassword(t *testing.T) {
 	t.Run("returns error for weak new password", func(t *testing.T) {
 		// ARRANGE
 		email, username := uniqueTestCredentials("weaknew")
-		account, err := service.Register(ctx, email, username, testPassword, nil)
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -502,7 +528,7 @@ func TestAuthService_GetAccountByID(t *testing.T) {
 	t.Run("returns account when found", func(t *testing.T) {
 		// ARRANGE
 		email, username := uniqueTestCredentials("getbyid")
-		account, err := service.Register(ctx, email, username, testPassword, nil)
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -540,7 +566,7 @@ func TestAuthService_GetAccountByEmail(t *testing.T) {
 	t.Run("returns account when found", func(t *testing.T) {
 		// ARRANGE
 		email, username := uniqueTestCredentials("getbyemail")
-		account, err := service.Register(ctx, email, username, testPassword, nil)
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -577,7 +603,7 @@ func TestAuthService_ActivateAccount(t *testing.T) {
 	t.Run("activates account successfully", func(t *testing.T) {
 		// ARRANGE
 		email, username := uniqueTestCredentials("activate")
-		account, err := service.Register(ctx, email, username, testPassword, nil)
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -616,7 +642,7 @@ func TestAuthService_DeactivateAccount(t *testing.T) {
 	t.Run("deactivates account successfully", func(t *testing.T) {
 		// ARRANGE
 		email, username := uniqueTestCredentials("deactivate")
-		account, err := service.Register(ctx, email, username, testPassword, nil)
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -635,7 +661,7 @@ func TestAuthService_DeactivateAccount(t *testing.T) {
 	t.Run("deactivated account cannot login", func(t *testing.T) {
 		// ARRANGE
 		email, username := uniqueTestCredentials("nologin")
-		account, err := service.Register(ctx, email, username, testPassword, nil)
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -664,7 +690,7 @@ func TestAuthService_ListAccounts(t *testing.T) {
 	t.Run("returns accounts with no filters", func(t *testing.T) {
 		// ARRANGE
 		email, username := uniqueTestCredentials("list")
-		account, err := service.Register(ctx, email, username, testPassword, nil)
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -723,7 +749,7 @@ func TestAuthService_RevokeAllTokens(t *testing.T) {
 	t.Run("revokes all tokens for account", func(t *testing.T) {
 		// ARRANGE
 		email, username := uniqueTestCredentials("revoke")
-		account, err := service.Register(ctx, email, username, testPassword, nil)
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -753,7 +779,7 @@ func TestAuthService_GetActiveTokens(t *testing.T) {
 	t.Run("returns active tokens for account", func(t *testing.T) {
 		// ARRANGE
 		email, username := uniqueTestCredentials("activetokens")
-		account, err := service.Register(ctx, email, username, testPassword, nil)
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -772,7 +798,7 @@ func TestAuthService_GetActiveTokens(t *testing.T) {
 	t.Run("returns empty list for account with no tokens", func(t *testing.T) {
 		// ARRANGE
 		email, username := uniqueTestCredentials("notokens")
-		account, err := service.Register(ctx, email, username, testPassword, nil)
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -973,7 +999,7 @@ func TestAuthService_AssignRoleToAccount(t *testing.T) {
 	t.Run("assigns role to account", func(t *testing.T) {
 		// ARRANGE
 		email, username := uniqueTestCredentials("assignrole")
-		account, err := service.Register(ctx, email, username, testPassword, nil)
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -1011,7 +1037,7 @@ func TestAuthService_RemoveRoleFromAccount(t *testing.T) {
 	t.Run("removes role from account", func(t *testing.T) {
 		// ARRANGE
 		email, username := uniqueTestCredentials("removerole")
-		account, err := service.Register(ctx, email, username, testPassword, nil)
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -1118,7 +1144,7 @@ func TestAuthService_GrantPermissionToAccount(t *testing.T) {
 		// ARRANGE
 		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
 		email, username := uniqueTestCredentials("grantperm")
-		account, err := service.Register(ctx, email, username, testPassword, nil)
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -1343,7 +1369,7 @@ func TestAuthService_GetAccountPermissions(t *testing.T) {
 	t.Run("returns account permissions", func(t *testing.T) {
 		// ARRANGE - create account with permission
 		email, username := uniqueTestCredentials("acctperms")
-		account, err := service.Register(ctx, email, username, testPassword, nil)
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -1375,7 +1401,7 @@ func TestAuthService_GetAccountDirectPermissions(t *testing.T) {
 	t.Run("returns direct permissions only", func(t *testing.T) {
 		// ARRANGE
 		email, username := uniqueTestCredentials("directperms")
-		account, err := service.Register(ctx, email, username, testPassword, nil)
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -1407,7 +1433,7 @@ func TestAuthService_RemovePermissionFromAccount(t *testing.T) {
 	t.Run("removes permission from account", func(t *testing.T) {
 		// ARRANGE
 		email, username := uniqueTestCredentials("removeperm")
-		account, err := service.Register(ctx, email, username, testPassword, nil)
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -1534,7 +1560,7 @@ func TestAuthService_UpdateAccount(t *testing.T) {
 	t.Run("updates account successfully", func(t *testing.T) {
 		// ARRANGE
 		email, username := uniqueTestCredentials("updateacct")
-		account, err := service.Register(ctx, email, username, testPassword, nil)
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -1724,7 +1750,7 @@ func TestInvitationService_CreateInvitation(t *testing.T) {
 
 		// Create an account to be the creator
 		creatorEmail := fmt.Sprintf("creator-%d@test.local", time.Now().UnixNano())
-		creator, err := authService.Register(ctx, creatorEmail, fmt.Sprintf("creator%d", time.Now().UnixNano()), testPassword, nil)
+		creator, err := authService.Register(ctx, creatorEmail, fmt.Sprintf("creator%d", time.Now().UnixNano()), testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, creator.ID)
 
@@ -1757,7 +1783,7 @@ func TestInvitationService_CreateInvitation(t *testing.T) {
 		// ARRANGE
 		role := testpkg.GetOrCreateTestRole(t, db, "User")
 		creatorEmail := fmt.Sprintf("creator2-%d@test.local", time.Now().UnixNano())
-		creator, err := authService.Register(ctx, creatorEmail, fmt.Sprintf("creator2%d", time.Now().UnixNano()), testPassword, nil)
+		creator, err := authService.Register(ctx, creatorEmail, fmt.Sprintf("creator2%d", time.Now().UnixNano()), testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, creator.ID)
 
@@ -1794,7 +1820,7 @@ func TestInvitationService_ValidateInvitation(t *testing.T) {
 		// ARRANGE
 		role := testpkg.GetOrCreateTestRole(t, db, "User")
 		creatorEmail := fmt.Sprintf("creator-val-%d@test.local", time.Now().UnixNano())
-		creator, err := authService.Register(ctx, creatorEmail, fmt.Sprintf("creatorval%d", time.Now().UnixNano()), testPassword, nil)
+		creator, err := authService.Register(ctx, creatorEmail, fmt.Sprintf("creatorval%d", time.Now().UnixNano()), testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, creator.ID)
 
@@ -1822,7 +1848,7 @@ func TestInvitationService_ValidateInvitation(t *testing.T) {
 		// ARRANGE
 		role := testpkg.GetOrCreateTestRole(t, db, "User")
 		creatorEmail := fmt.Sprintf("creator-exp-%d@test.local", time.Now().UnixNano())
-		creator, err := authService.Register(ctx, creatorEmail, fmt.Sprintf("creatorexp%d", time.Now().UnixNano()), testPassword, nil)
+		creator, err := authService.Register(ctx, creatorEmail, fmt.Sprintf("creatorexp%d", time.Now().UnixNano()), testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, creator.ID)
 
@@ -1863,7 +1889,7 @@ func TestInvitationService_AcceptInvitation(t *testing.T) {
 		// ARRANGE
 		role := testpkg.GetOrCreateTestRole(t, db, "User")
 		creatorEmail := fmt.Sprintf("creator-acc-%d@test.local", time.Now().UnixNano())
-		creator, err := authService.Register(ctx, creatorEmail, fmt.Sprintf("creatoracc%d", time.Now().UnixNano()), testPassword, nil)
+		creator, err := authService.Register(ctx, creatorEmail, fmt.Sprintf("creatoracc%d", time.Now().UnixNano()), testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, creator.ID)
 
@@ -1903,7 +1929,7 @@ func TestInvitationService_AcceptInvitation(t *testing.T) {
 		// ARRANGE
 		role := testpkg.GetOrCreateTestRole(t, db, "User")
 		creatorEmail := fmt.Sprintf("creator-weak-%d@test.local", time.Now().UnixNano())
-		creator, err := authService.Register(ctx, creatorEmail, fmt.Sprintf("creatorweak%d", time.Now().UnixNano()), testPassword, nil)
+		creator, err := authService.Register(ctx, creatorEmail, fmt.Sprintf("creatorweak%d", time.Now().UnixNano()), testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, creator.ID)
 
@@ -1935,7 +1961,7 @@ func TestInvitationService_AcceptInvitation(t *testing.T) {
 		// ARRANGE
 		role := testpkg.GetOrCreateTestRole(t, db, "User")
 		creatorEmail := fmt.Sprintf("creator-exprej-%d@test.local", time.Now().UnixNano())
-		creator, err := authService.Register(ctx, creatorEmail, fmt.Sprintf("creatorexprej%d", time.Now().UnixNano()), testPassword, nil)
+		creator, err := authService.Register(ctx, creatorEmail, fmt.Sprintf("creatorexprej%d", time.Now().UnixNano()), testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, creator.ID)
 
@@ -1972,7 +1998,7 @@ func TestInvitationService_RevokeInvitation(t *testing.T) {
 		// ARRANGE
 		role := testpkg.GetOrCreateTestRole(t, db, "User")
 		creatorEmail := fmt.Sprintf("creator-rev-%d@test.local", time.Now().UnixNano())
-		creator, err := authService.Register(ctx, creatorEmail, fmt.Sprintf("creatorrev%d", time.Now().UnixNano()), testPassword, nil)
+		creator, err := authService.Register(ctx, creatorEmail, fmt.Sprintf("creatorrev%d", time.Now().UnixNano()), testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, creator.ID)
 
@@ -2010,7 +2036,7 @@ func TestAuthService_InitiatePasswordReset(t *testing.T) {
 	t.Run("creates password reset token for existing account", func(t *testing.T) {
 		// ARRANGE - Create an account
 		email := fmt.Sprintf("reset-%d@test.local", time.Now().UnixNano())
-		account, err := service.Register(ctx, email, fmt.Sprintf("resetuser%d", time.Now().UnixNano()), testPassword, nil)
+		account, err := service.Register(ctx, email, fmt.Sprintf("resetuser%d", time.Now().UnixNano()), testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -2051,7 +2077,7 @@ func TestAuthService_ResetPassword(t *testing.T) {
 	t.Run("resets password with valid token", func(t *testing.T) {
 		// ARRANGE - Create an account and initiate password reset
 		email := fmt.Sprintf("resetpw-%d@test.local", time.Now().UnixNano())
-		account, err := service.Register(ctx, email, fmt.Sprintf("resetpw%d", time.Now().UnixNano()), testPassword, nil)
+		account, err := service.Register(ctx, email, fmt.Sprintf("resetpw%d", time.Now().UnixNano()), testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -2077,7 +2103,7 @@ func TestAuthService_ResetPassword(t *testing.T) {
 	t.Run("rejects weak password", func(t *testing.T) {
 		// ARRANGE
 		email := fmt.Sprintf("weakreset-%d@test.local", time.Now().UnixNano())
-		account, err := service.Register(ctx, email, fmt.Sprintf("weakreset%d", time.Now().UnixNano()), testPassword, nil)
+		account, err := service.Register(ctx, email, fmt.Sprintf("weakreset%d", time.Now().UnixNano()), testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -2105,7 +2131,7 @@ func TestAuthService_ResetPassword(t *testing.T) {
 	t.Run("rejects already-used token", func(t *testing.T) {
 		// ARRANGE
 		email := fmt.Sprintf("usedtoken-%d@test.local", time.Now().UnixNano())
-		account, err := service.Register(ctx, email, fmt.Sprintf("usedtoken%d", time.Now().UnixNano()), testPassword, nil)
+		account, err := service.Register(ctx, email, fmt.Sprintf("usedtoken%d", time.Now().UnixNano()), testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -2143,7 +2169,7 @@ func TestAuthService_PasswordResetRateLimit(t *testing.T) {
 	t.Run("allows multiple reset requests within limit", func(t *testing.T) {
 		// ARRANGE
 		email := fmt.Sprintf("ratelimit-%d@test.local", time.Now().UnixNano())
-		account, err := service.Register(ctx, email, fmt.Sprintf("ratelimit%d", time.Now().UnixNano()), testPassword, nil)
+		account, err := service.Register(ctx, email, fmt.Sprintf("ratelimit%d", time.Now().UnixNano()), testPassword, nil, 0)
 		require.NoError(t, err)
 		t.Cleanup(func() {
 			testpkg.CleanupAuthFixtures(t, db, account.ID)
@@ -2168,7 +2194,7 @@ func TestAuthService_PasswordResetRateLimit(t *testing.T) {
 	t.Run("blocks requests after exceeding rate limit", func(t *testing.T) {
 		// ARRANGE
 		email := fmt.Sprintf("exceededlimit-%d@test.local", time.Now().UnixNano())
-		account, err := service.Register(ctx, email, fmt.Sprintf("exceededlimit%d", time.Now().UnixNano()), testPassword, nil)
+		account, err := service.Register(ctx, email, fmt.Sprintf("exceededlimit%d", time.Now().UnixNano()), testPassword, nil, 0)
 		require.NoError(t, err)
 		t.Cleanup(func() {
 			testpkg.CleanupAuthFixtures(t, db, account.ID)
@@ -2472,4 +2498,172 @@ func TestRateLimitError_RetryAfterSeconds(t *testing.T) {
 		// ASSERT
 		assert.Equal(t, 0, result)
 	})
+}
+
+// =============================================================================
+// WithTenantTx Production Path Tests (Item 4)
+// =============================================================================
+
+func TestRegister_WithTenantID_CreatesAccountTenantAndRole(t *testing.T) {
+	// Register with a real tenantID > 0 should exercise the WithTenantTx path
+	// in persistAccountWithRole, creating account + account_tenant mapping +
+	// account_role assignment atomically.
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+
+	const tenantID int64 = 50
+	testpkg.EnsureTestTenant(t, db, tenantID)
+
+	// Create a role to assign
+	role := testpkg.CreateTestRole(t, db, fmt.Sprintf("test-role-%d", time.Now().UnixNano()))
+	defer testpkg.CleanupTableRecords(t, db, "auth.roles", role.ID)
+
+	ctx := testpkg.TenantContext(tenantID)
+	email, username := uniqueTestCredentials("tenant-register")
+	roleID := role.ID
+
+	// ACT
+	account, err := service.Register(ctx, email, username, testPassword, &roleID, tenantID)
+
+	// ASSERT
+	require.NoError(t, err)
+	require.NotNil(t, account)
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+	// Verify account_tenant mapping was created
+	var tenantCount int
+	err = db.NewSelect().
+		TableExpr("auth.account_tenants").
+		ColumnExpr("COUNT(*)").
+		Where("account_id = ? AND tenant_id = ?", account.ID, tenantID).
+		Scan(context.Background(), &tenantCount)
+	require.NoError(t, err)
+	assert.Equal(t, 1, tenantCount, "account_tenant mapping should exist")
+
+	// Verify account_role was created with correct tenant_id
+	var roleCount int
+	err = db.NewSelect().
+		TableExpr("auth.account_roles").
+		ColumnExpr("COUNT(*)").
+		Where("account_id = ? AND role_id = ? AND tenant_id = ?", account.ID, roleID, tenantID).
+		Scan(context.Background(), &roleCount)
+	require.NoError(t, err)
+	assert.Equal(t, 1, roleCount, "account_role should be scoped to the correct tenant")
+}
+
+func TestRegister_WithTenantID_NoRole(t *testing.T) {
+	// Register with tenantID > 0 but no roleID should still create the
+	// account_tenant mapping (without role assignment).
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+
+	const tenantID int64 = 51
+	testpkg.EnsureTestTenant(t, db, tenantID)
+
+	ctx := testpkg.TenantContext(tenantID)
+	email, username := uniqueTestCredentials("tenant-norole")
+
+	// ACT — nil roleID
+	account, err := service.Register(ctx, email, username, testPassword, nil, tenantID)
+
+	// ASSERT
+	require.NoError(t, err)
+	require.NotNil(t, account)
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+	// Verify account_tenant mapping exists
+	var tenantCount int
+	err = db.NewSelect().
+		TableExpr("auth.account_tenants").
+		ColumnExpr("COUNT(*)").
+		Where("account_id = ? AND tenant_id = ?", account.ID, tenantID).
+		Scan(context.Background(), &tenantCount)
+	require.NoError(t, err)
+	assert.Equal(t, 1, tenantCount, "account_tenant mapping should exist even without role")
+
+	// Verify no account_role was created
+	var roleCount int
+	err = db.NewSelect().
+		TableExpr("auth.account_roles").
+		ColumnExpr("COUNT(*)").
+		Where("account_id = ?", account.ID).
+		Scan(context.Background(), &roleCount)
+	require.NoError(t, err)
+	assert.Equal(t, 0, roleCount, "no role assignment should exist")
+}
+
+func TestAcceptInvitation_WithTenantID_CreatesAccountTenant(t *testing.T) {
+	// AcceptInvitation with an invitation that has a real TenantID should
+	// create the account, person, account_tenant mapping, and role assignment.
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	invService := setupInvitationService(t, db)
+
+	const tenantID int64 = 52
+	testpkg.EnsureTestTenant(t, db, tenantID)
+
+	// Create a role for the invitation
+	role := testpkg.CreateTestRole(t, db, fmt.Sprintf("invite-role-%d", time.Now().UnixNano()))
+	defer testpkg.CleanupTableRecords(t, db, "auth.roles", role.ID)
+
+	// Create invitation with tenant context so it gets tenant_id set
+	ctx := testpkg.TenantContext(tenantID)
+	email := fmt.Sprintf("invite-tenant-%d@test.local", time.Now().UnixNano())
+
+	invitation, err := invService.CreateInvitation(ctx, auth.InvitationRequest{
+		Email:     email,
+		RoleID:    role.ID,
+		CreatedBy: 1,
+		FirstName: strPtr("Test"),
+		LastName:  strPtr("User"),
+	})
+	require.NoError(t, err)
+	require.NotNil(t, invitation)
+
+	// ACT — accept the invitation (public route, no tenant in ctx)
+	account, err := invService.AcceptInvitation(context.Background(), invitation.Token, auth.UserRegistrationData{
+		FirstName:       "Test",
+		LastName:        "User",
+		Password:        testPassword,
+		ConfirmPassword: testPassword,
+	})
+
+	// ASSERT
+	require.NoError(t, err)
+	require.NotNil(t, account)
+	defer func() {
+		// Clean up: staff, person, invitation tokens, then auth fixtures (includes account_tenants)
+		_, _ = db.ExecContext(context.Background(),
+			`DELETE FROM users.staff WHERE person_id IN (SELECT id FROM users.persons WHERE account_id = ?)`, account.ID)
+		_, _ = db.ExecContext(context.Background(),
+			`DELETE FROM users.persons WHERE account_id = ?`, account.ID)
+		_, _ = db.ExecContext(context.Background(),
+			`DELETE FROM auth.invitation_tokens WHERE email = ?`, email)
+		testpkg.CleanupAuthFixtures(t, db, account.ID)
+	}()
+
+	// Verify account_tenant mapping was created
+	var tenantCount int
+	err = db.NewSelect().
+		TableExpr("auth.account_tenants").
+		ColumnExpr("COUNT(*)").
+		Where("account_id = ? AND tenant_id = ?", account.ID, tenantID).
+		Scan(context.Background(), &tenantCount)
+	require.NoError(t, err)
+	assert.Equal(t, 1, tenantCount, "account_tenant mapping should exist after invitation acceptance")
+
+	// Verify account_role was created scoped to tenant
+	var roleCount int
+	err = db.NewSelect().
+		TableExpr("auth.account_roles").
+		ColumnExpr("COUNT(*)").
+		Where("account_id = ? AND role_id = ? AND tenant_id = ?", account.ID, role.ID, tenantID).
+		Scan(context.Background(), &roleCount)
+	require.NoError(t, err)
+	assert.Equal(t, 1, roleCount, "role should be scoped to invitation tenant")
 }

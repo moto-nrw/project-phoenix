@@ -11,8 +11,9 @@ const { mockListAvailableTenants, mockSwitchTenant } = vi.hoisted(() => ({
   mockSwitchTenant: vi.fn(),
 }));
 
-const { mockSignIn } = vi.hoisted(() => ({
+const { mockSignIn, mockUseSession } = vi.hoisted(() => ({
   mockSignIn: vi.fn(),
+  mockUseSession: vi.fn(),
 }));
 
 const { mockMutate } = vi.hoisted(() => ({
@@ -34,6 +35,7 @@ vi.mock("~/lib/tenant-api", () => ({
 
 vi.mock("next-auth/react", () => ({
   signIn: mockSignIn,
+  useSession: mockUseSession,
 }));
 
 vi.mock("~/lib/swr", () => ({
@@ -99,6 +101,7 @@ describe("TenantSwitcher", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUseSession.mockReturnValue({ status: "authenticated" });
     mockUseTenantSlugSafe.mockReturnValue("school-a");
     mockListAvailableTenants.mockResolvedValue([]);
     mockSwitchTenant.mockResolvedValue({
@@ -121,6 +124,20 @@ describe("TenantSwitcher", () => {
       writable: true,
       value: originalLocation,
     });
+  });
+
+  it("skips tenant fetch when not authenticated", async () => {
+    mockUseSession.mockReturnValue({ status: "loading" });
+    mockListAvailableTenants.mockResolvedValue([tenantA, tenantB]);
+
+    const { container } = render(<TenantSwitcher />);
+
+    // Wait a tick to ensure the effect had a chance to fire
+    await waitFor(() => {
+      expect(mockListAvailableTenants).not.toHaveBeenCalled();
+    });
+
+    expect(container.innerHTML).toBe("");
   });
 
   it("renders nothing when user has zero tenants", async () => {

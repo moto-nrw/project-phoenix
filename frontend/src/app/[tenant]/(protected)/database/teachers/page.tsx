@@ -25,7 +25,7 @@ import { teachersConfig } from "@/lib/database/configs/teachers.config";
 import type { Teacher } from "@/lib/teacher-api";
 import { Modal, ConfirmationModal } from "~/components/ui/modal";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
-import { useSWRAuth, mutate } from "~/lib/swr";
+import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 
 // Helper function to get teacher initials without nested ternary
 function getTeacherInitials(
@@ -84,6 +84,7 @@ export default function TeachersPage() {
 
   // Create service instance
   const service = useMemo(() => createCrudService(teachersConfig), []);
+  const tenantMutate = useTenantMutate();
 
   // Fetch teachers with SWR (automatic caching, deduplication, revalidation)
   const {
@@ -175,7 +176,7 @@ export default function TeachersPage() {
       toastSuccess(
         getDbOperationMessage("create", teachersConfig.name.singular),
       );
-      await mutate("database-teachers-list");
+      await tenantMutate("database-teachers-list");
     } catch (err) {
       logger.error("failed to create teacher", {
         error: err instanceof Error ? err.message : String(err),
@@ -200,7 +201,7 @@ export default function TeachersPage() {
       toastSuccess(
         getDbOperationMessage("update", teachersConfig.name.singular),
       );
-      await mutate("database-teachers-list");
+      await tenantMutate("database-teachers-list");
       setSelectedTeacher(null);
     } catch (err) {
       logger.error("failed to update teacher", {
@@ -223,7 +224,7 @@ export default function TeachersPage() {
       toastSuccess(
         getDbOperationMessage("delete", teachersConfig.name.singular),
       );
-      await mutate("database-teachers-list");
+      await tenantMutate("database-teachers-list");
       setSelectedTeacher(null);
     } catch (err) {
       logger.error("failed to delete teacher", {
@@ -624,7 +625,7 @@ export default function TeachersPage() {
           }}
           teacher={selectedTeacher}
           onUpdate={() => {
-            mutate("database-teachers-list").catch(() => {
+            tenantMutate("database-teachers-list").catch(() => {
               // Ignore revalidation errors
             });
           }}
@@ -641,7 +642,7 @@ export default function TeachersPage() {
           }}
           teacher={selectedTeacher}
           onUpdate={() => {
-            mutate("database-teachers-list").catch(() => {
+            tenantMutate("database-teachers-list").catch(() => {
               // Ignore revalidation errors
             });
           }}

@@ -23,7 +23,7 @@ import {
 } from "@/components/activities";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
-import { useSWRAuth, mutate } from "~/lib/swr";
+import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 
 const logger = createLogger({ component: "DatabaseActivitiesPage" });
 
@@ -62,6 +62,7 @@ export default function ActivitiesPage() {
   });
 
   const service = useMemo(() => createCrudService(activitiesConfig), []);
+  const tenantMutate = useTenantMutate();
 
   // Fetch activities with SWR (automatic caching, deduplication, revalidation)
   const {
@@ -174,7 +175,7 @@ export default function ActivitiesPage() {
         ),
       );
       setShowCreateModal(false);
-      await mutate("database-activities-list");
+      await tenantMutate("database-activities-list");
     } finally {
       setCreateLoading(false);
     }
@@ -197,7 +198,7 @@ export default function ActivitiesPage() {
       setSelectedActivity(refreshed);
       setShowEditModal(false);
       setShowDetailModal(true);
-      await mutate("database-activities-list");
+      await tenantMutate("database-activities-list");
     } catch (e) {
       logger.error("failed to update activity", {
         error: e instanceof Error ? e.message : String(e),
@@ -223,7 +224,7 @@ export default function ActivitiesPage() {
       );
       setShowDetailModal(false);
       setSelectedActivity(null);
-      await mutate("database-activities-list");
+      await tenantMutate("database-activities-list");
     } finally {
       setDetailLoading(false);
     }

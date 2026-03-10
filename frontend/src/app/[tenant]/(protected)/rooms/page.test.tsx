@@ -20,6 +20,7 @@ vi.mock("~/lib/swr", () => ({
   useImmutableSWR: vi.fn(),
   useSWRWithId: vi.fn(),
   mutate: vi.fn(),
+  useTenantMutate: vi.fn(() => vi.fn()),
 }));
 
 vi.mock("~/lib/breadcrumb-context", () => ({

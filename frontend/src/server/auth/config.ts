@@ -598,7 +598,10 @@ export const authConfig = {
   cookies: {
     // Set cookie domain to .{TENANT_DOMAIN} so cookies are shared across subdomains.
     // This allows school-a.localhost and school-b.localhost to share the same session.
-    ...(process.env.TENANT_DOMAIN && process.env.TENANT_DOMAIN !== "localhost"
+    // Modern browsers (Chrome 88+, Firefox, Edge) support .localhost domain cookies,
+    // so we no longer need to skip localhost — without this, switching tenants via
+    // subdomain navigation loses the session (cookies stay on the old hostname).
+    ...(process.env.TENANT_DOMAIN
       ? {
           sessionToken: {
             name: "next-auth.session-token",

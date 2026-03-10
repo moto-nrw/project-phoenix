@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { signIn } from "next-auth/react";
+import { signIn, useSession } from "next-auth/react";
 import { mutate } from "~/lib/swr";
 import { clearSessionCache } from "~/lib/session-cache";
 import {
@@ -32,9 +32,11 @@ export function TenantSwitcher() {
   const [isSwitching, setIsSwitching] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const currentSlug = useTenantSlugSafe();
+  const { status } = useSession();
 
-  // Fetch available tenants on mount
+  // Fetch available tenants once authenticated
   useEffect(() => {
+    if (status !== "authenticated") return;
     listAvailableTenants()
       .then(setTenants)
       .catch((err: unknown) => {
@@ -42,7 +44,7 @@ export function TenantSwitcher() {
           error: err instanceof Error ? err.message : String(err),
         });
       });
-  }, []);
+  }, [status]);
 
   // Close dropdown on outside click
   useEffect(() => {

@@ -47,6 +47,9 @@ var (
 	// ErrRoleNotFound returned when role doesn't exist
 	ErrRoleNotFound = errors.New("role not found")
 
+	// ErrTenantRequiredForRoleAssignment returned when tenant-scoped role setup is requested without a tenant context
+	ErrTenantRequiredForRoleAssignment = errors.New("tenant context is required when assigning a role during registration")
+
 	// ErrParentAccountNotFound returned when parent account doesn't exist
 	ErrParentAccountNotFound = errors.New("parent account not found")
 

@@ -45,7 +45,7 @@ func setupTestContext(t *testing.T) *testContext {
 	t.Helper()
 
 	db, svc := testutil.SetupAPITest(t)
-	resource := authAPI.NewResource(svc.Auth, svc.Invitation, nil)
+	resource := authAPI.NewResource(svc.Auth, svc.Invitation, nil, db)
 
 	t.Cleanup(func() {
 		if err := db.Close(); err != nil {
@@ -1919,7 +1919,7 @@ func TestListTenants(t *testing.T) {
 	}()
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
-	resource := authAPI.NewResource(svc.Auth, svc.Invitation, schoolRepo)
+	resource := authAPI.NewResource(svc.Auth, svc.Invitation, schoolRepo, db)
 
 	router := chi.NewRouter()
 	router.Mount("/auth", resource.Router())
@@ -1977,5 +1977,101 @@ func TestListTenants(t *testing.T) {
 		router.ServeHTTP(rr, req)
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Public endpoint should not require auth")
+	})
+}
+
+// ============================================================================
+// INVITATION HANDLER — SUCCESS PATH TESTS (multi-tenancy coverage)
+// ============================================================================
+
+// setupTestContextWithSchoolRepo is like setupTestContext but provides a SchoolRepo
+// so the school name resolution branch in createInvitation is exercised.
+func setupTestContextWithSchoolRepo(t *testing.T) *testContext {
+	t.Helper()
+
+	db, svc := testutil.SetupAPITest(t)
+	schoolRepo := platformRepo.NewSchoolRepository(db)
+	resource := authAPI.NewResource(svc.Auth, svc.Invitation, schoolRepo, db)
+
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Logf("Failed to close database: %v", err)
+		}
+	})
+
+	return &testContext{
+		db:       db,
+		services: svc,
+		resource: resource,
+	}
+}
+
+// TestInvitationCreateSuccess verifies the full invitation creation success path,
+// covering WithTenantTx wrapper, school name resolution, and slog output.
+func TestInvitationCreateSuccess(t *testing.T) {
+	tc := setupTestContextWithSchoolRepo(t)
+
+	router := testutil.NewTenantRouter(tc.db)
+	router.Route("/auth", func(r chi.Router) {
+		r.Route("/invitations", func(r chi.Router) {
+			r.With(authorize.RequiresPermission("users:create")).Post("/", tc.resource.CreateInvitationHandler())
+			r.With(authorize.RequiresPermission("users:list")).Get("/", tc.resource.ListPendingInvitationsHandler())
+			r.With(authorize.RequiresPermission("users:manage")).Delete("/{id}", tc.resource.RevokeInvitationHandler())
+		})
+	})
+
+	// Create a test account to act as the invitation creator
+	account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("inv-creator-%d@test.local", time.Now().UnixNano()))
+	defer testpkg.CleanupActivityFixtures(t, tc.db, account.ID)
+
+	// Get or create a role (system roles like "user" or "teacher" should exist after migration)
+	role := testpkg.GetOrCreateTestRole(t, tc.db, "teacher")
+
+	adminClaims := jwt.AppClaims{
+		ID:          int(account.ID),
+		TenantID:    1,
+		Sub:         account.Email,
+		Username:    "test-admin",
+		Roles:       []string{"admin"},
+		Permissions: []string{"admin:*"},
+		IsAdmin:     true,
+	}
+
+	t.Run("creates invitation with tenant transaction and school name", func(t *testing.T) {
+		inviteeEmail := fmt.Sprintf("invitee-%d@test.local", time.Now().UnixNano())
+		body := map[string]interface{}{
+			"email":      inviteeEmail,
+			"role_id":    role.ID,
+			"first_name": "Test",
+			"last_name":  "Invitee",
+		}
+
+		req := testutil.NewJSONRequest(t, "POST", "/auth/invitations", body)
+		rr := executeWithAuth(router, req, adminClaims, []string{"users:create"})
+
+		require.Equal(t, http.StatusCreated, rr.Code,
+			"Expected 201 Created, got %d. Body: %s", rr.Code, rr.Body.String())
+
+		// Parse the created invitation to get its ID for cleanup
+		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+		data, ok := response["data"].(map[string]interface{})
+		require.True(t, ok, "Expected data in response")
+		assert.Equal(t, inviteeEmail, data["email"])
+		assert.NotZero(t, data["id"])
+
+		// Cleanup the created invitation
+		if id, ok := data["id"].(float64); ok {
+			_, _ = tc.db.NewDelete().
+				TableExpr("auth.invitation_tokens").
+				Where("id = ?", int64(id)).
+				Exec(context.Background())
+		}
+	})
+
+	t.Run("list pending invitations through tenant transaction", func(t *testing.T) {
+		req := testutil.NewJSONRequest(t, "GET", "/auth/invitations", nil)
+		rr := executeWithAuth(router, req, adminClaims, []string{"users:list"})
+
+		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
 }
