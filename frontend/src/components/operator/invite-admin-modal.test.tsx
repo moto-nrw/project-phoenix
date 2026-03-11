@@ -391,7 +391,7 @@ describe("InviteAdminModal", () => {
     rerender(<InviteAdminModal {...defaultProps} isOpen={true} />);
 
     const emailInput = screen.getByLabelText("E-Mail");
-    expect(emailInput.value).toBe("");
+    expect((emailInput as HTMLInputElement).value).toBe("");
   });
 
   it("clears email error when typing", async () => {

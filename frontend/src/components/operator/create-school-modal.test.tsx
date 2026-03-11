@@ -112,7 +112,7 @@ describe("CreateSchoolModal", () => {
       <CreateSchoolModal {...defaultProps} organizations={[mockOrgs[0]!]} />,
     );
     const select = screen.getByLabelText("Organisation");
-    expect(select.value).toBe("1");
+    expect((select as HTMLSelectElement).value).toBe("1");
   });
 
   it("auto-generates slug from name", () => {
@@ -121,7 +121,7 @@ describe("CreateSchoolModal", () => {
       target: { value: "GGS Mühlenberg" },
     });
     const slugInput = screen.getByLabelText("Slug");
-    expect(slugInput.value).toBe("ggs-muehlenberg");
+    expect((slugInput as HTMLInputElement).value).toBe("ggs-muehlenberg");
   });
 
   it("auto-generates subdomain from slug", () => {
@@ -129,10 +129,8 @@ describe("CreateSchoolModal", () => {
     fireEvent.change(screen.getByLabelText("Schulname"), {
       target: { value: "GGS Mühlenberg" },
     });
-    const subdomainInput = screen.getByLabelText(
-      "Subdomain",
-    );
-    expect(subdomainInput.value).toBe("ggs-muehlenberg");
+    const subdomainInput = screen.getByLabelText("Subdomain");
+    expect((subdomainInput as HTMLInputElement).value).toBe("ggs-muehlenberg");
   });
 
   it("stops auto-generating slug when manually edited", () => {
@@ -143,7 +141,7 @@ describe("CreateSchoolModal", () => {
     fireEvent.change(screen.getByLabelText("Schulname"), {
       target: { value: "New Name" },
     });
-    expect((screen.getByLabelText("Slug")).value).toBe(
+    expect(screen.getByLabelText<HTMLInputElement>("Slug").value).toBe(
       "custom",
     );
   });
@@ -156,7 +154,7 @@ describe("CreateSchoolModal", () => {
     fireEvent.change(screen.getByLabelText("Schulname"), {
       target: { value: "New Name" },
     });
-    expect((screen.getByLabelText("Subdomain")).value).toBe(
+    expect(screen.getByLabelText<HTMLInputElement>("Subdomain").value).toBe(
       "custom-sub",
     );
   });
@@ -473,7 +471,7 @@ describe("CreateSchoolModal", () => {
     rerender(<CreateSchoolModal {...defaultProps} isOpen={true} />);
 
     const nameInput = screen.getByLabelText("Schulname");
-    expect(nameInput.value).toBe("");
+    expect((nameInput as HTMLInputElement).value).toBe("");
   });
 
   it("clears field errors when typing", async () => {

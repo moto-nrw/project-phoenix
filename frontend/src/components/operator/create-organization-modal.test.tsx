@@ -95,7 +95,7 @@ describe("CreateOrganizationModal", () => {
     fireEvent.change(nameInput, { target: { value: "Schulverband Köln" } });
 
     const slugInput = screen.getByLabelText("Slug");
-    expect(slugInput.value).toBe("schulverband-koeln");
+    expect((slugInput as HTMLInputElement).value).toBe("schulverband-koeln");
   });
 
   it("stops auto-generating slug once manually edited", () => {
@@ -413,7 +413,7 @@ describe("CreateOrganizationModal", () => {
     );
 
     const nameInput = screen.getByLabelText("Name");
-    expect(nameInput.value).toBe("");
+    expect((nameInput as HTMLInputElement).value).toBe("");
   });
 
   it("clears name error when typing in name field", async () => {
