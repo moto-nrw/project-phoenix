@@ -266,7 +266,7 @@ describe("OperatorSchoolsPage", () => {
     expect(screen.queryByTestId("badge")).not.toBeInTheDocument();
   });
 
-  it("hides org group when it has no schools", () => {
+  it("shows empty org with hint when it has no schools", () => {
     const emptyOrg: Organization = {
       ...mockOrg,
       id: "99",
@@ -278,7 +278,8 @@ describe("OperatorSchoolsPage", () => {
     });
     render(<OperatorSchoolsPage />);
     expect(screen.getByText("Test Org")).toBeInTheDocument();
-    expect(screen.queryByText("Empty Org")).not.toBeInTheDocument();
+    expect(screen.getByText("Empty Org")).toBeInTheDocument();
+    expect(screen.getByText("Schule erstellen")).toBeInTheDocument();
   });
 
   it("shows org school count badge", () => {

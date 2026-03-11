@@ -90,35 +90,66 @@ export default function OperatorSchoolsPage() {
         title="Schulen"
         badge={schools ? { count: schools.length, label: "Gesamt" } : undefined}
         actionButton={
-          <button
-            type="button"
-            onClick={openSchoolModal}
-            className="rounded-full bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700"
-          >
-            Neue Schule
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={openOrgModal}
+              className="rounded-full border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+            >
+              Neue Organisation
+            </button>
+            <button
+              type="button"
+              onClick={openSchoolModal}
+              className="rounded-full bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700"
+            >
+              Neue Schule
+            </button>
+          </div>
         }
         mobileActionButton={
-          <button
-            type="button"
-            onClick={openSchoolModal}
-            className="rounded-full bg-gray-900 p-2 text-white transition-colors hover:bg-gray-700"
-            aria-label="Neue Schule"
-          >
-            <svg
-              className="h-5 w-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={openOrgModal}
+              className="rounded-full border border-gray-300 bg-white p-2 text-gray-700 transition-colors hover:bg-gray-50"
+              aria-label="Neue Organisation"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M12 4v16m8-8H4"
-              />
-            </svg>
-          </button>
+              <svg
+                className="h-5 w-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3H21m-3.75 3H21"
+                />
+              </svg>
+            </button>
+            <button
+              type="button"
+              onClick={openSchoolModal}
+              className="rounded-full bg-gray-900 p-2 text-white transition-colors hover:bg-gray-700"
+              aria-label="Neue Schule"
+            >
+              <svg
+                className="h-5 w-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M12 4v16m8-8H4"
+                />
+              </svg>
+            </button>
+          </div>
         }
       />
 
@@ -157,7 +188,6 @@ export default function OperatorSchoolsPage() {
         <div className="mt-4 space-y-6">
           {organizations.map((org) => {
             const orgSchools = schoolsByOrg.get(org.id) ?? [];
-            if (orgSchools.length === 0) return null;
             return (
               <div key={org.id}>
                 <div className="mb-3 flex items-center gap-2">
@@ -168,15 +198,30 @@ export default function OperatorSchoolsPage() {
                     {orgSchools.length}
                   </span>
                 </div>
-                <div className="space-y-3">
-                  {orgSchools.map((school) => (
-                    <SchoolCard
-                      key={school.id}
-                      school={school}
-                      onInviteAdmin={() => setInviteTarget(school)}
-                    />
-                  ))}
-                </div>
+                {orgSchools.length === 0 ? (
+                  <div className="rounded-3xl border border-dashed border-gray-200 bg-gray-50/50 p-5">
+                    <p className="text-sm text-gray-500">
+                      Noch keine Schulen.{" "}
+                      <button
+                        type="button"
+                        onClick={openSchoolModal}
+                        className="font-medium text-gray-900 underline underline-offset-2 hover:text-gray-700"
+                      >
+                        Schule erstellen
+                      </button>
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {orgSchools.map((school) => (
+                      <SchoolCard
+                        key={school.id}
+                        school={school}
+                        onInviteAdmin={() => setInviteTarget(school)}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })}
