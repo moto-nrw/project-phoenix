@@ -1,10 +1,10 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { NextRequest } from "next/server";
 
 const { mockOperatorApiGet, mockOperatorApiPost } = vi.hoisted(() => ({
   mockOperatorApiGet: vi.fn(),
   mockOperatorApiPost: vi.fn(),
-  mockGetOperatorToken: vi.fn(() => Promise.resolve("test-token")),
 }));
 
 vi.mock("~/lib/operator/route-wrapper", () => ({
@@ -45,7 +45,9 @@ describe("operator/schools route", () => {
       const mockSchools = [{ id: 1, name: "School A" }];
       mockOperatorApiGet.mockResolvedValue(mockSchools);
 
-      const request = new Request("http://localhost/api/operator/schools");
+      const request = new Request(
+        "http://localhost/api/operator/schools",
+      ) as unknown as NextRequest;
       const response = await GET(request, {} as never);
       const json = (await response.json()) as {
         data: unknown;
@@ -70,7 +72,7 @@ describe("operator/schools route", () => {
         method: "POST",
         body: JSON.stringify(body),
         headers: { "Content-Type": "application/json" },
-      });
+      }) as unknown as NextRequest;
 
       const response = await POST(request, {} as never);
       const json = (await response.json()) as {

@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { NextRequest } from "next/server";
 
 const { mockOperatorApiPost } = vi.hoisted(() => ({
   mockOperatorApiPost: vi.fn(),
@@ -47,7 +48,7 @@ describe("operator/schools/[id]/invite-admin route", () => {
         body: JSON.stringify(body),
         headers: { "Content-Type": "application/json" },
       },
-    );
+    ) as unknown as NextRequest;
 
     const response = await POST(request, {
       params: Promise.resolve({ id: "5" }),
@@ -71,7 +72,7 @@ describe("operator/schools/[id]/invite-admin route", () => {
         body: JSON.stringify(body),
         headers: { "Content-Type": "application/json" },
       },
-    );
+    ) as unknown as NextRequest;
 
     await expect(
       POST(request, {

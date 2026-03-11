@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { NextRequest } from "next/server";
 
 const { mockOperatorApiGet, mockOperatorApiPost } = vi.hoisted(() => ({
   mockOperatorApiGet: vi.fn(),
@@ -46,7 +47,7 @@ describe("operator/organizations route", () => {
 
       const request = new Request(
         "http://localhost/api/operator/organizations",
-      );
+      ) as unknown as NextRequest;
       const response = await GET(request, {} as never);
       const json = (await response.json()) as { data: unknown };
 
@@ -71,7 +72,7 @@ describe("operator/organizations route", () => {
           body: JSON.stringify(body),
           headers: { "Content-Type": "application/json" },
         },
-      );
+      ) as unknown as NextRequest;
 
       const response = await POST(request, {} as never);
       const json = (await response.json()) as { data: unknown };
