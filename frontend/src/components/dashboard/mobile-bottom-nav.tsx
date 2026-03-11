@@ -95,6 +95,12 @@ const OPERATOR_MAIN_ITEMS: NavItem[] = [
     alwaysShow: true,
   },
   {
+    href: "/operator/schools",
+    label: "Schulen",
+    iconKey: "room",
+    alwaysShow: true,
+  },
+  {
     href: "/operator/announcements",
     label: "Ankündigungen",
     iconKey: "bell",

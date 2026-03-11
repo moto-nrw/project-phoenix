@@ -147,6 +147,13 @@ const OPERATOR_NAV_ITEMS: NavItem[] = [
     alwaysShow: true,
   },
   {
+    href: "/operator/schools",
+    label: "Schulen",
+    icon: "M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0012 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18M12 6.75h.008v.008H12V6.75z",
+    activeColor: "text-blue-500",
+    alwaysShow: true,
+  },
+  {
     href: "/operator/announcements",
     label: "Ankündigungen",
     icon: "M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9",
