@@ -13,6 +13,7 @@ import (
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -33,6 +34,7 @@ type operatorProvisioningService struct {
 	organizationRepo  platform.OrganizationRepository
 	schoolRepo        platform.SchoolRepository
 	categoryRepo      activityModels.CategoryRepository
+	deviceRepo        iotModels.DeviceRepository
 	roleRepo          authModels.RoleRepository
 	invitationService authSvc.InvitationService
 	auditLogRepo      platform.OperatorAuditLogRepository
@@ -45,6 +47,7 @@ type OperatorProvisioningServiceConfig struct {
 	OrganizationRepo  platform.OrganizationRepository
 	SchoolRepo        platform.SchoolRepository
 	CategoryRepo      activityModels.CategoryRepository
+	DeviceRepo        iotModels.DeviceRepository
 	RoleRepo          authModels.RoleRepository
 	InvitationService authSvc.InvitationService
 	AuditLogRepo      platform.OperatorAuditLogRepository
@@ -58,6 +61,7 @@ func NewOperatorProvisioningService(cfg OperatorProvisioningServiceConfig) Opera
 		organizationRepo:  cfg.OrganizationRepo,
 		schoolRepo:        cfg.SchoolRepo,
 		categoryRepo:      cfg.CategoryRepo,
+		deviceRepo:        cfg.DeviceRepo,
 		roleRepo:          cfg.RoleRepo,
 		invitationService: cfg.InvitationService,
 		auditLogRepo:      cfg.AuditLogRepo,
@@ -134,6 +138,9 @@ func (s *operatorProvisioningService) CreateSchool(ctx context.Context, school *
 		}
 		if seedErr := s.seedDefaultActivityCategories(adminCtx, school.ID); seedErr != nil {
 			return seedErr
+		}
+		if deviceErr := s.createWebManualDevice(adminCtx, school.ID); deviceErr != nil {
+			return deviceErr
 		}
 		s.logAction(adminCtx, operatorID, platform.ActionCreate, platform.ResourceSchool, &school.ID, clientIP, map[string]any{
 			"name":           school.Name,
@@ -286,6 +293,39 @@ func (s *operatorProvisioningService) seedDefaultActivityCategories(ctx context.
 		}
 	}
 
+	return nil
+}
+
+// webManualDeviceID is the device_id for the virtual web check-in device.
+// Each tenant gets its own instance so RLS keeps it visible only to that school.
+const webManualDeviceID = "WEB-MANUAL-001"
+
+func (s *operatorProvisioningService) createWebManualDevice(ctx context.Context, tenantID int64) error {
+	if s.deviceRepo == nil || tenantID <= 0 {
+		return nil
+	}
+
+	deviceName := "Web-Portal (Manuell)"
+	device := &iotModels.Device{
+		DeviceID:   webManualDeviceID,
+		DeviceType: "virtual",
+		Name:       &deviceName,
+		Status:     iotModels.DeviceStatusActive,
+	}
+	device.SetTenantID(tenantID)
+
+	deviceCtx := tenant.WithTenantID(ctx, tenantID)
+	if err := s.deviceRepo.Create(deviceCtx, device); err != nil {
+		if isUniqueViolation(err) {
+			return nil
+		}
+		return fmt.Errorf("create web manual device for tenant %d: %w", tenantID, err)
+	}
+
+	s.getLogger().Info("created web manual device for tenant",
+		slog.Int64("tenant_id", tenantID),
+		slog.String("device_id", webManualDeviceID),
+	)
 	return nil
 }
 
