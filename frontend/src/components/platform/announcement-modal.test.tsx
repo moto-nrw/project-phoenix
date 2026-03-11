@@ -3,10 +3,11 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { AnnouncementModal } from "./announcement-modal";
 import type { ReactNode } from "react";
 
-// Mock Modal component
+// Mock Modal component — expose onClose as a close button for testing
 vi.mock("~/components/ui/modal", () => ({
   Modal: ({
     isOpen,
+    onClose,
     children,
     footer,
   }: {
@@ -17,6 +18,9 @@ vi.mock("~/components/ui/modal", () => ({
   }) =>
     isOpen ? (
       <div data-testid="modal">
+        <button data-testid="modal-close" onClick={onClose}>
+          Close
+        </button>
         <div data-testid="modal-content">{children}</div>
         <div data-testid="modal-footer">{footer}</div>
       </div>
@@ -396,5 +400,164 @@ describe("AnnouncementModal", () => {
     expect(contentElement.textContent).toContain("Line 1");
     expect(contentElement.textContent).toContain("Line 2");
     expect(contentElement.textContent).toContain("Line 3");
+  });
+
+  it("closes modal and dismisses all announcements when close button is clicked", async () => {
+    mockAnnouncementsState.announcements = [
+      {
+        id: 1,
+        title: "First",
+        content: "Content 1",
+        type: "announcement",
+        severity: "info",
+        published_at: "2024-01-01T00:00:00Z",
+      },
+      {
+        id: 2,
+        title: "Second",
+        content: "Content 2",
+        type: "release",
+        severity: "info",
+        published_at: "2024-01-02T00:00:00Z",
+      },
+    ];
+
+    render(<AnnouncementModal />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("modal")).toBeInTheDocument();
+    });
+
+    // Click close button (X) instead of "Weiter"
+    fireEvent.click(screen.getByTestId("modal-close"));
+
+    await waitFor(() => {
+      // Both announcements should be dismissed on the backend
+      expect(mockDismiss).toHaveBeenCalledWith(1);
+      expect(mockDismiss).toHaveBeenCalledWith(2);
+      expect(mockDismiss).toHaveBeenCalledTimes(2);
+    });
+
+    // Modal should be closed
+    expect(screen.queryByTestId("modal")).not.toBeInTheDocument();
+  });
+
+  it("does not re-open modal after close button is clicked", async () => {
+    mockAnnouncementsState.announcements = [
+      {
+        id: 1,
+        title: "Sticky",
+        content: "Should not re-open",
+        type: "announcement",
+        severity: "info",
+        published_at: "2024-01-01T00:00:00Z",
+      },
+    ];
+
+    const { rerender } = render(<AnnouncementModal />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("modal")).toBeInTheDocument();
+    });
+
+    // Close via X button
+    fireEvent.click(screen.getByTestId("modal-close"));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("modal")).not.toBeInTheDocument();
+    });
+
+    // Re-render with same announcements (simulates SWR revalidation)
+    rerender(<AnnouncementModal />);
+
+    // Modal should stay closed because the ID is in closedIdsRef
+    expect(screen.queryByTestId("modal")).not.toBeInTheDocument();
+  });
+
+  it("close button skips already-dismissed announcements", async () => {
+    mockAnnouncementsState.announcements = [
+      {
+        id: 1,
+        title: "First",
+        content: "Content 1",
+        type: "announcement",
+        severity: "info",
+        published_at: "2024-01-01T00:00:00Z",
+      },
+      {
+        id: 2,
+        title: "Second",
+        content: "Content 2",
+        type: "release",
+        severity: "info",
+        published_at: "2024-01-02T00:00:00Z",
+      },
+    ];
+
+    render(<AnnouncementModal />);
+
+    await waitFor(() => {
+      expect(screen.getByText("First")).toBeInTheDocument();
+    });
+
+    // Click "Weiter" to dismiss first announcement
+    fireEvent.click(screen.getByRole("button", { name: /weiter/i }));
+
+    await waitFor(() => {
+      expect(mockDismiss).toHaveBeenCalledWith(1);
+      expect(screen.getByText("Second")).toBeInTheDocument();
+    });
+
+    // Now close via X — should only dismiss #2 (not #1 again)
+    fireEvent.click(screen.getByTestId("modal-close"));
+
+    await waitFor(() => {
+      expect(mockDismiss).toHaveBeenCalledWith(2);
+      // Total: dismiss(1) from Weiter + dismiss(2) from close = 2 calls
+      expect(mockDismiss).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it("handles dismiss error in close button gracefully", async () => {
+    const consoleErrorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {
+        // noop
+      });
+    mockDismiss.mockRejectedValue(new Error("Network error"));
+
+    mockAnnouncementsState.announcements = [
+      {
+        id: 1,
+        title: "Test",
+        content: "Content",
+        type: "announcement",
+        severity: "info",
+        published_at: "2024-01-01T00:00:00Z",
+      },
+    ];
+
+    render(<AnnouncementModal />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("modal")).toBeInTheDocument();
+    });
+
+    // Close via X button — dismiss will fail
+    fireEvent.click(screen.getByTestId("modal-close"));
+
+    // Modal should still close despite the error
+    await waitFor(() => {
+      expect(screen.queryByTestId("modal")).not.toBeInTheDocument();
+    });
+
+    await waitFor(() => {
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        "announcement_dismiss_failed",
+        { error: "Network error" },
+      );
+    });
+
+    consoleErrorSpy.mockRestore();
   });
 });
