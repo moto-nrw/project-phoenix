@@ -74,6 +74,7 @@ interface BackendStudentFromBFF {
   name?: string;
   school_class?: string;
   current_location?: string;
+  sick?: boolean;
   sick_since?: string;
   sick_until?: string;
   location_since?: string;
@@ -303,6 +304,8 @@ function OGSGroupPageContent() {
         second_name: s.last_name, // Backend uses last_name
         school_class: s.school_class ?? "",
         current_location: s.current_location ?? "",
+        sick: s.sick ?? false,
+        sick_since: s.sick_since,
         location_since: s.location_since,
         group_id: s.group_id?.toString(),
         group_name: s.group_name,

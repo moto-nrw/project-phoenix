@@ -5,6 +5,31 @@
 import { render, screen, waitFor, cleanup } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
+function createLocalStorageMock() {
+  const store: Record<string, string> = {};
+
+  return {
+    getItem: (key: string) => store[key] ?? null,
+    setItem: (key: string, value: string) => {
+      store[key] = value;
+    },
+    removeItem: (key: string) => {
+      delete store[key];
+    },
+    clear: () => {
+      for (const key of Object.keys(store)) {
+        delete store[key];
+      }
+    },
+  };
+}
+
+Object.defineProperty(window, "localStorage", {
+  value: createLocalStorageMock(),
+  writable: true,
+  configurable: true,
+});
+
 // Mock next-auth/react
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(() => ({
@@ -151,7 +176,19 @@ vi.mock("~/lib/group-transfer-api", () => ({
 
 // Mock LocationBadge
 vi.mock("@/components/ui/location-badge", () => ({
-  LocationBadge: () => <div data-testid="location-badge">Location</div>,
+  LocationBadge: ({
+    student,
+  }: {
+    student: { current_location?: string; sick?: boolean };
+  }) => (
+    <div
+      data-testid="location-badge"
+      data-location={student.current_location ?? ""}
+      data-sick={student.sick ? "true" : "false"}
+    >
+      {student.sick ? "Krank" : student.current_location}
+    </div>
+  ),
 }));
 
 // Mock EmptyStudentResults
@@ -373,6 +410,66 @@ describe("OGSGroupPage", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("student-card")).toBeInTheDocument();
+    });
+  });
+
+  it("preserves sick status from dashboard data on the first-group preload", async () => {
+    vi.mocked(useSWRAuth).mockImplementation((key) => {
+      if (key === "ogs-dashboard") {
+        return {
+          data: {
+            groups: [
+              {
+                id: 1,
+                name: "OGS Gruppe A",
+                room_id: 10,
+                room: { id: 10, name: "Raum 101" },
+              },
+            ],
+            students: [
+              {
+                id: 1,
+                first_name: "Leo",
+                last_name: "Fuchs",
+                school_class: "3a",
+                current_location: "Zuhause",
+                sick: true,
+                sick_since: "2026-03-13T08:00:00Z",
+              },
+            ],
+            roomStatus: {
+              student_room_status: {
+                "1": { in_group_room: false },
+              },
+            },
+            substitutions: [],
+            pickupTimes: [],
+            firstGroupId: "1",
+          },
+          isLoading: false,
+          error: null,
+          mutate: mockMutate,
+          isValidating: false,
+        } as never;
+      }
+
+      return {
+        data: null,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never;
+    });
+
+    render(<OGSGroupPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location-badge")).toHaveAttribute(
+        "data-sick",
+        "true",
+      );
+      expect(screen.getByTestId("location-badge")).toHaveTextContent("Krank");
     });
   });
 
