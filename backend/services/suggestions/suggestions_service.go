@@ -46,6 +46,26 @@ func (s *suggestionsService) getLogger() *slog.Logger {
 	return slog.Default()
 }
 
+func notificationContext(ctx context.Context) context.Context {
+	if ctx == nil {
+		return context.Background()
+	}
+	return context.WithoutCancel(ctx)
+}
+
+func truncateRunes(value string, limit int) string {
+	if limit <= 0 {
+		return ""
+	}
+
+	runes := []rune(value)
+	if len(runes) <= limit {
+		return value
+	}
+
+	return string(runes[:limit]) + "…"
+}
+
 // NewService creates a new suggestions service
 func NewService(cfg ServiceConfig) Service {
 	// Parse comma-separated notify emails, trimming whitespace and filtering empties
@@ -90,7 +110,7 @@ func (s *suggestionsService) CreatePost(ctx context.Context, post *suggestions.P
 	}
 
 	// Fetch post with author name for the notification email
-	fullPost, err := s.postRepo.FindByIDWithVote(ctx, post.ID, 0, suggestions.ReaderTypeUser)
+	fullPost, err := s.postRepo.FindByIDWithVote(notificationContext(ctx), post.ID, 0, suggestions.ReaderTypeUser)
 	if err == nil && fullPost != nil {
 		s.notifyNewPost(fullPost)
 	}
@@ -251,18 +271,14 @@ func (s *suggestionsService) CreateComment(ctx context.Context, comment *suggest
 		return err
 	}
 
+	notifyCtx := notificationContext(ctx)
+
 	// Fetch full post for notification (with author name resolved)
-	fullPost, fetchErr := s.postRepo.FindByIDWithVote(ctx, comment.PostID, 0, suggestions.ReaderTypeUser)
+	fullPost, fetchErr := s.postRepo.FindByIDWithVote(notifyCtx, comment.PostID, 0, suggestions.ReaderTypeUser)
 	if fetchErr == nil && fullPost != nil {
-		// FindByPostID resolves author names via joins; find the just-created comment
-		comments, commentsErr := s.commentRepo.FindByPostID(ctx, comment.PostID)
-		if commentsErr == nil {
-			for _, c := range comments {
-				if c.ID == comment.ID {
-					s.notifyNewComment(fullPost, c)
-					break
-				}
-			}
+		resolvedComment, commentErr := s.commentRepo.FindByIDWithAuthor(notifyCtx, comment.ID)
+		if commentErr == nil && resolvedComment != nil {
+			s.notifyNewComment(fullPost, resolvedComment)
 		}
 	}
 
@@ -318,10 +334,7 @@ func (s *suggestionsService) notifyNewPost(post *suggestions.Post) {
 	}
 
 	// Truncate description for email preview
-	description := post.Description
-	if len(description) > 500 {
-		description = description[:500] + "…"
-	}
+	description := truncateRunes(post.Description, 500)
 
 	suggestionURL := fmt.Sprintf("%s/operator/suggestions?post=%d", s.frontendURL, post.ID)
 
@@ -364,10 +377,7 @@ func (s *suggestionsService) notifyNewComment(post *suggestions.Post, comment *s
 	}
 
 	// Truncate comment for email preview
-	content := comment.Content
-	if len(content) > 500 {
-		content = content[:500] + "…"
-	}
+	content := truncateRunes(comment.Content, 500)
 
 	suggestionURL := fmt.Sprintf("%s/operator/suggestions?post=%d", s.frontendURL, post.ID)
 

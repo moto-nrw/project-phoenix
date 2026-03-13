@@ -47,6 +47,9 @@ type CommentRepository interface {
 	// FindByID retrieves a comment by ID
 	FindByID(ctx context.Context, id int64) (*Comment, error)
 
+	// FindByIDWithAuthor retrieves a comment by ID with author name resolved.
+	FindByIDWithAuthor(ctx context.Context, id int64) (*Comment, error)
+
 	// FindByPostID retrieves all comments for a post with author names resolved.
 	FindByPostID(ctx context.Context, postID int64) ([]*Comment, error)
 

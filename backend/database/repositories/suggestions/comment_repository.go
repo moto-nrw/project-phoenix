@@ -77,6 +77,37 @@ func (r *CommentRepository) FindByID(ctx context.Context, id int64) (*suggestion
 	return comment, nil
 }
 
+// FindByIDWithAuthor retrieves a comment by ID with author name resolved.
+func (r *CommentRepository) FindByIDWithAuthor(ctx context.Context, id int64) (*suggestions.Comment, error) {
+	comment := new(suggestions.Comment)
+
+	err := r.db.NewSelect().
+		Model(comment).
+		ModelTableExpr(tableSuggestionsCommentsAlias).
+		ColumnExpr(`"comment".*`).
+		ColumnExpr(`COALESCE(CASE
+			WHEN "comment".author_type = 'operator' THEN "op".display_name
+			WHEN "comment".author_type = 'user' THEN CONCAT("person".first_name, ' ', LEFT("person".last_name, 1), '.')
+		END, 'Unbekannt') AS author_name`).
+		Join(`LEFT JOIN platform.operators AS "op" ON "comment".author_type = 'operator' AND "op".id = "comment".author_id`).
+		Join(`LEFT JOIN users.persons AS "person" ON "comment".author_type = 'user' AND "person".account_id = "comment".author_id`).
+		Where(`"comment".id = ?`, id).
+		Where(`"comment".deleted_at IS NULL`).
+		Scan(ctx)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, &modelBase.DatabaseError{
+			Op:  "find comment by id with author",
+			Err: err,
+		}
+	}
+
+	return comment, nil
+}
+
 // FindByPostID retrieves all comments for a post with author names resolved via polymorphic joins.
 func (r *CommentRepository) FindByPostID(ctx context.Context, postID int64) ([]*suggestions.Comment, error) {
 	var comments []*suggestions.Comment
@@ -85,10 +116,10 @@ func (r *CommentRepository) FindByPostID(ctx context.Context, postID int64) ([]*
 		Model(&comments).
 		ModelTableExpr(tableSuggestionsCommentsAlias).
 		ColumnExpr(`"comment".*`).
-		ColumnExpr(`CASE
+		ColumnExpr(`COALESCE(CASE
 			WHEN "comment".author_type = 'operator' THEN "op".display_name
-			WHEN "comment".author_type = 'user' THEN CONCAT("person".first_name, ' ', "person".last_name)
-		END AS author_name`).
+			WHEN "comment".author_type = 'user' THEN CONCAT("person".first_name, ' ', LEFT("person".last_name, 1), '.')
+		END, 'Unbekannt') AS author_name`).
 		Join(`LEFT JOIN platform.operators AS "op" ON "comment".author_type = 'operator' AND "op".id = "comment".author_id`).
 		Join(`LEFT JOIN users.persons AS "person" ON "comment".author_type = 'user' AND "person".account_id = "comment".author_id`).
 		Where(`"comment".post_id = ?`, postID).

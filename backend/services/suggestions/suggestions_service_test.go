@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/moto-nrw/project-phoenix/email"
@@ -107,10 +108,11 @@ func (m *mockVoteRepo) FindByPostAndVoter(ctx context.Context, postID, voterID i
 }
 
 type mockCommentRepo struct {
-	createFn       func(ctx context.Context, comment *suggestions.Comment) error
-	findByIDFn     func(ctx context.Context, id int64) (*suggestions.Comment, error)
-	findByPostIDFn func(ctx context.Context, postID int64) ([]*suggestions.Comment, error)
-	deleteFn       func(ctx context.Context, id int64) error
+	createFn             func(ctx context.Context, comment *suggestions.Comment) error
+	findByIDFn           func(ctx context.Context, id int64) (*suggestions.Comment, error)
+	findByIDWithAuthorFn func(ctx context.Context, id int64) (*suggestions.Comment, error)
+	findByPostIDFn       func(ctx context.Context, postID int64) ([]*suggestions.Comment, error)
+	deleteFn             func(ctx context.Context, id int64) error
 }
 
 func (m *mockCommentRepo) Create(ctx context.Context, comment *suggestions.Comment) error {
@@ -123,6 +125,13 @@ func (m *mockCommentRepo) Create(ctx context.Context, comment *suggestions.Comme
 func (m *mockCommentRepo) FindByID(ctx context.Context, id int64) (*suggestions.Comment, error) {
 	if m.findByIDFn != nil {
 		return m.findByIDFn(ctx, id)
+	}
+	return nil, nil
+}
+
+func (m *mockCommentRepo) FindByIDWithAuthor(ctx context.Context, id int64) (*suggestions.Comment, error) {
+	if m.findByIDWithAuthorFn != nil {
+		return m.findByIDWithAuthorFn(ctx, id)
 	}
 	return nil, nil
 }
@@ -1243,10 +1252,12 @@ func TestCreateComment_DispatchesNotificationForCreatedComment(t *testing.T) {
 			comment.ID = 88
 			return nil
 		},
-		findByPostIDFn: func(ctx context.Context, postID int64) ([]*suggestions.Comment, error) {
-			return []*suggestions.Comment{
-				{Model: base.Model{ID: 77}, AuthorName: "Someone Else", Content: "older"},
-				{Model: base.Model{ID: 88}, AuthorName: "Comment Author", Content: strings.Repeat("c", 501)},
+		findByIDWithAuthorFn: func(ctx context.Context, id int64) (*suggestions.Comment, error) {
+			require.Equal(t, int64(88), id)
+			return &suggestions.Comment{
+				Model:      base.Model{ID: 88},
+				AuthorName: "Comment A.",
+				Content:    strings.Repeat("c", 501),
 			}, nil
 		},
 	}
@@ -1278,7 +1289,7 @@ func TestCreateComment_DispatchesNotificationForCreatedComment(t *testing.T) {
 		require.True(t, ok)
 		assert.Equal(t, "Neuer Kommentar: Test Post", message.Subject)
 		assert.Equal(t, "new_comment", content["Type"])
-		assert.Equal(t, "Comment Author", content["AuthorName"])
+		assert.Equal(t, "Comment A.", content["AuthorName"])
 		assert.Equal(t, "Test Post", content["Title"])
 		assert.Equal(t, "https://frontend.test/operator/suggestions?post=456", content["SuggestionURL"])
 		assert.Len(t, content["CommentContent"], 503)
@@ -1288,7 +1299,7 @@ func TestCreateComment_DispatchesNotificationForCreatedComment(t *testing.T) {
 
 func TestCreateComment_IgnoresNotificationLookupErrors(t *testing.T) {
 	ctx := context.Background()
-	findCommentsCalls := 0
+	findResolvedCommentCalls := 0
 
 	postRepo := &mockPostRepo{
 		findByIDFn: func(ctx context.Context, id int64) (*suggestions.Post, error) {
@@ -1304,8 +1315,8 @@ func TestCreateComment_IgnoresNotificationLookupErrors(t *testing.T) {
 			comment.ID = 88
 			return nil
 		},
-		findByPostIDFn: func(ctx context.Context, postID int64) ([]*suggestions.Comment, error) {
-			findCommentsCalls++
+		findByIDWithAuthorFn: func(ctx context.Context, id int64) (*suggestions.Comment, error) {
+			findResolvedCommentCalls++
 			return nil, nil
 		},
 	}
@@ -1319,10 +1330,10 @@ func TestCreateComment_IgnoresNotificationLookupErrors(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	assert.Equal(t, 0, findCommentsCalls)
+	assert.Equal(t, 0, findResolvedCommentCalls)
 }
 
-func TestCreateComment_IgnoresCommentListFailure(t *testing.T) {
+func TestCreateComment_IgnoresResolvedCommentLookupFailure(t *testing.T) {
 	ctx := context.Background()
 
 	postRepo := &mockPostRepo{
@@ -1339,7 +1350,7 @@ func TestCreateComment_IgnoresCommentListFailure(t *testing.T) {
 			comment.ID = 88
 			return nil
 		},
-		findByPostIDFn: func(ctx context.Context, postID int64) ([]*suggestions.Comment, error) {
+		findByIDWithAuthorFn: func(ctx context.Context, id int64) (*suggestions.Comment, error) {
 			return nil, errors.New("comment lookup failed")
 		},
 	}
@@ -1353,6 +1364,207 @@ func TestCreateComment_IgnoresCommentListFailure(t *testing.T) {
 	})
 
 	require.NoError(t, err)
+}
+
+func TestCreatePost_NotificationLookupUsesDetachedContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	mailer := newCapturingMailer(1)
+	dispatcher := email.NewDispatcher(mailer, nil)
+
+	postRepo := &mockPostRepo{
+		createFn: func(ctx context.Context, post *suggestions.Post) error {
+			post.ID = 77
+			cancel()
+			return nil
+		},
+		findByIDWithVoteFn: func(ctx context.Context, id int64, accountID int64, readerType string) (*suggestions.Post, error) {
+			require.NoError(t, ctx.Err())
+			return &suggestions.Post{
+				Model:       base.Model{ID: id},
+				Title:       "Detached",
+				Description: "desc",
+				AuthorName:  "Alice Example",
+			}, nil
+		},
+	}
+
+	svc := suggestionsService.NewService(suggestionsService.ServiceConfig{
+		PostRepo:        postRepo,
+		VoteRepo:        &mockVoteRepo{},
+		CommentRepo:     &mockCommentRepo{},
+		CommentReadRepo: &mockCommentReadRepo{},
+		Dispatcher:      dispatcher,
+		DefaultFrom:     email.NewEmail("Phoenix", "noreply@example.com"),
+		NotifyEmail:     "ops@example.com",
+		FrontendURL:     "https://frontend.test",
+	})
+
+	require.NoError(t, svc.CreatePost(ctx, &suggestions.Post{
+		Title:       "Detached",
+		Description: "desc",
+		AuthorID:    123,
+	}))
+
+	message := waitForDispatchedMessage(t, mailer)
+	assert.Equal(t, "ops@example.com", message.To.Address)
+}
+
+func TestCreateComment_NotificationLookupUsesDetachedContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	mailer := newCapturingMailer(1)
+	dispatcher := email.NewDispatcher(mailer, nil)
+
+	postRepo := &mockPostRepo{
+		findByIDFn: func(ctx context.Context, id int64) (*suggestions.Post, error) {
+			return &suggestions.Post{Model: base.Model{ID: id}}, nil
+		},
+		findByIDWithVoteFn: func(ctx context.Context, id int64, accountID int64, readerType string) (*suggestions.Post, error) {
+			require.NoError(t, ctx.Err())
+			return &suggestions.Post{
+				Model:      base.Model{ID: id},
+				Title:      "Test Post",
+				AuthorName: "Original Poster",
+			}, nil
+		},
+	}
+
+	commentRepo := &mockCommentRepo{
+		createFn: func(ctx context.Context, comment *suggestions.Comment) error {
+			comment.ID = 88
+			cancel()
+			return nil
+		},
+		findByIDWithAuthorFn: func(ctx context.Context, id int64) (*suggestions.Comment, error) {
+			require.NoError(t, ctx.Err())
+			return &suggestions.Comment{
+				Model:      base.Model{ID: id},
+				AuthorName: "Comment A.",
+				Content:    "hello",
+			}, nil
+		},
+	}
+
+	svc := suggestionsService.NewService(suggestionsService.ServiceConfig{
+		PostRepo:        postRepo,
+		VoteRepo:        &mockVoteRepo{},
+		CommentRepo:     commentRepo,
+		CommentReadRepo: &mockCommentReadRepo{},
+		Dispatcher:      dispatcher,
+		DefaultFrom:     email.NewEmail("Phoenix", "noreply@example.com"),
+		NotifyEmail:     "ops@example.com",
+		FrontendURL:     "https://frontend.test",
+	})
+
+	require.NoError(t, svc.CreateComment(ctx, &suggestions.Comment{
+		PostID:   456,
+		AuthorID: 123,
+		Content:  "new comment",
+	}))
+
+	message := waitForDispatchedMessage(t, mailer)
+	assert.Equal(t, "ops@example.com", message.To.Address)
+}
+
+func TestCreatePost_NotificationDescriptionTruncatesByRunes(t *testing.T) {
+	ctx := context.Background()
+	mailer := newCapturingMailer(1)
+	dispatcher := email.NewDispatcher(mailer, nil)
+
+	postRepo := &mockPostRepo{
+		createFn: func(ctx context.Context, post *suggestions.Post) error {
+			post.ID = 77
+			return nil
+		},
+		findByIDWithVoteFn: func(ctx context.Context, id int64, accountID int64, readerType string) (*suggestions.Post, error) {
+			return &suggestions.Post{
+				Model:       base.Model{ID: id},
+				Title:       "Test Post",
+				Description: strings.Repeat("ä", 501),
+				AuthorName:  "Alice Example",
+			}, nil
+		},
+	}
+
+	svc := suggestionsService.NewService(suggestionsService.ServiceConfig{
+		PostRepo:        postRepo,
+		VoteRepo:        &mockVoteRepo{},
+		CommentRepo:     &mockCommentRepo{},
+		CommentReadRepo: &mockCommentReadRepo{},
+		Dispatcher:      dispatcher,
+		DefaultFrom:     email.NewEmail("Phoenix", "noreply@example.com"),
+		NotifyEmail:     "ops@example.com",
+		FrontendURL:     "https://frontend.test",
+	})
+
+	require.NoError(t, svc.CreatePost(ctx, &suggestions.Post{
+		Title:       "Test Post",
+		Description: "Original description",
+		AuthorID:    123,
+	}))
+
+	message := waitForDispatchedMessage(t, mailer)
+	content, ok := message.Content.(map[string]string)
+	require.True(t, ok)
+	assert.Len(t, []rune(content["Description"]), 501)
+	assert.True(t, strings.HasSuffix(content["Description"], "\u2026"))
+	assert.True(t, utf8.ValidString(content["Description"]))
+}
+
+func TestCreateComment_NotificationContentTruncatesByRunes(t *testing.T) {
+	ctx := context.Background()
+	mailer := newCapturingMailer(1)
+	dispatcher := email.NewDispatcher(mailer, nil)
+
+	postRepo := &mockPostRepo{
+		findByIDFn: func(ctx context.Context, id int64) (*suggestions.Post, error) {
+			return &suggestions.Post{Model: base.Model{ID: id}}, nil
+		},
+		findByIDWithVoteFn: func(ctx context.Context, id int64, accountID int64, readerType string) (*suggestions.Post, error) {
+			return &suggestions.Post{
+				Model:      base.Model{ID: id},
+				Title:      "Test Post",
+				AuthorName: "Original Poster",
+			}, nil
+		},
+	}
+
+	commentRepo := &mockCommentRepo{
+		createFn: func(ctx context.Context, comment *suggestions.Comment) error {
+			comment.ID = 88
+			return nil
+		},
+		findByIDWithAuthorFn: func(ctx context.Context, id int64) (*suggestions.Comment, error) {
+			return &suggestions.Comment{
+				Model:      base.Model{ID: id},
+				AuthorName: "Comment A.",
+				Content:    strings.Repeat("ä", 501),
+			}, nil
+		},
+	}
+
+	svc := suggestionsService.NewService(suggestionsService.ServiceConfig{
+		PostRepo:        postRepo,
+		VoteRepo:        &mockVoteRepo{},
+		CommentRepo:     commentRepo,
+		CommentReadRepo: &mockCommentReadRepo{},
+		Dispatcher:      dispatcher,
+		DefaultFrom:     email.NewEmail("Phoenix", "noreply@example.com"),
+		NotifyEmail:     "ops@example.com",
+		FrontendURL:     "https://frontend.test",
+	})
+
+	require.NoError(t, svc.CreateComment(ctx, &suggestions.Comment{
+		PostID:   456,
+		AuthorID: 123,
+		Content:  "new comment",
+	}))
+
+	message := waitForDispatchedMessage(t, mailer)
+	content, ok := message.Content.(map[string]string)
+	require.True(t, ok)
+	assert.Len(t, []rune(content["CommentContent"]), 501)
+	assert.True(t, strings.HasSuffix(content["CommentContent"], "\u2026"))
+	assert.True(t, utf8.ValidString(content["CommentContent"]))
 }
 
 func TestGetComments_Success(t *testing.T) {
