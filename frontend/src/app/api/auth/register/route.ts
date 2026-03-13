@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
         });
         responseData = {
           status: "error",
-          error: responseText || "Failed to parse response",
+          error: responseText,
         };
       }
     } else {

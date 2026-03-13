@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
             jsonError instanceof Error ? jsonError.message : String(jsonError),
         });
         data = {
-          message: responseText || "Request failed with no response",
+          message: responseText,
         };
       }
     } else {

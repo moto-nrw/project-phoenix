@@ -174,6 +174,37 @@ describe("POST /api/auth/register", () => {
     expect(response.status).toBe(201);
   });
 
+  it("does not forward Authorization when session exists without a token", async () => {
+    mockAuth.mockResolvedValueOnce({
+      ...defaultSession,
+      user: { ...defaultSession.user, token: undefined },
+    });
+
+    const registrationPayload = {
+      email: "newuser@example.com",
+      password: "Test1234!",
+    };
+
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify({ status: "success" }), {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    const request = createMockRequest(
+      "/api/auth/register",
+      registrationPayload,
+    );
+    await POST(request);
+    const [, requestInit] = vi.mocked(global.fetch).mock.calls[0] as [
+      string,
+      RequestInit,
+    ];
+
+    expect(requestInit.headers).not.toHaveProperty("Authorization");
+  });
+
   it("handles backend validation error", async () => {
     const registrationPayload = {
       email: "invalid-email",
@@ -291,6 +322,60 @@ describe("POST /api/auth/register", () => {
     expect(json.error).toBe("invalid json");
   });
 
+  it("returns fallback payload when backend sends an empty JSON body", async () => {
+    const registrationPayload = {
+      email: "test@example.com",
+      password: "Test1234!",
+    };
+
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      new Response(null, {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    const request = createMockRequest(
+      "/api/auth/register",
+      registrationPayload,
+    );
+    const response = await POST(request);
+
+    expect(response.status).toBe(201);
+    const json = await parseJsonResponse<{ status: string; error: string }>(
+      response,
+    );
+    expect(json.status).toBe("error");
+    expect(json.error).toBe("Empty response");
+  });
+
+  it("returns fallback message when backend sends an empty non-JSON body", async () => {
+    const registrationPayload = {
+      email: "test@example.com",
+      password: "Test1234!",
+    };
+
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      new Response(null, {
+        status: 500,
+        headers: { "Content-Type": "text/plain" },
+      }),
+    );
+
+    const request = createMockRequest(
+      "/api/auth/register",
+      registrationPayload,
+    );
+    const response = await POST(request);
+
+    expect(response.status).toBe(500);
+    const json = await parseJsonResponse<{ status: string; error: string }>(
+      response,
+    );
+    expect(json.status).toBe("error");
+    expect(json.error).toBe("Request failed with no response");
+  });
+
   it("returns 500 on fetch failure", async () => {
     const registrationPayload = {
       email: "test@example.com",
@@ -310,5 +395,20 @@ describe("POST /api/auth/register", () => {
       response,
     );
     expect(json.message).toBe("An error occurred during registration");
+  });
+
+  it("returns 500 when request parsing throws a non-Error value", async () => {
+    const request = {
+      json: vi.fn().mockRejectedValueOnce("bad payload"),
+    } as unknown as NextRequest;
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(500);
+    const json = await parseJsonResponse<{ message: string; error: string }>(
+      response,
+    );
+    expect(json.message).toBe("An error occurred during registration");
+    expect(json.error).toBe("bad payload");
   });
 });
