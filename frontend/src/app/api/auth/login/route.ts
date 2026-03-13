@@ -21,21 +21,23 @@ export async function POST(request: NextRequest) {
     // Check if the response has a body and is JSON
     let data: unknown;
     const contentType = response.headers.get("content-type");
+    const responseText = await response.text();
 
     if (contentType?.includes("application/json")) {
       try {
-        data = await response.json();
+        data = responseText ? (JSON.parse(responseText) as unknown) : null;
       } catch (jsonError) {
         logger.error("failed to parse JSON response", {
           error:
             jsonError instanceof Error ? jsonError.message : String(jsonError),
         });
-        data = { message: await response.text() };
+        data = {
+          message: responseText || "Request failed with no response",
+        };
       }
     } else {
       // If not JSON, get the text response
-      const text = await response.text();
-      data = { message: text ?? "Request failed with no response" };
+      data = { message: responseText || "Request failed with no response" };
     }
 
     return NextResponse.json(data ?? { message: "Empty response" }, {

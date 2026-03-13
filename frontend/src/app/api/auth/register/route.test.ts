@@ -100,15 +100,25 @@ describe("POST /api/auth/register", () => {
       registrationPayload,
     );
     const response = await POST(request);
+    const [, requestInit] = vi.mocked(global.fetch).mock.calls[0] as [
+      string,
+      RequestInit,
+    ];
 
-    expect(global.fetch).toHaveBeenCalledWith(
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(global.fetch).mock.calls[0]?.[0]).toBe(
       "http://localhost:8080/auth/register",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(registrationPayload),
-      },
     );
+    expect(requestInit).toMatchObject({
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "User-Agent": "unknown",
+        "X-Forwarded-For": "unknown",
+        "X-Real-IP": "unknown",
+      },
+      body: JSON.stringify(registrationPayload),
+    });
 
     expect(response.status).toBe(201);
     const json = await parseJsonResponse<typeof backendResponse>(response);
@@ -140,18 +150,26 @@ describe("POST /api/auth/register", () => {
       registrationPayload,
     );
     const response = await POST(request);
+    const [, requestInit] = vi.mocked(global.fetch).mock.calls[0] as [
+      string,
+      RequestInit,
+    ];
 
-    expect(global.fetch).toHaveBeenCalledWith(
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(global.fetch).mock.calls[0]?.[0]).toBe(
       "http://localhost:8080/auth/register",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer admin-token",
-        },
-        body: JSON.stringify(registrationPayload),
-      },
     );
+    expect(requestInit).toMatchObject({
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer admin-token",
+        "User-Agent": "unknown",
+        "X-Forwarded-For": "unknown",
+        "X-Real-IP": "unknown",
+      },
+      body: JSON.stringify(registrationPayload),
+    });
 
     expect(response.status).toBe(201);
   });
@@ -265,13 +283,12 @@ describe("POST /api/auth/register", () => {
     );
     const response = await POST(request);
 
-    // When response.json() fails, the body is consumed, so response.text() also fails
-    // This triggers the outer catch block, returning 500
-    expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ message: string; error: string }>(
+    expect(response.status).toBe(200);
+    const json = await parseJsonResponse<{ status: string; error: string }>(
       response,
     );
-    expect(json.message).toBe("An error occurred during registration");
+    expect(json.status).toBe("error");
+    expect(json.error).toBe("invalid json");
   });
 
   it("returns 500 on fetch failure", async () => {

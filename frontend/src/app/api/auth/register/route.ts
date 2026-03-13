@@ -36,10 +36,13 @@ export async function POST(request: NextRequest) {
     // Check if the response has a body and is JSON
     let responseData: Record<string, unknown> | null = null;
     const contentType = response.headers.get("content-type");
+    const responseText = await response.text();
 
     if (contentType?.includes("application/json")) {
       try {
-        responseData = (await response.json()) as Record<string, unknown>;
+        responseData = responseText
+          ? (JSON.parse(responseText) as Record<string, unknown>)
+          : null;
       } catch (jsonError) {
         logger.error("failed to parse JSON response", {
           error:
@@ -47,15 +50,14 @@ export async function POST(request: NextRequest) {
         });
         responseData = {
           status: "error",
-          error: (await response.text()) || "Failed to parse response",
+          error: responseText || "Failed to parse response",
         };
       }
     } else {
       // If not JSON, get the text response
-      const text = await response.text();
       responseData = {
         status: "error",
-        error: text || "Request failed with no response",
+        error: responseText || "Request failed with no response",
       };
     }
 
@@ -67,7 +69,7 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(
-      responseData || { status: "error", error: "Empty response" },
+      responseData ?? { status: "error", error: "Empty response" },
       { status: response.status },
     );
   } catch (error) {
