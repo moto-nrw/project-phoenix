@@ -5,6 +5,31 @@
 import { render, screen, waitFor, cleanup } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
+function createLocalStorageMock() {
+  const store: Record<string, string> = {};
+
+  return {
+    getItem: (key: string) => store[key] ?? null,
+    setItem: (key: string, value: string) => {
+      store[key] = value;
+    },
+    removeItem: (key: string) => {
+      delete store[key];
+    },
+    clear: () => {
+      for (const key of Object.keys(store)) {
+        delete store[key];
+      }
+    },
+  };
+}
+
+Object.defineProperty(window, "localStorage", {
+  value: createLocalStorageMock(),
+  writable: true,
+  configurable: true,
+});
+
 // Mock next-auth/react
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(() => ({
@@ -3469,6 +3494,11 @@ describe("OGSGroupPage ID-based selection: First load initialization", () => {
         removeItem: (key: string) => {
           delete localStorageMock[key];
         },
+        clear: () => {
+          for (const key of Object.keys(localStorageMock)) {
+            delete localStorageMock[key];
+          }
+        },
       },
       writable: true,
       configurable: true,
@@ -3807,6 +3837,11 @@ describe("OGSGroupPage ID-based selection: localStorage restore", () => {
         },
         removeItem: (key: string) => {
           delete localStorageMock[key];
+        },
+        clear: () => {
+          for (const key of Object.keys(localStorageMock)) {
+            delete localStorageMock[key];
+          }
         },
       },
       writable: true,
@@ -4210,6 +4245,11 @@ describe("OGSGroupPage ID-based selection: tab change handler", () => {
         },
         removeItem: (key: string) => {
           delete localStorageMock[key];
+        },
+        clear: () => {
+          for (const key of Object.keys(localStorageMock)) {
+            delete localStorageMock[key];
+          }
         },
       },
       writable: true,
