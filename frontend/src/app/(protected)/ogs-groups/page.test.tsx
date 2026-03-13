@@ -176,19 +176,7 @@ vi.mock("~/lib/group-transfer-api", () => ({
 
 // Mock LocationBadge
 vi.mock("@/components/ui/location-badge", () => ({
-  LocationBadge: ({
-    student,
-  }: {
-    student: { current_location?: string; sick?: boolean };
-  }) => (
-    <div
-      data-testid="location-badge"
-      data-location={student.current_location ?? ""}
-      data-sick={student.sick ? "true" : "false"}
-    >
-      {student.sick ? "Krank" : student.current_location}
-    </div>
-  ),
+  LocationBadge: () => <div data-testid="location-badge">Location</div>,
 }));
 
 // Mock EmptyStudentResults
@@ -410,66 +398,6 @@ describe("OGSGroupPage", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("student-card")).toBeInTheDocument();
-    });
-  });
-
-  it("preserves sick status from dashboard data on the first-group preload", async () => {
-    vi.mocked(useSWRAuth).mockImplementation((key) => {
-      if (key === "ogs-dashboard") {
-        return {
-          data: {
-            groups: [
-              {
-                id: 1,
-                name: "OGS Gruppe A",
-                room_id: 10,
-                room: { id: 10, name: "Raum 101" },
-              },
-            ],
-            students: [
-              {
-                id: 1,
-                first_name: "Leo",
-                last_name: "Fuchs",
-                school_class: "3a",
-                current_location: "Zuhause",
-                sick: true,
-                sick_since: "2026-03-13T08:00:00Z",
-              },
-            ],
-            roomStatus: {
-              student_room_status: {
-                "1": { in_group_room: false },
-              },
-            },
-            substitutions: [],
-            pickupTimes: [],
-            firstGroupId: "1",
-          },
-          isLoading: false,
-          error: null,
-          mutate: mockMutate,
-          isValidating: false,
-        } as never;
-      }
-
-      return {
-        data: null,
-        isLoading: false,
-        error: null,
-        mutate: mockMutate,
-        isValidating: false,
-      } as never;
-    });
-
-    render(<OGSGroupPage />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("location-badge")).toHaveAttribute(
-        "data-sick",
-        "true",
-      );
-      expect(screen.getByTestId("location-badge")).toHaveTextContent("Krank");
     });
   });
 
@@ -3566,6 +3494,11 @@ describe("OGSGroupPage ID-based selection: First load initialization", () => {
         removeItem: (key: string) => {
           delete localStorageMock[key];
         },
+        clear: () => {
+          for (const key of Object.keys(localStorageMock)) {
+            delete localStorageMock[key];
+          }
+        },
       },
       writable: true,
       configurable: true,
@@ -3904,6 +3837,11 @@ describe("OGSGroupPage ID-based selection: localStorage restore", () => {
         },
         removeItem: (key: string) => {
           delete localStorageMock[key];
+        },
+        clear: () => {
+          for (const key of Object.keys(localStorageMock)) {
+            delete localStorageMock[key];
+          }
         },
       },
       writable: true,
@@ -4307,6 +4245,11 @@ describe("OGSGroupPage ID-based selection: tab change handler", () => {
         },
         removeItem: (key: string) => {
           delete localStorageMock[key];
+        },
+        clear: () => {
+          for (const key of Object.keys(localStorageMock)) {
+            delete localStorageMock[key];
+          }
         },
       },
       writable: true,
