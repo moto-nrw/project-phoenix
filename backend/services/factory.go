@@ -214,13 +214,19 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	)
 
 	// Initialize suggestions service
-	suggestionsService := suggestions.NewService(
-		repos.SuggestionPost,
-		repos.SuggestionVote,
-		repos.SuggestionComment,
-		repos.SuggestionCommentRead,
-		db,
-	)
+	suggestionsNotifyEmail := viper.GetString("suggestion_notify_email")
+	suggestionsService := suggestions.NewService(suggestions.ServiceConfig{
+		PostRepo:        repos.SuggestionPost,
+		VoteRepo:        repos.SuggestionVote,
+		CommentRepo:     repos.SuggestionComment,
+		CommentReadRepo: repos.SuggestionCommentRead,
+		DB:              db,
+		Dispatcher:      dispatcher,
+		DefaultFrom:     defaultFrom,
+		NotifyEmail:     suggestionsNotifyEmail,
+		FrontendURL:     frontendURL,
+		Logger:          logger.With("service", "suggestions"),
+	})
 
 	// Initialize IoT service
 	iotService := iot.NewService(

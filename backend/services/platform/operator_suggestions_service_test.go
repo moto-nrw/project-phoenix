@@ -65,10 +65,11 @@ func (m *mockPostRepo) RecalculateScore(ctx context.Context, postID int64) error
 }
 
 type mockCommentRepo struct {
-	findByPostIDFn func(ctx context.Context, postID int64) ([]*suggestions.Comment, error)
-	findByIDFn     func(ctx context.Context, id int64) (*suggestions.Comment, error)
-	createFn       func(ctx context.Context, comment *suggestions.Comment) error
-	deleteFn       func(ctx context.Context, id int64) error
+	findByPostIDFn       func(ctx context.Context, postID int64) ([]*suggestions.Comment, error)
+	findByIDFn           func(ctx context.Context, id int64) (*suggestions.Comment, error)
+	findByIDWithAuthorFn func(ctx context.Context, id int64) (*suggestions.Comment, error)
+	createFn             func(ctx context.Context, comment *suggestions.Comment) error
+	deleteFn             func(ctx context.Context, id int64) error
 }
 
 func (m *mockCommentRepo) Create(ctx context.Context, comment *suggestions.Comment) error {
@@ -81,6 +82,13 @@ func (m *mockCommentRepo) Create(ctx context.Context, comment *suggestions.Comme
 func (m *mockCommentRepo) FindByID(ctx context.Context, id int64) (*suggestions.Comment, error) {
 	if m.findByIDFn != nil {
 		return m.findByIDFn(ctx, id)
+	}
+	return nil, nil
+}
+
+func (m *mockCommentRepo) FindByIDWithAuthor(ctx context.Context, id int64) (*suggestions.Comment, error) {
+	if m.findByIDWithAuthorFn != nil {
+		return m.findByIDWithAuthorFn(ctx, id)
 	}
 	return nil, nil
 }
