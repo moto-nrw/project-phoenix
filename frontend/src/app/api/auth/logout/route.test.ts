@@ -79,17 +79,25 @@ describe("POST /api/auth/logout", () => {
 
     const request = createMockRequest("/api/auth/logout");
     const response = await POST(request);
+    const [, requestInit] = vi.mocked(global.fetch).mock.calls[0] as [
+      string,
+      RequestInit,
+    ];
 
-    expect(global.fetch).toHaveBeenCalledWith(
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(global.fetch).mock.calls[0]?.[0]).toBe(
       "http://localhost:8080/auth/logout",
-      {
-        method: "POST",
-        headers: {
-          Authorization: "Bearer test-token",
-          "Content-Type": "application/json",
-        },
-      },
     );
+    expect(requestInit).toMatchObject({
+      method: "POST",
+      headers: {
+        Authorization: "Bearer test-token",
+        "Content-Type": "application/json",
+        "User-Agent": "unknown",
+        "X-Forwarded-For": "unknown",
+        "X-Real-IP": "unknown",
+      },
+    });
 
     expect(response.status).toBe(204);
     const text = await response.text();

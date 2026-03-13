@@ -67,15 +67,25 @@ describe("POST /api/auth/password-reset", () => {
 
     const request = createMockRequest("/api/auth/password-reset", requestBody);
     const response = await POST(request);
+    const [, requestInit] = vi.mocked(global.fetch).mock.calls[0] as [
+      string,
+      RequestInit,
+    ];
 
-    expect(global.fetch).toHaveBeenCalledWith(
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(global.fetch).mock.calls[0]?.[0]).toBe(
       "http://localhost:8080/auth/password-reset",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(requestBody),
-      },
     );
+    expect(requestInit).toMatchObject({
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "User-Agent": "unknown",
+        "X-Forwarded-For": "unknown",
+        "X-Real-IP": "unknown",
+      },
+      body: JSON.stringify(requestBody),
+    });
 
     expect(response.status).toBe(200);
     const json = await parseJsonResponse<typeof backendResponse>(response);
