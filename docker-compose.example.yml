@@ -82,6 +82,9 @@ services:
       NEXT_TELEMETRY_DISABLED: ${NEXT_TELEMETRY_DISABLED:-"1"}
       # Frontend structured logging level (debug, info, warn, error)
       NEXT_PUBLIC_LOG_LEVEL: ${NEXT_PUBLIC_LOG_LEVEL:-info}
+      # PostHog Product Analytics (EU Cloud)
+      NEXT_PUBLIC_POSTHOG_KEY: ${NEXT_PUBLIC_POSTHOG_KEY:-}
+      NEXT_PUBLIC_POSTHOG_HOST: ${NEXT_PUBLIC_POSTHOG_HOST:-https://eu.i.posthog.com}
     depends_on:
       - server
     volumes:

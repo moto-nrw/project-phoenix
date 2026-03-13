@@ -25,6 +25,7 @@
 
 import { useEffect } from "react";
 import { useSession } from "next-auth/react";
+import posthog from "posthog-js";
 import { useUserContext } from "~/lib/hooks/use-user-context";
 import { useGlobalSSE } from "~/lib/hooks/use-global-sse";
 import { createLogger } from "~/lib/logger";
@@ -36,7 +37,7 @@ interface AuthWrapperProps {
 }
 
 export function AuthWrapper({ children }: Readonly<AuthWrapperProps>) {
-  const { status } = useSession();
+  const { data: session, status } = useSession();
 
   // Pre-warm user context cache (only when authenticated)
   // This fetches once on mount and caches for instant access on all pages
@@ -45,6 +46,17 @@ export function AuthWrapper({ children }: Readonly<AuthWrapperProps>) {
   // Establish single global SSE connection
   // This replaces per-page SSE connections with one shared connection
   const { status: sseStatus } = useGlobalSSE();
+
+  // Identify user in PostHog after login, reset on logout
+  useEffect(() => {
+    if (status === "authenticated" && session?.user?.id) {
+      posthog.identify(session.user.id, {
+        email: session.user.email,
+      });
+    } else if (status === "unauthenticated") {
+      posthog.reset();
+    }
+  }, [status, session]);
 
   // Debug logging (only in development)
   useEffect(() => {
