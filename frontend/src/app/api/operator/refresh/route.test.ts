@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { NextRequest } from "next/server";
 
 const {
   mockGetRefreshToken,
@@ -25,6 +26,16 @@ global.fetch = mockFetch as unknown as typeof fetch;
 
 import { POST } from "./route";
 
+function mockRequest(): NextRequest {
+  return new NextRequest("http://localhost/api/operator/refresh", {
+    method: "POST",
+    headers: {
+      "x-forwarded-for": "203.0.113.1",
+      "user-agent": "TestBrowser/1.0",
+    },
+  });
+}
+
 describe("POST /api/operator/refresh", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -44,7 +55,7 @@ describe("POST /api/operator/refresh", () => {
       }),
     });
 
-    const response = await POST();
+    const response = await POST(mockRequest());
 
     expect(response.status).toBe(200);
     const json = (await response.json()) as { success?: boolean };
@@ -68,7 +79,7 @@ describe("POST /api/operator/refresh", () => {
   it("returns 401 when no refresh token exists", async () => {
     mockGetRefreshToken.mockResolvedValue(undefined);
 
-    const response = await POST();
+    const response = await POST(mockRequest());
 
     expect(response.status).toBe(401);
     const json = (await response.json()) as { error?: string };
@@ -83,7 +94,7 @@ describe("POST /api/operator/refresh", () => {
       status: 401,
     });
 
-    const response = await POST();
+    const response = await POST(mockRequest());
 
     expect(response.status).toBe(401);
     const json = (await response.json()) as { error?: string };
@@ -94,7 +105,7 @@ describe("POST /api/operator/refresh", () => {
     mockGetRefreshToken.mockResolvedValue("some-refresh-token");
     mockFetch.mockRejectedValue(new Error("Network error"));
 
-    const response = await POST();
+    const response = await POST(mockRequest());
 
     expect(response.status).toBe(500);
     const json = (await response.json()) as { error?: string };
@@ -124,7 +135,7 @@ describe("POST /api/operator/refresh", () => {
       }),
     });
 
-    const response = await POST();
+    const response = await POST(mockRequest());
 
     expect(response.status).toBe(200);
     const json = (await response.json()) as {

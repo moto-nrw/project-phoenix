@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth } from "~/server/auth";
 import { getServerApiUrl } from "~/lib/server-api-url";
+import { getClientForwardHeaders } from "~/lib/client-headers";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "AuthRegisterRoute" });
@@ -26,7 +27,7 @@ export async function POST(request: NextRequest) {
 
     const response = await fetch(`${getServerApiUrl()}/auth/register`, {
       method: "POST",
-      headers,
+      headers: { ...headers, ...getClientForwardHeaders(request) },
       body: JSON.stringify(requestBody),
     });
 
