@@ -55,6 +55,7 @@ services:
       OPERATOR_EMAIL: ${OPERATOR_EMAIL:-operator@example.com}
       OPERATOR_PASSWORD: ${OPERATOR_PASSWORD}
       OPERATOR_DISPLAY_NAME: ${OPERATOR_DISPLAY_NAME:-Administrator}
+      SUGGESTION_NOTIFY_EMAIL: ${SUGGESTION_NOTIFY_EMAIL:-}
     # air handles the serve command via .air.toml
 
   frontend:
