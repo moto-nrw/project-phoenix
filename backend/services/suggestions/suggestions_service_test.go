@@ -3,7 +3,6 @@ package suggestions_test
 import (
 	"context"
 	"errors"
-	"io"
 	"log/slog"
 	"strings"
 	"testing"
@@ -359,7 +358,7 @@ func TestCreatePost_DispatchesNotificationWithInjectedLogger(t *testing.T) {
 	ctx := context.Background()
 	mailer := newCapturingMailer(1)
 	dispatcher := email.NewDispatcher(mailer, nil)
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := slog.New(slog.DiscardHandler)
 
 	postRepo := &mockPostRepo{
 		createFn: func(ctx context.Context, post *suggestions.Post) error {
