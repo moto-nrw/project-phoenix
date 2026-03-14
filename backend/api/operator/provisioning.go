@@ -63,6 +63,43 @@ func (req *createSchoolRequest) Bind(_ *http.Request) error {
 	return nil
 }
 
+type updateOrganizationRequest struct {
+	Name   string `json:"name"`
+	Slug   string `json:"slug"`
+	Active bool   `json:"active"`
+}
+
+func (req *updateOrganizationRequest) Bind(_ *http.Request) error {
+	req.Name = strings.TrimSpace(req.Name)
+	req.Slug = strings.TrimSpace(req.Slug)
+	return nil
+}
+
+type updateSchoolRequest struct {
+	OrganizationID int64  `json:"organization_id"`
+	Name           string `json:"name"`
+	Slug           string `json:"slug"`
+	Subdomain      string `json:"subdomain"`
+	Address        string `json:"address"`
+	City           string `json:"city"`
+	Zip            string `json:"zip"`
+	Phone          string `json:"phone"`
+	Email          string `json:"email"`
+	Active         bool   `json:"active"`
+}
+
+func (req *updateSchoolRequest) Bind(_ *http.Request) error {
+	req.Name = strings.TrimSpace(req.Name)
+	req.Slug = strings.TrimSpace(req.Slug)
+	req.Subdomain = strings.TrimSpace(req.Subdomain)
+	req.Address = strings.TrimSpace(req.Address)
+	req.City = strings.TrimSpace(req.City)
+	req.Zip = strings.TrimSpace(req.Zip)
+	req.Phone = strings.TrimSpace(req.Phone)
+	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
+	return nil
+}
+
 type inviteSchoolAdminRequest struct {
 	Email     string `json:"email"`
 	FirstName string `json:"first_name,omitempty"`
@@ -155,6 +192,61 @@ func (rs *ProvisioningResource) ListSchools(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	common.Respond(w, r, http.StatusOK, schools, "Schools retrieved successfully")
+}
+
+func (rs *ProvisioningResource) UpdateOrganization(w http.ResponseWriter, r *http.Request) {
+	req := &updateOrganizationRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, ErrInvalidRequest(err))
+		return
+	}
+	orgID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid organization ID")
+	if !ok {
+		return
+	}
+	operatorID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	svcReq := platformSvc.UpdateOrganizationRequest{
+		Name:   req.Name,
+		Slug:   req.Slug,
+		Active: req.Active,
+	}
+	updated, err := rs.service.UpdateOrganization(r.Context(), orgID, svcReq, operatorID, getClientIP(r))
+	if err != nil {
+		common.RenderError(w, r, ProvisioningErrorRenderer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, updated, "Organization updated successfully")
+}
+
+func (rs *ProvisioningResource) UpdateSchool(w http.ResponseWriter, r *http.Request) {
+	req := &updateSchoolRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, ErrInvalidRequest(err))
+		return
+	}
+	schoolID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid school ID")
+	if !ok {
+		return
+	}
+	operatorID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	svcReq := platformSvc.UpdateSchoolRequest{
+		OrganizationID: req.OrganizationID,
+		Name:           req.Name,
+		Slug:           req.Slug,
+		Subdomain:      req.Subdomain,
+		Address:        req.Address,
+		City:           req.City,
+		Zip:            req.Zip,
+		Phone:          req.Phone,
+		Email:          req.Email,
+		Active:         req.Active,
+	}
+	updated, err := rs.service.UpdateSchool(r.Context(), schoolID, svcReq, operatorID, getClientIP(r))
+	if err != nil {
+		common.RenderError(w, r, ProvisioningErrorRenderer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, updated, "School updated successfully")
 }
 
 func (rs *ProvisioningResource) InviteSchoolAdmin(w http.ResponseWriter, r *http.Request) {

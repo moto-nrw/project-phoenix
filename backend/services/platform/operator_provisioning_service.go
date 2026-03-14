@@ -21,12 +21,35 @@ import (
 	"github.com/uptrace/bun/driver/pgdriver"
 )
 
+// UpdateOrganizationRequest holds fields for updating an organization.
+type UpdateOrganizationRequest struct {
+	Name   string
+	Slug   string
+	Active bool
+}
+
+// UpdateSchoolRequest holds fields for updating a school.
+type UpdateSchoolRequest struct {
+	OrganizationID int64
+	Name           string
+	Slug           string
+	Subdomain      string
+	Address        string
+	City           string
+	Zip            string
+	Phone          string
+	Email          string
+	Active         bool
+}
+
 // OperatorProvisioningService handles operator-led tenant provisioning.
 type OperatorProvisioningService interface {
 	CreateOrganization(ctx context.Context, organization *platform.Organization, operatorID int64, clientIP net.IP) (*platform.Organization, error)
 	ListOrganizations(ctx context.Context) ([]*platform.Organization, error)
+	UpdateOrganization(ctx context.Context, id int64, req UpdateOrganizationRequest, operatorID int64, clientIP net.IP) (*platform.Organization, error)
 	CreateSchool(ctx context.Context, school *platform.School, operatorID int64, clientIP net.IP) (*platform.School, error)
 	ListSchools(ctx context.Context) ([]*platform.School, error)
+	UpdateSchool(ctx context.Context, id int64, req UpdateSchoolRequest, operatorID int64, clientIP net.IP) (*platform.School, error)
 	InviteSchoolAdmin(ctx context.Context, schoolID, operatorID int64, clientIP net.IP, req authSvc.InvitationRequest) (*authModels.InvitationToken, error)
 }
 
@@ -117,6 +140,57 @@ func (s *operatorProvisioningService) ListOrganizations(ctx context.Context) ([]
 	return s.organizationRepo.List(ctx)
 }
 
+func (s *operatorProvisioningService) UpdateOrganization(ctx context.Context, id int64, req UpdateOrganizationRequest, operatorID int64, clientIP net.IP) (*platform.Organization, error) {
+	var updated *platform.Organization
+	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
+		existing, err := s.organizationRepo.FindByID(adminCtx, id)
+		if err != nil {
+			return err
+		}
+		if existing == nil {
+			return &OrganizationNotFoundError{OrganizationID: id}
+		}
+
+		changes := map[string]any{}
+
+		if req.Slug != existing.Slug {
+			taken, findErr := s.organizationRepo.FindBySlug(adminCtx, req.Slug)
+			if findErr != nil {
+				return findErr
+			}
+			if taken != nil && taken.ID != id {
+				return &ConflictError{Err: fmt.Errorf("organization slug already exists")}
+			}
+			changes["slug"] = map[string]string{"old": existing.Slug, "new": req.Slug}
+		}
+		if req.Name != existing.Name {
+			changes["name"] = map[string]string{"old": existing.Name, "new": req.Name}
+		}
+		if req.Active != existing.Active {
+			changes["active"] = map[string]bool{"old": existing.Active, "new": req.Active}
+		}
+
+		existing.Name = req.Name
+		existing.Slug = req.Slug
+		existing.Active = req.Active
+
+		if updateErr := s.organizationRepo.Update(adminCtx, existing); updateErr != nil {
+			if isUniqueViolation(updateErr) {
+				return &ConflictError{Err: fmt.Errorf("organization slug already exists")}
+			}
+			return updateErr
+		}
+
+		s.logAction(adminCtx, operatorID, platform.ActionUpdate, platform.ResourceOrganization, &id, clientIP, changes)
+		updated = existing
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return updated, nil
+}
+
 func (s *operatorProvisioningService) CreateSchool(ctx context.Context, school *platform.School, operatorID int64, clientIP net.IP) (*platform.School, error) {
 	if school == nil {
 		return nil, &InvalidDataError{Err: fmt.Errorf("school is required")}
@@ -159,6 +233,93 @@ func (s *operatorProvisioningService) CreateSchool(ctx context.Context, school *
 
 func (s *operatorProvisioningService) ListSchools(ctx context.Context) ([]*platform.School, error) {
 	return s.schoolRepo.List(ctx)
+}
+
+func (s *operatorProvisioningService) UpdateSchool(ctx context.Context, id int64, req UpdateSchoolRequest, operatorID int64, clientIP net.IP) (*platform.School, error) {
+	var updated *platform.School
+	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
+		existing, err := s.schoolRepo.FindByID(adminCtx, id)
+		if err != nil {
+			if isSchoolLookupNotFound(err) {
+				return &SchoolNotFoundError{SchoolID: id}
+			}
+			return err
+		}
+		if existing == nil {
+			return &SchoolNotFoundError{SchoolID: id}
+		}
+
+		changes := map[string]any{}
+
+		if req.OrganizationID != existing.OrganizationID {
+			org, orgErr := s.organizationRepo.FindByID(adminCtx, req.OrganizationID)
+			if orgErr != nil {
+				return orgErr
+			}
+			if org == nil {
+				return &OrganizationNotFoundError{OrganizationID: req.OrganizationID}
+			}
+			changes["organization_id"] = map[string]int64{"old": existing.OrganizationID, "new": req.OrganizationID}
+		}
+
+		targetOrgID := req.OrganizationID
+		if req.Slug != existing.Slug || req.OrganizationID != existing.OrganizationID {
+			taken, findErr := s.schoolRepo.FindByOrganizationAndSlug(adminCtx, targetOrgID, req.Slug)
+			if findErr != nil {
+				return findErr
+			}
+			if taken != nil && taken.ID != id {
+				return &ConflictError{Err: fmt.Errorf("school slug already exists in this organization")}
+			}
+			if req.Slug != existing.Slug {
+				changes["slug"] = map[string]string{"old": existing.Slug, "new": req.Slug}
+			}
+		}
+
+		if req.Subdomain != existing.Subdomain {
+			taken, findErr := s.schoolRepo.FindBySubdomain(adminCtx, req.Subdomain)
+			if findErr != nil {
+				return findErr
+			}
+			if taken != nil && taken.ID != id {
+				return &ConflictError{Err: fmt.Errorf("school subdomain already exists")}
+			}
+			changes["subdomain"] = map[string]string{"old": existing.Subdomain, "new": req.Subdomain}
+		}
+
+		if req.Name != existing.Name {
+			changes["name"] = map[string]string{"old": existing.Name, "new": req.Name}
+		}
+		if req.Active != existing.Active {
+			changes["active"] = map[string]bool{"old": existing.Active, "new": req.Active}
+		}
+
+		existing.OrganizationID = req.OrganizationID
+		existing.Name = req.Name
+		existing.Slug = req.Slug
+		existing.Subdomain = req.Subdomain
+		existing.Address = req.Address
+		existing.City = req.City
+		existing.Zip = req.Zip
+		existing.Phone = req.Phone
+		existing.Email = req.Email
+		existing.Active = req.Active
+
+		if updateErr := s.schoolRepo.Update(adminCtx, existing); updateErr != nil {
+			if isUniqueViolation(updateErr) {
+				return mapSchoolCreateConflict(adminCtx, s.schoolRepo, existing)
+			}
+			return updateErr
+		}
+
+		s.logAction(adminCtx, operatorID, platform.ActionUpdate, platform.ResourceSchool, &id, clientIP, changes)
+		updated = existing
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return updated, nil
 }
 
 func (s *operatorProvisioningService) InviteSchoolAdmin(ctx context.Context, schoolID, operatorID int64, clientIP net.IP, req authSvc.InvitationRequest) (*authModels.InvitationToken, error) {

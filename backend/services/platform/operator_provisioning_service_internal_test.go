@@ -69,6 +69,9 @@ func (s *internalSchoolRepoStub) ListActive(context.Context) ([]platformModels.S
 func (s *internalSchoolRepoStub) FindActiveByAccountID(context.Context, int64) ([]platformModels.School, error) {
 	return nil, nil
 }
+func (s *internalSchoolRepoStub) Update(context.Context, *platformModels.School) error {
+	return nil
+}
 
 type internalOrgRepoStub struct {
 	findByIDFn   func(context.Context, int64) (*platformModels.Organization, error)
@@ -100,6 +103,9 @@ func (s *internalOrgRepoStub) List(ctx context.Context) ([]*platformModels.Organ
 		return s.listFn(ctx)
 	}
 	return nil, nil
+}
+func (s *internalOrgRepoStub) Update(context.Context, *platformModels.Organization) error {
+	return nil
 }
 
 type internalDeviceRepoStub struct {

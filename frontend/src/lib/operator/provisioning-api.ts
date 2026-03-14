@@ -9,6 +9,8 @@ import type {
   CreateOrganizationRequest,
   CreateSchoolRequest,
   InviteAdminRequest,
+  UpdateOrganizationRequest,
+  UpdateSchoolRequest,
 } from "./provisioning-helpers";
 import {
   mapOrganization,
@@ -45,6 +47,25 @@ class OperatorProvisioningService {
     const result = await operatorFetch<BackendSchool>(
       "/api/operator/provisioning/schools",
       { method: "POST", body: data },
+    );
+    return mapSchool(result);
+  }
+
+  async updateOrganization(
+    id: string,
+    data: UpdateOrganizationRequest,
+  ): Promise<Organization> {
+    const result = await operatorFetch<BackendOrganization>(
+      `/api/operator/provisioning/organizations/${id}`,
+      { method: "PUT", body: data },
+    );
+    return mapOrganization(result);
+  }
+
+  async updateSchool(id: string, data: UpdateSchoolRequest): Promise<School> {
+    const result = await operatorFetch<BackendSchool>(
+      `/api/operator/provisioning/schools/${id}`,
+      { method: "PUT", body: data },
     );
     return mapSchool(result);
   }

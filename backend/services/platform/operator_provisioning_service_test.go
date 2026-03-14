@@ -50,6 +50,9 @@ func (m *mockOrganizationRepo) List(context.Context) ([]*platformModels.Organiza
 	}
 	return nil, nil
 }
+func (m *mockOrganizationRepo) Update(context.Context, *platformModels.Organization) error {
+	return nil
+}
 
 type mockSchoolRepo struct {
 	findByIDFn         func(context.Context, int64) (*platformModels.School, error)
@@ -97,6 +100,9 @@ func (m *mockSchoolRepo) ListActive(context.Context) ([]platformModels.School, e
 }
 func (m *mockSchoolRepo) FindActiveByAccountID(context.Context, int64) ([]platformModels.School, error) {
 	return nil, nil
+}
+func (m *mockSchoolRepo) Update(context.Context, *platformModels.School) error {
+	return nil
 }
 
 type mockRoleRepo struct {

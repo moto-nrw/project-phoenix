@@ -169,6 +169,25 @@ export function mapInvitation(data: BackendInvitation): Invitation {
   };
 }
 
+export interface UpdateOrganizationRequest {
+  name: string;
+  slug: string;
+  active: boolean;
+}
+
+export interface UpdateSchoolRequest {
+  organization_id: number;
+  name: string;
+  slug: string;
+  subdomain: string;
+  address: string;
+  city: string;
+  zip: string;
+  phone: string;
+  email: string;
+  active: boolean;
+}
+
 // Slug helpers
 
 const SLUG_REGEX = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
