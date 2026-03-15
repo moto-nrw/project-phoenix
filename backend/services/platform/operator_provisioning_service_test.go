@@ -23,6 +23,7 @@ type mockOrganizationRepo struct {
 	findByIDFn   func(context.Context, int64) (*platformModels.Organization, error)
 	findBySlugFn func(context.Context, string) (*platformModels.Organization, error)
 	createFn     func(context.Context, *platformModels.Organization) error
+	updateFn     func(context.Context, *platformModels.Organization) error
 	listFn       func(context.Context) ([]*platformModels.Organization, error)
 }
 
@@ -50,7 +51,10 @@ func (m *mockOrganizationRepo) List(context.Context) ([]*platformModels.Organiza
 	}
 	return nil, nil
 }
-func (m *mockOrganizationRepo) Update(context.Context, *platformModels.Organization) error {
+func (m *mockOrganizationRepo) Update(ctx context.Context, org *platformModels.Organization) error {
+	if m.updateFn != nil {
+		return m.updateFn(ctx, org)
+	}
 	return nil
 }
 
@@ -59,6 +63,7 @@ type mockSchoolRepo struct {
 	findByOrgAndSlugFn func(context.Context, int64, string) (*platformModels.School, error)
 	findBySubdomainFn  func(context.Context, string) (*platformModels.School, error)
 	createFn           func(context.Context, *platformModels.School) error
+	updateFn           func(context.Context, *platformModels.School) error
 	listFn             func(context.Context) ([]*platformModels.School, error)
 }
 
@@ -101,7 +106,10 @@ func (m *mockSchoolRepo) ListActive(context.Context) ([]platformModels.School, e
 func (m *mockSchoolRepo) FindActiveByAccountID(context.Context, int64) ([]platformModels.School, error) {
 	return nil, nil
 }
-func (m *mockSchoolRepo) Update(context.Context, *platformModels.School) error {
+func (m *mockSchoolRepo) Update(ctx context.Context, school *platformModels.School) error {
+	if m.updateFn != nil {
+		return m.updateFn(ctx, school)
+	}
 	return nil
 }
 
@@ -546,4 +554,498 @@ func TestOperatorProvisioningService_InviteSchoolAdmin_AdminRoleMissing(t *testi
 	require.Error(t, err)
 	var invalidErr *platformSvc.InvalidDataError
 	require.ErrorAs(t, err, &invalidErr)
+}
+
+// --- UpdateOrganization tests ---
+
+func TestOperatorProvisioningService_UpdateOrganization_Success(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectCommit()
+
+	var updatedOrg *platformModels.Organization
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		OrganizationRepo: &mockOrganizationRepo{
+			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
+				return &platformModels.Organization{Model: base.Model{ID: 10}, Name: "Old Name", Slug: "old-slug", Active: true}, nil
+			},
+			findBySlugFn: func(_ context.Context, slug string) (*platformModels.Organization, error) {
+				return nil, nil // no conflict
+			},
+			updateFn: func(_ context.Context, org *platformModels.Organization) error {
+				updatedOrg = org
+				return nil
+			},
+		},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+		DB:           bunDB,
+	})
+
+	org, err := service.UpdateOrganization(context.Background(), 10, platformSvc.UpdateOrganizationRequest{
+		Name:   "New Name",
+		Slug:   "new-slug",
+		Active: false,
+	}, 7, net.IPv4(127, 0, 0, 1))
+	require.NoError(t, err)
+	require.NotNil(t, org)
+	assert.Equal(t, int64(10), org.ID)
+	assert.Equal(t, "New Name", org.Name)
+	assert.Equal(t, "new-slug", org.Slug)
+	assert.False(t, org.Active)
+	assert.Equal(t, updatedOrg, org)
+}
+
+func TestOperatorProvisioningService_UpdateOrganization_NotFound(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectRollback()
+
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		OrganizationRepo: &mockOrganizationRepo{
+			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
+				return nil, nil // not found
+			},
+		},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+		DB:           bunDB,
+	})
+
+	org, err := service.UpdateOrganization(context.Background(), 999, platformSvc.UpdateOrganizationRequest{
+		Name:   "Anything",
+		Slug:   "anything",
+		Active: true,
+	}, 7, net.IPv4(127, 0, 0, 1))
+	require.Nil(t, org)
+	require.Error(t, err)
+	var notFoundErr *platformSvc.OrganizationNotFoundError
+	require.ErrorAs(t, err, &notFoundErr)
+}
+
+func TestOperatorProvisioningService_UpdateOrganization_SlugConflict(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectRollback()
+
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		OrganizationRepo: &mockOrganizationRepo{
+			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
+				return &platformModels.Organization{Model: base.Model{ID: 10}, Name: "My Org", Slug: "my-org", Active: true}, nil
+			},
+			findBySlugFn: func(_ context.Context, slug string) (*platformModels.Organization, error) {
+				// slug taken by a different org
+				return &platformModels.Organization{Model: base.Model{ID: 20}, Name: "Other Org", Slug: "taken-slug", Active: true}, nil
+			},
+		},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+		DB:           bunDB,
+	})
+
+	org, err := service.UpdateOrganization(context.Background(), 10, platformSvc.UpdateOrganizationRequest{
+		Name:   "My Org",
+		Slug:   "taken-slug",
+		Active: true,
+	}, 7, net.IPv4(127, 0, 0, 1))
+	require.Nil(t, org)
+	require.Error(t, err)
+	var conflictErr *platformSvc.ConflictError
+	require.ErrorAs(t, err, &conflictErr)
+}
+
+func TestOperatorProvisioningService_UpdateOrganization_SameSlugNoConflict(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectCommit()
+
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		OrganizationRepo: &mockOrganizationRepo{
+			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
+				return &platformModels.Organization{Model: base.Model{ID: 10}, Name: "Old Name", Slug: "same-slug", Active: true}, nil
+			},
+			// FindBySlug should not be called when slug is unchanged, but if it is,
+			// returning the same org (same ID) must not trigger a conflict.
+			findBySlugFn: func(_ context.Context, slug string) (*platformModels.Organization, error) {
+				return &platformModels.Organization{Model: base.Model{ID: 10}, Name: "Old Name", Slug: "same-slug", Active: true}, nil
+			},
+			updateFn: func(_ context.Context, org *platformModels.Organization) error {
+				return nil
+			},
+		},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+		DB:           bunDB,
+	})
+
+	org, err := service.UpdateOrganization(context.Background(), 10, platformSvc.UpdateOrganizationRequest{
+		Name:   "Updated Name",
+		Slug:   "same-slug",
+		Active: true,
+	}, 7, net.IPv4(127, 0, 0, 1))
+	require.NoError(t, err)
+	require.NotNil(t, org)
+	assert.Equal(t, "Updated Name", org.Name)
+	assert.Equal(t, "same-slug", org.Slug)
+}
+
+// --- UpdateSchool tests ---
+
+func TestOperatorProvisioningService_UpdateSchool_Success(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectCommit()
+
+	var updatedSchool *platformModels.School
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		OrganizationRepo: &mockOrganizationRepo{},
+		SchoolRepo: &mockSchoolRepo{
+			findByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
+				return &platformModels.School{
+					Model:          base.Model{ID: 50},
+					OrganizationID: 2,
+					Name:           "Old School",
+					Slug:           "old-school",
+					Subdomain:      "old-school",
+					Active:         true,
+				}, nil
+			},
+			findByOrgAndSlugFn: func(_ context.Context, orgID int64, slug string) (*platformModels.School, error) {
+				return nil, nil // no conflict
+			},
+			findBySubdomainFn: func(_ context.Context, subdomain string) (*platformModels.School, error) {
+				return nil, nil // no conflict
+			},
+			updateFn: func(_ context.Context, school *platformModels.School) error {
+				updatedSchool = school
+				return nil
+			},
+		},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+		DB:           bunDB,
+	})
+
+	school, err := service.UpdateSchool(context.Background(), 50, platformSvc.UpdateSchoolRequest{
+		OrganizationID: 2,
+		Name:           "New School Name",
+		Slug:           "new-school",
+		Subdomain:      "new-subdomain",
+		Address:        "123 Main St",
+		City:           "Cologne",
+		Zip:            "50667",
+		Phone:          "+49 221 1234567",
+		Email:          "school@example.com",
+		Active:         true,
+	}, 7, net.IPv4(127, 0, 0, 1))
+	require.NoError(t, err)
+	require.NotNil(t, school)
+	assert.Equal(t, int64(50), school.ID)
+	assert.Equal(t, "New School Name", school.Name)
+	assert.Equal(t, "new-school", school.Slug)
+	assert.Equal(t, "new-subdomain", school.Subdomain)
+	assert.Equal(t, "123 Main St", school.Address)
+	assert.Equal(t, updatedSchool, school)
+}
+
+func TestOperatorProvisioningService_UpdateSchool_NotFound(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectRollback()
+
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		OrganizationRepo: &mockOrganizationRepo{},
+		SchoolRepo: &mockSchoolRepo{
+			findByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
+				return nil, nil // not found
+			},
+		},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+		DB:           bunDB,
+	})
+
+	school, err := service.UpdateSchool(context.Background(), 404, platformSvc.UpdateSchoolRequest{
+		OrganizationID: 1,
+		Name:           "Anything",
+		Slug:           "anything",
+		Subdomain:      "anything",
+		Active:         true,
+	}, 7, net.IPv4(127, 0, 0, 1))
+	require.Nil(t, school)
+	require.Error(t, err)
+	var notFoundErr *platformSvc.SchoolNotFoundError
+	require.ErrorAs(t, err, &notFoundErr)
+}
+
+func TestOperatorProvisioningService_UpdateSchool_SlugConflict(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectRollback()
+
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		OrganizationRepo: &mockOrganizationRepo{},
+		SchoolRepo: &mockSchoolRepo{
+			findByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
+				return &platformModels.School{
+					Model:          base.Model{ID: 50},
+					OrganizationID: 2,
+					Name:           "My School",
+					Slug:           "my-school",
+					Subdomain:      "my-school",
+					Active:         true,
+				}, nil
+			},
+			findByOrgAndSlugFn: func(_ context.Context, orgID int64, slug string) (*platformModels.School, error) {
+				// slug taken by a different school in the same org
+				return &platformModels.School{Model: base.Model{ID: 99}, OrganizationID: 2, Name: "Other", Slug: "taken-slug", Subdomain: "other", Active: true}, nil
+			},
+		},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+		DB:           bunDB,
+	})
+
+	school, err := service.UpdateSchool(context.Background(), 50, platformSvc.UpdateSchoolRequest{
+		OrganizationID: 2,
+		Name:           "My School",
+		Slug:           "taken-slug",
+		Subdomain:      "my-school",
+		Active:         true,
+	}, 7, net.IPv4(127, 0, 0, 1))
+	require.Nil(t, school)
+	require.Error(t, err)
+	var conflictErr *platformSvc.ConflictError
+	require.ErrorAs(t, err, &conflictErr)
+}
+
+func TestOperatorProvisioningService_UpdateSchool_SubdomainConflict(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectRollback()
+
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		OrganizationRepo: &mockOrganizationRepo{},
+		SchoolRepo: &mockSchoolRepo{
+			findByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
+				return &platformModels.School{
+					Model:          base.Model{ID: 50},
+					OrganizationID: 2,
+					Name:           "My School",
+					Slug:           "my-school",
+					Subdomain:      "my-school",
+					Active:         true,
+				}, nil
+			},
+			findByOrgAndSlugFn: func(_ context.Context, orgID int64, slug string) (*platformModels.School, error) {
+				return nil, nil // slug is fine
+			},
+			findBySubdomainFn: func(_ context.Context, subdomain string) (*platformModels.School, error) {
+				// subdomain taken by a different school
+				return &platformModels.School{Model: base.Model{ID: 88}, OrganizationID: 3, Name: "Other", Slug: "other", Subdomain: "taken-sub", Active: true}, nil
+			},
+		},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+		DB:           bunDB,
+	})
+
+	school, err := service.UpdateSchool(context.Background(), 50, platformSvc.UpdateSchoolRequest{
+		OrganizationID: 2,
+		Name:           "My School",
+		Slug:           "my-school",
+		Subdomain:      "taken-sub",
+		Active:         true,
+	}, 7, net.IPv4(127, 0, 0, 1))
+	require.Nil(t, school)
+	require.Error(t, err)
+	var conflictErr *platformSvc.ConflictError
+	require.ErrorAs(t, err, &conflictErr)
+}
+
+func TestOperatorProvisioningService_UpdateSchool_OrganizationNotFound(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectRollback()
+
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		OrganizationRepo: &mockOrganizationRepo{
+			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
+				return nil, nil // org not found
+			},
+		},
+		SchoolRepo: &mockSchoolRepo{
+			findByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
+				return &platformModels.School{
+					Model:          base.Model{ID: 50},
+					OrganizationID: 2,
+					Name:           "My School",
+					Slug:           "my-school",
+					Subdomain:      "my-school",
+					Active:         true,
+				}, nil
+			},
+		},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+		DB:           bunDB,
+	})
+
+	school, err := service.UpdateSchool(context.Background(), 50, platformSvc.UpdateSchoolRequest{
+		OrganizationID: 999, // changing to nonexistent org
+		Name:           "My School",
+		Slug:           "my-school",
+		Subdomain:      "my-school",
+		Active:         true,
+	}, 7, net.IPv4(127, 0, 0, 1))
+	require.Nil(t, school)
+	require.Error(t, err)
+	var notFoundErr *platformSvc.OrganizationNotFoundError
+	require.ErrorAs(t, err, &notFoundErr)
+}
+
+func TestOperatorProvisioningService_UpdateSchool_ChangeOrganization(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectCommit()
+
+	var updatedSchool *platformModels.School
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		OrganizationRepo: &mockOrganizationRepo{
+			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
+				if id == 5 {
+					return &platformModels.Organization{Model: base.Model{ID: 5}, Name: "New Org", Slug: "new-org", Active: true}, nil
+				}
+				return nil, nil
+			},
+		},
+		SchoolRepo: &mockSchoolRepo{
+			findByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
+				return &platformModels.School{
+					Model:          base.Model{ID: 50},
+					OrganizationID: 2,
+					Name:           "My School",
+					Slug:           "my-school",
+					Subdomain:      "my-school",
+					Active:         true,
+				}, nil
+			},
+			findByOrgAndSlugFn: func(_ context.Context, orgID int64, slug string) (*platformModels.School, error) {
+				return nil, nil // no slug conflict in new org
+			},
+			findBySubdomainFn: func(_ context.Context, subdomain string) (*platformModels.School, error) {
+				return nil, nil
+			},
+			updateFn: func(_ context.Context, school *platformModels.School) error {
+				updatedSchool = school
+				return nil
+			},
+		},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+		DB:           bunDB,
+	})
+
+	school, err := service.UpdateSchool(context.Background(), 50, platformSvc.UpdateSchoolRequest{
+		OrganizationID: 5, // changed from 2 to 5
+		Name:           "My School",
+		Slug:           "my-school",
+		Subdomain:      "my-school",
+		Active:         true,
+	}, 7, net.IPv4(127, 0, 0, 1))
+	require.NoError(t, err)
+	require.NotNil(t, school)
+	assert.Equal(t, int64(5), school.OrganizationID)
+	assert.Equal(t, int64(50), school.ID)
+	assert.Equal(t, updatedSchool, school)
 }
