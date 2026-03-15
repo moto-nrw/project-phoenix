@@ -62,7 +62,7 @@ describe("POST /api/operator/provisioning/schools/[id]/invite-admin", () => {
     };
     expect(json.data).toEqual(invitation);
     expect(mockFetch).toHaveBeenCalledWith(
-      "http://localhost:8080/operator/schools/42/admin-invitations",
+      "http://localhost:8080/operator/schools/42/invite-admin",
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify(inviteData),
