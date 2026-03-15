@@ -49,6 +49,10 @@ func (e *InvalidDataError) Error() string {
 	return fmt.Sprintf("invalid data: %v", e.Err)
 }
 
+func (e *InvalidDataError) Unwrap() error {
+	return e.Err
+}
+
 // ConflictError is returned when a write conflicts with existing data.
 type ConflictError struct {
 	Err error
