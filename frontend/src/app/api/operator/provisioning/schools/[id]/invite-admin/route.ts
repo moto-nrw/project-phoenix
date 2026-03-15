@@ -11,7 +11,7 @@ export const POST = createOperatorPostHandler(
       throw new Error("Invalid id parameter");
     }
     return await operatorApiPost(
-      `/operator/schools/${params.id}/admin-invitations`,
+      `/operator/schools/${params.id}/invite-admin`,
       token,
       body,
     );

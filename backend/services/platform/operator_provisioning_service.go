@@ -178,7 +178,7 @@ func (s *operatorProvisioningService) UpdateOrganization(ctx context.Context, id
 			if isUniqueViolation(updateErr) {
 				return &ConflictError{Err: fmt.Errorf("organization slug already exists")}
 			}
-			return updateErr
+			return &InvalidDataError{Err: updateErr}
 		}
 
 		s.logAction(adminCtx, operatorID, platform.ActionUpdate, platform.ResourceOrganization, &id, clientIP, changes)
@@ -309,7 +309,7 @@ func (s *operatorProvisioningService) UpdateSchool(ctx context.Context, id int64
 			if isUniqueViolation(updateErr) {
 				return mapSchoolCreateConflict(adminCtx, s.schoolRepo, existing)
 			}
-			return updateErr
+			return &InvalidDataError{Err: updateErr}
 		}
 
 		s.logAction(adminCtx, operatorID, platform.ActionUpdate, platform.ResourceSchool, &id, clientIP, changes)

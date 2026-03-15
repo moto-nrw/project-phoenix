@@ -60,6 +60,10 @@ export default function OperatorProvisioningPage() {
   const [schoolSaving, setSchoolSaving] = useState(false);
   const [schoolError, setSchoolError] = useState("");
 
+  // Toggle error state
+  const [orgToggleError, setOrgToggleError] = useState("");
+  const [schoolToggleError, setSchoolToggleError] = useState("");
+
   // Invite form state
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteFirstName, setInviteFirstName] = useState("");
@@ -226,6 +230,7 @@ export default function OperatorProvisioningPage() {
 
   const handleToggleOrgActive = useCallback(
     async (org: Organization) => {
+      setOrgToggleError("");
       try {
         await operatorProvisioningService.updateOrganization(org.id, {
           name: org.name,
@@ -233,13 +238,30 @@ export default function OperatorProvisioningPage() {
           active: !org.active,
         });
         await mutateOrgs();
+        const orgSchoolSlugs = (schools ?? [])
+          .filter((s) => s.organizationId === org.id)
+          .map((s) => s.subdomain);
+        if (orgSchoolSlugs.length > 0) {
+          try {
+            await fetch("/api/operator/provisioning/revalidate-tenant", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ slugs: orgSchoolSlugs }),
+            });
+          } catch {
+            /* Cache self-heals in ≤5 min */
+          }
+        }
       } catch (error) {
+        setOrgToggleError(
+          "Fehler beim Ändern des Status. Bitte versuchen Sie es erneut.",
+        );
         logger.error("organization_toggle_active_failed", {
           error: error instanceof Error ? error.message : String(error),
         });
       }
     },
-    [mutateOrgs],
+    [mutateOrgs, schools],
   );
 
   // School handlers
@@ -320,6 +342,15 @@ export default function OperatorProvisioningPage() {
         setCreateSchoolOpen(false);
         resetSchoolForm();
         await mutateSchools();
+        try {
+          await fetch("/api/operator/provisioning/revalidate-tenant", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ slugs: [schoolSubdomain.trim()] }),
+          });
+        } catch {
+          /* Cache self-heals in ≤5 min */
+        }
       } catch (error) {
         if (isOperatorApiError(error) && error.status === 409) {
           const msg = error.message.toLowerCase();
@@ -475,6 +506,7 @@ export default function OperatorProvisioningPage() {
 
   const handleToggleSchoolActive = useCallback(
     async (school: School) => {
+      setSchoolToggleError("");
       try {
         await operatorProvisioningService.updateSchool(school.id, {
           organization_id: parseInt(school.organizationId, 10),
@@ -489,7 +521,19 @@ export default function OperatorProvisioningPage() {
           active: !school.active,
         });
         await mutateSchools();
+        try {
+          await fetch("/api/operator/provisioning/revalidate-tenant", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ slugs: [school.subdomain] }),
+          });
+        } catch {
+          /* Cache self-heals in ≤5 min */
+        }
       } catch (error) {
+        setSchoolToggleError(
+          "Fehler beim Ändern des Status. Bitte versuchen Sie es erneut.",
+        );
         logger.error("school_toggle_active_failed", {
           error: error instanceof Error ? error.message : String(error),
         });
@@ -632,6 +676,9 @@ export default function OperatorProvisioningPage() {
               ))}
             </div>
           )}
+          {orgToggleError && (
+            <p className="mt-2 text-sm text-red-600">{orgToggleError}</p>
+          )}
         </>
       )}
 
@@ -658,6 +705,9 @@ export default function OperatorProvisioningPage() {
                 />
               ))}
             </div>
+          )}
+          {schoolToggleError && (
+            <p className="mt-2 text-sm text-red-600">{schoolToggleError}</p>
           )}
         </>
       )}

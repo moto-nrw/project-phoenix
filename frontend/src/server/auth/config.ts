@@ -599,41 +599,48 @@ export const authConfig = {
     // Cross-subdomain cookie sharing for multi-tenancy.
     // On production (e.g., TENANT_DOMAIN=moto-app.de), cookies are scoped to
     // .moto-app.de so school-a.moto-app.de and school-b.moto-app.de share sessions.
-    // On localhost, browsers reject domain=.localhost (public suffix list), so we
-    // omit the domain — cookies are host-scoped and each subdomain gets its own session.
-    ...(process.env.TENANT_DOMAIN && process.env.TENANT_DOMAIN !== "localhost"
-      ? {
-          sessionToken: {
-            name: "next-auth.session-token",
-            options: {
-              httpOnly: true,
-              sameSite: "lax" as const,
-              path: "/",
-              domain: `.${process.env.TENANT_DOMAIN}`,
-              secure: process.env.NODE_ENV === "production",
+    // On localhost, Chrome 120+ accepts domain="localhost" (no dot prefix) for
+    // cross-subdomain sharing (school-a.localhost:3000 ↔ school-b.localhost:3000).
+    ...(() => {
+      const tenantCookieDomain = process.env.TENANT_DOMAIN
+        ? process.env.TENANT_DOMAIN === "localhost"
+          ? "localhost"
+          : `.${process.env.TENANT_DOMAIN}`
+        : undefined;
+      return tenantCookieDomain
+        ? {
+            sessionToken: {
+              name: "next-auth.session-token",
+              options: {
+                httpOnly: true,
+                sameSite: "lax" as const,
+                path: "/",
+                domain: tenantCookieDomain,
+                secure: process.env.NODE_ENV === "production",
+              },
             },
-          },
-          callbackUrl: {
-            name: "next-auth.callback-url",
-            options: {
-              sameSite: "lax" as const,
-              path: "/",
-              domain: `.${process.env.TENANT_DOMAIN}`,
-              secure: process.env.NODE_ENV === "production",
+            callbackUrl: {
+              name: "next-auth.callback-url",
+              options: {
+                sameSite: "lax" as const,
+                path: "/",
+                domain: tenantCookieDomain,
+                secure: process.env.NODE_ENV === "production",
+              },
             },
-          },
-          csrfToken: {
-            name: "next-auth.csrf-token",
-            options: {
-              httpOnly: true,
-              sameSite: "lax" as const,
-              path: "/",
-              domain: `.${process.env.TENANT_DOMAIN}`,
-              secure: process.env.NODE_ENV === "production",
+            csrfToken: {
+              name: "next-auth.csrf-token",
+              options: {
+                httpOnly: true,
+                sameSite: "lax" as const,
+                path: "/",
+                domain: tenantCookieDomain,
+                secure: process.env.NODE_ENV === "production",
+              },
             },
-          },
-        }
-      : {}),
+          }
+        : {};
+    })(),
   },
   session: {
     strategy: "jwt",

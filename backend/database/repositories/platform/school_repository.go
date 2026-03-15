@@ -50,7 +50,7 @@ func (r *SchoolRepository) Update(ctx context.Context, school *platform.School) 
 	if err := school.Validate(); err != nil {
 		return err
 	}
-	_, err := base.GetDB(ctx, r.db).NewUpdate().
+	result, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model(school).
 		ModelTableExpr(schoolTableAlias).
 		Column("organization_id", "name", "slug", "subdomain", "address", "city", "zip", "phone", "email", "active", "settings").
@@ -59,7 +59,7 @@ func (r *SchoolRepository) Update(ctx context.Context, school *platform.School) 
 	if err != nil {
 		return &modelBase.DatabaseError{Op: "update school", Err: err}
 	}
-	return nil
+	return base.AssertRowsAffected(result, 1, "update school")
 }
 
 // FindByID returns a school by its ID.

@@ -56,7 +56,7 @@ class OperatorProvisioningService {
     data: UpdateOrganizationRequest,
   ): Promise<Organization> {
     const result = await operatorFetch<BackendOrganization>(
-      `/api/operator/provisioning/organizations/${id}`,
+      `/api/operator/provisioning/organizations/${encodeURIComponent(id)}`,
       { method: "PUT", body: data },
     );
     return mapOrganization(result);
@@ -64,7 +64,7 @@ class OperatorProvisioningService {
 
   async updateSchool(id: string, data: UpdateSchoolRequest): Promise<School> {
     const result = await operatorFetch<BackendSchool>(
-      `/api/operator/provisioning/schools/${id}`,
+      `/api/operator/provisioning/schools/${encodeURIComponent(id)}`,
       { method: "PUT", body: data },
     );
     return mapSchool(result);
@@ -75,7 +75,7 @@ class OperatorProvisioningService {
     data: InviteAdminRequest,
   ): Promise<Invitation> {
     const result = await operatorFetch<BackendInvitation>(
-      `/api/operator/provisioning/schools/${schoolId}/invite-admin`,
+      `/api/operator/provisioning/schools/${encodeURIComponent(schoolId)}/invite-admin`,
       { method: "POST", body: data },
     );
     return mapInvitation(result);

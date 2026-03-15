@@ -80,7 +80,7 @@ func (r *OrganizationRepository) Update(ctx context.Context, organization *platf
 	if err := organization.Validate(); err != nil {
 		return err
 	}
-	_, err := base.GetDB(ctx, r.db).NewUpdate().
+	result, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model(organization).
 		ModelTableExpr(tablePlatformOrganizationsAlias).
 		Column("name", "slug", "active", "settings").
@@ -89,7 +89,7 @@ func (r *OrganizationRepository) Update(ctx context.Context, organization *platf
 	if err != nil {
 		return &modelBase.DatabaseError{Op: "update organization", Err: err}
 	}
-	return nil
+	return base.AssertRowsAffected(result, 1, "update organization")
 }
 
 func (r *OrganizationRepository) List(ctx context.Context) ([]*platform.Organization, error) {

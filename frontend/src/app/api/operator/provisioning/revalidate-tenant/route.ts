@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { revalidatePath } from "next/cache";
 import { getOperatorToken } from "~/lib/operator/cookies";
+import { isValidSlug } from "~/lib/operator/provisioning-helpers";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "RevalidateTenantRoute" });
@@ -31,7 +32,7 @@ export async function POST(request: NextRequest) {
     }
 
     for (const slug of slugs) {
-      if (typeof slug === "string" && slug.length > 0) {
+      if (typeof slug === "string" && slug.length > 0 && isValidSlug(slug)) {
         revalidatePath(`/${slug}`, "layout");
       }
     }

@@ -72,6 +72,12 @@ type updateOrganizationRequest struct {
 func (req *updateOrganizationRequest) Bind(_ *http.Request) error {
 	req.Name = strings.TrimSpace(req.Name)
 	req.Slug = strings.TrimSpace(req.Slug)
+	if req.Name == "" {
+		return errors.New("name is required")
+	}
+	if req.Slug == "" {
+		return errors.New("slug is required")
+	}
 	return nil
 }
 
@@ -97,6 +103,15 @@ func (req *updateSchoolRequest) Bind(_ *http.Request) error {
 	req.Zip = strings.TrimSpace(req.Zip)
 	req.Phone = strings.TrimSpace(req.Phone)
 	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
+	if req.Name == "" {
+		return errors.New("name is required")
+	}
+	if req.Slug == "" {
+		return errors.New("slug is required")
+	}
+	if req.Subdomain == "" {
+		return errors.New("subdomain is required")
+	}
 	return nil
 }
 
