@@ -1412,11 +1412,9 @@ describe("OperatorProvisioningPage", () => {
     fireEvent.change(nameInput, { target: { value: "Meine Schule" } });
 
     const slugInput = screen.getByLabelText(/Slug/);
-    const subdomainInput = screen.getByLabelText(
-      /Subdomain/,
-    );
-    expect(slugInput.value).toBe("meine-schule");
-    expect(subdomainInput.value).toBe("meine-schule");
+    const subdomainInput = screen.getByLabelText(/Subdomain/);
+    expect((slugInput as HTMLInputElement).value).toBe("meine-schule");
+    expect((subdomainInput as HTMLInputElement).value).toBe("meine-schule");
   });
 
   it("pre-selects org when only one exists", async () => {
@@ -1432,7 +1430,7 @@ describe("OperatorProvisioningPage", () => {
     });
 
     const orgSelect = screen.getByLabelText(/Träger/);
-    expect(orgSelect.value).toBe("1");
+    expect((orgSelect as HTMLSelectElement).value).toBe("1");
   });
 
   it("shows invite result with email error", async () => {
@@ -1490,13 +1488,13 @@ describe("OperatorProvisioningPage", () => {
 
     // Auto-generate first
     fireEvent.change(nameInput, { target: { value: "Auto" } });
-    expect(slugInput.value).toBe("auto");
+    expect((slugInput as HTMLInputElement).value).toBe("auto");
 
     // Manually edit slug
     fireEvent.change(slugInput, { target: { value: "custom-slug" } });
 
     // Now changing name should NOT update slug
     fireEvent.change(nameInput, { target: { value: "Changed Name" } });
-    expect(slugInput.value).toBe("custom-slug");
+    expect((slugInput as HTMLInputElement).value).toBe("custom-slug");
   });
 });
