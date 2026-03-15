@@ -344,7 +344,7 @@ func ProvisioningErrorRenderer(err error) render.Renderer {
 
 	switch {
 	case errors.As(err, &invalidData):
-		return ErrInvalidRequest(err)
+		return ErrInvalidRequest(errors.New("Invalid input data"))
 	case errors.As(err, &conflictErr):
 		return ErrConflict(conflictErr.Err.Error())
 	case errors.As(err, &organizationNotFound):
