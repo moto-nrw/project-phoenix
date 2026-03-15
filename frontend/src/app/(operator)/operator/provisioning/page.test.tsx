@@ -946,4 +946,557 @@ describe("OperatorProvisioningPage", () => {
       ).toBeInTheDocument();
     });
   });
+
+  // --- Create School ---
+
+  it("creates school successfully with all fields", async () => {
+    setupSWR();
+    mockCreateSchool.mockResolvedValue(mockSchool);
+
+    render(<OperatorProvisioningPage />);
+
+    fireEvent.click(screen.getByTestId("tab-schools"));
+    fireEvent.click(screen.getAllByText("Neue Schule")[0]!);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("modal")).toBeInTheDocument();
+    });
+
+    // Fill in required fields
+    const orgSelect = screen.getByLabelText(/Träger/);
+    fireEvent.change(orgSelect, { target: { value: "1" } });
+
+    const nameInput = screen.getByLabelText(/Name/);
+    fireEvent.change(nameInput, { target: { value: "New School" } });
+
+    // Fill optional contact fields
+    fireEvent.change(screen.getByLabelText(/Adresse/), {
+      target: { value: "Hauptstr. 1" },
+    });
+    fireEvent.change(screen.getByLabelText(/Stadt/), {
+      target: { value: "Berlin" },
+    });
+    fireEvent.change(screen.getByLabelText(/PLZ/), {
+      target: { value: "10115" },
+    });
+    fireEvent.change(screen.getByLabelText(/Telefon/), {
+      target: { value: "030123" },
+    });
+    fireEvent.change(screen.getByLabelText(/E-Mail/), {
+      target: { value: "info@school.de" },
+    });
+
+    fireEvent.click(screen.getByText("Erstellen"));
+
+    await waitFor(() => {
+      expect(mockCreateSchool).toHaveBeenCalledWith(
+        expect.objectContaining({
+          organization_id: 1,
+          name: "New School",
+          slug: "new-school",
+          subdomain: "new-school",
+          address: "Hauptstr. 1",
+          city: "Berlin",
+          zip: "10115",
+          phone: "030123",
+          email: "info@school.de",
+        }),
+      );
+      expect(mockMutateSchools).toHaveBeenCalled();
+    });
+  });
+
+  it("validates invalid slug when creating school", async () => {
+    setupSWR();
+
+    render(<OperatorProvisioningPage />);
+
+    fireEvent.click(screen.getByTestId("tab-schools"));
+    fireEvent.click(screen.getAllByText("Neue Schule")[0]!);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("modal")).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText(/Träger/), {
+      target: { value: "1" },
+    });
+    fireEvent.change(screen.getByLabelText(/Name/), {
+      target: { value: "Test" },
+    });
+
+    // Set invalid slug manually
+    const slugInput = screen.getByLabelText(/Slug/);
+    fireEvent.change(slugInput, { target: { value: "INVALID!" } });
+
+    fireEvent.click(screen.getByText("Erstellen"));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          "Slug darf nur Kleinbuchstaben, Zahlen und Bindestriche enthalten.",
+        ),
+      ).toBeInTheDocument();
+    });
+
+    expect(mockCreateSchool).not.toHaveBeenCalled();
+  });
+
+  it("validates invalid subdomain when creating school", async () => {
+    setupSWR();
+
+    render(<OperatorProvisioningPage />);
+
+    fireEvent.click(screen.getByTestId("tab-schools"));
+    fireEvent.click(screen.getAllByText("Neue Schule")[0]!);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("modal")).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText(/Träger/), {
+      target: { value: "1" },
+    });
+    fireEvent.change(screen.getByLabelText(/Name/), {
+      target: { value: "Test" },
+    });
+
+    // Set valid slug but invalid subdomain
+    const subdomainInput = screen.getByLabelText(/Subdomain/);
+    fireEvent.change(subdomainInput, { target: { value: "BAD DOMAIN!" } });
+
+    fireEvent.click(screen.getByText("Erstellen"));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          "Subdomain darf nur Kleinbuchstaben, Zahlen und Bindestriche enthalten.",
+        ),
+      ).toBeInTheDocument();
+    });
+
+    expect(mockCreateSchool).not.toHaveBeenCalled();
+  });
+
+  it("shows subdomain conflict error when creating school", async () => {
+    setupSWR();
+
+    const { OperatorApiError } = await import("~/lib/operator/api-helpers");
+    mockCreateSchool.mockRejectedValue(
+      new OperatorApiError("subdomain already exists", 409),
+    );
+
+    render(<OperatorProvisioningPage />);
+
+    fireEvent.click(screen.getByTestId("tab-schools"));
+    fireEvent.click(screen.getAllByText("Neue Schule")[0]!);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("modal")).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText(/Träger/), {
+      target: { value: "1" },
+    });
+    fireEvent.change(screen.getByLabelText(/Name/), {
+      target: { value: "Dup School" },
+    });
+
+    fireEvent.click(screen.getByText("Erstellen"));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Eine Schule mit dieser Subdomain existiert bereits."),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("shows slug conflict error when creating school", async () => {
+    setupSWR();
+
+    const { OperatorApiError } = await import("~/lib/operator/api-helpers");
+    mockCreateSchool.mockRejectedValue(
+      new OperatorApiError("slug conflict", 409),
+    );
+
+    render(<OperatorProvisioningPage />);
+
+    fireEvent.click(screen.getByTestId("tab-schools"));
+    fireEvent.click(screen.getAllByText("Neue Schule")[0]!);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("modal")).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText(/Träger/), {
+      target: { value: "1" },
+    });
+    fireEvent.change(screen.getByLabelText(/Name/), {
+      target: { value: "Dup School" },
+    });
+
+    fireEvent.click(screen.getByText("Erstellen"));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          "Eine Schule mit diesem Slug existiert bereits in dieser Organisation.",
+        ),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("handles generic error when creating school", async () => {
+    setupSWR();
+    mockCreateSchool.mockRejectedValue(new Error("Network failure"));
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {
+      // noop
+    });
+
+    render(<OperatorProvisioningPage />);
+
+    fireEvent.click(screen.getByTestId("tab-schools"));
+    fireEvent.click(screen.getAllByText("Neue Schule")[0]!);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("modal")).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText(/Träger/), {
+      target: { value: "1" },
+    });
+    fireEvent.change(screen.getByLabelText(/Name/), {
+      target: { value: "Fail School" },
+    });
+
+    fireEvent.click(screen.getByText("Erstellen"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Network failure")).toBeInTheDocument();
+      expect(consoleError).toHaveBeenCalledWith(
+        "school_create_failed",
+        expect.objectContaining({ error: "Network failure" }),
+      );
+    });
+
+    consoleError.mockRestore();
+  });
+
+  it("handles generic create organization error", async () => {
+    setupSWR();
+    mockCreateOrganization.mockRejectedValue(new Error("Server down"));
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {
+      // noop
+    });
+
+    render(<OperatorProvisioningPage />);
+
+    fireEvent.click(screen.getAllByText("Neuer Träger")[0]!);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("modal")).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText(/Name/), {
+      target: { value: "New Org" },
+    });
+
+    fireEvent.click(screen.getByText("Erstellen"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Server down")).toBeInTheDocument();
+      expect(consoleError).toHaveBeenCalledWith(
+        "organization_create_failed",
+        expect.objectContaining({ error: "Server down" }),
+      );
+    });
+
+    consoleError.mockRestore();
+  });
+
+  // --- Edit School Validation ---
+
+  it("validates invalid slug when updating school", async () => {
+    setupSWR();
+
+    render(<OperatorProvisioningPage />);
+
+    fireEvent.click(screen.getByTestId("tab-schools"));
+    fireEvent.click(screen.getByText("Bearbeiten"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("modal")).toBeInTheDocument();
+    });
+
+    // Change slug to invalid
+    const slugInputs = screen.getAllByDisplayValue("test-school");
+    fireEvent.change(slugInputs[0]!, { target: { value: "BAD SLUG!" } });
+
+    fireEvent.click(screen.getByText("Speichern"));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          "Slug darf nur Kleinbuchstaben, Zahlen und Bindestriche enthalten.",
+        ),
+      ).toBeInTheDocument();
+    });
+
+    expect(mockUpdateSchool).not.toHaveBeenCalled();
+  });
+
+  it("validates invalid subdomain when updating school", async () => {
+    setupSWR();
+
+    render(<OperatorProvisioningPage />);
+
+    fireEvent.click(screen.getByTestId("tab-schools"));
+    fireEvent.click(screen.getByText("Bearbeiten"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("modal")).toBeInTheDocument();
+    });
+
+    // Change subdomain to invalid
+    const subdomainInputs = screen.getAllByDisplayValue("test-school");
+    fireEvent.change(subdomainInputs[1]!, {
+      target: { value: "BAD DOMAIN!" },
+    });
+
+    fireEvent.click(screen.getByText("Speichern"));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          "Subdomain darf nur Kleinbuchstaben, Zahlen und Bindestriche enthalten.",
+        ),
+      ).toBeInTheDocument();
+    });
+
+    expect(mockUpdateSchool).not.toHaveBeenCalled();
+  });
+
+  // --- School Toggle Active Error ---
+
+  it("handles toggle school active error gracefully", async () => {
+    setupSWR();
+    mockUpdateSchool.mockRejectedValue(new Error("Toggle failed"));
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {
+      // noop
+    });
+
+    render(<OperatorProvisioningPage />);
+
+    fireEvent.click(screen.getByTestId("tab-schools"));
+    fireEvent.click(screen.getByText("Aktiv"));
+
+    await waitFor(() => {
+      expect(consoleError).toHaveBeenCalledWith(
+        "school_toggle_active_failed",
+        expect.objectContaining({ error: "Toggle failed" }),
+      );
+    });
+
+    consoleError.mockRestore();
+  });
+
+  // --- Invite Error & Close ---
+
+  it("handles invite error gracefully", async () => {
+    setupSWR();
+    mockInviteSchoolAdmin.mockRejectedValue(new Error("Invite failed"));
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {
+      // noop
+    });
+
+    render(<OperatorProvisioningPage />);
+
+    fireEvent.click(screen.getByTestId("tab-schools"));
+    fireEvent.click(screen.getByText("Admin einladen"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("modal")).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText(/E-Mail/), {
+      target: { value: "admin@school.de" },
+    });
+    fireEvent.click(screen.getByText("Einladung senden"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Invite failed")).toBeInTheDocument();
+      expect(consoleError).toHaveBeenCalledWith(
+        "admin_invite_failed",
+        expect.objectContaining({ error: "Invite failed" }),
+      );
+    });
+
+    consoleError.mockRestore();
+  });
+
+  it("sends invite with optional fields", async () => {
+    setupSWR();
+    mockInviteSchoolAdmin.mockResolvedValue({
+      id: "1",
+      email: "admin@school.de",
+      deliveryStatus: "sent",
+      emailError: null,
+    });
+
+    render(<OperatorProvisioningPage />);
+
+    fireEvent.click(screen.getByTestId("tab-schools"));
+    fireEvent.click(screen.getByText("Admin einladen"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("modal")).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText(/E-Mail/), {
+      target: { value: "admin@school.de" },
+    });
+    fireEvent.change(screen.getByLabelText(/Vorname/), {
+      target: { value: "Ada" },
+    });
+    fireEvent.change(screen.getByLabelText(/Nachname/), {
+      target: { value: "Lovelace" },
+    });
+    fireEvent.change(screen.getByLabelText(/Position/), {
+      target: { value: "Principal" },
+    });
+
+    fireEvent.click(screen.getByText("Einladung senden"));
+
+    await waitFor(() => {
+      expect(mockInviteSchoolAdmin).toHaveBeenCalledWith("10", {
+        email: "admin@school.de",
+        first_name: "Ada",
+        last_name: "Lovelace",
+        position: "Principal",
+      });
+    });
+  });
+
+  it("closes edit school modal on cancel", async () => {
+    setupSWR();
+
+    render(<OperatorProvisioningPage />);
+
+    fireEvent.click(screen.getByTestId("tab-schools"));
+    fireEvent.click(screen.getByText("Bearbeiten"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("Abbrechen"));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("modal")).not.toBeInTheDocument();
+    });
+  });
+
+  it("auto-generates slug and subdomain from school name", async () => {
+    setupSWR();
+
+    render(<OperatorProvisioningPage />);
+
+    fireEvent.click(screen.getByTestId("tab-schools"));
+    fireEvent.click(screen.getAllByText("Neue Schule")[0]!);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("modal")).toBeInTheDocument();
+    });
+
+    const nameInput = screen.getByLabelText(/Name/);
+    fireEvent.change(nameInput, { target: { value: "Meine Schule" } });
+
+    const slugInput = screen.getByLabelText(/Slug/);
+    const subdomainInput = screen.getByLabelText(
+      /Subdomain/,
+    );
+    expect(slugInput.value).toBe("meine-schule");
+    expect(subdomainInput.value).toBe("meine-schule");
+  });
+
+  it("pre-selects org when only one exists", async () => {
+    setupSWR([mockOrg]); // Only one org
+
+    render(<OperatorProvisioningPage />);
+
+    fireEvent.click(screen.getByTestId("tab-schools"));
+    fireEvent.click(screen.getAllByText("Neue Schule")[0]!);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("modal")).toBeInTheDocument();
+    });
+
+    const orgSelect = screen.getByLabelText(/Träger/);
+    expect(orgSelect.value).toBe("1");
+  });
+
+  it("shows invite result with email error", async () => {
+    setupSWR();
+    mockInviteSchoolAdmin.mockResolvedValue({
+      id: "1",
+      email: "admin@school.de",
+      deliveryStatus: "failed",
+      emailError: "SMTP timeout",
+    });
+
+    render(<OperatorProvisioningPage />);
+
+    fireEvent.click(screen.getByTestId("tab-schools"));
+    fireEvent.click(screen.getByText("Admin einladen"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("modal")).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText(/E-Mail/), {
+      target: { value: "admin@school.de" },
+    });
+    fireEvent.click(screen.getByText("Einladung senden"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Einladung erstellt")).toBeInTheDocument();
+      expect(screen.getByText("SMTP timeout")).toBeInTheDocument();
+    });
+  });
+
+  it("shows schools loading state on schools tab", () => {
+    setupSWR([mockOrg], undefined, false, true);
+
+    render(<OperatorProvisioningPage />);
+
+    fireEvent.click(screen.getByTestId("tab-schools"));
+
+    expect(screen.getAllByTestId("skeleton").length).toBeGreaterThan(0);
+  });
+
+  it("stops slug auto-generation after manual edit", async () => {
+    setupSWR();
+
+    render(<OperatorProvisioningPage />);
+
+    fireEvent.click(screen.getAllByText("Neuer Träger")[0]!);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("modal")).toBeInTheDocument();
+    });
+
+    const nameInput = screen.getByLabelText(/Name/);
+    const slugInput = screen.getByLabelText(/Slug/);
+
+    // Auto-generate first
+    fireEvent.change(nameInput, { target: { value: "Auto" } });
+    expect(slugInput.value).toBe("auto");
+
+    // Manually edit slug
+    fireEvent.change(slugInput, { target: { value: "custom-slug" } });
+
+    // Now changing name should NOT update slug
+    fireEvent.change(nameInput, { target: { value: "Changed Name" } });
+    expect(slugInput.value).toBe("custom-slug");
+  });
 });
