@@ -1000,12 +1000,13 @@ func TestOperatorProvisioningService_UpdateSchool_ChangeOrganization(t *testing.
 	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectCommit()
 
+	newOrgID := int64(5) // nolint: target organization for the move
 	var updatedSchool *platformModels.School
 	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
 		OrganizationRepo: &mockOrganizationRepo{
 			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
-				if id == 5 {
-					return &platformModels.Organization{Model: base.Model{ID: 5}, Name: "New Org", Slug: "new-org", Active: true}, nil
+				if id == newOrgID {
+					return &platformModels.Organization{Model: base.Model{ID: newOrgID}, Name: "New Org", Slug: "new-org", Active: true}, nil
 				}
 				return nil, nil
 			},
@@ -1037,7 +1038,7 @@ func TestOperatorProvisioningService_UpdateSchool_ChangeOrganization(t *testing.
 	})
 
 	school, err := service.UpdateSchool(context.Background(), 50, platformSvc.UpdateSchoolRequest{
-		OrganizationID: 5, // changed from 2 to 5
+		OrganizationID: newOrgID, // changed from 2 to newOrgID
 		Name:           "My School",
 		Slug:           "my-school",
 		Subdomain:      "my-school",
@@ -1045,7 +1046,7 @@ func TestOperatorProvisioningService_UpdateSchool_ChangeOrganization(t *testing.
 	}, 7, net.IPv4(127, 0, 0, 1))
 	require.NoError(t, err)
 	require.NotNil(t, school)
-	assert.Equal(t, int64(5), school.OrganizationID)
+	assert.Equal(t, newOrgID, school.OrganizationID)
 	assert.Equal(t, int64(50), school.ID)
 	assert.Equal(t, updatedSchool, school)
 }
