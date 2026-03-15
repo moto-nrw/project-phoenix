@@ -15,6 +15,8 @@ const {
   mockCreateOrganization,
   mockListSchools,
   mockCreateSchool,
+  mockUpdateOrganization,
+  mockUpdateSchool,
   mockInviteSchoolAdmin,
 } = vi.hoisted(() => ({
   mockUseOperatorAuth: vi.fn(),
@@ -25,6 +27,8 @@ const {
   mockCreateOrganization: vi.fn(),
   mockListSchools: vi.fn(),
   mockCreateSchool: vi.fn(),
+  mockUpdateOrganization: vi.fn(),
+  mockUpdateSchool: vi.fn(),
   mockInviteSchoolAdmin: vi.fn(),
 }));
 
@@ -46,6 +50,8 @@ vi.mock("~/lib/operator/provisioning-api", () => ({
     createOrganization: mockCreateOrganization,
     listSchools: mockListSchools,
     createSchool: mockCreateSchool,
+    updateOrganization: mockUpdateOrganization,
+    updateSchool: mockUpdateSchool,
     inviteSchoolAdmin: mockInviteSchoolAdmin,
   },
 }));
@@ -130,6 +136,10 @@ describe("OperatorProvisioningPage", () => {
     });
     mockMutateOrgs.mockResolvedValue(undefined);
     mockMutateSchools.mockResolvedValue(undefined);
+    // Suppress fetch calls for revalidation endpoint
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ status: "ok" })),
+    );
   });
 
   function setupSWR(
@@ -422,5 +432,518 @@ describe("OperatorProvisioningPage", () => {
       "Träger (1)",
     );
     expect(screen.getByTestId("tab-schools")).toHaveTextContent("Schulen (2)");
+  });
+
+  it("passes null SWR key when not authenticated", () => {
+    mockUseOperatorAuth.mockReturnValue({
+      isAuthenticated: false,
+      operator: null,
+    });
+    setupSWR(undefined, undefined);
+
+    render(<OperatorProvisioningPage />);
+
+    expect(mockUseSWR).toHaveBeenCalledWith(
+      null,
+      expect.any(Function),
+      expect.any(Object),
+    );
+  });
+
+  // --- Edit Organization ---
+
+  it("opens edit organization modal with pre-filled data", async () => {
+    setupSWR();
+
+    render(<OperatorProvisioningPage />);
+
+    fireEvent.click(screen.getByText("Bearbeiten"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("modal")).toBeInTheDocument();
+      expect(screen.getByText("Träger bearbeiten")).toBeInTheDocument();
+      expect(screen.getByDisplayValue("Test Org")).toBeInTheDocument();
+      expect(screen.getByDisplayValue("test-org")).toBeInTheDocument();
+    });
+  });
+
+  it("updates organization and mutates", async () => {
+    setupSWR();
+    mockUpdateOrganization.mockResolvedValue({
+      ...mockOrg,
+      name: "Updated Org",
+    });
+
+    render(<OperatorProvisioningPage />);
+
+    fireEvent.click(screen.getByText("Bearbeiten"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("modal")).toBeInTheDocument();
+    });
+
+    const nameInput = screen.getByDisplayValue("Test Org");
+    fireEvent.change(nameInput, { target: { value: "Updated Org" } });
+
+    fireEvent.click(screen.getByText("Speichern"));
+
+    await waitFor(() => {
+      expect(mockUpdateOrganization).toHaveBeenCalledWith("1", {
+        name: "Updated Org",
+        slug: "test-org",
+        active: true,
+      });
+      expect(mockMutateOrgs).toHaveBeenCalled();
+    });
+  });
+
+  it("shows slug warning in edit organization modal", async () => {
+    setupSWR();
+
+    render(<OperatorProvisioningPage />);
+
+    fireEvent.click(screen.getByText("Bearbeiten"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("modal")).toBeInTheDocument();
+    });
+
+    expect(
+      screen.getByText(/Slug-Änderungen können bestehende Verweise/),
+    ).toBeInTheDocument();
+  });
+
+  it("shows conflict error when updating organization with duplicate slug", async () => {
+    setupSWR();
+
+    const { OperatorApiError } = await import("~/lib/operator/api-helpers");
+    mockUpdateOrganization.mockRejectedValue(
+      new OperatorApiError("conflict", 409),
+    );
+
+    render(<OperatorProvisioningPage />);
+
+    fireEvent.click(screen.getByText("Bearbeiten"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("Speichern"));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Ein Träger mit diesem Slug existiert bereits."),
+      ).toBeInTheDocument();
+    });
+  });
+
+  // --- Toggle Active ---
+
+  it("toggles organization active status", async () => {
+    setupSWR();
+    mockUpdateOrganization.mockResolvedValue({
+      ...mockOrg,
+      active: false,
+    });
+
+    render(<OperatorProvisioningPage />);
+
+    const statusBadge = screen.getByText("Aktiv");
+    fireEvent.click(statusBadge);
+
+    await waitFor(() => {
+      expect(mockUpdateOrganization).toHaveBeenCalledWith("1", {
+        name: "Test Org",
+        slug: "test-org",
+        active: false,
+      });
+      expect(mockMutateOrgs).toHaveBeenCalled();
+    });
+  });
+
+  it("toggles school active status", async () => {
+    setupSWR();
+    mockUpdateSchool.mockResolvedValue({ ...mockSchool, active: false });
+
+    render(<OperatorProvisioningPage />);
+
+    fireEvent.click(screen.getByTestId("tab-schools"));
+
+    const statusBadge = screen.getByText("Aktiv");
+    fireEvent.click(statusBadge);
+
+    await waitFor(() => {
+      expect(mockUpdateSchool).toHaveBeenCalledWith("10", {
+        organization_id: 1,
+        name: "Test School",
+        slug: "test-school",
+        subdomain: "test-school",
+        address: "Main St 1",
+        city: "Berlin",
+        zip: "10115",
+        phone: "",
+        email: "",
+        active: false,
+      });
+      expect(mockMutateSchools).toHaveBeenCalled();
+    });
+  });
+
+  // --- Edit School ---
+
+  it("opens edit school modal with pre-filled data", async () => {
+    setupSWR();
+
+    render(<OperatorProvisioningPage />);
+
+    fireEvent.click(screen.getByTestId("tab-schools"));
+    fireEvent.click(screen.getByText("Bearbeiten"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("modal")).toBeInTheDocument();
+      expect(screen.getByText("Schule bearbeiten")).toBeInTheDocument();
+      expect(screen.getByDisplayValue("Test School")).toBeInTheDocument();
+      expect(screen.getByDisplayValue("Main St 1")).toBeInTheDocument();
+    });
+  });
+
+  it("updates school and mutates", async () => {
+    setupSWR();
+    mockUpdateSchool.mockResolvedValue({
+      ...mockSchool,
+      name: "Renamed School",
+    });
+
+    render(<OperatorProvisioningPage />);
+
+    fireEvent.click(screen.getByTestId("tab-schools"));
+    fireEvent.click(screen.getByText("Bearbeiten"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("modal")).toBeInTheDocument();
+    });
+
+    const nameInput = screen.getByDisplayValue("Test School");
+    fireEvent.change(nameInput, { target: { value: "Renamed School" } });
+
+    fireEvent.click(screen.getByText("Speichern"));
+
+    await waitFor(() => {
+      expect(mockUpdateSchool).toHaveBeenCalledWith(
+        "10",
+        expect.objectContaining({ name: "Renamed School" }),
+      );
+      expect(mockMutateSchools).toHaveBeenCalled();
+    });
+  });
+
+  it("shows subdomain warning when changing subdomain", async () => {
+    setupSWR();
+
+    render(<OperatorProvisioningPage />);
+
+    fireEvent.click(screen.getByTestId("tab-schools"));
+    fireEvent.click(screen.getByText("Bearbeiten"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("modal")).toBeInTheDocument();
+    });
+
+    // Both slug and subdomain are "test-school", change the subdomain (second input)
+    const subdomainInputs = screen.getAllByDisplayValue("test-school");
+    const subdomainInput = subdomainInputs[1]!;
+    fireEvent.change(subdomainInput, { target: { value: "new-subdomain" } });
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          /Subdomain-Änderungen erfordern, dass alle Benutzer die neue Adresse verwenden/,
+        ),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("shows slug warning when changing school slug", async () => {
+    setupSWR();
+
+    render(<OperatorProvisioningPage />);
+
+    fireEvent.click(screen.getByTestId("tab-schools"));
+    fireEvent.click(screen.getByText("Bearbeiten"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("modal")).toBeInTheDocument();
+    });
+
+    // Change slug (first input with value "test-school")
+    const slugInputs = screen.getAllByDisplayValue("test-school");
+    const slugInput = slugInputs[0]!;
+    fireEvent.change(slugInput, { target: { value: "new-slug" } });
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          /Slug-Änderungen können bestehende Verweise ungültig machen/,
+        ),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("calls revalidation endpoint when subdomain changes", async () => {
+    setupSWR();
+    mockUpdateSchool.mockResolvedValue({
+      ...mockSchool,
+      subdomain: "new-sub",
+    });
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(JSON.stringify({ status: "ok" })));
+
+    render(<OperatorProvisioningPage />);
+
+    fireEvent.click(screen.getByTestId("tab-schools"));
+    fireEvent.click(screen.getByText("Bearbeiten"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("modal")).toBeInTheDocument();
+    });
+
+    // Change subdomain
+    const subdomainInputs = screen.getAllByDisplayValue("test-school");
+    const subdomainInput = subdomainInputs[1]!;
+    fireEvent.change(subdomainInput, { target: { value: "new-sub" } });
+
+    fireEvent.click(screen.getByText("Speichern"));
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/operator/provisioning/revalidate-tenant",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            slugs: ["test-school", "new-sub"],
+          }),
+        }),
+      );
+    });
+
+    fetchSpy.mockRestore();
+  });
+
+  it("does not call revalidation when subdomain is unchanged", async () => {
+    setupSWR();
+    mockUpdateSchool.mockResolvedValue(mockSchool);
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(JSON.stringify({ status: "ok" })));
+
+    render(<OperatorProvisioningPage />);
+
+    fireEvent.click(screen.getByTestId("tab-schools"));
+    fireEvent.click(screen.getByText("Bearbeiten"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("modal")).toBeInTheDocument();
+    });
+
+    // Only change name, not subdomain
+    const nameInput = screen.getByDisplayValue("Test School");
+    fireEvent.change(nameInput, { target: { value: "Renamed" } });
+
+    fireEvent.click(screen.getByText("Speichern"));
+
+    await waitFor(() => {
+      expect(mockUpdateSchool).toHaveBeenCalled();
+    });
+
+    // Revalidation should NOT have been called
+    expect(fetchSpy).not.toHaveBeenCalledWith(
+      "/api/operator/provisioning/revalidate-tenant",
+      expect.anything(),
+    );
+
+    fetchSpy.mockRestore();
+  });
+
+  it("shows subdomain conflict error on school update", async () => {
+    setupSWR();
+
+    const { OperatorApiError } = await import("~/lib/operator/api-helpers");
+    mockUpdateSchool.mockRejectedValue(
+      new OperatorApiError("subdomain already exists", 409),
+    );
+
+    render(<OperatorProvisioningPage />);
+
+    fireEvent.click(screen.getByTestId("tab-schools"));
+    fireEvent.click(screen.getByText("Bearbeiten"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("Speichern"));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Eine Schule mit dieser Subdomain existiert bereits."),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("shows slug conflict error on school update", async () => {
+    setupSWR();
+
+    const { OperatorApiError } = await import("~/lib/operator/api-helpers");
+    mockUpdateSchool.mockRejectedValue(
+      new OperatorApiError("slug conflict", 409),
+    );
+
+    render(<OperatorProvisioningPage />);
+
+    fireEvent.click(screen.getByTestId("tab-schools"));
+    fireEvent.click(screen.getByText("Bearbeiten"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("Speichern"));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          "Eine Schule mit diesem Slug existiert bereits in dieser Organisation.",
+        ),
+      ).toBeInTheDocument();
+    });
+  });
+
+  // --- Error handling ---
+
+  it("handles update organization error gracefully", async () => {
+    setupSWR();
+    mockUpdateOrganization.mockRejectedValue(new Error("Server error"));
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {
+      // noop
+    });
+
+    render(<OperatorProvisioningPage />);
+
+    fireEvent.click(screen.getByText("Bearbeiten"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("Speichern"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Server error")).toBeInTheDocument();
+      expect(consoleError).toHaveBeenCalledWith(
+        "organization_update_failed",
+        expect.objectContaining({ error: "Server error" }),
+      );
+    });
+
+    consoleError.mockRestore();
+  });
+
+  it("handles update school error gracefully", async () => {
+    setupSWR();
+    mockUpdateSchool.mockRejectedValue(new Error("Update failed"));
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {
+      // noop
+    });
+
+    render(<OperatorProvisioningPage />);
+
+    fireEvent.click(screen.getByTestId("tab-schools"));
+    fireEvent.click(screen.getByText("Bearbeiten"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("Speichern"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Update failed")).toBeInTheDocument();
+      expect(consoleError).toHaveBeenCalledWith(
+        "school_update_failed",
+        expect.objectContaining({ error: "Update failed" }),
+      );
+    });
+
+    consoleError.mockRestore();
+  });
+
+  it("handles toggle active error gracefully", async () => {
+    setupSWR();
+    mockUpdateOrganization.mockRejectedValue(new Error("Toggle failed"));
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {
+      // noop
+    });
+
+    render(<OperatorProvisioningPage />);
+
+    fireEvent.click(screen.getByText("Aktiv"));
+
+    await waitFor(() => {
+      expect(consoleError).toHaveBeenCalledWith(
+        "organization_toggle_active_failed",
+        expect.objectContaining({ error: "Toggle failed" }),
+      );
+    });
+
+    consoleError.mockRestore();
+  });
+
+  it("closes edit organization modal on cancel", async () => {
+    setupSWR();
+
+    render(<OperatorProvisioningPage />);
+
+    fireEvent.click(screen.getByText("Bearbeiten"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("Abbrechen"));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("modal")).not.toBeInTheDocument();
+    });
+  });
+
+  it("shows org change warning when changing school organization", async () => {
+    const secondOrg = {
+      ...mockOrg,
+      id: "2",
+      name: "Other Org",
+      slug: "other-org",
+    };
+    setupSWR([mockOrg, secondOrg]);
+
+    render(<OperatorProvisioningPage />);
+
+    fireEvent.click(screen.getByTestId("tab-schools"));
+    fireEvent.click(screen.getByText("Bearbeiten"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("modal")).toBeInTheDocument();
+    });
+
+    // Change org dropdown
+    const orgSelect = screen.getByDisplayValue("Test Org");
+    fireEvent.change(orgSelect, { target: { value: "2" } });
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Trägerwechsel kann die Slug-Eindeutigkeit/),
+      ).toBeInTheDocument();
+    });
   });
 });
