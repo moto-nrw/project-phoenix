@@ -73,15 +73,25 @@ describe("POST /api/auth/login", () => {
       body: loginPayload,
     });
     const response = await POST(request);
+    const [, requestInit] = vi.mocked(global.fetch).mock.calls[0] as [
+      string,
+      RequestInit,
+    ];
 
-    expect(global.fetch).toHaveBeenCalledWith(
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(global.fetch).mock.calls[0]?.[0]).toBe(
       "http://localhost:8080/auth/login",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(loginPayload),
-      },
     );
+    expect(requestInit).toMatchObject({
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "User-Agent": "unknown",
+        "X-Forwarded-For": "unknown",
+        "X-Real-IP": "unknown",
+      },
+      body: JSON.stringify(loginPayload),
+    });
 
     expect(response.status).toBe(200);
     const json = await parseJsonResponse<typeof backendResponse>(response);
@@ -144,11 +154,49 @@ describe("POST /api/auth/login", () => {
     });
     const response = await POST(request);
 
-    // When response.json() fails, the body is consumed, so response.text() also fails
-    // This triggers the outer catch block, returning 500
-    expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Internal Server Error");
+    expect(response.status).toBe(200);
+    const json = await parseJsonResponse<{ message: string }>(response);
+    expect(json.message).toBe("invalid json");
+  });
+
+  it("returns fallback payload when backend sends an empty JSON body", async () => {
+    const loginPayload = { email: "test@example.com", password: "Test1234!" };
+
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      new Response(null, {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    const request = createMockRequest("/api/auth/login", {
+      body: loginPayload,
+    });
+    const response = await POST(request);
+
+    expect(response.status).toBe(200);
+    const json = await parseJsonResponse<{ message: string }>(response);
+    expect(json.message).toBe("Empty response");
+  });
+
+  it("returns fallback message when backend sends an empty non-JSON body", async () => {
+    const loginPayload = { email: "test@example.com", password: "Test1234!" };
+
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      new Response(null, {
+        status: 502,
+        headers: { "Content-Type": "text/plain" },
+      }),
+    );
+
+    const request = createMockRequest("/api/auth/login", {
+      body: loginPayload,
+    });
+    const response = await POST(request);
+
+    expect(response.status).toBe(502);
+    const json = await parseJsonResponse<{ message: string }>(response);
+    expect(json.message).toBe("Request failed with no response");
   });
 
   it("returns 500 when fetch throws an error", async () => {
@@ -159,6 +207,18 @@ describe("POST /api/auth/login", () => {
     const request = createMockRequest("/api/auth/login", {
       body: loginPayload,
     });
+    const response = await POST(request);
+
+    expect(response.status).toBe(500);
+    const json = await parseJsonResponse<{ error: string }>(response);
+    expect(json.error).toBe("Internal Server Error");
+  });
+
+  it("returns 500 when request parsing throws a non-Error value", async () => {
+    const request = {
+      json: vi.fn().mockRejectedValueOnce("bad payload"),
+    } as unknown as NextRequest;
+
     const response = await POST(request);
 
     expect(response.status).toBe(500);

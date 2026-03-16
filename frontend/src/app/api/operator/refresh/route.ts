@@ -1,9 +1,11 @@
+import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import {
   getOperatorRefreshToken,
   setOperatorTokens,
 } from "~/lib/operator/cookies";
 import { extractJwtExpiry } from "~/lib/operator/jwt-utils";
+import { getClientForwardHeaders } from "~/lib/client-headers";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "OperatorRefreshRoute" });
@@ -19,7 +21,7 @@ interface BackendEnvelopeResponse {
   message: string;
 }
 
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
     const refreshToken = await getOperatorRefreshToken();
     if (!refreshToken) {
@@ -34,6 +36,7 @@ export async function POST() {
       headers: {
         Authorization: `Bearer ${refreshToken}`,
         "Content-Type": "application/json",
+        ...getClientForwardHeaders(request),
       },
     });
 

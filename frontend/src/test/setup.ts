@@ -2,6 +2,46 @@ import "@testing-library/jest-dom/vitest";
 import type React from "react";
 import { vi } from "vitest";
 
+function createStorageMock(): Storage {
+  const store = new Map<string, string>();
+
+  return {
+    get length() {
+      return store.size;
+    },
+    clear() {
+      store.clear();
+    },
+    getItem(key: string) {
+      return store.get(String(key)) ?? null;
+    },
+    key(index: number) {
+      return Array.from(store.keys())[index] ?? null;
+    },
+    removeItem(key: string) {
+      store.delete(String(key));
+    },
+    setItem(key: string, value: string) {
+      store.set(String(key), String(value));
+    },
+  };
+}
+
+const localStorageMock = createStorageMock();
+const sessionStorageMock = createStorageMock();
+
+Object.defineProperty(globalThis, "localStorage", {
+  configurable: true,
+  writable: true,
+  value: localStorageMock,
+});
+
+Object.defineProperty(globalThis, "sessionStorage", {
+  configurable: true,
+  writable: true,
+  value: sessionStorageMock,
+});
+
 // Mock ~/lib/logger globally to prevent ClientLogger from:
 // - Accessing window.location.pathname (crashes in test env)
 // - Starting setInterval batch timers (leaks into tests)
