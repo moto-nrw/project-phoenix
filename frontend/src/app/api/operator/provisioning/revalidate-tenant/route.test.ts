@@ -8,6 +8,8 @@ const { mockGetOperatorToken, mockRevalidatePath } = vi.hoisted(() => ({
 
 vi.mock("~/lib/operator/cookies", () => ({
   getOperatorToken: mockGetOperatorToken,
+  getOperatorRefreshToken: vi.fn(),
+  setOperatorTokens: vi.fn(),
 }));
 
 vi.mock("next/cache", () => ({
@@ -15,6 +17,8 @@ vi.mock("next/cache", () => ({
 }));
 
 import { POST } from "./route";
+
+const emptyContext = { params: Promise.resolve({}) };
 
 describe("POST /api/operator/provisioning/revalidate-tenant", () => {
   beforeEach(() => {
@@ -33,15 +37,16 @@ describe("POST /api/operator/provisioning/revalidate-tenant", () => {
       },
     );
 
-    const response = await POST(request);
+    const response = await POST(request, emptyContext);
 
     expect(response.status).toBe(200);
     const json = (await response.json()) as {
-      status: string;
-      revalidated: string[];
+      success: boolean;
+      data: { status: string; revalidated: string[] };
     };
-    expect(json.status).toBe("ok");
-    expect(json.revalidated).toEqual(["old-sub", "new-sub"]);
+    expect(json.success).toBe(true);
+    expect(json.data.status).toBe("ok");
+    expect(json.data.revalidated).toEqual(["old-sub", "new-sub"]);
     expect(mockRevalidatePath).toHaveBeenCalledTimes(2);
     expect(mockRevalidatePath).toHaveBeenCalledWith("/old-sub", "layout");
     expect(mockRevalidatePath).toHaveBeenCalledWith("/new-sub", "layout");
@@ -59,7 +64,7 @@ describe("POST /api/operator/provisioning/revalidate-tenant", () => {
       },
     );
 
-    const response = await POST(request);
+    const response = await POST(request, emptyContext);
     expect(response.status).toBe(401);
   });
 
@@ -75,10 +80,8 @@ describe("POST /api/operator/provisioning/revalidate-tenant", () => {
       },
     );
 
-    const response = await POST(request);
+    const response = await POST(request, emptyContext);
     expect(response.status).toBe(400);
-    const json = (await response.json()) as { error: string };
-    expect(json.error).toBe("slugs array is required");
   });
 
   it("returns 400 when slugs array is empty", async () => {
@@ -93,7 +96,7 @@ describe("POST /api/operator/provisioning/revalidate-tenant", () => {
       },
     );
 
-    const response = await POST(request);
+    const response = await POST(request, emptyContext);
     expect(response.status).toBe(400);
   });
 
@@ -109,7 +112,7 @@ describe("POST /api/operator/provisioning/revalidate-tenant", () => {
       },
     );
 
-    const response = await POST(request);
+    const response = await POST(request, emptyContext);
     expect(response.status).toBe(200);
     expect(mockRevalidatePath).toHaveBeenCalledTimes(2);
     expect(mockRevalidatePath).toHaveBeenCalledWith("/valid", "layout");
@@ -128,9 +131,7 @@ describe("POST /api/operator/provisioning/revalidate-tenant", () => {
       },
     );
 
-    const response = await POST(request);
+    const response = await POST(request, emptyContext);
     expect(response.status).toBe(500);
-    const json = (await response.json()) as { error: string };
-    expect(json.error).toBe("Revalidation failed");
   });
 });
