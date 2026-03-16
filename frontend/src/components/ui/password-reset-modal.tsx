@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Modal } from "./modal";
 import { Input, Alert } from "./index";
 import { requestPasswordReset, type ApiError } from "~/lib/auth-api";
@@ -116,13 +116,13 @@ export function PasswordResetModal({
     rateLimitUntil !== null && rateLimitUntil > Date.now();
 
   // Reset state when modal closes
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     setEmail("");
     setError("");
     setIsSuccess(false);
     setIsLoading(false);
     onClose();
-  };
+  }, [onClose]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

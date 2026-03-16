@@ -6,6 +6,8 @@
  * 2. Calls useUserContext hook
  * 3. Calls useGlobalSSE hook
  * 4. Logs debug info in development mode
+ * 5. Identifies user in PostHog on authenticated session
+ * 6. Resets PostHog on unauthenticated session
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
@@ -13,12 +15,31 @@ import type { MockInstance } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { AuthWrapper } from "./auth-wrapper";
 
+// Mock posthog-js
+const mockPosthogIdentify = vi.fn();
+const mockPosthogReset = vi.fn();
+vi.mock("posthog-js", () => ({
+  default: {
+    identify: (...args: unknown[]) => mockPosthogIdentify(...args) as void,
+    reset: (...args: unknown[]) => mockPosthogReset(...args) as void,
+    init: vi.fn(),
+  },
+}));
+
 // Mock hooks
-vi.mock("next-auth/react", () => ({
-  useSession: vi.fn(() => ({
+const mockUseSession = vi.fn(
+  (): {
+    status: string;
+    data: { user: Record<string, string> } | null;
+  } => ({
     status: "authenticated",
-    data: { user: { token: "test-token" } },
-  })),
+    data: {
+      user: { token: "test-token", id: "user-123", email: "test@example.com" },
+    },
+  }),
+);
+vi.mock("next-auth/react", () => ({
+  useSession: () => mockUseSession(),
 }));
 
 vi.mock("~/lib/hooks/use-user-context", () => ({
@@ -135,5 +156,47 @@ describe("AuthWrapper", () => {
       String(call[0]).includes("auth wrapper state"),
     );
     expect(sseLogCalls.length).toBe(0);
+  });
+
+  it("identifies user in PostHog when authenticated with user id", async () => {
+    mockUseSession.mockReturnValue({
+      status: "authenticated",
+      data: {
+        user: {
+          token: "test-token",
+          id: "user-123",
+          email: "test@example.com",
+        },
+      },
+    });
+
+    render(
+      <AuthWrapper>
+        <div>Test</div>
+      </AuthWrapper>,
+    );
+
+    await vi.waitFor(() => {
+      expect(mockPosthogIdentify).toHaveBeenCalledWith("user-123", {
+        email: "test@example.com",
+      });
+    });
+  });
+
+  it("resets PostHog when unauthenticated", async () => {
+    mockUseSession.mockReturnValue({
+      status: "unauthenticated",
+      data: null,
+    });
+
+    render(
+      <AuthWrapper>
+        <div>Test</div>
+      </AuthWrapper>,
+    );
+
+    await vi.waitFor(() => {
+      expect(mockPosthogReset).toHaveBeenCalled();
+    });
   });
 });

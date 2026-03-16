@@ -25,6 +25,7 @@ interface BackendStudent {
   name?: string;
   school_class?: string;
   current_location?: string;
+  sick?: boolean;
   sick_since?: string;
   sick_until?: string;
   location_since?: string;

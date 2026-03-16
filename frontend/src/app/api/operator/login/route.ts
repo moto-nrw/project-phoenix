@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { setOperatorTokens } from "~/lib/operator/cookies";
 import { extractJwtExpiry } from "~/lib/operator/jwt-utils";
+import { getClientForwardHeaders } from "~/lib/client-headers";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "OperatorLoginRoute" });
@@ -33,16 +34,11 @@ export async function POST(request: NextRequest) {
     const { getServerApiUrl } = await import("~/lib/server-api-url");
     const url = `${getServerApiUrl()}/operator/auth/login`;
 
-    const ip =
-      request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-      request.headers.get("x-real-ip") ??
-      "unknown";
-
     const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Forwarded-For": ip,
+        ...getClientForwardHeaders(request),
       },
       body: JSON.stringify(body),
     });

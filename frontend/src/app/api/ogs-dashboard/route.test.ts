@@ -103,7 +103,16 @@ describe("GET /api/ogs-dashboard", () => {
 
   it("fetches dashboard data for the first group", async () => {
     const groups = [{ id: 12, name: "OGS A" }];
-    const students = [{ id: 1, first_name: "Mia", last_name: "M" }];
+    const students = [
+      {
+        id: 1,
+        first_name: "Mia",
+        last_name: "M",
+        current_location: "Zuhause",
+        sick: true,
+        sick_since: "2026-03-13T08:00:00Z",
+      },
+    ];
     const roomStatus = { group_has_room: true, student_room_status: {} };
     const substitutions = [{ id: 99, group_id: 12 }];
     const pickupTimes = [{ student_id: 1, pickup_time: "15:00" }];

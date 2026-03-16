@@ -1,11 +1,12 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "~/server/auth";
 import { getServerApiUrl } from "~/lib/server-api-url";
+import { getClientForwardHeaders } from "~/lib/client-headers";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "AuthLogoutRoute" });
 
-export async function POST(_request: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
     const session = await auth();
 
@@ -19,6 +20,7 @@ export async function POST(_request: NextRequest) {
       headers: {
         Authorization: `Bearer ${session.user.token}`,
         "Content-Type": "application/json",
+        ...getClientForwardHeaders(request),
       },
     });
 
