@@ -13,7 +13,7 @@ require (
 	github.com/go-ozzo/ozzo-validation v3.6.0+incompatible
 	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/joho/godotenv v1.5.1
-	github.com/k3a/html2text v1.3.0
+	github.com/k3a/html2text v1.4.0
 	github.com/lestrrat-go/jwx/v3 v3.0.13
 	github.com/samber/slog-chi v1.19.0
 	github.com/spf13/cobra v1.10.2
@@ -25,7 +25,7 @@ require (
 	github.com/vanng822/go-premailer v1.32.0
 	github.com/wneessen/go-mail v0.7.2
 	github.com/xuri/excelize/v2 v2.10.1
-	golang.org/x/crypto v0.48.0
+	golang.org/x/crypto v0.49.0
 	golang.org/x/sync v0.20.0
 	golang.org/x/time v0.15.0
 	gopkg.in/yaml.v2 v2.4.0
@@ -87,7 +87,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.40.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/net v0.51.0 // indirect
-	golang.org/x/sys v0.41.0 // indirect
-	golang.org/x/text v0.34.0 // indirect
+	golang.org/x/sys v0.42.0 // indirect
+	golang.org/x/text v0.35.0 // indirect
 	mellium.im/sasl v0.3.2 // indirect
 )
