@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -209,6 +210,8 @@ func TestSecureCompareStrings_DifferentLengths(t *testing.T) {
 // =============================================================================
 
 func TestDeviceOnlyAuthenticator_ValidAPIKey(t *testing.T) {
+	lastSeenWriteCache = sync.Map{}
+
 	mockService := newMockIoTService()
 	apiKey := "valid-api-key-123"
 	device := &iot.Device{
@@ -384,6 +387,8 @@ func TestDeviceOnlyAuthenticator_MaintenanceDevice(t *testing.T) {
 // =============================================================================
 
 func TestDeviceAuthenticator_ValidAPIKeyAndPIN(t *testing.T) {
+	lastSeenWriteCache = sync.Map{}
+
 	// Set up environment
 	ogsPin := "test-device-pin-123"
 	require.NoError(t, os.Setenv("OGS_DEVICE_PIN", ogsPin))
@@ -662,6 +667,8 @@ func TestCtxKey_DistinctValues(t *testing.T) {
 // =============================================================================
 
 func TestDeviceOnlyAuthenticator_UpdateLastSeenError(t *testing.T) {
+	lastSeenWriteCache = sync.Map{}
+
 	mockService := newMockIoTService()
 	mockService.updateError = errors.New("database error")
 
@@ -687,6 +694,41 @@ func TestDeviceOnlyAuthenticator_UpdateLastSeenError(t *testing.T) {
 	r.ServeHTTP(rr, req)
 	// Should still succeed - update error is logged but not blocking
 	assert.Equal(t, http.StatusOK, rr.Code)
+}
+
+func TestDeviceOnlyAuthenticator_DebouncesLastSeenWrites(t *testing.T) {
+	lastSeenWriteCache = sync.Map{}
+
+	mockService := newMockIoTService()
+	apiKey := "valid-api-key-123"
+	device := &iot.Device{
+		DeviceID:   "device-001",
+		DeviceType: "rfid_reader",
+		Status:     iot.DeviceStatusActive,
+	}
+	mockService.addDevice(apiKey, device)
+
+	r := chi.NewRouter()
+	r.Use(DeviceOnlyAuthenticator(mockService))
+	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	req1 := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req1.Header.Set("Authorization", "Bearer "+apiKey)
+	rr1 := httptest.NewRecorder()
+	r.ServeHTTP(rr1, req1)
+	assert.Equal(t, http.StatusOK, rr1.Code)
+	assert.True(t, mockService.updateCalled, "first request should update last seen")
+
+	mockService.updateCalled = false
+
+	req2 := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req2.Header.Set("Authorization", "Bearer "+apiKey)
+	rr2 := httptest.NewRecorder()
+	r.ServeHTTP(rr2, req2)
+	assert.Equal(t, http.StatusOK, rr2.Code)
+	assert.False(t, mockService.updateCalled, "second request inside debounce window should skip last seen write")
 }
 
 // =============================================================================

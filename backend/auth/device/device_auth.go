@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/models/iot"
@@ -22,6 +24,17 @@ const (
 	CtxStaff
 	CtxIsIoTDevice
 )
+
+const lastSeenDebounceWindow = 60 * time.Second
+
+type lastSeenDebounceState struct {
+	mu            sync.Mutex
+	lastPersisted time.Time
+	latestSeen    time.Time
+	flushTimer    *time.Timer
+}
+
+var lastSeenWriteCache sync.Map
 
 // DeviceFromCtx retrieves the authenticated device from request context.
 func DeviceFromCtx(ctx context.Context) *iot.Device {
@@ -98,19 +111,84 @@ func extractAndValidateAPIKey(r *http.Request, iotService iotSvc.Service) (*iot.
 
 // updateDeviceLastSeen updates the device's last seen timestamp, logging any errors.
 func updateDeviceLastSeen(r *http.Request, iotService iotSvc.Service, device *iot.Device) {
-	device.UpdateLastSeen()
-	if err := iotService.UpdateDeviceLastSeen(r.Context(), device.DeviceID); err != nil {
+	now := time.Now()
+	device.LastSeen = &now
+
+	state := getOrCreateLastSeenState(device.DeviceID)
+	state.mu.Lock()
+	state.latestSeen = now
+
+	shouldWriteNow := state.lastPersisted.IsZero() || (now.Sub(state.lastPersisted) >= lastSeenDebounceWindow && state.flushTimer == nil)
+	if shouldWriteNow {
+		state.mu.Unlock()
+		persistLastSeen(r.Context(), iotService, device.DeviceID, state)
+		return
+	}
+
+	if state.flushTimer == nil {
+		delay := state.lastPersisted.Add(lastSeenDebounceWindow).Sub(now)
+		if delay < 0 {
+			delay = 0
+		}
+		state.flushTimer = time.AfterFunc(delay, func() {
+			flushDeferredLastSeen(iotService, device.DeviceID, state)
+		})
+	}
+	state.mu.Unlock()
+}
+
+func getOrCreateLastSeenState(deviceID string) *lastSeenDebounceState {
+	if existing, ok := lastSeenWriteCache.Load(deviceID); ok {
+		if state, ok := existing.(*lastSeenDebounceState); ok {
+			return state
+		}
+	}
+
+	state := &lastSeenDebounceState{}
+	actual, _ := lastSeenWriteCache.LoadOrStore(deviceID, state)
+	actualState, _ := actual.(*lastSeenDebounceState)
+	return actualState
+}
+
+func persistLastSeen(ctx context.Context, iotService iotSvc.Service, deviceID string, state *lastSeenDebounceState) {
+	persistedAt := time.Now()
+	if err := iotService.UpdateDeviceLastSeen(ctx, deviceID); err != nil {
 		slog.Warn("failed to update device last seen time",
-			slog.String("device_id", device.DeviceID),
+			slog.String("device_id", deviceID),
 			slog.String("error", err.Error()),
 		)
+		return
+	}
+
+	state.mu.Lock()
+	state.lastPersisted = persistedAt
+	state.mu.Unlock()
+}
+
+func flushDeferredLastSeen(iotService iotSvc.Service, deviceID string, state *lastSeenDebounceState) {
+	state.mu.Lock()
+	latestSeen := state.latestSeen
+	lastPersisted := state.lastPersisted
+	state.flushTimer = nil
+	state.mu.Unlock()
+
+	if latestSeen.IsZero() || !latestSeen.After(lastPersisted) {
+		return
+	}
+
+	persistLastSeen(context.Background(), iotService, deviceID, state)
+
+	state.mu.Lock()
+	defer state.mu.Unlock()
+
+	if state.latestSeen.After(state.lastPersisted) && state.flushTimer == nil {
+		state.flushTimer = time.AfterFunc(lastSeenDebounceWindow, func() {
+			flushDeferredLastSeen(iotService, deviceID, state)
+		})
 	}
 }
 
-// DeviceAuthenticator is a middleware that validates device API keys and the global OGS PIN.
-// It requires both Authorization: Bearer <api_key> and X-Staff-PIN: <pin> headers.
-// The middleware sets device context for downstream handlers.
-func DeviceAuthenticator(iotService iotSvc.Service, _ usersSvc.PersonService) func(http.Handler) http.Handler {
+func deviceAuthenticator(iotService iotSvc.Service) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Validate API key and get device
@@ -147,7 +225,7 @@ func DeviceAuthenticator(iotService iotSvc.Service, _ usersSvc.PersonService) fu
 			ctx := context.WithValue(r.Context(), CtxDevice, device)
 			ctx = context.WithValue(ctx, CtxIsIoTDevice, true)
 
-			slog.Info("device authentication successful",
+			slog.Debug("device authentication successful",
 				slog.String("device_id", device.DeviceID),
 			)
 			updateDeviceLastSeen(r, iotService, device)
@@ -155,6 +233,13 @@ func DeviceAuthenticator(iotService iotSvc.Service, _ usersSvc.PersonService) fu
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+// DeviceAuthenticator is a middleware that validates device API keys and the global OGS PIN.
+// It requires both Authorization: Bearer <api_key> and X-Staff-PIN: <pin> headers.
+// The middleware sets device context for downstream handlers.
+func DeviceAuthenticator(iotService iotSvc.Service, _ usersSvc.PersonService) func(http.Handler) http.Handler {
+	return deviceAuthenticator(iotService)
 }
 
 // DeviceOnlyAuthenticator is a middleware that validates only device API keys.

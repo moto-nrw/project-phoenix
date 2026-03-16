@@ -349,6 +349,29 @@ func (r *VisitRepository) GetCurrentByStudentID(ctx context.Context, studentID i
 	return visit, nil
 }
 
+// GetCurrentByStudentIDWithRoom finds the current active visit for a student and preloads the room relation.
+func (r *VisitRepository) GetCurrentByStudentIDWithRoom(ctx context.Context, studentID int64) (*active.Visit, error) {
+	visit := new(active.Visit)
+	err := r.db.NewSelect().
+		Model(visit).
+		ModelTableExpr(tableExprActiveVisitsAsVisit).
+		Relation("ActiveGroup").
+		Relation("ActiveGroup.Room").
+		Where(`"visit".student_id = ? AND "visit".exit_time IS NULL`, studentID).
+		OrderExpr(`"visit".entry_time DESC`).
+		Limit(1).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "get current by student ID with room",
+			Err: err,
+		}
+	}
+
+	return visit, nil
+}
+
 // GetCurrentByStudentIDs finds current active visits for multiple students in a single query
 func (r *VisitRepository) GetCurrentByStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]*active.Visit, error) {
 	result := make(map[int64]*active.Visit, len(studentIDs))
@@ -390,6 +413,42 @@ func (r *VisitRepository) GetCurrentByStudentIDs(ctx context.Context, studentIDs
 	}
 
 	return result, nil
+}
+
+// CountActiveByRoomID counts active visits across all active groups in the given room.
+func (r *VisitRepository) CountActiveByRoomID(ctx context.Context, roomID int64) (int, error) {
+	count, err := r.db.NewSelect().
+		TableExpr(`active.visits AS "visit"`).
+		Join(`JOIN active.groups AS "group" ON "group".id = "visit".active_group_id`).
+		Where(`"group".room_id = ?`, roomID).
+		Where(`"group".end_time IS NULL`).
+		Where(`"visit".exit_time IS NULL`).
+		Count(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "count active by room ID",
+			Err: err,
+		}
+	}
+
+	return count, nil
+}
+
+// CountActiveByGroupID counts active visits in the given active group.
+func (r *VisitRepository) CountActiveByGroupID(ctx context.Context, activeGroupID int64) (int, error) {
+	count, err := r.db.NewSelect().
+		TableExpr(`active.visits AS "visit"`).
+		Where(`"visit".active_group_id = ?`, activeGroupID).
+		Where(`"visit".exit_time IS NULL`).
+		Count(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "count active by group ID",
+			Err: err,
+		}
+	}
+
+	return count, nil
 }
 
 // EndVisitsByActiveGroupIDs ends all active visits for multiple group IDs in a single query.

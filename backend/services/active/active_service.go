@@ -780,17 +780,35 @@ func (s *service) getRoomName(ctx context.Context, roomID int64) string {
 }
 
 func (s *service) GetStudentCurrentVisit(ctx context.Context, studentID int64) (*active.Visit, error) {
-	visits, err := s.visitRepo.FindActiveByStudentID(ctx, studentID)
+	visit, err := s.visitRepo.GetCurrentByStudentID(ctx, studentID)
 	if err != nil {
+		if isNotFoundError(err) {
+			return nil, &ActiveError{Op: "GetStudentCurrentVisit", Err: ErrVisitNotFound}
+		}
 		return nil, &ActiveError{Op: "GetStudentCurrentVisit", Err: ErrDatabaseOperation}
 	}
 
-	if len(visits) == 0 {
+	if visit == nil {
 		return nil, &ActiveError{Op: "GetStudentCurrentVisit", Err: ErrVisitNotFound}
 	}
 
-	// Return the first active visit (there should only be one)
-	return visits[0], nil
+	return visit, nil
+}
+
+func (s *service) GetStudentCurrentVisitWithRoom(ctx context.Context, studentID int64) (*active.Visit, error) {
+	visit, err := s.visitRepo.GetCurrentByStudentIDWithRoom(ctx, studentID)
+	if err != nil {
+		if isNotFoundError(err) {
+			return nil, &ActiveError{Op: "GetStudentCurrentVisitWithRoom", Err: ErrVisitNotFound}
+		}
+		return nil, &ActiveError{Op: "GetStudentCurrentVisitWithRoom", Err: ErrDatabaseOperation}
+	}
+
+	if visit == nil {
+		return nil, &ActiveError{Op: "GetStudentCurrentVisitWithRoom", Err: ErrVisitNotFound}
+	}
+
+	return visit, nil
 }
 
 func (s *service) GetStudentsCurrentVisits(ctx context.Context, studentIDs []int64) (map[int64]*active.Visit, error) {
@@ -808,6 +826,22 @@ func (s *service) GetStudentsCurrentVisits(ctx context.Context, studentIDs []int
 	}
 
 	return visits, nil
+}
+
+func (s *service) CountActiveVisitsByRoomID(ctx context.Context, roomID int64) (int, error) {
+	count, err := s.visitRepo.CountActiveByRoomID(ctx, roomID)
+	if err != nil {
+		return 0, &ActiveError{Op: "CountActiveVisitsByRoomID", Err: ErrDatabaseOperation}
+	}
+	return count, nil
+}
+
+func (s *service) CountActiveVisitsByActiveGroupID(ctx context.Context, activeGroupID int64) (int, error) {
+	count, err := s.visitRepo.CountActiveByGroupID(ctx, activeGroupID)
+	if err != nil {
+		return 0, &ActiveError{Op: "CountActiveVisitsByActiveGroupID", Err: ErrDatabaseOperation}
+	}
+	return count, nil
 }
 
 // Group Supervisor operations

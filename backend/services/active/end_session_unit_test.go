@@ -209,8 +209,20 @@ func (m *mockVisitRepository) GetCurrentByStudentID(ctx context.Context, student
 	return nil, nil
 }
 
+func (m *mockVisitRepository) GetCurrentByStudentIDWithRoom(ctx context.Context, studentID int64) (*active.Visit, error) {
+	return nil, nil
+}
+
 func (m *mockVisitRepository) GetCurrentByStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]*active.Visit, error) {
 	return nil, nil
+}
+
+func (m *mockVisitRepository) CountActiveByRoomID(ctx context.Context, roomID int64) (int, error) {
+	return 0, nil
+}
+
+func (m *mockVisitRepository) CountActiveByGroupID(ctx context.Context, activeGroupID int64) (int, error) {
+	return 0, nil
 }
 
 func (m *mockVisitRepository) FindActiveVisits(ctx context.Context) ([]*active.Visit, error) {

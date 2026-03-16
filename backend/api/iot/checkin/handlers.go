@@ -204,14 +204,13 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 		result.DailyCheckoutAvailable = rs.shouldShowDailyCheckoutWithGroup(ctx, student, currentVisit)
 	}
 
-	// Step 11: Update session activity for device monitoring
+	// Step 11: Keep heartbeat scoped to the scanning device and return room occupancy.
 	if req.RoomID != nil {
-		rs.updateSessionActivityForDevice(ctx, *req.RoomID, deviceCtx.ID)
-	}
-
-	// Step 11b: Get active student count for response
-	if req.RoomID != nil {
-		result.ActiveStudents = rs.getActiveStudentCountForRoom(ctx, *req.RoomID, deviceCtx.ID)
+		deviceGroup := rs.getDeviceActiveGroupInRoom(ctx, *req.RoomID, deviceCtx.ID)
+		if deviceGroup != nil {
+			rs.updateSessionActivity(ctx, deviceGroup.ID)
+		}
+		result.ActiveStudents = rs.getActiveStudentCountForRoom(ctx, *req.RoomID)
 	}
 
 	// Step 12: Build and send response
