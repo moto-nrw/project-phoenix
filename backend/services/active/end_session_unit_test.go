@@ -50,6 +50,10 @@ func (m *mockGroupRepository) FindActiveByRoomID(ctx context.Context, roomID int
 	return nil, nil
 }
 
+func (m *mockGroupRepository) FindActiveByRoomIDAndDeviceID(ctx context.Context, roomID int64, deviceID int64) (*active.Group, error) {
+	return nil, nil
+}
+
 func (m *mockGroupRepository) FindActiveByGroupID(ctx context.Context, groupID int64) ([]*active.Group, error) {
 	return nil, nil
 }

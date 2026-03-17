@@ -19,6 +19,7 @@ type Service interface {
 	DeleteActiveGroup(ctx context.Context, id int64) error
 	ListActiveGroups(ctx context.Context, options *base.QueryOptions) ([]*active.Group, error)
 	FindActiveGroupsByRoomID(ctx context.Context, roomID int64) ([]*active.Group, error)
+	FindDeviceActiveGroupInRoom(ctx context.Context, roomID int64, deviceID int64) (*active.Group, error)
 	FindActiveGroupsByGroupID(ctx context.Context, groupID int64) ([]*active.Group, error)
 	FindActiveGroupsByTimeRange(ctx context.Context, start, end time.Time) ([]*active.Group, error)
 	EndActiveGroupSession(ctx context.Context, id int64) error

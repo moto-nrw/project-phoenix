@@ -865,22 +865,10 @@ func (s *service) ProcessSessionTimeoutByID(ctx context.Context, sessionID int64
 
 // UpdateSessionActivity updates the last activity timestamp for a session
 func (s *service) UpdateSessionActivity(ctx context.Context, activeGroupID int64) error {
-	// Get the current session to validate it exists and is active
-	session, err := s.groupRepo.FindByID(ctx, activeGroupID)
-	if err != nil {
+	if err := s.groupRepo.UpdateLastActivity(ctx, activeGroupID, time.Now()); err != nil {
 		return &ActiveError{Op: "UpdateSessionActivity", Err: err}
 	}
-
-	if session == nil {
-		return &ActiveError{Op: "UpdateSessionActivity", Err: ErrActiveGroupNotFound}
-	}
-
-	if !session.IsActive() {
-		return &ActiveError{Op: "UpdateSessionActivity", Err: ErrActiveGroupAlreadyEnded}
-	}
-
-	// Update last activity timestamp
-	return s.groupRepo.UpdateLastActivity(ctx, activeGroupID, time.Now())
+	return nil
 }
 
 // ValidateSessionTimeout validates if a timeout request is valid

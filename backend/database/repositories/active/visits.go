@@ -3,6 +3,7 @@ package active
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"time"
 
@@ -364,14 +365,60 @@ func (r *VisitRepository) GetCurrentByStudentID(ctx context.Context, studentID i
 
 // GetCurrentByStudentIDWithRoom finds the current active visit for a student and loads the active group and room.
 func (r *VisitRepository) GetCurrentByStudentIDWithRoom(ctx context.Context, studentID int64) (*active.Visit, error) {
-	visit := new(active.Visit)
+	type currentVisitRow struct {
+		VisitID             int64          `bun:"visit_id"`
+		VisitStudentID      int64          `bun:"visit_student_id"`
+		VisitActiveGroupID  int64          `bun:"visit_active_group_id"`
+		VisitEntryTime      time.Time      `bun:"visit_entry_time"`
+		VisitExitTime       *time.Time     `bun:"visit_exit_time"`
+		VisitCreatedAt      time.Time      `bun:"visit_created_at"`
+		VisitUpdatedAt      time.Time      `bun:"visit_updated_at"`
+		GroupID             sql.NullInt64  `bun:"group_id"`
+		GroupStartTime      time.Time      `bun:"group_start_time"`
+		GroupEndTime        *time.Time     `bun:"group_end_time"`
+		GroupLastActivity   time.Time      `bun:"group_last_activity"`
+		GroupTimeoutMinutes int            `bun:"group_timeout_minutes"`
+		GroupGroupID        sql.NullInt64  `bun:"group_group_id"`
+		GroupDeviceID       sql.NullInt64  `bun:"group_device_id"`
+		GroupRoomID         sql.NullInt64  `bun:"group_room_id"`
+		GroupCreatedAt      time.Time      `bun:"group_created_at"`
+		GroupUpdatedAt      time.Time      `bun:"group_updated_at"`
+		RoomID              sql.NullInt64  `bun:"room_id"`
+		RoomName            sql.NullString `bun:"room_name"`
+		RoomCreatedAt       time.Time      `bun:"room_created_at"`
+		RoomUpdatedAt       time.Time      `bun:"room_updated_at"`
+	}
+
+	row := new(currentVisitRow)
 	err := r.db.NewSelect().
-		Model(visit).
-		ModelTableExpr(tableExprActiveVisitsAsVisit).
+		TableExpr(`active.visits AS "visit"`).
+		ColumnExpr(`"visit".id AS visit_id`).
+		ColumnExpr(`"visit".student_id AS visit_student_id`).
+		ColumnExpr(`"visit".active_group_id AS visit_active_group_id`).
+		ColumnExpr(`"visit".entry_time AS visit_entry_time`).
+		ColumnExpr(`"visit".exit_time AS visit_exit_time`).
+		ColumnExpr(`"visit".created_at AS visit_created_at`).
+		ColumnExpr(`"visit".updated_at AS visit_updated_at`).
+		ColumnExpr(`"group".id AS group_id`).
+		ColumnExpr(`"group".start_time AS group_start_time`).
+		ColumnExpr(`"group".end_time AS group_end_time`).
+		ColumnExpr(`"group".last_activity AS group_last_activity`).
+		ColumnExpr(`"group".timeout_minutes AS group_timeout_minutes`).
+		ColumnExpr(`"group".group_id AS group_group_id`).
+		ColumnExpr(`"group".device_id AS group_device_id`).
+		ColumnExpr(`"group".room_id AS group_room_id`).
+		ColumnExpr(`"group".created_at AS group_created_at`).
+		ColumnExpr(`"group".updated_at AS group_updated_at`).
+		ColumnExpr(`"room".id AS room_id`).
+		ColumnExpr(`"room".name AS room_name`).
+		ColumnExpr(`"room".created_at AS room_created_at`).
+		ColumnExpr(`"room".updated_at AS room_updated_at`).
+		Join(`LEFT JOIN active.groups AS "group" ON "group".id = "visit".active_group_id`).
+		Join(`LEFT JOIN facilities.rooms AS "room" ON "room".id = "group".room_id`).
 		Where(`"visit".student_id = ? AND "visit".exit_time IS NULL`, studentID).
 		OrderExpr(`"visit".entry_time DESC`).
 		Limit(1).
-		Scan(ctx)
+		Scan(ctx, row)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -380,35 +427,49 @@ func (r *VisitRepository) GetCurrentByStudentIDWithRoom(ctx context.Context, stu
 		}
 	}
 
-	// Load the active group and its room in a second query.
-	// BUN Relation("ActiveGroup") fails here because the Group model's
-	// schema:active tag is not resolved for relation sub-queries.
-	group := new(active.Group)
-	err = r.db.NewSelect().
-		Model(group).
-		ModelTableExpr(`active.groups AS "group"`).
-		Where(`"group".id = ?`, visit.ActiveGroupID).
-		Scan(ctx)
-
-	if err != nil {
-		// Keep the active visit even when enrichment fails so callers do not
-		// mistake a transient lookup error for "no current visit".
-		return visit, nil
+	visit := &active.Visit{
+		Model: modelBase.Model{
+			ID:        row.VisitID,
+			CreatedAt: row.VisitCreatedAt,
+			UpdatedAt: row.VisitUpdatedAt,
+		},
+		StudentID:     row.VisitStudentID,
+		ActiveGroupID: row.VisitActiveGroupID,
+		EntryTime:     row.VisitEntryTime,
+		ExitTime:      row.VisitExitTime,
 	}
 
-	// Load room for the group
-	room := new(facilities.Room)
-	err = r.db.NewSelect().
-		Model(room).
-		ModelTableExpr(`facilities.rooms AS "room"`).
-		Where(`"room".id = ?`, group.RoomID).
-		Scan(ctx)
-
-	if err == nil {
-		group.Room = room
+	if row.GroupID.Valid && row.GroupGroupID.Valid && row.GroupRoomID.Valid {
+		group := &active.Group{
+			Model: modelBase.Model{
+				ID:        row.GroupID.Int64,
+				CreatedAt: row.GroupCreatedAt,
+				UpdatedAt: row.GroupUpdatedAt,
+			},
+			StartTime:      row.GroupStartTime,
+			EndTime:        row.GroupEndTime,
+			LastActivity:   row.GroupLastActivity,
+			TimeoutMinutes: row.GroupTimeoutMinutes,
+			GroupID:        row.GroupGroupID.Int64,
+			RoomID:         row.GroupRoomID.Int64,
+		}
+		if row.GroupDeviceID.Valid {
+			deviceID := row.GroupDeviceID.Int64
+			group.DeviceID = &deviceID
+		}
+		if row.RoomID.Valid {
+			group.Room = &facilities.Room{
+				Model: modelBase.Model{
+					ID:        row.RoomID.Int64,
+					CreatedAt: row.RoomCreatedAt,
+					UpdatedAt: row.RoomUpdatedAt,
+				},
+				Name: row.RoomName.String,
+			}
+		}
+		visit.ActiveGroup = group
 	}
 
-	visit.ActiveGroup = group
 	return visit, nil
 }
 

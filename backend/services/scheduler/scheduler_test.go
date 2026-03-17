@@ -971,6 +971,9 @@ func (m *mockActiveService) ListActiveGroups(_ context.Context, _ *base.QueryOpt
 func (m *mockActiveService) FindActiveGroupsByRoomID(_ context.Context, _ int64) ([]*active.Group, error) {
 	return nil, nil
 }
+func (m *mockActiveService) FindDeviceActiveGroupInRoom(_ context.Context, _, _ int64) (*active.Group, error) {
+	return nil, nil
+}
 func (m *mockActiveService) FindActiveGroupsByGroupID(_ context.Context, _ int64) ([]*active.Group, error) {
 	return nil, nil
 }
