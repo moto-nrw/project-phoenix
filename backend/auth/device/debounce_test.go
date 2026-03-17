@@ -98,6 +98,28 @@ func TestPersistLastSeen_Error(t *testing.T) {
 	assert.True(t, state.lastPersisted.IsZero(), "Should NOT update lastPersisted on error")
 }
 
+func TestPersistLastSeen_ErrorPreservesQueuedObservation(t *testing.T) {
+	lastSeenWriteCache = sync.Map{}
+
+	mockService := newMockIoTService()
+	mockService.updateError = errors.New("db connection failed")
+	observedAt := time.Now().Add(-2 * time.Minute)
+	state := &lastSeenDebounceState{
+		latestSeen: observedAt.Add(30 * time.Second),
+	}
+
+	persistLastSeen(context.Background(), mockService, "device-persist-queued", observedAt, state)
+
+	state.mu.Lock()
+	defer state.mu.Unlock()
+
+	assert.Equal(t, observedAt, state.lastPersisted, "Should retain the failed write timestamp so queued observations can be flushed")
+	assert.NotNil(t, state.flushTimer, "Should schedule a deferred flush for the queued newer observation")
+	if state.flushTimer != nil {
+		state.flushTimer.Stop()
+	}
+}
+
 // =============================================================================
 // flushDeferredLastSeen Tests
 // =============================================================================

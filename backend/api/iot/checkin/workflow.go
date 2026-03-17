@@ -322,7 +322,7 @@ func shouldSkipCheckin(roomID *int64, checkedOut bool, currentVisit *active.Visi
 
 // processCheckin handles the checkin logic for a student.
 // Returns: visitID, roomName, activeGroupID, error
-func (rs *Resource) processCheckin(ctx context.Context, w http.ResponseWriter, r *http.Request, student *users.Student, person *users.Person, roomID int64, deviceID int64) (*int64, string, int64, error) {
+func (rs *Resource) processCheckin(ctx context.Context, w http.ResponseWriter, r *http.Request, student *users.Student, person *users.Person, roomID int64, deviceID int64) (*int64, string, int64, bool, error) {
 	rs.getLogger().DebugContext(ctx, "performing check-in to room",
 		slog.String("student_name", person.FirstName+" "+person.LastName),
 		slog.Int64("student_id", student.ID),
@@ -337,7 +337,7 @@ func (rs *Resource) processCheckin(ctx context.Context, w http.ResponseWriter, r
 			slog.String("error", err.Error()),
 		)
 		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to get room information")))
-		return nil, "", 0, err
+		return nil, "", 0, false, err
 	}
 
 	// Check room capacity if set
@@ -349,7 +349,7 @@ func (rs *Resource) processCheckin(ctx context.Context, w http.ResponseWriter, r
 				slog.String("error", countErr.Error()),
 			)
 			iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to check room capacity")))
-			return nil, "", 0, countErr
+			return nil, "", 0, false, countErr
 		}
 
 		if currentOccupancy >= *room.Capacity {
@@ -360,7 +360,7 @@ func (rs *Resource) processCheckin(ctx context.Context, w http.ResponseWriter, r
 				slog.Int("capacity", *room.Capacity),
 			)
 			iotCommon.RenderError(w, r, iotCommon.ErrorRoomCapacityExceeded(roomID, room.Name, currentOccupancy, *room.Capacity))
-			return nil, "", 0, iotCommon.ErrRoomCapacityExceeded
+			return nil, "", 0, false, iotCommon.ErrRoomCapacityExceeded
 		}
 
 		rs.getLogger().DebugContext(ctx, "room capacity check passed",
@@ -371,14 +371,14 @@ func (rs *Resource) processCheckin(ctx context.Context, w http.ResponseWriter, r
 	}
 
 	// Find or create active group for the room
-	activeGroupID, roomName, err := rs.findOrCreateActiveGroupForRoom(ctx, w, r, roomID, deviceID)
+	activeGroupID, roomName, deviceScopedRoom, err := rs.findOrCreateActiveGroupForRoom(ctx, w, r, roomID, deviceID)
 	if err != nil {
-		return nil, "", 0, err
+		return nil, "", 0, false, err
 	}
 
 	// Check activity capacity
 	if capacityErr := rs.checkActivityCapacity(ctx, w, r, activeGroupID); capacityErr != nil {
-		return nil, "", 0, capacityErr
+		return nil, "", 0, false, capacityErr
 	}
 
 	// Create new visit
@@ -398,7 +398,7 @@ func (rs *Resource) processCheckin(ctx context.Context, w http.ResponseWriter, r
 			slog.String("error", err.Error()),
 		)
 		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to create visit record")))
-		return nil, "", 0, err
+		return nil, "", 0, false, err
 	}
 
 	rs.getLogger().InfoContext(ctx, "checked in student",
@@ -407,7 +407,7 @@ func (rs *Resource) processCheckin(ctx context.Context, w http.ResponseWriter, r
 		slog.String("room", roomName),
 	)
 
-	return &newVisit.ID, roomName, activeGroupID, nil
+	return &newVisit.ID, roomName, activeGroupID, deviceScopedRoom, nil
 }
 
 // countActiveGroupOccupancy counts the number of active visits in a specific active group.
@@ -480,7 +480,7 @@ func (rs *Resource) checkActivityCapacity(ctx context.Context, w http.ResponseWr
 // findOrCreateActiveGroupForRoom finds an existing active group or creates one for Schulhof.
 // When multiple active groups exist in the room, it prefers the one linked to deviceID.
 // Returns: activeGroupID, roomName, error
-func (rs *Resource) findOrCreateActiveGroupForRoom(ctx context.Context, w http.ResponseWriter, r *http.Request, roomID int64, deviceID int64) (int64, string, error) {
+func (rs *Resource) findOrCreateActiveGroupForRoom(ctx context.Context, w http.ResponseWriter, r *http.Request, roomID int64, deviceID int64) (int64, string, bool, error) {
 	rs.getLogger().DebugContext(ctx, "looking for active groups in room",
 		slog.Int64("room_id", roomID),
 		slog.Int64("device_id", deviceID),
@@ -493,7 +493,7 @@ func (rs *Resource) findOrCreateActiveGroupForRoom(ctx context.Context, w http.R
 			slog.String("error", err.Error()),
 		)
 		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("error finding active groups in room")))
-		return 0, "", err
+		return 0, "", false, err
 	}
 
 	if len(activeGroups) > 0 {
@@ -501,16 +501,18 @@ func (rs *Resource) findOrCreateActiveGroupForRoom(ctx context.Context, w http.R
 	}
 
 	// No active groups - check if this is a special room (Schulhof, WC)
-	return rs.createSpecialRoomActiveGroupIfNeeded(ctx, w, r, roomID)
+	return rs.createSpecialRoomActiveGroupIfNeeded(ctx, w, r, roomID, deviceID)
 }
 
 // useExistingActiveGroup selects an active group in the room, preferring one linked to deviceID.
 // Falls back to the first group when no device match is found (single-device rooms, legacy sessions).
-func (rs *Resource) useExistingActiveGroup(ctx context.Context, activeGroups []*active.Group, roomID int64, deviceID int64) (int64, string, error) {
+func (rs *Resource) useExistingActiveGroup(ctx context.Context, activeGroups []*active.Group, roomID int64, deviceID int64) (int64, string, bool, error) {
 	selected := activeGroups[0] // default fallback
+	deviceMatched := false
 	for _, g := range activeGroups {
 		if g.DeviceID != nil && *g.DeviceID == deviceID {
 			selected = g
+			deviceMatched = true
 			break
 		}
 	}
@@ -524,18 +526,18 @@ func (rs *Resource) useExistingActiveGroup(ctx context.Context, activeGroups []*
 	)
 
 	roomName := rs.roomNameByID(ctx, selected.Room, roomID)
-	return selected.ID, roomName, nil
+	return selected.ID, roomName, deviceMatched, nil
 }
 
 // createSpecialRoomActiveGroupIfNeeded creates an active group if the room is a special room (Schulhof, WC)
-func (rs *Resource) createSpecialRoomActiveGroupIfNeeded(ctx context.Context, w http.ResponseWriter, r *http.Request, roomID int64) (int64, string, error) {
+func (rs *Resource) createSpecialRoomActiveGroupIfNeeded(ctx context.Context, w http.ResponseWriter, r *http.Request, roomID int64, deviceID int64) (int64, string, bool, error) {
 	room, err := rs.FacilityService.GetRoom(ctx, roomID)
 	if err != nil || room == nil {
 		rs.getLogger().WarnContext(ctx, "no active groups found in room",
 			slog.Int64("room_id", roomID),
 		)
 		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New("no active groups in specified room")))
-		return 0, "", errors.New("no active groups in specified room")
+		return 0, "", false, errors.New("no active groups in specified room")
 	}
 
 	// Determine which activity group to use based on room name
@@ -551,7 +553,7 @@ func (rs *Resource) createSpecialRoomActiveGroupIfNeeded(ctx context.Context, w 
 				slog.String("error", err.Error()),
 			)
 			iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("schulhof activity not configured")))
-			return 0, "", err
+			return 0, "", false, err
 		}
 	case constants.WCRoomName:
 		rs.getLogger().InfoContext(ctx, "auto-creating WC active group",
@@ -567,7 +569,7 @@ func (rs *Resource) createSpecialRoomActiveGroupIfNeeded(ctx context.Context, w 
 				errMsg = "WC activity auto-create requires staff context"
 			}
 			iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New(errMsg)))
-			return 0, "", err
+			return 0, "", false, err
 		}
 	default:
 		rs.getLogger().WarnContext(ctx, "no active groups found in room",
@@ -575,11 +577,12 @@ func (rs *Resource) createSpecialRoomActiveGroupIfNeeded(ctx context.Context, w 
 			slog.String("room_name", room.Name),
 		)
 		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New("no active groups in specified room")))
-		return 0, "", errors.New("no active groups in specified room")
+		return 0, "", false, errors.New("no active groups in specified room")
 	}
 
 	newActiveGroup := &active.Group{
 		GroupID:      activityGroup.ID,
+		DeviceID:     &deviceID,
 		RoomID:       roomID,
 		StartTime:    time.Now(),
 		LastActivity: time.Now(),
@@ -598,14 +601,15 @@ func (rs *Resource) createSpecialRoomActiveGroupIfNeeded(ctx context.Context, w 
 		default:
 			iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to create session")))
 		}
-		return 0, "", err
+		return 0, "", false, err
 	}
 
 	rs.getLogger().InfoContext(ctx, "auto-created active group for special room",
 		slog.String("room_name", room.Name),
 		slog.Int64("active_group_id", newActiveGroup.ID),
+		slog.Int64("device_id", deviceID),
 	)
-	return newActiveGroup.ID, room.Name, nil
+	return newActiveGroup.ID, room.Name, true, nil
 }
 
 // roomNameByID resolves the room name from a room object or by ID lookup
@@ -644,10 +648,11 @@ type checkinProcessingInput struct {
 
 // checkinProcessingResult holds the result of checkin processing
 type checkinProcessingResult struct {
-	NewVisitID    *int64
-	RoomName      string
-	ActiveGroupID *int64
-	Error         error
+	NewVisitID       *int64
+	RoomName         string
+	ActiveGroupID    *int64
+	DeviceScopedRoom bool
+	Error            error
 }
 
 // processStudentCheckin handles the checkin logic based on room and skip conditions.
@@ -658,7 +663,7 @@ func (rs *Resource) processStudentCheckin(ctx context.Context, w http.ResponseWr
 	switch {
 	case input.RoomID != nil && !input.SkipCheckin:
 		// Normal checkin case
-		visitID, roomName, activeGroupID, err := rs.processCheckin(ctx, w, r, student, person, *input.RoomID, input.DeviceID)
+		visitID, roomName, activeGroupID, deviceScopedRoom, err := rs.processCheckin(ctx, w, r, student, person, *input.RoomID, input.DeviceID)
 		if err != nil {
 			result.Error = err
 			return result
@@ -666,6 +671,7 @@ func (rs *Resource) processStudentCheckin(ctx context.Context, w http.ResponseWr
 		result.NewVisitID = visitID
 		result.RoomName = roomName
 		result.ActiveGroupID = &activeGroupID
+		result.DeviceScopedRoom = deviceScopedRoom
 
 	case input.RoomID != nil && input.SkipCheckin:
 		// Skipped checkin - just get room name for response

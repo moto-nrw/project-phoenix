@@ -154,6 +154,9 @@ func persistLastSeen(ctx context.Context, iotService iotSvc.Service, deviceID st
 		)
 		state.mu.Lock()
 		state.writeInFlight = false
+		if state.latestSeen.After(observedAt) {
+			state.lastPersisted = observedAt
+		}
 		scheduleDeferredFlushLocked(iotService, deviceID, state, time.Now())
 		state.mu.Unlock()
 		return

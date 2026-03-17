@@ -208,7 +208,7 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	// Step 11: Keep heartbeat and active_students scoped to the scanning device session.
 	if req.RoomID != nil {
 		switch {
-		case checkinResult.ActiveGroupID != nil:
+		case checkinResult.ActiveGroupID != nil && checkinResult.DeviceScopedRoom:
 			rs.updateSessionActivity(ctx, *checkinResult.ActiveGroupID)
 			result.ActiveStudents = rs.getActiveStudentCountForGroup(ctx, *checkinResult.ActiveGroupID)
 		default:

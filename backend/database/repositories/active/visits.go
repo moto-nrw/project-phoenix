@@ -391,10 +391,9 @@ func (r *VisitRepository) GetCurrentByStudentIDWithRoom(ctx context.Context, stu
 		Scan(ctx)
 
 	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "get current by student ID with room (load group)",
-			Err: err,
-		}
+		// Keep the active visit even when enrichment fails so callers do not
+		// mistake a transient lookup error for "no current visit".
+		return visit, nil
 	}
 
 	// Load room for the group

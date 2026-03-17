@@ -17,6 +17,7 @@ import (
 	checkinAPI "github.com/moto-nrw/project-phoenix/api/iot/checkin"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/iot"
@@ -2007,6 +2008,18 @@ func TestDeviceCheckin_WCAutoCreate(t *testing.T) {
 	assert.True(t, ok, "Response should have data field")
 	assert.Equal(t, "checked_in", data["action"])
 	assert.Equal(t, "WC", data["room_name"])
+
+	activeGroup := new(active.Group)
+	err := ctx.db.NewSelect().
+		Model(activeGroup).
+		ModelTableExpr(`active.groups AS "group"`).
+		Where(`"group".room_id = ?`, room.ID).
+		OrderExpr(`"group".id DESC`).
+		Limit(1).
+		Scan(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, activeGroup.DeviceID, "Auto-created WC session should be linked to the scanning device")
+	assert.Equal(t, device.ID, *activeGroup.DeviceID)
 }
 
 // TestDeviceCheckin_WCAutoCreateIdempotent verifies that the WC
