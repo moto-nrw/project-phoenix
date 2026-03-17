@@ -112,6 +112,7 @@ func TestCountActiveVisitsByActiveGroupID_ZeroCount(t *testing.T) {
 // =============================================================================
 
 func TestGetStudentCurrentVisit_Success(t *testing.T) {
+	testStudentID := int64(42)
 	visitRepo := &mockVisitRepository{
 		getCurrentByStudentIDFunc: func(ctx context.Context, studentID int64) (*active.Visit, error) {
 			return &active.Visit{
@@ -122,12 +123,12 @@ func TestGetStudentCurrentVisit_Success(t *testing.T) {
 	}
 
 	svc := &service{visitRepo: visitRepo}
-	visit, err := svc.GetStudentCurrentVisit(context.Background(), 1)
+	visit, err := svc.GetStudentCurrentVisit(context.Background(), testStudentID)
 
 	require.NoError(t, err)
 	require.NotNil(t, visit)
 	assert.Equal(t, int64(100), visit.ID)
-	assert.Equal(t, int64(1), visit.StudentID)
+	assert.Equal(t, testStudentID, visit.StudentID)
 }
 
 func TestGetStudentCurrentVisit_NotFound(t *testing.T) {

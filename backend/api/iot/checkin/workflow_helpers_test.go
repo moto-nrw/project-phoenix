@@ -14,6 +14,9 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
+// All tests use setupInternalTestResource which delegates to SetupAPITest
+// for test database initialization (see checkin_internal_test.go).
+
 // =============================================================================
 // getDeviceActiveGroupInRoom Tests
 // =============================================================================
