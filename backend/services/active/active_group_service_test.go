@@ -459,6 +459,47 @@ func TestActiveService_FindActiveGroupsByGroupID(t *testing.T) {
 	})
 }
 
+func TestActiveService_FindDeviceActiveGroupInRoom(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := createActiveService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns device-scoped active group when present", func(t *testing.T) {
+		activity := testpkg.CreateTestActivityGroup(t, db, "device-room-match")
+		room := testpkg.CreateTestRoom(t, db, "Device Room")
+		device := testpkg.CreateTestDevice(t, db, "svc-device-room-match")
+		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, device.ID, activity.CategoryID, room.ID)
+
+		activeGroup := &activeModels.Group{
+			GroupID:        activity.ID,
+			RoomID:         room.ID,
+			DeviceID:       &device.ID,
+			StartTime:      time.Now(),
+			LastActivity:   time.Now(),
+			TimeoutMinutes: 30,
+		}
+		require.NoError(t, service.CreateActiveGroup(ctx, activeGroup))
+		defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID)
+
+		found, err := service.FindDeviceActiveGroupInRoom(ctx, room.ID, device.ID)
+		require.NoError(t, err)
+		require.NotNil(t, found)
+		assert.Equal(t, activeGroup.ID, found.ID)
+	})
+
+	t.Run("returns nil when no active group matches device", func(t *testing.T) {
+		room := testpkg.CreateTestRoom(t, db, "No Match Device Room")
+		device := testpkg.CreateTestDevice(t, db, "svc-device-room-miss")
+		defer testpkg.CleanupActivityFixtures(t, db, device.ID, room.ID)
+
+		found, err := service.FindDeviceActiveGroupInRoom(ctx, room.ID, device.ID)
+		require.NoError(t, err)
+		assert.Nil(t, found)
+	})
+}
+
 // =============================================================================
 // FindActiveGroupsByTimeRange Tests
 // =============================================================================

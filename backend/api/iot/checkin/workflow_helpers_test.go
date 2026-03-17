@@ -2,6 +2,7 @@ package checkin
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -11,8 +12,28 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
+
+type stubActiveService struct {
+	activeSvc.Service
+	findDeviceActiveGroupInRoomFn    func(ctx context.Context, roomID int64, deviceID int64) (*active.Group, error)
+	countActiveVisitsByRoomIDFn      func(ctx context.Context, roomID int64) (int, error)
+	countActiveVisitsByActiveGroupFn func(ctx context.Context, activeGroupID int64) (int, error)
+}
+
+func (s *stubActiveService) FindDeviceActiveGroupInRoom(ctx context.Context, roomID int64, deviceID int64) (*active.Group, error) {
+	return s.findDeviceActiveGroupInRoomFn(ctx, roomID, deviceID)
+}
+
+func (s *stubActiveService) CountActiveVisitsByRoomID(ctx context.Context, roomID int64) (int, error) {
+	return s.countActiveVisitsByRoomIDFn(ctx, roomID)
+}
+
+func (s *stubActiveService) CountActiveVisitsByActiveGroupID(ctx context.Context, activeGroupID int64) (int, error) {
+	return s.countActiveVisitsByActiveGroupFn(ctx, activeGroupID)
+}
 
 // All tests use setupInternalTestResource which delegates to SetupAPITest
 // for test database initialization (see checkin_internal_test.go).
@@ -68,6 +89,20 @@ func TestGetDeviceActiveGroupInRoom_NoGroupsInRoom(t *testing.T) {
 	assert.Nil(t, result, "Should return nil when no groups exist in the room")
 }
 
+func TestGetDeviceActiveGroupInRoom_ServiceError(t *testing.T) {
+	rs := &Resource{
+		ActiveService: &stubActiveService{
+			findDeviceActiveGroupInRoomFn: func(context.Context, int64, int64) (*active.Group, error) {
+				return nil, errors.New("database down")
+			},
+		},
+	}
+
+	result := rs.getDeviceActiveGroupInRoom(context.Background(), 5, 7)
+
+	assert.Nil(t, result, "Should return nil when active service fails")
+}
+
 // =============================================================================
 // getActiveStudentCountForRoom Tests
 // =============================================================================
@@ -106,6 +141,67 @@ func TestGetActiveStudentCountForRoom_EmptyRoom(t *testing.T) {
 
 	require.NotNil(t, result, "Should return a count even for empty rooms")
 	assert.Equal(t, 0, *result)
+}
+
+func TestGetActiveStudentCountForRoom_ServiceError(t *testing.T) {
+	rs := &Resource{
+		ActiveService: &stubActiveService{
+			countActiveVisitsByRoomIDFn: func(context.Context, int64) (int, error) {
+				return 0, errors.New("count failed")
+			},
+			countActiveVisitsByActiveGroupFn: func(context.Context, int64) (int, error) {
+				return 0, nil
+			},
+			findDeviceActiveGroupInRoomFn: func(context.Context, int64, int64) (*active.Group, error) {
+				return nil, nil
+			},
+		},
+	}
+
+	result := rs.getActiveStudentCountForRoom(context.Background(), 42)
+
+	assert.Nil(t, result, "Should return nil when room occupancy lookup fails")
+}
+
+func TestGetActiveStudentCountForGroup(t *testing.T) {
+	rs := &Resource{
+		ActiveService: &stubActiveService{
+			countActiveVisitsByRoomIDFn: func(context.Context, int64) (int, error) {
+				return 0, nil
+			},
+			countActiveVisitsByActiveGroupFn: func(context.Context, int64) (int, error) {
+				return 3, nil
+			},
+			findDeviceActiveGroupInRoomFn: func(context.Context, int64, int64) (*active.Group, error) {
+				return nil, nil
+			},
+		},
+	}
+
+	result := rs.getActiveStudentCountForGroup(context.Background(), 99)
+
+	require.NotNil(t, result)
+	assert.Equal(t, 3, *result)
+}
+
+func TestGetActiveStudentCountForGroup_ServiceError(t *testing.T) {
+	rs := &Resource{
+		ActiveService: &stubActiveService{
+			countActiveVisitsByRoomIDFn: func(context.Context, int64) (int, error) {
+				return 0, nil
+			},
+			countActiveVisitsByActiveGroupFn: func(context.Context, int64) (int, error) {
+				return 0, errors.New("count failed")
+			},
+			findDeviceActiveGroupInRoomFn: func(context.Context, int64, int64) (*active.Group, error) {
+				return nil, nil
+			},
+		},
+	}
+
+	result := rs.getActiveStudentCountForGroup(context.Background(), 99)
+
+	assert.Nil(t, result, "Should return nil when active-group occupancy lookup fails")
 }
 
 // =============================================================================
