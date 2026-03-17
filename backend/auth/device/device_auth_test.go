@@ -735,6 +735,67 @@ func TestDeviceOnlyAuthenticator_DebouncesLastSeenWrites(t *testing.T) {
 // PIN Timing Attack Resistance Tests
 // =============================================================================
 
+func TestExtractAndValidateAPIKey_NilDeviceReturn(t *testing.T) {
+	// Test the path where GetDeviceByAPIKey returns nil device with no error
+	mockService := &mockIoTServiceNilDevice{}
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.Header.Set("Authorization", "Bearer valid-key-nil-device")
+
+	device, errResp := extractAndValidateAPIKey(req, mockService)
+
+	assert.Nil(t, device)
+	assert.NotNil(t, errResp)
+}
+
+// mockIoTServiceNilDevice returns nil device without error
+type mockIoTServiceNilDevice struct {
+	mockIoTService
+}
+
+func (m *mockIoTServiceNilDevice) GetDeviceByAPIKey(_ context.Context, _ string) (*iot.Device, error) {
+	return nil, nil // nil device, no error
+}
+
+func TestDeviceAuthenticator_NilDeviceReturn(t *testing.T) {
+	// Test the full middleware path where device is nil
+	require.NoError(t, os.Setenv("OGS_DEVICE_PIN", "test-pin"))
+	defer func() { _ = os.Unsetenv("OGS_DEVICE_PIN") }()
+
+	mockService := &mockIoTServiceNilDevice{mockIoTService: *newMockIoTService()}
+
+	r := chi.NewRouter()
+	r.Use(DeviceAuthenticator(mockService, nil))
+	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/checkin", nil)
+	req.Header.Set("Authorization", "Bearer some-key")
+	req.Header.Set("X-Staff-PIN", "test-pin")
+	rr := httptest.NewRecorder()
+
+	r.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+}
+
+func TestDeviceOnlyAuthenticator_NilDeviceReturn(t *testing.T) {
+	mockService := &mockIoTServiceNilDevice{mockIoTService: *newMockIoTService()}
+
+	r := chi.NewRouter()
+	r.Use(DeviceOnlyAuthenticator(mockService))
+	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.Header.Set("Authorization", "Bearer some-key")
+	rr := httptest.NewRecorder()
+
+	r.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+}
+
 func TestSecureCompareStrings_TimingResistance(t *testing.T) {
 	// This test verifies the constant-time comparison is used
 	// We can't easily test timing, but we can verify behavior
