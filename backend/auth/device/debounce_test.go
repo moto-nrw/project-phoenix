@@ -76,11 +76,12 @@ func TestPersistLastSeen_Success(t *testing.T) {
 
 	mockService := newMockIoTService()
 	state := &lastSeenDebounceState{}
+	observedAt := time.Now().Add(-5 * time.Second)
 
-	persistLastSeen(context.Background(), mockService, "device-persist-ok", state)
+	persistLastSeen(context.Background(), mockService, "device-persist-ok", observedAt, state)
 
 	assert.True(t, mockService.updateCalled, "Should call UpdateDeviceLastSeen")
-	assert.False(t, state.lastPersisted.IsZero(), "Should update lastPersisted timestamp")
+	assert.Equal(t, observedAt, state.lastPersisted, "Should persist the observed timestamp")
 }
 
 func TestPersistLastSeen_Error(t *testing.T) {
@@ -89,8 +90,9 @@ func TestPersistLastSeen_Error(t *testing.T) {
 	mockService := newMockIoTService()
 	mockService.updateError = errors.New("db connection failed")
 	state := &lastSeenDebounceState{}
+	observedAt := time.Now()
 
-	persistLastSeen(context.Background(), mockService, "device-persist-err", state)
+	persistLastSeen(context.Background(), mockService, "device-persist-err", observedAt, state)
 
 	assert.True(t, mockService.updateCalled, "Should attempt UpdateDeviceLastSeen")
 	assert.True(t, state.lastPersisted.IsZero(), "Should NOT update lastPersisted on error")
@@ -142,7 +144,7 @@ func TestFlushDeferredLastSeen_WritesWhenLatestSeenAfterLastPersisted(t *testing
 	flushDeferredLastSeen(mockService, "device-flush-write", state)
 
 	assert.True(t, mockService.updateCalled, "Should write when latestSeen is after lastPersisted")
-	assert.False(t, state.lastPersisted.IsZero(), "Should update lastPersisted")
+	assert.Equal(t, now, state.lastPersisted, "Should persist the latest observed timestamp")
 }
 
 func TestFlushDeferredLastSeen_ClearsFlushTimer(t *testing.T) {
@@ -216,6 +218,41 @@ func TestUpdateDeviceLastSeen_SecondCallWithinWindowSchedulesTimer(t *testing.T)
 	state.mu.Unlock()
 
 	assert.True(t, hasTimer, "Should have scheduled a flush timer")
+}
+
+func TestUpdateDeviceLastSeen_ConcurrentFirstCallsOnlyWriteOnce(t *testing.T) {
+	lastSeenWriteCache = sync.Map{}
+
+	mockService := newMockIoTService()
+	mockService.updateStarted = make(chan struct{}, 2)
+	mockService.updateBlock = make(chan struct{})
+	device := &iot.Device{DeviceID: "device-concurrent-first-write"}
+
+	req1 := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req2 := httptest.NewRequest(http.MethodGet, "/test", nil)
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		updateDeviceLastSeen(req1, mockService, device)
+	}()
+
+	<-mockService.updateStarted
+
+	go func() {
+		defer wg.Done()
+		updateDeviceLastSeen(req2, mockService, device)
+	}()
+
+	close(mockService.updateBlock)
+	wg.Wait()
+
+	mockService.mu.Lock()
+	updateCount := mockService.updateCount
+	mockService.mu.Unlock()
+
+	assert.Equal(t, 1, updateCount, "Concurrent first requests should reserve the write and avoid duplicate DB updates")
 }
 
 func TestUpdateDeviceLastSeen_ErrorDoesNotPreventSubsequentCalls(t *testing.T) {

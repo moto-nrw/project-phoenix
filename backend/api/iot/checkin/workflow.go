@@ -734,6 +734,18 @@ func (rs *Resource) getActiveStudentCountForRoom(ctx context.Context, roomID int
 	return &count
 }
 
+func (rs *Resource) getActiveStudentCountForGroup(ctx context.Context, activeGroupID int64) *int {
+	count, err := rs.ActiveService.CountActiveVisitsByActiveGroupID(ctx, activeGroupID)
+	if err != nil {
+		rs.getLogger().WarnContext(ctx, "failed to count active students for group",
+			slog.Int64("active_group_id", activeGroupID),
+			slog.String("error", err.Error()),
+		)
+		return nil
+	}
+	return &count
+}
+
 // countActiveStudentsInVisits counts visits without an exit time (active students).
 // Kept for tests and utility callers that already have visit data in memory.
 func countActiveStudentsInVisits(visits []*active.Visit) int {

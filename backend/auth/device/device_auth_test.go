@@ -23,9 +23,14 @@ import (
 // =============================================================================
 
 type mockIoTService struct {
-	devices      map[string]*iot.Device
-	updateCalled bool
-	updateError  error
+	mu             sync.Mutex
+	devices        map[string]*iot.Device
+	updateCalled   bool
+	updateError    error
+	updateCount    int
+	lastSeenWrites []time.Time
+	updateStarted  chan struct{}
+	updateBlock    chan struct{}
 }
 
 func newMockIoTService() *mockIoTService {
@@ -92,8 +97,26 @@ func (m *mockIoTService) GetDeviceTypeStatistics(_ context.Context) (map[string]
 }
 func (m *mockIoTService) DetectNewDevices(_ context.Context) ([]*iot.Device, error) { return nil, nil }
 func (m *mockIoTService) ScanNetwork(_ context.Context) (map[string]string, error)  { return nil, nil }
-func (m *mockIoTService) UpdateDeviceLastSeen(_ context.Context, _ string) error {
+func (m *mockIoTService) UpdateDeviceLastSeen(ctx context.Context, deviceID string) error {
+	return m.UpdateDeviceLastSeenAt(ctx, deviceID, time.Now())
+}
+
+func (m *mockIoTService) UpdateDeviceLastSeenAt(_ context.Context, _ string, lastSeen time.Time) error {
+	if m.updateStarted != nil {
+		select {
+		case m.updateStarted <- struct{}{}:
+		default:
+		}
+	}
+	if m.updateBlock != nil {
+		<-m.updateBlock
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.updateCalled = true
+	m.updateCount++
+	m.lastSeenWrites = append(m.lastSeenWrites, lastSeen)
 	return m.updateError
 }
 

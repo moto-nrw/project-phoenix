@@ -204,13 +204,22 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 		result.DailyCheckoutAvailable = rs.shouldShowDailyCheckoutWithGroup(ctx, student, currentVisit)
 	}
 
-	// Step 11: Keep heartbeat scoped to the scanning device and return room occupancy.
+	// Step 11: Keep heartbeat and active_students scoped to the scanning device session.
 	if req.RoomID != nil {
-		deviceGroup := rs.getDeviceActiveGroupInRoom(ctx, *req.RoomID, deviceCtx.ID)
-		if deviceGroup != nil {
-			rs.updateSessionActivity(ctx, deviceGroup.ID)
+		switch {
+		case checkinResult.ActiveGroupID != nil:
+			rs.updateSessionActivity(ctx, *checkinResult.ActiveGroupID)
+			result.ActiveStudents = rs.getActiveStudentCountForGroup(ctx, *checkinResult.ActiveGroupID)
+		default:
+			deviceGroup := rs.getDeviceActiveGroupInRoom(ctx, *req.RoomID, deviceCtx.ID)
+			if deviceGroup != nil {
+				rs.updateSessionActivity(ctx, deviceGroup.ID)
+				result.ActiveStudents = rs.getActiveStudentCountForGroup(ctx, deviceGroup.ID)
+			} else {
+				// Preserve the legacy fallback for rooms without a device-linked active group.
+				result.ActiveStudents = rs.getActiveStudentCountForRoom(ctx, *req.RoomID)
+			}
 		}
-		result.ActiveStudents = rs.getActiveStudentCountForRoom(ctx, *req.RoomID)
 	}
 
 	// Step 12: Build and send response

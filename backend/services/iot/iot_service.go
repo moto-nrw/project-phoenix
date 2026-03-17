@@ -393,10 +393,16 @@ func (s *service) ScanNetwork(_ context.Context) (map[string]string, error) {
 // This is a targeted update that skips existence checks and full-model validation,
 // intended for use in middleware where the device has already been authenticated.
 func (s *service) UpdateDeviceLastSeen(ctx context.Context, deviceID string) error {
+	return s.UpdateDeviceLastSeenAt(ctx, deviceID, time.Now())
+}
+
+// UpdateDeviceLastSeenAt updates only the last_seen timestamp for a device using
+// the caller-supplied observation time.
+func (s *service) UpdateDeviceLastSeenAt(ctx context.Context, deviceID string, lastSeen time.Time) error {
 	if deviceID == "" {
-		return &IoTError{Op: "UpdateDeviceLastSeen", Err: errors.New(errDeviceIDEmpty)}
+		return &IoTError{Op: "UpdateDeviceLastSeenAt", Err: errors.New(errDeviceIDEmpty)}
 	}
-	return s.deviceRepo.UpdateLastSeen(ctx, deviceID, time.Now())
+	return s.deviceRepo.UpdateLastSeen(ctx, deviceID, lastSeen)
 }
 
 // GetDeviceByAPIKey retrieves a device by its API key for authentication

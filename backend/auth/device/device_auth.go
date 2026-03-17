@@ -32,6 +32,7 @@ type lastSeenDebounceState struct {
 	lastPersisted time.Time
 	latestSeen    time.Time
 	flushTimer    *time.Timer
+	writeInFlight bool
 }
 
 var lastSeenWriteCache sync.Map
@@ -118,21 +119,16 @@ func updateDeviceLastSeen(r *http.Request, iotService iotSvc.Service, device *io
 	state.mu.Lock()
 	state.latestSeen = now
 
-	shouldWriteNow := state.lastPersisted.IsZero() || (now.Sub(state.lastPersisted) >= lastSeenDebounceWindow && state.flushTimer == nil)
+	shouldWriteNow := !state.writeInFlight && (state.lastPersisted.IsZero() || (now.Sub(state.lastPersisted) >= lastSeenDebounceWindow && state.flushTimer == nil))
 	if shouldWriteNow {
+		state.writeInFlight = true
 		state.mu.Unlock()
-		persistLastSeen(r.Context(), iotService, device.DeviceID, state)
+		persistLastSeen(r.Context(), iotService, device.DeviceID, now, state)
 		return
 	}
 
-	if state.flushTimer == nil {
-		delay := state.lastPersisted.Add(lastSeenDebounceWindow).Sub(now)
-		if delay < 0 {
-			delay = 0
-		}
-		state.flushTimer = time.AfterFunc(delay, func() {
-			flushDeferredLastSeen(iotService, device.DeviceID, state)
-		})
+	if !state.writeInFlight {
+		scheduleDeferredFlushLocked(iotService, device.DeviceID, state, now)
 	}
 	state.mu.Unlock()
 }
@@ -150,18 +146,23 @@ func getOrCreateLastSeenState(deviceID string) *lastSeenDebounceState {
 	return actualState
 }
 
-func persistLastSeen(ctx context.Context, iotService iotSvc.Service, deviceID string, state *lastSeenDebounceState) {
-	persistedAt := time.Now()
-	if err := iotService.UpdateDeviceLastSeen(ctx, deviceID); err != nil {
+func persistLastSeen(ctx context.Context, iotService iotSvc.Service, deviceID string, observedAt time.Time, state *lastSeenDebounceState) {
+	if err := iotService.UpdateDeviceLastSeenAt(ctx, deviceID, observedAt); err != nil {
 		slog.Warn("failed to update device last seen time",
 			slog.String("device_id", deviceID),
 			slog.String("error", err.Error()),
 		)
+		state.mu.Lock()
+		state.writeInFlight = false
+		scheduleDeferredFlushLocked(iotService, deviceID, state, time.Now())
+		state.mu.Unlock()
 		return
 	}
 
 	state.mu.Lock()
-	state.lastPersisted = persistedAt
+	state.lastPersisted = observedAt
+	state.writeInFlight = false
+	scheduleDeferredFlushLocked(iotService, deviceID, state, time.Now())
 	state.mu.Unlock()
 }
 
@@ -170,22 +171,29 @@ func flushDeferredLastSeen(iotService iotSvc.Service, deviceID string, state *la
 	latestSeen := state.latestSeen
 	lastPersisted := state.lastPersisted
 	state.flushTimer = nil
+	if state.writeInFlight || latestSeen.IsZero() || !latestSeen.After(lastPersisted) {
+		state.mu.Unlock()
+		return
+	}
+	state.writeInFlight = true
 	state.mu.Unlock()
 
-	if latestSeen.IsZero() || !latestSeen.After(lastPersisted) {
+	persistLastSeen(context.Background(), iotService, deviceID, latestSeen, state)
+}
+
+func scheduleDeferredFlushLocked(iotService iotSvc.Service, deviceID string, state *lastSeenDebounceState, now time.Time) {
+	if state.writeInFlight || state.flushTimer != nil || state.lastPersisted.IsZero() || !state.latestSeen.After(state.lastPersisted) {
 		return
 	}
 
-	persistLastSeen(context.Background(), iotService, deviceID, state)
-
-	state.mu.Lock()
-	defer state.mu.Unlock()
-
-	if state.latestSeen.After(state.lastPersisted) && state.flushTimer == nil {
-		state.flushTimer = time.AfterFunc(lastSeenDebounceWindow, func() {
-			flushDeferredLastSeen(iotService, deviceID, state)
-		})
+	delay := state.lastPersisted.Add(lastSeenDebounceWindow).Sub(now)
+	if delay < 0 {
+		delay = 0
 	}
+
+	state.flushTimer = time.AfterFunc(delay, func() {
+		flushDeferredLastSeen(iotService, deviceID, state)
+	})
 }
 
 func deviceAuthenticator(iotService iotSvc.Service) func(http.Handler) http.Handler {
