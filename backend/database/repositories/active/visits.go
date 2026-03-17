@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/uptrace/bun"
 )
 
@@ -171,7 +172,6 @@ func (r *VisitRepository) FindWithActiveGroup(ctx context.Context, id int64) (*a
 	err := r.db.NewSelect().
 		Model(visit).
 		ModelTableExpr(tableExprActiveVisitsAsVisit).
-		Relation("ActiveGroup").
 		Where(`"visit".id = ?`, id).
 		Scan(ctx)
 
@@ -180,6 +180,19 @@ func (r *VisitRepository) FindWithActiveGroup(ctx context.Context, id int64) (*a
 			Op:  "find with active group",
 			Err: err,
 		}
+	}
+
+	// Load active group separately — BUN Relation("ActiveGroup") does not
+	// resolve the schema:active tag for relation sub-queries.
+	group := new(active.Group)
+	err = r.db.NewSelect().
+		Model(group).
+		ModelTableExpr(`active.groups AS "group"`).
+		Where(`"group".id = ?`, visit.ActiveGroupID).
+		Scan(ctx)
+
+	if err == nil {
+		visit.ActiveGroup = group
 	}
 
 	return visit, nil
@@ -349,14 +362,12 @@ func (r *VisitRepository) GetCurrentByStudentID(ctx context.Context, studentID i
 	return visit, nil
 }
 
-// GetCurrentByStudentIDWithRoom finds the current active visit for a student and preloads the room relation.
+// GetCurrentByStudentIDWithRoom finds the current active visit for a student and loads the active group and room.
 func (r *VisitRepository) GetCurrentByStudentIDWithRoom(ctx context.Context, studentID int64) (*active.Visit, error) {
 	visit := new(active.Visit)
 	err := r.db.NewSelect().
 		Model(visit).
 		ModelTableExpr(tableExprActiveVisitsAsVisit).
-		Relation("ActiveGroup").
-		Relation("ActiveGroup.Room").
 		Where(`"visit".student_id = ? AND "visit".exit_time IS NULL`, studentID).
 		OrderExpr(`"visit".entry_time DESC`).
 		Limit(1).
@@ -369,6 +380,36 @@ func (r *VisitRepository) GetCurrentByStudentIDWithRoom(ctx context.Context, stu
 		}
 	}
 
+	// Load the active group and its room in a second query.
+	// BUN Relation("ActiveGroup") fails here because the Group model's
+	// schema:active tag is not resolved for relation sub-queries.
+	group := new(active.Group)
+	err = r.db.NewSelect().
+		Model(group).
+		ModelTableExpr(`active.groups AS "group"`).
+		Where(`"group".id = ?`, visit.ActiveGroupID).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "get current by student ID with room (load group)",
+			Err: err,
+		}
+	}
+
+	// Load room for the group
+	room := new(facilities.Room)
+	err = r.db.NewSelect().
+		Model(room).
+		ModelTableExpr(`facilities.rooms AS "room"`).
+		Where(`"room".id = ?`, group.RoomID).
+		Scan(ctx)
+
+	if err == nil {
+		group.Room = room
+	}
+
+	visit.ActiveGroup = group
 	return visit, nil
 }
 
