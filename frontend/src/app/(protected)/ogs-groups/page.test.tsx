@@ -3065,6 +3065,307 @@ describe("OGSGroupPage rendered pickup urgency", () => {
     });
   });
 
+  // Flexible setup helper that accepts custom students for branch coverage
+  function setupWithCustomStudents(
+    students: Array<{
+      id: string;
+      name: string;
+      first_name: string;
+      last_name: string;
+      current_location: string;
+    }>,
+    pickupMap: Map<
+      string,
+      {
+        pickupTime: string;
+        isException: boolean;
+        dayNotes?: { id: string; content: string }[];
+      }
+    >,
+  ) {
+    vi.clearAllMocks();
+    vi.setSystemTime(FROZEN_TIME);
+    global.fetch = vi.fn();
+
+    vi.mocked(isHomeLocation).mockImplementation((loc) => loc === "Zuhause");
+
+    mockFetchBulkPickupTimes.mockResolvedValue(pickupMap);
+
+    const pickupTimesArray = Array.from(pickupMap.entries()).map(
+      ([studentId, pickup]) => ({
+        student_id: parseInt(studentId, 10),
+        date: new Date().toISOString().split("T")[0],
+        weekday_name: "Mittwoch",
+        pickup_time: pickup.pickupTime,
+        is_exception: pickup.isException,
+        day_notes: pickup.dayNotes?.map((n) => ({
+          id: parseInt(n.id, 10),
+          content: n.content,
+        })),
+      }),
+    );
+
+    const roomStatus: Record<string, { in_group_room: boolean }> = {};
+    for (const s of students) {
+      roomStatus[s.id] = {
+        in_group_room: s.current_location === "Raum 101",
+      };
+    }
+
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: {
+          groups: [
+            {
+              id: 1,
+              name: "OGS Gruppe A",
+              room_id: 10,
+              room: { id: 10, name: "Raum 101" },
+            },
+          ],
+          students,
+          roomStatus: { student_room_status: roomStatus },
+          substitutions: [],
+          pickupTimes: pickupTimesArray,
+          firstGroupId: "1",
+        },
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue({
+        data: null,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never);
+  }
+
+  it("sorts same-urgency students by pickup time then name", async () => {
+    // FROZEN_TIME = 14:00. Both 16:00 and 17:00 are "normal" urgency.
+    // Tests: same urgency rank → sort by time → then by name
+    const students = [
+      {
+        id: "1",
+        name: "Max Zeller",
+        first_name: "Max",
+        last_name: "Zeller",
+        current_location: "Raum 101",
+      },
+      {
+        id: "2",
+        name: "Anna Becker",
+        first_name: "Anna",
+        last_name: "Becker",
+        current_location: "Raum 101",
+      },
+    ];
+    const pickupMap = new Map([
+      ["1", { pickupTime: "17:00", isException: false }], // normal
+      ["2", { pickupTime: "16:00", isException: false }], // normal
+    ]);
+    setupWithCustomStudents(students, pickupMap);
+
+    render(<OGSGroupPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("student-card")).toHaveLength(2);
+    });
+
+    screen.getByTestId("filter-sort-pickup").click();
+
+    // Same urgency (normal) → by time: 16:00 (Becker) before 17:00 (Zeller)
+    await waitFor(() => {
+      const cards = screen.getAllByTestId("student-card");
+      expect(cards[0]?.textContent).toContain("Anna Becker");
+      expect(cards[1]?.textContent).toContain("Max Zeller");
+    });
+  });
+
+  it("sorts same-urgency same-time students by last name", async () => {
+    // Both have identical pickup time → tiebreaker is name
+    const students = [
+      {
+        id: "1",
+        name: "Max Zeller",
+        first_name: "Max",
+        last_name: "Zeller",
+        current_location: "Raum 101",
+      },
+      {
+        id: "2",
+        name: "Anna Becker",
+        first_name: "Anna",
+        last_name: "Becker",
+        current_location: "Raum 101",
+      },
+    ];
+    const pickupMap = new Map([
+      ["1", { pickupTime: "16:00", isException: false }],
+      ["2", { pickupTime: "16:00", isException: false }],
+    ]);
+    setupWithCustomStudents(students, pickupMap);
+
+    render(<OGSGroupPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("student-card")).toHaveLength(2);
+    });
+
+    screen.getByTestId("filter-sort-pickup").click();
+
+    // Same time → Becker before Zeller by name
+    await waitFor(() => {
+      const cards = screen.getAllByTestId("student-card");
+      expect(cards[0]?.textContent).toContain("Anna Becker");
+      expect(cards[1]?.textContent).toContain("Max Zeller");
+    });
+  });
+
+  it("sorts present students without pickup time by name", async () => {
+    // No pickup times → all "none" urgency → sort by name
+    const students = [
+      {
+        id: "1",
+        name: "Max Zeller",
+        first_name: "Max",
+        last_name: "Zeller",
+        current_location: "Raum 101",
+      },
+      {
+        id: "2",
+        name: "Anna Becker",
+        first_name: "Anna",
+        last_name: "Becker",
+        current_location: "Raum 101",
+      },
+    ];
+    setupWithCustomStudents(students, new Map());
+
+    render(<OGSGroupPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("student-card")).toHaveLength(2);
+    });
+
+    screen.getByTestId("filter-sort-pickup").click();
+
+    // Both "none" → Becker before Zeller
+    await waitFor(() => {
+      const cards = screen.getAllByTestId("student-card");
+      expect(cards[0]?.textContent).toContain("Anna Becker");
+      expect(cards[1]?.textContent).toContain("Max Zeller");
+    });
+  });
+
+  it("sorts two home students by last name in pickup mode", async () => {
+    // Both at home → compareByName
+    const students = [
+      {
+        id: "1",
+        name: "Max Zeller",
+        first_name: "Max",
+        last_name: "Zeller",
+        current_location: "Zuhause",
+      },
+      {
+        id: "2",
+        name: "Anna Becker",
+        first_name: "Anna",
+        last_name: "Becker",
+        current_location: "Zuhause",
+      },
+    ];
+    setupWithCustomStudents(students, new Map());
+
+    render(<OGSGroupPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("student-card")).toHaveLength(2);
+    });
+
+    screen.getByTestId("filter-sort-pickup").click();
+
+    // Both home → Becker before Zeller
+    await waitFor(() => {
+      const cards = screen.getAllByTestId("student-card");
+      expect(cards[0]?.textContent).toContain("Anna Becker");
+      expect(cards[1]?.textContent).toContain("Max Zeller");
+    });
+  });
+
+  it("uses first name tiebreaker when last names match", async () => {
+    // Same last name → falls through to first name comparison
+    const students = [
+      {
+        id: "1",
+        name: "Max Mueller",
+        first_name: "Max",
+        last_name: "Mueller",
+        current_location: "Raum 101",
+      },
+      {
+        id: "2",
+        name: "Anna Mueller",
+        first_name: "Anna",
+        last_name: "Mueller",
+        current_location: "Raum 101",
+      },
+    ];
+    const pickupMap = new Map([
+      ["1", { pickupTime: "16:00", isException: false }],
+      ["2", { pickupTime: "16:00", isException: false }],
+    ]);
+    setupWithCustomStudents(students, pickupMap);
+
+    render(<OGSGroupPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("student-card")).toHaveLength(2);
+    });
+
+    screen.getByTestId("filter-sort-pickup").click();
+
+    // Same last name, same time → Anna before Max
+    await waitFor(() => {
+      const cards = screen.getAllByTestId("student-card");
+      expect(cards[0]?.textContent).toContain("Anna Mueller");
+      expect(cards[1]?.textContent).toContain("Max Mueller");
+    });
+  });
+
+  it("default alphabetical sort uses compareByName", async () => {
+    // Without activating pickup sort → alphabetical
+    const students = [
+      {
+        id: "1",
+        name: "Max Zeller",
+        first_name: "Max",
+        last_name: "Zeller",
+        current_location: "Raum 101",
+      },
+      {
+        id: "2",
+        name: "Anna Becker",
+        first_name: "Anna",
+        last_name: "Becker",
+        current_location: "Raum 101",
+      },
+    ];
+    setupWithCustomStudents(students, new Map());
+
+    render(<OGSGroupPage />);
+
+    // Default sort (no pickup sort activation) → Becker before Zeller
+    await waitFor(() => {
+      const cards = screen.getAllByTestId("student-card");
+      expect(cards[0]?.textContent).toContain("Anna Becker");
+      expect(cards[1]?.textContent).toContain("Max Zeller");
+    });
+  });
+
   it("sorts overdue students before normal in pickup sort", async () => {
     // FROZEN_TIME = 14:00, so 13:00 is overdue and 16:00 is normal
     // Student 1 (Becker) has 16:00 (normal), Student 2 (Zeller) has 13:00 (overdue)
