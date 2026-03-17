@@ -204,6 +204,31 @@ describe("useGlobalSSE", () => {
       expect(mutate).toHaveBeenCalled();
     });
 
+    it("invalidates dashboard caches on dashboard_counts_changed event", () => {
+      renderHook(() => useGlobalSSE());
+
+      const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
+
+      onMessage?.({
+        type: "dashboard_counts_changed",
+        active_group_id: "123",
+        data: {},
+        timestamp: new Date().toISOString(),
+      });
+
+      vi.advanceTimersByTime(500);
+
+      const mutateCalls = vi.mocked(mutate).mock.calls;
+      const dashboardCall = mutateCalls.find((call) => {
+        const matcher = call[0];
+        return (
+          typeof matcher === "function" &&
+          (matcher as (key: string) => boolean)("active-supervision-dashboard")
+        );
+      });
+      expect(dashboardCall).toBeDefined();
+    });
+
     it("student_checkout without active_group_id invalidates ogs-students caches", () => {
       renderHook(() => useGlobalSSE());
 
