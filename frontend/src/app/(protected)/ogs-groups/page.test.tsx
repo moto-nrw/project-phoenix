@@ -2359,6 +2359,303 @@ describe("OGSGroupPage sorting logic", () => {
   });
 });
 
+describe("OGSGroupPage urgency-based pickup sorting", () => {
+  type StudentSort = {
+    id: string;
+    first_name: string;
+    second_name: string;
+    current_location: string;
+  };
+
+  const isHomeLocation = (loc: string) => loc === "Zuhause";
+
+  // Mirror getPickupUrgency from ogs-group-helpers.ts
+  function getPickupUrgency(
+    pickupTimeStr: string | undefined,
+    now: Date,
+  ): "overdue" | "soon" | "normal" | "none" {
+    if (!pickupTimeStr) return "none";
+    const [hours, minutes] = pickupTimeStr.split(":").map(Number);
+    const pickupDate = new Date(now);
+    pickupDate.setHours(hours ?? 0, minutes ?? 0, 0, 0);
+    const diffMinutes = (pickupDate.getTime() - now.getTime()) / 60000;
+    if (diffMinutes < 0) return "overdue";
+    if (diffMinutes <= 30) return "soon";
+    return "normal";
+  }
+
+  const urgencyRank: Record<string, number> = {
+    overdue: 0,
+    soon: 1,
+    normal: 2,
+    none: 3,
+  };
+
+  function compareByName(a: StudentSort, b: StudentSort) {
+    const lastCmp = (a.second_name ?? "").localeCompare(
+      b.second_name ?? "",
+      "de",
+    );
+    if (lastCmp !== 0) return lastCmp;
+    return (a.first_name ?? "").localeCompare(b.first_name ?? "", "de");
+  }
+
+  function pickupSort(
+    students: StudentSort[],
+    pickupTimes: Map<string, { pickupTime?: string }>,
+    now: Date,
+  ) {
+    return [...students].sort((a, b) => {
+      const aHome = isHomeLocation(a.current_location);
+      const bHome = isHomeLocation(b.current_location);
+
+      if (aHome && !bHome) return 1;
+      if (!aHome && bHome) return -1;
+      if (aHome && bHome) return compareByName(a, b);
+
+      const timeA = pickupTimes.get(a.id)?.pickupTime;
+      const timeB = pickupTimes.get(b.id)?.pickupTime;
+      const urgencyA = getPickupUrgency(timeA, now);
+      const urgencyB = getPickupUrgency(timeB, now);
+      const rankA = urgencyRank[urgencyA] ?? 3;
+      const rankB = urgencyRank[urgencyB] ?? 3;
+
+      if (rankA !== rankB) return rankA - rankB;
+
+      if (timeA && timeB) {
+        const timeCmp = timeA.localeCompare(timeB);
+        if (timeCmp !== 0) return timeCmp;
+      }
+
+      return compareByName(a, b);
+    });
+  }
+
+  it("sorts overdue before soon before normal", () => {
+    // now = 14:30
+    const now = new Date(2026, 0, 28, 14, 30, 0);
+    const pickupTimes = new Map([
+      ["1", { pickupTime: "16:00" }], // normal (1.5h away)
+      ["2", { pickupTime: "14:00" }], // overdue (30min ago)
+      ["3", { pickupTime: "14:45" }], // soon (15min away)
+    ]);
+
+    const students: StudentSort[] = [
+      {
+        id: "1",
+        first_name: "A",
+        second_name: "A",
+        current_location: "Raum 101",
+      },
+      {
+        id: "2",
+        first_name: "B",
+        second_name: "B",
+        current_location: "Raum 101",
+      },
+      {
+        id: "3",
+        first_name: "C",
+        second_name: "C",
+        current_location: "Raum 101",
+      },
+    ];
+
+    const sorted = pickupSort(students, pickupTimes, now);
+    // overdue (14:00) → soon (14:45) → normal (16:00)
+    expect(sorted.map((s) => s.id)).toEqual(["2", "3", "1"]);
+  });
+
+  it("sorts by time within same urgency bucket", () => {
+    // now = 14:00, both overdue
+    const now = new Date(2026, 0, 28, 14, 0, 0);
+    const pickupTimes = new Map([
+      ["1", { pickupTime: "13:30" }], // overdue 30min
+      ["2", { pickupTime: "12:00" }], // overdue 2h
+    ]);
+
+    const students: StudentSort[] = [
+      {
+        id: "1",
+        first_name: "A",
+        second_name: "A",
+        current_location: "Raum 101",
+      },
+      {
+        id: "2",
+        first_name: "B",
+        second_name: "B",
+        current_location: "Raum 101",
+      },
+    ];
+
+    const sorted = pickupSort(students, pickupTimes, now);
+    // 12:00 first (longest overdue), then 13:30
+    expect(sorted.map((s) => s.id)).toEqual(["2", "1"]);
+  });
+
+  it("uses last name as tiebreaker within same time", () => {
+    const now = new Date(2026, 0, 28, 14, 0, 0);
+    const pickupTimes = new Map([
+      ["1", { pickupTime: "16:00" }],
+      ["2", { pickupTime: "16:00" }],
+    ]);
+
+    const students: StudentSort[] = [
+      {
+        id: "1",
+        first_name: "Max",
+        second_name: "Zeller",
+        current_location: "Raum 101",
+      },
+      {
+        id: "2",
+        first_name: "Anna",
+        second_name: "Becker",
+        current_location: "Raum 101",
+      },
+    ];
+
+    const sorted = pickupSort(students, pickupTimes, now);
+    // Same time → Becker before Zeller
+    expect(sorted.map((s) => s.id)).toEqual(["2", "1"]);
+  });
+
+  it("sorts students without pickup time after those with time", () => {
+    const now = new Date(2026, 0, 28, 14, 0, 0);
+    const pickupTimes = new Map([
+      ["1", { pickupTime: "16:00" }], // normal
+    ]);
+
+    const students: StudentSort[] = [
+      {
+        id: "2",
+        first_name: "B",
+        second_name: "B",
+        current_location: "Raum 101",
+      }, // no time
+      {
+        id: "1",
+        first_name: "A",
+        second_name: "A",
+        current_location: "Raum 101",
+      }, // 16:00
+    ];
+
+    const sorted = pickupSort(students, pickupTimes, now);
+    // normal (16:00) → none
+    expect(sorted.map((s) => s.id)).toEqual(["1", "2"]);
+  });
+
+  it("sorts home students by last name", () => {
+    const now = new Date(2026, 0, 28, 14, 0, 0);
+    const pickupTimes = new Map<string, { pickupTime?: string }>();
+
+    const students: StudentSort[] = [
+      {
+        id: "1",
+        first_name: "Max",
+        second_name: "Zeller",
+        current_location: "Zuhause",
+      },
+      {
+        id: "2",
+        first_name: "Anna",
+        second_name: "Becker",
+        current_location: "Zuhause",
+      },
+    ];
+
+    const sorted = pickupSort(students, pickupTimes, now);
+    // Both home → alphabetical: Becker before Zeller
+    expect(sorted.map((s) => s.id)).toEqual(["2", "1"]);
+  });
+
+  it("sorts students without time by last name", () => {
+    const now = new Date(2026, 0, 28, 14, 0, 0);
+    const pickupTimes = new Map<string, { pickupTime?: string }>();
+
+    const students: StudentSort[] = [
+      {
+        id: "1",
+        first_name: "Max",
+        second_name: "Zeller",
+        current_location: "Raum 101",
+      },
+      {
+        id: "2",
+        first_name: "Anna",
+        second_name: "Becker",
+        current_location: "Raum 102",
+      },
+    ];
+
+    const sorted = pickupSort(students, pickupTimes, now);
+    // Both none urgency, no time → Becker before Zeller
+    expect(sorted.map((s) => s.id)).toEqual(["2", "1"]);
+  });
+
+  it("full sort: overdue → soon → normal → no time → home, with name tiebreakers", () => {
+    // now = 14:30
+    const now = new Date(2026, 0, 28, 14, 30, 0);
+    const pickupTimes = new Map([
+      ["1", { pickupTime: "16:00" }], // normal
+      ["2", { pickupTime: "14:00" }], // overdue
+      ["3", { pickupTime: "14:45" }], // soon
+      // 4: no time (present)
+      // 5: home
+      ["6", { pickupTime: "14:00" }], // overdue (same time as 2)
+    ]);
+
+    const students: StudentSort[] = [
+      {
+        id: "5",
+        first_name: "Eva",
+        second_name: "Fischer",
+        current_location: "Zuhause",
+      },
+      {
+        id: "4",
+        first_name: "Dirk",
+        second_name: "Dahmen",
+        current_location: "Raum 101",
+      },
+      {
+        id: "1",
+        first_name: "Anna",
+        second_name: "Alpha",
+        current_location: "Raum 101",
+      },
+      {
+        id: "3",
+        first_name: "Clara",
+        second_name: "Cotta",
+        current_location: "Raum 101",
+      },
+      {
+        id: "2",
+        first_name: "Bert",
+        second_name: "Zeta",
+        current_location: "Raum 101",
+      },
+      {
+        id: "6",
+        first_name: "Fritz",
+        second_name: "Beta",
+        current_location: "Raum 101",
+      },
+    ];
+
+    const sorted = pickupSort(students, pickupTimes, now);
+    // overdue 14:00: Beta(6) before Zeta(2) by name
+    // soon 14:45: Cotta(3)
+    // normal 16:00: Alpha(1)
+    // no time: Dahmen(4)
+    // home: Fischer(5)
+    expect(sorted.map((s) => s.id)).toEqual(["6", "2", "3", "1", "4", "5"]);
+  });
+});
+
 describe("OGSGroupPage sort active filter", () => {
   type SortMode = "default" | "pickup";
 
@@ -2765,6 +3062,35 @@ describe("OGSGroupPage rendered pickup urgency", () => {
       expect(cards[0]?.textContent).toContain("Max Zeller"); // 14:00
       expect(cards[1]?.textContent).toContain("Anna Becker"); // 16:00
       expect(cards[2]?.textContent).toContain("Lena Mueller"); // at home, no time
+    });
+  });
+
+  it("sorts overdue students before normal in pickup sort", async () => {
+    // FROZEN_TIME = 14:00, so 13:00 is overdue and 16:00 is normal
+    // Student 1 (Becker) has 16:00 (normal), Student 2 (Zeller) has 13:00 (overdue)
+    const pickupMap = new Map([
+      ["1", { pickupTime: "16:00", isException: false }], // normal
+      ["2", { pickupTime: "13:00", isException: false }], // overdue
+    ]);
+    setupWithStudentsAndPickupTimes(pickupMap, {
+      isHome: (loc) => loc === "Zuhause",
+    });
+
+    render(<OGSGroupPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("student-card")).toHaveLength(3);
+    });
+
+    // Activate pickup sort
+    screen.getByTestId("filter-sort-pickup").click();
+
+    // After sort: overdue 13:00 (Zeller) → normal 16:00 (Becker) → home (Mueller)
+    await waitFor(() => {
+      const cards = screen.getAllByTestId("student-card");
+      expect(cards[0]?.textContent).toContain("Max Zeller"); // overdue
+      expect(cards[1]?.textContent).toContain("Anna Becker"); // normal
+      expect(cards[2]?.textContent).toContain("Lena Mueller"); // at home
     });
   });
 
