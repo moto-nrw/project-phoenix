@@ -854,6 +854,33 @@ func TestVisitRepository_GetCurrentByStudentIDWithRoom(t *testing.T) {
 		assert.Equal(t, data.Room, result.ActiveGroup.Room.ID)
 	})
 
+	t.Run("returns visit when active group timeout_minutes is null", func(t *testing.T) {
+		now := time.Now()
+		visit := &active.Visit{
+			StudentID:     data.Student1.ID,
+			ActiveGroupID: data.ActiveGroup.ID,
+			EntryTime:     now,
+		}
+		err := repo.Create(ctx, visit)
+		require.NoError(t, err)
+		defer testpkg.CleanupTableRecords(t, db, "active.visits", visit.ID)
+
+		_, err = db.NewUpdate().
+			Table("active.groups").
+			Set("timeout_minutes = NULL").
+			Where("id = ?", data.ActiveGroup.ID).
+			Exec(ctx)
+		require.NoError(t, err)
+
+		result, err := repo.GetCurrentByStudentIDWithRoom(ctx, data.Student1.ID)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		require.NotNil(t, result.ActiveGroup)
+		assert.Equal(t, 0, result.ActiveGroup.TimeoutMinutes)
+		require.NotNil(t, result.ActiveGroup.Room)
+		assert.Equal(t, data.Room, result.ActiveGroup.Room.ID)
+	})
+
 	t.Run("returns error for student with no active visit", func(t *testing.T) {
 		_, err := repo.GetCurrentByStudentIDWithRoom(ctx, data.Student2.ID)
 		require.Error(t, err)

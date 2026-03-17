@@ -377,7 +377,7 @@ func (r *VisitRepository) GetCurrentByStudentIDWithRoom(ctx context.Context, stu
 		GroupStartTime      time.Time      `bun:"group_start_time"`
 		GroupEndTime        *time.Time     `bun:"group_end_time"`
 		GroupLastActivity   time.Time      `bun:"group_last_activity"`
-		GroupTimeoutMinutes int            `bun:"group_timeout_minutes"`
+		GroupTimeoutMinutes sql.NullInt64  `bun:"group_timeout_minutes"`
 		GroupGroupID        sql.NullInt64  `bun:"group_group_id"`
 		GroupDeviceID       sql.NullInt64  `bun:"group_device_id"`
 		GroupRoomID         sql.NullInt64  `bun:"group_room_id"`
@@ -446,12 +446,14 @@ func (r *VisitRepository) GetCurrentByStudentIDWithRoom(ctx context.Context, stu
 				CreatedAt: row.GroupCreatedAt,
 				UpdatedAt: row.GroupUpdatedAt,
 			},
-			StartTime:      row.GroupStartTime,
-			EndTime:        row.GroupEndTime,
-			LastActivity:   row.GroupLastActivity,
-			TimeoutMinutes: row.GroupTimeoutMinutes,
-			GroupID:        row.GroupGroupID.Int64,
-			RoomID:         row.GroupRoomID.Int64,
+			StartTime:    row.GroupStartTime,
+			EndTime:      row.GroupEndTime,
+			LastActivity: row.GroupLastActivity,
+			GroupID:      row.GroupGroupID.Int64,
+			RoomID:       row.GroupRoomID.Int64,
+		}
+		if row.GroupTimeoutMinutes.Valid {
+			group.TimeoutMinutes = int(row.GroupTimeoutMinutes.Int64)
 		}
 		if row.GroupDeviceID.Valid {
 			deviceID := row.GroupDeviceID.Int64
