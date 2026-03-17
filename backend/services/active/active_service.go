@@ -686,6 +686,9 @@ func (s *service) broadcastVisitCheckout(ctx context.Context, endedVisit *active
 
 	s.broadcastWithLogging(activeGroupID, studentID, event, "student_checkout")
 	s.broadcastToEducationalGroup(studentRec, event)
+
+	// Notify all clients so dashboard counts refresh
+	_ = s.broadcaster.BroadcastToAll(realtime.NewEvent(realtime.EventDashboardCountsChanged, "", realtime.EventData{}))
 }
 
 // broadcastToEducationalGroup mirrors active-group broadcasts to the student's OGS group topic
@@ -727,6 +730,11 @@ func (s *service) broadcastStudentCheckoutEvents(sessionIDStr string, visitsToNo
 		s.broadcastWithLogging(sessionIDStr, studentIDStr, checkoutEvent, "student_checkout")
 		s.broadcastToEducationalGroup(visitData.Student, checkoutEvent)
 	}
+
+	// Single global broadcast for the entire batch
+	if len(visitsToNotify) > 0 && s.broadcaster != nil {
+		_ = s.broadcaster.BroadcastToAll(realtime.NewEvent(realtime.EventDashboardCountsChanged, "", realtime.EventData{}))
+	}
 }
 
 // broadcastActivityEndEvent sends the activity_end SSE event for a completed session.
@@ -752,6 +760,9 @@ func (s *service) broadcastActivityEndEvent(ctx context.Context, sessionID int64
 	)
 
 	s.broadcastWithLogging(sessionIDStr, "", event, "activity_end")
+
+	// Notify all clients (including zero-topic) so dashboard refreshes
+	_ = s.broadcaster.BroadcastToAll(realtime.NewEvent(realtime.EventDashboardCountsChanged, "", realtime.EventData{}))
 }
 
 // broadcastWithLogging broadcasts an event and logs any errors.
