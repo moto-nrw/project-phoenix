@@ -990,16 +990,15 @@ function OGSGroupPageContent() {
     return (
       <button
         onClick={() => setShowTransferModal(true)}
-        className="group relative flex h-10 items-center gap-2 rounded-full bg-gradient-to-br from-[#83CD2D] to-[#70b525] px-4 text-white shadow-lg transition-all duration-150 hover:scale-105 hover:shadow-xl active:scale-95"
+        className="flex h-10 items-center gap-2 rounded-full border border-[#83CD2D] bg-white px-4 text-[#4a7a15] transition-colors duration-150 hover:bg-[#f0f9e4] active:bg-[#e4f3d3]"
         aria-label="Gruppe übergeben"
       >
-        <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
         <svg
-          className="relative h-5 w-5 transition-transform duration-300"
+          className="h-4 w-4"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
-          strokeWidth={2.5}
+          strokeWidth={2}
         >
           <path
             strokeLinecap="round"
@@ -1007,7 +1006,7 @@ function OGSGroupPageContent() {
             d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
           />
         </svg>
-        <span className="relative text-sm font-semibold">
+        <span className="text-sm font-medium">
           {activeTransfers.length > 0
             ? `Gruppe übergeben (${activeTransfers.length})`
             : "Gruppe übergeben"}
@@ -1044,7 +1043,7 @@ function OGSGroupPageContent() {
     return (
       <button
         onClick={() => setShowTransferModal(true)}
-        className="relative flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[#83CD2D] to-[#70b525] text-white shadow-md transition-all duration-150 active:scale-90"
+        className="relative flex h-8 w-8 items-center justify-center rounded-full border border-[#83CD2D] bg-white text-[#4a7a15] transition-colors duration-150 active:bg-[#e4f3d3]"
         aria-label="Gruppe übergeben"
       >
         <svg
@@ -1052,7 +1051,7 @@ function OGSGroupPageContent() {
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
-          strokeWidth={2.5}
+          strokeWidth={2}
         >
           <path
             strokeLinecap="round"
@@ -1061,7 +1060,7 @@ function OGSGroupPageContent() {
           />
         </svg>
         {activeTransfers.length > 0 && (
-          <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-white text-[10px] font-bold text-[#70b525] shadow-sm">
+          <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full border border-[#83CD2D] bg-white text-[10px] font-bold text-[#4a7a15]">
             {activeTransfers.length}
           </span>
         )}
