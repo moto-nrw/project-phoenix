@@ -59,13 +59,16 @@ export function useGlobalSSE(): SSEHookState {
   const pendingGroupIds = useRef(new Set<string>());
   const pendingStudentIds = useRef(new Set<string>());
   const hasPendingActivityEvent = useRef(false);
+  const hasPendingDashboardEvent = useRef(false);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const flushInvalidations = useCallback(() => {
-    // Invalidate ALL supervision-visits caches for student events.
+    // Invalidate ALL supervision-visits caches for student/dashboard events.
     // A student checked out of Room A may appear on the Schulhof (catch-all),
     // so we can't limit to just the source group's cache key.
-    if (pendingGroupIds.current.size > 0) {
+    // Zero-topic clients only receive dashboard_counts_changed, so include
+    // that flag to keep their detail views in sync.
+    if (pendingGroupIds.current.size > 0 || hasPendingDashboardEvent.current) {
       mutate(
         (key) =>
           typeof key === "string" && key.startsWith("supervision-visits-"),
@@ -113,7 +116,8 @@ export function useGlobalSSE(): SSEHookState {
     if (
       pendingGroupIds.current.size > 0 ||
       pendingStudentIds.current.size > 0 ||
-      hasPendingActivityEvent.current
+      hasPendingActivityEvent.current ||
+      hasPendingDashboardEvent.current
     ) {
       mutate(
         (key) =>
@@ -152,6 +156,7 @@ export function useGlobalSSE(): SSEHookState {
     pendingGroupIds.current.clear();
     pendingStudentIds.current.clear();
     hasPendingActivityEvent.current = false;
+    hasPendingDashboardEvent.current = false;
   }, []);
 
   const scheduleFlush = useCallback(() => {
@@ -184,6 +189,14 @@ export function useGlobalSSE(): SSEHookState {
             pendingGroupIds.current.add(event.active_group_id);
           }
           hasPendingActivityEvent.current = true;
+          scheduleFlush();
+          break;
+        }
+
+        case "dashboard_counts_changed": {
+          // Global event from BroadcastToAll — only refresh dashboard counts,
+          // NOT room/supervision/active caches (those are for activity events).
+          hasPendingDashboardEvent.current = true;
           scheduleFlush();
           break;
         }

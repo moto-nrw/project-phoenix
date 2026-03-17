@@ -123,7 +123,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Mount("/teachers", dataResource.TeachersRouter())
 	})
 
-	// Device-authenticated routes for RFID devices
+	// Device-authenticated routes for RFID devices.
 	r.Group(func(r chi.Router) {
 		r.Use(device.DeviceAuthenticator(rs.IoTService, rs.UsersService))
 

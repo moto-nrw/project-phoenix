@@ -403,6 +403,7 @@ ci-cd-best-practices-guide.md
 
 # Claude AI specific files
 *.local.md
+.claude/worktrees
 
 # Server logs and runtime files
 backend/*.log

@@ -48,6 +48,10 @@ func (m *mockGroupRepository) FindActiveByRoomID(ctx context.Context, roomID int
 	return nil, nil
 }
 
+func (m *mockGroupRepository) FindActiveByRoomIDAndDeviceID(ctx context.Context, roomID int64, deviceID int64) (*active.Group, error) {
+	return nil, nil
+}
+
 func (m *mockGroupRepository) FindActiveByGroupID(ctx context.Context, groupID int64) ([]*active.Group, error) {
 	return nil, nil
 }
@@ -137,8 +141,12 @@ func (m *mockGroupRepository) EndSessionsByIDs(ctx context.Context, ids []int64)
 
 // mockVisitRepository is a minimal mock implementation of active.VisitRepository
 type mockVisitRepository struct {
-	findByActiveGroupIDFunc func(ctx context.Context, activeGroupID int64) ([]*active.Visit, error)
-	endVisitFunc            func(ctx context.Context, id int64) error
+	findByActiveGroupIDFunc           func(ctx context.Context, activeGroupID int64) ([]*active.Visit, error)
+	endVisitFunc                      func(ctx context.Context, id int64) error
+	getCurrentByStudentIDFunc         func(ctx context.Context, studentID int64) (*active.Visit, error)
+	getCurrentByStudentIDWithRoomFunc func(ctx context.Context, studentID int64) (*active.Visit, error)
+	countActiveByRoomIDFunc           func(ctx context.Context, roomID int64) (int, error)
+	countActiveByGroupIDFunc          func(ctx context.Context, activeGroupID int64) (int, error)
 }
 
 func (m *mockVisitRepository) Create(ctx context.Context, entity *active.Visit) error {
@@ -204,11 +212,35 @@ func (m *mockVisitRepository) CountExpiredVisits(ctx context.Context) (int64, er
 }
 
 func (m *mockVisitRepository) GetCurrentByStudentID(ctx context.Context, studentID int64) (*active.Visit, error) {
+	if m.getCurrentByStudentIDFunc != nil {
+		return m.getCurrentByStudentIDFunc(ctx, studentID)
+	}
+	return nil, nil
+}
+
+func (m *mockVisitRepository) GetCurrentByStudentIDWithRoom(ctx context.Context, studentID int64) (*active.Visit, error) {
+	if m.getCurrentByStudentIDWithRoomFunc != nil {
+		return m.getCurrentByStudentIDWithRoomFunc(ctx, studentID)
+	}
 	return nil, nil
 }
 
 func (m *mockVisitRepository) GetCurrentByStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]*active.Visit, error) {
 	return nil, nil
+}
+
+func (m *mockVisitRepository) CountActiveByRoomID(ctx context.Context, roomID int64) (int, error) {
+	if m.countActiveByRoomIDFunc != nil {
+		return m.countActiveByRoomIDFunc(ctx, roomID)
+	}
+	return 0, nil
+}
+
+func (m *mockVisitRepository) CountActiveByGroupID(ctx context.Context, activeGroupID int64) (int, error) {
+	if m.countActiveByGroupIDFunc != nil {
+		return m.countActiveByGroupIDFunc(ctx, activeGroupID)
+	}
+	return 0, nil
 }
 
 func (m *mockVisitRepository) FindActiveVisits(ctx context.Context) ([]*active.Visit, error) {

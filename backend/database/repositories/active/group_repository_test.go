@@ -336,6 +336,62 @@ func TestActiveGroupRepository_FindActiveByRoomID(t *testing.T) {
 	})
 }
 
+func TestActiveGroupRepository_FindActiveByRoomIDAndDeviceID(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).ActiveGroup
+	ctx := testpkg.TenantContext(1)
+
+	t.Run("finds active group scoped to device", func(t *testing.T) {
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "ByRoomDevice")
+		room := testpkg.CreateTestRoom(t, db, "ByRoomDeviceRoom")
+		device := testpkg.CreateTestDevice(t, db, "by-room-device")
+		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, device.ID, activityGroup.CategoryID, room.ID)
+
+		now := time.Now()
+		group := &active.Group{
+			StartTime:      now,
+			LastActivity:   now,
+			TimeoutMinutes: 30,
+			GroupID:        activityGroup.ID,
+			DeviceID:       &device.ID,
+			RoomID:         room.ID,
+		}
+		err := repo.Create(ctx, group)
+		require.NoError(t, err)
+		defer cleanupActiveGroupRecords(t, db, group.ID)
+
+		found, err := repo.FindActiveByRoomIDAndDeviceID(ctx, room.ID, device.ID)
+		require.NoError(t, err)
+		require.NotNil(t, found)
+		assert.Equal(t, group.ID, found.ID)
+	})
+
+	t.Run("returns nil when room has no matching device-scoped group", func(t *testing.T) {
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "ByRoomDeviceMissing")
+		room := testpkg.CreateTestRoom(t, db, "ByRoomDeviceMissingRoom")
+		device := testpkg.CreateTestDevice(t, db, "by-room-device-missing")
+		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, device.ID, activityGroup.CategoryID, room.ID)
+
+		now := time.Now()
+		group := &active.Group{
+			StartTime:      now,
+			LastActivity:   now,
+			TimeoutMinutes: 30,
+			GroupID:        activityGroup.ID,
+			RoomID:         room.ID,
+		}
+		err := repo.Create(ctx, group)
+		require.NoError(t, err)
+		defer cleanupActiveGroupRecords(t, db, group.ID)
+
+		found, err := repo.FindActiveByRoomIDAndDeviceID(ctx, room.ID, device.ID)
+		require.NoError(t, err)
+		assert.Nil(t, found)
+	})
+}
+
 func TestActiveGroupRepository_FindActiveByGroupID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -372,6 +428,51 @@ func TestActiveGroupRepository_FindActiveByGroupID(t *testing.T) {
 			}
 		}
 		assert.True(t, found)
+	})
+}
+
+func TestActiveGroupRepository_FindActiveByGroupIDs(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).ActiveGroup
+	ctx := testpkg.TenantContext(1)
+
+	t.Run("finds active groups for multiple activity group ids", func(t *testing.T) {
+		activity1 := testpkg.CreateTestActivityGroup(t, db, "ByGroupIDsOne")
+		activity2 := testpkg.CreateTestActivityGroup(t, db, "ByGroupIDsTwo")
+		room := testpkg.CreateTestRoom(t, db, "ByGroupIDsRoom")
+		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activity1.CategoryID, room.ID)
+		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activity2.CategoryID)
+
+		now := time.Now()
+		group1 := &active.Group{
+			StartTime:      now,
+			LastActivity:   now,
+			TimeoutMinutes: 30,
+			GroupID:        activity1.ID,
+			RoomID:         room.ID,
+		}
+		group2 := &active.Group{
+			StartTime:      now,
+			LastActivity:   now,
+			TimeoutMinutes: 30,
+			GroupID:        activity2.ID,
+			RoomID:         room.ID,
+		}
+		require.NoError(t, repo.Create(ctx, group1))
+		require.NoError(t, repo.Create(ctx, group2))
+		defer cleanupActiveGroupRecords(t, db, group1.ID, group2.ID)
+
+		groups, err := repo.FindActiveByGroupIDs(ctx, []int64{activity1.ID, activity2.ID})
+		require.NoError(t, err)
+		assert.Len(t, groups, 2)
+	})
+
+	t.Run("returns empty slice for empty group ids", func(t *testing.T) {
+		groups, err := repo.FindActiveByGroupIDs(ctx, nil)
+		require.NoError(t, err)
+		assert.Empty(t, groups)
 	})
 }
 
@@ -513,6 +614,63 @@ func TestActiveGroupRepository_UpdateLastActivity(t *testing.T) {
 		// Try to update last activity on ended session
 		err = repo.UpdateLastActivity(ctx, group.ID, time.Now())
 		require.Error(t, err)
+	})
+}
+
+func TestActiveGroupRepository_DeviceScopedQueries(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).ActiveGroup
+	ctx := testpkg.TenantContext(1)
+
+	t.Run("find active by group id with device includes device-backed session", func(t *testing.T) {
+		activity := testpkg.CreateTestActivityGroup(t, db, "WithDevice")
+		room := testpkg.CreateTestRoom(t, db, "WithDeviceRoom")
+		device := testpkg.CreateTestDevice(t, db, "with-device-query")
+		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, device.ID, activity.CategoryID, room.ID)
+
+		group := &active.Group{
+			StartTime:      time.Now(),
+			LastActivity:   time.Now(),
+			TimeoutMinutes: 30,
+			GroupID:        activity.ID,
+			DeviceID:       &device.ID,
+			RoomID:         room.ID,
+		}
+		require.NoError(t, repo.Create(ctx, group))
+		defer cleanupActiveGroupRecords(t, db, group.ID)
+
+		groups, err := repo.FindActiveByGroupIDWithDevice(ctx, activity.ID)
+		require.NoError(t, err)
+		require.NotEmpty(t, groups)
+		assert.Equal(t, group.ID, groups[0].ID)
+	})
+
+	t.Run("find active by device with relations delegates to named query", func(t *testing.T) {
+		activity := testpkg.CreateTestActivityGroup(t, db, "WithRelations")
+		room := testpkg.CreateTestRoom(t, db, "WithRelationsRoom")
+		device := testpkg.CreateTestDevice(t, db, "with-relations-device")
+		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, device.ID, activity.CategoryID, room.ID)
+
+		group := &active.Group{
+			StartTime:      time.Now(),
+			LastActivity:   time.Now(),
+			TimeoutMinutes: 30,
+			GroupID:        activity.ID,
+			DeviceID:       &device.ID,
+			RoomID:         room.ID,
+		}
+		require.NoError(t, repo.Create(ctx, group))
+		defer cleanupActiveGroupRecords(t, db, group.ID)
+
+		found, err := repo.FindActiveByDeviceIDWithRelations(ctx, device.ID)
+		require.NoError(t, err)
+		require.NotNil(t, found)
+		require.NotNil(t, found.Room)
+		require.NotNil(t, found.ActualGroup)
+		assert.Equal(t, room.Name, found.Room.Name)
+		assert.Equal(t, activity.Name, found.ActualGroup.Name)
 	})
 }
 

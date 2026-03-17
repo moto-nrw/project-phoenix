@@ -196,27 +196,6 @@ func (conn *sseConnection) sendHeartbeat() error {
 	return nil
 }
 
-// runHeartbeatOnlyLoop runs the event loop when there are no topics to subscribe to
-func (conn *sseConnection) runHeartbeatOnlyLoop(ctx context.Context) {
-	conn.getLogger().Info("SSE connection - no available topics (heartbeat only)",
-		slog.Int64("staff_id", conn.staffID),
-	)
-
-	ticker := time.NewTicker(30 * time.Second)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			if conn.sendHeartbeat() != nil {
-				return // Client disconnected
-			}
-		}
-	}
-}
-
 // createAndRegisterClient creates the SSE client and registers it with the hub
 func (rs *Resource) createAndRegisterClient(conn *sseConnection) {
 	conn.client = &realtime.Client{

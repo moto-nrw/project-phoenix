@@ -17,6 +17,7 @@ type Service interface {
 	DeleteActiveGroup(ctx context.Context, id int64) error
 	ListActiveGroups(ctx context.Context, options *base.QueryOptions) ([]*active.Group, error)
 	FindActiveGroupsByRoomID(ctx context.Context, roomID int64) ([]*active.Group, error)
+	FindDeviceActiveGroupInRoom(ctx context.Context, roomID int64, deviceID int64) (*active.Group, error)
 	FindActiveGroupsByGroupID(ctx context.Context, groupID int64) ([]*active.Group, error)
 	FindActiveGroupsByTimeRange(ctx context.Context, start, end time.Time) ([]*active.Group, error)
 	EndActiveGroupSession(ctx context.Context, id int64) error
@@ -34,7 +35,10 @@ type Service interface {
 	FindVisitsByTimeRange(ctx context.Context, start, end time.Time) ([]*active.Visit, error)
 	EndVisit(ctx context.Context, id int64) error
 	GetStudentCurrentVisit(ctx context.Context, studentID int64) (*active.Visit, error)
+	GetStudentCurrentVisitWithRoom(ctx context.Context, studentID int64) (*active.Visit, error)
 	GetStudentsCurrentVisits(ctx context.Context, studentIDs []int64) (map[int64]*active.Visit, error)
+	CountActiveVisitsByRoomID(ctx context.Context, roomID int64) (int, error)
+	CountActiveVisitsByActiveGroupID(ctx context.Context, activeGroupID int64) (int, error)
 
 	// Group Supervisor operations
 	GetGroupSupervisor(ctx context.Context, id int64) (*active.GroupSupervisor, error)

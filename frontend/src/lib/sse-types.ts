@@ -5,7 +5,8 @@ export type SSEEventType =
   | "student_checkout"
   | "activity_start"
   | "activity_end"
-  | "activity_update";
+  | "activity_update"
+  | "dashboard_counts_changed";
 
 // SSE Connection Status
 export type ConnectionStatus = "connected" | "reconnecting" | "failed" | "idle";
