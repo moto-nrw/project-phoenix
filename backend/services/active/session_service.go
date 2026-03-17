@@ -2,12 +2,15 @@ package active
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/uptrace/bun"
@@ -866,9 +869,37 @@ func (s *service) ProcessSessionTimeoutByID(ctx context.Context, sessionID int64
 // UpdateSessionActivity updates the last activity timestamp for a session
 func (s *service) UpdateSessionActivity(ctx context.Context, activeGroupID int64) error {
 	if err := s.groupRepo.UpdateLastActivity(ctx, activeGroupID, time.Now()); err != nil {
+		if isUpdateLastActivitySessionMiss(err) {
+			session, findErr := s.groupRepo.FindByID(ctx, activeGroupID)
+			if findErr != nil {
+				if isFindByIDNoRows(findErr) {
+					return &ActiveError{Op: "UpdateSessionActivity", Err: ErrActiveGroupNotFound}
+				}
+				return &ActiveError{Op: "UpdateSessionActivity", Err: findErr}
+			}
+
+			if session == nil {
+				return &ActiveError{Op: "UpdateSessionActivity", Err: ErrActiveGroupNotFound}
+			}
+
+			if !session.IsActive() {
+				return &ActiveError{Op: "UpdateSessionActivity", Err: ErrActiveGroupAlreadyEnded}
+			}
+		}
+
 		return &ActiveError{Op: "UpdateSessionActivity", Err: err}
 	}
 	return nil
+}
+
+func isUpdateLastActivitySessionMiss(err error) bool {
+	var dbErr *modelBase.DatabaseError
+	return errors.As(err, &dbErr) && dbErr.Op == "update last activity - session not found"
+}
+
+func isFindByIDNoRows(err error) bool {
+	var dbErr *modelBase.DatabaseError
+	return errors.As(err, &dbErr) && dbErr.Op == "find by id" && errors.Is(dbErr.Err, sql.ErrNoRows)
 }
 
 // ValidateSessionTimeout validates if a timeout request is valid
