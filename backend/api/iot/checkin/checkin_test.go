@@ -2018,8 +2018,7 @@ func TestDeviceCheckin_WCAutoCreate(t *testing.T) {
 		Limit(1).
 		Scan(context.Background())
 	require.NoError(t, err)
-	require.NotNil(t, activeGroup.DeviceID, "Auto-created WC session should be linked to the scanning device")
-	assert.Equal(t, device.ID, *activeGroup.DeviceID)
+	assert.Nil(t, activeGroup.DeviceID, "Auto-created WC group must NOT have a DeviceID — WC is a shared room, not a device session")
 }
 
 // TestDeviceCheckin_WCAutoCreateIdempotent verifies that the WC
@@ -2353,4 +2352,154 @@ func TestDeviceCheckin_SchulhofAutoCreateIdempotent(t *testing.T) {
 	assert.True(t, ok, "Response should have data field")
 	assert.Equal(t, "checked_in", data["action"])
 	assert.Equal(t, "Schulhof", data["room_name"])
+}
+
+// =============================================================================
+// REGRESSION: SPECIAL ROOM GROUPS MUST NOT HAVE DEVICE ID
+// =============================================================================
+
+// TestDeviceCheckin_WCGroupDoesNotHijackDeviceSession is a regression test for
+// a bug where auto-created WC groups received a DeviceID, causing
+// GetDeviceCurrentSession to return the WC group instead of the actual
+// room session. This broke session counts and session resume after device
+// restart. See commit 54ef0c99 for the regression.
+func TestDeviceCheckin_WCGroupDoesNotHijackDeviceSession(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	device := testpkg.CreateTestDevice(t, ctx.db, "wc-hijack-regression")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
+
+	staff := testpkg.CreateTestStaff(t, ctx.db, "Regression", "Staff")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
+
+	student := testpkg.CreateTestStudent(t, ctx.db, "Regression", "Student", "2a")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
+
+	tagID := fmt.Sprintf("WCREG%d", time.Now().UnixNano())
+	card := testpkg.CreateTestRFIDCard(t, ctx.db, tagID)
+	defer testpkg.CleanupRFIDCards(t, ctx.db, card.ID)
+	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
+
+	// Create a normal room with a device-linked session (the "real" session)
+	sessionRoom := testpkg.CreateTestRoom(t, ctx.db, "Session Room Regression")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, sessionRoom.ID)
+
+	sessionActivity := testpkg.CreateTestActivityGroup(t, ctx.db, "Session Activity Regression")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, sessionActivity.ID)
+
+	sessionGroup := testpkg.CreateTestActiveGroup(t, ctx.db, sessionActivity.ID, sessionRoom.ID)
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, sessionGroup.ID)
+
+	// Link the session group to this device
+	_, err := ctx.db.NewUpdate().
+		TableExpr("active.groups").
+		Set("device_id = ?", device.ID).
+		Where("id = ?", sessionGroup.ID).
+		Exec(t.Context())
+	require.NoError(t, err)
+
+	// Check student into the session room first
+	sessionVisit := testpkg.CreateTestVisit(t, ctx.db, student.ID, sessionGroup.ID, time.Now().Add(-5*time.Minute), nil)
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, sessionVisit.ID)
+
+	// Create WC room
+	wcRoom := createWCRoom(t, ctx.db)
+	defer cleanupWCInfrastructure(t, ctx.db, wcRoom.ID)
+
+	router := chi.NewRouter()
+	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+
+	// Send student to WC — this triggers auto-creation of a WC active group
+	body := map[string]interface{}{
+		"student_rfid": card.ID,
+		"action":       "checkin",
+		"room_id":      wcRoom.ID,
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+		testutil.WithDeviceContext(createTestDeviceContext(device)),
+		testutil.WithStaffContext(staff),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	// CRITICAL ASSERTION: The auto-created WC group must NOT have a device_id.
+	// If it does, GetDeviceCurrentSession will find TWO active groups for this
+	// device and may return the WC group instead of the real session group,
+	// breaking room counts and session resume.
+	wcGroup := new(active.Group)
+	err = ctx.db.NewSelect().
+		Model(wcGroup).
+		ModelTableExpr(`active.groups AS "group"`).
+		Where(`"group".room_id = ?`, wcRoom.ID).
+		Where(`"group".end_time IS NULL`).
+		OrderExpr(`"group".id DESC`).
+		Limit(1).
+		Scan(context.Background())
+	require.NoError(t, err, "WC group should exist after auto-creation")
+	assert.Nil(t, wcGroup.DeviceID,
+		"REGRESSION: WC group must NOT have DeviceID — it would hijack GetDeviceCurrentSession")
+
+	// Verify GetDeviceCurrentSession still returns the REAL session, not WC
+	realSession, err := ctx.services.Active.GetDeviceCurrentSession(context.Background(), device.ID)
+	require.NoError(t, err, "GetDeviceCurrentSession should find the real session")
+	assert.Equal(t, sessionGroup.ID, realSession.ID,
+		"GetDeviceCurrentSession must return the room session (group %d), not the WC group (group %d)",
+		sessionGroup.ID, wcGroup.ID)
+}
+
+// TestDeviceCheckin_SchulhofGroupHasNoDeviceID verifies that auto-created
+// Schulhof groups never receive a DeviceID, same invariant as WC.
+func TestDeviceCheckin_SchulhofGroupHasNoDeviceID(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	device := testpkg.CreateTestDevice(t, ctx.db, "schulhof-no-device")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
+
+	staff := testpkg.CreateTestStaff(t, ctx.db, "Schulhof", "NoDevice")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
+
+	student := testpkg.CreateTestStudent(t, ctx.db, "Schulhof", "Regression", "3a")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
+
+	tagID := fmt.Sprintf("SHREG%d", time.Now().UnixNano())
+	card := testpkg.CreateTestRFIDCard(t, ctx.db, tagID)
+	defer testpkg.CleanupRFIDCards(t, ctx.db, card.ID)
+	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
+
+	room := createSchulhofRoom(t, ctx.db)
+	defer cleanupSchulhofInfrastructure(t, ctx.db, room.ID)
+
+	router := chi.NewRouter()
+	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+
+	body := map[string]interface{}{
+		"student_rfid": card.ID,
+		"action":       "checkin",
+		"room_id":      room.ID,
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+		testutil.WithDeviceContext(createTestDeviceContext(device)),
+		testutil.WithStaffContext(staff),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	schulhofGroup := new(active.Group)
+	err := ctx.db.NewSelect().
+		Model(schulhofGroup).
+		ModelTableExpr(`active.groups AS "group"`).
+		Where(`"group".room_id = ?`, room.ID).
+		Where(`"group".end_time IS NULL`).
+		OrderExpr(`"group".id DESC`).
+		Limit(1).
+		Scan(context.Background())
+	require.NoError(t, err, "Schulhof group should exist after auto-creation")
+	assert.Nil(t, schulhofGroup.DeviceID,
+		"REGRESSION: Schulhof group must NOT have DeviceID — shared rooms are not device sessions")
 }
