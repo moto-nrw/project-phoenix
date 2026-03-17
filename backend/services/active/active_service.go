@@ -760,6 +760,9 @@ func (s *service) broadcastActivityEndEvent(ctx context.Context, sessionID int64
 	)
 
 	s.broadcastWithLogging(sessionIDStr, "", event, "activity_end")
+
+	// Notify all clients (including zero-topic) so dashboard refreshes
+	_ = s.broadcaster.BroadcastToAll(realtime.NewEvent(realtime.EventDashboardCountsChanged, "", realtime.EventData{}))
 }
 
 // broadcastWithLogging broadcasts an event and logs any errors.

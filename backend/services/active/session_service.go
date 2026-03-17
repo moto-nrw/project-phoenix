@@ -116,6 +116,9 @@ func (s *service) broadcastActivityStartEvent(ctx context.Context, group *active
 	)
 
 	s.broadcastWithLogging(activeGroupID, "", event, "activity_start")
+
+	// Notify all clients (including zero-topic) so dashboard refreshes
+	_ = s.broadcaster.BroadcastToAll(realtime.NewEvent(realtime.EventDashboardCountsChanged, "", realtime.EventData{}))
 }
 
 // validateSupervisorIDs validates that all supervisor IDs exist as staff members

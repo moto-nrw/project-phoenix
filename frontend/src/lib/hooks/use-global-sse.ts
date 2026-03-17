@@ -60,10 +60,12 @@ export function useGlobalSSE(): SSEHookState {
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const flushInvalidations = useCallback(() => {
-    // Invalidate ALL supervision-visits caches for student events.
+    // Invalidate ALL supervision-visits caches for student/dashboard events.
     // A student checked out of Room A may appear on the Schulhof (catch-all),
     // so we can't limit to just the source group's cache key.
-    if (pendingGroupIds.current.size > 0) {
+    // Zero-topic clients only receive dashboard_counts_changed, so include
+    // that flag to keep their detail views in sync.
+    if (pendingGroupIds.current.size > 0 || hasPendingDashboardEvent.current) {
       mutate(
         (key) =>
           typeof key === "string" && key.startsWith("supervision-visits-"),
