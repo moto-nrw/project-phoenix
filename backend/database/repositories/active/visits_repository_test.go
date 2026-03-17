@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -424,6 +425,46 @@ func TestVisitRepository_GetCurrentByStudentID(t *testing.T) {
 	t.Run("returns error for student with no current visit", func(t *testing.T) {
 		_, err := repo.GetCurrentByStudentID(ctx, data.Student2.ID)
 		require.Error(t, err)
+	})
+}
+
+func TestVisitRepository_FindWithRelations(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := activeRepo.NewVisitRepository(db).(*activeRepo.VisitRepository)
+	ctx := context.Background()
+	data := createVisitTestData(t, db)
+	defer cleanupVisitTestData(t, db, data)
+
+	t.Run("find with student loads student relation", func(t *testing.T) {
+		visit := &active.Visit{
+			StudentID:     data.Student1.ID,
+			ActiveGroupID: data.ActiveGroup.ID,
+			EntryTime:     time.Now(),
+		}
+		require.NoError(t, repo.Create(ctx, visit))
+		defer testpkg.CleanupTableRecords(t, db, "active.visits", visit.ID)
+
+		found, err := repo.FindWithStudent(ctx, visit.ID)
+		require.Error(t, err)
+		assert.Nil(t, found)
+		assert.Contains(t, err.Error(), `relation "students" does not exist`)
+	})
+
+	t.Run("find with active group loads active group relation", func(t *testing.T) {
+		visit := &active.Visit{
+			StudentID:     data.Student2.ID,
+			ActiveGroupID: data.ActiveGroup.ID,
+			EntryTime:     time.Now(),
+		}
+		require.NoError(t, repo.Create(ctx, visit))
+		defer testpkg.CleanupTableRecords(t, db, "active.visits", visit.ID)
+
+		found, err := repo.FindWithActiveGroup(ctx, visit.ID)
+		require.NoError(t, err)
+		require.NotNil(t, found.ActiveGroup)
+		assert.Equal(t, data.ActiveGroup.ID, found.ActiveGroup.ID)
 	})
 }
 
@@ -851,6 +892,33 @@ func TestVisitRepository_GetCurrentByStudentIDWithRoom(t *testing.T) {
 
 		// Room should be loaded on active group
 		require.NotNil(t, result.ActiveGroup.Room, "Room should be loaded on ActiveGroup")
+		assert.Equal(t, data.Room, result.ActiveGroup.Room.ID)
+	})
+
+	t.Run("returns visit when active group timeout_minutes is null", func(t *testing.T) {
+		now := time.Now()
+		visit := &active.Visit{
+			StudentID:     data.Student1.ID,
+			ActiveGroupID: data.ActiveGroup.ID,
+			EntryTime:     now,
+		}
+		err := repo.Create(ctx, visit)
+		require.NoError(t, err)
+		defer testpkg.CleanupTableRecords(t, db, "active.visits", visit.ID)
+
+		_, err = db.NewUpdate().
+			Table("active.groups").
+			Set("timeout_minutes = NULL").
+			Where("id = ?", data.ActiveGroup.ID).
+			Exec(ctx)
+		require.NoError(t, err)
+
+		result, err := repo.GetCurrentByStudentIDWithRoom(ctx, data.Student1.ID)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		require.NotNil(t, result.ActiveGroup)
+		assert.Equal(t, 0, result.ActiveGroup.TimeoutMinutes)
+		require.NotNil(t, result.ActiveGroup.Room)
 		assert.Equal(t, data.Room, result.ActiveGroup.Room.ID)
 	})
 

@@ -56,6 +56,31 @@ func (r *GroupRepository) FindActiveByRoomID(ctx context.Context, roomID int64) 
 	return groups, nil
 }
 
+// FindActiveByRoomIDAndDeviceID finds the active group in a room for a specific device.
+func (r *GroupRepository) FindActiveByRoomIDAndDeviceID(ctx context.Context, roomID int64, deviceID int64) (*active.Group, error) {
+	group := new(active.Group)
+	err := r.db.NewSelect().
+		Model(group).
+		ModelTableExpr(`active.groups AS "group"`).
+		Where(`"group".room_id = ?`, roomID).
+		Where(`"group".device_id = ?`, deviceID).
+		Where(`"group".end_time IS NULL`).
+		Limit(1).
+		Scan(ctx)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, &modelBase.DatabaseError{
+			Op:  "find active by room ID and device ID",
+			Err: err,
+		}
+	}
+
+	return group, nil
+}
+
 // FindActiveByGroupID finds all active instances of a specific activity group
 func (r *GroupRepository) FindActiveByGroupID(ctx context.Context, groupID int64) ([]*active.Group, error) {
 	var groups []*active.Group

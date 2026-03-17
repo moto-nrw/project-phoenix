@@ -371,6 +371,14 @@ func (s *service) FindActiveGroupsByRoomID(ctx context.Context, roomID int64) ([
 	return groups, nil
 }
 
+func (s *service) FindDeviceActiveGroupInRoom(ctx context.Context, roomID int64, deviceID int64) (*active.Group, error) {
+	group, err := s.groupRepo.FindActiveByRoomIDAndDeviceID(ctx, roomID, deviceID)
+	if err != nil {
+		return nil, &ActiveError{Op: "FindDeviceActiveGroupInRoom", Err: fmt.Errorf("find by room and device: %w", err)}
+	}
+	return group, nil
+}
+
 func (s *service) FindActiveGroupsByGroupID(ctx context.Context, groupID int64) ([]*active.Group, error) {
 	groups, err := s.groupRepo.FindActiveByGroupID(ctx, groupID)
 	if err != nil {

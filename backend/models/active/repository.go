@@ -14,6 +14,9 @@ type GroupRepository interface {
 	// FindActiveByRoomID finds all active groups in a specific room
 	FindActiveByRoomID(ctx context.Context, roomID int64) ([]*Group, error)
 
+	// FindActiveByRoomIDAndDeviceID finds the active group in a room that belongs to a specific device.
+	FindActiveByRoomIDAndDeviceID(ctx context.Context, roomID int64, deviceID int64) (*Group, error)
+
 	// FindActiveByGroupID finds all active instances of a specific activity group
 	FindActiveByGroupID(ctx context.Context, groupID int64) ([]*Group, error)
 
