@@ -322,7 +322,7 @@ func shouldSkipCheckin(roomID *int64, checkedOut bool, currentVisit *active.Visi
 
 // processCheckin handles the checkin logic for a student.
 // Returns: visitID, roomName, activeGroupID, error
-func (rs *Resource) processCheckin(ctx context.Context, w http.ResponseWriter, r *http.Request, student *users.Student, person *users.Person, roomID int64) (*int64, string, int64, error) {
+func (rs *Resource) processCheckin(ctx context.Context, w http.ResponseWriter, r *http.Request, student *users.Student, person *users.Person, roomID int64, deviceID int64) (*int64, string, int64, error) {
 	rs.getLogger().DebugContext(ctx, "performing check-in to room",
 		slog.String("student_name", person.FirstName+" "+person.LastName),
 		slog.Int64("student_id", student.ID),
@@ -371,7 +371,7 @@ func (rs *Resource) processCheckin(ctx context.Context, w http.ResponseWriter, r
 	}
 
 	// Find or create active group for the room
-	activeGroupID, roomName, err := rs.findOrCreateActiveGroupForRoom(ctx, w, r, roomID)
+	activeGroupID, roomName, err := rs.findOrCreateActiveGroupForRoom(ctx, w, r, roomID, deviceID)
 	if err != nil {
 		return nil, "", 0, err
 	}
@@ -477,11 +477,13 @@ func (rs *Resource) checkActivityCapacity(ctx context.Context, w http.ResponseWr
 	return nil
 }
 
-// findOrCreateActiveGroupForRoom finds an existing active group or creates one for Schulhof
+// findOrCreateActiveGroupForRoom finds an existing active group or creates one for Schulhof.
+// When multiple active groups exist in the room, it prefers the one linked to deviceID.
 // Returns: activeGroupID, roomName, error
-func (rs *Resource) findOrCreateActiveGroupForRoom(ctx context.Context, w http.ResponseWriter, r *http.Request, roomID int64) (int64, string, error) {
+func (rs *Resource) findOrCreateActiveGroupForRoom(ctx context.Context, w http.ResponseWriter, r *http.Request, roomID int64, deviceID int64) (int64, string, error) {
 	rs.getLogger().DebugContext(ctx, "looking for active groups in room",
 		slog.Int64("room_id", roomID),
+		slog.Int64("device_id", deviceID),
 	)
 
 	activeGroups, err := rs.ActiveService.FindActiveGroupsByRoomID(ctx, roomID)
@@ -495,24 +497,34 @@ func (rs *Resource) findOrCreateActiveGroupForRoom(ctx context.Context, w http.R
 	}
 
 	if len(activeGroups) > 0 {
-		return rs.useExistingActiveGroup(ctx, activeGroups, roomID)
+		return rs.useExistingActiveGroup(ctx, activeGroups, roomID, deviceID)
 	}
 
 	// No active groups - check if this is a special room (Schulhof, WC)
 	return rs.createSpecialRoomActiveGroupIfNeeded(ctx, w, r, roomID)
 }
 
-// useExistingActiveGroup uses an existing active group in the room
-func (rs *Resource) useExistingActiveGroup(ctx context.Context, activeGroups []*active.Group, roomID int64) (int64, string, error) {
-	activeGroupID := activeGroups[0].ID
-	rs.getLogger().DebugContext(ctx, "found active groups in room, using first",
+// useExistingActiveGroup selects an active group in the room, preferring one linked to deviceID.
+// Falls back to the first group when no device match is found (single-device rooms, legacy sessions).
+func (rs *Resource) useExistingActiveGroup(ctx context.Context, activeGroups []*active.Group, roomID int64, deviceID int64) (int64, string, error) {
+	selected := activeGroups[0] // default fallback
+	for _, g := range activeGroups {
+		if g.DeviceID != nil && *g.DeviceID == deviceID {
+			selected = g
+			break
+		}
+	}
+
+	rs.getLogger().DebugContext(ctx, "selected active group in room",
 		slog.Int("group_count", len(activeGroups)),
 		slog.Int64("room_id", roomID),
-		slog.Int64("active_group_id", activeGroupID),
+		slog.Int64("device_id", deviceID),
+		slog.Int64("active_group_id", selected.ID),
+		slog.Bool("device_matched", selected.DeviceID != nil && *selected.DeviceID == deviceID),
 	)
 
-	roomName := rs.roomNameByID(ctx, activeGroups[0].Room, roomID)
-	return activeGroupID, roomName, nil
+	roomName := rs.roomNameByID(ctx, selected.Room, roomID)
+	return selected.ID, roomName, nil
 }
 
 // createSpecialRoomActiveGroupIfNeeded creates an active group if the room is a special room (Schulhof, WC)
@@ -624,6 +636,7 @@ func (rs *Resource) roomNameForResponse(ctx context.Context, currentVisit *activ
 // checkinProcessingInput holds the inputs for processing a student checkin
 type checkinProcessingInput struct {
 	RoomID       *int64
+	DeviceID     int64
 	SkipCheckin  bool
 	CheckedOut   bool
 	CurrentVisit *active.Visit
@@ -645,7 +658,7 @@ func (rs *Resource) processStudentCheckin(ctx context.Context, w http.ResponseWr
 	switch {
 	case input.RoomID != nil && !input.SkipCheckin:
 		// Normal checkin case
-		visitID, roomName, activeGroupID, err := rs.processCheckin(ctx, w, r, student, person, *input.RoomID)
+		visitID, roomName, activeGroupID, err := rs.processCheckin(ctx, w, r, student, person, *input.RoomID, input.DeviceID)
 		if err != nil {
 			result.Error = err
 			return result

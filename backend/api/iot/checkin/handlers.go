@@ -164,6 +164,7 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	// Step 8: Process checkin if room_id provided and not skipping
 	checkinResult := rs.processStudentCheckin(ctx, w, r, student, person, &checkinProcessingInput{
 		RoomID:       req.RoomID,
+		DeviceID:     deviceCtx.ID,
 		SkipCheckin:  skipCheckin,
 		CheckedOut:   checkedOut,
 		CurrentVisit: currentVisit,
