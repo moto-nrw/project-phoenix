@@ -579,7 +579,6 @@ func (rs *Resource) createSpecialRoomActiveGroupIfNeeded(ctx context.Context, w 
 
 	newActiveGroup := &active.Group{
 		GroupID:      activityGroup.ID,
-		DeviceID:     &deviceID,
 		RoomID:       room.ID,
 		StartTime:    time.Now(),
 		LastActivity: time.Now(),
@@ -606,12 +605,11 @@ func (rs *Resource) createSpecialRoomActiveGroupIfNeeded(ctx context.Context, w 
 	rs.getLogger().InfoContext(ctx, "auto-created active group for special room",
 		slog.String("room_name", room.Name),
 		slog.Int64("active_group_id", newActiveGroup.ID),
-		slog.Int64("device_id", deviceID),
 	)
 	return &selectedActiveGroup{
 		Group:        newActiveGroup,
 		RoomName:     room.Name,
-		DeviceScoped: true,
+		DeviceScoped: false,
 	}, nil
 }
 
