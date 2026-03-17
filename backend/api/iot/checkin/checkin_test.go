@@ -17,6 +17,7 @@ import (
 	checkinAPI "github.com/moto-nrw/project-phoenix/api/iot/checkin"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/iot"
@@ -1351,6 +1352,79 @@ func TestDeviceCheckin_ActiveStudentsCountWithMultipleStudents(t *testing.T) {
 	assert.Equal(t, float64(2), activeStudents, "Should have 2 active students after two checkins")
 }
 
+func TestDeviceCheckin_ActiveStudentsStayScopedToDeviceSessionInSharedRoom(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	device := testpkg.CreateTestDevice(t, ctx.db, "shared-room-count")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
+
+	staff := testpkg.CreateTestStaff(t, ctx.db, "Shared", "Room")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
+
+	scannedStudent := testpkg.CreateTestStudent(t, ctx.db, "Scanned", "Student", "3a")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, scannedStudent.ID)
+	scannedTagID := fmt.Sprintf("SHAREDSCAN%d", time.Now().UnixNano())
+	scannedCard := testpkg.CreateTestRFIDCard(t, ctx.db, scannedTagID)
+	defer testpkg.CleanupRFIDCards(t, ctx.db, scannedCard.ID)
+	testpkg.LinkRFIDToStudent(t, ctx.db, scannedStudent.PersonID, scannedCard.ID)
+
+	sessionStudent := testpkg.CreateTestStudent(t, ctx.db, "Session", "Peer", "3a")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, sessionStudent.ID)
+
+	otherGroupStudent := testpkg.CreateTestStudent(t, ctx.db, "Other", "Group", "3b")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, otherGroupStudent.ID)
+
+	room := testpkg.CreateTestRoom(t, ctx.db, "Shared Count Room")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, room.ID)
+
+	deviceActivity := testpkg.CreateTestActivityGroup(t, ctx.db, "Device Session Activity")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, deviceActivity.ID)
+	otherActivity := testpkg.CreateTestActivityGroup(t, ctx.db, "Other Session Activity")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, otherActivity.ID)
+
+	deviceGroup := testpkg.CreateTestActiveGroup(t, ctx.db, deviceActivity.ID, room.ID)
+	otherGroup := testpkg.CreateTestActiveGroup(t, ctx.db, otherActivity.ID, room.ID)
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, deviceGroup.ID, otherGroup.ID)
+
+	_, err := ctx.db.NewUpdate().
+		TableExpr("active.groups").
+		Set("device_id = ?", device.ID).
+		Where("id = ?", deviceGroup.ID).
+		Exec(t.Context())
+	require.NoError(t, err)
+
+	scannedVisit := testpkg.CreateTestVisit(t, ctx.db, scannedStudent.ID, deviceGroup.ID, time.Now().Add(-10*time.Minute), nil)
+	sessionVisit := testpkg.CreateTestVisit(t, ctx.db, sessionStudent.ID, deviceGroup.ID, time.Now().Add(-8*time.Minute), nil)
+	otherVisit := testpkg.CreateTestVisit(t, ctx.db, otherGroupStudent.ID, otherGroup.ID, time.Now().Add(-6*time.Minute), nil)
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, scannedVisit.ID, sessionVisit.ID, otherVisit.ID)
+
+	router := chi.NewRouter()
+	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+
+	body := map[string]interface{}{
+		"student_rfid": scannedCard.ID,
+		"action":       "checkin",
+		"room_id":      room.ID,
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+		testutil.WithDeviceContext(createTestDeviceContext(device)),
+		testutil.WithStaffContext(staff),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data, ok := response["data"].(map[string]interface{})
+	require.True(t, ok, "Response should have data field")
+
+	activeStudents, exists := data["active_students"]
+	require.True(t, exists, "Response should contain active_students field")
+	assert.Equal(t, float64(1), activeStudents, "Should report only the remaining students in the device session, not the room total")
+}
+
 // =============================================================================
 // SAME ROOM SCAN (SKIP CHECKIN) TESTS
 // =============================================================================
@@ -1934,6 +2008,18 @@ func TestDeviceCheckin_WCAutoCreate(t *testing.T) {
 	assert.True(t, ok, "Response should have data field")
 	assert.Equal(t, "checked_in", data["action"])
 	assert.Equal(t, "WC", data["room_name"])
+
+	activeGroup := new(active.Group)
+	err := ctx.db.NewSelect().
+		Model(activeGroup).
+		ModelTableExpr(`active.groups AS "group"`).
+		Where(`"group".room_id = ?`, room.ID).
+		OrderExpr(`"group".id DESC`).
+		Limit(1).
+		Scan(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, activeGroup.DeviceID, "Auto-created WC session should be linked to the scanning device")
+	assert.Equal(t, device.ID, *activeGroup.DeviceID)
 }
 
 // TestDeviceCheckin_WCAutoCreateIdempotent verifies that the WC

@@ -164,6 +164,7 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	// Step 8: Process checkin if room_id provided and not skipping
 	checkinResult := rs.processStudentCheckin(ctx, w, r, student, person, &checkinProcessingInput{
 		RoomID:       req.RoomID,
+		DeviceID:     deviceCtx.ID,
 		SkipCheckin:  skipCheckin,
 		CheckedOut:   checkedOut,
 		CurrentVisit: currentVisit,
@@ -204,14 +205,22 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 		result.DailyCheckoutAvailable = rs.shouldShowDailyCheckoutWithGroup(ctx, student, currentVisit)
 	}
 
-	// Step 11: Update session activity for device monitoring
+	// Step 11: Keep heartbeat and active_students scoped to the scanning device session.
 	if req.RoomID != nil {
-		rs.updateSessionActivityForDevice(ctx, *req.RoomID, deviceCtx.ID)
-	}
-
-	// Step 11b: Get active student count for response
-	if req.RoomID != nil {
-		result.ActiveStudents = rs.getActiveStudentCountForRoom(ctx, *req.RoomID, deviceCtx.ID)
+		switch {
+		case checkinResult.ActiveGroupID != nil && checkinResult.DeviceScopedRoom:
+			rs.updateSessionActivity(ctx, *checkinResult.ActiveGroupID)
+			result.ActiveStudents = rs.getActiveStudentCountForGroup(ctx, *checkinResult.ActiveGroupID)
+		default:
+			deviceGroup := rs.getDeviceActiveGroupInRoom(ctx, *req.RoomID, deviceCtx.ID)
+			if deviceGroup != nil {
+				rs.updateSessionActivity(ctx, deviceGroup.ID)
+				result.ActiveStudents = rs.getActiveStudentCountForGroup(ctx, deviceGroup.ID)
+			} else {
+				// Preserve the legacy fallback for rooms without a device-linked active group.
+				result.ActiveStudents = rs.getActiveStudentCountForRoom(ctx, *req.RoomID)
+			}
+		}
 	}
 
 	// Step 12: Build and send response

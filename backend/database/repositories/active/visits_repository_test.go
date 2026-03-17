@@ -814,3 +814,348 @@ func TestVisitRepository_CountExpiredVisits(t *testing.T) {
 		assert.GreaterOrEqual(t, count, int64(1))
 	})
 }
+
+// ============================================================================
+// GetCurrentByStudentIDWithRoom Tests
+// ============================================================================
+
+func TestVisitRepository_GetCurrentByStudentIDWithRoom(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).ActiveVisit
+	ctx := context.Background()
+	data := createVisitTestData(t, db)
+	defer cleanupVisitTestData(t, db, data)
+
+	t.Run("returns visit with active group and room", func(t *testing.T) {
+		now := time.Now()
+		visit := &active.Visit{
+			StudentID:     data.Student1.ID,
+			ActiveGroupID: data.ActiveGroup.ID,
+			EntryTime:     now,
+		}
+		err := repo.Create(ctx, visit)
+		require.NoError(t, err)
+		defer testpkg.CleanupTableRecords(t, db, "active.visits", visit.ID)
+
+		result, err := repo.GetCurrentByStudentIDWithRoom(ctx, data.Student1.ID)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Equal(t, visit.ID, result.ID)
+		assert.Nil(t, result.ExitTime)
+
+		// ActiveGroup should be loaded
+		require.NotNil(t, result.ActiveGroup, "ActiveGroup should be loaded")
+		assert.Equal(t, data.ActiveGroup.ID, result.ActiveGroup.ID)
+
+		// Room should be loaded on active group
+		require.NotNil(t, result.ActiveGroup.Room, "Room should be loaded on ActiveGroup")
+		assert.Equal(t, data.Room, result.ActiveGroup.Room.ID)
+	})
+
+	t.Run("returns error for student with no active visit", func(t *testing.T) {
+		_, err := repo.GetCurrentByStudentIDWithRoom(ctx, data.Student2.ID)
+		require.Error(t, err)
+	})
+
+	t.Run("ignores exited visits", func(t *testing.T) {
+		now := time.Now()
+		exitTime := now.Add(-10 * time.Minute)
+		visit := &active.Visit{
+			StudentID:     data.Student2.ID,
+			ActiveGroupID: data.ActiveGroup.ID,
+			EntryTime:     now.Add(-30 * time.Minute),
+			ExitTime:      &exitTime,
+		}
+		err := repo.Create(ctx, visit)
+		require.NoError(t, err)
+		defer testpkg.CleanupTableRecords(t, db, "active.visits", visit.ID)
+
+		// Student2 should have no current visit (only exited one)
+		_, err = repo.GetCurrentByStudentIDWithRoom(ctx, data.Student2.ID)
+		require.Error(t, err)
+	})
+}
+
+// ============================================================================
+// CountActiveByRoomID Tests
+// ============================================================================
+
+func TestVisitRepository_CountActiveByRoomID(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).ActiveVisit
+	ctx := context.Background()
+	data := createVisitTestData(t, db)
+	defer cleanupVisitTestData(t, db, data)
+
+	t.Run("counts active visits in room", func(t *testing.T) {
+		now := time.Now()
+		visit1 := &active.Visit{
+			StudentID:     data.Student1.ID,
+			ActiveGroupID: data.ActiveGroup.ID,
+			EntryTime:     now,
+		}
+		visit2 := &active.Visit{
+			StudentID:     data.Student2.ID,
+			ActiveGroupID: data.ActiveGroup.ID,
+			EntryTime:     now,
+		}
+		err := repo.Create(ctx, visit1)
+		require.NoError(t, err)
+		err = repo.Create(ctx, visit2)
+		require.NoError(t, err)
+		defer func() {
+			testpkg.CleanupTableRecords(t, db, "active.visits", visit1.ID)
+			testpkg.CleanupTableRecords(t, db, "active.visits", visit2.ID)
+		}()
+
+		count, err := repo.CountActiveByRoomID(ctx, data.Room)
+		require.NoError(t, err)
+		assert.Equal(t, 2, count)
+	})
+
+	t.Run("excludes exited visits", func(t *testing.T) {
+		now := time.Now()
+		exitTime := now.Add(-5 * time.Minute)
+
+		activeVisit := &active.Visit{
+			StudentID:     data.Student1.ID,
+			ActiveGroupID: data.ActiveGroup.ID,
+			EntryTime:     now,
+		}
+		exitedVisit := &active.Visit{
+			StudentID:     data.Student2.ID,
+			ActiveGroupID: data.ActiveGroup.ID,
+			EntryTime:     now.Add(-30 * time.Minute),
+			ExitTime:      &exitTime,
+		}
+		err := repo.Create(ctx, activeVisit)
+		require.NoError(t, err)
+		err = repo.Create(ctx, exitedVisit)
+		require.NoError(t, err)
+		defer func() {
+			testpkg.CleanupTableRecords(t, db, "active.visits", activeVisit.ID)
+			testpkg.CleanupTableRecords(t, db, "active.visits", exitedVisit.ID)
+		}()
+
+		count, err := repo.CountActiveByRoomID(ctx, data.Room)
+		require.NoError(t, err)
+		assert.Equal(t, 1, count)
+	})
+
+	t.Run("returns zero for room with no visits", func(t *testing.T) {
+		emptyRoom := testpkg.CreateTestRoom(t, db, "EmptyCountRoom")
+		defer testpkg.CleanupActivityFixtures(t, db, emptyRoom.ID)
+
+		count, err := repo.CountActiveByRoomID(ctx, emptyRoom.ID)
+		require.NoError(t, err)
+		assert.Equal(t, 0, count)
+	})
+}
+
+// ============================================================================
+// CountActiveByGroupID Tests
+// ============================================================================
+
+func TestVisitRepository_CountActiveByGroupID(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).ActiveVisit
+	ctx := context.Background()
+	data := createVisitTestData(t, db)
+	defer cleanupVisitTestData(t, db, data)
+
+	t.Run("counts active visits in group", func(t *testing.T) {
+		now := time.Now()
+		visit := &active.Visit{
+			StudentID:     data.Student1.ID,
+			ActiveGroupID: data.ActiveGroup.ID,
+			EntryTime:     now,
+		}
+		err := repo.Create(ctx, visit)
+		require.NoError(t, err)
+		defer testpkg.CleanupTableRecords(t, db, "active.visits", visit.ID)
+
+		count, err := repo.CountActiveByGroupID(ctx, data.ActiveGroup.ID)
+		require.NoError(t, err)
+		assert.Equal(t, 1, count)
+	})
+
+	t.Run("returns zero for group with no visits", func(t *testing.T) {
+		count, err := repo.CountActiveByGroupID(ctx, data.ActiveGroup.ID)
+		require.NoError(t, err)
+		assert.Equal(t, 0, count)
+	})
+
+	t.Run("excludes exited visits", func(t *testing.T) {
+		now := time.Now()
+		exitTime := now.Add(-5 * time.Minute)
+
+		activeVisit := &active.Visit{
+			StudentID:     data.Student1.ID,
+			ActiveGroupID: data.ActiveGroup.ID,
+			EntryTime:     now,
+		}
+		exitedVisit := &active.Visit{
+			StudentID:     data.Student2.ID,
+			ActiveGroupID: data.ActiveGroup.ID,
+			EntryTime:     now.Add(-20 * time.Minute),
+			ExitTime:      &exitTime,
+		}
+		err := repo.Create(ctx, activeVisit)
+		require.NoError(t, err)
+		err = repo.Create(ctx, exitedVisit)
+		require.NoError(t, err)
+		defer func() {
+			testpkg.CleanupTableRecords(t, db, "active.visits", activeVisit.ID)
+			testpkg.CleanupTableRecords(t, db, "active.visits", exitedVisit.ID)
+		}()
+
+		count, err := repo.CountActiveByGroupID(ctx, data.ActiveGroup.ID)
+		require.NoError(t, err)
+		assert.Equal(t, 1, count)
+	})
+}
+
+// ============================================================================
+// EndVisitsByActiveGroupIDs Tests
+// ============================================================================
+
+func TestVisitRepository_EndVisitsByActiveGroupIDs(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).ActiveVisit
+	groupRepo := repositories.NewFactory(db).ActiveGroup
+	ctx := context.Background()
+	data := createVisitTestData(t, db)
+	defer cleanupVisitTestData(t, db, data)
+
+	t.Run("ends all active visits for group IDs", func(t *testing.T) {
+		now := time.Now()
+
+		// Create a second active group
+		secondGroup := &active.Group{
+			StartTime:      now,
+			LastActivity:   now,
+			TimeoutMinutes: 30,
+			GroupID:        data.ActivityGroup,
+			RoomID:         data.Room,
+		}
+		err := groupRepo.Create(ctx, secondGroup)
+		require.NoError(t, err)
+		defer cleanupActiveGroupRecords(t, db, secondGroup.ID)
+
+		// Create visits in both groups (entry_time in past to avoid chk_entry_before_exit with DB now())
+		visit1 := &active.Visit{
+			StudentID:     data.Student1.ID,
+			ActiveGroupID: data.ActiveGroup.ID,
+			EntryTime:     now.Add(-1 * time.Minute),
+		}
+		visit2 := &active.Visit{
+			StudentID:     data.Student2.ID,
+			ActiveGroupID: secondGroup.ID,
+			EntryTime:     now.Add(-1 * time.Minute),
+		}
+		err = repo.Create(ctx, visit1)
+		require.NoError(t, err)
+		err = repo.Create(ctx, visit2)
+		require.NoError(t, err)
+		defer func() {
+			testpkg.CleanupTableRecords(t, db, "active.visits", visit1.ID)
+			testpkg.CleanupTableRecords(t, db, "active.visits", visit2.ID)
+		}()
+
+		// End visits for both groups — expect count of 2 affected
+		ended, err := repo.EndVisitsByActiveGroupIDs(ctx, []int64{data.ActiveGroup.ID, secondGroup.ID})
+		require.NoError(t, err)
+		assert.Equal(t, int64(2), ended) // affected rows count
+
+		// Verify visits are ended
+		found1, err := repo.FindByID(ctx, visit1.ID)
+		require.NoError(t, err)
+		assert.NotNil(t, found1.ExitTime)
+
+		found2, err := repo.FindByID(ctx, visit2.ID)
+		require.NoError(t, err)
+		assert.NotNil(t, found2.ExitTime)
+	})
+
+	t.Run("returns zero for empty group IDs", func(t *testing.T) {
+		ended, err := repo.EndVisitsByActiveGroupIDs(ctx, []int64{})
+		require.NoError(t, err)
+		assert.Equal(t, int64(0), ended)
+	})
+
+	t.Run("does not end already exited visits", func(t *testing.T) {
+		now := time.Now()
+		exitTime := now.Add(-5 * time.Minute)
+
+		exitedVisit := &active.Visit{
+			StudentID:     data.Student1.ID,
+			ActiveGroupID: data.ActiveGroup.ID,
+			EntryTime:     now.Add(-30 * time.Minute),
+			ExitTime:      &exitTime, // exit_time after entry_time
+		}
+		activeVisit := &active.Visit{
+			StudentID:     data.Student2.ID,
+			ActiveGroupID: data.ActiveGroup.ID,
+			EntryTime:     now.Add(-1 * time.Minute), // slightly in the past to avoid clock skew with DB now()
+		}
+		err := repo.Create(ctx, exitedVisit)
+		require.NoError(t, err)
+		err = repo.Create(ctx, activeVisit)
+		require.NoError(t, err)
+		defer func() {
+			testpkg.CleanupTableRecords(t, db, "active.visits", exitedVisit.ID)
+			testpkg.CleanupTableRecords(t, db, "active.visits", activeVisit.ID)
+		}()
+
+		// Should only end the active visit
+		ended, err := repo.EndVisitsByActiveGroupIDs(ctx, []int64{data.ActiveGroup.ID})
+		require.NoError(t, err)
+		assert.Equal(t, int64(1), ended) // affected rows count
+	})
+
+	t.Run("returns zero when no active visits exist", func(t *testing.T) {
+		ended, err := repo.EndVisitsByActiveGroupIDs(ctx, []int64{data.ActiveGroup.ID})
+		require.NoError(t, err)
+		assert.Equal(t, int64(0), ended)
+	})
+}
+
+// ============================================================================
+// GetCurrentByStudentIDs Deduplication Tests
+// ============================================================================
+
+func TestVisitsRepository_GetCurrentByStudentIDs_Deduplication(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).ActiveVisit
+	ctx := context.Background()
+	data := createVisitTestData(t, db)
+	defer cleanupVisitTestData(t, db, data)
+
+	t.Run("deduplicates student IDs in input", func(t *testing.T) {
+		now := time.Now()
+		visit := &active.Visit{
+			StudentID:     data.Student1.ID,
+			ActiveGroupID: data.ActiveGroup.ID,
+			EntryTime:     now,
+		}
+		err := repo.Create(ctx, visit)
+		require.NoError(t, err)
+		defer testpkg.CleanupTableRecords(t, db, "active.visits", visit.ID)
+
+		// Pass duplicate IDs
+		visitMap, err := repo.GetCurrentByStudentIDs(ctx, []int64{data.Student1.ID, data.Student1.ID, data.Student1.ID})
+		require.NoError(t, err)
+		assert.Len(t, visitMap, 1)
+		assert.Contains(t, visitMap, data.Student1.ID)
+	})
+}

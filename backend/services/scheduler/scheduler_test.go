@@ -1009,6 +1009,9 @@ func (m *mockActiveService) GetStudentCurrentVisit(_ context.Context, _ int64) (
 func (m *mockActiveService) GetStudentsCurrentVisits(_ context.Context, _ []int64) (map[int64]*active.Visit, error) {
 	return nil, nil
 }
+func (m *mockActiveService) GetStudentCurrentVisitWithRoom(_ context.Context, _ int64) (*active.Visit, error) {
+	return nil, nil
+}
 func (m *mockActiveService) GetGroupSupervisor(_ context.Context, _ int64) (*active.GroupSupervisor, error) {
 	return nil, nil
 }
@@ -1106,6 +1109,12 @@ func (m *mockActiveService) GetSessionTimeoutInfo(_ context.Context, _ int64) (*
 func (m *mockActiveService) GetActiveGroupsCount(_ context.Context) (int, error) { return 0, nil }
 func (m *mockActiveService) GetTotalVisitsCount(_ context.Context) (int, error)  { return 0, nil }
 func (m *mockActiveService) GetActiveVisitsCount(_ context.Context) (int, error) { return 0, nil }
+func (m *mockActiveService) CountActiveVisitsByRoomID(_ context.Context, _ int64) (int, error) {
+	return 0, nil
+}
+func (m *mockActiveService) CountActiveVisitsByActiveGroupID(_ context.Context, _ int64) (int, error) {
+	return 0, nil
+}
 func (m *mockActiveService) GetRoomUtilization(_ context.Context, _ int64) (float64, error) {
 	return 0, nil
 }
