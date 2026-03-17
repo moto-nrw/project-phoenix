@@ -42,6 +42,26 @@ func (r *SchoolRepository) Create(ctx context.Context, school *platform.School) 
 	return nil
 }
 
+// Update updates an existing school record.
+func (r *SchoolRepository) Update(ctx context.Context, school *platform.School) error {
+	if school == nil {
+		return fmt.Errorf("school cannot be nil")
+	}
+	if err := school.Validate(); err != nil {
+		return err
+	}
+	result, err := base.GetDB(ctx, r.db).NewUpdate().
+		Model(school).
+		ModelTableExpr(schoolTableAlias).
+		Column("organization_id", "name", "slug", "subdomain", "address", "city", "zip", "phone", "email", "active", "settings").
+		Where(`"school".id = ?`, school.ID).
+		Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "update school", Err: err}
+	}
+	return base.AssertRowsAffected(result, 1, "update school")
+}
+
 // FindByID returns a school by its ID.
 func (r *SchoolRepository) FindByID(ctx context.Context, id int64) (*platform.School, error) {
 	school := new(platform.School)

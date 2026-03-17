@@ -73,6 +73,25 @@ func (r *OrganizationRepository) FindBySlug(ctx context.Context, slug string) (*
 	return organization, nil
 }
 
+func (r *OrganizationRepository) Update(ctx context.Context, organization *platform.Organization) error {
+	if organization == nil {
+		return fmt.Errorf("organization cannot be nil")
+	}
+	if err := organization.Validate(); err != nil {
+		return err
+	}
+	result, err := base.GetDB(ctx, r.db).NewUpdate().
+		Model(organization).
+		ModelTableExpr(tablePlatformOrganizationsAlias).
+		Column("name", "slug", "active", "settings").
+		Where(`"organization".id = ?`, organization.ID).
+		Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "update organization", Err: err}
+	}
+	return base.AssertRowsAffected(result, 1, "update organization")
+}
+
 func (r *OrganizationRepository) List(ctx context.Context) ([]*platform.Organization, error) {
 	var organizations []*platform.Organization
 	err := base.GetDB(ctx, r.db).NewSelect().

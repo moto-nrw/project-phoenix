@@ -81,11 +81,13 @@ func (rs *Resource) Router() chi.Router {
 		r.Route("/organizations", func(r chi.Router) {
 			r.Get("/", rs.provisioningResource.ListOrganizations)
 			r.Post("/", rs.provisioningResource.CreateOrganization)
+			r.Put("/{id}", rs.provisioningResource.UpdateOrganization)
 		})
 
 		r.Route("/schools", func(r chi.Router) {
 			r.Get("/", rs.provisioningResource.ListSchools)
 			r.Post("/", rs.provisioningResource.CreateSchool)
+			r.Put("/{id}", rs.provisioningResource.UpdateSchool)
 			r.Post("/{id}/invite-admin", rs.provisioningResource.InviteSchoolAdmin)
 		})
 
