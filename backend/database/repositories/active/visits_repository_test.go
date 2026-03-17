@@ -1070,10 +1070,10 @@ func TestVisitRepository_EndVisitsByActiveGroupIDs(t *testing.T) {
 			testpkg.CleanupTableRecords(t, db, "active.visits", visit2.ID)
 		}()
 
-		// End visits for both groups
+		// End visits for both groups — expect count of 2 affected
 		ended, err := repo.EndVisitsByActiveGroupIDs(ctx, []int64{data.ActiveGroup.ID, secondGroup.ID})
 		require.NoError(t, err)
-		assert.Equal(t, int64(2), ended)
+		assert.Equal(t, int64(2), ended) // affected rows count
 
 		// Verify visits are ended
 		found1, err := repo.FindByID(ctx, visit1.ID)
@@ -1118,7 +1118,7 @@ func TestVisitRepository_EndVisitsByActiveGroupIDs(t *testing.T) {
 		// Should only end the active visit
 		ended, err := repo.EndVisitsByActiveGroupIDs(ctx, []int64{data.ActiveGroup.ID})
 		require.NoError(t, err)
-		assert.Equal(t, int64(1), ended)
+		assert.Equal(t, int64(1), ended) // affected rows count
 	})
 
 	t.Run("returns zero when no active visits exist", func(t *testing.T) {
