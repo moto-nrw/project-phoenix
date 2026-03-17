@@ -184,6 +184,13 @@ export function useGlobalSSE(): SSEHookState {
           scheduleFlush();
           break;
         }
+
+        case "dashboard_counts_changed": {
+          // Global event from BroadcastToAll — refresh dashboard counts
+          hasPendingActivityEvent.current = true;
+          scheduleFlush();
+          break;
+        }
       }
     },
     [scheduleFlush],

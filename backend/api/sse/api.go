@@ -61,13 +61,8 @@ func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Step 5: Run appropriate event loop based on subscription state
-	if len(topics.allTopics) == 0 {
-		conn.runHeartbeatOnlyLoop(ctx)
-		return
-	}
-
-	// Step 6: Register client and run main event loop
+	// Step 5: Register every authenticated client (even zero-topic ones
+	// need BroadcastToAll events for dashboard count refreshes).
 	rs.createAndRegisterClient(conn)
 	rs.runEventLoop(ctx, conn)
 }
