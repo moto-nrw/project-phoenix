@@ -2,7 +2,6 @@ package active_test
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"sync"
 	"testing"
@@ -163,7 +162,7 @@ func TestBroadcast_EndActivitySessionSendsDashboardCounts(t *testing.T) {
 	found := false
 	for _, call := range calls {
 		if call.Type == realtime.EventDashboardCountsChanged {
-			assert.Equal(t, fmt.Sprintf("%d", session.ID), call.ActiveGroupID)
+			assert.Empty(t, call.ActiveGroupID, "global events should not leak group IDs")
 			found = true
 		}
 	}

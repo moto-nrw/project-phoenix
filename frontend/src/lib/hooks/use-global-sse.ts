@@ -56,6 +56,7 @@ export function useGlobalSSE(): SSEHookState {
   const pendingGroupIds = useRef(new Set<string>());
   const pendingStudentIds = useRef(new Set<string>());
   const hasPendingActivityEvent = useRef(false);
+  const hasPendingDashboardEvent = useRef(false);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const flushInvalidations = useCallback(() => {
@@ -110,7 +111,8 @@ export function useGlobalSSE(): SSEHookState {
     if (
       pendingGroupIds.current.size > 0 ||
       pendingStudentIds.current.size > 0 ||
-      hasPendingActivityEvent.current
+      hasPendingActivityEvent.current ||
+      hasPendingDashboardEvent.current
     ) {
       mutate(
         (key) =>
@@ -149,6 +151,7 @@ export function useGlobalSSE(): SSEHookState {
     pendingGroupIds.current.clear();
     pendingStudentIds.current.clear();
     hasPendingActivityEvent.current = false;
+    hasPendingDashboardEvent.current = false;
   }, []);
 
   const scheduleFlush = useCallback(() => {
@@ -186,8 +189,9 @@ export function useGlobalSSE(): SSEHookState {
         }
 
         case "dashboard_counts_changed": {
-          // Global event from BroadcastToAll — refresh dashboard counts
-          hasPendingActivityEvent.current = true;
+          // Global event from BroadcastToAll — only refresh dashboard counts,
+          // NOT room/supervision/active caches (those are for activity events).
+          hasPendingDashboardEvent.current = true;
           scheduleFlush();
           break;
         }
