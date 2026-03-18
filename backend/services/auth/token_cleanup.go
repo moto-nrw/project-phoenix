@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 // Token Management
@@ -88,15 +89,24 @@ func (s *Service) logAuthEvent(ctx context.Context, accountID int64, eventType s
 
 	// Log asynchronously to avoid blocking auth operations
 	go func() {
-		// Create a fresh context with tenant info only (no stale tx from parent)
+		if tenantID == 0 {
+			s.getLogger().Warn("skipping auth event logging: no tenant context",
+				"account_id", accountID,
+				"event_type", eventType,
+			)
+			return
+		}
+
 		logCtx, cancel := context.WithTimeout(
 			tenant.WithTenantID(context.Background(), tenantID),
 			5*time.Second,
 		)
 		defer cancel()
 
-		if err := s.repos.AuthEvent.Create(logCtx, event); err != nil {
-			// Log the error but don't fail the auth operation
+		err := tenant.WithTenantTx(logCtx, s.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+			return s.repos.AuthEvent.Create(ctx, event)
+		})
+		if err != nil {
 			s.getLogger().Error("failed to log auth event", "error", err)
 		}
 	}()
