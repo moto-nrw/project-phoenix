@@ -765,8 +765,24 @@ function OGSGroupPageContent() {
   const sortedStudents = useMemo(() => {
     const sorted = [...filteredStudents];
 
+    const compareByName = (a: Student, b: Student) => {
+      const lastCmp = (a.second_name ?? "").localeCompare(
+        b.second_name ?? "",
+        "de",
+      );
+      if (lastCmp !== 0) return lastCmp;
+      return (a.first_name ?? "").localeCompare(b.first_name ?? "", "de");
+    };
+
     if (sortMode === "pickup") {
-      // Pickup sort: anwesend mit Abholzeit (nach Zeit) → anwesend ohne Abholzeit → zuhause
+      // Urgency rank: overdue (0) → soon (1) → normal (2) → none/no time (3) → zuhause (4)
+      const urgencyRank: Record<string, number> = {
+        overdue: 0,
+        soon: 1,
+        normal: 2,
+        none: 3,
+      };
+
       return sorted.sort((a, b) => {
         const aHome = isHomeLocation(a.current_location);
         const bHome = isHomeLocation(b.current_location);
@@ -774,31 +790,32 @@ function OGSGroupPageContent() {
         // Zuhause immer ganz unten
         if (aHome && !bHome) return 1;
         if (!aHome && bHome) return -1;
-        if (aHome && bHome) return 0;
+        if (aHome && bHome) return compareByName(a, b);
 
-        // Beide anwesend: nach Abholzeit sortieren
+        // Beide anwesend: nach Urgency-Gruppe sortieren
         const timeA = pickupTimes.get(a.id.toString())?.pickupTime;
         const timeB = pickupTimes.get(b.id.toString())?.pickupTime;
+        const urgencyA = getPickupUrgency(timeA, now);
+        const urgencyB = getPickupUrgency(timeB, now);
+        const rankA = urgencyRank[urgencyA] ?? 3;
+        const rankB = urgencyRank[urgencyB] ?? 3;
 
-        // Ohne Abholzeit nach den mit Abholzeit
-        if (!timeA && !timeB) return 0;
-        if (!timeA) return 1;
-        if (!timeB) return -1;
+        // Verschiedene Urgency-Gruppen: überzogen zuerst
+        if (rankA !== rankB) return rankA - rankB;
 
-        return timeA.localeCompare(timeB);
+        // Gleiche Urgency-Gruppe: nach Abholzeit, dann Name
+        if (timeA && timeB) {
+          const timeCmp = timeA.localeCompare(timeB);
+          if (timeCmp !== 0) return timeCmp;
+        }
+
+        return compareByName(a, b);
       });
     }
 
     // Alphabetisch (Standard): Nachname, dann Vorname
-    return sorted.sort((a, b) => {
-      const lastCmp = (a.second_name ?? "").localeCompare(
-        b.second_name ?? "",
-        "de",
-      );
-      if (lastCmp !== 0) return lastCmp;
-      return (a.first_name ?? "").localeCompare(b.first_name ?? "", "de");
-    });
-  }, [filteredStudents, sortMode, pickupTimes]);
+    return sorted.sort(compareByName);
+  }, [filteredStudents, sortMode, pickupTimes, now]);
 
   const getCardGradient = useCallback(
     (student: Student) => {
