@@ -602,12 +602,18 @@ export const authConfig = {
     // On localhost, Chrome 120+ accepts domain="localhost" (no dot prefix) for
     // cross-subdomain sharing (school-a.localhost:3000 ↔ school-b.localhost:3000).
     ...(() => {
-      const tenantCookieDomain = process.env.TENANT_DOMAIN
-        ? process.env.TENANT_DOMAIN === "localhost"
-          ? "localhost"
-          : `.${process.env.TENANT_DOMAIN}`
-        : undefined;
-      return tenantCookieDomain
+      const isLocalhost =
+        !process.env.TENANT_DOMAIN || process.env.TENANT_DOMAIN === "localhost";
+      // Production: .moto-app.de — cross-subdomain sharing works on real domains.
+      // Localhost: omit domain entirely — browsers handle domain=localhost
+      // inconsistently for subdomains (school-a.localhost). Host-only cookies
+      // work reliably per-subdomain. Trade-off: tenant switching on localhost
+      // requires re-login (acceptable for development).
+      const cookieDomain =
+        isLocalhost || !process.env.TENANT_DOMAIN
+          ? undefined
+          : `.${process.env.TENANT_DOMAIN}`;
+      return cookieDomain !== undefined
         ? {
             sessionToken: {
               name: "next-auth.session-token",
@@ -615,7 +621,7 @@ export const authConfig = {
                 httpOnly: true,
                 sameSite: "lax" as const,
                 path: "/",
-                domain: tenantCookieDomain,
+                domain: cookieDomain,
                 secure: process.env.NODE_ENV === "production",
               },
             },
@@ -624,7 +630,7 @@ export const authConfig = {
               options: {
                 sameSite: "lax" as const,
                 path: "/",
-                domain: tenantCookieDomain,
+                domain: cookieDomain,
                 secure: process.env.NODE_ENV === "production",
               },
             },
@@ -634,7 +640,7 @@ export const authConfig = {
                 httpOnly: true,
                 sameSite: "lax" as const,
                 path: "/",
-                domain: tenantCookieDomain,
+                domain: cookieDomain,
                 secure: process.env.NODE_ENV === "production",
               },
             },
