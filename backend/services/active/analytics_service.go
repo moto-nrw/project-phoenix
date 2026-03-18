@@ -183,11 +183,11 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	groupData := s.buildEducationGroupMaps(baseData.allEducationGroups, studentsWithGroups)
 
 	// Phase 6: Process active groups and calculate group metrics
-	activeGroupsCount, uniqueStudentsInRoomsOverall := processActiveGroups(
-		baseData.activeGroups, baseData.visitsByGroupID, roomData,
+	activeGroupsCount, ogsGroupsCount, uniqueStudentsInRoomsOverall := processActiveGroups(
+		baseData.activeGroups, baseData.visitsByGroupID, baseData.educationGroupsByID, roomData,
 	)
 	analytics.ActiveActivities = activeGroupsCount
-	analytics.ActiveOGSGroups = activeGroupsCount
+	analytics.ActiveOGSGroups = ogsGroupsCount
 	analytics.FreeRooms = analytics.TotalRooms - len(roomData.occupiedRooms)
 
 	// Phase 7: Calculate capacity utilization
@@ -202,10 +202,10 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	analytics.StudentsInGroupRooms = locationData.studentsInGroupRooms
 	analytics.StudentsInHomeRoom = locationData.studentsInHomeRoom
 
-	// Phase 9: Build summary lists (using pre-loaded activity groups map for O(1) name lookups)
-	analytics.RecentActivity = buildRecentActivity(baseData.activeGroups, baseData.activityGroupsByID, roomData)
+	// Phase 9: Build summary lists (using pre-loaded maps for O(1) name lookups)
+	analytics.RecentActivity = buildRecentActivity(baseData.activeGroups, baseData.activityGroupsByID, baseData.educationGroupsByID, roomData)
 	analytics.CurrentActivities = buildCurrentActivities(baseData.allActivityGroups, baseData.activeGroups, roomData)
-	analytics.ActiveGroupsSummary = buildActiveGroupsSummary(baseData.activeGroups, baseData.activityGroupsByID, roomData)
+	analytics.ActiveGroupsSummary = buildActiveGroupsSummary(baseData.activeGroups, baseData.activityGroupsByID, baseData.educationGroupsByID, roomData)
 
 	return analytics, nil
 }

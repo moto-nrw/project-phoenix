@@ -22,6 +22,7 @@ type dashboardBaseData struct {
 	allEducationGroups       []*educationModels.Group
 	allActivityGroups        []*activitiesModels.Group
 	activityGroupsByID       map[int64]*activitiesModels.Group
+	educationGroupsByID      map[int64]*educationModels.Group
 	activityCategories       int
 	supervisorsToday         int
 	visitsByGroupID          map[int64][]*active.Visit
@@ -60,6 +61,7 @@ func (s *service) fetchDashboardBaseData(ctx context.Context, today time.Time) (
 		studentsPresent:          make(map[int64]bool),
 		visitsByGroupID:          make(map[int64][]*active.Visit),
 		activityGroupsByID:       make(map[int64]*activitiesModels.Group),
+		educationGroupsByID:      make(map[int64]*educationModels.Group),
 	}
 
 	// Get active visits
@@ -115,6 +117,9 @@ func (s *service) fetchDashboardBaseData(ctx context.Context, today time.Time) (
 		return nil, err
 	}
 	data.allEducationGroups = allEducationGroups
+	for _, eg := range allEducationGroups {
+		data.educationGroupsByID[eg.ID] = eg
+	}
 
 	// Get activity groups (loaded once, used by name resolution and current activities).
 	// Non-critical: if this fails, dashboard still shows core metrics with fallback names.
@@ -238,8 +243,10 @@ func buildGroupToRoomLookup(allEducationGroups []*educationModels.Group) map[int
 	return lookup
 }
 
-// processActiveGroups calculates metrics from active groups
-func processActiveGroups(activeGroups []*active.Group, visitsByGroupID map[int64][]*active.Visit, roomData *dashboardRoomData) (int, map[int64]struct{}) {
+// processActiveGroups calculates metrics from active groups.
+// Returns total active count, OGS-only count, and unique students in rooms.
+func processActiveGroups(activeGroups []*active.Group, visitsByGroupID map[int64][]*active.Visit, educationGroupsByID map[int64]*educationModels.Group, roomData *dashboardRoomData) (int, int, map[int64]struct{}) {
+	ogsGroupsCount := 0
 	uniqueStudentsInRoomsOverall := make(map[int64]struct{})
 
 	for _, group := range activeGroups {
@@ -257,9 +264,14 @@ func processActiveGroups(activeGroups []*active.Group, visitsByGroupID map[int64
 				uniqueStudentsInRoomsOverall[visit.StudentID] = struct{}{}
 			}
 		}
+
+		// Check if this is an OGS/education group
+		if _, isOGS := educationGroupsByID[group.GroupID]; isOGS {
+			ogsGroupsCount++
+		}
 	}
 
-	return len(activeGroups), uniqueStudentsInRoomsOverall
+	return len(activeGroups), ogsGroupsCount, uniqueStudentsInRoomsOverall
 }
 
 // isPlaygroundRoom checks if a room is a playground/outdoor area
@@ -355,7 +367,7 @@ func buildActiveGroupRoomLookup(activeGroups []*active.Group, roomData *dashboar
 }
 
 // buildRecentActivity builds the recent activity list
-func buildRecentActivity(activeGroups []*active.Group, activityGroupsByID map[int64]*activitiesModels.Group, roomData *dashboardRoomData) []RecentActivity {
+func buildRecentActivity(activeGroups []*active.Group, activityGroupsByID map[int64]*activitiesModels.Group, educationGroupsByID map[int64]*educationModels.Group, roomData *dashboardRoomData) []RecentActivity {
 	recentActivity := []RecentActivity{}
 
 	for _, group := range activeGroups {
@@ -367,7 +379,7 @@ func buildRecentActivity(activeGroups []*active.Group, activityGroupsByID map[in
 			continue
 		}
 
-		groupName := resolveGroupName(group.GroupID, activityGroupsByID)
+		groupName := resolveGroupName(group.GroupID, activityGroupsByID, educationGroupsByID)
 		roomName := resolveRoomName(group.RoomID, roomData.roomByID)
 
 		// Count unique students
@@ -449,7 +461,7 @@ func determineActivityStatus(participants, maxCapacity int) string {
 }
 
 // buildActiveGroupsSummary builds the active groups summary list
-func buildActiveGroupsSummary(activeGroups []*active.Group, activityGroupsByID map[int64]*activitiesModels.Group, roomData *dashboardRoomData) []ActiveGroupInfo {
+func buildActiveGroupsSummary(activeGroups []*active.Group, activityGroupsByID map[int64]*activitiesModels.Group, educationGroupsByID map[int64]*educationModels.Group, roomData *dashboardRoomData) []ActiveGroupInfo {
 	summary := []ActiveGroupInfo{}
 
 	for _, group := range activeGroups {
@@ -460,7 +472,7 @@ func buildActiveGroupsSummary(activeGroups []*active.Group, activityGroupsByID m
 			continue
 		}
 
-		groupName := resolveGroupName(group.GroupID, activityGroupsByID)
+		groupName, groupType := resolveGroupNameAndType(group.GroupID, activityGroupsByID, educationGroupsByID)
 		location := resolveRoomName(group.RoomID, roomData.roomByID)
 
 		studentCount := 0
@@ -470,7 +482,7 @@ func buildActiveGroupsSummary(activeGroups []*active.Group, activityGroupsByID m
 
 		groupInfo := ActiveGroupInfo{
 			Name:         groupName,
-			Type:         "activity",
+			Type:         groupType,
 			StudentCount: studentCount,
 			Location:     location,
 			Status:       "active",
@@ -481,12 +493,27 @@ func buildActiveGroupsSummary(activeGroups []*active.Group, activityGroupsByID m
 	return summary
 }
 
-// resolveGroupName gets the display name for a group via the pre-loaded activity groups map.
-func resolveGroupName(groupID int64, activityGroupsByID map[int64]*activitiesModels.Group) string {
+// resolveGroupName gets the display name for a group via pre-loaded maps.
+func resolveGroupName(groupID int64, activityGroupsByID map[int64]*activitiesModels.Group, educationGroupsByID map[int64]*educationModels.Group) string {
 	if ag, ok := activityGroupsByID[groupID]; ok {
 		return ag.Name
 	}
+	if eg, ok := educationGroupsByID[groupID]; ok {
+		return eg.Name
+	}
 	return fmt.Sprintf("Gruppe %d", groupID)
+}
+
+// resolveGroupNameAndType gets the display name and type for a group.
+// Education/OGS groups are checked first since they need the "ogs_group" type.
+func resolveGroupNameAndType(groupID int64, activityGroupsByID map[int64]*activitiesModels.Group, educationGroupsByID map[int64]*educationModels.Group) (string, string) {
+	if eg, ok := educationGroupsByID[groupID]; ok {
+		return eg.Name, "ogs_group"
+	}
+	if ag, ok := activityGroupsByID[groupID]; ok {
+		return ag.Name, "activity"
+	}
+	return fmt.Sprintf("Gruppe %d", groupID), "activity"
 }
 
 // resolveRoomName gets the display name for a room
