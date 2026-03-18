@@ -95,13 +95,8 @@ const mockDashboardData = {
   ],
 };
 
-vi.mock("~/lib/fetch-with-auth", () => ({
-  fetchWithAuth: vi.fn(() =>
-    Promise.resolve({
-      ok: true,
-      json: () => Promise.resolve({ data: mockDashboardData }),
-    }),
-  ),
+vi.mock("~/lib/swr/hooks", () => ({
+  useSWRAuth: vi.fn(),
 }));
 
 vi.mock("~/lib/dashboard-helpers", () => ({
@@ -118,7 +113,21 @@ vi.mock("~/lib/dashboard-helpers", () => ({
 
 import { useSession } from "next-auth/react";
 import { isAdmin } from "~/lib/auth-utils";
-import { fetchWithAuth } from "~/lib/fetch-with-auth";
+import { useSWRAuth } from "~/lib/swr/hooks";
+
+// Helper to create SWR mock return values
+function mockSWR(
+  data: typeof mockDashboardData | undefined,
+  options?: { isLoading?: boolean; error?: Error | null },
+) {
+  return {
+    data,
+    isLoading: options?.isLoading ?? false,
+    error: options?.error ?? undefined,
+    mutate: vi.fn(),
+    isValidating: false,
+  };
+}
 
 describe("DashboardPage", () => {
   beforeEach(() => {
@@ -129,10 +138,7 @@ describe("DashboardPage", () => {
       update: vi.fn(),
     });
     vi.mocked(isAdmin).mockReturnValue(true);
-    vi.mocked(fetchWithAuth).mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ data: mockDashboardData }),
-    } as Response);
+    vi.mocked(useSWRAuth).mockReturnValue(mockSWR(mockDashboardData));
   });
 
   it("renders dashboard for admin user", async () => {
@@ -238,11 +244,9 @@ describe("DashboardPage", () => {
   });
 
   it("shows error message when fetch fails", async () => {
-    vi.mocked(fetchWithAuth).mockResolvedValue({
-      ok: false,
-      status: 500,
-      json: () => Promise.resolve({ error: "Server Error" }),
-    } as Response);
+    vi.mocked(useSWRAuth).mockReturnValue(
+      mockSWR(undefined, { error: new Error("fetch failed") }),
+    );
 
     render(<DashboardPage />);
 
@@ -347,21 +351,17 @@ describe("DashboardContent rendering states", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(isAdmin).mockReturnValue(true);
-  });
-
-  it("shows empty state for recent activity when no data", async () => {
-    vi.mocked(fetchWithAuth).mockResolvedValue({
-      ok: true,
-      json: () =>
-        Promise.resolve({
-          data: { ...mockDashboardData, recentActivity: [] },
-        }),
-    } as Response);
     vi.mocked(useSession).mockReturnValue({
       data: mockSession,
       status: "authenticated",
       update: vi.fn(),
     });
+  });
+
+  it("shows empty state for recent activity when no data", async () => {
+    vi.mocked(useSWRAuth).mockReturnValue(
+      mockSWR({ ...mockDashboardData, recentActivity: [] }),
+    );
 
     render(<DashboardPage />);
 
@@ -373,18 +373,9 @@ describe("DashboardContent rendering states", () => {
   });
 
   it("shows empty state for current activities when no data", async () => {
-    vi.mocked(fetchWithAuth).mockResolvedValue({
-      ok: true,
-      json: () =>
-        Promise.resolve({
-          data: { ...mockDashboardData, currentActivities: [] },
-        }),
-    } as Response);
-    vi.mocked(useSession).mockReturnValue({
-      data: mockSession,
-      status: "authenticated",
-      update: vi.fn(),
-    });
+    vi.mocked(useSWRAuth).mockReturnValue(
+      mockSWR({ ...mockDashboardData, currentActivities: [] }),
+    );
 
     render(<DashboardPage />);
 
@@ -396,18 +387,9 @@ describe("DashboardContent rendering states", () => {
   });
 
   it("shows empty state for active groups when no data", async () => {
-    vi.mocked(fetchWithAuth).mockResolvedValue({
-      ok: true,
-      json: () =>
-        Promise.resolve({
-          data: { ...mockDashboardData, activeGroupsSummary: [] },
-        }),
-    } as Response);
-    vi.mocked(useSession).mockReturnValue({
-      data: mockSession,
-      status: "authenticated",
-      update: vi.fn(),
-    });
+    vi.mocked(useSWRAuth).mockReturnValue(
+      mockSWR({ ...mockDashboardData, activeGroupsSummary: [] }),
+    );
 
     render(<DashboardPage />);
 
@@ -417,18 +399,7 @@ describe("DashboardContent rendering states", () => {
   });
 
   it("displays student ratio when supervisors are present", async () => {
-    vi.mocked(fetchWithAuth).mockResolvedValue({
-      ok: true,
-      json: () =>
-        Promise.resolve({
-          data: mockDashboardData,
-        }),
-    } as Response);
-    vi.mocked(useSession).mockReturnValue({
-      data: mockSession,
-      status: "authenticated",
-      update: vi.fn(),
-    });
+    vi.mocked(useSWRAuth).mockReturnValue(mockSWR(mockDashboardData));
 
     render(<DashboardPage />);
 
@@ -447,6 +418,7 @@ describe("DashboardContent rendering states", () => {
       status: "authenticated",
       update: vi.fn(),
     });
+    vi.mocked(useSWRAuth).mockReturnValue(mockSWR(mockDashboardData));
 
     render(<DashboardPage />);
 
@@ -457,18 +429,9 @@ describe("DashboardContent rendering states", () => {
   });
 
   it("shows dash for student ratio when no supervisors", async () => {
-    vi.mocked(fetchWithAuth).mockResolvedValue({
-      ok: true,
-      json: () =>
-        Promise.resolve({
-          data: { ...mockDashboardData, supervisorsToday: 0 },
-        }),
-    } as Response);
-    vi.mocked(useSession).mockReturnValue({
-      data: mockSession,
-      status: "authenticated",
-      update: vi.fn(),
-    });
+    vi.mocked(useSWRAuth).mockReturnValue(
+      mockSWR({ ...mockDashboardData, supervisorsToday: 0 }),
+    );
 
     render(<DashboardPage />);
 
@@ -478,18 +441,9 @@ describe("DashboardContent rendering states", () => {
   });
 
   it("shows dash for student ratio when no students present", async () => {
-    vi.mocked(fetchWithAuth).mockResolvedValue({
-      ok: true,
-      json: () =>
-        Promise.resolve({
-          data: { ...mockDashboardData, studentsPresent: 0 },
-        }),
-    } as Response);
-    vi.mocked(useSession).mockReturnValue({
-      data: mockSession,
-      status: "authenticated",
-      update: vi.fn(),
-    });
+    vi.mocked(useSWRAuth).mockReturnValue(
+      mockSWR({ ...mockDashboardData, studentsPresent: 0 }),
+    );
 
     render(<DashboardPage />);
 
@@ -516,18 +470,9 @@ describe("DashboardContent rendering states", () => {
       },
     ];
 
-    vi.mocked(fetchWithAuth).mockResolvedValue({
-      ok: true,
-      json: () =>
-        Promise.resolve({
-          data: { ...mockDashboardData, recentActivity: multipleActivities },
-        }),
-    } as Response);
-    vi.mocked(useSession).mockReturnValue({
-      data: mockSession,
-      status: "authenticated",
-      update: vi.fn(),
-    });
+    vi.mocked(useSWRAuth).mockReturnValue(
+      mockSWR({ ...mockDashboardData, recentActivity: multipleActivities }),
+    );
 
     render(<DashboardPage />);
 
@@ -556,21 +501,12 @@ describe("DashboardContent rendering states", () => {
       },
     ];
 
-    vi.mocked(fetchWithAuth).mockResolvedValue({
-      ok: true,
-      json: () =>
-        Promise.resolve({
-          data: {
-            ...mockDashboardData,
-            currentActivities: multipleCurrentActivities,
-          },
-        }),
-    } as Response);
-    vi.mocked(useSession).mockReturnValue({
-      data: mockSession,
-      status: "authenticated",
-      update: vi.fn(),
-    });
+    vi.mocked(useSWRAuth).mockReturnValue(
+      mockSWR({
+        ...mockDashboardData,
+        currentActivities: multipleCurrentActivities,
+      }),
+    );
 
     render(<DashboardPage />);
 
@@ -599,18 +535,9 @@ describe("DashboardContent rendering states", () => {
       },
     ];
 
-    vi.mocked(fetchWithAuth).mockResolvedValue({
-      ok: true,
-      json: () =>
-        Promise.resolve({
-          data: { ...mockDashboardData, activeGroupsSummary: multipleGroups },
-        }),
-    } as Response);
-    vi.mocked(useSession).mockReturnValue({
-      data: mockSession,
-      status: "authenticated",
-      update: vi.fn(),
-    });
+    vi.mocked(useSWRAuth).mockReturnValue(
+      mockSWR({ ...mockDashboardData, activeGroupsSummary: multipleGroups }),
+    );
 
     render(<DashboardPage />);
 
@@ -630,6 +557,7 @@ describe("DashboardContent rendering states", () => {
       status: "authenticated",
       update: vi.fn(),
     });
+    vi.mocked(useSWRAuth).mockReturnValue(mockSWR(mockDashboardData));
 
     render(<DashboardPage />);
 
@@ -651,10 +579,7 @@ describe("StatCard component behavior", () => {
   });
 
   it("renders stat cards as links when href is provided", async () => {
-    vi.mocked(fetchWithAuth).mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ data: mockDashboardData }),
-    } as Response);
+    vi.mocked(useSWRAuth).mockReturnValue(mockSWR(mockDashboardData));
 
     render(<DashboardPage />);
 
@@ -668,10 +593,8 @@ describe("StatCard component behavior", () => {
   });
 
   it("renders stat cards with loading state showing dots", async () => {
-    // Keep the mock response pending
-    vi.mocked(fetchWithAuth).mockImplementation(
-      // eslint-disable-next-line @typescript-eslint/no-empty-function
-      () => new Promise(() => {}), // Never resolves
+    vi.mocked(useSWRAuth).mockReturnValue(
+      mockSWR(undefined, { isLoading: true }),
     );
 
     render(<DashboardPage />);
@@ -693,10 +616,7 @@ describe("InfoCard component behavior", () => {
       status: "authenticated",
       update: vi.fn(),
     });
-    vi.mocked(fetchWithAuth).mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ data: mockDashboardData }),
-    } as Response);
+    vi.mocked(useSWRAuth).mockReturnValue(mockSWR(mockDashboardData));
   });
 
   it("renders info cards as links when href is provided", async () => {

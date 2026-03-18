@@ -1,7 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { fetchDashboardAnalytics } from "./dashboard-api";
+import {
+  fetchDashboardAnalytics,
+  fetchDashboardAnalyticsClient,
+} from "./dashboard-api";
 import { apiGet } from "./api-helpers";
 import { mapDashboardAnalyticsResponse } from "./dashboard-helpers";
+import { fetchWithAuth } from "./fetch-with-auth";
 
 vi.mock("./api-helpers", () => ({
   apiGet: vi.fn(),
@@ -12,6 +16,10 @@ vi.mock("./dashboard-helpers", () => ({
     ...(data as Record<string, unknown>),
     mapped: true,
   })),
+}));
+
+vi.mock("./fetch-with-auth", () => ({
+  fetchWithAuth: vi.fn(),
 }));
 
 describe("fetchDashboardAnalytics", () => {
@@ -154,5 +162,53 @@ describe("fetchDashboardAnalytics", () => {
 
     expect(mapDashboardAnalyticsResponse).toHaveBeenCalledWith(expectedData);
     expect(mapDashboardAnalyticsResponse).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("fetchDashboardAnalyticsClient", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("successfully fetches and returns dashboard analytics data", async () => {
+    const mockData = {
+      studentsPresent: 42,
+      studentsInRooms: 30,
+      studentsInTransit: 12,
+    };
+
+    vi.mocked(fetchWithAuth).mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ data: mockData }),
+    } as Response);
+
+    const result = await fetchDashboardAnalyticsClient();
+
+    expect(fetchWithAuth).toHaveBeenCalledWith("/api/dashboard/analytics");
+    expect(result).toEqual(mockData);
+  });
+
+  it("throws error when response is not ok", async () => {
+    vi.mocked(fetchWithAuth).mockResolvedValue({
+      ok: false,
+      status: 500,
+    } as Response);
+
+    await expect(fetchDashboardAnalyticsClient()).rejects.toThrow(
+      "Dashboard API request failed: 500",
+    );
+  });
+
+  it("extracts data property from JSON response", async () => {
+    const innerData = { studentsPresent: 100, freeRooms: 5 };
+
+    vi.mocked(fetchWithAuth).mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ data: innerData }),
+    } as Response);
+
+    const result = await fetchDashboardAnalyticsClient();
+
+    expect(result).toEqual(innerData);
   });
 });
