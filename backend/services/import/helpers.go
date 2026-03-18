@@ -131,6 +131,17 @@ func MapStudentRow(mapper *ColumnMapper) (importModels.StudentImportRow, error) 
 		// Parse flexible phone numbers into PhoneNumbers array
 		guardian.PhoneNumbers = ParseGuardianPhoneNumbers(guardianNum, mapper.GetRawCol)
 
+		// Guardian profile fields (address, professional, preferences)
+		guardian.AddressStreet = mapper.GetCol(fmt.Sprintf("erz%d.straße", guardianNum))
+		guardian.AddressCity = mapper.GetCol(fmt.Sprintf("erz%d.stadt", guardianNum))
+		guardian.AddressPostalCode = mapper.GetCol(fmt.Sprintf("erz%d.plz", guardianNum))
+		guardian.Occupation = mapper.GetCol(fmt.Sprintf("erz%d.beruf", guardianNum))
+		guardian.Employer = mapper.GetCol(fmt.Sprintf("erz%d.arbeitgeber", guardianNum))
+		guardian.Notes = mapper.GetCol(fmt.Sprintf("erz%d.notizen", guardianNum))
+		guardian.LanguagePreference = mapper.GetCol(fmt.Sprintf("erz%d.sprache", guardianNum))
+		guardian.PreferredContactMethod = parseContactMethod(mapper.GetCol(fmt.Sprintf("erz%d.kontaktart", guardianNum)))
+		guardian.EmergencyPriority = parseEmergencyPriority(mapper.GetCol(fmt.Sprintf("erz%d.notfallpriorität", guardianNum)))
+
 		// Only add if has contact info (skip empty guardians)
 		hasPhoneNumbers := len(guardian.PhoneNumbers) > 0
 		if guardian.Email != "" || guardian.Phone != "" || guardian.MobilePhone != "" || hasPhoneNumbers {
@@ -140,7 +151,58 @@ func MapStudentRow(mapper *ColumnMapper) (importModels.StudentImportRow, error) 
 		guardianNum++
 	}
 
+	// Parse pickup schedule (Mon-Fri) with per-day notes
+	dayColumns := []struct {
+		key      string
+		notesKey string
+		weekday  int
+	}{
+		{"abholung.mo", "abholung.mo.notizen", 1},
+		{"abholung.di", "abholung.di.notizen", 2},
+		{"abholung.mi", "abholung.mi.notizen", 3},
+		{"abholung.do", "abholung.do.notizen", 4},
+		{"abholung.fr", "abholung.fr.notizen", 5},
+	}
+	for _, d := range dayColumns {
+		timeStr := mapper.GetCol(d.key)
+		notes := mapper.GetCol(d.notesKey)
+		if timeStr != "" {
+			row.PickupSchedules = append(row.PickupSchedules, importModels.PickupScheduleImportData{
+				Weekday:    d.weekday,
+				PickupTime: timeStr,
+				Notes:      notes,
+			})
+		}
+	}
+
 	return row, nil
+}
+
+// parseEmergencyPriority parses an emergency priority value, defaulting to 0 on failure
+func parseEmergencyPriority(val string) int {
+	if val == "" {
+		return 0
+	}
+	priority, err := strconv.Atoi(val)
+	if err != nil {
+		return 0
+	}
+	return priority
+}
+
+// parseContactMethod validates and returns a preferred contact method
+func parseContactMethod(val string) string {
+	normalized := strings.ToLower(strings.TrimSpace(val))
+	validMethods := map[string]bool{
+		"email":  true,
+		"phone":  true,
+		"mobile": true,
+		"sms":    true,
+	}
+	if validMethods[normalized] {
+		return normalized
+	}
+	return ""
 }
 
 // PhoneMapping defines a phone column mapping

@@ -445,6 +445,622 @@ func TestStudentImportConfig_ValidateGuardian_PhoneFormats(t *testing.T) {
 }
 
 // ============================================================================
+// PreferredContactMethod Validation Tests
+// ============================================================================
+
+func TestStudentImportConfig_Validate_PreferredContactMethod(t *testing.T) {
+	config := &StudentImportConfig{
+		resolver: &RelationshipResolver{
+			groupCache: make(map[string]*education.Group),
+		},
+	}
+
+	tests := []struct {
+		name      string
+		method    string
+		wantError bool
+	}{
+		{"valid email", "email", false},
+		{"valid phone", "phone", false},
+		{"valid mobile", "mobile", false},
+		{"valid sms", "sms", false},
+		{"empty is ok", "", false},
+		{"invalid fax", "fax", true},
+		{"invalid whatsapp", "whatsapp", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			row := importModels.StudentImportRow{
+				FirstName:   "Max",
+				LastName:    "Mustermann",
+				SchoolClass: "1A",
+				Guardians: []importModels.GuardianImportData{
+					{
+						Email:                  "test@example.com",
+						PreferredContactMethod: tt.method,
+					},
+				},
+				DataRetentionDays: 30,
+			}
+
+			errors := config.Validate(context.Background(), &row)
+
+			hasContactMethodError := false
+			for _, err := range errors {
+				if err.Code == "invalid_contact_method" {
+					hasContactMethodError = true
+					break
+				}
+			}
+
+			if tt.wantError {
+				assert.True(t, hasContactMethodError, "Expected contact method error for '%s'", tt.method)
+			} else {
+				assert.False(t, hasContactMethodError, "Unexpected contact method error for '%s'", tt.method)
+			}
+		})
+	}
+}
+
+// ============================================================================
+// Pickup Schedule Validation Tests
+// ============================================================================
+
+func TestStudentImportConfig_Validate_PickupSchedule(t *testing.T) {
+	config := &StudentImportConfig{
+		resolver: &RelationshipResolver{
+			groupCache: make(map[string]*education.Group),
+		},
+	}
+
+	tests := []struct {
+		name      string
+		schedules []importModels.PickupScheduleImportData
+		wantCodes []string
+	}{
+		{
+			name: "valid schedule",
+			schedules: []importModels.PickupScheduleImportData{
+				{Weekday: 1, PickupTime: "16:00"},
+				{Weekday: 5, PickupTime: "14:30"},
+			},
+			wantCodes: nil,
+		},
+		{
+			name: "invalid weekday 0",
+			schedules: []importModels.PickupScheduleImportData{
+				{Weekday: 0, PickupTime: "16:00"},
+			},
+			wantCodes: []string{"invalid_weekday"},
+		},
+		{
+			name: "invalid weekday 6",
+			schedules: []importModels.PickupScheduleImportData{
+				{Weekday: 6, PickupTime: "16:00"},
+			},
+			wantCodes: []string{"invalid_weekday"},
+		},
+		{
+			name: "invalid time format",
+			schedules: []importModels.PickupScheduleImportData{
+				{Weekday: 1, PickupTime: "25:00"},
+			},
+			wantCodes: []string{"invalid_time_format"},
+		},
+		{
+			name: "invalid time text",
+			schedules: []importModels.PickupScheduleImportData{
+				{Weekday: 1, PickupTime: "nachmittags"},
+			},
+			wantCodes: []string{"invalid_time_format"},
+		},
+		{
+			name: "valid edge times",
+			schedules: []importModels.PickupScheduleImportData{
+				{Weekday: 1, PickupTime: "00:00"},
+				{Weekday: 2, PickupTime: "23:59"},
+				{Weekday: 3, PickupTime: "9:30"},
+			},
+			wantCodes: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			row := importModels.StudentImportRow{
+				FirstName:         "Max",
+				LastName:          "Mustermann",
+				SchoolClass:       "1A",
+				PickupSchedules:   tt.schedules,
+				DataRetentionDays: 30,
+			}
+
+			errors := config.Validate(context.Background(), &row)
+
+			for _, expectedCode := range tt.wantCodes {
+				found := false
+				for _, err := range errors {
+					if err.Code == expectedCode {
+						found = true
+						break
+					}
+				}
+				assert.True(t, found, "Expected error code '%s' not found", expectedCode)
+			}
+
+			if tt.wantCodes == nil {
+				for _, err := range errors {
+					if err.Code == "invalid_weekday" || err.Code == "invalid_time_format" {
+						t.Errorf("Unexpected pickup schedule error: %s", err.Message)
+					}
+				}
+			}
+		})
+	}
+}
+
+// ============================================================================
+// isValidTimeFormat Tests
+// ============================================================================
+
+func TestIsValidTimeFormat(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected bool
+	}{
+		{"16:00", true},
+		{"09:30", true},
+		{"9:30", true},
+		{"00:00", true},
+		{"23:59", true},
+		{"25:00", false},
+		{"12:60", false},
+		{"abc", false},
+		{"", false},
+		{"1630", false},
+		{"16:00:00", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			result := isValidTimeFormat(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+// ============================================================================
+// Guardian Profile Helper Tests
+// ============================================================================
+
+func TestGuardianLanguagePreference(t *testing.T) {
+	assert.Equal(t, "de", guardianLanguagePreference(""))
+	assert.Equal(t, "de", guardianLanguagePreference("de"))
+	assert.Equal(t, "en", guardianLanguagePreference("EN"))
+	assert.Equal(t, "tr", guardianLanguagePreference("  TR  "))
+}
+
+func TestGuardianContactMethod(t *testing.T) {
+	assert.Equal(t, "phone", guardianContactMethod(""))
+	assert.Equal(t, "email", guardianContactMethod("email"))
+	assert.Equal(t, "sms", guardianContactMethod("SMS"))
+}
+
+// ============================================================================
+// Combined Validation: Guardian Contact Method + Pickup Schedule
+// ============================================================================
+
+func TestStudentImportConfig_Validate_CombinedGuardianAndPickupErrors(t *testing.T) {
+	config := &StudentImportConfig{
+		resolver: &RelationshipResolver{
+			groupCache: make(map[string]*education.Group),
+		},
+	}
+
+	row := importModels.StudentImportRow{
+		FirstName:   "Max",
+		LastName:    "Mustermann",
+		SchoolClass: "1A",
+		Guardians: []importModels.GuardianImportData{
+			{
+				Email:                  "test@example.com",
+				PreferredContactMethod: "telegram", // Invalid
+			},
+		},
+		PickupSchedules: []importModels.PickupScheduleImportData{
+			{Weekday: 0, PickupTime: "16:00"},  // Invalid weekday
+			{Weekday: 1, PickupTime: "invalid"}, // Invalid time
+		},
+		DataRetentionDays: 30,
+	}
+
+	errors := config.Validate(context.Background(), &row)
+
+	// Should have: invalid_contact_method + invalid_weekday + invalid_time_format + group_empty
+	codeCount := map[string]int{}
+	for _, err := range errors {
+		codeCount[err.Code]++
+	}
+
+	assert.Equal(t, 1, codeCount["invalid_contact_method"], "should have 1 invalid_contact_method error")
+	assert.Equal(t, 1, codeCount["invalid_weekday"], "should have 1 invalid_weekday error")
+	assert.Equal(t, 1, codeCount["invalid_time_format"], "should have 1 invalid_time_format error")
+	assert.Equal(t, 1, codeCount["group_empty"], "should have 1 group_empty info")
+}
+
+func TestStudentImportConfig_Validate_MultipleInvalidPickupSchedules(t *testing.T) {
+	config := &StudentImportConfig{
+		resolver: &RelationshipResolver{
+			groupCache: make(map[string]*education.Group),
+		},
+	}
+
+	row := importModels.StudentImportRow{
+		FirstName:   "Max",
+		LastName:    "Mustermann",
+		SchoolClass: "1A",
+		PickupSchedules: []importModels.PickupScheduleImportData{
+			{Weekday: 0, PickupTime: "16:00"},    // Invalid weekday
+			{Weekday: 6, PickupTime: "15:00"},    // Invalid weekday
+			{Weekday: 7, PickupTime: "14:00"},    // Invalid weekday
+			{Weekday: 1, PickupTime: "25:99"},    // Invalid time
+			{Weekday: 2, PickupTime: "abc"},       // Invalid time
+		},
+		DataRetentionDays: 30,
+	}
+
+	errors := config.Validate(context.Background(), &row)
+
+	weekdayErrors := 0
+	timeErrors := 0
+	for _, err := range errors {
+		if err.Code == "invalid_weekday" {
+			weekdayErrors++
+		}
+		if err.Code == "invalid_time_format" {
+			timeErrors++
+		}
+	}
+
+	assert.Equal(t, 3, weekdayErrors, "should have 3 invalid weekday errors")
+	assert.Equal(t, 2, timeErrors, "should have 2 invalid time errors")
+}
+
+func TestStudentImportConfig_Validate_PickupScheduleEmptyListIsValid(t *testing.T) {
+	config := &StudentImportConfig{
+		resolver: &RelationshipResolver{
+			groupCache: make(map[string]*education.Group),
+		},
+	}
+
+	row := importModels.StudentImportRow{
+		FirstName:         "Max",
+		LastName:          "Mustermann",
+		SchoolClass:       "1A",
+		PickupSchedules:   nil, // No schedules
+		DataRetentionDays: 30,
+	}
+
+	errors := config.Validate(context.Background(), &row)
+
+	// Should only have group_empty info, no pickup errors
+	for _, err := range errors {
+		if err.Code == "invalid_weekday" || err.Code == "invalid_time_format" {
+			t.Errorf("Unexpected pickup schedule error with empty list: %s", err.Message)
+		}
+	}
+}
+
+func TestStudentImportConfig_Validate_PickupScheduleErrorMessages(t *testing.T) {
+	config := &StudentImportConfig{
+		resolver: &RelationshipResolver{
+			groupCache: make(map[string]*education.Group),
+		},
+	}
+
+	t.Run("weekday error message contains weekday number", func(t *testing.T) {
+		row := importModels.StudentImportRow{
+			FirstName:   "Max",
+			LastName:    "Mustermann",
+			SchoolClass: "1A",
+			PickupSchedules: []importModels.PickupScheduleImportData{
+				{Weekday: 8, PickupTime: "16:00"},
+			},
+			DataRetentionDays: 30,
+		}
+
+		errors := config.Validate(context.Background(), &row)
+
+		for _, err := range errors {
+			if err.Code == "invalid_weekday" {
+				assert.Contains(t, err.Message, "8", "error message should contain the invalid weekday")
+				assert.Contains(t, err.Message, "1 (Mo)", "error message should explain valid range")
+				assert.Contains(t, err.Message, "5 (Fr)", "error message should explain valid range")
+			}
+		}
+	})
+
+	t.Run("time error message contains invalid value", func(t *testing.T) {
+		row := importModels.StudentImportRow{
+			FirstName:   "Max",
+			LastName:    "Mustermann",
+			SchoolClass: "1A",
+			PickupSchedules: []importModels.PickupScheduleImportData{
+				{Weekday: 1, PickupTime: "nachmittags"},
+			},
+			DataRetentionDays: 30,
+		}
+
+		errors := config.Validate(context.Background(), &row)
+
+		for _, err := range errors {
+			if err.Code == "invalid_time_format" {
+				assert.Contains(t, err.Message, "nachmittags", "error message should contain the invalid time")
+				assert.Contains(t, err.Message, "HH:MM", "error message should explain correct format")
+			}
+		}
+	})
+}
+
+func TestStudentImportConfig_Validate_ContactMethodErrorMessage(t *testing.T) {
+	config := &StudentImportConfig{
+		resolver: &RelationshipResolver{
+			groupCache: make(map[string]*education.Group),
+		},
+	}
+
+	row := importModels.StudentImportRow{
+		FirstName:   "Max",
+		LastName:    "Mustermann",
+		SchoolClass: "1A",
+		Guardians: []importModels.GuardianImportData{
+			{
+				Email:                  "test@example.com",
+				PreferredContactMethod: "whatsapp",
+			},
+		},
+		DataRetentionDays: 30,
+	}
+
+	errors := config.Validate(context.Background(), &row)
+
+	for _, err := range errors {
+		if err.Code == "invalid_contact_method" {
+			assert.Contains(t, err.Message, "whatsapp", "error message should contain the invalid method")
+			assert.Contains(t, err.Message, "email", "error message should list valid methods")
+			assert.Contains(t, err.Message, "phone", "error message should list valid methods")
+			assert.Contains(t, err.Message, "mobile", "error message should list valid methods")
+			assert.Contains(t, err.Message, "sms", "error message should list valid methods")
+			assert.Equal(t, "guardian_1_preferred_contact_method", err.Field,
+				"error field should contain guardian index")
+		}
+	}
+}
+
+func TestStudentImportConfig_Validate_MultipleGuardiansContactMethodValidation(t *testing.T) {
+	config := &StudentImportConfig{
+		resolver: &RelationshipResolver{
+			groupCache: make(map[string]*education.Group),
+		},
+	}
+
+	row := importModels.StudentImportRow{
+		FirstName:   "Max",
+		LastName:    "Mustermann",
+		SchoolClass: "1A",
+		Guardians: []importModels.GuardianImportData{
+			{Email: "valid@example.com", PreferredContactMethod: "email"},   // Valid
+			{Email: "test@example.com", PreferredContactMethod: "telegram"}, // Invalid
+		},
+		DataRetentionDays: 30,
+	}
+
+	errors := config.Validate(context.Background(), &row)
+
+	contactMethodErrors := 0
+	for _, err := range errors {
+		if err.Code == "invalid_contact_method" {
+			contactMethodErrors++
+			assert.Equal(t, "guardian_2_preferred_contact_method", err.Field,
+				"error should be for guardian 2")
+		}
+	}
+
+	assert.Equal(t, 1, contactMethodErrors, "should only have 1 contact method error (guardian 2)")
+}
+
+// ============================================================================
+// createPickupSchedules nil-repo safety
+// ============================================================================
+
+func TestStudentImportConfig_CreatePickupSchedules_NilRepo(t *testing.T) {
+	config := &StudentImportConfig{
+		pickupScheduleRepo: nil, // No repo
+	}
+
+	schedules := []importModels.PickupScheduleImportData{
+		{Weekday: 1, PickupTime: "16:00"},
+	}
+
+	// Should return nil (no-op) when repo is nil
+	err := config.createPickupSchedules(context.Background(), 123, schedules)
+	assert.NoError(t, err, "should not error when pickupScheduleRepo is nil")
+}
+
+func TestStudentImportConfig_CreatePickupSchedules_EmptySchedules(t *testing.T) {
+	config := &StudentImportConfig{
+		pickupScheduleRepo: nil, // Would panic if called, but shouldn't be
+	}
+
+	// Should return nil (no-op) when schedules is empty
+	err := config.createPickupSchedules(context.Background(), 123, nil)
+	assert.NoError(t, err)
+
+	err = config.createPickupSchedules(context.Background(), 123, []importModels.PickupScheduleImportData{})
+	assert.NoError(t, err)
+}
+
+// ============================================================================
+// Validate: guardian with new fields passes existing validation
+// ============================================================================
+
+func TestStudentImportConfig_Validate_GuardianWithProfileFieldsStillValidatesContact(t *testing.T) {
+	config := &StudentImportConfig{
+		resolver: &RelationshipResolver{
+			groupCache: make(map[string]*education.Group),
+		},
+	}
+
+	// Guardian has profile fields but NO contact info -> should still require contact
+	row := importModels.StudentImportRow{
+		FirstName:   "Max",
+		LastName:    "Mustermann",
+		SchoolClass: "1A",
+		Guardians: []importModels.GuardianImportData{
+			{
+				FirstName:     "Maria",
+				LastName:      "Müller",
+				AddressStreet: "Musterstr. 1",
+				AddressCity:   "Köln",
+				Occupation:    "Lehrerin",
+				// No email, phone, or phone numbers
+			},
+		},
+		DataRetentionDays: 30,
+	}
+
+	errors := config.Validate(context.Background(), &row)
+
+	hasContactRequired := false
+	for _, err := range errors {
+		if err.Code == "guardian_contact_required" {
+			hasContactRequired = true
+			break
+		}
+	}
+
+	assert.True(t, hasContactRequired,
+		"guardian with profile fields but no contact should still require contact info")
+}
+
+// ============================================================================
+// Validate: pickup schedule boundary values
+// ============================================================================
+
+func TestStudentImportConfig_Validate_PickupScheduleBoundaryWeekdays(t *testing.T) {
+	config := &StudentImportConfig{
+		resolver: &RelationshipResolver{
+			groupCache: make(map[string]*education.Group),
+		},
+	}
+
+	tests := []struct {
+		name      string
+		weekday   int
+		wantError bool
+	}{
+		{"weekday -1 invalid", -1, true},
+		{"weekday 0 invalid", 0, true},
+		{"weekday 1 valid (Monday)", 1, false},
+		{"weekday 3 valid (Wednesday)", 3, false},
+		{"weekday 5 valid (Friday)", 5, false},
+		{"weekday 6 invalid (Saturday)", 6, true},
+		{"weekday 7 invalid (Sunday)", 7, true},
+		{"weekday 100 invalid", 100, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			row := importModels.StudentImportRow{
+				FirstName:   "Max",
+				LastName:    "Mustermann",
+				SchoolClass: "1A",
+				PickupSchedules: []importModels.PickupScheduleImportData{
+					{Weekday: tt.weekday, PickupTime: "16:00"},
+				},
+				DataRetentionDays: 30,
+			}
+
+			errors := config.Validate(context.Background(), &row)
+
+			hasWeekdayError := false
+			for _, err := range errors {
+				if err.Code == "invalid_weekday" {
+					hasWeekdayError = true
+					break
+				}
+			}
+
+			if tt.wantError {
+				assert.True(t, hasWeekdayError, "Expected weekday error for %d", tt.weekday)
+			} else {
+				assert.False(t, hasWeekdayError, "Unexpected weekday error for %d", tt.weekday)
+			}
+		})
+	}
+}
+
+func TestStudentImportConfig_Validate_PickupTimeBoundaryValues(t *testing.T) {
+	config := &StudentImportConfig{
+		resolver: &RelationshipResolver{
+			groupCache: make(map[string]*education.Group),
+		},
+	}
+
+	tests := []struct {
+		name      string
+		time      string
+		wantError bool
+	}{
+		{"midnight", "00:00", false},
+		{"early morning", "06:30", false},
+		{"afternoon", "15:30", false},
+		{"late evening", "23:59", false},
+		{"single digit hour", "9:00", false},
+		{"invalid 24:00", "24:00", true},
+		{"invalid 25:00", "25:00", true},
+		{"invalid 12:60", "12:60", true},
+		{"no colon", "1630", true},
+		{"with seconds", "16:00:00", true},
+		{"text", "four pm", true},
+		{"empty", "", true},
+		{"only colon", ":", true},
+		{"negative", "-1:00", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			row := importModels.StudentImportRow{
+				FirstName:   "Max",
+				LastName:    "Mustermann",
+				SchoolClass: "1A",
+				PickupSchedules: []importModels.PickupScheduleImportData{
+					{Weekday: 1, PickupTime: tt.time},
+				},
+				DataRetentionDays: 30,
+			}
+
+			errors := config.Validate(context.Background(), &row)
+
+			hasTimeError := false
+			for _, err := range errors {
+				if err.Code == "invalid_time_format" {
+					hasTimeError = true
+					break
+				}
+			}
+
+			if tt.wantError {
+				assert.True(t, hasTimeError, "Expected time format error for '%s'", tt.time)
+			} else {
+				assert.False(t, hasTimeError, "Unexpected time format error for '%s'", tt.time)
+			}
+		})
+	}
+}
+
+// ============================================================================
 // mapRelationshipType Tests
 // ============================================================================
 

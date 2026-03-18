@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -17,7 +18,13 @@ import (
 var (
 	emailRegex = regexp.MustCompile(`^[A-Za-z0-9._+%-]+@[A-Za-z0-9.-]+[.][A-Za-z]+$`)
 	phoneRegex = regexp.MustCompile(`^(\+[0-9]{1,3}\s?)?[0-9\s-]{7,15}$`)
+	timeRegex  = regexp.MustCompile(`^([01]?[0-9]|2[0-3]):[0-5][0-9]$`)
 )
+
+// isValidTimeFormat checks if a string is in HH:MM format
+func isValidTimeFormat(s string) bool {
+	return timeRegex.MatchString(s)
+}
 
 // mapRelationshipType converts German relationship types to valid English types
 func mapRelationshipType(germanType string) string {
@@ -67,39 +74,42 @@ func mapRelationshipType(germanType string) string {
 
 // StudentImportConfig implements ImportConfig for student imports
 type StudentImportConfig struct {
-	personRepo        users.PersonRepository
-	studentRepo       users.StudentRepository
-	guardianRepo      users.GuardianProfileRepository
-	guardianPhoneRepo users.GuardianPhoneNumberRepository
-	relationRepo      users.StudentGuardianRepository
-	privacyRepo       users.PrivacyConsentRepository
-	resolver          *RelationshipResolver
-	txHandler         *base.TxHandler
+	personRepo         users.PersonRepository
+	studentRepo        users.StudentRepository
+	guardianRepo       users.GuardianProfileRepository
+	guardianPhoneRepo  users.GuardianPhoneNumberRepository
+	relationRepo       users.StudentGuardianRepository
+	privacyRepo        users.PrivacyConsentRepository
+	pickupScheduleRepo scheduleModels.StudentPickupScheduleRepository
+	resolver           *RelationshipResolver
+	txHandler          *base.TxHandler
 }
 
 // StudentImportDeps contains dependencies for StudentImportConfig
 type StudentImportDeps struct {
-	PersonRepo        users.PersonRepository
-	StudentRepo       users.StudentRepository
-	GuardianRepo      users.GuardianProfileRepository
-	GuardianPhoneRepo users.GuardianPhoneNumberRepository
-	RelationRepo      users.StudentGuardianRepository
-	PrivacyRepo       users.PrivacyConsentRepository
-	Resolver          *RelationshipResolver
+	PersonRepo         users.PersonRepository
+	StudentRepo        users.StudentRepository
+	GuardianRepo       users.GuardianProfileRepository
+	GuardianPhoneRepo  users.GuardianPhoneNumberRepository
+	RelationRepo       users.StudentGuardianRepository
+	PrivacyRepo        users.PrivacyConsentRepository
+	PickupScheduleRepo scheduleModels.StudentPickupScheduleRepository
+	Resolver           *RelationshipResolver
 }
 
 // NewStudentImportConfig creates a new student import configuration
 // Note: RFID cards are not supported in CSV import and must be assigned separately
 func NewStudentImportConfig(deps StudentImportDeps, db *bun.DB) *StudentImportConfig {
 	return &StudentImportConfig{
-		personRepo:        deps.PersonRepo,
-		studentRepo:       deps.StudentRepo,
-		guardianRepo:      deps.GuardianRepo,
-		guardianPhoneRepo: deps.GuardianPhoneRepo,
-		relationRepo:      deps.RelationRepo,
-		privacyRepo:       deps.PrivacyRepo,
-		resolver:          deps.Resolver,
-		txHandler:         base.NewTxHandler(db),
+		personRepo:         deps.PersonRepo,
+		studentRepo:        deps.StudentRepo,
+		guardianRepo:       deps.GuardianRepo,
+		guardianPhoneRepo:  deps.GuardianPhoneRepo,
+		relationRepo:       deps.RelationRepo,
+		privacyRepo:        deps.PrivacyRepo,
+		pickupScheduleRepo: deps.PickupScheduleRepo,
+		resolver:           deps.Resolver,
+		txHandler:          base.NewTxHandler(db),
 	}
 }
 
@@ -176,6 +186,39 @@ func (c *StudentImportConfig) Validate(ctx context.Context, row *importModels.St
 	for i, guardian := range row.Guardians {
 		guardianErrors := c.validateGuardian(i+1, guardian)
 		errors = append(errors, guardianErrors...)
+
+		// Validate PreferredContactMethod if specified
+		if guardian.PreferredContactMethod != "" {
+			validMethods := map[string]bool{"email": true, "phone": true, "mobile": true, "sms": true}
+			if !validMethods[guardian.PreferredContactMethod] {
+				errors = append(errors, importModels.ValidationError{
+					Field:    fmt.Sprintf("guardian_%d_preferred_contact_method", i+1),
+					Message:  fmt.Sprintf("Ungültige Kontaktart für Erziehungsberechtigten %d: '%s'. Erlaubt: email, phone, mobile, sms", i+1, guardian.PreferredContactMethod),
+					Code:     "invalid_contact_method",
+					Severity: importModels.ErrorSeverityError,
+				})
+			}
+		}
+	}
+
+	// 5b. OPTIONAL: Pickup schedule validation
+	for _, sched := range row.PickupSchedules {
+		if sched.Weekday < 1 || sched.Weekday > 5 {
+			errors = append(errors, importModels.ValidationError{
+				Field:    "pickup_schedule",
+				Message:  fmt.Sprintf("Ungültiger Wochentag %d. Erlaubt: 1 (Mo) bis 5 (Fr)", sched.Weekday),
+				Code:     "invalid_weekday",
+				Severity: importModels.ErrorSeverityError,
+			})
+		}
+		if !isValidTimeFormat(sched.PickupTime) {
+			errors = append(errors, importModels.ValidationError{
+				Field:    "pickup_schedule",
+				Message:  fmt.Sprintf("Ungültiges Zeitformat '%s'. Bitte HH:MM verwenden (z.B. 15:30)", sched.PickupTime),
+				Code:     "invalid_time_format",
+				Severity: importModels.ErrorSeverityError,
+			})
+		}
 	}
 
 	// 6. Birthday validation (if provided)
@@ -342,6 +385,10 @@ func (c *StudentImportConfig) Create(ctx context.Context, row importModels.Stude
 		return 0, err
 	}
 
+	if err := c.createPickupSchedules(ctx, student.ID, row.PickupSchedules); err != nil {
+		return 0, err
+	}
+
 	return student.ID, nil
 }
 
@@ -400,6 +447,11 @@ func (c *StudentImportConfig) createSingleGuardianRelationship(ctx context.Conte
 		return fmt.Errorf("guardian %d: %w", index, err)
 	}
 
+	emergencyPriority := guardianData.EmergencyPriority
+	if emergencyPriority == 0 {
+		emergencyPriority = 1 // Default
+	}
+
 	relationship := &users.StudentGuardian{
 		StudentID:          studentID,
 		GuardianProfileID:  guardianID,
@@ -407,6 +459,7 @@ func (c *StudentImportConfig) createSingleGuardianRelationship(ctx context.Conte
 		IsPrimary:          guardianData.IsPrimary,
 		IsEmergencyContact: guardianData.IsEmergencyContact,
 		CanPickup:          guardianData.CanPickup,
+		EmergencyPriority:  emergencyPriority,
 	}
 	relationship.SetTenantID(tenant.FromContext(ctx))
 
@@ -496,9 +549,17 @@ func (c *StudentImportConfig) createOrFindGuardian(ctx context.Context, data imp
 
 	// Create new guardian (phone numbers are added via createGuardianPhoneNumbers below)
 	guardian := &users.GuardianProfile{
-		FirstName: strings.TrimSpace(data.FirstName),
-		LastName:  strings.TrimSpace(data.LastName),
-		Email:     stringPtr(data.Email),
+		FirstName:              strings.TrimSpace(data.FirstName),
+		LastName:               strings.TrimSpace(data.LastName),
+		Email:                  stringPtr(data.Email),
+		AddressStreet:          stringPtr(data.AddressStreet),
+		AddressCity:            stringPtr(data.AddressCity),
+		AddressPostalCode:      stringPtr(data.AddressPostalCode),
+		Occupation:             stringPtr(data.Occupation),
+		Employer:               stringPtr(data.Employer),
+		Notes:                  stringPtr(data.Notes),
+		LanguagePreference:     guardianLanguagePreference(data.LanguagePreference),
+		PreferredContactMethod: guardianContactMethod(data.PreferredContactMethod),
 	}
 
 	if err := c.guardianRepo.Create(ctx, guardian); err != nil {
@@ -592,4 +653,49 @@ func stringPtr(s string) *string {
 		return nil
 	}
 	return &trimmed
+}
+
+// guardianLanguagePreference returns a language preference, defaulting to "de"
+func guardianLanguagePreference(val string) string {
+	if val == "" {
+		return "de"
+	}
+	return strings.ToLower(strings.TrimSpace(val))
+}
+
+// guardianContactMethod returns a validated contact method, defaulting to "phone"
+func guardianContactMethod(val string) string {
+	if val == "" {
+		return "phone"
+	}
+	return strings.ToLower(strings.TrimSpace(val))
+}
+
+// createPickupSchedules creates weekly pickup schedule records for a student
+func (c *StudentImportConfig) createPickupSchedules(ctx context.Context, studentID int64, schedules []importModels.PickupScheduleImportData) error {
+	if len(schedules) == 0 || c.pickupScheduleRepo == nil {
+		return nil
+	}
+
+	for i, sched := range schedules {
+		pickupTime, err := time.Parse("15:04", sched.PickupTime)
+		if err != nil {
+			return fmt.Errorf("pickup schedule %d: invalid time '%s': %w", i+1, sched.PickupTime, err)
+		}
+
+		record := &scheduleModels.StudentPickupSchedule{
+			StudentID:  studentID,
+			Weekday:    sched.Weekday,
+			PickupTime: pickupTime,
+			Notes:      stringPtr(sched.Notes),
+			CreatedBy:  0, // System/CSV import sentinel
+		}
+		record.SetTenantID(tenant.FromContext(ctx))
+
+		if err := c.pickupScheduleRepo.Create(ctx, record); err != nil {
+			return fmt.Errorf("create pickup schedule (weekday %d): %w", sched.Weekday, err)
+		}
+	}
+
+	return nil
 }

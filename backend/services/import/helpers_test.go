@@ -503,6 +503,460 @@ func TestParseGuardianPhoneNumbers(t *testing.T) {
 	})
 }
 
+// TestParseEmergencyPriority tests emergency priority parsing
+func TestParseEmergencyPriority(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected int
+	}{
+		{"valid number", "2", 2},
+		{"valid number 1", "1", 1},
+		{"zero", "0", 0},
+		{"empty string", "", 0},
+		{"invalid text", "abc", 0},
+		{"negative", "-1", -1},
+		{"large number", "99", 99},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := parseEmergencyPriority(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+// TestParseContactMethod tests contact method parsing and validation
+func TestParseContactMethod(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"email", "email", "email"},
+		{"phone", "phone", "phone"},
+		{"mobile", "mobile", "mobile"},
+		{"sms", "sms", "sms"},
+		{"uppercase", "EMAIL", "email"},
+		{"mixed case", "Phone", "phone"},
+		{"empty string", "", ""},
+		{"invalid", "fax", ""},
+		{"whitespace", "  email  ", "email"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := parseContactMethod(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+// TestMapStudentRow_GuardianProfileFields tests mapping of new guardian profile fields
+func TestMapStudentRow_GuardianProfileFields(t *testing.T) {
+	mapping := map[string]int{
+		"vorname":              0,
+		"nachname":             1,
+		"erz1.email":           2,
+		"erz1.straße":          3,
+		"erz1.stadt":           4,
+		"erz1.plz":             5,
+		"erz1.beruf":           6,
+		"erz1.arbeitgeber":     7,
+		"erz1.notizen":         8,
+		"erz1.sprache":         9,
+		"erz1.kontaktart":      10,
+		"erz1.notfallpriorität": 11,
+	}
+	values := []string{
+		"Max", "Mustermann",
+		"guardian@example.com",
+		"Musterstr. 1", "Köln", "50667",
+		"Lehrerin", "Grundschule Köln",
+		"Allergien beachten", "de", "email", "2",
+	}
+	mapper := NewColumnMapper(mapping, values)
+
+	row, err := MapStudentRow(mapper)
+
+	require.NoError(t, err)
+	require.Len(t, row.Guardians, 1)
+
+	g := row.Guardians[0]
+	assert.Equal(t, "Musterstr. 1", g.AddressStreet)
+	assert.Equal(t, "Köln", g.AddressCity)
+	assert.Equal(t, "50667", g.AddressPostalCode)
+	assert.Equal(t, "Lehrerin", g.Occupation)
+	assert.Equal(t, "Grundschule Köln", g.Employer)
+	assert.Equal(t, "Allergien beachten", g.Notes)
+	assert.Equal(t, "de", g.LanguagePreference)
+	assert.Equal(t, "email", g.PreferredContactMethod)
+	assert.Equal(t, 2, g.EmergencyPriority)
+}
+
+// TestMapStudentRow_PickupSchedules tests mapping of pickup schedule columns
+func TestMapStudentRow_PickupSchedules(t *testing.T) {
+	t.Run("maps all five weekdays", func(t *testing.T) {
+		mapping := map[string]int{
+			"vorname":             0,
+			"nachname":            1,
+			"abholung.mo":         2,
+			"abholung.mo.notizen": 3,
+			"abholung.di":         4,
+			"abholung.di.notizen": 5,
+			"abholung.mi":         6,
+			"abholung.mi.notizen": 7,
+			"abholung.do":         8,
+			"abholung.do.notizen": 9,
+			"abholung.fr":         10,
+			"abholung.fr.notizen": 11,
+		}
+		values := []string{
+			"Max", "Mustermann",
+			"16:00", "Hort",
+			"15:30", "",
+			"16:00", "",
+			"15:30", "",
+			"14:00", "Frühschluss",
+		}
+		mapper := NewColumnMapper(mapping, values)
+
+		row, err := MapStudentRow(mapper)
+
+		require.NoError(t, err)
+		require.Len(t, row.PickupSchedules, 5)
+
+		assert.Equal(t, 1, row.PickupSchedules[0].Weekday)
+		assert.Equal(t, "16:00", row.PickupSchedules[0].PickupTime)
+		assert.Equal(t, "Hort", row.PickupSchedules[0].Notes)
+
+		assert.Equal(t, 5, row.PickupSchedules[4].Weekday)
+		assert.Equal(t, "14:00", row.PickupSchedules[4].PickupTime)
+		assert.Equal(t, "Frühschluss", row.PickupSchedules[4].Notes)
+	})
+
+	t.Run("skips empty days", func(t *testing.T) {
+		mapping := map[string]int{
+			"vorname":     0,
+			"nachname":    1,
+			"abholung.mo": 2,
+			"abholung.di": 3,
+			"abholung.mi": 4,
+		}
+		values := []string{
+			"Max", "Mustermann",
+			"16:00", "", "15:00",
+		}
+		mapper := NewColumnMapper(mapping, values)
+
+		row, err := MapStudentRow(mapper)
+
+		require.NoError(t, err)
+		require.Len(t, row.PickupSchedules, 2)
+		assert.Equal(t, 1, row.PickupSchedules[0].Weekday)
+		assert.Equal(t, 3, row.PickupSchedules[1].Weekday)
+	})
+
+	t.Run("no pickup columns returns empty", func(t *testing.T) {
+		mapping := map[string]int{
+			"vorname":  0,
+			"nachname": 1,
+		}
+		values := []string{"Max", "Mustermann"}
+		mapper := NewColumnMapper(mapping, values)
+
+		row, err := MapStudentRow(mapper)
+
+		require.NoError(t, err)
+		assert.Empty(t, row.PickupSchedules)
+	})
+}
+
+// TestMapStudentRow_GuardianProfileFieldsEmpty tests that empty guardian profile fields are mapped as empty strings
+func TestMapStudentRow_GuardianProfileFieldsEmpty(t *testing.T) {
+	mapping := map[string]int{
+		"vorname":              0,
+		"nachname":             1,
+		"erz1.email":           2,
+		"erz1.straße":          3,
+		"erz1.stadt":           4,
+		"erz1.plz":             5,
+		"erz1.beruf":           6,
+		"erz1.arbeitgeber":     7,
+		"erz1.notizen":         8,
+		"erz1.sprache":         9,
+		"erz1.kontaktart":      10,
+		"erz1.notfallpriorität": 11,
+	}
+	values := []string{
+		"Max", "Mustermann",
+		"guardian@example.com",
+		"", "", "", // Empty address
+		"", "",     // Empty professional
+		"", "", "", // Empty preferences
+		"", // Empty priority
+	}
+	mapper := NewColumnMapper(mapping, values)
+
+	row, err := MapStudentRow(mapper)
+
+	require.NoError(t, err)
+	require.Len(t, row.Guardians, 1)
+
+	g := row.Guardians[0]
+	assert.Equal(t, "", g.AddressStreet)
+	assert.Equal(t, "", g.AddressCity)
+	assert.Equal(t, "", g.AddressPostalCode)
+	assert.Equal(t, "", g.Occupation)
+	assert.Equal(t, "", g.Employer)
+	assert.Equal(t, "", g.Notes)
+	assert.Equal(t, "", g.LanguagePreference)
+	assert.Equal(t, "", g.PreferredContactMethod)
+	assert.Equal(t, 0, g.EmergencyPriority)
+}
+
+// TestMapStudentRow_MultipleGuardiansWithProfileFields tests two guardians each with different profile data
+func TestMapStudentRow_MultipleGuardiansWithProfileFields(t *testing.T) {
+	mapping := map[string]int{
+		"vorname":              0,
+		"nachname":             1,
+		"erz1.email":           2,
+		"erz1.straße":          3,
+		"erz1.stadt":           4,
+		"erz1.beruf":           5,
+		"erz1.kontaktart":      6,
+		"erz1.notfallpriorität": 7,
+		"erz2.email":           8,
+		"erz2.straße":          9,
+		"erz2.stadt":           10,
+		"erz2.beruf":           11,
+		"erz2.kontaktart":      12,
+		"erz2.notfallpriorität": 13,
+	}
+	values := []string{
+		"Max", "Mustermann",
+		"mother@example.com", "Hauptstr. 1", "Köln", "Lehrerin", "email", "1",
+		"father@example.com", "Nebenstr. 5", "Bonn", "Ingenieur", "phone", "2",
+	}
+	mapper := NewColumnMapper(mapping, values)
+
+	row, err := MapStudentRow(mapper)
+
+	require.NoError(t, err)
+	require.Len(t, row.Guardians, 2)
+
+	g1 := row.Guardians[0]
+	assert.Equal(t, "mother@example.com", g1.Email)
+	assert.Equal(t, "Hauptstr. 1", g1.AddressStreet)
+	assert.Equal(t, "Köln", g1.AddressCity)
+	assert.Equal(t, "Lehrerin", g1.Occupation)
+	assert.Equal(t, "email", g1.PreferredContactMethod)
+	assert.Equal(t, 1, g1.EmergencyPriority)
+
+	g2 := row.Guardians[1]
+	assert.Equal(t, "father@example.com", g2.Email)
+	assert.Equal(t, "Nebenstr. 5", g2.AddressStreet)
+	assert.Equal(t, "Bonn", g2.AddressCity)
+	assert.Equal(t, "Ingenieur", g2.Occupation)
+	assert.Equal(t, "phone", g2.PreferredContactMethod)
+	assert.Equal(t, 2, g2.EmergencyPriority)
+}
+
+// TestMapStudentRow_GuardianProfileWithPhoneNumbers tests combining profile fields and phone numbers
+func TestMapStudentRow_GuardianProfileWithPhoneNumbers(t *testing.T) {
+	mapping := map[string]int{
+		"vorname":          0,
+		"nachname":         1,
+		"erz1.email":       2,
+		"erz1.telefon":     3,
+		"erz1.mobil":       4,
+		"erz1.dienstlich":  5,
+		"erz1.straße":      6,
+		"erz1.plz":         7,
+		"erz1.beruf":       8,
+		"erz1.arbeitgeber": 9,
+	}
+	values := []string{
+		"Max", "Mustermann",
+		"guardian@example.com",
+		"+49221111", "+49177222", "+49221333",
+		"Musterstr. 1", "50667", "Ärztin", "Klinik GmbH",
+	}
+	mapper := NewColumnMapper(mapping, values)
+
+	row, err := MapStudentRow(mapper)
+
+	require.NoError(t, err)
+	require.Len(t, row.Guardians, 1)
+
+	g := row.Guardians[0]
+	// Profile fields
+	assert.Equal(t, "Musterstr. 1", g.AddressStreet)
+	assert.Equal(t, "50667", g.AddressPostalCode)
+	assert.Equal(t, "Ärztin", g.Occupation)
+	assert.Equal(t, "Klinik GmbH", g.Employer)
+	// Phone numbers (from ParseGuardianPhoneNumbers)
+	require.Len(t, g.PhoneNumbers, 3)
+	assert.Equal(t, "+49221111", g.PhoneNumbers[0].PhoneNumber)
+	assert.Equal(t, "home", g.PhoneNumbers[0].PhoneType)
+	assert.Equal(t, "+49177222", g.PhoneNumbers[1].PhoneNumber)
+	assert.Equal(t, "mobile", g.PhoneNumbers[1].PhoneType)
+	assert.Equal(t, "+49221333", g.PhoneNumbers[2].PhoneNumber)
+	assert.Equal(t, "work", g.PhoneNumbers[2].PhoneType)
+}
+
+// TestMapStudentRow_PickupNotesWithoutTime tests that notes-only columns (no time) don't create schedule entries
+func TestMapStudentRow_PickupNotesWithoutTime(t *testing.T) {
+	mapping := map[string]int{
+		"vorname":             0,
+		"nachname":            1,
+		"abholung.mo":         2,
+		"abholung.mo.notizen": 3,
+		"abholung.di":         4,
+		"abholung.di.notizen": 5,
+	}
+	values := []string{
+		"Max", "Mustermann",
+		"16:00", "Hort",  // Monday: time + notes
+		"", "Nur Notiz",  // Tuesday: notes only (no time) -> should be skipped
+	}
+	mapper := NewColumnMapper(mapping, values)
+
+	row, err := MapStudentRow(mapper)
+
+	require.NoError(t, err)
+	require.Len(t, row.PickupSchedules, 1, "should only include Monday since Tuesday has no time")
+	assert.Equal(t, 1, row.PickupSchedules[0].Weekday)
+	assert.Equal(t, "16:00", row.PickupSchedules[0].PickupTime)
+	assert.Equal(t, "Hort", row.PickupSchedules[0].Notes)
+}
+
+// TestMapStudentRow_PickupScheduleWithEmptyNotes tests schedule entries with time but no notes
+func TestMapStudentRow_PickupScheduleWithEmptyNotes(t *testing.T) {
+	mapping := map[string]int{
+		"vorname":             0,
+		"nachname":            1,
+		"abholung.mo":         2,
+		"abholung.mo.notizen": 3,
+	}
+	values := []string{
+		"Max", "Mustermann",
+		"14:30", "", // time but empty notes
+	}
+	mapper := NewColumnMapper(mapping, values)
+
+	row, err := MapStudentRow(mapper)
+
+	require.NoError(t, err)
+	require.Len(t, row.PickupSchedules, 1)
+	assert.Equal(t, "14:30", row.PickupSchedules[0].PickupTime)
+	assert.Equal(t, "", row.PickupSchedules[0].Notes)
+}
+
+// TestMapStudentRow_InvalidContactMethodStored tests that invalid contact method is still stored as-is during mapping
+// (validation happens later in Validate(), mapping just calls parseContactMethod)
+func TestMapStudentRow_InvalidContactMethodIsEmpty(t *testing.T) {
+	mapping := map[string]int{
+		"vorname":         0,
+		"nachname":        1,
+		"erz1.email":      2,
+		"erz1.kontaktart": 3,
+	}
+	values := []string{
+		"Max", "Mustermann",
+		"test@example.com",
+		"fax", // Invalid method - parseContactMethod returns ""
+	}
+	mapper := NewColumnMapper(mapping, values)
+
+	row, err := MapStudentRow(mapper)
+
+	require.NoError(t, err)
+	require.Len(t, row.Guardians, 1)
+	assert.Equal(t, "", row.Guardians[0].PreferredContactMethod, "invalid contact method should be empty after parsing")
+}
+
+// TestMapStudentRow_FullCSVRow tests a realistic complete CSV row with all new fields
+func TestMapStudentRow_FullCSVRow(t *testing.T) {
+	mapping := map[string]int{
+		"vorname":              0,
+		"nachname":             1,
+		"klasse":               2,
+		"geburtstag":           3,
+		"erz1.vorname":         4,
+		"erz1.nachname":        5,
+		"erz1.email":           6,
+		"erz1.telefon":         7,
+		"erz1.verhältnis":      8,
+		"erz1.primär":          9,
+		"erz1.notfall":         10,
+		"erz1.abholung":        11,
+		"erz1.straße":          12,
+		"erz1.stadt":           13,
+		"erz1.plz":             14,
+		"erz1.beruf":           15,
+		"erz1.arbeitgeber":     16,
+		"erz1.notizen":         17,
+		"erz1.sprache":         18,
+		"erz1.kontaktart":      19,
+		"erz1.notfallpriorität": 20,
+		"abholung.mo":          21,
+		"abholung.mo.notizen":  22,
+		"abholung.fr":          23,
+		"abholung.fr.notizen":  24,
+	}
+	values := []string{
+		"Max", "Mustermann", "1A", "2015-08-15",
+		"Maria", "Müller", "maria@example.com", "+49123456",
+		"Mutter", "Ja", "Ja", "Ja",
+		"Musterstr. 1", "Köln", "50667",
+		"Lehrerin", "Grundschule", "Allergien beachten",
+		"de", "email", "1",
+		"16:00", "Hort",
+		"14:00", "Frühschluss",
+	}
+	mapper := NewColumnMapper(mapping, values)
+
+	row, err := MapStudentRow(mapper)
+
+	require.NoError(t, err)
+
+	// Student fields
+	assert.Equal(t, "Max", row.FirstName)
+	assert.Equal(t, "Mustermann", row.LastName)
+	assert.Equal(t, "1A", row.SchoolClass)
+
+	// Guardian
+	require.Len(t, row.Guardians, 1)
+	g := row.Guardians[0]
+	assert.Equal(t, "Maria", g.FirstName)
+	assert.Equal(t, "Müller", g.LastName)
+	assert.Equal(t, "maria@example.com", g.Email)
+	assert.Equal(t, "Mutter", g.RelationshipType)
+	assert.True(t, g.IsPrimary)
+	assert.True(t, g.IsEmergencyContact)
+	assert.True(t, g.CanPickup)
+	assert.Equal(t, "Musterstr. 1", g.AddressStreet)
+	assert.Equal(t, "Köln", g.AddressCity)
+	assert.Equal(t, "50667", g.AddressPostalCode)
+	assert.Equal(t, "Lehrerin", g.Occupation)
+	assert.Equal(t, "Grundschule", g.Employer)
+	assert.Equal(t, "Allergien beachten", g.Notes)
+	assert.Equal(t, "de", g.LanguagePreference)
+	assert.Equal(t, "email", g.PreferredContactMethod)
+	assert.Equal(t, 1, g.EmergencyPriority)
+
+	// Pickup schedules
+	require.Len(t, row.PickupSchedules, 2)
+	assert.Equal(t, 1, row.PickupSchedules[0].Weekday)
+	assert.Equal(t, "16:00", row.PickupSchedules[0].PickupTime)
+	assert.Equal(t, "Hort", row.PickupSchedules[0].Notes)
+	assert.Equal(t, 5, row.PickupSchedules[1].Weekday)
+	assert.Equal(t, "14:00", row.PickupSchedules[1].PickupTime)
+	assert.Equal(t, "Frühschluss", row.PickupSchedules[1].Notes)
+}
+
 // TestColumnMapperIntegration tests the integration between ColumnMapper and other helpers
 func TestColumnMapperIntegration(t *testing.T) {
 	t.Run("MapStudentRow uses GetRawCol for phone numbers", func(t *testing.T) {

@@ -342,6 +342,164 @@ Anna,Schmidt,2B`
 	assert.Empty(t, rows[1].SchoolClass)
 }
 
+func TestCSVParser_ParseStudents_GuardianProfileFields(t *testing.T) {
+	csvData := `Vorname,Nachname,Klasse,Erz1.Email,Erz1.Straße,Erz1.Stadt,Erz1.PLZ,Erz1.Beruf,Erz1.Arbeitgeber,Erz1.Notizen,Erz1.Sprache,Erz1.Kontaktart,Erz1.Notfallpriorität
+Max,Mustermann,1A,maria@example.com,Musterstr. 1,Köln,50667,Lehrerin,Grundschule Köln,Allergien beachten,de,email,2`
+
+	parser := NewCSVParser()
+	rows, err := parser.ParseStudents(strings.NewReader(csvData))
+
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	require.Len(t, rows[0].Guardians, 1)
+
+	g := rows[0].Guardians[0]
+	assert.Equal(t, "maria@example.com", g.Email)
+	assert.Equal(t, "Musterstr. 1", g.AddressStreet)
+	assert.Equal(t, "Köln", g.AddressCity)
+	assert.Equal(t, "50667", g.AddressPostalCode)
+	assert.Equal(t, "Lehrerin", g.Occupation)
+	assert.Equal(t, "Grundschule Köln", g.Employer)
+	assert.Equal(t, "Allergien beachten", g.Notes)
+	assert.Equal(t, "de", g.LanguagePreference)
+	assert.Equal(t, "email", g.PreferredContactMethod)
+	assert.Equal(t, 2, g.EmergencyPriority)
+}
+
+func TestCSVParser_ParseStudents_GuardianProfileFieldsEmpty(t *testing.T) {
+	csvData := `Vorname,Nachname,Klasse,Erz1.Email,Erz1.Straße,Erz1.Stadt,Erz1.PLZ,Erz1.Beruf,Erz1.Arbeitgeber,Erz1.Notizen,Erz1.Sprache,Erz1.Kontaktart,Erz1.Notfallpriorität
+Max,Mustermann,1A,maria@example.com,,,,,,,,,,`
+
+	parser := NewCSVParser()
+	rows, err := parser.ParseStudents(strings.NewReader(csvData))
+
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	require.Len(t, rows[0].Guardians, 1)
+
+	g := rows[0].Guardians[0]
+	assert.Empty(t, g.AddressStreet)
+	assert.Empty(t, g.AddressCity)
+	assert.Empty(t, g.AddressPostalCode)
+	assert.Empty(t, g.Occupation)
+	assert.Empty(t, g.Employer)
+	assert.Empty(t, g.Notes)
+	assert.Empty(t, g.LanguagePreference)
+	assert.Empty(t, g.PreferredContactMethod)
+	assert.Equal(t, 0, g.EmergencyPriority)
+}
+
+func TestCSVParser_ParseStudents_MultipleGuardiansWithProfileFields(t *testing.T) {
+	csvData := `Vorname,Nachname,Klasse,Erz1.Email,Erz1.Straße,Erz1.Beruf,Erz1.Notfallpriorität,Erz2.Email,Erz2.Straße,Erz2.Beruf,Erz2.Notfallpriorität
+Max,Mustermann,1A,mother@example.com,Hauptstr. 1,Ärztin,1,father@example.com,Nebenstr. 5,Ingenieur,2`
+
+	parser := NewCSVParser()
+	rows, err := parser.ParseStudents(strings.NewReader(csvData))
+
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	require.Len(t, rows[0].Guardians, 2)
+
+	assert.Equal(t, "Hauptstr. 1", rows[0].Guardians[0].AddressStreet)
+	assert.Equal(t, "Ärztin", rows[0].Guardians[0].Occupation)
+	assert.Equal(t, 1, rows[0].Guardians[0].EmergencyPriority)
+
+	assert.Equal(t, "Nebenstr. 5", rows[0].Guardians[1].AddressStreet)
+	assert.Equal(t, "Ingenieur", rows[0].Guardians[1].Occupation)
+	assert.Equal(t, 2, rows[0].Guardians[1].EmergencyPriority)
+}
+
+func TestCSVParser_ParseStudents_PickupSchedule(t *testing.T) {
+	csvData := `Vorname,Nachname,Klasse,Abholung.Mo,Abholung.Mo.Notizen,Abholung.Di,Abholung.Di.Notizen,Abholung.Mi,Abholung.Mi.Notizen,Abholung.Do,Abholung.Do.Notizen,Abholung.Fr,Abholung.Fr.Notizen
+Max,Mustermann,1A,16:00,Hort,15:30,,16:00,,15:30,,14:00,Frühschluss`
+
+	parser := NewCSVParser()
+	rows, err := parser.ParseStudents(strings.NewReader(csvData))
+
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	require.Len(t, rows[0].PickupSchedules, 5)
+
+	// Monday
+	assert.Equal(t, 1, rows[0].PickupSchedules[0].Weekday)
+	assert.Equal(t, "16:00", rows[0].PickupSchedules[0].PickupTime)
+	assert.Equal(t, "Hort", rows[0].PickupSchedules[0].Notes)
+
+	// Tuesday
+	assert.Equal(t, 2, rows[0].PickupSchedules[1].Weekday)
+	assert.Equal(t, "15:30", rows[0].PickupSchedules[1].PickupTime)
+	assert.Empty(t, rows[0].PickupSchedules[1].Notes)
+
+	// Friday
+	assert.Equal(t, 5, rows[0].PickupSchedules[4].Weekday)
+	assert.Equal(t, "14:00", rows[0].PickupSchedules[4].PickupTime)
+	assert.Equal(t, "Frühschluss", rows[0].PickupSchedules[4].Notes)
+}
+
+func TestCSVParser_ParseStudents_PickupSchedulePartial(t *testing.T) {
+	csvData := `Vorname,Nachname,Klasse,Abholung.Mo,Abholung.Mo.Notizen,Abholung.Di,Abholung.Di.Notizen,Abholung.Mi,Abholung.Mi.Notizen,Abholung.Do,Abholung.Do.Notizen,Abholung.Fr,Abholung.Fr.Notizen
+Max,Mustermann,1A,16:00,,,,,,,,,`
+
+	parser := NewCSVParser()
+	rows, err := parser.ParseStudents(strings.NewReader(csvData))
+
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	require.Len(t, rows[0].PickupSchedules, 1, "should only have Monday")
+	assert.Equal(t, 1, rows[0].PickupSchedules[0].Weekday)
+	assert.Equal(t, "16:00", rows[0].PickupSchedules[0].PickupTime)
+}
+
+func TestCSVParser_ParseStudents_NoPickupScheduleColumns(t *testing.T) {
+	csvData := `Vorname,Nachname,Klasse
+Max,Mustermann,1A`
+
+	parser := NewCSVParser()
+	rows, err := parser.ParseStudents(strings.NewReader(csvData))
+
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Empty(t, rows[0].PickupSchedules, "should have no pickup schedules")
+}
+
+func TestCSVParser_ParseStudents_FullRowWithAllNewFields(t *testing.T) {
+	csvData := `Vorname,Nachname,Klasse,Erz1.Vorname,Erz1.Nachname,Erz1.Email,Erz1.Telefon,Erz1.Verhältnis,Erz1.Primär,Erz1.Notfall,Erz1.Abholung,Erz1.Straße,Erz1.Stadt,Erz1.PLZ,Erz1.Beruf,Erz1.Arbeitgeber,Erz1.Notizen,Erz1.Sprache,Erz1.Kontaktart,Erz1.Notfallpriorität,Abholung.Mo,Abholung.Mo.Notizen,Abholung.Fr,Abholung.Fr.Notizen
+Max,Mustermann,1A,Maria,Müller,maria@example.com,0123-456789,Mutter,Ja,Ja,Ja,Musterstr. 1,Köln,50667,Lehrerin,Grundschule,Allergien,de,email,1,16:00,Hort,14:00,Frühschluss`
+
+	parser := NewCSVParser()
+	rows, err := parser.ParseStudents(strings.NewReader(csvData))
+
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+
+	// Guardian with all fields
+	require.Len(t, rows[0].Guardians, 1)
+	g := rows[0].Guardians[0]
+	assert.Equal(t, "Maria", g.FirstName)
+	assert.Equal(t, "Müller", g.LastName)
+	assert.Equal(t, "maria@example.com", g.Email)
+	assert.Equal(t, "Mutter", g.RelationshipType)
+	assert.True(t, g.IsPrimary)
+	assert.Equal(t, "Musterstr. 1", g.AddressStreet)
+	assert.Equal(t, "Köln", g.AddressCity)
+	assert.Equal(t, "50667", g.AddressPostalCode)
+	assert.Equal(t, "Lehrerin", g.Occupation)
+	assert.Equal(t, "Grundschule", g.Employer)
+	assert.Equal(t, "Allergien", g.Notes)
+	assert.Equal(t, "de", g.LanguagePreference)
+	assert.Equal(t, "email", g.PreferredContactMethod)
+	assert.Equal(t, 1, g.EmergencyPriority)
+
+	// Pickup schedules
+	require.Len(t, rows[0].PickupSchedules, 2)
+	assert.Equal(t, 1, rows[0].PickupSchedules[0].Weekday)
+	assert.Equal(t, "16:00", rows[0].PickupSchedules[0].PickupTime)
+	assert.Equal(t, "Hort", rows[0].PickupSchedules[0].Notes)
+	assert.Equal(t, 5, rows[0].PickupSchedules[1].Weekday)
+	assert.Equal(t, "14:00", rows[0].PickupSchedules[1].PickupTime)
+	assert.Equal(t, "Frühschluss", rows[0].PickupSchedules[1].Notes)
+}
+
 func TestCSVParser_GetColumnMapping(t *testing.T) {
 	csvData := `Vorname,Nachname,Klasse,Erz1.Email,Erz2.Email
 Max,Mustermann,1A,test1@ex.com,test2@ex.com`
