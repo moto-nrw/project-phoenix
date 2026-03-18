@@ -180,17 +180,14 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	}
 
 	// Phase 5: Build group-related maps
-	groupData, err := s.buildEducationGroupMaps(ctx, baseData.activeGroups, baseData.allEducationGroups, studentsWithGroups)
-	if err != nil {
-		return nil, &ActiveError{Op: "GetDashboardAnalytics", Err: ErrDatabaseOperation}
-	}
+	groupData := s.buildEducationGroupMaps(baseData.allEducationGroups, studentsWithGroups)
 
 	// Phase 6: Process active groups and calculate group metrics
-	activeGroupsCount, ogsGroupsCount, uniqueStudentsInRoomsOverall := s.processActiveGroups(
-		baseData.activeGroups, baseData.visitsByGroupID, groupData, roomData,
+	activeGroupsCount, uniqueStudentsInRoomsOverall := processActiveGroups(
+		baseData.activeGroups, baseData.visitsByGroupID, roomData,
 	)
 	analytics.ActiveActivities = activeGroupsCount
-	analytics.ActiveOGSGroups = ogsGroupsCount
+	analytics.ActiveOGSGroups = activeGroupsCount
 	analytics.FreeRooms = analytics.TotalRooms - len(roomData.occupiedRooms)
 
 	// Phase 7: Calculate capacity utilization
@@ -205,10 +202,10 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	analytics.StudentsInGroupRooms = locationData.studentsInGroupRooms
 	analytics.StudentsInHomeRoom = locationData.studentsInHomeRoom
 
-	// Phase 9: Build summary lists
-	analytics.RecentActivity = s.buildRecentActivity(ctx, baseData.activeGroups, roomData)
-	analytics.CurrentActivities = s.buildCurrentActivities(ctx, baseData.activeGroups, roomData)
-	analytics.ActiveGroupsSummary = s.buildActiveGroupsSummary(ctx, baseData.activeGroups, roomData)
+	// Phase 9: Build summary lists (using pre-loaded activity groups map for O(1) name lookups)
+	analytics.RecentActivity = buildRecentActivity(baseData.activeGroups, baseData.activityGroupsByID, roomData)
+	analytics.CurrentActivities = buildCurrentActivities(baseData.allActivityGroups, baseData.activeGroups, roomData)
+	analytics.ActiveGroupsSummary = buildActiveGroupsSummary(baseData.activeGroups, baseData.activityGroupsByID, roomData)
 
 	return analytics, nil
 }

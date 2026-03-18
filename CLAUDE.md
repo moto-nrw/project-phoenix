@@ -79,16 +79,18 @@ devbox add <tool>@latest # Add to devbox.json — never rely on global installs
 
 ## Essential Commands
 
+**RULE: Always suggest Docker Compose commands** when advising how to run, build, test, or debug services. Never default to bare `go run` or `pnpm run dev` unless the user explicitly asks for it. The development environment runs through Docker Compose.
+
 | Task | Command |
 |------|---------|
-| Start backend | `cd backend && go run main.go serve` |
-| Start frontend | `cd frontend && pnpm run dev` |
-| Run tests | `cd backend && go test ./...` |
-| Quality check | `cd frontend && pnpm run check` |
-| Rebuild backend (Docker) | `docker compose build server` |
-| Run migrations | `cd backend && go run main.go migrate` |
-| Reset + seed DB | `cd backend && go run main.go migrate reset && go run main.go seed` |
-| Generate docs | `cd backend && go run main.go gendoc --routes` |
+| Start all services | `docker compose up -d` |
+| Rebuild + restart backend | `docker compose build server && docker compose up -d server` |
+| Run migrations | `docker compose run server ./main migrate` |
+| Reset + seed DB | `docker compose run server ./main migrate reset && docker compose run server ./main seed` |
+| View logs | `docker compose logs -f server` |
+| Quality check (frontend) | `cd frontend && pnpm run check` |
+| Run backend tests | `cd backend && go test ./...` |
+| Generate docs | `docker compose run server ./main gendoc --routes` |
 
 **Seeder is DEV-ONLY**: `go run main.go seed` creates fake test data and must NEVER run on staging or production. Production infrastructure (system rooms, categories, activities) must be created via data migrations or admin UI — never via the seeder.
 

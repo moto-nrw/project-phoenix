@@ -1,12 +1,12 @@
 "use client";
 
 import { createLogger } from "~/lib/logger";
-import { useEffect, useState, useRef } from "react";
+import { useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { UserContextProvider } from "~/lib/usercontext-context";
-import { fetchWithAuth } from "~/lib/fetch-with-auth";
+import { fetchDashboardAnalyticsClient } from "~/lib/dashboard-api";
 import type { DashboardAnalytics } from "~/lib/dashboard-helpers";
 import {
   formatRecentActivityTime,
@@ -14,6 +14,7 @@ import {
   getGroupStatusColor,
 } from "~/lib/dashboard-helpers";
 import { isAdmin } from "~/lib/auth-utils";
+import { useSWRAuth } from "~/lib/swr/hooks";
 
 import { Loading } from "~/components/ui/loading";
 
@@ -250,44 +251,28 @@ function DashboardContent() {
     },
   });
 
-  const [dashboardData, setDashboardData] = useState<DashboardAnalytics | null>(
-    null,
+  // SWR with "dashboard-analytics" key — automatically revalidated by global SSE
+  // when student_checkin, student_checkout, activity_start/end, or
+  // dashboard_counts_changed events arrive (see use-global-sse.ts)
+  const {
+    data: dashboardData,
+    isLoading,
+    error: swrError,
+  } = useSWRAuth<DashboardAnalytics>(
+    "dashboard-analytics",
+    fetchDashboardAnalyticsClient,
+    { refreshInterval: 5 * 60 * 1000 },
   );
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const hasLoadedOnce = useRef(false);
+
+  if (swrError) {
+    logger.error("dashboard_fetch_failed", {
+      error: swrError instanceof Error ? swrError.message : String(swrError),
+    });
+  }
+
+  const error = swrError ? "Fehler beim Laden der Dashboard-Daten" : null;
 
   useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        setIsLoading(true);
-        const response = await fetchWithAuth("/api/dashboard/analytics");
-
-        if (!response.ok) {
-          logger.error("dashboard API request failed", {
-            status: response.status,
-          });
-          throw new Error("Failed to fetch dashboard data");
-        }
-
-        const data = (await response.json()) as { data: DashboardAnalytics };
-        setDashboardData(data.data);
-        setError(null);
-        hasLoadedOnce.current = true;
-      } catch (err) {
-        logger.error("failed to fetch dashboard data", {
-          error: err instanceof Error ? err.message : String(err),
-        });
-        // For initial load, show full error
-        if (!hasLoadedOnce.current) {
-          setError("Fehler beim Laden der Dashboard-Daten");
-        }
-        // For background refresh, keep old data and continue silently
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     if (status === "authenticated" && session) {
       if (session.error === "RefreshTokenExpired") {
         logger.info("session refresh token expired, redirecting to login");
@@ -295,22 +280,10 @@ function DashboardContent() {
         return;
       }
 
-      if (session.user?.token) {
-        void fetchDashboardData();
-      } else {
+      if (!session.user?.token) {
         logger.info("no valid token in session, redirecting to login");
         router.push("/");
       }
-
-      // Refresh data every 5 minutes
-      const interval = setInterval(
-        () => {
-          void fetchDashboardData();
-        },
-        5 * 60 * 1000,
-      );
-
-      return () => clearInterval(interval);
     }
   }, [status, session, router]);
 
