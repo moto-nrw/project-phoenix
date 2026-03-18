@@ -10,7 +10,7 @@ import { createLogger } from "~/lib/logger";
 const logger = createLogger({ component: "DashboardAPI" });
 
 /**
- * Fetches dashboard analytics data from the backend (server-side, used by BFF route handler)
+ * Fetches dashboard analytics data from the backend (server-side, used by BFF route)
  * @param token - JWT authentication token
  * @returns Promise<DashboardAnalytics>
  */
@@ -35,14 +35,13 @@ export async function fetchDashboardAnalytics(
 }
 
 /**
- * Client-side fetcher for dashboard analytics via the BFF route.
- * Used with SWR for automatic revalidation via SSE events.
+ * Client-side fetcher for SWR — calls the Next.js BFF route
  */
 export async function fetchDashboardAnalyticsClient(): Promise<DashboardAnalytics> {
   const response = await fetchWithAuth("/api/dashboard/analytics");
 
   if (!response.ok) {
-    throw new Error(`Dashboard API request failed: ${response.status}`);
+    throw new Error(`Dashboard fetch failed: ${response.status}`);
   }
 
   const json = (await response.json()) as { data: DashboardAnalytics };
