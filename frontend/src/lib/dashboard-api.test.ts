@@ -195,7 +195,7 @@ describe("fetchDashboardAnalyticsClient", () => {
     } as Response);
 
     await expect(fetchDashboardAnalyticsClient()).rejects.toThrow(
-      "Dashboard API request failed: 500",
+      "Dashboard fetch failed: 500",
     );
   });
 
