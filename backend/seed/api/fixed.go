@@ -120,27 +120,35 @@ func (s *FixedSeeder) Seed(ctx context.Context) (*FixedResult, error) {
 		return nil, fmt.Errorf("failed to seed guardians: %w", err)
 	}
 
-	// 9. Fetch or create activity categories
+	// 9. Re-authenticate as a staff member for activity creation
+	// The activities API requires a linked staff record (created_by field).
+	// The initial admin account may not have a staff record, so we switch
+	// to the first demo staff account which was created in steps 3-5.
+	if err := s.loginAsStaff(); err != nil {
+		return nil, fmt.Errorf("failed to re-authenticate as staff: %w", err)
+	}
+
+	// 10. Fetch or create activity categories
 	if err := s.fetchCategories(ctx); err != nil {
 		return nil, fmt.Errorf("failed to fetch categories: %w", err)
 	}
 
-	// 10. Create activities
+	// 11. Create activities
 	if err := s.seedActivities(ctx, result); err != nil {
 		return nil, fmt.Errorf("failed to seed activities: %w", err)
 	}
 
-	// 11. Assign supervisors to activities
+	// 12. Assign supervisors to activities
 	if err := s.assignSupervisors(ctx); err != nil {
 		return nil, fmt.Errorf("failed to assign supervisors: %w", err)
 	}
 
-	// 12. Enroll students in activities
+	// 13. Enroll students in activities
 	if err := s.enrollStudents(ctx); err != nil {
 		return nil, fmt.Errorf("failed to enroll students: %w", err)
 	}
 
-	// 13. Create IoT devices
+	// 14. Create IoT devices
 	if err := s.seedDevices(ctx, result); err != nil {
 		return nil, fmt.Errorf("failed to seed devices: %w", err)
 	}
@@ -150,6 +158,24 @@ func (s *FixedSeeder) Seed(ctx context.Context) (*FixedResult, error) {
 
 	fmt.Println("✅ Fixed data creation complete!")
 	return result, nil
+}
+
+// loginAsStaff re-authenticates as the first demo staff account.
+// Required because the activities API needs a linked staff record (created_by).
+func (s *FixedSeeder) loginAsStaff() error {
+	if len(s.staffCredentials) == 0 {
+		return fmt.Errorf("no staff credentials available — staff accounts must be created first")
+	}
+
+	creds := s.staffCredentials[0]
+	fmt.Printf("🔄 Re-authenticating as %s (%s) for activity creation...\n", creds.Name, creds.Email)
+
+	if err := s.client.Login(creds.Email, creds.Password); err != nil {
+		return fmt.Errorf("failed to login as %s: %w", creds.Email, err)
+	}
+
+	fmt.Println("✓ Authenticated as staff member")
+	return nil
 }
 
 func (s *FixedSeeder) seedRooms(_ context.Context, result *FixedResult) error {

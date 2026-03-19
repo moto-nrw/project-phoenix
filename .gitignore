@@ -404,6 +404,7 @@ ci-cd-best-practices-guide.md
 # Claude AI specific files
 *.local.md
 .claude/worktrees
+.claude/scheduled_tasks.lock
 
 # Server logs and runtime files
 backend/*.log

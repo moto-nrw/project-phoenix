@@ -1,4 +1,5 @@
 import { apiGet } from "./api-helpers";
+import { fetchWithAuth } from "./fetch-with-auth";
 import type {
   DashboardAnalytics,
   DashboardAnalyticsResponse,
@@ -9,7 +10,7 @@ import { createLogger } from "~/lib/logger";
 const logger = createLogger({ component: "DashboardAPI" });
 
 /**
- * Fetches dashboard analytics data from the backend
+ * Fetches dashboard analytics data from the backend (server-side, used by BFF route)
  * @param token - JWT authentication token
  * @returns Promise<DashboardAnalytics>
  */
@@ -31,4 +32,18 @@ export async function fetchDashboardAnalytics(
     // Re-throw the original error to preserve the 401 status
     throw error;
   }
+}
+
+/**
+ * Client-side fetcher for SWR — calls the Next.js BFF route
+ */
+export async function fetchDashboardAnalyticsClient(): Promise<DashboardAnalytics> {
+  const response = await fetchWithAuth("/api/dashboard/analytics");
+
+  if (!response.ok) {
+    throw new Error(`Dashboard fetch failed: ${response.status}`);
+  }
+
+  const json = (await response.json()) as { data: DashboardAnalytics };
+  return json.data;
 }

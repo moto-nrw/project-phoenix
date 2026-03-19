@@ -639,8 +639,10 @@ describe("PickupScheduleFormModal", () => {
         expect(mockOnSubmit).toHaveBeenCalled();
       });
 
-      expect(screen.getByText("Speichern")).not.toBeDisabled();
-      expect(screen.getByText("Abbrechen")).not.toBeDisabled();
+      await waitFor(() => {
+        expect(screen.getByText("Speichern")).not.toBeDisabled();
+        expect(screen.getByText("Abbrechen")).not.toBeDisabled();
+      });
     });
 
     it("re-enables buttons after submission fails", async () => {

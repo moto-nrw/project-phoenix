@@ -72,9 +72,7 @@ describe("RefreshButton", () => {
       );
     });
 
-    expect(mockMutate).toHaveBeenCalledWith(expect.any(Function), undefined, {
-      revalidate: true,
-    });
+    expect(mockMutate).toHaveBeenCalledWith(expect.any(Function));
   });
 
   it("shows spin animation during refresh", async () => {
