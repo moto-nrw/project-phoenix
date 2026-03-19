@@ -1,12 +1,14 @@
 package database
 
 import (
+	"database/sql"
 	"log"
 	"log/slog"
 	"net/url"
 	"os"
 
 	"github.com/spf13/viper"
+	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 // GetDatabaseDSN returns the database connection string based on environment.
@@ -59,7 +61,9 @@ func GetDatabaseDSN() string {
 //
 // The DSN is auto-constructed by replacing the user/password in the base DSN with
 // phoenix_auth and the PHOENIX_AUTH_PASSWORD environment variable. If the password
-// is not set, falls back to the superuser DSN with a warning.
+// is not set, falls back to the superuser DSN with a warning. If the password is set
+// but the phoenix_auth role doesn't exist yet (migrations haven't run), it also falls
+// back gracefully so the server can start and run migrations.
 func GetServeDSN() string {
 	baseDSN := GetDatabaseDSN()
 
@@ -81,5 +85,21 @@ func GetServeDSN() string {
 	}
 
 	parsed.User = url.UserPassword("phoenix_auth", password)
-	return parsed.String()
+	phoenixDSN := parsed.String()
+
+	// Verify the phoenix_auth role can actually connect. If the role doesn't exist
+	// yet (migrations haven't run), fall back to the superuser DSN so the server
+	// can start and run migrations that create the role.
+	testDB := sql.OpenDB(pgdriver.NewConnector(pgdriver.WithDSN(phoenixDSN)))
+	err = testDB.Ping()
+	testDB.Close()
+
+	if err != nil {
+		slog.Warn("phoenix_auth connection failed — falling back to superuser connection. "+
+			"Run migrations to create the phoenix_auth role.",
+			"error", err)
+		return baseDSN
+	}
+
+	return phoenixDSN
 }
