@@ -1,15 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
-const { mockUseOperatorAuth, mockFetch } = vi.hoisted(() => ({
-  mockUseOperatorAuth: vi.fn(),
+const { mockUseSession, mockUpdateSession, mockFetch } = vi.hoisted(() => ({
+  mockUseSession: vi.fn(),
+  mockUpdateSession: vi.fn(),
   mockFetch: vi.fn(),
 }));
 
 global.fetch = mockFetch;
 
-vi.mock("~/lib/operator/auth-context", () => ({
-  useOperatorAuth: mockUseOperatorAuth,
+vi.mock("next-auth/react", () => ({
+  useSession: mockUseSession,
 }));
 
 vi.mock("~/components/ui/loading", () => ({
@@ -27,6 +28,14 @@ import OperatorSettingsPage from "./page";
 describe("OperatorSettingsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUpdateSession.mockResolvedValue(undefined);
+    mockUseSession.mockReturnValue({
+      data: {
+        user: { name: "John Doe", email: "john@example.com" },
+      },
+      status: "authenticated",
+      update: mockUpdateSession,
+    });
     mockFetch.mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -36,10 +45,10 @@ describe("OperatorSettingsPage", () => {
   });
 
   it("shows loading state when auth is loading", async () => {
-    mockUseOperatorAuth.mockReturnValue({
-      operator: null,
-      isLoading: true,
-      updateOperator: vi.fn(),
+    mockUseSession.mockReturnValue({
+      data: null,
+      status: "loading",
+      update: mockUpdateSession,
     });
 
     render(<OperatorSettingsPage />);
@@ -50,12 +59,6 @@ describe("OperatorSettingsPage", () => {
   });
 
   it("renders settings form with operator data", async () => {
-    mockUseOperatorAuth.mockReturnValue({
-      operator: { displayName: "John Doe", email: "john@example.com" },
-      isLoading: false,
-      updateOperator: vi.fn(),
-    });
-
     render(<OperatorSettingsPage />);
 
     await waitFor(() => {
@@ -65,13 +68,6 @@ describe("OperatorSettingsPage", () => {
   });
 
   it("updates profile on save", async () => {
-    const mockUpdateOperator = vi.fn();
-    mockUseOperatorAuth.mockReturnValue({
-      operator: { displayName: "John Doe", email: "john@example.com" },
-      isLoading: false,
-      updateOperator: mockUpdateOperator,
-    });
-
     render(<OperatorSettingsPage />);
 
     await waitFor(() => {
@@ -93,6 +89,10 @@ describe("OperatorSettingsPage", () => {
           body: JSON.stringify({ display_name: "Jane Doe" }),
         }),
       );
+    });
+
+    await waitFor(() => {
+      expect(mockUpdateSession).toHaveBeenCalled();
     });
   });
 });

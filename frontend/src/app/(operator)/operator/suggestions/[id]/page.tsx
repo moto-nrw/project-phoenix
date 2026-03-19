@@ -4,7 +4,7 @@ import { useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import useSWR from "swr";
 import { ThumbsUp, ThumbsDown } from "lucide-react";
-import { useOperatorAuth } from "~/lib/operator/auth-context";
+import { useSession } from "next-auth/react";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { operatorSuggestionsService } from "~/lib/operator/suggestions-api";
 import { StatusDropdown } from "~/components/operator/status-dropdown";
@@ -19,7 +19,7 @@ const logger = createLogger({ component: "OperatorSuggestionDetailPage" });
 export default function OperatorSuggestionDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const { isAuthenticated } = useOperatorAuth();
+  const { status } = useSession();
   const id = params.id as string;
   useSetBreadcrumb({ pageTitle: "Feedback Details" });
 
@@ -34,7 +34,7 @@ export default function OperatorSuggestionDetailPage() {
     isLoading,
     mutate,
   } = useSWR(
-    isAuthenticated && id ? `operator-suggestion-${id}` : null,
+    status === "authenticated" && id ? `operator-suggestion-${id}` : null,
     () => operatorSuggestionsService.fetchById(id),
     {
       keepPreviousData: true,

@@ -9,7 +9,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const {
   mockUseParams,
   mockUsePush,
-  mockUseOperatorAuth,
+  mockUseSession,
   mockUseSWR,
   mockMutate,
   mockFetchById,
@@ -19,7 +19,7 @@ const {
 } = vi.hoisted(() => ({
   mockUseParams: vi.fn(),
   mockUsePush: vi.fn(),
-  mockUseOperatorAuth: vi.fn(),
+  mockUseSession: vi.fn(),
   mockUseSWR: vi.fn(),
   mockMutate: vi.fn(),
   mockFetchById: vi.fn(),
@@ -35,8 +35,8 @@ vi.mock("next/navigation", () => ({
 }));
 
 // Mock hooks and contexts
-vi.mock("~/lib/operator/auth-context", () => ({
-  useOperatorAuth: mockUseOperatorAuth,
+vi.mock("next-auth/react", () => ({
+  useSession: mockUseSession,
 }));
 
 vi.mock("~/lib/breadcrumb-context", () => ({
@@ -130,9 +130,9 @@ describe("OperatorSuggestionDetailPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUseParams.mockReturnValue({ id: "1" });
-    mockUseOperatorAuth.mockReturnValue({
-      isAuthenticated: true,
-      operator: { id: "1", email: "test@example.com" },
+    mockUseSession.mockReturnValue({
+      data: { user: { scope: "platform" } },
+      status: "authenticated",
     });
     mockUseSWR.mockReturnValue({
       data: mockSuggestion,

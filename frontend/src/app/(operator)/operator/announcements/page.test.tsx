@@ -7,7 +7,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Hoisted mocks
 const {
-  mockUseOperatorAuth,
+  mockUseSession,
   mockUseSWR,
   mockMutate,
   mockFetchAll,
@@ -17,7 +17,7 @@ const {
   mockPublish,
   mockFetchStats,
 } = vi.hoisted(() => ({
-  mockUseOperatorAuth: vi.fn(),
+  mockUseSession: vi.fn(),
   mockUseSWR: vi.fn(),
   mockMutate: vi.fn(),
   mockFetchAll: vi.fn(),
@@ -29,8 +29,8 @@ const {
 }));
 
 // Mock hooks and contexts
-vi.mock("~/lib/operator/auth-context", () => ({
-  useOperatorAuth: mockUseOperatorAuth,
+vi.mock("next-auth/react", () => ({
+  useSession: mockUseSession,
 }));
 
 vi.mock("~/lib/breadcrumb-context", () => ({
@@ -162,9 +162,9 @@ describe("OperatorAnnouncementsPage", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUseOperatorAuth.mockReturnValue({
-      isAuthenticated: true,
-      operator: { id: "1", email: "test@example.com" },
+    mockUseSession.mockReturnValue({
+      data: { user: { scope: "platform" } },
+      status: "authenticated",
     });
     mockUseSWR.mockReturnValue({
       data: [mockAnnouncement],

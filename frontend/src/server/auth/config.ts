@@ -76,6 +76,7 @@ function buildAuthUser(
   token: string,
   refreshToken: string,
   email: string,
+  scope?: string,
 ): User {
   // Defensive check: ensure roles is actually an array (matches original login behavior)
   const roles =
@@ -87,10 +88,77 @@ function buildAuthUser(
     email: email,
     token: token,
     refreshToken: refreshToken,
-    roles: roles,
+    roles: scope === "platform" ? ["operator"] : roles,
     firstName: payload.first_name,
     isAdmin: payload.is_admin ?? false,
+    scope: scope,
   };
+}
+
+/**
+ * Perform operator login API call to backend.
+ * Operator login returns an envelope: { status, data: { access_token, refresh_token, operator } }
+ */
+async function performOperatorLogin(
+  email: string,
+  password: string,
+  isDev: boolean,
+): Promise<{ access_token: string; refresh_token: string } | null> {
+  const apiUrl = getServerApiUrl();
+
+  if (isDev) {
+    logger.debug("attempting operator login", {
+      api_url: `${apiUrl}/operator/auth/login`,
+    });
+  }
+
+  try {
+    const response = await fetch(`${apiUrl}/operator/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+
+    if (isDev) {
+      logger.debug("operator login response received", {
+        status: response.status,
+      });
+    }
+
+    if (!response.ok) {
+      const text = await response.text();
+      logger.error("operator login failed", {
+        status: response.status,
+        error: text,
+      });
+      return null;
+    }
+
+    const envelope = (await response.json()) as {
+      status: string;
+      data: {
+        access_token: string;
+        refresh_token: string;
+        operator: { id: number; email: string; display_name: string };
+      };
+    };
+
+    if (isDev) {
+      logger.debug("operator login response parsed", {
+        has_tokens: !!envelope.data.access_token,
+      });
+    }
+
+    return {
+      access_token: envelope.data.access_token,
+      refresh_token: envelope.data.refresh_token,
+    };
+  } catch (error) {
+    logger.error("operator authentication error", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
 }
 
 /**
@@ -159,6 +227,7 @@ declare module "next-auth" {
       roles?: string[];
       firstName?: string;
       isAdmin?: boolean;
+      scope?: string;
     } & DefaultSession["user"];
     error?: "RefreshTokenExpired" | "RefreshTokenError";
   }
@@ -169,6 +238,7 @@ declare module "next-auth" {
     roles?: string[];
     firstName?: string;
     isAdmin?: boolean;
+    scope?: string;
   }
 
   interface JWT {
@@ -178,6 +248,7 @@ declare module "next-auth" {
     roles?: string[];
     firstName?: string;
     isAdmin?: boolean;
+    scope?: string;
     tokenExpiry?: number;
     refreshTokenExpiry?: number;
     error?: "RefreshTokenExpired" | "RefreshTokenError";
@@ -294,15 +365,65 @@ export const authConfig = {
         );
       },
     }),
-    /**
-     * ...add more providers here.
-     *
-     * Most other providers require a bit more work than the Discord provider. For example, the
-     * GitHub provider requires you to add the `refresh_token_expires_in` field to the Account
-     * model. Refer to the NextAuth.js docs for the provider you want to use. Example:
-     *
-     * @see https://next-auth.js.org/providers/github
-     */
+    CredentialsProvider({
+      id: "operator-credentials",
+      name: "Operator Credentials",
+      credentials: {
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" },
+        internalRefresh: { label: "Internal Refresh", type: "text" },
+        token: { label: "Token", type: "text" },
+        refreshToken: { label: "Refresh Token", type: "text" },
+      },
+      async authorize(credentials, _request) {
+        const creds = credentials as Record<string, string> | undefined;
+        const isDev = process.env.NODE_ENV === "development";
+
+        // Handle internal token refresh (same pattern as teacher)
+        if (
+          creds?.internalRefresh === "true" &&
+          creds?.token &&
+          creds?.refreshToken
+        ) {
+          if (isDev) {
+            logger.debug("handling operator internal token refresh", {});
+          }
+
+          const payload = parseJwtPayload(creds.token);
+          if (!payload) return null;
+
+          const email = payload.email ?? payload.sub ?? "";
+          return buildAuthUser(
+            payload,
+            creds.token,
+            creds.refreshToken,
+            email,
+            "platform",
+          );
+        }
+
+        // Regular operator login flow
+        if (!creds?.email || !creds?.password) return null;
+
+        const loginResult = await performOperatorLogin(
+          creds.email,
+          creds.password,
+          isDev,
+        );
+        if (!loginResult) return null;
+
+        const payload = parseJwtPayload(loginResult.access_token);
+        if (!payload) return null;
+
+        return buildAuthUser(
+          payload,
+          loginResult.access_token,
+          loginResult.refresh_token,
+          creds.email,
+          "platform",
+        );
+      },
+    }),
   ],
   callbacks: {
     jwt: async ({ token, user }) => {
@@ -334,6 +455,7 @@ export const authConfig = {
         token.roles = user.roles;
         token.firstName = user.firstName;
         token.isAdmin = user.isAdmin;
+        token.scope = user.scope;
         // Store token expiry from environment
         token.tokenExpiry = Date.now() + accessTokenExpiry;
         // Store refresh token expiry (matching backend)
@@ -432,10 +554,15 @@ export const authConfig = {
         }
 
         // Start new refresh and share via module-level promise
+        const isOperator = token.scope === "platform";
+        const refreshUrl = isOperator
+          ? `${getServerApiUrl()}/operator/auth/refresh`
+          : `${getServerApiUrl()}/auth/refresh`;
+
         activeRefreshKey = currentRefreshToken;
         activeRefreshPromise = (async (): Promise<RefreshResult | null> => {
           try {
-            const response = await fetch(`${getServerApiUrl()}/auth/refresh`, {
+            const response = await fetch(refreshUrl, {
               method: "POST",
               headers: {
                 Authorization: `Bearer ${currentRefreshToken}`,
@@ -445,7 +572,17 @@ export const authConfig = {
             });
 
             if (response.ok) {
-              const tokens = (await response.json()) as RefreshResult;
+              // Operator refresh returns envelope { data: { access_token, refresh_token } }
+              // Teacher refresh returns flat { access_token, refresh_token }
+              let tokens: RefreshResult;
+              if (isOperator) {
+                const envelope = (await response.json()) as {
+                  data: RefreshResult;
+                };
+                tokens = envelope.data;
+              } else {
+                tokens = (await response.json()) as RefreshResult;
+              }
               // Cache result so late-arriving callbacks with the old token
               // get the new tokens instead of sending a doomed request
               refreshCache = {
@@ -457,11 +594,13 @@ export const authConfig = {
             }
             logger.warn("proactive_token_refresh_failed", {
               status: response.status,
+              scope: token.scope,
             });
             return null;
           } catch (err) {
             logger.warn("proactive_token_refresh_error", {
               error: err instanceof Error ? err.message : String(err),
+              scope: token.scope,
             });
             return null;
           } finally {
@@ -507,6 +646,7 @@ export const authConfig = {
             roles: [],
             firstName: (token.firstName as string) || "",
             isAdmin: false,
+            scope: token.scope as string | undefined,
           },
           error: token.error,
         };
@@ -523,6 +663,7 @@ export const authConfig = {
           roles: token.roles as string[],
           firstName: token.firstName as string,
           isAdmin: (token.isAdmin as boolean) ?? false,
+          scope: token.scope as string | undefined,
         },
       };
     },

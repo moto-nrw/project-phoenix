@@ -2,16 +2,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import type { RouteContext } from "~/lib/route-wrapper-utils";
 
-const { mockGetOperatorToken, mockFetch, mockGetServerApiUrl } = vi.hoisted(
-  () => ({
-    mockGetOperatorToken: vi.fn<() => Promise<string | undefined>>(),
-    mockFetch: vi.fn(),
-    mockGetServerApiUrl: vi.fn(() => "http://localhost:8080"),
-  }),
-);
+const { mockAuth, mockFetch, mockGetServerApiUrl } = vi.hoisted(() => ({
+  mockAuth: vi.fn(),
+  mockFetch: vi.fn(),
+  mockGetServerApiUrl: vi.fn(() => "http://localhost:8080"),
+}));
 
-vi.mock("~/lib/operator/cookies", () => ({
-  getOperatorToken: mockGetOperatorToken,
+vi.mock("~/server/auth", () => ({
+  auth: mockAuth,
 }));
 
 vi.mock("~/lib/server-api-url", () => ({
@@ -30,7 +28,7 @@ describe("GET /api/operator/announcements", () => {
   });
 
   it("fetches announcements with default include_inactive=true", async () => {
-    mockGetOperatorToken.mockResolvedValue("valid-token");
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
     const announcements = [
       { id: 1, title: "Test 1", content: "Content 1" },
       { id: 2, title: "Test 2", content: "Content 2" },
@@ -61,7 +59,7 @@ describe("GET /api/operator/announcements", () => {
   });
 
   it("respects include_inactive query parameter", async () => {
-    mockGetOperatorToken.mockResolvedValue("valid-token");
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
     mockFetch.mockResolvedValue({
       ok: true,
       status: 200,
@@ -80,7 +78,7 @@ describe("GET /api/operator/announcements", () => {
   });
 
   it("returns 401 when not authenticated", async () => {
-    mockGetOperatorToken.mockResolvedValue(undefined);
+    mockAuth.mockResolvedValue(null);
 
     const request = new NextRequest(
       "http://localhost:3000/api/operator/announcements",
@@ -103,7 +101,7 @@ describe("POST /api/operator/announcements", () => {
   });
 
   it("creates announcement successfully", async () => {
-    mockGetOperatorToken.mockResolvedValue("valid-token");
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
     const newAnnouncement = {
       title: "New Announcement",
       content: "Test content",
@@ -148,7 +146,7 @@ describe("POST /api/operator/announcements", () => {
   });
 
   it("returns 401 when not authenticated", async () => {
-    mockGetOperatorToken.mockResolvedValue(undefined);
+    mockAuth.mockResolvedValue(null);
 
     const request = new NextRequest(
       "http://localhost:3000/api/operator/announcements",
@@ -163,7 +161,7 @@ describe("POST /api/operator/announcements", () => {
   });
 
   it("handles validation errors from backend", async () => {
-    mockGetOperatorToken.mockResolvedValue("valid-token");
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
     mockFetch.mockResolvedValue({
       ok: false,
       status: 400,

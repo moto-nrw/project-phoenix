@@ -11,7 +11,7 @@ import {
 import { Skeleton } from "~/components/ui/skeleton";
 import { StatusDropdown } from "~/components/operator/status-dropdown";
 import { OperatorCommentAccordion } from "~/components/operator/operator-comment-accordion";
-import { useOperatorAuth } from "~/lib/operator/auth-context";
+import { useSession } from "next-auth/react";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { operatorSuggestionsService } from "~/lib/operator/suggestions-api";
 import { OPERATOR_STATUS_LABELS } from "~/lib/operator/suggestions-helpers";
@@ -25,7 +25,7 @@ import { createLogger } from "~/lib/logger";
 const logger = createLogger({ component: "OperatorSuggestionsPage" });
 
 export default function OperatorSuggestionsPage() {
-  const { isAuthenticated } = useOperatorAuth();
+  const { status } = useSession();
   useSetBreadcrumb({ pageTitle: "Feedback" });
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -37,7 +37,7 @@ export default function OperatorSuggestionsPage() {
     isLoading,
     mutate,
   } = useSWR(
-    isAuthenticated ? "operator-suggestions" : null,
+    status === "authenticated" ? "operator-suggestions" : null,
     () => operatorSuggestionsService.fetchAll(),
     {
       refreshInterval: 30000, // Refresh every 30 seconds to catch new posts

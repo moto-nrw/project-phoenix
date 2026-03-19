@@ -3,9 +3,9 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import { signIn, useSession } from "next-auth/react";
 import { Input, Alert, HelpButton } from "~/components/ui";
 import { Loading } from "~/components/ui/loading";
-import { useOperatorAuth } from "~/lib/operator/auth-context";
 import { launchConfetti, clearConfetti } from "~/lib/confetti";
 import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import { LoginHelpContent } from "~/components/shared/login-help-content";
@@ -17,17 +17,17 @@ export default function OperatorLoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
-  const { login, isAuthenticated, isLoading: authLoading } = useOperatorAuth();
+  const { status } = useSession();
 
-  // Redirect if already authenticated
+  // Redirect if already authenticated as operator
   useEffect(() => {
-    if (isAuthenticated && !authLoading) {
+    if (status === "authenticated") {
       router.push("/operator/suggestions");
     }
-  }, [isAuthenticated, authLoading, router]);
+  }, [status, router]);
 
   // Show loading while checking auth
-  if (authLoading || isAuthenticated) {
+  if (status === "loading" || status === "authenticated") {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center p-4">
         <Loading />
@@ -43,8 +43,19 @@ export default function OperatorLoginPage() {
     try {
       launchConfetti();
 
-      await login(email, password);
-      // login() in auth context handles redirect
+      const result = await signIn("operator-credentials", {
+        redirect: false,
+        email,
+        password,
+      });
+
+      if (result?.error) {
+        clearConfetti();
+        setError("Ungültige Anmeldedaten");
+        return;
+      }
+
+      router.push("/operator/suggestions");
     } catch (err) {
       clearConfetti();
 
