@@ -1,0 +1,65 @@
+# Production Docker Compose
+# Deployed automatically by CI — changes here are synced to ~/production/docker-compose.yml on the server.
+# Uses pre-built images from GHCR (pushed by CI build step).
+
+services:
+  server:
+    image: ghcr.io/moto-nrw/phoenix-server:latest
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8081:8080"
+    env_file:
+      - .env
+    logging:
+      driver: journald
+      options:
+        tag: prod-server
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  frontend:
+    image: ghcr.io/moto-nrw/phoenix-frontend:latest
+    restart: unless-stopped
+    depends_on:
+      - server
+    ports:
+      - "3001:3000"
+    env_file:
+      - .env
+    logging:
+      driver: journald
+      options:
+        tag: prod-frontend
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    env_file:
+      - .env
+    logging:
+      driver: journald
+      options:
+        tag: prod-postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  postgres:

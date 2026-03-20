@@ -15,6 +15,11 @@ pre-commit:
       run: cd frontend && npx lint-staged
       stage_fixed: true
 
+    # Environment key sync check (no decryption needed)
+    env-sync:
+      glob: "environments/*.sops.env"
+      run: ./scripts/env-check.sh
+
     # Go imports check (formatting and organization)
     go-imports:
       glob: "backend/**/*.go"

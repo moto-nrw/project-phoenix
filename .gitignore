@@ -380,6 +380,8 @@ cython_debug/
 # Environment files
 **/*.env
 !**/.env.example
+# SOPS-encrypted environment files (committed to repo, values are encrypted)
+!environments/*.sops.env
 
 # Specific environment files
 **/dev.env

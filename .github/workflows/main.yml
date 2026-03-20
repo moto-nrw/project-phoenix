@@ -62,12 +62,22 @@ jobs:
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
+  # Verify all environments have matching env var keys (no secrets needed)
+  env-sync-check:
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - name: Check environment key sync
+        run: ./scripts/env-check.sh
+
   ci-gate:
     if: always()
-    needs: [lint, test]
+    needs: [lint, test, env-sync-check]
     runs-on: ubuntu-latest
     steps:
       - uses: re-actors/alls-green@05ac9388f0aebcb5727afa17fcccfecd6f8ec5fe # release/v1
         with:
           jobs: ${{ toJSON(needs) }}
-          allowed-skips: lint, test
+          allowed-skips: lint, test, env-sync-check
