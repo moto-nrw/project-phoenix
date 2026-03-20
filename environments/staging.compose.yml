@@ -58,6 +58,8 @@ services:
     environment:
       # Frontend-specific: internal API URL (not exposed via .env)
       API_URL: http://server:8080
+      # Override PORT from shared .env (8080 is for the backend; Next.js must listen on 3000)
+      PORT: 3000
     logging:
       driver: journald
       options:
