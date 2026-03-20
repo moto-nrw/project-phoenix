@@ -2,7 +2,6 @@ package database
 
 import (
 	"log"
-	"log/slog"
 	"net/url"
 	"os"
 
@@ -57,9 +56,9 @@ func GetDatabaseDSN() string {
 // Connects as the phoenix_auth role (NOINHERIT, can SET ROLE to phoenix_tenant/phoenix_admin)
 // instead of the postgres superuser. This enforces least-privilege at the connection level.
 //
-// The DSN is auto-constructed by replacing the user/password in the base DSN with
-// phoenix_auth and the PHOENIX_AUTH_PASSWORD environment variable. If the password
-// is not set, falls back to the superuser DSN with a warning.
+// PHOENIX_AUTH_PASSWORD is mandatory. The server will refuse to start without it.
+// Run migration V1.14.1 to create the phoenix_auth role, then set the password
+// in your env file (dev.env for local, .env for Docker).
 func GetServeDSN() string {
 	baseDSN := GetDatabaseDSN()
 
@@ -68,16 +67,13 @@ func GetServeDSN() string {
 		password = viper.GetString("phoenix_auth_password")
 	}
 	if password == "" {
-		slog.Warn("PHOENIX_AUTH_PASSWORD not set — serve command falling back to superuser connection. " +
-			"Set PHOENIX_AUTH_PASSWORD in your env file after running migration V1.14.1.")
-		return baseDSN
+		log.Fatal("PHOENIX_AUTH_PASSWORD is required for serve. " +
+			"Set it in your env file after running migration V1.14.1.")
 	}
 
 	parsed, err := url.Parse(baseDSN)
 	if err != nil {
-		slog.Warn("failed to parse DB_DSN for phoenix_auth substitution, using superuser connection",
-			"error", err)
-		return baseDSN
+		log.Fatalf("failed to parse DB_DSN for phoenix_auth substitution: %v", err)
 	}
 
 	parsed.User = url.UserPassword("phoenix_auth", password)
