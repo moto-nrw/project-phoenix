@@ -26,11 +26,8 @@ pre-commit:
       run: |
         for f in environments/*.sops.env; do
           [ -f "$f" ] || continue
-          if grep -q 'CHANGE_ME' "$f"; then
-            continue  # Template placeholders are OK
-          fi
           if ! grep -q '^sops_version=' "$f"; then
-            echo "❌ $f contains non-placeholder values but is NOT encrypted!"
+            echo "❌ UNENCRYPTED secrets detected in $f!"
             echo "   Run: sops encrypt --in-place $f"
             exit 1
           fi
