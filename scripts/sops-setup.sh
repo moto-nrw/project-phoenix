@@ -63,11 +63,9 @@ echo ""
 
 # Step 3: Update .sops.yaml with the public key
 if grep -q 'REPLACE_WITH_AGE_PUBLIC_KEY' "$SOPS_CONFIG"; then
-  if [[ "$(uname -s)" == "Darwin" ]]; then
-    sed -i '' "s|REPLACE_WITH_AGE_PUBLIC_KEY|${PUBLIC_KEY}|" "$SOPS_CONFIG"
-  else
-    sed -i "s|REPLACE_WITH_AGE_PUBLIC_KEY|${PUBLIC_KEY}|" "$SOPS_CONFIG"
-  fi
+  # Use temp file to avoid GNU vs BSD sed -i incompatibility
+  sed "s|REPLACE_WITH_AGE_PUBLIC_KEY|${PUBLIC_KEY}|" "$SOPS_CONFIG" > "${SOPS_CONFIG}.tmp" \
+    && mv "${SOPS_CONFIG}.tmp" "$SOPS_CONFIG"
   echo "✅ Updated .sops.yaml with public key"
 elif grep -q "$PUBLIC_KEY" "$SOPS_CONFIG"; then
   echo "✅ .sops.yaml already has this public key"

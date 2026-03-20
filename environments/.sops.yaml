@@ -18,4 +18,4 @@ creation_rules:
   # IMPORTANT: Replace this placeholder with your actual age public key
   # Run: age-keygen to generate a keypair
   - path_regex: .*\.sops\.env$
-    age: "REPLACE_WITH_AGE_PUBLIC_KEY"
+    age: "age1r5cffurwgs70ntsg3q7njv40xdfk8ejlfz8vud9fg8wej370sqxqxj5esd"
