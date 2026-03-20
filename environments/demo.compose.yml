@@ -3,14 +3,34 @@
 # Uses pre-built images from GHCR (pushed by CI build step).
 
 services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    env_file:
+      - .env
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 1s
+      timeout: 1s
+      retries: 5
+    logging:
+      driver: journald
+      options:
+        tag: demo-postgres
+    networks:
+      - demo
+
   server:
     image: ghcr.io/moto-nrw/phoenix-server:demo
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
+    command: ["sh", "-c", "./main migrate && ./main serve"]
     ports:
-      - "8082:8080"
+      - "127.0.0.1:8082:8080"
     env_file:
       - .env
     logging:
@@ -23,6 +43,8 @@ services:
       timeout: 10s
       retries: 3
       start_period: 15s
+    networks:
+      - demo
 
   frontend:
     image: ghcr.io/moto-nrw/phoenix-frontend:demo
@@ -30,9 +52,12 @@ services:
     depends_on:
       - server
     ports:
-      - "3002:3000"
+      - "127.0.0.1:3002:3000"
     env_file:
       - .env
+    environment:
+      # Frontend-specific: internal API URL (not exposed via .env)
+      API_URL: http://server:8080
     logging:
       driver: journald
       options:
@@ -43,19 +68,12 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+    networks:
+      - demo
 
-  postgres:
-    image: postgres:17-alpine
-    restart: unless-stopped
-    volumes:
-      - postgres:/var/lib/postgresql/data
-    env_file:
-      - .env
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
+networks:
+  demo:
+    driver: bridge
 
 volumes:
   postgres:
