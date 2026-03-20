@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { auth } from "../server/auth";
+import { auth, uncachedAuth } from "../server/auth";
 import type { ApiErrorResponse, ApiResponse } from "./api-helpers";
 import { apiDelete, apiGet, apiPut, handleApiError } from "./api-helpers";
 import {
@@ -40,7 +40,7 @@ async function tryRetryWithRefreshedToken<T>(
   originalToken: string,
   retryFn: (token: string) => Promise<T>,
 ): Promise<T | null> {
-  const updatedSession = await auth();
+  const updatedSession = await uncachedAuth();
 
   // Only retry if token was actually refreshed
   if (

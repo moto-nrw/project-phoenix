@@ -5,6 +5,17 @@ import { env } from "~/env";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
 
+/**
+ * Creates a CredentialsSignin error with a code field.
+ * Dynamic import avoids pulling next/server into vitest.
+ */
+async function createOperatorLoginError(code: string): Promise<Error> {
+  const { CredentialsSignin } = await import("next-auth");
+  const error = new CredentialsSignin();
+  error.code = code;
+  return error;
+}
+
 // Logger instance for NextAuth config
 const logger = createLogger({ component: "NextAuthConfig" });
 
@@ -103,7 +114,12 @@ async function performOperatorLogin(
   email: string,
   password: string,
   isDev: boolean,
-): Promise<{ access_token: string; refresh_token: string } | null> {
+  forwardHeaders?: Record<string, string>,
+): Promise<{
+  access_token: string;
+  refresh_token: string;
+  status?: number;
+} | null> {
   const apiUrl = getServerApiUrl();
 
   if (isDev) {
@@ -115,7 +131,7 @@ async function performOperatorLogin(
   try {
     const response = await fetch(`${apiUrl}/operator/auth/login`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...forwardHeaders },
       body: JSON.stringify({ email, password }),
     });
 
@@ -131,7 +147,7 @@ async function performOperatorLogin(
         status: response.status,
         error: text,
       });
-      return null;
+      return { access_token: "", refresh_token: "", status: response.status };
     }
 
     const envelope = (await response.json()) as {
@@ -382,7 +398,7 @@ export const authConfig = {
         token: { label: "Token", type: "text" },
         refreshToken: { label: "Refresh Token", type: "text" },
       },
-      async authorize(credentials, _request) {
+      async authorize(credentials, request) {
         const creds = credentials as Record<string, string> | undefined;
         const isDev = process.env.NODE_ENV === "development";
 
@@ -412,12 +428,29 @@ export const authConfig = {
         // Regular operator login flow
         if (!creds?.email || !creds?.password) return null;
 
+        // Forward client IP headers for audit logs and rate limiting
+        const forwardHeaders: Record<string, string> = {};
+        const forwarded = request?.headers.get("x-forwarded-for");
+        const realIp = request?.headers.get("x-real-ip");
+        if (forwarded) forwardHeaders["X-Forwarded-For"] = forwarded;
+        if (realIp) forwardHeaders["X-Real-IP"] = realIp;
+
         const loginResult = await performOperatorLogin(
           creds.email,
           creds.password,
           isDev,
+          forwardHeaders,
         );
-        if (!loginResult) return null;
+
+        // Handle error responses with specific status codes
+        if (!loginResult || (loginResult.status && !loginResult.access_token)) {
+          const status = loginResult?.status;
+          if (status === 403)
+            throw await createOperatorLoginError("account_inactive");
+          if (status === 429)
+            throw await createOperatorLoginError("rate_limited");
+          throw await createOperatorLoginError("invalid_credentials");
+        }
 
         const payload = parseJwtPayload(loginResult.access_token);
         if (!payload) return null;
@@ -433,7 +466,7 @@ export const authConfig = {
     }),
   ],
   callbacks: {
-    jwt: async ({ token, user }) => {
+    jwt: async ({ token, user, trigger, session }) => {
       // Only log in development to avoid production log spam
       const isDev = process.env.NODE_ENV === "development";
 
@@ -483,6 +516,14 @@ export const authConfig = {
               token.refreshTokenExpiry as number,
             ).toISOString(),
           });
+        }
+      }
+
+      // Handle client-side session update (e.g. profile name change)
+      if (trigger === "update" && session) {
+        const update = session as Record<string, unknown>;
+        if (typeof update.name === "string") {
+          token.name = update.name;
         }
       }
 

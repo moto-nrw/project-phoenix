@@ -50,8 +50,8 @@ function OperatorSettingsContent() {
         );
       }
 
-      // Trigger session refresh to pick up the updated name on next JWT callback
-      await updateSession();
+      // Trigger session refresh with the updated name so JWT callback picks it up
+      await updateSession({ name: formData.displayName });
 
       setIsEditing(false);
       setAlertMessage("Profil erfolgreich aktualisiert");

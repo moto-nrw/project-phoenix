@@ -25,8 +25,8 @@ async function tryRetryWithRefreshedToken<T>(
   originalToken: string,
   retryFn: (token: string) => Promise<T>,
 ): Promise<T | null> {
-  const { auth } = await import("~/server/auth");
-  const updatedSession = await auth();
+  const { uncachedAuth } = await import("~/server/auth");
+  const updatedSession = await uncachedAuth();
 
   if (
     !updatedSession?.user?.token ||

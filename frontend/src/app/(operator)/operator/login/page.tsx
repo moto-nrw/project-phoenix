@@ -17,17 +17,20 @@ export default function OperatorLoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
-  const { status } = useSession();
+  const { data: session, status } = useSession();
 
-  // Redirect if already authenticated as operator
+  // Redirect if already authenticated as operator (scope === "platform")
   useEffect(() => {
-    if (status === "authenticated") {
+    if (status === "authenticated" && session?.user?.scope === "platform") {
       router.push("/operator/suggestions");
     }
-  }, [status, router]);
+  }, [status, session, router]);
 
-  // Show loading while checking auth
-  if (status === "loading" || status === "authenticated") {
+  // Show loading while checking auth (only for operator sessions)
+  if (
+    status === "loading" ||
+    (status === "authenticated" && session?.user?.scope === "platform")
+  ) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center p-4">
         <Loading />
@@ -51,7 +54,14 @@ export default function OperatorLoginPage() {
 
       if (result?.error) {
         clearConfetti();
-        setError("Ungültige Anmeldedaten");
+        const errorMessages: Record<string, string> = {
+          account_inactive:
+            "Ihr Konto ist deaktiviert. Bitte kontaktieren Sie den Administrator.",
+          rate_limited:
+            "Zu viele Anmeldeversuche. Bitte versuchen Sie es später erneut.",
+          invalid_credentials: "Ungültige Anmeldedaten",
+        };
+        setError(errorMessages[result.code ?? ""] ?? "Ungültige Anmeldedaten");
         return;
       }
 

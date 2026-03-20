@@ -899,7 +899,7 @@ describe("authConfig", () => {
       });
     });
 
-    it("should return null on HTTP error", async () => {
+    it("should return error status on HTTP error", async () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,
         status: 401,
@@ -912,7 +912,11 @@ describe("authConfig", () => {
         false,
       );
 
-      expect(result).toBeNull();
+      expect(result).toEqual({
+        access_token: "",
+        refresh_token: "",
+        status: 401,
+      });
     });
 
     it("should return null on network error", async () => {
@@ -1258,7 +1262,7 @@ describe("authConfig", () => {
       expect(mockFetch).not.toHaveBeenCalled();
     });
 
-    it("should return null on failed operator login", async () => {
+    it("should throw CredentialsSignin with invalid_credentials on failed operator login", async () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,
         status: 401,
@@ -1266,12 +1270,12 @@ describe("authConfig", () => {
       });
 
       const authorize = getOperatorAuthorize();
-      const result = await authorize(
-        { email: "op@example.com", password: "wrong" },
-        new Request("http://localhost:3000"),
-      );
-
-      expect(result).toBeNull();
+      await expect(
+        authorize(
+          { email: "op@example.com", password: "wrong" },
+          new Request("http://localhost:3000"),
+        ),
+      ).rejects.toThrow();
     });
 
     it("should return null when operator login returns invalid JWT", async () => {
