@@ -273,7 +273,7 @@ jobs:
 
       - name: Install SOPS
         run: |
-          curl -LsS https://github.com/getsops/sops/releases/download/v3.12.2/sops-v3.12.2.linux.amd64 -o /usr/local/bin/sops
+          curl -LsS https://github.com/getsops/sops/releases/download/v3.12.1/sops-v3.12.1.linux.amd64 -o /usr/local/bin/sops
           chmod +x /usr/local/bin/sops
 
       - name: Decrypt staging environment
@@ -344,7 +344,7 @@ jobs:
 
       - name: Install SOPS
         run: |
-          curl -LsS https://github.com/getsops/sops/releases/download/v3.12.2/sops-v3.12.2.linux.amd64 -o /usr/local/bin/sops
+          curl -LsS https://github.com/getsops/sops/releases/download/v3.12.1/sops-v3.12.1.linux.amd64 -o /usr/local/bin/sops
           chmod +x /usr/local/bin/sops
 
       - name: Decrypt demo environment
@@ -404,7 +404,7 @@ jobs:
 
       - name: Install SOPS
         run: |
-          curl -LsS https://github.com/getsops/sops/releases/download/v3.12.2/sops-v3.12.2.linux.amd64 -o /usr/local/bin/sops
+          curl -LsS https://github.com/getsops/sops/releases/download/v3.12.1/sops-v3.12.1.linux.amd64 -o /usr/local/bin/sops
           chmod +x /usr/local/bin/sops
 
       - name: Decrypt production environment

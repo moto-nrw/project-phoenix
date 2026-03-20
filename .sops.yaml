@@ -15,7 +15,5 @@
 
 creation_rules:
   # All .sops.env files use the same age key
-  # IMPORTANT: Replace this placeholder with your actual age public key
-  # Run: age-keygen to generate a keypair
   - path_regex: .*\.sops\.env$
     age: "age1r5cffurwgs70ntsg3q7njv40xdfk8ejlfz8vud9fg8wej370sqxqxj5esd"
