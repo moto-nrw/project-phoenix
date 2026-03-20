@@ -10,6 +10,7 @@ import { useSupervision } from "~/lib/supervision-context";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { isAdmin } from "~/lib/auth-utils";
 import { navigationIcons } from "~/lib/navigation-icons";
+import { operatorPath } from "~/lib/operator-url";
 import {
   Drawer,
   DrawerContent,
@@ -246,7 +247,10 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   // Compute main navigation items per role and mode
   const baseMain =
     mode === "operator"
-      ? OPERATOR_MAIN_ITEMS
+      ? OPERATOR_MAIN_ITEMS.map((item) => ({
+          ...item,
+          href: operatorPath(item.href),
+        }))
       : isAdmin(session)
         ? ADMIN_MAIN_ITEMS
         : STAFF_MAIN_ITEMS;
