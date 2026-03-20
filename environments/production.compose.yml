@@ -3,14 +3,53 @@
 # Uses pre-built images from GHCR (pushed by CI build step).
 
 services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    volumes:
+      - postgres:/var/lib/postgresql/data
+      - /etc/docker/postgres/ssl/certs:/var/lib/postgresql/ssl/certs:ro
+    env_file:
+      - .env
+    command:
+      [
+        "postgres",
+        "-c",
+        "ssl=on",
+        "-c",
+        "ssl_cert_file=/var/lib/postgresql/ssl/certs/server.crt",
+        "-c",
+        "ssl_key_file=/var/lib/postgresql/ssl/certs/server.key",
+        "-c",
+        "ssl_ca_file=/var/lib/postgresql/ssl/certs/ca.crt",
+        "-c",
+        "ssl_min_protocol_version=TLSv1.2",
+        "-c",
+        "password_encryption=scram-sha-256",
+        "-c",
+        "listen_addresses=*",
+      ]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 1s
+      timeout: 1s
+      retries: 5
+    logging:
+      driver: journald
+      options:
+        tag: prod-postgres
+    networks:
+      - production
+
   server:
-    image: ghcr.io/moto-nrw/phoenix-server:latest
+    image: ghcr.io/moto-nrw/phoenix-server:main
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
+    command: ["./main", "serve"]
     ports:
-      - "8081:8080"
+      - "127.0.0.1:8080:8080"
     env_file:
       - .env
     logging:
@@ -23,16 +62,21 @@ services:
       timeout: 10s
       retries: 3
       start_period: 15s
+    networks:
+      - production
 
   frontend:
-    image: ghcr.io/moto-nrw/phoenix-frontend:latest
+    image: ghcr.io/moto-nrw/phoenix-frontend:main
     restart: unless-stopped
     depends_on:
       - server
     ports:
-      - "3001:3000"
+      - "127.0.0.1:3000:3000"
     env_file:
       - .env
+    environment:
+      # Frontend-specific: internal API URL (not exposed via .env)
+      API_URL: http://server:8080
     logging:
       driver: journald
       options:
@@ -43,23 +87,12 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+    networks:
+      - production
 
-  postgres:
-    image: postgres:17-alpine
-    restart: unless-stopped
-    volumes:
-      - postgres:/var/lib/postgresql/data
-    env_file:
-      - .env
-    logging:
-      driver: journald
-      options:
-        tag: prod-postgres
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
+networks:
+  production:
+    driver: bridge
 
 volumes:
   postgres:
