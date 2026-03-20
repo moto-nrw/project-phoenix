@@ -1,5 +1,5 @@
 import { createGetHandler } from "@/lib/route-wrapper";
-import { apiGet } from "@/lib/api-client";
+import { apiGet } from "~/lib/api-helpers";
 import type { BackendPermission } from "@/lib/auth-helpers";
 import { createLogger } from "~/lib/logger";
 
@@ -21,9 +21,8 @@ export const GET = createGetHandler(async (request, token, params) => {
   logger.debug("fetching permissions for account", { account_id: accountId });
 
   // Make the API call with the validated account ID
-  const response = await apiGet<PermissionsResponse>(
+  return await apiGet<PermissionsResponse>(
     `/auth/accounts/${accountId}/permissions`,
     token,
   );
-  return response.data;
 });

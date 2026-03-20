@@ -1,6 +1,5 @@
-import type { AxiosError } from "axios";
 import { createGetHandler, createPutHandler } from "~/lib/route-wrapper";
-import { apiGet, apiPut } from "~/lib/api-client";
+import { apiGet, apiPut } from "~/lib/api-helpers";
 
 interface PrivacyConsentBody {
   policy_version?: string;
@@ -40,10 +39,11 @@ export const GET = createGetHandler(async (request, token, params) => {
       `/api/students/${id}/privacy-consent`,
       token,
     );
-    return response.data.data;
+    return response.data;
   } catch (error) {
-    const axiosError = error as AxiosError;
-    if (axiosError.response?.status === 404) {
+    // Check for 404 status in the error message or response
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (errorMessage.includes("404")) {
       // No consent found, return null or a default response
       return {
         student_id: Number.parseInt(id, 10),
@@ -78,9 +78,9 @@ export const PUT = createPutHandler<unknown, PrivacyConsentBody>(
 
     const response = await apiPut<PrivacyConsentResponse>(
       `/api/students/${id}/privacy-consent`,
-      body,
       token,
+      body,
     );
-    return response.data.data;
+    return response.data;
   },
 );

@@ -24,22 +24,10 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("~/lib/api-client", () => ({
-  apiGet: mockApiGet,
-}));
-
-vi.mock("~/lib/api-helpers", () => ({
-  handleApiError: vi.fn((error: unknown) => {
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-    const status = message.includes("(401)")
-      ? 401
-      : message.includes("(404)")
-        ? 404
-        : 500;
-    return new Response(JSON.stringify({ error: message }), { status });
-  }),
-}));
+vi.mock("~/lib/api-helpers", async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return { ...actual, apiGet: mockApiGet };
+});
 
 // ============================================================================
 // Test Helpers
@@ -105,7 +93,7 @@ describe("GET /api/groups/context", () => {
         updated_at: "2024-01-02",
       },
     ];
-    mockApiGet.mockResolvedValueOnce({ data: { data: mockGroups } });
+    mockApiGet.mockResolvedValueOnce({ data: mockGroups });
 
     const request = createMockRequest("/api/groups/context");
     const response = await GET(request, createMockContext());
@@ -121,7 +109,7 @@ describe("GET /api/groups/context", () => {
   });
 
   it("returns empty array when user has no groups", async () => {
-    mockApiGet.mockResolvedValueOnce({ data: { data: null } });
+    mockApiGet.mockResolvedValueOnce({ data: null });
 
     const request = createMockRequest("/api/groups/context");
     const response = await GET(request, createMockContext());

@@ -1,8 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth } from "~/server/auth";
-import { apiGet } from "~/lib/api-client";
-import { handleApiError } from "~/lib/api-helpers";
+import { apiGet, handleApiError } from "~/lib/api-helpers";
 
 export async function GET(
   request: NextRequest,

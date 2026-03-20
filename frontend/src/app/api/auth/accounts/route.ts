@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { createGetHandler } from "@/lib/route-wrapper";
-import { apiGet, apiPut } from "@/lib/api-client";
+import { apiGet, apiPut } from "~/lib/api-helpers";
 import { auth } from "@/server/auth";
 
 export const GET = createGetHandler(async (request, token, _params) => {
@@ -18,8 +18,7 @@ export const GET = createGetHandler(async (request, token, _params) => {
     ? `/auth/accounts?${queryParams.toString()}`
     : "/auth/accounts";
 
-  const response = await apiGet<{ data: unknown }>(url, token);
-  return response.data;
+  return await apiGet<{ data: unknown }>(url, token);
 });
 
 // POST handler for updating accounts
@@ -37,10 +36,10 @@ export async function POST(request: NextRequest) {
     const { id, ...updateData } = body;
     const response = await apiPut(
       `/auth/accounts/${id}`,
-      updateData,
       session.user.token,
+      updateData,
     );
-    return Response.json(response.data);
+    return Response.json(response);
   } catch {
     return Response.json(
       { error: "Failed to update account" },

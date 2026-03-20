@@ -24,25 +24,10 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("@/lib/api-client", () => ({
-  apiGet: mockApiGet,
-  apiPost: vi.fn(),
-  apiPut: vi.fn(),
-  apiDelete: vi.fn(),
-}));
-
-vi.mock("@/lib/api-helpers", () => ({
-  handleApiError: vi.fn((error: unknown) => {
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-    const status = message.includes("(401)")
-      ? 401
-      : message.includes("(404)")
-        ? 404
-        : 500;
-    return new Response(JSON.stringify({ error: message }), { status });
-  }),
-}));
+vi.mock("@/lib/api-helpers", async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return { ...actual, apiGet: mockApiGet };
+});
 
 // ============================================================================
 // Test Helpers
@@ -140,8 +125,8 @@ describe("GET /api/auth/accounts/[accountId]/permissions/direct", () => {
     expect(response.status).toBe(200);
 
     const json =
-      await parseJsonResponse<ApiResponse<typeof mockPermissions>>(response);
-    expect(json.data).toEqual(mockPermissions);
+      await parseJsonResponse<ApiResponse<typeof mockResponse>>(response);
+    expect(json.data).toEqual(mockResponse);
   });
 
   it("returns empty array when account has no direct permissions", async () => {
@@ -160,12 +145,12 @@ describe("GET /api/auth/accounts/[accountId]/permissions/direct", () => {
     );
 
     expect(response.status).toBe(200);
-    const json = await parseJsonResponse<ApiResponse<unknown[]>>(response);
-    expect(json.data).toEqual([]);
+    const json = await parseJsonResponse<ApiResponse<typeof mockResponse>>(response);
+    expect(json.data).toEqual(mockResponse);
   });
 
   it("handles API errors gracefully", async () => {
-    mockApiGet.mockRejectedValueOnce(new Error("Account not found (404)"));
+    mockApiGet.mockRejectedValueOnce(new Error("API error (404): Account not found"));
 
     const request = createMockRequest(
       "/api/auth/accounts/999/permissions/direct",

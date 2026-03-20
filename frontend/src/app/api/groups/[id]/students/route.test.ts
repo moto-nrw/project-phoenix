@@ -24,22 +24,10 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("~/lib/api-client", () => ({
-  apiGet: mockApiGet,
-}));
-
-vi.mock("~/lib/api-helpers", () => ({
-  handleApiError: vi.fn((error: unknown) => {
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-    const status = message.includes("(401)")
-      ? 401
-      : message.includes("(404)")
-        ? 404
-        : 500;
-    return new Response(JSON.stringify({ error: message }), { status });
-  }),
-}));
+vi.mock("~/lib/api-helpers", async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return { ...actual, apiGet: mockApiGet };
+});
 
 // ============================================================================
 // Test Helpers
@@ -98,7 +86,7 @@ describe("GET /api/groups/[id]/students", () => {
       { id: 1, first_name: "Alice", second_name: "A" },
       { id: 2, first_name: "Bob", second_name: "B" },
     ];
-    mockApiGet.mockResolvedValueOnce({ data: mockStudents });
+    mockApiGet.mockResolvedValueOnce(mockStudents);
 
     const request = createMockRequest("/api/groups/123/students");
     const response = await GET(request, createMockContext({ id: "123" }));
