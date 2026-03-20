@@ -16,7 +16,8 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("~/lib/api-helpers", () => ({
+vi.mock("~/lib/api-helpers", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/api-helpers")>()),
   apiGet: mockApiGet,
 }));
 
