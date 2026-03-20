@@ -24,14 +24,24 @@ pre-commit:
     sops-encryption-check:
       glob: "environments/*.sops.env"
       run: |
+        failed=false
         for f in environments/*.sops.env; do
           [ -f "$f" ] || continue
           if ! grep -q '^sops_version=' "$f"; then
-            echo "❌ UNENCRYPTED secrets detected in $f!"
+            echo "❌ UNENCRYPTED file: $f"
             echo "   Run: sops encrypt --in-place $f"
-            exit 1
+            failed=true
+            continue
           fi
+          while IFS= read -r line; do
+            echo "❌ Plaintext value in $f: ${line%%=*}="
+            echo "   Re-encrypt: sops encrypt --in-place $f"
+            failed=true
+          done < <(grep -E '^[A-Za-z_][A-Za-z0-9_]*=.+' "$f" | grep -v 'ENC\[' | grep -v '^sops_')
         done
+        if [ "$failed" = true ]; then
+          exit 1
+        fi
 
     # Go imports check (formatting and organization)
     go-imports:

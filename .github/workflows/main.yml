@@ -73,13 +73,25 @@ jobs:
         run: ./scripts/env-check.sh
       - name: Block unencrypted secrets
         run: |
+          failed=false
           for f in environments/*.sops.env; do
             [ -f "$f" ] || continue
+            # Check 1: file must have SOPS metadata
             if ! grep -q '^sops_version=' "$f"; then
-              echo "::error file=$f::UNENCRYPTED secrets detected! Run: sops encrypt --in-place $f"
-              exit 1
+              echo "::error file=$f::UNENCRYPTED file! Run: sops encrypt --in-place $f"
+              failed=true
+              continue
             fi
+            # Check 2: no non-empty values without ENC[ wrapper
+            # Matches KEY=<something> where <something> is not empty and not ENC[
+            while IFS= read -r line; do
+              echo "::error file=$f::Plaintext value detected: ${line%%=*}= — re-encrypt with: sops encrypt --in-place $f"
+              failed=true
+            done < <(grep -E '^[A-Za-z_][A-Za-z0-9_]*=.+' "$f" | grep -v 'ENC\[' | grep -v '^sops_')
           done
+          if [ "$failed" = true ]; then
+            exit 1
+          fi
           echo "All .sops.env files are encrypted"
 
   ci-gate:
