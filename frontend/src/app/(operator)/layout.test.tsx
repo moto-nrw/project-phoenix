@@ -36,6 +36,12 @@ vi.mock("~/lib/breadcrumb-context", () => ({
   ),
 }));
 
+// Mock operator-url to avoid NEXT_PUBLIC_OPERATOR_HOSTNAME requirement
+vi.mock("~/lib/operator-url", () => ({
+  operatorPath: (path: string) => path,
+  isOperatorSubdomain: () => false,
+}));
+
 // Mock AppShell component
 vi.mock("~/components/dashboard/app-shell", () => ({
   AppShell: ({ children }: { children: React.ReactNode }) => (
