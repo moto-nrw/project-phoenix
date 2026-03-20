@@ -236,6 +236,17 @@ jobs:
             echo "url=https://api.moto-app.de" >> $GITHUB_OUTPUT
           fi
 
+      - name: Determine operator hostname
+        id: operator_hostname
+        run: |
+          if [[ "${{ needs.check-environment.outputs.is_staging }}" == "true" ]]; then
+            echo "hostname=operator.staging.moto-app.de" >> $GITHUB_OUTPUT
+          elif [[ "${{ needs.check-environment.outputs.is_demo }}" == "true" ]]; then
+            echo "hostname=operator.demo.moto-app.de" >> $GITHUB_OUTPUT
+          else
+            echo "hostname=operator.moto-app.de" >> $GITHUB_OUTPUT
+          fi
+
       - name: Build and push frontend
         uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
         with:
@@ -247,6 +258,7 @@ jobs:
           platforms: linux/amd64
           build-args: |
             NEXT_PUBLIC_API_URL=${{ steps.api_url.outputs.url }}
+            NEXT_PUBLIC_OPERATOR_HOSTNAME=${{ steps.operator_hostname.outputs.hostname }}
           # Use separate cache scope to prevent backend overwriting frontend cache
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,mode=max,scope=frontend
