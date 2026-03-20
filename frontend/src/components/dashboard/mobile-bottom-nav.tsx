@@ -2,7 +2,13 @@
 // Ultra-minimalist mobile navigation following Instagram/Twitter/Uber patterns
 "use client";
 
-import React, { useRef, useCallback, useState, useEffect } from "react";
+import React, {
+  useRef,
+  useCallback,
+  useState,
+  useEffect,
+  useMemo,
+} from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -245,12 +251,18 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   };
 
   // Compute main navigation items per role and mode
+  // operatorPath is deterministic for the page lifetime — memoize to avoid per-render churn
+  const resolvedOperatorMainItems = useMemo(
+    () =>
+      OPERATOR_MAIN_ITEMS.map((item) => ({
+        ...item,
+        href: operatorPath(item.href),
+      })),
+    [],
+  );
   const baseMain =
     mode === "operator"
-      ? OPERATOR_MAIN_ITEMS.map((item) => ({
-          ...item,
-          href: operatorPath(item.href),
-        }))
+      ? resolvedOperatorMainItems
       : isAdmin(session)
         ? ADMIN_MAIN_ITEMS
         : STAFF_MAIN_ITEMS;

@@ -469,24 +469,37 @@ export const authConfig = {
     redirect: ({ url, baseUrl }) => {
       // Allow redirects to the operator subdomain (same parent domain)
       if (url.startsWith("/")) return `${baseUrl}${url}`;
-      try {
-        const urlObj = new URL(url);
-        const baseObj = new URL(baseUrl);
-        // Same origin → allow
-        if (urlObj.origin === baseObj.origin) return url;
-        // Same parent domain (e.g. operator.localhost vs localhost) → allow
-        const getParentDomain = (host: string) => {
-          const parts = host.split(".");
-          return parts.length > 2 ? parts.slice(-2).join(".") : host;
-        };
-        if (
-          getParentDomain(urlObj.hostname) === getParentDomain(baseObj.hostname)
-        ) {
-          return url;
-        }
-      } catch {
-        // Invalid URL — fall through to default
+
+      const urlObj = new URL(url);
+      const baseObj = new URL(baseUrl);
+
+      // Same origin → allow
+      if (urlObj.origin === baseObj.origin) return url;
+
+      // Both on localhost (any subdomain) → allow (local dev)
+      if (
+        urlObj.hostname.endsWith("localhost") &&
+        baseObj.hostname.endsWith("localhost")
+      ) {
+        return url;
       }
+
+      // Same parent domain (e.g. operator.moto-app.de ↔ altenberge.moto-app.de)
+      const getParentDomain = (hostname: string) => {
+        const parts = hostname.split(".");
+        return parts.length > 2 ? parts.slice(-2).join(".") : hostname;
+      };
+      if (
+        getParentDomain(urlObj.hostname) === getParentDomain(baseObj.hostname)
+      ) {
+        return url;
+      }
+
+      logger.warn("redirect_blocked", {
+        url,
+        baseUrl,
+        reason: "origin mismatch",
+      });
       return baseUrl;
     },
     jwt: async ({ token, user, trigger, session }) => {

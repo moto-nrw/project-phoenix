@@ -1,7 +1,7 @@
 // components/dashboard/sidebar.tsx
 "use client";
 
-import { Suspense, useCallback, useEffect } from "react";
+import { Suspense, useCallback, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -488,13 +488,22 @@ function SidebarContent({ className = "" }: SidebarProps) {
   // Show staff-only accordions (groups + supervisions) only for non-admin
   const showStaffAccordions = !userIsAdmin;
 
+  // Resolve operator nav hrefs once (operatorPath is deterministic for the page lifetime)
+  const resolvedOperatorItems = useMemo(
+    () =>
+      OPERATOR_NAV_ITEMS.map((item) => ({
+        ...item,
+        href: operatorPath(item.href),
+      })),
+    [],
+  );
+  const operatorSuggestionsHref = useMemo(
+    () => operatorPath("/operator/suggestions"),
+    [],
+  );
+
   // Operator mode: simple flat navigation (no accordions, no teacher features)
   if (mode === "operator") {
-    // Compute operator nav hrefs dynamically for subdomain support
-    const resolvedOperatorItems = OPERATOR_NAV_ITEMS.map((item) => ({
-      ...item,
-      href: operatorPath(item.href),
-    }));
     const operatorMainItems = resolvedOperatorItems.filter(
       (item) => !item.bottomPinned,
     );
@@ -523,12 +532,11 @@ function SidebarContent({ className = "" }: SidebarProps) {
         </svg>
         <span className="flex flex-1 items-center justify-between">
           {item.label}
-          {item.href === operatorPath("/operator/suggestions") &&
-            operatorUnreadCount > 0 && (
-              <span className="ml-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-semibold text-white">
-                {operatorUnreadCount > 99 ? "99+" : operatorUnreadCount}
-              </span>
-            )}
+          {item.href === operatorSuggestionsHref && operatorUnreadCount > 0 && (
+            <span className="ml-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-semibold text-white">
+              {operatorUnreadCount > 99 ? "99+" : operatorUnreadCount}
+            </span>
+          )}
         </span>
       </Link>
     );

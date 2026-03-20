@@ -6,11 +6,23 @@
  * these to the actual /operator/* routes internally.
  */
 
+// Cache the result — window.location.host and the env var never change at runtime
+let _isOperator: boolean | undefined;
+
 export function isOperatorSubdomain(): boolean {
   if (typeof window === "undefined") return false;
-  const operatorHostname =
-    process.env.NEXT_PUBLIC_OPERATOR_HOSTNAME ?? "operator.localhost:3000";
-  return window.location.host === operatorHostname;
+  if (_isOperator !== undefined) return _isOperator;
+
+  const operatorHostname = process.env.NEXT_PUBLIC_OPERATOR_HOSTNAME;
+  if (!operatorHostname) {
+    throw new Error(
+      "NEXT_PUBLIC_OPERATOR_HOSTNAME is not set. " +
+        "Add it to your .env.local or docker-compose environment.",
+    );
+  }
+
+  _isOperator = window.location.host === operatorHostname;
+  return _isOperator;
 }
 
 /**
@@ -27,10 +39,14 @@ export function operatorPath(path: string): string {
 
 /**
  * Returns an absolute URL for operator paths.
- * Use this for NextAuth callbackUrl and other cases where a relative path
- * would be resolved against NEXTAUTH_URL instead of the current origin.
+ * Use for NextAuth callbackUrl where relative paths resolve against NEXTAUTH_URL.
+ * Client-side only — throws on server.
  */
 export function operatorAbsoluteUrl(path: string): string {
-  if (typeof window === "undefined") return operatorPath(path);
+  if (typeof window === "undefined") {
+    throw new Error(
+      "operatorAbsoluteUrl() is client-only. Use operatorPath() on the server.",
+    );
+  }
   return `${window.location.origin}${operatorPath(path)}`;
 }

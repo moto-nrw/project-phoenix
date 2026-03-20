@@ -1,8 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 // Read directly from process.env — t3-env is incompatible with Edge runtime
-const OPERATOR_HOSTNAME =
-  process.env.NEXT_PUBLIC_OPERATOR_HOSTNAME ?? "operator.localhost:3000";
+const OPERATOR_HOSTNAME = process.env.NEXT_PUBLIC_OPERATOR_HOSTNAME;
+if (!OPERATOR_HOSTNAME) {
+  throw new Error(
+    "NEXT_PUBLIC_OPERATOR_HOSTNAME is not set. " +
+      "Add it to your .env.local or docker-compose environment.",
+  );
+}
 
 /** Paths that the operator subdomain serves (without /operator prefix) */
 const OPERATOR_PUBLIC_PATHS = [

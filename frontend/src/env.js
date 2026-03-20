@@ -31,10 +31,7 @@ export const env = createEnv({
       .default("info"),
     NEXT_PUBLIC_POSTHOG_KEY: z.string().optional(),
     NEXT_PUBLIC_POSTHOG_HOST: z.url().optional(),
-    NEXT_PUBLIC_OPERATOR_HOSTNAME: z
-      .string()
-      .optional()
-      .default("operator.localhost:3000"),
+    NEXT_PUBLIC_OPERATOR_HOSTNAME: z.string().min(1),
   },
 
   /**
