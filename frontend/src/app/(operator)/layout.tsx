@@ -38,6 +38,13 @@ export default function OperatorLayout({
     }
   }, [isLoginPage, status, session, router]);
 
+  // Redirect unauthenticated users to login
+  useEffect(() => {
+    if (!isLoginPage && status === "unauthenticated") {
+      router.push(operatorPath("/operator/login"));
+    }
+  }, [isLoginPage, status, router]);
+
   // Login page: render without auth guards
   if (isLoginPage) {
     return <>{children}</>;
@@ -49,9 +56,6 @@ export default function OperatorLayout({
     status === "unauthenticated" ||
     session?.user?.scope !== "platform"
   ) {
-    if (status === "unauthenticated") {
-      router.push(operatorPath("/operator/login"));
-    }
     return <FullPageLoading />;
   }
 
