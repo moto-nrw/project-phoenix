@@ -130,7 +130,7 @@ describe("MobileTabsActionArea", () => {
       <MobileTabsActionArea hasTitle={true} actionButton={mockActionButton} />,
     );
 
-    expect(screen.getByTestId("action-btn")).toBeInTheDocument();
+    expect(screen.getByTestId("mobile-action-btn")).toBeInTheDocument();
   });
 
   it("renders nothing when hasTitle is true but no action button", () => {
