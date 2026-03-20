@@ -309,7 +309,7 @@ describe("OperatorShellProvider", () => {
     expect(result.current.user).toBeNull();
   });
 
-  it("never reports session as expired", () => {
+  it("reports session as not expired when no error", () => {
     mockUseSession.mockReturnValue({
       data: {
         user: {
@@ -324,6 +324,57 @@ describe("OperatorShellProvider", () => {
     const { result } = renderHook(() => useShellAuth(), { wrapper });
 
     expect(result.current.isSessionExpired).toBe(false);
+  });
+
+  it("detects expired session", () => {
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          name: "Operator",
+          email: "op@example.com",
+          roles: ["operator"],
+        },
+        error: "RefreshTokenExpired",
+      },
+      status: "authenticated",
+    });
+
+    const { result } = renderHook(() => useShellAuth(), { wrapper });
+
+    expect(result.current.isSessionExpired).toBe(true);
+  });
+
+  it("uses fallback name when user name is empty", () => {
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          name: "   ",
+          email: "op@example.com",
+          roles: ["operator"],
+        },
+      },
+      status: "authenticated",
+    });
+
+    const { result } = renderHook(() => useShellAuth(), { wrapper });
+
+    expect(result.current.user?.name).toBe("Operator");
+  });
+
+  it("provides default roles when not specified", () => {
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          name: "Op",
+          email: "op@example.com",
+        },
+      },
+      status: "authenticated",
+    });
+
+    const { result } = renderHook(() => useShellAuth(), { wrapper });
+
+    expect(result.current.user?.roles).toEqual(["operator"]);
   });
 
   it("calls signOut with operator login callbackUrl", async () => {

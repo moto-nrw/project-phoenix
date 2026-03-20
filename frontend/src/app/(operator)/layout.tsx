@@ -8,6 +8,14 @@ import { BreadcrumbProvider } from "~/lib/breadcrumb-context";
 import { AppShell } from "~/components/dashboard/app-shell";
 import { Loading } from "~/components/ui/loading";
 
+function FullPageLoading() {
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center p-4">
+      <Loading />
+    </div>
+  );
+}
+
 export default function OperatorLayout({
   children,
 }: {
@@ -34,32 +42,16 @@ export default function OperatorLayout({
     return <>{children}</>;
   }
 
-  // Loading state
-  if (status === "loading") {
-    return (
-      <div className="flex min-h-screen flex-col items-center justify-center p-4">
-        <Loading />
-      </div>
-    );
-  }
-
-  // Unauthenticated: redirect to login
-  if (status === "unauthenticated") {
-    router.push("/operator/login");
-    return (
-      <div className="flex min-h-screen flex-col items-center justify-center p-4">
-        <Loading />
-      </div>
-    );
-  }
-
-  // Wrong account type (not an operator)
-  if (session?.user?.scope !== "platform") {
-    return (
-      <div className="flex min-h-screen flex-col items-center justify-center p-4">
-        <Loading />
-      </div>
-    );
+  // Loading, unauthenticated, or wrong account type — show loading spinner
+  if (
+    status === "loading" ||
+    status === "unauthenticated" ||
+    session?.user?.scope !== "platform"
+  ) {
+    if (status === "unauthenticated") {
+      router.push("/operator/login");
+    }
+    return <FullPageLoading />;
   }
 
   return (

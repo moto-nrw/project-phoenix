@@ -114,4 +114,49 @@ describe("operatorServerFetch", () => {
       }),
     );
   });
+
+  it("sends PUT request correctly via operatorApiPut", async () => {
+    const { operatorApiPut } = await import("./route-wrapper");
+
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        status: "success",
+        data: { updated: true },
+      }),
+    });
+
+    const result = await operatorApiPut("/api/test", "my-token", {
+      name: "updated",
+    });
+
+    expect(result).toEqual({ updated: true });
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://localhost:8080/api/test",
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({ name: "updated" }),
+      }),
+    );
+  });
+
+  it("sends DELETE request correctly via operatorApiDelete", async () => {
+    const { operatorApiDelete } = await import("./route-wrapper");
+
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 204,
+    });
+
+    const result = await operatorApiDelete("/api/test/1", "my-token");
+
+    expect(result).toBeUndefined();
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://localhost:8080/api/test/1",
+      expect.objectContaining({
+        method: "DELETE",
+      }),
+    );
+  });
 });

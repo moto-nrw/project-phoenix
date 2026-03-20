@@ -253,9 +253,6 @@ declare module "next-auth" {
     refreshTokenExpiry?: number;
     error?: "RefreshTokenExpired" | "RefreshTokenError";
     needsRefresh?: boolean;
-    isRefreshing?: boolean;
-    lastRefreshAttempt?: number;
-    refreshRetries?: number;
   }
 }
 
@@ -285,6 +282,16 @@ let refreshCache: {
   expiresAt: number;
 } | null = null;
 const REFRESH_CACHE_TTL_MS = 5 * 60 * 1000; // Match REFRESH_BUFFER_MS — covers the full pre-expiry window
+
+/** @internal Exposed for unit testing only */
+export const _testHelpers = {
+  parseJwtPayload,
+  buildDisplayName,
+  buildAuthUser,
+  performLogin,
+  performOperatorLogin,
+  parseDurationToMs,
+} as const;
 
 /** @internal Reset module-level refresh state (test isolation only) */
 export function _resetRefreshState(): void {

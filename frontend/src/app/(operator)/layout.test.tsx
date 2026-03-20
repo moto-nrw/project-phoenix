@@ -126,4 +126,56 @@ describe("OperatorLayout", () => {
     expect(screen.getByTestId("app-shell")).toBeInTheDocument();
     expect(screen.getByTestId("test-content")).toBeInTheDocument();
   });
+
+  it("shows loading state while session is loading", () => {
+    mockUsePathname.mockReturnValue("/operator/suggestions");
+    mockUseSession.mockReturnValue({
+      data: null,
+      status: "loading",
+    });
+
+    render(
+      <OperatorLayout>
+        <div data-testid="test-content">Content</div>
+      </OperatorLayout>,
+    );
+
+    expect(screen.getByTestId("loading")).toBeInTheDocument();
+    expect(screen.queryByTestId("app-shell")).not.toBeInTheDocument();
+  });
+
+  it("redirects to login when unauthenticated", () => {
+    mockUsePathname.mockReturnValue("/operator/suggestions");
+    mockUseSession.mockReturnValue({
+      data: null,
+      status: "unauthenticated",
+    });
+
+    render(
+      <OperatorLayout>
+        <div data-testid="test-content">Content</div>
+      </OperatorLayout>,
+    );
+
+    expect(mockPush).toHaveBeenCalledWith("/operator/login");
+    expect(screen.getByTestId("loading")).toBeInTheDocument();
+  });
+
+  it("shows loading when authenticated but wrong scope", () => {
+    mockUsePathname.mockReturnValue("/operator/suggestions");
+    mockUseSession.mockReturnValue({
+      data: { user: { scope: "teacher", name: "Teacher" } },
+      status: "authenticated",
+    });
+
+    render(
+      <OperatorLayout>
+        <div data-testid="test-content">Content</div>
+      </OperatorLayout>,
+    );
+
+    // Should redirect non-operator users away
+    expect(mockPush).toHaveBeenCalledWith("/");
+    expect(screen.queryByTestId("app-shell")).not.toBeInTheDocument();
+  });
 });

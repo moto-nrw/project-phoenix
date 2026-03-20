@@ -95,4 +95,65 @@ describe("OperatorSettingsPage", () => {
       expect(mockUpdateSession).toHaveBeenCalled();
     });
   });
+
+  it("handles save error gracefully", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({ error: "Something went wrong" }),
+    } as Response);
+
+    render(<OperatorSettingsPage />);
+
+    await waitFor(() => {
+      fireEvent.click(screen.getByText("Bearbeiten"));
+    });
+
+    const saveButton = screen.getByText("Speichern");
+    fireEvent.click(saveButton);
+
+    await waitFor(() => {
+      expect(mockUpdateSession).not.toHaveBeenCalled();
+    });
+  });
+
+  it("cancels editing and restores original values", async () => {
+    render(<OperatorSettingsPage />);
+
+    await waitFor(() => {
+      fireEvent.click(screen.getByText("Bearbeiten"));
+    });
+
+    const displayNameInput = screen.getByLabelText("Anzeigename");
+    fireEvent.change(displayNameInput, { target: { value: "Changed Name" } });
+
+    fireEvent.click(screen.getByText("Abbrechen"));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Anzeigename")).toHaveValue("John Doe");
+    });
+  });
+
+  it("displays initials correctly", async () => {
+    render(<OperatorSettingsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("JD")).toBeInTheDocument();
+    });
+  });
+
+  it("handles single word name initials", async () => {
+    mockUseSession.mockReturnValue({
+      data: {
+        user: { name: "Admin", email: "admin@example.com" },
+      },
+      status: "authenticated",
+      update: mockUpdateSession,
+    });
+
+    render(<OperatorSettingsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("A")).toBeInTheDocument();
+    });
+  });
 });

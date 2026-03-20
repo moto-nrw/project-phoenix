@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { authConfig, _resetRefreshState } from "./config";
+import { authConfig, _resetRefreshState, _testHelpers } from "./config";
 import type { NextAuthConfig, User } from "next-auth";
 
 // Mock ~/env
@@ -656,6 +656,352 @@ describe("authConfig", () => {
       // We can't directly test the function since it's not exported
       // but we can test it indirectly through the config
       expect(authConfig.session?.maxAge).toBeGreaterThan(0);
+    });
+  });
+
+  describe("parseJwtPayload", () => {
+    it("should parse valid JWT payload", () => {
+      const token =
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZmlyc3RfbmFtZSI6IkpvaG4iLCJsYXN0X25hbWUiOiJEb2UiLCJlbWFpbCI6ImpvaG5AZXhhbXBsZS5jb20iLCJyb2xlcyI6WyJ0ZWFjaGVyIl0sImlzX2FkbWluIjpmYWxzZX0.test";
+      const payload = _testHelpers.parseJwtPayload(token);
+
+      expect(payload).not.toBeNull();
+      expect(payload?.id).toBe(1);
+      expect(payload?.first_name).toBe("John");
+      expect(payload?.last_name).toBe("Doe");
+      expect(payload?.email).toBe("john@example.com");
+      expect(payload?.roles).toEqual(["teacher"]);
+      expect(payload?.is_admin).toBe(false);
+    });
+
+    it("should return null for token with wrong number of parts", () => {
+      expect(_testHelpers.parseJwtPayload("not-a-jwt")).toBeNull();
+      expect(_testHelpers.parseJwtPayload("only.two")).toBeNull();
+      expect(_testHelpers.parseJwtPayload("a.b.c.d")).toBeNull();
+    });
+
+    it("should return null for invalid base64 payload", () => {
+      const result = _testHelpers.parseJwtPayload(
+        "header.!!!invalid!!!.signature",
+      );
+      expect(result).toBeNull();
+    });
+  });
+
+  describe("buildDisplayName", () => {
+    it("should use first and last name when available", () => {
+      const payload = { id: 1, first_name: "John", last_name: "Doe" };
+      expect(_testHelpers.buildDisplayName(payload, "john@example.com")).toBe(
+        "John Doe",
+      );
+    });
+
+    it("should use first name only when last name is missing", () => {
+      const payload = { id: 1, first_name: "John" };
+      expect(_testHelpers.buildDisplayName(payload, "john@example.com")).toBe(
+        "John",
+      );
+    });
+
+    it("should fall back to username", () => {
+      const payload = { id: 1, username: "johnd" };
+      expect(_testHelpers.buildDisplayName(payload, "")).toBe("johnd");
+    });
+
+    it("should fall back to email", () => {
+      const payload = { id: 1 };
+      expect(_testHelpers.buildDisplayName(payload, "john@example.com")).toBe(
+        "john@example.com",
+      );
+    });
+
+    it("should fall back to ultimate fallback", () => {
+      const payload = { id: 1 };
+      expect(_testHelpers.buildDisplayName(payload, "", "Unknown")).toBe(
+        "Unknown",
+      );
+    });
+
+    it("should use default ultimate fallback", () => {
+      const payload = { id: 1 };
+      expect(_testHelpers.buildDisplayName(payload, "")).toBe("User");
+    });
+  });
+
+  describe("buildAuthUser", () => {
+    it("should build user with all fields", () => {
+      const payload = {
+        id: 1,
+        first_name: "John",
+        last_name: "Doe",
+        email: "john@example.com",
+        roles: ["teacher"],
+        is_admin: false,
+      };
+
+      const user = _testHelpers.buildAuthUser(
+        payload,
+        "access-token",
+        "refresh-token",
+        "john@example.com",
+      );
+
+      expect(user.id).toBe("1");
+      expect(user.name).toBe("John Doe");
+      expect(user.email).toBe("john@example.com");
+      expect(user.token).toBe("access-token");
+      expect(user.refreshToken).toBe("refresh-token");
+      expect(user.roles).toEqual(["teacher"]);
+      expect(user.isAdmin).toBe(false);
+      expect(user.scope).toBeUndefined();
+    });
+
+    it("should override roles with operator when scope is platform", () => {
+      const payload = {
+        id: 45,
+        first_name: "Op",
+        roles: ["admin"],
+        is_admin: true,
+      };
+
+      const user = _testHelpers.buildAuthUser(
+        payload,
+        "token",
+        "refresh",
+        "op@example.com",
+        "platform",
+      );
+
+      expect(user.roles).toEqual(["operator"]);
+      expect(user.scope).toBe("platform");
+      expect(user.isAdmin).toBe(true);
+    });
+
+    it("should handle missing roles with empty array", () => {
+      const payload = { id: 2, email: "test@example.com" };
+
+      const user = _testHelpers.buildAuthUser(
+        payload,
+        "token",
+        "refresh",
+        "test@example.com",
+      );
+
+      expect(user.roles).toEqual([]);
+    });
+
+    it("should handle non-array roles defensively", () => {
+      const payload = {
+        id: 3,
+        roles: "not-an-array" as unknown as string[],
+      };
+
+      const user = _testHelpers.buildAuthUser(
+        payload,
+        "token",
+        "refresh",
+        "test@example.com",
+      );
+
+      expect(user.roles).toEqual([]);
+    });
+  });
+
+  describe("performOperatorLogin", () => {
+    it("should return null on network error", async () => {
+      mockFetch.mockRejectedValueOnce(new Error("Network error"));
+
+      const result = await _testHelpers.performOperatorLogin(
+        "op@test.com",
+        "pass",
+        false,
+      );
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe("performLogin", () => {
+    it("should return null on network error", async () => {
+      mockFetch.mockRejectedValueOnce(new Error("Connection refused"));
+
+      const result = await _testHelpers.performLogin(
+        "teacher@test.com",
+        "pass",
+        false,
+      );
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe("parseDurationToMs via config", () => {
+    it("should correctly set session maxAge from refresh token expiry", () => {
+      // AUTH_JWT_REFRESH_EXPIRY is "1h" in mock, parseDurationToMs("1h") = 3600000ms
+      // maxAge = Math.floor(3600000 / 1000) = 3600 seconds
+      expect(authConfig.session?.maxAge).toBe(3600);
+    });
+  });
+
+  describe("JWT callback - operator token refresh", () => {
+    it("should set RefreshTokenError on concurrent join failure when token expired", async () => {
+      // First callback starts the refresh (will fail)
+      let resolveRefresh: (value: unknown) => void;
+      mockFetch.mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveRefresh = resolve;
+        }),
+      );
+
+      const makeToken = () => ({
+        id: "123",
+        token: "old-access",
+        refreshToken: "fail-concurrent-token",
+        tokenExpiry: Date.now() - 60 * 1000, // Already expired
+        refreshTokenExpiry: Date.now() + 7 * 24 * 60 * 60 * 1000,
+      });
+
+      const callJwt = (token: Record<string, unknown>) =>
+        authConfig.callbacks?.jwt?.({
+          token,
+          user: undefined as unknown as User,
+          account: null,
+          profile: undefined,
+          trigger: "update",
+          isNewUser: false,
+          session: undefined,
+        });
+
+      const p1 = callJwt(makeToken());
+      const p2 = callJwt(makeToken());
+
+      // Resolve with failure
+      resolveRefresh!({ ok: false, status: 401 });
+
+      const [r1, r2] = await Promise.all([p1, p2]);
+
+      // Both should have error since token was already expired
+      expect(r1?.error).toBe("RefreshTokenError");
+      expect(r2?.error).toBe("RefreshTokenError");
+    });
+  });
+
+  describe("Session callback - additional paths", () => {
+    function callSessionCallback(args: {
+      session: unknown;
+      token: unknown;
+    }): Record<string, unknown> | undefined {
+      const sessionFn = authConfig.callbacks?.session;
+      if (!sessionFn) return undefined;
+      return (sessionFn as (args: unknown) => unknown)({
+        ...args,
+        user: undefined,
+        newSession: undefined,
+        trigger: "getSession",
+      }) as Record<string, unknown> | undefined;
+    }
+
+    it("should return minimal session when token has RefreshTokenError", () => {
+      const session = {
+        user: { id: "", email: "", name: "" },
+        expires: "2099-12-31",
+      };
+
+      const token = {
+        id: "123",
+        email: "test@example.com",
+        error: "RefreshTokenError" as const,
+        firstName: "Test",
+      };
+
+      const result = callSessionCallback({ session, token });
+      const user = result?.user as Record<string, unknown> | undefined;
+
+      expect(user?.token).toBe("");
+      expect(user?.refreshToken).toBe("");
+      expect(user?.roles).toEqual([]);
+      expect(user?.isAdmin).toBe(false);
+      expect(result?.error).toBe("RefreshTokenError");
+    });
+
+    it("should propagate scope to session user", () => {
+      const session = {
+        user: { id: "", email: "", name: "" },
+        expires: "2099-12-31",
+      };
+
+      const token = {
+        id: "45",
+        email: "op@example.com",
+        token: "access",
+        refreshToken: "refresh",
+        roles: ["operator"],
+        firstName: "Operator",
+        isAdmin: true,
+        scope: "platform",
+      };
+
+      const result = callSessionCallback({ session, token });
+      const user = result?.user as Record<string, unknown> | undefined;
+
+      expect(user?.scope).toBe("platform");
+      expect(user?.isAdmin).toBe(true);
+    });
+  });
+
+  describe("JWT callback - initial sign in edge cases", () => {
+    it("should clear previous error states on sign in", async () => {
+      const token = {
+        error: "RefreshTokenExpired" as const,
+        needsRefresh: true,
+      };
+
+      const user = {
+        id: "123",
+        name: "User",
+        email: "user@example.com",
+        token: "new-token",
+        refreshToken: "new-refresh",
+        roles: ["teacher"],
+        isAdmin: false,
+      };
+
+      const result = await authConfig.callbacks?.jwt?.({
+        token,
+        user,
+        account: null,
+        profile: undefined,
+        trigger: "signIn",
+        isNewUser: false,
+        session: undefined,
+      });
+
+      expect(result?.error).toBeUndefined();
+      expect(result?.needsRefresh).toBeUndefined();
+      expect(result?.token).toBe("new-token");
+    });
+
+    it("should handle user with missing optional fields", async () => {
+      const user = {
+        id: "123",
+        name: "User",
+        email: "user@example.com",
+        // No token, refreshToken, roles, firstName, isAdmin
+      };
+
+      const result = await authConfig.callbacks?.jwt?.({
+        token: {},
+        user,
+        account: null,
+        profile: undefined,
+        trigger: "signIn",
+        isNewUser: false,
+        session: undefined,
+      });
+
+      expect(result?.token).toBe("");
+      expect(result?.refreshToken).toBe("");
+      expect(result?.isAdmin).toBeUndefined();
     });
   });
 });
