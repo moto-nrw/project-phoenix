@@ -348,8 +348,7 @@ export const teachersConfig = defineEntityConfig<Teacher>({
 
   list: {
     title: "Personal auswählen",
-    description:
-      "Verwalten Sie Profile der pädagogischen Fachkräfte und Zuordnungen",
+    description: "Verwalten Sie Profile des Personals und Zuordnungen",
     searchPlaceholder: "Personal suchen...",
 
     // Frontend search for small dataset

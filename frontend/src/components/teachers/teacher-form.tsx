@@ -32,7 +32,7 @@ export function TeacherForm({
   onSubmitAction,
   onCancelAction,
   isLoading,
-  formTitle = "Details der pädagogischen Fachkraft",
+  formTitle = "Details des Personals",
   submitLabel = "Speichern",
   rfidCards: _rfidCards = [],
   wrapInCard = true,

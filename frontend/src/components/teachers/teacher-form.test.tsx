@@ -38,9 +38,7 @@ describe("TeacherForm", () => {
   it("renders form with default title", () => {
     render(<TeacherForm {...defaultProps} />);
 
-    expect(
-      screen.getByText("Details der pädagogischen Fachkraft"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Details des Personals")).toBeInTheDocument();
   });
 
   it("renders form with custom title", () => {
