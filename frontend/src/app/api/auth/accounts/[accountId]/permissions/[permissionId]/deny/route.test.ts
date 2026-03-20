@@ -125,8 +125,8 @@ describe("POST /api/auth/accounts/[accountId]/permissions/[permissionId]/deny", 
 
     expect(mockApiPost).toHaveBeenCalledWith(
       "/auth/accounts/123/permissions/456/deny",
-      {},
       "test-token",
+      {},
     );
     expect(response.status).toBe(200);
 
@@ -135,7 +135,7 @@ describe("POST /api/auth/accounts/[accountId]/permissions/[permissionId]/deny", 
   });
 
   it("handles API errors gracefully", async () => {
-    mockApiPost.mockRejectedValueOnce(new Error("Permission not found (404)"));
+    mockApiPost.mockRejectedValueOnce(new Error("API error (404): Permission not found"));
 
     const request = createMockRequest(
       "/api/auth/accounts/123/permissions/999/deny",
@@ -152,7 +152,7 @@ describe("POST /api/auth/accounts/[accountId]/permissions/[permissionId]/deny", 
   });
 
   it("handles unauthorized deny attempts", async () => {
-    mockApiPost.mockRejectedValueOnce(new Error("Unauthorized (401)"));
+    mockApiPost.mockRejectedValueOnce(new Error("API error (401): Unauthorized"));
 
     const request = createMockRequest(
       "/api/auth/accounts/123/permissions/456/deny",

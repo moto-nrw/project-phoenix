@@ -128,8 +128,8 @@ describe("GET /api/auth/accounts/[accountId]/permissions", () => {
     expect(response.status).toBe(200);
 
     const json =
-      await parseJsonResponse<ApiResponse<typeof mockPermissions>>(response);
-    expect(json.data).toEqual(mockPermissions);
+      await parseJsonResponse<ApiResponse<typeof mockResponse>>(response);
+    expect(json.data).toEqual(mockResponse);
   });
 
   it("returns empty array when account has no permissions", async () => {
@@ -146,12 +146,12 @@ describe("GET /api/auth/accounts/[accountId]/permissions", () => {
     );
 
     expect(response.status).toBe(200);
-    const json = await parseJsonResponse<ApiResponse<unknown[]>>(response);
-    expect(json.data).toEqual([]);
+    const json = await parseJsonResponse<ApiResponse<typeof mockResponse>>(response);
+    expect(json.data).toEqual(mockResponse);
   });
 
   it("handles API errors gracefully", async () => {
-    mockApiGet.mockRejectedValueOnce(new Error("Account not found (404)"));
+    mockApiGet.mockRejectedValueOnce(new Error("API error (404): Account not found"));
 
     const request = createMockRequest("/api/auth/accounts/999/permissions");
     const response = await GET(

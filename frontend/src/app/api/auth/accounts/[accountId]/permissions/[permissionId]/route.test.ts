@@ -135,7 +135,7 @@ describe("DELETE /api/auth/accounts/[accountId]/permissions/[permissionId]", () 
 
   it("handles API errors gracefully", async () => {
     mockApiDelete.mockRejectedValueOnce(
-      new Error("Permission not found (404)"),
+      new Error("API error (404): Permission not found"),
     );
 
     const request = createMockRequest(
@@ -153,7 +153,7 @@ describe("DELETE /api/auth/accounts/[accountId]/permissions/[permissionId]", () 
   });
 
   it("handles unauthorized deletion attempts", async () => {
-    mockApiDelete.mockRejectedValueOnce(new Error("Unauthorized (401)"));
+    mockApiDelete.mockRejectedValueOnce(new Error("API error (401): Unauthorized"));
 
     const request = createMockRequest(
       "/api/auth/accounts/123/permissions/456",

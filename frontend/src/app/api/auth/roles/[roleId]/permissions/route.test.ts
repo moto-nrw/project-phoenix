@@ -83,8 +83,8 @@ describe("GET /api/auth/roles/[roleId]/permissions", () => {
       "test-token",
     );
     expect(response.status).toBe(200);
-    const json = (await response.json()) as { data: unknown[] };
-    expect(json.data).toHaveLength(2);
+    const json = (await response.json()) as { data: { data: unknown[] } };
+    expect(json.data.data).toHaveLength(2);
   });
 
   it("handles backend errors", async () => {
