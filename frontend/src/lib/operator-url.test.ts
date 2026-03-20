@@ -105,7 +105,49 @@ describe("operator-url", () => {
     });
   });
 
+  describe("operatorPath on operator subdomain with non-operator path", () => {
+    it("prefixes non-operator path with /operator on tenant subdomain", async () => {
+      Object.defineProperty(window, "location", {
+        value: { host: "localhost:3000", origin: "http://localhost:3000" },
+        writable: true,
+      });
+
+      const { operatorPath } = await importFresh();
+      // Path not starting with /operator gets prefixed
+      expect(operatorPath("/settings")).toBe("/operator/settings");
+    });
+
+    it("passes through non-operator path on operator subdomain", async () => {
+      Object.defineProperty(window, "location", {
+        value: {
+          host: OPERATOR_HOSTNAME,
+          origin: `http://${OPERATOR_HOSTNAME}`,
+        },
+        writable: true,
+      });
+
+      const { operatorPath } = await importFresh();
+      // Path not starting with /operator stays as-is
+      expect(operatorPath("/settings")).toBe("/settings");
+    });
+  });
+
   describe("operatorAbsoluteUrl", () => {
+    it("throws when called on the server (no window)", async () => {
+      const originalWindow = globalThis.window;
+      // @ts-expect-error -- simulate server environment
+      delete globalThis.window;
+
+      try {
+        const { operatorAbsoluteUrl } = await importFresh();
+        expect(() => operatorAbsoluteUrl("/operator/login")).toThrow(
+          "operatorAbsoluteUrl() is client-only",
+        );
+      } finally {
+        globalThis.window = originalWindow;
+      }
+    });
+
     it("returns full URL on operator subdomain", async () => {
       Object.defineProperty(window, "location", {
         value: {

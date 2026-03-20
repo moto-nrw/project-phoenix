@@ -75,6 +75,65 @@ describe("middleware", () => {
       expect(redirect).toBeNull();
     });
 
+    it("passes through /favicon.ico", () => {
+      const res = middleware(
+        makeRequest(
+          `http://${OPERATOR_HOSTNAME}/favicon.ico`,
+          OPERATOR_HOSTNAME,
+        ),
+      );
+
+      const rewrite = res.headers.get("x-middleware-rewrite");
+      const redirect = res.headers.get("location");
+      expect(rewrite).toBeNull();
+      expect(redirect).toBeNull();
+    });
+
+    it("passes through /images/* routes", () => {
+      const res = middleware(
+        makeRequest(
+          `http://${OPERATOR_HOSTNAME}/images/logo.png`,
+          OPERATOR_HOSTNAME,
+        ),
+      );
+
+      const rewrite = res.headers.get("x-middleware-rewrite");
+      const redirect = res.headers.get("location");
+      expect(rewrite).toBeNull();
+      expect(redirect).toBeNull();
+    });
+
+    it("uses x-forwarded-host header when present", () => {
+      const req = new NextRequest(`http://internal-host/suggestions`);
+      req.headers.set("x-forwarded-host", OPERATOR_HOSTNAME);
+
+      const res = middleware(req);
+
+      const rewrite = res.headers.get("x-middleware-rewrite");
+      expect(rewrite).toContain("/operator/suggestions");
+    });
+
+    it("rewrites /announcements to /operator/announcements", () => {
+      const res = middleware(
+        makeRequest(
+          `http://${OPERATOR_HOSTNAME}/announcements`,
+          OPERATOR_HOSTNAME,
+        ),
+      );
+
+      const rewrite = res.headers.get("x-middleware-rewrite");
+      expect(rewrite).toContain("/operator/announcements");
+    });
+
+    it("rewrites /settings to /operator/settings", () => {
+      const res = middleware(
+        makeRequest(`http://${OPERATOR_HOSTNAME}/settings`, OPERATOR_HOSTNAME),
+      );
+
+      const rewrite = res.headers.get("x-middleware-rewrite");
+      expect(rewrite).toContain("/operator/settings");
+    });
+
     it("passes through /_next routes", () => {
       const res = middleware(
         makeRequest(

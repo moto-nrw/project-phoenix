@@ -29,16 +29,19 @@ vi.mock("~/lib/auth-utils", () => ({
 }));
 
 vi.mock("~/lib/shell-auth-context", () => ({
-  useShellAuth: vi.fn(() => ({
-    user: { name: "Test User", email: "test@example.com", roles: [] },
-    profile: { firstName: "Test", lastName: "User" },
-    status: "authenticated",
-    isSessionExpired: false,
-    logout: vi.fn(),
-    mode: "teacher",
-    homeUrl: "/dashboard",
-    settingsUrl: "/settings",
-  })),
+  useShellAuth: vi.fn(),
+}));
+
+vi.mock("~/lib/operator-url", () => ({
+  operatorPath: (path: string) => path,
+}));
+
+vi.mock("~/lib/hooks/use-suggestions-unread", () => ({
+  useSuggestionsUnread: vi.fn(() => ({ unreadCount: 0 })),
+}));
+
+vi.mock("~/lib/hooks/use-operator-suggestions-unread", () => ({
+  useOperatorSuggestionsUnread: vi.fn(() => ({ unreadCount: 0 })),
 }));
 
 // Import after mocks
@@ -47,12 +50,14 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useSupervision } from "~/lib/supervision-context";
 import { isAdmin } from "~/lib/auth-utils";
+import { useShellAuth } from "~/lib/shell-auth-context";
 
 const mockUsePathname = vi.mocked(usePathname);
 const mockUseSearchParams = vi.mocked(useSearchParams);
 const mockUseSession = vi.mocked(useSession);
 const mockUseSupervision = vi.mocked(useSupervision);
 const mockIsAdmin = vi.mocked(isAdmin);
+const mockUseShellAuth = vi.mocked(useShellAuth);
 
 // Helper to create mock search params
 function createMockSearchParams(
@@ -97,6 +102,16 @@ describe("Sidebar", () => {
     vi.clearAllMocks();
 
     // Default mock implementations
+    mockUseShellAuth.mockReturnValue({
+      user: { name: "Test User", email: "test@example.com", roles: [] },
+      profile: { firstName: "Test", lastName: "User" },
+      status: "authenticated",
+      isSessionExpired: false,
+      logout: vi.fn(),
+      mode: "teacher",
+      homeUrl: "/dashboard",
+      settingsUrl: "/settings",
+    });
     mockUsePathname.mockReturnValue("/dashboard");
     mockUseSearchParams.mockReturnValue(createMockSearchParams());
     mockUseSession.mockReturnValue(createMockSession(false));
@@ -1202,6 +1217,57 @@ describe("Sidebar", () => {
       expect(mockRouterPush).toHaveBeenCalledWith(
         "/active-supervisions?room=10",
       );
+    });
+  });
+
+  describe("operator mode navigation", () => {
+    beforeEach(() => {
+      mockUseShellAuth.mockReturnValue({
+        user: {
+          name: "Operator User",
+          email: "op@example.com",
+          roles: ["operator"],
+        },
+        profile: { firstName: "Operator", lastName: "User" },
+        status: "authenticated",
+        isSessionExpired: false,
+        logout: vi.fn(),
+        mode: "operator",
+        homeUrl: "/operator/suggestions",
+        settingsUrl: "/operator/settings",
+      });
+      mockUsePathname.mockReturnValue("/operator/suggestions");
+    });
+
+    it("renders operator navigation items", () => {
+      render(<Sidebar />);
+
+      expect(screen.getByText("Feedback")).toBeInTheDocument();
+      expect(screen.getByText("Ankündigungen")).toBeInTheDocument();
+      expect(screen.getByText("Einstellungen")).toBeInTheDocument();
+    });
+
+    it("does not render teacher-specific items", () => {
+      render(<Sidebar />);
+
+      expect(screen.queryByText("Kindersuche")).not.toBeInTheDocument();
+      expect(screen.queryByText("Aktivitäten")).not.toBeInTheDocument();
+      expect(screen.queryByText("Räume")).not.toBeInTheDocument();
+      expect(screen.queryByText("Mitarbeiter")).not.toBeInTheDocument();
+    });
+
+    it("renders with custom className in operator mode", () => {
+      const { container } = render(<Sidebar className="op-class" />);
+
+      const aside = container.querySelector("aside");
+      expect(aside).toHaveClass("op-class");
+    });
+
+    it("renders bottom pinned settings item", () => {
+      render(<Sidebar />);
+
+      const settingsLink = screen.getByText("Einstellungen").closest("a");
+      expect(settingsLink).toHaveAttribute("href", "/operator/settings");
     });
   });
 
