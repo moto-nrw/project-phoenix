@@ -180,6 +180,19 @@ func TestResponseWriter_Write(t *testing.T) {
 	assert.Equal(t, "test body", rr.Body.String())
 }
 
+func TestResponseWriter_Flush(t *testing.T) {
+	rr := httptest.NewRecorder()
+	wrapped := &responseWriter{ResponseWriter: rr, statusCode: http.StatusOK}
+
+	// httptest.ResponseRecorder implements http.Flusher
+	// Verify the wrapper satisfies http.Flusher at compile time
+	var w http.ResponseWriter = wrapped
+	flusher, ok := w.(http.Flusher)
+	assert.True(t, ok, "responseWriter should implement http.Flusher when underlying writer does")
+	assert.NotPanics(t, func() { flusher.Flush() })
+	assert.True(t, rr.Flushed)
+}
+
 // =============================================================================
 // Event Constants Tests
 // =============================================================================
