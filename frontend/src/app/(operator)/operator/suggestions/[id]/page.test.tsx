@@ -47,6 +47,12 @@ vi.mock("swr", () => ({
   default: mockUseSWR,
 }));
 
+// Mock operator-url to avoid NEXT_PUBLIC_OPERATOR_HOSTNAME requirement
+vi.mock("~/lib/operator-url", () => ({
+  operatorPath: (path: string) => path,
+  isOperatorSubdomain: () => false,
+}));
+
 // Mock suggestions API
 vi.mock("~/lib/operator/suggestions-api", () => ({
   operatorSuggestionsService: {

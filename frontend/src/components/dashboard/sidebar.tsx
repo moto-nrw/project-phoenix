@@ -1,13 +1,14 @@
 // components/dashboard/sidebar.tsx
 "use client";
 
-import { Suspense, useCallback, useEffect } from "react";
+import { Suspense, useCallback, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useSupervision } from "~/lib/supervision-context";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { isAdmin } from "~/lib/auth-utils";
+import { operatorPath } from "~/lib/operator-url";
 import { useSidebarAccordion } from "~/lib/hooks/use-sidebar-accordion";
 import { useSuggestionsUnread } from "~/lib/hooks/use-suggestions-unread";
 import { useOperatorSuggestionsUnread } from "~/lib/hooks/use-operator-suggestions-unread";
@@ -487,12 +488,26 @@ function SidebarContent({ className = "" }: SidebarProps) {
   // Show staff-only accordions (groups + supervisions) only for non-admin
   const showStaffAccordions = !userIsAdmin;
 
+  // Resolve operator nav hrefs once (operatorPath is deterministic for the page lifetime)
+  const resolvedOperatorItems = useMemo(
+    () =>
+      OPERATOR_NAV_ITEMS.map((item) => ({
+        ...item,
+        href: operatorPath(item.href),
+      })),
+    [],
+  );
+  const operatorSuggestionsHref = useMemo(
+    () => operatorPath("/operator/suggestions"),
+    [],
+  );
+
   // Operator mode: simple flat navigation (no accordions, no teacher features)
   if (mode === "operator") {
-    const operatorMainItems = OPERATOR_NAV_ITEMS.filter(
+    const operatorMainItems = resolvedOperatorItems.filter(
       (item) => !item.bottomPinned,
     );
-    const operatorBottomItems = OPERATOR_NAV_ITEMS.filter(
+    const operatorBottomItems = resolvedOperatorItems.filter(
       (item) => item.bottomPinned,
     );
 
@@ -517,7 +532,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
         </svg>
         <span className="flex flex-1 items-center justify-between">
           {item.label}
-          {item.href === "/operator/suggestions" && operatorUnreadCount > 0 && (
+          {item.href === operatorSuggestionsHref && operatorUnreadCount > 0 && (
             <span className="ml-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-semibold text-white">
               {operatorUnreadCount > 99 ? "99+" : operatorUnreadCount}
             </span>

@@ -9,6 +9,7 @@ import { Loading } from "~/components/ui/loading";
 import { launchConfetti, clearConfetti } from "~/lib/confetti";
 import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import { LoginHelpContent } from "~/components/shared/login-help-content";
+import { operatorPath } from "~/lib/operator-url";
 
 export default function OperatorLoginPage() {
   const [email, setEmail] = useState("");
@@ -22,7 +23,7 @@ export default function OperatorLoginPage() {
   // Redirect if already authenticated as operator (scope === "platform")
   useEffect(() => {
     if (status === "authenticated" && session?.user?.scope === "platform") {
-      router.push("/operator/suggestions");
+      router.push(operatorPath("/operator/suggestions"));
     }
   }, [status, session, router]);
 
@@ -65,7 +66,7 @@ export default function OperatorLoginPage() {
         return;
       }
 
-      router.push("/operator/suggestions");
+      router.push(operatorPath("/operator/suggestions"));
     } catch (err) {
       clearConfetti();
 

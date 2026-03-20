@@ -101,6 +101,46 @@ docker compose --profile test down                 # Stop (plain `down` won't wo
 APP_ENV=test go run main.go migrate reset          # Setup
 ```
 
+## No Fallbacks, No Defaults — Fail Fast (MANDATORY)
+
+**ABSOLUTE RULE: NEVER use fallback defaults (`??`, `||`, `.default()`, `.optional().default()`) for environment variables or configuration values. Missing config MUST crash immediately.**
+
+Silent fallbacks are unacceptable because they create invisible production bugs. A developer misconfigures one env var, the app boots fine, passes CI, deploys — and then silently runs with `operator.localhost:3000` in production. No error. No log. No alert. The bug surfaces days later as a user report: "login doesn't work." Root cause? A missing env var that three layers of `??` fallbacks quietly papered over.
+
+Fallbacks destroy developer experience:
+- They make `.env.example` a lie — "these values are just defaults anyway"
+- They make `docker compose up` silently broken — the app starts, looks healthy, but half the features route to localhost
+- They make debugging a nightmare — nothing errors, nothing logs, the wrong value just propagates silently through the system
+- They violate the principle of least surprise — a fresh clone with no `.env` should **fail with a clear message**, not boot into a half-working state
+
+### Rules
+
+```typescript
+// FORBIDDEN — silent fallback
+const hostname = process.env.NEXT_PUBLIC_OPERATOR_HOSTNAME ?? "operator.localhost:3000";
+
+// FORBIDDEN — optional with default in env schema
+NEXT_PUBLIC_OPERATOR_HOSTNAME: z.string().optional().default("operator.localhost:3000")
+
+// CORRECT — fail fast with a clear error
+const hostname = process.env.NEXT_PUBLIC_OPERATOR_HOSTNAME;
+if (!hostname) throw new Error("NEXT_PUBLIC_OPERATOR_HOSTNAME is not set");
+
+// CORRECT — required in env schema, no default
+NEXT_PUBLIC_OPERATOR_HOSTNAME: z.string().min(1)
+```
+
+### Where this applies
+- **All `process.env` reads** in middleware, server code, and client code
+- **All Zod schemas** in `env.js` for environment validation
+- **All docker-compose environment blocks** — use `${VAR}` not `${VAR:-default}`
+- **Exception**: Only `NODE_ENV` and `LOG_LEVEL` may have defaults (they have universally safe defaults like `"development"` and `"info"`)
+
+### What to do instead
+- Put the correct value in `.env.example` as documentation
+- Let `env.js` validation crash the build if the var is missing
+- In Edge runtime (middleware) where `env.js` can't run, throw explicitly
+
 ## Git Conventions
 
 **Commit types**: `feat`, `fix`, `refactor`, `chore`, `docs`, `test`, `style`

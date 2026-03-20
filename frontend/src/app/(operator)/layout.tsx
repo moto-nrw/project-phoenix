@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { operatorPath } from "~/lib/operator-url";
 import { OperatorShellProvider } from "~/lib/shell-auth-context";
 import { BreadcrumbProvider } from "~/lib/breadcrumb-context";
 import { AppShell } from "~/components/dashboard/app-shell";
@@ -23,7 +24,7 @@ export default function OperatorLayout({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const isLoginPage = pathname === "/operator/login";
+  const isLoginPage = pathname === "/operator/login" || pathname === "/login";
   const { data: session, status } = useSession();
 
   // Redirect non-operator authenticated users away
@@ -37,6 +38,13 @@ export default function OperatorLayout({
     }
   }, [isLoginPage, status, session, router]);
 
+  // Redirect unauthenticated users to login
+  useEffect(() => {
+    if (!isLoginPage && status === "unauthenticated") {
+      router.push(operatorPath("/operator/login"));
+    }
+  }, [isLoginPage, status, router]);
+
   // Login page: render without auth guards
   if (isLoginPage) {
     return <>{children}</>;
@@ -48,9 +56,6 @@ export default function OperatorLayout({
     status === "unauthenticated" ||
     session?.user?.scope !== "platform"
   ) {
-    if (status === "unauthenticated") {
-      router.push("/operator/login");
-    }
     return <FullPageLoading />;
   }
 

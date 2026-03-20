@@ -13,6 +13,7 @@ import { ConfirmationModal } from "~/components/ui/modal";
 import { Skeleton } from "~/components/ui/skeleton";
 import { getRelativeTime } from "~/lib/format-utils";
 import { createLogger } from "~/lib/logger";
+import { operatorPath } from "~/lib/operator-url";
 
 const logger = createLogger({ component: "OperatorSuggestionDetailPage" });
 
@@ -128,7 +129,7 @@ export default function OperatorSuggestionDetailPage() {
         </p>
         <button
           type="button"
-          onClick={() => router.push("/operator/suggestions")}
+          onClick={() => router.push(operatorPath("/operator/suggestions"))}
           className="mt-4 text-sm text-blue-600 hover:underline"
         >
           Zurück zur Übersicht

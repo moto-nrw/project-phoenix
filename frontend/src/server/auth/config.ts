@@ -466,6 +466,42 @@ export const authConfig = {
     }),
   ],
   callbacks: {
+    redirect: ({ url, baseUrl }) => {
+      // Allow redirects to the operator subdomain (same parent domain)
+      if (url.startsWith("/")) return `${baseUrl}${url}`;
+
+      const urlObj = new URL(url);
+      const baseObj = new URL(baseUrl);
+
+      // Same origin → allow
+      if (urlObj.origin === baseObj.origin) return url;
+
+      // Both on localhost (any subdomain) → allow (local dev)
+      if (
+        urlObj.hostname.endsWith("localhost") &&
+        baseObj.hostname.endsWith("localhost")
+      ) {
+        return url;
+      }
+
+      // Same parent domain (e.g. operator.moto-app.de ↔ altenberge.moto-app.de)
+      const getParentDomain = (hostname: string) => {
+        const parts = hostname.split(".");
+        return parts.length > 2 ? parts.slice(-2).join(".") : hostname;
+      };
+      if (
+        getParentDomain(urlObj.hostname) === getParentDomain(baseObj.hostname)
+      ) {
+        return url;
+      }
+
+      logger.warn("redirect_blocked", {
+        url,
+        baseUrl,
+        reason: "origin mismatch",
+      });
+      return baseUrl;
+    },
     jwt: async ({ token, user, trigger, session }) => {
       // Only log in development to avoid production log spam
       const isDev = process.env.NODE_ENV === "development";
@@ -716,6 +752,7 @@ export const authConfig = {
       };
     },
   },
+  trustHost: true,
   pages: {
     signIn: "/",
   },

@@ -85,6 +85,7 @@ services:
       # PostHog Product Analytics (EU Cloud)
       NEXT_PUBLIC_POSTHOG_KEY: ${NEXT_PUBLIC_POSTHOG_KEY:-}
       NEXT_PUBLIC_POSTHOG_HOST: ${NEXT_PUBLIC_POSTHOG_HOST:-https://eu.i.posthog.com}
+      NEXT_PUBLIC_OPERATOR_HOSTNAME: ${NEXT_PUBLIC_OPERATOR_HOSTNAME}
     depends_on:
       - server
     volumes:

@@ -1557,6 +1557,75 @@ describe("authConfig", () => {
     });
   });
 
+  describe("redirect callback", () => {
+    function callRedirect(url: string, baseUrl: string): string {
+      const redirectFn = authConfig.callbacks?.redirect;
+      if (!redirectFn) throw new Error("redirect callback not found");
+      return redirectFn({ url, baseUrl });
+    }
+
+    it("should resolve relative URLs against baseUrl", () => {
+      expect(callRedirect("/dashboard", "http://localhost:3000")).toBe(
+        "http://localhost:3000/dashboard",
+      );
+    });
+
+    it("should allow same origin redirects", () => {
+      expect(
+        callRedirect(
+          "http://localhost:3000/dashboard",
+          "http://localhost:3000",
+        ),
+      ).toBe("http://localhost:3000/dashboard");
+    });
+
+    it("should allow cross-subdomain localhost redirects", () => {
+      expect(
+        callRedirect(
+          "http://operator.localhost:3000/login",
+          "http://localhost:3000",
+        ),
+      ).toBe("http://operator.localhost:3000/login");
+    });
+
+    it("should allow same parent domain redirects", () => {
+      expect(
+        callRedirect(
+          "http://operator.moto-app.de/login",
+          "http://altenberge.moto-app.de",
+        ),
+      ).toBe("http://operator.moto-app.de/login");
+    });
+
+    it("should block redirects to different domains", () => {
+      expect(
+        callRedirect("http://evil.com/phish", "http://localhost:3000"),
+      ).toBe("http://localhost:3000");
+    });
+
+    it("should block redirects when parent domains differ", () => {
+      expect(
+        callRedirect(
+          "http://evil.other-site.com/phish",
+          "http://app.moto-app.de",
+        ),
+      ).toBe("http://app.moto-app.de");
+    });
+
+    it("should handle two-part hostnames without subdomain stripping", () => {
+      // getParentDomain returns hostname as-is when there are only 2 parts
+      expect(
+        callRedirect("http://moto-app.de/path", "http://moto-app.de"),
+      ).toBe("http://moto-app.de/path");
+    });
+
+    it("should block when one host is localhost and the other is not", () => {
+      expect(
+        callRedirect("http://evil.com/phish", "http://app.moto-app.de"),
+      ).toBe("http://app.moto-app.de");
+    });
+  });
+
   describe("JWT callback - initial sign in edge cases", () => {
     it("should clear previous error states on sign in", async () => {
       const token = {

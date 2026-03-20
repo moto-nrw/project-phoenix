@@ -22,6 +22,12 @@ vi.mock("next-auth/react", () => ({
   useSession: mockUseSession,
 }));
 
+// Mock operator-url to avoid NEXT_PUBLIC_OPERATOR_HOSTNAME requirement
+vi.mock("~/lib/operator-url", () => ({
+  operatorPath: (path: string) => path,
+  isOperatorSubdomain: () => false,
+}));
+
 vi.mock("~/lib/confetti", () => ({
   launchConfetti: vi.fn(),
   clearConfetti: vi.fn(),

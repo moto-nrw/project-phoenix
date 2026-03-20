@@ -35,6 +35,11 @@ vi.mock("~/lib/profile-context", () => ({
   useProfile: () => ({ profile: mockProfile }),
 }));
 
+vi.mock("~/lib/operator-url", () => ({
+  operatorAbsoluteUrl: (path: string) => path,
+  operatorPath: (path: string) => path,
+}));
+
 import {
   TeacherShellProvider,
   OperatorShellProvider,
