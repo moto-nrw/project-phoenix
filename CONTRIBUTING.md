@@ -92,7 +92,7 @@ footer (optional)
 
 ### TypeScript/React
 - Use TypeScript strict mode
-- Follow ESLint rules (zero warnings policy)
+- Follow oxlint rules (zero warnings policy)
 - Use Prettier for formatting
 
 ## Reporting Issues

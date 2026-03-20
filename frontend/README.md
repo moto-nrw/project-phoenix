@@ -41,7 +41,7 @@ See `.env.example` for all required variables. Key ones:
 | `pnpm run build` | Production build |
 | `pnpm run start` | Start production server |
 | `pnpm run check` | Lint + typecheck (run before committing) |
-| `pnpm run lint` | ESLint (zero warnings policy) |
+| `pnpm run lint` | Oxlint |
 | `pnpm run typecheck` | TypeScript type checking |
 | `pnpm run format:write` | Auto-format with Prettier |
 | `pnpm run test` | Run unit tests (Vitest) |
