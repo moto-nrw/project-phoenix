@@ -78,7 +78,7 @@ describe("TeacherCreateModal", () => {
     render(<TeacherCreateModal {...defaultProps} />);
 
     expect(screen.getByTestId("modal-title")).toHaveTextContent(
-      "Neuen Betreuer erstellen",
+      "Neues Personal anlegen",
     );
   });
 

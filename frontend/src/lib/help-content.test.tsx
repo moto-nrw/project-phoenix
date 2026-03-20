@@ -74,7 +74,7 @@ describe("help-content", () => {
 
       const { container } = render(<div>{content}</div>);
       expect(
-        container.textContent?.includes("Betreuer Verwaltung"),
+        container.textContent?.includes("Personal Verwaltung"),
       ).toBeTruthy();
     });
 
@@ -309,9 +309,9 @@ describe("help-content", () => {
       expect(result.title).toBe("Schüler Verwaltung Hilfe");
     });
 
-    it("should return database teachers help for /database/teachers/new", () => {
-      const result = getHelpContent("/database/teachers/new");
-      expect(result.title).toBe("Betreuer Verwaltung Hilfe");
+    it("should return database personal help for /database/personal/new", () => {
+      const result = getHelpContent("/database/personal/new");
+      expect(result.title).toBe("Personal Verwaltung Hilfe");
     });
 
     it("should return database rooms help for /database/rooms/edit/1", () => {
@@ -446,8 +446,8 @@ describe("help-content", () => {
       const content = SPECIFIC_PAGE_HELP["database-teachers"];
       render(<div>{content}</div>);
 
-      expect(screen.getByText("Betreuer Verwaltung")).toBeDefined();
-      expect(screen.getByText(/Verwalte alle Betreuerdaten/)).toBeDefined();
+      expect(screen.getByText("Personal Verwaltung")).toBeDefined();
+      expect(screen.getByText(/Verwalte alle Personaldaten/)).toBeDefined();
     });
   });
 });
