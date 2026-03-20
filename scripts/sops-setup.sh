@@ -85,13 +85,13 @@ for env_file in "${ENV_DIR}"/*.sops.env; do
   # Check if already encrypted (SOPS adds sops_ metadata keys)
   if grep -q '^sops_version=' "$env_file" 2>/dev/null; then
     echo "   ⏭️  $(basename "$env_file") — already encrypted"
-    ((skipped++))
+    skipped=$((skipped + 1))
     continue
   fi
 
   sops encrypt --in-place "$env_file"
   echo "   🔒 $(basename "$env_file") — encrypted"
-  ((encrypted++))
+  encrypted=$((encrypted + 1))
 done
 
 echo ""
@@ -114,7 +114,7 @@ echo ""
 echo "   Go to: https://github.com/moto-nrw/project-phoenix/settings/secrets/actions"
 echo ""
 echo "2. Commit the encrypted files:"
-echo "   git add environments/*.sops.env environments/.sops.yaml"
+echo "   git add environments/*.sops.env .sops.yaml"
 echo "   git commit -m 'feat: add SOPS-encrypted environment configs'"
 echo ""
 echo "3. Share the key with team members:"
