@@ -12,7 +12,7 @@ import {
 import { Modal, ConfirmationModal } from "~/components/ui/modal";
 import { Skeleton } from "~/components/ui/skeleton";
 import { DatePicker } from "~/components/ui/date-picker";
-import { useOperatorAuth } from "~/lib/operator/auth-context";
+import { useSession } from "next-auth/react";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { operatorAnnouncementsService } from "~/lib/operator/announcements-api";
 import {
@@ -58,7 +58,7 @@ const EMPTY_FORM: FormData = {
 };
 
 export default function OperatorAnnouncementsPage() {
-  const { isAuthenticated } = useOperatorAuth();
+  const { status } = useSession();
   useSetBreadcrumb({ pageTitle: "Ankündigungen" });
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [formOpen, setFormOpen] = useState(false);
@@ -77,7 +77,7 @@ export default function OperatorAnnouncementsPage() {
     isLoading,
     mutate,
   } = useSWR(
-    isAuthenticated ? "operator-announcements" : null,
+    status === "authenticated" ? "operator-announcements" : null,
     () => operatorAnnouncementsService.fetchAll(),
     {
       keepPreviousData: true,

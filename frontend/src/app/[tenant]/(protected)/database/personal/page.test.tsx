@@ -19,7 +19,6 @@ vi.mock("next/navigation", () => ({
 // Mock SWR hooks
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: vi.fn(),
-  mutate: vi.fn(),
   useTenantMutate: vi.fn(() => vi.fn()),
 }));
 
@@ -277,7 +276,7 @@ describe("TeachersPage", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText(/Fehler beim Laden der Betreuer/),
+        screen.getByText(/Fehler beim Laden des Personals/),
       ).toBeInTheDocument();
     });
   });
@@ -294,7 +293,7 @@ describe("TeachersPage", () => {
     render(<TeachersPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Keine Betreuer vorhanden")).toBeInTheDocument();
+      expect(screen.getByText("Kein Personal vorhanden")).toBeInTheDocument();
     });
   });
 
@@ -321,8 +320,8 @@ describe("TeachersPage", () => {
   it("opens create modal when create button is clicked", async () => {
     render(<TeachersPage />);
 
-    // Click the "Betreuer hinzufügen" button to open choice modal
-    const addButton = screen.getByLabelText("Betreuer hinzufügen");
+    // Click the "Personal hinzufügen" button to open choice modal
+    const addButton = screen.getByLabelText("Personal hinzufügen");
     fireEvent.click(addButton);
 
     // Wait for choice modal to appear
@@ -409,8 +408,8 @@ describe("TeachersPage", () => {
 
     render(<TeachersPage />);
 
-    // Click "Betreuer hinzufügen" to open choice modal
-    const addButton = screen.getByLabelText("Betreuer hinzufügen");
+    // Click "Personal hinzufügen" to open choice modal
+    const addButton = screen.getByLabelText("Personal hinzufügen");
     fireEvent.click(addButton);
 
     // Wait for choice modal
@@ -570,7 +569,7 @@ describe("TeachersPage", () => {
     fireEvent.change(searchInput, { target: { value: "xyz123" } });
 
     await waitFor(() => {
-      expect(screen.getByText("Keine Betreuer gefunden")).toBeInTheDocument();
+      expect(screen.getByText("Kein Personal gefunden")).toBeInTheDocument();
     });
   });
 
@@ -729,8 +728,8 @@ describe("TeachersPage", () => {
 
       render(<TeachersPage />);
 
-      // Click the "Betreuer hinzufügen" button to open choice modal
-      const addButton = screen.getByLabelText("Betreuer hinzufügen");
+      // Click the "Personal hinzufügen" button to open choice modal
+      const addButton = screen.getByLabelText("Personal hinzufügen");
       fireEvent.click(addButton);
 
       // Wait for choice modal to appear
@@ -744,7 +743,7 @@ describe("TeachersPage", () => {
 
       // Verify navigation to /invitations
       await waitFor(() => {
-        expect(mockPush).toHaveBeenCalledWith("/test-tenant/invitations");
+        expect(mockPush).toHaveBeenCalledWith("/invitations");
       });
     });
   });

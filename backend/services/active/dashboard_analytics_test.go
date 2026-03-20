@@ -2,7 +2,11 @@ package active
 
 import (
 	"testing"
+	"time"
 
+	"github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/models/base"
+	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -20,8 +24,8 @@ func TestStudentHomeRoomMapping(t *testing.T) {
 		{
 			name:           "Student in their own Heimatraum",
 			studentID:      1,
-			studentGroupID: int64Ptr(10),
-			groupRoomID:    int64Ptr(101),
+			studentGroupID: base.Int64Ptr(10),
+			groupRoomID:    base.Int64Ptr(101),
 			currentRoomID:  101,
 			expectedInHome: true,
 			description:    "Class 5a student in Room 101 (5a's Heimatraum) should be counted",
@@ -29,8 +33,8 @@ func TestStudentHomeRoomMapping(t *testing.T) {
 		{
 			name:           "Student in another Heimatraum",
 			studentID:      2,
-			studentGroupID: int64Ptr(10),
-			groupRoomID:    int64Ptr(101),
+			studentGroupID: base.Int64Ptr(10),
+			groupRoomID:    base.Int64Ptr(101),
 			currentRoomID:  102,
 			expectedInHome: false,
 			description:    "Class 5a student in Room 102 (5b's Heimatraum) should NOT be counted",
@@ -47,7 +51,7 @@ func TestStudentHomeRoomMapping(t *testing.T) {
 		{
 			name:           "Student's group has no room",
 			studentID:      4,
-			studentGroupID: int64Ptr(10),
+			studentGroupID: base.Int64Ptr(10),
 			groupRoomID:    nil,
 			currentRoomID:  101,
 			expectedInHome: false,
@@ -145,7 +149,133 @@ func TestEdgeCaseEmptyRooms(t *testing.T) {
 	assert.Equal(t, 0, studentsInHomeRoom, "Empty room should have 0 students in Heimatraum")
 }
 
-// Helper function to create int64 pointer
-func int64Ptr(i int64) *int64 {
-	return &i
+// TestCountStudentsInIndoorRooms tests the indoor room student counting logic,
+// including the edge case where a student's visit belongs to a playground/outdoor group
+func TestCountStudentsInIndoorRooms(t *testing.T) {
+	tests := []struct {
+		name          string
+		activeVisits  []*active.Visit
+		activeGroups  []*active.Group
+		rooms         []*facilityModels.Room
+		expectedCount int
+		description   string
+	}{
+		{
+			name: "Students in indoor rooms only",
+			activeVisits: []*active.Visit{
+				{StudentID: 1, ActiveGroupID: 100},
+				{StudentID: 2, ActiveGroupID: 100},
+			},
+			activeGroups: []*active.Group{
+				{Model: base.Model{ID: 100}, RoomID: 10},
+			},
+			rooms: []*facilityModels.Room{
+				{Model: base.Model{ID: 10}, Name: "Raum 101", Category: base.StringPtr("Klassenraum")},
+			},
+			expectedCount: 2,
+			description:   "Both students in an indoor room should be counted",
+		},
+		{
+			name: "Students in playground excluded",
+			activeVisits: []*active.Visit{
+				{StudentID: 1, ActiveGroupID: 100},
+				{StudentID: 2, ActiveGroupID: 200},
+			},
+			activeGroups: []*active.Group{
+				{Model: base.Model{ID: 100}, RoomID: 10},
+				{Model: base.Model{ID: 200}, RoomID: 20},
+			},
+			rooms: []*facilityModels.Room{
+				{Model: base.Model{ID: 10}, Name: "Raum 101", Category: base.StringPtr("Klassenraum")},
+				{Model: base.Model{ID: 20}, Name: "Schulhof", Category: base.StringPtr("Schulhof")},
+			},
+			expectedCount: 1,
+			description:   "Student on playground should NOT be counted, only indoor student",
+		},
+		{
+			name: "All students on playground",
+			activeVisits: []*active.Visit{
+				{StudentID: 1, ActiveGroupID: 200},
+				{StudentID: 2, ActiveGroupID: 200},
+			},
+			activeGroups: []*active.Group{
+				{Model: base.Model{ID: 200}, RoomID: 20},
+			},
+			rooms: []*facilityModels.Room{
+				{Model: base.Model{ID: 20}, Name: "Schulhof", Category: base.StringPtr("Schulhof")},
+			},
+			expectedCount: 0,
+			description:   "No students should be counted when all are on playground",
+		},
+		{
+			name: "Visit with ended group excluded",
+			activeVisits: []*active.Visit{
+				{StudentID: 1, ActiveGroupID: 100},
+			},
+			activeGroups: []*active.Group{
+				{Model: base.Model{ID: 100}, RoomID: 10, EndTime: base.TimePtr(time.Now())},
+			},
+			rooms: []*facilityModels.Room{
+				{Model: base.Model{ID: 10}, Name: "Raum 101", Category: base.StringPtr("Klassenraum")},
+			},
+			expectedCount: 0,
+			description:   "Students in ended groups should not be counted",
+		},
+		{
+			name: "Exited visit excluded",
+			activeVisits: []*active.Visit{
+				{StudentID: 1, ActiveGroupID: 100, ExitTime: base.TimePtr(time.Now())},
+			},
+			activeGroups: []*active.Group{
+				{Model: base.Model{ID: 100}, RoomID: 10},
+			},
+			rooms: []*facilityModels.Room{
+				{Model: base.Model{ID: 10}, Name: "Raum 101", Category: base.StringPtr("Klassenraum")},
+			},
+			expectedCount: 0,
+			description:   "Exited visits should not be counted",
+		},
+		{
+			name:          "Empty visits and groups",
+			activeVisits:  []*active.Visit{},
+			activeGroups:  []*active.Group{},
+			rooms:         []*facilityModels.Room{},
+			expectedCount: 0,
+			description:   "No students when there are no visits or groups",
+		},
+		{
+			name: "Visit to group not in active groups (outdoor/unknown)",
+			activeVisits: []*active.Visit{
+				{StudentID: 1, ActiveGroupID: 999},
+			},
+			activeGroups: []*active.Group{
+				{Model: base.Model{ID: 100}, RoomID: 10},
+			},
+			rooms: []*facilityModels.Room{
+				{Model: base.Model{ID: 10}, Name: "Raum 101", Category: base.StringPtr("Klassenraum")},
+			},
+			expectedCount: 0,
+			description:   "Visit to a group not in the active groups list should not be counted",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Build room data
+			roomData := &dashboardRoomData{
+				roomByID:        make(map[int64]*facilityModels.Room),
+				occupiedRooms:   make(map[int64]bool),
+				roomStudentsMap: make(map[int64]map[int64]struct{}),
+			}
+			for _, room := range tt.rooms {
+				roomData.roomByID[room.ID] = room
+			}
+
+			// Use zero-value service (countStudentsInIndoorRooms doesn't use service fields)
+			s := &service{}
+			count := s.countStudentsInIndoorRooms(tt.activeVisits, tt.activeGroups, roomData)
+
+			assert.Equal(t, tt.expectedCount, count, tt.description)
+		})
+	}
 }

@@ -78,7 +78,7 @@ export function PageHeaderWithSearch({
         setIsMobileFiltersOpen={setIsMobileFiltersOpen}
         hasTabs={hasTabs}
         hasTitle={hasTitle}
-        mobileActionButton={mobileActionButton}
+        mobileActionButton={mobileActionButton ?? actionButton}
         statusIndicator={statusIndicator}
         badge={badge}
         activeFilters={activeFilters}

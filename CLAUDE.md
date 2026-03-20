@@ -7,7 +7,7 @@
 | Component | Technology |
 |-----------|------------|
 | Backend | Go 1.23+, Chi router, BUN ORM |
-| Frontend | Next.js 15+, React 19+, Tailwind 4+ |
+| Frontend | Next.js 16+, React 19+, Tailwind 4+ |
 | Database | PostgreSQL 17+ (multi-schema, SSL) |
 | Auth | JWT (15min access, 1hr refresh) |
 
@@ -63,7 +63,7 @@ gh pr create --base development  # NEVER target main unless explicitly asked
 - `active.visits` + `active.attendance` — real-time, correct
 - `users.students` boolean flags (`in_house`, `wc`, `school_yard`) — DEPRECATED, broken
 
-### 7. Next.js 15: Async Params
+### 7. Next.js 16: Async Params
 ```typescript
 const { id } = await context.params;  // MUST await
 ```
@@ -79,16 +79,18 @@ devbox add <tool>@latest # Add to devbox.json — never rely on global installs
 
 ## Essential Commands
 
+**RULE: Always suggest Docker Compose commands** when advising how to run, build, test, or debug services. Never default to bare `go run` or `pnpm run dev` unless the user explicitly asks for it. The development environment runs through Docker Compose.
+
 | Task | Command |
 |------|---------|
-| Start backend | `cd backend && go run main.go serve` |
-| Start frontend | `cd frontend && pnpm run dev` |
-| Run tests | `cd backend && go test ./...` |
-| Quality check | `cd frontend && pnpm run check` |
-| Rebuild backend (Docker) | `docker compose build server` |
-| Run migrations | `cd backend && go run main.go migrate` |
-| Reset + seed DB | `cd backend && go run main.go migrate reset && go run main.go seed` |
-| Generate docs | `cd backend && go run main.go gendoc --routes` |
+| Start all services | `docker compose up -d` |
+| Rebuild + restart backend | `docker compose build server && docker compose up -d server` |
+| Run migrations | `docker compose run server ./main migrate` |
+| Reset + seed DB | `docker compose run server ./main migrate reset && docker compose run server ./main seed` |
+| View logs | `docker compose logs -f server` |
+| Quality check (frontend) | `cd frontend && pnpm run check` |
+| Run backend tests | `cd backend && go test ./...` |
+| Generate docs | `docker compose run server ./main gendoc --routes` |
 
 **Seeder is DEV-ONLY**: `go run main.go seed` creates fake test data and must NEVER run on staging or production. Production infrastructure (system rooms, categories, activities) must be created via data migrations or admin UI — never via the seeder.
 
@@ -98,6 +100,46 @@ docker compose --profile test up -d postgres-test  # Start (isolated network)
 docker compose --profile test down                 # Stop (plain `down` won't work)
 APP_ENV=test go run main.go migrate reset          # Setup
 ```
+
+## No Fallbacks, No Defaults — Fail Fast (MANDATORY)
+
+**ABSOLUTE RULE: NEVER use fallback defaults (`??`, `||`, `.default()`, `.optional().default()`) for environment variables or configuration values. Missing config MUST crash immediately.**
+
+Silent fallbacks are unacceptable because they create invisible production bugs. A developer misconfigures one env var, the app boots fine, passes CI, deploys — and then silently runs with `operator.localhost:3000` in production. No error. No log. No alert. The bug surfaces days later as a user report: "login doesn't work." Root cause? A missing env var that three layers of `??` fallbacks quietly papered over.
+
+Fallbacks destroy developer experience:
+- They make `.env.example` a lie — "these values are just defaults anyway"
+- They make `docker compose up` silently broken — the app starts, looks healthy, but half the features route to localhost
+- They make debugging a nightmare — nothing errors, nothing logs, the wrong value just propagates silently through the system
+- They violate the principle of least surprise — a fresh clone with no `.env` should **fail with a clear message**, not boot into a half-working state
+
+### Rules
+
+```typescript
+// FORBIDDEN — silent fallback
+const hostname = process.env.NEXT_PUBLIC_OPERATOR_HOSTNAME ?? "operator.localhost:3000";
+
+// FORBIDDEN — optional with default in env schema
+NEXT_PUBLIC_OPERATOR_HOSTNAME: z.string().optional().default("operator.localhost:3000")
+
+// CORRECT — fail fast with a clear error
+const hostname = process.env.NEXT_PUBLIC_OPERATOR_HOSTNAME;
+if (!hostname) throw new Error("NEXT_PUBLIC_OPERATOR_HOSTNAME is not set");
+
+// CORRECT — required in env schema, no default
+NEXT_PUBLIC_OPERATOR_HOSTNAME: z.string().min(1)
+```
+
+### Where this applies
+- **All `process.env` reads** in middleware, server code, and client code
+- **All Zod schemas** in `env.js` for environment validation
+- **All docker-compose environment blocks** — use `${VAR}` not `${VAR:-default}`
+- **Exception**: Only `NODE_ENV` and `LOG_LEVEL` may have defaults (they have universally safe defaults like `"development"` and `"info"`)
+
+### What to do instead
+- Put the correct value in `.env.example` as documentation
+- Let `env.js` validation crash the build if the var is missing
+- In Edge runtime (middleware) where `env.js` can't run, throw explicitly
 
 ## Git Conventions
 

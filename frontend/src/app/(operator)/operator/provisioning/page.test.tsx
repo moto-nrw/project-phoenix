@@ -7,7 +7,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Hoisted mocks
 const {
-  mockUseOperatorAuth,
+  mockUseSession,
   mockUseSWR,
   mockMutateOrgs,
   mockMutateSchools,
@@ -19,7 +19,7 @@ const {
   mockUpdateSchool,
   mockInviteSchoolAdmin,
 } = vi.hoisted(() => ({
-  mockUseOperatorAuth: vi.fn(),
+  mockUseSession: vi.fn(),
   mockUseSWR: vi.fn(),
   mockMutateOrgs: vi.fn(),
   mockMutateSchools: vi.fn(),
@@ -32,8 +32,8 @@ const {
   mockInviteSchoolAdmin: vi.fn(),
 }));
 
-vi.mock("~/lib/operator/auth-context", () => ({
-  useOperatorAuth: mockUseOperatorAuth,
+vi.mock("next-auth/react", () => ({
+  useSession: mockUseSession,
 }));
 
 vi.mock("~/lib/breadcrumb-context", () => ({
@@ -130,9 +130,9 @@ const mockSchool = {
 describe("OperatorProvisioningPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUseOperatorAuth.mockReturnValue({
-      isAuthenticated: true,
-      operator: { id: "1", email: "operator@example.com" },
+    mockUseSession.mockReturnValue({
+      data: { user: { id: "1", email: "operator@example.com" } },
+      status: "authenticated",
     });
     mockMutateOrgs.mockResolvedValue(undefined);
     mockMutateSchools.mockResolvedValue(undefined);
@@ -435,9 +435,9 @@ describe("OperatorProvisioningPage", () => {
   });
 
   it("passes null SWR key when not authenticated", () => {
-    mockUseOperatorAuth.mockReturnValue({
-      isAuthenticated: false,
-      operator: null,
+    mockUseSession.mockReturnValue({
+      data: null,
+      status: "unauthenticated",
     });
     setupSWR(undefined, undefined);
 

@@ -72,8 +72,6 @@ export function useGlobalSSE(): SSEHookState {
       mutate(
         (key) =>
           typeof key === "string" && key.startsWith("supervision-visits-"),
-        undefined,
-        { revalidate: true },
       ).catch((err) => {
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
@@ -92,8 +90,6 @@ export function useGlobalSSE(): SSEHookState {
     ) {
       mutate(
         (key) => typeof key === "string" && key.startsWith("ogs-students-"),
-        undefined,
-        { revalidate: true },
       ).catch((err) => {
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
@@ -124,8 +120,6 @@ export function useGlobalSSE(): SSEHookState {
           typeof key === "string" &&
           (key.startsWith("active-supervision-dashboard") ||
             key.includes("dashboard")),
-        undefined,
-        { revalidate: true },
       ).catch((err) => {
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
@@ -142,8 +136,6 @@ export function useGlobalSSE(): SSEHookState {
           (key.includes("supervision") ||
             key.includes("active") ||
             key.includes("rooms")),
-        undefined,
-        { revalidate: true },
       ).catch((err) => {
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),

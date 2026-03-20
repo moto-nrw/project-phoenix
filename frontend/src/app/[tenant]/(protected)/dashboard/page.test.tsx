@@ -95,13 +95,8 @@ const mockDashboardData = {
   ],
 };
 
-vi.mock("~/lib/fetch-with-auth", () => ({
-  fetchWithAuth: vi.fn(() =>
-    Promise.resolve({
-      ok: true,
-      json: () => Promise.resolve({ data: mockDashboardData }),
-    }),
-  ),
+vi.mock("~/lib/swr/hooks", () => ({
+  useSWRAuth: vi.fn(),
 }));
 
 vi.mock("~/lib/dashboard-helpers", () => ({
@@ -118,7 +113,21 @@ vi.mock("~/lib/dashboard-helpers", () => ({
 
 import { useSession } from "next-auth/react";
 import { isAdmin } from "~/lib/auth-utils";
-import { fetchWithAuth } from "~/lib/fetch-with-auth";
+import { useSWRAuth } from "~/lib/swr/hooks";
+
+// Helper to create SWR mock return values
+function mockSWR(
+  data: typeof mockDashboardData | undefined,
+  options?: { isLoading?: boolean; error?: Error | null },
+) {
+  return {
+    data,
+    isLoading: options?.isLoading ?? false,
+    error: options?.error ?? undefined,
+    mutate: vi.fn(),
+    isValidating: false,
+  };
+}
 
 describe("DashboardPage", () => {
   beforeEach(() => {
@@ -129,10 +138,7 @@ describe("DashboardPage", () => {
       update: vi.fn(),
     });
     vi.mocked(isAdmin).mockReturnValue(true);
-    vi.mocked(fetchWithAuth).mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ data: mockDashboardData }),
-    } as Response);
+    vi.mocked(useSWRAuth).mockReturnValue(mockSWR(mockDashboardData));
   });
 
   it("renders dashboard for admin user", async () => {
@@ -181,68 +187,90 @@ describe("DashboardPage", () => {
     expect(container.innerHTML).toBe("");
   });
 
-  it("displays dashboard data after loading", async () => {
+  it("displays hero card with student count", async () => {
     render(<DashboardPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("150")).toBeInTheDocument(); // studentsPresent
-      expect(screen.getByText("120")).toBeInTheDocument(); // studentsInRooms
-      expect(screen.getByText("20")).toBeInTheDocument(); // studentsInTransit
-      // 10 appears multiple times (studentsOnPlayground and supervisorsToday)
-      expect(screen.getAllByText("10")).toHaveLength(2);
-    });
-  });
-
-  it("displays stat cards with correct titles", async () => {
-    render(<DashboardPage />);
-
-    await waitFor(() => {
+      expect(screen.getByText("150")).toBeInTheDocument();
       expect(screen.getByText("Kinder anwesend")).toBeInTheDocument();
-      expect(screen.getByText("In Räumen")).toBeInTheDocument();
-      expect(screen.getByText("Unterwegs")).toBeInTheDocument();
-      expect(screen.getByText("Schulhof")).toBeInTheDocument();
-      // "Aktive Gruppen" appears both as stat card title and info card title
-      expect(screen.getAllByText("Aktive Gruppen")).toHaveLength(2);
-      expect(screen.getByText("Aktive Aktivitäten")).toBeInTheDocument();
-      expect(screen.getByText("Freie Räume")).toBeInTheDocument();
-      expect(screen.getByText("Auslastung")).toBeInTheDocument();
     });
   });
 
-  it("displays capacity utilization as percentage", async () => {
+  it("displays breakdown bar with segment labels", async () => {
     render(<DashboardPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("75%")).toBeInTheDocument();
+      expect(screen.getByText(/120 In Räumen/)).toBeInTheDocument();
+      expect(screen.getByText(/20 Unterwegs/)).toBeInTheDocument();
+      expect(screen.getByText(/10 Schulhof/)).toBeInTheDocument();
     });
   });
 
-  it("displays info cards", async () => {
+  it("displays compact stats row", async () => {
     render(<DashboardPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Letzte Bewegungen")).toBeInTheDocument();
+      // "Aktive Gruppen" appears in compact stats AND list card
+      expect(
+        screen.getAllByText("Aktive Gruppen").length,
+      ).toBeGreaterThanOrEqual(1);
+      expect(screen.getByText("8")).toBeInTheDocument();
+      expect(screen.getByText("Aktivitäten")).toBeInTheDocument();
+      expect(screen.getByText("5")).toBeInTheDocument();
+      expect(screen.getByText("Betreuer")).toBeInTheDocument();
+    });
+  });
+
+  it("shows supervisor ratio in compact stats when meaningful", async () => {
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      // 150 students / 10 supervisors = 15:1
+      expect(screen.getByText("15:1 Betreuungsschlüssel")).toBeInTheDocument();
+    });
+  });
+
+  it("hides supervisor ratio when no students present", async () => {
+    vi.mocked(useSWRAuth).mockReturnValue(
+      mockSWR({ ...mockDashboardData, studentsPresent: 0 }),
+    );
+
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Betreuer")).toBeInTheDocument();
+      expect(screen.queryByText(/Betreuungsschlüssel/)).not.toBeInTheDocument();
+    });
+  });
+
+  it("hides supervisor ratio when no supervisors", async () => {
+    vi.mocked(useSWRAuth).mockReturnValue(
+      mockSWR({ ...mockDashboardData, supervisorsToday: 0 }),
+    );
+
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Betreuer")).toBeInTheDocument();
+      expect(screen.queryByText(/Betreuungsschlüssel/)).not.toBeInTheDocument();
+    });
+  });
+
+  it("displays list sections with data", async () => {
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      // "Aktive Gruppen" appears in both compact stats and list card
+      expect(screen.getAllByText("Aktive Gruppen").length).toBe(2);
       expect(screen.getByText("Laufende Aktivitäten")).toBeInTheDocument();
-      // "Aktive Gruppen" appears both as stat card title and info card title
-      expect(screen.getAllByText("Aktive Gruppen")).toHaveLength(2);
-      expect(screen.getByText("Personal heute")).toBeInTheDocument();
-    });
-  });
-
-  it("displays supervisor count", async () => {
-    render(<DashboardPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Betreuer im Dienst")).toBeInTheDocument();
+      expect(screen.getByText("Letzte Bewegungen")).toBeInTheDocument();
     });
   });
 
   it("shows error message when fetch fails", async () => {
-    vi.mocked(fetchWithAuth).mockResolvedValue({
-      ok: false,
-      status: 500,
-      json: () => Promise.resolve({ error: "Server Error" }),
-    } as Response);
+    vi.mocked(useSWRAuth).mockReturnValue(
+      mockSWR(undefined, { error: new Error("fetch failed") }),
+    );
 
     render(<DashboardPage />);
 
@@ -280,11 +308,45 @@ describe("DashboardPage", () => {
       expect(mockPush).toHaveBeenCalledWith("/test-tenant/");
     });
   });
+
+  it("hero card links to students search", async () => {
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      const heroLink = screen.getByRole("link", {
+        name: /Kinder anwesend/i,
+      });
+      expect(heroLink).toHaveAttribute("href", "/students/search");
+    });
+  });
+
+  it("compact stats link to their respective pages", async () => {
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      // Multiple "Aktive Gruppen" links exist (compact stat + list card)
+      const groupLinks = screen.getAllByRole("link", {
+        name: /Aktive Gruppen/i,
+      });
+      expect(
+        groupLinks.some((l) => l.getAttribute("href") === "/ogs-groups"),
+      ).toBe(true);
+
+      const activitiesLinks = screen.getAllByRole("link", {
+        name: /Aktivitäten/i,
+      });
+      expect(
+        activitiesLinks.some((l) => l.getAttribute("href") === "/activities"),
+      ).toBe(true);
+
+      const staffLink = screen.getByRole("link", { name: /Betreuer/i });
+      expect(staffLink).toHaveAttribute("href", "/staff");
+    });
+  });
 });
 
 describe("getTimeBasedGreeting", () => {
   it("returns correct greeting based on hour of day", () => {
-    // We test the logic directly since the function is internal
     const getGreeting = (hour: number): string => {
       if (hour < 12) return "Guten Morgen";
       if (hour < 17) return "Guten Tag";
@@ -300,141 +362,52 @@ describe("getTimeBasedGreeting", () => {
   });
 });
 
-describe("getColorTheme", () => {
-  it("returns correct theme for known colors", () => {
-    const COLOR_THEMES: Record<string, { overlay: string; ring: string }> = {
-      "[#5080D8]": {
-        overlay: "from-blue-50/80 to-cyan-100/80",
-        ring: "ring-blue-200/60",
-      },
-      "[#83CD2D]": {
-        overlay: "from-green-50/80 to-lime-100/80",
-        ring: "ring-green-200/60",
-      },
-      "[#FF3130]": {
-        overlay: "from-red-50/80 to-rose-100/80",
-        ring: "ring-red-200/60",
-      },
-    };
-
-    const DEFAULT_THEME = {
-      overlay: "from-gray-50/80 to-slate-100/80",
-      ring: "ring-gray-200/60",
-    };
-
-    const getColorTheme = (
-      color: string,
-    ): { overlay: string; ring: string } => {
-      const matchedKey = Object.keys(COLOR_THEMES).find((key) =>
-        color.includes(key),
-      );
-      return matchedKey ? COLOR_THEMES[matchedKey]! : DEFAULT_THEME;
-    };
-
-    expect(getColorTheme("from-[#5080D8] to-[#4070c8]").overlay).toBe(
-      "from-blue-50/80 to-cyan-100/80",
-    );
-    expect(getColorTheme("from-[#83CD2D] to-green").overlay).toBe(
-      "from-green-50/80 to-lime-100/80",
-    );
-    expect(getColorTheme("unknown-color").overlay).toBe(
-      "from-gray-50/80 to-slate-100/80",
-    );
-  });
-});
-
 describe("DashboardContent rendering states", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(isAdmin).mockReturnValue(true);
-  });
-
-  it("shows empty state for recent activity when no data", async () => {
-    vi.mocked(fetchWithAuth).mockResolvedValue({
-      ok: true,
-      json: () =>
-        Promise.resolve({
-          data: { ...mockDashboardData, recentActivity: [] },
-        }),
-    } as Response);
     vi.mocked(useSession).mockReturnValue({
       data: mockSession,
       status: "authenticated",
       update: vi.fn(),
     });
+  });
+
+  it("hides list sections when data arrays are empty", async () => {
+    vi.mocked(useSWRAuth).mockReturnValue(
+      mockSWR({
+        ...mockDashboardData,
+        recentActivity: [],
+        currentActivities: [],
+        activeGroupsSummary: [],
+      }),
+    );
 
     render(<DashboardPage />);
 
     await waitFor(() => {
+      // Hero and compact stats still visible
+      expect(screen.getByText("150")).toBeInTheDocument();
+      expect(screen.getByText("Kinder anwesend")).toBeInTheDocument();
+
+      // List sections should not be rendered
+      expect(screen.queryByText("Letzte Bewegungen")).not.toBeInTheDocument();
       expect(
-        screen.getByText("Keine aktuellen Bewegungen"),
-      ).toBeInTheDocument();
+        screen.queryByText("Laufende Aktivitäten"),
+      ).not.toBeInTheDocument();
     });
   });
 
-  it("shows empty state for current activities when no data", async () => {
-    vi.mocked(fetchWithAuth).mockResolvedValue({
-      ok: true,
-      json: () =>
-        Promise.resolve({
-          data: { ...mockDashboardData, currentActivities: [] },
-        }),
-    } as Response);
-    vi.mocked(useSession).mockReturnValue({
-      data: mockSession,
-      status: "authenticated",
-      update: vi.fn(),
-    });
+  it("shows hero with zero and message when no students present", async () => {
+    vi.mocked(useSWRAuth).mockReturnValue(
+      mockSWR({ ...mockDashboardData, studentsPresent: 0 }),
+    );
 
     render(<DashboardPage />);
 
     await waitFor(() => {
-      expect(
-        screen.getByText("Keine laufenden Aktivitäten"),
-      ).toBeInTheDocument();
-    });
-  });
-
-  it("shows empty state for active groups when no data", async () => {
-    vi.mocked(fetchWithAuth).mockResolvedValue({
-      ok: true,
-      json: () =>
-        Promise.resolve({
-          data: { ...mockDashboardData, activeGroupsSummary: [] },
-        }),
-    } as Response);
-    vi.mocked(useSession).mockReturnValue({
-      data: mockSession,
-      status: "authenticated",
-      update: vi.fn(),
-    });
-
-    render(<DashboardPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Keine aktiven Gruppen")).toBeInTheDocument();
-    });
-  });
-
-  it("displays student ratio when supervisors are present", async () => {
-    vi.mocked(fetchWithAuth).mockResolvedValue({
-      ok: true,
-      json: () =>
-        Promise.resolve({
-          data: mockDashboardData,
-        }),
-    } as Response);
-    vi.mocked(useSession).mockReturnValue({
-      data: mockSession,
-      status: "authenticated",
-      update: vi.fn(),
-    });
-
-    render(<DashboardPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Kinder je Betreuer")).toBeInTheDocument();
-      expect(screen.getByText("Betreuungsschlüssel")).toBeInTheDocument();
+      expect(screen.getByText("0")).toBeInTheDocument();
+      expect(screen.getByText("Keine Kinder anwesend")).toBeInTheDocument();
     });
   });
 
@@ -447,54 +420,30 @@ describe("DashboardContent rendering states", () => {
       status: "authenticated",
       update: vi.fn(),
     });
+    vi.mocked(useSWRAuth).mockReturnValue(mockSWR(mockDashboardData));
 
     render(<DashboardPage />);
 
     await waitFor(() => {
-      // Should show "John" (first part of "John Doe")
       expect(screen.getByText(/John/)).toBeInTheDocument();
     });
   });
 
-  it("shows dash for student ratio when no supervisors", async () => {
-    vi.mocked(fetchWithAuth).mockResolvedValue({
-      ok: true,
-      json: () =>
-        Promise.resolve({
-          data: { ...mockDashboardData, supervisorsToday: 0 },
-        }),
-    } as Response);
+  it("defaults to User when session name is missing", async () => {
     vi.mocked(useSession).mockReturnValue({
-      data: mockSession,
+      data: {
+        ...mockSession,
+        user: { ...mockSession.user, name: undefined },
+      },
       status: "authenticated",
       update: vi.fn(),
     });
+    vi.mocked(useSWRAuth).mockReturnValue(mockSWR(mockDashboardData));
 
     render(<DashboardPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Keine Daten")).toBeInTheDocument();
-    });
-  });
-
-  it("shows dash for student ratio when no students present", async () => {
-    vi.mocked(fetchWithAuth).mockResolvedValue({
-      ok: true,
-      json: () =>
-        Promise.resolve({
-          data: { ...mockDashboardData, studentsPresent: 0 },
-        }),
-    } as Response);
-    vi.mocked(useSession).mockReturnValue({
-      data: mockSession,
-      status: "authenticated",
-      update: vi.fn(),
-    });
-
-    render(<DashboardPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Keine Daten")).toBeInTheDocument();
+      expect(screen.getByText(/User/)).toBeInTheDocument();
     });
   });
 
@@ -516,18 +465,9 @@ describe("DashboardContent rendering states", () => {
       },
     ];
 
-    vi.mocked(fetchWithAuth).mockResolvedValue({
-      ok: true,
-      json: () =>
-        Promise.resolve({
-          data: { ...mockDashboardData, recentActivity: multipleActivities },
-        }),
-    } as Response);
-    vi.mocked(useSession).mockReturnValue({
-      data: mockSession,
-      status: "authenticated",
-      update: vi.fn(),
-    });
+    vi.mocked(useSWRAuth).mockReturnValue(
+      mockSWR({ ...mockDashboardData, recentActivity: multipleActivities }),
+    );
 
     render(<DashboardPage />);
 
@@ -556,28 +496,18 @@ describe("DashboardContent rendering states", () => {
       },
     ];
 
-    vi.mocked(fetchWithAuth).mockResolvedValue({
-      ok: true,
-      json: () =>
-        Promise.resolve({
-          data: {
-            ...mockDashboardData,
-            currentActivities: multipleCurrentActivities,
-          },
-        }),
-    } as Response);
-    vi.mocked(useSession).mockReturnValue({
-      data: mockSession,
-      status: "authenticated",
-      update: vi.fn(),
-    });
+    vi.mocked(useSWRAuth).mockReturnValue(
+      mockSWR({
+        ...mockDashboardData,
+        currentActivities: multipleCurrentActivities,
+      }),
+    );
 
     render(<DashboardPage />);
 
     await waitFor(() => {
       expect(screen.getByText("Schach")).toBeInTheDocument();
       expect(screen.getByText("Kunst")).toBeInTheDocument();
-      expect(screen.getByText(/Sport • 8\/10 Teilnehmer/)).toBeInTheDocument();
     });
   });
 
@@ -599,240 +529,29 @@ describe("DashboardContent rendering states", () => {
       },
     ];
 
-    vi.mocked(fetchWithAuth).mockResolvedValue({
-      ok: true,
-      json: () =>
-        Promise.resolve({
-          data: { ...mockDashboardData, activeGroupsSummary: multipleGroups },
-        }),
-    } as Response);
-    vi.mocked(useSession).mockReturnValue({
-      data: mockSession,
-      status: "authenticated",
-      update: vi.fn(),
-    });
+    vi.mocked(useSWRAuth).mockReturnValue(
+      mockSWR({ ...mockDashboardData, activeGroupsSummary: multipleGroups }),
+    );
 
     render(<DashboardPage />);
 
     await waitFor(() => {
       expect(screen.getByText("OGS Gruppe A")).toBeInTheDocument();
       expect(screen.getByText("Schach AG")).toBeInTheDocument();
-      expect(screen.getByText(/Raum 101 • 15 Kinder/)).toBeInTheDocument();
     });
   });
 
-  it("defaults to User when session name is missing", async () => {
-    vi.mocked(useSession).mockReturnValue({
-      data: {
-        ...mockSession,
-        user: { ...mockSession.user, name: undefined },
-      },
-      status: "authenticated",
-      update: vi.fn(),
-    });
-
-    render(<DashboardPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText(/User/)).toBeInTheDocument();
-    });
-  });
-});
-
-describe("StatCard component behavior", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    vi.mocked(isAdmin).mockReturnValue(true);
-    vi.mocked(useSession).mockReturnValue({
-      data: mockSession,
-      status: "authenticated",
-      update: vi.fn(),
-    });
-  });
-
-  it("renders stat cards as links when href is provided", async () => {
-    vi.mocked(fetchWithAuth).mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ data: mockDashboardData }),
-    } as Response);
-
-    render(<DashboardPage />);
-
-    await waitFor(() => {
-      // Students link
-      const studentsLink = screen.getByRole("link", {
-        name: /Kinder anwesend/i,
-      });
-      expect(studentsLink).toHaveAttribute("href", "/students/search");
-    });
-  });
-
-  it("renders stat cards with loading state showing dots", async () => {
-    // Keep the mock response pending
-    vi.mocked(fetchWithAuth).mockImplementation(
-      // eslint-disable-next-line @typescript-eslint/no-empty-function
-      () => new Promise(() => {}), // Never resolves
+  it("shows skeleton loading states", async () => {
+    vi.mocked(useSWRAuth).mockReturnValue(
+      mockSWR(undefined, { isLoading: true }),
     );
 
     render(<DashboardPage />);
 
-    // During loading, stat cards should show "..." for values
     await waitFor(() => {
-      const dots = screen.getAllByText("...");
-      expect(dots.length).toBeGreaterThan(0);
+      // Skeleton elements should be present (animate-pulse divs)
+      const skeletons = document.querySelectorAll(".animate-pulse");
+      expect(skeletons.length).toBeGreaterThan(0);
     });
-  });
-});
-
-describe("InfoCard component behavior", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    vi.mocked(isAdmin).mockReturnValue(true);
-    vi.mocked(useSession).mockReturnValue({
-      data: mockSession,
-      status: "authenticated",
-      update: vi.fn(),
-    });
-    vi.mocked(fetchWithAuth).mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ data: mockDashboardData }),
-    } as Response);
-  });
-
-  it("renders info cards as links when href is provided", async () => {
-    render(<DashboardPage />);
-
-    await waitFor(() => {
-      const activitiesLink = screen.getByRole("link", {
-        name: /Laufende Aktivitäten/i,
-      });
-      expect(activitiesLink).toHaveAttribute("href", "/activities");
-    });
-  });
-
-  it("renders staff info card with link to staff page", async () => {
-    render(<DashboardPage />);
-
-    await waitFor(() => {
-      const staffLink = screen.getByRole("link", { name: /Personal heute/i });
-      expect(staffLink).toHaveAttribute("href", "/staff");
-    });
-  });
-});
-
-describe("COLOR_THEMES coverage", () => {
-  it("maps all predefined color themes correctly", () => {
-    const COLOR_THEMES: Record<string, { overlay: string; ring: string }> = {
-      "[#5080D8]": {
-        overlay: "from-blue-50/80 to-cyan-100/80",
-        ring: "ring-blue-200/60",
-      },
-      "[#83CD2D]": {
-        overlay: "from-green-50/80 to-lime-100/80",
-        ring: "ring-green-200/60",
-      },
-      "[#FF3130]": {
-        overlay: "from-red-50/80 to-rose-100/80",
-        ring: "ring-red-200/60",
-      },
-      "orange-500": {
-        overlay: "from-orange-50/80 to-orange-100/80",
-        ring: "ring-orange-200/60",
-      },
-      "yellow-400": {
-        overlay: "from-yellow-50/80 to-yellow-100/80",
-        ring: "ring-yellow-200/60",
-      },
-      emerald: {
-        overlay: "from-emerald-50/80 to-green-100/80",
-        ring: "ring-emerald-200/60",
-      },
-      purple: {
-        overlay: "from-purple-50/80 to-violet-100/80",
-        ring: "ring-purple-200/60",
-      },
-      indigo: {
-        overlay: "from-indigo-50/80 to-blue-100/80",
-        ring: "ring-indigo-200/60",
-      },
-    };
-
-    const DEFAULT_THEME = {
-      overlay: "from-gray-50/80 to-slate-100/80",
-      ring: "ring-gray-200/60",
-    };
-
-    const getColorTheme = (
-      color: string,
-    ): { overlay: string; ring: string } => {
-      const matchedKey = Object.keys(COLOR_THEMES).find((key) =>
-        color.includes(key),
-      );
-      return matchedKey ? COLOR_THEMES[matchedKey]! : DEFAULT_THEME;
-    };
-
-    // Test all themes
-    expect(getColorTheme("from-orange-500 to-orange-600").overlay).toBe(
-      "from-orange-50/80 to-orange-100/80",
-    );
-    expect(getColorTheme("from-yellow-400 to-yellow-500").overlay).toBe(
-      "from-yellow-50/80 to-yellow-100/80",
-    );
-    expect(getColorTheme("from-emerald-500 to-green-600").overlay).toBe(
-      "from-emerald-50/80 to-green-100/80",
-    );
-    expect(getColorTheme("from-purple-500 to-purple-600").overlay).toBe(
-      "from-purple-50/80 to-violet-100/80",
-    );
-    expect(getColorTheme("from-indigo-500 to-indigo-600").overlay).toBe(
-      "from-indigo-50/80 to-blue-100/80",
-    );
-  });
-});
-
-describe("Activity timestamp key handling", () => {
-  it("handles invalid timestamp in activity key", () => {
-    // Test the key generation logic
-    const activities = [
-      {
-        type: "checkin",
-        groupName: "Group A",
-        roomName: "Room 1",
-        timestamp: "invalid-date",
-        count: 3,
-      },
-    ];
-
-    const generateKey = (activity: (typeof activities)[0], idx: number) => {
-      const ts = new Date(activity.timestamp).getTime();
-      const tsKey = Number.isFinite(ts) ? ts : `idx-${idx}`;
-      return `${activity.type}-${activity.groupName}-${activity.roomName}-${tsKey}`;
-    };
-
-    const key = generateKey(activities[0]!, 0);
-    expect(key).toBe("checkin-Group A-Room 1-idx-0");
-  });
-
-  it("handles valid timestamp in activity key", () => {
-    const validTimestamp = new Date("2024-01-15T10:30:00Z").toISOString();
-    const activities = [
-      {
-        type: "checkout",
-        groupName: "Group B",
-        roomName: "Room 2",
-        timestamp: validTimestamp,
-        count: 1,
-      },
-    ];
-
-    const generateKey = (activity: (typeof activities)[0], idx: number) => {
-      const ts = new Date(activity.timestamp).getTime();
-      const tsKey = Number.isFinite(ts) ? ts : `idx-${idx}`;
-      return `${activity.type}-${activity.groupName}-${activity.roomName}-${tsKey}`;
-    };
-
-    const key = generateKey(activities[0]!, 0);
-    expect(key).toContain("checkout-Group B-Room 2-");
-    expect(key).not.toContain("idx-");
   });
 });

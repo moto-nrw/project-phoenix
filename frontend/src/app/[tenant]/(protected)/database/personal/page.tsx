@@ -97,7 +97,7 @@ export default function TeachersPage() {
   });
 
   const error = teachersError
-    ? "Fehler beim Laden der Betreuer. Bitte versuchen Sie es später erneut."
+    ? "Fehler beim Laden des Personals. Bitte versuchen Sie es später erneut."
     : null;
 
   // Apply filters (use teachersData directly to avoid dependency issues)
@@ -250,7 +250,7 @@ export default function TeachersPage() {
     >
       <div className="mb-4">
         <PageHeaderWithSearch
-          title={isMobile ? "Betreuer" : ""}
+          title={isMobile ? "Personal" : ""}
           badge={{
             icon: (
               <svg
@@ -268,12 +268,12 @@ export default function TeachersPage() {
               </svg>
             ),
             count: filteredTeachers.length,
-            label: "Betreuer",
+            label: "Personal",
           }}
           search={{
             value: searchTerm,
             onChange: setSearchTerm,
-            placeholder: "Betreuer suchen...",
+            placeholder: "Personal suchen...",
           }}
           filters={[]}
           activeFilters={activeFilters}
@@ -292,7 +292,7 @@ export default function TeachersPage() {
                   WebkitTransform: "translateZ(0)",
                   transform: "translateZ(0)",
                 }}
-                aria-label="Betreuer hinzufügen"
+                aria-label="Personal hinzufügen"
               >
                 <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-150 group-hover:opacity-100"></div>
                 <svg
@@ -326,7 +326,7 @@ export default function TeachersPage() {
           WebkitTransform: "translateZ(0)",
           transform: "translateZ(0)",
         }}
-        aria-label="Betreuer hinzufügen"
+        aria-label="Personal hinzufügen"
       >
         <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-150 group-hover:opacity-100"></div>
         <svg
@@ -371,13 +371,13 @@ export default function TeachersPage() {
             </svg>
             <h3 className="mt-4 text-lg font-medium text-gray-900">
               {searchTerm
-                ? "Keine Betreuer gefunden"
-                : "Keine Betreuer vorhanden"}
+                ? "Kein Personal gefunden"
+                : "Kein Personal vorhanden"}
             </h3>
             <p className="mt-2 text-sm text-gray-600">
               {searchTerm
                 ? "Versuchen Sie andere Suchkriterien."
-                : "Es wurden noch keine Betreuer erstellt."}
+                : "Es wurde noch kein Personal erstellt."}
             </p>
           </div>
         </div>
@@ -475,11 +475,11 @@ export default function TeachersPage() {
       <Modal
         isOpen={showChoiceModal}
         onClose={() => setShowChoiceModal(false)}
-        title="Betreuer hinzufügen"
+        title="Personal hinzufügen"
       >
         <div className="space-y-4">
           <p className="text-sm text-gray-600">
-            Wählen Sie, wie Sie einen neuen Betreuer hinzufügen möchten:
+            Wählen Sie, wie Sie neues Personal hinzufügen möchten:
           </p>
 
           <div className="grid grid-cols-1 gap-3">
@@ -547,7 +547,7 @@ export default function TeachersPage() {
                     Per E-Mail einladen
                   </h3>
                   <p className="mt-1 text-sm text-gray-600">
-                    Einladungslink per E-Mail senden - Betreuer erstellt eigenen
+                    Einladungslink per E-Mail senden - Personal erstellt eigenen
                     Account
                   </p>
                 </div>
@@ -587,13 +587,13 @@ export default function TeachersPage() {
           isOpen={showDeleteConfirmModal}
           onClose={handleDeleteCancel}
           onConfirm={() => confirmDelete(() => void handleDeleteTeacher())}
-          title="Betreuer löschen?"
+          title="Personal löschen?"
           confirmText="Löschen"
           cancelText="Abbrechen"
           confirmButtonClass="bg-red-600 hover:bg-red-700"
         >
           <p className="text-sm text-gray-700">
-            Möchten Sie den Betreuer{" "}
+            Möchten Sie das Personal{" "}
             <span className="font-medium">
               {selectedTeacher.first_name} {selectedTeacher.last_name}
             </span>{" "}

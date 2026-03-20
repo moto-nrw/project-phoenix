@@ -186,7 +186,7 @@ export function InvitationsBreadcrumb() {
     <BreadcrumbNav>
       <BreadcrumbLink href="/database">Datenverwaltung</BreadcrumbLink>
       <BreadcrumbSeparator />
-      <BreadcrumbLink href="/database/teachers">Betreuer</BreadcrumbLink>
+      <BreadcrumbLink href="/database/personal">Personal</BreadcrumbLink>
       <BreadcrumbSeparator />
       <BreadcrumbCurrent>Einladungen</BreadcrumbCurrent>
     </BreadcrumbNav>

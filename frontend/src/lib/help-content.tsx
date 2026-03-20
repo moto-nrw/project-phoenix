@@ -308,9 +308,9 @@ export const SPECIFIC_PAGE_HELP: Record<string, ReactNode> = {
   ),
   "database-teachers": (
     <DatabaseSectionHelp
-      title="Betreuer Verwaltung"
-      description="Verwalte alle Betreuerdaten zentral an einem Ort."
-      entityName="Betreuer"
+      title="Personal Verwaltung"
+      description="Verwalte alle Personaldaten zentral an einem Ort."
+      entityName="Personal"
     />
   ),
   "database-rooms": (
@@ -851,8 +851,8 @@ export const NAVIGATION_HELP: Record<
               description="Schülerdaten verwalten und bearbeiten"
             />
             <InfoListItem
-              title="Betreuer"
-              description="Daten der Betreuer verwalten"
+              title="Personal"
+              description="Personaldaten verwalten"
             />
             <InfoListItem title="Räume" description="Räume verwalten" />
             <InfoListItem
@@ -1211,8 +1211,8 @@ const DATABASE_ROUTES: ReadonlyArray<{
     key: "database-students",
   },
   {
-    prefix: "/database/teachers",
-    title: "Betreuer Verwaltung Hilfe",
+    prefix: "/database/personal",
+    title: "Personal Verwaltung Hilfe",
     key: "database-teachers",
   },
   {

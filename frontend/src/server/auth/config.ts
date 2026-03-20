@@ -5,6 +5,17 @@ import { env } from "~/env";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
 
+/**
+ * Creates a CredentialsSignin error with a code field.
+ * Dynamic import avoids pulling next/server into vitest.
+ */
+async function createOperatorLoginError(code: string): Promise<Error> {
+  const { CredentialsSignin } = await import("next-auth");
+  const error = new CredentialsSignin();
+  error.code = code;
+  return error;
+}
+
 // Logger instance for NextAuth config
 const logger = createLogger({ component: "NextAuthConfig" });
 
@@ -80,6 +91,7 @@ function buildAuthUser(
   token: string,
   refreshToken: string,
   email: string,
+  scope?: string,
 ): User {
   // Defensive check: ensure roles is actually an array (matches original login behavior)
   const roles =
@@ -91,13 +103,84 @@ function buildAuthUser(
     email: email,
     token: token,
     refreshToken: refreshToken,
-    roles: roles,
+    roles: scope === "platform" ? ["operator"] : roles,
     firstName: payload.first_name,
     isAdmin: payload.is_admin ?? false,
     tenantId: payload.tenant_id,
     orgId: payload.org_id,
     scope: payload.scope,
   };
+}
+
+/**
+ * Perform operator login API call to backend.
+ * Operator login returns an envelope: { status, data: { access_token, refresh_token, operator } }
+ */
+async function performOperatorLogin(
+  email: string,
+  password: string,
+  isDev: boolean,
+  forwardHeaders?: Record<string, string>,
+): Promise<{
+  access_token: string;
+  refresh_token: string;
+  status?: number;
+} | null> {
+  const apiUrl = getServerApiUrl();
+
+  if (isDev) {
+    logger.debug("attempting operator login", {
+      api_url: `${apiUrl}/operator/auth/login`,
+    });
+  }
+
+  try {
+    const response = await fetch(`${apiUrl}/operator/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...forwardHeaders },
+      body: JSON.stringify({ email, password }),
+    });
+
+    if (isDev) {
+      logger.debug("operator login response received", {
+        status: response.status,
+      });
+    }
+
+    if (!response.ok) {
+      const text = await response.text();
+      logger.error("operator login failed", {
+        status: response.status,
+        error: text,
+      });
+      return { access_token: "", refresh_token: "", status: response.status };
+    }
+
+    const envelope = (await response.json()) as {
+      status: string;
+      data: {
+        access_token: string;
+        refresh_token: string;
+        operator: { id: number; email: string; display_name: string };
+      };
+    };
+
+    if (isDev) {
+      logger.debug("operator login response parsed", {
+        has_tokens: !!envelope.data.access_token,
+      });
+    }
+
+    return {
+      access_token: envelope.data.access_token,
+      refresh_token: envelope.data.refresh_token,
+    };
+  } catch (error) {
+    logger.error("operator authentication error", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
 }
 
 /**
@@ -207,9 +290,6 @@ declare module "next-auth" {
     refreshTokenExpiry?: number;
     error?: "RefreshTokenExpired" | "RefreshTokenError";
     needsRefresh?: boolean;
-    isRefreshing?: boolean;
-    lastRefreshAttempt?: number;
-    refreshRetries?: number;
   }
 }
 
@@ -239,6 +319,16 @@ let refreshCache: {
   expiresAt: number;
 } | null = null;
 const REFRESH_CACHE_TTL_MS = 5 * 60 * 1000; // Match REFRESH_BUFFER_MS — covers the full pre-expiry window
+
+/** @internal Exposed for unit testing only */
+export const _testHelpers = {
+  parseJwtPayload,
+  buildDisplayName,
+  buildAuthUser,
+  performLogin,
+  performOperatorLogin,
+  parseDurationToMs,
+} as const;
 
 /** @internal Reset module-level refresh state (test isolation only) */
 export function _resetRefreshState(): void {
@@ -321,18 +411,121 @@ export const authConfig = {
         );
       },
     }),
-    /**
-     * ...add more providers here.
-     *
-     * Most other providers require a bit more work than the Discord provider. For example, the
-     * GitHub provider requires you to add the `refresh_token_expires_in` field to the Account
-     * model. Refer to the NextAuth.js docs for the provider you want to use. Example:
-     *
-     * @see https://next-auth.js.org/providers/github
-     */
+    CredentialsProvider({
+      id: "operator-credentials",
+      name: "Operator Credentials",
+      credentials: {
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" },
+        internalRefresh: { label: "Internal Refresh", type: "text" },
+        token: { label: "Token", type: "text" },
+        refreshToken: { label: "Refresh Token", type: "text" },
+      },
+      async authorize(credentials, request) {
+        const creds = credentials as Record<string, string> | undefined;
+        const isDev = process.env.NODE_ENV === "development";
+
+        // Handle internal token refresh (same pattern as teacher)
+        if (
+          creds?.internalRefresh === "true" &&
+          creds?.token &&
+          creds?.refreshToken
+        ) {
+          if (isDev) {
+            logger.debug("handling operator internal token refresh", {});
+          }
+
+          const payload = parseJwtPayload(creds.token);
+          if (!payload) return null;
+
+          const email = payload.email ?? payload.sub ?? "";
+          return buildAuthUser(
+            payload,
+            creds.token,
+            creds.refreshToken,
+            email,
+            "platform",
+          );
+        }
+
+        // Regular operator login flow
+        if (!creds?.email || !creds?.password) return null;
+
+        // Forward client IP headers for audit logs and rate limiting
+        const forwardHeaders: Record<string, string> = {};
+        const forwarded = request?.headers.get("x-forwarded-for");
+        const realIp = request?.headers.get("x-real-ip");
+        if (forwarded) forwardHeaders["X-Forwarded-For"] = forwarded;
+        if (realIp) forwardHeaders["X-Real-IP"] = realIp;
+
+        const loginResult = await performOperatorLogin(
+          creds.email,
+          creds.password,
+          isDev,
+          forwardHeaders,
+        );
+
+        // Handle error responses with specific status codes
+        if (!loginResult || (loginResult.status && !loginResult.access_token)) {
+          const status = loginResult?.status;
+          if (status === 403)
+            throw await createOperatorLoginError("account_inactive");
+          if (status === 429)
+            throw await createOperatorLoginError("rate_limited");
+          throw await createOperatorLoginError("invalid_credentials");
+        }
+
+        const payload = parseJwtPayload(loginResult.access_token);
+        if (!payload) return null;
+
+        return buildAuthUser(
+          payload,
+          loginResult.access_token,
+          loginResult.refresh_token,
+          creds.email,
+          "platform",
+        );
+      },
+    }),
   ],
   callbacks: {
-    jwt: async ({ token, user }) => {
+    redirect: ({ url, baseUrl }) => {
+      // Allow redirects to the operator subdomain (same parent domain)
+      if (url.startsWith("/")) return `${baseUrl}${url}`;
+
+      const urlObj = new URL(url);
+      const baseObj = new URL(baseUrl);
+
+      // Same origin → allow
+      if (urlObj.origin === baseObj.origin) return url;
+
+      // Both on localhost (any subdomain) → allow (local dev)
+      if (
+        urlObj.hostname.endsWith("localhost") &&
+        baseObj.hostname.endsWith("localhost")
+      ) {
+        return url;
+      }
+
+      // Same parent domain (e.g. operator.moto-app.de ↔ altenberge.moto-app.de)
+      const getParentDomain = (hostname: string) => {
+        const parts = hostname.split(".");
+        return parts.length > 2 ? parts.slice(-2).join(".") : hostname;
+      };
+      if (
+        getParentDomain(urlObj.hostname) === getParentDomain(baseObj.hostname)
+      ) {
+        return url;
+      }
+
+      logger.warn("redirect_blocked", {
+        url,
+        baseUrl,
+        reason: "origin mismatch",
+      });
+      return baseUrl;
+    },
+    jwt: async ({ token, user, trigger, session }) => {
       // Only log in development to avoid production log spam
       const isDev = process.env.NODE_ENV === "development";
 
@@ -384,6 +577,14 @@ export const authConfig = {
               token.refreshTokenExpiry as number,
             ).toISOString(),
           });
+        }
+      }
+
+      // Handle client-side session update (e.g. profile name change)
+      if (trigger === "update" && session) {
+        const update = session as Record<string, unknown>;
+        if (typeof update.name === "string") {
+          token.name = update.name;
         }
       }
 
@@ -482,10 +683,15 @@ export const authConfig = {
         }
 
         // Start new refresh and share via module-level promise
+        const isOperator = token.scope === "platform";
+        const refreshUrl = isOperator
+          ? `${getServerApiUrl()}/operator/auth/refresh`
+          : `${getServerApiUrl()}/auth/refresh`;
+
         activeRefreshKey = currentRefreshToken;
         activeRefreshPromise = (async (): Promise<RefreshResult | null> => {
           try {
-            const response = await fetch(`${getServerApiUrl()}/auth/refresh`, {
+            const response = await fetch(refreshUrl, {
               method: "POST",
               headers: {
                 Authorization: `Bearer ${currentRefreshToken}`,
@@ -495,7 +701,17 @@ export const authConfig = {
             });
 
             if (response.ok) {
-              const tokens = (await response.json()) as RefreshResult;
+              // Operator refresh returns envelope { data: { access_token, refresh_token } }
+              // Teacher refresh returns flat { access_token, refresh_token }
+              let tokens: RefreshResult;
+              if (isOperator) {
+                const envelope = (await response.json()) as {
+                  data: RefreshResult;
+                };
+                tokens = envelope.data;
+              } else {
+                tokens = (await response.json()) as RefreshResult;
+              }
               // Cache result so late-arriving callbacks with the old token
               // get the new tokens instead of sending a doomed request
               refreshCache = {
@@ -507,11 +723,13 @@ export const authConfig = {
             }
             logger.warn("proactive_token_refresh_failed", {
               status: response.status,
+              scope: token.scope,
             });
             return null;
           } catch (err) {
             logger.warn("proactive_token_refresh_error", {
               error: err instanceof Error ? err.message : String(err),
+              scope: token.scope,
             });
             return null;
           } finally {
@@ -566,6 +784,7 @@ export const authConfig = {
             roles: [],
             firstName: (token.firstName as string) || "",
             isAdmin: false,
+            scope: token.scope as string | undefined,
           },
           error: token.error,
         };
@@ -589,6 +808,7 @@ export const authConfig = {
       };
     },
   },
+  trustHost: true,
   pages: {
     // "/" works correctly with subdomain routing: on session expiry NextAuth
     // redirects to school-a.localhost:3000/, the subdomain middleware rewrites

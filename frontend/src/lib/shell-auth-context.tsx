@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useMemo } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { useProfile } from "~/lib/profile-context";
-import { useOperatorAuth } from "~/lib/operator/auth-context";
+import { operatorAbsoluteUrl, operatorPath } from "~/lib/operator-url";
 
 export interface ShellUser {
   name: string;
@@ -104,42 +104,47 @@ export function OperatorShellProvider({
 }: {
   readonly children: React.ReactNode;
 }) {
-  const { operator, isLoading, isAuthenticated, logout } = useOperatorAuth();
+  const { data: session, status: sessionStatus } = useSession();
 
   const value = useMemo<ShellAuthContextType>(() => {
-    const user: ShellUser | null = operator
+    const user: ShellUser | null = session?.user
       ? {
-          name: operator.displayName,
-          email: operator.email,
-          roles: ["operator"],
+          // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- intentionally treat empty string as falsy
+          name: session.user.name?.trim() || "Operator",
+          email: session.user.email ?? "",
+          roles: session.user.roles ?? ["operator"],
         }
       : null;
 
-    const nameParts = operator?.displayName?.split(" ") ?? [];
-    const shellProfile: ShellProfile | null = operator
+    const displayName = session?.user?.name ?? "";
+    const nameParts = displayName.split(" ");
+    const shellProfile: ShellProfile | null = session?.user
       ? {
           firstName: nameParts[0],
           lastName: nameParts.slice(1).join(" ") || undefined,
         }
       : null;
 
-    const status: ShellStatus = isLoading
-      ? "loading"
-      : isAuthenticated
-        ? "authenticated"
-        : "unauthenticated";
+    const status: ShellStatus =
+      sessionStatus === "loading"
+        ? "loading"
+        : sessionStatus === "authenticated"
+          ? "authenticated"
+          : "unauthenticated";
 
     return {
       user,
       profile: shellProfile,
       status,
-      isSessionExpired: false,
-      logout,
+      isSessionExpired: session?.error === "RefreshTokenExpired",
+      logout: async () => {
+        await signOut({ callbackUrl: operatorAbsoluteUrl("/operator/login") });
+      },
       mode: "operator" as const,
-      homeUrl: "/operator/suggestions",
-      settingsUrl: "/operator/settings",
+      homeUrl: operatorPath("/operator/suggestions"),
+      settingsUrl: operatorPath("/operator/settings"),
     };
-  }, [operator, isLoading, isAuthenticated, logout]);
+  }, [session, sessionStatus]);
 
   return (
     <ShellAuthContext.Provider value={value}>

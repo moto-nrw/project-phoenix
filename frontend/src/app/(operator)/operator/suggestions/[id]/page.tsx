@@ -6,7 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 // eslint-disable-next-line no-restricted-imports -- operator pages use useOperatorAuth, not NextAuth
 import useSWR from "swr";
 import { ThumbsUp, ThumbsDown } from "lucide-react";
-import { useOperatorAuth } from "~/lib/operator/auth-context";
+import { useSession } from "next-auth/react";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { operatorSuggestionsService } from "~/lib/operator/suggestions-api";
 import { StatusDropdown } from "~/components/operator/status-dropdown";
@@ -15,13 +15,14 @@ import { ConfirmationModal } from "~/components/ui/modal";
 import { Skeleton } from "~/components/ui/skeleton";
 import { getRelativeTime } from "~/lib/format-utils";
 import { createLogger } from "~/lib/logger";
+import { operatorPath } from "~/lib/operator-url";
 
 const logger = createLogger({ component: "OperatorSuggestionDetailPage" });
 
 export default function OperatorSuggestionDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const { isAuthenticated } = useOperatorAuth();
+  const { status } = useSession();
   const id = params.id as string;
   useSetBreadcrumb({ pageTitle: "Feedback Details" });
 
@@ -36,7 +37,7 @@ export default function OperatorSuggestionDetailPage() {
     isLoading,
     mutate,
   } = useSWR(
-    isAuthenticated && id ? `operator-suggestion-${id}` : null,
+    status === "authenticated" && id ? `operator-suggestion-${id}` : null,
     () => operatorSuggestionsService.fetchById(id),
     {
       keepPreviousData: true,
@@ -130,7 +131,7 @@ export default function OperatorSuggestionDetailPage() {
         </p>
         <button
           type="button"
-          onClick={() => router.push("/operator/suggestions")}
+          onClick={() => router.push(operatorPath("/operator/suggestions"))}
           className="mt-4 text-sm text-blue-600 hover:underline"
         >
           Zurück zur Übersicht

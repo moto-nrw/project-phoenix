@@ -42,6 +42,7 @@ const { mockAuth, mockApiGet, mockApiPost, mockApiPut, mockApiDelete } =
 // Mock auth module
 vi.mock("../server/auth", () => ({
   auth: mockAuth,
+  uncachedAuth: mockAuth,
 }));
 
 // Mock api-helpers module

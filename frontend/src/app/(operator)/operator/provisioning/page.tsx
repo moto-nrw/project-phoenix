@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
-// eslint-disable-next-line no-restricted-imports -- operator pages use useOperatorAuth, not NextAuth
+// eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
 import useSWR from "swr";
+import { useSession } from "next-auth/react";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
-import { useOperatorAuth } from "~/lib/operator/auth-context";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import type { Organization, School } from "~/lib/operator/provisioning-helpers";
@@ -27,7 +27,8 @@ const logger = createLogger({ component: "OperatorProvisioningPage" });
 type ActiveTab = "organizations" | "schools";
 
 export default function OperatorProvisioningPage() {
-  const { isAuthenticated } = useOperatorAuth();
+  const { status } = useSession();
+  const isAuthenticated = status === "authenticated";
   useSetBreadcrumb({ pageTitle: "Schulverwaltung" });
 
   const [activeTab, setActiveTab] = useState<ActiveTab>("organizations");

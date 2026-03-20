@@ -9,7 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Description:** Next.js frontend application for a student attendance and room management system. Provides a modern web interface for tracking student presence via RFID and managing educational facilities.
 
 **Key Technologies:**
-- Next.js v15+ with App Router
+- Next.js v16+ with App Router
 - React v19+ 
 - TypeScript (strict mode)
 - Tailwind CSS v4+
@@ -28,7 +28,7 @@ pnpm run start                   # Start production server
 pnpm run preview                 # Build and preview production version
 
 # Code Quality (Run these before committing!)
-pnpm run lint                    # ESLint check with max-warnings=0
+pnpm run lint                    # Oxlint check
 pnpm run lint:fix                # Auto-fix linting issues  
 pnpm run typecheck               # TypeScript type checking
 pnpm run check                   # Run both lint and typecheck
@@ -90,7 +90,7 @@ The frontend follows a domain-driven structure with clear separation of concerns
 
 1. **Route Handlers** (`/src/app/api/`): Next.js API routes that proxy requests to the backend
    - All handlers use `route-wrapper.ts` for consistent auth and error handling
-   - Context parameter must include `params: Promise<Record<string, string | string[] | undefined>>` for Next.js 15+
+   - Context parameter must include `params: Promise<Record<string, string | string[] | undefined>>` for Next.js 16+
    - Returns `ApiResponse<T>` or `ApiErrorResponse`
 
 2. **Domain Services** (`/src/lib/`): Business logic and API integration
@@ -105,7 +105,7 @@ The frontend follows a domain-driven structure with clear separation of concerns
 
 ### Key Architectural Patterns
 
-**Route Handler Pattern** (Next.js 15+):
+**Route Handler Pattern** (Next.js 16+):
 ```typescript
 // In app/api/{resource}/route.ts
 export const GET = createGetHandler(async (request, token, params) => {
@@ -203,13 +203,14 @@ try {
 - Path aliases: `~/*` and `@/*` map to `./src/*`
 - Target: ES2022 with ESNext modules
 
-## ESLint Configuration
+## Oxlint Configuration
 
-**Important rules:**
-- `max-warnings: 0` - Zero warnings allowed
-- `@typescript-eslint/consistent-type-imports` - Use `import type` 
+Linting is handled by [oxlint](https://oxc.rs/docs/guide/usage/linter.html) (config: `.oxlintrc.json`), which replaced ESLint for ~11x faster linting. Oxlint respects existing `eslint-disable` comments natively.
+
+**Key rules:**
+- `@typescript-eslint/consistent-type-imports` - Use `import type`
 - `@typescript-eslint/prefer-nullish-coalescing` - Use `??` not `||` for nullish checks
-- `@typescript-eslint/no-unused-vars` - Prefix unused vars with `_`
+- `no-unused-vars` - Prefix unused vars with `_`
 
 ## Common Patterns
 
@@ -318,7 +319,7 @@ Project Phoenix uses Server-Sent Events (SSE) to push real-time notifications to
 
 **Key Implementation Details**:
 - Bypasses `route-wrapper.ts` because SSE requires streaming responses (not buffered JSON)
-- Uses `runtime='nodejs'` in Next.js 15+ (required for streaming)
+- Uses `runtime='nodejs'` in Next.js 16+ (required for streaming)
 - Injects JWT server-side before proxying to backend
 - EventSource API cannot set custom headers, so auth happens server-side
 
@@ -472,12 +473,12 @@ type SSEEventType =
 
 ### Type Errors
 - **API responses**: Ensure proper typing with generics
-- **Route params**: Use proper Next.js 15+ context typing
+- **Route params**: Use proper Next.js 16+ context typing
 - **Async components**: Only server components can be async
 
 ### Build Issues
 - Run `pnpm run check` before committing
-- Fix all ESLint errors (0 warnings policy)
+- Fix all oxlint errors
 - Ensure all TypeScript errors resolved
 
 ### Runtime Issues
@@ -619,3 +620,5 @@ The ONLY files allowed to use raw `console.*`:
 - `src/lib/logger.ts` — The logger implementation itself
 - `src/test/setup.ts` — Global test mock pass-through
 - `src/app/api/logs/route.ts` — Log shipping endpoint (writes JSON to stdout)
+
+@AGENTS.md

@@ -54,7 +54,7 @@ vi.mock("~/components/ui/drawer", () => ({
 }));
 
 vi.mock("~/lib/shell-auth-context", () => ({
-  useShellAuth: () => ({
+  useShellAuth: vi.fn(() => ({
     user: { name: "Test User", email: "test@example.com", roles: [] },
     profile: { firstName: "Test", lastName: "User" },
     status: "authenticated",
@@ -63,7 +63,11 @@ vi.mock("~/lib/shell-auth-context", () => ({
     mode: "teacher",
     homeUrl: "/dashboard",
     settingsUrl: "/settings",
-  }),
+  })),
+}));
+
+vi.mock("~/lib/operator-url", () => ({
+  operatorPath: (path: string) => path,
 }));
 
 // Import after mocks
@@ -72,12 +76,14 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useSupervision } from "~/lib/supervision-context";
 import { isAdmin } from "~/lib/auth-utils";
+import { useShellAuth } from "~/lib/shell-auth-context";
 
 const mockUsePathname = vi.mocked(usePathname);
 const mockUseSearchParams = vi.mocked(useSearchParams);
 const mockUseSession = vi.mocked(useSession);
 const mockUseSupervision = vi.mocked(useSupervision);
 const mockIsAdmin = vi.mocked(isAdmin);
+const mockUseShellAuth = vi.mocked(useShellAuth);
 
 // Helper to create mock search params - use unknown cast for test flexibility
 function createMockSearchParams(
@@ -122,6 +128,16 @@ describe("MobileBottomNav", () => {
     vi.clearAllMocks();
 
     // Default mock implementations
+    mockUseShellAuth.mockReturnValue({
+      user: { name: "Test User", email: "test@example.com", roles: [] },
+      profile: { firstName: "Test", lastName: "User" },
+      status: "authenticated",
+      isSessionExpired: false,
+      logout: vi.fn(),
+      mode: "teacher",
+      homeUrl: "/dashboard",
+      settingsUrl: "/settings",
+    });
     mockUsePathname.mockReturnValue("/dashboard");
     mockUseSearchParams.mockReturnValue(createMockSearchParams());
     mockUseSession.mockReturnValue(createMockSession(false));
@@ -532,6 +548,52 @@ describe("MobileBottomNav", () => {
       expect(screen.getByText("Mehr")).toBeInTheDocument();
 
       vi.useRealTimers();
+    });
+  });
+
+  describe("operator mode navigation", () => {
+    beforeEach(() => {
+      mockUseShellAuth.mockReturnValue({
+        user: {
+          name: "Operator",
+          email: "op@example.com",
+          roles: ["operator"],
+        },
+        profile: { firstName: "Operator" },
+        status: "authenticated",
+        isSessionExpired: false,
+        logout: vi.fn(),
+        mode: "operator",
+        homeUrl: "/operator/suggestions",
+        settingsUrl: "/operator/settings",
+      });
+      mockUsePathname.mockReturnValue("/operator/suggestions");
+    });
+
+    it("renders operator main items", () => {
+      render(<MobileBottomNav />);
+
+      const links = screen.getAllByRole("link");
+      const hrefs = links.map((link) => link.getAttribute("href"));
+      expect(hrefs).toContain("/operator/suggestions");
+      expect(hrefs).toContain("/operator/announcements");
+    });
+
+    it("does not show overflow menu in operator mode", () => {
+      render(<MobileBottomNav />);
+
+      // Operator mode has no "More" button
+      const buttons = screen.queryAllByRole("button");
+      const moreButton = buttons.find(
+        (btn) => !btn.hasAttribute("data-testid"),
+      );
+      expect(moreButton).toBeUndefined();
+    });
+
+    it("shows active label for current operator route", () => {
+      render(<MobileBottomNav />);
+
+      expect(screen.getByText("Feedback")).toBeInTheDocument();
     });
   });
 

@@ -1,10 +1,5 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import {
-  getOperatorToken,
-  getOperatorRefreshToken,
-  setOperatorTokens,
-} from "./cookies";
 import { handleApiError } from "../api-helpers";
 import {
   type RouteContext,
@@ -14,55 +9,33 @@ import {
   wrapInApiResponse,
   createUnauthorizedResponse,
 } from "../route-wrapper-utils";
-import { createLogger } from "~/lib/logger";
-
-const logger = createLogger({ component: "OperatorRouteWrapper" });
+/**
+ * Checks if error is a 401 authentication error
+ */
+function is401Error(error: unknown): boolean {
+  return error instanceof Error && error.message.includes("API error (401)");
+}
 
 /**
- * Attempt a token refresh using the current request's cookies.
- *
- * This is intentionally stateless — no module-level caching or queuing.
- * Unlike the client-side user/admin flow (where module globals are scoped
- * to a single browser tab), this code runs server-side in a shared Node.js
- * process. Shared mutable state would leak one operator's refreshed token
- * into another operator's retry, causing cross-user session bleed.
- *
- * With only 2-3 concurrent operators the backend can absorb duplicate
- * refresh calls without issue.
+ * Attempts to retry a request with a refreshed token.
+ * NextAuth handles token refresh transparently via JWT callback —
+ * calling auth() again may return a fresh token.
  */
-async function attemptTokenRefresh(): Promise<string | null> {
-  try {
-    const refreshToken = await getOperatorRefreshToken();
-    if (!refreshToken) return null;
+async function tryRetryWithRefreshedToken<T>(
+  originalToken: string,
+  retryFn: (token: string) => Promise<T>,
+): Promise<T | null> {
+  const { uncachedAuth } = await import("~/server/auth");
+  const updatedSession = await uncachedAuth();
 
-    const { getServerApiUrl } = await import("~/lib/server-api-url");
-    const url = `${getServerApiUrl()}/operator/auth/refresh`;
-
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${refreshToken}`,
-        "Content-Type": "application/json",
-      },
-      signal: AbortSignal.timeout(5_000),
-    });
-
-    if (!response.ok) return null;
-
-    const envelope = (await response.json()) as {
-      data: { access_token: string; refresh_token: string };
-    };
-    await setOperatorTokens(
-      envelope.data.access_token,
-      envelope.data.refresh_token,
-    );
-    return envelope.data.access_token;
-  } catch (error) {
-    logger.warn("operator_transparent_refresh_failed", {
-      error: error instanceof Error ? error.message : String(error),
-    });
+  if (
+    !updatedSession?.user?.token ||
+    updatedSession.user.token === originalToken
+  ) {
     return null;
   }
+
+  return retryFn(updatedSession.user.token);
 }
 
 async function operatorServerFetch<T>(
@@ -81,28 +54,6 @@ async function operatorServerFetch<T>(
     },
     body: options.body ? JSON.stringify(options.body) : undefined,
   });
-
-  // On 401, attempt a transparent refresh and retry once
-  if (response.status === 401) {
-    const newToken = await attemptTokenRefresh();
-    if (newToken) {
-      const retryResponse = await fetch(url, {
-        method: options.method,
-        headers: {
-          Authorization: `Bearer ${newToken}`,
-          "Content-Type": "application/json",
-        },
-        body: options.body ? JSON.stringify(options.body) : undefined,
-      });
-
-      if (!retryResponse.ok) {
-        const errorText = await retryResponse.text();
-        throw new Error(`API error (${retryResponse.status}): ${errorText}`);
-      }
-
-      return parseResponse<T>(retryResponse);
-    }
-  }
 
   if (!response.ok) {
     const errorText = await response.text();
@@ -171,6 +122,39 @@ type WithBodyHandler<T, B> = (
   params: Record<string, unknown>,
 ) => Promise<T>;
 
+/**
+ * Executes handler with retry logic on 401 errors.
+ * Mirrors the teacher route-wrapper pattern.
+ */
+async function executeWithRetry<T>(
+  token: string,
+  executeHandler: (token: string) => Promise<T>,
+  formatResponse: (data: T) => NextResponse,
+): Promise<NextResponse> {
+  try {
+    const data = await executeHandler(token);
+    return formatResponse(data);
+  } catch (handlerError) {
+    if (!is401Error(handlerError)) {
+      throw handlerError;
+    }
+
+    try {
+      const retryData = await tryRetryWithRefreshedToken(token, executeHandler);
+      if (retryData !== null) {
+        return formatResponse(retryData);
+      }
+    } catch {
+      // Retry failed, fall through to token expired
+    }
+
+    return NextResponse.json(
+      { error: "Token expired", code: "TOKEN_EXPIRED" },
+      { status: 401 },
+    );
+  }
+}
+
 function createOperatorNoBodyHandler<T>(
   handler: NoBodyHandler<T>,
   formatResponse: (data: T) => NextResponse,
@@ -180,11 +164,16 @@ function createOperatorNoBodyHandler<T>(
     context: RouteContext,
   ): Promise<NextResponse> => {
     try {
-      const token = await getOperatorToken();
-      if (!token) return createUnauthorizedResponse();
+      const { auth } = await import("~/server/auth");
+      const session = await auth();
+      if (!session?.user?.token) return createUnauthorizedResponse();
       const params = await extractParams(request, context);
-      const data = await handler(request, token, params);
-      return formatResponse(data);
+
+      return await executeWithRetry(
+        session.user.token,
+        (token) => handler(request, token, params),
+        formatResponse,
+      );
     } catch (error) {
       return handleApiError(error);
     }
@@ -197,12 +186,17 @@ function createOperatorWithBodyHandler<T, B>(handler: WithBodyHandler<T, B>) {
     context: RouteContext,
   ): Promise<NextResponse> => {
     try {
-      const token = await getOperatorToken();
-      if (!token) return createUnauthorizedResponse();
+      const { auth } = await import("~/server/auth");
+      const session = await auth();
+      if (!session?.user?.token) return createUnauthorizedResponse();
       const params = await extractParams(request, context);
       const body = await parseRequestBody<B>(request);
-      const data = await handler(request, body, token, params);
-      return NextResponse.json(wrapInApiResponse(data));
+
+      return await executeWithRetry(
+        session.user.token,
+        (token) => handler(request, body, token, params),
+        (data) => NextResponse.json(wrapInApiResponse(data)),
+      );
     } catch (error) {
       return handleApiError(error);
     }
