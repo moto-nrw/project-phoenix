@@ -11,6 +11,7 @@ import {
   isPresentLocation,
   isSchoolyardLocation,
   isTransitLocation,
+  parseLocation,
 } from "@/lib/location-helper";
 
 const PrivacyConsentSection = dynamic(
@@ -204,6 +205,13 @@ export const studentsConfig = defineEntityConfig<Student>({
           label: "Zuhause",
           color: "bg-red-400/80",
           showWhen: (student) => isHomeLocation(student.current_location),
+        },
+        {
+          label: "Nicht angemeldet",
+          color: "bg-gray-400/80",
+          showWhen: (student) =>
+            parseLocation(student.current_location).status ===
+            LOCATION_STATUSES.ABSENT,
         },
         {
           label: "Bus",

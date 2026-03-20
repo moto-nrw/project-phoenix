@@ -27,6 +27,7 @@ export interface StudentLocationContext {
 export const LOCATION_STATUSES = {
   PRESENT: "Anwesend",
   HOME: "Zuhause",
+  ABSENT: "Nicht angemeldet",
   SCHOOLYARD: "Schulhof",
   TRANSIT: "Unterwegs",
   UNKNOWN: "Unbekannt",
@@ -37,6 +38,7 @@ export const LOCATION_COLORS = {
   GROUP_ROOM: "#83CD2D", // Green - student in their group's assigned room
   OTHER_ROOM: "#5080D8", // Blue - student in external/other room
   HOME: "#FF3130",
+  ABSENT: "#9CA3AF", // Gray - not checked in yet
   SCHOOLYARD: "#F78C10",
   TRANSIT: "#D946EF",
   UNKNOWN: "#6B7280",
@@ -47,7 +49,7 @@ const LOCATION_SEPARATOR = "-";
 const UNKNOWN_STATUS = LOCATION_STATUSES.UNKNOWN;
 
 const LEGACY_STATUS_MAP: Record<string, string> = {
-  abwesend: LOCATION_STATUSES.HOME,
+  abwesend: LOCATION_STATUSES.ABSENT,
   zuhause: LOCATION_STATUSES.HOME,
   home: LOCATION_STATUSES.HOME,
   unbekannt: LOCATION_STATUSES.UNKNOWN,
@@ -126,6 +128,7 @@ export function parseLocation(location?: string | null): ParsedLocation {
 // Status-based color lookup for simple cases
 const STATUS_COLOR_MAP: Record<string, string> = {
   [LOCATION_STATUSES.HOME]: LOCATION_COLORS.HOME,
+  [LOCATION_STATUSES.ABSENT]: LOCATION_COLORS.ABSENT,
   [LOCATION_STATUSES.SCHOOLYARD]: LOCATION_COLORS.SCHOOLYARD,
   [LOCATION_STATUSES.TRANSIT]: LOCATION_COLORS.TRANSIT,
 };
