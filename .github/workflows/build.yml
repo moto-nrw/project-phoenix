@@ -240,9 +240,9 @@ jobs:
         id: operator_hostname
         run: |
           if [[ "${{ needs.check-environment.outputs.is_staging }}" == "true" ]]; then
-            echo "hostname=operator-staging.moto-app.de" >> $GITHUB_OUTPUT
+            echo "hostname=operator.staging.moto-app.de" >> $GITHUB_OUTPUT
           elif [[ "${{ needs.check-environment.outputs.is_demo }}" == "true" ]]; then
-            echo "hostname=operator-demo.moto-app.de" >> $GITHUB_OUTPUT
+            echo "hostname=operator.demo.moto-app.de" >> $GITHUB_OUTPUT
           else
             echo "hostname=operator.moto-app.de" >> $GITHUB_OUTPUT
           fi
