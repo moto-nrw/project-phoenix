@@ -80,7 +80,7 @@ export function TeacherDetailModal({
                 </DataField>
               )}
               {teacher.id && (
-                <DataField label="Betreuer-ID" fullWidth mono>
+                <DataField label="Personal-ID" fullWidth mono>
                   {teacher.id}
                 </DataField>
               )}
@@ -181,7 +181,7 @@ export function TeacherDetailModal({
           onDelete={onDelete}
           onDeleteClick={onDeleteClick}
           entityName={`${teacher.first_name} ${teacher.last_name}`}
-          entityType="Betreuer"
+          entityType="Personal"
         />
       </div>
     );

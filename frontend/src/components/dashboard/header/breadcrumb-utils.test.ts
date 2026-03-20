@@ -65,8 +65,8 @@ describe("breadcrumb-utils", () => {
         expect(getPageTitle("/database/students")).toBe("Kinder");
       });
 
-      it("should return 'Betreuer' for database teachers page", () => {
-        expect(getPageTitle("/database/teachers")).toBe("Betreuer");
+      it("should return 'Personal' for database personal page", () => {
+        expect(getPageTitle("/database/personal")).toBe("Personal");
       });
 
       it("should return 'Räume' for database rooms page", () => {

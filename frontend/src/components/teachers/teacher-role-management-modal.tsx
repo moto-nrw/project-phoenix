@@ -78,7 +78,7 @@ export function TeacherRoleManagementModal({
   // Fetch all roles and account roles
   const fetchRoles = async () => {
     if (!teacher.account_id) {
-      showError("Diese pädagogische Fachkraft hat kein verknüpftes Konto");
+      showError("Dieses Personal hat kein verknüpftes Konto");
       return;
     }
 
@@ -222,12 +222,10 @@ export function TeacherRoleManagementModal({
         size="md"
       >
         <div className="py-8 text-center text-gray-500">
-          <p className="mb-2">
-            Diese pädagogische Fachkraft hat kein verknüpftes Konto.
-          </p>
+          <p className="mb-2">Dieses Personal hat kein verknüpftes Konto.</p>
           <p className="text-sm">
-            Erstellen Sie zuerst ein Konto für diese pädagogische Fachkraft, um
-            Rollen zuzuweisen.
+            Erstellen Sie zuerst ein Konto für dieses Personal, um Rollen
+            zuzuweisen.
           </p>
         </div>
       </FormModal>

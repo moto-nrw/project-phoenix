@@ -20,7 +20,7 @@ export function TeacherCreateModal({
   loading = false,
 }: TeacherCreateModalProps) {
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Neuen Betreuer erstellen">
+    <Modal isOpen={isOpen} onClose={onClose} title="Neues Personal anlegen">
       {loading ? (
         <div className="flex items-center justify-center py-12">
           <div className="flex flex-col items-center gap-4">

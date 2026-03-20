@@ -32,7 +32,7 @@ export function TeacherForm({
   onSubmitAction,
   onCancelAction,
   isLoading,
-  formTitle = "Details der pädagogischen Fachkraft",
+  formTitle = "Details des Personals",
   submitLabel = "Speichern",
   rfidCards: _rfidCards = [],
   wrapInCard = true,
@@ -70,7 +70,7 @@ export function TeacherForm({
         const roleList = await authService.getRoles();
         if (cancelled) return;
 
-        // Filter guardian role — not assignable via Betreuer form (see also invitation-form.tsx)
+        // Filter guardian role — not assignable via Personal form (see also invitation-form.tsx)
         const options = roleList
           .filter((role) => role.name !== "guardian")
           .map<RoleOption>((role) => ({
