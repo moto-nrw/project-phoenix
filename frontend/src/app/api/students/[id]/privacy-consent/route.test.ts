@@ -25,25 +25,14 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("~/lib/api-client", () => ({
-  apiGet: mockApiGet,
-  apiPost: vi.fn(),
-  apiPut: mockApiPut,
-  apiDelete: vi.fn(),
-}));
-
-vi.mock("~/lib/api-helpers", () => ({
-  handleApiError: vi.fn((error: unknown) => {
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-    const status = message.includes("(401)")
-      ? 401
-      : message.includes("(404)")
-        ? 404
-        : 500;
-    return new Response(JSON.stringify({ error: message }), { status });
-  }),
-}));
+vi.mock("~/lib/api-helpers", async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return {
+    ...actual,
+    apiGet: mockApiGet,
+    apiPut: mockApiPut,
+  };
+});
 
 // ============================================================================
 // Test Helpers
@@ -104,18 +93,16 @@ describe("GET /api/students/[id]/privacy-consent", () => {
   it("fetches privacy consent for student", async () => {
     const mockConsent = {
       data: {
-        data: {
-          id: 1,
-          student_id: 123,
-          policy_version: "1.0",
-          accepted: true,
-          accepted_at: "2024-01-01T00:00:00Z",
-          duration_days: 30,
-          renewal_required: false,
-          data_retention_days: 30,
-          created_at: "2024-01-01T00:00:00Z",
-          updated_at: "2024-01-01T00:00:00Z",
-        },
+        id: 1,
+        student_id: 123,
+        policy_version: "1.0",
+        accepted: true,
+        accepted_at: "2024-01-01T00:00:00Z",
+        duration_days: 30,
+        renewal_required: false,
+        data_retention_days: 30,
+        created_at: "2024-01-01T00:00:00Z",
+        updated_at: "2024-01-01T00:00:00Z",
       },
     };
     mockApiGet.mockResolvedValueOnce(mockConsent);
@@ -187,16 +174,14 @@ describe("PUT /api/students/[id]/privacy-consent", () => {
   it("updates privacy consent successfully", async () => {
     const mockUpdatedConsent = {
       data: {
-        data: {
-          id: 1,
-          student_id: 123,
-          policy_version: "1.0",
-          accepted: true,
-          data_retention_days: 25,
-          renewal_required: false,
-          created_at: "2024-01-01T00:00:00Z",
-          updated_at: "2024-01-15T10:00:00Z",
-        },
+        id: 1,
+        student_id: 123,
+        policy_version: "1.0",
+        accepted: true,
+        data_retention_days: 25,
+        renewal_required: false,
+        created_at: "2024-01-01T00:00:00Z",
+        updated_at: "2024-01-15T10:00:00Z",
       },
     };
     mockApiPut.mockResolvedValueOnce(mockUpdatedConsent);

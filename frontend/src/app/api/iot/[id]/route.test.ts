@@ -26,16 +26,14 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("@/lib/api-client", () => ({
-  apiGet: mockApiGet,
-  apiPost: vi.fn(),
-  apiPut: mockApiPut,
-  apiDelete: mockApiDelete,
-}));
-
-vi.mock("@/lib/route-wrapper", async () => {
-  const actual = await vi.importActual("@/lib/route-wrapper");
-  return actual;
+vi.mock("@/lib/api-helpers", async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return {
+    ...actual,
+    apiGet: mockApiGet,
+    apiPut: mockApiPut,
+    apiDelete: mockApiDelete,
+  };
 });
 
 vi.mock("@/lib/iot-helpers", () => ({
@@ -122,16 +120,14 @@ describe("GET /api/iot/[id]", () => {
 
   it("fetches device by ID from backend", async () => {
     const mockDevice = {
+      status: "success",
       data: {
-        status: "success",
-        data: {
-          id: 1,
-          device_id: "DEVICE001",
-          description: "Test Device",
-          is_active: true,
-          created_at: "2024-01-01T00:00:00Z",
-          updated_at: "2024-01-01T00:00:00Z",
-        },
+        id: 1,
+        device_id: "DEVICE001",
+        description: "Test Device",
+        is_active: true,
+        created_at: "2024-01-01T00:00:00Z",
+        updated_at: "2024-01-01T00:00:00Z",
       },
     };
     mockApiGet.mockResolvedValueOnce(mockDevice);
@@ -161,7 +157,7 @@ describe("GET /api/iot/[id]", () => {
   });
 
   it("throws error when response format is invalid", async () => {
-    mockApiGet.mockResolvedValueOnce({ data: { unexpected: "structure" } });
+    mockApiGet.mockResolvedValueOnce({ unexpected: "structure" });
 
     const request = createMockRequest("/api/iot/1");
     const response = await GET(request, createMockContext({ id: "1" }));
@@ -193,16 +189,14 @@ describe("PUT /api/iot/[id]", () => {
   it("updates device via backend", async () => {
     const updateBody = { description: "Updated Device", is_active: false };
     const mockUpdatedDevice = {
+      status: "success",
       data: {
-        status: "success",
-        data: {
-          id: 1,
-          device_id: "DEVICE001",
-          description: "Updated Device",
-          is_active: false,
-          created_at: "2024-01-01T00:00:00Z",
-          updated_at: "2024-01-15T10:00:00Z",
-        },
+        id: 1,
+        device_id: "DEVICE001",
+        description: "Updated Device",
+        is_active: false,
+        created_at: "2024-01-01T00:00:00Z",
+        updated_at: "2024-01-15T10:00:00Z",
       },
     };
     mockApiPut.mockResolvedValueOnce(mockUpdatedDevice);
@@ -236,7 +230,7 @@ describe("PUT /api/iot/[id]", () => {
   });
 
   it("throws error when response format is invalid", async () => {
-    mockApiPut.mockResolvedValueOnce({ data: { unexpected: "structure" } });
+    mockApiPut.mockResolvedValueOnce({ unexpected: "structure" });
 
     const request = createMockRequest("/api/iot/1", {
       method: "PUT",

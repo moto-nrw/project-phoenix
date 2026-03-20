@@ -24,25 +24,10 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("@/lib/api-client", () => ({
-  apiPost: mockApiPost,
-  apiGet: vi.fn(),
-  apiPut: vi.fn(),
-  apiDelete: vi.fn(),
-}));
-
-vi.mock("@/lib/api-helpers", () => ({
-  handleApiError: vi.fn((error: unknown) => {
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-    const status = message.includes("(401)")
-      ? 401
-      : message.includes("(404)")
-        ? 404
-        : 500;
-    return new Response(JSON.stringify({ error: message }), { status });
-  }),
-}));
+vi.mock("@/lib/api-helpers", async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return { ...actual, apiPost: mockApiPost };
+});
 
 // ============================================================================
 // Test Helpers

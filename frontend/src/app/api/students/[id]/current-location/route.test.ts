@@ -24,25 +24,10 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("~/lib/api-client", () => ({
-  apiGet: mockApiGet,
-  apiPost: vi.fn(),
-  apiPut: vi.fn(),
-  apiDelete: vi.fn(),
-}));
-
-vi.mock("~/lib/api-helpers", () => ({
-  handleApiError: vi.fn((error: unknown) => {
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-    const status = message.includes("(401)")
-      ? 401
-      : message.includes("(404)")
-        ? 404
-        : 500;
-    return new Response(JSON.stringify({ error: message }), { status });
-  }),
-}));
+vi.mock("~/lib/api-helpers", async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return { ...actual, apiGet: mockApiGet };
+});
 
 // ============================================================================
 // Test Helpers
@@ -90,12 +75,10 @@ describe("GET /api/students/[id]/current-location", () => {
   it("returns not_present when student is at home", async () => {
     const mockStudent = {
       data: {
-        data: {
-          id: 123,
-          current_location: "Zuhause",
-          group_id: 5,
-          group_name: "OGS A",
-        },
+        id: 123,
+        current_location: "Zuhause",
+        group_id: 5,
+        group_name: "OGS A",
       },
     };
     mockApiGet.mockResolvedValueOnce(mockStudent);
@@ -121,41 +104,33 @@ describe("GET /api/students/[id]/current-location", () => {
   it("returns present with room when student is in a room", async () => {
     const mockStudent = {
       data: {
-        data: {
-          id: 123,
-          current_location: "Anwesend",
-          group_id: 5,
-          group_name: "OGS A",
-        },
+        id: 123,
+        current_location: "Anwesend",
+        group_id: 5,
+        group_name: "OGS A",
       },
     };
     const mockGroup = {
       data: {
-        data: {
-          room_id: 10,
-        },
+        room_id: 10,
       },
     };
     const mockRoomStatus = {
       data: {
-        data: {
-          student_room_status: {
-            "123": {
-              current_room_id: 10,
-              check_in_time: "2024-01-15T09:00:00Z",
-            },
+        student_room_status: {
+          "123": {
+            current_room_id: 10,
+            check_in_time: "2024-01-15T09:00:00Z",
           },
         },
       },
     };
     const mockRoom = {
       data: {
-        data: {
-          id: 10,
-          name: "Room 101",
-          building: "Main",
-          floor: 1,
-        },
+        id: 10,
+        name: "Room 101",
+        building: "Main",
+        floor: 1,
       },
     };
 
@@ -186,28 +161,22 @@ describe("GET /api/students/[id]/current-location", () => {
   it("returns transit when student is present but not in a room", async () => {
     const mockStudent = {
       data: {
-        data: {
-          id: 123,
-          current_location: "Anwesend",
-          group_id: 5,
-          group_name: "OGS A",
-        },
+        id: 123,
+        current_location: "Anwesend",
+        group_id: 5,
+        group_name: "OGS A",
       },
     };
     const mockGroup = {
       data: {
-        data: {
-          room_id: 10,
-        },
+        room_id: 10,
       },
     };
     const mockRoomStatus = {
       data: {
-        data: {
-          student_room_status: {
-            "123": {
-              current_room_id: null,
-            },
+        student_room_status: {
+          "123": {
+            current_room_id: null,
           },
         },
       },
@@ -284,11 +253,9 @@ describe("GET /api/students/[id]/current-location", () => {
   it("returns transit when student has no group", async () => {
     const mockStudent = {
       data: {
-        data: {
-          id: 123,
-          current_location: "Anwesend",
-          group_id: null,
-        },
+        id: 123,
+        current_location: "Anwesend",
+        group_id: null,
       },
     };
 
@@ -317,19 +284,15 @@ describe("GET /api/students/[id]/current-location", () => {
   it("handles room status fetch failure gracefully", async () => {
     const mockStudent = {
       data: {
-        data: {
-          id: 123,
-          current_location: "Anwesend",
-          group_id: 5,
-          group_name: "OGS A",
-        },
+        id: 123,
+        current_location: "Anwesend",
+        group_id: 5,
+        group_name: "OGS A",
       },
     };
     const mockGroup = {
       data: {
-        data: {
-          room_id: 10,
-        },
+        room_id: 10,
       },
     };
 
@@ -357,41 +320,33 @@ describe("GET /api/students/[id]/current-location", () => {
   it("returns present with isGroupRoom false when in different room", async () => {
     const mockStudent = {
       data: {
-        data: {
-          id: 123,
-          current_location: "Anwesend",
-          group_id: 5,
-          group_name: "OGS A",
-        },
+        id: 123,
+        current_location: "Anwesend",
+        group_id: 5,
+        group_name: "OGS A",
       },
     };
     const mockGroup = {
       data: {
-        data: {
-          room_id: 10,
-        },
+        room_id: 10,
       },
     };
     const mockRoomStatus = {
       data: {
-        data: {
-          student_room_status: {
-            "123": {
-              current_room_id: 20,
-              check_in_time: "2024-01-15T09:00:00Z",
-            },
+        student_room_status: {
+          "123": {
+            current_room_id: 20,
+            check_in_time: "2024-01-15T09:00:00Z",
           },
         },
       },
     };
     const mockRoom = {
       data: {
-        data: {
-          id: 20,
-          name: "Room 201",
-          building: "Annex",
-          floor: 2,
-        },
+        id: 20,
+        name: "Room 201",
+        building: "Annex",
+        floor: 2,
       },
     };
 

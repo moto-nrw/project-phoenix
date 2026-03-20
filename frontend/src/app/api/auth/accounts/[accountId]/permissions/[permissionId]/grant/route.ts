@@ -1,8 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth } from "~/server/auth";
-import { apiPost } from "@/lib/api-client";
-import { handleApiError } from "@/lib/api-helpers";
+import { apiPost, handleApiError } from "~/lib/api-helpers";
 
 export async function POST(
   request: NextRequest,
@@ -30,8 +29,8 @@ export async function POST(
     // Make the API call to grant permission to account
     await apiPost(
       `/auth/accounts/${accountId}/permissions/${permissionId}/grant`,
-      {},
       session.user.token,
+      {},
     );
 
     return NextResponse.json({ success: true });

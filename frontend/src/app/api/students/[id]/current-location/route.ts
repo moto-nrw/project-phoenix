@@ -1,7 +1,7 @@
 // app/api/students/[id]/current-location/route.ts
 import type { NextRequest } from "next/server";
 import { createGetHandler } from "~/lib/route-wrapper";
-import { apiGet } from "~/lib/api-client";
+import { apiGet } from "~/lib/api-helpers";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "StudentLocationRoute" });
@@ -12,7 +12,6 @@ import {
   isPresentLocation,
   normalizeLocation,
 } from "~/lib/location-helper";
-import axios from "axios";
 import type { BackendRoom } from "~/lib/rooms-helpers";
 
 // Define proper types for the API responses
@@ -143,7 +142,7 @@ async function fetchStudentAndGroup(
     `/api/students/${studentId}`,
     token,
   );
-  const student = studentResponse.data.data;
+  const student = studentResponse.data;
 
   let groupRoomId: number | null = null;
   if (student.group_id) {
@@ -152,7 +151,7 @@ async function fetchStudentAndGroup(
         `/api/groups/${student.group_id}`,
         token,
       );
-      groupRoomId = groupResponse.data.data.room_id;
+      groupRoomId = groupResponse.data.room_id;
     } catch (e) {
       logger.error("failed to fetch group room ID", {
         student_id: studentId,
@@ -243,7 +242,7 @@ async function tryGetStudentRoomStatus(
       `/api/groups/${groupId}/students/room-status`,
       token,
     );
-    const roomStatusData = roomStatusResponse.data.data;
+    const roomStatusData = roomStatusResponse.data;
     const status = roomStatusData?.student_room_status?.[studentId];
     // Guard: only return status if current_room_id is present (not null/undefined)
     if (status?.current_room_id == null) {
@@ -280,7 +279,7 @@ async function buildPresentLocationWithRoom(
       `/api/rooms/${roomStatus.current_room_id}`,
       token,
     );
-    const roomData = roomResponse.data.data;
+    const roomData = roomResponse.data;
 
     if (roomData) {
       return {
@@ -357,21 +356,21 @@ function handleLocationFetchError(error: unknown): LocationResponse {
   };
 }
 
-// Maps axios error to error code
+// Maps error to error code
 function mapAxiosErrorToCode(
   error: unknown,
 ): UnknownLocation["errorCode"] | undefined {
-  if (!axios.isAxiosError(error)) {
+  if (!(error instanceof Error)) {
     return undefined;
   }
 
-  if (!error.response) {
+  const message = error.message;
+  if (message.includes("fetch") || message.includes("network") || message.includes("ECONNREFUSED")) {
     return "NETWORK";
   }
-
-  const status = error.response.status;
-  if (status === 401) return "UNAUTHORIZED";
-  if (status === 403) return "FORBIDDEN";
-  if (status === 404) return "NOT_FOUND";
-  return "SERVER";
+  if (message.includes("401")) return "UNAUTHORIZED";
+  if (message.includes("403")) return "FORBIDDEN";
+  if (message.includes("404")) return "NOT_FOUND";
+  if (message.includes("500") || message.includes("502") || message.includes("503")) return "SERVER";
+  return undefined;
 }

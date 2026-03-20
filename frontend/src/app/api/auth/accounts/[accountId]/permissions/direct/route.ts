@@ -1,5 +1,5 @@
 import { createGetHandler } from "@/lib/route-wrapper";
-import { apiGet } from "@/lib/api-client";
+import { apiGet } from "~/lib/api-helpers";
 import type { BackendPermission } from "@/lib/auth-helpers";
 
 interface PermissionsResponse {
@@ -18,9 +18,8 @@ export const GET = createGetHandler(async (request, token, params) => {
   // Fetching direct permissions for account
 
   // Make the API call to get only direct permissions (not role-based)
-  const response = await apiGet<PermissionsResponse>(
+  return await apiGet<PermissionsResponse>(
     `/auth/accounts/${accountId}/permissions/direct`,
     token,
   );
-  return response.data;
 });
