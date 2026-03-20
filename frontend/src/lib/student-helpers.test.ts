@@ -127,8 +127,8 @@ describe("mapStudentResponse", () => {
 
     const result = mapStudentResponse(student);
 
-    // "Abwesend" should be normalized to "Zuhause"
-    expect(result.current_location).toBe("Zuhause");
+    // "Abwesend" should be normalized to "Nicht angemeldet"
+    expect(result.current_location).toBe("Nicht angemeldet");
   });
 
   it("handles null current_location", () => {

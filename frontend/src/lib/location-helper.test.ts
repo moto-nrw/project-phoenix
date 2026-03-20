@@ -79,7 +79,7 @@ describe("parseLocation", () => {
   });
 
   it("normalizes legacy status keywords", () => {
-    expect(parseLocation("abwesend").status).toBe("Zuhause");
+    expect(parseLocation("abwesend").status).toBe("Nicht angemeldet");
     expect(parseLocation("home").status).toBe("Zuhause");
     expect(parseLocation("anwesend").status).toBe("Anwesend");
   });
@@ -229,8 +229,11 @@ describe("location check helpers", () => {
     });
 
     it("returns true for legacy home status", () => {
-      expect(isHomeLocation("abwesend")).toBe(true);
       expect(isHomeLocation("home")).toBe(true);
+    });
+
+    it("returns false for abwesend (maps to Nicht angemeldet, not Zuhause)", () => {
+      expect(isHomeLocation("abwesend")).toBe(false);
     });
 
     it("returns false for other statuses", () => {
