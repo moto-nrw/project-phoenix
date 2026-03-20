@@ -20,6 +20,22 @@ pre-commit:
       glob: "environments/*.sops.env"
       run: ./scripts/env-check.sh
 
+    # Guard against committing unencrypted secrets in .sops.env files
+    sops-encryption-check:
+      glob: "environments/*.sops.env"
+      run: |
+        for f in environments/*.sops.env; do
+          [ -f "$f" ] || continue
+          if grep -q 'CHANGE_ME' "$f"; then
+            continue  # Template placeholders are OK
+          fi
+          if ! grep -q '^sops_version=' "$f"; then
+            echo "❌ $f contains non-placeholder values but is NOT encrypted!"
+            echo "   Run: sops encrypt --in-place $f"
+            exit 1
+          fi
+        done
+
     # Go imports check (formatting and organization)
     go-imports:
       glob: "backend/**/*.go"
