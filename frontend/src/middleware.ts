@@ -25,11 +25,9 @@ function isOperatorHost(hostname: string): boolean {
 function handleOperatorSubdomain(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
 
-  // Pass through: NextAuth API, operator API proxies, static assets
+  // Pass through: all API routes, static assets
   if (
-    pathname.startsWith("/api/auth") ||
-    pathname.startsWith("/api/operator") ||
-    pathname.startsWith("/api/logs") ||
+    pathname.startsWith("/api/") ||
     pathname.startsWith("/_next") ||
     pathname === "/favicon.ico" ||
     pathname.startsWith("/images")
