@@ -44,7 +44,7 @@ get_keys() {
     echo "ERROR: File not found: $file" >&2
     return 1
   fi
-  grep -E '^[A-Z_]+=.' "$file" \
+  grep -E '^[A-Z_]+=' "$file" \
     | grep -v '^sops_' \
     | cut -d'=' -f1 \
     | sort
