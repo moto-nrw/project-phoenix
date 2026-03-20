@@ -1,10 +1,5 @@
 import type { Student } from "~/lib/api";
-import {
-  isHomeLocation,
-  isSchoolyardLocation,
-  isTransitLocation,
-  parseLocation,
-} from "~/lib/location-helper";
+import { matchesLocationFilter, parseLocation } from "~/lib/location-helper";
 
 // Define OGSGroup type based on EducationalGroup with additional fields
 export interface OGSGroup {
@@ -100,14 +95,8 @@ export function matchesAttendanceFilter(
       return studentRoomStatus?.in_group_room ?? false;
     case "foreign_room":
       return matchesForeignRoomFilter(studentRoomStatus);
-    case "transit":
-      return isTransitLocation(student.current_location);
-    case "schoolyard":
-      return isSchoolyardLocation(student.current_location);
-    case "at_home":
-      return isHomeLocation(student.current_location);
     default:
-      return true;
+      return matchesLocationFilter(student.current_location, attendanceFilter);
   }
 }
 

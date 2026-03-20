@@ -243,6 +243,15 @@ describe("matchesAttendanceFilter", () => {
     expect(matchesAttendanceFilter(presentStudent, "at_home", {})).toBe(false);
   });
 
+  it("filters by in_class (Unterricht) location", () => {
+    const absentStudent = makeStudent({ current_location: "Unterricht" });
+    const presentStudent = makeStudent({
+      current_location: "Anwesend - Raum 1",
+    });
+    expect(matchesAttendanceFilter(absentStudent, "in_class", {})).toBe(true);
+    expect(matchesAttendanceFilter(presentStudent, "in_class", {})).toBe(false);
+  });
+
   it("returns true for unknown filter values (default case)", () => {
     const student = makeStudent();
     expect(matchesAttendanceFilter(student, "unknown_filter", {})).toBe(true);

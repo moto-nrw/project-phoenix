@@ -141,7 +141,25 @@ vi.mock("~/lib/location-helper", () => ({
   isHomeLocation: vi.fn(() => false),
   isSchoolyardLocation: vi.fn(() => false),
   isTransitLocation: vi.fn(() => false),
+  isAbsentLocation: vi.fn(() => false),
   parseLocation: vi.fn(() => ({ room: "Room 1", status: "Anwesend" })),
+  matchesLocationFilter: vi.fn(
+    (loc: string | undefined | null, filter: string) => {
+      switch (filter) {
+        case "transit":
+          return loc === "Unterwegs";
+        case "schoolyard":
+          return loc === "Schulhof";
+        case "at_home":
+          return loc === "Zuhause";
+        case "in_class":
+        case "abwesend":
+          return loc === "Unterricht";
+        default:
+          return true;
+      }
+    },
+  ),
 }));
 
 // Mock student-helpers

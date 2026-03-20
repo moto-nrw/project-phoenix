@@ -12,6 +12,7 @@ import {
   getLocationColor,
   getLocationDisplay,
   getLocationGlowEffect,
+  isAbsentLocation,
   isHomeLocation,
   parseLocation,
 } from "@/lib/location-helper";
@@ -48,8 +49,11 @@ function getSickDisplayMode(
 ): "replace" | "additional" | "none" {
   if (!student.sick) return "none";
 
-  // If at home and sick, replace the badge entirely
-  if (isHomeLocation(student.current_location)) {
+  // If at home or in class (pre-checkin) and sick, replace the badge entirely
+  if (
+    isHomeLocation(student.current_location) ||
+    isAbsentLocation(student.current_location)
+  ) {
     return "replace";
   }
 

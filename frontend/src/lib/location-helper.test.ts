@@ -10,8 +10,10 @@ import {
   canSeeDetailedLocation,
   isPresentLocation,
   isHomeLocation,
+  isAbsentLocation,
   isSchoolyardLocation,
   isTransitLocation,
+  matchesLocationFilter,
   type StudentLocationContext,
 } from "./location-helper";
 
@@ -40,6 +42,7 @@ describe("LOCATION_COLORS", () => {
     expect(LOCATION_COLORS.GROUP_ROOM).toBe("#83CD2D");
     expect(LOCATION_COLORS.OTHER_ROOM).toBe("#5080D8");
     expect(LOCATION_COLORS.HOME).toBe("#FF3130");
+    expect(LOCATION_COLORS.ABSENT).toBe("#3B82F6");
     expect(LOCATION_COLORS.SCHOOLYARD).toBe("#F78C10");
     expect(LOCATION_COLORS.TRANSIT).toBe("#D946EF");
     expect(LOCATION_COLORS.UNKNOWN).toBe("#6B7280");
@@ -261,6 +264,102 @@ describe("location check helpers", () => {
 
     it("returns false for other statuses", () => {
       expect(isTransitLocation("Anwesend")).toBe(false);
+    });
+  });
+
+  describe("isAbsentLocation", () => {
+    it("returns true for Unterricht", () => {
+      expect(isAbsentLocation("Unterricht")).toBe(true);
+    });
+
+    it("returns true for legacy abwesend (maps to Unterricht)", () => {
+      expect(isAbsentLocation("abwesend")).toBe(true);
+    });
+
+    it("returns false for other statuses", () => {
+      expect(isAbsentLocation("Anwesend")).toBe(false);
+      expect(isAbsentLocation("Zuhause")).toBe(false);
+      expect(isAbsentLocation("Unterwegs")).toBe(false);
+    });
+
+    it("returns false for null/undefined", () => {
+      expect(isAbsentLocation(null)).toBe(false);
+      expect(isAbsentLocation(undefined)).toBe(false);
+    });
+  });
+});
+
+// =============================================================================
+// LOCATION FILTER TESTS
+// =============================================================================
+
+describe("matchesLocationFilter", () => {
+  it("returns true for unknown filter values (default case)", () => {
+    expect(matchesLocationFilter("Anwesend", "all")).toBe(true);
+    expect(matchesLocationFilter("Anwesend", "unknown")).toBe(true);
+  });
+
+  describe("anwesend filter", () => {
+    it("matches present, transit, and schoolyard locations", () => {
+      expect(matchesLocationFilter("Anwesend - Raum 1", "anwesend")).toBe(true);
+      expect(matchesLocationFilter("Unterwegs", "anwesend")).toBe(true);
+      expect(matchesLocationFilter("Schulhof", "anwesend")).toBe(true);
+    });
+
+    it("does not match absent or home locations", () => {
+      expect(matchesLocationFilter("Unterricht", "anwesend")).toBe(false);
+      expect(matchesLocationFilter("Zuhause", "anwesend")).toBe(false);
+    });
+  });
+
+  describe("abwesend filter", () => {
+    it("matches absent (Unterricht) locations", () => {
+      expect(matchesLocationFilter("Unterricht", "abwesend")).toBe(true);
+      expect(matchesLocationFilter("abwesend", "abwesend")).toBe(true);
+    });
+
+    it("does not match present or home locations", () => {
+      expect(matchesLocationFilter("Anwesend", "abwesend")).toBe(false);
+      expect(matchesLocationFilter("Zuhause", "abwesend")).toBe(false);
+    });
+  });
+
+  describe("in_class filter", () => {
+    it("matches absent (Unterricht) locations (same as abwesend)", () => {
+      expect(matchesLocationFilter("Unterricht", "in_class")).toBe(true);
+      expect(matchesLocationFilter("abwesend", "in_class")).toBe(true);
+    });
+  });
+
+  describe("transit/unterwegs filter", () => {
+    it("matches transit locations with either key", () => {
+      expect(matchesLocationFilter("Unterwegs", "unterwegs")).toBe(true);
+      expect(matchesLocationFilter("Unterwegs", "transit")).toBe(true);
+    });
+
+    it("does not match other locations", () => {
+      expect(matchesLocationFilter("Anwesend", "unterwegs")).toBe(false);
+    });
+  });
+
+  describe("schoolyard/schulhof filter", () => {
+    it("matches schoolyard locations with either key", () => {
+      expect(matchesLocationFilter("Schulhof", "schulhof")).toBe(true);
+      expect(matchesLocationFilter("Schulhof", "schoolyard")).toBe(true);
+    });
+
+    it("does not match other locations", () => {
+      expect(matchesLocationFilter("Anwesend", "schulhof")).toBe(false);
+    });
+  });
+
+  describe("at_home filter", () => {
+    it("matches home locations", () => {
+      expect(matchesLocationFilter("Zuhause", "at_home")).toBe(true);
+    });
+
+    it("does not match absent (Unterricht) locations", () => {
+      expect(matchesLocationFilter("Unterricht", "at_home")).toBe(false);
     });
   });
 });

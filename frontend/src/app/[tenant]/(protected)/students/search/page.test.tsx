@@ -132,9 +132,33 @@ vi.mock("~/lib/location-helper", () => ({
     loc !== "Zuhause" &&
     loc !== "" &&
     loc !== "Unterwegs" &&
-    loc !== "Schulhof",
+    loc !== "Schulhof" &&
+    loc !== "Unterricht",
   isTransitLocation: (loc: string) => loc === "Unterwegs",
   isSchoolyardLocation: (loc: string) => loc === "Schulhof",
+  isAbsentLocation: (loc: string) => loc === "Unterricht",
+  matchesLocationFilter: (loc: string | undefined | null, filter: string) => {
+    switch (filter) {
+      case "anwesend":
+        return (
+          loc !== "Zuhause" &&
+          loc !== "" &&
+          loc !== "Unterricht" &&
+          loc !== undefined &&
+          loc !== null
+        );
+      case "abwesend":
+        return loc === "Unterricht";
+      case "unterwegs":
+        return loc === "Unterwegs";
+      case "schulhof":
+        return loc === "Schulhof";
+      case "at_home":
+        return loc === "Zuhause" || loc === "";
+      default:
+        return true;
+    }
+  },
 }));
 
 // Mock student-helpers
@@ -181,7 +205,7 @@ const mockStudents = [
     second_name: "Schmidt",
     school_class: "2b",
     group_name: "Gruppe B",
-    current_location: "Zuhause",
+    current_location: "Unterricht",
   },
   {
     id: "3",
@@ -351,18 +375,18 @@ describe("StudentSearchPage", () => {
         expect(screen.getByText("Max")).toBeInTheDocument();
         expect(screen.getByText("Tom")).toBeInTheDocument();
         expect(screen.getByText("Lisa")).toBeInTheDocument();
-        // Anna (Zuhause) should be filtered out
+        // Anna (Unterricht) should be filtered out
         expect(screen.queryByText("Anna")).not.toBeInTheDocument();
       });
     });
 
-    it("filters to show only home students when 'abwesend' is selected", async () => {
+    it("filters to show only absent (Unterricht) students when 'abwesend' is selected", async () => {
       mockSearchParams.set("status", "abwesend");
 
       render(<StudentSearchPage />);
 
       await waitFor(() => {
-        // Only Anna (Zuhause) should be visible
+        // Only Anna (Unterricht) should be visible
         expect(screen.getByText("Anna")).toBeInTheDocument();
         expect(screen.queryByText("Max")).not.toBeInTheDocument();
         expect(screen.queryByText("Tom")).not.toBeInTheDocument();

@@ -13,12 +13,7 @@ import type { Student, Group } from "~/lib/api";
 import { useUserContext } from "~/lib/hooks/use-user-context";
 import { Loading } from "~/components/ui/loading";
 import { LocationBadge } from "@/components/ui/location-badge";
-import {
-  isHomeLocation,
-  isPresentLocation,
-  isSchoolyardLocation,
-  isTransitLocation,
-} from "~/lib/location-helper";
+import { matchesLocationFilter } from "~/lib/location-helper";
 import { SCHOOL_YEAR_FILTER_OPTIONS } from "~/lib/student-helpers";
 import {
   StudentCard,
@@ -202,7 +197,7 @@ function SearchPageContent() {
         options: [
           { value: "all", label: "Alle Status" },
           { value: "anwesend", label: "Anwesend" },
-          { value: "abwesend", label: "Zuhause" },
+          { value: "abwesend", label: "Unterricht" },
           { value: "unterwegs", label: "Unterwegs" },
           { value: "schulhof", label: "Schulhof" },
         ],
@@ -244,7 +239,7 @@ function SearchPageContent() {
     if (attendanceFilter !== "all") {
       const statusLabels: Record<string, string> = {
         anwesend: "Anwesend",
-        abwesend: "Zuhause",
+        abwesend: "Unterricht",
         unterwegs: "Unterwegs",
         schulhof: "Schulhof",
       };
@@ -261,38 +256,11 @@ function SearchPageContent() {
   // Apply additional client-side filtering for attendance statuses and year
   const filteredStudents = students.filter((student) => {
     // Apply attendance filter
-    if (attendanceFilter !== "all") {
-      const isOnSite =
-        isPresentLocation(student.current_location) ||
-        isTransitLocation(student.current_location) ||
-        isSchoolyardLocation(student.current_location);
-
-      if (attendanceFilter === "anwesend" && !isOnSite) {
-        return false;
-      }
-
-      if (
-        attendanceFilter === "abwesend" &&
-        !isHomeLocation(student.current_location)
-      ) {
-        return false;
-      }
-
-      // Filter for "Unterwegs" status specifically
-      if (
-        attendanceFilter === "unterwegs" &&
-        !isTransitLocation(student.current_location)
-      ) {
-        return false;
-      }
-
-      // Filter for "Schulhof" status specifically
-      if (
-        attendanceFilter === "schulhof" &&
-        !isSchoolyardLocation(student.current_location)
-      ) {
-        return false;
-      }
+    if (
+      attendanceFilter !== "all" &&
+      !matchesLocationFilter(student.current_location, attendanceFilter)
+    ) {
+      return false;
     }
 
     // Apply year filter - extract year from school_class (e.g., "Klasse 3a" → year 3)

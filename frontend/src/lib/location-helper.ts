@@ -313,6 +313,44 @@ export function isTransitLocation(location?: string | null): boolean {
   return parseLocation(location).status === LOCATION_STATUSES.TRANSIT;
 }
 
+/**
+ * Indicates whether the student has the "Unterricht" (absent/in class) status.
+ */
+export function isAbsentLocation(location?: string | null): boolean {
+  return parseLocation(location).status === LOCATION_STATUSES.ABSENT;
+}
+
+/**
+ * Matches a student's location against a simple location-based filter.
+ * For OGS-specific room filters (in_room, foreign_room), use matchesAttendanceFilter instead.
+ */
+export function matchesLocationFilter(
+  location: string | undefined | null,
+  filter: string,
+): boolean {
+  switch (filter) {
+    case "anwesend":
+      return (
+        isPresentLocation(location) ||
+        isTransitLocation(location) ||
+        isSchoolyardLocation(location)
+      );
+    case "abwesend":
+    case "in_class":
+      return isAbsentLocation(location);
+    case "unterwegs":
+    case "transit":
+      return isTransitLocation(location);
+    case "schulhof":
+    case "schoolyard":
+      return isSchoolyardLocation(location);
+    case "at_home":
+      return isHomeLocation(location);
+    default:
+      return true;
+  }
+}
+
 interface RgbColor {
   r: number;
   g: number;
