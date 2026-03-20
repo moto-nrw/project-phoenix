@@ -91,9 +91,9 @@ export function MobileTabsActionArea(
 ) {
   const { hasTitle, actionButton, statusIndicator, badge } = props;
 
-  // When hasTitle, only render if there's an action button (badge/status handled by PageHeader)
-  if (hasTitle && !actionButton) return null;
-  if (!hasTitle && !actionButton && !statusIndicator && !badge) return null;
+  // When hasTitle, PageHeader already renders the mobile action button
+  if (hasTitle) return null;
+  if (!actionButton && !statusIndicator && !badge) return null;
 
   return (
     <div className="mr-2 flex flex-shrink-0 items-center gap-2 md:hidden md:gap-3">

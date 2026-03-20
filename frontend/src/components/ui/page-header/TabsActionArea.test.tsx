@@ -125,17 +125,9 @@ describe("MobileTabsActionArea", () => {
     <button data-testid="mobile-action-btn">Mobile Action</button>
   );
 
-  it("renders action button even when hasTitle is true", () => {
-    render(
-      <MobileTabsActionArea hasTitle={true} actionButton={mockActionButton} />,
-    );
-
-    expect(screen.getByTestId("mobile-action-btn")).toBeInTheDocument();
-  });
-
-  it("renders nothing when hasTitle is true but no action button", () => {
+  it("renders nothing when hasTitle is true", () => {
     const { container } = render(
-      <MobileTabsActionArea hasTitle={true} badge={{ count: 5 }} />,
+      <MobileTabsActionArea hasTitle={true} actionButton={mockActionButton} />,
     );
 
     expect(container.firstChild).toBeNull();
