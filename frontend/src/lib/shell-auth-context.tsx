@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useMemo } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { useProfile } from "~/lib/profile-context";
-import { operatorPath } from "~/lib/operator-url";
+import { operatorAbsoluteUrl, operatorPath } from "~/lib/operator-url";
 
 export interface ShellUser {
   name: string;
@@ -137,7 +137,7 @@ export function OperatorShellProvider({
       status,
       isSessionExpired: session?.error === "RefreshTokenExpired",
       logout: async () => {
-        await signOut({ callbackUrl: operatorPath("/operator/login") });
+        await signOut({ callbackUrl: operatorAbsoluteUrl("/operator/login") });
       },
       mode: "operator" as const,
       homeUrl: operatorPath("/operator/suggestions"),

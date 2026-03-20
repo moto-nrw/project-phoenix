@@ -24,3 +24,13 @@ export function operatorPath(path: string): string {
   }
   return path.startsWith("/operator") ? path : `/operator${path}`;
 }
+
+/**
+ * Returns an absolute URL for operator paths.
+ * Use this for NextAuth callbackUrl and other cases where a relative path
+ * would be resolved against NEXTAUTH_URL instead of the current origin.
+ */
+export function operatorAbsoluteUrl(path: string): string {
+  if (typeof window === "undefined") return operatorPath(path);
+  return `${window.location.origin}${operatorPath(path)}`;
+}
