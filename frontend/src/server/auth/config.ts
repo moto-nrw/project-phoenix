@@ -466,6 +466,29 @@ export const authConfig = {
     }),
   ],
   callbacks: {
+    redirect: ({ url, baseUrl }) => {
+      // Allow redirects to the operator subdomain (same parent domain)
+      if (url.startsWith("/")) return `${baseUrl}${url}`;
+      try {
+        const urlObj = new URL(url);
+        const baseObj = new URL(baseUrl);
+        // Same origin → allow
+        if (urlObj.origin === baseObj.origin) return url;
+        // Same parent domain (e.g. operator.localhost vs localhost) → allow
+        const getParentDomain = (host: string) => {
+          const parts = host.split(".");
+          return parts.length > 2 ? parts.slice(-2).join(".") : host;
+        };
+        if (
+          getParentDomain(urlObj.hostname) === getParentDomain(baseObj.hostname)
+        ) {
+          return url;
+        }
+      } catch {
+        // Invalid URL — fall through to default
+      }
+      return baseUrl;
+    },
     jwt: async ({ token, user, trigger, session }) => {
       // Only log in development to avoid production log spam
       const isDev = process.env.NODE_ENV === "development";
