@@ -16,7 +16,7 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("~/lib/api-client", () => ({
+vi.mock("~/lib/api-helpers", () => ({
   apiGet: mockApiGet,
 }));
 
@@ -73,7 +73,7 @@ describe("GET /api/database/counts", () => {
       },
     };
 
-    mockApiGet.mockResolvedValueOnce({ data: dbStats });
+    mockApiGet.mockResolvedValueOnce(dbStats);
 
     const request = createMockRequest("/api/database/counts");
     const response = await GET(request, createMockContext());

@@ -92,7 +92,7 @@ func GetServeDSN() string {
 	// can start and run migrations that create the role.
 	testDB := sql.OpenDB(pgdriver.NewConnector(pgdriver.WithDSN(phoenixDSN)))
 	err = testDB.Ping()
-	testDB.Close()
+	_ = testDB.Close()
 
 	if err != nil {
 		slog.Warn("phoenix_auth connection failed — falling back to superuser connection. "+
