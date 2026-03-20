@@ -1,0 +1,19 @@
+# SOPS Configuration for Environment Secrets
+# https://github.com/getsops/sops
+#
+# All *.sops.env files are encrypted with age.
+# To encrypt/decrypt, you need the age private key.
+#
+# Setup:
+#   1. Run scripts/sops-setup.sh to generate keys and encrypt files
+#   2. Store the private key as SOPS_AGE_KEY GitHub Secret
+#   3. For local development, store key at ~/.config/sops/age/keys.txt
+#
+# Usage:
+#   sops edit environments/staging.sops.env     # Edit encrypted file
+#   sops decrypt environments/staging.sops.env  # Decrypt to stdout
+
+creation_rules:
+  # All .sops.env files use the same age key
+  - path_regex: .*\.sops\.env$
+    age: "age1r5cffurwgs70ntsg3q7njv40xdfk8ejlfz8vud9fg8wej370sqxqxj5esd"
