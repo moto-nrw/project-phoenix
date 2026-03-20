@@ -122,7 +122,7 @@ describe("GET /api/auth/accounts", () => {
     // So final response is { success: true, message: "Success", data: [...] }
     expect(json.success).toBe(true);
     // Handler returns the full apiGet result ({ data: [...] }), wrapper wraps it in { success, data }
-    expect((json.data as { data: unknown[] }).data).toHaveLength(2);
+    expect((json.data as unknown as { data: unknown[] }).data).toHaveLength(2);
   });
 
   it("filters accounts by email", async () => {
