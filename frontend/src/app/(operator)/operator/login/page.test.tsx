@@ -2,13 +2,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
 // Mock dependencies
-const { mockPush, mockUseOperatorAuth } = vi.hoisted(() => ({
+const { mockPush, mockSignIn, mockUseSession } = vi.hoisted(() => ({
   mockPush: vi.fn(),
-  mockUseOperatorAuth: vi.fn(() => ({
-    login: vi.fn(),
-    isAuthenticated: false,
-    isLoading: false,
-  })),
+  mockSignIn: vi.fn(),
+  mockUseSession: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -20,8 +17,9 @@ vi.mock("next/image", () => ({
   default: (props: Record<string, unknown>) => <img {...props} />,
 }));
 
-vi.mock("~/lib/operator/auth-context", () => ({
-  useOperatorAuth: mockUseOperatorAuth,
+vi.mock("next-auth/react", () => ({
+  signIn: mockSignIn,
+  useSession: mockUseSession,
 }));
 
 vi.mock("~/lib/confetti", () => ({
@@ -65,10 +63,9 @@ import OperatorLoginPage from "./page";
 describe("OperatorLoginPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUseOperatorAuth.mockReturnValue({
-      login: vi.fn(),
-      isAuthenticated: false,
-      isLoading: false,
+    mockUseSession.mockReturnValue({
+      status: "unauthenticated",
+      data: null,
     });
   });
 
@@ -89,12 +86,7 @@ describe("OperatorLoginPage", () => {
   });
 
   it("submits form with email and password", async () => {
-    const mockLogin = vi.fn().mockResolvedValue(undefined);
-    mockUseOperatorAuth.mockReturnValue({
-      login: mockLogin,
-      isAuthenticated: false,
-      isLoading: false,
-    });
+    mockSignIn.mockResolvedValue({ error: null });
 
     render(<OperatorLoginPage />);
 
@@ -107,19 +99,16 @@ describe("OperatorLoginPage", () => {
     fireEvent.click(submitButton);
 
     await waitFor(() => {
-      expect(mockLogin).toHaveBeenCalledWith("test@example.com", "password123");
+      expect(mockSignIn).toHaveBeenCalledWith("operator-credentials", {
+        redirect: false,
+        email: "test@example.com",
+        password: "password123",
+      });
     });
   });
 
   it("shows error message on login failure", async () => {
-    const mockLogin = vi
-      .fn()
-      .mockRejectedValue(new Error("Invalid credentials"));
-    mockUseOperatorAuth.mockReturnValue({
-      login: mockLogin,
-      isAuthenticated: false,
-      isLoading: false,
-    });
+    mockSignIn.mockResolvedValue({ error: "CredentialsSignin" });
 
     render(<OperatorLoginPage />);
 
@@ -133,20 +122,15 @@ describe("OperatorLoginPage", () => {
 
     await waitFor(() => {
       expect(screen.getByRole("alert")).toHaveTextContent(
-        "Invalid credentials",
+        "Ungültige Anmeldedaten",
       );
     });
   });
 
   it("shows loading state during authentication", async () => {
-    const mockLogin = vi.fn(
+    mockSignIn.mockImplementation(
       () => new Promise((resolve) => setTimeout(resolve, 100)),
     );
-    mockUseOperatorAuth.mockReturnValue({
-      login: mockLogin,
-      isAuthenticated: false,
-      isLoading: false,
-    });
 
     render(<OperatorLoginPage />);
 
@@ -158,11 +142,10 @@ describe("OperatorLoginPage", () => {
     });
   });
 
-  it("redirects when already authenticated", () => {
-    mockUseOperatorAuth.mockReturnValue({
-      login: vi.fn(),
-      isAuthenticated: true,
-      isLoading: false,
+  it("redirects when already authenticated as operator", () => {
+    mockUseSession.mockReturnValue({
+      status: "authenticated",
+      data: { user: { scope: "platform" } },
     });
 
     render(<OperatorLoginPage />);
@@ -171,10 +154,9 @@ describe("OperatorLoginPage", () => {
   });
 
   it("shows loading screen while checking auth", () => {
-    mockUseOperatorAuth.mockReturnValue({
-      login: vi.fn(),
-      isAuthenticated: false,
-      isLoading: true,
+    mockUseSession.mockReturnValue({
+      status: "loading",
+      data: null,
     });
 
     render(<OperatorLoginPage />);

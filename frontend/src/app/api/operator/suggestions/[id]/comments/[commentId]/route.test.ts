@@ -2,16 +2,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import type { RouteContext } from "~/lib/route-wrapper-utils";
 
-const { mockGetOperatorToken, mockFetch, mockGetServerApiUrl } = vi.hoisted(
-  () => ({
-    mockGetOperatorToken: vi.fn<() => Promise<string | undefined>>(),
-    mockFetch: vi.fn(),
-    mockGetServerApiUrl: vi.fn(() => "http://localhost:8080"),
-  }),
-);
+const { mockAuth, mockFetch, mockGetServerApiUrl } = vi.hoisted(() => ({
+  mockAuth: vi.fn(),
+  mockFetch: vi.fn(),
+  mockGetServerApiUrl: vi.fn(() => "http://localhost:8080"),
+}));
 
-vi.mock("~/lib/operator/cookies", () => ({
-  getOperatorToken: mockGetOperatorToken,
+vi.mock("~/server/auth", () => ({
+  auth: mockAuth,
 }));
 
 vi.mock("~/lib/server-api-url", () => ({
@@ -28,7 +26,7 @@ describe("DELETE /api/operator/suggestions/[id]/comments/[commentId]", () => {
   });
 
   it("deletes comment successfully", async () => {
-    mockGetOperatorToken.mockResolvedValue("valid-token");
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
     mockFetch.mockResolvedValue({
       ok: true,
       status: 204,
@@ -52,7 +50,7 @@ describe("DELETE /api/operator/suggestions/[id]/comments/[commentId]", () => {
   });
 
   it("returns 401 when not authenticated", async () => {
-    mockGetOperatorToken.mockResolvedValue(undefined);
+    mockAuth.mockResolvedValue(null);
 
     const request = new NextRequest(
       "http://localhost:3000/api/operator/suggestions/1/comments/42",
@@ -66,7 +64,7 @@ describe("DELETE /api/operator/suggestions/[id]/comments/[commentId]", () => {
   });
 
   it("handles invalid id parameter", async () => {
-    mockGetOperatorToken.mockResolvedValue("valid-token");
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
 
     const request = new NextRequest(
       "http://localhost:3000/api/operator/suggestions/1/comments/42",
@@ -83,7 +81,7 @@ describe("DELETE /api/operator/suggestions/[id]/comments/[commentId]", () => {
   });
 
   it("handles invalid commentId parameter", async () => {
-    mockGetOperatorToken.mockResolvedValue("valid-token");
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
 
     const request = new NextRequest(
       "http://localhost:3000/api/operator/suggestions/1/comments/42",
@@ -97,7 +95,7 @@ describe("DELETE /api/operator/suggestions/[id]/comments/[commentId]", () => {
   });
 
   it("returns 404 for non-existent comment", async () => {
-    mockGetOperatorToken.mockResolvedValue("valid-token");
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
     mockFetch.mockResolvedValue({
       ok: false,
       status: 404,

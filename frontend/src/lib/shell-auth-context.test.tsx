@@ -3,10 +3,9 @@ import { renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
 
 // Use vi.hoisted for mock values referenced in vi.mock
-const { mockUseSession, mockSignOut, mockOperatorAuth } = vi.hoisted(() => ({
+const { mockUseSession, mockSignOut } = vi.hoisted(() => ({
   mockUseSession: vi.fn(),
   mockSignOut: vi.fn(),
-  mockOperatorAuth: vi.fn(),
 }));
 
 const mockProfile = {
@@ -27,17 +26,6 @@ interface MockSessionReturn {
   status: "authenticated" | "loading" | "unauthenticated";
 }
 
-interface MockOperatorAuthReturn {
-  operator: {
-    id: string;
-    displayName: string;
-    email: string;
-  } | null;
-  isLoading: boolean;
-  isAuthenticated: boolean;
-  logout: () => void;
-}
-
 vi.mock("next-auth/react", () => ({
   useSession: (): MockSessionReturn => mockUseSession() as MockSessionReturn,
   signOut: mockSignOut,
@@ -45,11 +33,6 @@ vi.mock("next-auth/react", () => ({
 
 vi.mock("~/lib/profile-context", () => ({
   useProfile: () => ({ profile: mockProfile }),
-}));
-
-vi.mock("~/lib/operator/auth-context", () => ({
-  useOperatorAuth: (): MockOperatorAuthReturn =>
-    mockOperatorAuth() as MockOperatorAuthReturn,
 }));
 
 import {
@@ -230,6 +213,7 @@ describe("TeacherShellProvider", () => {
 describe("OperatorShellProvider", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockSignOut.mockResolvedValue(undefined);
   });
 
   const wrapper = ({ children }: { children: ReactNode }) => (
@@ -237,15 +221,15 @@ describe("OperatorShellProvider", () => {
   );
 
   it("provides authenticated operator data", () => {
-    mockOperatorAuth.mockReturnValue({
-      operator: {
-        id: "1",
-        displayName: "Admin Operator",
-        email: "admin@example.com",
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          name: "Admin Operator",
+          email: "admin@example.com",
+          roles: ["operator"],
+        },
       },
-      isLoading: false,
-      isAuthenticated: true,
-      logout: vi.fn(),
+      status: "authenticated",
     });
 
     const { result } = renderHook(() => useShellAuth(), { wrapper });
@@ -262,15 +246,15 @@ describe("OperatorShellProvider", () => {
   });
 
   it("splits display name into first and last name", () => {
-    mockOperatorAuth.mockReturnValue({
-      operator: {
-        id: "1",
-        displayName: "John Paul Jones",
-        email: "john@example.com",
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          name: "John Paul Jones",
+          email: "john@example.com",
+          roles: ["operator"],
+        },
       },
-      isLoading: false,
-      isAuthenticated: true,
-      logout: vi.fn(),
+      status: "authenticated",
     });
 
     const { result } = renderHook(() => useShellAuth(), { wrapper });
@@ -282,15 +266,15 @@ describe("OperatorShellProvider", () => {
   });
 
   it("handles single word display name", () => {
-    mockOperatorAuth.mockReturnValue({
-      operator: {
-        id: "1",
-        displayName: "Admin",
-        email: "admin@example.com",
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          name: "Admin",
+          email: "admin@example.com",
+          roles: ["operator"],
+        },
       },
-      isLoading: false,
-      isAuthenticated: true,
-      logout: vi.fn(),
+      status: "authenticated",
     });
 
     const { result } = renderHook(() => useShellAuth(), { wrapper });
@@ -302,11 +286,9 @@ describe("OperatorShellProvider", () => {
   });
 
   it("handles loading state", () => {
-    mockOperatorAuth.mockReturnValue({
-      operator: null,
-      isLoading: true,
-      isAuthenticated: false,
-      logout: vi.fn(),
+    mockUseSession.mockReturnValue({
+      data: null,
+      status: "loading",
     });
 
     const { result } = renderHook(() => useShellAuth(), { wrapper });
@@ -316,11 +298,9 @@ describe("OperatorShellProvider", () => {
   });
 
   it("handles unauthenticated state", () => {
-    mockOperatorAuth.mockReturnValue({
-      operator: null,
-      isLoading: false,
-      isAuthenticated: false,
-      logout: vi.fn(),
+    mockUseSession.mockReturnValue({
+      data: null,
+      status: "unauthenticated",
     });
 
     const { result } = renderHook(() => useShellAuth(), { wrapper });
@@ -329,16 +309,16 @@ describe("OperatorShellProvider", () => {
     expect(result.current.user).toBeNull();
   });
 
-  it("never reports session as expired", () => {
-    mockOperatorAuth.mockReturnValue({
-      operator: {
-        id: "1",
-        displayName: "Operator",
-        email: "op@example.com",
+  it("reports session as not expired when no error", () => {
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          name: "Operator",
+          email: "op@example.com",
+          roles: ["operator"],
+        },
       },
-      isLoading: false,
-      isAuthenticated: true,
-      logout: vi.fn(),
+      status: "authenticated",
     });
 
     const { result } = renderHook(() => useShellAuth(), { wrapper });
@@ -346,24 +326,76 @@ describe("OperatorShellProvider", () => {
     expect(result.current.isSessionExpired).toBe(false);
   });
 
-  it("calls operator logout function", async () => {
-    const mockLogout = vi.fn();
-    mockOperatorAuth.mockReturnValue({
-      operator: {
-        id: "1",
-        displayName: "Operator",
-        email: "op@example.com",
+  it("detects expired session", () => {
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          name: "Operator",
+          email: "op@example.com",
+          roles: ["operator"],
+        },
+        error: "RefreshTokenExpired",
       },
-      isLoading: false,
-      isAuthenticated: true,
-      logout: mockLogout,
+      status: "authenticated",
+    });
+
+    const { result } = renderHook(() => useShellAuth(), { wrapper });
+
+    expect(result.current.isSessionExpired).toBe(true);
+  });
+
+  it("uses fallback name when user name is empty", () => {
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          name: "   ",
+          email: "op@example.com",
+          roles: ["operator"],
+        },
+      },
+      status: "authenticated",
+    });
+
+    const { result } = renderHook(() => useShellAuth(), { wrapper });
+
+    expect(result.current.user?.name).toBe("Operator");
+  });
+
+  it("provides default roles when not specified", () => {
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          name: "Op",
+          email: "op@example.com",
+        },
+      },
+      status: "authenticated",
+    });
+
+    const { result } = renderHook(() => useShellAuth(), { wrapper });
+
+    expect(result.current.user?.roles).toEqual(["operator"]);
+  });
+
+  it("calls signOut with operator login callbackUrl", async () => {
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          name: "Operator",
+          email: "op@example.com",
+          roles: ["operator"],
+        },
+      },
+      status: "authenticated",
     });
 
     const { result } = renderHook(() => useShellAuth(), { wrapper });
 
     await result.current.logout();
 
-    expect(mockLogout).toHaveBeenCalled();
+    expect(mockSignOut).toHaveBeenCalledWith({
+      callbackUrl: "/operator/login",
+    });
   });
 });
 

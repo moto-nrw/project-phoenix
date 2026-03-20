@@ -6,22 +6,24 @@ import { render, screen } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Hoisted mocks
-const { mockUsePathname } = vi.hoisted(() => ({
+const { mockUsePathname, mockUseSession, mockPush } = vi.hoisted(() => ({
   mockUsePathname: vi.fn(),
+  mockUseSession: vi.fn(),
+  mockPush: vi.fn(),
 }));
 
 // Mock navigation
 vi.mock("next/navigation", () => ({
   usePathname: mockUsePathname,
+  useRouter: () => ({ push: mockPush }),
+}));
+
+// Mock next-auth
+vi.mock("next-auth/react", () => ({
+  useSession: mockUseSession,
 }));
 
 // Mock contexts
-vi.mock("~/lib/operator/auth-context", () => ({
-  OperatorAuthProvider: ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="operator-auth-provider">{children}</div>
-  ),
-}));
-
 vi.mock("~/lib/shell-auth-context", () => ({
   OperatorShellProvider: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="operator-shell-provider">{children}</div>
@@ -41,6 +43,10 @@ vi.mock("~/components/dashboard/app-shell", () => ({
   ),
 }));
 
+vi.mock("~/components/ui/loading", () => ({
+  Loading: () => <div data-testid="loading">Loading...</div>,
+}));
+
 import OperatorLayout from "./layout";
 
 describe("OperatorLayout", () => {
@@ -50,6 +56,10 @@ describe("OperatorLayout", () => {
 
   it("renders children directly on login page", () => {
     mockUsePathname.mockReturnValue("/operator/login");
+    mockUseSession.mockReturnValue({
+      data: null,
+      status: "unauthenticated",
+    });
 
     render(
       <OperatorLayout>
@@ -57,7 +67,6 @@ describe("OperatorLayout", () => {
       </OperatorLayout>,
     );
 
-    expect(screen.getByTestId("operator-auth-provider")).toBeInTheDocument();
     expect(screen.getByTestId("test-content")).toBeInTheDocument();
     expect(
       screen.queryByTestId("operator-shell-provider"),
@@ -67,6 +76,10 @@ describe("OperatorLayout", () => {
 
   it("wraps children in shell and breadcrumb providers when not on login page", () => {
     mockUsePathname.mockReturnValue("/operator/suggestions");
+    mockUseSession.mockReturnValue({
+      data: { user: { scope: "platform", name: "Op" } },
+      status: "authenticated",
+    });
 
     render(
       <OperatorLayout>
@@ -74,27 +87,18 @@ describe("OperatorLayout", () => {
       </OperatorLayout>,
     );
 
-    expect(screen.getByTestId("operator-auth-provider")).toBeInTheDocument();
     expect(screen.getByTestId("operator-shell-provider")).toBeInTheDocument();
     expect(screen.getByTestId("breadcrumb-provider")).toBeInTheDocument();
     expect(screen.getByTestId("app-shell")).toBeInTheDocument();
     expect(screen.getByTestId("test-content")).toBeInTheDocument();
   });
 
-  it("always wraps in OperatorAuthProvider", () => {
-    mockUsePathname.mockReturnValue("/operator/suggestions");
-
-    render(
-      <OperatorLayout>
-        <div data-testid="test-content">Content</div>
-      </OperatorLayout>,
-    );
-
-    expect(screen.getByTestId("operator-auth-provider")).toBeInTheDocument();
-  });
-
   it("handles announcements page", () => {
     mockUsePathname.mockReturnValue("/operator/announcements");
+    mockUseSession.mockReturnValue({
+      data: { user: { scope: "platform", name: "Op" } },
+      status: "authenticated",
+    });
 
     render(
       <OperatorLayout>
@@ -108,6 +112,10 @@ describe("OperatorLayout", () => {
 
   it("handles settings page", () => {
     mockUsePathname.mockReturnValue("/operator/settings");
+    mockUseSession.mockReturnValue({
+      data: { user: { scope: "platform", name: "Op" } },
+      status: "authenticated",
+    });
 
     render(
       <OperatorLayout>
@@ -117,5 +125,57 @@ describe("OperatorLayout", () => {
 
     expect(screen.getByTestId("app-shell")).toBeInTheDocument();
     expect(screen.getByTestId("test-content")).toBeInTheDocument();
+  });
+
+  it("shows loading state while session is loading", () => {
+    mockUsePathname.mockReturnValue("/operator/suggestions");
+    mockUseSession.mockReturnValue({
+      data: null,
+      status: "loading",
+    });
+
+    render(
+      <OperatorLayout>
+        <div data-testid="test-content">Content</div>
+      </OperatorLayout>,
+    );
+
+    expect(screen.getByTestId("loading")).toBeInTheDocument();
+    expect(screen.queryByTestId("app-shell")).not.toBeInTheDocument();
+  });
+
+  it("redirects to login when unauthenticated", () => {
+    mockUsePathname.mockReturnValue("/operator/suggestions");
+    mockUseSession.mockReturnValue({
+      data: null,
+      status: "unauthenticated",
+    });
+
+    render(
+      <OperatorLayout>
+        <div data-testid="test-content">Content</div>
+      </OperatorLayout>,
+    );
+
+    expect(mockPush).toHaveBeenCalledWith("/operator/login");
+    expect(screen.getByTestId("loading")).toBeInTheDocument();
+  });
+
+  it("shows loading when authenticated but wrong scope", () => {
+    mockUsePathname.mockReturnValue("/operator/suggestions");
+    mockUseSession.mockReturnValue({
+      data: { user: { scope: "teacher", name: "Teacher" } },
+      status: "authenticated",
+    });
+
+    render(
+      <OperatorLayout>
+        <div data-testid="test-content">Content</div>
+      </OperatorLayout>,
+    );
+
+    // Should redirect non-operator users away
+    expect(mockPush).toHaveBeenCalledWith("/");
+    expect(screen.queryByTestId("app-shell")).not.toBeInTheDocument();
   });
 });

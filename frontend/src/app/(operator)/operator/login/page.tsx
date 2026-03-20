@@ -3,9 +3,9 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import { signIn, useSession } from "next-auth/react";
 import { Input, Alert, HelpButton } from "~/components/ui";
 import { Loading } from "~/components/ui/loading";
-import { useOperatorAuth } from "~/lib/operator/auth-context";
 import { launchConfetti, clearConfetti } from "~/lib/confetti";
 import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import { LoginHelpContent } from "~/components/shared/login-help-content";
@@ -17,17 +17,20 @@ export default function OperatorLoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
-  const { login, isAuthenticated, isLoading: authLoading } = useOperatorAuth();
+  const { data: session, status } = useSession();
 
-  // Redirect if already authenticated
+  // Redirect if already authenticated as operator (scope === "platform")
   useEffect(() => {
-    if (isAuthenticated && !authLoading) {
+    if (status === "authenticated" && session?.user?.scope === "platform") {
       router.push("/operator/suggestions");
     }
-  }, [isAuthenticated, authLoading, router]);
+  }, [status, session, router]);
 
-  // Show loading while checking auth
-  if (authLoading || isAuthenticated) {
+  // Show loading while checking auth (only for operator sessions)
+  if (
+    status === "loading" ||
+    (status === "authenticated" && session?.user?.scope === "platform")
+  ) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center p-4">
         <Loading />
@@ -43,8 +46,26 @@ export default function OperatorLoginPage() {
     try {
       launchConfetti();
 
-      await login(email, password);
-      // login() in auth context handles redirect
+      const result = await signIn("operator-credentials", {
+        redirect: false,
+        email,
+        password,
+      });
+
+      if (result?.error) {
+        clearConfetti();
+        const errorMessages: Record<string, string> = {
+          account_inactive:
+            "Ihr Konto ist deaktiviert. Bitte kontaktieren Sie den Administrator.",
+          rate_limited:
+            "Zu viele Anmeldeversuche. Bitte versuchen Sie es später erneut.",
+          invalid_credentials: "Ungültige Anmeldedaten",
+        };
+        setError(errorMessages[result.code ?? ""] ?? "Ungültige Anmeldedaten");
+        return;
+      }
+
+      router.push("/operator/suggestions");
     } catch (err) {
       clearConfetti();
 
