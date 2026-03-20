@@ -41,7 +41,7 @@ function getDatabasePageTitle(pathname: string): string {
     activities: "Aktivitäten",
     groups: "Gruppen",
     students: "Kinder",
-    teachers: "Betreuer",
+    personal: "Personal",
     rooms: "Räume",
     roles: "Rollen",
     devices: "Geräte",

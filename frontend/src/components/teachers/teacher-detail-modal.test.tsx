@@ -251,13 +251,13 @@ describe("TeacherDetailModal", () => {
     render(<TeacherDetailModal {...defaultProps} />);
 
     expect(screen.getByTestId("entity-name")).toHaveTextContent("John Doe");
-    expect(screen.getByTestId("entity-type")).toHaveTextContent("Betreuer");
+    expect(screen.getByTestId("entity-type")).toHaveTextContent("Personal");
   });
 
   it("displays teacher ID when provided", () => {
     render(<TeacherDetailModal {...defaultProps} />);
 
-    expect(screen.getByTestId("field-betreuer-id")).toBeInTheDocument();
+    expect(screen.getByTestId("field-personal-id")).toBeInTheDocument();
     expect(screen.getByText("1")).toBeInTheDocument();
   });
 });

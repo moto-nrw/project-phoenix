@@ -164,7 +164,7 @@ const OPERATOR_NAV_ITEMS: NavItem[] = [
 // Static sub-pages for Datenverwaltung accordion
 const DATABASE_SUB_PAGES = [
   { href: "/database/students", label: "Kinder" },
-  { href: "/database/teachers", label: "Betreuer" },
+  { href: "/database/personal", label: "Personal" },
   { href: "/database/rooms", label: "Räume" },
   { href: "/database/activities", label: "Aktivitäten" },
   { href: "/database/groups", label: "Gruppen" },

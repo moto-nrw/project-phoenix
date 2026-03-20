@@ -18,8 +18,8 @@ describe("teachersConfig", () => {
   it("exports a valid entity config", () => {
     expect(teachersConfig).toBeDefined();
     expect(teachersConfig.name).toEqual({
-      singular: "Pädagogische Fachkraft",
-      plural: "Pädagogische Fachkräfte",
+      singular: "Personal",
+      plural: "Personal",
     });
   });
 
@@ -123,7 +123,7 @@ describe("teachersConfig", () => {
   });
 
   it("has list configuration", () => {
-    expect(teachersConfig.list.title).toBe("Pädagogische Fachkraft auswählen");
+    expect(teachersConfig.list.title).toBe("Personal auswählen");
     expect(teachersConfig.list.searchStrategy).toBe("frontend");
   });
 
@@ -154,9 +154,7 @@ describe("teachersConfig", () => {
   });
 
   it("has custom labels", () => {
-    expect(teachersConfig.labels?.createButton).toBe(
-      "Neue pädagogische Fachkraft erstellen",
-    );
+    expect(teachersConfig.labels?.createButton).toBe("Neues Personal anlegen");
     expect(teachersConfig.labels?.deleteConfirmation).toContain("löschen");
   });
 

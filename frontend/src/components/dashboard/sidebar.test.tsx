@@ -523,7 +523,7 @@ describe("Sidebar", () => {
 
       expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
       expect(screen.getByText("Kinder")).toBeInTheDocument();
-      expect(screen.getByText("Betreuer")).toBeInTheDocument();
+      expect(screen.getByText("Personal")).toBeInTheDocument();
       expect(screen.getByText("Gruppen")).toBeInTheDocument();
     });
   });
