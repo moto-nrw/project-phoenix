@@ -27,7 +27,7 @@ export interface StudentLocationContext {
 export const LOCATION_STATUSES = {
   PRESENT: "Anwesend",
   HOME: "Zuhause",
-  ABSENT: "Nicht angemeldet",
+  ABSENT: "Unterricht",
   SCHOOLYARD: "Schulhof",
   TRANSIT: "Unterwegs",
   UNKNOWN: "Unbekannt",
@@ -38,7 +38,7 @@ export const LOCATION_COLORS = {
   GROUP_ROOM: "#83CD2D", // Green - student in their group's assigned room
   OTHER_ROOM: "#5080D8", // Blue - student in external/other room
   HOME: "#FF3130",
-  ABSENT: "#9CA3AF", // Gray - not checked in yet
+  ABSENT: "#3B82F6", // Blue - student in class/school
   SCHOOLYARD: "#F78C10",
   TRANSIT: "#D946EF",
   UNKNOWN: "#6B7280",

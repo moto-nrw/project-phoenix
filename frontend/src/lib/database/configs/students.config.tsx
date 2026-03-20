@@ -207,8 +207,8 @@ export const studentsConfig = defineEntityConfig<Student>({
           showWhen: (student) => isHomeLocation(student.current_location),
         },
         {
-          label: "Nicht angemeldet",
-          color: "bg-gray-400/80",
+          label: "Unterricht",
+          color: "bg-blue-400/80",
           showWhen: (student) =>
             parseLocation(student.current_location).status ===
             LOCATION_STATUSES.ABSENT,
