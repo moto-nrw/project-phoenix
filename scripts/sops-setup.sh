@@ -20,7 +20,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 ENV_DIR="${PROJECT_ROOT}/environments"
-SOPS_CONFIG="${ENV_DIR}/.sops.yaml"
+SOPS_CONFIG="${PROJECT_ROOT}/.sops.yaml"
 
 # Default age key location (SOPS looks here automatically)
 case "$(uname -s)" in
