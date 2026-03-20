@@ -28,7 +28,7 @@ pnpm run start                   # Start production server
 pnpm run preview                 # Build and preview production version
 
 # Code Quality (Run these before committing!)
-pnpm run lint                    # ESLint check with max-warnings=0
+pnpm run lint                    # Oxlint check
 pnpm run lint:fix                # Auto-fix linting issues  
 pnpm run typecheck               # TypeScript type checking
 pnpm run check                   # Run both lint and typecheck
@@ -203,13 +203,14 @@ try {
 - Path aliases: `~/*` and `@/*` map to `./src/*`
 - Target: ES2022 with ESNext modules
 
-## ESLint Configuration
+## Oxlint Configuration
 
-**Important rules:**
-- `max-warnings: 0` - Zero warnings allowed
-- `@typescript-eslint/consistent-type-imports` - Use `import type` 
+Linting is handled by [oxlint](https://oxc.rs/docs/guide/usage/linter.html) (config: `.oxlintrc.json`), which replaced ESLint for ~11x faster linting. Oxlint respects existing `eslint-disable` comments natively.
+
+**Key rules:**
+- `@typescript-eslint/consistent-type-imports` - Use `import type`
 - `@typescript-eslint/prefer-nullish-coalescing` - Use `??` not `||` for nullish checks
-- `@typescript-eslint/no-unused-vars` - Prefix unused vars with `_`
+- `no-unused-vars` - Prefix unused vars with `_`
 
 ## Common Patterns
 
@@ -477,7 +478,7 @@ type SSEEventType =
 
 ### Build Issues
 - Run `pnpm run check` before committing
-- Fix all ESLint errors (0 warnings policy)
+- Fix all oxlint errors
 - Ensure all TypeScript errors resolved
 
 ### Runtime Issues
