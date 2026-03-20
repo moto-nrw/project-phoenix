@@ -227,8 +227,8 @@ describe("POST /api/iot", () => {
 
     expect(mockApiPost).toHaveBeenCalledWith(
       "/api/iot",
-      createBody,
       "test-token",
+      createBody,
     );
     expect(response.status).toBe(200);
   });

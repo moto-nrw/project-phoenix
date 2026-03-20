@@ -127,10 +127,9 @@ describe("GET /api/students/[id]/privacy-consent", () => {
   });
 
   it("returns default consent when not found (404)", async () => {
-    const mockError = Object.assign(new Error("Not Found"), {
-      response: { status: 404 },
-    });
-    mockApiGet.mockRejectedValueOnce(mockError);
+    mockApiGet.mockRejectedValueOnce(
+      new Error("API error (404): Not found"),
+    );
 
     const request = createMockRequest("/api/students/123/privacy-consent");
     const response = await GET(request, createMockContext({ id: "123" }));
@@ -197,8 +196,8 @@ describe("PUT /api/students/[id]/privacy-consent", () => {
 
     expect(mockApiPut).toHaveBeenCalledWith(
       "/api/students/123/privacy-consent",
-      { policy_version: "1.0", data_retention_days: 25 },
       "test-token",
+      { policy_version: "1.0", data_retention_days: 25 },
     );
     expect(response.status).toBe(200);
   });

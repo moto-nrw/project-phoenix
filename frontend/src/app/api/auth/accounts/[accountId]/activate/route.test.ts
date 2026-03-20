@@ -97,7 +97,7 @@ describe("PUT /api/auth/accounts/[accountId]/activate", () => {
   });
 
   it("activates account successfully", async () => {
-    const mockResponse = { data: { message: "Account activated" } };
+    const mockResponse = { message: "Account activated" };
     mockApiPut.mockResolvedValueOnce(mockResponse);
 
     const request = createMockRequest("/api/auth/accounts/123/activate", {
@@ -110,8 +110,8 @@ describe("PUT /api/auth/accounts/[accountId]/activate", () => {
 
     expect(mockApiPut).toHaveBeenCalledWith(
       "/auth/accounts/123/activate",
-      null,
       "test-token",
+      null,
     );
     expect(response.status).toBe(200);
 
@@ -121,7 +121,9 @@ describe("PUT /api/auth/accounts/[accountId]/activate", () => {
   });
 
   it("handles API errors gracefully", async () => {
-    mockApiPut.mockRejectedValueOnce(new Error("Account not found (404)"));
+    mockApiPut.mockRejectedValueOnce(
+      new Error("API error (404): Account not found"),
+    );
 
     const request = createMockRequest("/api/auth/accounts/999/activate", {
       method: "PUT",
@@ -137,7 +139,9 @@ describe("PUT /api/auth/accounts/[accountId]/activate", () => {
   });
 
   it("handles unauthorized activation attempts", async () => {
-    mockApiPut.mockRejectedValueOnce(new Error("Unauthorized (401)"));
+    mockApiPut.mockRejectedValueOnce(
+      new Error("API error (401): Unauthorized"),
+    );
 
     const request = createMockRequest("/api/auth/accounts/456/activate", {
       method: "PUT",
@@ -147,8 +151,12 @@ describe("PUT /api/auth/accounts/[accountId]/activate", () => {
       createMockContext({ accountId: "456" }),
     );
 
+    // route-wrapper intercepts 401 errors, attempts token refresh, and returns TOKEN_EXPIRED
     expect(response.status).toBe(401);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Unauthorized");
+    const json = await parseJsonResponse<{ error: string; code?: string }>(
+      response,
+    );
+    expect(json.error).toBe("Token expired");
+    expect(json.code).toBe("TOKEN_EXPIRED");
   });
 });

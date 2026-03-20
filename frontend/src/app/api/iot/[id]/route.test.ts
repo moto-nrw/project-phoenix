@@ -164,7 +164,7 @@ describe("GET /api/iot/[id]", () => {
 
     expect(response.status).toBe(500);
     const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Invalid response format");
+    expect(json.error).toContain("Device not found");
   });
 });
 
@@ -209,8 +209,8 @@ describe("PUT /api/iot/[id]", () => {
 
     expect(mockApiPut).toHaveBeenCalledWith(
       "/api/iot/1",
-      updateBody,
       "test-token",
+      updateBody,
     );
     expect(response.status).toBe(200);
   });
@@ -240,7 +240,7 @@ describe("PUT /api/iot/[id]", () => {
 
     expect(response.status).toBe(500);
     const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Invalid response format");
+    expect(json.error).toContain("Failed to update device");
   });
 });
 

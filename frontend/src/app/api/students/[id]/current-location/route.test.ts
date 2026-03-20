@@ -228,11 +228,9 @@ describe("GET /api/students/[id]/current-location", () => {
   });
 
   it("returns unknown with UNAUTHORIZED error code on 401", async () => {
-    const mockError = Object.assign(new Error("Unauthorized"), {
-      response: { status: 401 },
-      isAxiosError: true,
-    });
-    mockApiGet.mockRejectedValueOnce(mockError);
+    mockApiGet.mockRejectedValueOnce(
+      new Error("API error (401): Unauthorized"),
+    );
 
     const request = createMockRequest("/api/students/123/current-location");
     const response = await GET(request, createMockContext({ id: "123" }));
