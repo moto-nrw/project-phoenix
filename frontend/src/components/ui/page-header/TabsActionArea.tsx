@@ -34,23 +34,22 @@ function TabsActionArea({
   badge,
   variant,
 }: TabsActionAreaProps) {
-  // If there's a title, the action area is handled by PageHeader
-  if (hasTitle) return null;
-
   const isDesktop = variant === "desktop";
 
-  // Render action button + badge/status together when both present
-  // Render status/badge indicators (also shown alongside action button)
+  // When there's a title, badge/status are rendered by PageHeader (mobile).
+  // But action buttons must still render here alongside tabs (desktop),
+  // since PageHeader is md:hidden and doesn't show on desktop.
   return (
     <>
       {actionButton}
-      {statusIndicator && (
+      {!hasTitle && statusIndicator && (
         <StatusIndicator
           color={statusIndicator.color}
           tooltip={statusIndicator.tooltip}
         />
       )}
-      {badge &&
+      {!hasTitle &&
+        badge &&
         (isDesktop ? (
           <BadgeDisplay
             count={badge.count}
@@ -73,9 +72,9 @@ export function DesktopTabsActionArea(
 ) {
   const { hasTitle, actionButton, statusIndicator, badge } = props;
 
-  // Don't render anything if hasTitle or no content
-  if (hasTitle) return null;
-  if (!actionButton && !statusIndicator && !badge) return null;
+  // When hasTitle, only render if there's an action button (badge/status handled by PageHeader)
+  if (hasTitle && !actionButton) return null;
+  if (!hasTitle && !actionButton && !statusIndicator && !badge) return null;
 
   return (
     <div className="hidden flex-shrink-0 items-center gap-2 pb-3 md:flex md:gap-3">
@@ -92,9 +91,9 @@ export function MobileTabsActionArea(
 ) {
   const { hasTitle, actionButton, statusIndicator, badge } = props;
 
-  // Don't render anything if hasTitle or no content
-  if (hasTitle) return null;
-  if (!actionButton && !statusIndicator && !badge) return null;
+  // When hasTitle, only render if there's an action button (badge/status handled by PageHeader)
+  if (hasTitle && !actionButton) return null;
+  if (!hasTitle && !actionButton && !statusIndicator && !badge) return null;
 
   return (
     <div className="mr-2 flex flex-shrink-0 items-center gap-2 md:hidden md:gap-3">

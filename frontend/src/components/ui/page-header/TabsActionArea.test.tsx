@@ -27,9 +27,17 @@ vi.mock("./BadgeDisplay", () => ({
 describe("DesktopTabsActionArea", () => {
   const mockActionButton = <button data-testid="action-btn">Action</button>;
 
-  it("renders nothing when hasTitle is true", () => {
-    const { container } = render(
+  it("renders action button even when hasTitle is true", () => {
+    render(
       <DesktopTabsActionArea hasTitle={true} actionButton={mockActionButton} />,
+    );
+
+    expect(screen.getByTestId("action-btn")).toBeInTheDocument();
+  });
+
+  it("renders nothing when hasTitle is true but no action button", () => {
+    const { container } = render(
+      <DesktopTabsActionArea hasTitle={true} badge={{ count: 5 }} />,
     );
 
     expect(container.firstChild).toBeNull();
@@ -117,9 +125,17 @@ describe("MobileTabsActionArea", () => {
     <button data-testid="mobile-action-btn">Mobile Action</button>
   );
 
-  it("renders nothing when hasTitle is true", () => {
-    const { container } = render(
+  it("renders action button even when hasTitle is true", () => {
+    render(
       <MobileTabsActionArea hasTitle={true} actionButton={mockActionButton} />,
+    );
+
+    expect(screen.getByTestId("action-btn")).toBeInTheDocument();
+  });
+
+  it("renders nothing when hasTitle is true but no action button", () => {
+    const { container } = render(
+      <MobileTabsActionArea hasTitle={true} badge={{ count: 5 }} />,
     );
 
     expect(container.firstChild).toBeNull();
