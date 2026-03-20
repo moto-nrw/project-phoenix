@@ -7,7 +7,7 @@
 | Component | Technology |
 |-----------|------------|
 | Backend | Go 1.23+, Chi router, BUN ORM |
-| Frontend | Next.js 15+, React 19+, Tailwind 4+ |
+| Frontend | Next.js 16+, React 19+, Tailwind 4+ |
 | Database | PostgreSQL 17+ (multi-schema, SSL) |
 | Auth | JWT (15min access, 1hr refresh) |
 
@@ -63,7 +63,7 @@ gh pr create --base development  # NEVER target main unless explicitly asked
 - `active.visits` + `active.attendance` — real-time, correct
 - `users.students` boolean flags (`in_house`, `wc`, `school_yard`) — DEPRECATED, broken
 
-### 7. Next.js 15: Async Params
+### 7. Next.js 16: Async Params
 ```typescript
 const { id } = await context.params;  // MUST await
 ```
