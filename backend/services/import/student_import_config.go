@@ -659,7 +659,7 @@ func (c *StudentImportConfig) createPickupSchedules(ctx context.Context, student
 			Weekday:    sched.Weekday,
 			PickupTime: pickupTime,
 			Notes:      stringPtr(sched.Notes),
-			CreatedBy:  0, // System/CSV import sentinel
+			CreatedBy:  ImporterIDFromContext(ctx),
 		}
 		record.SetTenantID(tenant.FromContext(ctx))
 

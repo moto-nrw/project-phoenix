@@ -60,6 +60,7 @@ const OPERATOR_PUBLIC_PATHS = [
   "/suggestions",
   "/announcements",
   "/settings",
+  "/provisioning",
 ];
 
 function getHostname(request: NextRequest): string {
