@@ -275,7 +275,35 @@ func (c *StudentImportConfig) validateGuardian(num int, guardian importModels.Gu
 	errors = append(errors, validateGuardianLegacyPhones(num, guardian, fieldPrefix)...)
 	errors = append(errors, validateGuardianPhoneNumbers(num, guardian.PhoneNumbers, fieldPrefix)...)
 
+	// Validate language preference (warning for unrecognized codes)
+	errors = append(errors, validateGuardianLanguage(num, guardian.LanguagePreference, fieldPrefix)...)
+
 	return errors
+}
+
+// supportedLanguages contains ISO 639-1 codes common in German school contexts
+var supportedLanguages = map[string]bool{
+	"de": true, "en": true, "tr": true, "ar": true, "ru": true,
+	"pl": true, "fa": true, "ku": true, "fr": true, "es": true,
+	"it": true, "pt": true, "ro": true, "uk": true, "sr": true,
+	"hr": true, "bg": true, "el": true, "vi": true, "zh": true,
+}
+
+// validateGuardianLanguage warns about unrecognized language codes
+func validateGuardianLanguage(num int, lang, fieldPrefix string) []importModels.ValidationError {
+	if lang == "" {
+		return nil // Empty is fine — backend defaults to "de"
+	}
+	normalized := strings.ToLower(strings.TrimSpace(lang))
+	if !supportedLanguages[normalized] {
+		return []importModels.ValidationError{{
+			Field:    fmt.Sprintf("%s_language", fieldPrefix),
+			Message:  fmt.Sprintf("Unbekannter Sprachcode '%s' für Erziehungsberechtigten %d. Gängige Codes: de, en, tr, ar, ru, pl", normalized, num),
+			Code:     "unknown_language",
+			Severity: importModels.ErrorSeverityWarning,
+		}}
+	}
+	return nil
 }
 
 // validateGuardianEmail validates email format

@@ -130,6 +130,8 @@ export interface GuardianFormData {
 }
 
 // Backend Guardian Create Request
+// preferred_contact_method and language_preference are optional — the backend
+// applies its own defaults ("phone" and "de") when omitted.
 export interface BackendGuardianCreateRequest {
   first_name: string;
   last_name: string;
@@ -137,8 +139,8 @@ export interface BackendGuardianCreateRequest {
   address_street?: string;
   address_city?: string;
   address_postal_code?: string;
-  preferred_contact_method: string;
-  language_preference: string;
+  preferred_contact_method?: string;
+  language_preference?: string;
   occupation?: string;
   employer?: string;
   notes?: string;
@@ -225,8 +227,8 @@ export function mapGuardianFormDataToBackend(
     address_street: data.addressStreet,
     address_city: data.addressCity,
     address_postal_code: data.addressPostalCode,
-    preferred_contact_method: data.preferredContactMethod ?? "email",
-    language_preference: data.languagePreference ?? "de",
+    preferred_contact_method: data.preferredContactMethod,
+    language_preference: data.languagePreference,
     occupation: data.occupation,
     employer: data.employer,
     notes: data.notes,

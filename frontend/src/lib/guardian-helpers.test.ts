@@ -279,7 +279,7 @@ describe("guardian-helpers", () => {
       });
     });
 
-    it("uses default contact method when not provided", () => {
+    it("omits contact method when not provided (backend applies default)", () => {
       const formData: GuardianFormData = {
         firstName: "Test",
         lastName: "User",
@@ -287,10 +287,10 @@ describe("guardian-helpers", () => {
 
       const result = mapGuardianFormDataToBackend(formData);
 
-      expect(result.preferred_contact_method).toBe("email");
+      expect(result.preferred_contact_method).toBeUndefined();
     });
 
-    it("uses default language preference when not provided", () => {
+    it("omits language preference when not provided (backend applies default)", () => {
       const formData: GuardianFormData = {
         firstName: "Test",
         lastName: "User",
@@ -298,7 +298,7 @@ describe("guardian-helpers", () => {
 
       const result = mapGuardianFormDataToBackend(formData);
 
-      expect(result.language_preference).toBe("de");
+      expect(result.language_preference).toBeUndefined();
     });
 
     it("handles minimal required fields", () => {

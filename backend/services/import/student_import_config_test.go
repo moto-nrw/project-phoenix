@@ -445,6 +445,75 @@ func TestStudentImportConfig_ValidateGuardian_PhoneFormats(t *testing.T) {
 }
 
 // ============================================================================
+// Language Preference Validation Tests
+// ============================================================================
+
+func TestValidateGuardianLanguage(t *testing.T) {
+	tests := []struct {
+		name     string
+		lang     string
+		wantWarn bool
+	}{
+		{"empty is valid", "", false},
+		{"de is valid", "de", false},
+		{"en is valid", "en", false},
+		{"tr is valid", "tr", false},
+		{"ar is valid", "ar", false},
+		{"DE uppercase is valid", "DE", false},
+		{"unknown code warns", "klingon", true},
+		{"xx warns", "xx", true},
+		{"ja not in list warns", "ja", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			errs := validateGuardianLanguage(1, tt.lang, "guardian_1")
+			if tt.wantWarn {
+				assert.Len(t, errs, 1)
+				assert.Equal(t, "unknown_language", errs[0].Code)
+				assert.Equal(t, importModels.ErrorSeverityWarning, errs[0].Severity)
+			} else {
+				assert.Empty(t, errs)
+			}
+		})
+	}
+}
+
+func TestStudentImportConfig_Validate_GuardianLanguageWarning(t *testing.T) {
+	config := &StudentImportConfig{
+		resolver: &RelationshipResolver{
+			groupCache: make(map[string]*education.Group),
+		},
+	}
+
+	row := importModels.StudentImportRow{
+		FirstName:   "Max",
+		LastName:    "Mustermann",
+		SchoolClass: "1A",
+		Guardians: []importModels.GuardianImportData{
+			{
+				Email:              "test@example.com",
+				LanguagePreference: "klingon",
+			},
+		},
+		DataRetentionDays: 30,
+	}
+
+	errors := config.Validate(context.Background(), &row)
+
+	hasLangWarning := false
+	for _, err := range errors {
+		if err.Code == "unknown_language" {
+			hasLangWarning = true
+			assert.Equal(t, importModels.ErrorSeverityWarning, err.Severity,
+				"unknown language should be a warning, not an error")
+			assert.Contains(t, err.Message, "klingon")
+		}
+	}
+	assert.True(t, hasLangWarning, "should warn about unknown language code")
+}
+
+// ============================================================================
 // Pickup Schedule Validation Tests
 // ============================================================================
 
