@@ -10,6 +10,7 @@ import {
   getGuardianFullName,
   getGuardianPrimaryContact,
   getRelationshipTypeLabel,
+  getLanguageLabel,
   getPhoneTypeLabel,
   getPrimaryPhoneNumber,
   formatPhoneNumberDisplay,
@@ -638,6 +639,24 @@ describe("guardian-helpers", () => {
     });
   });
 
+  describe("getLanguageLabel", () => {
+    it("returns label for known language code", () => {
+      expect(getLanguageLabel("de")).toBe("Deutsch");
+      expect(getLanguageLabel("en")).toBe("English");
+      expect(getLanguageLabel("tr")).toBe("Türkisch");
+      expect(getLanguageLabel("ar")).toBe("Arabisch");
+      expect(getLanguageLabel("ru")).toBe("Russisch");
+    });
+
+    it("returns uppercased code for unknown language", () => {
+      expect(getLanguageLabel("xx")).toBe("XX");
+    });
+
+    it("returns label for 'other'", () => {
+      expect(getLanguageLabel("other")).toBe("Sonstige");
+    });
+  });
+
   describe("constants", () => {
     describe("RELATIONSHIP_TYPES", () => {
       it("contains all expected relationship types", () => {
@@ -685,12 +704,17 @@ describe("guardian-helpers", () => {
 
     describe("LANGUAGE_PREFERENCES", () => {
       it("contains all expected language preferences", () => {
-        expect(LANGUAGE_PREFERENCES).toHaveLength(5);
+        expect(LANGUAGE_PREFERENCES).toHaveLength(10);
         expect(LANGUAGE_PREFERENCES.map((l) => l.value)).toEqual([
           "de",
           "en",
           "tr",
           "ar",
+          "ru",
+          "pl",
+          "uk",
+          "fa",
+          "ro",
           "other",
         ]);
       });
@@ -703,10 +727,25 @@ describe("guardian-helpers", () => {
           "English",
         );
         expect(LANGUAGE_PREFERENCES.find((l) => l.value === "tr")?.label).toBe(
-          "Türkçe",
+          "Türkisch",
         );
         expect(LANGUAGE_PREFERENCES.find((l) => l.value === "ar")?.label).toBe(
-          "العربية",
+          "Arabisch",
+        );
+        expect(LANGUAGE_PREFERENCES.find((l) => l.value === "ru")?.label).toBe(
+          "Russisch",
+        );
+        expect(LANGUAGE_PREFERENCES.find((l) => l.value === "pl")?.label).toBe(
+          "Polnisch",
+        );
+        expect(LANGUAGE_PREFERENCES.find((l) => l.value === "uk")?.label).toBe(
+          "Ukrainisch",
+        );
+        expect(LANGUAGE_PREFERENCES.find((l) => l.value === "fa")?.label).toBe(
+          "Persisch",
+        );
+        expect(LANGUAGE_PREFERENCES.find((l) => l.value === "ro")?.label).toBe(
+          "Rumänisch",
         );
       });
     });

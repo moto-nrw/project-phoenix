@@ -13,6 +13,15 @@ vi.mock("@/lib/guardian-helpers", () => ({
     };
     return labels[type] ?? type;
   },
+  getLanguageLabel: (code: string) => {
+    const labels: Record<string, string> = {
+      de: "Deutsch",
+      en: "English",
+      tr: "Türkisch",
+      ar: "Arabisch",
+    };
+    return labels[code] ?? code.toUpperCase();
+  },
   PHONE_TYPE_LABELS: {
     mobile: "Mobil",
     home: "Telefon",
