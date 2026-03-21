@@ -738,17 +738,17 @@ func (s *Service) parseRefreshTokenClaims(refreshTokenStr string) (*jwt.RefreshC
 	return &refreshClaims, nil
 }
 
-// refreshTokenInTransaction validates and refreshes token in a transaction
+// refreshTokenInTransaction validates and refreshes token in a transaction.
 //
-// Phase 3 deviation: RunInTx retained because token refresh is a pre-authentication flow.
-// Handler-level WithTenantTx requires authenticated tenant context, which doesn't exist
-// until the refresh completes. Tenant is resolved from the existing token during the transaction.
+// Uses WithAdminTx (BYPASSRLS) because token refresh is a pre-authentication flow
+// with no JWT/tenant context yet. The phoenix_auth connection role cannot pass RLS
+// policies on auth.tokens (same reason persistTokenInTransaction uses WithAdminTx).
 func (s *Service) refreshTokenInTransaction(ctx context.Context, refreshClaims *jwt.RefreshClaims, ipAddress, userAgent string, tenantID int64) (*auth.Account, *auth.Token, error) {
 	var dbToken *auth.Token
 	var account *auth.Account
 	var newToken *auth.Token
 
-	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+	err := tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
 		var err error
 
 		// Fetch and validate token

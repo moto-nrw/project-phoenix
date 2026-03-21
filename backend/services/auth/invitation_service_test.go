@@ -169,7 +169,8 @@ func TestInvitationEmailFailureRecordsError(t *testing.T) {
 		if findErr != nil {
 			return false
 		}
-		return updated.EmailRetryCount == 3 && updated.EmailError != nil && *updated.EmailError != "" && updated.EmailSentAt == nil
+		return updated.EmailRetryCount == 3 && updated.EmailError != nil && *updated.EmailError != "" && updated.EmailSentAt == nil &&
+			mock.ExpectationsWereMet() == nil
 	}, time.Second, 20*time.Millisecond)
 
 	require.Equal(t, 3, flaky.Attempts())
@@ -433,7 +434,8 @@ func TestResendInvitationSendsEmail(t *testing.T) {
 		if findErr != nil {
 			return false
 		}
-		return updated.EmailSentAt != nil && updated.EmailError == nil && updated.EmailRetryCount == 1
+		return updated.EmailSentAt != nil && updated.EmailError == nil && updated.EmailRetryCount == 1 &&
+			mock.ExpectationsWereMet() == nil
 	}, time.Second, 10*time.Millisecond)
 
 	require.True(t, token.UpdatedAt.After(time.Now().Add(-30*time.Second)), "updated_at should be refreshed")

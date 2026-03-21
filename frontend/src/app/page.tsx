@@ -15,28 +15,6 @@ import { env } from "~/env";
 
 const logger = createLogger({ component: "RootPage" });
 
-/** Hardcoded fallback tenants when the backend is unreachable */
-const FALLBACK_TENANTS: TenantInfo[] = [
-  {
-    tenantId: 0,
-    slug: "school-a",
-    name: "Testschule A",
-    subdomain: "school-a",
-    organizationId: 0,
-    organizationName: "",
-    settings: {},
-  },
-  {
-    tenantId: 0,
-    slug: "school-b",
-    name: "Testschule B",
-    subdomain: "school-b",
-    organizationId: 0,
-    organizationName: "",
-    settings: {},
-  },
-];
-
 export default function RootPage() {
   const [tenants, setTenants] = useState<TenantInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,7 +28,6 @@ export default function RootPage() {
           setTenants(result);
         } else {
           logger.warn("tenant_list_empty_or_failed");
-          setTenants(FALLBACK_TENANTS);
           setIsFallback(true);
         }
       })
@@ -58,7 +35,6 @@ export default function RootPage() {
         logger.error("tenant_list_fetch_failed", {
           error: error instanceof Error ? error.message : String(error),
         });
-        setTenants(FALLBACK_TENANTS);
         setIsFallback(true);
       })
       .finally(() => setLoading(false));
@@ -97,61 +73,72 @@ export default function RootPage() {
           Wählen Sie Ihre Einrichtung aus
         </p>
 
-        {/* Tenant selector */}
+        {/* Tenant selector or error state */}
         <div className="space-y-6">
-          <div className="text-left">
-            <label
-              htmlFor="tenant-select"
-              className="mb-1 block text-sm font-medium text-gray-700"
-            >
-              Einrichtung
-            </label>
-            {loading ? (
+          {loading ? (
+            <div className="text-left">
+              <label className="mb-1 block text-sm font-medium text-gray-700">
+                Einrichtung
+              </label>
               <div className="h-10 w-full animate-pulse rounded-lg bg-gray-200" />
-            ) : (
-              <div className="relative">
-                <select
-                  id="tenant-select"
-                  value={selectedSlug}
-                  onChange={(e) => setSelectedSlug(e.target.value)}
-                  className="w-full appearance-none rounded-lg border-0 bg-white px-3 py-2.5 pr-10 text-gray-900 ring-1 ring-gray-200 transition-all focus:ring-2 focus:ring-gray-900 focus:outline-none"
+            </div>
+          ) : isFallback ? (
+            <p className="text-sm text-gray-500">
+              Backend nicht erreichbar — bitte versuchen Sie es später erneut.
+            </p>
+          ) : (
+            <>
+              <div className="text-left">
+                <label
+                  htmlFor="tenant-select"
+                  className="mb-1 block text-sm font-medium text-gray-700"
                 >
-                  <option value="">Bitte auswählen...</option>
-                  {tenants.map((tenant) => (
-                    <option key={tenant.slug} value={tenant.slug}>
-                      {tenant.name}
-                    </option>
-                  ))}
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-                  <svg
-                    className="h-4 w-4 text-gray-500"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
+                  Einrichtung
+                </label>
+                <div className="relative">
+                  <select
+                    id="tenant-select"
+                    value={selectedSlug}
+                    onChange={(e) => setSelectedSlug(e.target.value)}
+                    className="w-full appearance-none rounded-lg border-0 bg-white px-3 py-2.5 pr-10 text-gray-900 ring-1 ring-gray-200 transition-all focus:ring-2 focus:ring-gray-900 focus:outline-none"
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M19 9l-7 7-7-7"
-                    />
-                  </svg>
+                    <option value="">Bitte auswählen...</option>
+                    {tenants.map((tenant) => (
+                      <option key={tenant.slug} value={tenant.slug}>
+                        {tenant.name}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+                    <svg
+                      className="h-4 w-4 text-gray-500"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M19 9l-7 7-7-7"
+                      />
+                    </svg>
+                  </div>
                 </div>
               </div>
-            )}
-          </div>
 
-          <div className="flex justify-center">
-            <button
-              type="button"
-              disabled={!selectedSlug}
-              onClick={handleNavigate}
-              className="group relative overflow-hidden rounded-xl bg-gray-900 px-8 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:bg-gray-800 focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 focus:outline-none active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Weiter
-            </button>
-          </div>
+              <div className="flex justify-center">
+                <button
+                  type="button"
+                  disabled={!selectedSlug}
+                  onClick={handleNavigate}
+                  className="group relative overflow-hidden rounded-xl bg-gray-900 px-8 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:bg-gray-800 focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 focus:outline-none active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Weiter
+                </button>
+              </div>
+            </>
+          )}
 
           <p className="text-sm text-gray-500">
             Noch nicht registriert?{" "}
@@ -163,13 +150,6 @@ export default function RootPage() {
             </a>
           </p>
         </div>
-
-        {/* Fallback notice */}
-        {isFallback && !loading && (
-          <p className="mt-6 text-xs text-gray-400">
-            Backend nicht erreichbar — statische Links werden angezeigt.
-          </p>
-        )}
       </div>
     </div>
   );
