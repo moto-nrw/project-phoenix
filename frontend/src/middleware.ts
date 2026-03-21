@@ -81,6 +81,8 @@ function handleOperatorSubdomain(request: NextRequest): NextResponse {
     pathname.startsWith("/api/") ||
     pathname.startsWith("/_next") ||
     pathname === "/favicon.ico" ||
+    pathname === "/site.webmanifest" ||
+    pathname.startsWith("/icons/") ||
     pathname.startsWith("/images")
   ) {
     return withSecurityHeaders(NextResponse.next());
