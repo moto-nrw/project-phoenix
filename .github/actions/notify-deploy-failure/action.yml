@@ -24,6 +24,9 @@ inputs:
   actor:
     description: "GitHub actor who triggered the workflow"
     required: true
+  notify_emails:
+    description: "JSON array of email recipients, e.g. [\"a@b.com\",\"c@d.com\"]"
+    required: true
   notification_type:
     description: "deploy or rollback"
     required: false
@@ -33,6 +36,8 @@ runs:
   using: composite
   steps:
     - shell: bash
+      env:
+        NOTIFY_EMAILS: ${{ inputs.notify_emails }}
       run: |
         EXIT_CODE="${{ inputs.exit_code }}"
         ENV="${{ inputs.environment }}"
@@ -76,5 +81,5 @@ runs:
         curl -sS -X POST https://api.resend.com/emails \
           -H "Authorization: Bearer ${{ inputs.resend_api_key }}" \
           -H "Content-Type: application/json" \
-          -d "{\"from\":\"Phoenix CI <ci@ci.moto-app.de>\",\"to\":[\"mail@yannickwenger.de\"],\"subject\":\"${SUBJECT}\",\"html\":\"${BODY}\"}" \
+          -d "{\"from\":\"Phoenix CI <ci@ci.moto-app.de>\",\"to\":${NOTIFY_EMAILS},\"subject\":\"${SUBJECT}\",\"html\":\"${BODY}\"}" \
           || echo "WARNING: Email notification failed (non-critical)"

@@ -177,6 +177,7 @@ jobs:
           exit_code: ${{ steps.rollback.outputs.rollback_exit }}
           environment: ${{ inputs.environment }}
           resend_api_key: ${{ secrets.RESEND_API_KEY }}
+          notify_emails: ${{ vars.DEPLOY_NOTIFY_EMAILS }}
           run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           sha: ${{ steps.target.outputs.sha }}
           actor: ${{ github.actor }}
