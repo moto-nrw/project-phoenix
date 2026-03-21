@@ -18,6 +18,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	importService "github.com/moto-nrw/project-phoenix/services/import"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 const (
@@ -27,20 +29,24 @@ const (
 	errTemplateCreation = "Fehler beim Erstellen der Vorlage"
 
 	// Test data constants (S1192 - avoid duplicate string literals)
-	testLastNameMueller = "Müller"
+	testLastNameMueller  = "Müller"
+	testAddressMusterstr = "Musterstr. 1"
+	hintYesNo            = "Ja / Nein"
 )
 
 // Resource defines the import resource
 type Resource struct {
 	studentImportService *importService.ImportService[importModels.StudentImportRow]
 	auditRepo            audit.DataImportRepository
+	db                   *bun.DB
 }
 
 // NewResource creates a new import resource
-func NewResource(studentImportService *importService.ImportService[importModels.StudentImportRow], auditRepo audit.DataImportRepository) *Resource {
+func NewResource(studentImportService *importService.ImportService[importModels.StudentImportRow], auditRepo audit.DataImportRepository, db *bun.DB) *Resource {
 	return &Resource{
 		studentImportService: studentImportService,
 		auditRepo:            auditRepo,
+		db:                   db,
 	}
 }
 
@@ -56,16 +62,20 @@ func (rs *Resource) Router() chi.Router {
 	r.Group(func(r chi.Router) {
 		r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
 		r.Use(jwt.Authenticator)
+		r.Use(jwt.TenantMiddleware)
+		withTx := tenant.TenantTxMiddleware(rs.db)
 
 		// Student import endpoints
 		r.Route("/students", func(r chi.Router) {
 			// Template download - requires UsersRead
-			r.With(authorize.RequiresPermission("users:read")).Get("/template", rs.downloadStudentTemplate)
+			r.With(authorize.RequiresPermission("users:read"), withTx).Get("/template", rs.downloadStudentTemplate)
 
 			// Preview - requires UsersCreate
-			r.With(authorize.RequiresPermission("users:create")).Post("/preview", rs.previewStudentImport)
+			r.With(authorize.RequiresPermission("users:create"), withTx).Post("/preview", rs.previewStudentImport)
 
 			// Actual import - requires UsersCreate
+			// Note: no withTx here — the handler manages its own WithTenantTx
+			// to control commit/rollback based on import results.
 			r.With(authorize.RequiresPermission("users:create")).Post("/import", rs.importStudents)
 		})
 
@@ -102,46 +112,20 @@ func (rs *Resource) downloadStudentTemplateCSV(w http.ResponseWriter, _ *http.Re
 
 	csvWriter := csv.NewWriter(w)
 
-	// Header row with all supported columns (RFID removed, flexible phone numbers added)
-	headers := []string{
-		"Vorname", "Nachname", "Klasse", "Gruppe", "Geburtstag",
-		"Erz1.Vorname", "Erz1.Nachname", "Erz1.Email", "Erz1.Telefon", "Erz1.Telefon2", "Erz1.Mobil", "Erz1.Mobil2", "Erz1.Dienstlich", "Erz1.Dienstlich2", "Erz1.Verhältnis", "Erz1.Primär", "Erz1.Notfall", "Erz1.Abholung",
-		"Erz2.Vorname", "Erz2.Nachname", "Erz2.Email", "Erz2.Telefon", "Erz2.Telefon2", "Erz2.Mobil", "Erz2.Mobil2", "Erz2.Dienstlich", "Erz2.Dienstlich2", "Erz2.Verhältnis", "Erz2.Primär", "Erz2.Notfall", "Erz2.Abholung",
-		"Gesundheitsinfo", "Betreuernotizen", "Zusatzinfo", "Abholstatus", "Datenschutz", "Aufbewahrung(Tage)", "Bus",
-	}
-
+	headers := getStudentImportHeaders()
 	if err := csvWriter.Write(headers); err != nil {
 		slog.Default().Error("Error writing CSV headers", slog.String("error", err.Error()))
 		http.Error(w, errTemplateCreation, http.StatusInternalServerError)
 		return
 	}
 
-	// Example rows with realistic data (RFID removed, flexible phone numbers added)
-	examples := [][]string{
-		{
-			// Student info
-			"Max", "Mustermann", "1A", "Gruppe 1A", "2015-08-15",
-			// Guardian 1 (Mother) - with home phone and work phone
-			"Maria", testLastNameMueller, "maria.mueller@example.com", "0123-456789", "", "", "", "0221-9876543", "", "Mutter", "Ja", "Ja", "Ja",
-			// Guardian 2 (Father) - with mobile phone
-			"Hans", testLastNameMueller, "hans.mueller@example.com", "", "", "0176-12345678", "", "", "", "Vater", "Nein", "Ja", "Ja",
-			// Additional info
-			"", "Sehr ruhiges Kind", "", "Wird abgeholt", "Ja", "30", "Nein",
-		},
-		{
-			// Student info
-			"Anna", "Schmidt", "2B", "Gruppe 2B", "2014-03-22",
-			// Guardian 1 (Mother) - with work phone labeled "Dienstlich"
-			"Petra", "Schmidt", "petra.schmidt@example.com", "0234-567890", "", "", "", "0211-5551234", "", "Mutter", "Ja", "Ja", "Ja",
-			// Guardian 2 (empty - optional!)
-			"", "", "", "", "", "", "", "", "", "", "", "", "",
-			// Additional info
-			"Allergie: Nüsse", "", "Kann gut malen", "Geht alleine nach Hause", "Ja", "15", "Ja",
-		},
-	}
-
-	for _, row := range examples {
-		if err := csvWriter.Write(row); err != nil {
+	for _, row := range getStudentImportExamples() {
+		// Convert []any to []string for CSV writer
+		strRow := make([]string, len(row))
+		for i, v := range row {
+			strRow[i] = fmt.Sprintf("%v", v)
+		}
+		if err := csvWriter.Write(strRow); err != nil {
 			slog.Default().Error("Error writing CSV row", slog.String("error", err.Error()))
 		}
 	}
@@ -173,6 +157,9 @@ func (rs *Resource) downloadStudentTemplateXLSX(w http.ResponseWriter, _ *http.R
 	writeExcelExampleRows(f, sheetName, getStudentImportExamples())
 	setExcelColumnWidths(f, sheetName, len(headers), 15)
 
+	// Add "Hinweise" sheet with field descriptions and allowed values
+	writeHinweiseSheet(f)
+
 	if err := f.Write(w); err != nil {
 		slog.Default().Error("Error writing Excel file", slog.String("error", err.Error()))
 		http.Error(w, errTemplateCreation, http.StatusInternalServerError)
@@ -193,10 +180,13 @@ func setupExcelSheet(f *excelize.File, sheetName string) error {
 // getStudentImportHeaders returns the header row for student import template
 func getStudentImportHeaders() []string {
 	return []string{
-		"Vorname", "Nachname", "Klasse", "Gruppe", "Geburtstag",
-		"Erz1.Vorname", "Erz1.Nachname", "Erz1.Email", "Erz1.Telefon", "Erz1.Telefon2", "Erz1.Mobil", "Erz1.Mobil2", "Erz1.Dienstlich", "Erz1.Dienstlich2", "Erz1.Verhältnis", "Erz1.Primär", "Erz1.Notfall", "Erz1.Abholung",
-		"Erz2.Vorname", "Erz2.Nachname", "Erz2.Email", "Erz2.Telefon", "Erz2.Telefon2", "Erz2.Mobil", "Erz2.Mobil2", "Erz2.Dienstlich", "Erz2.Dienstlich2", "Erz2.Verhältnis", "Erz2.Primär", "Erz2.Notfall", "Erz2.Abholung",
-		"Gesundheitsinfo", "Betreuernotizen", "Zusatzinfo", "Abholstatus", "Datenschutz", "Aufbewahrung(Tage)", "Bus",
+		"Vorname", "Nachname", "Klasse", "Gruppe (optional)", "Geburtstag (optional)",
+		"Erz1.Vorname", "Erz1.Nachname", "Erz1.Email", "Erz1.Telefon (optional)", "Erz1.Telefon2 (optional)", "Erz1.Mobil (optional)", "Erz1.Mobil2 (optional)", "Erz1.Dienstlich (optional)", "Erz1.Dienstlich2 (optional)", "Erz1.Verhältnis (optional)", "Erz1.Hauptansprechpartner (optional)", "Erz1.Notfall (optional)", "Erz1.Abholberechtigt (optional)",
+		"Erz1.Straße (optional)", "Erz1.Stadt (optional)", "Erz1.PLZ (optional)", "Erz1.Notizen (optional)", "Erz1.Sprache (optional)",
+		"Erz2.Vorname (optional)", "Erz2.Nachname (optional)", "Erz2.Email (optional)", "Erz2.Telefon (optional)", "Erz2.Telefon2 (optional)", "Erz2.Mobil (optional)", "Erz2.Mobil2 (optional)", "Erz2.Dienstlich (optional)", "Erz2.Dienstlich2 (optional)", "Erz2.Verhältnis (optional)", "Erz2.Hauptansprechpartner (optional)", "Erz2.Notfall (optional)", "Erz2.Abholberechtigt (optional)",
+		"Erz2.Straße (optional)", "Erz2.Stadt (optional)", "Erz2.PLZ (optional)", "Erz2.Notizen (optional)", "Erz2.Sprache (optional)",
+		"Gesundheitsinfo (optional)", "Betreuernotizen (optional)", "Zusatzinfo (optional)", "Abholstatus (optional)", "Datenschutz", "Aufbewahrung(Tage) (optional)", "Bus (optional)",
+		"Abholung.Mo (optional)", "Abholung.Mo.Notizen (optional)", "Abholung.Di (optional)", "Abholung.Di.Notizen (optional)", "Abholung.Mi (optional)", "Abholung.Mi.Notizen (optional)", "Abholung.Do (optional)", "Abholung.Do.Notizen (optional)", "Abholung.Fr (optional)", "Abholung.Fr.Notizen (optional)",
 	}
 }
 
@@ -204,17 +194,31 @@ func getStudentImportHeaders() []string {
 func getStudentImportExamples() [][]any {
 	return [][]any{
 		{"Max", "Mustermann", "1A", "Gruppe 1A", "2015-08-15",
-			// Guardian 1: Telefon, Telefon2, Mobil, Mobil2, Dienstlich, Dienstlich2, Verhältnis, Primär, Notfall, Abholung
+			// Guardian 1: phones, relationship
 			"Maria", testLastNameMueller, "maria.mueller@example.com", "0123-456789", "", "", "", "0221-9876543", "", "Mutter", "Ja", "Ja", "Ja",
-			// Guardian 2
+			// Guardian 1: address, notes, language
+			testAddressMusterstr, "Köln", "50667", "", "de",
+			// Guardian 2: phones, relationship
 			"Hans", testLastNameMueller, "hans.mueller@example.com", "", "", "0176-12345678", "", "", "", "Vater", "Nein", "Ja", "Ja",
-			"", "Sehr ruhiges Kind", "", "Wird abgeholt", "Ja", 30, "Nein"},
+			// Guardian 2: address, notes, language
+			testAddressMusterstr, "Köln", "50667", "", "de",
+			// Additional info
+			"", "Sehr ruhiges Kind", "", "Wird abgeholt", "Ja", 30, "Nein",
+			// Pickup schedule (Mon-Fri)
+			"16:00", "", "15:30", "", "16:00", "", "15:30", "", "14:00", "Frühschluss"},
 		{"Anna", "Schmidt", "2B", "Gruppe 2B", "2014-03-22",
-			// Guardian 1
+			// Guardian 1: phones, relationship
 			"Petra", "Schmidt", "petra.schmidt@example.com", "0234-567890", "", "", "", "0211-5551234", "", "Mutter", "Ja", "Ja", "Ja",
+			// Guardian 1: address, notes, language
+			"Hauptstr. 5", "Düsseldorf", "40210", "Allergien beachten", "de",
 			// Guardian 2 (empty)
 			"", "", "", "", "", "", "", "", "", "", "", "", "",
-			"Allergie: Nüsse", "", "Kann gut malen", "Geht alleine nach Hause", "Ja", 15, "Ja"},
+			// Guardian 2: empty profile fields
+			"", "", "", "", "",
+			// Additional info
+			"Allergie: Nüsse", "", "Kann gut malen", "Geht alleine nach Hause", "Ja", 15, "Ja",
+			// Pickup schedule (partial)
+			"15:00", "", "15:00", "", "15:00", "", "15:00", "", "", ""},
 	}
 }
 
@@ -250,6 +254,136 @@ func setExcelColumnWidths(f *excelize.File, sheetName string, numCols int, width
 	}
 }
 
+// writeHinweiseSheet adds a "Hinweise" sheet with field descriptions and allowed values
+func writeHinweiseSheet(f *excelize.File) {
+	sheetName := "Hinweise"
+	if _, err := f.NewSheet(sheetName); err != nil {
+		slog.Default().Error("Error creating Hinweise sheet", slog.String("error", err.Error()))
+		return
+	}
+
+	// Section headers (row index → label) — rendered as merged, bold section dividers
+	sectionRows := map[int]string{
+		7:  "Erziehungsberechtigte (Erz1, Erz2, ...)",
+		23: "Schüler-Zusatzinfos",
+		31: "Abholzeiten (Montag bis Freitag)",
+		35: "Allgemeine Hinweise",
+	}
+
+	dataRows := [][]string{
+		// row 1: header
+		{"Spalte", "Pflicht?", "Erlaubte Werte / Format", "Beschreibung"},
+		// rows 2-6: student fields
+		{"Vorname", "Ja", "Text", "Vorname des Schülers"},
+		{"Nachname", "Ja", "Text", "Nachname des Schülers"},
+		{"Klasse", "Ja", "Text (z.B. 1A, 2B)", "Schulklasse"},
+		{"Gruppe", "Nein", "Text (exakter Gruppenname)", "OGS-Gruppe — muss in der Datenbank existieren"},
+		{"Geburtstag", "Nein", "JJJJ-MM-TT (z.B. 2015-08-15)", "Geburtsdatum im ISO-Format"},
+		// row 7: section header (injected)
+		// rows 8-20: guardian fields
+		{"Erz1.Vorname", "Nein", "Text", "Vorname des Erziehungsberechtigten"},
+		{"Erz1.Nachname", "Nein", "Text", "Nachname des Erziehungsberechtigten"},
+		{"Erz1.Email", "Nein*", "gültige E-Mail", "* Mindestens Email ODER Telefon erforderlich"},
+		{"Erz1.Telefon", "Nein*", "z.B. 0123-456789, +49 123 456789", "Festnetznummer"},
+		{"Erz1.Mobil", "Nein", "z.B. 0176-12345678", "Mobilnummer"},
+		{"Erz1.Dienstlich", "Nein", "z.B. 0221-9876543", "Dienstliche Telefonnummer"},
+		{"Erz1.Verhältnis", "Nein", "Mutter, Vater, Oma, Opa, Tante, Onkel, Vormund, Sonstige", "Beziehung zum Kind"},
+		{"Erz1.Hauptansprechpartner", "Nein", hintYesNo, "Erster Ansprechpartner für die OGS"},
+		{"Erz1.Notfall", "Nein", hintYesNo, "Als Notfallkontakt hinterlegt"},
+		{"Erz1.Abholberechtigt", "Nein", hintYesNo, "Darf das Kind abholen"},
+		{"Erz1.Straße", "Nein", "Text", "Straße und Hausnummer"},
+		{"Erz1.Stadt", "Nein", "Text", "Ort / Stadt"},
+		{"Erz1.PLZ", "Nein", "5-stellig (z.B. 50667)", "Postleitzahl"},
+		{"Erz1.Notizen", "Nein", "Text", "Interne Notizen zum Erziehungsberechtigten"},
+		{"Erz1.Sprache", "Nein", "de, en, tr, ar, ...", "Bevorzugte Sprache (ISO 639-1, Standard: de)"},
+		// row 23: section header "Schüler-Zusatzinfos" (injected)
+		{"Gesundheitsinfo", "Nein", "Text", "Allergien, Medikamente, etc."},
+		{"Betreuernotizen", "Nein", "Text", "Interne Notizen für Betreuer"},
+		{"Zusatzinfo", "Nein", "Text", "Sonstige Informationen (Elternnotizen)"},
+		{"Abholstatus", "Nein", "Text (z.B. Wird abgeholt, Geht alleine)", "Wie das Kind nach Hause kommt"},
+		{"Datenschutz", "Ja", hintYesNo, "Datenschutzerklärung akzeptiert"},
+		{"Aufbewahrung(Tage)", "Nein", "1-31 (Standard: 30)", "Datenaufbewahrungsfrist in Tagen"},
+		{"Bus", "Nein", hintYesNo, "Fährt das Kind mit dem Bus"},
+		// row 31: section header "Abholzeiten" (injected)
+		{"Abholung.Mo", "Nein", "HH:MM (z.B. 15:30, 16:00)", "Regelmäßige Abholzeit am Montag"},
+		{"Abholung.Mo.Notizen", "Nein", "Text", "Notiz zur Abholung am Montag"},
+		{"", "", "(Di, Mi, Do, Fr analog)", "Gleiche Spalten für alle Wochentage"},
+		// row 33: section header (injected)
+		// row 34: general hints
+		{"Ja/Nein-Felder", "", "Ja, Nein, Yes, No, true, false, 1, 0", "Groß-/Kleinschreibung egal"},
+		{"Erz2, Erz3, ...", "", "Gleiche Spalten wie Erz1", "Beliebig viele Erziehungsberechtigte möglich"},
+	}
+
+	// Create styles
+	headerStyle, _ := f.NewStyle(&excelize.Style{
+		Font:      &excelize.Font{Bold: true, Size: 11, Color: "FFFFFF"},
+		Fill:      excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{"2B579A"}},
+		Alignment: &excelize.Alignment{Vertical: "center"},
+	})
+	sectionStyle, _ := f.NewStyle(&excelize.Style{
+		Font:      &excelize.Font{Bold: true, Size: 11, Color: "2B579A"},
+		Fill:      excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{"D6E4F0"}},
+		Alignment: &excelize.Alignment{Vertical: "center"},
+	})
+	requiredStyle, _ := f.NewStyle(&excelize.Style{
+		Font: &excelize.Font{Bold: true, Color: "C00000"},
+	})
+
+	// Write data, inserting section headers at the right positions
+	excelRow := 1
+	dataIdx := 0
+	totalRows := len(dataRows) + len(sectionRows)
+	for excelRow <= totalRows {
+		// Check if this row is a section header
+		if label, ok := sectionRows[excelRow]; ok {
+			cell, _ := excelize.CoordinatesToCellName(1, excelRow)
+			_ = f.SetCellValue(sheetName, cell, label)
+			_ = f.MergeCell(sheetName, cell, fmt.Sprintf("D%d", excelRow))
+			_ = f.SetCellStyle(sheetName, cell, fmt.Sprintf("D%d", excelRow), sectionStyle)
+			excelRow++
+			continue
+		}
+
+		if dataIdx >= len(dataRows) {
+			break
+		}
+
+		row := dataRows[dataIdx]
+		for colIdx, val := range row {
+			cell, _ := excelize.CoordinatesToCellName(colIdx+1, excelRow)
+			_ = f.SetCellValue(sheetName, cell, val)
+
+			// Style header row
+			if excelRow == 1 {
+				_ = f.SetCellStyle(sheetName, cell, cell, headerStyle)
+			}
+			// Bold red "Ja" in Pflicht column
+			if colIdx == 1 && val == "Ja" {
+				_ = f.SetCellStyle(sheetName, cell, cell, requiredStyle)
+			}
+		}
+
+		dataIdx++
+		excelRow++
+	}
+
+	// Column widths
+	_ = f.SetColWidth(sheetName, "A", "A", 30)
+	_ = f.SetColWidth(sheetName, "B", "B", 10)
+	_ = f.SetColWidth(sheetName, "C", "C", 45)
+	_ = f.SetColWidth(sheetName, "D", "D", 50)
+
+	// Freeze header row
+	_ = f.SetPanes(sheetName, &excelize.Panes{
+		Freeze:      true,
+		Split:       false,
+		XSplit:      0,
+		YSplit:      1,
+		TopLeftCell: "A2",
+		ActivePane:  "bottomLeft",
+	})
+}
+
 // previewStudentImport handles import preview (dry-run)
 func (rs *Resource) previewStudentImport(w http.ResponseWriter, r *http.Request) {
 	// Validate and parse CSV file
@@ -283,7 +417,7 @@ func (rs *Resource) previewStudentImport(w http.ResponseWriter, r *http.Request)
 	}
 
 	// GDPR Compliance: Audit log for preview (Article 30)
-	rs.logImportAudit(uploadResult.Filename, result, userID, true)
+	rs.logImportAudit(uploadResult.Filename, result, userID, true, tenant.FromContext(r.Context()))
 
 	common.Respond(w, r, http.StatusOK, result, "Import-Vorschau erfolgreich")
 }
@@ -304,7 +438,6 @@ func (rs *Resource) importStudents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Run actual import
-	ctx := r.Context()
 	request := importModels.ImportRequest[importModels.StudentImportRow]{
 		Rows:            uploadResult.Rows,
 		Mode:            importModels.ImportModeCreate, // Create-only: duplicates will error
@@ -314,8 +447,13 @@ func (rs *Resource) importStudents(w http.ResponseWriter, r *http.Request) {
 		SkipInvalidRows: true, // Skip invalid rows, import valid ones
 	}
 
-	result, err := rs.studentImportService.Import(ctx, request)
-	if err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	var result *importModels.ImportResult[importModels.StudentImportRow]
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		var txErr error
+		result, txErr = rs.studentImportService.Import(ctx, request)
+		return txErr
+	}); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(fmt.Errorf("import fehlgeschlagen: %s", err.Error())))
 		return
 	}
@@ -328,7 +466,7 @@ func (rs *Resource) importStudents(w http.ResponseWriter, r *http.Request) {
 		slog.String("filename", uploadResult.Filename))
 
 	// GDPR Compliance: Audit log for actual import (Article 30)
-	rs.logImportAudit(uploadResult.Filename, result, userID, false)
+	rs.logImportAudit(uploadResult.Filename, result, userID, false, tenant.FromContext(r.Context()))
 
 	// Build success message
 	message := fmt.Sprintf("Import abgeschlossen: %d erstellt, %d aktualisiert, %d Fehler",
@@ -348,7 +486,7 @@ func getUserIDFromContext(ctx context.Context) (int64, error) {
 }
 
 // logImportAudit creates an audit record for import operations (GDPR compliance)
-func (rs *Resource) logImportAudit(filename string, result *importModels.ImportResult[importModels.StudentImportRow], userID int64, dryRun bool) {
+func (rs *Resource) logImportAudit(filename string, result *importModels.ImportResult[importModels.StudentImportRow], userID int64, dryRun bool, tenantID int64) {
 	go func() {
 		auditCtx := context.Background()
 		auditRecord := &audit.DataImport{
@@ -366,6 +504,7 @@ func (rs *Resource) logImportAudit(filename string, result *importModels.ImportR
 			CompletedAt:  &result.CompletedAt,
 			Metadata:     audit.JSONBMap{},
 		}
+		auditRecord.SetTenantID(tenantID)
 		if err := rs.auditRepo.Create(auditCtx, auditRecord); err != nil {
 			if dryRun {
 				slog.Default().Warn("Failed to create audit log for import", slog.String("error", err.Error()))

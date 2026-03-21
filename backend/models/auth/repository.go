@@ -44,6 +44,7 @@ type PermissionRepository interface {
 	FindByName(ctx context.Context, name string) (*Permission, error)
 	FindByResourceAction(ctx context.Context, resource, action string) (*Permission, error)
 	FindByAccountID(ctx context.Context, accountID int64) ([]*Permission, error)
+	FindByAccountIDForTenant(ctx context.Context, accountID int64, tenantID int64) ([]*Permission, error)
 	FindDirectByAccountID(ctx context.Context, accountID int64) ([]*Permission, error)
 	FindByRoleID(ctx context.Context, roleID int64) ([]*Permission, error)
 	FindByRoleByName(ctx context.Context, roleName string) (*Role, error)
@@ -90,6 +91,7 @@ type AccountRoleRepository interface {
 	Delete(ctx context.Context, id interface{}) error
 	List(ctx context.Context, filters map[string]interface{}) ([]*AccountRole, error)
 	FindByAccountID(ctx context.Context, accountID int64) ([]*AccountRole, error)
+	FindByAccountIDForTenant(ctx context.Context, accountID int64, tenantID int64) ([]*AccountRole, error)
 	FindByRoleID(ctx context.Context, roleID int64) ([]*AccountRole, error)
 	FindByAccountAndRole(ctx context.Context, accountID, roleID int64) (*AccountRole, error)
 	DeleteByAccountAndRole(ctx context.Context, accountID, roleID int64) error
@@ -176,6 +178,13 @@ type InvitationTokenRepository interface {
 	InvalidateByEmail(ctx context.Context, email string) (int, error)
 	DeleteExpired(ctx context.Context, now time.Time) (int, error)
 	List(ctx context.Context, filters map[string]interface{}) ([]*InvitationToken, error)
+}
+
+// AccountTenantRepository defines operations for querying account-tenant mappings.
+type AccountTenantRepository interface {
+	Create(ctx context.Context, mapping *AccountTenant) error
+	FindActiveByAccountID(ctx context.Context, accountID int64) ([]AccountTenant, error)
+	ExistsByAccountAndTenant(ctx context.Context, accountID, tenantID int64) (bool, error)
 }
 
 // GuardianInvitationRepository defines operations for managing guardian invitations.

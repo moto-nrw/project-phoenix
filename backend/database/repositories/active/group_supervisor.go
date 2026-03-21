@@ -20,8 +20,10 @@ type GroupSupervisorRepository struct {
 
 // NewGroupSupervisorRepository creates a new GroupSupervisorRepository
 func NewGroupSupervisorRepository(db *bun.DB) active.GroupSupervisorRepository {
+	repo := base.NewRepository[*active.GroupSupervisor](db, "active.group_supervisors", "GroupSupervisor")
+	repo.TenantScoped = true
 	return &GroupSupervisorRepository{
-		Repository: base.NewRepository[*active.GroupSupervisor](db, "active.group_supervisors", "GroupSupervisor"),
+		Repository: repo,
 		db:         db,
 	}
 }
@@ -29,12 +31,16 @@ func NewGroupSupervisorRepository(db *bun.DB) active.GroupSupervisorRepository {
 // FindActiveByStaffID finds all active supervisions for a specific staff member
 func (r *GroupSupervisorRepository) FindActiveByStaffID(ctx context.Context, staffID int64) ([]*active.GroupSupervisor, error) {
 	var supervisions []*active.GroupSupervisor
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&supervisions).
 		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
-		Where("staff_id = ? AND (end_date IS NULL OR end_date > NOW())", staffID).
-		Scan(ctx)
+		Where("staff_id = ? AND (end_date IS NULL OR end_date > NOW())", staffID)
 
+	if where, val, ok := base.TenantWhere(ctx, "group_supervisor"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find active by staff ID",
@@ -50,7 +56,7 @@ func (r *GroupSupervisorRepository) FindActiveByStaffID(ctx context.Context, sta
 // Includes Staff.Person relation for staff name display
 func (r *GroupSupervisorRepository) FindByActiveGroupID(ctx context.Context, activeGroupID int64, activeOnly bool) ([]*active.GroupSupervisor, error) {
 	var supervisions []*active.GroupSupervisor
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&supervisions).
 		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
 		// Use explicit JOINs for schema-qualified tables (Relation() doesn't handle cross-schema properly)
@@ -63,6 +69,10 @@ func (r *GroupSupervisorRepository) FindByActiveGroupID(ctx context.Context, act
 
 	if activeOnly {
 		query = query.Where(`"group_supervisor".end_date IS NULL`)
+	}
+
+	if where, val, ok := base.TenantWhere(ctx, "group_supervisor"); ok {
+		query = query.Where(where, val)
 	}
 
 	err := query.Scan(ctx)
@@ -85,7 +95,7 @@ func (r *GroupSupervisorRepository) FindByActiveGroupIDs(ctx context.Context, ac
 	}
 
 	var supervisions []*active.GroupSupervisor
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&supervisions).
 		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
 		// Use explicit JOINs for schema-qualified tables (Relation() doesn't handle cross-schema properly)
@@ -98,6 +108,10 @@ func (r *GroupSupervisorRepository) FindByActiveGroupIDs(ctx context.Context, ac
 
 	if activeOnly {
 		query = query.Where(`"group_supervisor".end_date IS NULL`)
+	}
+
+	if where, val, ok := base.TenantWhere(ctx, "group_supervisor"); ok {
+		query = query.Where(where, val)
 	}
 
 	err := query.Scan(ctx)
@@ -113,13 +127,17 @@ func (r *GroupSupervisorRepository) FindByActiveGroupIDs(ctx context.Context, ac
 
 // EndSupervision marks a supervision as ended at the current date
 func (r *GroupSupervisorRepository) EndSupervision(ctx context.Context, id int64) error {
-	_, err := r.db.NewUpdate().
+	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*active.GroupSupervisor)(nil)).
 		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
 		Set("end_date = ?", time.Now()).
-		Where(`"group_supervisor".id = ? AND "group_supervisor".end_date IS NULL`, id).
-		Exec(ctx)
+		Where(`"group_supervisor".id = ? AND "group_supervisor".end_date IS NULL`, id)
 
+	if where, val, ok := base.TenantWhere(ctx, "group_supervisor"); ok {
+		query = query.Where(where, val)
+	}
+
+	_, err := query.Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "end supervision",
@@ -156,19 +174,17 @@ func (r *GroupSupervisorRepository) Update(ctx context.Context, supervision *act
 		return err
 	}
 
-	// Check if we have a transaction in context
-	var db bun.IDB = r.db
-	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
-		db = tx
-	}
-
 	// Perform the update with proper table expression
-	_, err := db.NewUpdate().
+	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model(supervision).
 		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
-		WherePK().
-		Exec(ctx)
+		WherePK()
 
+	if where, val, ok := base.TenantWhere(ctx, "group_supervisor"); ok {
+		query = query.Where(where, val)
+	}
+
+	result, err := query.Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update",
@@ -176,7 +192,7 @@ func (r *GroupSupervisorRepository) Update(ctx context.Context, supervision *act
 		}
 	}
 
-	return nil
+	return base.AssertRowsAffected(result, 1, "update group_supervisor")
 }
 
 // applyActiveOnlyFilter handles the special active_only filter for group supervisors.
@@ -205,9 +221,13 @@ func (r *GroupSupervisorRepository) applyActiveOnlyFilter(query *bun.SelectQuery
 // List overrides the base List method to accept the new QueryOptions type
 func (r *GroupSupervisorRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*active.GroupSupervisor, error) {
 	var supervisions []*active.GroupSupervisor
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&supervisions).
 		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`)
+
+	if where, val, ok := base.TenantWhere(ctx, "group_supervisor"); ok {
+		query = query.Where(where, val)
+	}
 
 	if options != nil {
 		if options.Filter != nil {
@@ -231,13 +251,17 @@ func (r *GroupSupervisorRepository) List(ctx context.Context, options *modelBase
 // FindWithStaff retrieves supervisions with staff details
 func (r *GroupSupervisorRepository) FindWithStaff(ctx context.Context, id int64) (*active.GroupSupervisor, error) {
 	supervision := new(active.GroupSupervisor)
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(supervision).
 		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
 		Relation("Staff").
-		Where("id = ?", id).
-		Scan(ctx)
+		Where("id = ?", id)
 
+	if where, val, ok := base.TenantWhere(ctx, "group_supervisor"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find with staff",
@@ -251,13 +275,17 @@ func (r *GroupSupervisorRepository) FindWithStaff(ctx context.Context, id int64)
 // FindWithActiveGroup retrieves supervisions with active group details
 func (r *GroupSupervisorRepository) FindWithActiveGroup(ctx context.Context, id int64) (*active.GroupSupervisor, error) {
 	supervision := new(active.GroupSupervisor)
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(supervision).
 		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
 		Relation("ActiveGroup").
-		Where("id = ?", id).
-		Scan(ctx)
+		Where("id = ?", id)
 
+	if where, val, ok := base.TenantWhere(ctx, "group_supervisor"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find with active group",
@@ -272,13 +300,17 @@ func (r *GroupSupervisorRepository) FindWithActiveGroup(ctx context.Context, id 
 // Sets end_date = CURRENT_DATE for all supervisions where end_date IS NULL.
 // Returns the number of supervisions that were ended.
 func (r *GroupSupervisorRepository) EndAllActiveByStaffID(ctx context.Context, staffID int64) (int, error) {
-	result, err := r.db.NewUpdate().
+	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*active.GroupSupervisor)(nil)).
 		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
 		Set("end_date = CURRENT_DATE").
-		Where(`"group_supervisor".staff_id = ? AND "group_supervisor".end_date IS NULL`, staffID).
-		Exec(ctx)
+		Where(`"group_supervisor".staff_id = ? AND "group_supervisor".end_date IS NULL`, staffID)
 
+	if where, val, ok := base.TenantWhere(ctx, "group_supervisor"); ok {
+		query = query.Where(where, val)
+	}
+
+	result, err := query.Exec(ctx)
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "end all active by staff ID",
@@ -304,14 +336,18 @@ func (r *GroupSupervisorRepository) EndSupervisionsByActiveGroupIDs(ctx context.
 		return 0, nil
 	}
 
-	result, err := r.db.NewUpdate().
+	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*active.GroupSupervisor)(nil)).
 		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
 		Set("end_date = now()").
 		Where(`"group_supervisor".group_id IN (?)`, bun.List(activeGroupIDs)).
-		Where(`"group_supervisor".end_date IS NULL`).
-		Exec(ctx)
+		Where(`"group_supervisor".end_date IS NULL`)
 
+	if where, val, ok := base.TenantWhere(ctx, "group_supervisor"); ok {
+		query = query.Where(where, val)
+	}
+
+	result, err := query.Exec(ctx)
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "end supervisions by active group IDs",
@@ -338,7 +374,7 @@ func (r *GroupSupervisorRepository) EndSupervisionsByActiveGroupIDs(ctx context.
 // - Their supervision spans today (started before and still ongoing or ends after today)
 func (r *GroupSupervisorRepository) GetStaffIDsWithSupervisionToday(ctx context.Context) ([]int64, error) {
 	var staffIDs []int64
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model((*active.GroupSupervisor)(nil)).
 		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
 		Column("staff_id").
@@ -350,9 +386,13 @@ func (r *GroupSupervisorRepository) GetStaffIDsWithSupervisionToday(ctx context.
 				"group_supervisor"."start_date" < CURRENT_DATE
 				AND ("group_supervisor"."end_date" IS NULL OR "group_supervisor"."end_date" > CURRENT_DATE)
 			)
-		)`).
-		Scan(ctx, &staffIDs)
+		)`)
 
+	if where, val, ok := base.TenantWhere(ctx, "group_supervisor"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx, &staffIDs)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get staff IDs with supervision today",

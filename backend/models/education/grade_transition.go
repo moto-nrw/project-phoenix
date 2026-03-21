@@ -20,6 +20,7 @@ const (
 // GradeTransition represents a bulk grade level change operation
 type GradeTransition struct {
 	base.Model `bun:"schema:education,table:grade_transitions"`
+	base.TenantModel
 
 	AcademicYear string     `bun:"academic_year,notnull" json:"academic_year"`
 	Status       string     `bun:"status,notnull,default:'draft'" json:"status"`

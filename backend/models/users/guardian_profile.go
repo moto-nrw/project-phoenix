@@ -15,6 +15,7 @@ import (
 // Guardians can exist with or without portal accounts
 type GuardianProfile struct {
 	base.Model `bun:"schema:users,table:guardian_profiles"`
+	base.TenantModel
 
 	// Personal Information (optional - may be empty for imported guardians)
 	FirstName string `bun:"first_name" json:"first_name"`
@@ -49,9 +50,6 @@ type GuardianProfile struct {
 
 // BeforeAppendModel sets the correct table expression
 func (g *GuardianProfile) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`)
-	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`)
 	}

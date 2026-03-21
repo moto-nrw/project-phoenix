@@ -42,12 +42,11 @@ export async function extractParams(
 }
 
 export async function parseRequestBody<B>(request: NextRequest): Promise<B> {
-  try {
-    const text = await request.text();
-    return text ? (JSON.parse(text) as B) : ({} as B);
-  } catch {
+  const text = await request.text();
+  if (!text) {
     return {} as B;
   }
+  return JSON.parse(text) as B;
 }
 
 export function wrapInApiResponse<T>(data: T): ApiResponse<T> {

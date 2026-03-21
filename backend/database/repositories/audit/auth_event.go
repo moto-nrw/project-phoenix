@@ -6,9 +6,9 @@ import (
 	"errors"
 	"time"
 
-	"github.com/uptrace/bun"
-
+	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/audit"
+	"github.com/uptrace/bun"
 )
 
 // SQL clause constants
@@ -36,7 +36,9 @@ func (r *AuthEventRepository) Create(ctx context.Context, event *audit.AuthEvent
 		return err
 	}
 
-	_, err := r.db.NewInsert().
+	base.EnsureTenantID(ctx, event)
+
+	_, err := base.GetDB(ctx, r.db).NewInsert().
 		Model(event).
 		ModelTableExpr("audit.auth_events").
 		Exec(ctx)
@@ -47,7 +49,7 @@ func (r *AuthEventRepository) Create(ctx context.Context, event *audit.AuthEvent
 // FindByID finds an auth event by ID
 func (r *AuthEventRepository) FindByID(ctx context.Context, id interface{}) (*audit.AuthEvent, error) {
 	var event audit.AuthEvent
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&event).
 		ModelTableExpr(`audit.auth_events AS "auth_event"`).
 		Where("id = ?", id).
@@ -67,7 +69,7 @@ func (r *AuthEventRepository) FindByID(ctx context.Context, id interface{}) (*au
 func (r *AuthEventRepository) FindByAccountID(ctx context.Context, accountID int64, limit int) ([]*audit.AuthEvent, error) {
 	var events []*audit.AuthEvent
 
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&events).
 		ModelTableExpr(`audit.auth_events AS "auth_event"`).
 		Where(whereAccountIDEquals, accountID).
@@ -89,7 +91,7 @@ func (r *AuthEventRepository) FindByAccountID(ctx context.Context, accountID int
 func (r *AuthEventRepository) FindByEventType(ctx context.Context, eventType string, since time.Time) ([]*audit.AuthEvent, error) {
 	var events []*audit.AuthEvent
 
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&events).
 		ModelTableExpr(`audit.auth_events AS "auth_event"`).
 		Where("event_type = ?", eventType).
@@ -108,7 +110,7 @@ func (r *AuthEventRepository) FindByEventType(ctx context.Context, eventType str
 func (r *AuthEventRepository) FindFailedAttempts(ctx context.Context, accountID int64, since time.Time) ([]*audit.AuthEvent, error) {
 	var events []*audit.AuthEvent
 
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&events).
 		ModelTableExpr(`audit.auth_events AS "auth_event"`).
 		Where(whereAccountIDEquals, accountID).
@@ -126,7 +128,7 @@ func (r *AuthEventRepository) FindFailedAttempts(ctx context.Context, accountID 
 
 // CountFailedAttempts counts failed auth attempts for an account within a time window
 func (r *AuthEventRepository) CountFailedAttempts(ctx context.Context, accountID int64, since time.Time) (int, error) {
-	count, err := r.db.NewSelect().
+	count, err := base.GetDB(ctx, r.db).NewSelect().
 		Model((*audit.AuthEvent)(nil)).
 		ModelTableExpr(`audit.auth_events AS "auth_event"`).
 		Where(whereAccountIDEquals, accountID).
@@ -141,7 +143,7 @@ func (r *AuthEventRepository) CountFailedAttempts(ctx context.Context, accountID
 func (r *AuthEventRepository) CleanupOldEvents(ctx context.Context, olderThan time.Duration) (int, error) {
 	cutoffTime := time.Now().Add(-olderThan)
 
-	result, err := r.db.NewDelete().
+	result, err := base.GetDB(ctx, r.db).NewDelete().
 		Model((*audit.AuthEvent)(nil)).
 		ModelTableExpr("audit.auth_events").
 		Where("created_at < ?", cutoffTime).
@@ -159,7 +161,7 @@ func (r *AuthEventRepository) CleanupOldEvents(ctx context.Context, olderThan ti
 func (r *AuthEventRepository) List(ctx context.Context, filters map[string]interface{}) ([]*audit.AuthEvent, error) {
 	var events []*audit.AuthEvent
 
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&events).
 		ModelTableExpr(`audit.auth_events AS "auth_event"`).
 		Order(orderByCreatedAtDesc)

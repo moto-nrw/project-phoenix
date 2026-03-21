@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/facilities"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	userSvc "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -60,104 +61,110 @@ func (rs *Resource) Router() chi.Router {
 	r.Group(func(r chi.Router) {
 		r.Use(tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
+		r.Use(jwt.TenantMiddleware)
+		withTx := tenant.TenantTxMiddleware(rs.db)
 
 		// Active Groups
 		r.Route("/groups", func(r chi.Router) {
 			// Read operations
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/", rs.listActiveGroups)
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/unclaimed", rs.listUnclaimedGroups)
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}", rs.getActiveGroup)
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/room/{roomId}", rs.getActiveGroupsByRoom)
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get(routeGroupByGroupID, rs.getActiveGroupsByGroup)
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}/visits", rs.getActiveGroupVisits)
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}/visits/display", rs.getActiveGroupVisitsWithDisplay)
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}/supervisors", rs.getActiveGroupSupervisors)
+			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/", rs.listActiveGroups)
+			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/unclaimed", rs.listUnclaimedGroups)
+			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/{id}", rs.getActiveGroup)
+			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/room/{roomId}", rs.getActiveGroupsByRoom)
+			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get(routeGroupByGroupID, rs.getActiveGroupsByGroup)
+			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/{id}/visits", rs.getActiveGroupVisits)
+			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/{id}/visits/display", rs.getActiveGroupVisitsWithDisplay)
+			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/{id}/supervisors", rs.getActiveGroupSupervisors)
 
 			// Write operations
-			r.With(authorize.RequiresPermission(permissions.GroupsCreate)).Post("/", rs.createActiveGroup)
-			r.With(authorize.RequiresPermission(permissions.GroupsUpdate)).Put("/{id}", rs.updateActiveGroup)
-			r.With(authorize.RequiresPermission(permissions.GroupsDelete)).Delete("/{id}", rs.deleteActiveGroup)
-			r.With(authorize.RequiresPermission(permissions.GroupsUpdate)).Post(routeEndByID, rs.endActiveGroup)
-			r.With(authorize.RequiresPermission(permissions.GroupsUpdate)).Post("/{id}/claim", rs.claimGroup)
+			r.With(authorize.RequiresPermission(permissions.GroupsCreate), withTx).Post("/", rs.createActiveGroup)
+			r.With(authorize.RequiresPermission(permissions.GroupsUpdate), withTx).Put("/{id}", rs.updateActiveGroup)
+			r.With(authorize.RequiresPermission(permissions.GroupsDelete), withTx).Delete("/{id}", rs.deleteActiveGroup)
+			r.With(authorize.RequiresPermission(permissions.GroupsUpdate), withTx).Post(routeEndByID, rs.endActiveGroup)
+			r.With(authorize.RequiresPermission(permissions.GroupsUpdate), withTx).Post("/{id}/claim", rs.claimGroup)
 		})
 
 		// Visits
 		r.Route("/visits", func(r chi.Router) {
 			// Read operations
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/", rs.listVisits)
-			r.With(authorize.GetResourceAuthorizer().RequiresResourceAccess("visit", policy.ActionView, VisitIDExtractor())).Get("/{id}", rs.getVisit)
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/student/{studentId}", rs.getStudentVisits)
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/student/{studentId}/current", rs.getStudentCurrentVisit)
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get(routeGroupByGroupID, rs.getVisitsByGroup)
+			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/", rs.listVisits)
+			// RequiresResourceAccess needs DB → withTx goes before resource access check
+			r.With(withTx, authorize.GetResourceAuthorizer().RequiresResourceAccess("visit", policy.ActionView, VisitIDExtractor())).Get("/{id}", rs.getVisit)
+			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/student/{studentId}", rs.getStudentVisits)
+			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/student/{studentId}/current", rs.getStudentCurrentVisit)
+			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get(routeGroupByGroupID, rs.getVisitsByGroup)
 
 			// Write operations
-			r.With(authorize.RequiresPermission(permissions.GroupsCreate)).Post("/", rs.createVisit)
-			r.With(authorize.RequiresPermission(permissions.GroupsUpdate)).Put("/{id}", rs.updateVisit)
-			r.With(authorize.RequiresPermission(permissions.GroupsDelete)).Delete("/{id}", rs.deleteVisit)
-			r.With(authorize.RequiresPermission(permissions.GroupsUpdate)).Post(routeEndByID, rs.endVisit)
+			r.With(authorize.RequiresPermission(permissions.GroupsCreate), withTx).Post("/", rs.createVisit)
+			r.With(authorize.RequiresPermission(permissions.GroupsUpdate), withTx).Put("/{id}", rs.updateVisit)
+			r.With(authorize.RequiresPermission(permissions.GroupsDelete), withTx).Delete("/{id}", rs.deleteVisit)
+			r.With(authorize.RequiresPermission(permissions.GroupsUpdate), withTx).Post(routeEndByID, rs.endVisit)
 
 			// Immediate checkout for students
-			r.With(authorize.RequiresPermission(permissions.VisitsUpdate)).Post("/student/{studentId}/checkout", rs.checkoutStudent)
+			r.With(authorize.RequiresPermission(permissions.VisitsUpdate), withTx).Post("/student/{studentId}/checkout", rs.checkoutStudent)
 
 			// Immediate check-in for students (from home)
-			r.With(authorize.RequiresPermission(permissions.VisitsUpdate)).Post("/student/{studentId}/checkin", rs.checkinStudent)
+			r.With(authorize.RequiresPermission(permissions.VisitsUpdate), withTx).Post("/student/{studentId}/checkin", rs.checkinStudent)
 		})
 
 		// Supervisors
 		r.Route("/supervisors", func(r chi.Router) {
 			// Read operations
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/", rs.listSupervisors)
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}", rs.getSupervisor)
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/staff/{staffId}", rs.getStaffSupervisions)
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/staff/{staffId}/active", rs.getStaffActiveSupervisions)
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get(routeGroupByGroupID, rs.getSupervisorsByGroup)
+			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/", rs.listSupervisors)
+			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/{id}", rs.getSupervisor)
+			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/staff/{staffId}", rs.getStaffSupervisions)
+			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/staff/{staffId}/active", rs.getStaffActiveSupervisions)
+			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get(routeGroupByGroupID, rs.getSupervisorsByGroup)
 
 			// Write operations
-			r.With(authorize.RequiresPermission(permissions.GroupsAssign)).Post("/", rs.createSupervisor)
-			r.With(authorize.RequiresPermission(permissions.GroupsAssign)).Put("/{id}", rs.updateSupervisor)
-			r.With(authorize.RequiresPermission(permissions.GroupsAssign)).Delete("/{id}", rs.deleteSupervisor)
-			r.With(authorize.RequiresPermission(permissions.GroupsUpdate)).Post(routeEndByID, rs.endSupervision)
+			r.With(authorize.RequiresPermission(permissions.GroupsAssign), withTx).Post("/", rs.createSupervisor)
+			r.With(authorize.RequiresPermission(permissions.GroupsAssign), withTx).Put("/{id}", rs.updateSupervisor)
+			r.With(authorize.RequiresPermission(permissions.GroupsAssign), withTx).Delete("/{id}", rs.deleteSupervisor)
+			r.With(authorize.RequiresPermission(permissions.GroupsUpdate), withTx).Post(routeEndByID, rs.endSupervision)
 		})
 
 		// Combined Groups
 		r.Route("/combined", func(r chi.Router) {
 			// Read operations
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/", rs.listCombinedGroups)
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/active", rs.getActiveCombinedGroups)
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}", rs.getCombinedGroup)
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}/groups", rs.getCombinedGroupGroups)
+			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/", rs.listCombinedGroups)
+			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/active", rs.getActiveCombinedGroups)
+			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/{id}", rs.getCombinedGroup)
+			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/{id}/groups", rs.getCombinedGroupGroups)
 
 			// Write operations
-			r.With(authorize.RequiresPermission(permissions.GroupsCreate)).Post("/", rs.createCombinedGroup)
-			r.With(authorize.RequiresPermission(permissions.GroupsUpdate)).Put("/{id}", rs.updateCombinedGroup)
-			r.With(authorize.RequiresPermission(permissions.GroupsDelete)).Delete("/{id}", rs.deleteCombinedGroup)
-			r.With(authorize.RequiresPermission(permissions.GroupsUpdate)).Post(routeEndByID, rs.endCombinedGroup)
+			r.With(authorize.RequiresPermission(permissions.GroupsCreate), withTx).Post("/", rs.createCombinedGroup)
+			r.With(authorize.RequiresPermission(permissions.GroupsUpdate), withTx).Put("/{id}", rs.updateCombinedGroup)
+			r.With(authorize.RequiresPermission(permissions.GroupsDelete), withTx).Delete("/{id}", rs.deleteCombinedGroup)
+			r.With(authorize.RequiresPermission(permissions.GroupsUpdate), withTx).Post(routeEndByID, rs.endCombinedGroup)
 		})
 
 		// Group Mappings
 		r.Route("/mappings", func(r chi.Router) {
 			// Read operations
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get(routeGroupByGroupID, rs.getGroupMappings)
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/combined/{combinedId}", rs.getCombinedGroupMappings)
+			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get(routeGroupByGroupID, rs.getGroupMappings)
+			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/combined/{combinedId}", rs.getCombinedGroupMappings)
 
 			// Write operations
-			r.With(authorize.RequiresPermission(permissions.GroupsUpdate)).Post("/add", rs.addGroupToCombination)
-			r.With(authorize.RequiresPermission(permissions.GroupsUpdate)).Post("/remove", rs.removeGroupFromCombination)
+			r.With(authorize.RequiresPermission(permissions.GroupsUpdate), withTx).Post("/add", rs.addGroupToCombination)
+			r.With(authorize.RequiresPermission(permissions.GroupsUpdate), withTx).Post("/remove", rs.removeGroupFromCombination)
 		})
 
 		// Analytics
 		r.Route("/analytics", func(r chi.Router) {
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/counts", rs.getCounts)
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/room/{roomId}/utilization", rs.getRoomUtilization)
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/student/{studentId}/attendance", rs.getStudentAttendance)
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/dashboard", rs.getDashboardAnalytics)
+			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/counts", rs.getCounts)
+			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/room/{roomId}/utilization", rs.getRoomUtilization)
+			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/student/{studentId}/attendance", rs.getStudentAttendance)
+			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/dashboard", rs.getDashboardAnalytics)
 		})
+
+		// Cross-tenant students (Ferienbetreuung / holiday care)
+		r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/cross-tenant-students", rs.getCrossTenantStudents)
 
 		// Schulhof (schoolyard) - permanent outdoor supervision area
 		r.Route("/schulhof", func(r chi.Router) {
 			schulhofResource := NewSchulhofResource(rs.SchulhofService, rs.UserContextService)
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/status", schulhofResource.getSchulhofStatus)
-			r.With(authorize.RequiresPermission(permissions.GroupsUpdate)).Post("/supervise", schulhofResource.toggleSchulhofSupervision)
+			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/status", schulhofResource.getSchulhofStatus)
+			r.With(authorize.RequiresPermission(permissions.GroupsUpdate), withTx).Post("/supervise", schulhofResource.toggleSchulhofSupervision)
 		})
 
 	})

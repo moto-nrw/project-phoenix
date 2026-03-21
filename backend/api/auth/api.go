@@ -2,6 +2,7 @@ package auth
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net"
@@ -15,11 +16,13 @@ import (
 	"github.com/go-chi/render"
 	validation "github.com/go-ozzo/ozzo-validation"
 	"github.com/go-ozzo/ozzo-validation/is"
+	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
+	"github.com/moto-nrw/project-phoenix/models/platform"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 )
 
@@ -40,13 +43,17 @@ const (
 type Resource struct {
 	AuthService       authService.AuthService
 	InvitationService authService.InvitationService
+	SchoolRepo        platform.SchoolRepository
+	db                *bun.DB
 }
 
 // NewResource creates a new auth resource
-func NewResource(authService authService.AuthService, invitationService authService.InvitationService) *Resource {
+func NewResource(authService authService.AuthService, invitationService authService.InvitationService, schoolRepo platform.SchoolRepository, db *bun.DB) *Resource {
 	return &Resource{
 		AuthService:       authService,
 		InvitationService: invitationService,
+		SchoolRepo:        schoolRepo,
+		db:                db,
 	}
 }
 
@@ -65,6 +72,8 @@ func (rs *Resource) Router() chi.Router {
 	r.Post("/password-reset/confirm", rs.resetPassword)
 	r.Get("/invitations/{token}", rs.validateInvitation)
 	r.Post("/invitations/{token}/accept", rs.acceptInvitation)
+	r.Get("/tenant/resolve", rs.resolveTenant)
+	r.Get("/tenants", rs.listTenants)
 
 	// Protected routes that require refresh token
 	r.Group(func(r chi.Router) {
@@ -78,9 +87,14 @@ func (rs *Resource) Router() chi.Router {
 	r.Group(func(r chi.Router) {
 		r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
 		r.Use(jwt.Authenticator)
+		r.Use(jwt.TenantMiddleware)
+
+		// Tenant switching
+		r.Post("/switch-tenant", rs.switchTenant)
 
 		// Current user routes
 		r.Get("/account", rs.getAccount)
+		r.Get("/account/tenants", rs.listAccountTenants)
 
 		// Password change - users can change their own password without special permissions
 		r.Post("/password", rs.changePassword)
@@ -183,10 +197,193 @@ func (rs *Resource) Router() chi.Router {
 	return r
 }
 
+// TenantResolveResponse represents the public tenant info returned by resolve
+type TenantResolveResponse struct {
+	TenantID         int64           `json:"tenant_id"`
+	Slug             string          `json:"slug"`
+	Name             string          `json:"name"`
+	Subdomain        string          `json:"subdomain"`
+	OrganizationID   int64           `json:"organization_id"`
+	OrganizationName string          `json:"organization_name"`
+	Settings         json.RawMessage `json:"settings"`
+}
+
+// resolveTenant handles GET /auth/tenant/resolve?slug={slug}
+func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
+	slug := strings.TrimSpace(r.URL.Query().Get("slug"))
+	if slug == "" {
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("slug query parameter is required")))
+		return
+	}
+
+	school, err := rs.SchoolRepo.FindBySubdomain(r.Context(), slug)
+	if err != nil {
+		common.RenderError(w, r, ErrorNotFound(errors.New("tenant not found")))
+		return
+	}
+
+	if !school.Active {
+		common.RenderError(w, r, ErrorNotFound(errors.New("tenant not found")))
+		return
+	}
+
+	// Parse settings JSON; fall back to empty object on invalid data
+	settings := json.RawMessage(school.Settings)
+	if !json.Valid(settings) {
+		settings = json.RawMessage(`{}`)
+	}
+
+	var orgName string
+	if school.Organization != nil {
+		orgName = school.Organization.Name
+	}
+
+	resp := &TenantResolveResponse{
+		TenantID:         school.ID,
+		Slug:             school.Slug,
+		Name:             school.Name,
+		Subdomain:        school.Subdomain,
+		OrganizationID:   school.OrganizationID,
+		OrganizationName: orgName,
+		Settings:         settings,
+	}
+
+	common.Respond(w, r, http.StatusOK, resp, "Tenant resolved successfully")
+}
+
+// SwitchTenantRequest represents the switch-tenant request payload
+type SwitchTenantRequest struct {
+	TenantSlug string `json:"tenant_slug"`
+}
+
+// Bind validates the switch-tenant request
+func (req *SwitchTenantRequest) Bind(_ *http.Request) error {
+	req.TenantSlug = strings.TrimSpace(req.TenantSlug)
+
+	return validation.ValidateStruct(req,
+		validation.Field(&req.TenantSlug, validation.Required),
+	)
+}
+
+// switchTenant handles POST /auth/switch-tenant
+func (rs *Resource) switchTenant(w http.ResponseWriter, r *http.Request) {
+	req := &SwitchTenantRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, ErrorInvalidRequest(err))
+		return
+	}
+
+	// Get account ID from JWT claims
+	claims := jwt.ClaimsFromCtx(r.Context())
+
+	accessToken, refreshToken, err := rs.AuthService.SwitchTenant(r.Context(), int64(claims.ID), req.TenantSlug)
+	if err != nil {
+		var authErr *authService.AuthError
+		if errors.As(err, &authErr) {
+			switch {
+			case errors.Is(authErr.Err, authService.ErrAccountNotFound):
+				common.RenderError(w, r, ErrorUnauthorized(authService.ErrAccountNotFound))
+			case errors.Is(authErr.Err, authService.ErrAccountInactive):
+				common.RenderError(w, r, ErrorUnauthorized(authService.ErrAccountInactive))
+			case errors.Is(authErr.Err, authService.ErrTenantNotFound):
+				common.RenderError(w, r, ErrorNotFound(authService.ErrTenantNotFound))
+			case errors.Is(authErr.Err, authService.ErrTenantAccessDenied):
+				common.RenderError(w, r, ErrorUnauthorized(authService.ErrTenantAccessDenied))
+			default:
+				common.RenderError(w, r, ErrorInternalServer(err))
+			}
+			return
+		}
+		common.RenderError(w, r, ErrorInternalServer(err))
+		return
+	}
+
+	// Return tokens in the same format as login
+	render.JSON(w, r, TokenResponse{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+	})
+}
+
+// AccountTenantResponse represents a tenant available to the authenticated user
+type AccountTenantResponse struct {
+	TenantID         int64  `json:"tenant_id"`
+	Slug             string `json:"slug"`
+	Name             string `json:"name"`
+	Subdomain        string `json:"subdomain"`
+	OrganizationID   int64  `json:"organization_id"`
+	OrganizationName string `json:"organization_name"`
+}
+
+// listAccountTenants handles GET /auth/account/tenants
+func (rs *Resource) listAccountTenants(w http.ResponseWriter, r *http.Request) {
+	claims := jwt.ClaimsFromCtx(r.Context())
+
+	schools, err := rs.SchoolRepo.FindActiveByAccountID(r.Context(), int64(claims.ID))
+	if err != nil {
+		common.RenderError(w, r, ErrorInternalServer(err))
+		return
+	}
+
+	responses := make([]AccountTenantResponse, 0, len(schools))
+	for _, school := range schools {
+		var orgName string
+		if school.Organization != nil {
+			orgName = school.Organization.Name
+		}
+		responses = append(responses, AccountTenantResponse{
+			TenantID:         school.ID,
+			Slug:             school.Slug,
+			Name:             school.Name,
+			Subdomain:        school.Subdomain,
+			OrganizationID:   school.OrganizationID,
+			OrganizationName: orgName,
+		})
+	}
+
+	common.Respond(w, r, http.StatusOK, responses, "Account tenants retrieved successfully")
+}
+
+// PublicTenantResponse is the public-facing tenant info returned by the
+// unauthenticated /auth/tenants endpoint. It intentionally omits internal
+// database IDs (tenant_id, organization_id) to prevent enumeration.
+type PublicTenantResponse struct {
+	Slug             string `json:"slug"`
+	Name             string `json:"name"`
+	Subdomain        string `json:"subdomain"`
+	OrganizationName string `json:"organization_name"`
+}
+
+// listTenants handles GET /auth/tenants (public, no auth required)
+func (rs *Resource) listTenants(w http.ResponseWriter, r *http.Request) {
+	schools, err := rs.SchoolRepo.ListActive(r.Context())
+	if err != nil {
+		common.RenderError(w, r, ErrorInternalServer(err))
+		return
+	}
+
+	responses := make([]PublicTenantResponse, 0, len(schools))
+	for _, school := range schools {
+		var orgName string
+		if school.Organization != nil {
+			orgName = school.Organization.Name
+		}
+		responses = append(responses, PublicTenantResponse{
+			Slug:             school.Slug,
+			Name:             school.Name,
+			Subdomain:        school.Subdomain,
+			OrganizationName: orgName,
+		})
+	}
+
+	common.Respond(w, r, http.StatusOK, responses, "Tenants retrieved successfully")
+}
+
 // LoginRequest represents the login request payload
 type LoginRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Email      string `json:"email"`
+	Password   string `json:"password"`
+	TenantSlug string `json:"tenant_slug,omitempty"`
 }
 
 // Bind validates the login request
@@ -217,7 +414,7 @@ func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 	ipAddress := getClientIP(r)
 	userAgent := r.Header.Get(headerUserAgent)
 
-	accessToken, refreshToken, err := rs.AuthService.LoginWithAudit(r.Context(), req.Email, req.Password, ipAddress, userAgent)
+	accessToken, refreshToken, err := rs.AuthService.LoginWithAudit(r.Context(), req.Email, req.Password, ipAddress, userAgent, req.TenantSlug)
 	if err != nil {
 		var authErr *authService.AuthError
 		if errors.As(err, &authErr) {
@@ -228,6 +425,10 @@ func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 				common.RenderError(w, r, ErrorUnauthorized(authService.ErrInvalidCredentials)) // Mask the specific error
 			case errors.Is(authErr.Err, authService.ErrAccountInactive):
 				common.RenderError(w, r, ErrorUnauthorized(authService.ErrAccountInactive))
+			case errors.Is(authErr.Err, authService.ErrTenantNotFound):
+				common.RenderError(w, r, ErrorNotFound(authService.ErrTenantNotFound))
+			case errors.Is(authErr.Err, authService.ErrTenantAccessDenied):
+				common.RenderError(w, r, ErrorUnauthorized(authService.ErrTenantAccessDenied))
 			default:
 				common.RenderError(w, r, ErrorInternalServer(err))
 			}
@@ -290,12 +491,12 @@ func (rs *Resource) register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Authorize role assignment (if role_id specified)
-	roleID, shouldReturn := rs.authorizeRoleAssignment(w, r, req.RoleID)
+	roleID, callerTenantID, shouldReturn := rs.authorizeRoleAssignment(w, r, req.RoleID)
 	if shouldReturn {
 		return
 	}
 
-	account, err := rs.AuthService.Register(r.Context(), req.Email, req.Username, req.Password, roleID)
+	account, err := rs.AuthService.Register(r.Context(), req.Email, req.Username, req.Password, roleID, callerTenantID)
 	if err != nil {
 		rs.handleRegistrationError(w, r, err)
 		return
@@ -306,22 +507,23 @@ func (rs *Resource) register(w http.ResponseWriter, r *http.Request) {
 }
 
 // authorizeRoleAssignment checks if the caller is an authenticated admin and has provided a valid role_id.
-// Registration always requires admin authentication. Returns the authorized role ID and a boolean
-// indicating if the handler should return early (true = error was rendered, caller should return).
-func (rs *Resource) authorizeRoleAssignment(w http.ResponseWriter, r *http.Request, requestedRoleID *int64) (*int64, bool) {
+// Registration always requires admin authentication. Returns the authorized role ID, the caller's
+// tenant ID (from JWT), and a boolean indicating if the handler should return early (true = error
+// was rendered, caller should return).
+func (rs *Resource) authorizeRoleAssignment(w http.ResponseWriter, r *http.Request, requestedRoleID *int64) (*int64, int64, bool) {
 	authHeader := r.Header.Get("Authorization")
 	if !isValidAuthHeader(authHeader) {
 		common.RenderError(w, r, ErrorUnauthorized(
 			errors.New("admin authentication required to create accounts")))
-		return nil, true
+		return nil, 0, true
 	}
 
 	token := authHeader[7:]
-	callerAccount, err := rs.AuthService.ValidateToken(r.Context(), token)
+	callerAccount, callerClaims, err := rs.AuthService.ValidateToken(r.Context(), token)
 	if err != nil {
 		common.RenderError(w, r, ErrorUnauthorized(
 			errors.New("invalid or expired token")))
-		return nil, true
+		return nil, 0, true
 	}
 
 	if !hasAdminRole(callerAccount.Roles) {
@@ -329,13 +531,19 @@ func (rs *Resource) authorizeRoleAssignment(w http.ResponseWriter, r *http.Reque
 			slog.Int64("account_id", callerAccount.ID))
 		common.RenderError(w, r, ErrorUnauthorized(
 			errors.New("only administrators can create accounts")))
-		return nil, true
+		return nil, 0, true
 	}
 
 	if requestedRoleID == nil || *requestedRoleID <= 0 {
 		common.RenderError(w, r, ErrorInvalidRequest(
 			errors.New("role_id is required when creating accounts")))
-		return nil, true
+		return nil, 0, true
+	}
+
+	if callerClaims.TenantID <= 0 {
+		common.RenderError(w, r, ErrorInvalidRequest(
+			authService.ErrTenantRequiredForRoleAssignment))
+		return nil, 0, true
 	}
 
 	// Verify the role actually exists in the database
@@ -351,10 +559,10 @@ func (rs *Resource) authorizeRoleAssignment(w http.ResponseWriter, r *http.Reque
 			common.RenderError(w, r, ErrorInternalServer(
 				errors.New("failed to verify role")))
 		}
-		return nil, true
+		return nil, 0, true
 	}
 
-	return requestedRoleID, false
+	return requestedRoleID, callerClaims.TenantID, false
 }
 
 // isValidAuthHeader checks if the Authorization header contains a valid Bearer token format
@@ -387,6 +595,8 @@ func (rs *Resource) handleRegistrationError(w http.ResponseWriter, r *http.Reque
 		common.RenderError(w, r, ErrorInvalidRequest(authService.ErrUsernameAlreadyExists))
 	case errors.Is(authErr.Err, authService.ErrPasswordTooWeak):
 		common.RenderError(w, r, ErrorInvalidRequest(authService.ErrPasswordTooWeak))
+	case errors.Is(authErr.Err, authService.ErrTenantRequiredForRoleAssignment):
+		common.RenderError(w, r, ErrorInvalidRequest(authService.ErrTenantRequiredForRoleAssignment))
 	default:
 		common.RenderError(w, r, ErrorInternalServer(err))
 	}
@@ -1984,4 +2194,19 @@ func (rs *Resource) DeactivateParentAccountHandler() http.HandlerFunc {
 // ListParentAccountsHandler returns the listParentAccounts handler for testing
 func (rs *Resource) ListParentAccountsHandler() http.HandlerFunc {
 	return rs.listParentAccounts
+}
+
+// ResolveTenantHandler returns the resolveTenant handler for testing
+func (rs *Resource) ResolveTenantHandler() http.HandlerFunc {
+	return rs.resolveTenant
+}
+
+// SwitchTenantHandler returns the switchTenant handler for testing
+func (rs *Resource) SwitchTenantHandler() http.HandlerFunc {
+	return rs.switchTenant
+}
+
+// ListAccountTenantsHandler returns the listAccountTenants handler for testing
+func (rs *Resource) ListAccountTenantsHandler() http.HandlerFunc {
+	return rs.listAccountTenants
 }

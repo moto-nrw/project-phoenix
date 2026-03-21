@@ -21,6 +21,8 @@ import (
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 // Resource defines the staff API resource
@@ -33,6 +35,7 @@ type Resource struct {
 	GroupSupervisorRepo active.GroupSupervisorRepository
 	WorkSessionService  activeSvc.WorkSessionService
 	AbsenceRepo         active.StaffAbsenceRepository
+	db                  *bun.DB
 }
 
 // NewResource creates a new staff resource
@@ -43,6 +46,7 @@ func NewResource(
 	groupSupervisorRepo active.GroupSupervisorRepository,
 	workSessionService activeSvc.WorkSessionService,
 	absenceRepo active.StaffAbsenceRepository,
+	db *bun.DB,
 ) *Resource {
 	return &Resource{
 		PersonService:       personService,
@@ -53,6 +57,7 @@ func NewResource(
 		GroupSupervisorRepo: groupSupervisorRepo,
 		WorkSessionService:  workSessionService,
 		AbsenceRepo:         absenceRepo,
+		db:                  db,
 	}
 }
 
@@ -68,24 +73,26 @@ func (rs *Resource) Router() chi.Router {
 	r.Group(func(r chi.Router) {
 		r.Use(tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
+		r.Use(jwt.TenantMiddleware)
+		withTx := tenant.TenantTxMiddleware(rs.db)
 
 		// Read operations only require users:read permission
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/", rs.listStaff)
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}", rs.getStaff)
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}/groups", rs.getStaffGroups)
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}/substitutions", rs.getStaffSubstitutions)
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/available", rs.getAvailableStaff)
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/available-for-substitution", rs.getAvailableForSubstitution)
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/by-role", rs.getStaffByRole)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/", rs.listStaff)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}", rs.getStaff)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/groups", rs.getStaffGroups)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/substitutions", rs.getStaffSubstitutions)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/available", rs.getAvailableStaff)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/available-for-substitution", rs.getAvailableForSubstitution)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/by-role", rs.getStaffByRole)
 
 		// Write operations require users:create, users:update, or users:delete permission
-		r.With(authorize.RequiresPermission(permissions.UsersCreate)).Post("/", rs.createStaff)
-		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Put("/{id}", rs.updateStaff)
-		r.With(authorize.RequiresPermission(permissions.UsersDelete)).Delete("/{id}", rs.deleteStaff)
+		r.With(authorize.RequiresPermission(permissions.UsersCreate), withTx).Post("/", rs.createStaff)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}", rs.updateStaff)
+		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Delete("/{id}", rs.deleteStaff)
 
 		// PIN management endpoints - staff can manage their own PIN
-		r.Get("/pin", rs.getPINStatus)
-		r.Put("/pin", rs.updatePIN)
+		r.With(withTx).Get("/pin", rs.getPINStatus)
+		r.With(withTx).Put("/pin", rs.updatePIN)
 	})
 
 	return r
@@ -443,8 +450,44 @@ func (rs *Resource) createStaff(w http.ResponseWriter, r *http.Request) {
 		StaffNotes: req.StaffNotes,
 	}
 
-	// Create staff record
-	if err := rs.StaffRepo.Create(r.Context(), staff); err != nil {
+	// Create staff record (and optionally teacher) in tenant transaction
+	isTeacher := req.IsTeacher
+	var teacher *users.Teacher
+	var teacherCreationFailed bool
+
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		if err := rs.StaffRepo.Create(ctx, staff); err != nil {
+			return err
+		}
+
+		// If request indicates this is a teacher, create teacher record as well
+		if isTeacher {
+			teacher = &users.Teacher{
+				StaffID:        staff.ID,
+				Specialization: strings.TrimSpace(req.Specialization),
+				Role:           req.Role,
+				Qualifications: req.Qualifications,
+			}
+
+			if rs.TeacherRepo.Create(ctx, teacher) != nil {
+				// Still return staff member even if teacher creation fails
+				isTeacher = false
+				teacherCreationFailed = true
+			}
+		}
+
+		// Grant groups:read permission if they have an account
+		if person.AccountID != nil {
+			if isTeacher {
+				rs.grantDefaultPermissions(ctx, *person.AccountID, "teacher")
+			} else if !teacherCreationFailed {
+				rs.grantDefaultPermissions(ctx, *person.AccountID, "staff")
+			}
+		}
+
+		return nil
+	}); err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
@@ -452,40 +495,17 @@ func (rs *Resource) createStaff(w http.ResponseWriter, r *http.Request) {
 	// Set person data for response
 	staff.Person = person
 
-	// If request indicates this is a teacher, create teacher record as well
-	isTeacher := req.IsTeacher
-	var teacher *users.Teacher
+	if teacherCreationFailed {
+		response := newStaffResponse(staff, false, false, "", "")
+		common.Respond(w, r, http.StatusCreated, response, "Staff member created successfully, but failed to create teacher record")
+		return
+	}
 
 	if isTeacher {
-		teacher = &users.Teacher{
-			StaffID:        staff.ID,
-			Specialization: strings.TrimSpace(req.Specialization),
-			Role:           req.Role,
-			Qualifications: req.Qualifications,
-		}
-
-		if rs.TeacherRepo.Create(r.Context(), teacher) != nil {
-			// Still return staff member even if teacher creation fails
-			isTeacher = false
-			response := newStaffResponse(staff, isTeacher, false, "", "")
-			common.Respond(w, r, http.StatusCreated, response, "Staff member created successfully, but failed to create teacher record")
-			return
-		}
-
-		// Grant groups:read permission to teacher if they have an account
-		if person.AccountID != nil {
-			rs.grantDefaultPermissions(r.Context(), *person.AccountID, "teacher")
-		}
-
 		// Return teacher response
 		response := newTeacherResponse(staff, teacher, false, "", "")
 		common.Respond(w, r, http.StatusCreated, response, "Teacher created successfully")
 		return
-	}
-
-	// Grant groups:read permission to staff if they have an account
-	if person.AccountID != nil {
-		rs.grantDefaultPermissions(r.Context(), *person.AccountID, "staff")
 	}
 
 	// Return staff response
@@ -523,19 +543,28 @@ func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err := rs.StaffRepo.Update(r.Context(), staff); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	var response interface{}
+	var message string
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		if err := rs.StaffRepo.Update(ctx, staff); err != nil {
+			return err
+		}
+
+		// Reload staff with person data
+		rs.reloadStaffWithPerson(ctx, staff, id)
+
+		// Get existing teacher record if any
+		teacher, _ := rs.TeacherRepo.FindByStaffID(ctx, staff.ID)
+
+		// Handle teacher record based on request
+		response, message = rs.buildUpdateStaffResponse(ctx, staff, req, teacher)
+		return nil
+	}); err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
-	// Reload staff with person data
-	rs.reloadStaffWithPerson(r.Context(), staff, id)
-
-	// Get existing teacher record if any
-	teacher, _ := rs.TeacherRepo.FindByStaffID(r.Context(), staff.ID)
-
-	// Handle teacher record based on request
-	response, message := rs.buildUpdateStaffResponse(r.Context(), staff, req, teacher)
 	common.Respond(w, r, http.StatusOK, response, message)
 }
 
@@ -593,18 +622,20 @@ func (rs *Resource) deleteStaff(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if this staff member is also a teacher
-	teacher, err := rs.TeacherRepo.FindByStaffID(r.Context(), id)
-	if err == nil && teacher != nil {
-		// Delete teacher record first
-		if rs.TeacherRepo.Delete(r.Context(), teacher.ID) != nil {
-			common.RenderError(w, r, ErrorInternalServer(errors.New("failed to delete teacher record")))
-			return
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		// Check if this staff member is also a teacher
+		teacher, err := rs.TeacherRepo.FindByStaffID(ctx, id)
+		if err == nil && teacher != nil {
+			// Delete teacher record first
+			if rs.TeacherRepo.Delete(ctx, teacher.ID) != nil {
+				return errors.New("failed to delete teacher record")
+			}
 		}
-	}
 
-	// Delete staff member
-	if err := rs.StaffRepo.Delete(r.Context(), id); err != nil {
+		// Delete staff member
+		return rs.StaffRepo.Delete(ctx, id)
+	}); err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
@@ -977,7 +1008,10 @@ func (rs *Resource) updatePIN(w http.ResponseWriter, r *http.Request) {
 	}
 	account.ResetPINAttempts()
 
-	if err := rs.AuthService.UpdateAccount(r.Context(), account); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.AuthService.UpdateAccount(ctx, account)
+	}); err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}

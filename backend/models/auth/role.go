@@ -12,7 +12,8 @@ import (
 // Role represents a user role
 type Role struct {
 	base.Model  `bun:"schema:auth,table:roles"`
-	Name        string `bun:"name,notnull,unique" json:"name"`
+	TenantID    *int64 `bun:"tenant_id" json:"tenant_id,omitempty"`
+	Name        string `bun:"name,notnull" json:"name"`
 	Description string `bun:"description" json:"description"`
 	IsSystem    bool   `bun:"is_system,notnull,default:false" json:"is_system"`
 
@@ -26,9 +27,6 @@ func (r *Role) TableName() string {
 }
 
 func (r *Role) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(`auth.roles AS "role"`)
-	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr(`auth.roles AS "role"`)
 	}

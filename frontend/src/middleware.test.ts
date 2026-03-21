@@ -4,6 +4,7 @@ import { NextRequest } from "next/server";
 const OPERATOR_HOSTNAME = "operator.localhost:3000";
 
 vi.stubEnv("NEXT_PUBLIC_OPERATOR_HOSTNAME", OPERATOR_HOSTNAME);
+vi.stubEnv("TENANT_DOMAIN", "localhost");
 
 // Import after env is stubbed — middleware reads the env var at module load
 const { middleware } = await import("./middleware");
@@ -132,6 +133,18 @@ describe("middleware", () => {
 
       const rewrite = res.headers.get("x-middleware-rewrite");
       expect(rewrite).toContain("/operator/settings");
+    });
+
+    it("rewrites /provisioning to /operator/provisioning", () => {
+      const res = middleware(
+        makeRequest(
+          `http://${OPERATOR_HOSTNAME}/provisioning`,
+          OPERATOR_HOSTNAME,
+        ),
+      );
+
+      const rewrite = res.headers.get("x-middleware-rewrite");
+      expect(rewrite).toContain("/operator/provisioning");
     });
 
     it("passes through /_next routes", () => {

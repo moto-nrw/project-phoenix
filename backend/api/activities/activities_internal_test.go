@@ -222,7 +222,7 @@ func TestBatchEnrollmentRequest_EmptyList(t *testing.T) {
 // =============================================================================
 
 func TestNewResource_ReturnsResource(t *testing.T) {
-	resource := NewResource(nil, nil, nil, nil)
+	resource := NewResource(nil, nil, nil, nil, nil)
 	assert.NotNil(t, resource)
 }
 

@@ -48,9 +48,12 @@ const DEBOUNCE_MS = 500;
 export function useGlobalSSE(): SSEHookState {
   const { data: session, status: sessionStatus } = useSession();
 
-  // Only enable SSE when authenticated
+  // Only enable SSE when authenticated AND user is staff (has "user" role).
+  // Admin-only accounts lack a person/staff record, so the backend SSE
+  // endpoint rejects them with 401 — skip the connection entirely.
+  const isStaff = session?.user?.roles?.includes("user") ?? false;
   const isAuthenticated =
-    sessionStatus === "authenticated" && !!session?.user?.token;
+    sessionStatus === "authenticated" && !!session?.user?.token && isStaff;
 
   // Debounce state: collect affected group IDs, flush once after DEBOUNCE_MS
   const pendingGroupIds = useRef(new Set<string>());
@@ -194,9 +197,12 @@ export function useGlobalSSE(): SSEHookState {
     [scheduleFlush],
   );
 
-  // Use the underlying SSE hook with global event handler
+  // Use the underlying SSE hook with global event handler.
+  // reconnectKey ensures the EventSource tears down and reconnects with a
+  // fresh JWT whenever the user switches tenant.
   return useSSE("/api/sse/events", {
     onMessage: handleSSEEvent,
     enabled: isAuthenticated,
+    reconnectKey: session?.user?.tenantId,
   });
 }

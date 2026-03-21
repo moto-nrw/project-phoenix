@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/render"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -55,6 +54,7 @@ func setupTestContext(t *testing.T) *testContext {
 		svc.UserContext,
 		repoFactory.Student,
 		repoFactory.GroupSubstitution,
+		db,
 	)
 
 	t.Cleanup(func() {
@@ -77,8 +77,7 @@ func setupProtectedRouter(t *testing.T) (*testContext, chi.Router) {
 
 	tc := setupTestContext(t)
 
-	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
+	router := testutil.NewTenantRouter(tc.db)
 
 	// Mount routes without JWT middleware for testing
 	router.Route("/groups", func(r chi.Router) {
@@ -843,8 +842,7 @@ func setupTransferRouter(t *testing.T) (*testContext, chi.Router) {
 
 	tc := setupTestContext(t)
 
-	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
+	router := testutil.NewTenantRouter(tc.db)
 
 	router.Route("/groups", func(r chi.Router) {
 		r.Route("/{id}/transfer", func(r chi.Router) {

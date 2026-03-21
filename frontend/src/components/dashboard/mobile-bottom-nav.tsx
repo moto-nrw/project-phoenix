@@ -107,6 +107,12 @@ const OPERATOR_MAIN_ITEMS: NavItem[] = [
     iconKey: "bell",
     alwaysShow: true,
   },
+  {
+    href: "/operator/provisioning",
+    label: "Schulen",
+    iconKey: "buildingOffice",
+    alwaysShow: true,
+  },
 ];
 
 // Additional navigation items that appear in the overflow menu

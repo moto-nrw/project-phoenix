@@ -1,7 +1,6 @@
 package users_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -25,7 +24,7 @@ func TestPrivacyConsentRepository_Create(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PrivacyConsent
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates consent with valid data", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Consent", "Create", "1a")
@@ -123,7 +122,7 @@ func TestPrivacyConsentRepository_FindByID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PrivacyConsent
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds existing consent", func(t *testing.T) {
 		consent := testpkg.CreateTestPrivacyConsent(t, db, "FindByID")
@@ -147,7 +146,7 @@ func TestPrivacyConsentRepository_FindByStudentID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PrivacyConsent
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds consents by student ID", func(t *testing.T) {
 		consent := testpkg.CreateTestPrivacyConsent(t, db, "ByStudent")
@@ -180,7 +179,7 @@ func TestPrivacyConsentRepository_FindByStudentIDAndPolicyVersion(t *testing.T) 
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PrivacyConsent
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds consent by student ID and policy version", func(t *testing.T) {
 		consent := testpkg.CreateTestPrivacyConsent(t, db, "ByVersion")
@@ -203,7 +202,7 @@ func TestPrivacyConsentRepository_Update(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PrivacyConsent
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates consent", func(t *testing.T) {
 		consent := testpkg.CreateTestPrivacyConsent(t, db, "Update")
@@ -238,7 +237,7 @@ func TestPrivacyConsentRepository_Accept(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PrivacyConsent
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("accepts consent", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Accept", "Consent", "2a")
@@ -270,7 +269,7 @@ func TestPrivacyConsentRepository_Revoke(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PrivacyConsent
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("revokes consent", func(t *testing.T) {
 		consent := testpkg.CreateTestPrivacyConsent(t, db, "Revoke")
@@ -291,7 +290,7 @@ func TestPrivacyConsentRepository_SetExpiryDate(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PrivacyConsent
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("sets expiry date", func(t *testing.T) {
 		consent := testpkg.CreateTestPrivacyConsent(t, db, "Expiry")
@@ -313,7 +312,7 @@ func TestPrivacyConsentRepository_SetRenewalRequired(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PrivacyConsent
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("sets renewal required to true", func(t *testing.T) {
 		consent := testpkg.CreateTestPrivacyConsent(t, db, "Renewal")
@@ -352,7 +351,7 @@ func TestPrivacyConsentRepository_UpdateDetails(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PrivacyConsent
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates details with valid JSON", func(t *testing.T) {
 		consent := testpkg.CreateTestPrivacyConsent(t, db, "Details")
@@ -388,7 +387,7 @@ func TestPrivacyConsentRepository_FindActiveByStudentID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PrivacyConsent
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds active consents for student", func(t *testing.T) {
 		consent := testpkg.CreateTestPrivacyConsent(t, db, "Active")
@@ -421,7 +420,7 @@ func TestPrivacyConsentRepository_FindExpired(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PrivacyConsent
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("runs query successfully", func(t *testing.T) {
 		_, err := repo.FindExpired(ctx)
@@ -434,7 +433,7 @@ func TestPrivacyConsentRepository_FindNeedingRenewal(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PrivacyConsent
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds consents needing renewal", func(t *testing.T) {
 		consent := testpkg.CreateTestPrivacyConsent(t, db, "NeedRenewal")
@@ -468,7 +467,7 @@ func TestPrivacyConsentRepository_List(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PrivacyConsent
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("lists with accepted filter", func(t *testing.T) {
 		consent := testpkg.CreateTestPrivacyConsent(t, db, "FilterAccepted")

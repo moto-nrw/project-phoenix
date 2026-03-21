@@ -10,13 +10,13 @@ import (
 
 // Table name constants for BUN ORM schema qualification
 const (
-	tableActiveGroupMappings   = "active.group_mappings"
-	tableExprGroupMappingsAsGM = `active.group_mappings AS "group_mapping"`
+	tableActiveGroupMappings = "active.group_mappings"
 )
 
 // GroupMapping represents a mapping between a combined group and an active group
 type GroupMapping struct {
-	base.Model            `bun:"schema:active,table:group_mappings"`
+	base.Model `bun:"schema:active,table:group_mappings"`
+	base.TenantModel
 	ActiveCombinedGroupID int64 `bun:"active_combined_group_id,notnull" json:"active_combined_group_id"`
 	ActiveGroupID         int64 `bun:"active_group_id,notnull" json:"active_group_id"`
 
@@ -26,9 +26,6 @@ type GroupMapping struct {
 }
 
 func (gm *GroupMapping) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(tableExprGroupMappingsAsGM)
-	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr(tableActiveGroupMappings)
 	}

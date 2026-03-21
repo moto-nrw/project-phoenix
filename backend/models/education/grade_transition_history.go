@@ -17,7 +17,8 @@ const (
 
 // GradeTransitionHistory records individual student changes during a grade transition
 type GradeTransitionHistory struct {
-	base.Model   `bun:"schema:education,table:grade_transition_history"`
+	base.Model `bun:"schema:education,table:grade_transition_history"`
+	base.TenantModel
 	TransitionID int64   `bun:"transition_id,notnull" json:"transition_id"`
 	StudentID    int64   `bun:"student_id,notnull" json:"student_id"`   // Keep even if student deleted
 	PersonName   string  `bun:"person_name,notnull" json:"person_name"` // Snapshot for audit trail

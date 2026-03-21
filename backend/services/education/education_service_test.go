@@ -1,7 +1,6 @@
 package education_test
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -43,7 +42,7 @@ func TestListGroups(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("successful list with name filter", func(t *testing.T) {
 		// ARRANGE: Create groups with specific names
@@ -127,7 +126,7 @@ func TestListSubstitutions(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("successful list substitutions", func(t *testing.T) {
 		// ARRANGE: Create required entities
@@ -182,7 +181,7 @@ func TestGetGroupTeachers(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("successful get teachers for group", func(t *testing.T) {
 		// ARRANGE: Create group and teachers
@@ -255,7 +254,7 @@ func TestCreateSubstitution_DateValidation(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("accepts future date", func(t *testing.T) {
 		// ARRANGE
@@ -382,7 +381,7 @@ func TestUpdateSubstitution_DateValidation(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("accepts future date update", func(t *testing.T) {
 		// ARRANGE
@@ -503,7 +502,7 @@ func TestGroupOperations(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("create group successfully", func(t *testing.T) {
 		// ARRANGE
@@ -580,7 +579,7 @@ func TestTeacherGroupOperations(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("add teacher to group via service", func(t *testing.T) {
 		// ARRANGE
@@ -687,7 +686,7 @@ func TestEducationService_UpdateGroup(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates group successfully", func(t *testing.T) {
 		// ARRANGE
@@ -760,7 +759,7 @@ func TestEducationService_DeleteGroup(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes group successfully", func(t *testing.T) {
 		// ARRANGE
@@ -806,7 +805,7 @@ func TestEducationService_GetGroupsByIDs(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("retrieves multiple groups by IDs", func(t *testing.T) {
 		// ARRANGE
@@ -839,7 +838,7 @@ func TestEducationService_FindGroupByName(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds group by name", func(t *testing.T) {
 		// ARRANGE
@@ -869,7 +868,7 @@ func TestEducationService_FindGroupsByRoom(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds groups by room", func(t *testing.T) {
 		// ARRANGE
@@ -902,7 +901,7 @@ func TestEducationService_UpdateGroupTeachers(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates group teachers", func(t *testing.T) {
 		// ARRANGE
@@ -962,7 +961,7 @@ func TestEducationService_DeleteSubstitution(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes substitution successfully", func(t *testing.T) {
 		// ARRANGE
@@ -996,35 +995,12 @@ func TestEducationService_DeleteSubstitution(t *testing.T) {
 	})
 }
 
-func TestEducationService_WithTx(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupEducationService(t, db)
-	ctx := context.Background()
-
-	t.Run("WithTx returns transactional service", func(t *testing.T) {
-		// ARRANGE
-		tx, err := db.BeginTx(ctx, nil)
-		require.NoError(t, err)
-		defer func() { _ = tx.Rollback() }()
-
-		// ACT
-		txService := service.WithTx(tx)
-
-		// ASSERT
-		require.NotNil(t, txService)
-		_, ok := txService.(educationSvc.Service)
-		assert.True(t, ok, "WithTx should return Service interface")
-	})
-}
-
 func TestEducationService_GetActiveSubstitutions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("retrieves active substitutions for date", func(t *testing.T) {
 		// ARRANGE
@@ -1057,7 +1033,7 @@ func TestEducationService_GetStaffSubstitutions(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("retrieves substitutions as substitute", func(t *testing.T) {
 		// ARRANGE
@@ -1125,7 +1101,7 @@ func TestEducationService_CheckSubstitutionConflicts(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("detects no conflicts for available period", func(t *testing.T) {
 		// ARRANGE
@@ -1173,7 +1149,7 @@ func TestEducationService_CreateGroup_EdgeCases(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("rejects group with invalid name", func(t *testing.T) {
 		// ARRANGE
@@ -1243,7 +1219,7 @@ func TestEducationService_ListGroups(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("lists groups with options", func(t *testing.T) {
 		// ARRANGE
@@ -1267,7 +1243,7 @@ func TestEducationService_FindGroupWithRoom(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds group with room", func(t *testing.T) {
 		// ARRANGE
@@ -1300,7 +1276,7 @@ func TestEducationService_AssignRoomToGroup(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error for non-existent group", func(t *testing.T) {
 		// ARRANGE
@@ -1332,7 +1308,7 @@ func TestEducationService_RemoveRoomFromGroup(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error for non-existent group", func(t *testing.T) {
 		// ACT
@@ -1348,7 +1324,7 @@ func TestEducationService_GetTeacherGroups(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error for non-existent teacher", func(t *testing.T) {
 		// ACT
@@ -1364,7 +1340,7 @@ func TestEducationService_GetSubstitution(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("retrieves substitution by ID", func(t *testing.T) {
 		// ARRANGE
@@ -1406,7 +1382,7 @@ func TestEducationService_ListSubstitutions(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupEducationService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("lists substitutions with options", func(t *testing.T) {
 		// ARRANGE

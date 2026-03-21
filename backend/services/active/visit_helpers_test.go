@@ -28,7 +28,7 @@ func TestCreateVisit_WithDevice(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupVisitHelperService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates attendance with physical device when device in context", func(t *testing.T) {
 		// ARRANGE: Create fixtures using testpkg (proven to work)
@@ -75,7 +75,7 @@ func TestCreateVisit_ReEntry(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupVisitHelperService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("clears checkout time on re-entry", func(t *testing.T) {
 		// ARRANGE: Create fixtures
@@ -168,6 +168,7 @@ func createAttendanceWithCheckout(t *testing.T, db *bun.DB, studentID, staffID, 
 		CheckedOutBy: &checkedOutBy,
 		DeviceID:     deviceID,
 	}
+	attendance.SetTenantID(1)
 
 	_, err := db.NewInsert().
 		Model(attendance).

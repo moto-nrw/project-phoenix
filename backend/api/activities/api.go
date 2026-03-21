@@ -22,6 +22,8 @@ import (
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	usercontextSvc "github.com/moto-nrw/project-phoenix/services/usercontext"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 const (
@@ -36,15 +38,17 @@ type Resource struct {
 	ScheduleService    scheduleSvc.Service
 	UserService        usersSvc.PersonService
 	UserContextService usercontextSvc.UserContextService
+	db                 *bun.DB
 }
 
 // NewResource creates a new activities resource
-func NewResource(activityService activitiesSvc.ActivityService, scheduleService scheduleSvc.Service, userService usersSvc.PersonService, userContextService usercontextSvc.UserContextService) *Resource {
+func NewResource(activityService activitiesSvc.ActivityService, scheduleService scheduleSvc.Service, userService usersSvc.PersonService, userContextService usercontextSvc.UserContextService, db *bun.DB) *Resource {
 	return &Resource{
 		ActivityService:    activityService,
 		ScheduleService:    scheduleService,
 		UserService:        userService,
 		UserContextService: userContextService,
+		db:                 db,
 	}
 }
 
@@ -60,41 +64,43 @@ func (rs *Resource) Router() chi.Router {
 	r.Group(func(r chi.Router) {
 		r.Use(tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
+		r.Use(jwt.TenantMiddleware)
+		withTx := tenant.TenantTxMiddleware(rs.db)
 
 		// Basic Activity Group operations (Read) - All authenticated users can read
-		r.Get("/", rs.listActivities)
-		r.Get("/{id}", rs.getActivity)
-		r.Get("/categories", rs.listCategories)
-		r.Get("/timespans", rs.getTimespans)
+		r.With(withTx).Get("/", rs.listActivities)
+		r.With(withTx).Get("/{id}", rs.getActivity)
+		r.With(withTx).Get("/categories", rs.listCategories)
+		r.With(withTx).Get("/timespans", rs.getTimespans)
 
 		// Basic Activity Group operations (Write) - All authenticated users can create/update/delete
-		r.Post("/", rs.createActivity)
-		r.Post("/quick-create", rs.quickCreateActivity)
-		r.Put("/{id}", rs.updateActivity)
-		r.Delete("/{id}", rs.deleteActivity)
+		r.With(withTx).Post("/", rs.createActivity)
+		r.With(withTx).Post("/quick-create", rs.quickCreateActivity)
+		r.With(withTx).Put("/{id}", rs.updateActivity)
+		r.With(withTx).Delete("/{id}", rs.deleteActivity)
 
 		// Schedule Management - All authenticated users can manage schedules
-		r.Get("/{id}/schedules", rs.getActivitySchedules)
-		r.Get(routeScheduleByID, rs.getActivitySchedule)
-		r.Get("/schedules/available", rs.getAvailableTimeSlots)
-		r.Post("/{id}/schedules", rs.createActivitySchedule)
-		r.Put(routeScheduleByID, rs.updateActivitySchedule)
-		r.Delete(routeScheduleByID, rs.deleteActivitySchedule)
+		r.With(withTx).Get("/{id}/schedules", rs.getActivitySchedules)
+		r.With(withTx).Get(routeScheduleByID, rs.getActivitySchedule)
+		r.With(withTx).Get("/schedules/available", rs.getAvailableTimeSlots)
+		r.With(withTx).Post("/{id}/schedules", rs.createActivitySchedule)
+		r.With(withTx).Put(routeScheduleByID, rs.updateActivitySchedule)
+		r.With(withTx).Delete(routeScheduleByID, rs.deleteActivitySchedule)
 
 		// Supervisor Assignment - All authenticated users can manage supervisors
-		r.Get("/{id}/supervisors", rs.getActivitySupervisors)
-		r.Get("/supervisors/available", rs.getAvailableSupervisors)
-		r.Post("/{id}/supervisors", rs.assignSupervisor)
-		r.Put("/{id}/supervisors/{supervisorId}", rs.updateSupervisorRole)
-		r.Delete("/{id}/supervisors/{supervisorId}", rs.removeSupervisor)
+		r.With(withTx).Get("/{id}/supervisors", rs.getActivitySupervisors)
+		r.With(withTx).Get("/supervisors/available", rs.getAvailableSupervisors)
+		r.With(withTx).Post("/{id}/supervisors", rs.assignSupervisor)
+		r.With(withTx).Put("/{id}/supervisors/{supervisorId}", rs.updateSupervisorRole)
+		r.With(withTx).Delete("/{id}/supervisors/{supervisorId}", rs.removeSupervisor)
 
 		// Student Enrollment - All authenticated users can manage enrollments
-		r.Get("/{id}/students", rs.getActivityStudents)
-		r.Get("/students/{studentId}", rs.getStudentEnrollments)
-		r.Get("/students/{studentId}/available", rs.getAvailableActivities)
-		r.Post("/{id}/students/{studentId}", rs.enrollStudent)
-		r.Delete("/{id}/students/{studentId}", rs.unenrollStudent)
-		r.Put("/{id}/students", rs.updateGroupEnrollments)
+		r.With(withTx).Get("/{id}/students", rs.getActivityStudents)
+		r.With(withTx).Get("/students/{studentId}", rs.getStudentEnrollments)
+		r.With(withTx).Get("/students/{studentId}/available", rs.getAvailableActivities)
+		r.With(withTx).Post("/{id}/students/{studentId}", rs.enrollStudent)
+		r.With(withTx).Delete("/{id}/students/{studentId}", rs.unenrollStudent)
+		r.With(withTx).Put("/{id}/students", rs.updateGroupEnrollments)
 	})
 
 	return r
@@ -935,8 +941,13 @@ func (rs *Resource) createActivity(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create the activity group with schedules and supervisors
-	createdGroup, err := rs.ActivityService.CreateGroup(r.Context(), group, req.SupervisorIDs, schedules)
-	if err != nil {
+	var createdGroup *activities.Group
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		var txErr error
+		createdGroup, txErr = rs.ActivityService.CreateGroup(ctx, group, req.SupervisorIDs, schedules)
+		return txErr
+	}); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -1002,8 +1013,13 @@ func (rs *Resource) quickCreateActivity(w http.ResponseWriter, r *http.Request) 
 	supervisorIDs := []int64{staff.ID}
 
 	// Create the activity group with auto-assigned teacher supervision
-	createdGroup, err := rs.ActivityService.CreateGroup(r.Context(), group, supervisorIDs, nil)
-	if err != nil {
+	var createdGroup *activities.Group
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		var txErr error
+		createdGroup, txErr = rs.ActivityService.CreateGroup(ctx, group, supervisorIDs, nil)
+		return txErr
+	}); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -1076,8 +1092,19 @@ func (rs *Resource) updateActivity(w http.ResponseWriter, r *http.Request) {
 	updateGroupFields(existingGroup, req)
 
 	// Pass staff ID and permission flag for ownership check
-	updatedGroup, err := rs.ActivityService.UpdateGroup(r.Context(), existingGroup, staffID, hasManagePermission)
-	if err != nil {
+	var updatedGroup *activities.Group
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		var txErr error
+		updatedGroup, txErr = rs.ActivityService.UpdateGroup(ctx, existingGroup, staffID, hasManagePermission)
+		if txErr != nil {
+			return txErr
+		}
+		// Update supervisors and schedules
+		rs.updateSupervisorsWithLogging(ctx, updatedGroup.ID, req.SupervisorIDs)
+		rs.replaceGroupSchedules(ctx, updatedGroup.ID, req.Schedules)
+		return nil
+	}); err != nil {
 		// Check for ownership error
 		if errors.Is(err, activitiesSvc.ErrNotOwner) {
 			common.RenderError(w, r, ErrorForbidden(err))
@@ -1086,10 +1113,6 @@ func (rs *Resource) updateActivity(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
-
-	// Update supervisors and schedules
-	rs.updateSupervisorsWithLogging(r.Context(), updatedGroup.ID, req.SupervisorIDs)
-	rs.replaceGroupSchedules(r.Context(), updatedGroup.ID, req.Schedules)
 
 	// Fetch updated group data with details
 	finalGroup, err := rs.fetchUpdatedGroupData(r.Context(), updatedGroup)
@@ -1126,7 +1149,10 @@ func (rs *Resource) deleteActivity(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Delete the activity with ownership check
-	if err := rs.ActivityService.DeleteGroup(r.Context(), id, staffID, hasManagePermission); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.ActivityService.DeleteGroup(ctx, id, staffID, hasManagePermission)
+	}); err != nil {
 		// Check for ownership error
 		if errors.Is(err, activitiesSvc.ErrNotOwner) {
 			common.RenderError(w, r, ErrorForbidden(err))
@@ -1269,7 +1295,10 @@ func (rs *Resource) unenrollStudent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Unenroll student
-	if err := rs.ActivityService.UnenrollStudent(r.Context(), activity.ID, studentID); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.ActivityService.UnenrollStudent(ctx, activity.ID, studentID)
+	}); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -1311,7 +1340,10 @@ func (rs *Resource) updateGroupEnrollments(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Update group enrollments
-	if err := rs.ActivityService.UpdateGroupEnrollments(r.Context(), activity.ID, req.StudentIDs); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.ActivityService.UpdateGroupEnrollments(ctx, activity.ID, req.StudentIDs)
+	}); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -1341,7 +1373,10 @@ func (rs *Resource) enrollStudent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Enroll student
-	if err := rs.ActivityService.EnrollStudent(r.Context(), activity.ID, studentID); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.ActivityService.EnrollStudent(ctx, activity.ID, studentID)
+	}); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -1553,8 +1588,13 @@ func (rs *Resource) createActivitySchedule(w http.ResponseWriter, r *http.Reques
 		TimeframeID:     req.TimeframeID,
 	}
 
-	createdSchedule, err := rs.ActivityService.AddSchedule(r.Context(), activity.ID, schedule)
-	if err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	var createdSchedule *activities.Schedule
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		var txErr error
+		createdSchedule, txErr = rs.ActivityService.AddSchedule(ctx, activity.ID, schedule)
+		return txErr
+	}); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -1604,8 +1644,13 @@ func (rs *Resource) updateActivitySchedule(w http.ResponseWriter, r *http.Reques
 	existingSchedule.TimeframeID = req.TimeframeID
 
 	// Update schedule
-	updatedSchedule, err := rs.ActivityService.UpdateSchedule(r.Context(), existingSchedule)
-	if err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	var updatedSchedule *activities.Schedule
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		var txErr error
+		updatedSchedule, txErr = rs.ActivityService.UpdateSchedule(ctx, existingSchedule)
+		return txErr
+	}); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -1638,7 +1683,10 @@ func (rs *Resource) deleteActivitySchedule(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Delete schedule
-	if err := rs.ActivityService.DeleteSchedule(r.Context(), scheduleID); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.ActivityService.DeleteSchedule(ctx, scheduleID)
+	}); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -1736,8 +1784,13 @@ func (rs *Resource) assignSupervisor(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Assign supervisor
-	supervisor, err := rs.ActivityService.AddSupervisor(r.Context(), activity.ID, req.StaffID, req.IsPrimary)
-	if err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	var supervisor *activities.SupervisorPlanned
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		var txErr error
+		supervisor, txErr = rs.ActivityService.AddSupervisor(ctx, activity.ID, req.StaffID, req.IsPrimary)
+		return txErr
+	}); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -1776,19 +1829,22 @@ func (rs *Resource) updateSupervisorRole(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// If making this supervisor primary, use the service method to handle it properly
-	if req.IsPrimary && !supervisor.IsPrimary {
-		if err := rs.ActivityService.SetPrimarySupervisor(r.Context(), supervisorID); err != nil {
-			common.RenderError(w, r, ErrorRenderer(err))
-			return
+	// Update supervisor role within tenant transaction
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		// If making this supervisor primary, use the service method to handle it properly
+		if req.IsPrimary && !supervisor.IsPrimary {
+			return rs.ActivityService.SetPrimarySupervisor(ctx, supervisorID)
+		} else if supervisor.IsPrimary != req.IsPrimary {
+			// Only update if the primary status is changing
+			supervisor.IsPrimary = req.IsPrimary
+			_, txErr := rs.ActivityService.UpdateSupervisor(ctx, supervisor)
+			return txErr
 		}
-	} else if supervisor.IsPrimary != req.IsPrimary {
-		// Only update if the primary status is changing
-		supervisor.IsPrimary = req.IsPrimary
-		if _, err := rs.ActivityService.UpdateSupervisor(r.Context(), supervisor); err != nil {
-			common.RenderError(w, r, ErrorRenderer(err))
-			return
-		}
+		return nil
+	}); err != nil {
+		common.RenderError(w, r, ErrorRenderer(err))
+		return
 	}
 
 	// Get the updated supervisor
@@ -1826,7 +1882,10 @@ func (rs *Resource) removeSupervisor(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Delete supervisor
-	if err := rs.ActivityService.DeleteSupervisor(r.Context(), supervisorID); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.ActivityService.DeleteSupervisor(ctx, supervisorID)
+	}); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}

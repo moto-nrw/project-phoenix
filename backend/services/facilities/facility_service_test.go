@@ -1,7 +1,6 @@
 package facilities_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -37,7 +36,7 @@ func TestFacilitiesService_GetRoom(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns room for valid ID", func(t *testing.T) {
 		// ARRANGE
@@ -83,7 +82,7 @@ func TestFacilitiesService_GetRoomWithOccupancy(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns room with occupancy status - unoccupied", func(t *testing.T) {
 		// ARRANGE
@@ -138,7 +137,7 @@ func TestFacilitiesService_CreateRoom(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates room successfully", func(t *testing.T) {
 		// ARRANGE
@@ -226,7 +225,7 @@ func TestFacilitiesService_UpdateRoom(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates room successfully", func(t *testing.T) {
 		// ARRANGE
@@ -314,7 +313,7 @@ func TestFacilitiesService_DeleteRoom(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes room successfully", func(t *testing.T) {
 		// ARRANGE
@@ -352,7 +351,7 @@ func TestFacilitiesService_ListRooms(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("lists all rooms with nil options", func(t *testing.T) {
 		// ARRANGE
@@ -437,7 +436,7 @@ func TestFacilitiesService_FindRoomByName(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds room by exact name", func(t *testing.T) {
 		// ARRANGE
@@ -474,7 +473,7 @@ func TestFacilitiesService_FindRoomsByBuilding(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds rooms in building", func(t *testing.T) {
 		// ARRANGE - rooms are created with "Test Building" by default
@@ -522,7 +521,7 @@ func TestFacilitiesService_FindRoomsByCategory(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds rooms by category", func(t *testing.T) {
 		// ARRANGE
@@ -566,7 +565,7 @@ func TestFacilitiesService_FindRoomsByFloor(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds rooms by building and floor", func(t *testing.T) {
 		// ARRANGE
@@ -611,7 +610,7 @@ func TestFacilitiesService_CheckRoomAvailability(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns true when capacity is sufficient", func(t *testing.T) {
 		// ARRANGE
@@ -692,7 +691,7 @@ func TestFacilitiesService_GetAvailableRooms(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns rooms with sufficient capacity", func(t *testing.T) {
 		// ARRANGE
@@ -758,7 +757,7 @@ func TestFacilitiesService_GetAvailableRoomsWithOccupancy(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns rooms with occupancy status", func(t *testing.T) {
 		// ARRANGE
@@ -829,7 +828,7 @@ func TestFacilitiesService_GetRoomUtilization(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns utilization for valid room", func(t *testing.T) {
 		// ARRANGE
@@ -884,7 +883,7 @@ func TestFacilitiesService_GetBuildingList(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns list of unique buildings", func(t *testing.T) {
 		// ARRANGE - Create rooms in different buildings
@@ -954,7 +953,7 @@ func TestFacilitiesService_GetCategoryList(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns list of unique categories", func(t *testing.T) {
 		// ARRANGE
@@ -1026,7 +1025,7 @@ func TestFacilitiesService_GetRoomHistory(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error for non-existent room", func(t *testing.T) {
 		// ARRANGE
@@ -1090,63 +1089,6 @@ func TestFacilitiesService_GetRoomHistory(t *testing.T) {
 			}
 		}
 		assert.True(t, found, "Visit should be in history")
-	})
-}
-
-// ============================================================================
-// Transaction Tests
-// ============================================================================
-
-func TestFacilitiesService_WithTx(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupFacilitiesService(t, db)
-	ctx := context.Background()
-
-	t.Run("WithTx returns transactional service", func(t *testing.T) {
-		// ARRANGE
-		tx, err := db.BeginTx(ctx, nil)
-		require.NoError(t, err)
-		defer func() { _ = tx.Rollback() }()
-
-		// ACT
-		txService := service.WithTx(tx)
-
-		// ASSERT
-		require.NotNil(t, txService)
-		_, ok := txService.(facilitiesSvc.Service)
-		assert.True(t, ok, "WithTx should return a Service interface")
-	})
-
-	t.Run("transactional service can perform operations", func(t *testing.T) {
-		// ARRANGE
-		capacity := 20
-		room := &facilities.Room{
-			Name:     "TxOp-" + time.Now().Format("20060102150405.000"),
-			Building: "Test Building",
-			Capacity: &capacity,
-		}
-
-		tx, err := db.BeginTx(ctx, nil)
-		require.NoError(t, err)
-
-		txService := service.WithTx(tx).(facilitiesSvc.Service)
-
-		// ACT: Create room in transaction
-		err = txService.CreateRoom(ctx, room)
-		require.NoError(t, err)
-		assert.NotZero(t, room.ID)
-
-		// Commit the transaction
-		err = tx.Commit()
-		require.NoError(t, err)
-
-		// ASSERT: Room should exist after commit
-		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
-		result, err := service.GetRoom(ctx, room.ID)
-		require.NoError(t, err)
-		assert.Equal(t, room.Name, result.Name)
 	})
 }
 

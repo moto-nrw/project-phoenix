@@ -25,8 +25,10 @@ type RecurrenceRuleRepository struct {
 
 // NewRecurrenceRuleRepository creates a new RecurrenceRuleRepository
 func NewRecurrenceRuleRepository(db *bun.DB) schedule.RecurrenceRuleRepository {
+	repo := repoBase.NewRepository[*schedule.RecurrenceRule](db, "schedule.recurrence_rules", "RecurrenceRule")
+	repo.TenantScoped = true
 	return &RecurrenceRuleRepository{
-		Repository: repoBase.NewRepository[*schedule.RecurrenceRule](db, "schedule.recurrence_rules", "RecurrenceRule"),
+		Repository: repo,
 		db:         db,
 	}
 }
@@ -34,11 +36,16 @@ func NewRecurrenceRuleRepository(db *bun.DB) schedule.RecurrenceRuleRepository {
 // FindByFrequency finds all recurrence rules with the specified frequency
 func (r *RecurrenceRuleRepository) FindByFrequency(ctx context.Context, frequency string) ([]*schedule.RecurrenceRule, error) {
 	var rules []*schedule.RecurrenceRule
-	err := r.db.NewSelect().
+	query := repoBase.GetDB(ctx, r.db).NewSelect().
 		Model(&rules).
 		ModelTableExpr(tableExprRecurrenceAsRR).
-		Where("LOWER(frequency) = LOWER(?)", frequency).
-		Scan(ctx)
+		Where("LOWER(frequency) = LOWER(?)", frequency)
+
+	if where, val, ok := repoBase.TenantWhere(ctx, "recurrence_rule"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -60,11 +67,16 @@ func (r *RecurrenceRuleRepository) FindByWeekday(ctx context.Context, weekday st
 		upperWeekday = weekday
 	}
 
-	err := r.db.NewSelect().
+	query := repoBase.GetDB(ctx, r.db).NewSelect().
 		Model(&rules).
 		ModelTableExpr(tableExprRecurrenceAsRR).
-		Where("? = ANY(weekdays)", upperWeekday).
-		Scan(ctx)
+		Where("? = ANY(weekdays)", upperWeekday)
+
+	if where, val, ok := repoBase.TenantWhere(ctx, "recurrence_rule"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -80,11 +92,16 @@ func (r *RecurrenceRuleRepository) FindByWeekday(ctx context.Context, weekday st
 func (r *RecurrenceRuleRepository) FindByMonthDay(ctx context.Context, day int) ([]*schedule.RecurrenceRule, error) {
 	var rules []*schedule.RecurrenceRule
 
-	err := r.db.NewSelect().
+	query := repoBase.GetDB(ctx, r.db).NewSelect().
 		Model(&rules).
 		ModelTableExpr(tableExprRecurrenceAsRR).
-		Where("? = ANY(month_days)", day).
-		Scan(ctx)
+		Where("? = ANY(month_days)", day)
+
+	if where, val, ok := repoBase.TenantWhere(ctx, "recurrence_rule"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -100,11 +117,16 @@ func (r *RecurrenceRuleRepository) FindByMonthDay(ctx context.Context, day int) 
 func (r *RecurrenceRuleRepository) FindByDateRange(ctx context.Context, startDate, _ time.Time) ([]*schedule.RecurrenceRule, error) {
 	var rules []*schedule.RecurrenceRule
 
-	err := r.db.NewSelect().
+	query := repoBase.GetDB(ctx, r.db).NewSelect().
 		Model(&rules).
 		ModelTableExpr(tableExprRecurrenceAsRR).
-		Where("(end_date IS NULL OR end_date >= ?)", startDate).
-		Scan(ctx)
+		Where("(end_date IS NULL OR end_date >= ?)", startDate)
+
+	if where, val, ok := repoBase.TenantWhere(ctx, "recurrence_rule"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -157,7 +179,11 @@ func (r *RecurrenceRuleRepository) Update(ctx context.Context, rule *schedule.Re
 // List retrieves recurrence rules matching the provided query options
 func (r *RecurrenceRuleRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.RecurrenceRule, error) {
 	rules := make([]*schedule.RecurrenceRule, 0)
-	query := r.db.NewSelect().Model(&rules).ModelTableExpr(tableExprRecurrenceAsRR)
+	query := repoBase.GetDB(ctx, r.db).NewSelect().Model(&rules).ModelTableExpr(tableExprRecurrenceAsRR)
+
+	if where, val, ok := repoBase.TenantWhere(ctx, "recurrence_rule"); ok {
+		query = query.Where(where, val)
+	}
 
 	// Apply query options
 	if options != nil {

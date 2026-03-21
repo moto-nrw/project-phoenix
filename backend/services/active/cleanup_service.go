@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -112,7 +113,9 @@ func (s *cleanupService) CleanupVisitsForStudent(ctx context.Context, studentID 
 		}
 	}
 
-	// Execute cleanup in transaction
+	// Phase 3 deviation: RunInTx retained because cleanup runs from the scheduler's forEachTenant loop,
+	// which already injects tenant context per-iteration. Handler-level WithTenantTx is not applicable
+	// because there is no HTTP handler or JWT involved in scheduled cleanup.
 	var deletedCount int64
 	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
 		// Delete expired visits
@@ -130,6 +133,7 @@ func (s *cleanupService) CleanupVisitsForStudent(ctx context.Context, studentID 
 				int(deletedCount),
 				"system",
 			)
+			deletion.SetTenantID(tenant.FromContext(ctx))
 			deletion.DeletionReason = fmt.Sprintf("Data retention policy: %d days", consent.GetDataRetentionDays())
 			deletion.SetMetadata("retention_days", consent.GetDataRetentionDays())
 			deletion.SetMetadata("consent_id", consent.ID)
@@ -307,6 +311,9 @@ func (s *cleanupService) processBatch(ctx context.Context, students []studentWit
 	return result
 }
 
+// Phase 3 deviation: RunInTx retained because processStudent runs from the scheduler's forEachTenant loop,
+// which already injects tenant context per-iteration. Handler-level WithTenantTx is not applicable
+// because there is no HTTP handler or JWT involved in scheduled batch cleanup.
 func (s *cleanupService) processStudent(ctx context.Context, student studentWithConsent) (int64, error) {
 	var deletedCount int64
 
@@ -326,6 +333,7 @@ func (s *cleanupService) processStudent(ctx context.Context, student studentWith
 				int(deletedCount),
 				"system",
 			)
+			deletion.SetTenantID(tenant.FromContext(ctx))
 			deletion.DeletionReason = fmt.Sprintf("Automated retention policy: %d days", student.DataRetentionDays)
 			deletion.SetMetadata("retention_days", student.DataRetentionDays)
 			deletion.SetMetadata("batch_cleanup", true)

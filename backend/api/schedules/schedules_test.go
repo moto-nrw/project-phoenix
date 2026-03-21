@@ -35,7 +35,7 @@ func setupTestContext(t *testing.T) *testContext {
 
 	db, svc := testutil.SetupAPITest(t)
 
-	resource := schedulesAPI.NewResource(svc.Schedule)
+	resource := schedulesAPI.NewResource(svc.Schedule, db)
 
 	return &testContext{
 		db:       db,
@@ -90,6 +90,8 @@ func TestGetCurrentDateframe_Success(t *testing.T) {
 		EndDate:   endDate,
 		Name:      fmt.Sprintf("Current Dateframe %d", time.Now().UnixNano()),
 	}
+
+	dateframe.SetTenantID(1)
 
 	_, err := ctx.db.NewInsert().
 		Model(dateframe).

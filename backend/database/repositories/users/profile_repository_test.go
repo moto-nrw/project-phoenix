@@ -1,7 +1,6 @@
 package users_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -24,7 +23,7 @@ func TestProfileRepository_Create(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Profile
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates profile with valid data", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "profile-create")
@@ -97,7 +96,7 @@ func TestProfileRepository_FindByID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Profile
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds existing profile", func(t *testing.T) {
 		profile := testpkg.CreateTestProfile(t, db, "findbyid")
@@ -121,7 +120,7 @@ func TestProfileRepository_FindByAccountID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Profile
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds profile by account ID", func(t *testing.T) {
 		profile := testpkg.CreateTestProfile(t, db, "byaccount")
@@ -145,7 +144,7 @@ func TestProfileRepository_Update(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Profile
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates profile", func(t *testing.T) {
 		profile := testpkg.CreateTestProfile(t, db, "update")
@@ -176,7 +175,7 @@ func TestProfileRepository_Delete(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Profile
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes existing profile", func(t *testing.T) {
 		profile := testpkg.CreateTestProfile(t, db, "delete")
@@ -201,7 +200,7 @@ func TestProfileRepository_UpdateAvatar(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Profile
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates avatar", func(t *testing.T) {
 		profile := testpkg.CreateTestProfile(t, db, "avatar")
@@ -223,7 +222,7 @@ func TestProfileRepository_UpdateBio(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Profile
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates bio", func(t *testing.T) {
 		profile := testpkg.CreateTestProfile(t, db, "bio")
@@ -245,7 +244,7 @@ func TestProfileRepository_UpdateSettings(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Profile
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates settings", func(t *testing.T) {
 		profile := testpkg.CreateTestProfile(t, db, "settings")
@@ -271,7 +270,7 @@ func TestProfileRepository_List(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Profile
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("lists all profiles", func(t *testing.T) {
 		profile := testpkg.CreateTestProfile(t, db, "listall")

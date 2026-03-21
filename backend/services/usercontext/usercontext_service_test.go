@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/models/users"
 	usercontextSvc "github.com/moto-nrw/project-phoenix/services/usercontext"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -43,9 +44,10 @@ func setupUserContextService(t *testing.T, db *bun.DB) usercontextSvc.UserContex
 // contextWithClaims creates a context with JWT claims
 func contextWithClaims(userID int) context.Context {
 	claims := jwt.AppClaims{
-		ID: userID,
+		ID:       userID,
+		TenantID: 1,
 	}
-	return context.WithValue(context.Background(), jwt.CtxClaims, claims)
+	return context.WithValue(testpkg.TenantContext(1), jwt.CtxClaims, claims)
 }
 
 // ============================================================================
@@ -500,33 +502,6 @@ func TestUserContextService_UpdateAvatar(t *testing.T) {
 }
 
 // ============================================================================
-// Transaction Tests
-// ============================================================================
-
-func TestUserContextService_WithTx(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupUserContextService(t, db)
-	ctx := context.Background()
-
-	t.Run("WithTx returns transactional service", func(t *testing.T) {
-		// ARRANGE
-		tx, err := db.BeginTx(ctx, nil)
-		require.NoError(t, err)
-		defer func() { _ = tx.Rollback() }()
-
-		// ACT
-		txService := service.WithTx(tx)
-
-		// ASSERT
-		require.NotNil(t, txService)
-		_, ok := txService.(usercontextSvc.UserContextService)
-		assert.True(t, ok, "WithTx should return UserContextService interface")
-	})
-}
-
-// ============================================================================
 // Error Type Tests
 // ============================================================================
 
@@ -684,8 +659,10 @@ func TestUserContextService_GetGroupVisits(t *testing.T) {
 
 	t.Run("returns error for unauthorized access to group", func(t *testing.T) {
 		// ARRANGE - Create a staff member
-		_, account := testpkg.CreateTestStaffWithAccount(t, db, "NoAccess", "Visits")
+		staff, account := testpkg.CreateTestStaffWithAccount(t, db, "NoAccess", "Visits")
+		defer testpkg.CleanupTableRecords(t, db, "users.persons", staff.Person.ID)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+		defer testpkg.CleanupTableRecords(t, db, "users.staff", staff.ID)
 
 		ctx := contextWithClaims(int(account.ID))
 
@@ -702,20 +679,47 @@ func TestUserContextService_GetGroupVisits(t *testing.T) {
 		activity := testpkg.CreateTestActivityGroup(t, db, "Test Activity for Visits")
 		room := testpkg.CreateTestRoom(t, db, "Test Room for Visits")
 		student := testpkg.CreateTestStudent(t, db, "Test", "StudentVisit", "1b")
+		// Cleanup in reverse-FK order (LIFO means last-registered runs first).
+		// Register parent cleanups first so they run LAST:
+		defer testpkg.CleanupTableRecords(t, db, "users.persons", staff.Person.ID, student.PersonID)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, staff.ID, student.ID)
+		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
+		defer testpkg.CleanupTableRecords(t, db, "activities.groups", activity.ID)
+		defer testpkg.CleanupTableRecords(t, db, "users.students", student.ID)
+		defer testpkg.CleanupTableRecords(t, db, "users.staff", staff.ID)
 
 		// Create active group
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID)
+		defer testpkg.CleanupTableRecords(t, db, "active.groups", activeGroup.ID)
 
 		// Create supervision
-		testpkg.CreateTestGroupSupervisor(t, db, staff.ID, activeGroup.ID, "supervisor")
+		supervisor := testpkg.CreateTestGroupSupervisor(t, db, staff.ID, activeGroup.ID, "supervisor")
+		defer testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisor.ID)
 
 		// Create an active visit (no exit time)
-		testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now(), nil)
+		visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now(), nil)
+		defer testpkg.CleanupTableRecords(t, db, "active.visits", visit.ID)
 
 		ctx := contextWithClaims(int(account.ID))
+
+		// Verify prerequisite: staff is findable via account→person→staff chain
+		personCheck := new(users.Person)
+		err := db.NewSelect().Model(personCheck).
+			ModelTableExpr(`users.persons AS "person"`).
+			Where(`"person".account_id = ?`, account.ID).
+			Where(`"person".tenant_id = ?`, 1).
+			Scan(context.Background())
+		require.NoError(t, err, "prerequisite: person should be findable by account_id")
+		require.Equal(t, staff.Person.ID, personCheck.ID, "prerequisite: person ID should match")
+
+		staffCheck := new(users.Staff)
+		err = db.NewSelect().Model(staffCheck).
+			ModelTableExpr(`users.staff AS "staff"`).
+			Where(`"staff".person_id = ?`, personCheck.ID).
+			Where(`"staff".tenant_id = ?`, 1).
+			Scan(context.Background())
+		require.NoError(t, err, "prerequisite: staff should be findable by person_id")
+		require.Equal(t, staff.ID, staffCheck.ID, "prerequisite: staff ID should match")
 
 		// ACT
 		visits, err := service.GetGroupVisits(ctx, activeGroup.ID)

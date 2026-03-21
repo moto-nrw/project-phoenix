@@ -28,7 +28,7 @@ func setupTestContext(t *testing.T) *testContext {
 
 	db, svc := testutil.SetupAPITest(t)
 
-	resource := configAPI.NewResource(svc.Config, svc.ActiveCleanup)
+	resource := configAPI.NewResource(svc.Config, svc.ActiveCleanup, db)
 
 	return &testContext{
 		db:       db,

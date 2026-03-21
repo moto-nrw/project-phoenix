@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/users"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 type CtxKey int
@@ -236,6 +237,13 @@ func deviceAuthenticator(iotService iotSvc.Service) func(http.Handler) http.Hand
 			ctx := context.WithValue(r.Context(), CtxDevice, device)
 			ctx = context.WithValue(ctx, CtxIsIoTDevice, true)
 
+			// Inject tenant context from the authenticated device so
+			// tenant.FromContext(ctx) works in downstream services (e.g., CreateVisit).
+			// Device-auth routes don't use jwt.TenantMiddleware.
+			if device.TenantID > 0 {
+				ctx = tenant.WithTenantID(ctx, device.TenantID)
+			}
+
 			slog.Debug("device authentication successful",
 				slog.String("device_id", device.DeviceID),
 			)
@@ -270,6 +278,11 @@ func DeviceOnlyAuthenticator(iotService iotSvc.Service) func(http.Handler) http.
 
 			// Authentication successful - set device context only
 			ctx := context.WithValue(r.Context(), CtxDevice, device)
+
+			// Inject tenant context from the authenticated device
+			if device.TenantID > 0 {
+				ctx = tenant.WithTenantID(ctx, device.TenantID)
+			}
 
 			slog.Info("device-only authentication successful",
 				slog.String("device_id", device.DeviceID),

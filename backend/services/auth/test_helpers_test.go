@@ -12,7 +12,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/email"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	platformModel "github.com/moto-nrw/project-phoenix/models/platform"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // testRateLimitRepo provides an in-memory implementation of the password reset rate limiter.
@@ -562,13 +564,17 @@ func (r *stubInvitationTokenRepository) MarkAsUsed(_ context.Context, id int64) 
 	return sql.ErrNoRows
 }
 
-func (r *stubInvitationTokenRepository) InvalidateByEmail(_ context.Context, email string) (int, error) {
+func (r *stubInvitationTokenRepository) InvalidateByEmail(ctx context.Context, email string) (int, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	email = strings.ToLower(email)
 	now := r.now()
 	count := 0
+	targetTenantID := tenant.FromContext(ctx)
 	for _, token := range r.tokens {
+		if targetTenantID > 0 && token.TenantID != targetTenantID {
+			continue
+		}
 		if strings.ToLower(token.Email) == email && token.UsedAt == nil {
 			token.UsedAt = &now
 			count++
@@ -732,6 +738,10 @@ func (noopAccountRoleRepository) List(context.Context, map[string]interface{}) (
 
 func (noopAccountRoleRepository) FindByAccountID(context.Context, int64) ([]*authModel.AccountRole, error) {
 	panic("FindByAccountID not implemented")
+}
+
+func (noopAccountRoleRepository) FindByAccountIDForTenant(context.Context, int64, int64) ([]*authModel.AccountRole, error) {
+	panic("FindByAccountIDForTenant not implemented")
 }
 
 func (noopAccountRoleRepository) FindByRoleID(context.Context, int64) ([]*authModel.AccountRole, error) {
@@ -983,6 +993,52 @@ func newStubTokenRepository() *stubTokenRepository {
 	return &stubTokenRepository{}
 }
 
+type stubAccountTenantRepository struct {
+	mu       sync.Mutex
+	mappings map[int64]*authModel.AccountTenant
+	nextID   int64
+}
+
+func newStubAccountTenantRepository() *stubAccountTenantRepository {
+	return &stubAccountTenantRepository{
+		mappings: make(map[int64]*authModel.AccountTenant),
+	}
+}
+
+func (r *stubAccountTenantRepository) Create(_ context.Context, accountTenant *authModel.AccountTenant) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if accountTenant.ID == 0 {
+		r.nextID++
+		accountTenant.ID = r.nextID
+	}
+	r.mappings[accountTenant.ID] = accountTenant
+	return nil
+}
+
+func (r *stubAccountTenantRepository) FindActiveByAccountID(_ context.Context, accountID int64) ([]authModel.AccountTenant, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var result []authModel.AccountTenant
+	for _, mapping := range r.mappings {
+		if mapping.AccountID == accountID && mapping.Status == authModel.AccountTenantStatusActive {
+			result = append(result, *mapping)
+		}
+	}
+	return result, nil
+}
+
+func (r *stubAccountTenantRepository) ExistsByAccountAndTenant(_ context.Context, accountID, tenantID int64) (bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, mapping := range r.mappings {
+		if mapping.AccountID == accountID && mapping.TenantID == tenantID && mapping.Status == authModel.AccountTenantStatusActive {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func (r *stubTokenRepository) DeleteByAccountID(_ context.Context, accountID int64) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -1132,6 +1188,45 @@ func (r *stubTeacherRepository) ListAllWithStaffAndPerson(context.Context) ([]*u
 
 func (r *stubTeacherRepository) FindWithStaffAndPersonByIDs(context.Context, []int64) ([]*userModel.Teacher, error) {
 	panic("FindWithStaffAndPersonByIDs not implemented")
+}
+
+// stubSchoolRepository is a minimal stub for SchoolRepository in tests.
+type stubSchoolRepository struct{}
+
+func (r *stubSchoolRepository) Create(context.Context, *platformModel.School) error {
+	return fmt.Errorf("not implemented")
+}
+
+func (r *stubSchoolRepository) FindByID(context.Context, int64) (*platformModel.School, error) {
+	return nil, fmt.Errorf("not found")
+}
+
+func (r *stubSchoolRepository) FindBySlug(context.Context, string) (*platformModel.School, error) {
+	return nil, fmt.Errorf("not found")
+}
+
+func (r *stubSchoolRepository) FindByOrganizationAndSlug(context.Context, int64, string) (*platformModel.School, error) {
+	return nil, fmt.Errorf("not found")
+}
+
+func (r *stubSchoolRepository) FindBySubdomain(context.Context, string) (*platformModel.School, error) {
+	return nil, fmt.Errorf("not found")
+}
+
+func (r *stubSchoolRepository) List(context.Context) ([]*platformModel.School, error) {
+	return nil, nil
+}
+
+func (r *stubSchoolRepository) ListActive(context.Context) ([]platformModel.School, error) {
+	return nil, nil
+}
+
+func (r *stubSchoolRepository) FindActiveByAccountID(context.Context, int64) ([]platformModel.School, error) {
+	return nil, nil
+}
+
+func (r *stubSchoolRepository) Update(context.Context, *platformModel.School) error {
+	return fmt.Errorf("not implemented")
 }
 
 // helper to build default email used in tests.

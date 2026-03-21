@@ -19,6 +19,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/education"
 	"github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -42,6 +43,11 @@ const (
 	RoomConflictWarn
 )
 
+// CrossTenantRepo defines the interface for cross-tenant student queries.
+type CrossTenantRepo interface {
+	FindCrossTenantStudents(ctx context.Context, hostingTenantID int64) ([]active.CrossTenantStudent, error)
+}
+
 // ServiceDependencies contains all dependencies required by the active service
 type ServiceDependencies struct {
 	// Active domain repositories
@@ -51,6 +57,9 @@ type ServiceDependencies struct {
 	CombinedGroupRepo active.CombinedGroupRepository
 	GroupMappingRepo  active.GroupMappingRepository
 	AttendanceRepo    active.AttendanceRepository
+
+	// Cross-tenant query repository (optional - nil-safe)
+	CrossTenantRepo CrossTenantRepo
 
 	// User domain repositories
 	StudentRepo userModels.StudentRepository
@@ -88,6 +97,9 @@ type service struct {
 	combinedGroupRepo active.CombinedGroupRepository
 	groupMappingRepo  active.GroupMappingRepository
 
+	// Cross-tenant query repository (optional - nil-safe)
+	crossTenantRepo CrossTenantRepo
+
 	// Additional repositories for dashboard analytics
 	studentRepo        userModels.StudentRepository
 	roomRepo           facilityModels.RoomRepository
@@ -104,8 +116,7 @@ type service struct {
 	teacherRepo      userModels.TeacherRepository
 	staffRepo        userModels.StaffRepository
 
-	db        *bun.DB
-	txHandler *base.TxHandler
+	db *bun.DB
 
 	// SSE real-time event broadcasting (optional - can be nil for testing)
 	broadcaster Broadcaster
@@ -133,6 +144,7 @@ func NewService(deps ServiceDependencies) Service {
 		supervisorRepo:     deps.SupervisorRepo,
 		combinedGroupRepo:  deps.CombinedGroupRepo,
 		groupMappingRepo:   deps.GroupMappingRepo,
+		crossTenantRepo:    deps.CrossTenantRepo,
 		studentRepo:        deps.StudentRepo,
 		roomRepo:           deps.RoomRepo,
 		activityGroupRepo:  deps.ActivityGroupRepo,
@@ -146,101 +158,9 @@ func NewService(deps ServiceDependencies) Service {
 		teacherRepo:        deps.TeacherRepo,
 		staffRepo:          deps.StaffRepo,
 		db:                 deps.DB,
-		txHandler:          base.NewTxHandler(deps.DB),
 		broadcaster:        deps.Broadcaster,
 		workSessionService: deps.WorkSessionService,
 		logger:             deps.Logger,
-	}
-}
-
-// WithTx returns a new service that uses the provided transaction
-func (s *service) WithTx(tx bun.Tx) interface{} {
-	// Get repositories with transaction if they implement the TransactionalRepository interface
-	var groupRepo = s.groupRepo
-	var visitRepo = s.visitRepo
-	var supervisorRepo = s.supervisorRepo
-	var combinedGroupRepo = s.combinedGroupRepo
-	var groupMappingRepo = s.groupMappingRepo
-	var studentRepo = s.studentRepo
-	var roomRepo = s.roomRepo
-	var activityGroupRepo = s.activityGroupRepo
-	var activityCatRepo = s.activityCatRepo
-	var educationGroupRepo = s.educationGroupRepo
-	var personRepo = s.personRepo
-	var deviceRepo = s.deviceRepo
-	var attendanceRepo = s.attendanceRepo
-	var teacherRepo = s.teacherRepo
-	var staffRepo = s.staffRepo
-
-	// Try to cast repositories to TransactionalRepository and apply the transaction
-	if txRepo, ok := s.groupRepo.(base.TransactionalRepository); ok {
-		groupRepo = txRepo.WithTx(tx).(active.GroupRepository)
-	}
-	if txRepo, ok := s.visitRepo.(base.TransactionalRepository); ok {
-		visitRepo = txRepo.WithTx(tx).(active.VisitRepository)
-	}
-	if txRepo, ok := s.supervisorRepo.(base.TransactionalRepository); ok {
-		supervisorRepo = txRepo.WithTx(tx).(active.GroupSupervisorRepository)
-	}
-	if txRepo, ok := s.combinedGroupRepo.(base.TransactionalRepository); ok {
-		combinedGroupRepo = txRepo.WithTx(tx).(active.CombinedGroupRepository)
-	}
-	if txRepo, ok := s.groupMappingRepo.(base.TransactionalRepository); ok {
-		groupMappingRepo = txRepo.WithTx(tx).(active.GroupMappingRepository)
-	}
-	if txRepo, ok := s.studentRepo.(base.TransactionalRepository); ok {
-		studentRepo = txRepo.WithTx(tx).(userModels.StudentRepository)
-	}
-	if txRepo, ok := s.roomRepo.(base.TransactionalRepository); ok {
-		roomRepo = txRepo.WithTx(tx).(facilityModels.RoomRepository)
-	}
-	if txRepo, ok := s.activityGroupRepo.(base.TransactionalRepository); ok {
-		activityGroupRepo = txRepo.WithTx(tx).(activitiesModels.GroupRepository)
-	}
-	if txRepo, ok := s.activityCatRepo.(base.TransactionalRepository); ok {
-		activityCatRepo = txRepo.WithTx(tx).(activitiesModels.CategoryRepository)
-	}
-	if txRepo, ok := s.educationGroupRepo.(base.TransactionalRepository); ok {
-		educationGroupRepo = txRepo.WithTx(tx).(educationModels.GroupRepository)
-	}
-	if txRepo, ok := s.personRepo.(base.TransactionalRepository); ok {
-		personRepo = txRepo.WithTx(tx).(userModels.PersonRepository)
-	}
-	if txRepo, ok := s.deviceRepo.(base.TransactionalRepository); ok {
-		deviceRepo = txRepo.WithTx(tx).(iotModels.DeviceRepository)
-	}
-	if txRepo, ok := s.attendanceRepo.(base.TransactionalRepository); ok {
-		attendanceRepo = txRepo.WithTx(tx).(active.AttendanceRepository)
-	}
-	if txRepo, ok := s.teacherRepo.(base.TransactionalRepository); ok {
-		teacherRepo = txRepo.WithTx(tx).(userModels.TeacherRepository)
-	}
-	if txRepo, ok := s.staffRepo.(base.TransactionalRepository); ok {
-		staffRepo = txRepo.WithTx(tx).(userModels.StaffRepository)
-	}
-
-	// Return a new service with the transaction
-	return &service{
-		groupRepo:          groupRepo,
-		visitRepo:          visitRepo,
-		supervisorRepo:     supervisorRepo,
-		combinedGroupRepo:  combinedGroupRepo,
-		groupMappingRepo:   groupMappingRepo,
-		studentRepo:        studentRepo,
-		roomRepo:           roomRepo,
-		activityGroupRepo:  activityGroupRepo,
-		activityCatRepo:    activityCatRepo,
-		educationGroupRepo: educationGroupRepo,
-		personRepo:         personRepo,
-		deviceRepo:         deviceRepo,
-		attendanceRepo:     attendanceRepo,
-		educationService:   s.educationService,
-		usersService:       s.usersService,
-		teacherRepo:        teacherRepo,
-		staffRepo:          staffRepo,
-		db:                 s.db,
-		txHandler:          s.txHandler.WithTx(tx),
-		broadcaster:        s.broadcaster, // Propagate broadcaster to transactional clone
 	}
 }
 
@@ -295,6 +215,7 @@ func (s *service) CreateActiveGroup(ctx context.Context, group *active.Group) er
 		}
 	}
 
+	group.SetTenantID(tenant.FromContext(ctx))
 	if err := s.groupRepo.Create(ctx, group); err != nil {
 		return &ActiveError{Op: "CreateActiveGroup", Err: fmt.Errorf("create failed: %w", err)}
 	}
@@ -471,34 +392,28 @@ func (s *service) CreateVisit(ctx context.Context, visit *active.Visit) error {
 
 	deviceID, staffID := s.extractContextIDs(ctx)
 
-	err := s.txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
-		txService := s.WithTx(tx).(*service)
-
-		// Ensure no existing active visit for this student
-		if err := txService.ensureStudentHasNoActiveVisit(txCtx, visit.StudentID); err != nil {
-			return err
-		}
-
-		// Handle attendance (create new or update on re-entry)
-		if err := txService.ensureOrUpdateAttendance(txCtx, visit, staffID, deviceID); err != nil {
-			return err
-		}
-
-		// Auto-clear sickness when student checks in
-		txService.autoClearStudentSickness(txCtx, visit.StudentID)
-
-		// Create the visit record
-		if txService.visitRepo.Create(txCtx, visit) != nil {
-			return &ActiveError{Op: "CreateVisit", Err: ErrDatabaseOperation}
-		}
-
-		return nil
-	})
-
-	if err != nil {
+	// Ensure no existing active visit for this student
+	if err := s.ensureStudentHasNoActiveVisit(ctx, visit.StudentID); err != nil {
 		if activeErr, ok := err.(*ActiveError); ok {
 			return activeErr
 		}
+		return &ActiveError{Op: "CreateVisit", Err: ErrDatabaseOperation}
+	}
+
+	// Handle attendance (create new or update on re-entry)
+	if err := s.ensureOrUpdateAttendance(ctx, visit, staffID, deviceID); err != nil {
+		if activeErr, ok := err.(*ActiveError); ok {
+			return activeErr
+		}
+		return &ActiveError{Op: "CreateVisit", Err: ErrDatabaseOperation}
+	}
+
+	// Auto-clear sickness when student checks in
+	s.autoClearStudentSickness(ctx, visit.StudentID)
+
+	// Create the visit record
+	visit.SetTenantID(tenant.FromContext(ctx))
+	if s.visitRepo.Create(ctx, visit) != nil {
 		return &ActiveError{Op: "CreateVisit", Err: ErrDatabaseOperation}
 	}
 
@@ -623,18 +538,7 @@ func (s *service) FindVisitsByTimeRange(ctx context.Context, start, end time.Tim
 }
 
 func (s *service) EndVisit(ctx context.Context, id int64) error {
-	var endedVisit *active.Visit
-	err := s.txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
-		txService := s.WithTx(tx).(*service)
-
-		visit, err := txService.endVisitRecord(txCtx, id)
-		if err != nil {
-			return err
-		}
-		endedVisit = visit
-		return nil
-	})
-
+	endedVisit, err := s.endVisitRecord(ctx, id)
 	if err != nil {
 		if activeErr, ok := err.(*ActiveError); ok {
 			return activeErr
@@ -684,20 +588,20 @@ func (s *service) broadcastVisitCheckout(ctx context.Context, endedVisit *active
 		},
 	)
 
-	s.broadcastWithLogging(activeGroupID, studentID, event, "student_checkout")
-	s.broadcastToEducationalGroup(studentRec, event)
+	s.broadcastWithLogging(ctx, activeGroupID, studentID, event, "student_checkout")
+	s.broadcastToEducationalGroup(ctx, studentRec, event)
 
 	// Notify all clients so dashboard counts refresh
 	_ = s.broadcaster.BroadcastToAll(realtime.NewEvent(realtime.EventDashboardCountsChanged, "", realtime.EventData{}))
 }
 
 // broadcastToEducationalGroup mirrors active-group broadcasts to the student's OGS group topic
-func (s *service) broadcastToEducationalGroup(student *userModels.Student, event realtime.Event) {
+func (s *service) broadcastToEducationalGroup(ctx context.Context, student *userModels.Student, event realtime.Event) {
 	if s.broadcaster == nil || student == nil || student.GroupID == nil {
 		return
 	}
 	groupID := fmt.Sprintf("edu:%d", *student.GroupID)
-	if err := s.broadcaster.BroadcastToGroup(groupID, event); err != nil {
+	if err := s.broadcaster.BroadcastToGroup(tenant.FromContext(ctx), groupID, event); err != nil {
 		studentID := ""
 		if event.Data.StudentID != nil {
 			studentID = *event.Data.StudentID
@@ -713,7 +617,7 @@ func (s *service) broadcastToEducationalGroup(student *userModels.Student, event
 
 // broadcastStudentCheckoutEvents sends checkout SSE events for each visit.
 // This helper reduces cognitive complexity in session timeout processing.
-func (s *service) broadcastStudentCheckoutEvents(sessionIDStr string, visitsToNotify []visitSSEData) {
+func (s *service) broadcastStudentCheckoutEvents(ctx context.Context, sessionIDStr string, visitsToNotify []visitSSEData) {
 	for _, visitData := range visitsToNotify {
 		studentIDStr := fmt.Sprintf("%d", visitData.StudentID)
 		studentName := visitData.Name
@@ -727,8 +631,8 @@ func (s *service) broadcastStudentCheckoutEvents(sessionIDStr string, visitsToNo
 			},
 		)
 
-		s.broadcastWithLogging(sessionIDStr, studentIDStr, checkoutEvent, "student_checkout")
-		s.broadcastToEducationalGroup(visitData.Student, checkoutEvent)
+		s.broadcastWithLogging(ctx, sessionIDStr, studentIDStr, checkoutEvent, "student_checkout")
+		s.broadcastToEducationalGroup(ctx, visitData.Student, checkoutEvent)
 	}
 
 	// Single global broadcast for the entire batch
@@ -759,15 +663,15 @@ func (s *service) broadcastActivityEndEvent(ctx context.Context, sessionID int64
 		},
 	)
 
-	s.broadcastWithLogging(sessionIDStr, "", event, "activity_end")
+	s.broadcastWithLogging(ctx, sessionIDStr, "", event, "activity_end")
 
 	// Notify all clients (including zero-topic) so dashboard refreshes
 	_ = s.broadcaster.BroadcastToAll(realtime.NewEvent(realtime.EventDashboardCountsChanged, "", realtime.EventData{}))
 }
 
 // broadcastWithLogging broadcasts an event and logs any errors.
-func (s *service) broadcastWithLogging(activeGroupID, studentID string, event realtime.Event, eventType string) {
-	if err := s.broadcaster.BroadcastToGroup(activeGroupID, event); err != nil {
+func (s *service) broadcastWithLogging(ctx context.Context, activeGroupID, studentID string, event realtime.Event, eventType string) {
+	if err := s.broadcaster.BroadcastToGroup(tenant.FromContext(ctx), activeGroupID, event); err != nil {
 		attrs := []slog.Attr{
 			slog.String("error", err.Error()),
 			slog.String("event_type", eventType),
@@ -899,6 +803,7 @@ func (s *service) CreateGroupSupervisor(ctx context.Context, supervisor *active.
 		}
 	}
 
+	supervisor.SetTenantID(tenant.FromContext(ctx))
 	if s.supervisorRepo.Create(ctx, supervisor) != nil {
 		return &ActiveError{Op: "CreateGroupSupervisor", Err: ErrDatabaseOperation}
 	}
@@ -994,6 +899,25 @@ func (s *service) GetStaffActiveSupervisions(ctx context.Context, staffID int64)
 	}
 
 	return activeSupervisions, nil
+}
+
+// GetCrossTenantStudents returns students visiting from other tenants.
+func (s *service) GetCrossTenantStudents(ctx context.Context, hostingTenantID int64) ([]active.CrossTenantStudent, error) {
+	if s.crossTenantRepo == nil {
+		return []active.CrossTenantStudent{}, nil
+	}
+
+	students, err := s.crossTenantRepo.FindCrossTenantStudents(ctx, hostingTenantID)
+	if err != nil {
+		return nil, &ActiveError{Op: "GetCrossTenantStudents", Err: fmt.Errorf("query failed: %w", err)}
+	}
+
+	s.getLogger().Info("cross-tenant students queried",
+		slog.Int64("hosting_tenant_id", hostingTenantID),
+		slog.Int("count", len(students)),
+	)
+
+	return students, nil
 }
 
 // visitSSEData holds data needed for SSE broadcasts after a visit is ended

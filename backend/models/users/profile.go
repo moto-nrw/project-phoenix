@@ -16,10 +16,11 @@ const profileTableName = "users.profiles"
 // Profile represents a user profile in the system
 type Profile struct {
 	base.Model `bun:"schema:users,table:profiles"`
-	AccountID  int64  `bun:"account_id,notnull,unique" json:"account_id"`
-	Avatar     string `bun:"avatar" json:"avatar,omitempty"`
-	Bio        string `bun:"bio" json:"bio,omitempty"`
-	Settings   string `bun:"settings" json:"settings,omitempty"` // JSON string
+	base.TenantModel
+	AccountID int64  `bun:"account_id,notnull" json:"account_id"`
+	Avatar    string `bun:"avatar" json:"avatar,omitempty"`
+	Bio       string `bun:"bio" json:"bio,omitempty"`
+	Settings  string `bun:"settings" json:"settings,omitempty"` // JSON string
 
 	// Relations not stored in the database
 	Account *auth.Account `bun:"-" json:"account,omitempty"`
@@ -29,9 +30,6 @@ type Profile struct {
 }
 
 func (p *Profile) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(profileTableName)
-	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr(profileTableName)
 	}

@@ -25,6 +25,7 @@ services:
       AUTH_JWT_REFRESH_EXPIRY: ${AUTH_JWT_REFRESH_EXPIRY:-168h}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      PHOENIX_AUTH_PASSWORD: ${PHOENIX_AUTH_PASSWORD}
       EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-"no-reply@example.com"}
       EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-"Project Phoenix"}
       EMAIL_SMTP_HOST: ${EMAIL_SMTP_HOST}
@@ -56,7 +57,8 @@ services:
       OPERATOR_PASSWORD: ${OPERATOR_PASSWORD}
       OPERATOR_DISPLAY_NAME: ${OPERATOR_DISPLAY_NAME:-Administrator}
       SUGGESTION_NOTIFY_EMAIL: ${SUGGESTION_NOTIFY_EMAIL:-}
-    # air handles the serve command via .air.toml
+    # Run migrations before starting air (phoenix_auth role must exist for serve)
+    command: ["sh", "-c", "go run . migrate && air -c .air.toml"]
 
   frontend:
     build:
@@ -78,11 +80,16 @@ services:
       # NextAuth configuration
       NEXTAUTH_URL: ${NEXTAUTH_URL:-"http://localhost:3000"}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      # Trust the Host header from reverse proxy (required when behind nginx/caddy/traefik)
+      AUTH_TRUST_HOST: ${AUTH_TRUST_HOST:-"true"}
       # Skip env validation in Docker
       SKIP_ENV_VALIDATION: ${SKIP_ENV_VALIDATION:-"true"}
       NEXT_TELEMETRY_DISABLED: ${NEXT_TELEMETRY_DISABLED:-"1"}
       # Frontend structured logging level (debug, info, warn, error)
       NEXT_PUBLIC_LOG_LEVEL: ${NEXT_PUBLIC_LOG_LEVEL:-info}
+      # Multi-tenancy: base domain for subdomain routing
+      TENANT_DOMAIN: ${TENANT_DOMAIN:-localhost}
+      NEXT_PUBLIC_TENANT_DOMAIN: ${NEXT_PUBLIC_TENANT_DOMAIN:-localhost}
       # PostHog Product Analytics (EU Cloud)
       NEXT_PUBLIC_POSTHOG_KEY: ${NEXT_PUBLIC_POSTHOG_KEY:-}
       NEXT_PUBLIC_POSTHOG_HOST: ${NEXT_PUBLIC_POSTHOG_HOST:-https://eu.i.posthog.com}
@@ -111,7 +118,7 @@ services:
       start_period: 10s
 
   postgres:
-    image: postgres:17
+    image: postgres:17-alpine
     restart: unless-stopped
     ports:
       - 5432:5432
@@ -143,10 +150,9 @@ services:
   # Or run all tests: docker compose --profile test up -d
   # Uses isolated network to prevent "network still in use" on `docker compose down`
   postgres-test:
-    image: postgres:17
+    image: postgres:17-alpine
     profiles: ["test"]
     restart: unless-stopped
-    networks: [test]
     ports:
       - "${TEST_DB_PORT:-5433}:5432"
     volumes:
@@ -160,10 +166,6 @@ services:
       interval: 1s
       timeout: 1s
       retries: 5
-
-networks:
-  test:
-    # Isolated network for test services — not removed by `docker compose down`
 
 volumes:
   postgres:

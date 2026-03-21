@@ -10,7 +10,8 @@ import (
 
 // PrivacyConsent represents a privacy consent record for a student
 type PrivacyConsent struct {
-	base.Model        `bun:"schema:users,table:privacy_consents"`
+	base.Model `bun:"schema:users,table:privacy_consents"`
+	base.TenantModel
 	StudentID         int64                  `bun:"student_id,notnull" json:"student_id"`
 	PolicyVersion     string                 `bun:"policy_version,notnull" json:"policy_version"`
 	Accepted          bool                   `bun:"accepted,notnull" json:"accepted"`
@@ -26,9 +27,6 @@ type PrivacyConsent struct {
 }
 
 func (pc *PrivacyConsent) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(`users.privacy_consents AS "privacy_consent"`)
-	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr(`users.privacy_consents AS "privacy_consent"`)
 	}

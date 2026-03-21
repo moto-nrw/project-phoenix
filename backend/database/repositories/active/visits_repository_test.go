@@ -1,7 +1,6 @@
 package active_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -46,7 +45,7 @@ func createVisitTestData(t *testing.T, db *bun.DB) *visitTestData {
 		GroupID:        activityGroup.ID,
 		RoomID:         room.ID,
 	}
-	err := groupRepo.Create(context.Background(), activeGroup)
+	err := groupRepo.Create(testpkg.TenantContext(1), activeGroup)
 	require.NoError(t, err)
 
 	return &visitTestData{
@@ -75,7 +74,7 @@ func TestVisitRepository_Create(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	data := createVisitTestData(t, db)
 	defer cleanupVisitTestData(t, db, data)
 
@@ -124,7 +123,7 @@ func TestVisitRepository_FindByID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	data := createVisitTestData(t, db)
 	defer cleanupVisitTestData(t, db, data)
 
@@ -156,7 +155,7 @@ func TestVisitRepository_Update(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	data := createVisitTestData(t, db)
 	defer cleanupVisitTestData(t, db, data)
 
@@ -187,7 +186,7 @@ func TestVisitRepository_Delete(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	data := createVisitTestData(t, db)
 	defer cleanupVisitTestData(t, db, data)
 
@@ -218,7 +217,7 @@ func TestVisitRepository_List(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	data := createVisitTestData(t, db)
 	defer cleanupVisitTestData(t, db, data)
 
@@ -244,7 +243,7 @@ func TestVisitRepository_FindActiveVisits(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	data := createVisitTestData(t, db)
 	defer cleanupVisitTestData(t, db, data)
 
@@ -284,7 +283,7 @@ func TestVisitRepository_FindActiveByStudentID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	data := createVisitTestData(t, db)
 	defer cleanupVisitTestData(t, db, data)
 
@@ -323,7 +322,7 @@ func TestVisitRepository_FindByActiveGroupID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	data := createVisitTestData(t, db)
 	defer cleanupVisitTestData(t, db, data)
 
@@ -359,7 +358,7 @@ func TestVisitRepository_FindByTimeRange(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	data := createVisitTestData(t, db)
 	defer cleanupVisitTestData(t, db, data)
 
@@ -401,7 +400,7 @@ func TestVisitRepository_GetCurrentByStudentID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	data := createVisitTestData(t, db)
 	defer cleanupVisitTestData(t, db, data)
 
@@ -433,7 +432,7 @@ func TestVisitRepository_FindWithRelations(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := activeRepo.NewVisitRepository(db).(*activeRepo.VisitRepository)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	data := createVisitTestData(t, db)
 	defer cleanupVisitTestData(t, db, data)
 
@@ -447,9 +446,9 @@ func TestVisitRepository_FindWithRelations(t *testing.T) {
 		defer testpkg.CleanupTableRecords(t, db, "active.visits", visit.ID)
 
 		found, err := repo.FindWithStudent(ctx, visit.ID)
-		require.Error(t, err)
-		assert.Nil(t, found)
-		assert.Contains(t, err.Error(), `relation "students" does not exist`)
+		require.NoError(t, err)
+		require.NotNil(t, found)
+		assert.Equal(t, data.Student1.ID, found.Student.ID)
 	})
 
 	t.Run("find with active group loads active group relation", func(t *testing.T) {
@@ -473,7 +472,7 @@ func TestVisitsRepository_GetCurrentByStudentIDs(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	data := createVisitTestData(t, db)
 	defer cleanupVisitTestData(t, db, data)
 
@@ -522,7 +521,7 @@ func TestVisitRepository_EndVisit(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	data := createVisitTestData(t, db)
 	defer cleanupVisitTestData(t, db, data)
 
@@ -555,7 +554,7 @@ func TestVisitRepository_DeleteExpiredVisits(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	data := createVisitTestData(t, db)
 	defer cleanupVisitTestData(t, db, data)
 
@@ -568,8 +567,8 @@ func TestVisitRepository_DeleteExpiredVisits(t *testing.T) {
 
 		var visitID int64
 		err := db.NewRaw(`
-			INSERT INTO active.visits (student_id, active_group_id, entry_time, exit_time, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?)
+			INSERT INTO active.visits (student_id, active_group_id, entry_time, exit_time, created_at, updated_at, tenant_id)
+			VALUES (?, ?, ?, ?, ?, ?, 1)
 			RETURNING id
 		`, data.Student1.ID, data.ActiveGroup.ID, entryTime, exitTime, createdAt, now).
 			Scan(ctx, &visitID)
@@ -609,7 +608,7 @@ func TestVisitRepository_DeleteVisitsBeforeDate(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	data := createVisitTestData(t, db)
 	defer cleanupVisitTestData(t, db, data)
 
@@ -621,8 +620,8 @@ func TestVisitRepository_DeleteVisitsBeforeDate(t *testing.T) {
 
 		var visitID int64
 		err := db.NewRaw(`
-			INSERT INTO active.visits (student_id, active_group_id, entry_time, exit_time, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?)
+			INSERT INTO active.visits (student_id, active_group_id, entry_time, exit_time, created_at, updated_at, tenant_id)
+			VALUES (?, ?, ?, ?, ?, ?, 1)
 			RETURNING id
 		`, data.Student1.ID, data.ActiveGroup.ID, entryTime, exitTime, createdAt, now).
 			Scan(ctx, &visitID)
@@ -649,7 +648,7 @@ func TestVisitRepository_TransferVisitsFromRecentSessions(t *testing.T) {
 
 	repo := repositories.NewFactory(db).ActiveVisit
 	groupRepo := repositories.NewFactory(db).ActiveGroup
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	data := createVisitTestData(t, db)
 	defer cleanupVisitTestData(t, db, data)
 
@@ -719,8 +718,8 @@ func TestVisitRepository_TransferVisitsFromRecentSessions(t *testing.T) {
 		now := time.Now()
 		var oldGroupID int64
 		err := db.NewRaw(`
-			INSERT INTO active.groups (start_time, last_activity, end_time, timeout_minutes, group_id, device_id, room_id, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+			INSERT INTO active.groups (start_time, last_activity, end_time, timeout_minutes, group_id, device_id, room_id, created_at, updated_at, tenant_id)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
 			RETURNING id
 		`, now.Add(-3*time.Hour), now.Add(-3*time.Hour), now.Add(-2*time.Hour), 30, data.ActivityGroup, device.ID, data.Room, now.Add(-3*time.Hour), now).
 			Scan(ctx, &oldGroupID)
@@ -762,7 +761,7 @@ func TestVisitRepository_GetVisitRetentionStats(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	data := createVisitTestData(t, db)
 	defer cleanupVisitTestData(t, db, data)
 
@@ -773,8 +772,8 @@ func TestVisitRepository_GetVisitRetentionStats(t *testing.T) {
 
 		// Create privacy consent with short retention using raw SQL
 		_, err := db.NewRaw(`
-			INSERT INTO users.privacy_consents (student_id, policy_version, accepted, renewal_required, data_retention_days, created_at, updated_at)
-			VALUES (?, 'v1.0', true, false, 7, NOW(), NOW())
+			INSERT INTO users.privacy_consents (student_id, policy_version, accepted, renewal_required, data_retention_days, tenant_id, created_at, updated_at)
+			VALUES (?, 'v1.0', true, false, 7, 1, NOW(), NOW())
 		`, student.ID).Exec(ctx)
 		require.NoError(t, err)
 		defer func() {
@@ -789,8 +788,8 @@ func TestVisitRepository_GetVisitRetentionStats(t *testing.T) {
 
 		var visitID int64
 		err = db.NewRaw(`
-			INSERT INTO active.visits (student_id, active_group_id, entry_time, exit_time, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?)
+			INSERT INTO active.visits (student_id, active_group_id, entry_time, exit_time, created_at, updated_at, tenant_id)
+			VALUES (?, ?, ?, ?, ?, ?, 1)
 			RETURNING id
 		`, student.ID, data.ActiveGroup.ID, entryTime, exitTime, createdAt, now).
 			Scan(ctx, &visitID)
@@ -814,7 +813,7 @@ func TestVisitRepository_CountExpiredVisits(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	data := createVisitTestData(t, db)
 	defer cleanupVisitTestData(t, db, data)
 
@@ -825,8 +824,8 @@ func TestVisitRepository_CountExpiredVisits(t *testing.T) {
 
 		// Create privacy consent with short retention using raw SQL
 		_, err := db.NewRaw(`
-			INSERT INTO users.privacy_consents (student_id, policy_version, accepted, renewal_required, data_retention_days, created_at, updated_at)
-			VALUES (?, 'v1.0', true, false, 7, NOW(), NOW())
+			INSERT INTO users.privacy_consents (student_id, policy_version, accepted, renewal_required, data_retention_days, tenant_id, created_at, updated_at)
+			VALUES (?, 'v1.0', true, false, 7, 1, NOW(), NOW())
 		`, student.ID).Exec(ctx)
 		require.NoError(t, err)
 		defer func() {
@@ -841,8 +840,8 @@ func TestVisitRepository_CountExpiredVisits(t *testing.T) {
 
 		var visitID int64
 		err = db.NewRaw(`
-			INSERT INTO active.visits (student_id, active_group_id, entry_time, exit_time, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?)
+			INSERT INTO active.visits (student_id, active_group_id, entry_time, exit_time, created_at, updated_at, tenant_id)
+			VALUES (?, ?, ?, ?, ?, ?, 1)
 			RETURNING id
 		`, student.ID, data.ActiveGroup.ID, entryTime, exitTime, createdAt, now).
 			Scan(ctx, &visitID)
@@ -865,7 +864,7 @@ func TestVisitRepository_GetCurrentByStudentIDWithRoom(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	data := createVisitTestData(t, db)
 	defer cleanupVisitTestData(t, db, data)
 
@@ -955,7 +954,7 @@ func TestVisitRepository_CountActiveByRoomID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	data := createVisitTestData(t, db)
 	defer cleanupVisitTestData(t, db, data)
 
@@ -1033,7 +1032,7 @@ func TestVisitRepository_CountActiveByGroupID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	data := createVisitTestData(t, db)
 	defer cleanupVisitTestData(t, db, data)
 
@@ -1099,7 +1098,7 @@ func TestVisitRepository_EndVisitsByActiveGroupIDs(t *testing.T) {
 
 	repo := repositories.NewFactory(db).ActiveVisit
 	groupRepo := repositories.NewFactory(db).ActiveGroup
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	data := createVisitTestData(t, db)
 	defer cleanupVisitTestData(t, db, data)
 
@@ -1205,7 +1204,7 @@ func TestVisitsRepository_GetCurrentByStudentIDs_Deduplication(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	data := createVisitTestData(t, db)
 	defer cleanupVisitTestData(t, db, data)
 

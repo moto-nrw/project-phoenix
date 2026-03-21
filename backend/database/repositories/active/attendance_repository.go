@@ -21,8 +21,10 @@ type AttendanceRepository struct {
 
 // NewAttendanceRepository creates a new AttendanceRepository
 func NewAttendanceRepository(db *bun.DB) active.AttendanceRepository {
+	repo := base.NewRepository[*active.Attendance](db, "active.attendance", "Attendance")
+	repo.TenantScoped = true
 	return &AttendanceRepository{
-		Repository: base.NewRepository[*active.Attendance](db, "active.attendance", "Attendance"),
+		Repository: repo,
 		db:         db,
 	}
 }
@@ -35,13 +37,17 @@ func (r *AttendanceRepository) FindByStudentAndDate(ctx context.Context, student
 	// This ensures consistency with CURRENT_DATE queries (PostgreSQL timezone = Europe/Berlin).
 	dateOnly := timezone.DateOf(date)
 
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&attendance).
 		ModelTableExpr(`active.attendance AS "attendance"`).
 		Where(`"attendance".student_id = ? AND "attendance".date = ?`, studentID, dateOnly).
-		Order(`check_in_time ASC`).
-		Scan(ctx)
+		Order(`check_in_time ASC`)
 
+	if where, val, ok := base.TenantWhere(ctx, "attendance"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by student and date",
@@ -56,15 +62,19 @@ func (r *AttendanceRepository) FindByStudentAndDate(ctx context.Context, student
 func (r *AttendanceRepository) FindLatestByStudent(ctx context.Context, studentID int64) (*active.Attendance, error) {
 	attendance := new(active.Attendance)
 
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(attendance).
 		ModelTableExpr(`active.attendance AS "attendance"`).
 		Where(`"attendance".student_id = ?`, studentID).
 		OrderExpr(`"attendance".date DESC`).
 		OrderExpr(`"attendance".check_in_time DESC`).
-		Limit(1).
-		Scan(ctx)
+		Limit(1)
 
+	if where, val, ok := base.TenantWhere(ctx, "attendance"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find latest by student",
@@ -83,14 +93,18 @@ func (r *AttendanceRepository) GetStudentCurrentStatus(ctx context.Context, stud
 	// This ensures the date comparison matches records created via CreateVisit,
 	// which also uses timezone.Today().
 	today := timezone.Today()
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(attendance).
 		ModelTableExpr(`active.attendance AS "attendance"`).
 		Where(`"attendance".student_id = ? AND "attendance".date = ?`, studentID, today).
 		Order(`check_in_time DESC`).
-		Limit(1).
-		Scan(ctx)
+		Limit(1)
 
+	if where, val, ok := base.TenantWhere(ctx, "attendance"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get student current status",
@@ -162,14 +176,19 @@ func (r *AttendanceRepository) GetTodayByStudentIDs(ctx context.Context, student
 	// This ensures the date comparison matches records created via CreateVisit.
 	today := timezone.Today()
 	var attendances []*active.Attendance
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&attendances).
 		ModelTableExpr(`active.attendance AS "attendance"`).
 		Where(`"attendance".student_id IN (?)`, bun.List(uniqueIDs)).
 		Where(`"attendance".date = ?`, today).
 		OrderExpr(`"attendance".student_id ASC`).
-		OrderExpr(`"attendance".check_in_time DESC`).
-		Scan(ctx)
+		OrderExpr(`"attendance".check_in_time DESC`)
+
+	if where, val, ok := base.TenantWhere(ctx, "attendance"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get today by student IDs",
@@ -194,15 +213,19 @@ func (r *AttendanceRepository) FindForDate(ctx context.Context, date time.Time) 
 	// This ensures consistency with CURRENT_DATE queries (PostgreSQL timezone = Europe/Berlin).
 	dateOnly := timezone.DateOf(date)
 
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&attendance).
 		ModelTableExpr(`active.attendance AS "attendance"`).
 		Where(`"attendance".date = ?`, dateOnly).
 		// Use OrderExpr to avoid Bun re-quoting the alias and direction together
 		OrderExpr(`"attendance".student_id ASC`).
-		OrderExpr(`"attendance".check_in_time ASC`).
-		Scan(ctx)
+		OrderExpr(`"attendance".check_in_time ASC`)
 
+	if where, val, ok := base.TenantWhere(ctx, "attendance"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find for date",

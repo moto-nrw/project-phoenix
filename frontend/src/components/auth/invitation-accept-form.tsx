@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+// eslint-disable-next-line no-restricted-imports -- redirect targets root login, not tenant route
+import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { useToast } from "~/contexts/ToastContext";
-import { useRouter } from "next/navigation";
 import { Input } from "~/components/ui";
 import { getRoleDisplayName } from "~/lib/auth-helpers";
 import { acceptInvitation } from "~/lib/invitation-api";

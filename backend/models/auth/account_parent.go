@@ -12,9 +12,10 @@ import (
 
 // AccountParent represents a parent/guardian authentication account
 type AccountParent struct {
-	base.Model   `bun:"schema:auth,table:accounts_parents"`
+	base.Model `bun:"schema:auth,table:accounts_parents"`
+	base.TenantModel
 	Email        string     `bun:"email,notnull" json:"email"`
-	Username     *string    `bun:"username,unique" json:"username,omitempty"`
+	Username     *string    `bun:"username" json:"username,omitempty"`
 	Active       bool       `bun:"active,notnull,default:true" json:"active"`
 	PasswordHash *string    `bun:"password_hash" json:"-"`
 	LastLogin    *time.Time `bun:"last_login" json:"last_login,omitempty"`
@@ -26,9 +27,6 @@ func (a *AccountParent) TableName() string {
 }
 
 func (a *AccountParent) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(`auth.accounts_parents AS "accountparent"`)
-	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr(`auth.accounts_parents AS "accountparent"`)
 	}

@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { useTenantRouter } from "~/lib/tenant-router";
 import { useSupervision } from "~/lib/supervision-context";
 import { useSmartRedirectPath } from "~/lib/redirect-utils";
 
@@ -15,7 +15,7 @@ interface SmartRedirectProps {
  * based on their permissions and supervision state
  */
 export function SmartRedirect({ onRedirect }: SmartRedirectProps) {
-  const router = useRouter();
+  const router = useTenantRouter();
   const { data: session, status } = useSession();
   const { hasGroups, isLoadingGroups, isSupervising, isLoadingSupervision } =
     useSupervision();

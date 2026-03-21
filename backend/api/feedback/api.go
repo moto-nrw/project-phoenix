@@ -1,6 +1,7 @@
 package feedback
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strconv"
@@ -14,6 +15,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/feedback"
 	feedbackSvc "github.com/moto-nrw/project-phoenix/services/feedback"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 // Constants for date formats (S1192 - avoid duplicate string literals)
@@ -24,12 +27,14 @@ const (
 // Resource defines the feedback API resource
 type Resource struct {
 	FeedbackService feedbackSvc.Service
+	db              *bun.DB
 }
 
 // NewResource creates a new feedback resource
-func NewResource(feedbackService feedbackSvc.Service) *Resource {
+func NewResource(feedbackService feedbackSvc.Service, db *bun.DB) *Resource {
 	return &Resource{
 		FeedbackService: feedbackService,
+		db:              db,
 	}
 }
 
@@ -45,19 +50,21 @@ func (rs *Resource) Router() chi.Router {
 	r.Group(func(r chi.Router) {
 		r.Use(tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
+		r.Use(jwt.TenantMiddleware)
+		withTx := tenant.TenantTxMiddleware(rs.db)
 
 		// Read operations require feedback:read permission
-		r.With(authorize.RequiresPermission(permissions.FeedbackRead)).Get("/", rs.listFeedback)
-		r.With(authorize.RequiresPermission(permissions.FeedbackRead)).Get("/{id}", rs.getFeedback)
-		r.With(authorize.RequiresPermission(permissions.FeedbackRead)).Get("/student/{id}", rs.getStudentFeedback)
-		r.With(authorize.RequiresPermission(permissions.FeedbackRead)).Get("/date/{date}", rs.getDateFeedback)
-		r.With(authorize.RequiresPermission(permissions.FeedbackRead)).Get("/mensa", rs.getMensaFeedback)
-		r.With(authorize.RequiresPermission(permissions.FeedbackRead)).Get("/date-range", rs.getDateRangeFeedback)
+		r.With(authorize.RequiresPermission(permissions.FeedbackRead), withTx).Get("/", rs.listFeedback)
+		r.With(authorize.RequiresPermission(permissions.FeedbackRead), withTx).Get("/{id}", rs.getFeedback)
+		r.With(authorize.RequiresPermission(permissions.FeedbackRead), withTx).Get("/student/{id}", rs.getStudentFeedback)
+		r.With(authorize.RequiresPermission(permissions.FeedbackRead), withTx).Get("/date/{date}", rs.getDateFeedback)
+		r.With(authorize.RequiresPermission(permissions.FeedbackRead), withTx).Get("/mensa", rs.getMensaFeedback)
+		r.With(authorize.RequiresPermission(permissions.FeedbackRead), withTx).Get("/date-range", rs.getDateRangeFeedback)
 
 		// Write operations require specific permissions
-		r.With(authorize.RequiresPermission(permissions.FeedbackCreate)).Post("/", rs.createFeedback)
-		r.With(authorize.RequiresPermission(permissions.FeedbackCreate)).Post("/batch", rs.createBatchFeedback)
-		r.With(authorize.RequiresPermission(permissions.FeedbackDelete)).Delete("/{id}", rs.deleteFeedback)
+		r.With(authorize.RequiresPermission(permissions.FeedbackCreate), withTx).Post("/", rs.createFeedback)
+		r.With(authorize.RequiresPermission(permissions.FeedbackCreate), withTx).Post("/batch", rs.createBatchFeedback)
+		r.With(authorize.RequiresPermission(permissions.FeedbackDelete), withTx).Delete("/{id}", rs.deleteFeedback)
 	})
 
 	return r
@@ -409,7 +416,11 @@ func (rs *Resource) createFeedback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create feedback entry
-	if err := rs.FeedbackService.CreateEntry(r.Context(), entry); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	err = tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.FeedbackService.CreateEntry(ctx, entry)
+	})
+	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -441,7 +452,13 @@ func (rs *Resource) createBatchFeedback(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Create feedback entries
-	errorList, err := rs.FeedbackService.CreateEntries(r.Context(), entries)
+	tenantID := tenant.FromContext(r.Context())
+	var errorList []error
+	err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		var txErr error
+		errorList, txErr = rs.FeedbackService.CreateEntries(ctx, entries)
+		return txErr
+	})
 	if err != nil {
 		// If we have individual errors, include them in the response
 		if len(errorList) > 0 {
@@ -474,7 +491,11 @@ func (rs *Resource) deleteFeedback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Delete feedback entry
-	if err := rs.FeedbackService.DeleteEntry(r.Context(), id); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	err = tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.FeedbackService.DeleteEntry(ctx, id)
+	})
+	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}

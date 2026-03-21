@@ -1,4 +1,5 @@
 import "@testing-library/jest-dom/vitest";
+import type React from "react";
 import { vi } from "vitest";
 
 function createStorageMock(): Storage {
@@ -75,6 +76,23 @@ vi.mock("~/env", () => ({
     AUTH_JWT_REFRESH_EXPIRY: "12h",
     NODE_ENV: "test",
   },
+}));
+
+// Mock tenant provider globally so tenant-scoped components can render in tests.
+// Individual tests can override by calling vi.mocked(useTenant).mockReturnValue(...)
+vi.mock("~/components/tenant/tenant-provider", () => ({
+  useTenant: vi.fn(() => ({
+    tenantSlug: "test-tenant",
+    tenant: null,
+  })),
+  useTenantSlugSafe: vi.fn(() => "test-tenant"),
+  TenantProvider: ({
+    children,
+  }: {
+    children: React.ReactNode;
+    tenantSlug: string;
+    tenant: unknown;
+  }) => children,
 }));
 
 // Mock SWR globally - individual tests can override with vi.mocked()

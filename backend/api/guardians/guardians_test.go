@@ -5,7 +5,6 @@
 package guardians_test
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"testing"
@@ -45,6 +44,7 @@ func setupTestContext(t *testing.T) *testContext {
 		svc.Education,
 		svc.UserContext,
 		repoFactory.Student,
+		db,
 	)
 
 	return &testContext{
@@ -57,7 +57,7 @@ func setupTestContext(t *testing.T) *testContext {
 // cleanupGuardian cleans up a guardian profile and related records
 func cleanupGuardian(t *testing.T, db *bun.DB, guardianID int64) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Delete phone numbers
 	_, _ = db.NewDelete().

@@ -49,7 +49,7 @@ func (r *OperatorRepository) Create(ctx context.Context, operator *platform.Oper
 // FindByID retrieves an operator by ID
 func (r *OperatorRepository) FindByID(ctx context.Context, id int64) (*platform.Operator, error) {
 	operator := new(platform.Operator)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(operator).
 		ModelTableExpr(tablePlatformOperatorsAlias).
 		Where(`"operator".id = ?`, id).
@@ -71,7 +71,7 @@ func (r *OperatorRepository) FindByID(ctx context.Context, id int64) (*platform.
 // FindByEmail retrieves an operator by email
 func (r *OperatorRepository) FindByEmail(ctx context.Context, email string) (*platform.Operator, error) {
 	operator := new(platform.Operator)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(operator).
 		ModelTableExpr(tablePlatformOperatorsAlias).
 		Where(`"operator".email = ?`, email).
@@ -111,7 +111,7 @@ func (r *OperatorRepository) Delete(ctx context.Context, id int64) error {
 // List retrieves all operators
 func (r *OperatorRepository) List(ctx context.Context) ([]*platform.Operator, error) {
 	var operators []*platform.Operator
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&operators).
 		ModelTableExpr(tablePlatformOperatorsAlias).
 		Order(`"operator".display_name ASC`).
@@ -130,7 +130,7 @@ func (r *OperatorRepository) List(ctx context.Context) ([]*platform.Operator, er
 // UpdateLastLogin updates the last login timestamp
 func (r *OperatorRepository) UpdateLastLogin(ctx context.Context, id int64) error {
 	now := time.Now()
-	_, err := r.db.NewUpdate().
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*platform.Operator)(nil)).
 		ModelTableExpr(tablePlatformOperators).
 		Set("last_login = ?", now).

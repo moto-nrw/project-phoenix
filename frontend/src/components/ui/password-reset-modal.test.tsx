@@ -6,6 +6,8 @@ import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { PasswordResetModal } from "./password-reset-modal";
 
+const modalOnCloseHistory: Array<() => void> = [];
+
 // Mock UI components
 vi.mock("./modal", () => ({
   Modal: ({
@@ -16,13 +18,16 @@ vi.mock("./modal", () => ({
     isOpen: boolean;
     children: React.ReactNode;
     onClose: () => void;
-  }) =>
-    isOpen ? (
+  }) => {
+    modalOnCloseHistory.push(onClose);
+
+    return isOpen ? (
       <div data-testid="modal">
         <button onClick={onClose}>Close Modal</button>
         {children}
       </div>
-    ) : null,
+    ) : null;
+  },
 }));
 
 vi.mock("./index", () => ({
@@ -93,6 +98,7 @@ describe("PasswordResetModal", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorageMock.clear();
+    modalOnCloseHistory.length = 0;
     mockRequestPasswordReset.mockResolvedValue({});
   });
 
@@ -139,6 +145,17 @@ describe("PasswordResetModal", () => {
     fireEvent.change(emailInput, { target: { value: "test@example.com" } });
 
     expect(emailInput).toHaveValue("test@example.com");
+  });
+
+  it("keeps a stable modal close handler while typing", () => {
+    render(<PasswordResetModal isOpen={true} onClose={mockOnClose} />);
+
+    const initialOnClose = modalOnCloseHistory.at(-1);
+    const emailInput = screen.getByTestId("input-reset-email");
+
+    fireEvent.change(emailInput, { target: { value: "y.we" } });
+
+    expect(modalOnCloseHistory.at(-1)).toBe(initialOnClose);
   });
 
   it("displays success state after successful submission", async () => {

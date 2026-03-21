@@ -60,6 +60,7 @@ jobs:
         working-directory: backend
         env:
           DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_test?sslmode=disable
+          PHOENIX_AUTH_PASSWORD: phoenix_auth_ci
         run: go run main.go migrate
 
       - name: Run Go tests with coverage

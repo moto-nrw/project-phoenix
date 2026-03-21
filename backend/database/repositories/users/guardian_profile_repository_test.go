@@ -1,7 +1,6 @@
 package users_test
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -27,7 +26,7 @@ func TestGuardianProfileRepository_Create(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianProfile
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates guardian profile with valid data", func(t *testing.T) {
 		uniqueEmail := fmt.Sprintf("guardian-%d@test.local", time.Now().UnixNano())
@@ -68,7 +67,7 @@ func TestGuardianProfileRepository_FindByID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianProfile
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds existing guardian profile", func(t *testing.T) {
 		profile := testpkg.CreateTestGuardianProfile(t, db, "findbyid")
@@ -92,7 +91,7 @@ func TestGuardianProfileRepository_FindByEmail(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianProfile
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds guardian profile by email", func(t *testing.T) {
 		profile := testpkg.CreateTestGuardianProfile(t, db, "byemail")
@@ -125,7 +124,7 @@ func TestGuardianProfileRepository_Update(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianProfile
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates guardian profile", func(t *testing.T) {
 		profile := testpkg.CreateTestGuardianProfile(t, db, "update")
@@ -164,7 +163,7 @@ func TestGuardianProfileRepository_Delete(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianProfile
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes existing guardian profile", func(t *testing.T) {
 		profile := testpkg.CreateTestGuardianProfile(t, db, "delete")
@@ -194,7 +193,7 @@ func TestGuardianProfileRepository_ListWithOptions(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianProfile
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("lists guardian profiles with pagination", func(t *testing.T) {
 		profile := testpkg.CreateTestGuardianProfile(t, db, "listopt")
@@ -223,7 +222,7 @@ func TestGuardianProfileRepository_Count(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianProfile
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("counts guardian profiles", func(t *testing.T) {
 		profile := testpkg.CreateTestGuardianProfile(t, db, "count")
@@ -240,7 +239,7 @@ func TestGuardianProfileRepository_FindWithoutAccount(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianProfile
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds guardians without accounts", func(t *testing.T) {
 		profile := testpkg.CreateTestGuardianProfile(t, db, "noaccount")
@@ -266,7 +265,7 @@ func TestGuardianProfileRepository_FindInvitable(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianProfile
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds invitable guardians", func(t *testing.T) {
 		profile := testpkg.CreateTestGuardianProfile(t, db, "invitable")
@@ -318,7 +317,7 @@ func TestGuardianProfileRepository_LinkAccount(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianProfile
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error for non-existent profile", func(t *testing.T) {
 		// Create a real parent account to avoid FK constraint violations
@@ -358,7 +357,7 @@ func TestGuardianProfileRepository_UnlinkAccount(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianProfile
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error for non-existent profile", func(t *testing.T) {
 		err := repo.UnlinkAccount(ctx, int64(999999))
@@ -372,7 +371,7 @@ func TestGuardianProfileRepository_FindByAccountID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianProfile
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error for non-existent account ID", func(t *testing.T) {
 		_, err := repo.FindByAccountID(ctx, int64(999999))
@@ -390,7 +389,7 @@ func TestGuardianProfileRepository_GetStudentCount(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianProfile
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns zero for guardian with no students", func(t *testing.T) {
 		profile := testpkg.CreateTestGuardianProfile(t, db, "nostudents")

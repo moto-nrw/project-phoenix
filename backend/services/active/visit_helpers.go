@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/active"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // WebManualDeviceCode is the device_id for manual web check-ins.
@@ -74,6 +75,7 @@ func (s *service) createAttendanceRecord(ctx context.Context, visit *active.Visi
 		DeviceID:    resolvedDeviceID,
 	}
 
+	attendance.SetTenantID(tenant.FromContext(ctx))
 	if err := s.attendanceRepo.Create(ctx, attendance); err != nil {
 		return &ActiveError{Op: "CreateVisit", Err: err}
 	}
@@ -170,7 +172,7 @@ func (s *service) broadcastVisitCreated(ctx context.Context, visit *active.Visit
 		},
 	)
 
-	if err := s.broadcaster.BroadcastToGroup(activeGroupID, event); err != nil {
+	if err := s.broadcaster.BroadcastToGroup(tenant.FromContext(ctx), activeGroupID, event); err != nil {
 		s.getLogger().Error("SSE broadcast failed",
 			slog.String("error", err.Error()),
 			slog.String("event_type", "student_checkin"),
@@ -179,7 +181,7 @@ func (s *service) broadcastVisitCreated(ctx context.Context, visit *active.Visit
 		)
 	}
 
-	s.broadcastToEducationalGroup(studentRec, event)
+	s.broadcastToEducationalGroup(ctx, studentRec, event)
 
 	// Notify all clients so dashboard counts refresh
 	_ = s.broadcaster.BroadcastToAll(realtime.NewEvent(realtime.EventDashboardCountsChanged, "", realtime.EventData{}))

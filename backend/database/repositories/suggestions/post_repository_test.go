@@ -27,7 +27,9 @@ func createTestPost(t *testing.T, db *bun.DB, accountID int64, title, descriptio
 		Score:       0,
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	post.SetTenantID(1)
+
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
 	defer cancel()
 
 	_, err := db.NewInsert().
@@ -50,7 +52,9 @@ func createTestVote(t *testing.T, db *bun.DB, postID, voterID int64, direction s
 		Direction: direction,
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	vote.SetTenantID(1)
+
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
 	defer cancel()
 
 	_, err := db.NewInsert().
@@ -70,7 +74,7 @@ func cleanupPosts(t *testing.T, db *bun.DB, postIDs ...int64) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
 	defer cancel()
 
 	// Delete votes first (FK constraint)
@@ -96,7 +100,7 @@ func TestPostRepository_Create(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewPostRepository(db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	account := testpkg.CreateTestAccount(t, db, "suggestions-create")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -137,7 +141,7 @@ func TestPostRepository_FindByID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewPostRepository(db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	account := testpkg.CreateTestAccount(t, db, "suggestions-findbyid")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -165,7 +169,7 @@ func TestPostRepository_Update(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewPostRepository(db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	account := testpkg.CreateTestAccount(t, db, "suggestions-update")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -197,7 +201,7 @@ func TestPostRepository_Delete(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewPostRepository(db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	account := testpkg.CreateTestAccount(t, db, "suggestions-delete")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -220,7 +224,7 @@ func TestPostRepository_List(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewPostRepository(db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	account := testpkg.CreateTestAccount(t, db, "suggestions-list")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -282,7 +286,7 @@ func TestPostRepository_FindByIDWithVote(t *testing.T) {
 
 	repo := repoSuggestions.NewPostRepository(db)
 	voteRepo := repoSuggestions.NewVoteRepository(db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	account := testpkg.CreateTestAccount(t, db, "suggestions-findwithvote")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -325,7 +329,7 @@ func TestPostRepository_RecalculateScore(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewPostRepository(db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	account1 := testpkg.CreateTestAccount(t, db, "suggestions-score1")
 	account2 := testpkg.CreateTestAccount(t, db, "suggestions-score2")

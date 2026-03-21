@@ -11,8 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
-	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
 // mockGroupRepository is a minimal mock implementation of active.GroupRepository
@@ -314,21 +312,16 @@ func (m *mockGroupSupervisorRepository) EndSupervisionsByActiveGroupIDs(ctx cont
 }
 
 // TestEndActivitySession_FindByActiveGroupIDError tests the error path when finding supervisors fails.
-// This covers the error path inside the transaction when supervisorRepo.FindByActiveGroupID
-// returns an error, causing a transaction rollback.
+// This covers the error path when supervisorRepo.FindByActiveGroupID returns an error.
+// The handler layer now owns the transaction via WithTenantTx; the service no longer wraps with RunInTx.
 func TestEndActivitySession_FindByActiveGroupIDError(t *testing.T) {
 	ctx := context.Background()
 
-	// Create a mock DB and transaction using sqlmock
+	// Create a mock DB using sqlmock (no transaction expectations needed --
+	// the handler layer manages the transaction, not the service)
 	mockDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer func() { _ = mockDB.Close() }()
-
-	bunDB := bun.NewDB(mockDB, pgdialect.New())
-
-	// Expect BEGIN and ROLLBACK for the transaction
-	mock.ExpectBegin()
-	mock.ExpectRollback()
 
 	// Create mock repositories
 	groupRepo := &mockGroupRepository{
@@ -347,7 +340,7 @@ func TestEndActivitySession_FindByActiveGroupIDError(t *testing.T) {
 		},
 	}
 
-	// Configure supervisor repository to return error inside transaction
+	// Configure supervisor repository to return error
 	mockError := errors.New("mock supervisor lookup error")
 	supervisorRepo := &mockGroupSupervisorRepository{
 		findByActiveGroupIDFunc: func(ctx context.Context, activeGroupID int64, activeOnly bool) ([]*active.GroupSupervisor, error) {
@@ -360,7 +353,6 @@ func TestEndActivitySession_FindByActiveGroupIDError(t *testing.T) {
 		groupRepo:      groupRepo,
 		visitRepo:      visitRepo,
 		supervisorRepo: supervisorRepo,
-		txHandler:      base.NewTxHandler(bunDB),
 		broadcaster:    nil,
 	}
 
@@ -377,26 +369,17 @@ func TestEndActivitySession_FindByActiveGroupIDError(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-// TestEndActivitySession_EndSupervisionError tests the error path when ending supervision fails inside the transaction.
-// This covers line ~618 in session_service.go:
-//
-//	return err
-//
-// when supervisorRepo.EndSupervision returns an error inside the RunInTx callback.
-// The transaction is expected to rollback when this error occurs.
+// TestEndActivitySession_EndSupervisionError tests the error path when ending supervision fails.
+// This covers the error path when supervisorRepo.EndSupervision returns an error.
+// The handler layer now owns the transaction via WithTenantTx; the service no longer wraps with RunInTx.
 func TestEndActivitySession_EndSupervisionError(t *testing.T) {
 	ctx := context.Background()
 
-	// Create a mock DB and transaction using sqlmock
+	// Create a mock DB using sqlmock (no transaction expectations needed --
+	// the handler layer manages the transaction, not the service)
 	mockDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer func() { _ = mockDB.Close() }()
-
-	bunDB := bun.NewDB(mockDB, pgdialect.New())
-
-	// Expect BEGIN and ROLLBACK for the transaction
-	mock.ExpectBegin()
-	mock.ExpectRollback()
 
 	// Create mock repositories
 	groupRepo := &mockGroupRepository{
@@ -441,7 +424,6 @@ func TestEndActivitySession_EndSupervisionError(t *testing.T) {
 		groupRepo:      groupRepo,
 		visitRepo:      visitRepo,
 		supervisorRepo: supervisorRepo,
-		txHandler:      base.NewTxHandler(bunDB),
 		broadcaster:    nil,
 	}
 

@@ -313,7 +313,7 @@ describe("createPostHandler", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
-  it("handles invalid JSON body gracefully by passing empty object", async () => {
+  it("returns error response for invalid JSON body", async () => {
     const mockHandler = vi.fn().mockResolvedValue({ id: 1, created: true });
 
     const handler = createPostHandler(mockHandler);
@@ -328,14 +328,9 @@ describe("createPostHandler", () => {
 
     const response = await handler(request, createMockContext());
 
-    // Handler should receive empty object when JSON parsing fails
-    expect(mockHandler).toHaveBeenCalledWith(
-      request,
-      {}, // Empty object due to parse error
-      "test-token",
-      expect.any(Object),
-    );
-    expect(response.status).toBe(200);
+    // Handler should not be called when JSON parsing fails
+    expect(mockHandler).not.toHaveBeenCalled();
+    expect(response.status).toBe(500);
   });
 
   it("returns 401 when not authenticated", async () => {

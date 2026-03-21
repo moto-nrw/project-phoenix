@@ -96,6 +96,10 @@ func (s *Service) checkPasswordResetRateLimit(ctx context.Context, emailAddress 
 }
 
 // createPasswordResetTokenInTransaction creates a password reset token in a transaction
+//
+// Phase 3 deviation: RunInTx retained because this is a public password reset route (no JWT/tenant context).
+// Handler-level WithTenantTx requires authenticated tenant context, which doesn't exist
+// at password-reset request time. Tenant is not needed for token creation.
 func (s *Service) createPasswordResetTokenInTransaction(ctx context.Context, accountID int64) (*auth.PasswordResetToken, error) {
 	var resetToken *auth.PasswordResetToken
 
@@ -195,7 +199,9 @@ func (s *Service) ResetPassword(ctx context.Context, token, newPassword string) 
 		return &AuthError{Op: opHashPassword, Err: err}
 	}
 
-	// Execute in transaction
+	// Phase 3 deviation: RunInTx retained because this is a public password reset route (no JWT/tenant context).
+	// Handler-level WithTenantTx requires authenticated tenant context, which doesn't exist
+	// at password-reset time. Tenant is not needed for password update.
 	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
 		// Get transactional service
 		txService := s.WithTx(tx).(AuthService)

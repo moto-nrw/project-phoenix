@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useTenantRouter } from "~/lib/tenant-router";
 import { Header } from "./header";
 import { Sidebar } from "./sidebar";
 import { MobileBottomNav } from "./mobile-bottom-nav";
@@ -17,7 +17,7 @@ interface ResponsiveLayoutProps {
  */
 export default function ResponsiveLayout({ children }: ResponsiveLayoutProps) {
   const { data: session, status } = useSession();
-  const router = useRouter();
+  const router = useTenantRouter();
 
   // Check for invalid session and redirect
   useEffect(() => {

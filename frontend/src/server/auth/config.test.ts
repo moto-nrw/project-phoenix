@@ -945,6 +945,7 @@ describe("authConfig", () => {
       const result = await _testHelpers.performLogin(
         "teacher@test.com",
         "pass",
+        "",
         false,
       );
 
@@ -966,6 +967,7 @@ describe("authConfig", () => {
       const result = await _testHelpers.performLogin(
         "teacher@test.com",
         "pass",
+        "",
         true,
       );
 
@@ -985,6 +987,7 @@ describe("authConfig", () => {
       const result = await _testHelpers.performLogin(
         "teacher@test.com",
         "wrong",
+        "",
         false,
       );
 
@@ -1001,6 +1004,7 @@ describe("authConfig", () => {
       const result = await _testHelpers.performLogin(
         "teacher@test.com",
         "wrong",
+        "",
         true,
       );
 
@@ -1013,6 +1017,7 @@ describe("authConfig", () => {
       const result = await _testHelpers.performLogin(
         "teacher@test.com",
         "pass",
+        "",
         false,
       );
 

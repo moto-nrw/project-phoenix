@@ -24,7 +24,8 @@ const tableActivitiesSchedules = "activities.schedules"
 
 // Schedule represents a scheduled time for an activity group
 type Schedule struct {
-	base.Model      `bun:"schema:activities,table:schedules"`
+	base.Model `bun:"schema:activities,table:schedules"`
+	base.TenantModel
 	Weekday         int    `bun:"weekday,notnull" json:"weekday"`
 	TimeframeID     *int64 `bun:"timeframe_id" json:"timeframe_id,omitempty"`
 	ActivityGroupID int64  `bun:"activity_group_id,notnull" json:"activity_group_id"`
@@ -35,9 +36,6 @@ type Schedule struct {
 }
 
 func (s *Schedule) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(tableActivitiesSchedules)
-	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr(tableActivitiesSchedules)
 	}

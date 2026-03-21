@@ -8,7 +8,11 @@ import type {
   GuardianWithRelationship,
   PhoneType,
 } from "@/lib/guardian-helpers";
-import { RELATIONSHIP_TYPES, PHONE_TYPE_LABELS } from "@/lib/guardian-helpers";
+import {
+  RELATIONSHIP_TYPES,
+  PHONE_TYPE_LABELS,
+  LANGUAGE_PREFERENCES,
+} from "@/lib/guardian-helpers";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "GuardianForm" });
@@ -46,6 +50,13 @@ export interface GuardianEntry {
   isPrimary: boolean;
   canPickup: boolean;
   emergencyPriority: number;
+  // Address
+  addressStreet: string;
+  addressCity: string;
+  addressPostalCode: string;
+  // Additional
+  notes: string;
+  languagePreference: string;
 }
 
 // Create empty phone entry
@@ -73,6 +84,11 @@ export function createEmptyEntry(): GuardianEntry {
     isPrimary: false,
     canPickup: true,
     emergencyPriority: 1,
+    addressStreet: "",
+    addressCity: "",
+    addressPostalCode: "",
+    notes: "",
+    languagePreference: "de",
   };
 }
 
@@ -163,6 +179,11 @@ export function toEntry(data: GuardianWithRelationship): GuardianEntry {
     isPrimary: data.isPrimary ?? false,
     canPickup: data.canPickup ?? true,
     emergencyPriority: data.emergencyPriority ?? 1,
+    addressStreet: data.addressStreet ?? "",
+    addressCity: data.addressCity ?? "",
+    addressPostalCode: data.addressPostalCode ?? "",
+    notes: data.notes ?? "",
+    languagePreference: data.languagePreference ?? "de",
   };
 }
 
@@ -340,6 +361,11 @@ export default function GuardianFormModal({
         firstName: entry.firstName.trim(),
         lastName: entry.lastName.trim(),
         email: entry.email.trim() || undefined,
+        addressStreet: entry.addressStreet.trim() || undefined,
+        addressCity: entry.addressCity.trim() || undefined,
+        addressPostalCode: entry.addressPostalCode.trim() || undefined,
+        notes: entry.notes.trim() || undefined,
+        languagePreference: entry.languagePreference || "de",
       },
       relationshipData: {
         relationshipType: entry.relationshipType,
@@ -720,6 +746,225 @@ export default function GuardianFormModal({
                   <Plus className="h-3.5 w-3.5" />
                   Weitere Nummer hinzufügen
                 </button>
+              </div>
+            </div>
+
+            {/* Address (optional) */}
+            <div className="rounded-xl border border-gray-100 bg-blue-50/30 p-3 md:p-4">
+              <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
+                <svg
+                  className="h-3.5 w-3.5 text-blue-600 md:h-4 md:w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                  />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                  />
+                </svg>
+                Adresse
+              </h3>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
+                <div className="md:col-span-2">
+                  <label
+                    htmlFor={`guardian-street-${entry.id}`}
+                    className="mb-1 block text-xs font-medium text-gray-700"
+                  >
+                    Straße und Hausnummer
+                  </label>
+                  <input
+                    id={`guardian-street-${entry.id}`}
+                    type="text"
+                    value={entry.addressStreet}
+                    onChange={(e) =>
+                      updateEntry(entry.id, "addressStreet", e.target.value)
+                    }
+                    className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
+                    placeholder="Musterstr. 1"
+                    disabled={isLoading}
+                  />
+                </div>
+                <div>
+                  <label
+                    htmlFor={`guardian-postal-${entry.id}`}
+                    className="mb-1 block text-xs font-medium text-gray-700"
+                  >
+                    PLZ
+                  </label>
+                  <input
+                    id={`guardian-postal-${entry.id}`}
+                    type="text"
+                    value={entry.addressPostalCode}
+                    onChange={(e) =>
+                      updateEntry(entry.id, "addressPostalCode", e.target.value)
+                    }
+                    className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
+                    placeholder="50667"
+                    maxLength={5}
+                    disabled={isLoading}
+                  />
+                </div>
+                <div>
+                  <label
+                    htmlFor={`guardian-city-${entry.id}`}
+                    className="mb-1 block text-xs font-medium text-gray-700"
+                  >
+                    Ort
+                  </label>
+                  <input
+                    id={`guardian-city-${entry.id}`}
+                    type="text"
+                    value={entry.addressCity}
+                    onChange={(e) =>
+                      updateEntry(entry.id, "addressCity", e.target.value)
+                    }
+                    className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
+                    placeholder="Köln"
+                    disabled={isLoading}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Additional Info */}
+            <div className="rounded-xl border border-gray-100 bg-blue-50/30 p-3 md:p-4">
+              <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
+                <svg
+                  className="h-3.5 w-3.5 text-blue-600 md:h-4 md:w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+                Weitere Angaben
+              </h3>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
+                <div>
+                  <label
+                    htmlFor={`guardian-language-${entry.id}`}
+                    className="mb-1 block text-xs font-medium text-gray-700"
+                  >
+                    Bevorzugte Sprache
+                  </label>
+                  <div className="relative">
+                    <select
+                      id={`guardian-language-${entry.id}`}
+                      value={entry.languagePreference}
+                      onChange={(e) =>
+                        updateEntry(
+                          entry.id,
+                          "languagePreference",
+                          e.target.value,
+                        )
+                      }
+                      className="block w-full appearance-none rounded-lg border border-gray-200 bg-white px-3 py-2 pr-10 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
+                      disabled={isLoading}
+                    >
+                      {LANGUAGE_PREFERENCES.map((lang) => (
+                        <option key={lang.value} value={lang.value}>
+                          {lang.label}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
+                      <svg
+                        className="h-4 w-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M19 9l-7 7-7-7"
+                        />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+                <div className="md:col-span-2">
+                  <label
+                    htmlFor={`guardian-notes-${entry.id}`}
+                    className="mb-1 block text-xs font-medium text-gray-700"
+                  >
+                    Notizen
+                  </label>
+                  <textarea
+                    id={`guardian-notes-${entry.id}`}
+                    value={entry.notes}
+                    onChange={(e) =>
+                      updateEntry(entry.id, "notes", e.target.value)
+                    }
+                    className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
+                    placeholder="Interne Notizen zum Erziehungsberechtigten"
+                    rows={2}
+                    disabled={isLoading}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Relationship Flags */}
+            <div className="rounded-xl border border-gray-100 bg-blue-50/30 p-3 md:p-4">
+              <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
+                <svg
+                  className="h-3.5 w-3.5 text-blue-600 md:h-4 md:w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+                  />
+                </svg>
+                Berechtigungen
+              </h3>
+              <div className="space-y-2">
+                <label className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-1.5 transition-colors hover:bg-white/50">
+                  <input
+                    type="checkbox"
+                    checked={entry.isPrimary}
+                    onChange={(e) =>
+                      updateEntry(entry.id, "isPrimary", e.target.checked)
+                    }
+                    className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-600"
+                    disabled={isLoading}
+                  />
+                  <span className="text-sm text-gray-700">
+                    Hauptansprechpartner
+                  </span>
+                </label>
+                <label className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-1.5 transition-colors hover:bg-white/50">
+                  <input
+                    type="checkbox"
+                    checked={entry.canPickup}
+                    onChange={(e) =>
+                      updateEntry(entry.id, "canPickup", e.target.checked)
+                    }
+                    className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-600"
+                    disabled={isLoading}
+                  />
+                  <span className="text-sm text-gray-700">Abholberechtigt</span>
+                </label>
               </div>
             </div>
 

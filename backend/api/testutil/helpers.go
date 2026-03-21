@@ -40,6 +40,7 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/render"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -51,6 +52,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -92,18 +94,28 @@ func WithPermissions(permissions ...string) RequestOption {
 }
 
 // WithClaims adds JWT claims to the request context.
+// Also injects tenant context (mirroring TenantMiddleware) so that
+// handler-level WithTenantTx can read the tenant ID.
 func WithClaims(claims jwt.AppClaims) RequestOption {
 	return func(req *http.Request) {
 		ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+		if claims.TenantID != 0 {
+			ctx = tenant.WithTenantID(ctx, claims.TenantID)
+		}
 		*req = *req.WithContext(ctx)
 	}
 }
 
 // WithDeviceContext adds an IoT device to the request context.
 // This is used for testing device-authenticated endpoints.
+// Also injects the device's tenant_id so TenantTxMiddleware can create
+// a tenant-scoped transaction (mirrors production device auth middleware).
 func WithDeviceContext(d *iot.Device) RequestOption {
 	return func(req *http.Request) {
 		ctx := context.WithValue(req.Context(), device.CtxDevice, d)
+		if tid := d.GetTenantID(); tid != 0 {
+			ctx = tenant.WithTenantID(ctx, tid)
+		}
 		*req = *req.WithContext(ctx)
 	}
 }
@@ -203,6 +215,27 @@ func NewMultipartRequest(t *testing.T, method, target string, fieldName, fileNam
 	return req
 }
 
+// NewTenantRouter creates a chi.Router pre-configured with TenantTxMiddleware.
+// Use this in integration tests instead of chi.NewRouter() to match production
+// middleware behavior (RLS enforcement via SET LOCAL ROLE + set_config).
+//
+// NOTE: Production routers apply TenantTxMiddleware per-route (via .With(withTx))
+// so that permission checks reject unauthorized requests before a DB transaction
+// is opened. Tests keep group-level r.Use() for simplicity since test helpers
+// control their own request context and don't have the same connection-waste concern.
+func NewTenantRouter(db *bun.DB) chi.Router {
+	router := chi.NewRouter()
+	router.Use(render.SetContentType(render.ContentTypeJSON))
+	router.Use(tenant.TenantTxMiddleware(db))
+	return router
+}
+
+// TenantContext returns a context with tenant_id set.
+// Use this when calling service methods directly in test setup (not through HTTP handlers).
+func TenantContext(tenantID int64) context.Context {
+	return tenant.WithTenantID(context.Background(), tenantID)
+}
+
 // ExecuteRequest executes an HTTP request against a Chi router and returns the response recorder.
 func ExecuteRequest(router chi.Router, req *http.Request) *httptest.ResponseRecorder {
 	rr := httptest.NewRecorder()
@@ -298,6 +331,7 @@ func DefaultTestClaims() jwt.AppClaims {
 		Roles:       []string{"admin"},
 		Permissions: []string{"admin:*"},
 		IsAdmin:     true,
+		TenantID:    1,
 	}
 }
 
@@ -311,6 +345,7 @@ func TeacherTestClaims(accountID int) jwt.AppClaims {
 		LastName:    "Teacher",
 		Roles:       []string{"user"},
 		Permissions: []string{"students:read", "groups:read", "groups:update", "groups:list", "visits:read", "visits:create", "visits:update", "visits:delete", "visits:list", "activities:update", "activities:delete", "activities:list", "activities:manage", "activities:enroll", "activities:assign", "users:list", "rooms:list", "schedules:read", "schedules:list", "feedback:read", "feedback:list", "substitutions:read"},
+		TenantID:    1,
 	}
 }
 
@@ -325,5 +360,6 @@ func AdminTestClaims(accountID int) jwt.AppClaims {
 		Roles:       []string{"admin"},
 		Permissions: []string{"admin:*"},
 		IsAdmin:     true,
+		TenantID:    1,
 	}
 }

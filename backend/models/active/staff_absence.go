@@ -44,7 +44,8 @@ var ValidAbsenceStatuses = []string{
 
 // StaffAbsence represents a staff absence record (sick, vacation, etc.)
 type StaffAbsence struct {
-	base.Model  `bun:"schema:active,table:staff_absences"`
+	base.Model `bun:"schema:active,table:staff_absences"`
+	base.TenantModel
 	StaffID     int64      `bun:"staff_id,notnull" json:"staff_id"`
 	AbsenceType string     `bun:"absence_type,notnull" json:"absence_type"`
 	DateStart   time.Time  `bun:"date_start,notnull,type:date" json:"date_start"`
@@ -61,9 +62,6 @@ type StaffAbsence struct {
 
 // BeforeAppendModel implements the model hook for schema-qualified queries
 func (sa *StaffAbsence) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(tableActiveStaffAbsences)
-	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr(tableActiveStaffAbsences)
 	}

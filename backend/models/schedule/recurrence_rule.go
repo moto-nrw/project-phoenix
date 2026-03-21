@@ -25,7 +25,8 @@ var ValidWeekdays = []string{"MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"}
 
 // RecurrenceRule represents a rule for recurring events
 type RecurrenceRule struct {
-	base.Model    `bun:"schema:schedule,table:recurrence_rules"`
+	base.Model `bun:"schema:schedule,table:recurrence_rules"`
+	base.TenantModel
 	Frequency     string     `bun:"frequency,notnull" json:"frequency"`
 	IntervalCount int        `bun:"interval_count,notnull,default:1" json:"interval_count"`
 	Weekdays      []string   `bun:"weekdays,array" json:"weekdays,omitempty"`
@@ -35,9 +36,6 @@ type RecurrenceRule struct {
 }
 
 func (r *RecurrenceRule) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(tableScheduleRecurrenceRules)
-	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr(tableScheduleRecurrenceRules)
 	}

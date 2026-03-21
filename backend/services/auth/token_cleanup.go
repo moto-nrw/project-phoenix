@@ -7,6 +7,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/auth"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 // Token Management
@@ -70,6 +72,16 @@ func (s *Service) GetActiveTokens(ctx context.Context, accountID int) ([]*auth.T
 // logAuthEvent logs an authentication event for audit purposes
 func (s *Service) logAuthEvent(ctx context.Context, accountID int64, eventType string, success bool, ipAddress, userAgent string, errorMessage string) {
 	event := audit.NewAuthEvent(accountID, eventType, success, ipAddress)
+
+	// Login/refresh/logout are public routes — tenant.FromContext is 0.
+	// Resolve from account_tenants so audit events get the correct tenant.
+	tenantID := tenant.FromContext(ctx)
+	if tenantID == 0 && accountID > 0 {
+		tenantID, _, _ = s.resolveAccountTenant(ctx, accountID, "")
+	}
+	if tenantID > 0 {
+		event.SetTenantID(tenantID)
+	}
 	event.UserAgent = userAgent
 	if errorMessage != "" {
 		event.ErrorMessage = errorMessage
@@ -77,13 +89,24 @@ func (s *Service) logAuthEvent(ctx context.Context, accountID int64, eventType s
 
 	// Log asynchronously to avoid blocking auth operations
 	go func() {
-		// Create a new context with timeout for the logging operation
-		// Use WithoutCancel to detach from parent cancellation while preserving context values
-		logCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		if tenantID == 0 {
+			s.getLogger().Warn("skipping auth event logging: no tenant context",
+				"account_id", accountID,
+				"event_type", eventType,
+			)
+			return
+		}
+
+		logCtx, cancel := context.WithTimeout(
+			tenant.WithTenantID(context.Background(), tenantID),
+			5*time.Second,
+		)
 		defer cancel()
 
-		if err := s.repos.AuthEvent.Create(logCtx, event); err != nil {
-			// Log the error but don't fail the auth operation
+		err := tenant.WithTenantTx(logCtx, s.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+			return s.repos.AuthEvent.Create(ctx, event)
+		})
+		if err != nil {
 			s.getLogger().Error("failed to log auth event", "error", err)
 		}
 	}()

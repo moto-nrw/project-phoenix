@@ -36,9 +36,6 @@ func (a *Account) TableName() string {
 
 // BeforeAppendModel lets us modify query before it's executed
 func (a *Account) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(`auth.accounts AS "account"`)
-	}
 	// INSERT queries should not use aliases
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr(`auth.accounts AS "account"`)

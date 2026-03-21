@@ -37,7 +37,7 @@ func TestActiveService_GetActiveGroup(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns active group when found", func(t *testing.T) {
 		// ARRANGE - create prerequisites
@@ -85,7 +85,7 @@ func TestActiveService_GetActiveGroupsByIDs(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns multiple groups by IDs", func(t *testing.T) {
 		// ARRANGE
@@ -141,7 +141,7 @@ func TestActiveService_CreateActiveGroup(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates active group successfully", func(t *testing.T) {
 		// ARRANGE
@@ -185,7 +185,7 @@ func TestActiveService_UpdateActiveGroup(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates active group successfully", func(t *testing.T) {
 		// ARRANGE
@@ -239,7 +239,7 @@ func TestActiveService_DeleteActiveGroup(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes active group successfully", func(t *testing.T) {
 		// ARRANGE
@@ -300,7 +300,7 @@ func TestActiveService_ListActiveGroups(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns active groups with no options", func(t *testing.T) {
 		// ARRANGE
@@ -363,7 +363,7 @@ func TestActiveService_FindActiveGroupsByRoomID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns groups for room", func(t *testing.T) {
 		// ARRANGE
@@ -423,7 +423,7 @@ func TestActiveService_FindActiveGroupsByGroupID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns active groups for activity group ID", func(t *testing.T) {
 		// ARRANGE
@@ -464,7 +464,7 @@ func TestActiveService_FindDeviceActiveGroupInRoom(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns device-scoped active group when present", func(t *testing.T) {
 		activity := testpkg.CreateTestActivityGroup(t, db, "device-room-match")
@@ -509,7 +509,7 @@ func TestActiveService_FindActiveGroupsByTimeRange(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns groups in time range", func(t *testing.T) {
 		// ARRANGE
@@ -556,7 +556,7 @@ func TestActiveService_EndActiveGroupSession(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("ends session successfully", func(t *testing.T) {
 		// ARRANGE
@@ -595,7 +595,7 @@ func TestActiveService_GetActiveGroupWithVisits(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns group with visits", func(t *testing.T) {
 		// ARRANGE
@@ -636,7 +636,7 @@ func TestActiveService_GetActiveGroupWithSupervisors(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns group with supervisors", func(t *testing.T) {
 		// ARRANGE
@@ -678,7 +678,7 @@ func TestActiveService_GetActiveGroupsCount(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns count of active groups", func(t *testing.T) {
 		// ARRANGE - create an active group
@@ -701,7 +701,7 @@ func TestActiveService_GetTotalVisitsCount(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns count of total visits", func(t *testing.T) {
 		// ARRANGE
@@ -726,7 +726,7 @@ func TestActiveService_GetActiveVisitsCount(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns count of active visits", func(t *testing.T) {
 		// ARRANGE - create visit without exit time (active)
@@ -751,7 +751,7 @@ func TestActiveService_GetRoomUtilization(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns room utilization", func(t *testing.T) {
 		// ARRANGE
@@ -773,7 +773,7 @@ func TestActiveService_GetDashboardAnalytics(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns dashboard analytics", func(t *testing.T) {
 		// ACT
@@ -798,7 +798,7 @@ func TestActiveService_GetUnclaimedActiveGroups(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns unclaimed groups", func(t *testing.T) {
 		// ARRANGE - create group without supervisors (unclaimed)
@@ -822,7 +822,7 @@ func TestActiveService_ClaimActiveGroup(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("claims group successfully", func(t *testing.T) {
 		// ARRANGE
@@ -865,7 +865,7 @@ func TestActiveService_CleanupAbandonedSessions(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("cleans up old sessions", func(t *testing.T) {
 		// ACT - cleanup sessions older than 24 hours
@@ -886,33 +886,6 @@ func TestActiveService_CleanupAbandonedSessions(t *testing.T) {
 	})
 }
 
-// =============================================================================
-// Transaction Support Tests
-// =============================================================================
-
-func TestActiveService_WithTx(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := createActiveService(t, db)
-	ctx := context.Background()
-
-	t.Run("returns service instance with transaction", func(t *testing.T) {
-		// ARRANGE
-		tx, err := db.BeginTx(ctx, nil)
-		require.NoError(t, err)
-		defer func() { _ = tx.Rollback() }()
-
-		// ACT
-		txService := service.WithTx(tx)
-
-		// ASSERT - should return a service that implements the interface
-		require.NotNil(t, txService)
-		_, ok := txService.(active.Service)
-		assert.True(t, ok, "WithTx should return a Service interface")
-	})
-}
-
 // Helper for unique test names
 func uniqueName(prefix string) string {
 	return fmt.Sprintf("%s-%d", prefix, time.Now().UnixNano())
@@ -927,7 +900,7 @@ func TestActiveService_GetStudentAttendanceRate(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns 0 when student has no active visit", func(t *testing.T) {
 		// ARRANGE
@@ -990,7 +963,7 @@ func TestActiveService_StartActivitySessionWithSupervisors(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("starts session with multiple supervisors", func(t *testing.T) {
 		// ARRANGE
@@ -1050,7 +1023,7 @@ func TestActiveService_ProcessSessionTimeout(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error when device has no active session", func(t *testing.T) {
 		// ARRANGE
@@ -1098,7 +1071,7 @@ func TestActiveService_ValidateSessionTimeout(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error when device has no active session", func(t *testing.T) {
 		// ARRANGE
@@ -1141,7 +1114,7 @@ func TestActiveService_GetSessionTimeoutInfo(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error when device has no active session", func(t *testing.T) {
 		// ARRANGE
@@ -1190,7 +1163,7 @@ func TestActiveService_EndDailySessions(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("ends daily sessions successfully", func(t *testing.T) {
 		// ACT
@@ -1211,7 +1184,7 @@ func TestActiveService_ForceStartActivitySession(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("force starts session for activity", func(t *testing.T) {
 		// ARRANGE
@@ -1267,7 +1240,7 @@ func TestActiveService_EndActivitySession_WithActiveVisits(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("ends session and all active visits", func(t *testing.T) {
 		// ARRANGE
@@ -1438,7 +1411,7 @@ func TestActiveService_EndDailySessions_WithActiveData(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("ends multiple sessions with visits and supervisors", func(t *testing.T) {
 		// ARRANGE - Create multiple active sessions

@@ -1,7 +1,6 @@
 package students_test
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"testing"
@@ -266,7 +265,7 @@ func TestGetStudentInGroupRoom_Extended(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "NoVisit", "Student", "NV1")
 
 		// Assign room to group using raw SQL to avoid BUN ORM syntax issues
-		ctx := context.Background()
+		ctx := testpkg.TenantContext(1)
 		_, err := tc.db.ExecContext(ctx, "UPDATE education.groups SET room_id = ? WHERE id = ?", room.ID, group.ID)
 		require.NoError(t, err)
 
@@ -346,7 +345,7 @@ func TestGetStudentInGroupRoom_WithActiveVisit(t *testing.T) {
 		device := testpkg.CreateTestDevice(t, tc.db, "checkin-device")
 
 		// Assign room to group
-		ctx := context.Background()
+		ctx := testpkg.TenantContext(1)
 		_, err := tc.db.ExecContext(ctx, "UPDATE education.groups SET room_id = ? WHERE id = ?", room.ID, group.ID)
 		require.NoError(t, err)
 
@@ -388,7 +387,7 @@ func TestGetStudentInGroupRoom_WithActiveVisit(t *testing.T) {
 		device := testpkg.CreateTestDevice(t, tc.db, "diff-device")
 
 		// Assign group room to group
-		ctx := context.Background()
+		ctx := testpkg.TenantContext(1)
 		_, err := tc.db.ExecContext(ctx, "UPDATE education.groups SET room_id = ? WHERE id = ?", groupRoom.ID, group.ID)
 		require.NoError(t, err)
 

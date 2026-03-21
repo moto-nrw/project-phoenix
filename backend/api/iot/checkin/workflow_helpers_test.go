@@ -46,7 +46,7 @@ func TestGetDeviceActiveGroupInRoom_ReturnsMatchingGroup(t *testing.T) {
 	tc := setupInternalTestResource(t)
 	defer func() { _ = tc.db.Close() }()
 
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	activity := testpkg.CreateTestActivityGroup(t, tc.db, "device-group-match")
 	room := testpkg.CreateTestRoom(t, tc.db, "DeviceGroupMatchRoom")
@@ -64,7 +64,7 @@ func TestGetDeviceActiveGroupInRoom_NoMatchingDevice(t *testing.T) {
 	tc := setupInternalTestResource(t)
 	defer func() { _ = tc.db.Close() }()
 
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	activity := testpkg.CreateTestActivityGroup(t, tc.db, "device-group-nomatch")
 	room := testpkg.CreateTestRoom(t, tc.db, "DeviceGroupNoMatchRoom")
@@ -371,11 +371,12 @@ func createTestActiveGroupWithDevice(t *testing.T, db *bun.DB, activityGroupID, 
 		LastActivity:   now,
 		TimeoutMinutes: 30,
 	}
+	group.SetTenantID(1)
 
 	_, err := db.NewInsert().
 		Model(group).
 		ModelTableExpr(`active.groups AS "group"`).
-		Exec(context.Background())
+		Exec(testpkg.TenantContext(1))
 	require.NoError(t, err, "Failed to create test active group with device")
 
 	return group

@@ -9,15 +9,12 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/suggestions"
 	suggestionsService "github.com/moto-nrw/project-phoenix/services/suggestions"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
-	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
 // Mock implementations
@@ -814,14 +811,6 @@ func TestVote_PostNotFound(t *testing.T) {
 func TestVote_Success(t *testing.T) {
 	ctx := context.Background()
 
-	mockDB, mock, err := sqlmock.New()
-	require.NoError(t, err)
-	defer func() { _ = mockDB.Close() }()
-
-	bunDB := bun.NewDB(mockDB, pgdialect.New())
-	mock.ExpectBegin()
-	mock.ExpectCommit()
-
 	postRepo := &mockPostRepo{
 		findByIDFn: func(ctx context.Context, id int64) (*suggestions.Post, error) {
 			assert.Equal(t, int64(456), id)
@@ -846,19 +835,12 @@ func TestVote_Success(t *testing.T) {
 		},
 	}
 
-	svc := suggestionsService.NewService(suggestionsService.ServiceConfig{
-		PostRepo:        postRepo,
-		VoteRepo:        voteRepo,
-		CommentRepo:     &mockCommentRepo{},
-		CommentReadRepo: &mockCommentReadRepo{},
-		DB:              bunDB,
-	})
+	svc := newTestService(postRepo, voteRepo, &mockCommentRepo{}, &mockCommentReadRepo{})
 
 	post, err := svc.Vote(ctx, 456, 123, suggestions.DirectionUp)
 	require.NoError(t, err)
 	require.NotNil(t, post)
 	assert.Equal(t, 1, post.Score)
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestVote_FindByIDError(t *testing.T) {
@@ -882,14 +864,6 @@ func TestVote_UpsertErrorRollsBack(t *testing.T) {
 	ctx := context.Background()
 	expectedErr := errors.New("upsert failed")
 
-	mockDB, mock, err := sqlmock.New()
-	require.NoError(t, err)
-	defer func() { _ = mockDB.Close() }()
-
-	bunDB := bun.NewDB(mockDB, pgdialect.New())
-	mock.ExpectBegin()
-	mock.ExpectRollback()
-
 	postRepo := &mockPostRepo{
 		findByIDFn: func(ctx context.Context, id int64) (*suggestions.Post, error) {
 			return &suggestions.Post{AuthorID: 123}, nil
@@ -902,31 +876,16 @@ func TestVote_UpsertErrorRollsBack(t *testing.T) {
 		},
 	}
 
-	svc := suggestionsService.NewService(suggestionsService.ServiceConfig{
-		PostRepo:        postRepo,
-		VoteRepo:        voteRepo,
-		CommentRepo:     &mockCommentRepo{},
-		CommentReadRepo: &mockCommentReadRepo{},
-		DB:              bunDB,
-	})
+	svc := newTestService(postRepo, voteRepo, &mockCommentRepo{}, &mockCommentReadRepo{})
 
 	post, err := svc.Vote(ctx, 456, 123, suggestions.DirectionUp)
 	assert.ErrorIs(t, err, expectedErr)
 	assert.Nil(t, post)
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestVote_RecalculateErrorRollsBack(t *testing.T) {
 	ctx := context.Background()
 	expectedErr := errors.New("recalculate failed")
-
-	mockDB, mock, err := sqlmock.New()
-	require.NoError(t, err)
-	defer func() { _ = mockDB.Close() }()
-
-	bunDB := bun.NewDB(mockDB, pgdialect.New())
-	mock.ExpectBegin()
-	mock.ExpectRollback()
 
 	postRepo := &mockPostRepo{
 		findByIDFn: func(ctx context.Context, id int64) (*suggestions.Post, error) {
@@ -943,18 +902,11 @@ func TestVote_RecalculateErrorRollsBack(t *testing.T) {
 		},
 	}
 
-	svc := suggestionsService.NewService(suggestionsService.ServiceConfig{
-		PostRepo:        postRepo,
-		VoteRepo:        voteRepo,
-		CommentRepo:     &mockCommentRepo{},
-		CommentReadRepo: &mockCommentReadRepo{},
-		DB:              bunDB,
-	})
+	svc := newTestService(postRepo, voteRepo, &mockCommentRepo{}, &mockCommentReadRepo{})
 
 	post, err := svc.Vote(ctx, 456, 123, suggestions.DirectionUp)
 	assert.ErrorIs(t, err, expectedErr)
 	assert.Nil(t, post)
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestRemoveVote_PostNotFound(t *testing.T) {
@@ -977,14 +929,6 @@ func TestRemoveVote_PostNotFound(t *testing.T) {
 func TestRemoveVote_Success(t *testing.T) {
 	ctx := context.Background()
 
-	mockDB, mock, err := sqlmock.New()
-	require.NoError(t, err)
-	defer func() { _ = mockDB.Close() }()
-
-	bunDB := bun.NewDB(mockDB, pgdialect.New())
-	mock.ExpectBegin()
-	mock.ExpectCommit()
-
 	postRepo := &mockPostRepo{
 		findByIDFn: func(ctx context.Context, id int64) (*suggestions.Post, error) {
 			return &suggestions.Post{AuthorID: 123}, nil
@@ -1006,19 +950,12 @@ func TestRemoveVote_Success(t *testing.T) {
 		},
 	}
 
-	svc := suggestionsService.NewService(suggestionsService.ServiceConfig{
-		PostRepo:        postRepo,
-		VoteRepo:        voteRepo,
-		CommentRepo:     &mockCommentRepo{},
-		CommentReadRepo: &mockCommentReadRepo{},
-		DB:              bunDB,
-	})
+	svc := newTestService(postRepo, voteRepo, &mockCommentRepo{}, &mockCommentReadRepo{})
 
 	post, err := svc.RemoveVote(ctx, 456, 123)
 	require.NoError(t, err)
 	require.NotNil(t, post)
 	assert.Equal(t, 0, post.Score)
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestRemoveVote_FindByIDError(t *testing.T) {
@@ -1042,14 +979,6 @@ func TestRemoveVote_DeleteErrorRollsBack(t *testing.T) {
 	ctx := context.Background()
 	expectedErr := errors.New("delete failed")
 
-	mockDB, mock, err := sqlmock.New()
-	require.NoError(t, err)
-	defer func() { _ = mockDB.Close() }()
-
-	bunDB := bun.NewDB(mockDB, pgdialect.New())
-	mock.ExpectBegin()
-	mock.ExpectRollback()
-
 	postRepo := &mockPostRepo{
 		findByIDFn: func(ctx context.Context, id int64) (*suggestions.Post, error) {
 			return &suggestions.Post{AuthorID: 123}, nil
@@ -1062,31 +991,16 @@ func TestRemoveVote_DeleteErrorRollsBack(t *testing.T) {
 		},
 	}
 
-	svc := suggestionsService.NewService(suggestionsService.ServiceConfig{
-		PostRepo:        postRepo,
-		VoteRepo:        voteRepo,
-		CommentRepo:     &mockCommentRepo{},
-		CommentReadRepo: &mockCommentReadRepo{},
-		DB:              bunDB,
-	})
+	svc := newTestService(postRepo, voteRepo, &mockCommentRepo{}, &mockCommentReadRepo{})
 
 	post, err := svc.RemoveVote(ctx, 456, 123)
 	assert.ErrorIs(t, err, expectedErr)
 	assert.Nil(t, post)
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestRemoveVote_RecalculateErrorRollsBack(t *testing.T) {
 	ctx := context.Background()
 	expectedErr := errors.New("recalculate failed")
-
-	mockDB, mock, err := sqlmock.New()
-	require.NoError(t, err)
-	defer func() { _ = mockDB.Close() }()
-
-	bunDB := bun.NewDB(mockDB, pgdialect.New())
-	mock.ExpectBegin()
-	mock.ExpectRollback()
 
 	postRepo := &mockPostRepo{
 		findByIDFn: func(ctx context.Context, id int64) (*suggestions.Post, error) {
@@ -1103,18 +1017,11 @@ func TestRemoveVote_RecalculateErrorRollsBack(t *testing.T) {
 		},
 	}
 
-	svc := suggestionsService.NewService(suggestionsService.ServiceConfig{
-		PostRepo:        postRepo,
-		VoteRepo:        voteRepo,
-		CommentRepo:     &mockCommentRepo{},
-		CommentReadRepo: &mockCommentReadRepo{},
-		DB:              bunDB,
-	})
+	svc := newTestService(postRepo, voteRepo, &mockCommentRepo{}, &mockCommentReadRepo{})
 
 	post, err := svc.RemoveVote(ctx, 456, 123)
 	assert.ErrorIs(t, err, expectedErr)
 	assert.Nil(t, post)
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestCreateComment_Success(t *testing.T) {

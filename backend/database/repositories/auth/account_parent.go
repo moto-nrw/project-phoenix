@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -25,8 +26,10 @@ type AccountParentRepository struct {
 
 // NewAccountParentRepository creates a new AccountParentRepository
 func NewAccountParentRepository(db *bun.DB) auth.AccountParentRepository {
+	repo := base.NewRepository[*auth.AccountParent](db, accountParentTable, "AccountParent")
+	repo.TenantScoped = true
 	return &AccountParentRepository{
-		Repository: base.NewRepository[*auth.AccountParent](db, accountParentTable, "AccountParent"),
+		Repository: repo,
 		db:         db,
 	}
 }
@@ -36,11 +39,16 @@ func (r *AccountParentRepository) FindByEmail(ctx context.Context, email string)
 	account := new(auth.AccountParent)
 
 	// Explicitly specify the schema and table
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(account).
 		ModelTableExpr(accountParentTableAlias).
-		Where(`LOWER("account_parent".email) = LOWER(?)`, email).
-		Scan(ctx)
+		Where(`LOWER("account_parent".email) = LOWER(?)`, email)
+
+	if where, val, ok := base.TenantWhere(ctx, "account_parent"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -57,11 +65,16 @@ func (r *AccountParentRepository) FindByUsername(ctx context.Context, username s
 	account := new(auth.AccountParent)
 
 	// Explicitly specify the schema and table
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(account).
 		ModelTableExpr(accountParentTableAlias).
-		Where(`LOWER("account_parent".username) = LOWER(?)`, username).
-		Scan(ctx)
+		Where(`LOWER("account_parent".username) = LOWER(?)`, username)
+
+	if where, val, ok := base.TenantWhere(ctx, "account_parent"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -75,12 +88,17 @@ func (r *AccountParentRepository) FindByUsername(ctx context.Context, username s
 
 // UpdateLastLogin updates the last login timestamp for a parent account
 func (r *AccountParentRepository) UpdateLastLogin(ctx context.Context, id int64) error {
-	_, err := r.db.NewUpdate().
+	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*auth.AccountParent)(nil)).
 		ModelTableExpr(accountParentTable).
 		Set("last_login = ?", time.Now()).
-		Where(whereID, id).
-		Exec(ctx)
+		Where(whereID, id)
+
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
+
+	result, err := query.Exec(ctx)
 
 	if err != nil {
 		return &modelBase.DatabaseError{
@@ -89,17 +107,22 @@ func (r *AccountParentRepository) UpdateLastLogin(ctx context.Context, id int64)
 		}
 	}
 
-	return nil
+	return base.AssertRowsAffected(result, 1, "update last login")
 }
 
 // UpdatePassword updates the password hash for a parent account
 func (r *AccountParentRepository) UpdatePassword(ctx context.Context, id int64, passwordHash string) error {
-	_, err := r.db.NewUpdate().
+	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*auth.AccountParent)(nil)).
 		ModelTableExpr(accountParentTable).
 		Set("password_hash = ?", passwordHash).
-		Where(whereID, id).
-		Exec(ctx)
+		Where(whereID, id)
+
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
+
+	result, err := query.Exec(ctx)
 
 	if err != nil {
 		return &modelBase.DatabaseError{
@@ -108,15 +131,19 @@ func (r *AccountParentRepository) UpdatePassword(ctx context.Context, id int64, 
 		}
 	}
 
-	return nil
+	return base.AssertRowsAffected(result, 1, "update password")
 }
 
 // List retrieves parent accounts matching the provided filters
 func (r *AccountParentRepository) List(ctx context.Context, filters map[string]interface{}) ([]*auth.AccountParent, error) {
 	var accounts []*auth.AccountParent
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&accounts).
 		ModelTableExpr(accountParentTableAlias)
+
+	if where, val, ok := base.TenantWhere(ctx, "account_parent"); ok {
+		query = query.Where(where, val)
+	}
 
 	// Apply filters
 	for field, value := range filters {
@@ -181,21 +208,12 @@ func (r *AccountParentRepository) Create(ctx context.Context, account *auth.Acco
 		return err
 	}
 
-	// Get the query builder - detect if we're in a transaction
-	query := r.db.NewInsert().
+	base.EnsureTenantID(ctx, account)
+
+	_, err := base.GetDB(ctx, r.db).NewInsert().
 		Model(account).
-		ModelTableExpr(accountParentTable)
-
-	// Extract transaction from context if it exists
-	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
-		// Use the transaction if available
-		query = tx.NewInsert().
-			Model(account).
-			ModelTableExpr(accountParentTable)
-	}
-
-	// Execute the query
-	_, err := query.Exec(ctx)
+		ModelTableExpr(accountParentTable).
+		Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "create",
@@ -217,23 +235,16 @@ func (r *AccountParentRepository) Update(ctx context.Context, account *auth.Acco
 		return err
 	}
 
-	// Get the query builder - detect if we're in a transaction
-	query := r.db.NewUpdate().
+	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model(account).
 		Where(whereID, account.ID).
 		ModelTableExpr(accountParentTable)
 
-	// Extract transaction from context if it exists
-	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
-		// Use the transaction if available
-		query = tx.NewUpdate().
-			Model(account).
-			Where(whereID, account.ID).
-			ModelTableExpr(accountParentTable)
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
 	}
 
-	// Execute the query
-	_, err := query.Exec(ctx)
+	result, err := query.Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update",
@@ -241,5 +252,5 @@ func (r *AccountParentRepository) Update(ctx context.Context, account *auth.Acco
 		}
 	}
 
-	return nil
+	return base.AssertRowsAffected(result, 1, "update account_parent")
 }

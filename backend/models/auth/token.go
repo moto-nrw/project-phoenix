@@ -11,6 +11,7 @@ import (
 // Token represents an authentication token in the system
 type Token struct {
 	base.Model `bun:"schema:auth,table:tokens"`
+	base.TenantModel
 	AccountID  int64     `bun:"account_id,notnull" json:"account_id"`
 	Token      string    `bun:"token,notnull" json:"token"`
 	Expiry     time.Time `bun:"expiry,notnull" json:"expiry"`
@@ -75,9 +76,6 @@ func (m *Token) GetUpdatedAt() time.Time {
 
 // BeforeAppendModel lets us modify query before it's executed
 func (t *Token) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(`auth.tokens AS "token"`)
-	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr(`auth.tokens AS "token"`)
 	}

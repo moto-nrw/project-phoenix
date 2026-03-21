@@ -24,7 +24,8 @@ const tableSuggestionsPosts = "suggestions.posts"
 
 // Post represents a suggestion post from a user
 type Post struct {
-	base.Model  `bun:"schema:suggestions,table:posts"`
+	base.Model `bun:"schema:suggestions,table:posts"`
+	base.TenantModel
 	Title       string `bun:"title,notnull" json:"title"`
 	Description string `bun:"description,notnull" json:"description"`
 	AuthorID    int64  `bun:"author_id,notnull" json:"author_id"`
@@ -44,9 +45,6 @@ type Post struct {
 }
 
 func (p *Post) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(tableSuggestionsPosts)
-	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr(tableSuggestionsPosts)
 	}

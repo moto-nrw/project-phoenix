@@ -15,7 +15,7 @@ import { renderHook } from "@testing-library/react";
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(() => ({
     status: "authenticated",
-    data: { user: { token: "test-token" } },
+    data: { user: { token: "test-token", tenantId: 1, roles: ["user"] } },
   })),
 }));
 
@@ -92,6 +92,25 @@ describe("useGlobalSSE", () => {
       );
     });
 
+    it("is disabled for admin-only users without staff role", () => {
+      vi.mocked(useSession).mockReturnValueOnce({
+        status: "authenticated",
+        data: {
+          user: { token: "test-token", tenantId: 1, roles: ["admin"] },
+        } as never,
+        update: vi.fn(),
+      });
+
+      renderHook(() => useGlobalSSE());
+
+      expect(useSSE).toHaveBeenCalledWith(
+        "/api/sse/events",
+        expect.objectContaining({
+          enabled: false,
+        }),
+      );
+    });
+
     it("is disabled when session is loading", () => {
       vi.mocked(useSession).mockReturnValueOnce({
         status: "loading",
@@ -105,6 +124,63 @@ describe("useGlobalSSE", () => {
         "/api/sse/events",
         expect.objectContaining({
           enabled: false,
+        }),
+      );
+    });
+
+    it("passes tenantId as reconnectKey to useSSE", () => {
+      vi.mocked(useSession).mockReturnValueOnce({
+        status: "authenticated",
+        data: {
+          user: { token: "test-token", tenantId: 42, roles: ["user"] },
+        } as never,
+        update: vi.fn(),
+      });
+
+      renderHook(() => useGlobalSSE());
+
+      expect(useSSE).toHaveBeenCalledWith(
+        "/api/sse/events",
+        expect.objectContaining({
+          reconnectKey: 42,
+        }),
+      );
+    });
+
+    it("reconnects SSE when tenantId changes", () => {
+      // First render with tenant 1
+      vi.mocked(useSession).mockReturnValue({
+        status: "authenticated",
+        data: {
+          user: { token: "test-token", tenantId: 1, roles: ["user"] },
+        } as never,
+        update: vi.fn(),
+      });
+
+      const { rerender } = renderHook(() => useGlobalSSE());
+
+      expect(useSSE).toHaveBeenLastCalledWith(
+        "/api/sse/events",
+        expect.objectContaining({
+          reconnectKey: 1,
+        }),
+      );
+
+      // Simulate tenant switch to tenant 2
+      vi.mocked(useSession).mockReturnValue({
+        status: "authenticated",
+        data: {
+          user: { token: "new-token", tenantId: 2, roles: ["user"] },
+        } as never,
+        update: vi.fn(),
+      });
+
+      rerender();
+
+      expect(useSSE).toHaveBeenLastCalledWith(
+        "/api/sse/events",
+        expect.objectContaining({
+          reconnectKey: 2,
         }),
       );
     });

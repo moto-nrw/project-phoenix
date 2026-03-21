@@ -24,7 +24,7 @@ type mockBroadcaster struct {
 	allCalls []realtime.Event
 }
 
-func (m *mockBroadcaster) BroadcastToGroup(_ string, _ realtime.Event) error { return nil }
+func (m *mockBroadcaster) BroadcastToGroup(_ int64, _ string, _ realtime.Event) error { return nil }
 
 func (m *mockBroadcaster) BroadcastToAll(event realtime.Event) error {
 	m.mu.Lock()
@@ -95,7 +95,7 @@ func TestBroadcast_CreateVisitSendsDashboardCounts(t *testing.T) {
 	iotDevice := testpkg.CreateTestDevice(t, db, "broadcast-device")
 	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, staff.ID, iotDevice.ID)
 
-	staffCtx := context.WithValue(context.Background(), device.CtxStaff, staff)
+	staffCtx := context.WithValue(testpkg.TenantContext(1), device.CtxStaff, staff)
 	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, iotDevice)
 
 	visit := &activeModels.Visit{
@@ -129,7 +129,7 @@ func TestBroadcast_EndVisitSendsDashboardCounts(t *testing.T) {
 	broadcaster.allCalls = nil
 	broadcaster.mu.Unlock()
 
-	err := svc.EndVisit(context.Background(), visit.ID)
+	err := svc.EndVisit(testpkg.TenantContext(1), visit.ID)
 	require.NoError(t, err)
 
 	assert.True(t, broadcaster.hasEventType(realtime.EventDashboardCountsChanged),
@@ -154,7 +154,7 @@ func TestBroadcast_EndActivitySessionSendsDashboardCounts(t *testing.T) {
 	broadcaster.allCalls = nil
 	broadcaster.mu.Unlock()
 
-	err := svc.EndActivitySession(context.Background(), session.ID)
+	err := svc.EndActivitySession(testpkg.TenantContext(1), session.ID)
 	require.NoError(t, err)
 
 	// Should have dashboard_counts_changed from the batch student checkout

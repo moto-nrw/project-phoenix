@@ -13,7 +13,8 @@ const tableAuthAccountPermissions = "auth.account_permissions"
 
 // AccountPermission represents a direct permission assignment to an account
 type AccountPermission struct {
-	base.Model   `bun:"schema:auth,table:account_permissions"`
+	base.Model `bun:"schema:auth,table:account_permissions"`
+	base.TenantModel
 	AccountID    int64 `bun:"account_id,notnull" json:"account_id"`
 	PermissionID int64 `bun:"permission_id,notnull" json:"permission_id"`
 	Granted      bool  `bun:"granted,notnull,default:true" json:"granted"`
@@ -29,9 +30,6 @@ func (ap *AccountPermission) TableName() string {
 }
 
 func (ap *AccountPermission) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(tableAuthAccountPermissions)
-	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr(tableAuthAccountPermissions)
 	}

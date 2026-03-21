@@ -29,6 +29,9 @@ const (
 	ResourceSuggestion   = "suggestion"
 	ResourceComment      = "operator_comment"
 	ResourceOperator     = "operator"
+	ResourceOrganization = "organization"
+	ResourceSchool       = "school"
+	ResourceInvitation   = "invitation"
 )
 
 // OperatorAuditLog tracks operator actions for auditing
@@ -47,9 +50,6 @@ type OperatorAuditLog struct {
 }
 
 func (l *OperatorAuditLog) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(tablePlatformOperatorAuditLog)
-	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr(tablePlatformOperatorAuditLog)
 	}

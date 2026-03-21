@@ -4,13 +4,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 )
 
 // Service defines the IoT service operations
 type Service interface {
-	base.TransactionalService
 	// Core device operations
 	CreateDevice(ctx context.Context, device *iot.Device) error
 	GetDeviceByID(ctx context.Context, id int64) (*iot.Device, error)

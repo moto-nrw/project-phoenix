@@ -9,6 +9,22 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// importerUserIDKey is a context key for the importing user's ID
+type importerUserIDKey struct{}
+
+// ContextWithImporterID stores the importer's user ID in the context
+func ContextWithImporterID(ctx context.Context, userID int64) context.Context {
+	return context.WithValue(ctx, importerUserIDKey{}, userID)
+}
+
+// ImporterIDFromContext retrieves the importer's user ID from the context
+func ImporterIDFromContext(ctx context.Context) int64 {
+	if id, ok := ctx.Value(importerUserIDKey{}).(int64); ok {
+		return id
+	}
+	return 0
+}
+
 // ImportService handles generic import logic for any entity type
 type ImportService[T any] struct {
 	config    importModels.ImportConfig[T]
@@ -32,6 +48,9 @@ func (s *ImportService[T]) Import(ctx context.Context, request importModels.Impo
 		TotalRows: len(request.Rows),
 		DryRun:    request.DryRun,
 	}
+
+	// Store importer's user ID in context for entity creation (e.g. pickup schedules)
+	ctx = ContextWithImporterID(ctx, request.UserID)
 
 	if err := s.config.PreloadReferenceData(ctx); err != nil {
 		return nil, fmt.Errorf("preload reference data: %w", err)

@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -110,7 +111,6 @@ type gradeTransitionService struct {
 	studentRepo    users.StudentRepository
 	personRepo     users.PersonRepository
 	db             *bun.DB
-	txHandler      *base.TxHandler
 }
 
 // GradeTransitionServiceDependencies contains dependencies for the service
@@ -128,7 +128,6 @@ func NewGradeTransitionService(deps GradeTransitionServiceDependencies) GradeTra
 		studentRepo:    deps.StudentRepo,
 		personRepo:     deps.PersonRepo,
 		db:             deps.DB,
-		txHandler:      base.NewTxHandler(deps.DB),
 	}
 }
 
@@ -149,15 +148,13 @@ func (s *gradeTransitionService) Create(ctx context.Context, req CreateTransitio
 		return nil, err
 	}
 
-	// Execute in transaction
-	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		if err := s.transitionRepo.Create(ctx, transition); err != nil {
-			return fmt.Errorf("failed to create transition: %w", err)
-		}
-		return s.createMappingsIfProvided(ctx, transition, req.Mappings)
-	})
+	transition.SetTenantID(tenant.FromContext(ctx))
 
-	if err != nil {
+	if err := s.transitionRepo.Create(ctx, transition); err != nil {
+		return nil, fmt.Errorf("failed to create transition: %w", err)
+	}
+
+	if err := s.createMappingsIfProvided(ctx, transition, req.Mappings); err != nil {
 		return nil, err
 	}
 
@@ -177,6 +174,11 @@ func (s *gradeTransitionService) createMappingsIfProvided(
 	mappings, err := s.buildMappings(transition.ID, reqMappings)
 	if err != nil {
 		return err
+	}
+
+	tenantID := tenant.FromContext(ctx)
+	for _, m := range mappings {
+		m.SetTenantID(tenantID)
 	}
 
 	if err := s.transitionRepo.CreateMappings(ctx, mappings); err != nil {
@@ -220,14 +222,11 @@ func (s *gradeTransitionService) Update(ctx context.Context, id int64, req Updat
 		return nil, err
 	}
 
-	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		if err := s.transitionRepo.Update(ctx, transition); err != nil {
-			return fmt.Errorf("failed to update transition: %w", err)
-		}
-		return s.replaceMappingsIfProvided(ctx, transition, req.Mappings)
-	})
+	if err := s.transitionRepo.Update(ctx, transition); err != nil {
+		return nil, fmt.Errorf("failed to update transition: %w", err)
+	}
 
-	if err != nil {
+	if err := s.replaceMappingsIfProvided(ctx, transition, req.Mappings); err != nil {
 		return nil, err
 	}
 
@@ -266,6 +265,11 @@ func (s *gradeTransitionService) replaceMappingsIfProvided(
 	mappings, err := s.buildMappings(transition.ID, reqMappings)
 	if err != nil {
 		return err
+	}
+
+	tenantID := tenant.FromContext(ctx)
+	for _, m := range mappings {
+		m.SetTenantID(tenantID)
 	}
 
 	if err := s.transitionRepo.CreateMappings(ctx, mappings); err != nil {
@@ -430,11 +434,7 @@ func (s *gradeTransitionService) Apply(ctx context.Context, id int64, accountID 
 		Warnings:     make([]string, 0),
 	}
 
-	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		return s.executeApply(ctx, transition, accountID, result)
-	})
-
-	if err != nil {
+	if err := s.executeApply(ctx, transition, accountID, result); err != nil {
 		return nil, err
 	}
 
@@ -511,6 +511,11 @@ func (s *gradeTransitionService) recordTransitionHistory(
 
 	classMapping := buildClassMapping(mappings)
 	historyRecords := buildHistoryRecords(transitionID, students, classMapping)
+
+	tenantID := tenant.FromContext(ctx)
+	for _, h := range historyRecords {
+		h.SetTenantID(tenantID)
+	}
 
 	if err := s.transitionRepo.CreateHistoryBatch(ctx, historyRecords); err != nil {
 		return fmt.Errorf("failed to create history: %w", err)
@@ -644,11 +649,7 @@ func (s *gradeTransitionService) Revert(ctx context.Context, id int64, accountID
 		Warnings:     make([]string, 0),
 	}
 
-	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		return s.executeRevert(ctx, transition, accountID, history, result)
-	})
-
-	if err != nil {
+	if err := s.executeRevert(ctx, transition, accountID, history, result); err != nil {
 		return nil, err
 	}
 

@@ -8,12 +8,14 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/uptrace/bun"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/uptrace/bun"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Activity Session Management with Conflict Detection
@@ -68,6 +70,7 @@ func (s *service) assignSupervisorNonCritical(ctx context.Context, groupID, staf
 		Role:      "Supervisor",
 		StartDate: startDate,
 	}
+	supervisor.SetTenantID(tenant.FromContext(ctx))
 	if err := s.supervisorRepo.Create(ctx, supervisor); err != nil {
 		s.getLogger().WarnContext(ctx, "supervisor assignment failed",
 			slog.Int64("staff_id", staffID),
@@ -115,7 +118,7 @@ func (s *service) broadcastActivityStartEvent(ctx context.Context, group *active
 		},
 	)
 
-	s.broadcastWithLogging(activeGroupID, "", event, "activity_start")
+	s.broadcastWithLogging(ctx, activeGroupID, "", event, "activity_start")
 
 	// Notify all clients (including zero-topic) so dashboard refreshes
 	_ = s.broadcaster.BroadcastToAll(realtime.NewEvent(realtime.EventDashboardCountsChanged, "", realtime.EventData{}))
@@ -166,18 +169,24 @@ func (s *service) StartActivitySessionWithSupervisors(ctx context.Context, activ
 }
 
 // executeSessionStart handles common session start logic: conflict checking, device validation, and room determination
-// Uses PostgreSQL advisory locks to prevent race conditions when multiple requests try to start the same activity concurrently
+// Uses PostgreSQL advisory locks to prevent race conditions when multiple requests try to start the same activity concurrently.
+// Wraps all operations in a transaction (via TxHandler.RunInTx) so the advisory lock is always available.
+// If a transaction already exists in context (e.g. from handler-level WithTenantTx), it is reused.
 func (s *service) executeSessionStart(ctx context.Context, activityID, deviceID int64, roomID *int64, operation string, createSession func(context.Context, int64) (*active.Group, error)) error {
-	return s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		// Acquire advisory lock on activity ID to serialize concurrent session starts
+	txHandler := modelBase.NewTxHandler(s.db)
+
+	return txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
+		// Acquire advisory lock on (tenant_id, activity_id) to serialize concurrent session starts
 		// This prevents race conditions where two requests both pass conflict check before either creates a session
+		// Using two-argument form ensures locks are scoped per tenant and cannot collide across tenants
 		// The lock is automatically released when the transaction commits or rolls back
-		if _, err := tx.ExecContext(ctx, "SELECT pg_advisory_xact_lock(?)", activityID); err != nil {
+		tenantID := tenant.FromContext(txCtx)
+		if _, err := tx.ExecContext(txCtx, "SELECT pg_advisory_xact_lock(?, ?)", tenantID, activityID); err != nil {
 			return &ActiveError{Op: operation, Err: fmt.Errorf("failed to acquire activity lock: %w", err)}
 		}
 
 		// Check for conflicts inside the transaction with the lock held
-		conflictInfo, err := s.CheckActivityConflict(ctx, activityID, deviceID)
+		conflictInfo, err := s.CheckActivityConflict(txCtx, activityID, deviceID)
 		if err != nil {
 			return &ActiveError{Op: operation, Err: err}
 		}
@@ -185,12 +194,12 @@ func (s *service) executeSessionStart(ctx context.Context, activityID, deviceID 
 			return &ActiveError{Op: operation, Err: ErrSessionConflict}
 		}
 
-		finalRoomID, err := s.determineSessionRoomID(ctx, activityID, roomID)
+		finalRoomID, err := s.determineSessionRoomID(txCtx, activityID, roomID)
 		if err != nil {
 			return err
 		}
 
-		_, err = createSession(ctx, finalRoomID)
+		_, err = createSession(txCtx, finalRoomID)
 		return err
 	})
 }
@@ -235,6 +244,7 @@ func (s *service) assignMultipleSupervisorsNonCritical(ctx context.Context, grou
 			Role:      "supervisor",
 			StartDate: startDate,
 		}
+		supervisor.SetTenantID(tenant.FromContext(ctx))
 		if err := s.supervisorRepo.Create(ctx, supervisor); err != nil {
 			s.getLogger().WarnContext(ctx, "supervisor assignment failed",
 				slog.Int64("staff_id", staffID),
@@ -247,19 +257,13 @@ func (s *service) assignMultipleSupervisorsNonCritical(ctx context.Context, grou
 
 // ForceStartActivitySession starts an activity session with override capability
 func (s *service) ForceStartActivitySession(ctx context.Context, activityID, deviceID, staffID int64, roomID *int64) (*active.Group, error) {
-	var newGroup *active.Group
-	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		if err := s.endExistingDeviceSessionIfPresent(ctx, deviceID); err != nil {
-			return err
-		}
+	if err := s.endExistingDeviceSessionIfPresent(ctx, deviceID); err != nil {
+		return nil, &ActiveError{Op: "ForceStartActivitySession", Err: err}
+	}
 
-		finalRoomID := s.determineRoomIDWithoutConflictCheck(ctx, activityID, roomID)
+	finalRoomID := s.determineRoomIDWithoutConflictCheck(ctx, activityID, roomID)
 
-		var err error
-		newGroup, err = s.createSessionWithSupervisorForceStart(ctx, activityID, deviceID, staffID, finalRoomID)
-		return err
-	})
-
+	newGroup, err := s.createSessionWithSupervisorForceStart(ctx, activityID, deviceID, staffID, finalRoomID)
 	if err != nil {
 		return nil, &ActiveError{Op: "ForceStartActivitySession", Err: err}
 	}
@@ -309,6 +313,7 @@ func (s *service) createSessionBase(ctx context.Context, activityID, deviceID, r
 		RoomID:         roomID,
 	}
 
+	newGroup.SetTenantID(tenant.FromContext(ctx))
 	if err := s.groupRepo.Create(ctx, newGroup); err != nil {
 		return nil, 0, err
 	}
@@ -334,25 +339,20 @@ func (s *service) ForceStartActivitySessionWithSupervisors(ctx context.Context, 
 		return nil, err
 	}
 
-	var newGroup *active.Group
-	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		// Use simple cleanup (fullCleanup=false) to only mark the group as ended
-		// without ending visits, so TransferVisitsFromRecentSessions can move them
-		// to the new session. Using fullCleanup=true would set exit_time on all visits
-		// first, causing the transfer to find nothing and losing all checked-in students.
-		if err := s.endExistingDeviceSessionIfPresent(ctx, deviceID); err != nil {
-			return err
-		}
+	// Use simple cleanup (fullCleanup=false) to only mark the group as ended
+	// without ending visits, so TransferVisitsFromRecentSessions can move them
+	// to the new session. Using fullCleanup=true would set exit_time on all visits
+	// first, causing the transfer to find nothing and losing all checked-in students.
+	if err := s.endExistingDeviceSessionIfPresent(ctx, deviceID); err != nil {
+		return nil, &ActiveError{Op: "ForceStartActivitySessionWithSupervisors", Err: err}
+	}
 
-		finalRoomID, err := s.determineRoomIDForForceStart(ctx, activityID, roomID)
-		if err != nil {
-			return err
-		}
+	finalRoomID, err := s.determineRoomIDForForceStart(ctx, activityID, roomID)
+	if err != nil {
+		return nil, &ActiveError{Op: "ForceStartActivitySessionWithSupervisors", Err: err}
+	}
 
-		newGroup, err = s.createSessionWithMultipleSupervisors(ctx, activityID, deviceID, supervisorIDs, finalRoomID)
-		return err
-	})
-
+	newGroup, err := s.createSessionWithMultipleSupervisors(ctx, activityID, deviceID, supervisorIDs, finalRoomID)
 	if err != nil {
 		return nil, &ActiveError{Op: "ForceStartActivitySessionWithSupervisors", Err: err}
 	}
@@ -443,11 +443,7 @@ func (s *service) UpdateActiveGroupSupervisors(ctx context.Context, activeGroupI
 
 	uniqueSupervisors := deduplicateSupervisorIDs(supervisorIDs)
 
-	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		return s.replaceSupervisorsInTransaction(ctx, activeGroupID, uniqueSupervisors)
-	})
-
-	if err != nil {
+	if err := s.replaceSupervisorsInTransaction(ctx, activeGroupID, uniqueSupervisors); err != nil {
 		return nil, &ActiveError{Op: "UpdateActiveGroupSupervisors", Err: err}
 	}
 
@@ -558,6 +554,7 @@ func (s *service) createNewSupervisor(ctx context.Context, activeGroupID, superv
 		Role:      "supervisor",
 		StartDate: now,
 	}
+	supervisor.SetTenantID(tenant.FromContext(ctx))
 	return s.supervisorRepo.Create(ctx, supervisor)
 }
 
@@ -636,44 +633,33 @@ func (s *service) EndActivitySession(ctx context.Context, activeGroupID int64) e
 		return &ActiveError{Op: "EndActivitySession", Err: ErrDatabaseOperation}
 	}
 
-	// Use transaction to ensure atomic cleanup
-	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		txService := s.WithTx(tx).(*service)
-
-		// End all active visits
-		for _, visitData := range visitsToNotify {
-			if err := txService.visitRepo.EndVisit(ctx, visitData.VisitID); err != nil {
-				return err
-			}
+	// End all active visits
+	for _, visitData := range visitsToNotify {
+		if err := s.visitRepo.EndVisit(ctx, visitData.VisitID); err != nil {
+			return &ActiveError{Op: "EndActivitySession", Err: err}
 		}
+	}
 
-		// Fetch and end all active supervisors inside the transaction
-		activeSupervisors, err := txService.supervisorRepo.FindByActiveGroupID(ctx, activeGroupID, true)
-		if err != nil {
-			return err
-		}
-		for _, sup := range activeSupervisors {
-			if err := txService.supervisorRepo.EndSupervision(ctx, sup.ID); err != nil {
-				return err
-			}
-		}
-
-		// End the session
-		if err := txService.groupRepo.EndSession(ctx, activeGroupID); err != nil {
-			return err
-		}
-
-		return nil
-	})
-
+	// End all active supervisors
+	activeSupervisors, err := s.supervisorRepo.FindByActiveGroupID(ctx, activeGroupID, true)
 	if err != nil {
+		return &ActiveError{Op: "EndActivitySession", Err: err}
+	}
+	for _, sup := range activeSupervisors {
+		if err := s.supervisorRepo.EndSupervision(ctx, sup.ID); err != nil {
+			return &ActiveError{Op: "EndActivitySession", Err: err}
+		}
+	}
+
+	// End the session
+	if err := s.groupRepo.EndSession(ctx, activeGroupID); err != nil {
 		return &ActiveError{Op: "EndActivitySession", Err: err}
 	}
 
 	// Broadcast SSE events (fire-and-forget, outside transaction)
 	if s.broadcaster != nil {
 		activeGroupIDStr := fmt.Sprintf("%d", activeGroupID)
-		s.broadcastStudentCheckoutEvents(activeGroupIDStr, visitsToNotify)
+		s.broadcastStudentCheckoutEvents(ctx, activeGroupIDStr, visitsToNotify)
 		s.broadcastActivityEndEvent(ctx, activeGroupID, activeGroupIDStr)
 	}
 
@@ -825,33 +811,7 @@ func (s *service) ProcessSessionTimeoutByID(ctx context.Context, sessionID int64
 		visitsToNotify = nil
 	}
 
-	var result *TimeoutResult
-	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		txService := s.WithTx(tx).(*service)
-
-		session, err := txService.validateSessionForTimeout(ctx, sessionID)
-		if err != nil {
-			return err
-		}
-
-		studentsCheckedOut, err := txService.checkoutActiveVisits(ctx, sessionID)
-		if err != nil {
-			return err
-		}
-
-		if err := txService.groupRepo.EndSession(ctx, sessionID); err != nil {
-			return err
-		}
-
-		result = &TimeoutResult{
-			SessionID:          sessionID,
-			ActivityID:         session.GroupID,
-			StudentsCheckedOut: studentsCheckedOut,
-			TimeoutAt:          time.Now(),
-		}
-		return nil
-	})
-
+	session, err := s.validateSessionForTimeout(ctx, sessionID)
 	if err != nil {
 		if activeErr, ok := err.(*ActiveError); ok {
 			return nil, activeErr
@@ -859,10 +819,26 @@ func (s *service) ProcessSessionTimeoutByID(ctx context.Context, sessionID int64
 		return nil, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: err}
 	}
 
+	studentsCheckedOut, err := s.checkoutActiveVisits(ctx, sessionID)
+	if err != nil {
+		return nil, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: err}
+	}
+
+	if err := s.groupRepo.EndSession(ctx, sessionID); err != nil {
+		return nil, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: err}
+	}
+
+	result := &TimeoutResult{
+		SessionID:          sessionID,
+		ActivityID:         session.GroupID,
+		StudentsCheckedOut: studentsCheckedOut,
+		TimeoutAt:          time.Now(),
+	}
+
 	// Broadcast SSE events (fire-and-forget, outside transaction)
 	if s.broadcaster != nil && result != nil {
 		sessionIDStr := fmt.Sprintf("%d", sessionID)
-		s.broadcastStudentCheckoutEvents(sessionIDStr, visitsToNotify)
+		s.broadcastStudentCheckoutEvents(ctx, sessionIDStr, visitsToNotify)
 		s.broadcastActivityEndEvent(ctx, sessionID, sessionIDStr)
 	}
 

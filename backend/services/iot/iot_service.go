@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/iot"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -23,7 +23,6 @@ const (
 type service struct {
 	deviceRepo iot.DeviceRepository
 	db         *bun.DB
-	txHandler  *base.TxHandler
 }
 
 // NewService creates a new IoT service
@@ -31,25 +30,6 @@ func NewService(deviceRepo iot.DeviceRepository, db *bun.DB) Service {
 	return &service{
 		deviceRepo: deviceRepo,
 		db:         db,
-		txHandler:  base.NewTxHandler(db),
-	}
-}
-
-// WithTx returns a new service that uses the provided transaction
-func (s *service) WithTx(tx bun.Tx) interface{} {
-	// Get repositories with transaction if they implement the TransactionalRepository interface
-	var deviceRepo = s.deviceRepo
-
-	// Try to cast repository to TransactionalRepository and apply the transaction
-	if txRepo, ok := s.deviceRepo.(base.TransactionalRepository); ok {
-		deviceRepo = txRepo.WithTx(tx).(iot.DeviceRepository)
-	}
-
-	// Return a new service with the transaction
-	return &service{
-		deviceRepo: deviceRepo,
-		db:         s.db,
-		txHandler:  s.txHandler.WithTx(tx),
 	}
 }
 
@@ -80,6 +60,11 @@ func (s *service) CreateDevice(ctx context.Context, device *iot.Device) error {
 	existingDevice, err := s.deviceRepo.FindByDeviceID(ctx, device.DeviceID)
 	if err == nil && existingDevice != nil && existingDevice.ID > 0 {
 		return &IoTError{Op: "CreateDevice", Err: &DuplicateDeviceIDError{DeviceID: device.DeviceID}}
+	}
+
+	// Set tenant ID from context
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		device.SetTenantID(tenantID)
 	}
 
 	// Generate API key if not provided

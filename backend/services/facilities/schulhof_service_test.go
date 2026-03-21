@@ -2,6 +2,7 @@ package facilities_test
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"testing"
 	"time"
@@ -20,6 +21,34 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
+
+// cleanupSchulhofArtifacts removes all Schulhof-related database rows to ensure
+// hermetic test isolation. This is necessary because Go test packages run in
+// parallel, and other packages (e.g. api/iot/checkin) may create Schulhof
+// infrastructure concurrently. Without cleanup, findSchulhofActivity could
+// return a stale activity group from another test, causing GroupID mismatches.
+func cleanupSchulhofArtifacts(t *testing.T, db *bun.DB) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	stmts := []string{
+		fmt.Sprintf(`DELETE FROM active.attendance WHERE visit_id IN (SELECT v.id FROM active.visits v JOIN active.groups ag ON ag.id = v.active_group_id JOIN facilities.rooms r ON r.id = ag.room_id WHERE r.name = '%s')`, constants.SchulhofRoomName),
+		fmt.Sprintf(`DELETE FROM active.visits WHERE active_group_id IN (SELECT ag.id FROM active.groups ag JOIN facilities.rooms r ON r.id = ag.room_id WHERE r.name = '%s')`, constants.SchulhofRoomName),
+		fmt.Sprintf(`DELETE FROM active.group_supervisors WHERE group_id IN (SELECT ag.id FROM active.groups ag JOIN facilities.rooms r ON r.id = ag.room_id WHERE r.name = '%s')`, constants.SchulhofRoomName),
+		fmt.Sprintf(`DELETE FROM active.groups WHERE room_id IN (SELECT id FROM facilities.rooms WHERE name = '%s')`, constants.SchulhofRoomName),
+		fmt.Sprintf(`DELETE FROM activities.schedules WHERE group_id IN (SELECT id FROM activities.groups WHERE name = '%s')`, constants.SchulhofActivityName),
+		fmt.Sprintf(`DELETE FROM activities.student_enrollments WHERE group_id IN (SELECT id FROM activities.groups WHERE name = '%s')`, constants.SchulhofActivityName),
+		fmt.Sprintf(`DELETE FROM activities.groups WHERE name = '%s'`, constants.SchulhofActivityName),
+		fmt.Sprintf(`DELETE FROM activities.categories WHERE name = '%s'`, constants.SchulhofCategoryName),
+		fmt.Sprintf(`DELETE FROM facilities.rooms WHERE name = '%s'`, constants.SchulhofRoomName),
+	}
+	for _, stmt := range stmts {
+		if _, err := db.ExecContext(ctx, stmt); err != nil {
+			t.Logf("schulhof cleanup: %v (stmt: %s)", err, stmt)
+		}
+	}
+}
 
 // setupSchulhofService creates a Schulhof service with real database connection.
 func setupSchulhofService(t *testing.T, db *bun.DB) facilitiesSvc.SchulhofService {
@@ -106,7 +135,7 @@ func TestSchulhofService_GetSchulhofStatus_NoInfrastructure(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupSchulhofService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
@@ -133,7 +162,7 @@ func TestSchulhofService_GetSchulhofStatus_WithInfrastructureNoSession(t *testin
 	defer func() { _ = db.Close() }()
 
 	service := setupSchulhofService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
@@ -164,7 +193,7 @@ func TestSchulhofService_GetSchulhofStatus_WithActiveSessionNoSupervisor(t *test
 	defer func() { _ = db.Close() }()
 
 	service := setupSchulhofService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
@@ -193,7 +222,7 @@ func TestSchulhofService_GetSchulhofStatus_WithSupervisor(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupSchulhofService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	staff := testpkg.CreateTestStaff(t, db, "Supervisor", "User")
 	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
@@ -240,8 +269,12 @@ func TestSchulhofService_GetSchulhofStatus_WithMultipleSupervisors(t *testing.T)
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
+	// Clean up any Schulhof artifacts left by parallel test packages
+	cleanupSchulhofArtifacts(t, db)
+	defer cleanupSchulhofArtifacts(t, db)
+
 	service := setupSchulhofService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	staff1 := testpkg.CreateTestStaff(t, db, "Supervisor", "One")
 	staff2 := testpkg.CreateTestStaff(t, db, "Supervisor", "Two")
@@ -292,11 +325,20 @@ func TestSchulhofService_GetSchulhofStatus_WithMultipleSupervisors(t *testing.T)
 }
 
 func TestSchulhofService_GetSchulhofStatus_WithStudents(t *testing.T) {
+	// Use a dedicated DB connection to avoid cross-test interference.
+	// CleanupActivityFixtures silently fails (BUN nil model bug), so stale
+	// active groups from earlier tests can cause findTodayActiveGroup to
+	// return a group that has no visits, yielding StudentCount=0.
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
+	// Clean up any Schulhof artifacts left by parallel test packages (e.g. api/iot/checkin)
+	// to ensure findSchulhofActivity returns the activity group created by THIS test.
+	cleanupSchulhofArtifacts(t, db)
+	defer cleanupSchulhofArtifacts(t, db)
+
 	service := setupSchulhofService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 	student1 := testpkg.CreateTestStudent(t, db, "Student", "One", "1a")
@@ -323,7 +365,7 @@ func TestSchulhofService_GetSchulhofStatus_WithStudents(t *testing.T) {
 	// Now create fresh active group
 	activeGroup, err := service.GetOrCreateActiveGroup(ctx, staff.ID)
 	require.NoError(t, err)
-	defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID)
+	defer testpkg.CleanupTableRecords(t, db, "active.groups", activeGroup.ID)
 
 	// Add visits (one with exit, one without)
 	// Note: entry_time must be captured BEFORE exit_time to satisfy the
@@ -332,13 +374,15 @@ func TestSchulhofService_GetSchulhofStatus_WithStudents(t *testing.T) {
 	visit1 := testpkg.CreateTestVisit(t, db, student1.ID, activeGroup.ID, entryTime, nil)
 	exitTime := time.Now()
 	visit2 := testpkg.CreateTestVisit(t, db, student2.ID, activeGroup.ID, entryTime, &exitTime)
-	defer testpkg.CleanupActivityFixtures(t, db, visit1.ID, visit2.ID)
+	defer testpkg.CleanupTableRecords(t, db, "active.visits", visit1.ID, visit2.ID)
 
 	// ACT
 	status, err := service.GetSchulhofStatus(ctx, staff.ID)
 
 	// ASSERT
 	require.NoError(t, err)
+	require.NotNil(t, status.ActiveGroupID, "Should have an active group for Schulhof")
+	assert.Equal(t, activeGroup.ID, *status.ActiveGroupID, "GetSchulhofStatus should find the active group we created")
 	assert.Equal(t, 1, status.StudentCount) // Only student1 (no exit time)
 }
 
@@ -351,7 +395,7 @@ func TestSchulhofService_ToggleSupervision_StartSuccess(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupSchulhofService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
@@ -393,7 +437,7 @@ func TestSchulhofService_ToggleSupervision_StopSuccess(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupSchulhofService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
@@ -438,7 +482,7 @@ func TestSchulhofService_ToggleSupervision_StopNotSupervising(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupSchulhofService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
@@ -462,7 +506,7 @@ func TestSchulhofService_ToggleSupervision_InvalidAction(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupSchulhofService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
@@ -485,7 +529,7 @@ func TestSchulhofService_EnsureInfrastructure_CreatesAll(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupSchulhofService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
@@ -511,7 +555,7 @@ func TestSchulhofService_EnsureInfrastructure_Idempotent(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupSchulhofService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
@@ -541,7 +585,7 @@ func TestSchulhofService_GetOrCreateActiveGroup_Creates(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupSchulhofService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
@@ -578,7 +622,7 @@ func TestSchulhofService_GetOrCreateActiveGroup_ReturnsExisting(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupSchulhofService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
@@ -616,7 +660,7 @@ func TestSchulhofService_GetOrCreateActiveGroup_IgnoresEndedGroups(t *testing.T)
 	defer func() { _ = db.Close() }()
 
 	service := setupSchulhofService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
@@ -714,7 +758,7 @@ func TestSchulhofService_GetSchulhofStatus_SkipsEndedSupervisions(t *testing.T) 
 	defer func() { _ = db.Close() }()
 
 	service := setupSchulhofService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	staff1 := testpkg.CreateTestStaff(t, db, "Active", "Supervisor")
 	staff2 := testpkg.CreateTestStaff(t, db, "Ended", "Supervisor")
@@ -776,7 +820,7 @@ func TestSchulhofService_ToggleSupervision_StopAction(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupSchulhofService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	staff := testpkg.CreateTestStaff(t, db, "Stop", "Supervisor")
 	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
@@ -812,7 +856,7 @@ func TestSchulhofService_GetOrCreateActiveGroup_EndsStaleGroups(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupSchulhofService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	staff := testpkg.CreateTestStaff(t, db, "Stale", "Tester")
 	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
@@ -897,7 +941,7 @@ func TestSchulhofService_GetSchulhofStatus_OtherStaffNotSupervising(t *testing.T
 	defer func() { _ = db.Close() }()
 
 	service := setupSchulhofService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	staff1 := testpkg.CreateTestStaff(t, db, "Actual", "Supervisor")
 	staff2 := testpkg.CreateTestStaff(t, db, "Other", "Staff")
@@ -950,7 +994,7 @@ func TestSchulhofService_EnsureInfrastructure_ExistingRoomAndCategory(t *testing
 	defer func() { _ = db.Close() }()
 
 	service := setupSchulhofService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
@@ -1000,7 +1044,7 @@ func TestSchulhofService_GetSchulhofStatus_WithStudentsAllExited(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupSchulhofService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 	student1 := testpkg.CreateTestStudent(t, db, "Student", "One", "1a")

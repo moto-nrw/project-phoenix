@@ -3,7 +3,9 @@
 
 import { Suspense, useCallback, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
+import { useTenantRouter } from "~/lib/tenant-router";
+import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
 import { useSession } from "next-auth/react";
 import { useSupervision } from "~/lib/supervision-context";
 import { useShellAuth } from "~/lib/shell-auth-context";
@@ -153,6 +155,13 @@ const OPERATOR_NAV_ITEMS: NavItem[] = [
     alwaysShow: true,
   },
   {
+    href: "/operator/provisioning",
+    label: "Schulverwaltung",
+    icon: "M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0012 9.75c-2.551 0-5.056.2-7.5.582V21",
+    activeColor: "text-indigo-500",
+    alwaysShow: true,
+  },
+  {
     href: "/operator/settings",
     label: "Einstellungen",
     icon: "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z",
@@ -207,11 +216,23 @@ interface SidebarProps {
 }
 
 function SidebarContent({ className = "" }: SidebarProps) {
-  const pathname = usePathname();
+  const rawPathname = usePathname();
+  const tenantSlug = useTenantSlugSafe();
   const searchParams = useSearchParams();
-  const router = useRouter();
+  const router = useTenantRouter();
   const { data: session } = useSession();
   const { mode } = useShellAuth();
+
+  // Strip tenant prefix so all path checks use unprefixed paths (e.g. "/database").
+  // useTenantRouter().push() produces paths like "/school-a/database" while <Link href="/database">
+  // goes through middleware rewrite and keeps "/database". Normalizing here avoids mismatches.
+  // When tenantSlug is null (operator mode), no stripping needed.
+  const pathname =
+    tenantSlug && rawPathname.startsWith(`/${tenantSlug}/`)
+      ? rawPathname.slice(tenantSlug.length + 1)
+      : tenantSlug && rawPathname === `/${tenantSlug}`
+        ? "/"
+        : rawPathname;
 
   // Get supervision state
   const { isLoadingGroups, isLoadingSupervision, groups, supervisedRooms } =

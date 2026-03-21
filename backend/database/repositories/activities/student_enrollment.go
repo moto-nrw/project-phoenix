@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -27,8 +28,10 @@ type StudentEnrollmentRepository struct {
 
 // NewStudentEnrollmentRepository creates a new StudentEnrollmentRepository
 func NewStudentEnrollmentRepository(db *bun.DB) activities.StudentEnrollmentRepository {
+	repo := base.NewRepository[*activities.StudentEnrollment](db, tableActivitiesStudentEnrollments, "StudentEnrollment")
+	repo.TenantScoped = true
 	return &StudentEnrollmentRepository{
-		Repository: base.NewRepository[*activities.StudentEnrollment](db, tableActivitiesStudentEnrollments, "StudentEnrollment"),
+		Repository: repo,
 		db:         db,
 	}
 }
@@ -36,12 +39,18 @@ func NewStudentEnrollmentRepository(db *bun.DB) activities.StudentEnrollmentRepo
 // FindByStudentID finds all enrollments for a specific student
 func (r *StudentEnrollmentRepository) FindByStudentID(ctx context.Context, studentID int64) ([]*activities.StudentEnrollment, error) {
 	enrollments := make([]*activities.StudentEnrollment, 0)
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&enrollments).
 		ModelTableExpr(tableExprActivitiesEnrollmentsAsEnrollment).
 		// Note: Relation() doesn't work with multi-schema tables
 		// The caller should load ActivityGroup and ActivityGroup.Category separately if needed
-		Where("student_id = ?", studentID).
+		Where("student_id = ?", studentID)
+
+	if where, val, ok := base.TenantWhere(ctx, "student_enrollment"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.
 		Order("enrollment_date DESC").
 		Scan(ctx)
 
@@ -66,13 +75,14 @@ func (r *StudentEnrollmentRepository) FindByGroupID(ctx context.Context, groupID
 	var results []enrollmentResult
 
 	// Use explicit joins with schema qualification
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&results).
 		ModelTableExpr(tableExprActivitiesEnrollmentsAsEnrollment).
 		// Explicit column mapping for each table
 		ColumnExpr(`"student_enrollment".id AS "student_enrollment__id"`).
 		ColumnExpr(`"student_enrollment".created_at AS "student_enrollment__created_at"`).
 		ColumnExpr(`"student_enrollment".updated_at AS "student_enrollment__updated_at"`).
+		ColumnExpr(`"student_enrollment".tenant_id AS "student_enrollment__tenant_id"`).
 		ColumnExpr(`"student_enrollment".student_id AS "student_enrollment__student_id"`).
 		ColumnExpr(`"student_enrollment".activity_group_id AS "student_enrollment__activity_group_id"`).
 		ColumnExpr(`"student_enrollment".enrollment_date AS "student_enrollment__enrollment_date"`).
@@ -98,7 +108,13 @@ func (r *StudentEnrollmentRepository) FindByGroupID(ctx context.Context, groupID
 		Join(`LEFT JOIN users.students AS "student" ON "student".id = "student_enrollment".student_id`).
 		Join(`LEFT JOIN users.persons AS "person" ON "person".id = "student".person_id`).
 		// Filter by group ID
-		Where(`"student_enrollment".activity_group_id = ?`, groupID).
+		Where(`"student_enrollment".activity_group_id = ?`, groupID)
+
+	if where, val, ok := base.TenantWhere(ctx, "student_enrollment"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.
 		Order("student_enrollment.enrollment_date DESC").
 		Scan(ctx)
 
@@ -124,11 +140,16 @@ func (r *StudentEnrollmentRepository) FindByGroupID(ctx context.Context, groupID
 
 // CountByGroupID counts the number of students enrolled in a specific group
 func (r *StudentEnrollmentRepository) CountByGroupID(ctx context.Context, groupID int64) (int, error) {
-	count, err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model((*activities.StudentEnrollment)(nil)).
 		ModelTableExpr(tableExprActivitiesEnrollmentsAsEnrollment).
-		Where("activity_group_id = ?", groupID).
-		Count(ctx)
+		Where("activity_group_id = ?", groupID)
+
+	if where, val, ok := base.TenantWhere(ctx, "student_enrollment"); ok {
+		query = query.Where(where, val)
+	}
+
+	count, err := query.Count(ctx)
 
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
@@ -143,12 +164,18 @@ func (r *StudentEnrollmentRepository) CountByGroupID(ctx context.Context, groupI
 // FindByEnrollmentDateRange finds enrollments within a date range
 func (r *StudentEnrollmentRepository) FindByEnrollmentDateRange(ctx context.Context, start, end time.Time) ([]*activities.StudentEnrollment, error) {
 	enrollments := make([]*activities.StudentEnrollment, 0)
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&enrollments).
 		ModelTableExpr(tableExprActivitiesEnrollmentsAsEnrollment).
 		// Note: Relation() doesn't work with multi-schema tables
 		// The caller should load Student, Student.Person, and ActivityGroup separately if needed
-		Where("enrollment_date >= ? AND enrollment_date <= ?", start, end).
+		Where("enrollment_date >= ? AND enrollment_date <= ?", start, end)
+
+	if where, val, ok := base.TenantWhere(ctx, "student_enrollment"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.
 		Order("enrollment_date DESC").
 		Scan(ctx)
 
@@ -169,12 +196,17 @@ func (r *StudentEnrollmentRepository) UpdateAttendanceStatus(ctx context.Context
 		return fmt.Errorf("invalid attendance status: %s", *status)
 	}
 
-	_, err := r.db.NewUpdate().
+	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*activities.StudentEnrollment)(nil)).
 		ModelTableExpr(tableExprActivitiesEnrollmentsAsEnrollment).
 		Set("attendance_status = ?", status).
-		Where(whereIDEquals, id).
-		Exec(ctx)
+		Where(whereIDEquals, id)
+
+	if where, val, ok := base.TenantWhere(ctx, "student_enrollment"); ok {
+		query = query.Where(where, val)
+	}
+
+	result, err := query.Exec(ctx)
 
 	if err != nil {
 		return &modelBase.DatabaseError{
@@ -183,7 +215,7 @@ func (r *StudentEnrollmentRepository) UpdateAttendanceStatus(ctx context.Context
 		}
 	}
 
-	return nil
+	return base.AssertRowsAffected(result, 1, "update attendance status")
 }
 
 // Create overrides the base Create method to handle validation
@@ -212,23 +244,18 @@ func (r *StudentEnrollmentRepository) Update(ctx context.Context, enrollment *ac
 		return err
 	}
 
-	// Get the query builder - detect if we're in a transaction
-	query := r.db.NewUpdate().
+	// Get the query builder - GetDB handles transaction extraction from context
+	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model(enrollment).
 		Where(whereIDEquals, enrollment.ID).
 		ModelTableExpr(tableActivitiesStudentEnrollments)
 
-	// Extract transaction from context if it exists
-	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
-		// Use the transaction if available
-		query = tx.NewUpdate().
-			Model(enrollment).
-			Where(whereIDEquals, enrollment.ID).
-			ModelTableExpr(tableActivitiesStudentEnrollments)
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
 	}
 
 	// Execute the query
-	_, err := query.Exec(ctx)
+	result, err := query.Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update",
@@ -236,13 +263,17 @@ func (r *StudentEnrollmentRepository) Update(ctx context.Context, enrollment *ac
 		}
 	}
 
-	return nil
+	return base.AssertRowsAffected(result, 1, "update student_enrollment")
 }
 
 // List overrides the base List method to accept the new QueryOptions type
 func (r *StudentEnrollmentRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*activities.StudentEnrollment, error) {
 	enrollments := make([]*activities.StudentEnrollment, 0)
-	query := r.db.NewSelect().Model(&enrollments).ModelTableExpr(tableExprActivitiesEnrollmentsAsEnrollment)
+	query := base.GetDB(ctx, r.db).NewSelect().Model(&enrollments).ModelTableExpr(tableExprActivitiesEnrollmentsAsEnrollment)
+
+	if where, val, ok := base.TenantWhere(ctx, "student_enrollment"); ok {
+		query = query.Where(where, val)
+	}
 
 	// Apply query options
 	if options != nil {

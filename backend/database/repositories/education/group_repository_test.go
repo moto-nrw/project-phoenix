@@ -1,7 +1,6 @@
 package education_test
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -36,7 +35,7 @@ func TestGroupRepository_Create(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Group
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates group with valid data", func(t *testing.T) {
 		uniqueName := fmt.Sprintf("TestGroup-%d", time.Now().UnixNano())
@@ -80,7 +79,7 @@ func TestGroupRepository_FindByID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Group
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds existing group", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "FindByID")
@@ -104,7 +103,7 @@ func TestGroupRepository_FindByIDs(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Group
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds multiple groups by IDs", func(t *testing.T) {
 		group1 := testpkg.CreateTestEducationGroup(t, db, "FindByIDs1")
@@ -130,7 +129,7 @@ func TestGroupRepository_Update(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Group
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates group name", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "UpdateTest")
@@ -153,7 +152,7 @@ func TestGroupRepository_Delete(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Group
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes existing group", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "DeleteTest")
@@ -175,7 +174,7 @@ func TestGroupRepository_List(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Group
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("lists all groups with no filters", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "ListTest")
@@ -192,7 +191,7 @@ func TestGroupRepository_ListWithOptions(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Group
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("lists groups with pagination", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "PaginationTest")
@@ -212,7 +211,7 @@ func TestGroupRepository_FindByName(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Group
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds group by exact name", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "UniqueNameTest")
@@ -234,7 +233,7 @@ func TestGroupRepository_FindByRoom(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Group
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds groups by room ID", func(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "FindByRoomTest")
@@ -272,7 +271,7 @@ func TestGroupRepository_FindByTeacher(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Group
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds groups by teacher ID", func(t *testing.T) {
 		// Create teacher
@@ -283,7 +282,7 @@ func TestGroupRepository_FindByTeacher(t *testing.T) {
 		gt := testpkg.CreateTestGroupTeacher(t, db, group.ID, teacher.ID)
 
 		defer func() {
-			ctx := context.Background()
+			ctx := testpkg.TenantContext(1)
 			// Clean up group-teacher first
 			_, _ = db.NewDelete().
 				TableExpr("education.group_teacher").
@@ -318,7 +317,7 @@ func TestGroupRepository_FindWithRoom(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Group
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds group with room data loaded", func(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "WithRoomTest")
@@ -359,7 +358,7 @@ func TestGroupRepository_Create_Validation(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Group
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error for nil group", func(t *testing.T) {
 		err := repo.Create(ctx, nil)
@@ -381,7 +380,7 @@ func TestGroupRepository_Update_Validation(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Group
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error for nil group", func(t *testing.T) {
 		err := repo.Update(ctx, nil)
@@ -408,7 +407,7 @@ func TestGroupRepository_List_WithFilters(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Group
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("filters by name_like", func(t *testing.T) {
 		// Create groups with specific pattern
@@ -487,7 +486,7 @@ func TestGroupRepository_ListWithOptions_Advanced(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Group
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("lists with sorting by name", func(t *testing.T) {
 		// Create groups
@@ -540,7 +539,7 @@ func TestGroupRepository_FindByName_CaseInsensitive(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Group
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds group case-insensitively", func(t *testing.T) {
 		uniqueName := fmt.Sprintf("CaseTest-%d", time.Now().UnixNano())

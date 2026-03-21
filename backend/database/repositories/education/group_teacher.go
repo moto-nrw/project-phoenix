@@ -19,8 +19,10 @@ type GroupTeacherRepository struct {
 
 // NewGroupTeacherRepository creates a new GroupTeacherRepository
 func NewGroupTeacherRepository(db *bun.DB) education.GroupTeacherRepository {
+	repo := base.NewRepository[*education.GroupTeacher](db, "education.group_teacher", "GroupTeacher")
+	repo.TenantScoped = true
 	return &GroupTeacherRepository{
-		Repository: base.NewRepository[*education.GroupTeacher](db, "education.group_teacher", "GroupTeacher"),
+		Repository: repo,
 		db:         db,
 	}
 }
@@ -28,12 +30,16 @@ func NewGroupTeacherRepository(db *bun.DB) education.GroupTeacherRepository {
 // FindByGroup retrieves all group-teacher relationships for a group
 func (r *GroupTeacherRepository) FindByGroup(ctx context.Context, groupID int64) ([]*education.GroupTeacher, error) {
 	var groupTeachers []*education.GroupTeacher
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groupTeachers).
 		ModelTableExpr(`education.group_teacher AS "group_teacher"`).
-		Where("group_id = ?", groupID).
-		Scan(ctx)
+		Where("group_id = ?", groupID)
 
+	if where, val, ok := base.TenantWhere(ctx, "group_teacher"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by group",
@@ -47,12 +53,16 @@ func (r *GroupTeacherRepository) FindByGroup(ctx context.Context, groupID int64)
 // FindByTeacher retrieves all group-teacher relationships for a teacher
 func (r *GroupTeacherRepository) FindByTeacher(ctx context.Context, teacherID int64) ([]*education.GroupTeacher, error) {
 	var groupTeachers []*education.GroupTeacher
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groupTeachers).
 		ModelTableExpr(`education.group_teacher AS "group_teacher"`).
-		Where("teacher_id = ?", teacherID).
-		Scan(ctx)
+		Where("teacher_id = ?", teacherID)
 
+	if where, val, ok := base.TenantWhere(ctx, "group_teacher"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by teacher",
@@ -70,12 +80,16 @@ func (r *GroupTeacherRepository) FindByGroupIDs(ctx context.Context, groupIDs []
 	}
 
 	var groupTeachers []*education.GroupTeacher
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groupTeachers).
 		ModelTableExpr(`education.group_teacher AS "group_teacher"`).
-		Where(`"group_teacher".group_id IN (?)`, bun.List(groupIDs)).
-		Scan(ctx)
+		Where(`"group_teacher".group_id IN (?)`, bun.List(groupIDs))
 
+	if where, val, ok := base.TenantWhere(ctx, "group_teacher"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by group IDs",
@@ -137,9 +151,13 @@ func (r *GroupTeacherRepository) List(ctx context.Context, filters map[string]in
 // ListWithOptions provides a type-safe way to list group-teacher relationships with query options
 func (r *GroupTeacherRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*education.GroupTeacher, error) {
 	var groupTeachers []*education.GroupTeacher
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groupTeachers).
 		ModelTableExpr(`education.group_teacher AS "group_teacher"`)
+
+	if where, val, ok := base.TenantWhere(ctx, "group_teacher"); ok {
+		query = query.Where(where, val)
+	}
 
 	// Apply query options
 	if options != nil {

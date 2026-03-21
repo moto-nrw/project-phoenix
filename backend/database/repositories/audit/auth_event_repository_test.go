@@ -1,7 +1,6 @@
 package audit_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -21,7 +20,7 @@ func TestAuthEventRepository_Create(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AuthEvent
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create a test account
 	account := testpkg.CreateTestAccount(t, db, "auth_event_test@example.com")
@@ -97,7 +96,7 @@ func TestAuthEventRepository_FindByID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AuthEvent
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	account := testpkg.CreateTestAccount(t, db, "find_event@example.com")
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
@@ -129,7 +128,7 @@ func TestAuthEventRepository_FindByAccountID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AuthEvent
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	account1 := testpkg.CreateTestAccount(t, db, "account1@example.com")
 	account2 := testpkg.CreateTestAccount(t, db, "account2@example.com")
@@ -181,7 +180,7 @@ func TestAuthEventRepository_FindByEventType(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AuthEvent
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	account := testpkg.CreateTestAccount(t, db, "event_type@example.com")
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
@@ -221,7 +220,7 @@ func TestAuthEventRepository_FindFailedAttempts(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AuthEvent
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	account := testpkg.CreateTestAccount(t, db, "failed_attempts@example.com")
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
@@ -259,7 +258,7 @@ func TestAuthEventRepository_CountFailedAttempts(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AuthEvent
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	account := testpkg.CreateTestAccount(t, db, "count_failed@example.com")
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
@@ -290,7 +289,7 @@ func TestAuthEventRepository_CleanupOldEvents(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AuthEvent
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	account := testpkg.CreateTestAccount(t, db, "cleanup@example.com")
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
@@ -320,7 +319,7 @@ func TestAuthEventRepository_List(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AuthEvent
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	account := testpkg.CreateTestAccount(t, db, "list@example.com")
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)

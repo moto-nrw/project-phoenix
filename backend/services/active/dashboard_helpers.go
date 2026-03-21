@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
@@ -183,7 +184,7 @@ func (s *service) loadStudentsWithGroups(ctx context.Context, studentIDs []int64
 	}
 
 	var studentsWithGroups []*userModels.Student
-	err := s.db.NewSelect().
+	err := base.GetDB(ctx, s.db).NewSelect().
 		Model(&studentsWithGroups).
 		ModelTableExpr(`users.students AS "student"`).
 		Where(`"student".id IN (?)`, bun.List(studentIDs)).

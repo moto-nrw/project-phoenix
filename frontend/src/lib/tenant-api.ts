@@ -1,0 +1,200 @@
+/**
+ * Tenant resolution and switching API client.
+ * Provides public tenant resolution (pre-login) and authenticated
+ * tenant listing/switching (post-login).
+ */
+
+import { sessionFetch } from "./session-cache";
+
+const TENANT_ACCESS_DENIED_MESSAGE =
+  "account does not have access to this tenant";
+
+export interface TenantSettings {
+  logoUrl?: string;
+  primaryColor?: string;
+  [key: string]: unknown;
+}
+
+export interface TenantInfo {
+  tenantId: number;
+  slug: string;
+  name: string;
+  subdomain: string;
+  organizationId: number;
+  organizationName: string;
+  settings: TenantSettings;
+}
+
+interface TenantResolveResponse {
+  tenant_id: number;
+  slug: string;
+  name: string;
+  subdomain: string;
+  organization_id: number;
+  organization_name: string;
+  settings: TenantSettings;
+}
+
+/**
+ * Resolve a tenant slug to its metadata.
+ * This is a public (no-auth) call used before login.
+ */
+export async function resolveTenant(slug: string): Promise<TenantInfo | null> {
+  try {
+    const response = await fetch(
+      `/api/tenant/resolve?slug=${encodeURIComponent(slug)}`,
+    );
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const json = (await response.json()) as {
+      status: string;
+      data: TenantResolveResponse;
+    };
+    const data = json.data;
+    return {
+      tenantId: data.tenant_id,
+      slug: data.slug,
+      name: data.name,
+      subdomain: data.subdomain,
+      organizationId: data.organization_id,
+      organizationName: data.organization_name,
+      settings: data.settings ?? {},
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Public tenant response (no internal IDs) */
+interface PublicTenantBackend {
+  slug: string;
+  name: string;
+  subdomain: string;
+  organization_name: string;
+}
+
+/**
+ * List all active tenants.
+ * This is a public (no-auth) call used on the root tenant selector page.
+ * The backend omits internal IDs from this public endpoint.
+ */
+export async function listAllTenants(): Promise<TenantInfo[]> {
+  try {
+    const response = await fetch("/api/tenant/list");
+    if (!response.ok) {
+      return [];
+    }
+    const json = (await response.json()) as { data?: PublicTenantBackend[] };
+    const items = json.data ?? [];
+    return items.map((t) => ({
+      tenantId: 0,
+      slug: t.slug,
+      name: t.name,
+      subdomain: t.subdomain,
+      organizationId: 0,
+      organizationName: t.organization_name,
+      settings: {},
+    }));
+  } catch {
+    return [];
+  }
+}
+
+/** Backend response shape for account tenants (snake_case) */
+interface AccountTenantBackend {
+  tenant_id: number;
+  slug: string;
+  name: string;
+  subdomain: string;
+  organization_id: number;
+  organization_name: string;
+}
+
+/**
+ * List tenants the current user has access to.
+ * Requires an authenticated session.
+ */
+export async function listAvailableTenants(): Promise<TenantInfo[]> {
+  const response = await sessionFetch("/api/auth/account-tenants");
+  if (!response.ok) {
+    return [];
+  }
+  const json = (await response.json()) as { data?: AccountTenantBackend[] };
+  const items = json.data ?? [];
+  return items.map((t) => ({
+    tenantId: t.tenant_id,
+    slug: t.slug,
+    name: t.name,
+    subdomain: t.subdomain,
+    organizationId: t.organization_id,
+    organizationName: t.organization_name,
+    settings: {},
+  }));
+}
+
+/** Response shape from the switch-tenant endpoint */
+interface SwitchTenantResponse {
+  access_token: string;
+  refresh_token: string;
+}
+
+interface ErrorResponseBody {
+  error?: string;
+  message?: string;
+}
+
+export class TenantSwitchError extends Error {
+  status: number;
+  code: "access_denied" | "unknown";
+
+  constructor(
+    message: string,
+    status: number,
+    code: "access_denied" | "unknown" = "unknown",
+  ) {
+    super(message);
+    this.name = "TenantSwitchError";
+    this.status = status;
+    this.code = code;
+  }
+}
+
+async function parseErrorMessage(response: Response): Promise<string> {
+  const text = await response.text();
+
+  if (!text) {
+    return "Failed to switch tenant";
+  }
+
+  try {
+    const payload = JSON.parse(text) as ErrorResponseBody;
+    return payload.error ?? payload.message ?? text;
+  } catch {
+    return text;
+  }
+}
+
+/**
+ * Switch the current session to a different tenant.
+ * Returns new JWT tokens scoped to the target tenant.
+ */
+export async function switchTenant(
+  slug: string,
+): Promise<SwitchTenantResponse> {
+  const response = await sessionFetch("/api/auth/switch-tenant", {
+    method: "POST",
+    body: JSON.stringify({ tenant_slug: slug }),
+  });
+  if (!response.ok) {
+    const message = await parseErrorMessage(response);
+    const code =
+      response.status === 401 && message === TENANT_ACCESS_DENIED_MESSAGE
+        ? "access_denied"
+        : "unknown";
+    throw new TenantSwitchError(message, response.status, code);
+  }
+  return (await response.json()) as SwitchTenantResponse;
+}

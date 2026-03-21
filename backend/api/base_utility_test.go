@@ -9,39 +9,64 @@ import (
 // TestParseAllowedOrigins tests the parseAllowedOrigins function
 func TestParseAllowedOrigins(t *testing.T) {
 	tests := []struct {
-		name     string
-		envValue string
-		expected []string
+		name              string
+		envValue          string
+		expectedExact     []string
+		expectedWildcards []string
 	}{
 		{
-			name:     "empty env var returns wildcard",
-			envValue: "",
-			expected: []string{"*"},
+			name:              "empty env var returns wildcard",
+			envValue:          "",
+			expectedExact:     []string{"*"},
+			expectedWildcards: nil,
 		},
 		{
-			name:     "single origin",
-			envValue: "http://localhost:3000",
-			expected: []string{"http://localhost:3000"},
+			name:              "single origin",
+			envValue:          "http://localhost:3000",
+			expectedExact:     []string{"http://localhost:3000"},
+			expectedWildcards: nil,
 		},
 		{
-			name:     "multiple origins with spaces",
-			envValue: "http://localhost:3000, https://example.com, https://app.example.com",
-			expected: []string{"http://localhost:3000", "https://example.com", "https://app.example.com"},
+			name:              "multiple origins with spaces",
+			envValue:          "http://localhost:3000, https://example.com, https://app.example.com",
+			expectedExact:     []string{"http://localhost:3000", "https://example.com", "https://app.example.com"},
+			expectedWildcards: nil,
 		},
 		{
-			name:     "multiple origins without spaces",
-			envValue: "http://localhost:3000,https://example.com,https://app.example.com",
-			expected: []string{"http://localhost:3000", "https://example.com", "https://app.example.com"},
+			name:              "multiple origins without spaces",
+			envValue:          "http://localhost:3000,https://example.com,https://app.example.com",
+			expectedExact:     []string{"http://localhost:3000", "https://example.com", "https://app.example.com"},
+			expectedWildcards: nil,
 		},
 		{
-			name:     "origins with excessive whitespace",
-			envValue: "  http://localhost:3000  ,  https://example.com  ",
-			expected: []string{"http://localhost:3000", "https://example.com"},
+			name:              "origins with excessive whitespace",
+			envValue:          "  http://localhost:3000  ,  https://example.com  ",
+			expectedExact:     []string{"http://localhost:3000", "https://example.com"},
+			expectedWildcards: nil,
 		},
 		{
-			name:     "wildcard explicitly set",
-			envValue: "*",
-			expected: []string{"*"},
+			name:              "wildcard explicitly set",
+			envValue:          "*",
+			expectedExact:     []string{"*"},
+			expectedWildcards: nil,
+		},
+		{
+			name:              "wildcard subdomain pattern",
+			envValue:          "http://localhost:3000, *.example.com",
+			expectedExact:     []string{"http://localhost:3000"},
+			expectedWildcards: []string{".example.com"},
+		},
+		{
+			name:              "only blanks fall back to wildcard",
+			envValue:          " ,  , ",
+			expectedExact:     []string{"*"},
+			expectedWildcards: nil,
+		},
+		{
+			name:              "only wildcard patterns",
+			envValue:          "*.example.com, *.test.local",
+			expectedExact:     nil,
+			expectedWildcards: []string{".example.com", ".test.local"},
 		},
 	}
 
@@ -51,10 +76,11 @@ func TestParseAllowedOrigins(t *testing.T) {
 			t.Setenv("CORS_ALLOWED_ORIGINS", tt.envValue)
 
 			// Call function under test
-			result := parseAllowedOrigins()
+			exact, wildcards := parseAllowedOrigins()
 
-			// Assert result
-			assert.Equal(t, tt.expected, result)
+			// Assert results
+			assert.Equal(t, tt.expectedExact, exact)
+			assert.Equal(t, tt.expectedWildcards, wildcards)
 		})
 	}
 }

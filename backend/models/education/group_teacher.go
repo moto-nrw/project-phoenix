@@ -12,8 +12,9 @@ import (
 // GroupTeacher represents the many-to-many relationship between groups and teachers
 type GroupTeacher struct {
 	base.Model `bun:"schema:education,table:group_teacher"`
-	GroupID    int64 `bun:"group_id,notnull" json:"group_id"`
-	TeacherID  int64 `bun:"teacher_id,notnull" json:"teacher_id"`
+	base.TenantModel
+	GroupID   int64 `bun:"group_id,notnull" json:"group_id"`
+	TeacherID int64 `bun:"teacher_id,notnull" json:"teacher_id"`
 
 	// Relations not stored in the database
 	Group   *Group         `bun:"-" json:"group,omitempty"`
@@ -21,9 +22,6 @@ type GroupTeacher struct {
 }
 
 func (gt *GroupTeacher) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(`education.group_teacher AS "group_teacher"`)
-	}
 	// INSERT queries should not use aliases
 	if q, ok := query.(*bun.InsertQuery); ok {
 		q.ModelTableExpr(`education.group_teacher`)

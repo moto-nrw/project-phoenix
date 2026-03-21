@@ -14,7 +14,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/email"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -47,37 +49,41 @@ func translateRoleNameToGerman(roleName string) string {
 
 // InvitationServiceConfig holds configuration for the invitation service
 type InvitationServiceConfig struct {
-	InvitationRepo   authModels.InvitationTokenRepository
-	AccountRepo      authModels.AccountRepository
-	RoleRepo         authModels.RoleRepository
-	AccountRoleRepo  authModels.AccountRoleRepository
-	PersonRepo       userModels.PersonRepository
-	StaffRepo        userModels.StaffRepository
-	TeacherRepo      userModels.TeacherRepository
-	Mailer           email.Mailer
-	Dispatcher       *email.Dispatcher
-	FrontendURL      string
-	DefaultFrom      email.Email
-	InvitationExpiry time.Duration
-	DB               *bun.DB
-	Logger           *slog.Logger
+	InvitationRepo    authModels.InvitationTokenRepository
+	AccountRepo       authModels.AccountRepository
+	AccountTenantRepo authModels.AccountTenantRepository
+	RoleRepo          authModels.RoleRepository
+	AccountRoleRepo   authModels.AccountRoleRepository
+	PersonRepo        userModels.PersonRepository
+	StaffRepo         userModels.StaffRepository
+	TeacherRepo       userModels.TeacherRepository
+	SchoolRepo        platformModels.SchoolRepository
+	Mailer            email.Mailer
+	Dispatcher        *email.Dispatcher
+	FrontendURL       string
+	DefaultFrom       email.Email
+	InvitationExpiry  time.Duration
+	DB                *bun.DB
+	Logger            *slog.Logger
 }
 
 type invitationService struct {
-	invitationRepo   authModels.InvitationTokenRepository
-	accountRepo      authModels.AccountRepository
-	roleRepo         authModels.RoleRepository
-	accountRoleRepo  authModels.AccountRoleRepository
-	personRepo       userModels.PersonRepository
-	staffRepo        userModels.StaffRepository
-	teacherRepo      userModels.TeacherRepository
-	dispatcher       *email.Dispatcher
-	frontendURL      string
-	defaultFrom      email.Email
-	invitationExpiry time.Duration
-	db               *bun.DB
-	txHandler        *modelBase.TxHandler
-	logger           *slog.Logger
+	invitationRepo    authModels.InvitationTokenRepository
+	accountRepo       authModels.AccountRepository
+	accountTenantRepo authModels.AccountTenantRepository
+	roleRepo          authModels.RoleRepository
+	accountRoleRepo   authModels.AccountRoleRepository
+	personRepo        userModels.PersonRepository
+	staffRepo         userModels.StaffRepository
+	teacherRepo       userModels.TeacherRepository
+	schoolRepo        platformModels.SchoolRepository
+	dispatcher        *email.Dispatcher
+	frontendURL       string
+	defaultFrom       email.Email
+	invitationExpiry  time.Duration
+	db                *bun.DB
+	txHandler         *modelBase.TxHandler
+	logger            *slog.Logger
 }
 
 // getLogger returns the service's logger, falling back to slog.Default() if nil.
@@ -100,20 +106,22 @@ func NewInvitationService(config InvitationServiceConfig) InvitationService {
 		dispatcher = email.NewDispatcher(config.Mailer, logger.With("component", "email"))
 	}
 	return &invitationService{
-		invitationRepo:   config.InvitationRepo,
-		accountRepo:      config.AccountRepo,
-		roleRepo:         config.RoleRepo,
-		accountRoleRepo:  config.AccountRoleRepo,
-		personRepo:       config.PersonRepo,
-		staffRepo:        config.StaffRepo,
-		teacherRepo:      config.TeacherRepo,
-		dispatcher:       dispatcher,
-		frontendURL:      trimmedFrontend,
-		defaultFrom:      config.DefaultFrom,
-		invitationExpiry: config.InvitationExpiry,
-		db:               config.DB,
-		txHandler:        modelBase.NewTxHandler(config.DB),
-		logger:           logger,
+		invitationRepo:    config.InvitationRepo,
+		accountRepo:       config.AccountRepo,
+		accountTenantRepo: config.AccountTenantRepo,
+		roleRepo:          config.RoleRepo,
+		accountRoleRepo:   config.AccountRoleRepo,
+		personRepo:        config.PersonRepo,
+		staffRepo:         config.StaffRepo,
+		teacherRepo:       config.TeacherRepo,
+		schoolRepo:        config.SchoolRepo,
+		dispatcher:        dispatcher,
+		frontendURL:       trimmedFrontend,
+		defaultFrom:       config.DefaultFrom,
+		invitationExpiry:  config.InvitationExpiry,
+		db:                config.DB,
+		txHandler:         modelBase.NewTxHandler(config.DB),
+		logger:            logger,
 	}
 }
 
@@ -121,6 +129,7 @@ func NewInvitationService(config InvitationServiceConfig) InvitationService {
 func (s *invitationService) WithTx(tx bun.Tx) interface{} {
 	var invitationRepo = s.invitationRepo
 	var accountRepo = s.accountRepo
+	var accountTenantRepo = s.accountTenantRepo
 	var roleRepo = s.roleRepo
 	var accountRoleRepo = s.accountRoleRepo
 	var personRepo = s.personRepo
@@ -132,6 +141,9 @@ func (s *invitationService) WithTx(tx bun.Tx) interface{} {
 	}
 	if txRepo, ok := s.accountRepo.(modelBase.TransactionalRepository); ok {
 		accountRepo = txRepo.WithTx(tx).(authModels.AccountRepository)
+	}
+	if txRepo, ok := s.accountTenantRepo.(modelBase.TransactionalRepository); ok {
+		accountTenantRepo = txRepo.WithTx(tx).(authModels.AccountTenantRepository)
 	}
 	if txRepo, ok := s.roleRepo.(modelBase.TransactionalRepository); ok {
 		roleRepo = txRepo.WithTx(tx).(authModels.RoleRepository)
@@ -150,20 +162,22 @@ func (s *invitationService) WithTx(tx bun.Tx) interface{} {
 	}
 
 	return &invitationService{
-		invitationRepo:   invitationRepo,
-		accountRepo:      accountRepo,
-		roleRepo:         roleRepo,
-		accountRoleRepo:  accountRoleRepo,
-		personRepo:       personRepo,
-		staffRepo:        staffRepo,
-		teacherRepo:      teacherRepo,
-		dispatcher:       s.dispatcher,
-		frontendURL:      s.frontendURL,
-		defaultFrom:      s.defaultFrom,
-		invitationExpiry: s.invitationExpiry,
-		db:               s.db,
-		txHandler:        s.txHandler.WithTx(tx),
-		logger:           s.logger,
+		invitationRepo:    invitationRepo,
+		accountRepo:       accountRepo,
+		accountTenantRepo: accountTenantRepo,
+		roleRepo:          roleRepo,
+		accountRoleRepo:   accountRoleRepo,
+		personRepo:        personRepo,
+		staffRepo:         staffRepo,
+		teacherRepo:       teacherRepo,
+		schoolRepo:        s.schoolRepo,
+		dispatcher:        s.dispatcher,
+		frontendURL:       s.frontendURL,
+		defaultFrom:       s.defaultFrom,
+		invitationExpiry:  s.invitationExpiry,
+		db:                s.db,
+		txHandler:         s.txHandler.WithTx(tx),
+		logger:            s.logger,
 	}
 }
 
@@ -174,17 +188,23 @@ func (s *invitationService) CreateInvitation(ctx context.Context, req Invitation
 		return nil, err
 	}
 
-	if err := s.invalidatePreviousInvitations(ctx, emailAddress); err != nil {
+	invalidationCtx := scopedInvitationTenantContext(ctx, req.TenantID)
+	if err := s.invalidatePreviousInvitations(invalidationCtx, emailAddress); err != nil {
 		return nil, err
 	}
 
 	invitation := s.buildInvitationToken(emailAddress, req)
+	tenantID := req.TenantID
+	if tenantID <= 0 {
+		tenantID = tenant.FromContext(ctx)
+	}
+	invitation.SetTenantID(tenantID)
 	if err := s.invitationRepo.Create(ctx, invitation); err != nil {
 		return nil, &AuthError{Op: opCreateInvitation, Err: err}
 	}
 
 	s.getLogger().Info("invitation created",
-		slog.Int64("created_by", req.CreatedBy),
+		slog.Any("created_by", nullableCreatedBy(req.CreatedBy)),
 		slog.String("email", invitation.Email))
 
 	if err := s.attachRoleAndCreator(ctx, invitation); err != nil {
@@ -195,51 +215,9 @@ func (s *invitationService) CreateInvitation(ctx context.Context, req Invitation
 	if invitation.Role != nil {
 		roleName = invitation.Role.Name
 	}
-	s.sendInvitationEmail(invitation, roleName)
+	s.sendInvitationEmail(invitation, roleName, req.SchoolName)
 
 	return invitation, nil
-}
-
-// validateInvitationRequest validates all required fields and returns the normalized email.
-func (s *invitationService) validateInvitationRequest(ctx context.Context, req InvitationRequest) (string, error) {
-	emailAddress := strings.TrimSpace(strings.ToLower(req.Email))
-	if emailAddress == "" {
-		return "", &AuthError{Op: opCreateInvitation, Err: fmt.Errorf("email is required")}
-	}
-
-	if _, err := mail.ParseAddress(emailAddress); err != nil {
-		return "", &AuthError{Op: opCreateInvitation, Err: fmt.Errorf("invalid email address")}
-	}
-
-	if err := s.ensureEmailNotRegistered(ctx, emailAddress, opCreateInvitation); err != nil {
-		return "", err
-	}
-
-	if req.RoleID <= 0 {
-		return "", &AuthError{Op: opCreateInvitation, Err: fmt.Errorf("role id is required")}
-	}
-
-	if req.CreatedBy <= 0 {
-		return "", &AuthError{Op: opCreateInvitation, Err: fmt.Errorf("created_by is required")}
-	}
-
-	if err := s.ensureRoleExists(ctx, req.RoleID); err != nil {
-		return "", err
-	}
-
-	return emailAddress, nil
-}
-
-// ensureEmailNotRegistered checks that no account exists with the given email.
-func (s *invitationService) ensureEmailNotRegistered(ctx context.Context, email, op string) error {
-	_, err := s.accountRepo.FindByEmail(ctx, email)
-	if err == nil {
-		return &AuthError{Op: op, Err: ErrEmailAlreadyExists}
-	}
-	if !isNotFoundError(err) {
-		return &AuthError{Op: op, Err: err}
-	}
-	return nil
 }
 
 // ensureRoleExists verifies the role ID is valid.
@@ -269,8 +247,10 @@ func (s *invitationService) buildInvitationToken(email string, req InvitationReq
 		Email:     email,
 		Token:     uuid.Must(uuid.NewV4()).String(),
 		RoleID:    req.RoleID,
-		CreatedBy: req.CreatedBy,
 		ExpiresAt: time.Now().Add(s.invitationExpiry),
+	}
+	if req.CreatedBy > 0 {
+		invitation.CreatedBy = nullableCreatedBy(req.CreatedBy)
 	}
 
 	if req.FirstName != nil {
@@ -299,7 +279,11 @@ func (s *invitationService) attachRoleAndCreator(ctx context.Context, invitation
 		}
 	}
 
-	creator, err := s.accountRepo.FindByID(ctx, invitation.CreatedBy)
+	if invitation.CreatedBy == nil {
+		return nil
+	}
+
+	creator, err := s.accountRepo.FindByID(ctx, *invitation.CreatedBy)
 	if err != nil && !isNotFoundError(err) {
 		return &AuthError{Op: "lookup creator", Err: err}
 	}
@@ -315,58 +299,68 @@ func (s *invitationService) attachRoleAndCreator(ctx context.Context, invitation
 
 // ValidateInvitation returns the public details for a token if it is still usable.
 func (s *invitationService) ValidateInvitation(ctx context.Context, token string) (*InvitationValidationResult, error) {
-	invitation, err := s.fetchValidInvitation(ctx, token)
+	var result *InvitationValidationResult
+	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
+		invitation, fetchErr := s.fetchValidInvitation(adminCtx, token)
+		if fetchErr != nil {
+			return fetchErr
+		}
+
+		roleName, roleErr := s.lookupRoleName(adminCtx, invitation.RoleID)
+		if roleErr != nil {
+			return roleErr
+		}
+
+		result = &InvitationValidationResult{
+			Email:     invitation.Email,
+			RoleName:  roleName,
+			FirstName: invitation.FirstName,
+			LastName:  invitation.LastName,
+			Position:  invitation.Position,
+			ExpiresAt: invitation.ExpiresAt,
+		}
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
-
-	roleName, err := s.lookupRoleName(ctx, invitation.RoleID)
-	if err != nil {
-		return nil, err
-	}
-
-	return &InvitationValidationResult{
-		Email:     invitation.Email,
-		RoleName:  roleName,
-		FirstName: invitation.FirstName,
-		LastName:  invitation.LastName,
-		Position:  invitation.Position,
-		ExpiresAt: invitation.ExpiresAt,
-	}, nil
+	return result, nil
 }
 
 // AcceptInvitation converts a token into a real account & person record.
 func (s *invitationService) AcceptInvitation(ctx context.Context, token string, userData UserRegistrationData) (*authModels.Account, error) {
-	invitation, err := s.fetchValidInvitation(ctx, token)
-	if err != nil {
-		return nil, err
-	}
-
-	passwordHash, err := s.validateAndHashPassword(userData)
-	if err != nil {
-		return nil, err
-	}
-
-	firstName, lastName, err := s.resolveNames(userData, invitation)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := s.ensureEmailNotRegistered(ctx, invitation.Email, opAcceptInvitation); err != nil {
-		return nil, err
-	}
-
 	var createdAccount *authModels.Account
-	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		txService := s.WithTx(tx).(*invitationService)
-		account, txErr := txService.createAccountWithRole(ctx, invitation, passwordHash, firstName, lastName)
-		if txErr != nil {
-			return txErr
+	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
+		invitation, fetchErr := s.fetchValidInvitation(adminCtx, token)
+		if fetchErr != nil {
+			return fetchErr
 		}
-		createdAccount = account
-		return nil
-	})
 
+		passwordHash, hashErr := s.validateAndHashPassword(userData)
+		if hashErr != nil {
+			return hashErr
+		}
+
+		firstName, lastName, nameErr := s.resolveNames(userData, invitation)
+		if nameErr != nil {
+			return nameErr
+		}
+
+		invitationCtx := tenant.WithTenantID(adminCtx, invitation.TenantID)
+		return s.txHandler.RunInTx(invitationCtx, func(txCtx context.Context, tx bun.Tx) error {
+			txService := s.WithTx(tx).(*invitationService)
+			account, accountErr := txService.findExistingAccountByEmail(txCtx, invitation.Email)
+			if accountErr != nil {
+				return &AuthError{Op: opAcceptInvitation, Err: accountErr}
+			}
+			created, txErr := txService.createAccountWithRole(txCtx, invitation, passwordHash, firstName, lastName, account)
+			if txErr != nil {
+				return txErr
+			}
+			createdAccount = created
+			return nil
+		})
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -374,6 +368,29 @@ func (s *invitationService) AcceptInvitation(ctx context.Context, token string, 
 	s.getLogger().Info("invitation accepted",
 		slog.Int64("account_id", createdAccount.ID))
 	return createdAccount, nil
+}
+
+func (s *invitationService) findExistingAccountByEmail(ctx context.Context, email string) (*authModels.Account, error) {
+	account, err := s.accountRepo.FindByEmail(ctx, email)
+	if err == nil {
+		return account, nil
+	}
+	if isNotFoundError(err) {
+		return nil, nil
+	}
+	return nil, err
+}
+
+func (s *invitationService) withAdminTx(ctx context.Context, fn func(context.Context) error) error {
+	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
+		return fn(ctx)
+	}
+	if s.db == nil {
+		return fn(ctx)
+	}
+	return tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
+		return fn(adminCtx)
+	})
 }
 
 // validateAndHashPassword validates password match and strength, then returns the hash.
@@ -418,13 +435,14 @@ func (s *invitationService) createAccountWithRole(
 	ctx context.Context,
 	invitation *authModels.InvitationToken,
 	passwordHash, firstName, lastName string,
+	existingAccount *authModels.Account,
 ) (*authModels.Account, error) {
-	person, err := s.createPerson(ctx, firstName, lastName)
+	person, err := s.createPerson(ctx, firstName, lastName, invitation.TenantID)
 	if err != nil {
 		return nil, err
 	}
 
-	account, err := s.createAccount(ctx, invitation.Email, passwordHash)
+	account, err := s.createOrUpdateAccount(ctx, invitation.Email, passwordHash, existingAccount)
 	if err != nil {
 		return nil, err
 	}
@@ -433,7 +451,15 @@ func (s *invitationService) createAccountWithRole(
 		return nil, &AuthError{Op: "link person to account", Err: err}
 	}
 
-	if err := s.assignRole(ctx, account.ID, invitation.RoleID); err != nil {
+	if err := s.createAccountTenant(ctx, account.ID, invitation.TenantID); err != nil {
+		return nil, err
+	}
+
+	if err := s.assignRole(ctx, account.ID, invitation.RoleID, invitation.TenantID); err != nil {
+		return nil, err
+	}
+
+	if err := s.createAccountTenant(ctx, account.ID, invitation.TenantID); err != nil {
 		return nil, err
 	}
 
@@ -448,12 +474,82 @@ func (s *invitationService) createAccountWithRole(
 	return account, nil
 }
 
-// createPerson creates a new person record.
-func (s *invitationService) createPerson(ctx context.Context, firstName, lastName string) (*userModels.Person, error) {
+func (s *invitationService) createOrUpdateAccount(ctx context.Context, email, passwordHash string, existingAccount *authModels.Account) (*authModels.Account, error) {
+	if existingAccount == nil {
+		return s.createAccount(ctx, email, passwordHash)
+	}
+	if err := s.accountRepo.UpdatePassword(ctx, existingAccount.ID, passwordHash); err != nil {
+		return nil, &AuthError{Op: "update account password", Err: err}
+	}
+	return existingAccount, nil
+}
+
+// validateInvitationRequest validates all required fields and returns the normalized email.
+func (s *invitationService) validateInvitationRequest(ctx context.Context, req InvitationRequest) (string, error) {
+	emailAddress := strings.TrimSpace(strings.ToLower(req.Email))
+	if emailAddress == "" {
+		return "", &AuthError{Op: opCreateInvitation, Err: fmt.Errorf("email is required")}
+	}
+
+	if _, err := mail.ParseAddress(emailAddress); err != nil {
+		return "", &AuthError{Op: opCreateInvitation, Err: fmt.Errorf("invalid email address")}
+	}
+
+	if err := s.ensureInvitationTargetAllowed(ctx, emailAddress, req); err != nil {
+		return "", err
+	}
+
+	if req.RoleID <= 0 {
+		return "", &AuthError{Op: opCreateInvitation, Err: fmt.Errorf("role id is required")}
+	}
+
+	if req.CreatedBy < 0 {
+		return "", &AuthError{Op: opCreateInvitation, Err: fmt.Errorf("created_by is invalid")}
+	}
+	if req.TenantID < 0 {
+		return "", &AuthError{Op: opCreateInvitation, Err: fmt.Errorf("tenant id is invalid")}
+	}
+
+	if err := s.ensureRoleExists(ctx, req.RoleID); err != nil {
+		return "", err
+	}
+
+	return emailAddress, nil
+}
+
+func (s *invitationService) ensureInvitationTargetAllowed(ctx context.Context, email string, req InvitationRequest) error {
+	account, err := s.findExistingAccountByEmail(ctx, email)
+	if err != nil {
+		return &AuthError{Op: opCreateInvitation, Err: err}
+	}
+	if account == nil {
+		return nil
+	}
+	targetTenantID := req.TenantID
+	if targetTenantID <= 0 {
+		targetTenantID = tenant.FromContext(ctx)
+	}
+	if targetTenantID <= 0 {
+		return &AuthError{Op: opCreateInvitation, Err: ErrEmailAlreadyExists}
+	}
+	exists, err := s.accountTenantRepo.ExistsByAccountAndTenant(ctx, account.ID, targetTenantID)
+	if err != nil {
+		return &AuthError{Op: opCreateInvitation, Err: err}
+	}
+	if exists {
+		return &AuthError{Op: opCreateInvitation, Err: fmt.Errorf("account already has access to tenant")}
+	}
+	return nil
+}
+
+// createPerson creates a new person record with the given tenant ID.
+// tenantID is passed explicitly because invitation acceptance is a public route.
+func (s *invitationService) createPerson(ctx context.Context, firstName, lastName string, tenantID int64) (*userModels.Person, error) {
 	person := &userModels.Person{
 		FirstName: firstName,
 		LastName:  lastName,
 	}
+	person.SetTenantID(tenantID)
 	if err := s.personRepo.Create(ctx, person); err != nil {
 		return nil, &AuthError{Op: "create person", Err: err}
 	}
@@ -473,14 +569,33 @@ func (s *invitationService) createAccount(ctx context.Context, email, passwordHa
 	return account, nil
 }
 
-// assignRole assigns a role to an account.
-func (s *invitationService) assignRole(ctx context.Context, accountID, roleID int64) error {
+// assignRole assigns a role to an account with the given tenant ID.
+// tenantID is passed explicitly because invitation acceptance is a public route
+// where tenant.FromContext(ctx) would return 0.
+func (s *invitationService) assignRole(ctx context.Context, accountID, roleID, tenantID int64) error {
 	accountRole := &authModels.AccountRole{
 		AccountID: accountID,
 		RoleID:    roleID,
 	}
+	accountRole.SetTenantID(tenantID)
 	if err := s.accountRoleRepo.Create(ctx, accountRole); err != nil {
 		return &AuthError{Op: "assign role", Err: err}
+	}
+	return nil
+}
+
+// createAccountTenant maps an account to a tenant so the user can log into this school.
+// Must be called within a RunInTx block (tx stored in context for base.GetDB).
+func (s *invitationService) createAccountTenant(ctx context.Context, accountID, tenantID int64) error {
+	now := time.Now()
+	mapping := &authModels.AccountTenant{
+		AccountID:   accountID,
+		TenantID:    tenantID,
+		Status:      authModels.AccountTenantStatusActive,
+		ActivatedAt: &now,
+	}
+	if err := s.accountTenantRepo.Create(ctx, mapping); err != nil {
+		return &AuthError{Op: "create account-tenant mapping", Err: err}
 	}
 	return nil
 }
@@ -497,11 +612,17 @@ func (s *invitationService) createStaffAndTeacherIfSystemRole(
 	}
 
 	staff := &userModels.Staff{PersonID: personID}
+	staff.SetTenantID(invitation.TenantID)
 	if err := s.staffRepo.Create(ctx, staff); err != nil {
 		return &AuthError{Op: "create staff", Err: err}
 	}
 
+	if !shouldCreateTeacherForRole(role.Name) {
+		return nil
+	}
+
 	teacher := &userModels.Teacher{StaffID: staff.ID}
+	teacher.SetTenantID(invitation.TenantID)
 	if invitation.Position != nil {
 		teacher.Role = *invitation.Position
 	}
@@ -510,6 +631,15 @@ func (s *invitationService) createStaffAndTeacherIfSystemRole(
 	}
 
 	return nil
+}
+
+func shouldCreateTeacherForRole(roleName string) bool {
+	switch strings.ToLower(strings.TrimSpace(roleName)) {
+	case "user", "teacher":
+		return true
+	default:
+		return false
+	}
 }
 
 // ResendInvitation queues another email for an existing invitation if it is still valid.
@@ -545,7 +675,8 @@ func (s *invitationService) ResendInvitation(ctx context.Context, invitationID i
 		slog.Int64("invitation_id", invitation.ID),
 		slog.Int64("actor_account_id", actorAccountID))
 
-	s.sendInvitationEmail(invitation, roleName)
+	schoolName := s.lookupSchoolName(ctx, invitation.TenantID)
+	s.sendInvitationEmail(invitation, roleName, schoolName)
 	return nil
 }
 
@@ -638,7 +769,23 @@ var invitationEmailBackoff = []time.Duration{
 	15 * time.Second,
 }
 
-func (s *invitationService) sendInvitationEmail(invitation *authModels.InvitationToken, roleName string) {
+// lookupSchoolName resolves the tenant display name for use in emails.
+// Returns empty string on failure (best-effort, never blocks the caller).
+func (s *invitationService) lookupSchoolName(ctx context.Context, tenantID int64) string {
+	if tenantID == 0 || s.schoolRepo == nil {
+		return ""
+	}
+	school, err := s.schoolRepo.FindByID(ctx, tenantID)
+	if err != nil {
+		s.getLogger().Warn("failed to lookup school name for invitation email",
+			slog.Int64("tenant_id", tenantID),
+			slog.String("error", err.Error()))
+		return ""
+	}
+	return school.Name
+}
+
+func (s *invitationService) sendInvitationEmail(invitation *authModels.InvitationToken, roleName string, schoolName string) {
 	if s.dispatcher == nil {
 		s.getLogger().Warn("email dispatcher unavailable, skipping invitation email",
 			slog.Int64("invitation_id", invitation.ID))
@@ -654,10 +801,15 @@ func (s *invitationService) sendInvitationEmail(invitation *authModels.Invitatio
 	logoURL := fmt.Sprintf("%s/images/moto_transparent.png", frontend)
 	expiryHours := int(s.invitationExpiry / time.Hour)
 
+	subject := "Einladung zu moto"
+	if schoolName != "" {
+		subject = fmt.Sprintf("Einladung zu moto – %s", schoolName)
+	}
+
 	message := email.Message{
 		From:     s.defaultFrom,
 		To:       email.NewEmail("", invitation.Email),
-		Subject:  "Einladung zu moto",
+		Subject:  subject,
 		Template: "invitation.html",
 		Content: map[string]any{
 			"InvitationURL": invitationURL,
@@ -666,6 +818,7 @@ func (s *invitationService) sendInvitationEmail(invitation *authModels.Invitatio
 			"LastName":      invitation.LastName,
 			"ExpiryHours":   expiryHours,
 			"LogoURL":       logoURL,
+			"SchoolName":    schoolName,
 		},
 	}
 
@@ -702,7 +855,10 @@ func (s *invitationService) persistInvitationDelivery(ctx context.Context, meta 
 		errText = &msg
 	}
 
-	if err := s.invitationRepo.UpdateDeliveryResult(ctx, meta.ReferenceID, sentAt, errText, retryCount); err != nil {
+	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
+		return s.invitationRepo.UpdateDeliveryResult(adminCtx, meta.ReferenceID, sentAt, errText, retryCount)
+	})
+	if err != nil {
 		s.getLogger().Error("failed to update invitation delivery status",
 			slog.Int64("invitation_id", meta.ReferenceID),
 			slog.Any("error", err),
@@ -724,6 +880,24 @@ func sanitizeEmailError(err error) string {
 		return ""
 	}
 	return strings.TrimSpace(err.Error())
+}
+
+func scopedInvitationTenantContext(ctx context.Context, tenantID int64) context.Context {
+	if tenantID <= 0 {
+		return ctx
+	}
+	if tenant.FromContext(ctx) == tenantID {
+		return ctx
+	}
+	return tenant.WithTenantID(ctx, tenantID)
+}
+
+func nullableCreatedBy(id int64) *int64 {
+	if id <= 0 {
+		return nil
+	}
+	value := id
+	return &value
 }
 
 func isNotFoundError(err error) bool {

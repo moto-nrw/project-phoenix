@@ -1,6 +1,7 @@
 package suggestions
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strconv"
@@ -13,17 +14,21 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/suggestions"
 	suggestionsSvc "github.com/moto-nrw/project-phoenix/services/suggestions"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 // Resource defines the suggestions API resource
 type Resource struct {
 	SuggestionsService suggestionsSvc.Service
+	db                 *bun.DB
 }
 
 // NewResource creates a new suggestions resource
-func NewResource(suggestionsService suggestionsSvc.Service) *Resource {
+func NewResource(suggestionsService suggestionsSvc.Service, db *bun.DB) *Resource {
 	return &Resource{
 		SuggestionsService: suggestionsService,
+		db:                 db,
 	}
 }
 
@@ -39,29 +44,31 @@ func (rs *Resource) Router() chi.Router {
 	r.Group(func(r chi.Router) {
 		r.Use(tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
+		r.Use(jwt.TenantMiddleware)
+		withTx := tenant.TenantTxMiddleware(rs.db)
 
 		// List and read
-		r.With(authorize.RequiresPermission(permissions.SuggestionsList)).Get("/", rs.listPosts)
-		r.With(authorize.RequiresPermission(permissions.SuggestionsList)).Get("/unread-count", rs.getUnreadCount)
-		r.With(authorize.RequiresPermission(permissions.SuggestionsRead)).Get("/{id}", rs.getPost)
+		r.With(authorize.RequiresPermission(permissions.SuggestionsList), withTx).Get("/", rs.listPosts)
+		r.With(authorize.RequiresPermission(permissions.SuggestionsList), withTx).Get("/unread-count", rs.getUnreadCount)
+		r.With(authorize.RequiresPermission(permissions.SuggestionsRead), withTx).Get("/{id}", rs.getPost)
 
 		// Create
-		r.With(authorize.RequiresPermission(permissions.SuggestionsCreate)).Post("/", rs.createPost)
+		r.With(authorize.RequiresPermission(permissions.SuggestionsCreate), withTx).Post("/", rs.createPost)
 
 		// Update and delete (ownership enforced in service layer)
-		r.With(authorize.RequiresPermission(permissions.SuggestionsUpdate)).Put("/{id}", rs.updatePost)
-		r.With(authorize.RequiresPermission(permissions.SuggestionsDelete)).Delete("/{id}", rs.deletePost)
+		r.With(authorize.RequiresPermission(permissions.SuggestionsUpdate), withTx).Put("/{id}", rs.updatePost)
+		r.With(authorize.RequiresPermission(permissions.SuggestionsDelete), withTx).Delete("/{id}", rs.deletePost)
 
 		// Voting
-		r.With(authorize.RequiresPermission(permissions.SuggestionsCreate)).Post("/{id}/vote", rs.vote)
-		r.With(authorize.RequiresPermission(permissions.SuggestionsCreate)).Delete("/{id}/vote", rs.removeVote)
+		r.With(authorize.RequiresPermission(permissions.SuggestionsCreate), withTx).Post("/{id}/vote", rs.vote)
+		r.With(authorize.RequiresPermission(permissions.SuggestionsCreate), withTx).Delete("/{id}/vote", rs.removeVote)
 
 		// Comments
 		r.Route("/{id}/comments", func(r chi.Router) {
-			r.With(authorize.RequiresPermission(permissions.SuggestionsRead)).Get("/", rs.listComments)
-			r.With(authorize.RequiresPermission(permissions.SuggestionsCreate)).Post("/", rs.createComment)
-			r.With(authorize.RequiresPermission(permissions.SuggestionsCreate)).Post("/read", rs.markCommentsRead)
-			r.With(authorize.RequiresPermission(permissions.SuggestionsDelete)).Delete("/{commentId}", rs.deleteComment)
+			r.With(authorize.RequiresPermission(permissions.SuggestionsRead), withTx).Get("/", rs.listComments)
+			r.With(authorize.RequiresPermission(permissions.SuggestionsCreate), withTx).Post("/", rs.createComment)
+			r.With(authorize.RequiresPermission(permissions.SuggestionsCreate), withTx).Post("/read", rs.markCommentsRead)
+			r.With(authorize.RequiresPermission(permissions.SuggestionsDelete), withTx).Delete("/{commentId}", rs.deleteComment)
 		})
 	})
 
@@ -129,7 +136,10 @@ func (rs *Resource) createPost(w http.ResponseWriter, r *http.Request) {
 		AuthorID:    accountID,
 	}
 
-	if err := rs.SuggestionsService.CreatePost(r.Context(), post); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.SuggestionsService.CreatePost(ctx, post)
+	}); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -167,7 +177,10 @@ func (rs *Resource) updatePost(w http.ResponseWriter, r *http.Request) {
 	}
 	post.ID = id
 
-	if err := rs.SuggestionsService.UpdatePost(r.Context(), post, accountID); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.SuggestionsService.UpdatePost(ctx, post, accountID)
+	}); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -193,7 +206,10 @@ func (rs *Resource) deletePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := rs.SuggestionsService.DeletePost(r.Context(), id, accountID); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.SuggestionsService.DeletePost(ctx, id, accountID)
+	}); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -218,8 +234,13 @@ func (rs *Resource) vote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	post, err := rs.SuggestionsService.Vote(r.Context(), id, accountID, req.Direction)
-	if err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	var post *suggestions.Post
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		var txErr error
+		post, txErr = rs.SuggestionsService.Vote(ctx, id, accountID, req.Direction)
+		return txErr
+	}); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -238,8 +259,13 @@ func (rs *Resource) removeVote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	post, err := rs.SuggestionsService.RemoveVote(r.Context(), id, accountID)
-	if err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	var post *suggestions.Post
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		var txErr error
+		post, txErr = rs.SuggestionsService.RemoveVote(ctx, id, accountID)
+		return txErr
+	}); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}

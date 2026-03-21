@@ -1,6 +1,7 @@
 package rooms
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strconv"
@@ -16,17 +17,21 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	facilityService "github.com/moto-nrw/project-phoenix/services/facilities"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 // Resource defines the rooms API resource
 type Resource struct {
 	FacilityService facilityService.Service
+	db              *bun.DB
 }
 
 // NewResource creates a new rooms resource
-func NewResource(facilityService facilityService.Service) *Resource {
+func NewResource(facilityService facilityService.Service, db *bun.DB) *Resource {
 	return &Resource{
 		FacilityService: facilityService,
+		db:              db,
 	}
 }
 
@@ -42,22 +47,24 @@ func (rs *Resource) Router() chi.Router {
 	r.Group(func(r chi.Router) {
 		r.Use(tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
+		r.Use(jwt.TenantMiddleware)
+		withTx := tenant.TenantTxMiddleware(rs.db)
 
 		// Read operations require rooms:read permission
-		r.With(authorize.RequiresPermission(permissions.RoomsRead)).Get("/", rs.listRooms)
-		r.With(authorize.RequiresPermission(permissions.RoomsRead)).Get("/{id}", rs.getRoom)
-		r.With(authorize.RequiresPermission(permissions.RoomsRead)).Get("/by-category", rs.getRoomsByCategory)
-		r.With(authorize.RequiresPermission(permissions.RoomsRead)).Get("/{id}/history", rs.getRoomHistory)
+		r.With(authorize.RequiresPermission(permissions.RoomsRead), withTx).Get("/", rs.listRooms)
+		r.With(authorize.RequiresPermission(permissions.RoomsRead), withTx).Get("/{id}", rs.getRoom)
+		r.With(authorize.RequiresPermission(permissions.RoomsRead), withTx).Get("/by-category", rs.getRoomsByCategory)
+		r.With(authorize.RequiresPermission(permissions.RoomsRead), withTx).Get("/{id}/history", rs.getRoomHistory)
 
 		// Write operations require specific permissions
-		r.With(authorize.RequiresPermission(permissions.RoomsCreate)).Post("/", rs.createRoom)
-		r.With(authorize.RequiresPermission(permissions.RoomsUpdate)).Put("/{id}", rs.updateRoom)
-		r.With(authorize.RequiresPermission(permissions.RoomsDelete)).Delete("/{id}", rs.deleteRoom)
+		r.With(authorize.RequiresPermission(permissions.RoomsCreate), withTx).Post("/", rs.createRoom)
+		r.With(authorize.RequiresPermission(permissions.RoomsUpdate), withTx).Put("/{id}", rs.updateRoom)
+		r.With(authorize.RequiresPermission(permissions.RoomsDelete), withTx).Delete("/{id}", rs.deleteRoom)
 
 		// Advanced operations
-		r.With(authorize.RequiresPermission(permissions.RoomsRead)).Get("/buildings", rs.getBuildingList)
-		r.With(authorize.RequiresPermission(permissions.RoomsRead)).Get("/categories", rs.getCategoryList)
-		r.With(authorize.RequiresPermission(permissions.RoomsRead)).Get("/available", rs.getAvailableRooms)
+		r.With(authorize.RequiresPermission(permissions.RoomsRead), withTx).Get("/buildings", rs.getBuildingList)
+		r.With(authorize.RequiresPermission(permissions.RoomsRead), withTx).Get("/categories", rs.getCategoryList)
+		r.With(authorize.RequiresPermission(permissions.RoomsRead), withTx).Get("/available", rs.getAvailableRooms)
 	})
 
 	return r
@@ -218,7 +225,11 @@ func (rs *Resource) createRoom(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create room using service
-	if err := rs.FacilityService.CreateRoom(r.Context(), room); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.FacilityService.CreateRoom(ctx, room)
+	})
+	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
@@ -265,7 +276,11 @@ func (rs *Resource) updateRoom(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update room using service
-	if err := rs.FacilityService.UpdateRoom(r.Context(), room); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	err = tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.FacilityService.UpdateRoom(ctx, room)
+	})
+	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
@@ -284,7 +299,11 @@ func (rs *Resource) deleteRoom(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Delete room using service
-	if err := rs.FacilityService.DeleteRoom(r.Context(), id); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	err = tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.FacilityService.DeleteRoom(ctx, id)
+	})
+	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}

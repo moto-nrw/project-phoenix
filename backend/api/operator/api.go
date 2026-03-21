@@ -12,6 +12,7 @@ import (
 // Resource defines the operator API resource
 type Resource struct {
 	authResource          *AuthResource
+	provisioningResource  *ProvisioningResource
 	suggestionsResource   *SuggestionsResource
 	announcementsResource *AnnouncementsResource
 	profileResource       *ProfileResource
@@ -22,6 +23,7 @@ type Resource struct {
 // ResourceConfig holds dependencies for the operator resource
 type ResourceConfig struct {
 	AuthService          platformSvc.OperatorAuthService
+	ProvisioningService  platformSvc.OperatorProvisioningService
 	SuggestionsService   platformSvc.OperatorSuggestionsService
 	AnnouncementsService platformSvc.AnnouncementService
 	TokenAuth            *jwt.TokenAuth
@@ -42,6 +44,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 
 	return &Resource{
 		authResource:          NewAuthResource(cfg.AuthService),
+		provisioningResource:  NewProvisioningResource(cfg.ProvisioningService),
 		suggestionsResource:   NewSuggestionsResource(cfg.SuggestionsService),
 		announcementsResource: NewAnnouncementsResource(cfg.AnnouncementsService),
 		profileResource:       NewProfileResource(cfg.AuthService),
@@ -74,6 +77,19 @@ func (rs *Resource) Router() chi.Router {
 		r.Use(rs.tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
 		r.Use(RequiresOperatorScope)
+
+		r.Route("/organizations", func(r chi.Router) {
+			r.Get("/", rs.provisioningResource.ListOrganizations)
+			r.Post("/", rs.provisioningResource.CreateOrganization)
+			r.Put("/{id}", rs.provisioningResource.UpdateOrganization)
+		})
+
+		r.Route("/schools", func(r chi.Router) {
+			r.Get("/", rs.provisioningResource.ListSchools)
+			r.Post("/", rs.provisioningResource.CreateSchool)
+			r.Put("/{id}", rs.provisioningResource.UpdateSchool)
+			r.Post("/{id}/invite-admin", rs.provisioningResource.InviteSchoolAdmin)
+		})
 
 		// Suggestions management
 		r.Route("/suggestions", func(r chi.Router) {

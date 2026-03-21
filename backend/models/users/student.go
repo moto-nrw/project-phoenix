@@ -12,7 +12,8 @@ import (
 
 // Student represents a student in the system
 type Student struct {
-	base.Model      `bun:"schema:users,table:students"`
+	base.Model `bun:"schema:users,table:students"`
+	base.TenantModel
 	PersonID        int64      `bun:"person_id,notnull" json:"person_id"`
 	SchoolClass     string     `bun:"school_class,notnull" json:"school_class"`
 	GuardianName    *string    `bun:"guardian_name" json:"guardian_name,omitempty"`       // Optional: Legacy field, use guardian_profiles instead
@@ -38,9 +39,6 @@ type Student struct {
 //
 //	For INSERT queries, aliases should NOT be used, as they can cause issues with some database drivers.
 func (s *Student) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(`users.students AS "student"`)
-	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr(`users.students AS "student"`)
 	}

@@ -2,11 +2,14 @@ package database
 
 import (
 	"log"
+	"net/url"
+	"os"
 
 	"github.com/spf13/viper"
 )
 
 // GetDatabaseDSN returns the database connection string based on environment.
+// Used by CLI commands (migrate, seed, cleanup) which run as the postgres superuser.
 //
 // Precedence order:
 // 1. Explicit DB_DSN environment variable (for production/Docker overrides)
@@ -47,4 +50,32 @@ func GetDatabaseDSN() string {
 	// 4. Fallback to development default
 	// This allows: go run main.go serve (without setting APP_ENV explicitly)
 	return "postgres://postgres:postgres@localhost:5432/postgres?sslmode=require"
+}
+
+// GetServeDSN returns the database connection string for the HTTP server.
+// Connects as the phoenix_auth role (NOINHERIT, can SET ROLE to phoenix_tenant/phoenix_admin)
+// instead of the postgres superuser. This enforces least-privilege at the connection level.
+//
+// PHOENIX_AUTH_PASSWORD is mandatory. The server will refuse to start without it.
+// Run migration V1.14.1 to create the phoenix_auth role, then set the password
+// in your env file (dev.env for local, .env for Docker).
+func GetServeDSN() string {
+	baseDSN := GetDatabaseDSN()
+
+	password := os.Getenv("PHOENIX_AUTH_PASSWORD")
+	if password == "" {
+		password = viper.GetString("phoenix_auth_password")
+	}
+	if password == "" {
+		log.Fatal("PHOENIX_AUTH_PASSWORD is required for serve. " +
+			"Set it in your env file after running migration V1.14.1.")
+	}
+
+	parsed, err := url.Parse(baseDSN)
+	if err != nil {
+		log.Fatalf("failed to parse DB_DSN for phoenix_auth substitution: %v", err)
+	}
+
+	parsed.User = url.UserPassword("phoenix_auth", password)
+	return parsed.String()
 }

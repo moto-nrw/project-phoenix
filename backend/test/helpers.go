@@ -9,6 +9,7 @@ import (
 
 	"github.com/joho/godotenv"
 	"github.com/moto-nrw/project-phoenix/database"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -111,6 +112,34 @@ For CI, set TEST_DB_DSN as an environment variable.`)
 	db, err := database.DBConn()
 	require.NoError(t, err, "Failed to connect to test database")
 
+	// Set search_path to include all project schemas.
+	// BUN's Relation() JOIN generation sometimes uses unqualified table names,
+	// which fails when the target schema isn't in search_path.
+	_, _ = db.ExecContext(context.Background(),
+		`SET search_path TO public, platform, auth, users, education, facilities, activities, active, schedule, iot, feedback, config, meta, audit`)
+
+	// Ensure the default tenant (school ID 1) exists in platform.schools.
+	// All fixtures use tenant_id=1, which requires a FK target row.
+	EnsureTestTenant(t, db, 1)
+
+	// Ensure default fallback room exists (ID 1).
+	// session_service.go:determineRoomIDWithStrategy uses hardcoded fallback to room 1
+	// when no room is specified and no planned room exists.
+	_, _ = db.ExecContext(context.Background(), `
+		INSERT INTO facilities.rooms (id, tenant_id, name, building)
+		VALUES (1, 1, 'Default Room', 'Default')
+		ON CONFLICT (id) DO NOTHING`)
+
+	// Advance the BIGSERIAL sequence past any explicitly-inserted IDs.
+	// Uses nextval (atomic, never goes backwards) instead of setval to avoid
+	// races when parallel test packages call SetupTestDB concurrently.
+	_, _ = db.ExecContext(context.Background(), `
+		DO $$ DECLARE max_id bigint;
+		BEGIN
+			SELECT COALESCE(MAX(id), 0) INTO max_id FROM facilities.rooms;
+			WHILE nextval('facilities.rooms_id_seq') < max_id LOOP END LOOP;
+		END $$`)
+
 	return db
 }
 
@@ -186,6 +215,18 @@ func CleanupRateLimitsByEmail(tb testing.TB, db *bun.DB, emails ...string) {
 	if err != nil {
 		tb.Logf("Warning: failed to cleanup auth.password_reset_rate_limits: %v", err)
 	}
+}
+
+// ============================================================================
+// Context Helpers
+// ============================================================================
+
+// TenantContext returns a context with tenant_id set.
+// Use this in service and repository tests that call methods requiring tenant context.
+// Without tenant context, EnsureTenantID silently leaves tenant_id=0, which violates
+// FK constraints on tenant-scoped tables.
+func TenantContext(tenantID int64) context.Context {
+	return tenant.WithTenantID(context.Background(), tenantID)
 }
 
 // ============================================================================

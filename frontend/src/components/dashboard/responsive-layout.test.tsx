@@ -121,7 +121,7 @@ describe("ResponsiveLayout", () => {
     );
 
     await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith("/");
+      expect(mockPush).toHaveBeenCalledWith("/test-tenant/");
     });
   });
 

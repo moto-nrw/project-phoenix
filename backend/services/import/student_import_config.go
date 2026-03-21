@@ -9,14 +9,22 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
 var (
 	emailRegex = regexp.MustCompile(`^[A-Za-z0-9._+%-]+@[A-Za-z0-9.-]+[.][A-Za-z]+$`)
 	phoneRegex = regexp.MustCompile(`^(\+[0-9]{1,3}\s?)?[0-9\s-]{7,15}$`)
+	timeRegex  = regexp.MustCompile(`^([01]?[0-9]|2[0-3]):[0-5][0-9]$`)
 )
+
+// isValidTimeFormat checks if a string is in HH:MM format
+func isValidTimeFormat(s string) bool {
+	return timeRegex.MatchString(s)
+}
 
 // mapRelationshipType converts German relationship types to valid English types
 func mapRelationshipType(germanType string) string {
@@ -66,39 +74,42 @@ func mapRelationshipType(germanType string) string {
 
 // StudentImportConfig implements ImportConfig for student imports
 type StudentImportConfig struct {
-	personRepo        users.PersonRepository
-	studentRepo       users.StudentRepository
-	guardianRepo      users.GuardianProfileRepository
-	guardianPhoneRepo users.GuardianPhoneNumberRepository
-	relationRepo      users.StudentGuardianRepository
-	privacyRepo       users.PrivacyConsentRepository
-	resolver          *RelationshipResolver
-	txHandler         *base.TxHandler
+	personRepo         users.PersonRepository
+	studentRepo        users.StudentRepository
+	guardianRepo       users.GuardianProfileRepository
+	guardianPhoneRepo  users.GuardianPhoneNumberRepository
+	relationRepo       users.StudentGuardianRepository
+	privacyRepo        users.PrivacyConsentRepository
+	pickupScheduleRepo scheduleModels.StudentPickupScheduleRepository
+	resolver           *RelationshipResolver
+	txHandler          *base.TxHandler
 }
 
 // StudentImportDeps contains dependencies for StudentImportConfig
 type StudentImportDeps struct {
-	PersonRepo        users.PersonRepository
-	StudentRepo       users.StudentRepository
-	GuardianRepo      users.GuardianProfileRepository
-	GuardianPhoneRepo users.GuardianPhoneNumberRepository
-	RelationRepo      users.StudentGuardianRepository
-	PrivacyRepo       users.PrivacyConsentRepository
-	Resolver          *RelationshipResolver
+	PersonRepo         users.PersonRepository
+	StudentRepo        users.StudentRepository
+	GuardianRepo       users.GuardianProfileRepository
+	GuardianPhoneRepo  users.GuardianPhoneNumberRepository
+	RelationRepo       users.StudentGuardianRepository
+	PrivacyRepo        users.PrivacyConsentRepository
+	PickupScheduleRepo scheduleModels.StudentPickupScheduleRepository
+	Resolver           *RelationshipResolver
 }
 
 // NewStudentImportConfig creates a new student import configuration
 // Note: RFID cards are not supported in CSV import and must be assigned separately
 func NewStudentImportConfig(deps StudentImportDeps, db *bun.DB) *StudentImportConfig {
 	return &StudentImportConfig{
-		personRepo:        deps.PersonRepo,
-		studentRepo:       deps.StudentRepo,
-		guardianRepo:      deps.GuardianRepo,
-		guardianPhoneRepo: deps.GuardianPhoneRepo,
-		relationRepo:      deps.RelationRepo,
-		privacyRepo:       deps.PrivacyRepo,
-		resolver:          deps.Resolver,
-		txHandler:         base.NewTxHandler(db),
+		personRepo:         deps.PersonRepo,
+		studentRepo:        deps.StudentRepo,
+		guardianRepo:       deps.GuardianRepo,
+		guardianPhoneRepo:  deps.GuardianPhoneRepo,
+		relationRepo:       deps.RelationRepo,
+		privacyRepo:        deps.PrivacyRepo,
+		pickupScheduleRepo: deps.PickupScheduleRepo,
+		resolver:           deps.Resolver,
+		txHandler:          base.NewTxHandler(db),
 	}
 }
 
@@ -175,7 +186,11 @@ func (c *StudentImportConfig) Validate(ctx context.Context, row *importModels.St
 	for i, guardian := range row.Guardians {
 		guardianErrors := c.validateGuardian(i+1, guardian)
 		errors = append(errors, guardianErrors...)
+
 	}
+
+	// 5b. OPTIONAL: Pickup schedule validation
+	errors = append(errors, validatePickupSchedules(row.PickupSchedules)...)
 
 	// 6. Birthday validation (if provided)
 	if row.Birthday != "" {
@@ -211,6 +226,30 @@ func (c *StudentImportConfig) Validate(ctx context.Context, row *importModels.St
 	return errors
 }
 
+// validatePickupSchedules validates all pickup schedule entries
+func validatePickupSchedules(schedules []importModels.PickupScheduleImportData) []importModels.ValidationError {
+	var errors []importModels.ValidationError
+	for _, sched := range schedules {
+		if sched.Weekday < 1 || sched.Weekday > 5 {
+			errors = append(errors, importModels.ValidationError{
+				Field:    "pickup_schedule",
+				Message:  fmt.Sprintf("Ungültiger Wochentag %d. Erlaubt: 1 (Mo) bis 5 (Fr)", sched.Weekday),
+				Code:     "invalid_weekday",
+				Severity: importModels.ErrorSeverityError,
+			})
+		}
+		if !isValidTimeFormat(sched.PickupTime) {
+			errors = append(errors, importModels.ValidationError{
+				Field:    "pickup_schedule",
+				Message:  fmt.Sprintf("Ungültiges Zeitformat '%s'. Bitte HH:MM verwenden (z.B. 15:30)", sched.PickupTime),
+				Code:     "invalid_time_format",
+				Severity: importModels.ErrorSeverityError,
+			})
+		}
+	}
+	return errors
+}
+
 // validateGuardian validates a single guardian's data
 func (c *StudentImportConfig) validateGuardian(num int, guardian importModels.GuardianImportData) []importModels.ValidationError {
 	errors := []importModels.ValidationError{}
@@ -236,7 +275,35 @@ func (c *StudentImportConfig) validateGuardian(num int, guardian importModels.Gu
 	errors = append(errors, validateGuardianLegacyPhones(num, guardian, fieldPrefix)...)
 	errors = append(errors, validateGuardianPhoneNumbers(num, guardian.PhoneNumbers, fieldPrefix)...)
 
+	// Validate language preference (warning for unrecognized codes)
+	errors = append(errors, validateGuardianLanguage(num, guardian.LanguagePreference, fieldPrefix)...)
+
 	return errors
+}
+
+// supportedLanguages contains ISO 639-1 codes common in German school contexts
+var supportedLanguages = map[string]bool{
+	"de": true, "en": true, "tr": true, "ar": true, "ru": true,
+	"pl": true, "fa": true, "ku": true, "fr": true, "es": true,
+	"it": true, "pt": true, "ro": true, "uk": true, "sr": true,
+	"hr": true, "bg": true, "el": true, "vi": true, "zh": true,
+}
+
+// validateGuardianLanguage warns about unrecognized language codes
+func validateGuardianLanguage(num int, lang, fieldPrefix string) []importModels.ValidationError {
+	if lang == "" {
+		return nil // Empty is fine — backend defaults to "de"
+	}
+	normalized := strings.ToLower(strings.TrimSpace(lang))
+	if !supportedLanguages[normalized] {
+		return []importModels.ValidationError{{
+			Field:    fmt.Sprintf("%s_language", fieldPrefix),
+			Message:  fmt.Sprintf("Unbekannter Sprachcode '%s' für Erziehungsberechtigten %d. Gängige Codes: de, en, tr, ar, ru, pl", normalized, num),
+			Code:     "unknown_language",
+			Severity: importModels.ErrorSeverityWarning,
+		}}
+	}
+	return nil
 }
 
 // validateGuardianEmail validates email format
@@ -321,30 +388,56 @@ func (c *StudentImportConfig) FindExisting(ctx context.Context, row importModels
 		row.FirstName, row.LastName, row.SchoolClass)
 }
 
-// Create creates a new student with all related entities
+// Create creates a new student with all related entities.
+// Uses a PostgreSQL savepoint for per-row atomicity within the outer tenant transaction.
+// If any step fails (e.g. person created but student fails), ROLLBACK TO SAVEPOINT
+// cleans up partial records while keeping the outer tx alive for other rows.
 func (c *StudentImportConfig) Create(ctx context.Context, row importModels.StudentImportRow) (int64, error) {
-	var studentID int64
+	tx, hasTx := base.TxFromContext(ctx)
+	if hasTx {
+		if _, err := tx.ExecContext(ctx, "SAVEPOINT import_row"); err != nil {
+			return 0, fmt.Errorf("savepoint: %w", err)
+		}
 
-	err := c.txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
-		person, err := c.createPersonFromRow(txCtx, row)
+		studentID, err := c.createAllEntities(ctx, row)
 		if err != nil {
-			return err
+			_, _ = tx.ExecContext(ctx, "ROLLBACK TO SAVEPOINT import_row")
+			return 0, err
 		}
 
-		student, err := c.createStudentFromRow(txCtx, person.ID, row)
-		if err != nil {
-			return err
-		}
-		studentID = student.ID
+		_, _ = tx.ExecContext(ctx, "RELEASE SAVEPOINT import_row")
+		return studentID, nil
+	}
 
-		if err := c.createGuardianRelationships(txCtx, studentID, row.Guardians); err != nil {
-			return err
-		}
+	// Fallback: no outer tx (shouldn't happen in normal HTTP flow)
+	return c.createAllEntities(ctx, row)
+}
 
-		return c.createPrivacyConsentIfNeeded(txCtx, studentID, row)
-	})
+// createAllEntities creates person, student, guardians, privacy consent, and pickup schedules.
+func (c *StudentImportConfig) createAllEntities(ctx context.Context, row importModels.StudentImportRow) (int64, error) {
+	person, err := c.createPersonFromRow(ctx, row)
+	if err != nil {
+		return 0, err
+	}
 
-	return studentID, err
+	student, err := c.createStudentFromRow(ctx, person.ID, row)
+	if err != nil {
+		return 0, err
+	}
+
+	if err := c.createGuardianRelationships(ctx, student.ID, row.Guardians); err != nil {
+		return 0, err
+	}
+
+	if err := c.createPrivacyConsentIfNeeded(ctx, student.ID, row); err != nil {
+		return 0, err
+	}
+
+	if err := c.createPickupSchedules(ctx, student.ID, row.PickupSchedules); err != nil {
+		return 0, err
+	}
+
+	return student.ID, nil
 }
 
 // createPersonFromRow creates a person from import row
@@ -356,6 +449,7 @@ func (c *StudentImportConfig) createPersonFromRow(ctx context.Context, row impor
 		Birthday:  birthday,
 		TagID:     nil, // RFID cards not supported in CSV import
 	}
+	person.SetTenantID(tenant.FromContext(ctx))
 
 	if err := c.personRepo.Create(ctx, person); err != nil {
 		return nil, fmt.Errorf("create person: %w", err)
@@ -375,6 +469,7 @@ func (c *StudentImportConfig) createStudentFromRow(ctx context.Context, personID
 		HealthInfo:      stringPtr(row.HealthInfo),
 		PickupStatus:    stringPtr(row.PickupStatus),
 	}
+	student.SetTenantID(tenant.FromContext(ctx))
 
 	if err := c.studentRepo.Create(ctx, student); err != nil {
 		return nil, fmt.Errorf("create student: %w", err)
@@ -408,6 +503,7 @@ func (c *StudentImportConfig) createSingleGuardianRelationship(ctx context.Conte
 		IsEmergencyContact: guardianData.IsEmergencyContact,
 		CanPickup:          guardianData.CanPickup,
 	}
+	relationship.SetTenantID(tenant.FromContext(ctx))
 
 	if err := c.relationRepo.Create(ctx, relationship); err != nil {
 		return fmt.Errorf("create relationship %d: %w", index, err)
@@ -482,7 +578,10 @@ func (c *StudentImportConfig) createOrFindGuardian(ctx context.Context, data imp
 			}
 		} else if existing != nil {
 			// Guardian found - reuse it (deduplication)
-			// But still add any new phone numbers from the import data
+			// Update profile fields if the import provides new data
+			c.updateExistingGuardianProfile(ctx, existing, data)
+
+			// Add any new phone numbers from the import data
 			if err := c.createGuardianPhoneNumbers(ctx, existing.ID, data.PhoneNumbers); err != nil {
 				// Log but don't fail - phone numbers are additive
 				// Duplicates will be handled gracefully
@@ -495,9 +594,14 @@ func (c *StudentImportConfig) createOrFindGuardian(ctx context.Context, data imp
 
 	// Create new guardian (phone numbers are added via createGuardianPhoneNumbers below)
 	guardian := &users.GuardianProfile{
-		FirstName: strings.TrimSpace(data.FirstName),
-		LastName:  strings.TrimSpace(data.LastName),
-		Email:     stringPtr(data.Email),
+		FirstName:          strings.TrimSpace(data.FirstName),
+		LastName:           strings.TrimSpace(data.LastName),
+		Email:              stringPtr(data.Email),
+		AddressStreet:      stringPtr(data.AddressStreet),
+		AddressCity:        stringPtr(data.AddressCity),
+		AddressPostalCode:  stringPtr(data.AddressPostalCode),
+		Notes:              stringPtr(data.Notes),
+		LanguagePreference: guardianLanguagePreference(data.LanguagePreference),
 	}
 
 	if err := c.guardianRepo.Create(ctx, guardian); err != nil {
@@ -510,6 +614,46 @@ func (c *StudentImportConfig) createOrFindGuardian(ctx context.Context, data imp
 	}
 
 	return guardian.ID, nil
+}
+
+// updateExistingGuardianProfile merges non-empty import fields into an existing guardian.
+// Only overwrites fields that are provided in the import data (non-empty).
+// Errors are logged but don't fail the import — the guardian link still works.
+func (c *StudentImportConfig) updateExistingGuardianProfile(ctx context.Context, existing *users.GuardianProfile, data importModels.GuardianImportData) {
+	updated := false
+
+	if v := strings.TrimSpace(data.AddressStreet); v != "" && !ptrEquals(existing.AddressStreet, v) {
+		existing.AddressStreet = stringPtr(v)
+		updated = true
+	}
+	if v := strings.TrimSpace(data.AddressCity); v != "" && !ptrEquals(existing.AddressCity, v) {
+		existing.AddressCity = stringPtr(v)
+		updated = true
+	}
+	if v := strings.TrimSpace(data.AddressPostalCode); v != "" && !ptrEquals(existing.AddressPostalCode, v) {
+		existing.AddressPostalCode = stringPtr(v)
+		updated = true
+	}
+	if v := strings.TrimSpace(data.Notes); v != "" && !ptrEquals(existing.Notes, v) {
+		existing.Notes = stringPtr(v)
+		updated = true
+	}
+	if v := guardianLanguagePreference(data.LanguagePreference); data.LanguagePreference != "" && v != existing.LanguagePreference {
+		existing.LanguagePreference = v
+		updated = true
+	}
+
+	if !updated {
+		return
+	}
+
+	// Best-effort update — don't fail the import if profile update fails
+	_ = c.guardianRepo.Update(ctx, existing)
+}
+
+// ptrEquals checks if a *string equals a plain string value
+func ptrEquals(ptr *string, val string) bool {
+	return ptr != nil && *ptr == val
 }
 
 // createGuardianPhoneNumbers creates phone numbers for a guardian from import data
@@ -591,4 +735,43 @@ func stringPtr(s string) *string {
 		return nil
 	}
 	return &trimmed
+}
+
+// guardianLanguagePreference returns a language preference, defaulting to "de"
+func guardianLanguagePreference(val string) string {
+	if val == "" {
+		return "de"
+	}
+	return strings.ToLower(strings.TrimSpace(val))
+}
+
+// createPickupSchedules creates weekly pickup schedule records for a student
+func (c *StudentImportConfig) createPickupSchedules(ctx context.Context, studentID int64, schedules []importModels.PickupScheduleImportData) error {
+	if len(schedules) == 0 || c.pickupScheduleRepo == nil {
+		return nil
+	}
+
+	for i, sched := range schedules {
+		parsed, err := time.Parse("15:04", sched.PickupTime)
+		if err != nil {
+			return fmt.Errorf("pickup schedule %d: invalid time '%s': %w", i+1, sched.PickupTime, err)
+		}
+		// Use a valid reference date — time.Parse("15:04") produces year 0000 which PostgreSQL rejects
+		pickupTime := time.Date(2024, 1, 1, parsed.Hour(), parsed.Minute(), 0, 0, time.UTC)
+
+		record := &scheduleModels.StudentPickupSchedule{
+			StudentID:  studentID,
+			Weekday:    sched.Weekday,
+			PickupTime: pickupTime,
+			Notes:      stringPtr(sched.Notes),
+			CreatedBy:  ImporterIDFromContext(ctx),
+		}
+		record.SetTenantID(tenant.FromContext(ctx))
+
+		if err := c.pickupScheduleRepo.Create(ctx, record); err != nil {
+			return fmt.Errorf("create pickup schedule (weekday %d): %w", sched.Weekday, err)
+		}
+	}
+
+	return nil
 }

@@ -24,25 +24,10 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("@/lib/api-client", () => ({
-  apiDelete: mockApiDelete,
-  apiGet: vi.fn(),
-  apiPost: vi.fn(),
-  apiPut: vi.fn(),
-}));
-
-vi.mock("@/lib/api-helpers", () => ({
-  handleApiError: vi.fn((error: unknown) => {
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-    const status = message.includes("(401)")
-      ? 401
-      : message.includes("(404)")
-        ? 404
-        : 500;
-    return new Response(JSON.stringify({ error: message }), { status });
-  }),
-}));
+vi.mock("@/lib/api-helpers", async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return { ...actual, apiDelete: mockApiDelete };
+});
 
 // ============================================================================
 // Test Helpers
@@ -150,7 +135,7 @@ describe("DELETE /api/auth/accounts/[accountId]/permissions/[permissionId]", () 
 
   it("handles API errors gracefully", async () => {
     mockApiDelete.mockRejectedValueOnce(
-      new Error("Permission not found (404)"),
+      new Error("API error (404): Permission not found"),
     );
 
     const request = createMockRequest(
@@ -168,7 +153,7 @@ describe("DELETE /api/auth/accounts/[accountId]/permissions/[permissionId]", () 
   });
 
   it("handles unauthorized deletion attempts", async () => {
-    mockApiDelete.mockRejectedValueOnce(new Error("Unauthorized (401)"));
+    mockApiDelete.mockRejectedValueOnce(new Error("API error (401): Unauthorized"));
 
     const request = createMockRequest(
       "/api/auth/accounts/123/permissions/456",

@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/feedback"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -13,7 +13,6 @@ import (
 type feedbackService struct {
 	db        *bun.DB
 	entryRepo feedback.EntryRepository
-	txHandler *base.TxHandler
 }
 
 // NewService creates a new feedback service
@@ -21,29 +20,8 @@ func NewService(entryRepo feedback.EntryRepository, db *bun.DB) Service {
 	return &feedbackService{
 		entryRepo: entryRepo,
 		db:        db,
-		txHandler: base.NewTxHandler(db),
 	}
 }
-
-// WithTx returns a new service that uses the provided transaction
-func (s *feedbackService) WithTx(tx bun.Tx) interface{} {
-	// Get repositories with transaction if they implement the TransactionalRepository interface
-	var entryRepo = s.entryRepo
-
-	// Try to cast repository to TransactionalRepository and apply the transaction
-	if txRepo, ok := s.entryRepo.(base.TransactionalRepository); ok {
-		entryRepo = txRepo.WithTx(tx).(feedback.EntryRepository)
-	}
-
-	// Return a new service with the transaction
-	return &feedbackService{
-		db:        s.db,
-		entryRepo: entryRepo,
-		txHandler: s.txHandler.WithTx(tx),
-	}
-}
-
-// No longer need the getTx method as we're using txHandler
 
 // CreateEntry creates a new feedback entry
 func (s *feedbackService) CreateEntry(ctx context.Context, entry *feedback.Entry) error {
@@ -54,6 +32,11 @@ func (s *feedbackService) CreateEntry(ctx context.Context, entry *feedback.Entry
 	// Validate entry
 	if err := entry.Validate(); err != nil {
 		return &InvalidEntryDataError{Err: err}
+	}
+
+	// Set tenant ID from context
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		entry.SetTenantID(tenantID)
 	}
 
 	// Create entry
@@ -230,34 +213,10 @@ func (s *feedbackService) CreateEntries(ctx context.Context, entries []*feedback
 
 	var errors []error
 
-	// Execute in transaction using txHandler
-	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		// Get transactional service
-		txService := s.WithTx(tx).(Service)
-
-		// Process all entries and collect errors
-		for _, entry := range entries {
-			if err := txService.CreateEntry(ctx, entry); err != nil {
-				errors = append(errors, err)
-			}
-		}
-
-		// If any errors occurred, rollback the transaction
-		if len(errors) > 0 {
-			return &BatchOperationError{Errors: errors}
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		// Include the transaction error in the list of errors
-		if len(errors) == 0 {
-			errors = []error{err}
-		} else {
+	for _, entry := range entries {
+		if err := s.CreateEntry(ctx, entry); err != nil {
 			errors = append(errors, err)
 		}
-		return errors, &BatchOperationError{Errors: errors}
 	}
 
 	if len(errors) > 0 {

@@ -1,13 +1,12 @@
 package checkin_test
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"testing"
 	"time"
-
-	"context"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
@@ -80,7 +79,7 @@ func TestDevicePing_Success(t *testing.T) {
 	device := testpkg.CreateTestDevice(t, ctx.db, "ping-test")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Post("/checkin/ping", ctx.resource.DevicePingHandler())
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/ping", nil,
@@ -105,7 +104,7 @@ func TestDevicePing_Unauthorized(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Post("/checkin/ping", ctx.resource.DevicePingHandler())
 
 	// Request without device context
@@ -128,7 +127,7 @@ func TestDeviceStatus_Success(t *testing.T) {
 	device := testpkg.CreateTestDevice(t, ctx.db, "status-test")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Get("/checkin/status", ctx.resource.DeviceStatusHandler())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/checkin/status", nil,
@@ -151,7 +150,7 @@ func TestDeviceStatus_Unauthorized(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Get("/checkin/status", ctx.resource.DeviceStatusHandler())
 
 	// Request without device context
@@ -170,7 +169,7 @@ func TestDeviceCheckin_Unauthorized(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
 
 	// Request without device context
@@ -193,7 +192,7 @@ func TestDeviceCheckin_MissingRFID(t *testing.T) {
 	device := testpkg.CreateTestDevice(t, ctx.db, "checkin-missing-rfid")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
 
 	// Request without student_rfid
@@ -218,7 +217,7 @@ func TestDeviceCheckin_StudentNotFound(t *testing.T) {
 	device := testpkg.CreateTestDevice(t, ctx.db, "checkin-not-found")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
 
 	body := map[string]interface{}{
@@ -260,7 +259,7 @@ func TestDeviceCheckin_NoActiveGroups(t *testing.T) {
 	room := testpkg.CreateTestRoom(t, ctx.db, "Checkin Room")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, room.ID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
 
 	body := map[string]interface{}{
@@ -317,7 +316,7 @@ func TestDeviceCheckin_CheckoutWithActiveVisit(t *testing.T) {
 	visit := testpkg.CreateTestVisit(t, ctx.db, student.ID, activeGroup.ID, time.Now(), nil)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, visit.ID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
 
 	// Perform checkout by scanning RFID without room_id
@@ -368,7 +367,7 @@ func TestDeviceCheckin_CheckinWithNewVisitNoActiveGroup(t *testing.T) {
 	room := testpkg.CreateTestRoom(t, ctx.db, "New Visit Room")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, room.ID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
 
 	body := map[string]interface{}{
@@ -429,7 +428,7 @@ func TestDeviceCheckin_SupervisorRFIDAuthentication(t *testing.T) {
 			Exec(t.Context())
 		assert.NoError(t, err)
 
-		router := chi.NewRouter()
+		router := testutil.NewTenantRouter(ctx.db)
 		router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
 
 		body := map[string]interface{}{
@@ -471,7 +470,7 @@ func TestDeviceCheckin_SupervisorRFIDAuthentication(t *testing.T) {
 		defer testpkg.CleanupRFIDCards(t, ctx.db, card.ID)
 		testpkg.LinkRFIDToStudent(t, ctx.db, staff.PersonID, card.ID)
 
-		router := chi.NewRouter()
+		router := testutil.NewTenantRouter(ctx.db)
 		router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
 
 		body := map[string]interface{}{
@@ -525,7 +524,7 @@ func TestDeviceCheckin_SupervisorRFIDAuthentication(t *testing.T) {
 		sup := testpkg.CreateTestGroupSupervisor(t, ctx.db, staff.ID, activeGroup.ID, "supervisor")
 		defer testpkg.CleanupActivityFixtures(t, ctx.db, sup.ID)
 
-		router := chi.NewRouter()
+		router := testutil.NewTenantRouter(ctx.db)
 		router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
 
 		body := map[string]interface{}{
@@ -582,7 +581,7 @@ func TestDeviceCheckin_SupervisorRFIDAuthentication(t *testing.T) {
 			Exec(t.Context())
 		assert.NoError(t, err)
 
-		router := chi.NewRouter()
+		router := testutil.NewTenantRouter(ctx.db)
 		router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
 
 		body := map[string]interface{}{
@@ -631,7 +630,7 @@ func TestDeviceCheckin_PersonNeitherStudentNorStaff(t *testing.T) {
 	defer testpkg.CleanupRFIDCards(t, ctx.db, card.ID)
 	testpkg.LinkRFIDToStudent(t, ctx.db, person.ID, card.ID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
 
 	body := map[string]interface{}{
@@ -691,7 +690,7 @@ func TestDeviceCheckin_RoomTransferInvalidRoom(t *testing.T) {
 	visit := testpkg.CreateTestVisit(t, ctx.db, student.ID, activeGroup1.ID, time.Now(), nil)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, visit.ID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
 
 	// Try to transfer to room 2 which has no active group
@@ -723,7 +722,7 @@ func TestDeviceCheckin_InvalidJSON(t *testing.T) {
 	device := testpkg.CreateTestDevice(t, ctx.db, "invalid-json")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
 
 	// Send invalid JSON using the standard method with an invalid body type
@@ -752,7 +751,7 @@ func TestDeviceCheckin_EmptyRFID(t *testing.T) {
 	device := testpkg.CreateTestDevice(t, ctx.db, "empty-rfid")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
 
 	body := map[string]interface{}{
@@ -859,7 +858,7 @@ func TestDeviceCheckin_SuccessfulCheckin(t *testing.T) {
 	activeGroup := testpkg.CreateTestActiveGroup(t, ctx.db, activity.ID, room.ID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, activeGroup.ID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
 
 	body := map[string]interface{}{
@@ -931,7 +930,7 @@ func TestDeviceCheckin_RoomTransferSucceeds(t *testing.T) {
 	visit := testpkg.CreateTestVisit(t, ctx.db, student.ID, activeGroup1.ID, time.Now().Add(-10*time.Minute), nil)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, visit.ID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
 
 	// Transfer to room 2
@@ -969,7 +968,7 @@ func TestDevicePing_SessionActiveStatus(t *testing.T) {
 	device := testpkg.CreateTestDevice(t, ctx.db, "session-ping")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Post("/checkin/ping", ctx.resource.DevicePingHandler())
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/ping", nil,
@@ -999,7 +998,7 @@ func TestDeviceCheckin_InvalidAction(t *testing.T) {
 	device := testpkg.CreateTestDevice(t, ctx.db, "invalid-action")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
 
 	body := map[string]interface{}{
@@ -1038,7 +1037,7 @@ func TestDeviceCheckin_CheckoutWithoutActiveVisit(t *testing.T) {
 	defer testpkg.CleanupRFIDCards(t, ctx.db, card.ID)
 	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
 
 	body := map[string]interface{}{
@@ -1065,7 +1064,7 @@ func TestDeviceCheckin_CheckoutWithoutActiveVisit(t *testing.T) {
 func cleanupSchulhofInfrastructure(t *testing.T, db *bun.DB, roomID int64) {
 	t.Helper()
 
-	dbCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	dbCtx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
 	defer cancel()
 
 	// Delete in FK-safe order: child tables first, then parents.
@@ -1094,7 +1093,7 @@ func cleanupSchulhofInfrastructure(t *testing.T, db *bun.DB, roomID int64) {
 func createSchulhofRoom(t *testing.T, db *bun.DB) *facilities.Room {
 	t.Helper()
 
-	dbCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	dbCtx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
 	defer cancel()
 
 	// Clean up any pre-existing Schulhof room and its infrastructure (from seed data or prior tests)
@@ -1123,12 +1122,23 @@ func createSchulhofRoom(t *testing.T, db *bun.DB) *facilities.Room {
 		Name:     "Schulhof",
 		Building: "Test Building",
 	}
+	room.SetTenantID(1)
 
-	err = db.NewInsert().
+	_, err = db.NewInsert().
 		Model(room).
 		ModelTableExpr("facilities.rooms").
+		On("CONFLICT (tenant_id, name) DO NOTHING").
+		Exec(dbCtx)
+	require.NoError(t, err, "Failed to ensure Schulhof room")
+
+	// Fetch the actual room (either just created or existing)
+	err = db.NewSelect().
+		Model(room).
+		ModelTableExpr(`facilities.rooms AS "room"`).
+		Where(`"room".name = ?`, "Schulhof").
+		Where(`"room".tenant_id = ?`, 1).
 		Scan(dbCtx)
-	require.NoError(t, err, "Failed to create Schulhof room")
+	require.NoError(t, err, "Failed to fetch Schulhof room")
 
 	return room
 }
@@ -1166,7 +1176,7 @@ func TestDeviceCheckin_SchulhofAutoCreate(t *testing.T) {
 	// Clean up all auto-created Schulhof infrastructure on teardown (scoped to this room)
 	defer cleanupSchulhofInfrastructure(t, ctx.db, room.ID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
 
 	body := map[string]interface{}{
@@ -1237,7 +1247,7 @@ func TestDeviceCheckin_ResponseContainsActiveStudents(t *testing.T) {
 		TableExpr("active.groups").
 		Set("device_id = ?", device.ID).
 		Where("id = ?", activeGroup.ID).
-		Exec(t.Context())
+		Exec(testutil.TenantContext(1))
 	require.NoError(t, err)
 
 	router := chi.NewRouter()
@@ -1310,7 +1320,7 @@ func TestDeviceCheckin_ActiveStudentsCountWithMultipleStudents(t *testing.T) {
 		TableExpr("active.groups").
 		Set("device_id = ?", device.ID).
 		Where("id = ?", activeGroup.ID).
-		Exec(t.Context())
+		Exec(testutil.TenantContext(1))
 	require.NoError(t, err)
 
 	router := chi.NewRouter()
@@ -1462,7 +1472,7 @@ func TestDeviceCheckin_SameRoomScanSkipsCheckin(t *testing.T) {
 	visit := testpkg.CreateTestVisit(t, ctx.db, student.ID, activeGroup.ID, time.Now().Add(-5*time.Minute), nil)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, visit.ID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
 
 	// Scan with the SAME room_id - this should checkout + skip re-checkin
@@ -1511,6 +1521,7 @@ func TestDeviceCheckin_RoomCapacityExceeded(t *testing.T) {
 		Building: "Test Building",
 		Capacity: intPtr(1),
 	}
+	capacityRoom.SetTenantID(1)
 	err := ctx.db.NewInsert().
 		Model(capacityRoom).
 		ModelTableExpr("facilities.rooms").
@@ -1540,7 +1551,7 @@ func TestDeviceCheckin_RoomCapacityExceeded(t *testing.T) {
 	defer testpkg.CleanupRFIDCards(t, ctx.db, card.ID)
 	testpkg.LinkRFIDToStudent(t, ctx.db, newStudent.PersonID, card.ID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
 
 	body := map[string]interface{}{
@@ -1592,7 +1603,7 @@ func TestDeviceCheckin_CheckoutResponseIncludesRoomName(t *testing.T) {
 	visit := testpkg.CreateTestVisit(t, ctx.db, student.ID, activeGroup.ID, time.Now().Add(-15*time.Minute), nil)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, visit.ID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
 
 	body := map[string]interface{}{
@@ -1637,7 +1648,7 @@ func TestDeviceCheckin_CheckoutWithNoRoomIDAndNoVisit(t *testing.T) {
 	defer testpkg.CleanupRFIDCards(t, ctx.db, card.ID)
 	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
 
 	// No room_id, no active visit - should fail
@@ -1689,6 +1700,7 @@ func TestDeviceCheckin_ActivityCapacityExceeded(t *testing.T) {
 		CategoryID:      category.ID,
 		CreatedBy:       &creatorStaff.ID,
 	}
+	activityGroup.SetTenantID(1)
 	err := ctx.db.NewInsert().
 		Model(activityGroup).
 		ModelTableExpr(`activities.groups AS "group"`).
@@ -1715,7 +1727,7 @@ func TestDeviceCheckin_ActivityCapacityExceeded(t *testing.T) {
 	defer testpkg.CleanupRFIDCards(t, ctx.db, card.ID)
 	testpkg.LinkRFIDToStudent(t, ctx.db, newStudent.PersonID, card.ID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
 
 	body := map[string]interface{}{
@@ -1851,7 +1863,7 @@ func TestDeviceCheckin_UpdatesSessionActivity(t *testing.T) {
 	// Small delay to ensure time difference
 	time.Sleep(10 * time.Millisecond)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
 
 	body := map[string]interface{}{
@@ -1917,7 +1929,7 @@ func cleanupWCInfrastructure(t *testing.T, db *bun.DB, roomID int64) {
 func createWCRoom(t *testing.T, db *bun.DB) *facilities.Room {
 	t.Helper()
 
-	dbCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	dbCtx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
 	defer cancel()
 
 	// Clean up any pre-existing WC room and its infrastructure (from seed data or prior tests)
@@ -1946,12 +1958,23 @@ func createWCRoom(t *testing.T, db *bun.DB) *facilities.Room {
 		Name:     "WC",
 		Building: "Test Building",
 	}
+	room.SetTenantID(1)
 
-	err = db.NewInsert().
+	_, err = db.NewInsert().
 		Model(room).
 		ModelTableExpr("facilities.rooms").
+		On("CONFLICT (tenant_id, name) DO NOTHING").
+		Exec(dbCtx)
+	require.NoError(t, err, "Failed to ensure WC room")
+
+	// Fetch the actual room (either just created or existing)
+	err = db.NewSelect().
+		Model(room).
+		ModelTableExpr(`facilities.rooms AS "room"`).
+		Where(`"room".name = ?`, "WC").
+		Where(`"room".tenant_id = ?`, 1).
 		Scan(dbCtx)
-	require.NoError(t, err, "Failed to create WC room")
+	require.NoError(t, err, "Failed to fetch WC room")
 
 	return room
 }
@@ -2194,8 +2217,8 @@ func TestDeviceCheckin_WCAutoCreateWithoutStaff(t *testing.T) {
 	today := timezone.Today() // Berlin date — matches FindByStudentAndDate's timezone.DateOf()
 	var attendanceID int64
 	err := ctx.db.NewRaw(
-		`INSERT INTO active.attendance (student_id, date, check_in_time, checked_in_by, device_id)
-		 VALUES (?, ?, ?, ?, ?) RETURNING id`,
+		`INSERT INTO active.attendance (student_id, date, check_in_time, checked_in_by, device_id, tenant_id)
+		 VALUES (?, ?, ?, ?, ?, 1) RETURNING id`,
 		student.ID, today, today.Add(8*time.Hour), setupStaff.ID, device.ID,
 	).Scan(context.Background(), &attendanceID)
 	require.NoError(t, err, "test setup: failed to insert attendance record")
@@ -2255,8 +2278,8 @@ func TestDeviceCheckin_SchulhofAutoCreateWithoutStaff(t *testing.T) {
 	today := timezone.Today() // Berlin date — matches FindByStudentAndDate's timezone.DateOf()
 	var attendanceID int64
 	err := ctx.db.NewRaw(
-		`INSERT INTO active.attendance (student_id, date, check_in_time, checked_in_by, device_id)
-		 VALUES (?, ?, ?, ?, ?) RETURNING id`,
+		`INSERT INTO active.attendance (student_id, date, check_in_time, checked_in_by, device_id, tenant_id)
+		 VALUES (?, ?, ?, ?, ?, 1) RETURNING id`,
 		student.ID, today, today.Add(8*time.Hour), setupStaff.ID, device.ID,
 	).Scan(context.Background(), &attendanceID)
 	require.NoError(t, err, "test setup: failed to insert attendance record")
@@ -2314,7 +2337,7 @@ func TestDeviceCheckin_SchulhofAutoCreateIdempotent(t *testing.T) {
 	room := createSchulhofRoom(t, ctx.db)
 	defer cleanupSchulhofInfrastructure(t, ctx.db, room.ID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
 
 	// First checkin - triggers auto-create

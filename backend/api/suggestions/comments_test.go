@@ -29,7 +29,7 @@ func setupCommentTestRouter(t *testing.T) (*bun.DB, chi.Router) {
 	t.Helper()
 	viper.Set("auth_jwt_secret", "test-jwt-secret-32-chars-minimum")
 	db, serviceFactory := testutil.SetupAPITest(t)
-	resource := apiSuggestions.NewResource(serviceFactory.Suggestions)
+	resource := apiSuggestions.NewResource(serviceFactory.Suggestions, db)
 	router := chi.NewRouter()
 	router.Mount("/suggestions", resource.Router())
 	return db, router
@@ -44,7 +44,8 @@ func createCommentTestPost(t *testing.T, db *bun.DB, accountID int64, title, des
 		Status:      suggestions.StatusOpen,
 		Score:       0,
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	post.SetTenantID(1)
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
 	defer cancel()
 	_, err := db.NewInsert().
 		Model(post).
@@ -63,7 +64,8 @@ func createTestComment(t *testing.T, db *bun.DB, postID, authorID int64, content
 		AuthorType: suggestions.AuthorTypeUser,
 		Content:    content,
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	comment.SetTenantID(1)
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
 	defer cancel()
 	_, err := db.NewInsert().
 		Model(comment).
@@ -79,7 +81,7 @@ func cleanupComments(t *testing.T, db *bun.DB, commentIDs ...int64) {
 	if len(commentIDs) == 0 {
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
 	defer cancel()
 	_, _ = db.NewDelete().
 		TableExpr("suggestions.comments").
@@ -92,7 +94,7 @@ func cleanupCommentPosts(t *testing.T, db *bun.DB, postIDs ...int64) {
 	if len(postIDs) == 0 {
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
 	defer cancel()
 	_, _ = db.NewDelete().
 		TableExpr("suggestions.votes").

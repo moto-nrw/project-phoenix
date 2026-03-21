@@ -31,6 +31,10 @@ interface JwtPayload {
   email?: string;
   roles?: string[];
   is_admin?: boolean;
+  // Multi-tenancy fields
+  tenant_id?: number;
+  org_id?: number;
+  scope?: string;
 }
 
 /**
@@ -102,7 +106,9 @@ function buildAuthUser(
     roles: scope === "platform" ? ["operator"] : roles,
     firstName: payload.first_name,
     isAdmin: payload.is_admin ?? false,
-    scope: scope,
+    tenantId: payload.tenant_id,
+    orgId: payload.org_id,
+    scope: scope ?? payload.scope,
   };
 }
 
@@ -183,19 +189,28 @@ async function performOperatorLogin(
 async function performLogin(
   email: string,
   password: string,
+  tenantSlug: string,
   isDev: boolean,
 ): Promise<{ access_token: string; refresh_token: string } | null> {
   const apiUrl = getServerApiUrl();
 
   if (isDev) {
-    logger.debug("attempting login", { api_url: `${apiUrl}/auth/login` });
+    logger.debug("attempting login", {
+      api_url: `${apiUrl}/auth/login`,
+      tenant_slug: tenantSlug,
+    });
   }
 
   try {
+    const body: Record<string, string> = { email, password };
+    if (tenantSlug) {
+      body.tenant_slug = tenantSlug;
+    }
+
     const response = await fetch(`${apiUrl}/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify(body),
     });
 
     if (isDev) {
@@ -243,6 +258,8 @@ declare module "next-auth" {
       roles?: string[];
       firstName?: string;
       isAdmin?: boolean;
+      tenantId?: number;
+      orgId?: number;
       scope?: string;
     } & DefaultSession["user"];
     error?: "RefreshTokenExpired" | "RefreshTokenError";
@@ -254,6 +271,8 @@ declare module "next-auth" {
     roles?: string[];
     firstName?: string;
     isAdmin?: boolean;
+    tenantId?: number;
+    orgId?: number;
     scope?: string;
   }
 
@@ -264,6 +283,8 @@ declare module "next-auth" {
     roles?: string[];
     firstName?: string;
     isAdmin?: boolean;
+    tenantId?: number;
+    orgId?: number;
     scope?: string;
     tokenExpiry?: number;
     refreshTokenExpiry?: number;
@@ -329,6 +350,7 @@ export const authConfig = {
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
+        tenantSlug: { label: "Tenant Slug", type: "text" },
         internalRefresh: { label: "Internal Refresh", type: "text" },
         token: { label: "Token", type: "text" },
         refreshToken: { label: "Refresh Token", type: "text" },
@@ -360,6 +382,7 @@ export const authConfig = {
         const loginResult = await performLogin(
           creds.email,
           creds.password,
+          creds.tenantSlug ?? "",
           isDev,
         );
         if (!loginResult) return null;
@@ -531,6 +554,8 @@ export const authConfig = {
         token.roles = user.roles;
         token.firstName = user.firstName;
         token.isAdmin = user.isAdmin;
+        token.tenantId = user.tenantId;
+        token.orgId = user.orgId;
         token.scope = user.scope;
         // Store token expiry from environment
         token.tokenExpiry = Date.now() + accessTokenExpiry;
@@ -614,6 +639,17 @@ export const authConfig = {
           token.refreshTokenExpiry = Date.now() + refreshTokenExpiry;
           token.error = undefined;
           token.needsRefresh = undefined;
+          // Sync tenant/role fields from refreshed JWT
+          const cachedPayload = parseJwtPayload(
+            refreshCache.result.access_token,
+          );
+          if (cachedPayload) {
+            token.tenantId = cachedPayload.tenant_id;
+            token.orgId = cachedPayload.org_id;
+            token.roles = cachedPayload.roles ?? [];
+            token.isAdmin = cachedPayload.is_admin ?? false;
+            token.scope = cachedPayload.scope;
+          }
           logger.info("proactive_token_refresh_deduplicated");
           return token;
         }
@@ -628,6 +664,15 @@ export const authConfig = {
             token.refreshTokenExpiry = Date.now() + refreshTokenExpiry;
             token.error = undefined;
             token.needsRefresh = undefined;
+            // Sync tenant/role fields from refreshed JWT
+            const inflightPayload = parseJwtPayload(result.access_token);
+            if (inflightPayload) {
+              token.tenantId = inflightPayload.tenant_id;
+              token.orgId = inflightPayload.org_id;
+              token.roles = inflightPayload.roles ?? [];
+              token.isAdmin = inflightPayload.is_admin ?? false;
+              token.scope = inflightPayload.scope;
+            }
             logger.info("proactive_token_refresh_succeeded");
           } else if (now > tokenExpiry) {
             token.error = "RefreshTokenError";
@@ -701,6 +746,15 @@ export const authConfig = {
           token.refreshTokenExpiry = Date.now() + refreshTokenExpiry;
           token.error = undefined;
           token.needsRefresh = undefined;
+          // Sync tenant/role fields from refreshed JWT
+          const refreshedPayload = parseJwtPayload(result.access_token);
+          if (refreshedPayload) {
+            token.tenantId = refreshedPayload.tenant_id;
+            token.orgId = refreshedPayload.org_id;
+            token.roles = refreshedPayload.roles ?? [];
+            token.isAdmin = refreshedPayload.is_admin ?? false;
+            token.scope = refreshedPayload.scope;
+          }
           logger.info("proactive_token_refresh_succeeded");
         } else if (now > tokenExpiry) {
           token.error = "RefreshTokenError";
@@ -747,6 +801,8 @@ export const authConfig = {
           roles: token.roles as string[],
           firstName: token.firstName as string,
           isAdmin: (token.isAdmin as boolean) ?? false,
+          tenantId: token.tenantId as number | undefined,
+          orgId: token.orgId as number | undefined,
           scope: token.scope as string | undefined,
         },
       };
@@ -754,7 +810,63 @@ export const authConfig = {
   },
   trustHost: true,
   pages: {
+    // "/" works correctly with subdomain routing: on session expiry NextAuth
+    // redirects to school-a.localhost:3000/, the subdomain middleware rewrites
+    // to /school-a/ which resolves to the tenant login page.
     signIn: "/",
+  },
+  cookies: {
+    // Cross-subdomain cookie sharing for multi-tenancy.
+    // On production (e.g., TENANT_DOMAIN=moto-app.de), cookies are scoped to
+    // .moto-app.de so school-a.moto-app.de and school-b.moto-app.de share sessions.
+    // On localhost, Chrome 120+ accepts domain="localhost" (no dot prefix) for
+    // cross-subdomain sharing (school-a.localhost:3000 ↔ school-b.localhost:3000).
+    ...(() => {
+      const isLocalhost =
+        !process.env.TENANT_DOMAIN || process.env.TENANT_DOMAIN === "localhost";
+      // Production: .moto-app.de — cross-subdomain sharing works on real domains.
+      // Localhost: omit domain entirely — browsers handle domain=localhost
+      // inconsistently for subdomains (school-a.localhost). Host-only cookies
+      // work reliably per-subdomain. Trade-off: tenant switching on localhost
+      // requires re-login (acceptable for development).
+      const cookieDomain =
+        isLocalhost || !process.env.TENANT_DOMAIN
+          ? undefined
+          : `.${process.env.TENANT_DOMAIN}`;
+      return cookieDomain !== undefined
+        ? {
+            sessionToken: {
+              name: "next-auth.session-token",
+              options: {
+                httpOnly: true,
+                sameSite: "lax" as const,
+                path: "/",
+                domain: cookieDomain,
+                secure: process.env.NODE_ENV === "production",
+              },
+            },
+            callbackUrl: {
+              name: "next-auth.callback-url",
+              options: {
+                sameSite: "lax" as const,
+                path: "/",
+                domain: cookieDomain,
+                secure: process.env.NODE_ENV === "production",
+              },
+            },
+            csrfToken: {
+              name: "next-auth.csrf-token",
+              options: {
+                httpOnly: true,
+                sameSite: "lax" as const,
+                path: "/",
+                domain: cookieDomain,
+                secure: process.env.NODE_ENV === "production",
+              },
+            },
+          }
+        : {};
+    })(),
   },
   session: {
     strategy: "jwt",

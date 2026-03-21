@@ -4,7 +4,6 @@
 package active_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -31,7 +30,7 @@ func TestCleanupStaleSupervisors_NoStaleRecords(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// ACT: Run cleanup when there are no stale records
 	result, err := cleanupService.CleanupStaleSupervisors(ctx)
@@ -52,7 +51,7 @@ func TestCleanupStaleSupervisors_ClosesYesterdayRecords(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// ARRANGE: Create fixtures
 	staff := testpkg.CreateTestStaff(t, db, "Stale", "Supervisor")
@@ -64,8 +63,8 @@ func TestCleanupStaleSupervisors_ClosesYesterdayRecords(t *testing.T) {
 	yesterday := utcToday().AddDate(0, 0, -1)
 	var supervisorID int64
 	err := db.NewRaw(`
-		INSERT INTO active.group_supervisors (staff_id, group_id, role, start_date)
-		VALUES (?, ?, ?, ?)
+		INSERT INTO active.group_supervisors (staff_id, group_id, role, start_date, tenant_id)
+		VALUES (?, ?, ?, ?, 1)
 		RETURNING id
 	`, staff.ID, activeGroup.ID, "supervisor", yesterday).Scan(ctx, &supervisorID)
 	require.NoError(t, err, "Failed to create stale supervisor record")
@@ -108,7 +107,7 @@ func TestCleanupStaleSupervisors_IgnoresTodayRecords(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// ARRANGE: Create fixtures
 	staff := testpkg.CreateTestStaff(t, db, "Today", "Supervisor")
@@ -120,8 +119,8 @@ func TestCleanupStaleSupervisors_IgnoresTodayRecords(t *testing.T) {
 	today := utcToday()
 	var supervisorID int64
 	err := db.NewRaw(`
-		INSERT INTO active.group_supervisors (staff_id, group_id, role, start_date)
-		VALUES (?, ?, ?, ?)
+		INSERT INTO active.group_supervisors (staff_id, group_id, role, start_date, tenant_id)
+		VALUES (?, ?, ?, ?, 1)
 		RETURNING id
 	`, staff.ID, activeGroup.ID, "supervisor", today).Scan(ctx, &supervisorID)
 	require.NoError(t, err, "Failed to create today's supervisor record")
@@ -157,7 +156,7 @@ func TestCleanupStaleSupervisors_SucceedsEvenWithAuditError(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// ARRANGE: Create fixtures with a stale record
 	staff := testpkg.CreateTestStaff(t, db, "Audit", "Supervisor")
@@ -168,8 +167,8 @@ func TestCleanupStaleSupervisors_SucceedsEvenWithAuditError(t *testing.T) {
 	yesterday := utcToday().AddDate(0, 0, -1)
 	var supervisorID int64
 	err := db.NewRaw(`
-		INSERT INTO active.group_supervisors (staff_id, group_id, role, start_date)
-		VALUES (?, ?, ?, ?)
+		INSERT INTO active.group_supervisors (staff_id, group_id, role, start_date, tenant_id)
+		VALUES (?, ?, ?, ?, 1)
 		RETURNING id
 	`, staff.ID, activeGroup.ID, "supervisor", yesterday).Scan(ctx, &supervisorID)
 	require.NoError(t, err)
@@ -214,7 +213,7 @@ func TestPreviewSupervisorCleanup(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// ARRANGE: Create fixtures with a stale record
 	staff := testpkg.CreateTestStaff(t, db, "Preview", "Supervisor")
@@ -225,8 +224,8 @@ func TestPreviewSupervisorCleanup(t *testing.T) {
 	twoDaysAgo := utcToday().AddDate(0, 0, -2)
 	var supervisorID int64
 	err := db.NewRaw(`
-		INSERT INTO active.group_supervisors (staff_id, group_id, role, start_date)
-		VALUES (?, ?, ?, ?)
+		INSERT INTO active.group_supervisors (staff_id, group_id, role, start_date, tenant_id)
+		VALUES (?, ?, ?, ?, 1)
 		RETURNING id
 	`, staff.ID, activeGroup.ID, "supervisor", twoDaysAgo).Scan(ctx, &supervisorID)
 	require.NoError(t, err)
