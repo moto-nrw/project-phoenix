@@ -126,5 +126,27 @@ func rollbackDropLegacyPhoneSync(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed to re-create sync trigger: %w", err)
 	}
 
+	// Backfill legacy columns from guardian_phone_numbers for all existing guardians
+	_, err = tx.ExecContext(ctx, `
+		UPDATE users.guardian_profiles gp
+		SET phone = (
+			SELECT gpn.phone_number
+			FROM users.guardian_phone_numbers gpn
+			WHERE gpn.guardian_profile_id = gp.id AND gpn.phone_type = 'home'
+			ORDER BY gpn.is_primary DESC, gpn.priority ASC
+			LIMIT 1
+		),
+		mobile_phone = (
+			SELECT gpn.phone_number
+			FROM users.guardian_phone_numbers gpn
+			WHERE gpn.guardian_profile_id = gp.id AND gpn.phone_type = 'mobile'
+			ORDER BY gpn.is_primary DESC, gpn.priority ASC
+			LIMIT 1
+		);
+	`)
+	if err != nil {
+		return fmt.Errorf("failed to backfill legacy phone columns: %w", err)
+	}
+
 	return tx.Commit()
 }

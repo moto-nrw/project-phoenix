@@ -103,10 +103,12 @@ export default function GuardianList({
             )}
           </div>
 
-          {/* Address */}
-          {(guardian.addressStreet ??
-            guardian.addressCity ??
-            guardian.addressPostalCode) && (
+          {/* Address — use explicit check because nullish coalescing treats "" as present */}
+          {[
+            guardian.addressStreet,
+            guardian.addressCity,
+            guardian.addressPostalCode,
+          ].some((v) => v && v.trim() !== "") && (
             <div className="mt-2 border-t border-gray-100 pt-2 sm:mt-3 sm:pt-3">
               <div className="flex items-start gap-1.5 text-xs text-gray-500 sm:text-sm">
                 <MapPin className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
