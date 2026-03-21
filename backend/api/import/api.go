@@ -299,15 +299,25 @@ func writeHinweiseSheet(f *excelize.File) {
 		return
 	}
 
-	hints := [][]string{
+	// Section headers (row index → label) — rendered as merged, bold section dividers
+	sectionRows := map[int]string{
+		7:  "Erziehungsberechtigte (Erz1, Erz2, ...)",
+		21: "Schüler-Zusatzinfos",
+		29: "Abholzeiten (Montag bis Freitag)",
+		33: "Allgemeine Hinweise",
+	}
+
+	dataRows := [][]string{
+		// row 1: header
 		{"Spalte", "Pflicht?", "Erlaubte Werte / Format", "Beschreibung"},
+		// rows 2-6: student fields
 		{"Vorname", "Ja", "Text", "Vorname des Schülers"},
 		{"Nachname", "Ja", "Text", "Nachname des Schülers"},
 		{"Klasse", "Ja", "Text (z.B. 1A, 2B)", "Schulklasse"},
 		{"Gruppe", "Nein", "Text (exakter Gruppenname)", "OGS-Gruppe — muss in der Datenbank existieren"},
 		{"Geburtstag", "Nein", "JJJJ-MM-TT (z.B. 2015-08-15)", "Geburtsdatum im ISO-Format"},
-		{""},
-		{"--- Erziehungsberechtigte (Erz1, Erz2, ...) ---"},
+		// row 7: section header (injected)
+		// rows 8-20: guardian fields
 		{"Erz1.Vorname", "Nein", "Text", "Vorname des Erziehungsberechtigten"},
 		{"Erz1.Nachname", "Nein", "Text", "Nachname des Erziehungsberechtigten"},
 		{"Erz1.Email", "Nein*", "gültige E-Mail", "* Mindestens Email ODER Telefon erforderlich"},
@@ -321,10 +331,10 @@ func writeHinweiseSheet(f *excelize.File) {
 		{"Erz1.Straße", "Nein", "Text", "Straße und Hausnummer"},
 		{"Erz1.Stadt", "Nein", "Text", "Ort / Stadt"},
 		{"Erz1.PLZ", "Nein", "5-stellig (z.B. 50667)", "Postleitzahl"},
+		// row 21: section header (injected)
+		// rows 22-28: additional info
 		{"Erz1.Notizen", "Nein", "Text", "Interne Notizen zum Erziehungsberechtigten"},
 		{"Erz1.Sprache", "Nein", "de, en, tr, ar, ...", "Bevorzugte Sprache (ISO 639-1, Standard: de)"},
-		{""},
-		{"--- Schüler-Zusatzinfos ---"},
 		{"Gesundheitsinfo", "Nein", "Text", "Allergien, Medikamente, etc."},
 		{"Betreuernotizen", "Nein", "Text", "Interne Notizen für Betreuer"},
 		{"Zusatzinfo", "Nein", "Text", "Sonstige Informationen (Elternnotizen)"},
@@ -332,29 +342,84 @@ func writeHinweiseSheet(f *excelize.File) {
 		{"Datenschutz", "Ja", "Ja / Nein", "Datenschutzerklärung akzeptiert"},
 		{"Aufbewahrung(Tage)", "Nein", "1-31 (Standard: 30)", "Datenaufbewahrungsfrist in Tagen"},
 		{"Bus", "Nein", "Ja / Nein", "Fährt das Kind mit dem Bus"},
-		{""},
-		{"--- Abholzeiten (Montag bis Freitag) ---"},
+		// row 29: section header (injected)
+		// rows 30-32: pickup
 		{"Abholung.Mo", "Nein", "HH:MM (z.B. 15:30, 16:00)", "Regelmäßige Abholzeit am Montag"},
 		{"Abholung.Mo.Notizen", "Nein", "Text", "Notiz zur Abholung am Montag"},
-		{""},
-		{"--- Ja/Nein-Felder ---"},
-		{"", "", "Akzeptiert: Ja, Nein, Yes, No, true, false, 1, 0", "Groß-/Kleinschreibung egal"},
+		{"", "", "(Di, Mi, Do, Fr analog)", "Gleiche Spalten für alle Wochentage"},
+		// row 33: section header (injected)
+		// row 34: general hints
+		{"Ja/Nein-Felder", "", "Ja, Nein, Yes, No, true, false, 1, 0", "Groß-/Kleinschreibung egal"},
+		{"Erz2, Erz3, ...", "", "Gleiche Spalten wie Erz1", "Beliebig viele Erziehungsberechtigte möglich"},
 	}
 
-	for rowIdx, row := range hints {
+	// Create styles
+	headerStyle, _ := f.NewStyle(&excelize.Style{
+		Font:      &excelize.Font{Bold: true, Size: 11, Color: "FFFFFF"},
+		Fill:      excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{"2B579A"}},
+		Alignment: &excelize.Alignment{Vertical: "center"},
+	})
+	sectionStyle, _ := f.NewStyle(&excelize.Style{
+		Font:      &excelize.Font{Bold: true, Size: 11, Color: "2B579A"},
+		Fill:      excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{"D6E4F0"}},
+		Alignment: &excelize.Alignment{Vertical: "center"},
+	})
+	requiredStyle, _ := f.NewStyle(&excelize.Style{
+		Font: &excelize.Font{Bold: true, Color: "C00000"},
+	})
+
+	// Write data, inserting section headers at the right positions
+	excelRow := 1
+	dataIdx := 0
+	for excelRow <= 35 {
+		// Check if this row is a section header
+		if label, ok := sectionRows[excelRow]; ok {
+			cell, _ := excelize.CoordinatesToCellName(1, excelRow)
+			_ = f.SetCellValue(sheetName, cell, label)
+			_ = f.MergeCell(sheetName, cell, fmt.Sprintf("D%d", excelRow))
+			_ = f.SetCellStyle(sheetName, cell, fmt.Sprintf("D%d", excelRow), sectionStyle)
+			excelRow++
+			continue
+		}
+
+		if dataIdx >= len(dataRows) {
+			break
+		}
+
+		row := dataRows[dataIdx]
 		for colIdx, val := range row {
-			cell, _ := excelize.CoordinatesToCellName(colIdx+1, rowIdx+1)
-			if err := f.SetCellValue(sheetName, cell, val); err != nil {
-				slog.Default().Error("Error writing hint cell", slog.String("error", err.Error()))
+			cell, _ := excelize.CoordinatesToCellName(colIdx+1, excelRow)
+			_ = f.SetCellValue(sheetName, cell, val)
+
+			// Style header row
+			if excelRow == 1 {
+				_ = f.SetCellStyle(sheetName, cell, cell, headerStyle)
+			}
+			// Bold red "Ja" in Pflicht column
+			if colIdx == 1 && val == "Ja" {
+				_ = f.SetCellStyle(sheetName, cell, cell, requiredStyle)
 			}
 		}
+
+		dataIdx++
+		excelRow++
 	}
 
-	// Set column widths for readability
+	// Column widths
 	_ = f.SetColWidth(sheetName, "A", "A", 30)
 	_ = f.SetColWidth(sheetName, "B", "B", 10)
 	_ = f.SetColWidth(sheetName, "C", "C", 45)
 	_ = f.SetColWidth(sheetName, "D", "D", 50)
+
+	// Freeze header row
+	_ = f.SetPanes(sheetName, &excelize.Panes{
+		Freeze:      true,
+		Split:       false,
+		XSplit:      0,
+		YSplit:      1,
+		TopLeftCell: "A2",
+		ActivePane:  "bottomLeft",
+	})
 }
 
 // previewStudentImport handles import preview (dry-run)
