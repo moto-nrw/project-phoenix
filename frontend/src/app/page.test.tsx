@@ -196,7 +196,7 @@ describe("RootPage", () => {
     hrefSpy.mockRestore();
   });
 
-  it("shows fallback when error is not an Error instance", async () => {
+  it("shows error message when error is not an Error instance", async () => {
     mockListAllTenants.mockRejectedValue("string error");
 
     render(<RootPage />);
@@ -204,13 +204,15 @@ describe("RootPage", () => {
     await waitFor(() => {
       expect(
         screen.getByText(
-          "Backend nicht erreichbar — statische Links werden angezeigt.",
+          "Backend nicht erreichbar — bitte versuchen Sie es später erneut.",
         ),
       ).toBeInTheDocument();
     });
+
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
   });
 
-  it("shows fallback notice when backend is unreachable", async () => {
+  it("shows error message when backend is unreachable", async () => {
     mockListAllTenants.mockRejectedValue(new Error("Network error"));
 
     render(<RootPage />);
@@ -218,13 +220,15 @@ describe("RootPage", () => {
     await waitFor(() => {
       expect(
         screen.getByText(
-          "Backend nicht erreichbar — statische Links werden angezeigt.",
+          "Backend nicht erreichbar — bitte versuchen Sie es später erneut.",
         ),
       ).toBeInTheDocument();
     });
+
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
   });
 
-  it("shows fallback when API returns empty list", async () => {
+  it("shows error message when API returns empty list", async () => {
     mockListAllTenants.mockResolvedValue([]);
 
     render(<RootPage />);
@@ -232,16 +236,11 @@ describe("RootPage", () => {
     await waitFor(() => {
       expect(
         screen.getByText(
-          "Backend nicht erreichbar — statische Links werden angezeigt.",
+          "Backend nicht erreichbar — bitte versuchen Sie es später erneut.",
         ),
       ).toBeInTheDocument();
     });
 
-    // Fallback tenants should be in the dropdown
-    const select = screen.getByRole("combobox");
-    const options = select.querySelectorAll("option");
-    expect(options).toHaveLength(3); // placeholder + 2 fallbacks
-    expect(options[1]?.textContent).toBe("Testschule A");
-    expect(options[2]?.textContent).toBe("Testschule B");
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
   });
 });
