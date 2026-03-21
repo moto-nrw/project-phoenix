@@ -445,65 +445,6 @@ func TestStudentImportConfig_ValidateGuardian_PhoneFormats(t *testing.T) {
 }
 
 // ============================================================================
-// PreferredContactMethod Validation Tests
-// ============================================================================
-
-func TestStudentImportConfig_Validate_PreferredContactMethod(t *testing.T) {
-	config := &StudentImportConfig{
-		resolver: &RelationshipResolver{
-			groupCache: make(map[string]*education.Group),
-		},
-	}
-
-	tests := []struct {
-		name      string
-		method    string
-		wantError bool
-	}{
-		{"valid email", "email", false},
-		{"valid phone", "phone", false},
-		{"valid mobile", "mobile", false},
-		{"valid sms", "sms", false},
-		{"empty is ok", "", false},
-		{"invalid fax", "fax", true},
-		{"invalid whatsapp", "whatsapp", true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			row := importModels.StudentImportRow{
-				FirstName:   "Max",
-				LastName:    "Mustermann",
-				SchoolClass: "1A",
-				Guardians: []importModels.GuardianImportData{
-					{
-						Email:                  "test@example.com",
-						PreferredContactMethod: tt.method,
-					},
-				},
-				DataRetentionDays: 30,
-			}
-
-			errors := config.Validate(context.Background(), &row)
-
-			hasContactMethodError := false
-			for _, err := range errors {
-				if err.Code == "invalid_contact_method" {
-					hasContactMethodError = true
-					break
-				}
-			}
-
-			if tt.wantError {
-				assert.True(t, hasContactMethodError, "Expected contact method error for '%s'", tt.method)
-			} else {
-				assert.False(t, hasContactMethodError, "Unexpected contact method error for '%s'", tt.method)
-			}
-		})
-	}
-}
-
-// ============================================================================
 // Pickup Schedule Validation Tests
 // ============================================================================
 
@@ -641,14 +582,8 @@ func TestGuardianLanguagePreference(t *testing.T) {
 	assert.Equal(t, "tr", guardianLanguagePreference("  TR  "))
 }
 
-func TestGuardianContactMethod(t *testing.T) {
-	assert.Equal(t, "phone", guardianContactMethod(""))
-	assert.Equal(t, "email", guardianContactMethod("email"))
-	assert.Equal(t, "sms", guardianContactMethod("SMS"))
-}
-
 // ============================================================================
-// Combined Validation: Guardian Contact Method + Pickup Schedule
+// Combined Validation: Guardian + Pickup Schedule
 // ============================================================================
 
 func TestStudentImportConfig_Validate_CombinedGuardianAndPickupErrors(t *testing.T) {
@@ -664,12 +599,11 @@ func TestStudentImportConfig_Validate_CombinedGuardianAndPickupErrors(t *testing
 		SchoolClass: "1A",
 		Guardians: []importModels.GuardianImportData{
 			{
-				Email:                  "test@example.com",
-				PreferredContactMethod: "telegram", // Invalid
+				Email: "test@example.com",
 			},
 		},
 		PickupSchedules: []importModels.PickupScheduleImportData{
-			{Weekday: 0, PickupTime: "16:00"},  // Invalid weekday
+			{Weekday: 0, PickupTime: "16:00"},   // Invalid weekday
 			{Weekday: 1, PickupTime: "invalid"}, // Invalid time
 		},
 		DataRetentionDays: 30,
@@ -677,13 +611,12 @@ func TestStudentImportConfig_Validate_CombinedGuardianAndPickupErrors(t *testing
 
 	errors := config.Validate(context.Background(), &row)
 
-	// Should have: invalid_contact_method + invalid_weekday + invalid_time_format + group_empty
+	// Should have: invalid_weekday + invalid_time_format + group_empty
 	codeCount := map[string]int{}
 	for _, err := range errors {
 		codeCount[err.Code]++
 	}
 
-	assert.Equal(t, 1, codeCount["invalid_contact_method"], "should have 1 invalid_contact_method error")
 	assert.Equal(t, 1, codeCount["invalid_weekday"], "should have 1 invalid_weekday error")
 	assert.Equal(t, 1, codeCount["invalid_time_format"], "should have 1 invalid_time_format error")
 	assert.Equal(t, 1, codeCount["group_empty"], "should have 1 group_empty info")
@@ -701,11 +634,11 @@ func TestStudentImportConfig_Validate_MultipleInvalidPickupSchedules(t *testing.
 		LastName:    "Mustermann",
 		SchoolClass: "1A",
 		PickupSchedules: []importModels.PickupScheduleImportData{
-			{Weekday: 0, PickupTime: "16:00"},    // Invalid weekday
-			{Weekday: 6, PickupTime: "15:00"},    // Invalid weekday
-			{Weekday: 7, PickupTime: "14:00"},    // Invalid weekday
-			{Weekday: 1, PickupTime: "25:99"},    // Invalid time
-			{Weekday: 2, PickupTime: "abc"},       // Invalid time
+			{Weekday: 0, PickupTime: "16:00"}, // Invalid weekday
+			{Weekday: 6, PickupTime: "15:00"}, // Invalid weekday
+			{Weekday: 7, PickupTime: "14:00"}, // Invalid weekday
+			{Weekday: 1, PickupTime: "25:99"}, // Invalid time
+			{Weekday: 2, PickupTime: "abc"},   // Invalid time
 		},
 		DataRetentionDays: 30,
 	}
@@ -803,73 +736,6 @@ func TestStudentImportConfig_Validate_PickupScheduleErrorMessages(t *testing.T) 
 	})
 }
 
-func TestStudentImportConfig_Validate_ContactMethodErrorMessage(t *testing.T) {
-	config := &StudentImportConfig{
-		resolver: &RelationshipResolver{
-			groupCache: make(map[string]*education.Group),
-		},
-	}
-
-	row := importModels.StudentImportRow{
-		FirstName:   "Max",
-		LastName:    "Mustermann",
-		SchoolClass: "1A",
-		Guardians: []importModels.GuardianImportData{
-			{
-				Email:                  "test@example.com",
-				PreferredContactMethod: "whatsapp",
-			},
-		},
-		DataRetentionDays: 30,
-	}
-
-	errors := config.Validate(context.Background(), &row)
-
-	for _, err := range errors {
-		if err.Code == "invalid_contact_method" {
-			assert.Contains(t, err.Message, "whatsapp", "error message should contain the invalid method")
-			assert.Contains(t, err.Message, "email", "error message should list valid methods")
-			assert.Contains(t, err.Message, "phone", "error message should list valid methods")
-			assert.Contains(t, err.Message, "mobile", "error message should list valid methods")
-			assert.Contains(t, err.Message, "sms", "error message should list valid methods")
-			assert.Equal(t, "guardian_1_preferred_contact_method", err.Field,
-				"error field should contain guardian index")
-		}
-	}
-}
-
-func TestStudentImportConfig_Validate_MultipleGuardiansContactMethodValidation(t *testing.T) {
-	config := &StudentImportConfig{
-		resolver: &RelationshipResolver{
-			groupCache: make(map[string]*education.Group),
-		},
-	}
-
-	row := importModels.StudentImportRow{
-		FirstName:   "Max",
-		LastName:    "Mustermann",
-		SchoolClass: "1A",
-		Guardians: []importModels.GuardianImportData{
-			{Email: "valid@example.com", PreferredContactMethod: "email"},   // Valid
-			{Email: "test@example.com", PreferredContactMethod: "telegram"}, // Invalid
-		},
-		DataRetentionDays: 30,
-	}
-
-	errors := config.Validate(context.Background(), &row)
-
-	contactMethodErrors := 0
-	for _, err := range errors {
-		if err.Code == "invalid_contact_method" {
-			contactMethodErrors++
-			assert.Equal(t, "guardian_2_preferred_contact_method", err.Field,
-				"error should be for guardian 2")
-		}
-	}
-
-	assert.Equal(t, 1, contactMethodErrors, "should only have 1 contact method error (guardian 2)")
-}
-
 // ============================================================================
 // createPickupSchedules nil-repo safety
 // ============================================================================
@@ -923,7 +789,6 @@ func TestStudentImportConfig_Validate_GuardianWithProfileFieldsStillValidatesCon
 				LastName:      "Müller",
 				AddressStreet: "Musterstr. 1",
 				AddressCity:   "Köln",
-				Occupation:    "Lehrerin",
 				// No email, phone, or phone numbers
 			},
 		},

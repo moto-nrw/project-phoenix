@@ -187,18 +187,6 @@ func (c *StudentImportConfig) Validate(ctx context.Context, row *importModels.St
 		guardianErrors := c.validateGuardian(i+1, guardian)
 		errors = append(errors, guardianErrors...)
 
-		// Validate PreferredContactMethod if specified
-		if guardian.PreferredContactMethod != "" {
-			validMethods := map[string]bool{"email": true, "phone": true, "mobile": true, "sms": true}
-			if !validMethods[guardian.PreferredContactMethod] {
-				errors = append(errors, importModels.ValidationError{
-					Field:    fmt.Sprintf("guardian_%d_preferred_contact_method", i+1),
-					Message:  fmt.Sprintf("Ungültige Kontaktart für Erziehungsberechtigten %d: '%s'. Erlaubt: email, phone, mobile, sms", i+1, guardian.PreferredContactMethod),
-					Code:     "invalid_contact_method",
-					Severity: importModels.ErrorSeverityError,
-				})
-			}
-		}
 	}
 
 	// 5b. OPTIONAL: Pickup schedule validation
@@ -447,11 +435,6 @@ func (c *StudentImportConfig) createSingleGuardianRelationship(ctx context.Conte
 		return fmt.Errorf("guardian %d: %w", index, err)
 	}
 
-	emergencyPriority := guardianData.EmergencyPriority
-	if emergencyPriority == 0 {
-		emergencyPriority = 1 // Default
-	}
-
 	relationship := &users.StudentGuardian{
 		StudentID:          studentID,
 		GuardianProfileID:  guardianID,
@@ -459,7 +442,6 @@ func (c *StudentImportConfig) createSingleGuardianRelationship(ctx context.Conte
 		IsPrimary:          guardianData.IsPrimary,
 		IsEmergencyContact: guardianData.IsEmergencyContact,
 		CanPickup:          guardianData.CanPickup,
-		EmergencyPriority:  emergencyPriority,
 	}
 	relationship.SetTenantID(tenant.FromContext(ctx))
 
@@ -549,17 +531,14 @@ func (c *StudentImportConfig) createOrFindGuardian(ctx context.Context, data imp
 
 	// Create new guardian (phone numbers are added via createGuardianPhoneNumbers below)
 	guardian := &users.GuardianProfile{
-		FirstName:              strings.TrimSpace(data.FirstName),
-		LastName:               strings.TrimSpace(data.LastName),
-		Email:                  stringPtr(data.Email),
-		AddressStreet:          stringPtr(data.AddressStreet),
-		AddressCity:            stringPtr(data.AddressCity),
-		AddressPostalCode:      stringPtr(data.AddressPostalCode),
-		Occupation:             stringPtr(data.Occupation),
-		Employer:               stringPtr(data.Employer),
-		Notes:                  stringPtr(data.Notes),
-		LanguagePreference:     guardianLanguagePreference(data.LanguagePreference),
-		PreferredContactMethod: guardianContactMethod(data.PreferredContactMethod),
+		FirstName:          strings.TrimSpace(data.FirstName),
+		LastName:           strings.TrimSpace(data.LastName),
+		Email:              stringPtr(data.Email),
+		AddressStreet:      stringPtr(data.AddressStreet),
+		AddressCity:        stringPtr(data.AddressCity),
+		AddressPostalCode:  stringPtr(data.AddressPostalCode),
+		Notes:              stringPtr(data.Notes),
+		LanguagePreference: guardianLanguagePreference(data.LanguagePreference),
 	}
 
 	if err := c.guardianRepo.Create(ctx, guardian); err != nil {
@@ -659,14 +638,6 @@ func stringPtr(s string) *string {
 func guardianLanguagePreference(val string) string {
 	if val == "" {
 		return "de"
-	}
-	return strings.ToLower(strings.TrimSpace(val))
-}
-
-// guardianContactMethod returns a validated contact method, defaulting to "phone"
-func guardianContactMethod(val string) string {
-	if val == "" {
-		return "phone"
 	}
 	return strings.ToLower(strings.TrimSpace(val))
 }

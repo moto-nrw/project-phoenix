@@ -112,9 +112,9 @@ func (rs *Resource) downloadStudentTemplateCSV(w http.ResponseWriter, _ *http.Re
 	headers := []string{
 		"Vorname", "Nachname", "Klasse", "Gruppe", "Geburtstag",
 		"Erz1.Vorname", "Erz1.Nachname", "Erz1.Email", "Erz1.Telefon", "Erz1.Telefon2", "Erz1.Mobil", "Erz1.Mobil2", "Erz1.Dienstlich", "Erz1.Dienstlich2", "Erz1.Verhältnis", "Erz1.Primär", "Erz1.Notfall", "Erz1.Abholung",
-		"Erz1.Straße", "Erz1.Stadt", "Erz1.PLZ", "Erz1.Beruf", "Erz1.Arbeitgeber", "Erz1.Notizen", "Erz1.Sprache", "Erz1.Kontaktart", "Erz1.Notfallpriorität",
+		"Erz1.Straße", "Erz1.Stadt", "Erz1.PLZ", "Erz1.Notizen", "Erz1.Sprache",
 		"Erz2.Vorname", "Erz2.Nachname", "Erz2.Email", "Erz2.Telefon", "Erz2.Telefon2", "Erz2.Mobil", "Erz2.Mobil2", "Erz2.Dienstlich", "Erz2.Dienstlich2", "Erz2.Verhältnis", "Erz2.Primär", "Erz2.Notfall", "Erz2.Abholung",
-		"Erz2.Straße", "Erz2.Stadt", "Erz2.PLZ", "Erz2.Beruf", "Erz2.Arbeitgeber", "Erz2.Notizen", "Erz2.Sprache", "Erz2.Kontaktart", "Erz2.Notfallpriorität",
+		"Erz2.Straße", "Erz2.Stadt", "Erz2.PLZ", "Erz2.Notizen", "Erz2.Sprache",
 		"Gesundheitsinfo", "Betreuernotizen", "Zusatzinfo", "Abholstatus", "Datenschutz", "Aufbewahrung(Tage)", "Bus",
 		"Abholung.Mo", "Abholung.Mo.Notizen", "Abholung.Di", "Abholung.Di.Notizen", "Abholung.Mi", "Abholung.Mi.Notizen", "Abholung.Do", "Abholung.Do.Notizen", "Abholung.Fr", "Abholung.Fr.Notizen",
 	}
@@ -132,12 +132,12 @@ func (rs *Resource) downloadStudentTemplateCSV(w http.ResponseWriter, _ *http.Re
 			"Max", "Mustermann", "1A", "Gruppe 1A", "2015-08-15",
 			// Guardian 1 (Mother) - with home phone and work phone
 			"Maria", testLastNameMueller, "maria.mueller@example.com", "0123-456789", "", "", "", "0221-9876543", "", "Mutter", "Ja", "Ja", "Ja",
-			// Guardian 1 - address, professional, preferences
-			"Musterstr. 1", "Köln", "50667", "Lehrerin", "Grundschule Köln", "", "de", "phone", "1",
+			// Guardian 1 - address, notes, language
+			"Musterstr. 1", "Köln", "50667", "", "de",
 			// Guardian 2 (Father) - with mobile phone
 			"Hans", testLastNameMueller, "hans.mueller@example.com", "", "", "0176-12345678", "", "", "", "Vater", "Nein", "Ja", "Ja",
-			// Guardian 2 - address, professional, preferences
-			"Musterstr. 1", "Köln", "50667", "Ingenieur", "Firma GmbH", "", "de", "email", "2",
+			// Guardian 2 - address, notes, language
+			"Musterstr. 1", "Köln", "50667", "", "de",
 			// Additional info
 			"", "Sehr ruhiges Kind", "", "Wird abgeholt", "Ja", "30", "Nein",
 			// Pickup schedule (Mon-Fri)
@@ -148,12 +148,12 @@ func (rs *Resource) downloadStudentTemplateCSV(w http.ResponseWriter, _ *http.Re
 			"Anna", "Schmidt", "2B", "Gruppe 2B", "2014-03-22",
 			// Guardian 1 (Mother) - with work phone labeled "Dienstlich"
 			"Petra", "Schmidt", "petra.schmidt@example.com", "0234-567890", "", "", "", "0211-5551234", "", "Mutter", "Ja", "Ja", "Ja",
-			// Guardian 1 - address, professional, preferences
-			"Hauptstr. 5", "Düsseldorf", "40210", "", "", "Allergien beachten", "de", "email", "1",
+			// Guardian 1 - address, notes, language
+			"Hauptstr. 5", "Düsseldorf", "40210", "Allergien beachten", "de",
 			// Guardian 2 (empty - optional!)
 			"", "", "", "", "", "", "", "", "", "", "", "", "",
 			// Guardian 2 - empty
-			"", "", "", "", "", "", "", "", "",
+			"", "", "", "", "",
 			// Additional info
 			"Allergie: Nüsse", "", "Kann gut malen", "Geht alleine nach Hause", "Ja", "15", "Ja",
 			// Pickup schedule (partial)
@@ -216,9 +216,9 @@ func getStudentImportHeaders() []string {
 	return []string{
 		"Vorname", "Nachname", "Klasse", "Gruppe", "Geburtstag",
 		"Erz1.Vorname", "Erz1.Nachname", "Erz1.Email", "Erz1.Telefon", "Erz1.Telefon2", "Erz1.Mobil", "Erz1.Mobil2", "Erz1.Dienstlich", "Erz1.Dienstlich2", "Erz1.Verhältnis", "Erz1.Primär", "Erz1.Notfall", "Erz1.Abholung",
-		"Erz1.Straße", "Erz1.Stadt", "Erz1.PLZ", "Erz1.Beruf", "Erz1.Arbeitgeber", "Erz1.Notizen", "Erz1.Sprache", "Erz1.Kontaktart", "Erz1.Notfallpriorität",
+		"Erz1.Straße", "Erz1.Stadt", "Erz1.PLZ", "Erz1.Notizen", "Erz1.Sprache",
 		"Erz2.Vorname", "Erz2.Nachname", "Erz2.Email", "Erz2.Telefon", "Erz2.Telefon2", "Erz2.Mobil", "Erz2.Mobil2", "Erz2.Dienstlich", "Erz2.Dienstlich2", "Erz2.Verhältnis", "Erz2.Primär", "Erz2.Notfall", "Erz2.Abholung",
-		"Erz2.Straße", "Erz2.Stadt", "Erz2.PLZ", "Erz2.Beruf", "Erz2.Arbeitgeber", "Erz2.Notizen", "Erz2.Sprache", "Erz2.Kontaktart", "Erz2.Notfallpriorität",
+		"Erz2.Straße", "Erz2.Stadt", "Erz2.PLZ", "Erz2.Notizen", "Erz2.Sprache",
 		"Gesundheitsinfo", "Betreuernotizen", "Zusatzinfo", "Abholstatus", "Datenschutz", "Aufbewahrung(Tage)", "Bus",
 		"Abholung.Mo", "Abholung.Mo.Notizen", "Abholung.Di", "Abholung.Di.Notizen", "Abholung.Mi", "Abholung.Mi.Notizen", "Abholung.Do", "Abholung.Do.Notizen", "Abholung.Fr", "Abholung.Fr.Notizen",
 	}
@@ -230,12 +230,12 @@ func getStudentImportExamples() [][]any {
 		{"Max", "Mustermann", "1A", "Gruppe 1A", "2015-08-15",
 			// Guardian 1: phones, relationship
 			"Maria", testLastNameMueller, "maria.mueller@example.com", "0123-456789", "", "", "", "0221-9876543", "", "Mutter", "Ja", "Ja", "Ja",
-			// Guardian 1: address, professional, preferences
-			"Musterstr. 1", "Köln", "50667", "Lehrerin", "Grundschule Köln", "", "de", "phone", 1,
+			// Guardian 1: address, notes, language
+			"Musterstr. 1", "Köln", "50667", "", "de",
 			// Guardian 2: phones, relationship
 			"Hans", testLastNameMueller, "hans.mueller@example.com", "", "", "0176-12345678", "", "", "", "Vater", "Nein", "Ja", "Ja",
-			// Guardian 2: address, professional, preferences
-			"Musterstr. 1", "Köln", "50667", "Ingenieur", "Firma GmbH", "", "de", "email", 2,
+			// Guardian 2: address, notes, language
+			"Musterstr. 1", "Köln", "50667", "", "de",
 			// Additional info
 			"", "Sehr ruhiges Kind", "", "Wird abgeholt", "Ja", 30, "Nein",
 			// Pickup schedule (Mon-Fri)
@@ -243,12 +243,12 @@ func getStudentImportExamples() [][]any {
 		{"Anna", "Schmidt", "2B", "Gruppe 2B", "2014-03-22",
 			// Guardian 1: phones, relationship
 			"Petra", "Schmidt", "petra.schmidt@example.com", "0234-567890", "", "", "", "0211-5551234", "", "Mutter", "Ja", "Ja", "Ja",
-			// Guardian 1: address, professional, preferences
-			"Hauptstr. 5", "Düsseldorf", "40210", "", "", "Allergien beachten", "de", "email", 1,
+			// Guardian 1: address, notes, language
+			"Hauptstr. 5", "Düsseldorf", "40210", "Allergien beachten", "de",
 			// Guardian 2 (empty)
 			"", "", "", "", "", "", "", "", "", "", "", "", "",
 			// Guardian 2: empty profile fields
-			"", "", "", "", "", "", "", "", "",
+			"", "", "", "", "",
 			// Additional info
 			"Allergie: Nüsse", "", "Kann gut malen", "Geht alleine nach Hause", "Ja", 15, "Ja",
 			// Pickup schedule (partial)

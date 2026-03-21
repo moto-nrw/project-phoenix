@@ -33,9 +33,9 @@ type StudentImportRow struct {
 
 // PickupScheduleImportData represents a weekly pickup schedule entry from CSV
 type PickupScheduleImportData struct {
-	Weekday    int    `json:"weekday"`              // 1-5 (Mon-Fri)
-	PickupTime string `json:"pickup_time"`          // HH:MM format
-	Notes      string `json:"notes,omitempty"`      // Day-specific notes
+	Weekday    int    `json:"weekday"`         // 1-5 (Mon-Fri)
+	PickupTime string `json:"pickup_time"`     // HH:MM format
+	Notes      string `json:"notes,omitempty"` // Day-specific notes
 }
 
 // PhoneImportData represents a phone number from CSV import
@@ -65,15 +65,7 @@ type GuardianImportData struct {
 	AddressCity       string `json:"address_city,omitempty"`
 	AddressPostalCode string `json:"address_postal_code,omitempty"`
 
-	// Professional
-	Occupation string `json:"occupation,omitempty"`
-	Employer   string `json:"employer,omitempty"`
-
 	// Preferences & Notes
-	Notes                  string `json:"notes,omitempty"`
-	LanguagePreference     string `json:"language_preference,omitempty"`
-	PreferredContactMethod string `json:"preferred_contact_method,omitempty"`
-
-	// Relationship
-	EmergencyPriority int `json:"emergency_priority,omitempty"`
+	Notes              string `json:"notes,omitempty"`
+	LanguagePreference string `json:"language_preference,omitempty"`
 }

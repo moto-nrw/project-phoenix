@@ -503,78 +503,23 @@ func TestParseGuardianPhoneNumbers(t *testing.T) {
 	})
 }
 
-// TestParseEmergencyPriority tests emergency priority parsing
-func TestParseEmergencyPriority(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    string
-		expected int
-	}{
-		{"valid number", "2", 2},
-		{"valid number 1", "1", 1},
-		{"zero", "0", 0},
-		{"empty string", "", 0},
-		{"invalid text", "abc", 0},
-		{"negative", "-1", -1},
-		{"large number", "99", 99},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := parseEmergencyPriority(tt.input)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
-// TestParseContactMethod tests contact method parsing and validation
-func TestParseContactMethod(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    string
-		expected string
-	}{
-		{"email", "email", "email"},
-		{"phone", "phone", "phone"},
-		{"mobile", "mobile", "mobile"},
-		{"sms", "sms", "sms"},
-		{"uppercase", "EMAIL", "email"},
-		{"mixed case", "Phone", "phone"},
-		{"empty string", "", ""},
-		{"invalid", "fax", ""},
-		{"whitespace", "  email  ", "email"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := parseContactMethod(tt.input)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
 // TestMapStudentRow_GuardianProfileFields tests mapping of new guardian profile fields
 func TestMapStudentRow_GuardianProfileFields(t *testing.T) {
 	mapping := map[string]int{
-		"vorname":              0,
-		"nachname":             1,
-		"erz1.email":           2,
-		"erz1.straße":          3,
-		"erz1.stadt":           4,
-		"erz1.plz":             5,
-		"erz1.beruf":           6,
-		"erz1.arbeitgeber":     7,
-		"erz1.notizen":         8,
-		"erz1.sprache":         9,
-		"erz1.kontaktart":      10,
-		"erz1.notfallpriorität": 11,
+		"vorname":      0,
+		"nachname":     1,
+		"erz1.email":   2,
+		"erz1.straße":  3,
+		"erz1.stadt":   4,
+		"erz1.plz":     5,
+		"erz1.notizen": 6,
+		"erz1.sprache": 7,
 	}
 	values := []string{
 		"Max", "Mustermann",
 		"guardian@example.com",
 		"Musterstr. 1", "Köln", "50667",
-		"Lehrerin", "Grundschule Köln",
-		"Allergien beachten", "de", "email", "2",
+		"Allergien beachten", "de",
 	}
 	mapper := NewColumnMapper(mapping, values)
 
@@ -587,12 +532,8 @@ func TestMapStudentRow_GuardianProfileFields(t *testing.T) {
 	assert.Equal(t, "Musterstr. 1", g.AddressStreet)
 	assert.Equal(t, "Köln", g.AddressCity)
 	assert.Equal(t, "50667", g.AddressPostalCode)
-	assert.Equal(t, "Lehrerin", g.Occupation)
-	assert.Equal(t, "Grundschule Köln", g.Employer)
 	assert.Equal(t, "Allergien beachten", g.Notes)
 	assert.Equal(t, "de", g.LanguagePreference)
-	assert.Equal(t, "email", g.PreferredContactMethod)
-	assert.Equal(t, 2, g.EmergencyPriority)
 }
 
 // TestMapStudentRow_PickupSchedules tests mapping of pickup schedule columns
@@ -676,26 +617,20 @@ func TestMapStudentRow_PickupSchedules(t *testing.T) {
 // TestMapStudentRow_GuardianProfileFieldsEmpty tests that empty guardian profile fields are mapped as empty strings
 func TestMapStudentRow_GuardianProfileFieldsEmpty(t *testing.T) {
 	mapping := map[string]int{
-		"vorname":              0,
-		"nachname":             1,
-		"erz1.email":           2,
-		"erz1.straße":          3,
-		"erz1.stadt":           4,
-		"erz1.plz":             5,
-		"erz1.beruf":           6,
-		"erz1.arbeitgeber":     7,
-		"erz1.notizen":         8,
-		"erz1.sprache":         9,
-		"erz1.kontaktart":      10,
-		"erz1.notfallpriorität": 11,
+		"vorname":      0,
+		"nachname":     1,
+		"erz1.email":   2,
+		"erz1.straße":  3,
+		"erz1.stadt":   4,
+		"erz1.plz":     5,
+		"erz1.notizen": 6,
+		"erz1.sprache": 7,
 	}
 	values := []string{
 		"Max", "Mustermann",
 		"guardian@example.com",
 		"", "", "", // Empty address
-		"", "",     // Empty professional
-		"", "", "", // Empty preferences
-		"", // Empty priority
+		"", "", // Empty notes/language
 	}
 	mapper := NewColumnMapper(mapping, values)
 
@@ -708,36 +643,28 @@ func TestMapStudentRow_GuardianProfileFieldsEmpty(t *testing.T) {
 	assert.Equal(t, "", g.AddressStreet)
 	assert.Equal(t, "", g.AddressCity)
 	assert.Equal(t, "", g.AddressPostalCode)
-	assert.Equal(t, "", g.Occupation)
-	assert.Equal(t, "", g.Employer)
 	assert.Equal(t, "", g.Notes)
 	assert.Equal(t, "", g.LanguagePreference)
-	assert.Equal(t, "", g.PreferredContactMethod)
-	assert.Equal(t, 0, g.EmergencyPriority)
 }
 
 // TestMapStudentRow_MultipleGuardiansWithProfileFields tests two guardians each with different profile data
 func TestMapStudentRow_MultipleGuardiansWithProfileFields(t *testing.T) {
 	mapping := map[string]int{
-		"vorname":              0,
-		"nachname":             1,
-		"erz1.email":           2,
-		"erz1.straße":          3,
-		"erz1.stadt":           4,
-		"erz1.beruf":           5,
-		"erz1.kontaktart":      6,
-		"erz1.notfallpriorität": 7,
-		"erz2.email":           8,
-		"erz2.straße":          9,
-		"erz2.stadt":           10,
-		"erz2.beruf":           11,
-		"erz2.kontaktart":      12,
-		"erz2.notfallpriorität": 13,
+		"vorname":      0,
+		"nachname":     1,
+		"erz1.email":   2,
+		"erz1.straße":  3,
+		"erz1.stadt":   4,
+		"erz1.notizen": 5,
+		"erz2.email":   6,
+		"erz2.straße":  7,
+		"erz2.stadt":   8,
+		"erz2.notizen": 9,
 	}
 	values := []string{
 		"Max", "Mustermann",
-		"mother@example.com", "Hauptstr. 1", "Köln", "Lehrerin", "email", "1",
-		"father@example.com", "Nebenstr. 5", "Bonn", "Ingenieur", "phone", "2",
+		"mother@example.com", "Hauptstr. 1", "Köln", "Mutter-Notiz",
+		"father@example.com", "Nebenstr. 5", "Bonn", "Vater-Notiz",
 	}
 	mapper := NewColumnMapper(mapping, values)
 
@@ -750,38 +677,32 @@ func TestMapStudentRow_MultipleGuardiansWithProfileFields(t *testing.T) {
 	assert.Equal(t, "mother@example.com", g1.Email)
 	assert.Equal(t, "Hauptstr. 1", g1.AddressStreet)
 	assert.Equal(t, "Köln", g1.AddressCity)
-	assert.Equal(t, "Lehrerin", g1.Occupation)
-	assert.Equal(t, "email", g1.PreferredContactMethod)
-	assert.Equal(t, 1, g1.EmergencyPriority)
+	assert.Equal(t, "Mutter-Notiz", g1.Notes)
 
 	g2 := row.Guardians[1]
 	assert.Equal(t, "father@example.com", g2.Email)
 	assert.Equal(t, "Nebenstr. 5", g2.AddressStreet)
 	assert.Equal(t, "Bonn", g2.AddressCity)
-	assert.Equal(t, "Ingenieur", g2.Occupation)
-	assert.Equal(t, "phone", g2.PreferredContactMethod)
-	assert.Equal(t, 2, g2.EmergencyPriority)
+	assert.Equal(t, "Vater-Notiz", g2.Notes)
 }
 
 // TestMapStudentRow_GuardianProfileWithPhoneNumbers tests combining profile fields and phone numbers
 func TestMapStudentRow_GuardianProfileWithPhoneNumbers(t *testing.T) {
 	mapping := map[string]int{
-		"vorname":          0,
-		"nachname":         1,
-		"erz1.email":       2,
-		"erz1.telefon":     3,
-		"erz1.mobil":       4,
-		"erz1.dienstlich":  5,
-		"erz1.straße":      6,
-		"erz1.plz":         7,
-		"erz1.beruf":       8,
-		"erz1.arbeitgeber": 9,
+		"vorname":         0,
+		"nachname":        1,
+		"erz1.email":      2,
+		"erz1.telefon":    3,
+		"erz1.mobil":      4,
+		"erz1.dienstlich": 5,
+		"erz1.straße":     6,
+		"erz1.plz":        7,
 	}
 	values := []string{
 		"Max", "Mustermann",
 		"guardian@example.com",
 		"+49221111", "+49177222", "+49221333",
-		"Musterstr. 1", "50667", "Ärztin", "Klinik GmbH",
+		"Musterstr. 1", "50667",
 	}
 	mapper := NewColumnMapper(mapping, values)
 
@@ -794,8 +715,6 @@ func TestMapStudentRow_GuardianProfileWithPhoneNumbers(t *testing.T) {
 	// Profile fields
 	assert.Equal(t, "Musterstr. 1", g.AddressStreet)
 	assert.Equal(t, "50667", g.AddressPostalCode)
-	assert.Equal(t, "Ärztin", g.Occupation)
-	assert.Equal(t, "Klinik GmbH", g.Employer)
 	// Phone numbers (from ParseGuardianPhoneNumbers)
 	require.Len(t, g.PhoneNumbers, 3)
 	assert.Equal(t, "+49221111", g.PhoneNumbers[0].PhoneNumber)
@@ -818,8 +737,8 @@ func TestMapStudentRow_PickupNotesWithoutTime(t *testing.T) {
 	}
 	values := []string{
 		"Max", "Mustermann",
-		"16:00", "Hort",  // Monday: time + notes
-		"", "Nur Notiz",  // Tuesday: notes only (no time) -> should be skipped
+		"16:00", "Hort", // Monday: time + notes
+		"", "Nur Notiz", // Tuesday: notes only (no time) -> should be skipped
 	}
 	mapper := NewColumnMapper(mapping, values)
 
@@ -854,65 +773,37 @@ func TestMapStudentRow_PickupScheduleWithEmptyNotes(t *testing.T) {
 	assert.Equal(t, "", row.PickupSchedules[0].Notes)
 }
 
-// TestMapStudentRow_InvalidContactMethodStored tests that invalid contact method is still stored as-is during mapping
-// (validation happens later in Validate(), mapping just calls parseContactMethod)
-func TestMapStudentRow_InvalidContactMethodIsEmpty(t *testing.T) {
-	mapping := map[string]int{
-		"vorname":         0,
-		"nachname":        1,
-		"erz1.email":      2,
-		"erz1.kontaktart": 3,
-	}
-	values := []string{
-		"Max", "Mustermann",
-		"test@example.com",
-		"fax", // Invalid method - parseContactMethod returns ""
-	}
-	mapper := NewColumnMapper(mapping, values)
-
-	row, err := MapStudentRow(mapper)
-
-	require.NoError(t, err)
-	require.Len(t, row.Guardians, 1)
-	assert.Equal(t, "", row.Guardians[0].PreferredContactMethod, "invalid contact method should be empty after parsing")
-}
-
-// TestMapStudentRow_FullCSVRow tests a realistic complete CSV row with all new fields
+// TestMapStudentRow_FullCSVRow tests a realistic complete CSV row with all fields
 func TestMapStudentRow_FullCSVRow(t *testing.T) {
 	mapping := map[string]int{
-		"vorname":              0,
-		"nachname":             1,
-		"klasse":               2,
-		"geburtstag":           3,
-		"erz1.vorname":         4,
-		"erz1.nachname":        5,
-		"erz1.email":           6,
-		"erz1.telefon":         7,
-		"erz1.verhältnis":      8,
-		"erz1.primär":          9,
-		"erz1.notfall":         10,
-		"erz1.abholung":        11,
-		"erz1.straße":          12,
-		"erz1.stadt":           13,
-		"erz1.plz":             14,
-		"erz1.beruf":           15,
-		"erz1.arbeitgeber":     16,
-		"erz1.notizen":         17,
-		"erz1.sprache":         18,
-		"erz1.kontaktart":      19,
-		"erz1.notfallpriorität": 20,
-		"abholung.mo":          21,
-		"abholung.mo.notizen":  22,
-		"abholung.fr":          23,
-		"abholung.fr.notizen":  24,
+		"vorname":             0,
+		"nachname":            1,
+		"klasse":              2,
+		"geburtstag":          3,
+		"erz1.vorname":        4,
+		"erz1.nachname":       5,
+		"erz1.email":          6,
+		"erz1.telefon":        7,
+		"erz1.verhältnis":     8,
+		"erz1.primär":         9,
+		"erz1.notfall":        10,
+		"erz1.abholung":       11,
+		"erz1.straße":         12,
+		"erz1.stadt":          13,
+		"erz1.plz":            14,
+		"erz1.notizen":        15,
+		"erz1.sprache":        16,
+		"abholung.mo":         17,
+		"abholung.mo.notizen": 18,
+		"abholung.fr":         19,
+		"abholung.fr.notizen": 20,
 	}
 	values := []string{
 		"Max", "Mustermann", "1A", "2015-08-15",
 		"Maria", "Müller", "maria@example.com", "+49123456",
 		"Mutter", "Ja", "Ja", "Ja",
 		"Musterstr. 1", "Köln", "50667",
-		"Lehrerin", "Grundschule", "Allergien beachten",
-		"de", "email", "1",
+		"Allergien beachten", "de",
 		"16:00", "Hort",
 		"14:00", "Frühschluss",
 	}
@@ -940,12 +831,8 @@ func TestMapStudentRow_FullCSVRow(t *testing.T) {
 	assert.Equal(t, "Musterstr. 1", g.AddressStreet)
 	assert.Equal(t, "Köln", g.AddressCity)
 	assert.Equal(t, "50667", g.AddressPostalCode)
-	assert.Equal(t, "Lehrerin", g.Occupation)
-	assert.Equal(t, "Grundschule", g.Employer)
 	assert.Equal(t, "Allergien beachten", g.Notes)
 	assert.Equal(t, "de", g.LanguagePreference)
-	assert.Equal(t, "email", g.PreferredContactMethod)
-	assert.Equal(t, 1, g.EmergencyPriority)
 
 	// Pickup schedules
 	require.Len(t, row.PickupSchedules, 2)
