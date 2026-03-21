@@ -32,6 +32,10 @@ cp docker-compose.yml docker-compose.yml.rollback 2>/dev/null || true
 mv .env.new .env
 mv docker-compose.yml.new docker-compose.yml
 
+# ── Pin images to exact SHA (immutable tags for rollback safety) ──
+sed -i "s|phoenix-server:[^ ]*|phoenix-server:${DEPLOY_SHA}|" docker-compose.yml
+sed -i "s|phoenix-frontend:[^ ]*|phoenix-frontend:${DEPLOY_SHA}|" docker-compose.yml
+
 # ── Pull new images ──
 if ! docker compose pull; then
   echo "Pull failed, restoring old config"
