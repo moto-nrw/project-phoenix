@@ -54,9 +54,13 @@ runs:
           SUBJECT="[CRITICAL] $DISPLAY_ENV deploy + rollback FAILED"
           STATUS="Deployment to $DISPLAY_ENV failed AND automatic rollback also failed.<br>The $ENV environment may be <strong>DOWN</strong>.<br>Immediate manual intervention required."
           LINK_TEXT="View failed deployment →"
-        else
+        elif [ "$EXIT_CODE" = "10" ]; then
           SUBJECT="[WARNING] $DISPLAY_ENV deploy failed — rolled back"
           STATUS="Deployment to $DISPLAY_ENV failed but was automatically rolled back to the previous version.<br>$DISPLAY_ENV is operational."
+          LINK_TEXT="View failed deployment →"
+        else
+          SUBJECT="[INFO] $DISPLAY_ENV deploy aborted — no changes applied"
+          STATUS="Deployment to $DISPLAY_ENV was aborted before any changes were applied (image pull or database backup failed).<br>$DISPLAY_ENV is operational on the previous version."
           LINK_TEXT="View failed deployment →"
         fi
 
@@ -72,4 +76,5 @@ runs:
         curl -sS -X POST https://api.resend.com/emails \
           -H "Authorization: Bearer ${{ inputs.resend_api_key }}" \
           -H "Content-Type: application/json" \
-          -d "{\"from\":\"Phoenix CI <ci@ci.moto-app.de>\",\"to\":[\"mail@yannickwenger.de\"],\"subject\":\"${SUBJECT}\",\"html\":\"${BODY}\"}"
+          -d "{\"from\":\"Phoenix CI <ci@ci.moto-app.de>\",\"to\":[\"mail@yannickwenger.de\"],\"subject\":\"${SUBJECT}\",\"html\":\"${BODY}\"}" \
+          || echo "WARNING: Email notification failed (non-critical)"
