@@ -302,9 +302,9 @@ func writeHinweiseSheet(f *excelize.File) {
 	// Section headers (row index → label) — rendered as merged, bold section dividers
 	sectionRows := map[int]string{
 		7:  "Erziehungsberechtigte (Erz1, Erz2, ...)",
-		21: "Schüler-Zusatzinfos",
-		29: "Abholzeiten (Montag bis Freitag)",
-		33: "Allgemeine Hinweise",
+		23: "Schüler-Zusatzinfos",
+		31: "Abholzeiten (Montag bis Freitag)",
+		35: "Allgemeine Hinweise",
 	}
 
 	dataRows := [][]string{
@@ -325,16 +325,15 @@ func writeHinweiseSheet(f *excelize.File) {
 		{"Erz1.Mobil", "Nein", "z.B. 0176-12345678", "Mobilnummer"},
 		{"Erz1.Dienstlich", "Nein", "z.B. 0221-9876543", "Dienstliche Telefonnummer"},
 		{"Erz1.Verhältnis", "Nein", "Mutter, Vater, Oma, Opa, Tante, Onkel, Vormund, Sonstige", "Beziehung zum Kind"},
-		{"Erz1.Hauptansprechpartner", "Nein", "Ja / Nein", "Erster Ansprechpartner für die Schule"},
+		{"Erz1.Hauptansprechpartner", "Nein", "Ja / Nein", "Erster Ansprechpartner für die OGS"},
 		{"Erz1.Notfall", "Nein", "Ja / Nein", "Als Notfallkontakt hinterlegt"},
 		{"Erz1.Abholberechtigt", "Nein", "Ja / Nein", "Darf das Kind abholen"},
 		{"Erz1.Straße", "Nein", "Text", "Straße und Hausnummer"},
 		{"Erz1.Stadt", "Nein", "Text", "Ort / Stadt"},
 		{"Erz1.PLZ", "Nein", "5-stellig (z.B. 50667)", "Postleitzahl"},
-		// row 21: section header (injected)
-		// rows 22-28: additional info
 		{"Erz1.Notizen", "Nein", "Text", "Interne Notizen zum Erziehungsberechtigten"},
 		{"Erz1.Sprache", "Nein", "de, en, tr, ar, ...", "Bevorzugte Sprache (ISO 639-1, Standard: de)"},
+		// row 23: section header "Schüler-Zusatzinfos" (injected)
 		{"Gesundheitsinfo", "Nein", "Text", "Allergien, Medikamente, etc."},
 		{"Betreuernotizen", "Nein", "Text", "Interne Notizen für Betreuer"},
 		{"Zusatzinfo", "Nein", "Text", "Sonstige Informationen (Elternnotizen)"},
@@ -342,8 +341,7 @@ func writeHinweiseSheet(f *excelize.File) {
 		{"Datenschutz", "Ja", "Ja / Nein", "Datenschutzerklärung akzeptiert"},
 		{"Aufbewahrung(Tage)", "Nein", "1-31 (Standard: 30)", "Datenaufbewahrungsfrist in Tagen"},
 		{"Bus", "Nein", "Ja / Nein", "Fährt das Kind mit dem Bus"},
-		// row 29: section header (injected)
-		// rows 30-32: pickup
+		// row 31: section header "Abholzeiten" (injected)
 		{"Abholung.Mo", "Nein", "HH:MM (z.B. 15:30, 16:00)", "Regelmäßige Abholzeit am Montag"},
 		{"Abholung.Mo.Notizen", "Nein", "Text", "Notiz zur Abholung am Montag"},
 		{"", "", "(Di, Mi, Do, Fr analog)", "Gleiche Spalten für alle Wochentage"},
@@ -371,7 +369,7 @@ func writeHinweiseSheet(f *excelize.File) {
 	// Write data, inserting section headers at the right positions
 	excelRow := 1
 	dataIdx := 0
-	for excelRow <= 35 {
+	for excelRow <= 37 {
 		// Check if this row is a section header
 		if label, ok := sectionRows[excelRow]; ok {
 			cell, _ := excelize.CoordinatesToCellName(1, excelRow)
