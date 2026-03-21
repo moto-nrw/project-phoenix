@@ -266,10 +266,21 @@ export const CONTACT_METHODS = [
 export const LANGUAGE_PREFERENCES = [
   { value: "de", label: "Deutsch" },
   { value: "en", label: "English" },
-  { value: "tr", label: "Türkçe" },
-  { value: "ar", label: "العربية" },
+  { value: "tr", label: "Türkisch" },
+  { value: "ar", label: "Arabisch" },
+  { value: "ru", label: "Russisch" },
+  { value: "pl", label: "Polnisch" },
+  { value: "uk", label: "Ukrainisch" },
+  { value: "fa", label: "Persisch" },
+  { value: "ro", label: "Rumänisch" },
   { value: "other", label: "Sonstige" },
 ] as const;
+
+// Helper to get language label from code
+export function getLanguageLabel(code: string): string {
+  const lang = LANGUAGE_PREFERENCES.find((l) => l.value === code);
+  return lang?.label ?? code.toUpperCase();
+}
 
 // Helper to get full name
 export function getGuardianFullName(guardian: Guardian): string {

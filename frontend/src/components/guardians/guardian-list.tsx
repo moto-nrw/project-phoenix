@@ -7,6 +7,7 @@ import type {
 import {
   getGuardianFullName,
   getRelationshipTypeLabel,
+  getLanguageLabel,
   PHONE_TYPE_LABELS,
 } from "@/lib/guardian-helpers";
 import { ModernContactActions } from "~/components/simple/student";
@@ -137,13 +138,12 @@ export default function GuardianList({
                 Notfallkontakt
               </span>
             )}
-            {guardian.languagePreference &&
-              guardian.languagePreference !== "de" && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
-                  <Globe className="h-3 w-3" />
-                  {guardian.languagePreference.toUpperCase()}
-                </span>
-              )}
+            {guardian.languagePreference && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
+                <Globe className="h-3 w-3" />
+                {getLanguageLabel(guardian.languagePreference)}
+              </span>
+            )}
           </div>
 
           {/* Notes */}
