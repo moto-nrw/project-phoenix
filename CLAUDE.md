@@ -141,6 +141,59 @@ NEXT_PUBLIC_OPERATOR_HOSTNAME: z.string().min(1)
 - Let `env.js` validation crash the build if the var is missing
 - In Edge runtime (middleware) where `env.js` can't run, throw explicitly
 
+## Environment Management (SOPS)
+
+Deployed environments (staging, demo, production) use **SOPS-encrypted env files** tracked in git. No more manual `.env` management via SSH.
+
+### How It Works
+
+```
+environments/{env}.sops.env  →  CI decrypts with age key  →  SCP to server as .env
+environments/{env}.compose.yml  →  SCP to server as docker-compose.yml
+```
+
+### File Layout
+
+| File | Purpose |
+|------|---------|
+| `environments/staging.sops.env` | Encrypted env vars for staging |
+| `environments/demo.sops.env` | Encrypted env vars for demo |
+| `environments/production.sops.env` | Encrypted env vars for production |
+| `environments/staging.compose.yml` | Docker Compose for staging (images from GHCR) |
+| `environments/demo.compose.yml` | Docker Compose for demo |
+| `environments/production.compose.yml` | Docker Compose for production |
+| `.sops.yaml` | SOPS config with age public key |
+| `scripts/sops-setup.sh` | One-time setup: generate age key, encrypt files |
+| `scripts/env-check.sh` | CI validation: key sync across all env files |
+
+### Key Rules
+
+1. **Keys are plaintext, values are encrypted** — SOPS encrypts only values, so CI can validate key consistency without decryption
+2. **All three `.sops.env` files must have identical keys** — `env-check.sh` enforces this in CI
+3. **`.env.example` must stay in sync** with `.sops.env` keys (minus whitelisted dev-only/deploy-only vars)
+4. **Shared `.env` on server** — all services (postgres, server, frontend) load the same `.env` via `env_file:`. Use the compose `environment:` block to override per-service (e.g., `PORT: 3000` for frontend to override backend's `PORT=8080`)
+5. **Edit with SOPS CLI** — `sops environments/staging.sops.env` opens decrypted in `$EDITOR`, re-encrypts on save. Never manually edit encrypted values.
+
+### Adding a New Env Var (Deployed Environments)
+
+- [ ] Add to all three `environments/*.sops.env` files via `sops` CLI
+- [ ] Add to `.env.example` (for local dev parity)
+- [ ] If frontend-only or needs override: add to `environment:` block in `environments/*.compose.yml`
+- [ ] Run `./scripts/env-check.sh` to verify sync
+
+### Deployment Triggers
+
+| Environment | Trigger | Branch | SOPS File |
+|-------------|---------|--------|-----------|
+| Staging | Push to `development` | `development` | `staging.sops.env` |
+| Demo | Merged PR + `deploy-demo` label | `development` | `demo.sops.env` |
+| Production | Push to `main` | `main` | `production.sops.env` |
+
+### CI Guards
+
+- **`env-sync-check`** job runs on every PR — blocks merge if keys are out of sync or plaintext values detected
+- **Lefthook pre-commit** — runs env key sync + unencrypted secrets guard on staged `.sops.env` changes
+
 ## Git Conventions
 
 **Commit types**: `feat`, `fix`, `refactor`, `chore`, `docs`, `test`, `style`

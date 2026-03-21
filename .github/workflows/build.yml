@@ -11,6 +11,7 @@ on:
     paths:
       - 'backend/**'
       - 'frontend/**'
+      - 'environments/**'
       - '.github/workflows/build.yml'
       - '!**.md'
       - '!docs/**'
@@ -236,6 +237,17 @@ jobs:
             echo "url=https://api.moto-app.de" >> $GITHUB_OUTPUT
           fi
 
+      - name: Determine operator hostname
+        id: operator_hostname
+        run: |
+          if [[ "${{ needs.check-environment.outputs.is_staging }}" == "true" ]]; then
+            echo "hostname=operator.staging.moto-app.de" >> $GITHUB_OUTPUT
+          elif [[ "${{ needs.check-environment.outputs.is_demo }}" == "true" ]]; then
+            echo "hostname=operator.demo.moto-app.de" >> $GITHUB_OUTPUT
+          else
+            echo "hostname=operator.moto-app.de" >> $GITHUB_OUTPUT
+          fi
+
       - name: Build and push frontend
         uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
         with:
@@ -247,6 +259,7 @@ jobs:
           platforms: linux/amd64
           build-args: |
             NEXT_PUBLIC_API_URL=${{ steps.api_url.outputs.url }}
+            NEXT_PUBLIC_OPERATOR_HOSTNAME=${{ steps.operator_hostname.outputs.hostname }}
           # Use separate cache scope to prevent backend overwriting frontend cache
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,mode=max,scope=frontend
@@ -262,7 +275,24 @@ jobs:
     needs: [check-environment, build-backend, build-frontend]
     if: needs.check-environment.outputs.should_deploy == 'true' && needs.check-environment.outputs.is_staging == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Install SOPS
+        run: |
+          curl -LsS https://github.com/getsops/sops/releases/download/v3.12.1/sops-v3.12.1.linux.amd64 -o /usr/local/bin/sops
+          chmod +x /usr/local/bin/sops
+
+      - name: Decrypt staging environment
+        env:
+          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+        run: sops decrypt environments/staging.sops.env > /tmp/staging.env
+
       - name: Deploy to staging
         env:
           SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
@@ -274,6 +304,11 @@ jobs:
           chmod 644 ~/.ssh/known_hosts
           echo "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
+
+          # Sync environment config and compose file from repo to server
+          scp -i ~/.ssh/deploy_key /tmp/staging.env root@$SSH_HOST:~/staging/.env
+          scp -i ~/.ssh/deploy_key environments/staging.compose.yml root@$SSH_HOST:~/staging/docker-compose.yml
+
           ssh -i ~/.ssh/deploy_key root@$SSH_HOST '
             set -e
             echo "Starting staging deployment..."
@@ -304,14 +339,31 @@ jobs:
 
             echo "Staging deployment complete"
           '
-          rm ~/.ssh/deploy_key
+          rm -f ~/.ssh/deploy_key /tmp/staging.env
 
   # Deploy to demo (merged PR with 'deploy-demo' label or manual dispatch)
   deploy-demo:
     needs: [check-environment, build-backend, build-frontend]
     if: needs.check-environment.outputs.should_deploy == 'true' && needs.check-environment.outputs.is_demo == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Install SOPS
+        run: |
+          curl -LsS https://github.com/getsops/sops/releases/download/v3.12.1/sops-v3.12.1.linux.amd64 -o /usr/local/bin/sops
+          chmod +x /usr/local/bin/sops
+
+      - name: Decrypt demo environment
+        env:
+          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+        run: sops decrypt environments/demo.sops.env > /tmp/demo.env
+
       - name: Deploy to demo
         env:
           SSH_KEY: ${{ secrets.DEMO_SSH_KEY }}
@@ -323,6 +375,11 @@ jobs:
           chmod 644 ~/.ssh/known_hosts
           echo "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
+
+          # Sync environment config and compose file from repo to server
+          scp -i ~/.ssh/deploy_key /tmp/demo.env root@$SSH_HOST:~/demo/.env
+          scp -i ~/.ssh/deploy_key environments/demo.compose.yml root@$SSH_HOST:~/demo/docker-compose.yml
+
           ssh -i ~/.ssh/deploy_key root@$SSH_HOST '
             set -e
             echo "Starting demo deployment..."
@@ -342,14 +399,31 @@ jobs:
 
             echo "Demo deployment complete"
           '
-          rm ~/.ssh/deploy_key
+          rm -f ~/.ssh/deploy_key /tmp/demo.env
 
   # Deploy to production (push to main, release, or manual dispatch to production)
   deploy-production:
     needs: [check-environment, build-backend, build-frontend]
     if: needs.check-environment.outputs.should_deploy == 'true' && needs.check-environment.outputs.is_staging == 'false' && needs.check-environment.outputs.is_demo == 'false'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.ref }}
+
+      - name: Install SOPS
+        run: |
+          curl -LsS https://github.com/getsops/sops/releases/download/v3.12.1/sops-v3.12.1.linux.amd64 -o /usr/local/bin/sops
+          chmod +x /usr/local/bin/sops
+
+      - name: Decrypt production environment
+        env:
+          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+        run: sops decrypt environments/production.sops.env > /tmp/production.env
+
       - name: Deploy to production
         env:
           SSH_KEY: ${{ secrets.PRODUCTION_SSH_KEY }}
@@ -361,6 +435,11 @@ jobs:
           chmod 644 ~/.ssh/known_hosts
           echo "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
+
+          # Sync environment config and compose file from repo to server
+          scp -i ~/.ssh/deploy_key /tmp/production.env root@$SSH_HOST:~/production/.env
+          scp -i ~/.ssh/deploy_key environments/production.compose.yml root@$SSH_HOST:~/production/docker-compose.yml
+
           ssh -i ~/.ssh/deploy_key root@$SSH_HOST '
             set -e
             echo "Starting production deployment..."
@@ -391,7 +470,7 @@ jobs:
 
             echo "Production deployment complete"
           '
-          rm ~/.ssh/deploy_key
+          rm -f ~/.ssh/deploy_key /tmp/production.env
 
   # Summary job for branch protection
   build-status:

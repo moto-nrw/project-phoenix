@@ -94,16 +94,14 @@ func (h *TxHandler) RunInTx(ctx context.Context, fn func(ctx context.Context, tx
 		return err
 	}
 
-	// If we created a new transaction, we need to handle commit/rollback
-	if isNew {
-		defer func() { _ = tx.Rollback() }()
-	}
-
 	// Add transaction to context
 	txCtx := ContextWithTx(ctx, &tx)
 
 	// Execute the function with transaction context
 	if err := fn(txCtx, tx); err != nil {
+		if isNew {
+			_ = tx.Rollback()
+		}
 		return err
 	}
 

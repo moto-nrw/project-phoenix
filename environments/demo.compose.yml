@@ -1,0 +1,81 @@
+# Demo Docker Compose
+# Deployed automatically by CI — changes here are synced to ~/demo/docker-compose.yml on the server.
+# Uses pre-built images from GHCR (pushed by CI build step).
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    volumes:
+      - demo-postgres:/var/lib/postgresql/data
+    env_file:
+      - .env
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 1s
+      timeout: 1s
+      retries: 5
+    logging:
+      driver: journald
+      options:
+        tag: demo-postgres
+    networks:
+      - demo
+
+  server:
+    image: ghcr.io/moto-nrw/phoenix-server:demo
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["sh", "-c", "./main migrate && ./main serve"]
+    ports:
+      - "127.0.0.1:8082:8080"
+    env_file:
+      - .env
+    logging:
+      driver: journald
+      options:
+        tag: demo-server
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    networks:
+      - demo
+
+  frontend:
+    image: ghcr.io/moto-nrw/phoenix-frontend:demo
+    restart: unless-stopped
+    depends_on:
+      - server
+    ports:
+      - "127.0.0.1:3002:3000"
+    env_file:
+      - .env
+    environment:
+      # Frontend-specific: internal API URL (not exposed via .env)
+      API_URL: http://server:8080
+      # Override PORT from shared .env (8080 is for the backend; Next.js must listen on 3000)
+      PORT: 3000
+    logging:
+      driver: journald
+      options:
+        tag: demo-frontend
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - demo
+
+networks:
+  demo:
+    driver: bridge
+
+volumes:
+  demo-postgres:
