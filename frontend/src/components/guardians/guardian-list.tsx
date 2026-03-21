@@ -10,7 +10,15 @@ import {
   PHONE_TYPE_LABELS,
 } from "@/lib/guardian-helpers";
 import { ModernContactActions } from "~/components/simple/student";
-import { UserCheck, Phone, AlertCircle, Mail } from "lucide-react";
+import {
+  UserCheck,
+  Phone,
+  AlertCircle,
+  Mail,
+  MapPin,
+  Shield,
+  Globe,
+} from "lucide-react";
 
 interface GuardianListProps {
   readonly guardians: ReadonlyArray<GuardianWithRelationship>;
@@ -94,13 +102,54 @@ export default function GuardianList({
             )}
           </div>
 
-          {/* Additional Information */}
-          {showRelationship && guardian.isEmergencyContact && (
-            <div className="mt-2 border-t border-gray-200 pt-2 text-xs sm:mt-3 sm:pt-3 sm:text-sm">
-              <span className="inline-flex items-center gap-1 text-red-600">
+          {/* Address */}
+          {(guardian.addressStreet ??
+            guardian.addressCity ??
+            guardian.addressPostalCode) && (
+            <div className="mt-2 border-t border-gray-100 pt-2 sm:mt-3 sm:pt-3">
+              <div className="flex items-start gap-1.5 text-xs text-gray-500 sm:text-sm">
+                <MapPin className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
+                <span className="text-gray-700">
+                  {[
+                    guardian.addressStreet,
+                    [guardian.addressPostalCode, guardian.addressCity]
+                      .filter(Boolean)
+                      .join(" "),
+                  ]
+                    .filter(Boolean)
+                    .join(", ")}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Badges: Flags and Language */}
+          <div className="mt-2 flex flex-wrap gap-1.5 border-t border-gray-100 pt-2 sm:mt-3 sm:pt-3">
+            {guardian.canPickup && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
+                <Shield className="h-3 w-3" />
+                Abholberechtigt
+              </span>
+            )}
+            {guardian.isEmergencyContact && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">
                 <AlertCircle className="h-3 w-3" />
                 Notfallkontakt
               </span>
+            )}
+            {guardian.languagePreference &&
+              guardian.languagePreference !== "de" && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
+                  <Globe className="h-3 w-3" />
+                  {guardian.languagePreference.toUpperCase()}
+                </span>
+              )}
+          </div>
+
+          {/* Notes */}
+          {guardian.notes && (
+            <div className="mt-2 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600 sm:text-sm">
+              {guardian.notes}
             </div>
           )}
 

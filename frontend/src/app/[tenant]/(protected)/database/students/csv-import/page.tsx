@@ -85,7 +85,7 @@ export default function StudentCSVImportPage() {
   const [importComplete, setImportComplete] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [templateFormat, setTemplateFormat] = useState<"csv" | "xlsx">("csv");
+  const [templateFormat, setTemplateFormat] = useState<"csv" | "xlsx">("xlsx");
 
   const { data: session, status } = useSession({
     required: true,
