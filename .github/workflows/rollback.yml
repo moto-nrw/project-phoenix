@@ -111,61 +111,11 @@ jobs:
           RESTORE_DB: ${{ inputs.restore_db }}
           SSH_HOST: ${{ steps.ssh.outputs.host }}
         run: |
+          scp -i ~/.ssh/deploy_key scripts/rollback-remote.sh root@$SSH_HOST:~/rollback-remote.sh
 
           set +e
           ssh -i ~/.ssh/deploy_key "root@${SSH_HOST}" \
-            "TARGET_SHA=$TARGET_SHA DEPLOY_DIR=$DEPLOY_DIR RESTORE_DB=$RESTORE_DB bash -s" << 'ROLLBACK_SCRIPT'
-            cd ~/$DEPLOY_DIR
-            echo "Starting manual rollback to ${TARGET_SHA}..."
-
-            # ── Database restore (if requested) ──
-            if [ "$RESTORE_DB" = "true" ]; then
-              BACKUP_FILE=$(ls -t ~/backups/$DEPLOY_DIR/backup-*.dump 2>/dev/null | head -1)
-              if [ -z "$BACKUP_FILE" ]; then
-                echo "No backup found in ~/backups/$DEPLOY_DIR/"
-                exit 1
-              fi
-              echo "Restoring DB from: $(basename $BACKUP_FILE)"
-
-              docker compose stop server frontend
-
-              docker compose exec -T postgres psql -U postgres -d template1 -c "DROP DATABASE IF EXISTS postgres WITH (FORCE);" 2>/dev/null || true
-              docker compose exec -T postgres psql -U postgres -d template1 -c "CREATE DATABASE postgres OWNER postgres;"
-              docker compose exec -T postgres pg_restore -U postgres -d postgres --no-owner --no-acl < "$BACKUP_FILE" || true
-
-              # Verify DB is usable after restore
-              if ! docker compose exec -T postgres psql -U postgres -d postgres -c "SELECT 1;" > /dev/null 2>&1; then
-                echo "CRITICAL: Database restore verification failed — DB may be corrupt"
-                exit 1
-              fi
-              echo "Database restored and verified"
-            else
-              docker compose stop server frontend
-            fi
-
-            # ── Override image tags to SHA-pinned versions ──
-            sed -i "s|ghcr.io/moto-nrw/phoenix-server:[^ ]*|ghcr.io/moto-nrw/phoenix-server:${TARGET_SHA}|" docker-compose.yml
-            sed -i "s|ghcr.io/moto-nrw/phoenix-frontend:[^ ]*|ghcr.io/moto-nrw/phoenix-frontend:${TARGET_SHA}|" docker-compose.yml
-
-            # ── Pull and start ──
-            docker compose pull
-            if ! docker compose up -d --wait; then
-              echo "CRITICAL: Rolled-back version also unhealthy!"
-              exit 1
-            fi
-
-            # ── Update deploy state ──
-            PREVIOUS_SHA=""
-            if [ -f .deploy-state ]; then
-              PREVIOUS_SHA=$(grep '^CURRENT_SHA=' .deploy-state | cut -d= -f2)
-            fi
-            echo "CURRENT_SHA=${TARGET_SHA}" > .deploy-state
-            echo "PREVIOUS_SHA=${PREVIOUS_SHA}" >> .deploy-state
-            echo "DEPLOYED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> .deploy-state
-            echo "BACKUP_FILE=" >> .deploy-state
-
-            echo "Rollback to ${TARGET_SHA} complete"
-          ROLLBACK_SCRIPT
+            "TARGET_SHA=$TARGET_SHA DEPLOY_DIR=$DEPLOY_DIR RESTORE_DB=$RESTORE_DB bash ~/rollback-remote.sh"
           ROLLBACK_EXIT=$?
           set -e
 
