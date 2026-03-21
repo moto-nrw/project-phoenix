@@ -128,7 +128,8 @@ func TestCreateInvitationSuccess(t *testing.T) {
 		if findErr != nil {
 			return false
 		}
-		return updated.EmailSentAt != nil && updated.EmailError == nil && updated.EmailRetryCount == 1
+		return updated.EmailSentAt != nil && updated.EmailError == nil && updated.EmailRetryCount == 1 &&
+			mock.ExpectationsWereMet() == nil
 	}, time.Second, 10*time.Millisecond)
 
 	msg := mailer.Messages()[0]
