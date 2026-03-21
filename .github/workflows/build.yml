@@ -248,6 +248,17 @@ jobs:
             echo "hostname=operator.moto-app.de" >> $GITHUB_OUTPUT
           fi
 
+      - name: Determine tenant domain
+        id: tenant_domain
+        run: |
+          if [[ "${{ needs.check-environment.outputs.is_staging }}" == "true" ]]; then
+            echo "domain=staging.moto-app.de" >> $GITHUB_OUTPUT
+          elif [[ "${{ needs.check-environment.outputs.is_demo }}" == "true" ]]; then
+            echo "domain=demo.moto-app.de" >> $GITHUB_OUTPUT
+          else
+            echo "domain=moto-app.de" >> $GITHUB_OUTPUT
+          fi
+
       - name: Build and push frontend
         uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
         with:
@@ -260,6 +271,7 @@ jobs:
           build-args: |
             NEXT_PUBLIC_API_URL=${{ steps.api_url.outputs.url }}
             NEXT_PUBLIC_OPERATOR_HOSTNAME=${{ steps.operator_hostname.outputs.hostname }}
+            NEXT_PUBLIC_TENANT_DOMAIN=${{ steps.tenant_domain.outputs.domain }}
           # Use separate cache scope to prevent backend overwriting frontend cache
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,mode=max,scope=frontend
