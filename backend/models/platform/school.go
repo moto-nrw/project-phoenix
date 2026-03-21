@@ -72,6 +72,9 @@ func (s *School) Validate() error {
 	if !slugRegex.MatchString(s.Slug) {
 		return errors.New("slug must contain only lowercase letters, numbers, and hyphens (no leading/trailing hyphens)")
 	}
+	if reservedSlugs[s.Slug] {
+		return errors.New("slug is reserved for infrastructure use")
+	}
 	if s.Subdomain == "" {
 		return errors.New("subdomain is required")
 	}
@@ -80,6 +83,9 @@ func (s *School) Validate() error {
 	}
 	if !slugRegex.MatchString(s.Subdomain) {
 		return errors.New("subdomain must be a valid DNS label: lowercase letters, numbers, and hyphens (no leading/trailing hyphens)")
+	}
+	if reservedSlugs[s.Subdomain] {
+		return errors.New("subdomain is reserved for infrastructure use")
 	}
 	if s.OrganizationID == 0 {
 		return errors.New("organization_id is required")

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { RESERVED_SLUGS } from "~/lib/reserved-slugs";
 
 /**
  * Combined middleware for:
@@ -119,8 +120,9 @@ function handleOperatorSubdomain(request: NextRequest): NextResponse {
 
 // --- Tenant subdomain handling (from multi-tenancy) ---
 
-/** Subdomains reserved for infrastructure — never treated as tenant slugs. */
-const RESERVED_SUBDOMAINS = new Set(["www", "api", "admin", "operator", "app"]);
+// Alias for use in subdomain extraction below.
+// Single source of truth: ~/lib/reserved-slugs.ts
+const RESERVED_SUBDOMAINS = RESERVED_SLUGS;
 
 function extractTenantSlug(host: string): string | null {
   // Strip port (e.g., "school-a.localhost:3000" -> "school-a.localhost")
