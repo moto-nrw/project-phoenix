@@ -21,6 +21,16 @@ func TestNormalizeHeaderKey(t *testing.T) {
 		{"Aufbewahrung(Tage) (optional)", "aufbewahrung(tage)"},
 		{"Gruppe (optional)", "gruppe"},
 		{"Nachname", "nachname"},
+		// Backward-compatible aliases for renamed columns
+		{"Erz1.Primär", "erz1.hauptansprechpartner"},
+		{"Erz2.Primär", "erz2.hauptansprechpartner"},
+		{"Erz3.Primär", "erz3.hauptansprechpartner"},
+		{"Erz1.Abholung", "erz1.abholberechtigt"},
+		{"Erz2.Abholung", "erz2.abholberechtigt"},
+		{"Erz3.Abholung", "erz3.abholberechtigt"},
+		// Aliases with annotations also work
+		{"Erz1.Primär (optional)", "erz1.hauptansprechpartner"},
+		{"Erz1.Abholung (optional)", "erz1.abholberechtigt"},
 	}
 
 	for _, tt := range tests {

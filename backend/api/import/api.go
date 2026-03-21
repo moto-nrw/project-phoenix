@@ -74,7 +74,9 @@ func (rs *Resource) Router() chi.Router {
 			r.With(authorize.RequiresPermission("users:create"), withTx).Post("/preview", rs.previewStudentImport)
 
 			// Actual import - requires UsersCreate
-			r.With(authorize.RequiresPermission("users:create"), withTx).Post("/import", rs.importStudents)
+			// Note: no withTx here — the handler manages its own WithTenantTx
+			// to control commit/rollback based on import results.
+			r.With(authorize.RequiresPermission("users:create")).Post("/import", rs.importStudents)
 		})
 
 		// Future: Teacher import endpoints
@@ -330,7 +332,8 @@ func writeHinweiseSheet(f *excelize.File) {
 	// Write data, inserting section headers at the right positions
 	excelRow := 1
 	dataIdx := 0
-	for excelRow <= 37 {
+	totalRows := len(dataRows) + len(sectionRows)
+	for excelRow <= totalRows {
 		// Check if this row is a section header
 		if label, ok := sectionRows[excelRow]; ok {
 			cell, _ := excelize.CoordinatesToCellName(1, excelRow)

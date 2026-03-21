@@ -33,14 +33,29 @@ func sanitizeCellValue(value string) string {
 	return value
 }
 
+// columnAliases maps deprecated column names to their current equivalents.
+// This ensures old CSV templates with renamed columns still work.
+var columnAliases = map[string]string{
+	"erz1.primär":   "erz1.hauptansprechpartner",
+	"erz2.primär":   "erz2.hauptansprechpartner",
+	"erz3.primär":   "erz3.hauptansprechpartner",
+	"erz1.abholung": "erz1.abholberechtigt",
+	"erz2.abholung": "erz2.abholberechtigt",
+	"erz3.abholung": "erz3.abholberechtigt",
+}
+
 // normalizeHeaderKey normalizes a CSV/Excel header for column mapping.
 // Strips "(optional)", "(pflicht)" annotations and whitespace, then lowercases.
-// This allows headers like "Erz1.Abholberechtigt (optional)" to match the key "erz1.abholberechtigt".
+// Also applies backward-compatible aliases for renamed columns.
 func normalizeHeaderKey(col string) string {
 	key := strings.ToLower(strings.TrimSpace(col))
 	// Strip annotation suffixes
 	for _, suffix := range []string{"(optional)", "(pflicht)"} {
 		key = strings.TrimSpace(strings.TrimSuffix(key, suffix))
+	}
+	// Apply backward-compatible aliases for renamed columns
+	if alias, ok := columnAliases[key]; ok {
+		key = alias
 	}
 	return key
 }

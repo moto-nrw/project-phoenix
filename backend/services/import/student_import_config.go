@@ -360,8 +360,33 @@ func (c *StudentImportConfig) FindExisting(ctx context.Context, row importModels
 		row.FirstName, row.LastName, row.SchoolClass)
 }
 
-// Create creates a new student with all related entities
+// Create creates a new student with all related entities.
+// Uses a PostgreSQL savepoint for per-row atomicity within the outer tenant transaction.
+// If any step fails (e.g. person created but student fails), ROLLBACK TO SAVEPOINT
+// cleans up partial records while keeping the outer tx alive for other rows.
 func (c *StudentImportConfig) Create(ctx context.Context, row importModels.StudentImportRow) (int64, error) {
+	tx, hasTx := base.TxFromContext(ctx)
+	if hasTx {
+		if _, err := tx.ExecContext(ctx, "SAVEPOINT import_row"); err != nil {
+			return 0, fmt.Errorf("savepoint: %w", err)
+		}
+
+		studentID, err := c.createAllEntities(ctx, row)
+		if err != nil {
+			_, _ = tx.ExecContext(ctx, "ROLLBACK TO SAVEPOINT import_row")
+			return 0, err
+		}
+
+		_, _ = tx.ExecContext(ctx, "RELEASE SAVEPOINT import_row")
+		return studentID, nil
+	}
+
+	// Fallback: no outer tx (shouldn't happen in normal HTTP flow)
+	return c.createAllEntities(ctx, row)
+}
+
+// createAllEntities creates person, student, guardians, privacy consent, and pickup schedules.
+func (c *StudentImportConfig) createAllEntities(ctx context.Context, row importModels.StudentImportRow) (int64, error) {
 	person, err := c.createPersonFromRow(ctx, row)
 	if err != nil {
 		return 0, err
