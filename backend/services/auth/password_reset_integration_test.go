@@ -66,6 +66,7 @@ func newPasswordResetTestEnvWithMailer(t *testing.T, mailer email.Mailer) (*Serv
 		frontendURL:         "http://localhost:3000",
 		passwordResetExpiry: 30 * time.Minute,
 		txHandler:           modelBase.NewTxHandler(bunDB),
+		db:                  bunDB,
 	}
 
 	cleanup := func() {
@@ -152,6 +153,7 @@ func TestResetPasswordWithValidToken(t *testing.T) {
 	require.NoError(t, err)
 
 	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectCommit()
 
 	err = service.ResetPassword(ctx, token.Token, "Str0ngP@ssword!")
