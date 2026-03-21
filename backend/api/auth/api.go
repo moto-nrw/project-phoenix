@@ -217,7 +217,7 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 	}
 
 	school, err := rs.SchoolRepo.FindBySubdomain(r.Context(), slug)
-	if err != nil {
+	if err != nil || school == nil {
 		common.RenderError(w, r, ErrorNotFound(errors.New("tenant not found")))
 		return
 	}
