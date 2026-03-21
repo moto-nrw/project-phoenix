@@ -1,0 +1,75 @@
+name: Notify Deploy Failure
+description: Send email notification for deploy/rollback failures via Resend
+
+inputs:
+  exit_code:
+    description: "Exit code from deploy or rollback script"
+    required: true
+  environment:
+    description: "Target environment (staging, demo, production)"
+    required: true
+  resend_api_key:
+    description: "Resend API key"
+    required: true
+  run_url:
+    description: "Full URL to the GitHub Actions run"
+    required: true
+  commit_url:
+    description: "Full URL to the commit (empty for manual rollbacks)"
+    required: false
+    default: ""
+  sha:
+    description: "Commit or target SHA (will be truncated to 7 chars for display)"
+    required: true
+  actor:
+    description: "GitHub actor who triggered the workflow"
+    required: true
+  notification_type:
+    description: "deploy or rollback"
+    required: false
+    default: "deploy"
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        EXIT_CODE="${{ inputs.exit_code }}"
+        ENV="${{ inputs.environment }}"
+        TYPE="${{ inputs.notification_type }}"
+        SHORT_SHA=$(echo "${{ inputs.sha }}" | cut -c1-7)
+
+        # Display name: PRODUCTION in caps, others title-case
+        if [ "$ENV" = "production" ]; then
+          DISPLAY_ENV="PRODUCTION"
+        else
+          DISPLAY_ENV="$(echo "$ENV" | sed 's/./\U&/')"
+        fi
+
+        if [ "$TYPE" = "rollback" ]; then
+          SUBJECT="[CRITICAL] Manual rollback FAILED — $DISPLAY_ENV"
+          STATUS="Manual rollback of $DISPLAY_ENV to SHA <code>${SHORT_SHA}</code> FAILED.<br>Immediate manual intervention required."
+          LINK_TEXT="View failed rollback →"
+        elif [ "$EXIT_CODE" = "11" ]; then
+          SUBJECT="[CRITICAL] $DISPLAY_ENV deploy + rollback FAILED"
+          STATUS="Deployment to $DISPLAY_ENV failed AND automatic rollback also failed.<br>The $ENV environment may be <strong>DOWN</strong>.<br>Immediate manual intervention required."
+          LINK_TEXT="View failed deployment →"
+        else
+          SUBJECT="[WARNING] $DISPLAY_ENV deploy failed — rolled back"
+          STATUS="Deployment to $DISPLAY_ENV failed but was automatically rolled back to the previous version.<br>$DISPLAY_ENV is operational."
+          LINK_TEXT="View failed deployment →"
+        fi
+
+        COMMIT_HTML=""
+        if [ -n "${{ inputs.commit_url }}" ]; then
+          COMMIT_HTML="Commit: <a href=\"${{ inputs.commit_url }}\">${SHORT_SHA}</a><br>"
+        else
+          COMMIT_HTML="SHA: <code>${SHORT_SHA}</code><br>"
+        fi
+
+        BODY="<p>${STATUS}</p><p><a href=\"${{ inputs.run_url }}\">${LINK_TEXT}</a></p><p>${COMMIT_HTML}Triggered by: ${{ inputs.actor }}</p>"
+
+        curl -sS -X POST https://api.resend.com/emails \
+          -H "Authorization: Bearer ${{ inputs.resend_api_key }}" \
+          -H "Content-Type: application/json" \
+          -d "{\"from\":\"Phoenix CI <ci@ci.moto-app.de>\",\"to\":[\"mail@yannickwenger.de\"],\"subject\":\"${SUBJECT}\",\"html\":\"${BODY}\"}"
