@@ -74,6 +74,21 @@ describe("GET /api/tenant/list", () => {
     expect(response.status).toBe(404);
   });
 
+  it("handles non-JSON response (e.g. rate limit)", async () => {
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      new Response("Rate limit exceeded. Please try again later.", {
+        status: 429,
+        headers: { "Content-Type": "text/plain; charset=utf-8" },
+      }),
+    );
+
+    const response = await GET();
+
+    expect(response.status).toBe(429);
+    const json = (await response.json()) as { error: string };
+    expect(json.error).toBe("Rate limit exceeded. Please try again later.");
+  });
+
   it("returns 500 on network error", async () => {
     vi.mocked(global.fetch).mockRejectedValueOnce(
       new Error("Connection refused"),
