@@ -268,9 +268,10 @@ jobs:
       - name: Image digest
         run: echo "Frontend image pushed with digest ${{ steps.meta.outputs.digest }}"
 
-  # Deploy to staging (merged PR with label or manual dispatch)
+  # Deploy to staging with automatic rollback on failure
   # Note: Currently staging runs on same server as production (different ports/dirs)
   # Using separate secrets allows easy migration to dedicated staging server later
+  # Exit codes from SSH: 0=success, 10=deploy failed/rollback ok, 11=rollback also failed
   deploy-staging:
     needs: [check-environment, build-backend, build-frontend]
     if: needs.check-environment.outputs.should_deploy == 'true' && needs.check-environment.outputs.is_staging == 'true'
@@ -294,6 +295,7 @@ jobs:
         run: sops decrypt environments/staging.sops.env > /tmp/staging.env
 
       - name: Deploy to staging
+        id: deploy
         env:
           SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
           SSH_HOST: ${{ secrets.STAGING_HOST }}
@@ -305,43 +307,145 @@ jobs:
           echo "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
 
-          # Sync environment config and compose file from repo to server
-          scp -i ~/.ssh/deploy_key /tmp/staging.env root@$SSH_HOST:~/staging/.env
-          scp -i ~/.ssh/deploy_key environments/staging.compose.yml root@$SSH_HOST:~/staging/docker-compose.yml
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
 
-          ssh -i ~/.ssh/deploy_key root@$SSH_HOST '
-            set -e
-            echo "Starting staging deployment..."
+          # SCP new files with .new suffix (preserves old files for rollback)
+          scp -i ~/.ssh/deploy_key /tmp/staging.env root@$SSH_HOST:~/staging/.env.new
+          scp -i ~/.ssh/deploy_key environments/staging.compose.yml root@$SSH_HOST:~/staging/docker-compose.yml.new
+
+          set +e
+          ssh -i ~/.ssh/deploy_key root@$SSH_HOST "DEPLOY_SHA=$SHORT_SHA bash -s" << 'DEPLOY_SCRIPT'
             cd ~/staging
+            echo "Starting staging deployment..."
 
-            # Pull new images first (needed for backup and migrate)
-            docker compose pull
+            # ── Save rollback copies of current config ──
+            cp .env .env.rollback 2>/dev/null || true
+            cp docker-compose.yml docker-compose.yml.rollback 2>/dev/null || true
 
-            # Backup
+            # ── Swap in new config ──
+            mv .env.new .env
+            mv docker-compose.yml.new docker-compose.yml
+
+            # ── Pull new images ──
+            if ! docker compose pull; then
+              echo "Pull failed, restoring old config"
+              cp .env.rollback .env 2>/dev/null || true
+              cp docker-compose.yml.rollback docker-compose.yml 2>/dev/null || true
+              docker compose up -d --wait 2>/dev/null || true
+              exit 1
+            fi
+
+            # ── Stop app containers (postgres stays for backup) ──
+            docker compose stop server frontend
+
+            # ── Backup database (DB frozen — no app writing) ──
             mkdir -p ~/backups/staging
-            BACKUP_FILE=~/backups/staging/backup-$(date +%Y%m%d-%H%M%S).dump
+            TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+            BACKUP_FILE=~/backups/staging/backup-${TIMESTAMP}.dump
             docker compose exec -T postgres pg_dump -U postgres -d postgres -Fc > "$BACKUP_FILE"
-            [ -s "$BACKUP_FILE" ] || { echo "Backup failed or empty"; exit 1; }
-            echo "Backup created: $(basename $BACKUP_FILE) ($(du -h $BACKUP_FILE | cut -f1))"
+            if [ ! -s "$BACKUP_FILE" ]; then
+              echo "Backup failed or empty, aborting deploy"
+              rm -f "$BACKUP_FILE"
+              cp .env.rollback .env 2>/dev/null || true
+              cp docker-compose.yml.rollback docker-compose.yml 2>/dev/null || true
+              docker compose pull 2>/dev/null || true
+              docker compose up -d --wait 2>/dev/null || true
+              exit 1
+            fi
+            echo "Backup: $(basename $BACKUP_FILE) ($(du -h $BACKUP_FILE | cut -f1))"
 
-            # Stop old server before schema changes (prevents mixed-version window)
-            docker compose stop server
+            # ── Read previous deploy state ──
+            PREVIOUS_SHA=""
+            if [ -f .deploy-state ]; then
+              PREVIOUS_SHA=$(grep '^CURRENT_SHA=' .deploy-state | cut -d= -f2)
+            fi
 
-            # Migrate before starting services (avoids deadlock if new server needs new schema)
-            docker compose run --rm server ./main migrate
+            # ── Run migration ──
+            DEPLOY_FAILED=false
+            if ! docker compose run --rm server ./main migrate; then
+              echo "Migration FAILED"
+              DEPLOY_FAILED=true
+            fi
 
-            # Deploy (--wait blocks until healthcheck passes)
-            docker compose up -d --wait
-            echo "Server is healthy"
+            # ── Start services (skip if migration failed) ──
+            if [ "$DEPLOY_FAILED" = "false" ]; then
+              if ! docker compose up -d --wait; then
+                echo "Healthcheck FAILED"
+                DEPLOY_FAILED=true
+              fi
+            fi
 
-            # Cleanup (keep 3)
-            ls -t ~/backups/staging/backup-*.dump 2>/dev/null | tail -n +4 | xargs -r rm -v
+            # ── SUCCESS ──
+            if [ "$DEPLOY_FAILED" = "false" ]; then
+              echo "CURRENT_SHA=${DEPLOY_SHA}" > .deploy-state
+              echo "PREVIOUS_SHA=${PREVIOUS_SHA}" >> .deploy-state
+              echo "DEPLOYED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> .deploy-state
+              echo "BACKUP_FILE=${BACKUP_FILE}" >> .deploy-state
+              rm -f .env.rollback docker-compose.yml.rollback
+              ls -t ~/backups/staging/backup-*.dump 2>/dev/null | tail -n +4 | xargs -r rm -v
+              echo "Staging deployment complete"
+              exit 0
+            fi
 
-            echo "Staging deployment complete"
-          '
-          rm -f ~/.ssh/deploy_key /tmp/staging.env
+            # ── ROLLBACK ──
+            echo "Deploy failed, initiating rollback..."
+            docker compose stop server frontend 2>/dev/null || true
 
-  # Deploy to demo (merged PR with 'deploy-demo' label or manual dispatch)
+            echo "Restoring database from backup..."
+            docker compose exec -T postgres psql -U postgres -d template1 -c "DROP DATABASE IF EXISTS postgres WITH (FORCE);" 2>/dev/null || true
+            docker compose exec -T postgres psql -U postgres -d template1 -c "CREATE DATABASE postgres OWNER postgres;"
+            docker compose exec -T postgres pg_restore -U postgres -d postgres --no-owner --no-acl "$BACKUP_FILE" || true
+
+            # Verify DB is usable after restore (pg_restore returns non-zero on harmless warnings)
+            if ! docker compose exec -T postgres psql -U postgres -d postgres -c "SELECT 1;" > /dev/null 2>&1; then
+              echo "CRITICAL: Database restore verification failed — DB may be corrupt"
+              exit 11
+            fi
+
+            cp .env.rollback .env 2>/dev/null || true
+            cp docker-compose.yml.rollback docker-compose.yml 2>/dev/null || true
+
+            if docker compose pull && docker compose up -d --wait; then
+              echo "Rollback successful — restored previous version"
+              exit 10
+            else
+              echo "CRITICAL: Rollback also failed!"
+              exit 11
+            fi
+          DEPLOY_SCRIPT
+          DEPLOY_EXIT=$?
+          set -e
+
+          echo "deploy_exit=$DEPLOY_EXIT" >> $GITHUB_OUTPUT
+
+          if [ "$DEPLOY_EXIT" -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: Cleanup secrets
+        if: always()
+        run: rm -f ~/.ssh/deploy_key /tmp/staging.env
+
+      - name: Send deploy failure notification
+        if: always() && steps.deploy.outputs.deploy_exit != '' && steps.deploy.outputs.deploy_exit != '0'
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+        run: |
+          DEPLOY_EXIT="${{ steps.deploy.outputs.deploy_exit }}"
+          if [ "$DEPLOY_EXIT" = "11" ]; then
+            SUBJECT="[CRITICAL] Staging deploy + rollback FAILED"
+            BODY="Deployment to staging failed AND automatic rollback also failed.\nThe staging environment may be DOWN.\nImmediate manual intervention required.\n\nCommit: ${{ github.sha }}\nTriggered by: ${{ github.actor }}\nWorkflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          else
+            SUBJECT="[WARNING] Staging deploy failed — rolled back"
+            BODY="Deployment to staging failed but was automatically rolled back to the previous version.\nStaging is operational.\n\nCommit: ${{ github.sha }}\nTriggered by: ${{ github.actor }}\nWorkflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          fi
+          curl -sS -X POST https://api.resend.com/emails \
+            -H "Authorization: Bearer $RESEND_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{\"from\":\"Phoenix CI <ci@ci.moto-app.de>\",\"to\":[\"mail@yannickwenger.de\"],\"subject\":\"${SUBJECT}\",\"text\":\"${BODY}\"}"
+
+  # Deploy to demo with automatic rollback on failure
+  # Exit codes from SSH: 0=success, 10=deploy failed/rollback ok, 11=rollback also failed
   deploy-demo:
     needs: [check-environment, build-backend, build-frontend]
     if: needs.check-environment.outputs.should_deploy == 'true' && needs.check-environment.outputs.is_demo == 'true'
@@ -365,6 +469,7 @@ jobs:
         run: sops decrypt environments/demo.sops.env > /tmp/demo.env
 
       - name: Deploy to demo
+        id: deploy
         env:
           SSH_KEY: ${{ secrets.DEMO_SSH_KEY }}
           SSH_HOST: ${{ secrets.DEMO_HOST }}
@@ -376,32 +481,145 @@ jobs:
           echo "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
 
-          # Sync environment config and compose file from repo to server
-          scp -i ~/.ssh/deploy_key /tmp/demo.env root@$SSH_HOST:~/demo/.env
-          scp -i ~/.ssh/deploy_key environments/demo.compose.yml root@$SSH_HOST:~/demo/docker-compose.yml
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
 
-          ssh -i ~/.ssh/deploy_key root@$SSH_HOST '
-            set -e
-            echo "Starting demo deployment..."
+          # SCP new files with .new suffix (preserves old files for rollback)
+          scp -i ~/.ssh/deploy_key /tmp/demo.env root@$SSH_HOST:~/demo/.env.new
+          scp -i ~/.ssh/deploy_key environments/demo.compose.yml root@$SSH_HOST:~/demo/docker-compose.yml.new
+
+          set +e
+          ssh -i ~/.ssh/deploy_key root@$SSH_HOST "DEPLOY_SHA=$SHORT_SHA bash -s" << 'DEPLOY_SCRIPT'
             cd ~/demo
+            echo "Starting demo deployment..."
 
-            # Deploy (no backup for demo)
-            docker compose pull
+            # ── Save rollback copies of current config ──
+            cp .env .env.rollback 2>/dev/null || true
+            cp docker-compose.yml docker-compose.yml.rollback 2>/dev/null || true
 
-            # Stop old server before schema changes (prevents mixed-version window)
-            docker compose stop server
+            # ── Swap in new config ──
+            mv .env.new .env
+            mv docker-compose.yml.new docker-compose.yml
 
-            # Migrate before starting services (avoids deadlock if new server needs new schema)
-            docker compose run --rm server ./main migrate
+            # ── Pull new images ──
+            if ! docker compose pull; then
+              echo "Pull failed, restoring old config"
+              cp .env.rollback .env 2>/dev/null || true
+              cp docker-compose.yml.rollback docker-compose.yml 2>/dev/null || true
+              docker compose up -d --wait 2>/dev/null || true
+              exit 1
+            fi
 
-            # Deploy (--wait blocks until healthcheck passes)
-            docker compose up -d --wait
+            # ── Stop app containers (postgres stays for backup) ──
+            docker compose stop server frontend
 
-            echo "Demo deployment complete"
-          '
-          rm -f ~/.ssh/deploy_key /tmp/demo.env
+            # ── Backup database (DB frozen — no app writing) ──
+            mkdir -p ~/backups/demo
+            TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+            BACKUP_FILE=~/backups/demo/backup-${TIMESTAMP}.dump
+            docker compose exec -T postgres pg_dump -U postgres -d postgres -Fc > "$BACKUP_FILE"
+            if [ ! -s "$BACKUP_FILE" ]; then
+              echo "Backup failed or empty, aborting deploy"
+              rm -f "$BACKUP_FILE"
+              cp .env.rollback .env 2>/dev/null || true
+              cp docker-compose.yml.rollback docker-compose.yml 2>/dev/null || true
+              docker compose pull 2>/dev/null || true
+              docker compose up -d --wait 2>/dev/null || true
+              exit 1
+            fi
+            echo "Backup: $(basename $BACKUP_FILE) ($(du -h $BACKUP_FILE | cut -f1))"
 
-  # Deploy to production (push to main, release, or manual dispatch to production)
+            # ── Read previous deploy state ──
+            PREVIOUS_SHA=""
+            if [ -f .deploy-state ]; then
+              PREVIOUS_SHA=$(grep '^CURRENT_SHA=' .deploy-state | cut -d= -f2)
+            fi
+
+            # ── Run migration ──
+            DEPLOY_FAILED=false
+            if ! docker compose run --rm server ./main migrate; then
+              echo "Migration FAILED"
+              DEPLOY_FAILED=true
+            fi
+
+            # ── Start services (skip if migration failed) ──
+            if [ "$DEPLOY_FAILED" = "false" ]; then
+              if ! docker compose up -d --wait; then
+                echo "Healthcheck FAILED"
+                DEPLOY_FAILED=true
+              fi
+            fi
+
+            # ── SUCCESS ──
+            if [ "$DEPLOY_FAILED" = "false" ]; then
+              echo "CURRENT_SHA=${DEPLOY_SHA}" > .deploy-state
+              echo "PREVIOUS_SHA=${PREVIOUS_SHA}" >> .deploy-state
+              echo "DEPLOYED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> .deploy-state
+              echo "BACKUP_FILE=${BACKUP_FILE}" >> .deploy-state
+              rm -f .env.rollback docker-compose.yml.rollback
+              ls -t ~/backups/demo/backup-*.dump 2>/dev/null | tail -n +4 | xargs -r rm -v
+              echo "Demo deployment complete"
+              exit 0
+            fi
+
+            # ── ROLLBACK ──
+            echo "Deploy failed, initiating rollback..."
+            docker compose stop server frontend 2>/dev/null || true
+
+            echo "Restoring database from backup..."
+            docker compose exec -T postgres psql -U postgres -d template1 -c "DROP DATABASE IF EXISTS postgres WITH (FORCE);" 2>/dev/null || true
+            docker compose exec -T postgres psql -U postgres -d template1 -c "CREATE DATABASE postgres OWNER postgres;"
+            docker compose exec -T postgres pg_restore -U postgres -d postgres --no-owner --no-acl "$BACKUP_FILE" || true
+
+            # Verify DB is usable after restore (pg_restore returns non-zero on harmless warnings)
+            if ! docker compose exec -T postgres psql -U postgres -d postgres -c "SELECT 1;" > /dev/null 2>&1; then
+              echo "CRITICAL: Database restore verification failed — DB may be corrupt"
+              exit 11
+            fi
+
+            cp .env.rollback .env 2>/dev/null || true
+            cp docker-compose.yml.rollback docker-compose.yml 2>/dev/null || true
+
+            if docker compose pull && docker compose up -d --wait; then
+              echo "Rollback successful — restored previous version"
+              exit 10
+            else
+              echo "CRITICAL: Rollback also failed!"
+              exit 11
+            fi
+          DEPLOY_SCRIPT
+          DEPLOY_EXIT=$?
+          set -e
+
+          echo "deploy_exit=$DEPLOY_EXIT" >> $GITHUB_OUTPUT
+
+          if [ "$DEPLOY_EXIT" -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: Cleanup secrets
+        if: always()
+        run: rm -f ~/.ssh/deploy_key /tmp/demo.env
+
+      - name: Send deploy failure notification
+        if: always() && steps.deploy.outputs.deploy_exit != '' && steps.deploy.outputs.deploy_exit != '0'
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+        run: |
+          DEPLOY_EXIT="${{ steps.deploy.outputs.deploy_exit }}"
+          if [ "$DEPLOY_EXIT" = "11" ]; then
+            SUBJECT="[CRITICAL] Demo deploy + rollback FAILED"
+            BODY="Deployment to demo failed AND automatic rollback also failed.\nThe demo environment may be DOWN.\nImmediate manual intervention required.\n\nCommit: ${{ github.sha }}\nTriggered by: ${{ github.actor }}\nWorkflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          else
+            SUBJECT="[WARNING] Demo deploy failed — rolled back"
+            BODY="Deployment to demo failed but was automatically rolled back to the previous version.\nDemo is operational.\n\nCommit: ${{ github.sha }}\nTriggered by: ${{ github.actor }}\nWorkflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          fi
+          curl -sS -X POST https://api.resend.com/emails \
+            -H "Authorization: Bearer $RESEND_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{\"from\":\"Phoenix CI <ci@ci.moto-app.de>\",\"to\":[\"mail@yannickwenger.de\"],\"subject\":\"${SUBJECT}\",\"text\":\"${BODY}\"}"
+
+  # Deploy to production with automatic rollback on failure
+  # Exit codes from SSH: 0=success, 10=deploy failed/rollback ok, 11=rollback also failed
   deploy-production:
     needs: [check-environment, build-backend, build-frontend]
     if: needs.check-environment.outputs.should_deploy == 'true' && needs.check-environment.outputs.is_staging == 'false' && needs.check-environment.outputs.is_demo == 'false'
@@ -425,6 +643,7 @@ jobs:
         run: sops decrypt environments/production.sops.env > /tmp/production.env
 
       - name: Deploy to production
+        id: deploy
         env:
           SSH_KEY: ${{ secrets.PRODUCTION_SSH_KEY }}
           SSH_HOST: ${{ secrets.PRODUCTION_HOST }}
@@ -436,41 +655,142 @@ jobs:
           echo "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
 
-          # Sync environment config and compose file from repo to server
-          scp -i ~/.ssh/deploy_key /tmp/production.env root@$SSH_HOST:~/production/.env
-          scp -i ~/.ssh/deploy_key environments/production.compose.yml root@$SSH_HOST:~/production/docker-compose.yml
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
 
-          ssh -i ~/.ssh/deploy_key root@$SSH_HOST '
-            set -e
-            echo "Starting production deployment..."
+          # SCP new files with .new suffix (preserves old files for rollback)
+          scp -i ~/.ssh/deploy_key /tmp/production.env root@$SSH_HOST:~/production/.env.new
+          scp -i ~/.ssh/deploy_key environments/production.compose.yml root@$SSH_HOST:~/production/docker-compose.yml.new
+
+          set +e
+          ssh -i ~/.ssh/deploy_key root@$SSH_HOST "DEPLOY_SHA=$SHORT_SHA bash -s" << 'DEPLOY_SCRIPT'
             cd ~/production
+            echo "Starting production deployment..."
 
-            # Pull new images first (needed for backup and migrate)
-            docker compose pull
+            # ── Save rollback copies of current config ──
+            cp .env .env.rollback 2>/dev/null || true
+            cp docker-compose.yml docker-compose.yml.rollback 2>/dev/null || true
 
-            # Backup
+            # ── Swap in new config ──
+            mv .env.new .env
+            mv docker-compose.yml.new docker-compose.yml
+
+            # ── Pull new images ──
+            if ! docker compose pull; then
+              echo "Pull failed, restoring old config"
+              cp .env.rollback .env 2>/dev/null || true
+              cp docker-compose.yml.rollback docker-compose.yml 2>/dev/null || true
+              docker compose up -d --wait 2>/dev/null || true
+              exit 1
+            fi
+
+            # ── Stop app containers (postgres stays for backup) ──
+            docker compose stop server frontend
+
+            # ── Backup database (DB frozen — no app writing) ──
             mkdir -p ~/backups/production
-            BACKUP_FILE=~/backups/production/backup-$(date +%Y%m%d-%H%M%S).dump
+            TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+            BACKUP_FILE=~/backups/production/backup-${TIMESTAMP}.dump
             docker compose exec -T postgres pg_dump -U postgres -d postgres -Fc > "$BACKUP_FILE"
-            [ -s "$BACKUP_FILE" ] || { echo "Backup failed or empty"; exit 1; }
-            echo "Backup created: $(basename $BACKUP_FILE) ($(du -h $BACKUP_FILE | cut -f1))"
+            if [ ! -s "$BACKUP_FILE" ]; then
+              echo "Backup failed or empty, aborting deploy"
+              rm -f "$BACKUP_FILE"
+              cp .env.rollback .env 2>/dev/null || true
+              cp docker-compose.yml.rollback docker-compose.yml 2>/dev/null || true
+              docker compose pull 2>/dev/null || true
+              docker compose up -d --wait 2>/dev/null || true
+              exit 1
+            fi
+            echo "Backup: $(basename $BACKUP_FILE) ($(du -h $BACKUP_FILE | cut -f1))"
 
-            # Stop old server before schema changes (prevents mixed-version window)
-            docker compose stop server
+            # ── Read previous deploy state ──
+            PREVIOUS_SHA=""
+            if [ -f .deploy-state ]; then
+              PREVIOUS_SHA=$(grep '^CURRENT_SHA=' .deploy-state | cut -d= -f2)
+            fi
 
-            # Migrate before starting services (avoids deadlock if new server needs new schema)
-            docker compose run --rm server ./main migrate
+            # ── Run migration ──
+            DEPLOY_FAILED=false
+            if ! docker compose run --rm server ./main migrate; then
+              echo "Migration FAILED"
+              DEPLOY_FAILED=true
+            fi
 
-            # Deploy (--wait blocks until healthcheck passes)
-            docker compose up -d --wait
-            echo "Server is healthy"
+            # ── Start services (skip if migration failed) ──
+            if [ "$DEPLOY_FAILED" = "false" ]; then
+              if ! docker compose up -d --wait; then
+                echo "Healthcheck FAILED"
+                DEPLOY_FAILED=true
+              fi
+            fi
 
-            # Cleanup (keep 7)
-            ls -t ~/backups/production/backup-*.dump 2>/dev/null | tail -n +8 | xargs -r rm -v
+            # ── SUCCESS ──
+            if [ "$DEPLOY_FAILED" = "false" ]; then
+              echo "CURRENT_SHA=${DEPLOY_SHA}" > .deploy-state
+              echo "PREVIOUS_SHA=${PREVIOUS_SHA}" >> .deploy-state
+              echo "DEPLOYED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> .deploy-state
+              echo "BACKUP_FILE=${BACKUP_FILE}" >> .deploy-state
+              rm -f .env.rollback docker-compose.yml.rollback
+              ls -t ~/backups/production/backup-*.dump 2>/dev/null | tail -n +8 | xargs -r rm -v
+              echo "Production deployment complete"
+              exit 0
+            fi
 
-            echo "Production deployment complete"
-          '
-          rm -f ~/.ssh/deploy_key /tmp/production.env
+            # ── ROLLBACK ──
+            echo "Deploy failed, initiating rollback..."
+            docker compose stop server frontend 2>/dev/null || true
+
+            echo "Restoring database from backup..."
+            docker compose exec -T postgres psql -U postgres -d template1 -c "DROP DATABASE IF EXISTS postgres WITH (FORCE);" 2>/dev/null || true
+            docker compose exec -T postgres psql -U postgres -d template1 -c "CREATE DATABASE postgres OWNER postgres;"
+            docker compose exec -T postgres pg_restore -U postgres -d postgres --no-owner --no-acl "$BACKUP_FILE" || true
+
+            # Verify DB is usable after restore (pg_restore returns non-zero on harmless warnings)
+            if ! docker compose exec -T postgres psql -U postgres -d postgres -c "SELECT 1;" > /dev/null 2>&1; then
+              echo "CRITICAL: Database restore verification failed — DB may be corrupt"
+              exit 11
+            fi
+
+            cp .env.rollback .env 2>/dev/null || true
+            cp docker-compose.yml.rollback docker-compose.yml 2>/dev/null || true
+
+            if docker compose pull && docker compose up -d --wait; then
+              echo "Rollback successful — restored previous version"
+              exit 10
+            else
+              echo "CRITICAL: Rollback also failed!"
+              exit 11
+            fi
+          DEPLOY_SCRIPT
+          DEPLOY_EXIT=$?
+          set -e
+
+          echo "deploy_exit=$DEPLOY_EXIT" >> $GITHUB_OUTPUT
+
+          if [ "$DEPLOY_EXIT" -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: Cleanup secrets
+        if: always()
+        run: rm -f ~/.ssh/deploy_key /tmp/production.env
+
+      - name: Send deploy failure notification
+        if: always() && steps.deploy.outputs.deploy_exit != '' && steps.deploy.outputs.deploy_exit != '0'
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+        run: |
+          DEPLOY_EXIT="${{ steps.deploy.outputs.deploy_exit }}"
+          if [ "$DEPLOY_EXIT" = "11" ]; then
+            SUBJECT="[CRITICAL] Production deploy + rollback FAILED"
+            BODY="Deployment to PRODUCTION failed AND automatic rollback also failed.\nThe production environment may be DOWN.\nImmediate manual intervention required.\n\nCommit: ${{ github.sha }}\nTriggered by: ${{ github.actor }}\nWorkflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          else
+            SUBJECT="[WARNING] Production deploy failed — rolled back"
+            BODY="Deployment to PRODUCTION failed but was automatically rolled back to the previous version.\nProduction is operational.\n\nCommit: ${{ github.sha }}\nTriggered by: ${{ github.actor }}\nWorkflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          fi
+          curl -sS -X POST https://api.resend.com/emails \
+            -H "Authorization: Bearer $RESEND_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{\"from\":\"Phoenix CI <ci@ci.moto-app.de>\",\"to\":[\"mail@yannickwenger.de\"],\"subject\":\"${SUBJECT}\",\"text\":\"${BODY}\"}"
 
   # Summary job for branch protection
   build-status:

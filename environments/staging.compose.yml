@@ -28,7 +28,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    command: ["sh", "-c", "./main migrate && ./main serve"]
+    command: ["./main", "serve"]
     ports:
       - "127.0.0.1:8081:8080"
     env_file:
