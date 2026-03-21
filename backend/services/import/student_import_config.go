@@ -649,10 +649,12 @@ func (c *StudentImportConfig) createPickupSchedules(ctx context.Context, student
 	}
 
 	for i, sched := range schedules {
-		pickupTime, err := time.Parse("15:04", sched.PickupTime)
+		parsed, err := time.Parse("15:04", sched.PickupTime)
 		if err != nil {
 			return fmt.Errorf("pickup schedule %d: invalid time '%s': %w", i+1, sched.PickupTime, err)
 		}
+		// Use a valid reference date — time.Parse("15:04") produces year 0000 which PostgreSQL rejects
+		pickupTime := time.Date(2024, 1, 1, parsed.Hour(), parsed.Minute(), 0, 0, time.UTC)
 
 		record := &scheduleModels.StudentPickupSchedule{
 			StudentID:  studentID,
