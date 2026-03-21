@@ -25,16 +25,13 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("@/lib/api-client", () => ({
-  apiGet: mockApiGet,
-  apiPost: mockApiPost,
-  apiPut: vi.fn(),
-  apiDelete: vi.fn(),
-}));
-
-vi.mock("@/lib/route-wrapper", async () => {
-  const actual = await vi.importActual("@/lib/route-wrapper");
-  return actual;
+vi.mock("@/lib/api-helpers", async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return {
+    ...actual,
+    apiGet: mockApiGet,
+    apiPost: mockApiPost,
+  };
 });
 
 vi.mock("@/lib/iot-helpers", () => ({
@@ -121,19 +118,17 @@ describe("GET /api/iot", () => {
 
   it("fetches devices from backend and returns paginated response", async () => {
     const mockDevices = {
-      data: {
-        status: "success",
-        data: [
-          {
-            id: 1,
-            device_id: "DEVICE001",
-            description: "Test Device",
-            is_active: true,
-            created_at: "2024-01-01T00:00:00Z",
-            updated_at: "2024-01-01T00:00:00Z",
-          },
-        ],
-      },
+      status: "success",
+      data: [
+        {
+          id: 1,
+          device_id: "DEVICE001",
+          description: "Test Device",
+          is_active: true,
+          created_at: "2024-01-01T00:00:00Z",
+          updated_at: "2024-01-01T00:00:00Z",
+        },
+      ],
     };
     mockApiGet.mockResolvedValueOnce(mockDevices);
 
@@ -171,7 +166,7 @@ describe("GET /api/iot", () => {
   });
 
   it("returns empty paginated response when response has unexpected structure", async () => {
-    mockApiGet.mockResolvedValueOnce({ data: { unexpected: "structure" } });
+    mockApiGet.mockResolvedValueOnce({ unexpected: "structure" });
 
     const request = createMockRequest("/api/iot");
     const response = await GET(request, createMockContext());
@@ -212,16 +207,14 @@ describe("POST /api/iot", () => {
       is_active: true,
     };
     const mockCreatedDevice = {
+      status: "success",
       data: {
-        status: "success",
-        data: {
-          id: 2,
-          device_id: "DEVICE002",
-          description: "New Device",
-          is_active: true,
-          created_at: "2024-01-02T00:00:00Z",
-          updated_at: "2024-01-02T00:00:00Z",
-        },
+        id: 2,
+        device_id: "DEVICE002",
+        description: "New Device",
+        is_active: true,
+        created_at: "2024-01-02T00:00:00Z",
+        updated_at: "2024-01-02T00:00:00Z",
       },
     };
     mockApiPost.mockResolvedValueOnce(mockCreatedDevice);
@@ -234,14 +227,14 @@ describe("POST /api/iot", () => {
 
     expect(mockApiPost).toHaveBeenCalledWith(
       "/api/iot",
-      createBody,
       "test-token",
+      createBody,
     );
     expect(response.status).toBe(200);
   });
 
   it("throws error when response format is invalid", async () => {
-    mockApiPost.mockResolvedValueOnce({ data: { unexpected: "structure" } });
+    mockApiPost.mockResolvedValueOnce({ unexpected: "structure" });
 
     const request = createMockRequest("/api/iot", {
       method: "POST",

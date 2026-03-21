@@ -27,8 +27,10 @@ import (
 type mockProvisioningService struct {
 	createOrganizationFn func(context.Context, *platformModels.Organization, int64, net.IP) (*platformModels.Organization, error)
 	listOrganizationsFn  func(context.Context) ([]*platformModels.Organization, error)
+	updateOrganizationFn func(context.Context, int64, platformSvc.UpdateOrganizationRequest, int64, net.IP) (*platformModels.Organization, error)
 	createSchoolFn       func(context.Context, *platformModels.School, int64, net.IP) (*platformModels.School, error)
 	listSchoolsFn        func(context.Context) ([]*platformModels.School, error)
+	updateSchoolFn       func(context.Context, int64, platformSvc.UpdateSchoolRequest, int64, net.IP) (*platformModels.School, error)
 	inviteSchoolAdminFn  func(context.Context, int64, int64, net.IP, authSvc.InvitationRequest) (*authModels.InvitationToken, error)
 }
 
@@ -38,11 +40,23 @@ func (m *mockProvisioningService) CreateOrganization(ctx context.Context, org *p
 func (m *mockProvisioningService) ListOrganizations(ctx context.Context) ([]*platformModels.Organization, error) {
 	return m.listOrganizationsFn(ctx)
 }
+func (m *mockProvisioningService) UpdateOrganization(ctx context.Context, id int64, req platformSvc.UpdateOrganizationRequest, operatorID int64, clientIP net.IP) (*platformModels.Organization, error) {
+	if m.updateOrganizationFn != nil {
+		return m.updateOrganizationFn(ctx, id, req, operatorID, clientIP)
+	}
+	return nil, nil
+}
 func (m *mockProvisioningService) CreateSchool(ctx context.Context, school *platformModels.School, operatorID int64, clientIP net.IP) (*platformModels.School, error) {
 	return m.createSchoolFn(ctx, school, operatorID, clientIP)
 }
 func (m *mockProvisioningService) ListSchools(ctx context.Context) ([]*platformModels.School, error) {
 	return m.listSchoolsFn(ctx)
+}
+func (m *mockProvisioningService) UpdateSchool(ctx context.Context, id int64, req platformSvc.UpdateSchoolRequest, operatorID int64, clientIP net.IP) (*platformModels.School, error) {
+	if m.updateSchoolFn != nil {
+		return m.updateSchoolFn(ctx, id, req, operatorID, clientIP)
+	}
+	return nil, nil
 }
 func (m *mockProvisioningService) InviteSchoolAdmin(ctx context.Context, schoolID, operatorID int64, clientIP net.IP, req authSvc.InvitationRequest) (*authModels.InvitationToken, error) {
 	return m.inviteSchoolAdminFn(ctx, schoolID, operatorID, clientIP, req)
@@ -309,6 +323,204 @@ func TestProvisioningErrorRenderer_NotFoundAndFallbacks(t *testing.T) {
 		require.True(t, ok)
 		assert.Equal(t, tc.statusCode, resp.HTTPStatusCode)
 	}
+}
+
+func TestProvisioningResource_UpdateOrganization(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{
+		updateOrganizationFn: func(_ context.Context, id int64, req platformSvc.UpdateOrganizationRequest, operatorID int64, clientIP net.IP) (*platformModels.Organization, error) {
+			assert.Equal(t, int64(5), id)
+			assert.Equal(t, int64(42), operatorID)
+			assert.Equal(t, "Updated Org", req.Name)
+			assert.Equal(t, "updated-org", req.Slug)
+			assert.True(t, req.Active)
+			assert.Equal(t, "203.0.113.10", clientIP.String())
+			return &platformModels.Organization{Model: modelBase.Model{ID: 5}, Name: "Updated Org", Slug: "updated-org", Active: true}, nil
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPut, "/operator/organizations/5", bytes.NewBufferString(`{"name":"Updated Org","slug":"updated-org","active":true}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = "203.0.113.10:1234"
+	req = withOperatorClaims(req, 42)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "5")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.UpdateOrganization(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+
+	body := decodeBody(t, rr)
+	data := body["data"].(map[string]any)
+	assert.Equal(t, float64(5), data["id"])
+	assert.Equal(t, "Updated Org", data["name"])
+}
+
+func TestProvisioningResource_UpdateOrganization_InvalidRequest(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{})
+	req := httptest.NewRequest(http.MethodPut, "/operator/organizations/5", bytes.NewBufferString(`{"name":`))
+	req.Header.Set("Content-Type", "application/json")
+	req = withOperatorClaims(req, 42)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "5")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.UpdateOrganization(rr, req)
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestProvisioningResource_UpdateOrganization_InvalidID(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{})
+	req := httptest.NewRequest(http.MethodPut, "/operator/organizations/abc", bytes.NewBufferString(`{"name":"Updated Org","slug":"updated-org","active":true}`))
+	req.Header.Set("Content-Type", "application/json")
+	req = withOperatorClaims(req, 42)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "abc")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.UpdateOrganization(rr, req)
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestProvisioningResource_UpdateOrganization_NotFound(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{
+		updateOrganizationFn: func(context.Context, int64, platformSvc.UpdateOrganizationRequest, int64, net.IP) (*platformModels.Organization, error) {
+			return nil, &platformSvc.OrganizationNotFoundError{OrganizationID: 5}
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPut, "/operator/organizations/5", bytes.NewBufferString(`{"name":"Updated Org","slug":"updated-org","active":true}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = "203.0.113.10:1234"
+	req = withOperatorClaims(req, 42)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "5")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.UpdateOrganization(rr, req)
+	assert.Equal(t, http.StatusNotFound, rr.Code)
+}
+
+func TestProvisioningResource_UpdateOrganization_Conflict(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{
+		updateOrganizationFn: func(context.Context, int64, platformSvc.UpdateOrganizationRequest, int64, net.IP) (*platformModels.Organization, error) {
+			return nil, &platformSvc.ConflictError{Err: errors.New("slug taken")}
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPut, "/operator/organizations/5", bytes.NewBufferString(`{"name":"Updated Org","slug":"updated-org","active":true}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = "203.0.113.10:1234"
+	req = withOperatorClaims(req, 42)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "5")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.UpdateOrganization(rr, req)
+	assert.Equal(t, http.StatusConflict, rr.Code)
+}
+
+func TestProvisioningResource_UpdateSchool(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{
+		updateSchoolFn: func(_ context.Context, id int64, req platformSvc.UpdateSchoolRequest, operatorID int64, clientIP net.IP) (*platformModels.School, error) {
+			assert.Equal(t, int64(10), id)
+			assert.Equal(t, int64(42), operatorID)
+			assert.Equal(t, "Updated School", req.Name)
+			assert.Equal(t, "updated-school", req.Slug)
+			assert.Equal(t, "updated-sub", req.Subdomain)
+			assert.Equal(t, "school@example.com", req.Email)
+			assert.Equal(t, "198.51.100.20", clientIP.String())
+			return &platformModels.School{Model: modelBase.Model{ID: 10}, Name: "Updated School", Slug: "updated-school", Subdomain: "updated-sub"}, nil
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPut, "/operator/schools/10", bytes.NewBufferString(`{"organization_id":7,"name":"Updated School","slug":"updated-school","subdomain":"updated-sub","address":"Main St 1","city":"Cologne","zip":"50667","phone":"0221-1234","email":"school@example.com","active":true}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = "198.51.100.20:4444"
+	req = withOperatorClaims(req, 42)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "10")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.UpdateSchool(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+
+	body := decodeBody(t, rr)
+	data := body["data"].(map[string]any)
+	assert.Equal(t, float64(10), data["id"])
+}
+
+func TestProvisioningResource_UpdateSchool_InvalidRequest(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{})
+	req := httptest.NewRequest(http.MethodPut, "/operator/schools/10", bytes.NewBufferString(`{"organization_id":`))
+	req.Header.Set("Content-Type", "application/json")
+	req = withOperatorClaims(req, 42)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "10")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.UpdateSchool(rr, req)
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestProvisioningResource_UpdateSchool_InvalidID(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{})
+	req := httptest.NewRequest(http.MethodPut, "/operator/schools/nope", bytes.NewBufferString(`{"organization_id":7,"name":"School","slug":"school","subdomain":"sub","email":"a@b.com","active":true}`))
+	req.Header.Set("Content-Type", "application/json")
+	req = withOperatorClaims(req, 42)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "nope")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.UpdateSchool(rr, req)
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestProvisioningResource_UpdateSchool_NotFound(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{
+		updateSchoolFn: func(context.Context, int64, platformSvc.UpdateSchoolRequest, int64, net.IP) (*platformModels.School, error) {
+			return nil, &platformSvc.SchoolNotFoundError{SchoolID: 10}
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPut, "/operator/schools/10", bytes.NewBufferString(`{"organization_id":7,"name":"School","slug":"school","subdomain":"sub","email":"a@b.com","active":true}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = "198.51.100.20:4444"
+	req = withOperatorClaims(req, 42)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "10")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.UpdateSchool(rr, req)
+	assert.Equal(t, http.StatusNotFound, rr.Code)
+}
+
+func TestProvisioningResource_UpdateSchool_Conflict(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{
+		updateSchoolFn: func(context.Context, int64, platformSvc.UpdateSchoolRequest, int64, net.IP) (*platformModels.School, error) {
+			return nil, &platformSvc.ConflictError{Err: errors.New("subdomain taken")}
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPut, "/operator/schools/10", bytes.NewBufferString(`{"organization_id":7,"name":"School","slug":"school","subdomain":"sub","email":"a@b.com","active":true}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = "198.51.100.20:4444"
+	req = withOperatorClaims(req, 42)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "10")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.UpdateSchool(rr, req)
+	assert.Equal(t, http.StatusConflict, rr.Code)
 }
 
 func ptrInt64(v int64) *int64 { return &v }

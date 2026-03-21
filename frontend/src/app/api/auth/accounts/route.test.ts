@@ -25,12 +25,14 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("@/lib/api-client", () => ({
-  apiGet: mockApiGet,
-  apiPost: vi.fn(),
-  apiPut: mockApiPut,
-  apiDelete: vi.fn(),
-}));
+vi.mock("@/lib/api-helpers", async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return {
+    ...actual,
+    apiGet: mockApiGet,
+    apiPut: mockApiPut,
+  };
+});
 
 // ============================================================================
 // Test Helpers
@@ -119,7 +121,8 @@ describe("GET /api/auth/accounts", () => {
     // Handler returns response.data which is the accounts array
     // So final response is { success: true, message: "Success", data: [...] }
     expect(json.success).toBe(true);
-    expect(json.data).toHaveLength(2);
+    // Handler returns the full apiGet result ({ data: [...] }), wrapper wraps it in { success, data }
+    expect((json.data as unknown as { data: unknown[] }).data).toHaveLength(2);
   });
 
   it("filters accounts by email", async () => {
@@ -201,19 +204,20 @@ describe("POST /api/auth/accounts", () => {
 
     expect(mockApiPut).toHaveBeenCalledWith(
       "/auth/accounts/1",
-      { active: false },
       "test-token",
+      { active: false },
     );
     expect(response.status).toBe(200);
     const json = (await response.json()) as {
-      id: number;
-      email: string;
-      active: boolean;
+      data: {
+        id: number;
+        email: string;
+        active: boolean;
+      };
     };
-    // POST handler returns Response.json(response.data) without wrapping
-    // apiPut returns { data: { id: 1, ... } }, route returns response.data
-    // So the response is { id: 1, email: ..., active: false }
-    expect(json.active).toBe(false);
+    // POST handler returns Response.json(response) where response is the full apiPut result
+    // apiPut returns { data: { id: 1, ... } }, so json = { data: { id: 1, ... } }
+    expect(json.data.active).toBe(false);
   });
 
   it("handles errors during update", async () => {

@@ -90,8 +90,8 @@ function prepareTeacherForBackend(
 
 export const teachersConfig = defineEntityConfig<Teacher>({
   name: {
-    singular: "Pädagogische Fachkraft",
-    plural: "Pädagogische Fachkräfte",
+    singular: "Personal",
+    plural: "Personal",
   },
 
   theme: databaseThemes.teachers,
@@ -127,7 +127,7 @@ export const teachersConfig = defineEntityConfig<Teacher>({
             name: "email",
             label: "E-Mail",
             type: "email",
-            placeholder: "fachkraft@schule.de",
+            placeholder: "personal@schule.de",
             helperText: "Wird für die Anmeldung verwendet",
           },
           {
@@ -202,7 +202,7 @@ export const teachersConfig = defineEntityConfig<Teacher>({
             required: true,
             placeholder: "Starkes Passwort erstellen",
             helperText:
-              "Die pädagogische Fachkraft sollte das Passwort bei der ersten Anmeldung ändern.",
+              "Das Personal sollte das Passwort bei der ersten Anmeldung ändern.",
           },
         ],
       },
@@ -226,8 +226,7 @@ export const teachersConfig = defineEntityConfig<Teacher>({
         errors.specialization = "Fachgebiet ist erforderlich";
       }
       if (!data.id && !data.password) {
-        errors.password =
-          "Passwort ist erforderlich für neue pädagogische Fachkraft";
+        errors.password = "Passwort ist erforderlich für neues Personal";
       }
 
       return Object.keys(errors).length > 0 ? errors : null;
@@ -244,7 +243,7 @@ export const teachersConfig = defineEntityConfig<Teacher>({
         const parts: string[] = [];
         if (teacher.specialization) parts.push(teacher.specialization);
         if (teacher.role) parts.push(teacher.role);
-        return parts.join(" • ") || "Pädagogische Fachkraft";
+        return parts.join(" • ") || "Personal";
       },
       avatar: {
         text: (teacher: Teacher) => {
@@ -348,10 +347,9 @@ export const teachersConfig = defineEntityConfig<Teacher>({
   },
 
   list: {
-    title: "Pädagogische Fachkraft auswählen",
-    description:
-      "Verwalten Sie Profile der pädagogischen Fachkräfte und Zuordnungen",
-    searchPlaceholder: "Pädagogische Fachkraft suchen...",
+    title: "Personal auswählen",
+    description: "Verwalten Sie Profile des Personals und Zuordnungen",
+    searchPlaceholder: "Personal suchen...",
 
     // Frontend search for small dataset
     searchStrategy: "frontend",
@@ -377,8 +375,7 @@ export const teachersConfig = defineEntityConfig<Teacher>({
     item: {
       title: (teacher: Teacher) =>
         teacher.name ?? `${teacher.first_name} ${teacher.last_name}`,
-      subtitle: (teacher: Teacher) =>
-        teacher.specialization ?? "Pädagogische Fachkraft",
+      subtitle: (teacher: Teacher) => teacher.specialization ?? "Personal",
       description: (teacher: Teacher) => {
         const parts: string[] = [];
         if (teacher.role) parts.push(teacher.role);
@@ -431,12 +428,12 @@ export const teachersConfig = defineEntityConfig<Teacher>({
   },
 
   labels: {
-    createButton: "Neue pädagogische Fachkraft erstellen",
-    createModalTitle: "Neue pädagogische Fachkraft",
-    editModalTitle: "Pädagogische Fachkraft bearbeiten",
+    createButton: "Neues Personal anlegen",
+    createModalTitle: "Neues Personal",
+    editModalTitle: "Personal bearbeiten",
     deleteConfirmation:
-      "Sind Sie sicher, dass Sie diese pädagogische Fachkraft löschen möchten?",
-    emptyState: "Keine pädagogischen Fachkräfte gefunden",
+      "Sind Sie sicher, dass Sie dieses Personal löschen möchten?",
+    emptyState: "Kein Personal gefunden",
   },
 
   // Custom credential display after creation
@@ -444,14 +441,14 @@ export const teachersConfig = defineEntityConfig<Teacher>({
     if (result.temporaryCredentials) {
       return {
         type: "credentials" as const,
-        title: "Lehrer erfolgreich erstellt!",
+        title: "Personal erfolgreich erstellt!",
         message:
           "Bitte notieren Sie sich die folgenden temporären Zugangsdaten:",
         credentials: {
           email: result.temporaryCredentials.email,
           password: result.temporaryCredentials.password,
         },
-        note: "Der Lehrer sollte das Passwort bei der ersten Anmeldung ändern.",
+        note: "Das Personal sollte das Passwort bei der ersten Anmeldung ändern.",
       };
     }
     return undefined;

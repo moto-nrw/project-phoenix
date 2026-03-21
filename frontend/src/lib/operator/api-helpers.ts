@@ -39,8 +39,11 @@ export async function operatorFetch<T>(
 
     let errorMessage = response.statusText;
     try {
-      const errorData = (await response.json()) as { error?: string };
-      errorMessage = errorData.error ?? errorMessage;
+      const errorData = (await response.json()) as {
+        error?: string;
+        message?: string;
+      };
+      errorMessage = errorData.message ?? errorData.error ?? errorMessage;
     } catch {
       // use statusText
     }

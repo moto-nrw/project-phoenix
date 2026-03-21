@@ -3,58 +3,30 @@ import {
   createPutHandler,
   createDeleteHandler,
 } from "@/lib/route-wrapper";
-import { apiGet, apiPut, apiDelete } from "@/lib/api-client";
+import { apiGet, apiPut, apiDelete } from "~/lib/api-helpers";
 import type { BackendDevice } from "@/lib/iot-helpers";
 import { mapDeviceResponse } from "@/lib/iot-helpers";
 
 export const GET = createGetHandler(async (request, token, params) => {
   const id = params.id as string;
-  const response = await apiGet(`/api/iot/${id}`, token);
+  const response = await apiGet<{ data: BackendDevice }>(`/api/iot/${id}`, token);
 
-  // Handle null or undefined response
-  if (!response) {
+  if (!response?.data) {
     throw new Error("Device not found");
   }
 
-  // apiGet returns AxiosResponse, so we need response.data to get the actual data
-  const actualData = response.data;
-
-  // Check for the backend response structure { status: "success", data: {...} }
-  if (
-    actualData &&
-    typeof actualData === "object" &&
-    actualData !== null &&
-    "data" in actualData
-  ) {
-    return mapDeviceResponse(actualData.data as BackendDevice);
-  }
-
-  throw new Error("Invalid response format");
+  return mapDeviceResponse(response.data);
 });
 
 export const PUT = createPutHandler(async (request, body, token, params) => {
   const id = params.id as string;
-  const response = await apiPut(`/api/iot/${id}`, body, token);
+  const response = await apiPut<{ data: BackendDevice }>(`/api/iot/${id}`, token, body);
 
-  // Handle null or undefined response
-  if (!response) {
+  if (!response?.data) {
     throw new Error("Failed to update device");
   }
 
-  // apiPut returns AxiosResponse, so we need response.data to get the actual data
-  const actualData = response.data;
-
-  // Check for the backend response structure { status: "success", data: {...} }
-  if (
-    actualData &&
-    typeof actualData === "object" &&
-    actualData !== null &&
-    "data" in actualData
-  ) {
-    return mapDeviceResponse(actualData.data as BackendDevice);
-  }
-
-  throw new Error("Invalid response format");
+  return mapDeviceResponse(response.data);
 });
 
 export const DELETE = createDeleteHandler(async (request, token, params) => {

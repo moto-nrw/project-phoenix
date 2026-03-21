@@ -456,6 +456,89 @@ func TestHubGetGroupSubscriberCount(t *testing.T) {
 	}
 }
 
+// TestHubBroadcastToAllReachesAllClients verifies BroadcastToAll delivers to every client
+func TestHubBroadcastToAllReachesAllClients(t *testing.T) {
+	hub := NewHub(slog.Default())
+
+	// Register clients to different groups (and one with no groups)
+	clients := make([]*Client, 3)
+	for i := 0; i < 3; i++ {
+		clients[i] = &Client{
+			Channel:          make(chan Event, 10),
+			UserID:           int64(i + 1),
+			SubscribedGroups: make(map[string]bool),
+		}
+	}
+	hub.Register(clients[0], int64(42), []string{"group_1"})
+	hub.Register(clients[1], int64(42), []string{"group_2"})
+	hub.Register(clients[2], int64(42), []string{}) // zero-topic client
+
+	event := NewEvent(EventDashboardCountsChanged, "group_1", EventData{})
+
+	err := hub.BroadcastToAll(event)
+	if err != nil {
+		t.Errorf("BroadcastToAll() error = %v", err)
+	}
+
+	for i, client := range clients {
+		select {
+		case received := <-client.Channel:
+			if received.Type != EventDashboardCountsChanged {
+				t.Errorf("Client %d: got type %v, want %v", i, received.Type, EventDashboardCountsChanged)
+			}
+		case <-time.After(100 * time.Millisecond):
+			t.Errorf("Client %d: timeout waiting for broadcast-to-all event", i)
+		}
+	}
+}
+
+// TestHubBroadcastToAllNoClients verifies BroadcastToAll with empty hub
+func TestHubBroadcastToAllNoClients(t *testing.T) {
+	hub := NewHub(slog.Default())
+
+	err := hub.BroadcastToAll(NewEvent(EventDashboardCountsChanged, "", EventData{}))
+	if err != nil {
+		t.Errorf("BroadcastToAll() with no clients should return nil, got: %v", err)
+	}
+}
+
+// TestHubBroadcastToAllSkipsFullChannel verifies non-blocking behavior
+func TestHubBroadcastToAllSkipsFullChannel(t *testing.T) {
+	hub := NewHub(slog.Default())
+
+	fullClient := &Client{
+		Channel:          make(chan Event, 1),
+		UserID:           1,
+		SubscribedGroups: make(map[string]bool),
+	}
+	openClient := &Client{
+		Channel:          make(chan Event, 10),
+		UserID:           2,
+		SubscribedGroups: make(map[string]bool),
+	}
+	hub.Register(fullClient, int64(42), []string{})
+	hub.Register(openClient, int64(42), []string{})
+
+	// Fill fullClient's channel
+	fullClient.Channel <- NewEvent(EventStudentCheckIn, "g", EventData{})
+
+	// BroadcastToAll should not block
+	err := hub.BroadcastToAll(NewEvent(EventDashboardCountsChanged, "", EventData{}))
+	if err != nil {
+		t.Errorf("BroadcastToAll() should not error on full channel, got: %v", err)
+	}
+
+	// openClient got it
+	select {
+	case received := <-openClient.Channel:
+		if received.Type != EventDashboardCountsChanged {
+			t.Errorf("got type %v, want dashboard_counts_changed", received.Type)
+		}
+	default:
+		t.Error("openClient should have received the event")
+	}
+}
+
 // Helper function to create string pointers
 func strPtr(s string) *string {
 	return &s

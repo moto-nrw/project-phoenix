@@ -25,6 +25,7 @@ type OrganizationRepository interface {
 	FindByID(ctx context.Context, id int64) (*Organization, error)
 	FindBySlug(ctx context.Context, slug string) (*Organization, error)
 	List(ctx context.Context) ([]*Organization, error)
+	Update(ctx context.Context, organization *Organization) error
 }
 
 // AnnouncementRepository defines operations for managing announcements
@@ -66,7 +67,7 @@ type AnnouncementViewRepository interface {
 	GetViewDetails(ctx context.Context, announcementID int64) ([]*AnnouncementViewDetail, error)
 }
 
-// SchoolRepository defines read operations for school (tenant) records.
+// SchoolRepository defines operations for school (tenant) records.
 type SchoolRepository interface {
 	Create(ctx context.Context, school *School) error
 	FindByID(ctx context.Context, id int64) (*School, error)
@@ -76,6 +77,7 @@ type SchoolRepository interface {
 	List(ctx context.Context) ([]*School, error)
 	ListActive(ctx context.Context) ([]School, error)
 	FindActiveByAccountID(ctx context.Context, accountID int64) ([]School, error)
+	Update(ctx context.Context, school *School) error
 }
 
 // OperatorAuditLogRepository defines operations for the audit log

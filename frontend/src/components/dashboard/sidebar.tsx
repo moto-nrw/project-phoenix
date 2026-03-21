@@ -1,7 +1,7 @@
 // components/dashboard/sidebar.tsx
 "use client";
 
-import { Suspense, useCallback, useEffect } from "react";
+import { Suspense, useCallback, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
@@ -10,6 +10,7 @@ import { useSession } from "next-auth/react";
 import { useSupervision } from "~/lib/supervision-context";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { isAdmin } from "~/lib/auth-utils";
+import { operatorPath } from "~/lib/operator-url";
 import { useSidebarAccordion } from "~/lib/hooks/use-sidebar-accordion";
 import { useSuggestionsUnread } from "~/lib/hooks/use-suggestions-unread";
 import { useOperatorSuggestionsUnread } from "~/lib/hooks/use-operator-suggestions-unread";
@@ -154,6 +155,13 @@ const OPERATOR_NAV_ITEMS: NavItem[] = [
     alwaysShow: true,
   },
   {
+    href: "/operator/provisioning",
+    label: "Schulverwaltung",
+    icon: "M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0012 9.75c-2.551 0-5.056.2-7.5.582V21",
+    activeColor: "text-indigo-500",
+    alwaysShow: true,
+  },
+  {
     href: "/operator/settings",
     label: "Einstellungen",
     icon: "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z",
@@ -166,7 +174,7 @@ const OPERATOR_NAV_ITEMS: NavItem[] = [
 // Static sub-pages for Datenverwaltung accordion
 const DATABASE_SUB_PAGES = [
   { href: "/database/students", label: "Kinder" },
-  { href: "/database/teachers", label: "Betreuer" },
+  { href: "/database/personal", label: "Personal" },
   { href: "/database/rooms", label: "Räume" },
   { href: "/database/activities", label: "Aktivitäten" },
   { href: "/database/groups", label: "Gruppen" },
@@ -501,12 +509,26 @@ function SidebarContent({ className = "" }: SidebarProps) {
   // Show staff-only accordions (groups + supervisions) only for non-admin
   const showStaffAccordions = !userIsAdmin;
 
+  // Resolve operator nav hrefs once (operatorPath is deterministic for the page lifetime)
+  const resolvedOperatorItems = useMemo(
+    () =>
+      OPERATOR_NAV_ITEMS.map((item) => ({
+        ...item,
+        href: operatorPath(item.href),
+      })),
+    [],
+  );
+  const operatorSuggestionsHref = useMemo(
+    () => operatorPath("/operator/suggestions"),
+    [],
+  );
+
   // Operator mode: simple flat navigation (no accordions, no teacher features)
   if (mode === "operator") {
-    const operatorMainItems = OPERATOR_NAV_ITEMS.filter(
+    const operatorMainItems = resolvedOperatorItems.filter(
       (item) => !item.bottomPinned,
     );
-    const operatorBottomItems = OPERATOR_NAV_ITEMS.filter(
+    const operatorBottomItems = resolvedOperatorItems.filter(
       (item) => item.bottomPinned,
     );
 
@@ -531,7 +553,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
         </svg>
         <span className="flex flex-1 items-center justify-between">
           {item.label}
-          {item.href === "/operator/suggestions" && operatorUnreadCount > 0 && (
+          {item.href === operatorSuggestionsHref && operatorUnreadCount > 0 && (
             <span className="ml-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-semibold text-white">
               {operatorUnreadCount > 99 ? "99+" : operatorUnreadCount}
             </span>

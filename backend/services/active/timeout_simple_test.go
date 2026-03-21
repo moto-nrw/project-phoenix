@@ -10,10 +10,12 @@
 package active_test
 
 import (
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/active"
+	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -68,8 +70,7 @@ func TestUpdateSessionActivity(t *testing.T) {
 
 		// ASSERT
 		require.Error(t, err)
-		// Service wraps repository errors with operation context
-		assert.Contains(t, err.Error(), "UpdateSessionActivity")
+		assert.ErrorIs(t, err, activeService.ErrActiveGroupNotFound)
 	})
 
 	t.Run("session already ended", func(t *testing.T) {
@@ -93,7 +94,16 @@ func TestUpdateSessionActivity(t *testing.T) {
 
 		// ASSERT
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "already ended")
+		assert.ErrorIs(t, err, activeService.ErrActiveGroupAlreadyEnded)
+	})
+
+	t.Run("wrapped active errors still unwrap to sentinels", func(t *testing.T) {
+		err := service.UpdateSessionActivity(ctx, 99999)
+
+		require.Error(t, err)
+		var activeErr *activeService.ActiveError
+		assert.True(t, errors.As(err, &activeErr))
+		assert.ErrorIs(t, activeErr, activeService.ErrActiveGroupNotFound)
 	})
 }
 

@@ -143,7 +143,7 @@ describe("InvitationsBreadcrumb", () => {
     render(<InvitationsBreadcrumb />);
 
     expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
-    expect(screen.getByText("Betreuer")).toBeInTheDocument();
+    expect(screen.getByText("Personal")).toBeInTheDocument();
     expect(screen.getByText("Einladungen")).toBeInTheDocument();
   });
 
@@ -153,8 +153,8 @@ describe("InvitationsBreadcrumb", () => {
     const databaseLink = screen.getByRole("link", { name: "Datenverwaltung" });
     expect(databaseLink).toHaveAttribute("href", "/database");
 
-    const teachersLink = screen.getByRole("link", { name: "Betreuer" });
-    expect(teachersLink).toHaveAttribute("href", "/database/teachers");
+    const teachersLink = screen.getByRole("link", { name: "Personal" });
+    expect(teachersLink).toHaveAttribute("href", "/database/personal");
   });
 });
 

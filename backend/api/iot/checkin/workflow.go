@@ -45,6 +45,12 @@ type checkinResultInput struct {
 	CurrentVisit     *active.Visit
 }
 
+type selectedActiveGroup struct {
+	Group        *active.Group
+	RoomName     string
+	DeviceScoped bool
+}
+
 // validateDeviceContext validates the device context and returns an error response if invalid
 func validateDeviceContext(w http.ResponseWriter, r *http.Request) *iot.Device {
 	deviceCtx := device.DeviceFromCtx(r.Context())
@@ -250,7 +256,7 @@ func (rs *Resource) handleSupervisorScan(w http.ResponseWriter, r *http.Request,
 
 // loadCurrentVisitWithRoom loads the current visit and its room information
 func (rs *Resource) loadCurrentVisitWithRoom(ctx context.Context, studentID int64) *active.Visit {
-	currentVisit, err := rs.ActiveService.GetStudentCurrentVisit(ctx, studentID)
+	currentVisit, err := rs.ActiveService.GetStudentCurrentVisitWithRoom(ctx, studentID)
 	if err != nil {
 		rs.getLogger().DebugContext(ctx, "error checking current visit",
 			slog.Int64("student_id", studentID),
@@ -261,18 +267,6 @@ func (rs *Resource) loadCurrentVisitWithRoom(ctx context.Context, studentID int6
 
 	if currentVisit == nil || currentVisit.ExitTime != nil {
 		return nil
-	}
-
-	// Load the active group with room information
-	activeGroup, err := rs.ActiveService.GetActiveGroup(ctx, currentVisit.ActiveGroupID)
-	if err == nil && activeGroup != nil {
-		currentVisit.ActiveGroup = activeGroup
-		if activeGroup.RoomID > 0 {
-			room, roomErr := rs.FacilityService.GetRoom(ctx, activeGroup.RoomID)
-			if roomErr == nil && room != nil {
-				activeGroup.Room = room
-			}
-		}
 	}
 
 	return currentVisit
@@ -332,9 +326,9 @@ func shouldSkipCheckin(roomID *int64, checkedOut bool, currentVisit *active.Visi
 	return currentVisit.ActiveGroup.RoomID == *roomID
 }
 
-// processCheckin handles the checkin logic for a student
-// Returns: visitID, roomName, error
-func (rs *Resource) processCheckin(ctx context.Context, w http.ResponseWriter, r *http.Request, student *users.Student, person *users.Person, roomID int64) (*int64, string, error) {
+// processCheckin handles the checkin logic for a student.
+// Returns: visitID, roomName, activeGroupID, error
+func (rs *Resource) processCheckin(ctx context.Context, w http.ResponseWriter, r *http.Request, student *users.Student, person *users.Person, roomID int64, deviceID int64) (*int64, *selectedActiveGroup, error) {
 	rs.getLogger().DebugContext(ctx, "performing check-in to room",
 		slog.String("student_name", person.FirstName+" "+person.LastName),
 		slog.Int64("student_id", student.ID),
@@ -349,19 +343,19 @@ func (rs *Resource) processCheckin(ctx context.Context, w http.ResponseWriter, r
 			slog.String("error", err.Error()),
 		)
 		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to get room information")))
-		return nil, "", err
+		return nil, nil, err
 	}
 
 	// Check room capacity if set
 	if room != nil && room.Capacity != nil {
-		currentOccupancy, countErr := rs.countRoomOccupancy(ctx, roomID)
+		currentOccupancy, countErr := rs.ActiveService.CountActiveVisitsByRoomID(ctx, roomID)
 		if countErr != nil {
 			rs.getLogger().ErrorContext(ctx, "failed to count room occupancy",
 				slog.Int64("room_id", roomID),
 				slog.String("error", countErr.Error()),
 			)
 			iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to check room capacity")))
-			return nil, "", countErr
+			return nil, nil, countErr
 		}
 
 		if currentOccupancy >= *room.Capacity {
@@ -372,7 +366,7 @@ func (rs *Resource) processCheckin(ctx context.Context, w http.ResponseWriter, r
 				slog.Int("capacity", *room.Capacity),
 			)
 			iotCommon.RenderError(w, r, iotCommon.ErrorRoomCapacityExceeded(roomID, room.Name, currentOccupancy, *room.Capacity))
-			return nil, "", iotCommon.ErrRoomCapacityExceeded
+			return nil, nil, iotCommon.ErrRoomCapacityExceeded
 		}
 
 		rs.getLogger().DebugContext(ctx, "room capacity check passed",
@@ -383,26 +377,26 @@ func (rs *Resource) processCheckin(ctx context.Context, w http.ResponseWriter, r
 	}
 
 	// Find or create active group for the room
-	activeGroupID, roomName, err := rs.findOrCreateActiveGroupForRoom(ctx, w, r, roomID)
+	selection, err := rs.findOrCreateActiveGroupForRoom(ctx, w, r, room, deviceID)
 	if err != nil {
-		return nil, "", err
+		return nil, nil, err
 	}
 
 	// Check activity capacity
-	if capacityErr := rs.checkActivityCapacity(ctx, w, r, activeGroupID); capacityErr != nil {
-		return nil, "", capacityErr
+	if capacityErr := rs.checkActivityCapacity(ctx, w, r, selection.Group); capacityErr != nil {
+		return nil, nil, capacityErr
 	}
 
 	// Create new visit
 	newVisit := &active.Visit{
 		StudentID:     student.ID,
-		ActiveGroupID: activeGroupID,
+		ActiveGroupID: selection.Group.ID,
 		EntryTime:     time.Now(),
 	}
 
 	rs.getLogger().DebugContext(ctx, "creating visit for student",
 		slog.Int64("student_id", student.ID),
-		slog.Int64("active_group_id", activeGroupID),
+		slog.Int64("active_group_id", selection.Group.ID),
 	)
 	if err := rs.ActiveService.CreateVisit(ctx, newVisit); err != nil {
 		rs.getLogger().ErrorContext(ctx, "failed to create visit",
@@ -410,68 +404,24 @@ func (rs *Resource) processCheckin(ctx context.Context, w http.ResponseWriter, r
 			slog.String("error", err.Error()),
 		)
 		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to create visit record")))
-		return nil, "", err
+		return nil, nil, err
 	}
 
 	rs.getLogger().InfoContext(ctx, "checked in student",
 		slog.Int64("student_id", student.ID),
 		slog.Int64("visit_id", newVisit.ID),
-		slog.String("room", roomName),
+		slog.String("room", selection.RoomName),
 	)
 
-	return &newVisit.ID, roomName, nil
-}
-
-// countRoomOccupancy counts the number of active visits in a room.
-// Active visits are those where exit_time IS NULL in active groups that are in the specified room.
-func (rs *Resource) countRoomOccupancy(ctx context.Context, roomID int64) (int, error) {
-	// Find all active groups in the room
-	activeGroups, err := rs.ActiveService.FindActiveGroupsByRoomID(ctx, roomID)
-	if err != nil {
-		return 0, fmt.Errorf("failed to find active groups in room %d: %w", roomID, err)
-	}
-
-	if len(activeGroups) == 0 {
-		return 0, nil
-	}
-
-	// Count active visits across all active groups in this room
-	totalOccupancy := 0
-	for _, group := range activeGroups {
-		visits, visitErr := rs.ActiveService.FindVisitsByActiveGroupID(ctx, group.ID)
-		if visitErr != nil {
-			rs.getLogger().WarnContext(ctx, "failed to count visits for active group",
-				slog.Int64("active_group_id", group.ID),
-				slog.String("error", visitErr.Error()),
-			)
-			continue
-		}
-
-		// Count only active visits (exit_time IS NULL)
-		for _, visit := range visits {
-			if visit.ExitTime == nil {
-				totalOccupancy++
-			}
-		}
-	}
-
-	return totalOccupancy, nil
+	return &newVisit.ID, selection, nil
 }
 
 // countActiveGroupOccupancy counts the number of active visits in a specific active group.
 // Active visits are those where exit_time IS NULL.
 func (rs *Resource) countActiveGroupOccupancy(ctx context.Context, activeGroupID int64) (int, error) {
-	visits, err := rs.ActiveService.FindVisitsByActiveGroupID(ctx, activeGroupID)
+	count, err := rs.ActiveService.CountActiveVisitsByActiveGroupID(ctx, activeGroupID)
 	if err != nil {
 		return 0, fmt.Errorf("failed to find visits for active group %d: %w", activeGroupID, err)
-	}
-
-	// Count only active visits (exit_time IS NULL)
-	count := 0
-	for _, visit := range visits {
-		if visit.ExitTime == nil {
-			count++
-		}
 	}
 
 	return count, nil
@@ -479,34 +429,27 @@ func (rs *Resource) countActiveGroupOccupancy(ctx context.Context, activeGroupID
 
 // checkActivityCapacity validates that the activity has capacity for another student.
 // Returns nil if capacity is available, error otherwise.
-func (rs *Resource) checkActivityCapacity(ctx context.Context, w http.ResponseWriter, r *http.Request, activeGroupID int64) error {
-	// Get the active group to find the activity group ID
-	activeGroup, err := rs.ActiveService.GetActiveGroup(ctx, activeGroupID)
-	if err != nil {
-		rs.getLogger().ErrorContext(ctx, "failed to get active group",
-			slog.Int64("active_group_id", activeGroupID),
-			slog.String("error", err.Error()),
-		)
-		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to get active group")))
-		return err
-	}
-
+func (rs *Resource) checkActivityCapacity(ctx context.Context, w http.ResponseWriter, r *http.Request, activeGroup *active.Group) error {
 	// Get the activity group to check MaxParticipants
-	activityGroup, err := rs.ActivitiesService.GetGroup(ctx, activeGroup.GroupID)
-	if err != nil {
-		rs.getLogger().ErrorContext(ctx, "failed to get activity group",
-			slog.Int64("activity_group_id", activeGroup.GroupID),
-			slog.String("error", err.Error()),
-		)
-		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to get activity information")))
-		return err
+	activityGroup := activeGroup.ActualGroup
+	if activityGroup == nil {
+		var err error
+		activityGroup, err = rs.ActivitiesService.GetGroup(ctx, activeGroup.GroupID)
+		if err != nil {
+			rs.getLogger().ErrorContext(ctx, "failed to get activity group",
+				slog.Int64("activity_group_id", activeGroup.GroupID),
+				slog.String("error", err.Error()),
+			)
+			iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to get activity information")))
+			return err
+		}
 	}
 
 	// Check activity capacity
-	currentOccupancy, countErr := rs.countActiveGroupOccupancy(ctx, activeGroupID)
+	currentOccupancy, countErr := rs.countActiveGroupOccupancy(ctx, activeGroup.ID)
 	if countErr != nil {
 		rs.getLogger().ErrorContext(ctx, "failed to count activity occupancy",
-			slog.Int64("active_group_id", activeGroupID),
+			slog.Int64("active_group_id", activeGroup.ID),
 			slog.String("error", countErr.Error()),
 		)
 		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to check activity capacity")))
@@ -533,61 +476,73 @@ func (rs *Resource) checkActivityCapacity(ctx context.Context, w http.ResponseWr
 	return nil
 }
 
-// findOrCreateActiveGroupForRoom finds an existing active group or creates one for Schulhof
+// findOrCreateActiveGroupForRoom finds an existing active group or creates one for Schulhof.
+// When multiple active groups exist in the room, it prefers the one linked to deviceID.
 // Returns: activeGroupID, roomName, error
-func (rs *Resource) findOrCreateActiveGroupForRoom(ctx context.Context, w http.ResponseWriter, r *http.Request, roomID int64) (int64, string, error) {
+func (rs *Resource) findOrCreateActiveGroupForRoom(ctx context.Context, w http.ResponseWriter, r *http.Request, room *facilities.Room, deviceID int64) (*selectedActiveGroup, error) {
 	rs.getLogger().DebugContext(ctx, "looking for active groups in room",
-		slog.Int64("room_id", roomID),
+		slog.Int64("room_id", room.ID),
+		slog.Int64("device_id", deviceID),
 	)
 
-	activeGroups, err := rs.ActiveService.FindActiveGroupsByRoomID(ctx, roomID)
+	activeGroups, err := rs.ActiveService.FindActiveGroupsByRoomID(ctx, room.ID)
 	if err != nil {
 		rs.getLogger().ErrorContext(ctx, "failed to find active groups in room",
-			slog.Int64("room_id", roomID),
+			slog.Int64("room_id", room.ID),
 			slog.String("error", err.Error()),
 		)
 		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("error finding active groups in room")))
-		return 0, "", err
+		return nil, err
 	}
 
 	if len(activeGroups) > 0 {
-		return rs.useExistingActiveGroup(ctx, activeGroups, roomID)
+		return rs.useExistingActiveGroup(ctx, activeGroups, room, deviceID), nil
 	}
 
 	// No active groups - check if this is a special room (Schulhof, WC)
-	return rs.createSpecialRoomActiveGroupIfNeeded(ctx, w, r, roomID)
+	return rs.createSpecialRoomActiveGroupIfNeeded(ctx, w, r, room, deviceID)
 }
 
-// useExistingActiveGroup uses an existing active group in the room
-func (rs *Resource) useExistingActiveGroup(ctx context.Context, activeGroups []*active.Group, roomID int64) (int64, string, error) {
-	activeGroupID := activeGroups[0].ID
-	rs.getLogger().DebugContext(ctx, "found active groups in room, using first",
+// useExistingActiveGroup selects an active group in the room, preferring one linked to deviceID.
+// Falls back to the first group when no device match is found (single-device rooms, legacy sessions).
+func (rs *Resource) useExistingActiveGroup(ctx context.Context, activeGroups []*active.Group, room *facilities.Room, deviceID int64) *selectedActiveGroup {
+	selected := activeGroups[0] // default fallback
+	deviceMatched := false
+	for _, g := range activeGroups {
+		if g.DeviceID != nil && *g.DeviceID == deviceID {
+			selected = g
+			deviceMatched = true
+			break
+		}
+	}
+
+	rs.getLogger().DebugContext(ctx, "selected active group in room",
 		slog.Int("group_count", len(activeGroups)),
-		slog.Int64("room_id", roomID),
-		slog.Int64("active_group_id", activeGroupID),
+		slog.Int64("room_id", room.ID),
+		slog.Int64("device_id", deviceID),
+		slog.Int64("active_group_id", selected.ID),
+		slog.Bool("device_matched", selected.DeviceID != nil && *selected.DeviceID == deviceID),
 	)
 
-	roomName := rs.roomNameByID(ctx, activeGroups[0].Room, roomID)
-	return activeGroupID, roomName, nil
+	if selected.Room == nil {
+		selected.Room = room
+	}
+	return &selectedActiveGroup{
+		Group:        selected,
+		RoomName:     room.Name,
+		DeviceScoped: deviceMatched,
+	}
 }
 
 // createSpecialRoomActiveGroupIfNeeded creates an active group if the room is a special room (Schulhof, WC)
-func (rs *Resource) createSpecialRoomActiveGroupIfNeeded(ctx context.Context, w http.ResponseWriter, r *http.Request, roomID int64) (int64, string, error) {
-	room, err := rs.FacilityService.GetRoom(ctx, roomID)
-	if err != nil || room == nil {
-		rs.getLogger().WarnContext(ctx, "no active groups found in room",
-			slog.Int64("room_id", roomID),
-		)
-		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New("no active groups in specified room")))
-		return 0, "", errors.New("no active groups in specified room")
-	}
-
+func (rs *Resource) createSpecialRoomActiveGroupIfNeeded(ctx context.Context, w http.ResponseWriter, r *http.Request, room *facilities.Room, deviceID int64) (*selectedActiveGroup, error) {
 	// Determine which activity group to use based on room name
 	var activityGroup *activities.Group
+	var err error
 	switch room.Name {
 	case constants.SchulhofRoomName:
 		rs.getLogger().InfoContext(ctx, "auto-creating Schulhof active group",
-			slog.Int64("room_id", roomID),
+			slog.Int64("room_id", room.ID),
 		)
 		activityGroup, err = rs.schulhofActivityGroup(ctx)
 		if err != nil {
@@ -595,11 +550,11 @@ func (rs *Resource) createSpecialRoomActiveGroupIfNeeded(ctx context.Context, w 
 				slog.String("error", err.Error()),
 			)
 			iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("schulhof activity not configured")))
-			return 0, "", err
+			return nil, err
 		}
 	case constants.WCRoomName:
 		rs.getLogger().InfoContext(ctx, "auto-creating WC active group",
-			slog.Int64("room_id", roomID),
+			slog.Int64("room_id", room.ID),
 		)
 		activityGroup, err = rs.wcActivityGroup(ctx)
 		if err != nil {
@@ -611,20 +566,20 @@ func (rs *Resource) createSpecialRoomActiveGroupIfNeeded(ctx context.Context, w 
 				errMsg = "WC activity auto-create requires staff context"
 			}
 			iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New(errMsg)))
-			return 0, "", err
+			return nil, err
 		}
 	default:
 		rs.getLogger().WarnContext(ctx, "no active groups found in room",
-			slog.Int64("room_id", roomID),
+			slog.Int64("room_id", room.ID),
 			slog.String("room_name", room.Name),
 		)
 		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New("no active groups in specified room")))
-		return 0, "", errors.New("no active groups in specified room")
+		return nil, errors.New("no active groups in specified room")
 	}
 
 	newActiveGroup := &active.Group{
 		GroupID:      activityGroup.ID,
-		RoomID:       roomID,
+		RoomID:       room.ID,
 		StartTime:    time.Now(),
 		LastActivity: time.Now(),
 	}
@@ -642,14 +597,20 @@ func (rs *Resource) createSpecialRoomActiveGroupIfNeeded(ctx context.Context, w 
 		default:
 			iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to create session")))
 		}
-		return 0, "", err
+		return nil, err
 	}
 
+	newActiveGroup.Room = room
+	newActiveGroup.ActualGroup = activityGroup
 	rs.getLogger().InfoContext(ctx, "auto-created active group for special room",
 		slog.String("room_name", room.Name),
 		slog.Int64("active_group_id", newActiveGroup.ID),
 	)
-	return newActiveGroup.ID, room.Name, nil
+	return &selectedActiveGroup{
+		Group:        newActiveGroup,
+		RoomName:     room.Name,
+		DeviceScoped: false,
+	}, nil
 }
 
 // roomNameByID resolves the room name from a room object or by ID lookup
@@ -680,6 +641,7 @@ func (rs *Resource) roomNameForResponse(ctx context.Context, currentVisit *activ
 // checkinProcessingInput holds the inputs for processing a student checkin
 type checkinProcessingInput struct {
 	RoomID       *int64
+	DeviceID     int64
 	SkipCheckin  bool
 	CheckedOut   bool
 	CurrentVisit *active.Visit
@@ -687,9 +649,12 @@ type checkinProcessingInput struct {
 
 // checkinProcessingResult holds the result of checkin processing
 type checkinProcessingResult struct {
-	NewVisitID *int64
-	RoomName   string
-	Error      error
+	NewVisitID       *int64
+	RoomName         string
+	ActiveGroupID    *int64
+	SelectedGroup    *active.Group
+	DeviceScopedRoom bool
+	Error            error
 }
 
 // processStudentCheckin handles the checkin logic based on room and skip conditions.
@@ -700,13 +665,16 @@ func (rs *Resource) processStudentCheckin(ctx context.Context, w http.ResponseWr
 	switch {
 	case input.RoomID != nil && !input.SkipCheckin:
 		// Normal checkin case
-		visitID, roomName, err := rs.processCheckin(ctx, w, r, student, person, *input.RoomID)
+		visitID, selection, err := rs.processCheckin(ctx, w, r, student, person, *input.RoomID, input.DeviceID)
 		if err != nil {
 			result.Error = err
 			return result
 		}
 		result.NewVisitID = visitID
-		result.RoomName = roomName
+		result.RoomName = selection.RoomName
+		result.SelectedGroup = selection.Group
+		result.ActiveGroupID = &selection.Group.ID
+		result.DeviceScopedRoom = selection.DeviceScoped
 
 	case input.RoomID != nil && input.SkipCheckin:
 		// Skipped checkin - just get room name for response
@@ -757,55 +725,45 @@ func buildCheckinResult(input *checkinResultInput) *checkinResult {
 	return result
 }
 
-// getActiveStudentCountForRoom returns the count of active students in the device's
-// session for the given room. Returns nil if no active group is found or on error.
-func (rs *Resource) getActiveStudentCountForRoom(ctx context.Context, roomID int64, deviceID int64) *int {
-	activeGroups, err := rs.ActiveService.FindActiveGroupsByRoomID(ctx, roomID)
+func (rs *Resource) getDeviceActiveGroupInRoom(ctx context.Context, roomID int64, deviceID int64) *active.Group {
+	group, err := rs.ActiveService.FindDeviceActiveGroupInRoom(ctx, roomID, deviceID)
 	if err != nil {
-		rs.getLogger().WarnContext(ctx, "failed to find active groups for room",
+		rs.getLogger().WarnContext(ctx, "failed to find active group for room and device",
+			slog.Int64("room_id", roomID),
+			slog.Int64("device_id", deviceID),
+			slog.String("error", err.Error()),
+		)
+		return nil
+	}
+	return group
+}
+
+func (rs *Resource) getActiveStudentCountForRoom(ctx context.Context, roomID int64) *int {
+	count, err := rs.ActiveService.CountActiveVisitsByRoomID(ctx, roomID)
+	if err != nil {
+		rs.getLogger().WarnContext(ctx, "failed to count active students for room",
 			slog.Int64("room_id", roomID),
 			slog.String("error", err.Error()),
 		)
 		return nil
 	}
+	return &count
+}
 
-	if len(activeGroups) == 0 {
+func (rs *Resource) getActiveStudentCountForGroup(ctx context.Context, activeGroupID int64) *int {
+	count, err := rs.ActiveService.CountActiveVisitsByActiveGroupID(ctx, activeGroupID)
+	if err != nil {
+		rs.getLogger().WarnContext(ctx, "failed to count active students for group",
+			slog.Int64("active_group_id", activeGroupID),
+			slog.String("error", err.Error()),
+		)
 		return nil
 	}
-
-	// Find the active group associated with this device
-	for _, group := range activeGroups {
-		if group.DeviceID != nil && *group.DeviceID == deviceID {
-			visits, visitErr := rs.ActiveService.FindVisitsByActiveGroupID(ctx, group.ID)
-			if visitErr != nil {
-				rs.getLogger().WarnContext(ctx, "failed to get visits for active group",
-					slog.Int64("active_group_id", group.ID),
-					slog.String("error", visitErr.Error()),
-				)
-				return nil
-			}
-			count := countActiveStudentsInVisits(visits)
-			return &count
-		}
-	}
-
-	// No device-matched group; fall back to counting across all groups in the room
-	total := 0
-	for _, group := range activeGroups {
-		visits, visitErr := rs.ActiveService.FindVisitsByActiveGroupID(ctx, group.ID)
-		if visitErr != nil {
-			rs.getLogger().WarnContext(ctx, "failed to get visits for active group in fallback count",
-				slog.Int64("active_group_id", group.ID),
-				slog.String("error", visitErr.Error()),
-			)
-			continue
-		}
-		total += countActiveStudentsInVisits(visits)
-	}
-	return &total
+	return &count
 }
 
 // countActiveStudentsInVisits counts visits without an exit time (active students).
+// Kept for tests and utility callers that already have visit data in memory.
 func countActiveStudentsInVisits(visits []*active.Visit) int {
 	count := 0
 	for _, visit := range visits {
@@ -816,23 +774,13 @@ func countActiveStudentsInVisits(visits []*active.Visit) int {
 	return count
 }
 
-// updateSessionActivityForDevice updates session activity when student scans
-func (rs *Resource) updateSessionActivityForDevice(ctx context.Context, roomID int64, deviceID int64) {
-	activeGroups, err := rs.ActiveService.FindActiveGroupsByRoomID(ctx, roomID)
-	if err != nil {
-		return
-	}
-
-	for _, group := range activeGroups {
-		if group.DeviceID != nil && *group.DeviceID == deviceID {
-			if updateErr := rs.ActiveService.UpdateSessionActivity(ctx, group.ID); updateErr != nil {
-				rs.getLogger().WarnContext(ctx, "failed to update session activity for group",
-					slog.Int64("group_id", group.ID),
-					slog.String("error", updateErr.Error()),
-				)
-			}
-			break
-		}
+// updateSessionActivity updates session activity for the already-selected active group.
+func (rs *Resource) updateSessionActivity(ctx context.Context, activeGroupID int64) {
+	if updateErr := rs.ActiveService.UpdateSessionActivity(ctx, activeGroupID); updateErr != nil {
+		rs.getLogger().WarnContext(ctx, "failed to update session activity for group",
+			slog.Int64("group_id", activeGroupID),
+			slog.String("error", updateErr.Error()),
+		)
 	}
 }
 

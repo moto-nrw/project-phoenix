@@ -1,24 +1,12 @@
 "use client";
 
 import { Suspense, useState, useEffect, useCallback } from "react";
+import { useSession } from "next-auth/react";
 import { Loading } from "~/components/ui/loading";
-import { useOperatorAuth } from "~/lib/operator/auth-context";
 import { SettingsLayout } from "~/components/shared/settings-layout";
 
-interface ProfileResponse {
-  data: {
-    id: number;
-    email: string;
-    display_name: string;
-  };
-}
-
 function OperatorSettingsContent() {
-  const {
-    operator,
-    isLoading: authLoading,
-    updateOperator,
-  } = useOperatorAuth();
+  const { data: session, status, update: updateSession } = useSession();
 
   const [showAlert, setShowAlert] = useState(false);
   const [alertMessage, setAlertMessage] = useState("");
@@ -36,15 +24,15 @@ function OperatorSettingsContent() {
     setShowAlert(false);
   }, []);
 
-  // Sync formData with operator from Context
+  // Sync formData with session
   useEffect(() => {
-    if (operator) {
+    if (session?.user) {
       setFormData({
-        displayName: operator.displayName || "",
-        email: operator.email || "",
+        displayName: session.user.name ?? "",
+        email: session.user.email ?? "",
       });
     }
-  }, [operator]);
+  }, [session]);
 
   const handleSaveProfile = async () => {
     setIsSaving(true);
@@ -62,8 +50,8 @@ function OperatorSettingsContent() {
         );
       }
 
-      const result = (await response.json()) as ProfileResponse;
-      updateOperator({ displayName: result.data.display_name.toString() });
+      // Trigger session refresh with the updated name so JWT callback picks it up
+      await updateSession({ name: formData.displayName });
 
       setIsEditing(false);
       setAlertMessage("Profil erfolgreich aktualisiert");
@@ -78,7 +66,7 @@ function OperatorSettingsContent() {
     }
   };
 
-  if (authLoading) {
+  if (status === "loading") {
     return <Loading fullPage={false} />;
   }
 
@@ -148,10 +136,10 @@ function OperatorSettingsContent() {
             <button
               onClick={() => {
                 setIsEditing(false);
-                if (operator) {
+                if (session?.user) {
                   setFormData({
-                    displayName: operator.displayName || "",
-                    email: operator.email || "",
+                    displayName: session.user.name ?? "",
+                    email: session.user.email ?? "",
                   });
                 }
               }}

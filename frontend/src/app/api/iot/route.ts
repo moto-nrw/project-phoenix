@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { createGetHandler, createPostHandler } from "@/lib/route-wrapper";
-import { apiGet, apiPost } from "@/lib/api-client";
+import { apiGet, apiPost } from "~/lib/api-helpers";
 import type { BackendDevice, Device } from "@/lib/iot-helpers";
 import { mapDeviceResponse } from "@/lib/iot-helpers";
 
@@ -22,10 +22,9 @@ export const GET = createGetHandler(
     request: NextRequest,
     token: string,
   ): Promise<PaginatedDevicesResponse> => {
-    const response = await apiGet("/api/iot", token);
+    const response = await apiGet<{ data: BackendDevice[] }>("/api/iot", token);
 
-    // Handle null or undefined response
-    if (!response) {
+    if (!response?.data || !Array.isArray(response.data)) {
       return {
         data: [],
         pagination: {
@@ -37,62 +36,28 @@ export const GET = createGetHandler(
       };
     }
 
-    // apiGet returns AxiosResponse, so we need response.data to get the actual data
-    const actualData = response.data;
+    const mappedDevices = response.data.map((device: BackendDevice) =>
+      mapDeviceResponse(device),
+    );
 
-    // Check for the backend response structure { status: "success", data: [...] }
-    if (
-      actualData &&
-      typeof actualData === "object" &&
-      actualData !== null &&
-      "data" in actualData &&
-      Array.isArray(actualData.data)
-    ) {
-      // Map the backend response format to the frontend format
-      const mappedDevices = actualData.data.map((device: BackendDevice) => {
-        const mapped = mapDeviceResponse(device);
-        return mapped;
-      });
-
-      return {
-        data: mappedDevices,
-        pagination: {
-          current_page: 1,
-          page_size: mappedDevices.length,
-          total_pages: 1,
-          total_records: mappedDevices.length,
-        },
-      };
-    }
-
-    // If the response doesn't have the expected structure, return empty
     return {
-      data: [],
+      data: mappedDevices,
       pagination: {
         current_page: 1,
-        page_size: 50,
-        total_pages: 0,
-        total_records: 0,
+        page_size: mappedDevices.length,
+        total_pages: 1,
+        total_records: mappedDevices.length,
       },
     };
   },
 );
 
 export const POST = createPostHandler(async (request, body, token) => {
-  const response = await apiPost("/api/iot", body, token);
+  const response = await apiPost<{ data: BackendDevice }>("/api/iot", token, body);
 
-  // apiPost returns AxiosResponse, so we need response.data to get the actual data
-  const actualData = response.data;
-
-  // Check for the backend response structure { status: "success", data: {...} }
-  if (
-    actualData &&
-    typeof actualData === "object" &&
-    actualData !== null &&
-    "data" in actualData
-  ) {
-    return mapDeviceResponse(actualData.data as BackendDevice);
+  if (!response?.data) {
+    throw new Error("Invalid response format");
   }
 
-  throw new Error("Invalid response format");
+  return mapDeviceResponse(response.data);
 });

@@ -1,5 +1,5 @@
 import { createGetHandler } from "~/lib/route-wrapper";
-import { apiGet } from "~/lib/api-client";
+import { apiGet } from "~/lib/api-helpers";
 
 interface GroupsApiResponse {
   status: string;
@@ -21,7 +21,7 @@ export const GET = createGetHandler(async (_request, token) => {
     const response = await apiGet<GroupsApiResponse>("/api/me/groups", token);
 
     return {
-      groups: response.data.data ?? [],
+      groups: response.data ?? [],
     };
   } catch {
     return {

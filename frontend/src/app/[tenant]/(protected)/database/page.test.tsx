@@ -120,7 +120,7 @@ describe("DatabasePage", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Kinder")).toBeInTheDocument();
-      expect(screen.getByText("Betreuer")).toBeInTheDocument();
+      expect(screen.getByText("Personal")).toBeInTheDocument();
       expect(screen.getByText("Räume")).toBeInTheDocument();
       expect(screen.getByText("Aktivitäten")).toBeInTheDocument();
       expect(screen.getByText("Gruppen")).toBeInTheDocument();
@@ -202,7 +202,7 @@ describe("DatabasePage", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Kinder")).toBeInTheDocument();
-      expect(screen.queryByText("Betreuer")).not.toBeInTheDocument();
+      expect(screen.queryByText("Personal")).not.toBeInTheDocument();
       expect(screen.queryByText("Räume")).not.toBeInTheDocument();
     });
   });
@@ -261,7 +261,7 @@ describe("DatabasePage", () => {
         screen.getByText("Kinderdaten verwalten und bearbeiten"),
       ).toBeInTheDocument();
       expect(
-        screen.getByText("Daten der Betreuer und Zuordnungen verwalten"),
+        screen.getByText("Personaldaten und Zuordnungen verwalten"),
       ).toBeInTheDocument();
       expect(
         screen.getByText("Räume und Ausstattung verwalten"),
@@ -276,8 +276,8 @@ describe("DatabasePage", () => {
       const studentsLink = screen.getByRole("link", { name: /Kinder/i });
       expect(studentsLink).toHaveAttribute("href", "/database/students");
 
-      const teachersLink = screen.getByRole("link", { name: /Betreuer/i });
-      expect(teachersLink).toHaveAttribute("href", "/database/teachers");
+      const teachersLink = screen.getByRole("link", { name: /Personal/i });
+      expect(teachersLink).toHaveAttribute("href", "/database/personal");
 
       const roomsLink = screen.getByRole("link", { name: /Räume/i });
       expect(roomsLink).toHaveAttribute("href", "/database/rooms");
@@ -306,8 +306,8 @@ describe("baseDataSections configuration", () => {
       },
       {
         id: "teachers",
-        title: "Betreuer",
-        href: "/database/teachers",
+        title: "Personal",
+        href: "/database/personal",
       },
       {
         id: "rooms",

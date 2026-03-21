@@ -3,12 +3,14 @@ package active
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -198,7 +200,6 @@ func (r *VisitRepository) FindWithActiveGroup(ctx context.Context, id int64) (*a
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(visit).
 		ModelTableExpr(tableExprActiveVisitsAsVisit).
-		Relation("ActiveGroup").
 		Where(`"visit".id = ?`, id)
 
 	if where, val, ok := base.TenantWhere(ctx, "visit"); ok {
@@ -211,6 +212,19 @@ func (r *VisitRepository) FindWithActiveGroup(ctx context.Context, id int64) (*a
 			Op:  "find with active group",
 			Err: err,
 		}
+	}
+
+	// Load active group separately — BUN Relation("ActiveGroup") does not
+	// resolve the schema:active tag for relation sub-queries.
+	group := new(active.Group)
+	err = r.db.NewSelect().
+		Model(group).
+		ModelTableExpr(`active.groups AS "group"`).
+		Where(`"group".id = ?`, visit.ActiveGroupID).
+		Scan(ctx)
+
+	if err == nil {
+		visit.ActiveGroup = group
 	}
 
 	return visit, nil
@@ -404,6 +418,118 @@ func (r *VisitRepository) GetCurrentByStudentID(ctx context.Context, studentID i
 	return visit, nil
 }
 
+// GetCurrentByStudentIDWithRoom finds the current active visit for a student and loads the active group and room.
+func (r *VisitRepository) GetCurrentByStudentIDWithRoom(ctx context.Context, studentID int64) (*active.Visit, error) {
+	type currentVisitRow struct {
+		VisitID             int64          `bun:"visit_id"`
+		VisitStudentID      int64          `bun:"visit_student_id"`
+		VisitActiveGroupID  int64          `bun:"visit_active_group_id"`
+		VisitEntryTime      time.Time      `bun:"visit_entry_time"`
+		VisitExitTime       *time.Time     `bun:"visit_exit_time"`
+		VisitCreatedAt      time.Time      `bun:"visit_created_at"`
+		VisitUpdatedAt      time.Time      `bun:"visit_updated_at"`
+		GroupID             sql.NullInt64  `bun:"group_id"`
+		GroupStartTime      time.Time      `bun:"group_start_time"`
+		GroupEndTime        *time.Time     `bun:"group_end_time"`
+		GroupLastActivity   time.Time      `bun:"group_last_activity"`
+		GroupTimeoutMinutes sql.NullInt64  `bun:"group_timeout_minutes"`
+		GroupGroupID        sql.NullInt64  `bun:"group_group_id"`
+		GroupDeviceID       sql.NullInt64  `bun:"group_device_id"`
+		GroupRoomID         sql.NullInt64  `bun:"group_room_id"`
+		GroupCreatedAt      time.Time      `bun:"group_created_at"`
+		GroupUpdatedAt      time.Time      `bun:"group_updated_at"`
+		RoomID              sql.NullInt64  `bun:"room_id"`
+		RoomName            sql.NullString `bun:"room_name"`
+		RoomCreatedAt       time.Time      `bun:"room_created_at"`
+		RoomUpdatedAt       time.Time      `bun:"room_updated_at"`
+	}
+
+	row := new(currentVisitRow)
+	err := r.db.NewSelect().
+		TableExpr(`active.visits AS "visit"`).
+		ColumnExpr(`"visit".id AS visit_id`).
+		ColumnExpr(`"visit".student_id AS visit_student_id`).
+		ColumnExpr(`"visit".active_group_id AS visit_active_group_id`).
+		ColumnExpr(`"visit".entry_time AS visit_entry_time`).
+		ColumnExpr(`"visit".exit_time AS visit_exit_time`).
+		ColumnExpr(`"visit".created_at AS visit_created_at`).
+		ColumnExpr(`"visit".updated_at AS visit_updated_at`).
+		ColumnExpr(`"group".id AS group_id`).
+		ColumnExpr(`"group".start_time AS group_start_time`).
+		ColumnExpr(`"group".end_time AS group_end_time`).
+		ColumnExpr(`"group".last_activity AS group_last_activity`).
+		ColumnExpr(`"group".timeout_minutes AS group_timeout_minutes`).
+		ColumnExpr(`"group".group_id AS group_group_id`).
+		ColumnExpr(`"group".device_id AS group_device_id`).
+		ColumnExpr(`"group".room_id AS group_room_id`).
+		ColumnExpr(`"group".created_at AS group_created_at`).
+		ColumnExpr(`"group".updated_at AS group_updated_at`).
+		ColumnExpr(`"room".id AS room_id`).
+		ColumnExpr(`"room".name AS room_name`).
+		ColumnExpr(`"room".created_at AS room_created_at`).
+		ColumnExpr(`"room".updated_at AS room_updated_at`).
+		Join(`LEFT JOIN active.groups AS "group" ON "group".id = "visit".active_group_id`).
+		Join(`LEFT JOIN facilities.rooms AS "room" ON "room".id = "group".room_id`).
+		Where(`"visit".student_id = ? AND "visit".exit_time IS NULL`, studentID).
+		OrderExpr(`"visit".entry_time DESC`).
+		Limit(1).
+		Scan(ctx, row)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "get current by student ID with room",
+			Err: err,
+		}
+	}
+
+	visit := &active.Visit{
+		Model: modelBase.Model{
+			ID:        row.VisitID,
+			CreatedAt: row.VisitCreatedAt,
+			UpdatedAt: row.VisitUpdatedAt,
+		},
+		StudentID:     row.VisitStudentID,
+		ActiveGroupID: row.VisitActiveGroupID,
+		EntryTime:     row.VisitEntryTime,
+		ExitTime:      row.VisitExitTime,
+	}
+
+	if row.GroupID.Valid && row.GroupGroupID.Valid && row.GroupRoomID.Valid {
+		group := &active.Group{
+			Model: modelBase.Model{
+				ID:        row.GroupID.Int64,
+				CreatedAt: row.GroupCreatedAt,
+				UpdatedAt: row.GroupUpdatedAt,
+			},
+			StartTime:    row.GroupStartTime,
+			EndTime:      row.GroupEndTime,
+			LastActivity: row.GroupLastActivity,
+			GroupID:      row.GroupGroupID.Int64,
+			RoomID:       row.GroupRoomID.Int64,
+		}
+		if row.GroupTimeoutMinutes.Valid {
+			group.TimeoutMinutes = int(row.GroupTimeoutMinutes.Int64)
+		}
+		if row.GroupDeviceID.Valid {
+			deviceID := row.GroupDeviceID.Int64
+			group.DeviceID = &deviceID
+		}
+		if row.RoomID.Valid {
+			group.Room = &facilities.Room{
+				Model: modelBase.Model{
+					ID:        row.RoomID.Int64,
+					CreatedAt: row.RoomCreatedAt,
+					UpdatedAt: row.RoomUpdatedAt,
+				},
+				Name: row.RoomName.String,
+			}
+		}
+		visit.ActiveGroup = group
+	}
+
+	return visit, nil
+}
+
 // GetCurrentByStudentIDs finds current active visits for multiple students in a single query
 func (r *VisitRepository) GetCurrentByStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]*active.Visit, error) {
 	result := make(map[int64]*active.Visit, len(studentIDs))
@@ -450,6 +576,42 @@ func (r *VisitRepository) GetCurrentByStudentIDs(ctx context.Context, studentIDs
 	}
 
 	return result, nil
+}
+
+// CountActiveByRoomID counts active visits across all active groups in the given room.
+func (r *VisitRepository) CountActiveByRoomID(ctx context.Context, roomID int64) (int, error) {
+	count, err := r.db.NewSelect().
+		TableExpr(`active.visits AS "visit"`).
+		Join(`JOIN active.groups AS "group" ON "group".id = "visit".active_group_id`).
+		Where(`"group".room_id = ?`, roomID).
+		Where(`"group".end_time IS NULL`).
+		Where(`"visit".exit_time IS NULL`).
+		Count(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "count active by room ID",
+			Err: err,
+		}
+	}
+
+	return count, nil
+}
+
+// CountActiveByGroupID counts active visits in the given active group.
+func (r *VisitRepository) CountActiveByGroupID(ctx context.Context, activeGroupID int64) (int, error) {
+	count, err := r.db.NewSelect().
+		TableExpr(`active.visits AS "visit"`).
+		Where(`"visit".active_group_id = ?`, activeGroupID).
+		Where(`"visit".exit_time IS NULL`).
+		Count(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "count active by group ID",
+			Err: err,
+		}
+	}
+
+	return count, nil
 }
 
 // EndVisitsByActiveGroupIDs ends all active visits for multiple group IDs in a single query.

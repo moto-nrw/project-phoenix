@@ -292,6 +292,14 @@ func (s *service) FindActiveGroupsByRoomID(ctx context.Context, roomID int64) ([
 	return groups, nil
 }
 
+func (s *service) FindDeviceActiveGroupInRoom(ctx context.Context, roomID int64, deviceID int64) (*active.Group, error) {
+	group, err := s.groupRepo.FindActiveByRoomIDAndDeviceID(ctx, roomID, deviceID)
+	if err != nil {
+		return nil, &ActiveError{Op: "FindDeviceActiveGroupInRoom", Err: fmt.Errorf("find by room and device: %w", err)}
+	}
+	return group, nil
+}
+
 func (s *service) FindActiveGroupsByGroupID(ctx context.Context, groupID int64) ([]*active.Group, error) {
 	groups, err := s.groupRepo.FindActiveByGroupID(ctx, groupID)
 	if err != nil {
@@ -582,6 +590,9 @@ func (s *service) broadcastVisitCheckout(ctx context.Context, endedVisit *active
 
 	s.broadcastWithLogging(ctx, activeGroupID, studentID, event, "student_checkout")
 	s.broadcastToEducationalGroup(ctx, studentRec, event)
+
+	// Notify all clients so dashboard counts refresh
+	_ = s.broadcaster.BroadcastToAll(realtime.NewEvent(realtime.EventDashboardCountsChanged, "", realtime.EventData{}))
 }
 
 // broadcastToEducationalGroup mirrors active-group broadcasts to the student's OGS group topic
@@ -623,6 +634,11 @@ func (s *service) broadcastStudentCheckoutEvents(ctx context.Context, sessionIDS
 		s.broadcastWithLogging(ctx, sessionIDStr, studentIDStr, checkoutEvent, "student_checkout")
 		s.broadcastToEducationalGroup(ctx, visitData.Student, checkoutEvent)
 	}
+
+	// Single global broadcast for the entire batch
+	if len(visitsToNotify) > 0 && s.broadcaster != nil {
+		_ = s.broadcaster.BroadcastToAll(realtime.NewEvent(realtime.EventDashboardCountsChanged, "", realtime.EventData{}))
+	}
 }
 
 // broadcastActivityEndEvent sends the activity_end SSE event for a completed session.
@@ -648,6 +664,9 @@ func (s *service) broadcastActivityEndEvent(ctx context.Context, sessionID int64
 	)
 
 	s.broadcastWithLogging(ctx, sessionIDStr, "", event, "activity_end")
+
+	// Notify all clients (including zero-topic) so dashboard refreshes
+	_ = s.broadcaster.BroadcastToAll(realtime.NewEvent(realtime.EventDashboardCountsChanged, "", realtime.EventData{}))
 }
 
 // broadcastWithLogging broadcasts an event and logs any errors.
@@ -684,17 +703,35 @@ func (s *service) getRoomName(ctx context.Context, roomID int64) string {
 }
 
 func (s *service) GetStudentCurrentVisit(ctx context.Context, studentID int64) (*active.Visit, error) {
-	visits, err := s.visitRepo.FindActiveByStudentID(ctx, studentID)
+	visit, err := s.visitRepo.GetCurrentByStudentID(ctx, studentID)
 	if err != nil {
+		if isNotFoundError(err) {
+			return nil, &ActiveError{Op: "GetStudentCurrentVisit", Err: ErrVisitNotFound}
+		}
 		return nil, &ActiveError{Op: "GetStudentCurrentVisit", Err: ErrDatabaseOperation}
 	}
 
-	if len(visits) == 0 {
+	if visit == nil {
 		return nil, &ActiveError{Op: "GetStudentCurrentVisit", Err: ErrVisitNotFound}
 	}
 
-	// Return the first active visit (there should only be one)
-	return visits[0], nil
+	return visit, nil
+}
+
+func (s *service) GetStudentCurrentVisitWithRoom(ctx context.Context, studentID int64) (*active.Visit, error) {
+	visit, err := s.visitRepo.GetCurrentByStudentIDWithRoom(ctx, studentID)
+	if err != nil {
+		if isNotFoundError(err) {
+			return nil, &ActiveError{Op: "GetStudentCurrentVisitWithRoom", Err: ErrVisitNotFound}
+		}
+		return nil, &ActiveError{Op: "GetStudentCurrentVisitWithRoom", Err: ErrDatabaseOperation}
+	}
+
+	if visit == nil {
+		return nil, &ActiveError{Op: "GetStudentCurrentVisitWithRoom", Err: ErrVisitNotFound}
+	}
+
+	return visit, nil
 }
 
 func (s *service) GetStudentsCurrentVisits(ctx context.Context, studentIDs []int64) (map[int64]*active.Visit, error) {
@@ -712,6 +749,22 @@ func (s *service) GetStudentsCurrentVisits(ctx context.Context, studentIDs []int
 	}
 
 	return visits, nil
+}
+
+func (s *service) CountActiveVisitsByRoomID(ctx context.Context, roomID int64) (int, error) {
+	count, err := s.visitRepo.CountActiveByRoomID(ctx, roomID)
+	if err != nil {
+		return 0, &ActiveError{Op: "CountActiveVisitsByRoomID", Err: ErrDatabaseOperation}
+	}
+	return count, nil
+}
+
+func (s *service) CountActiveVisitsByActiveGroupID(ctx context.Context, activeGroupID int64) (int, error) {
+	count, err := s.visitRepo.CountActiveByGroupID(ctx, activeGroupID)
+	if err != nil {
+		return 0, &ActiveError{Op: "CountActiveVisitsByActiveGroupID", Err: ErrDatabaseOperation}
+	}
+	return count, nil
 }
 
 // Group Supervisor operations

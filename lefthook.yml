@@ -9,7 +9,7 @@ pre-commit:
     git-secrets:
       run: git secrets --pre_commit_hook 2>/dev/null || true
 
-    # Frontend lint-staged (prettier + eslint with auto-fix)
+    # Frontend lint-staged (prettier + oxlint with auto-fix)
     frontend-lint:
       glob: "frontend/**/*.{ts,tsx,js,jsx,mdx}"
       run: cd frontend && npx lint-staged
@@ -68,7 +68,7 @@ pre-push:
       run: cd backend && govulncheck ./...
       skip: true
 
-    # Frontend lint + typecheck (pnpm check = eslint + tsc --noEmit)
+    # Frontend lint + typecheck (pnpm check = oxlint + tsc --noEmit)
     frontend-check:
       glob: "frontend/**/*.{ts,tsx}"
       run: cd frontend && pnpm run check

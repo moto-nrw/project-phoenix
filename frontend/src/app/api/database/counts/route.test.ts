@@ -16,9 +16,10 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("~/lib/api-client", () => ({
-  apiGet: mockApiGet,
-}));
+vi.mock("~/lib/api-helpers", async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return { ...actual, apiGet: mockApiGet };
+});
 
 function createMockRequest(path: string): NextRequest {
   const url = new URL(path, "http://localhost:3000");
@@ -73,7 +74,7 @@ describe("GET /api/database/counts", () => {
       },
     };
 
-    mockApiGet.mockResolvedValueOnce({ data: dbStats });
+    mockApiGet.mockResolvedValueOnce(dbStats);
 
     const request = createMockRequest("/api/database/counts");
     const response = await GET(request, createMockContext());

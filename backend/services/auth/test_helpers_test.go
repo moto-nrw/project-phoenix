@@ -1225,6 +1225,10 @@ func (r *stubSchoolRepository) FindActiveByAccountID(context.Context, int64) ([]
 	return nil, nil
 }
 
+func (r *stubSchoolRepository) Update(context.Context, *platformModel.School) error {
+	return fmt.Errorf("not implemented")
+}
+
 // helper to build default email used in tests.
 func newDefaultFromEmail() email.Email {
 	return email.NewEmail("moto", "no-reply@moto.example")
