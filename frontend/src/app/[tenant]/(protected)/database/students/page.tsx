@@ -128,7 +128,7 @@ export default function StudentsPage() {
 
     // Search filter
     if (searchTerm) {
-      const searchLower = searchTerm.toLowerCase();
+      const searchLower = searchTerm.trim().toLowerCase();
       filtered = filtered.filter(
         (student) =>
           (student.first_name?.toLowerCase().includes(searchLower) ?? false) ||

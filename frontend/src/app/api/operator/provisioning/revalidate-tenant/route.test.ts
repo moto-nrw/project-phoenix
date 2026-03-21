@@ -1,15 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 
-const { mockGetOperatorToken, mockRevalidatePath } = vi.hoisted(() => ({
-  mockGetOperatorToken: vi.fn<() => Promise<string | undefined>>(),
+const { mockAuth, mockRevalidatePath } = vi.hoisted(() => ({
+  mockAuth: vi.fn(),
   mockRevalidatePath: vi.fn(),
 }));
 
-vi.mock("~/lib/operator/cookies", () => ({
-  getOperatorToken: mockGetOperatorToken,
-  getOperatorRefreshToken: vi.fn(),
-  setOperatorTokens: vi.fn(),
+vi.mock("~/server/auth", () => ({
+  auth: mockAuth,
 }));
 
 vi.mock("next/cache", () => ({
@@ -26,7 +24,7 @@ describe("POST /api/operator/provisioning/revalidate-tenant", () => {
   });
 
   it("revalidates paths for given slugs", async () => {
-    mockGetOperatorToken.mockResolvedValue("valid-token");
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
 
     const request = new NextRequest(
       "http://localhost:3000/api/operator/provisioning/revalidate-tenant",
@@ -53,7 +51,7 @@ describe("POST /api/operator/provisioning/revalidate-tenant", () => {
   });
 
   it("returns 401 when not authenticated", async () => {
-    mockGetOperatorToken.mockResolvedValue(undefined);
+    mockAuth.mockResolvedValue(null);
 
     const request = new NextRequest(
       "http://localhost:3000/api/operator/provisioning/revalidate-tenant",
@@ -69,7 +67,7 @@ describe("POST /api/operator/provisioning/revalidate-tenant", () => {
   });
 
   it("returns 400 when slugs array is missing", async () => {
-    mockGetOperatorToken.mockResolvedValue("valid-token");
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
 
     const request = new NextRequest(
       "http://localhost:3000/api/operator/provisioning/revalidate-tenant",
@@ -85,7 +83,7 @@ describe("POST /api/operator/provisioning/revalidate-tenant", () => {
   });
 
   it("returns 400 when slugs array is empty", async () => {
-    mockGetOperatorToken.mockResolvedValue("valid-token");
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
 
     const request = new NextRequest(
       "http://localhost:3000/api/operator/provisioning/revalidate-tenant",
@@ -101,7 +99,7 @@ describe("POST /api/operator/provisioning/revalidate-tenant", () => {
   });
 
   it("skips empty string slugs", async () => {
-    mockGetOperatorToken.mockResolvedValue("valid-token");
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
 
     const request = new NextRequest(
       "http://localhost:3000/api/operator/provisioning/revalidate-tenant",
@@ -120,7 +118,7 @@ describe("POST /api/operator/provisioning/revalidate-tenant", () => {
   });
 
   it("returns 500 when request body is invalid JSON", async () => {
-    mockGetOperatorToken.mockResolvedValue("valid-token");
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
 
     const request = new NextRequest(
       "http://localhost:3000/api/operator/provisioning/revalidate-tenant",

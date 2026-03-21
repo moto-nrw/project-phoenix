@@ -108,7 +108,7 @@ function buildAuthUser(
     isAdmin: payload.is_admin ?? false,
     tenantId: payload.tenant_id,
     orgId: payload.org_id,
-    scope: payload.scope,
+    scope: scope ?? payload.scope,
   };
 }
 

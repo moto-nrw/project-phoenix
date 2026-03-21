@@ -741,9 +741,9 @@ describe("TeachersPage", () => {
       const emailOption = screen.getByText("Per E-Mail einladen");
       fireEvent.click(emailOption);
 
-      // Verify navigation to /invitations
+      // Verify navigation to /invitations (useTenantRouter prefixes with tenant slug)
       await waitFor(() => {
-        expect(mockPush).toHaveBeenCalledWith("/invitations");
+        expect(mockPush).toHaveBeenCalledWith("/test-tenant/invitations");
       });
     });
   });

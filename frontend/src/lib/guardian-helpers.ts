@@ -130,6 +130,8 @@ export interface GuardianFormData {
 }
 
 // Backend Guardian Create Request
+// preferred_contact_method and language_preference are optional — the backend
+// applies its own defaults ("phone" and "de") when omitted.
 export interface BackendGuardianCreateRequest {
   first_name: string;
   last_name: string;
@@ -137,8 +139,8 @@ export interface BackendGuardianCreateRequest {
   address_street?: string;
   address_city?: string;
   address_postal_code?: string;
-  preferred_contact_method: string;
-  language_preference: string;
+  preferred_contact_method?: string;
+  language_preference?: string;
   occupation?: string;
   employer?: string;
   notes?: string;
@@ -225,8 +227,8 @@ export function mapGuardianFormDataToBackend(
     address_street: data.addressStreet,
     address_city: data.addressCity,
     address_postal_code: data.addressPostalCode,
-    preferred_contact_method: data.preferredContactMethod ?? "email",
-    language_preference: data.languagePreference ?? "de",
+    preferred_contact_method: data.preferredContactMethod,
+    language_preference: data.languagePreference,
     occupation: data.occupation,
     employer: data.employer,
     notes: data.notes,
@@ -266,10 +268,21 @@ export const CONTACT_METHODS = [
 export const LANGUAGE_PREFERENCES = [
   { value: "de", label: "Deutsch" },
   { value: "en", label: "English" },
-  { value: "tr", label: "Türkçe" },
-  { value: "ar", label: "العربية" },
+  { value: "tr", label: "Türkisch" },
+  { value: "ar", label: "Arabisch" },
+  { value: "ru", label: "Russisch" },
+  { value: "pl", label: "Polnisch" },
+  { value: "uk", label: "Ukrainisch" },
+  { value: "fa", label: "Persisch" },
+  { value: "ro", label: "Rumänisch" },
   { value: "other", label: "Sonstige" },
 ] as const;
+
+// Helper to get language label from code
+export function getLanguageLabel(code: string): string {
+  const lang = LANGUAGE_PREFERENCES.find((l) => l.value === code);
+  return lang?.label ?? code.toUpperCase();
+}
 
 // Helper to get full name
 export function getGuardianFullName(guardian: Guardian): string {

@@ -226,6 +226,202 @@ func TestXLSXParser_ParseStudents(t *testing.T) {
 }
 
 // ============================================================================
+// Guardian Profile Fields Tests
+// ============================================================================
+
+func TestXLSXParser_ParseStudents_GuardianProfileFields(t *testing.T) {
+	t.Run("parses guardian profile fields", func(t *testing.T) {
+		headers := []string{
+			"Vorname", "Nachname", "Klasse",
+			"Erz1.Email", "Erz1.Straße", "Erz1.Stadt", "Erz1.PLZ",
+			"Erz1.Notizen", "Erz1.Sprache",
+		}
+		rows := [][]string{
+			{"Max", "Mustermann", "1A",
+				"maria@example.com", "Musterstr. 1", "Köln", "50667",
+				"Allergien beachten", "de"},
+		}
+		buf := createTestXLSX(t, headers, rows)
+
+		parser := NewXLSXParser()
+		students, err := parser.ParseStudents(buf)
+
+		require.NoError(t, err)
+		require.Len(t, students, 1)
+		require.Len(t, students[0].Guardians, 1)
+
+		g := students[0].Guardians[0]
+		assert.Equal(t, "Musterstr. 1", g.AddressStreet)
+		assert.Equal(t, "Köln", g.AddressCity)
+		assert.Equal(t, "50667", g.AddressPostalCode)
+		assert.Equal(t, "Allergien beachten", g.Notes)
+		assert.Equal(t, "de", g.LanguagePreference)
+	})
+
+	t.Run("parses multiple guardians with profile fields", func(t *testing.T) {
+		headers := []string{
+			"Vorname", "Nachname", "Klasse",
+			"Erz1.Email", "Erz1.Straße", "Erz1.Notizen",
+			"Erz2.Email", "Erz2.Straße", "Erz2.Notizen",
+		}
+		rows := [][]string{
+			{"Max", "Mustermann", "1A",
+				"mother@example.com", "Hauptstr. 1", "Mutter-Notiz",
+				"father@example.com", "Nebenstr. 5", "Vater-Notiz"},
+		}
+		buf := createTestXLSX(t, headers, rows)
+
+		parser := NewXLSXParser()
+		students, err := parser.ParseStudents(buf)
+
+		require.NoError(t, err)
+		require.Len(t, students, 1)
+		require.Len(t, students[0].Guardians, 2)
+
+		assert.Equal(t, "Hauptstr. 1", students[0].Guardians[0].AddressStreet)
+		assert.Equal(t, "Mutter-Notiz", students[0].Guardians[0].Notes)
+
+		assert.Equal(t, "Nebenstr. 5", students[0].Guardians[1].AddressStreet)
+		assert.Equal(t, "Vater-Notiz", students[0].Guardians[1].Notes)
+	})
+}
+
+// ============================================================================
+// Pickup Schedule Tests
+// ============================================================================
+
+func TestXLSXParser_ParseStudents_PickupSchedule(t *testing.T) {
+	t.Run("parses all five weekdays with notes", func(t *testing.T) {
+		headers := []string{
+			"Vorname", "Nachname", "Klasse",
+			"Abholung.Mo", "Abholung.Mo.Notizen",
+			"Abholung.Di", "Abholung.Di.Notizen",
+			"Abholung.Mi", "Abholung.Mi.Notizen",
+			"Abholung.Do", "Abholung.Do.Notizen",
+			"Abholung.Fr", "Abholung.Fr.Notizen",
+		}
+		rows := [][]string{
+			{"Max", "Mustermann", "1A",
+				"16:00", "Hort",
+				"15:30", "",
+				"16:00", "",
+				"15:30", "",
+				"14:00", "Frühschluss"},
+		}
+		buf := createTestXLSX(t, headers, rows)
+
+		parser := NewXLSXParser()
+		students, err := parser.ParseStudents(buf)
+
+		require.NoError(t, err)
+		require.Len(t, students, 1)
+		require.Len(t, students[0].PickupSchedules, 5)
+
+		assert.Equal(t, 1, students[0].PickupSchedules[0].Weekday)
+		assert.Equal(t, "16:00", students[0].PickupSchedules[0].PickupTime)
+		assert.Equal(t, "Hort", students[0].PickupSchedules[0].Notes)
+
+		assert.Equal(t, 5, students[0].PickupSchedules[4].Weekday)
+		assert.Equal(t, "14:00", students[0].PickupSchedules[4].PickupTime)
+		assert.Equal(t, "Frühschluss", students[0].PickupSchedules[4].Notes)
+	})
+
+	t.Run("parses partial pickup schedule", func(t *testing.T) {
+		headers := []string{
+			"Vorname", "Nachname", "Klasse",
+			"Abholung.Mo", "Abholung.Mo.Notizen",
+			"Abholung.Di", "Abholung.Di.Notizen",
+			"Abholung.Mi", "Abholung.Mi.Notizen",
+			"Abholung.Do", "Abholung.Do.Notizen",
+			"Abholung.Fr", "Abholung.Fr.Notizen",
+		}
+		rows := [][]string{
+			{"Max", "Mustermann", "1A",
+				"16:00", "",
+				"", "",
+				"15:00", "",
+				"", "",
+				"", ""},
+		}
+		buf := createTestXLSX(t, headers, rows)
+
+		parser := NewXLSXParser()
+		students, err := parser.ParseStudents(buf)
+
+		require.NoError(t, err)
+		require.Len(t, students, 1)
+		require.Len(t, students[0].PickupSchedules, 2, "should only have Mon and Wed")
+		assert.Equal(t, 1, students[0].PickupSchedules[0].Weekday)
+		assert.Equal(t, 3, students[0].PickupSchedules[1].Weekday)
+	})
+
+	t.Run("no pickup schedule columns", func(t *testing.T) {
+		headers := []string{"Vorname", "Nachname", "Klasse"}
+		rows := [][]string{{"Max", "Mustermann", "1A"}}
+		buf := createTestXLSX(t, headers, rows)
+
+		parser := NewXLSXParser()
+		students, err := parser.ParseStudents(buf)
+
+		require.NoError(t, err)
+		require.Len(t, students, 1)
+		assert.Empty(t, students[0].PickupSchedules)
+	})
+}
+
+// ============================================================================
+// Full Row with All New Fields
+// ============================================================================
+
+func TestXLSXParser_ParseStudents_FullRowAllNewFields(t *testing.T) {
+	headers := []string{
+		"Vorname", "Nachname", "Klasse",
+		"Erz1.Vorname", "Erz1.Nachname", "Erz1.Email", "Erz1.Telefon",
+		"Erz1.Verhältnis", "Erz1.Hauptansprechpartner", "Erz1.Notfall", "Erz1.Abholberechtigt",
+		"Erz1.Straße", "Erz1.Stadt", "Erz1.PLZ",
+		"Erz1.Notizen", "Erz1.Sprache",
+		"Abholung.Mo", "Abholung.Mo.Notizen",
+		"Abholung.Fr", "Abholung.Fr.Notizen",
+	}
+	rows := [][]string{
+		{"Max", "Mustermann", "1A",
+			"Maria", "Müller", "maria@example.com", "0123-456789",
+			"Mutter", "Ja", "Ja", "Ja",
+			"Musterstr. 1", "Köln", "50667",
+			"Allergien", "de",
+			"16:00", "Hort",
+			"14:00", "Frühschluss"},
+	}
+	buf := createTestXLSX(t, headers, rows)
+
+	parser := NewXLSXParser()
+	students, err := parser.ParseStudents(buf)
+
+	require.NoError(t, err)
+	require.Len(t, students, 1)
+
+	// Guardian
+	require.Len(t, students[0].Guardians, 1)
+	g := students[0].Guardians[0]
+	assert.Equal(t, "Maria", g.FirstName)
+	assert.Equal(t, "maria@example.com", g.Email)
+	assert.Equal(t, "Musterstr. 1", g.AddressStreet)
+	assert.Equal(t, "Köln", g.AddressCity)
+	assert.Equal(t, "50667", g.AddressPostalCode)
+	assert.Equal(t, "Allergien", g.Notes)
+	assert.Equal(t, "de", g.LanguagePreference)
+
+	// Pickup
+	require.Len(t, students[0].PickupSchedules, 2)
+	assert.Equal(t, 1, students[0].PickupSchedules[0].Weekday)
+	assert.Equal(t, "16:00", students[0].PickupSchedules[0].PickupTime)
+	assert.Equal(t, "Hort", students[0].PickupSchedules[0].Notes)
+	assert.Equal(t, 5, students[0].PickupSchedules[1].Weekday)
+	assert.Equal(t, "14:00", students[0].PickupSchedules[1].PickupTime)
+	assert.Equal(t, "Frühschluss", students[0].PickupSchedules[1].Notes)
+}
+
+// ============================================================================
 // ValidateHeader Tests
 // ============================================================================
 

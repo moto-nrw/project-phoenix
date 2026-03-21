@@ -161,10 +161,10 @@ describe("StudentCSVImportPage", () => {
     render(<StudentCSVImportPage />);
 
     const select = screen.getByRole("combobox");
-    expect(select).toHaveValue("csv");
-
-    fireEvent.change(select, { target: { value: "xlsx" } });
     expect(select).toHaveValue("xlsx");
+
+    fireEvent.change(select, { target: { value: "csv" } });
+    expect(select).toHaveValue("csv");
   });
 
   it("calls API when download button is clicked", async () => {
@@ -185,7 +185,7 @@ describe("StudentCSVImportPage", () => {
 
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(
-        "/api/import/students/template?format=csv",
+        "/api/import/students/template?format=xlsx",
         expect.objectContaining({
           headers: { Authorization: "Bearer test-token" },
         }),

@@ -85,7 +85,7 @@ export default function StudentCSVImportPage() {
   const [importComplete, setImportComplete] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [templateFormat, setTemplateFormat] = useState<"csv" | "xlsx">("csv");
+  const [templateFormat, setTemplateFormat] = useState<"csv" | "xlsx">("xlsx");
 
   const { data: session, status } = useSession({
     required: true,
@@ -593,7 +593,7 @@ export default function StudentCSVImportPage() {
             <div className="space-y-2 p-3">
               {previewData.map((student, idx) => (
                 <StudentRowCard
-                  key={student.row}
+                  key={`${student.row}-${idx}`}
                   student={student}
                   index={idx}
                 />
