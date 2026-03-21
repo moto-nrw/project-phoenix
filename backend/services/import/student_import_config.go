@@ -190,24 +190,7 @@ func (c *StudentImportConfig) Validate(ctx context.Context, row *importModels.St
 	}
 
 	// 5b. OPTIONAL: Pickup schedule validation
-	for _, sched := range row.PickupSchedules {
-		if sched.Weekday < 1 || sched.Weekday > 5 {
-			errors = append(errors, importModels.ValidationError{
-				Field:    "pickup_schedule",
-				Message:  fmt.Sprintf("Ungültiger Wochentag %d. Erlaubt: 1 (Mo) bis 5 (Fr)", sched.Weekday),
-				Code:     "invalid_weekday",
-				Severity: importModels.ErrorSeverityError,
-			})
-		}
-		if !isValidTimeFormat(sched.PickupTime) {
-			errors = append(errors, importModels.ValidationError{
-				Field:    "pickup_schedule",
-				Message:  fmt.Sprintf("Ungültiges Zeitformat '%s'. Bitte HH:MM verwenden (z.B. 15:30)", sched.PickupTime),
-				Code:     "invalid_time_format",
-				Severity: importModels.ErrorSeverityError,
-			})
-		}
-	}
+	errors = append(errors, validatePickupSchedules(row.PickupSchedules)...)
 
 	// 6. Birthday validation (if provided)
 	if row.Birthday != "" {
@@ -240,6 +223,30 @@ func (c *StudentImportConfig) Validate(ctx context.Context, row *importModels.St
 		row.DataRetentionDays = 31 // Cap to maximum
 	}
 
+	return errors
+}
+
+// validatePickupSchedules validates all pickup schedule entries
+func validatePickupSchedules(schedules []importModels.PickupScheduleImportData) []importModels.ValidationError {
+	var errors []importModels.ValidationError
+	for _, sched := range schedules {
+		if sched.Weekday < 1 || sched.Weekday > 5 {
+			errors = append(errors, importModels.ValidationError{
+				Field:    "pickup_schedule",
+				Message:  fmt.Sprintf("Ungültiger Wochentag %d. Erlaubt: 1 (Mo) bis 5 (Fr)", sched.Weekday),
+				Code:     "invalid_weekday",
+				Severity: importModels.ErrorSeverityError,
+			})
+		}
+		if !isValidTimeFormat(sched.PickupTime) {
+			errors = append(errors, importModels.ValidationError{
+				Field:    "pickup_schedule",
+				Message:  fmt.Sprintf("Ungültiges Zeitformat '%s'. Bitte HH:MM verwenden (z.B. 15:30)", sched.PickupTime),
+				Code:     "invalid_time_format",
+				Severity: importModels.ErrorSeverityError,
+			})
+		}
+	}
 	return errors
 }
 

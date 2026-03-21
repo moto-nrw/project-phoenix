@@ -29,7 +29,9 @@ const (
 	errTemplateCreation = "Fehler beim Erstellen der Vorlage"
 
 	// Test data constants (S1192 - avoid duplicate string literals)
-	testLastNameMueller = "Müller"
+	testLastNameMueller  = "Müller"
+	testAddressMusterstr = "Musterstr. 1"
+	hintYesNo            = "Ja / Nein"
 )
 
 // Resource defines the import resource
@@ -108,61 +110,20 @@ func (rs *Resource) downloadStudentTemplateCSV(w http.ResponseWriter, _ *http.Re
 
 	csvWriter := csv.NewWriter(w)
 
-	// Header row with all supported columns (RFID removed, flexible phone numbers added)
-	headers := []string{
-		"Vorname", "Nachname", "Klasse", "Gruppe (optional)", "Geburtstag (optional)",
-		"Erz1.Vorname", "Erz1.Nachname", "Erz1.Email", "Erz1.Telefon (optional)", "Erz1.Telefon2 (optional)", "Erz1.Mobil (optional)", "Erz1.Mobil2 (optional)", "Erz1.Dienstlich (optional)", "Erz1.Dienstlich2 (optional)", "Erz1.Verhältnis (optional)", "Erz1.Hauptansprechpartner (optional)", "Erz1.Notfall (optional)", "Erz1.Abholberechtigt (optional)",
-		"Erz1.Straße (optional)", "Erz1.Stadt (optional)", "Erz1.PLZ (optional)", "Erz1.Notizen (optional)", "Erz1.Sprache (optional)",
-		"Erz2.Vorname (optional)", "Erz2.Nachname (optional)", "Erz2.Email (optional)", "Erz2.Telefon (optional)", "Erz2.Telefon2 (optional)", "Erz2.Mobil (optional)", "Erz2.Mobil2 (optional)", "Erz2.Dienstlich (optional)", "Erz2.Dienstlich2 (optional)", "Erz2.Verhältnis (optional)", "Erz2.Hauptansprechpartner (optional)", "Erz2.Notfall (optional)", "Erz2.Abholberechtigt (optional)",
-		"Erz2.Straße (optional)", "Erz2.Stadt (optional)", "Erz2.PLZ (optional)", "Erz2.Notizen (optional)", "Erz2.Sprache (optional)",
-		"Gesundheitsinfo (optional)", "Betreuernotizen (optional)", "Zusatzinfo (optional)", "Abholstatus (optional)", "Datenschutz", "Aufbewahrung(Tage) (optional)", "Bus (optional)",
-		"Abholung.Mo (optional)", "Abholung.Mo.Notizen (optional)", "Abholung.Di (optional)", "Abholung.Di.Notizen (optional)", "Abholung.Mi (optional)", "Abholung.Mi.Notizen (optional)", "Abholung.Do (optional)", "Abholung.Do.Notizen (optional)", "Abholung.Fr (optional)", "Abholung.Fr.Notizen (optional)",
-	}
-
+	headers := getStudentImportHeaders()
 	if err := csvWriter.Write(headers); err != nil {
 		slog.Default().Error("Error writing CSV headers", slog.String("error", err.Error()))
 		http.Error(w, errTemplateCreation, http.StatusInternalServerError)
 		return
 	}
 
-	// Example rows with realistic data (RFID removed, flexible phone numbers added)
-	examples := [][]string{
-		{
-			// Student info
-			"Max", "Mustermann", "1A", "Gruppe 1A", "2015-08-15",
-			// Guardian 1 (Mother) - with home phone and work phone
-			"Maria", testLastNameMueller, "maria.mueller@example.com", "0123-456789", "", "", "", "0221-9876543", "", "Mutter", "Ja", "Ja", "Ja",
-			// Guardian 1 - address, notes, language
-			"Musterstr. 1", "Köln", "50667", "", "de",
-			// Guardian 2 (Father) - with mobile phone
-			"Hans", testLastNameMueller, "hans.mueller@example.com", "", "", "0176-12345678", "", "", "", "Vater", "Nein", "Ja", "Ja",
-			// Guardian 2 - address, notes, language
-			"Musterstr. 1", "Köln", "50667", "", "de",
-			// Additional info
-			"", "Sehr ruhiges Kind", "", "Wird abgeholt", "Ja", "30", "Nein",
-			// Pickup schedule (Mon-Fri)
-			"16:00", "", "15:30", "", "16:00", "", "15:30", "", "14:00", "Frühschluss",
-		},
-		{
-			// Student info
-			"Anna", "Schmidt", "2B", "Gruppe 2B", "2014-03-22",
-			// Guardian 1 (Mother) - with work phone labeled "Dienstlich"
-			"Petra", "Schmidt", "petra.schmidt@example.com", "0234-567890", "", "", "", "0211-5551234", "", "Mutter", "Ja", "Ja", "Ja",
-			// Guardian 1 - address, notes, language
-			"Hauptstr. 5", "Düsseldorf", "40210", "Allergien beachten", "de",
-			// Guardian 2 (empty - optional!)
-			"", "", "", "", "", "", "", "", "", "", "", "", "",
-			// Guardian 2 - empty
-			"", "", "", "", "",
-			// Additional info
-			"Allergie: Nüsse", "", "Kann gut malen", "Geht alleine nach Hause", "Ja", "15", "Ja",
-			// Pickup schedule (partial)
-			"15:00", "", "15:00", "", "15:00", "", "15:00", "", "", "",
-		},
-	}
-
-	for _, row := range examples {
-		if err := csvWriter.Write(row); err != nil {
+	for _, row := range getStudentImportExamples() {
+		// Convert []any to []string for CSV writer
+		strRow := make([]string, len(row))
+		for i, v := range row {
+			strRow[i] = fmt.Sprintf("%v", v)
+		}
+		if err := csvWriter.Write(strRow); err != nil {
 			slog.Default().Error("Error writing CSV row", slog.String("error", err.Error()))
 		}
 	}
@@ -234,11 +195,11 @@ func getStudentImportExamples() [][]any {
 			// Guardian 1: phones, relationship
 			"Maria", testLastNameMueller, "maria.mueller@example.com", "0123-456789", "", "", "", "0221-9876543", "", "Mutter", "Ja", "Ja", "Ja",
 			// Guardian 1: address, notes, language
-			"Musterstr. 1", "Köln", "50667", "", "de",
+			testAddressMusterstr, "Köln", "50667", "", "de",
 			// Guardian 2: phones, relationship
 			"Hans", testLastNameMueller, "hans.mueller@example.com", "", "", "0176-12345678", "", "", "", "Vater", "Nein", "Ja", "Ja",
 			// Guardian 2: address, notes, language
-			"Musterstr. 1", "Köln", "50667", "", "de",
+			testAddressMusterstr, "Köln", "50667", "", "de",
 			// Additional info
 			"", "Sehr ruhiges Kind", "", "Wird abgeholt", "Ja", 30, "Nein",
 			// Pickup schedule (Mon-Fri)
@@ -325,9 +286,9 @@ func writeHinweiseSheet(f *excelize.File) {
 		{"Erz1.Mobil", "Nein", "z.B. 0176-12345678", "Mobilnummer"},
 		{"Erz1.Dienstlich", "Nein", "z.B. 0221-9876543", "Dienstliche Telefonnummer"},
 		{"Erz1.Verhältnis", "Nein", "Mutter, Vater, Oma, Opa, Tante, Onkel, Vormund, Sonstige", "Beziehung zum Kind"},
-		{"Erz1.Hauptansprechpartner", "Nein", "Ja / Nein", "Erster Ansprechpartner für die OGS"},
-		{"Erz1.Notfall", "Nein", "Ja / Nein", "Als Notfallkontakt hinterlegt"},
-		{"Erz1.Abholberechtigt", "Nein", "Ja / Nein", "Darf das Kind abholen"},
+		{"Erz1.Hauptansprechpartner", "Nein", hintYesNo, "Erster Ansprechpartner für die OGS"},
+		{"Erz1.Notfall", "Nein", hintYesNo, "Als Notfallkontakt hinterlegt"},
+		{"Erz1.Abholberechtigt", "Nein", hintYesNo, "Darf das Kind abholen"},
 		{"Erz1.Straße", "Nein", "Text", "Straße und Hausnummer"},
 		{"Erz1.Stadt", "Nein", "Text", "Ort / Stadt"},
 		{"Erz1.PLZ", "Nein", "5-stellig (z.B. 50667)", "Postleitzahl"},
@@ -338,9 +299,9 @@ func writeHinweiseSheet(f *excelize.File) {
 		{"Betreuernotizen", "Nein", "Text", "Interne Notizen für Betreuer"},
 		{"Zusatzinfo", "Nein", "Text", "Sonstige Informationen (Elternnotizen)"},
 		{"Abholstatus", "Nein", "Text (z.B. Wird abgeholt, Geht alleine)", "Wie das Kind nach Hause kommt"},
-		{"Datenschutz", "Ja", "Ja / Nein", "Datenschutzerklärung akzeptiert"},
+		{"Datenschutz", "Ja", hintYesNo, "Datenschutzerklärung akzeptiert"},
 		{"Aufbewahrung(Tage)", "Nein", "1-31 (Standard: 30)", "Datenaufbewahrungsfrist in Tagen"},
-		{"Bus", "Nein", "Ja / Nein", "Fährt das Kind mit dem Bus"},
+		{"Bus", "Nein", hintYesNo, "Fährt das Kind mit dem Bus"},
 		// row 31: section header "Abholzeiten" (injected)
 		{"Abholung.Mo", "Nein", "HH:MM (z.B. 15:30, 16:00)", "Regelmäßige Abholzeit am Montag"},
 		{"Abholung.Mo.Notizen", "Nein", "Text", "Notiz zur Abholung am Montag"},
