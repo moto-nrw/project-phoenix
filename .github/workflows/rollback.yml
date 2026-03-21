@@ -41,8 +41,10 @@ jobs:
 
       - name: Set environment config
         id: env
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
         run: |
-          case "${{ inputs.environment }}" in
+          case "$ENVIRONMENT" in
             staging)    echo "dir=staging" >> $GITHUB_OUTPUT ;;
             demo)       echo "dir=demo" >> $GITHUB_OUTPUT ;;
             production) echo "dir=production" >> $GITHUB_OUTPUT ;;
@@ -64,13 +66,17 @@ jobs:
 
       - name: Determine target SHA
         id: target
+        env:
+          INPUT_TARGET_SHA: ${{ inputs.target_sha }}
+          SSH_HOST: ${{ steps.ssh.outputs.host }}
+          DEPLOY_DIR: ${{ steps.env.outputs.dir }}
         run: |
-          if [ -n "${{ inputs.target_sha }}" ]; then
-            echo "sha=${{ inputs.target_sha }}" >> $GITHUB_OUTPUT
-            echo "Using provided SHA: ${{ inputs.target_sha }}"
+          if [ -n "$INPUT_TARGET_SHA" ]; then
+            echo "sha=$INPUT_TARGET_SHA" >> $GITHUB_OUTPUT
+            echo "Using provided SHA: $INPUT_TARGET_SHA"
           else
-            PREV=$(ssh -i ~/.ssh/deploy_key root@${{ steps.ssh.outputs.host }} \
-              "cat ~/${{ steps.env.outputs.dir }}/.deploy-state 2>/dev/null | grep '^PREVIOUS_SHA=' | cut -d= -f2")
+            PREV=$(ssh -i ~/.ssh/deploy_key "root@${SSH_HOST}" \
+              "cat ~/${DEPLOY_DIR}/.deploy-state 2>/dev/null | grep '^PREVIOUS_SHA=' | cut -d= -f2")
             if [ -z "$PREV" ]; then
               echo "No .deploy-state found on server and no target_sha provided"
               exit 1
@@ -87,24 +93,27 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Validate images exist in GHCR
+        env:
+          SHA: ${{ steps.target.outputs.sha }}
         run: |
-          SHA="${{ steps.target.outputs.sha }}"
           echo "Validating images for SHA: $SHA"
-          docker manifest inspect ${{ env.BACKEND_IMAGE }}:$SHA > /dev/null 2>&1 \
+          docker manifest inspect "${{ env.BACKEND_IMAGE }}:$SHA" > /dev/null 2>&1 \
             || { echo "Backend image :$SHA not found in GHCR"; exit 1; }
-          docker manifest inspect ${{ env.FRONTEND_IMAGE }}:$SHA > /dev/null 2>&1 \
+          docker manifest inspect "${{ env.FRONTEND_IMAGE }}:$SHA" > /dev/null 2>&1 \
             || { echo "Frontend image :$SHA not found in GHCR"; exit 1; }
           echo "Both images verified in GHCR"
 
       - name: Rollback
         id: rollback
+        env:
+          TARGET_SHA: ${{ steps.target.outputs.sha }}
+          DEPLOY_DIR: ${{ steps.env.outputs.dir }}
+          RESTORE_DB: ${{ inputs.restore_db }}
+          SSH_HOST: ${{ steps.ssh.outputs.host }}
         run: |
-          TARGET_SHA="${{ steps.target.outputs.sha }}"
-          DEPLOY_DIR="${{ steps.env.outputs.dir }}"
-          RESTORE_DB="${{ inputs.restore_db }}"
 
           set +e
-          ssh -i ~/.ssh/deploy_key root@${{ steps.ssh.outputs.host }} \
+          ssh -i ~/.ssh/deploy_key "root@${SSH_HOST}" \
             "TARGET_SHA=$TARGET_SHA DEPLOY_DIR=$DEPLOY_DIR RESTORE_DB=$RESTORE_DB bash -s" << 'ROLLBACK_SCRIPT'
             cd ~/$DEPLOY_DIR
             echo "Starting manual rollback to ${TARGET_SHA}..."

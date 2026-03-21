@@ -37,12 +37,17 @@ runs:
   steps:
     - shell: bash
       env:
+        EXIT_CODE: ${{ inputs.exit_code }}
+        ENV: ${{ inputs.environment }}
+        TYPE: ${{ inputs.notification_type }}
+        INPUT_SHA: ${{ inputs.sha }}
+        COMMIT_URL: ${{ inputs.commit_url }}
+        RUN_URL: ${{ inputs.run_url }}
+        ACTOR: ${{ inputs.actor }}
+        RESEND_API_KEY: ${{ inputs.resend_api_key }}
         NOTIFY_EMAILS: ${{ inputs.notify_emails }}
       run: |
-        EXIT_CODE="${{ inputs.exit_code }}"
-        ENV="${{ inputs.environment }}"
-        TYPE="${{ inputs.notification_type }}"
-        SHORT_SHA=$(echo "${{ inputs.sha }}" | cut -c1-7)
+        SHORT_SHA=$(echo "$INPUT_SHA" | cut -c1-7)
 
         # Display name: PRODUCTION in caps, others title-case
         if [ "$ENV" = "production" ]; then
@@ -70,16 +75,16 @@ runs:
         fi
 
         COMMIT_HTML=""
-        if [ -n "${{ inputs.commit_url }}" ]; then
-          COMMIT_HTML="Commit: <a href=\"${{ inputs.commit_url }}\">${SHORT_SHA}</a><br>"
+        if [ -n "$COMMIT_URL" ]; then
+          COMMIT_HTML="Commit: <a href=\"${COMMIT_URL}\">${SHORT_SHA}</a><br>"
         else
           COMMIT_HTML="SHA: <code>${SHORT_SHA}</code><br>"
         fi
 
-        BODY="<p>${STATUS}</p><p><a href=\"${{ inputs.run_url }}\">${LINK_TEXT}</a></p><p>${COMMIT_HTML}Triggered by: ${{ inputs.actor }}</p>"
+        BODY="<p>${STATUS}</p><p><a href=\"${RUN_URL}\">${LINK_TEXT}</a></p><p>${COMMIT_HTML}Triggered by: ${ACTOR}</p>"
 
         curl -sS -X POST https://api.resend.com/emails \
-          -H "Authorization: Bearer ${{ inputs.resend_api_key }}" \
+          -H "Authorization: Bearer $RESEND_API_KEY" \
           -H "Content-Type: application/json" \
           -d "{\"from\":\"Phoenix CI <ci@ci.moto-app.de>\",\"to\":${NOTIFY_EMAILS},\"subject\":\"${SUBJECT}\",\"html\":\"${BODY}\"}" \
           || echo "WARNING: Email notification failed (non-critical)"
