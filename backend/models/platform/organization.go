@@ -14,11 +14,23 @@ import (
 var slugRegex = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
 
 // reservedSlugs are infrastructure subdomains that must never be used as tenant slugs or subdomains.
-// Must match RESERVED_SUBDOMAINS in frontend/src/middleware.ts and RESERVED_SLUGS in [tenant]/layout.tsx.
+// Frontend equivalent: frontend/src/lib/reserved-slugs.ts — both lists MUST stay in sync.
 var reservedSlugs = map[string]bool{
-	"www":      true,
-	"api":      true,
-	"operator": true,
+	// Active infrastructure (Caddy blocks / DNS records)
+	"www":        true, // www.moto-app.de redirect
+	"api":        true, // api.moto-app.de, api-staging, api-demo
+	"operator":   true, // operator dashboard
+	"grafana":    true, // grafana.moto-app.de monitoring
+	"pyreportal": true, // pyreportal.moto-app.de kiosk SPA
+	// Defensive reservations (common infrastructure subdomains)
+	"admin":     true,
+	"app":       true,
+	"dashboard": true,
+	"analytics": true,
+	"status":    true,
+	"mail":      true,
+	"staging":   true,
+	"demo":      true,
 }
 
 // tablePlatformOrganizations is the schema-qualified table name
