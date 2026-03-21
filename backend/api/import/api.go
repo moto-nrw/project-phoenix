@@ -110,13 +110,13 @@ func (rs *Resource) downloadStudentTemplateCSV(w http.ResponseWriter, _ *http.Re
 
 	// Header row with all supported columns (RFID removed, flexible phone numbers added)
 	headers := []string{
-		"Vorname", "Nachname", "Klasse", "Gruppe", "Geburtstag",
-		"Erz1.Vorname", "Erz1.Nachname", "Erz1.Email", "Erz1.Telefon", "Erz1.Telefon2", "Erz1.Mobil", "Erz1.Mobil2", "Erz1.Dienstlich", "Erz1.Dienstlich2", "Erz1.Verhältnis", "Erz1.Primär", "Erz1.Notfall", "Erz1.Abholung",
-		"Erz1.Straße", "Erz1.Stadt", "Erz1.PLZ", "Erz1.Notizen", "Erz1.Sprache",
-		"Erz2.Vorname", "Erz2.Nachname", "Erz2.Email", "Erz2.Telefon", "Erz2.Telefon2", "Erz2.Mobil", "Erz2.Mobil2", "Erz2.Dienstlich", "Erz2.Dienstlich2", "Erz2.Verhältnis", "Erz2.Primär", "Erz2.Notfall", "Erz2.Abholung",
-		"Erz2.Straße", "Erz2.Stadt", "Erz2.PLZ", "Erz2.Notizen", "Erz2.Sprache",
-		"Gesundheitsinfo", "Betreuernotizen", "Zusatzinfo", "Abholstatus", "Datenschutz", "Aufbewahrung(Tage)", "Bus",
-		"Abholung.Mo", "Abholung.Mo.Notizen", "Abholung.Di", "Abholung.Di.Notizen", "Abholung.Mi", "Abholung.Mi.Notizen", "Abholung.Do", "Abholung.Do.Notizen", "Abholung.Fr", "Abholung.Fr.Notizen",
+		"Vorname", "Nachname", "Klasse", "Gruppe (optional)", "Geburtstag (optional)",
+		"Erz1.Vorname", "Erz1.Nachname", "Erz1.Email", "Erz1.Telefon (optional)", "Erz1.Telefon2 (optional)", "Erz1.Mobil (optional)", "Erz1.Mobil2 (optional)", "Erz1.Dienstlich (optional)", "Erz1.Dienstlich2 (optional)", "Erz1.Verhältnis (optional)", "Erz1.Hauptansprechpartner (optional)", "Erz1.Notfall (optional)", "Erz1.Abholberechtigt (optional)",
+		"Erz1.Straße (optional)", "Erz1.Stadt (optional)", "Erz1.PLZ (optional)", "Erz1.Notizen (optional)", "Erz1.Sprache (optional)",
+		"Erz2.Vorname (optional)", "Erz2.Nachname (optional)", "Erz2.Email (optional)", "Erz2.Telefon (optional)", "Erz2.Telefon2 (optional)", "Erz2.Mobil (optional)", "Erz2.Mobil2 (optional)", "Erz2.Dienstlich (optional)", "Erz2.Dienstlich2 (optional)", "Erz2.Verhältnis (optional)", "Erz2.Hauptansprechpartner (optional)", "Erz2.Notfall (optional)", "Erz2.Abholberechtigt (optional)",
+		"Erz2.Straße (optional)", "Erz2.Stadt (optional)", "Erz2.PLZ (optional)", "Erz2.Notizen (optional)", "Erz2.Sprache (optional)",
+		"Gesundheitsinfo (optional)", "Betreuernotizen (optional)", "Zusatzinfo (optional)", "Abholstatus (optional)", "Datenschutz", "Aufbewahrung(Tage) (optional)", "Bus (optional)",
+		"Abholung.Mo (optional)", "Abholung.Mo.Notizen (optional)", "Abholung.Di (optional)", "Abholung.Di.Notizen (optional)", "Abholung.Mi (optional)", "Abholung.Mi.Notizen (optional)", "Abholung.Do (optional)", "Abholung.Do.Notizen (optional)", "Abholung.Fr (optional)", "Abholung.Fr.Notizen (optional)",
 	}
 
 	if err := csvWriter.Write(headers); err != nil {
@@ -194,6 +194,9 @@ func (rs *Resource) downloadStudentTemplateXLSX(w http.ResponseWriter, _ *http.R
 	writeExcelExampleRows(f, sheetName, getStudentImportExamples())
 	setExcelColumnWidths(f, sheetName, len(headers), 15)
 
+	// Add "Hinweise" sheet with field descriptions and allowed values
+	writeHinweiseSheet(f)
+
 	if err := f.Write(w); err != nil {
 		slog.Default().Error("Error writing Excel file", slog.String("error", err.Error()))
 		http.Error(w, errTemplateCreation, http.StatusInternalServerError)
@@ -214,13 +217,13 @@ func setupExcelSheet(f *excelize.File, sheetName string) error {
 // getStudentImportHeaders returns the header row for student import template
 func getStudentImportHeaders() []string {
 	return []string{
-		"Vorname", "Nachname", "Klasse", "Gruppe", "Geburtstag",
-		"Erz1.Vorname", "Erz1.Nachname", "Erz1.Email", "Erz1.Telefon", "Erz1.Telefon2", "Erz1.Mobil", "Erz1.Mobil2", "Erz1.Dienstlich", "Erz1.Dienstlich2", "Erz1.Verhältnis", "Erz1.Primär", "Erz1.Notfall", "Erz1.Abholung",
-		"Erz1.Straße", "Erz1.Stadt", "Erz1.PLZ", "Erz1.Notizen", "Erz1.Sprache",
-		"Erz2.Vorname", "Erz2.Nachname", "Erz2.Email", "Erz2.Telefon", "Erz2.Telefon2", "Erz2.Mobil", "Erz2.Mobil2", "Erz2.Dienstlich", "Erz2.Dienstlich2", "Erz2.Verhältnis", "Erz2.Primär", "Erz2.Notfall", "Erz2.Abholung",
-		"Erz2.Straße", "Erz2.Stadt", "Erz2.PLZ", "Erz2.Notizen", "Erz2.Sprache",
-		"Gesundheitsinfo", "Betreuernotizen", "Zusatzinfo", "Abholstatus", "Datenschutz", "Aufbewahrung(Tage)", "Bus",
-		"Abholung.Mo", "Abholung.Mo.Notizen", "Abholung.Di", "Abholung.Di.Notizen", "Abholung.Mi", "Abholung.Mi.Notizen", "Abholung.Do", "Abholung.Do.Notizen", "Abholung.Fr", "Abholung.Fr.Notizen",
+		"Vorname", "Nachname", "Klasse", "Gruppe (optional)", "Geburtstag (optional)",
+		"Erz1.Vorname", "Erz1.Nachname", "Erz1.Email", "Erz1.Telefon (optional)", "Erz1.Telefon2 (optional)", "Erz1.Mobil (optional)", "Erz1.Mobil2 (optional)", "Erz1.Dienstlich (optional)", "Erz1.Dienstlich2 (optional)", "Erz1.Verhältnis (optional)", "Erz1.Hauptansprechpartner (optional)", "Erz1.Notfall (optional)", "Erz1.Abholberechtigt (optional)",
+		"Erz1.Straße (optional)", "Erz1.Stadt (optional)", "Erz1.PLZ (optional)", "Erz1.Notizen (optional)", "Erz1.Sprache (optional)",
+		"Erz2.Vorname (optional)", "Erz2.Nachname (optional)", "Erz2.Email (optional)", "Erz2.Telefon (optional)", "Erz2.Telefon2 (optional)", "Erz2.Mobil (optional)", "Erz2.Mobil2 (optional)", "Erz2.Dienstlich (optional)", "Erz2.Dienstlich2 (optional)", "Erz2.Verhältnis (optional)", "Erz2.Hauptansprechpartner (optional)", "Erz2.Notfall (optional)", "Erz2.Abholberechtigt (optional)",
+		"Erz2.Straße (optional)", "Erz2.Stadt (optional)", "Erz2.PLZ (optional)", "Erz2.Notizen (optional)", "Erz2.Sprache (optional)",
+		"Gesundheitsinfo (optional)", "Betreuernotizen (optional)", "Zusatzinfo (optional)", "Abholstatus (optional)", "Datenschutz", "Aufbewahrung(Tage) (optional)", "Bus (optional)",
+		"Abholung.Mo (optional)", "Abholung.Mo.Notizen (optional)", "Abholung.Di (optional)", "Abholung.Di.Notizen (optional)", "Abholung.Mi (optional)", "Abholung.Mi.Notizen (optional)", "Abholung.Do (optional)", "Abholung.Do.Notizen (optional)", "Abholung.Fr (optional)", "Abholung.Fr.Notizen (optional)",
 	}
 }
 
@@ -286,6 +289,72 @@ func setExcelColumnWidths(f *excelize.File, sheetName string, numCols int, width
 			slog.Default().Error("Error setting column width", slog.String("error", err.Error()))
 		}
 	}
+}
+
+// writeHinweiseSheet adds a "Hinweise" sheet with field descriptions and allowed values
+func writeHinweiseSheet(f *excelize.File) {
+	sheetName := "Hinweise"
+	if _, err := f.NewSheet(sheetName); err != nil {
+		slog.Default().Error("Error creating Hinweise sheet", slog.String("error", err.Error()))
+		return
+	}
+
+	hints := [][]string{
+		{"Spalte", "Pflicht?", "Erlaubte Werte / Format", "Beschreibung"},
+		{"Vorname", "Ja", "Text", "Vorname des Schülers"},
+		{"Nachname", "Ja", "Text", "Nachname des Schülers"},
+		{"Klasse", "Ja", "Text (z.B. 1A, 2B)", "Schulklasse"},
+		{"Gruppe", "Nein", "Text (exakter Gruppenname)", "OGS-Gruppe — muss in der Datenbank existieren"},
+		{"Geburtstag", "Nein", "JJJJ-MM-TT (z.B. 2015-08-15)", "Geburtsdatum im ISO-Format"},
+		{""},
+		{"--- Erziehungsberechtigte (Erz1, Erz2, ...) ---"},
+		{"Erz1.Vorname", "Nein", "Text", "Vorname des Erziehungsberechtigten"},
+		{"Erz1.Nachname", "Nein", "Text", "Nachname des Erziehungsberechtigten"},
+		{"Erz1.Email", "Nein*", "gültige E-Mail", "* Mindestens Email ODER Telefon erforderlich"},
+		{"Erz1.Telefon", "Nein*", "z.B. 0123-456789, +49 123 456789", "Festnetznummer"},
+		{"Erz1.Mobil", "Nein", "z.B. 0176-12345678", "Mobilnummer"},
+		{"Erz1.Dienstlich", "Nein", "z.B. 0221-9876543", "Dienstliche Telefonnummer"},
+		{"Erz1.Verhältnis", "Nein", "Mutter, Vater, Oma, Opa, Tante, Onkel, Vormund, Sonstige", "Beziehung zum Kind"},
+		{"Erz1.Hauptansprechpartner", "Nein", "Ja / Nein", "Erster Ansprechpartner für die Schule"},
+		{"Erz1.Notfall", "Nein", "Ja / Nein", "Als Notfallkontakt hinterlegt"},
+		{"Erz1.Abholberechtigt", "Nein", "Ja / Nein", "Darf das Kind abholen"},
+		{"Erz1.Straße", "Nein", "Text", "Straße und Hausnummer"},
+		{"Erz1.Stadt", "Nein", "Text", "Ort / Stadt"},
+		{"Erz1.PLZ", "Nein", "5-stellig (z.B. 50667)", "Postleitzahl"},
+		{"Erz1.Notizen", "Nein", "Text", "Interne Notizen zum Erziehungsberechtigten"},
+		{"Erz1.Sprache", "Nein", "de, en, tr, ar, ...", "Bevorzugte Sprache (ISO 639-1, Standard: de)"},
+		{""},
+		{"--- Schüler-Zusatzinfos ---"},
+		{"Gesundheitsinfo", "Nein", "Text", "Allergien, Medikamente, etc."},
+		{"Betreuernotizen", "Nein", "Text", "Interne Notizen für Betreuer"},
+		{"Zusatzinfo", "Nein", "Text", "Sonstige Informationen (Elternnotizen)"},
+		{"Abholstatus", "Nein", "Text (z.B. Wird abgeholt, Geht alleine)", "Wie das Kind nach Hause kommt"},
+		{"Datenschutz", "Ja", "Ja / Nein", "Datenschutzerklärung akzeptiert"},
+		{"Aufbewahrung(Tage)", "Nein", "1-31 (Standard: 30)", "Datenaufbewahrungsfrist in Tagen"},
+		{"Bus", "Nein", "Ja / Nein", "Fährt das Kind mit dem Bus"},
+		{""},
+		{"--- Abholzeiten (Montag bis Freitag) ---"},
+		{"Abholung.Mo", "Nein", "HH:MM (z.B. 15:30, 16:00)", "Regelmäßige Abholzeit am Montag"},
+		{"Abholung.Mo.Notizen", "Nein", "Text", "Notiz zur Abholung am Montag"},
+		{""},
+		{"--- Ja/Nein-Felder ---"},
+		{"", "", "Akzeptiert: Ja, Nein, Yes, No, true, false, 1, 0", "Groß-/Kleinschreibung egal"},
+	}
+
+	for rowIdx, row := range hints {
+		for colIdx, val := range row {
+			cell, _ := excelize.CoordinatesToCellName(colIdx+1, rowIdx+1)
+			if err := f.SetCellValue(sheetName, cell, val); err != nil {
+				slog.Default().Error("Error writing hint cell", slog.String("error", err.Error()))
+			}
+		}
+	}
+
+	// Set column widths for readability
+	_ = f.SetColWidth(sheetName, "A", "A", 30)
+	_ = f.SetColWidth(sheetName, "B", "B", 10)
+	_ = f.SetColWidth(sheetName, "C", "C", 45)
+	_ = f.SetColWidth(sheetName, "D", "D", 50)
 }
 
 // previewStudentImport handles import preview (dry-run)

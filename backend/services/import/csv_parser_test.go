@@ -36,7 +36,7 @@ Anna,Schmidt,2B,Gruppe 2B,2014-03-22,Nein,15`
 }
 
 func TestCSVParser_ParseStudents_SingleGuardian(t *testing.T) {
-	csvData := `Vorname,Nachname,Klasse,Erz1.Vorname,Erz1.Nachname,Erz1.Email,Erz1.Telefon,Erz1.Verhältnis,Erz1.Primär
+	csvData := `Vorname,Nachname,Klasse,Erz1.Vorname,Erz1.Nachname,Erz1.Email,Erz1.Telefon,Erz1.Verhältnis,Erz1.Hauptansprechpartner
 Max,Mustermann,1A,Maria,Müller,maria@example.com,0123-456789,Mutter,Ja`
 
 	parser := NewCSVParser()
@@ -57,7 +57,7 @@ Max,Mustermann,1A,Maria,Müller,maria@example.com,0123-456789,Mutter,Ja`
 }
 
 func TestCSVParser_ParseStudents_MultipleGuardians(t *testing.T) {
-	csvData := `Vorname,Nachname,Klasse,Erz1.Email,Erz1.Telefon,Erz1.Primär,Erz2.Email,Erz2.Telefon,Erz2.Primär,Erz3.Email
+	csvData := `Vorname,Nachname,Klasse,Erz1.Email,Erz1.Telefon,Erz1.Hauptansprechpartner,Erz2.Email,Erz2.Telefon,Erz2.Hauptansprechpartner,Erz3.Email
 Max,Mustermann,1A,maria@example.com,111,Ja,hans@example.com,222,Nein,oma@example.com`
 
 	parser := NewCSVParser()
@@ -112,7 +112,7 @@ Max,Mustermann,1A`
 }
 
 func TestCSVParser_ParseStudents_BooleanParsing(t *testing.T) {
-	csvData := `Vorname,Nachname,Klasse,Datenschutz,Bus,Erz1.Primär,Erz1.Email
+	csvData := `Vorname,Nachname,Klasse,Datenschutz,Bus,Erz1.Hauptansprechpartner,Erz1.Email
 Max,Mustermann,1A,Ja,Nein,Yes,test@example.com
 Anna,Schmidt,2B,yes,no,1,test2@example.com
 Tom,Test,3C,true,false,ja,test3@example.com
@@ -283,7 +283,7 @@ func TestCSVParser_ParseStudents_TrimSpaces(t *testing.T) {
 }
 
 func TestCSVParser_ParseStudents_ComplexGuardianData(t *testing.T) {
-	csvData := `Vorname,Nachname,Klasse,Erz1.Vorname,Erz1.Nachname,Erz1.Email,Erz1.Telefon,Erz1.Mobil,Erz1.Verhältnis,Erz1.Primär,Erz1.Notfall,Erz1.Abholung
+	csvData := `Vorname,Nachname,Klasse,Erz1.Vorname,Erz1.Nachname,Erz1.Email,Erz1.Telefon,Erz1.Mobil,Erz1.Verhältnis,Erz1.Hauptansprechpartner,Erz1.Notfall,Erz1.Abholberechtigt
 Max,Mustermann,1A,Maria,Müller,maria@example.com,0123-456789,0176-12345678,Mutter,Ja,Ja,Ja`
 
 	parser := NewCSVParser()
@@ -453,7 +453,7 @@ Max,Mustermann,1A`
 }
 
 func TestCSVParser_ParseStudents_FullRowWithAllNewFields(t *testing.T) {
-	csvData := `Vorname,Nachname,Klasse,Erz1.Vorname,Erz1.Nachname,Erz1.Email,Erz1.Telefon,Erz1.Verhältnis,Erz1.Primär,Erz1.Notfall,Erz1.Abholung,Erz1.Straße,Erz1.Stadt,Erz1.PLZ,Erz1.Notizen,Erz1.Sprache,Abholung.Mo,Abholung.Mo.Notizen,Abholung.Fr,Abholung.Fr.Notizen
+	csvData := `Vorname,Nachname,Klasse,Erz1.Vorname,Erz1.Nachname,Erz1.Email,Erz1.Telefon,Erz1.Verhältnis,Erz1.Hauptansprechpartner,Erz1.Notfall,Erz1.Abholberechtigt,Erz1.Straße,Erz1.Stadt,Erz1.PLZ,Erz1.Notizen,Erz1.Sprache,Abholung.Mo,Abholung.Mo.Notizen,Abholung.Fr,Abholung.Fr.Notizen
 Max,Mustermann,1A,Maria,Müller,maria@example.com,0123-456789,Mutter,Ja,Ja,Ja,Musterstr. 1,Köln,50667,Allergien,de,16:00,Hort,14:00,Frühschluss`
 
 	parser := NewCSVParser()

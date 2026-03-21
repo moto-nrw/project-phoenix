@@ -377,7 +377,7 @@ func TestXLSXParser_ParseStudents_FullRowAllNewFields(t *testing.T) {
 	headers := []string{
 		"Vorname", "Nachname", "Klasse",
 		"Erz1.Vorname", "Erz1.Nachname", "Erz1.Email", "Erz1.Telefon",
-		"Erz1.Verhältnis", "Erz1.Primär", "Erz1.Notfall", "Erz1.Abholung",
+		"Erz1.Verhältnis", "Erz1.Hauptansprechpartner", "Erz1.Notfall", "Erz1.Abholberechtigt",
 		"Erz1.Straße", "Erz1.Stadt", "Erz1.PLZ",
 		"Erz1.Notizen", "Erz1.Sprache",
 		"Abholung.Mo", "Abholung.Mo.Notizen",

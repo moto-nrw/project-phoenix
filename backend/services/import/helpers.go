@@ -33,6 +33,18 @@ func sanitizeCellValue(value string) string {
 	return value
 }
 
+// normalizeHeaderKey normalizes a CSV/Excel header for column mapping.
+// Strips "(optional)", "(pflicht)" annotations and whitespace, then lowercases.
+// This allows headers like "Erz1.Abholberechtigt (optional)" to match the key "erz1.abholberechtigt".
+func normalizeHeaderKey(col string) string {
+	key := strings.ToLower(strings.TrimSpace(col))
+	// Strip annotation suffixes
+	for _, suffix := range []string{"(optional)", "(pflicht)"} {
+		key = strings.TrimSpace(strings.TrimSuffix(key, suffix))
+	}
+	return key
+}
+
 // ColumnMapper provides column access functions for import parsing
 type ColumnMapper struct {
 	mapping map[string]int
@@ -123,9 +135,9 @@ func MapStudentRow(mapper *ColumnMapper) (importModels.StudentImportRow, error) 
 			Phone:              mapper.GetRawCol(phoneKey),
 			MobilePhone:        mapper.GetRawCol(mobileKey),
 			RelationshipType:   mapper.GetCol(fmt.Sprintf("erz%d.verhältnis", guardianNum)),
-			IsPrimary:          ParseBool(mapper.GetCol(fmt.Sprintf("erz%d.primär", guardianNum))),
+			IsPrimary:          ParseBool(mapper.GetCol(fmt.Sprintf("erz%d.hauptansprechpartner", guardianNum))),
 			IsEmergencyContact: ParseBool(mapper.GetCol(fmt.Sprintf("erz%d.notfall", guardianNum))),
-			CanPickup:          ParseBool(mapper.GetCol(fmt.Sprintf("erz%d.abholung", guardianNum))),
+			CanPickup:          ParseBool(mapper.GetCol(fmt.Sprintf("erz%d.abholberechtigt", guardianNum))),
 		}
 
 		// Parse flexible phone numbers into PhoneNumbers array

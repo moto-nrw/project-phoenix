@@ -7,6 +7,30 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestNormalizeHeaderKey tests header key normalization with annotation stripping
+func TestNormalizeHeaderKey(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"Vorname", "vorname"},
+		{"Erz1.Abholberechtigt (optional)", "erz1.abholberechtigt"},
+		{"Erz1.Hauptansprechpartner (optional)", "erz1.hauptansprechpartner"},
+		{"Datenschutz (pflicht)", "datenschutz"},
+		{"  Klasse  ", "klasse"},
+		{"Aufbewahrung(Tage) (optional)", "aufbewahrung(tage)"},
+		{"Gruppe (optional)", "gruppe"},
+		{"Nachname", "nachname"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			result := normalizeHeaderKey(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
 // TestSanitizeCellValue tests CSV injection protection
 func TestSanitizeCellValue(t *testing.T) {
 	tests := []struct {
@@ -280,17 +304,17 @@ func TestMapStudentRow(t *testing.T) {
 
 	t.Run("maps single guardian", func(t *testing.T) {
 		mapping := map[string]int{
-			"vorname":         0,
-			"nachname":        1,
-			"erz1.vorname":    2,
-			"erz1.nachname":   3,
-			"erz1.email":      4,
-			"erz1.telefon":    5,
-			"erz1.mobil":      6,
-			"erz1.verhältnis": 7,
-			"erz1.primär":     8,
-			"erz1.notfall":    9,
-			"erz1.abholung":   10,
+			"vorname":                   0,
+			"nachname":                  1,
+			"erz1.vorname":              2,
+			"erz1.nachname":             3,
+			"erz1.email":                4,
+			"erz1.telefon":              5,
+			"erz1.mobil":                6,
+			"erz1.verhältnis":           7,
+			"erz1.hauptansprechpartner": 8,
+			"erz1.notfall":              9,
+			"erz1.abholberechtigt":      10,
 		}
 		values := []string{
 			"Max",
@@ -776,27 +800,27 @@ func TestMapStudentRow_PickupScheduleWithEmptyNotes(t *testing.T) {
 // TestMapStudentRow_FullCSVRow tests a realistic complete CSV row with all fields
 func TestMapStudentRow_FullCSVRow(t *testing.T) {
 	mapping := map[string]int{
-		"vorname":             0,
-		"nachname":            1,
-		"klasse":              2,
-		"geburtstag":          3,
-		"erz1.vorname":        4,
-		"erz1.nachname":       5,
-		"erz1.email":          6,
-		"erz1.telefon":        7,
-		"erz1.verhältnis":     8,
-		"erz1.primär":         9,
-		"erz1.notfall":        10,
-		"erz1.abholung":       11,
-		"erz1.straße":         12,
-		"erz1.stadt":          13,
-		"erz1.plz":            14,
-		"erz1.notizen":        15,
-		"erz1.sprache":        16,
-		"abholung.mo":         17,
-		"abholung.mo.notizen": 18,
-		"abholung.fr":         19,
-		"abholung.fr.notizen": 20,
+		"vorname":                   0,
+		"nachname":                  1,
+		"klasse":                    2,
+		"geburtstag":                3,
+		"erz1.vorname":              4,
+		"erz1.nachname":             5,
+		"erz1.email":                6,
+		"erz1.telefon":              7,
+		"erz1.verhältnis":           8,
+		"erz1.hauptansprechpartner": 9,
+		"erz1.notfall":              10,
+		"erz1.abholberechtigt":      11,
+		"erz1.straße":               12,
+		"erz1.stadt":                13,
+		"erz1.plz":                  14,
+		"erz1.notizen":              15,
+		"erz1.sprache":              16,
+		"abholung.mo":               17,
+		"abholung.mo.notizen":       18,
+		"abholung.fr":               19,
+		"abholung.fr.notizen":       20,
 	}
 	values := []string{
 		"Max", "Mustermann", "1A", "2015-08-15",
