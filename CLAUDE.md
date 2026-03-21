@@ -9,7 +9,7 @@
 | Backend | Go 1.23+, Chi router, BUN ORM |
 | Frontend | Next.js 16+, React 19+, Tailwind 4+ |
 | Database | PostgreSQL 17+ (multi-schema, SSL) |
-| Auth | JWT (15min access, 1hr refresh) |
+| Auth | JWT (15min access, 7 days refresh) |
 
 ## Ecosystem
 
@@ -148,8 +148,11 @@ Deployed environments (staging, demo, production) use **SOPS-encrypted env files
 ### How It Works
 
 ```
-environments/{env}.sops.env  →  CI decrypts with age key  →  SCP to server as .env
-environments/{env}.compose.yml  →  SCP to server as docker-compose.yml
+1. Developer edits:  sops environments/staging.sops.env   (decrypts → $EDITOR → re-encrypts)
+2. Commit + push:    git commit environments/staging.sops.env → push to development
+3. CI decrypts:      sops decrypt staging.sops.env > /tmp/staging.env
+4. CI deploys:       SCP .env + docker-compose.yml + deploy-remote.sh → server
+5. Server runs:      deploy-remote.sh (pull → backup DB → migrate → start → healthcheck)
 ```
 
 ### File Layout
@@ -165,6 +168,38 @@ environments/{env}.compose.yml  →  SCP to server as docker-compose.yml
 | `.sops.yaml` | SOPS config with age public key |
 | `scripts/sops-setup.sh` | One-time setup: generate age key, encrypt files |
 | `scripts/env-check.sh` | CI validation: key sync across all env files |
+| `scripts/deploy-remote.sh` | Runs on server: pull, backup, migrate, rollback |
+
+### Local SOPS Setup
+
+```bash
+# 1. One-time: generate age key and encrypt files
+./scripts/sops-setup.sh
+
+# Key location (macOS):
+#   ~/Library/Application Support/sops/age/keys.txt
+# Key location (Linux):
+#   ~/.config/sops/age/keys.txt
+#
+# Share the private key with team members via 1Password/Signal — NEVER Slack/email.
+# CI uses the same key as GitHub Secret: SOPS_AGE_KEY
+```
+
+### Common SOPS Commands
+
+```bash
+# Edit encrypted file (opens in $EDITOR, re-encrypts on save)
+sops environments/staging.sops.env
+
+# View decrypted values (stdout only, no file change)
+sops decrypt environments/staging.sops.env
+
+# View a single value
+sops decrypt environments/staging.sops.env | grep AUTH_JWT_REFRESH_EXPIRY
+
+# Verify all env files are in sync
+./scripts/env-check.sh
+```
 
 ### Key Rules
 
@@ -189,10 +224,60 @@ environments/{env}.compose.yml  →  SCP to server as docker-compose.yml
 | Demo | Merged PR + `deploy-demo` label | `development` | `demo.sops.env` |
 | Production | Push to `main` | `main` | `production.sops.env` |
 
+### Deploy Flow (CI → Server)
+
+CI (`build.yml`) runs on push/merge:
+1. **Decrypt**: `sops decrypt environments/{env}.sops.env > /tmp/{env}.env`
+2. **SCP to server**: `.env.new`, `docker-compose.yml.new`, `deploy-remote.sh`
+3. **`deploy-remote.sh`** runs on the server:
+   - Saves rollback copies (`.env.rollback`, `docker-compose.yml.rollback`)
+   - Swaps in new config, pins Docker images to commit SHA
+   - `docker compose pull` (fails → restore old config, abort)
+   - Stops `server` + `frontend` (postgres stays up for backup)
+   - `pg_dump` backup to `~/backups/{env}/` (fails → restore, abort)
+   - `docker compose run --rm server ./main migrate` (fails → rollback DB + config)
+   - `docker compose up -d --wait` + healthcheck (fails → rollback)
+   - On success: writes `.deploy-state`, prunes old backups
+
+**Exit codes**: `0` = success, `1` = aborted before migration, `10` = rollback succeeded, `11` = rollback failed (CRITICAL)
+
+### Server Directory Structure
+
+```
+~/staging/          ← staging deployment
+  .env              ← decrypted from staging.sops.env (by CI)
+  docker-compose.yml ← from staging.compose.yml (images pinned to SHA)
+  .deploy-state     ← CURRENT_SHA, PREVIOUS_SHA, DEPLOYED_AT, BACKUP_FILE
+~/demo/             ← demo deployment (same structure)
+~/production/       ← production deployment (same structure)
+~/backups/{env}/    ← pg_dump backups (retention: 3 staging, 7 production)
+```
+
+### GitHub Secrets Required
+
+| Secret | Purpose |
+|--------|---------|
+| `SOPS_AGE_KEY` | Age private key for decrypting `.sops.env` files |
+| `STAGING_SSH_KEY` | SSH deploy key for staging server |
+| `STAGING_SSH_HOST` | Staging server hostname/IP |
+| `STAGING_SSH_KNOWN_HOSTS` | SSH host verification |
+| `DEMO_SSH_KEY` / `DEMO_SSH_HOST` / `DEMO_SSH_KNOWN_HOSTS` | Same for demo |
+| `PRODUCTION_SSH_KEY` / `PRODUCTION_SSH_HOST` / `PRODUCTION_SSH_KNOWN_HOSTS` | Same for production |
+| `DEPLOY_NOTIFY_*` | Email notification recipients for deploy failures |
+
 ### CI Guards
 
 - **`env-sync-check`** job runs on every PR — blocks merge if keys are out of sync or plaintext values detected
 - **Lefthook pre-commit** — runs env key sync + unencrypted secrets guard on staged `.sops.env` changes
+
+### Whitelisted Key Exceptions
+
+| Key | Scope | Reason |
+|-----|-------|--------|
+| `COMPOSE_BAKE`, `COMPOSE_DOCKER_CLI_BUILD`, `DOCKER_BUILDKIT` | dev-only | Docker build optimization, not needed on server |
+| `DB_DEBUG`, `TEST_DB_DSN`, `TEST_DB_PORT` | dev-only | Local testing only |
+| `AUTH_TRUST_HOST`, `TENANT_DOMAIN`, `NEXT_PUBLIC_TENANT_DOMAIN` | deploy-only | Multi-tenancy, not needed for local dev |
+| `PHOENIX_AUTH_PASSWORD` | deploy-only | Server DB role password |
 
 ## Git Conventions
 

@@ -21,7 +21,7 @@ services:
       DB_DSN: ${DB_DSN:-postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/postgres?sslmode=require}
       DB_DEBUG: ${DB_DEBUG:-"true"}
       AUTH_JWT_SECRET: ${AUTH_JWT_SECRET}
-      AUTH_JWT_EXPIRY: ${AUTH_JWT_EXPIRY:-1h}
+      AUTH_JWT_EXPIRY: ${AUTH_JWT_EXPIRY:-15m}
       AUTH_JWT_REFRESH_EXPIRY: ${AUTH_JWT_REFRESH_EXPIRY:-168h}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
@@ -69,6 +69,7 @@ services:
       - "3000:3000"
     environment:
       TZ: ${TZ:-Europe/Berlin}
+      AUTH_JWT_EXPIRY: ${AUTH_JWT_EXPIRY:-15m}
       AUTH_JWT_REFRESH_EXPIRY: ${AUTH_JWT_REFRESH_EXPIRY:-168h}
       # Server-side API URL (internal Docker network, never leaves container network)
       API_URL: "http://server:8080"
