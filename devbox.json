@@ -32,7 +32,9 @@
     "go-swag@latest",
     "govulncheck@latest",
     "golangci-lint@2.8.0",
-    "fzf@0.68.0"
+    "fzf@0.68.0",
+    "sops@latest",
+    "age@latest"
   ],
   "env": {
     "GOPATH":      "$PWD/.devbox/go",
@@ -48,7 +50,7 @@
       "which deadcode > /dev/null 2>&1 || go install golang.org/x/tools/cmd/deadcode@latest > /dev/null 2>&1",
       "which agent-browser > /dev/null 2>&1 || (npm install -g agent-browser > /dev/null 2>&1 && agent-browser install > /dev/null 2>&1)",
       "[ ! -d frontend/node_modules ] && echo 'installing frontend deps...' && cd frontend && nci --silent || true",
-      "echo \"go $(go version | cut -d' ' -f3 | sed 's/go//') node $(node -v | sed 's/v//') pnpm $(pnpm -v) | bat eza fzf rg fd tree jq yq glow xh btop curl | ni pgcli air gotestsum lazygit lazydocker gh swag govulncheck\""
+      "echo \"go $(go version | cut -d' ' -f3 | sed 's/go//') node $(node -v | sed 's/v//') pnpm $(pnpm -v) | bat eza fzf rg fd tree jq yq glow xh btop curl | ni pgcli air gotestsum lazygit lazydocker gh swag govulncheck sops age\""
     ]
   }
 }

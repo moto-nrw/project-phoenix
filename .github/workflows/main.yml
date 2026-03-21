@@ -62,9 +62,41 @@ jobs:
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
+  # Verify all environments have matching env var keys (no secrets needed)
+  env-sync-check:
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - name: Check environment key sync
+        run: ./scripts/env-check.sh
+      - name: Block unencrypted secrets
+        run: |
+          failed=false
+          for f in environments/*.sops.env; do
+            [ -f "$f" ] || continue
+            # Check 1: file must have SOPS metadata
+            if ! grep -q '^sops_version=' "$f"; then
+              echo "::error file=$f::UNENCRYPTED file! Run: sops encrypt --in-place $f"
+              failed=true
+              continue
+            fi
+            # Check 2: no non-empty values without ENC[ wrapper
+            # Matches KEY=<something> where <something> is not empty and not ENC[
+            while IFS= read -r line; do
+              echo "::error file=$f::Plaintext value detected: ${line%%=*}= — re-encrypt with: sops encrypt --in-place $f"
+              failed=true
+            done < <(grep -E '^[A-Za-z_][A-Za-z0-9_]*=.+' "$f" | grep -v 'ENC\[' | grep -v '^sops_')
+          done
+          if [ "$failed" = true ]; then
+            exit 1
+          fi
+          echo "All .sops.env files are encrypted"
+
   ci-gate:
     if: always()
-    needs: [lint, test]
+    needs: [lint, test, env-sync-check]
     runs-on: ubuntu-latest
     steps:
       - uses: re-actors/alls-green@05ac9388f0aebcb5727afa17fcccfecd6f8ec5fe # release/v1

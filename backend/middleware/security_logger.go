@@ -86,3 +86,11 @@ func (rw *responseWriter) WriteHeader(code int) {
 	rw.statusCode = code
 	rw.ResponseWriter.WriteHeader(code)
 }
+
+// Flush implements http.Flusher by delegating to the underlying ResponseWriter.
+// This is required for SSE (Server-Sent Events) to work when this middleware is active.
+func (rw *responseWriter) Flush() {
+	if f, ok := rw.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}

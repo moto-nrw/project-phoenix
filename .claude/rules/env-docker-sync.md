@@ -70,6 +70,7 @@ When modifying any file, update its counterpart:
 - [ ] Add to `backend/dev.env.example` (with safe default or placeholder)
 - [ ] Add to `docker-compose.example.yml` server `environment:` block (with `${VAR:-default}`)
 - [ ] Add to `.env.example` (with placeholder value)
+- [ ] Add to all three `environments/*.sops.env` files via `sops` CLI
 - [ ] If used by `os.Getenv()`: confirm it is in docker-compose `environment:` block (not just dev.env)
 
 ## Adding a New Frontend Env Var Checklist
@@ -77,12 +78,20 @@ When modifying any file, update its counterpart:
 - [ ] Add to `frontend/.env.example`
 - [ ] If needed in Docker: add to `docker-compose.example.yml` frontend `environment:` block
 - [ ] If needed in Docker: add to `.env.example`
+- [ ] Add to all three `environments/*.sops.env` files via `sops` CLI
+- [ ] If needs per-service override: add to `environment:` block in `environments/*.compose.yml`
 - [ ] If `NEXT_PUBLIC_*`: client-accessible, no server import restrictions
 - [ ] If server-only: use `getServerApiUrl()` pattern, don't import in mixed client/server files
 
+## Deployed Environments (SOPS)
+
+Staging, demo, and production use SOPS-encrypted env files in `environments/`. All services on the server share a single `.env` (decrypted from `*.sops.env` by CI). See CLAUDE.md "Environment Management (SOPS)" section for full details.
+
+**Key gotcha**: The shared `.env` means vars like `PORT` leak across services. The frontend `environment:` block in each compose file must override `PORT: 3000` to prevent Next.js from picking up the backend's `PORT=8080`.
+
 ## Automated Sync Checks
 
-The lefthook `post-merge` hook runs `dotenv-linter diff` on three pairs and `dyff between` on docker-compose. These catch missing keys after `git pull`.
+**Local dev** — lefthook `post-merge` hook runs `dotenv-linter diff` on three pairs and `dyff between` on docker-compose:
 
 ```bash
 # Manual verification
@@ -90,4 +99,11 @@ dotenv-linter diff .env .env.example
 dotenv-linter diff backend/dev.env backend/dev.env.example
 dotenv-linter diff frontend/.env.local frontend/.env.example
 dyff between --omit-header docker-compose.example.yml docker-compose.yml
+```
+
+**Deployed environments** — CI `env-sync-check` job runs `scripts/env-check.sh` on every PR:
+
+```bash
+# Manual verification
+./scripts/env-check.sh  # Validates key sync across all .sops.env files + .env.example
 ```
