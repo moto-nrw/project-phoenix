@@ -82,6 +82,46 @@ import { getServerApiUrl } from "~/lib/server-api-url";
 
 Both `api-helpers.ts` and `operator/route-wrapper.ts` use this pattern. The same applies to any server-only import (`auth`, `refreshSessionTokensOnServer`, etc.).
 
+## Multi-Tenancy & Routing
+
+### Subdomain-Based Tenant Resolution
+
+Middleware (`src/middleware.ts`) handles all tenant routing:
+
+1. **Operator requests** (`NEXT_PUBLIC_OPERATOR_HOSTNAME`): rewritten to `/operator/*` internally
+2. **Tenant requests** (`{slug}.TENANT_DOMAIN`): rewritten to `/[tenant]/*` for the dynamic segment
+3. **Reserved slugs** (`src/lib/reserved-slugs.ts`): blocked from tenant resolution (www, api, operator, etc.)
+
+### App Directory Structure
+
+```
+src/app/
+├── operator/              # Operator dashboard (separate subdomain)
+│   ├── login/
+│   ├── provisioning/      # Create/manage organizations + schools
+│   └── suggestions/
+├── [tenant]/              # Dynamic tenant segment (resolved by middleware)
+│   ├── layout.tsx         # Validates slug via /auth/tenant/resolve, wraps in TenantProvider
+│   ├── (protected)/       # Auth-required routes (dashboard, students, rooms, etc.)
+│   └── (public)/          # Pre-auth routes (invite, reset-password)
+└── api/
+    ├── auth/tenant/       # Tenant resolution + listing endpoints
+    └── auth/switch-tenant/# Switch JWT scope to different school
+```
+
+### Tenant Context & Navigation
+
+- **`TenantProvider`** (`components/tenant/tenant-provider.tsx`): React context holding `tenantSlug` + resolved `tenant` metadata
+- **`useTenant()`**: Throws outside provider — use in tenant-scoped pages
+- **`useTenantSlugSafe()`**: Returns `null` outside provider — use for SWR cache key prefixing
+- **`useTenantRouter()`** (`lib/tenant-router.ts`): Auto-detects subdomain vs path mode for navigation. In subdomain mode pushes bare paths; in path mode prefixes with slug.
+- **`TenantGuard`** (`components/tenant/tenant-guard.tsx`): Detects session/URL tenant mismatch (e.g., multi-tab) and auto-switches the session to match the current URL tenant.
+
+### Tenant API Helpers
+
+- **`lib/tenant-api.ts`**: `resolveTenant(slug)`, `listTenants()`, `switchTenant(slug)`
+- **Error contract**: Backend returns `"account does not have access to this tenant"` — hardcoded mapping in `tenant-api.ts`. Changing this backend string breaks tenant switching silently.
+
 ## Code Architecture
 
 ### High-Level Architecture
@@ -169,12 +209,13 @@ export const env = createEnv({
 
 ### Authentication Flow
 
-1. User logs in via `/app/api/auth/login` route
-2. Backend returns JWT access token (15min) and refresh token (1hr)
+1. User navigates to `{slug}.TENANT_DOMAIN` and logs in via `/app/api/auth/login`
+2. Backend returns JWT with `tenant_id`, `org_id`, `scope` + access token (15min) and refresh token (7d)
 3. NextAuth stores tokens in session
 4. Route handlers extract token from session for API calls
 5. API clients include token in Authorization header
 6. Refresh token used automatically when access token expires
+7. Tenant switching: `POST /auth/switch-tenant` returns new JWT scoped to a different school
 
 ### Error Handling
 
@@ -507,6 +548,7 @@ The frontend proxies all API calls through Next.js route handlers to the Go back
 - Int64 IDs from backend stored as strings in frontend
 
 **Major API domains:**
+- `/api/auth/tenant/*` - Tenant resolution, listing, switching
 - `/api/auth/*` - Login, logout, refresh tokens
 - `/api/students/*` - Student CRUD and enrollment
 - `/api/rooms/*` - Room management and occupancy

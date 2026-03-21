@@ -22,6 +22,51 @@ Project Phoenix is part of a three-repo system. All repos live side-by-side (`..
 
 **If you change IoT endpoints, error messages, or auth headers**: PyrePortal will break silently. Error messages are hardcoded in `PyrePortal/src/services/api.ts` and mapped to German UI text. Coordinate changes across repos.
 
+## Multi-Tenancy
+
+### Tenant Hierarchy
+
+```
+Platform Operator (moto)
+ └── Organization (Träger)           → platform.organizations
+      └── School (OGS) = tenant      → platform.schools (school.id = tenant_id)
+```
+
+**School ID is the tenant boundary.** All 58+ tenant-scoped tables have a `tenant_id` FK to `platform.schools`. Account-to-school mappings live in `auth.account_tenants` (with lifecycle: pending → active → inactive).
+
+### Scoping Mechanisms
+
+| Layer | How |
+|-------|-----|
+| **JWT** | Claims include `tenant_id`, `org_id`, `scope` ("" = tenant, "org" = organization, "platform" = operator) |
+| **Context** | `tenant.WithTenantID(ctx, id)` / `tenant.FromContext(ctx)` propagate tenant through request lifecycle |
+| **Database** | `TenantTxMiddleware` sets PostgreSQL `LOCAL ROLE` + RLS config per request; auto-rollback on 5xx |
+| **Models** | `base.TenantModel` (embeds `TenantID int64`) + `TenantScoped` interface on all tenant-aware entities |
+| **Repositories** | `base.GetDB(ctx, db)` picks up tenant transaction; `base.EnsureTenantID(ctx, entity)` auto-populates tenant_id |
+
+### Frontend Routing
+
+- **Subdomain mode**: `{slug}.localhost:3000` → middleware rewrites to `/[tenant]/*` internally
+- **Operator isolation**: `operator.localhost:3000` → rewrites to `/operator/*`, separate session
+- **Tenant resolution**: `[tenant]/layout.tsx` validates slug via `/auth/tenant/resolve?slug=...` (cached 5min)
+- **Tenant switching**: `POST /auth/switch-tenant` returns new JWT scoped to target school
+
+### Key Env Vars
+
+| Var | Purpose |
+|-----|---------|
+| `TENANT_DOMAIN` | Base domain for subdomain extraction (e.g., `localhost`, `moto-app.de`) |
+| `NEXT_PUBLIC_TENANT_DOMAIN` | Client-side tenant domain |
+| `NEXT_PUBLIC_OPERATOR_HOSTNAME` | Operator subdomain (e.g., `operator.localhost:3000`) |
+
+### Reserved Slugs
+
+Both backend (`models/platform/organization.go`) and frontend (`lib/reserved-slugs.ts`) maintain matching lists of reserved slugs (www, api, operator, grafana, etc.) that cannot be used as tenant subdomains. **These must stay in sync.**
+
+### Cross-Repo Impact
+
+Changing tenant resolution, auth headers, or error messages affects PyrePortal's device auth flow. The IoT API (`/api/iot/*`) uses device API keys (not tenant JWTs), but devices are scoped to schools.
+
 ## Core Architecture
 
 **Handler → Service → Repository → Database** (always, no exceptions)
@@ -287,7 +332,7 @@ CI (`build.yml`) runs on push/merge:
 
 ## Database Schemas
 
-`auth` · `users` · `education` · `facilities` · `activities` · `active` · `schedule` · `iot` · `feedback` · `config` · `meta` · `audit`
+`platform` · `auth` · `users` · `education` · `facilities` · `activities` · `active` · `schedule` · `iot` · `feedback` · `config` · `suggestions` · `meta` · `audit`
 
 ---
 
