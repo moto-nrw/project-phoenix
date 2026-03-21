@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { TenantProvider } from "~/components/tenant/tenant-provider";
 import { TenantGuard } from "~/components/tenant/tenant-guard";
 import type { TenantInfo, TenantSettings } from "~/lib/tenant-api";
+import { RESERVED_SLUGS } from "~/lib/reserved-slugs";
 
 interface TenantResolveResponse {
   tenant_id: number;
@@ -59,6 +60,13 @@ export default async function TenantLayout({
   params: Promise<{ tenant: string }>;
 }) {
   const { tenant: tenantSlug } = await params;
+
+  // Block reserved slugs from being resolved as tenants. Without this,
+  // Next.js [tenant] dynamic segment catches paths like "/operator" and
+  // renders the tenant dashboard instead of the operator dashboard.
+  if (RESERVED_SLUGS.has(tenantSlug)) {
+    notFound();
+  }
 
   const tenant = await fetchTenantInfo(tenantSlug);
 

@@ -13,6 +13,14 @@ import (
 // slugRegex validates URL-safe slugs: lowercase alphanumeric with hyphens, no leading/trailing hyphens.
 var slugRegex = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
 
+// reservedSlugs are infrastructure subdomains that must never be used as tenant slugs or subdomains.
+// Must match RESERVED_SUBDOMAINS in frontend/src/middleware.ts and RESERVED_SLUGS in [tenant]/layout.tsx.
+var reservedSlugs = map[string]bool{
+	"www":      true,
+	"api":      true,
+	"operator": true,
+}
+
 // tablePlatformOrganizations is the schema-qualified table name
 const tablePlatformOrganizations = "platform.organizations"
 
@@ -62,6 +70,9 @@ func (o *Organization) Validate() error {
 	}
 	if !slugRegex.MatchString(o.Slug) {
 		return errors.New("slug must contain only lowercase letters, numbers, and hyphens (no leading/trailing hyphens)")
+	}
+	if reservedSlugs[o.Slug] {
+		return errors.New("slug is reserved for infrastructure use")
 	}
 	return nil
 }
