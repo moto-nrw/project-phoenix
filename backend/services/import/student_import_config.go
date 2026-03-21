@@ -578,7 +578,10 @@ func (c *StudentImportConfig) createOrFindGuardian(ctx context.Context, data imp
 			}
 		} else if existing != nil {
 			// Guardian found - reuse it (deduplication)
-			// But still add any new phone numbers from the import data
+			// Update profile fields if the import provides new data
+			c.updateExistingGuardianProfile(ctx, existing, data)
+
+			// Add any new phone numbers from the import data
 			if err := c.createGuardianPhoneNumbers(ctx, existing.ID, data.PhoneNumbers); err != nil {
 				// Log but don't fail - phone numbers are additive
 				// Duplicates will be handled gracefully
@@ -611,6 +614,46 @@ func (c *StudentImportConfig) createOrFindGuardian(ctx context.Context, data imp
 	}
 
 	return guardian.ID, nil
+}
+
+// updateExistingGuardianProfile merges non-empty import fields into an existing guardian.
+// Only overwrites fields that are provided in the import data (non-empty).
+// Errors are logged but don't fail the import — the guardian link still works.
+func (c *StudentImportConfig) updateExistingGuardianProfile(ctx context.Context, existing *users.GuardianProfile, data importModels.GuardianImportData) {
+	updated := false
+
+	if v := strings.TrimSpace(data.AddressStreet); v != "" && !ptrEquals(existing.AddressStreet, v) {
+		existing.AddressStreet = stringPtr(v)
+		updated = true
+	}
+	if v := strings.TrimSpace(data.AddressCity); v != "" && !ptrEquals(existing.AddressCity, v) {
+		existing.AddressCity = stringPtr(v)
+		updated = true
+	}
+	if v := strings.TrimSpace(data.AddressPostalCode); v != "" && !ptrEquals(existing.AddressPostalCode, v) {
+		existing.AddressPostalCode = stringPtr(v)
+		updated = true
+	}
+	if v := strings.TrimSpace(data.Notes); v != "" && !ptrEquals(existing.Notes, v) {
+		existing.Notes = stringPtr(v)
+		updated = true
+	}
+	if v := guardianLanguagePreference(data.LanguagePreference); data.LanguagePreference != "" && v != existing.LanguagePreference {
+		existing.LanguagePreference = v
+		updated = true
+	}
+
+	if !updated {
+		return
+	}
+
+	// Best-effort update — don't fail the import if profile update fails
+	_ = c.guardianRepo.Update(ctx, existing)
+}
+
+// ptrEquals checks if a *string equals a plain string value
+func ptrEquals(ptr *string, val string) bool {
+	return ptr != nil && *ptr == val
 }
 
 // createGuardianPhoneNumbers creates phone numbers for a guardian from import data
