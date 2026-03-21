@@ -268,9 +268,10 @@ jobs:
       - name: Image digest
         run: echo "Frontend image pushed with digest ${{ steps.meta.outputs.digest }}"
 
-  # Deploy to staging (merged PR with label or manual dispatch)
+  # Deploy to staging with automatic rollback on failure
   # Note: Currently staging runs on same server as production (different ports/dirs)
   # Using separate secrets allows easy migration to dedicated staging server later
+  # Exit codes from deploy-remote.sh: 0=success, 1=pre-deploy abort, 10=rollback ok, 11=rollback failed
   deploy-staging:
     needs: [check-environment, build-backend, build-frontend]
     if: needs.check-environment.outputs.should_deploy == 'true' && needs.check-environment.outputs.is_staging == 'true'
@@ -294,6 +295,7 @@ jobs:
         run: sops decrypt environments/staging.sops.env > /tmp/staging.env
 
       - name: Deploy to staging
+        id: deploy
         env:
           SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
           SSH_HOST: ${{ secrets.STAGING_HOST }}
@@ -305,43 +307,43 @@ jobs:
           echo "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
 
-          # Sync environment config and compose file from repo to server
-          scp -i ~/.ssh/deploy_key /tmp/staging.env root@$SSH_HOST:~/staging/.env
-          scp -i ~/.ssh/deploy_key environments/staging.compose.yml root@$SSH_HOST:~/staging/docker-compose.yml
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
 
-          ssh -i ~/.ssh/deploy_key root@$SSH_HOST '
-            set -e
-            echo "Starting staging deployment..."
-            cd ~/staging
+          scp -i ~/.ssh/deploy_key /tmp/staging.env root@$SSH_HOST:~/staging/.env.new
+          scp -i ~/.ssh/deploy_key environments/staging.compose.yml root@$SSH_HOST:~/staging/docker-compose.yml.new
+          scp -i ~/.ssh/deploy_key scripts/deploy-remote.sh root@$SSH_HOST:~/deploy-remote.sh
 
-            # Pull new images first (needed for backup and migrate)
-            docker compose pull
+          set +e
+          ssh -i ~/.ssh/deploy_key root@$SSH_HOST \
+            "DEPLOY_DIR=staging DEPLOY_SHA=$SHORT_SHA BACKUP_RETENTION=3 bash ~/deploy-remote.sh"
+          DEPLOY_EXIT=$?
+          set -e
 
-            # Backup
-            mkdir -p ~/backups/staging
-            BACKUP_FILE=~/backups/staging/backup-$(date +%Y%m%d-%H%M%S).dump
-            docker compose exec -T postgres pg_dump -U postgres -d postgres -Fc > "$BACKUP_FILE"
-            [ -s "$BACKUP_FILE" ] || { echo "Backup failed or empty"; exit 1; }
-            echo "Backup created: $(basename $BACKUP_FILE) ($(du -h $BACKUP_FILE | cut -f1))"
+          echo "deploy_exit=$DEPLOY_EXIT" >> $GITHUB_OUTPUT
 
-            # Stop old server before schema changes (prevents mixed-version window)
-            docker compose stop server
+          if [ "$DEPLOY_EXIT" -ne 0 ]; then
+            exit 1
+          fi
 
-            # Migrate before starting services (avoids deadlock if new server needs new schema)
-            docker compose run --rm server ./main migrate
+      - name: Cleanup secrets
+        if: always()
+        run: rm -f ~/.ssh/deploy_key /tmp/staging.env
 
-            # Deploy (--wait blocks until healthcheck passes)
-            docker compose up -d --wait
-            echo "Server is healthy"
+      - name: Notify on deploy failure
+        if: always() && steps.deploy.outputs.deploy_exit != '' && steps.deploy.outputs.deploy_exit != '0'
+        uses: ./.github/actions/notify-deploy-failure
+        with:
+          exit_code: ${{ steps.deploy.outputs.deploy_exit }}
+          environment: staging
+          resend_api_key: ${{ secrets.RESEND_API_KEY }}
+          notify_emails: ${{ vars.DEPLOY_NOTIFY_EMAILS }}
+          run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          commit_url: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
+          sha: ${{ github.sha }}
+          actor: ${{ github.actor }}
 
-            # Cleanup (keep 3)
-            ls -t ~/backups/staging/backup-*.dump 2>/dev/null | tail -n +4 | xargs -r rm -v
-
-            echo "Staging deployment complete"
-          '
-          rm -f ~/.ssh/deploy_key /tmp/staging.env
-
-  # Deploy to demo (merged PR with 'deploy-demo' label or manual dispatch)
+  # Deploy to demo with automatic rollback on failure
+  # Exit codes from deploy-remote.sh: 0=success, 1=pre-deploy abort, 10=rollback ok, 11=rollback failed
   deploy-demo:
     needs: [check-environment, build-backend, build-frontend]
     if: needs.check-environment.outputs.should_deploy == 'true' && needs.check-environment.outputs.is_demo == 'true'
@@ -365,6 +367,7 @@ jobs:
         run: sops decrypt environments/demo.sops.env > /tmp/demo.env
 
       - name: Deploy to demo
+        id: deploy
         env:
           SSH_KEY: ${{ secrets.DEMO_SSH_KEY }}
           SSH_HOST: ${{ secrets.DEMO_HOST }}
@@ -376,32 +379,43 @@ jobs:
           echo "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
 
-          # Sync environment config and compose file from repo to server
-          scp -i ~/.ssh/deploy_key /tmp/demo.env root@$SSH_HOST:~/demo/.env
-          scp -i ~/.ssh/deploy_key environments/demo.compose.yml root@$SSH_HOST:~/demo/docker-compose.yml
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
 
-          ssh -i ~/.ssh/deploy_key root@$SSH_HOST '
-            set -e
-            echo "Starting demo deployment..."
-            cd ~/demo
+          scp -i ~/.ssh/deploy_key /tmp/demo.env root@$SSH_HOST:~/demo/.env.new
+          scp -i ~/.ssh/deploy_key environments/demo.compose.yml root@$SSH_HOST:~/demo/docker-compose.yml.new
+          scp -i ~/.ssh/deploy_key scripts/deploy-remote.sh root@$SSH_HOST:~/deploy-remote.sh
 
-            # Deploy (no backup for demo)
-            docker compose pull
+          set +e
+          ssh -i ~/.ssh/deploy_key root@$SSH_HOST \
+            "DEPLOY_DIR=demo DEPLOY_SHA=$SHORT_SHA BACKUP_RETENTION=3 bash ~/deploy-remote.sh"
+          DEPLOY_EXIT=$?
+          set -e
 
-            # Stop old server before schema changes (prevents mixed-version window)
-            docker compose stop server
+          echo "deploy_exit=$DEPLOY_EXIT" >> $GITHUB_OUTPUT
 
-            # Migrate before starting services (avoids deadlock if new server needs new schema)
-            docker compose run --rm server ./main migrate
+          if [ "$DEPLOY_EXIT" -ne 0 ]; then
+            exit 1
+          fi
 
-            # Deploy (--wait blocks until healthcheck passes)
-            docker compose up -d --wait
+      - name: Cleanup secrets
+        if: always()
+        run: rm -f ~/.ssh/deploy_key /tmp/demo.env
 
-            echo "Demo deployment complete"
-          '
-          rm -f ~/.ssh/deploy_key /tmp/demo.env
+      - name: Notify on deploy failure
+        if: always() && steps.deploy.outputs.deploy_exit != '' && steps.deploy.outputs.deploy_exit != '0'
+        uses: ./.github/actions/notify-deploy-failure
+        with:
+          exit_code: ${{ steps.deploy.outputs.deploy_exit }}
+          environment: demo
+          resend_api_key: ${{ secrets.RESEND_API_KEY }}
+          notify_emails: ${{ vars.DEPLOY_NOTIFY_EMAILS }}
+          run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          commit_url: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
+          sha: ${{ github.sha }}
+          actor: ${{ github.actor }}
 
-  # Deploy to production (push to main, release, or manual dispatch to production)
+  # Deploy to production with automatic rollback on failure
+  # Exit codes from deploy-remote.sh: 0=success, 1=pre-deploy abort, 10=rollback ok, 11=rollback failed
   deploy-production:
     needs: [check-environment, build-backend, build-frontend]
     if: needs.check-environment.outputs.should_deploy == 'true' && needs.check-environment.outputs.is_staging == 'false' && needs.check-environment.outputs.is_demo == 'false'
@@ -425,6 +439,7 @@ jobs:
         run: sops decrypt environments/production.sops.env > /tmp/production.env
 
       - name: Deploy to production
+        id: deploy
         env:
           SSH_KEY: ${{ secrets.PRODUCTION_SSH_KEY }}
           SSH_HOST: ${{ secrets.PRODUCTION_HOST }}
@@ -436,41 +451,40 @@ jobs:
           echo "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
 
-          # Sync environment config and compose file from repo to server
-          scp -i ~/.ssh/deploy_key /tmp/production.env root@$SSH_HOST:~/production/.env
-          scp -i ~/.ssh/deploy_key environments/production.compose.yml root@$SSH_HOST:~/production/docker-compose.yml
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
 
-          ssh -i ~/.ssh/deploy_key root@$SSH_HOST '
-            set -e
-            echo "Starting production deployment..."
-            cd ~/production
+          scp -i ~/.ssh/deploy_key /tmp/production.env root@$SSH_HOST:~/production/.env.new
+          scp -i ~/.ssh/deploy_key environments/production.compose.yml root@$SSH_HOST:~/production/docker-compose.yml.new
+          scp -i ~/.ssh/deploy_key scripts/deploy-remote.sh root@$SSH_HOST:~/deploy-remote.sh
 
-            # Pull new images first (needed for backup and migrate)
-            docker compose pull
+          set +e
+          ssh -i ~/.ssh/deploy_key root@$SSH_HOST \
+            "DEPLOY_DIR=production DEPLOY_SHA=$SHORT_SHA BACKUP_RETENTION=7 bash ~/deploy-remote.sh"
+          DEPLOY_EXIT=$?
+          set -e
 
-            # Backup
-            mkdir -p ~/backups/production
-            BACKUP_FILE=~/backups/production/backup-$(date +%Y%m%d-%H%M%S).dump
-            docker compose exec -T postgres pg_dump -U postgres -d postgres -Fc > "$BACKUP_FILE"
-            [ -s "$BACKUP_FILE" ] || { echo "Backup failed or empty"; exit 1; }
-            echo "Backup created: $(basename $BACKUP_FILE) ($(du -h $BACKUP_FILE | cut -f1))"
+          echo "deploy_exit=$DEPLOY_EXIT" >> $GITHUB_OUTPUT
 
-            # Stop old server before schema changes (prevents mixed-version window)
-            docker compose stop server
+          if [ "$DEPLOY_EXIT" -ne 0 ]; then
+            exit 1
+          fi
 
-            # Migrate before starting services (avoids deadlock if new server needs new schema)
-            docker compose run --rm server ./main migrate
+      - name: Cleanup secrets
+        if: always()
+        run: rm -f ~/.ssh/deploy_key /tmp/production.env
 
-            # Deploy (--wait blocks until healthcheck passes)
-            docker compose up -d --wait
-            echo "Server is healthy"
-
-            # Cleanup (keep 7)
-            ls -t ~/backups/production/backup-*.dump 2>/dev/null | tail -n +8 | xargs -r rm -v
-
-            echo "Production deployment complete"
-          '
-          rm -f ~/.ssh/deploy_key /tmp/production.env
+      - name: Notify on deploy failure
+        if: always() && steps.deploy.outputs.deploy_exit != '' && steps.deploy.outputs.deploy_exit != '0'
+        uses: ./.github/actions/notify-deploy-failure
+        with:
+          exit_code: ${{ steps.deploy.outputs.deploy_exit }}
+          environment: production
+          resend_api_key: ${{ secrets.RESEND_API_KEY }}
+          notify_emails: ${{ vars.DEPLOY_NOTIFY_EMAILS }}
+          run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          commit_url: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
+          sha: ${{ github.sha }}
+          actor: ${{ github.actor }}
 
   # Summary job for branch protection
   build-status:
