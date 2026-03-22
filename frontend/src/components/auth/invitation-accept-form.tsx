@@ -159,14 +159,14 @@ export function InvitationAcceptForm({
 
   if (isAccepted) {
     return (
-      <div className="py-8 text-center">
-        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#83CD2D]">
+      <div className="flex flex-col items-center py-12">
+        <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-full bg-gray-900">
           <svg
-            className="h-8 w-8 text-white"
+            className="h-6 w-6 text-white"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
-            strokeWidth={3}
+            strokeWidth={2.5}
           >
             <path
               strokeLinecap="round"
@@ -175,12 +175,26 @@ export function InvitationAcceptForm({
             />
           </svg>
         </div>
-        <h3 className="mb-2 text-lg font-semibold text-gray-900">
-          Konto erfolgreich erstellt!
+        <h3 className="mb-1 text-base font-semibold text-gray-900">
+          Konto erstellt
         </h3>
-        <p className="text-sm text-gray-600">
-          Du wirst zur Anmeldung weitergeleitet...
+        <p className="mb-6 text-sm text-gray-500">
+          Weiterleitung zur Anmeldung...
         </p>
+        <div className="h-1 w-16 overflow-hidden rounded-full bg-gray-100">
+          <div
+            className="h-full rounded-full bg-gray-900"
+            style={{
+              animation: "progressFill 1.5s ease-in-out forwards",
+            }}
+          />
+        </div>
+        <style>{`
+          @keyframes progressFill {
+            from { width: 0%; }
+            to { width: 100%; }
+          }
+        `}</style>
       </div>
     );
   }
