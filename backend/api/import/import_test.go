@@ -41,7 +41,7 @@ func setupTestContext(t *testing.T) *testContext {
 	}
 
 	// Create import resource
-	resource := importAPI.NewResource(svc.Import, repos.DataImport, repos.Person, repos.Staff, db)
+	resource := importAPI.NewResource(svc.Import, repos.DataImport, svc.Users, db)
 
 	return &testContext{
 		db:       db,
@@ -449,6 +449,29 @@ func TestImportStudents_AccountWithoutPerson(t *testing.T) {
 	// Import handler wraps staff resolution in WithTenantTx, so failure returns 500
 	assert.Equal(t, http.StatusInternalServerError, rr.Code,
 		"Expected 500 when account has no person record in import")
+}
+
+func TestImportStudents_PersonWithoutStaff(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	// Create account + person but no staff record
+	_, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "NoStaff", "Import")
+
+	router := chi.NewRouter()
+	router.Post("/import", ctx.resource.ImportStudentsHandler())
+
+	csvContent := "Vorname,Nachname,Klasse\nMax,Mustermann,1a"
+
+	req := testutil.NewMultipartRequest(t, "POST", "/import", "file", "students.csv", csvContent,
+		testutil.WithClaims(testutil.AdminTestClaims(int(account.ID))),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	// Import handler wraps staff resolution in WithTenantTx, so failure returns 500
+	assert.Equal(t, http.StatusInternalServerError, rr.Code,
+		"Expected 500 when person has no staff record in import")
 }
 
 // =============================================================================
