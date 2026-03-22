@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Modal } from "./modal";
 import { Alert } from "./alert";
 import { EyeIcon, EyeOffIcon, CheckIcon, SpinnerIcon } from "./icons";
@@ -113,7 +113,7 @@ export function PasswordChangeModal({
     }
   };
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     setCurrentPassword("");
     setNewPassword("");
     setConfirmPassword("");
@@ -123,7 +123,7 @@ export function PasswordChangeModal({
     setShowNewPassword(false);
     setShowConfirmPassword(false);
     onClose();
-  };
+  }, [onClose]);
 
   return (
     <Modal isOpen={isOpen} onClose={handleClose} title="Passwort ändern">

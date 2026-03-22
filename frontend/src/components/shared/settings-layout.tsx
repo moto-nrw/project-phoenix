@@ -183,6 +183,10 @@ export function SettingsLayout({
   const [isMobile, setIsMobile] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
 
+  const handleClosePasswordModal = useCallback(() => {
+    setShowPasswordModal(false);
+  }, []);
+
   const handleBackToList = useCallback(() => {
     setActiveTab(null);
   }, []);
@@ -291,10 +295,10 @@ export function SettingsLayout({
       {showPasswordModal && (
         <PasswordChangeModal
           isOpen={showPasswordModal}
-          onClose={() => setShowPasswordModal(false)}
+          onClose={handleClosePasswordModal}
           apiEndpoint={passwordApiEndpoint}
           onSuccess={() => {
-            setShowPasswordModal(false);
+            handleClosePasswordModal();
             onPasswordSuccess?.();
           }}
         />
