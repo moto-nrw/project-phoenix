@@ -40,8 +40,10 @@ describe("RootPage", () => {
 
     expect(screen.getByText("Willkommen bei moto!")).toBeInTheDocument();
     expect(screen.getByText("Einrichtung")).toBeInTheDocument();
-    // Select should not be rendered while loading
-    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    // Select is rendered but disabled while loading (avoids layout flicker)
+    const select = screen.getByRole("combobox");
+    expect(select).toBeDisabled();
+    expect(screen.getByText("Laden...")).toBeInTheDocument();
   });
 
   it("renders tenant options in select after loading", async () => {

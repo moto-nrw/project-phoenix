@@ -142,7 +142,7 @@ describe("TenantGuard", () => {
     expect(screen.getByText("Protected Content")).toBeInTheDocument();
   });
 
-  it("shows loading state when session is loading", () => {
+  it("renders children transparently when session is loading", () => {
     mockUseSession.mockReturnValue({
       data: null,
       status: "loading",
@@ -159,8 +159,9 @@ describe("TenantGuard", () => {
       </TenantGuard>,
     );
 
-    expect(screen.getByText("Sitzung wird geladen...")).toBeInTheDocument();
-    expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
+    // Children render during loading to avoid layout flicker;
+    // individual pages handle their own loading states
+    expect(screen.getByText("Protected Content")).toBeInTheDocument();
   });
 
   it("shows switching state when mismatch detected", () => {

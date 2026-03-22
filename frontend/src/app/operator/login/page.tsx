@@ -121,12 +121,22 @@ export default function OperatorLoginPage() {
         >
           Willkommen bei moto
         </h1>
-        <p className="mb-6 text-xl text-gray-700 sm:mb-10">
+        <p className="mb-6 text-3xl font-semibold tracking-wide text-gray-900 sm:mb-10">
           Operator Dashboard
         </p>
 
         {/* Login Form */}
-        <form onSubmit={handleSubmit} noValidate className="space-y-6">
+        <form
+          onSubmit={handleSubmit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && e.target instanceof HTMLInputElement) {
+              e.preventDefault();
+              e.currentTarget.requestSubmit();
+            }
+          }}
+          noValidate
+          className="space-y-6"
+        >
           {error && <Alert type="error" message={error} />}
 
           <div className="space-y-4">

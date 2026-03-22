@@ -144,13 +144,13 @@ export function TenantGuard({ children }: { children: React.ReactNode }) {
     update,
   ]);
 
-  // Show loading state while session is loading
+  // While session is loading, render children transparently.
+  // Individual pages handle their own loading states (e.g. login form
+  // uses opacity fade). Blocking here causes visible flicker on every
+  // page load because the guard's placeholder has a different layout
+  // than the page content that replaces it.
   if (status === "loading") {
-    return (
-      <div className="flex min-h-[200px] items-center justify-center">
-        <div className="text-sm text-gray-500">Sitzung wird geladen...</div>
-      </div>
-    );
+    return <>{children}</>;
   }
 
   // Block render for operator sessions — covers both before effect fires

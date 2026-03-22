@@ -72,18 +72,11 @@ export default function RootPage() {
 
         {/* Tenant selector or error state */}
         <div className="space-y-6">
-          {loading ? (
-            <div className="text-left">
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                Einrichtung
-              </label>
-              <div className="h-10 w-full animate-pulse rounded-lg bg-gray-200" />
-            </div>
-          ) : listStatus === "error" ? (
+          {!loading && listStatus === "error" ? (
             <p className="text-sm text-gray-500">
               Backend nicht erreichbar — bitte versuchen Sie es später erneut.
             </p>
-          ) : tenants.length === 0 ? (
+          ) : !loading && tenants.length === 0 ? (
             <p className="text-sm text-gray-500">
               Aktuell sind keine Einrichtungen verfügbar.
             </p>
@@ -100,10 +93,13 @@ export default function RootPage() {
                   <select
                     id="tenant-select"
                     value={selectedSlug}
+                    disabled={loading}
                     onChange={(e) => setSelectedSlug(e.target.value)}
-                    className="w-full appearance-none rounded-lg border-0 bg-white px-3 py-2.5 pr-10 text-gray-900 ring-1 ring-gray-200 transition-all focus:ring-2 focus:ring-gray-900 focus:outline-none"
+                    className="w-full appearance-none rounded-lg border-0 bg-white px-3 py-2.5 pr-10 text-gray-900 ring-1 ring-gray-200 transition-all focus:ring-2 focus:ring-gray-900 focus:outline-none disabled:opacity-50"
                   >
-                    <option value="">Bitte auswählen...</option>
+                    <option value="">
+                      {loading ? "Laden..." : "Bitte auswählen..."}
+                    </option>
                     {tenants.map((tenant) => (
                       <option key={tenant.slug} value={tenant.slug}>
                         {tenant.name}

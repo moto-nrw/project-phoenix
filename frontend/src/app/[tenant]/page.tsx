@@ -14,8 +14,8 @@ import { PasswordToggleButton } from "~/components/shared/password-toggle-button
 import { LoginHelpContent } from "~/components/shared/login-help-content";
 import { useTenant } from "~/components/tenant/tenant-provider";
 import { useTenantRouter } from "~/lib/tenant-router";
+import { env } from "~/env";
 
-import { Loading } from "~/components/ui/loading";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "TenantLoginPage" });
@@ -29,7 +29,7 @@ function LoginForm() {
   const [awaitingRedirect, setAwaitingRedirect] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const router = useTenantRouter();
-  const { tenantSlug } = useTenant();
+  const { tenantSlug, tenant } = useTenant();
   const searchParams = useSearchParams();
   const { data: session, status } = useSession();
 
@@ -95,29 +95,10 @@ function LoginForm() {
     }
   }, [searchParams]);
 
-  // Show loading while checking authentication or awaiting redirect
-  if (
+  const isCheckingAuth =
     checkingAuth ||
     status === "loading" ||
-    (awaitingRedirect && status === "authenticated")
-  ) {
-    return (
-      <div className="flex min-h-screen flex-col items-center justify-center p-4">
-        <Loading />
-        {/* Smart redirect component when awaiting redirect */}
-        {awaitingRedirect &&
-          status === "authenticated" &&
-          session?.user?.token && (
-            <SmartRedirect
-              onRedirect={(path) => {
-                logger.info("redirecting based on user permissions", { path });
-                router.push(path);
-              }}
-            />
-          )}
-      </div>
-    );
-  }
+    (awaitingRedirect && status === "authenticated");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -159,8 +140,34 @@ function LoginForm() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-4">
       <div className="mx-auto w-full max-w-2xl rounded-2xl bg-white/80 p-10 text-center shadow-xl backdrop-blur-md transition-all duration-300 hover:bg-white/90 hover:shadow-2xl">
-        {/* Help Button */}
-        <div className="absolute top-4 right-4">
+        {/* Top Bar: Tenant Selector (left) + Help (right) */}
+        <div className="absolute top-4 right-4 left-4 flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => {
+              const tenantDomain = env.NEXT_PUBLIC_TENANT_DOMAIN;
+              const portSuffix = window.location.port
+                ? `:${window.location.port}`
+                : "";
+              window.location.href = `${window.location.protocol}//${tenantDomain}${portSuffix}/`;
+            }}
+            className="flex items-center gap-1.5 text-sm text-gray-500 transition-colors hover:text-gray-800"
+          >
+            <svg
+              className="h-4 w-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M15 19l-7-7 7-7"
+              />
+            </svg>
+            Einrichtung wechseln
+          </button>
           <HelpButton
             title="Hilfe"
             content={
@@ -188,83 +195,115 @@ function LoginForm() {
         <h1 className="mb-2 bg-gradient-to-r from-[#5080d8] to-[#83cd2d] bg-clip-text text-4xl font-bold text-transparent md:text-5xl">
           Willkommen bei moto!
         </h1>
-        <p className="mb-10 text-xl text-gray-700">Ganztag. Digital.</p>
+        <p className="text-xl text-gray-700">Ganztag. Digital.</p>
+        {tenant?.name && (
+          <p className="mt-4 mb-10 text-2xl font-semibold text-gray-800">
+            {tenant.name}
+          </p>
+        )}
+        {!tenant?.name && <div className="mb-10" />}
 
-        {/* Login Form */}
-        <form onSubmit={handleSubmit} noValidate className="space-y-6">
-          {error && <Alert type="error" message={error} />}
+        {/* Login Form — fades in after auth check */}
+        <div
+          className={`transition-opacity duration-300 ${isCheckingAuth ? "pointer-events-none opacity-0" : "opacity-100"}`}
+        >
+          <form
+            onSubmit={handleSubmit}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && e.target instanceof HTMLInputElement) {
+                e.preventDefault();
+                e.currentTarget.requestSubmit();
+              }
+            }}
+            noValidate
+            className="space-y-6"
+          >
+            {error && <Alert type="error" message={error} />}
 
-          <div className="space-y-4">
-            <div className="text-left">
-              <label
-                htmlFor="email"
-                className="mb-1 block text-sm font-medium text-gray-700"
-              >
-                E-Mail-Adresse
-              </label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="username"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full"
-                label={""}
-              />
-            </div>
-
-            <div className="text-left">
-              <label
-                htmlFor="password"
-                className="mb-1 block text-sm font-medium text-gray-700"
-              >
-                Passwort
-              </label>
-              <div className="relative">
+            <div className="space-y-4">
+              <div className="text-left">
+                <label
+                  htmlFor="email"
+                  className="mb-1 block text-sm font-medium text-gray-700"
+                >
+                  E-Mail-Adresse
+                </label>
                 <Input
-                  id="password"
-                  name="password"
-                  type={showPassword ? "text" : "password"}
-                  autoComplete="current-password"
+                  id="email"
+                  name="email"
+                  type="email"
+                  autoComplete="username"
                   required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pr-10"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full"
                   label={""}
                 />
-                <PasswordToggleButton
-                  showPassword={showPassword}
-                  onToggle={() => setShowPassword(!showPassword)}
-                />
+              </div>
+
+              <div className="text-left">
+                <label
+                  htmlFor="password"
+                  className="mb-1 block text-sm font-medium text-gray-700"
+                >
+                  Passwort
+                </label>
+                <div className="relative">
+                  <Input
+                    id="password"
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="current-password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full pr-10"
+                    label={""}
+                  />
+                  <PasswordToggleButton
+                    showPassword={showPassword}
+                    onToggle={() => setShowPassword(!showPassword)}
+                  />
+                </div>
+              </div>
+
+              {/* Forgot Password Link */}
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={() => setIsResetModalOpen(true)}
+                  className="text-sm text-gray-600 transition-colors hover:text-gray-800 hover:underline focus:underline focus:outline-none"
+                >
+                  Passwort vergessen?
+                </button>
               </div>
             </div>
 
-            {/* Forgot Password Link */}
-            <div className="text-center">
+            <div className="mt-2 flex justify-center">
               <button
-                type="button"
-                onClick={() => setIsResetModalOpen(true)}
-                className="text-sm text-gray-600 transition-colors hover:text-gray-800 hover:underline focus:underline focus:outline-none"
+                type="submit"
+                disabled={isLoading}
+                className="group relative overflow-hidden rounded-xl bg-gray-900 px-8 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:bg-gray-800 focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 focus:outline-none active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Passwort vergessen?
+                <span className="relative z-10">
+                  {isLoading ? "Anmeldung läuft..." : "Anmelden"}
+                </span>
               </button>
             </div>
-          </div>
+          </form>
+        </div>
 
-          <div className="mt-2 flex justify-center">
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="group relative overflow-hidden rounded-xl bg-gray-900 px-8 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:bg-gray-800 focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 focus:outline-none active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <span className="relative z-10">
-                {isLoading ? "Anmeldung läuft..." : "Anmelden"}
-              </span>
-            </button>
-          </div>
-        </form>
+        {/* Smart redirect for authenticated users */}
+        {awaitingRedirect &&
+          status === "authenticated" &&
+          session?.user?.token && (
+            <SmartRedirect
+              onRedirect={(path) => {
+                logger.info("redirecting based on user permissions", { path });
+                router.push(path);
+              }}
+            />
+          )}
       </div>
 
       {/* Password Reset Modal */}
