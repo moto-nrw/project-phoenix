@@ -30,7 +30,7 @@ function LoginForm() {
   const [awaitingRedirect, setAwaitingRedirect] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const router = useTenantRouter();
-  const { tenantSlug } = useTenant();
+  const { tenantSlug, tenant } = useTenant();
   const searchParams = useSearchParams();
   const { data: session, status } = useSession();
 
@@ -215,7 +215,13 @@ function LoginForm() {
         <h1 className="mb-2 bg-gradient-to-r from-[#5080d8] to-[#83cd2d] bg-clip-text text-4xl font-bold text-transparent md:text-5xl">
           Willkommen bei moto!
         </h1>
-        <p className="mb-10 text-xl text-gray-700">Ganztag. Digital.</p>
+        <p className="text-xl text-gray-700">Ganztag. Digital.</p>
+        {tenant?.name && (
+          <p className="mt-4 mb-10 text-2xl font-semibold text-gray-800">
+            {tenant.name}
+          </p>
+        )}
+        {!tenant?.name && <div className="mb-10" />}
 
         {/* Login Form */}
         <form onSubmit={handleSubmit} noValidate className="space-y-6">
