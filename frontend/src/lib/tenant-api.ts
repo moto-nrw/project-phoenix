@@ -76,31 +76,69 @@ interface PublicTenantBackend {
   organization_name: string;
 }
 
+export interface TenantListResult {
+  tenants: TenantInfo[];
+  /** "ok" = backend responded successfully, "error" = network or server failure */
+  status: "ok" | "error";
+}
+
 /**
- * List all active tenants.
+ * List all active tenants with retry logic.
  * This is a public (no-auth) call used on the root tenant selector page.
  * The backend omits internal IDs from this public endpoint.
+ *
+ * Retries up to {@link maxAttempts} times with exponential backoff to
+ * handle transient failures (e.g. after registration redirect).
  */
-export async function listAllTenants(): Promise<TenantInfo[]> {
-  try {
-    const response = await fetch("/api/tenant/list");
-    if (!response.ok) {
-      return [];
+export async function listAllTenants(
+  maxAttempts = 3,
+): Promise<TenantListResult> {
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const response = await fetch("/api/tenant/list");
+      if (!response.ok) {
+        lastError = new Error(`HTTP ${response.status}`);
+        if (attempt < maxAttempts) {
+          await delay(1000 * 2 ** (attempt - 1));
+          continue;
+        }
+        return { tenants: [], status: "error" };
+      }
+
+      const json = (await response.json()) as {
+        data?: PublicTenantBackend[];
+      };
+      const items = json.data ?? [];
+      return {
+        tenants: items.map((t) => ({
+          tenantId: 0,
+          slug: t.slug,
+          name: t.name,
+          subdomain: t.subdomain,
+          organizationId: 0,
+          organizationName: t.organization_name,
+          settings: {},
+        })),
+        status: "ok",
+      };
+    } catch (error) {
+      lastError = error;
+      if (attempt < maxAttempts) {
+        await delay(1000 * 2 ** (attempt - 1));
+        continue;
+      }
     }
-    const json = (await response.json()) as { data?: PublicTenantBackend[] };
-    const items = json.data ?? [];
-    return items.map((t) => ({
-      tenantId: 0,
-      slug: t.slug,
-      name: t.name,
-      subdomain: t.subdomain,
-      organizationId: 0,
-      organizationName: t.organization_name,
-      settings: {},
-    }));
-  } catch {
-    return [];
   }
+
+  // All attempts exhausted
+  void lastError; // acknowledged but not rethrown — callers check status
+  return { tenants: [], status: "error" };
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /** Backend response shape for account tenants (snake_case) */

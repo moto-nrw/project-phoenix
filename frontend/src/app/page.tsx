@@ -9,7 +9,7 @@
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import { listAllTenants } from "~/lib/tenant-api";
-import type { TenantInfo } from "~/lib/tenant-api";
+import type { TenantInfo, TenantListResult } from "~/lib/tenant-api";
 import { createLogger } from "~/lib/logger";
 import { env } from "~/env";
 
@@ -18,24 +18,21 @@ const logger = createLogger({ component: "RootPage" });
 export default function RootPage() {
   const [tenants, setTenants] = useState<TenantInfo[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isFallback, setIsFallback] = useState(false);
+  const [listStatus, setListStatus] =
+    useState<TenantListResult["status"]>("ok");
   const [selectedSlug, setSelectedSlug] = useState("");
 
   useEffect(() => {
-    listAllTenants()
+    void listAllTenants()
       .then((result) => {
-        if (result.length > 0) {
-          setTenants(result);
+        setListStatus(result.status);
+        if (result.tenants.length > 0) {
+          setTenants(result.tenants);
+        } else if (result.status === "error") {
+          logger.warn("tenant_list_fetch_failed");
         } else {
-          logger.warn("tenant_list_empty_or_failed");
-          setIsFallback(true);
+          logger.warn("tenant_list_empty");
         }
-      })
-      .catch((error: unknown) => {
-        logger.error("tenant_list_fetch_failed", {
-          error: error instanceof Error ? error.message : String(error),
-        });
-        setIsFallback(true);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -82,9 +79,13 @@ export default function RootPage() {
               </label>
               <div className="h-10 w-full animate-pulse rounded-lg bg-gray-200" />
             </div>
-          ) : isFallback ? (
+          ) : listStatus === "error" ? (
             <p className="text-sm text-gray-500">
               Backend nicht erreichbar — bitte versuchen Sie es später erneut.
+            </p>
+          ) : tenants.length === 0 ? (
+            <p className="text-sm text-gray-500">
+              Aktuell sind keine Einrichtungen verfügbar.
             </p>
           ) : (
             <>
