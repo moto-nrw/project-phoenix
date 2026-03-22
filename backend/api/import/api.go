@@ -17,8 +17,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
-	"github.com/moto-nrw/project-phoenix/models/users"
 	importService "github.com/moto-nrw/project-phoenix/services/import"
+	userSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -39,8 +39,7 @@ const (
 type Resource struct {
 	studentImportService *importService.ImportService[importModels.StudentImportRow]
 	auditRepo            audit.DataImportRepository
-	personRepo           users.PersonRepository
-	staffRepo            users.StaffRepository
+	personService        userSvc.PersonService
 	db                   *bun.DB
 }
 
@@ -48,15 +47,13 @@ type Resource struct {
 func NewResource(
 	studentImportService *importService.ImportService[importModels.StudentImportRow],
 	auditRepo audit.DataImportRepository,
-	personRepo users.PersonRepository,
-	staffRepo users.StaffRepository,
+	personService userSvc.PersonService,
 	db *bun.DB,
 ) *Resource {
 	return &Resource{
 		studentImportService: studentImportService,
 		auditRepo:            auditRepo,
-		personRepo:           personRepo,
-		staffRepo:            staffRepo,
+		personService:        personService,
 		db:                   db,
 	}
 }
@@ -518,14 +515,20 @@ func (rs *Resource) getStaffIDFromJWT(ctx context.Context) (int64, error) {
 		return 0, err
 	}
 
-	person, err := rs.personRepo.FindByAccountID(ctx, accountID)
-	if err != nil || person == nil {
+	person, err := rs.personService.FindByAccountID(ctx, accountID)
+	if err != nil {
+		return 0, fmt.Errorf("find person for account %d: %w", accountID, err)
+	}
+	if person == nil {
 		return 0, fmt.Errorf("person not found for account %d", accountID)
 	}
 
-	staff, err := rs.staffRepo.FindByPersonID(ctx, person.ID)
-	if err != nil || staff == nil {
-		return 0, fmt.Errorf("user is not a staff member")
+	staff, err := rs.personService.StaffRepository().FindByPersonID(ctx, person.ID)
+	if err != nil {
+		return 0, fmt.Errorf("find staff for person %d: %w", person.ID, err)
+	}
+	if staff == nil {
+		return 0, fmt.Errorf("user is not a staff member (person %d)", person.ID)
 	}
 
 	return staff.ID, nil
