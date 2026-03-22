@@ -27,14 +27,15 @@ export default function OperatorLayout({
   const isLoginPage = pathname === "/operator/login" || pathname === "/login";
   const { data: session, status } = useSession();
 
-  // Redirect non-operator authenticated users away
+  // Redirect non-operator authenticated users to operator login
+  // (pushing to "/" causes a loop on the operator subdomain since middleware rewrites "/" → /operator)
   useEffect(() => {
     if (
       !isLoginPage &&
       status === "authenticated" &&
       session?.user?.scope !== "platform"
     ) {
-      router.push("/");
+      router.push(operatorPath("/operator/login"));
     }
   }, [isLoginPage, status, session, router]);
 
