@@ -42,6 +42,8 @@ type Post struct {
 	IsNew bool `bun:"is_new,scanonly" json:"is_new"`
 	// Per-user vote direction, resolved at query time
 	UserVote *string `bun:"user_vote,scanonly" json:"user_vote"`
+	// School metadata, resolved at query time via JOIN to platform.schools
+	SchoolName string `bun:"school_name,scanonly" json:"school_name,omitempty"`
 }
 
 func (p *Post) BeforeAppendModel(query any) error {

@@ -128,8 +128,10 @@ func TestListSuggestions_Success(t *testing.T) {
 				UnreadCount:  1,
 				IsNew:        true,
 				AuthorName:   "Test User",
+				SchoolName:   "OGS Musterstadt",
 			}
 			post.ID = testPostID
+			post.TenantID = 7
 			post.CreatedAt = now
 			post.UpdatedAt = now
 			return []*suggestions.Post{post}, nil
@@ -156,6 +158,8 @@ func TestListSuggestions_Success(t *testing.T) {
 	assert.Len(t, data, 1)
 	post := data[0].(map[string]any)
 	assert.Equal(t, "Test Suggestion", post["title"])
+	assert.Equal(t, float64(7), post["school_id"])
+	assert.Equal(t, "OGS Musterstadt", post["school_name"])
 }
 
 func TestListSuggestions_WithStatusFilter(t *testing.T) {
@@ -235,8 +239,10 @@ func TestGetSuggestion_Success(t *testing.T) {
 				Downvotes:   0,
 				UnreadCount: 2,
 				AuthorName:  "Author",
+				SchoolName:  "OGS Testschule",
 			}
 			post.ID = testPostID
+			post.TenantID = 3
 			post.CreatedAt = now
 			post.UpdatedAt = now
 			comment := &suggestions.Comment{
@@ -272,6 +278,8 @@ func TestGetSuggestion_Success(t *testing.T) {
 
 	data := response["data"].(map[string]any)
 	assert.Equal(t, "Test", data["title"])
+	assert.Equal(t, float64(3), data["school_id"])
+	assert.Equal(t, "OGS Testschule", data["school_name"])
 	comments := data["operator_comments"].([]any)
 	assert.Len(t, comments, 1)
 }

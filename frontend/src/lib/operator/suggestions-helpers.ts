@@ -21,6 +21,8 @@ export interface BackendOperatorSuggestion {
   unread_count?: number;
   is_new?: boolean;
   operator_comments?: BackendOperatorComment[];
+  school_id: number;
+  school_name: string;
 }
 
 export interface BackendOperatorComment {
@@ -47,6 +49,8 @@ export interface OperatorSuggestion {
   unreadCount: number;
   isNew: boolean;
   operatorComments: OperatorComment[];
+  schoolId: string;
+  schoolName: string;
 }
 
 export interface OperatorComment {
@@ -89,6 +93,8 @@ export function mapOperatorSuggestion(
     unreadCount: data.unread_count ?? 0,
     isNew: data.is_new ?? false,
     operatorComments: (data.operator_comments ?? []).map(mapOperatorComment),
+    schoolId: data.school_id.toString(),
+    schoolName: data.school_name,
   };
 }
 

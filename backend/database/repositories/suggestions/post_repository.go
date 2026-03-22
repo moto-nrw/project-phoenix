@@ -139,8 +139,10 @@ func (r *PostRepository) List(ctx context.Context, accountID int64, readerType s
 			WHERE pr.account_id = ? AND pr.post_id = "post".id AND pr.reader_type = ?
 		) AS is_new`, accountID, readerType).
 		ColumnExpr(`v.direction AS user_vote`).
+		ColumnExpr(`COALESCE("sch".name, '') AS school_name`).
 		Join(`LEFT JOIN users.persons AS p ON p.account_id = "post".author_id`).
-		Join(`LEFT JOIN suggestions.votes AS v ON v.post_id = "post".id AND v.voter_id = ?`, accountID)
+		Join(`LEFT JOIN suggestions.votes AS v ON v.post_id = "post".id AND v.voter_id = ?`, accountID).
+		Join(`LEFT JOIN platform.schools AS "sch" ON "sch".id = "post".tenant_id`)
 
 	if where, val, ok := base.TenantWhere(ctx, "post"); ok {
 		query = query.Where(where, val)
@@ -192,8 +194,10 @@ func (r *PostRepository) FindByIDWithVote(ctx context.Context, id int64, account
 			AND (cr.last_read_at IS NULL OR c.created_at > cr.last_read_at)
 		) AS unread_count`, accountID, readerType).
 		ColumnExpr(`v.direction AS user_vote`).
+		ColumnExpr(`COALESCE("sch".name, '') AS school_name`).
 		Join(`LEFT JOIN users.persons AS p ON p.account_id = "post".author_id`).
 		Join(`LEFT JOIN suggestions.votes AS v ON v.post_id = "post".id AND v.voter_id = ?`, accountID).
+		Join(`LEFT JOIN platform.schools AS "sch" ON "sch".id = "post".tenant_id`).
 		Where(`"post".id = ?`, id)
 
 	if where, val, ok := base.TenantWhere(ctx, "post"); ok {

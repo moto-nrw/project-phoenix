@@ -199,6 +199,14 @@ export default function OperatorSuggestionDetailPage() {
           <span>{suggestion.authorName}</span>
           <span>·</span>
           <span>{getRelativeTime(suggestion.createdAt)}</span>
+          {suggestion.schoolName && (
+            <>
+              <span>·</span>
+              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600">
+                {suggestion.schoolName}
+              </span>
+            </>
+          )}
         </div>
       </div>
 
