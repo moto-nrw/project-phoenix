@@ -72,13 +72,16 @@ export function Header() {
         ? "Admin"
         : "Betreuer";
 
-  // Scroll effect for header shrinking
+  // Scroll effect for header shrinking (hysteresis to prevent flicker)
   useEffect(() => {
     const handleScroll = () => {
-      setIsScrolled(window.scrollY > 20);
+      const y = globalThis.window.scrollY;
+      setIsScrolled((prev) => (prev ? y > 10 : y > 30));
     };
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
+    globalThis.window.addEventListener("scroll", handleScroll, {
+      passive: true,
+    });
+    return () => globalThis.window.removeEventListener("scroll", handleScroll);
   }, []);
 
   // Get page type information
