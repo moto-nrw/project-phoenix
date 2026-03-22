@@ -82,6 +82,8 @@ When modifying any file, update its counterpart:
 - [ ] If needs per-service override: add to `environment:` block in `environments/*.compose.yml`
 - [ ] If `NEXT_PUBLIC_*`: client-accessible, no server import restrictions
 - [ ] If server-only: use `getServerApiUrl()` pattern, don't import in mixed client/server files
+- [ ] If required in `env.js` (no `.optional()` / `.default()`): add as `ARG` + `ENV` in `frontend/Dockerfile.prod`
+- [ ] If required in `env.js` (no `.optional()` / `.default()`): add as `build-args` in `.github/workflows/build.yml`
 
 ## Deployed Environments (SOPS)
 
