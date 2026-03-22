@@ -126,7 +126,17 @@ export default function OperatorLoginPage() {
         </p>
 
         {/* Login Form */}
-        <form onSubmit={handleSubmit} noValidate className="space-y-6">
+        <form
+          onSubmit={handleSubmit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && e.target instanceof HTMLInputElement) {
+              e.preventDefault();
+              e.currentTarget.requestSubmit();
+            }
+          }}
+          noValidate
+          className="space-y-6"
+        >
           {error && <Alert type="error" message={error} />}
 
           <div className="space-y-4">
