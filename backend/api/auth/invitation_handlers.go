@@ -286,7 +286,7 @@ func (rs *Resource) acceptInvitation(w http.ResponseWriter, r *http.Request) {
 		AccountID: account.ID,
 		Email:     account.Email,
 	}
-	if rs.SchoolRepo != nil {
+	if rs.SchoolRepo != nil && rs.db != nil {
 		tenantSlug := rs.lookupTenantSlugForInvitation(r.Context(), token)
 		if tenantSlug != "" {
 			resp.TenantSlug = tenantSlug
