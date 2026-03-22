@@ -1306,8 +1306,8 @@ function ExportDropdown({ weekDays }: { readonly weekDays: (Date | null)[] }) {
     if (!open || !triggerRef.current) return;
     const rect = triggerRef.current.getBoundingClientRect();
     setPos({
-      top: rect.bottom + 8,
-      right: window.innerWidth - rect.right,
+      top: rect.top,
+      right: globalThis.window.innerWidth - rect.left + 8,
     });
   }, [open]);
 
