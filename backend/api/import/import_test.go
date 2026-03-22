@@ -247,7 +247,7 @@ func TestPreviewImport_WithValidCSV(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	admin, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Preview", "CSVTest")
+	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Preview", "CSVTest")
 
 	router := chi.NewRouter()
 	router.Post("/preview", ctx.resource.PreviewImportHandler())
@@ -255,9 +255,10 @@ func TestPreviewImport_WithValidCSV(t *testing.T) {
 	// Create CSV content with required headers
 	csvContent := "Vorname,Nachname,Klasse\nMax,Mustermann,1a\nErika,Musterfrau,2b"
 
-	// Create multipart form with file
+	// Create multipart form with file — use account ID (not teacher ID) since
+	// the handler resolves account → person → staff for pickup schedule FK
 	req := testutil.NewMultipartRequest(t, "POST", "/preview", "file", "students.csv", csvContent,
-		testutil.WithClaims(testutil.AdminTestClaims(int(admin.ID))),
+		testutil.WithClaims(testutil.AdminTestClaims(int(account.ID))),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -271,7 +272,7 @@ func TestPreviewImport_WithEmptyCSV(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	admin, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Preview", "EmptyCSV")
+	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Preview", "EmptyCSV")
 
 	router := chi.NewRouter()
 	router.Post("/preview", ctx.resource.PreviewImportHandler())
@@ -280,7 +281,7 @@ func TestPreviewImport_WithEmptyCSV(t *testing.T) {
 	csvContent := "Vorname,Nachname,Klasse"
 
 	req := testutil.NewMultipartRequest(t, "POST", "/preview", "file", "empty.csv", csvContent,
-		testutil.WithClaims(testutil.AdminTestClaims(int(admin.ID))),
+		testutil.WithClaims(testutil.AdminTestClaims(int(account.ID))),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -294,7 +295,7 @@ func TestPreviewImport_WithMissingHeaders(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	admin, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Preview", "MissingHeaders")
+	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Preview", "MissingHeaders")
 
 	router := chi.NewRouter()
 	router.Post("/preview", ctx.resource.PreviewImportHandler())
@@ -303,7 +304,7 @@ func TestPreviewImport_WithMissingHeaders(t *testing.T) {
 	csvContent := "Name,Class\nMax,1a"
 
 	req := testutil.NewMultipartRequest(t, "POST", "/preview", "file", "invalid.csv", csvContent,
-		testutil.WithClaims(testutil.AdminTestClaims(int(admin.ID))),
+		testutil.WithClaims(testutil.AdminTestClaims(int(account.ID))),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -321,7 +322,7 @@ func TestImportStudents_WithValidCSV(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	admin, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Import", "CSVTest")
+	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Import", "CSVTest")
 
 	router := chi.NewRouter()
 	router.Post("/import", ctx.resource.ImportStudentsHandler())
@@ -330,7 +331,7 @@ func TestImportStudents_WithValidCSV(t *testing.T) {
 	csvContent := "Vorname,Nachname,Klasse\nImport,Student1,1a"
 
 	req := testutil.NewMultipartRequest(t, "POST", "/import", "file", "students.csv", csvContent,
-		testutil.WithClaims(testutil.AdminTestClaims(int(admin.ID))),
+		testutil.WithClaims(testutil.AdminTestClaims(int(account.ID))),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -343,7 +344,7 @@ func TestImportStudents_WithDuplicateData(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	admin, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Import", "DupeTest")
+	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Import", "DupeTest")
 
 	router := chi.NewRouter()
 	router.Post("/import", ctx.resource.ImportStudentsHandler())
@@ -352,7 +353,7 @@ func TestImportStudents_WithDuplicateData(t *testing.T) {
 	csvContent := "Vorname,Nachname,Klasse\nDupe,Student,1a\nDupe,Student,1a"
 
 	req := testutil.NewMultipartRequest(t, "POST", "/import", "file", "dupes.csv", csvContent,
-		testutil.WithClaims(testutil.AdminTestClaims(int(admin.ID))),
+		testutil.WithClaims(testutil.AdminTestClaims(int(account.ID))),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
