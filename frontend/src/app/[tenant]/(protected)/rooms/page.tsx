@@ -61,7 +61,7 @@ function RoomsPageContent() {
   }, []);
 
   // Fetch rooms with SWR (automatic caching, deduplication, revalidation)
-  // Global SSE in AuthWrapper handles cache invalidation automatically
+  // Global SSE in TenantAuthWrapper handles cache invalidation automatically
   const {
     data: roomsData,
     isLoading: loading,

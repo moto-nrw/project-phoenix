@@ -453,10 +453,10 @@ function MeinRaumPageContent() {
     [],
   );
 
-  // SSE is handled globally by AuthWrapper - no page-level setup needed.
+  // SSE is handled globally by TenantAuthWrapper - no page-level setup needed.
   // When student_checkin/checkout events occur, global SSE invalidates "visit*" caches,
   // which triggers SWR refetch for supervision-visits-* keys automatically.
-  // NOTE: Do NOT call useGlobalSSE() here - it's already called in AuthWrapper.
+  // NOTE: Do NOT call useGlobalSSE() here - it's already called in TenantAuthWrapper.
   // Calling it again would create a duplicate SSE connection.
 
   // Get current room ID for per-room SWR subscription

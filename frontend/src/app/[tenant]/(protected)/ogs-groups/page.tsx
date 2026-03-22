@@ -694,7 +694,7 @@ function OGSGroupPageContent() {
     [], // No dependencies - function is stable
   );
 
-  // SSE is handled globally by AuthWrapper - no page-level setup needed.
+  // SSE is handled globally by TenantAuthWrapper - no page-level setup needed.
   // When student_checkin/checkout events occur, global SSE invalidates "student*" caches,
   // which triggers SWR refetch for ogs-students-* keys automatically.
 
