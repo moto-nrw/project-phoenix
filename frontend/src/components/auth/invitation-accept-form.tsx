@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- redirect targets root login, not tenant route
 import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { useToast } from "~/contexts/ToastContext";
 import { Input } from "~/components/ui";
 import { getRoleDisplayName } from "~/lib/auth-helpers";
 import { acceptInvitation } from "~/lib/invitation-api";
@@ -66,8 +65,8 @@ export function InvitationAcceptForm({
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { success: toastSuccess } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isAccepted, setIsAccepted] = useState(false);
 
   useEffect(() => {
     setFirstName(invitation.firstName ?? "");
@@ -117,9 +116,7 @@ export function InvitationAcceptForm({
         password,
         confirmPassword,
       });
-      toastSuccess(
-        "Einladung erfolgreich angenommen! Du wirst zur Anmeldung weitergeleitet.",
-      );
+      setIsAccepted(true);
 
       // Logout any existing session before redirecting to login
       await signOut({ redirect: false });
@@ -136,7 +133,7 @@ export function InvitationAcceptForm({
           }
         }
         router.push("/");
-      }, 2500);
+      }, 1500);
     } catch (err) {
       // Distinguish network/offline from HTTP errors
       if (typeof navigator !== "undefined" && !navigator.onLine) {
@@ -159,6 +156,34 @@ export function InvitationAcceptForm({
       setIsSubmitting(false);
     }
   };
+
+  if (isAccepted) {
+    return (
+      <div className="py-8 text-center">
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#83CD2D]">
+          <svg
+            className="h-8 w-8 text-white"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={3}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M5 13l4 4L19 7"
+            />
+          </svg>
+        </div>
+        <h3 className="mb-2 text-lg font-semibold text-gray-900">
+          Konto erfolgreich erstellt!
+        </h3>
+        <p className="text-sm text-gray-600">
+          Du wirst zur Anmeldung weitergeleitet...
+        </p>
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={handleSubmit} noValidate className="space-y-6">
