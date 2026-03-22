@@ -369,6 +369,24 @@ export const sharedRedirectCallback: NonNullable<
   return baseUrl;
 };
 
+export const operatorRedirectCallback: NonNullable<
+  NonNullable<NextAuthConfig["callbacks"]>["redirect"]
+> = ({ url, baseUrl }) => {
+  if (url.startsWith("/")) return `${baseUrl}${url}`;
+
+  const urlObj = new URL(url);
+  const baseObj = new URL(baseUrl);
+
+  if (urlObj.origin === baseObj.origin) return url;
+
+  logger.warn("operator_redirect_blocked", {
+    url,
+    baseUrl,
+    reason: "origin mismatch",
+  });
+  return baseUrl;
+};
+
 export const sharedJwtCallback: NonNullable<
   NonNullable<NextAuthConfig["callbacks"]>["jwt"]
 > = async ({ token, user, trigger, session }) => {

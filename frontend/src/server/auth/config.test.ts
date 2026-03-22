@@ -29,6 +29,7 @@ vi.mock("~/env", () => ({
     NEXT_PUBLIC_API_URL: "http://localhost:8080",
     AUTH_JWT_EXPIRY: "15m",
     AUTH_JWT_REFRESH_EXPIRY: "1h",
+    TENANT_DOMAIN: "moto-app.de",
   },
 }));
 
@@ -1626,6 +1627,86 @@ describe("authConfig", () => {
       expect(
         await callRedirect("http://evil.com/phish", "http://app.moto-app.de"),
       ).toBe("http://app.moto-app.de");
+    });
+  });
+
+  describe("operator redirect callback", () => {
+    async function callOperatorRedirect(
+      url: string,
+      baseUrl: string,
+    ): Promise<string> {
+      const redirectFn = operatorAuthConfig.callbacks?.redirect;
+      if (!redirectFn) throw new Error("operator redirect callback not found");
+      return redirectFn({ url, baseUrl });
+    }
+
+    it("should resolve relative URLs against baseUrl", async () => {
+      expect(
+        await callOperatorRedirect(
+          "/operator/suggestions",
+          "http://operator.moto-app.de",
+        ),
+      ).toBe("http://operator.moto-app.de/operator/suggestions");
+    });
+
+    it("should allow same origin redirects", async () => {
+      expect(
+        await callOperatorRedirect(
+          "http://operator.moto-app.de/operator/suggestions",
+          "http://operator.moto-app.de",
+        ),
+      ).toBe("http://operator.moto-app.de/operator/suggestions");
+    });
+
+    it("should block cross-subdomain redirects on the same parent domain", async () => {
+      expect(
+        await callOperatorRedirect(
+          "http://school-a.moto-app.de/",
+          "http://operator.moto-app.de",
+        ),
+      ).toBe("http://operator.moto-app.de");
+    });
+  });
+
+  describe("cookie configuration", () => {
+    it("should configure tenant cookies for cross-subdomain sharing", () => {
+      expect(authConfig.cookies?.sessionToken?.name).toBe(
+        "next-auth.session-token",
+      );
+      expect(authConfig.cookies?.sessionToken?.options.domain).toBe(
+        ".moto-app.de",
+      );
+      expect(authConfig.cookies?.callbackUrl?.name).toBe(
+        "next-auth.callback-url",
+      );
+      expect(authConfig.cookies?.callbackUrl?.options.domain).toBe(
+        ".moto-app.de",
+      );
+      expect(authConfig.cookies?.csrfToken?.name).toBe("next-auth.csrf-token");
+      expect(authConfig.cookies?.csrfToken?.options.domain).toBe(
+        ".moto-app.de",
+      );
+    });
+
+    it("should configure operator cookies as host-only with unique names", () => {
+      expect(operatorAuthConfig.cookies?.sessionToken?.name).toBe(
+        "operator.session-token",
+      );
+      expect(
+        "domain" in (operatorAuthConfig.cookies?.sessionToken?.options ?? {}),
+      ).toBe(false);
+      expect(operatorAuthConfig.cookies?.callbackUrl?.name).toBe(
+        "operator.callback-url",
+      );
+      expect(
+        "domain" in (operatorAuthConfig.cookies?.callbackUrl?.options ?? {}),
+      ).toBe(false);
+      expect(operatorAuthConfig.cookies?.csrfToken?.name).toBe(
+        "operator.csrf-token",
+      );
+      expect(
+        "domain" in (operatorAuthConfig.cookies?.csrfToken?.options ?? {}),
+      ).toBe(false);
     });
   });
 

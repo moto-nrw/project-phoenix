@@ -19,7 +19,7 @@ import {
   performOperatorLogin,
   createOperatorLoginError,
   refreshTokenExpiry,
-  sharedRedirectCallback,
+  operatorRedirectCallback,
   sharedJwtCallback,
   sharedSessionCallback,
 } from "./shared";
@@ -105,7 +105,7 @@ export const operatorAuthConfig = {
   ],
   basePath: "/api/operator/auth",
   callbacks: {
-    redirect: sharedRedirectCallback,
+    redirect: operatorRedirectCallback,
     jwt: sharedJwtCallback,
     session: sharedSessionCallback,
   },

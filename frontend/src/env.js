@@ -17,7 +17,7 @@ export const env = createEnv({
       .default("development"),
     NEXTAUTH_URL: z.url().optional().default("http://localhost:3000"),
     NEXTAUTH_SECRET: z.string().optional(),
-    TENANT_DOMAIN: z.string().default("localhost"),
+    TENANT_DOMAIN: z.string().min(1),
   },
 
   /**

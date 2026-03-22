@@ -9,6 +9,7 @@
 import type { NextAuthConfig } from "next-auth";
 import DiscordProvider from "next-auth/providers/discord";
 import CredentialsProvider from "next-auth/providers/credentials";
+import { env } from "~/env";
 import {
   logger,
   parseJwtPayload,
@@ -104,12 +105,8 @@ export const tenantAuthConfig = {
     // On production: .moto-app.de so school-a and school-b share sessions.
     // On localhost: omit domain (host-only) — tenant switching requires re-login.
     ...(() => {
-      const isLocalhost =
-        !process.env.TENANT_DOMAIN || process.env.TENANT_DOMAIN === "localhost";
       const cookieDomain =
-        isLocalhost || !process.env.TENANT_DOMAIN
-          ? undefined
-          : `.${process.env.TENANT_DOMAIN}`;
+        env.TENANT_DOMAIN === "localhost" ? undefined : `.${env.TENANT_DOMAIN}`;
       return cookieDomain !== undefined
         ? {
             sessionToken: {
