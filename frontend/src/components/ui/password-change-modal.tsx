@@ -1,12 +1,40 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Modal } from "./modal";
 import { Alert } from "./alert";
 import { EyeIcon, EyeOffIcon, CheckIcon, SpinnerIcon } from "./icons";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "PasswordChange" });
+
+const ERROR_MAPPINGS: Array<{
+  test: (msg: string) => boolean;
+  message: string;
+}> = [
+  {
+    test: (msg) => msg.includes("invalid") && msg.includes("password"),
+    message: "Das aktuelle Passwort ist falsch. Bitte versuchen Sie es erneut.",
+  },
+  {
+    test: (msg) => msg.includes("too weak") || msg.includes("complexity"),
+    message:
+      "Das neue Passwort ist zu schwach. Verwenden Sie mindestens 8 Zeichen mit Groß-/Kleinbuchstaben, Zahlen und Sonderzeichen.",
+  },
+  {
+    test: (msg) => msg.includes("not found"),
+    message:
+      "Ihr Konto konnte nicht gefunden werden. Bitte melden Sie sich erneut an.",
+  },
+];
+
+function mapBackendError(backendError: string): string {
+  const match = ERROR_MAPPINGS.find((m) => m.test(backendError));
+  return (
+    match?.message ??
+    "Passwortänderung fehlgeschlagen. Bitte versuchen Sie es später erneut."
+  );
+}
 
 interface PasswordToggleProps {
   readonly show: boolean;
@@ -91,7 +119,7 @@ export function PasswordChangeModal({
 
       if (!response.ok) {
         const data = (await response.json()) as { error?: string };
-        throw new Error(data.error ?? "Passwortänderung fehlgeschlagen");
+        throw new Error(mapBackendError(data.error ?? ""));
       }
 
       setSuccess(true);
@@ -113,7 +141,7 @@ export function PasswordChangeModal({
     }
   };
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     setCurrentPassword("");
     setNewPassword("");
     setConfirmPassword("");
@@ -123,7 +151,7 @@ export function PasswordChangeModal({
     setShowNewPassword(false);
     setShowConfirmPassword(false);
     onClose();
-  };
+  }, [onClose]);
 
   return (
     <Modal isOpen={isOpen} onClose={handleClose} title="Passwort ändern">

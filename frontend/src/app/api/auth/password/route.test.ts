@@ -204,4 +204,59 @@ describe("POST /api/auth/password", () => {
     const json = await parseJsonResponse<{ error: string }>(response);
     expect(json.error).toBe("Passwortänderung fehlgeschlagen");
   });
+
+  it("parses serverFetchWithRetry error with JSON body", async () => {
+    mockApiPost.mockRejectedValueOnce(
+      new Error(
+        'API error (401): {"status":"error","error":"invalid username or password"}',
+      ),
+    );
+
+    const request = createMockRequest("/api/auth/password", {
+      currentPassword: "Wrong1234!",
+      newPassword: "New1234!",
+      confirmPassword: "New1234!",
+    });
+    const response = await POST(request);
+
+    expect(response.status).toBe(401);
+    const json = await parseJsonResponse<{ error: string }>(response);
+    expect(json.error).toBe("invalid username or password");
+  });
+
+  it("parses serverFetchWithRetry error with complexity message", async () => {
+    mockApiPost.mockRejectedValueOnce(
+      new Error(
+        'API error (400): {"status":"error","error":"password doesn\'t meet complexity requirements"}',
+      ),
+    );
+
+    const request = createMockRequest("/api/auth/password", {
+      currentPassword: "Old1234!",
+      newPassword: "weak",
+      confirmPassword: "weak",
+    });
+    const response = await POST(request);
+
+    expect(response.status).toBe(400);
+    const json = await parseJsonResponse<{ error: string }>(response);
+    expect(json.error).toBe("password doesn't meet complexity requirements");
+  });
+
+  it("falls back to generic error when serverFetchWithRetry body is not JSON", async () => {
+    mockApiPost.mockRejectedValueOnce(
+      new Error("API error (500): Internal Server Error"),
+    );
+
+    const request = createMockRequest("/api/auth/password", {
+      currentPassword: "Old1234!",
+      newPassword: "New1234!",
+      confirmPassword: "New1234!",
+    });
+    const response = await POST(request);
+
+    expect(response.status).toBe(500);
+    const json = await parseJsonResponse<{ error: string }>(response);
+    expect(json.error).toBe("Passwortänderung fehlgeschlagen");
+  });
 });

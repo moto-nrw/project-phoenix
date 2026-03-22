@@ -11,6 +11,42 @@ interface ErrorResponse {
   error?: string;
 }
 
+const API_ERROR_PATTERN = /API error \((\d+)\):\s*(.*)/s;
+
+/**
+ * Parse error from serverFetchWithRetry format: "API error (status): JSON body"
+ */
+function parseServerFetchError(
+  message: string,
+): { error: string; status: number } | null {
+  const match = API_ERROR_PATTERN.exec(message);
+  if (!match) return null;
+
+  const statusCode = Number.parseInt(match[1] ?? "500", 10);
+  try {
+    const parsed = JSON.parse(match[2] ?? "{}") as ErrorResponse;
+    const backendError = parsed.error ?? parsed.message;
+    if (backendError) return { error: backendError, status: statusCode };
+  } catch {
+    // JSON parse failed
+  }
+  return null;
+}
+
+/**
+ * Extract error from Axios error response
+ */
+function parseAxiosError(
+  error: unknown,
+): { error: string; status: number } | null {
+  if (!isAxiosError<ErrorResponse>(error)) return null;
+  if (!error.response?.data) return null;
+
+  const message = error.response.data.message ?? error.response.data.error;
+  if (!message) return null;
+  return { error: message, status: error.response.status ?? 400 };
+}
+
 export async function POST(request: NextRequest) {
   try {
     const session = await auth();
@@ -43,7 +79,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Call backend API to change password
     await apiPost("/auth/password", session.user.token, {
       current_password: currentPassword,
       new_password: newPassword,
@@ -52,22 +87,23 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    logger.error("password change failed", {
-      error: error instanceof Error ? error.message : String(error),
-    });
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error("password change failed", { error: errorMessage });
 
-    // Handle specific error messages from backend
-    if (isAxiosError<ErrorResponse>(error)) {
-      if (error.response?.data) {
-        const errorMessage =
-          error.response.data.message ?? error.response.data.error;
-        const statusCode = error.response.status ?? 400;
+    const serverError = parseServerFetchError(errorMessage);
+    if (serverError) {
+      return NextResponse.json(
+        { error: serverError.error },
+        { status: serverError.status },
+      );
+    }
 
-        return NextResponse.json(
-          { error: errorMessage ?? "Passwortänderung fehlgeschlagen" },
-          { status: statusCode },
-        );
-      }
+    const axiosError = parseAxiosError(error);
+    if (axiosError) {
+      return NextResponse.json(
+        { error: axiosError.error },
+        { status: axiosError.status },
+      );
     }
 
     return NextResponse.json(
