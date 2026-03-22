@@ -194,10 +194,20 @@ vi.mock("~/components/ui/modal", () => ({
   Modal: ({
     isOpen,
     children,
+    onClose,
   }: {
     isOpen: boolean;
     children: React.ReactNode;
-  }) => (isOpen ? <div data-testid="modal">{children}</div> : null),
+    onClose: () => void;
+  }) =>
+    isOpen ? (
+      <div data-testid="modal">
+        <button data-testid="close-modal" onClick={onClose}>
+          Close
+        </button>
+        {children}
+      </div>
+    ) : null,
   ConfirmationModal: () => <div data-testid="confirmation-modal" />,
 }));
 
@@ -745,6 +755,48 @@ describe("TeachersPage", () => {
       await waitFor(() => {
         expect(mockPush).toHaveBeenCalledWith("/test-tenant/invitations");
       });
+    });
+  });
+
+  it("closes choice modal via close button", async () => {
+    render(<TeachersPage />);
+
+    const addButton = screen.getByLabelText("Personal hinzufügen");
+    fireEvent.click(addButton);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("modal")).toBeInTheDocument();
+    });
+
+    const closeButton = screen.getByTestId("close-modal");
+    fireEvent.click(closeButton);
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("modal")).not.toBeInTheDocument();
+    });
+  });
+
+  it("closes create modal via close button", async () => {
+    render(<TeachersPage />);
+
+    // Open choice modal first
+    fireEvent.click(screen.getByLabelText("Personal hinzufügen"));
+    await waitFor(() => {
+      expect(screen.getByTestId("modal")).toBeInTheDocument();
+    });
+
+    // Navigate to create modal
+    fireEvent.click(screen.getByText("Manuell erstellen"));
+    await waitFor(() => {
+      expect(screen.getByTestId("teacher-create-modal")).toBeInTheDocument();
+    });
+
+    // Close the create modal
+    fireEvent.click(screen.getByTestId("close-create-modal"));
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("teacher-create-modal"),
+      ).not.toBeInTheDocument();
     });
   });
 });
