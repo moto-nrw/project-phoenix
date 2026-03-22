@@ -17,9 +17,7 @@ describe("UploadSection", () => {
   it("renders upload section header", () => {
     render(<UploadSection {...defaultProps} />);
 
-    expect(
-      screen.getByText("Schritt 2: CSV- oder Excel-Datei hochladen"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Schritt 2: Datei hochladen")).toBeInTheDocument();
   });
 
   it("displays default drop zone text", () => {
