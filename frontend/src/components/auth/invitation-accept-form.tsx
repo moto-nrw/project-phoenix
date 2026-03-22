@@ -111,7 +111,7 @@ export function InvitationAcceptForm({
 
     try {
       setIsSubmitting(true);
-      await acceptInvitation(token, {
+      const result = await acceptInvitation(token, {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         password,
@@ -125,6 +125,16 @@ export function InvitationAcceptForm({
       await signOut({ redirect: false });
 
       setTimeout(() => {
+        // Redirect to tenant subdomain if available, otherwise root
+        if (result.tenantSlug && typeof window !== "undefined") {
+          const tenantDomain = process.env.NEXT_PUBLIC_TENANT_DOMAIN;
+          if (tenantDomain) {
+            const protocol = window.location.protocol;
+            const port = window.location.port ? `:${window.location.port}` : "";
+            window.location.href = `${protocol}//${result.tenantSlug}.${tenantDomain}${port}/`;
+            return;
+          }
+        }
         router.push("/");
       }, 2500);
     } catch (err) {

@@ -215,8 +215,9 @@ func (req *AcceptInvitationRequest) Bind(_ *http.Request) error {
 }
 
 type AcceptInvitationResponse struct {
-	AccountID int64  `json:"account_id"`
-	Email     string `json:"email"`
+	AccountID  int64  `json:"account_id"`
+	Email      string `json:"email"`
+	TenantSlug string `json:"tenant_slug,omitempty"`
 }
 
 func (rs *Resource) acceptInvitation(w http.ResponseWriter, r *http.Request) {
@@ -280,11 +281,43 @@ func (rs *Resource) acceptInvitation(w http.ResponseWriter, r *http.Request) {
 	slog.Default().Info("invitation accepted",
 		slog.Int64("account_id", account.ID))
 
+	// Look up tenant slug so the frontend can redirect to the correct subdomain
 	resp := AcceptInvitationResponse{
 		AccountID: account.ID,
 		Email:     account.Email,
 	}
+	if rs.SchoolRepo != nil {
+		tenantSlug := rs.lookupTenantSlugForInvitation(r.Context(), token)
+		if tenantSlug != "" {
+			resp.TenantSlug = tenantSlug
+		}
+	}
 	common.Respond(w, r, http.StatusCreated, resp, "Invitation accepted successfully")
+}
+
+// lookupTenantSlugForInvitation resolves the tenant slug from an invitation token.
+// Best-effort: returns "" on any error so the accept response still succeeds.
+func (rs *Resource) lookupTenantSlugForInvitation(ctx context.Context, token string) string {
+	var slug string
+	_ = tenant.WithAdminTx(ctx, rs.db, func(txCtx context.Context, tx bun.Tx) error {
+		invitation := new(authModels.InvitationToken)
+		err := tx.NewSelect().
+			Model(invitation).
+			ModelTableExpr(`auth.invitation_tokens AS "invitation_token"`).
+			Column("tenant_id").
+			Where(`"invitation_token".token = ?`, token).
+			Scan(txCtx)
+		if err != nil {
+			return err
+		}
+		school, err := rs.SchoolRepo.FindByID(txCtx, invitation.TenantID)
+		if err != nil {
+			return err
+		}
+		slug = school.Slug
+		return nil
+	})
+	return slug
 }
 
 func (rs *Resource) listPendingInvitations(w http.ResponseWriter, r *http.Request) {
