@@ -241,8 +241,8 @@ describe("Header", () => {
     // Initially not scrolled
     expect(header).not.toHaveClass("shadow-sm");
 
-    // Simulate scroll
-    Object.defineProperty(window, "scrollY", { value: 30, writable: true });
+    // Simulate scroll (must exceed hysteresis threshold of 30)
+    Object.defineProperty(window, "scrollY", { value: 31, writable: true });
     fireEvent.scroll(window);
 
     // Should have shadow
