@@ -8,6 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/models/suggestions"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -81,104 +82,143 @@ func (s *operatorSuggestionsService) getLogger() *slog.Logger {
 	return slog.Default()
 }
 
-// ListAllPosts returns all suggestion posts (for operators)
+// ListAllPosts returns all suggestion posts (for operators).
+// Uses WithAdminTx to bypass RLS so operators see posts across all tenants.
 func (s *operatorSuggestionsService) ListAllPosts(ctx context.Context, operatorAccountID int64, status string, sortBy string) ([]*suggestions.Post, error) {
-	return s.postRepo.List(ctx, operatorAccountID, suggestions.ReaderTypeOperator, sortBy, status)
+	var posts []*suggestions.Post
+	err := tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, _ bun.Tx) error {
+		var txErr error
+		posts, txErr = s.postRepo.List(ctx, operatorAccountID, suggestions.ReaderTypeOperator, sortBy, status)
+		return txErr
+	})
+	return posts, err
 }
 
-// GetPost retrieves a single post with its comments (including internal)
+// GetPost retrieves a single post with its comments (including internal).
+// Uses WithAdminTx to bypass RLS so operators can access posts from any tenant.
 func (s *operatorSuggestionsService) GetPost(ctx context.Context, postID int64, operatorAccountID int64) (*suggestions.Post, []*suggestions.Comment, error) {
-	post, err := s.postRepo.FindByIDWithVote(ctx, postID, operatorAccountID, suggestions.ReaderTypeOperator)
-	if err != nil {
-		return nil, nil, err
-	}
-	if post == nil {
-		return nil, nil, &PostNotFoundError{PostID: postID}
-	}
+	var post *suggestions.Post
+	var comments []*suggestions.Comment
+	err := tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, _ bun.Tx) error {
+		var txErr error
+		post, txErr = s.postRepo.FindByIDWithVote(ctx, postID, operatorAccountID, suggestions.ReaderTypeOperator)
+		if txErr != nil {
+			return txErr
+		}
+		if post == nil {
+			return &PostNotFoundError{PostID: postID}
+		}
 
-	comments, err := s.commentRepo.FindByPostID(ctx, postID)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return post, comments, nil
+		comments, txErr = s.commentRepo.FindByPostID(ctx, postID)
+		return txErr
+	})
+	return post, comments, err
 }
 
-// MarkCommentsRead marks all comments on a post as read for the operator
+// MarkCommentsRead marks all comments on a post as read for the operator.
+// Uses WithAdminTx to bypass RLS for cross-tenant access.
 func (s *operatorSuggestionsService) MarkCommentsRead(ctx context.Context, operatorAccountID, postID int64) error {
-	// Verify post exists
-	post, err := s.postRepo.FindByID(ctx, postID)
-	if err != nil {
-		return err
-	}
-	if post == nil {
-		return &PostNotFoundError{PostID: postID}
-	}
+	return tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, _ bun.Tx) error {
+		post, err := s.postRepo.FindByID(ctx, postID)
+		if err != nil {
+			return err
+		}
+		if post == nil {
+			return &PostNotFoundError{PostID: postID}
+		}
 
-	return s.commentReadRepo.Upsert(ctx, operatorAccountID, postID, suggestions.ReaderTypeOperator)
+		// Inject tenant so EnsureTenantID in the repository can set it on the upserted record
+		ctx = tenant.WithTenantID(ctx, post.TenantID)
+		return s.commentReadRepo.Upsert(ctx, operatorAccountID, postID, suggestions.ReaderTypeOperator)
+	})
 }
 
-// GetTotalUnreadCount returns the total number of unread comments across all posts
+// GetTotalUnreadCount returns the total number of unread comments across all posts.
+// Uses WithAdminTx to bypass RLS for cross-tenant access.
 func (s *operatorSuggestionsService) GetTotalUnreadCount(ctx context.Context, operatorAccountID int64) (int, error) {
-	return s.commentReadRepo.CountTotalUnread(ctx, operatorAccountID, suggestions.ReaderTypeOperator)
+	var count int
+	err := tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, _ bun.Tx) error {
+		var txErr error
+		count, txErr = s.commentReadRepo.CountTotalUnread(ctx, operatorAccountID, suggestions.ReaderTypeOperator)
+		return txErr
+	})
+	return count, err
 }
 
-// MarkPostViewed marks a post as viewed by the operator
+// MarkPostViewed marks a post as viewed by the operator.
+// Uses WithAdminTx to bypass RLS for cross-tenant access.
 func (s *operatorSuggestionsService) MarkPostViewed(ctx context.Context, operatorAccountID, postID int64) error {
-	// Verify post exists
-	post, err := s.postRepo.FindByID(ctx, postID)
-	if err != nil {
-		return err
-	}
-	if post == nil {
-		return &PostNotFoundError{PostID: postID}
-	}
+	return tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, _ bun.Tx) error {
+		post, err := s.postRepo.FindByID(ctx, postID)
+		if err != nil {
+			return err
+		}
+		if post == nil {
+			return &PostNotFoundError{PostID: postID}
+		}
 
-	return s.postReadRepo.MarkViewed(ctx, operatorAccountID, postID, suggestions.ReaderTypeOperator)
+		// Inject tenant so EnsureTenantID in the repository can set it on the upserted record
+		ctx = tenant.WithTenantID(ctx, post.TenantID)
+		return s.postReadRepo.MarkViewed(ctx, operatorAccountID, postID, suggestions.ReaderTypeOperator)
+	})
 }
 
-// GetUnviewedPostCount returns the count of posts the operator hasn't viewed yet
+// GetUnviewedPostCount returns the count of posts the operator hasn't viewed yet.
+// Uses WithAdminTx to bypass RLS for cross-tenant access.
 func (s *operatorSuggestionsService) GetUnviewedPostCount(ctx context.Context, operatorAccountID int64) (int, error) {
-	return s.postReadRepo.CountUnviewed(ctx, operatorAccountID, suggestions.ReaderTypeOperator)
+	var count int
+	err := tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, _ bun.Tx) error {
+		var txErr error
+		count, txErr = s.postReadRepo.CountUnviewed(ctx, operatorAccountID, suggestions.ReaderTypeOperator)
+		return txErr
+	})
+	return count, err
 }
 
-// UpdatePostStatus updates the status of a suggestion post
+// UpdatePostStatus updates the status of a suggestion post.
+// Uses WithAdminTx to bypass RLS for cross-tenant access.
 func (s *operatorSuggestionsService) UpdatePostStatus(ctx context.Context, postID int64, status string, operatorID int64, clientIP net.IP) error {
 	if !suggestions.IsValidStatus(status) {
 		return &InvalidDataError{Err: fmt.Errorf("invalid status: %s", status)}
 	}
 
-	post, err := s.postRepo.FindByID(ctx, postID)
-	if err != nil {
-		return err
-	}
-	if post == nil {
-		return &PostNotFoundError{PostID: postID}
-	}
+	return tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, _ bun.Tx) error {
+		post, err := s.postRepo.FindByID(ctx, postID)
+		if err != nil {
+			return err
+		}
+		if post == nil {
+			return &PostNotFoundError{PostID: postID}
+		}
 
-	oldStatus := post.Status
-	post.Status = status
+		oldStatus := post.Status
+		post.Status = status
 
-	if err := s.postRepo.Update(ctx, post); err != nil {
-		return err
-	}
+		if err := s.postRepo.Update(ctx, post); err != nil {
+			return err
+		}
 
-	// Mark post as viewed when operator changes status (they've interacted with it)
-	if s.postReadRepo != nil {
-		_ = s.postReadRepo.MarkViewed(ctx, operatorID, postID, suggestions.ReaderTypeOperator)
-	}
+		// Inject tenant so EnsureTenantID can set it on upserted records
+		ctx = tenant.WithTenantID(ctx, post.TenantID)
 
-	// Audit log
-	changes := map[string]any{
-		"old_status": oldStatus,
-		"new_status": status,
-	}
-	s.logAction(ctx, operatorID, platform.ActionStatusChange, platform.ResourceSuggestion, &postID, clientIP, changes)
+		// Mark post as viewed when operator changes status (they've interacted with it)
+		if s.postReadRepo != nil {
+			_ = s.postReadRepo.MarkViewed(ctx, operatorID, postID, suggestions.ReaderTypeOperator)
+		}
 
-	return nil
+		// Audit log
+		changes := map[string]any{
+			"old_status": oldStatus,
+			"new_status": status,
+		}
+		s.logAction(ctx, operatorID, platform.ActionStatusChange, platform.ResourceSuggestion, &postID, clientIP, changes)
+
+		return nil
+	})
 }
 
-// AddComment adds an operator comment to a suggestion
+// AddComment adds an operator comment to a suggestion.
+// Uses WithAdminTx to bypass RLS for cross-tenant access.
 func (s *operatorSuggestionsService) AddComment(ctx context.Context, comment *suggestions.Comment, clientIP net.IP) error {
 	if comment == nil {
 		return &InvalidDataError{Err: fmt.Errorf("comment cannot be nil")}
@@ -187,58 +227,73 @@ func (s *operatorSuggestionsService) AddComment(ctx context.Context, comment *su
 	// Force operator author type
 	comment.AuthorType = suggestions.AuthorTypeOperator
 
-	// Verify post exists
-	post, err := s.postRepo.FindByID(ctx, comment.PostID)
-	if err != nil {
-		return err
-	}
-	if post == nil {
-		return &PostNotFoundError{PostID: comment.PostID}
-	}
+	return tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, _ bun.Tx) error {
+		// Verify post exists
+		post, err := s.postRepo.FindByID(ctx, comment.PostID)
+		if err != nil {
+			return err
+		}
+		if post == nil {
+			return &PostNotFoundError{PostID: comment.PostID}
+		}
 
-	if err := comment.Validate(); err != nil {
-		return &InvalidDataError{Err: err}
-	}
+		// Inherit tenant_id from the parent post (operator context has no tenant)
+		comment.TenantID = post.TenantID
 
-	if err := s.commentRepo.Create(ctx, comment); err != nil {
-		return err
-	}
+		if err := comment.Validate(); err != nil {
+			return &InvalidDataError{Err: err}
+		}
 
-	// Audit log
-	changes := map[string]any{
-		"post_id": comment.PostID,
-	}
-	s.logAction(ctx, comment.AuthorID, platform.ActionAddComment, platform.ResourceComment, &comment.ID, clientIP, changes)
+		if err := s.commentRepo.Create(ctx, comment); err != nil {
+			return err
+		}
 
-	return nil
+		// Audit log
+		changes := map[string]any{
+			"post_id": comment.PostID,
+		}
+		s.logAction(ctx, comment.AuthorID, platform.ActionAddComment, platform.ResourceComment, &comment.ID, clientIP, changes)
+
+		return nil
+	})
 }
 
-// GetComments retrieves comments for a post
+// GetComments retrieves comments for a post.
+// Uses WithAdminTx to bypass RLS for cross-tenant access.
 func (s *operatorSuggestionsService) GetComments(ctx context.Context, postID int64) ([]*suggestions.Comment, error) {
-	return s.commentRepo.FindByPostID(ctx, postID)
+	var comments []*suggestions.Comment
+	err := tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, _ bun.Tx) error {
+		var txErr error
+		comments, txErr = s.commentRepo.FindByPostID(ctx, postID)
+		return txErr
+	})
+	return comments, err
 }
 
-// DeleteComment deletes a comment (operators can delete any comment)
+// DeleteComment deletes a comment (operators can delete any comment).
+// Uses WithAdminTx to bypass RLS for cross-tenant access.
 func (s *operatorSuggestionsService) DeleteComment(ctx context.Context, commentID int64, operatorID int64, clientIP net.IP) error {
-	comment, err := s.commentRepo.FindByID(ctx, commentID)
-	if err != nil {
-		return err
-	}
-	if comment == nil {
-		return &CommentNotFoundError{CommentID: commentID}
-	}
+	return tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, _ bun.Tx) error {
+		comment, err := s.commentRepo.FindByID(ctx, commentID)
+		if err != nil {
+			return err
+		}
+		if comment == nil {
+			return &CommentNotFoundError{CommentID: commentID}
+		}
 
-	if err := s.commentRepo.Delete(ctx, commentID); err != nil {
-		return err
-	}
+		if err := s.commentRepo.Delete(ctx, commentID); err != nil {
+			return err
+		}
 
-	// Audit log
-	changes := map[string]any{
-		"post_id": comment.PostID,
-	}
-	s.logAction(ctx, operatorID, platform.ActionDeleteComment, platform.ResourceComment, &commentID, clientIP, changes)
+		// Audit log
+		changes := map[string]any{
+			"post_id": comment.PostID,
+		}
+		s.logAction(ctx, operatorID, platform.ActionDeleteComment, platform.ResourceComment, &commentID, clientIP, changes)
 
-	return nil
+		return nil
+	})
 }
 
 // logAction logs an audit entry
