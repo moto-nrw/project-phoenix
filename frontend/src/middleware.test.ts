@@ -62,7 +62,7 @@ describe("middleware", () => {
       expect(rewrite).toContain("/operator/suggestions/123");
     });
 
-    it("passes through /api/* routes without rewriting", () => {
+    it("returns 404 for tenant /api/auth/* routes on operator host", () => {
       const res = middleware(
         makeRequest(
           `http://${OPERATOR_HOSTNAME}/api/auth/session`,
@@ -70,8 +70,24 @@ describe("middleware", () => {
         ),
       );
 
+      expect(res.status).toBe(404);
       const rewrite = res.headers.get("x-middleware-rewrite");
       const redirect = res.headers.get("location");
+      expect(rewrite).toBeNull();
+      expect(redirect).toBeNull();
+    });
+
+    it("passes through /api/operator/auth/* routes without rewriting", () => {
+      const res = middleware(
+        makeRequest(
+          `http://${OPERATOR_HOSTNAME}/api/operator/auth/session`,
+          OPERATOR_HOSTNAME,
+        ),
+      );
+
+      const rewrite = res.headers.get("x-middleware-rewrite");
+      const redirect = res.headers.get("location");
+      expect(res.status).toBe(200);
       expect(rewrite).toBeNull();
       expect(redirect).toBeNull();
     });
