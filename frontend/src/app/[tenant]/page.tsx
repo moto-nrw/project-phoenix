@@ -16,7 +16,6 @@ import { useTenant } from "~/components/tenant/tenant-provider";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { env } from "~/env";
 
-import { Loading } from "~/components/ui/loading";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "TenantLoginPage" });
@@ -96,29 +95,10 @@ function LoginForm() {
     }
   }, [searchParams]);
 
-  // Show loading while checking authentication or awaiting redirect
-  if (
+  const isCheckingAuth =
     checkingAuth ||
     status === "loading" ||
-    (awaitingRedirect && status === "authenticated")
-  ) {
-    return (
-      <div className="flex min-h-screen flex-col items-center justify-center p-4">
-        <Loading />
-        {/* Smart redirect component when awaiting redirect */}
-        {awaitingRedirect &&
-          status === "authenticated" &&
-          session?.user?.token && (
-            <SmartRedirect
-              onRedirect={(path) => {
-                logger.info("redirecting based on user permissions", { path });
-                router.push(path);
-              }}
-            />
-          )}
-      </div>
-    );
-  }
+    (awaitingRedirect && status === "authenticated");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -223,91 +203,107 @@ function LoginForm() {
         )}
         {!tenant?.name && <div className="mb-10" />}
 
-        {/* Login Form */}
-        <form
-          onSubmit={handleSubmit}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && e.target instanceof HTMLInputElement) {
-              e.preventDefault();
-              e.currentTarget.requestSubmit();
-            }
-          }}
-          noValidate
-          className="space-y-6"
+        {/* Login Form — fades in after auth check */}
+        <div
+          className={`transition-opacity duration-300 ${isCheckingAuth ? "pointer-events-none opacity-0" : "opacity-100"}`}
         >
-          {error && <Alert type="error" message={error} />}
+          <form
+            onSubmit={handleSubmit}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && e.target instanceof HTMLInputElement) {
+                e.preventDefault();
+                e.currentTarget.requestSubmit();
+              }
+            }}
+            noValidate
+            className="space-y-6"
+          >
+            {error && <Alert type="error" message={error} />}
 
-          <div className="space-y-4">
-            <div className="text-left">
-              <label
-                htmlFor="email"
-                className="mb-1 block text-sm font-medium text-gray-700"
-              >
-                E-Mail-Adresse
-              </label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="username"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full"
-                label={""}
-              />
-            </div>
-
-            <div className="text-left">
-              <label
-                htmlFor="password"
-                className="mb-1 block text-sm font-medium text-gray-700"
-              >
-                Passwort
-              </label>
-              <div className="relative">
+            <div className="space-y-4">
+              <div className="text-left">
+                <label
+                  htmlFor="email"
+                  className="mb-1 block text-sm font-medium text-gray-700"
+                >
+                  E-Mail-Adresse
+                </label>
                 <Input
-                  id="password"
-                  name="password"
-                  type={showPassword ? "text" : "password"}
-                  autoComplete="current-password"
+                  id="email"
+                  name="email"
+                  type="email"
+                  autoComplete="username"
                   required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pr-10"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full"
                   label={""}
                 />
-                <PasswordToggleButton
-                  showPassword={showPassword}
-                  onToggle={() => setShowPassword(!showPassword)}
-                />
+              </div>
+
+              <div className="text-left">
+                <label
+                  htmlFor="password"
+                  className="mb-1 block text-sm font-medium text-gray-700"
+                >
+                  Passwort
+                </label>
+                <div className="relative">
+                  <Input
+                    id="password"
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="current-password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full pr-10"
+                    label={""}
+                  />
+                  <PasswordToggleButton
+                    showPassword={showPassword}
+                    onToggle={() => setShowPassword(!showPassword)}
+                  />
+                </div>
+              </div>
+
+              {/* Forgot Password Link */}
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={() => setIsResetModalOpen(true)}
+                  className="text-sm text-gray-600 transition-colors hover:text-gray-800 hover:underline focus:underline focus:outline-none"
+                >
+                  Passwort vergessen?
+                </button>
               </div>
             </div>
 
-            {/* Forgot Password Link */}
-            <div className="text-center">
+            <div className="mt-2 flex justify-center">
               <button
-                type="button"
-                onClick={() => setIsResetModalOpen(true)}
-                className="text-sm text-gray-600 transition-colors hover:text-gray-800 hover:underline focus:underline focus:outline-none"
+                type="submit"
+                disabled={isLoading}
+                className="group relative overflow-hidden rounded-xl bg-gray-900 px-8 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:bg-gray-800 focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 focus:outline-none active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Passwort vergessen?
+                <span className="relative z-10">
+                  {isLoading ? "Anmeldung läuft..." : "Anmelden"}
+                </span>
               </button>
             </div>
-          </div>
+          </form>
+        </div>
 
-          <div className="mt-2 flex justify-center">
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="group relative overflow-hidden rounded-xl bg-gray-900 px-8 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:bg-gray-800 focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 focus:outline-none active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <span className="relative z-10">
-                {isLoading ? "Anmeldung läuft..." : "Anmelden"}
-              </span>
-            </button>
-          </div>
-        </form>
+        {/* Smart redirect for authenticated users */}
+        {awaitingRedirect &&
+          status === "authenticated" &&
+          session?.user?.token && (
+            <SmartRedirect
+              onRedirect={(path) => {
+                logger.info("redirecting based on user permissions", { path });
+                router.push(path);
+              }}
+            />
+          )}
       </div>
 
       {/* Password Reset Modal */}
