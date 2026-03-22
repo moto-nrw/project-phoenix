@@ -3,7 +3,7 @@
  * Tests the rendering and basic functionality of invitation acceptance form
  */
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { InvitationAcceptForm } from "./invitation-accept-form";
 import type { InvitationValidation } from "~/lib/invitation-helpers";
 
