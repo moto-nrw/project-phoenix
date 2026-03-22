@@ -236,9 +236,12 @@ func (s *operatorSuggestionsService) UpdatePostStatus(ctx context.Context, postI
 		// Inject tenant so EnsureTenantID can set it on upserted records
 		ctx = tenant.WithTenantID(ctx, post.TenantID)
 
-		// Mark post as viewed when operator changes status (they've interacted with it)
+		// Mark post as viewed when operator changes status (they've interacted with it).
+		// Wrapped in savepoint so a failure here doesn't roll back the status change.
 		if s.postReadRepo != nil {
-			_ = s.postReadRepo.MarkViewed(ctx, operatorID, postID, suggestions.ReaderTypeOperator)
+			s.bestEffort(ctx, "mark_viewed", func() error {
+				return s.postReadRepo.MarkViewed(ctx, operatorID, postID, suggestions.ReaderTypeOperator)
+			})
 		}
 
 		// Audit log
@@ -331,7 +334,45 @@ func (s *operatorSuggestionsService) DeleteComment(ctx context.Context, commentI
 	})
 }
 
-// logAction logs an audit entry
+// bestEffort runs fn inside a PostgreSQL SAVEPOINT so that if fn fails, the
+// surrounding transaction stays healthy. This is used for side-effects that
+// should not abort the main business operation (e.g. marking viewed, audit logging).
+func (s *operatorSuggestionsService) bestEffort(ctx context.Context, label string, fn func() error) {
+	tx, ok := modelBase.TxFromContext(ctx)
+	if !ok || tx == nil {
+		// No transaction — just run directly; failure is isolated by default.
+		if err := fn(); err != nil {
+			s.getLogger().Warn("best-effort operation failed (no tx)",
+				"operation", label,
+				"error", err,
+			)
+		}
+		return
+	}
+
+	savepointName := "sp_" + label
+	if _, err := (*tx).ExecContext(ctx, "SAVEPOINT "+savepointName); err != nil {
+		s.getLogger().Warn("failed to create savepoint for best-effort operation",
+			"operation", label,
+			"error", err,
+		)
+		return
+	}
+
+	if err := fn(); err != nil {
+		s.getLogger().Warn("best-effort operation failed, rolling back savepoint",
+			"operation", label,
+			"error", err,
+		)
+		_, _ = (*tx).ExecContext(ctx, "ROLLBACK TO SAVEPOINT "+savepointName)
+		return
+	}
+
+	_, _ = (*tx).ExecContext(ctx, "RELEASE SAVEPOINT "+savepointName)
+}
+
+// logAction logs an audit entry. Runs inside a savepoint so that audit
+// failures do not abort the surrounding business transaction.
 func (s *operatorSuggestionsService) logAction(ctx context.Context, operatorID int64, action, resourceType string, resourceID *int64, clientIP net.IP, changes map[string]any) {
 	entry := &platform.OperatorAuditLog{
 		OperatorID:   operatorID,
@@ -351,12 +392,7 @@ func (s *operatorSuggestionsService) logAction(ctx context.Context, operatorID i
 		}
 	}
 
-	if err := s.auditLogRepo.Create(ctx, entry); err != nil {
-		s.getLogger().Error("failed to create audit log",
-			"operator_id", operatorID,
-			"action", action,
-			"resource_type", resourceType,
-			"error", err,
-		)
-	}
+	s.bestEffort(ctx, "audit_log", func() error {
+		return s.auditLogRepo.Create(ctx, entry)
+	})
 }
