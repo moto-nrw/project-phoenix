@@ -169,4 +169,139 @@ describe("OperatorLoginPage", () => {
 
     expect(screen.getByText("Loading...")).toBeInTheDocument();
   });
+
+  it("submits form when Enter is pressed in an input field", async () => {
+    mockSignIn.mockResolvedValue({ error: null });
+
+    render(<OperatorLoginPage />);
+
+    const emailInput = screen.getByLabelText("E-Mail-Adresse");
+    fireEvent.change(emailInput, { target: { value: "test@example.com" } });
+
+    const passwordInput = screen.getByLabelText("Passwort");
+    fireEvent.change(passwordInput, {
+      target: { value: "password123" },
+    });
+
+    // Simulate Enter key on input element
+    fireEvent.keyDown(passwordInput, {
+      key: "Enter",
+      code: "Enter",
+    });
+
+    await waitFor(() => {
+      expect(mockSignIn).toHaveBeenCalledWith("operator-credentials", {
+        redirect: false,
+        email: "test@example.com",
+        password: "password123",
+      });
+    });
+  });
+
+  it("does not submit form when Enter is pressed on non-input element", () => {
+    render(<OperatorLoginPage />);
+
+    const form = screen
+      .getByRole("button", { name: /Anmelden/i })
+      .closest("form")!;
+    fireEvent.keyDown(form, {
+      key: "Enter",
+      code: "Enter",
+    });
+
+    expect(mockSignIn).not.toHaveBeenCalled();
+  });
+
+  it("shows account_inactive error message", async () => {
+    mockSignIn.mockResolvedValue({
+      error: "CredentialsSignin",
+      code: "account_inactive",
+    });
+
+    render(<OperatorLoginPage />);
+
+    const emailInput = screen.getByLabelText("E-Mail-Adresse");
+    const passwordInput = screen.getByLabelText("Passwort");
+    const submitButton = screen.getByRole("button", { name: /Anmelden/i });
+
+    fireEvent.change(emailInput, { target: { value: "test@example.com" } });
+    fireEvent.change(passwordInput, { target: { value: "password" } });
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "Ihr Konto ist deaktiviert. Bitte kontaktieren Sie den Administrator.",
+      );
+    });
+  });
+
+  it("shows rate_limited error message", async () => {
+    mockSignIn.mockResolvedValue({
+      error: "CredentialsSignin",
+      code: "rate_limited",
+    });
+
+    render(<OperatorLoginPage />);
+
+    const submitButton = screen.getByRole("button", { name: /Anmelden/i });
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "Zu viele Anmeldeversuche. Bitte versuchen Sie es später erneut.",
+      );
+    });
+  });
+
+  it("shows generic error when signIn throws an exception", async () => {
+    mockSignIn.mockRejectedValue(new Error("Network error"));
+
+    render(<OperatorLoginPage />);
+
+    const submitButton = screen.getByRole("button", { name: /Anmelden/i });
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent("Network error");
+    });
+  });
+
+  it("shows fallback error when signIn throws a non-Error", async () => {
+    mockSignIn.mockRejectedValue("unknown failure");
+
+    render(<OperatorLoginPage />);
+
+    const submitButton = screen.getByRole("button", { name: /Anmelden/i });
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "Anmeldefehler. Bitte versuchen Sie es erneut.",
+      );
+    });
+  });
+
+  it("does not redirect when authenticated but not operator scope", () => {
+    mockUseSession.mockReturnValue({
+      status: "authenticated",
+      data: { user: { scope: "tenant" } },
+    });
+
+    render(<OperatorLoginPage />);
+
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(screen.getByText("Willkommen bei moto")).toBeInTheDocument();
+  });
+
+  it("toggles password visibility", () => {
+    render(<OperatorLoginPage />);
+
+    const passwordInput = screen.getByLabelText("Passwort");
+    expect(passwordInput).toHaveAttribute("type", "password");
+
+    const toggleButton = screen.getByRole("button", { name: "Toggle" });
+    fireEvent.click(toggleButton);
+
+    expect(passwordInput).toHaveAttribute("type", "text");
+  });
 });

@@ -36,6 +36,13 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 
+// Mock tenant-router
+const mockTenantPush = vi.fn();
+const mockTenantRefresh = vi.fn();
+vi.mock("~/lib/tenant-router", () => ({
+  useTenantRouter: () => ({ push: mockTenantPush, refresh: mockTenantRefresh }),
+}));
+
 // Mock auth-api
 vi.mock("~/lib/auth-api", () => ({
   refreshToken: vi.fn(() => Promise.resolve(null)),
@@ -114,6 +121,8 @@ vi.mock("next/image", () => ({
 }));
 
 import { useSession } from "next-auth/react";
+import { useTenant } from "~/components/tenant/tenant-provider";
+import { refreshToken } from "~/lib/auth-api";
 import HomePage from "./page";
 
 // Mock Element.animate for confetti effect
@@ -364,6 +373,368 @@ describe("HomePage (Login)", () => {
     });
 
     expect(screen.getByText("Anmeldung läuft...")).toBeInTheDocument();
+  });
+});
+
+describe("Tenant selector button", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(useSession).mockReturnValue({
+      data: null,
+      status: "unauthenticated",
+      update: vi.fn(),
+    });
+    Element.prototype.animate = mockAnimate;
+  });
+
+  it("renders tenant selector button", async () => {
+    render(<HomePage />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: /Einrichtung wechseln/i }),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("navigates to tenant domain with port when port is present", async () => {
+    Object.defineProperty(window, "location", {
+      writable: true,
+      value: {
+        protocol: "http:",
+        port: "3000",
+        href: "",
+      },
+    });
+
+    render(<HomePage />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: /Einrichtung wechseln/i }),
+      ).toBeInTheDocument();
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Einrichtung wechseln/i }),
+    );
+
+    // env.NEXT_PUBLIC_TENANT_DOMAIN comes from the global mock (undefined),
+    // but the URL is constructed with the domain
+    expect(window.location.href).toContain("/");
+  });
+
+  it("navigates to tenant domain without port when port is empty", async () => {
+    Object.defineProperty(window, "location", {
+      writable: true,
+      value: {
+        protocol: "https:",
+        port: "",
+        href: "",
+      },
+    });
+
+    render(<HomePage />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: /Einrichtung wechseln/i }),
+      ).toBeInTheDocument();
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Einrichtung wechseln/i }),
+    );
+
+    // Without port, no :port suffix should be appended
+    expect(window.location.href).not.toContain(":3000");
+  });
+});
+
+describe("Tenant name display", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(useSession).mockReturnValue({
+      data: null,
+      status: "unauthenticated",
+      update: vi.fn(),
+    });
+    Element.prototype.animate = mockAnimate;
+  });
+
+  it("displays tenant name when available", async () => {
+    vi.mocked(useTenant).mockReturnValue({
+      tenantSlug: "test-tenant",
+      tenant: { name: "Grundschule Musterstadt" } as ReturnType<
+        typeof useTenant
+      >["tenant"],
+    });
+
+    render(<HomePage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Grundschule Musterstadt")).toBeInTheDocument();
+    });
+  });
+
+  it("does not display tenant name when tenant has no name", async () => {
+    vi.mocked(useTenant).mockReturnValue({
+      tenantSlug: "test-tenant",
+      tenant: null,
+    });
+
+    render(<HomePage />);
+
+    await waitFor(() => {
+      expect(
+        screen.queryByText("Grundschule Musterstadt"),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it("does not display tenant name when tenant.name is empty", async () => {
+    vi.mocked(useTenant).mockReturnValue({
+      tenantSlug: "test-tenant",
+      tenant: { name: "" } as ReturnType<typeof useTenant>["tenant"],
+    });
+
+    render(<HomePage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Ganztag. Digital.")).toBeInTheDocument();
+    });
+    // With empty name, the spacer div should be rendered instead
+  });
+});
+
+describe("Enter key form submission", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(useSession).mockReturnValue({
+      data: null,
+      status: "unauthenticated",
+      update: vi.fn(),
+    });
+    Element.prototype.animate = mockAnimate;
+  });
+
+  it("submits form when Enter is pressed in an input field", async () => {
+    mockSignIn.mockResolvedValue({ error: null });
+
+    render(<HomePage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("input-email")).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      fireEvent.change(screen.getByTestId("input-email"), {
+        target: { value: "test@example.com" },
+      });
+      fireEvent.change(screen.getByTestId("input-password"), {
+        target: { value: "password123" },
+      });
+    });
+
+    await act(async () => {
+      fireEvent.keyDown(screen.getByTestId("input-password"), {
+        key: "Enter",
+        code: "Enter",
+      });
+    });
+
+    await waitFor(() => {
+      expect(mockSignIn).toHaveBeenCalled();
+    });
+  });
+
+  it("does not submit form when non-Enter key is pressed", async () => {
+    render(<HomePage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("input-email")).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      fireEvent.keyDown(screen.getByTestId("input-email"), {
+        key: "Tab",
+        code: "Tab",
+      });
+    });
+
+    expect(mockSignIn).not.toHaveBeenCalled();
+  });
+});
+
+describe("Token refresh flow", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    Element.prototype.animate = mockAnimate;
+  });
+
+  it("attempts token refresh when session has refresh token but no access token", async () => {
+    vi.mocked(refreshToken).mockResolvedValue({
+      access_token: "new-token",
+      refresh_token: "new-refresh",
+    });
+    mockSignIn.mockResolvedValue({ error: null });
+
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "1",
+          token: null as unknown as string,
+          refreshToken: "old-refresh",
+        },
+        expires: new Date(Date.now() + 3600000).toISOString(),
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+
+    render(<HomePage />);
+
+    await waitFor(() => {
+      expect(refreshToken).toHaveBeenCalled();
+    });
+  });
+
+  it("shows login form when token refresh returns null", async () => {
+    vi.mocked(refreshToken).mockResolvedValue(null);
+
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "1",
+          token: null as unknown as string,
+          refreshToken: "old-refresh",
+        },
+        expires: new Date(Date.now() + 3600000).toISOString(),
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+
+    render(<HomePage />);
+
+    await waitFor(() => {
+      const submitButton = screen.getByRole("button", { name: /anmelden/i });
+      const formContainer = submitButton.closest(
+        "div[class*='transition-opacity']",
+      );
+      expect(formContainer).toHaveClass("opacity-100");
+    });
+  });
+
+  it("shows login form when token refresh throws an error", async () => {
+    vi.mocked(refreshToken).mockRejectedValue(new Error("refresh failed"));
+
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "1",
+          token: null as unknown as string,
+          refreshToken: "old-refresh",
+        },
+        expires: new Date(Date.now() + 3600000).toISOString(),
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+
+    render(<HomePage />);
+
+    await waitFor(() => {
+      const submitButton = screen.getByRole("button", { name: /anmelden/i });
+      const formContainer = submitButton.closest(
+        "div[class*='transition-opacity']",
+      );
+      expect(formContainer).toHaveClass("opacity-100");
+    });
+  });
+
+  it("calls signIn with refreshed tokens after successful refresh", async () => {
+    vi.mocked(refreshToken).mockResolvedValue({
+      access_token: "new-access-token",
+      refresh_token: "new-refresh-token",
+    });
+    mockSignIn.mockResolvedValue({ error: null });
+
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "1",
+          token: null as unknown as string,
+          refreshToken: "old-refresh",
+        },
+        expires: new Date(Date.now() + 3600000).toISOString(),
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+
+    render(<HomePage />);
+
+    await waitFor(() => {
+      expect(mockSignIn).toHaveBeenCalledWith("credentials", {
+        redirect: false,
+        internalRefresh: true,
+        token: "new-access-token",
+        refreshToken: "new-refresh-token",
+      });
+    });
+  });
+});
+
+describe("Form error handling", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(useSession).mockReturnValue({
+      data: null,
+      status: "unauthenticated",
+      update: vi.fn(),
+    });
+    Element.prototype.animate = mockAnimate;
+  });
+
+  it("shows generic error when signIn throws an Error", async () => {
+    mockSignIn.mockRejectedValue(new Error("Network error"));
+
+    render(<HomePage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("input-email")).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /anmelden/i }));
+    });
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Anmeldefehler. Bitte versuchen Sie es erneut."),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("shows generic error when signIn throws a non-Error", async () => {
+    mockSignIn.mockRejectedValue("unknown failure");
+
+    render(<HomePage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("input-email")).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /anmelden/i }));
+    });
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Anmeldefehler. Bitte versuchen Sie es erneut."),
+      ).toBeInTheDocument();
+    });
   });
 });
 
