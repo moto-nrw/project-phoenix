@@ -214,7 +214,9 @@ class TimeTrackingService {
       "GET",
       "Failed to get breaks",
     );
-    return result.data.map((brk) => mapWorkSessionBreakResponse(brk as never));
+    return (result.data ?? []).map((brk) =>
+      mapWorkSessionBreakResponse(brk as never),
+    );
   }
 
   async getSessionEdits(sessionId: string): Promise<WorkSessionEdit[]> {

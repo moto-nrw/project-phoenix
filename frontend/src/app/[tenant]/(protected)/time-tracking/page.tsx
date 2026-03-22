@@ -1306,8 +1306,8 @@ function ExportDropdown({ weekDays }: { readonly weekDays: (Date | null)[] }) {
     if (!open || !triggerRef.current) return;
     const rect = triggerRef.current.getBoundingClientRect();
     setPos({
-      top: rect.bottom + 8,
-      right: window.innerWidth - rect.right,
+      top: rect.top,
+      right: globalThis.window.innerWidth - rect.left + 8,
     });
   }, [open]);
 
@@ -3375,6 +3375,16 @@ function TimeTrackingContent() {
   const [expandedEdits, setExpandedEdits] = useState<WorkSessionEdit[]>([]);
   const [editsLoading, setEditsLoading] = useState(false);
   const [absenceModalOpen, setAbsenceModalOpen] = useState(false);
+  const handleCloseEditModal = useCallback(() => setEditModal(null), []);
+  const handleCloseAbsenceModal = useCallback(
+    () => setAbsenceModalOpen(false),
+    [],
+  );
+  const handleClosePendingCheckIn = useCallback(
+    () => setPendingCheckIn(null),
+    [],
+  );
+
   const [pendingCheckIn, setPendingCheckIn] = useState<SessionStatus | null>(
     null,
   );
@@ -3749,7 +3759,7 @@ function TimeTrackingContent() {
       {/* Edit modal */}
       <EditSessionModal
         isOpen={editModal !== null}
-        onClose={() => setEditModal(null)}
+        onClose={handleCloseEditModal}
         session={editModal?.session ?? null}
         date={editModal?.date ?? null}
         onSave={handleEditSave}
@@ -3761,14 +3771,14 @@ function TimeTrackingContent() {
       {/* Create absence modal */}
       <CreateAbsenceModal
         isOpen={absenceModalOpen}
-        onClose={() => setAbsenceModalOpen(false)}
+        onClose={handleCloseAbsenceModal}
         onSave={handleCreateAbsence}
       />
 
       {/* Check-in confirmation when absence exists */}
       <Modal
         isOpen={pendingCheckIn !== null}
-        onClose={() => setPendingCheckIn(null)}
+        onClose={handleClosePendingCheckIn}
         title=""
         footer={
           <div className="flex w-full gap-3">
