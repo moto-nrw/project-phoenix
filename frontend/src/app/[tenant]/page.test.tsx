@@ -214,7 +214,12 @@ describe("HomePage (Login)", () => {
 
     render(<HomePage />);
 
-    expect(screen.getByTestId("loading")).toBeInTheDocument();
+    // Login form is rendered but invisible (opacity-0) to avoid layout flicker
+    const submitButton = screen.getByRole("button", { name: /anmelden/i });
+    const formContainer = submitButton.closest(
+      "div[class*='transition-opacity']",
+    );
+    expect(formContainer).toHaveClass("opacity-0");
   });
 
   it("calls signIn with credentials on form submission", async () => {
