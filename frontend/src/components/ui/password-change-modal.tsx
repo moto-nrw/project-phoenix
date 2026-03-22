@@ -8,6 +8,34 @@ import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "PasswordChange" });
 
+const ERROR_MAPPINGS: Array<{
+  test: (msg: string) => boolean;
+  message: string;
+}> = [
+  {
+    test: (msg) => msg.includes("invalid") && msg.includes("password"),
+    message: "Das aktuelle Passwort ist falsch. Bitte versuchen Sie es erneut.",
+  },
+  {
+    test: (msg) => msg.includes("too weak") || msg.includes("complexity"),
+    message:
+      "Das neue Passwort ist zu schwach. Verwenden Sie mindestens 8 Zeichen mit Groß-/Kleinbuchstaben, Zahlen und Sonderzeichen.",
+  },
+  {
+    test: (msg) => msg.includes("not found"),
+    message:
+      "Ihr Konto konnte nicht gefunden werden. Bitte melden Sie sich erneut an.",
+  },
+];
+
+function mapBackendError(backendError: string): string {
+  const match = ERROR_MAPPINGS.find((m) => m.test(backendError));
+  return (
+    match?.message ??
+    "Passwortänderung fehlgeschlagen. Bitte versuchen Sie es später erneut."
+  );
+}
+
 interface PasswordToggleProps {
   readonly show: boolean;
   readonly onToggle: () => void;
@@ -91,33 +119,7 @@ export function PasswordChangeModal({
 
       if (!response.ok) {
         const data = (await response.json()) as { error?: string };
-        const backendError = data.error ?? "";
-
-        // Map backend errors to user-friendly German messages
-        if (
-          backendError.includes("invalid") &&
-          backendError.includes("password")
-        ) {
-          throw new Error(
-            "Das aktuelle Passwort ist falsch. Bitte versuchen Sie es erneut.",
-          );
-        }
-        if (
-          backendError.includes("too weak") ||
-          backendError.includes("complexity")
-        ) {
-          throw new Error(
-            "Das neue Passwort ist zu schwach. Verwenden Sie mindestens 8 Zeichen mit Groß-/Kleinbuchstaben, Zahlen und Sonderzeichen.",
-          );
-        }
-        if (backendError.includes("not found")) {
-          throw new Error(
-            "Ihr Konto konnte nicht gefunden werden. Bitte melden Sie sich erneut an.",
-          );
-        }
-        throw new Error(
-          "Passwortänderung fehlgeschlagen. Bitte versuchen Sie es später erneut.",
-        );
+        throw new Error(mapBackendError(data.error ?? ""));
       }
 
       setSuccess(true);
