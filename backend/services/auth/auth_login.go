@@ -970,7 +970,12 @@ func (s *Service) Logout(ctx context.Context, refreshTokenStr string) error {
 	return s.LogoutWithAudit(ctx, refreshTokenStr, "", "")
 }
 
-// LogoutWithAudit invalidates a refresh token with audit logging
+// LogoutWithAudit invalidates a refresh token with audit logging.
+//
+// Uses WithAdminTx (BYPASSRLS) because logout is a pre-deauthentication flow.
+// auth.tokens has RLS enabled — without setting app.current_tenant_id, the
+// tenant isolation policy silently filters out all rows, causing FindByToken
+// to return "not found" and tokens to never actually be deleted.
 func (s *Service) LogoutWithAudit(ctx context.Context, refreshTokenStr, ipAddress, userAgent string) error {
 	// Parse JWT refresh token
 	jwtToken, err := s.tokenAuth.JwtAuth.Decode(refreshTokenStr)
@@ -988,34 +993,39 @@ func (s *Service) LogoutWithAudit(ctx context.Context, refreshTokenStr, ipAddres
 		return &AuthError{Op: "parse refresh claims", Err: ErrInvalidToken}
 	}
 
-	// Get token from database to find the account ID
-	dbToken, err := s.repos.Token.FindByToken(ctx, refreshClaims.Token)
-	if err != nil {
-		// Token not found, consider logout successful
-		return nil
-	}
-
-	// Delete ALL tokens for this account to ensure complete logout
-	// This ensures that all sessions (access and refresh tokens) are invalidated
-	err = s.repos.Token.DeleteByAccountID(ctx, dbToken.AccountID)
-	if err != nil {
-		// Log the error but don't fail the logout
-		s.getLogger().Warn("failed to delete all tokens during logout",
-			slog.Int64("account_id", dbToken.AccountID),
-			slog.Any("error", err),
-		)
-		// Still try to delete the specific token
-		if deleteErr := s.repos.Token.Delete(ctx, dbToken.ID); deleteErr != nil {
-			return &AuthError{Op: "delete token", Err: deleteErr}
+	// Use WithAdminTx to bypass RLS on auth.tokens (same pattern as refreshTokenInTransaction)
+	err = tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
+		// Get token from database to find the account ID
+		dbToken, err := s.repos.Token.FindByToken(ctx, refreshClaims.Token)
+		if err != nil {
+			// Token not found, consider logout successful
+			return nil
 		}
-	}
 
-	// Log successful logout
-	if ipAddress != "" {
-		s.logAuthEvent(ctx, dbToken.AccountID, audit.EventTypeLogout, true, ipAddress, userAgent, "")
-	}
+		// Delete ALL tokens for this account to ensure complete logout
+		// This ensures that all sessions (access and refresh tokens) are invalidated
+		err = s.repos.Token.DeleteByAccountID(ctx, dbToken.AccountID)
+		if err != nil {
+			// Log the error but don't fail the logout
+			s.getLogger().Warn("failed to delete all tokens during logout",
+				slog.Int64("account_id", dbToken.AccountID),
+				slog.Any("error", err),
+			)
+			// Still try to delete the specific token
+			if deleteErr := s.repos.Token.Delete(ctx, dbToken.ID); deleteErr != nil {
+				return &AuthError{Op: "delete token", Err: deleteErr}
+			}
+		}
 
-	return nil
+		// Log successful logout
+		if ipAddress != "" {
+			s.logAuthEvent(ctx, dbToken.AccountID, audit.EventTypeLogout, true, ipAddress, userAgent, "")
+		}
+
+		return nil
+	})
+
+	return err
 }
 
 // ChangePassword updates an account's password
