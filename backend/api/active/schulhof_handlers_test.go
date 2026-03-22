@@ -58,6 +58,10 @@ func (m *mockSchulhofService) EnsureInfrastructure(ctx context.Context, createdB
 	return nil, errors.New("not implemented")
 }
 
+func (m *mockSchulhofService) EnsureRoomAndCategory(_ context.Context) error {
+	return nil
+}
+
 func (m *mockSchulhofService) GetOrCreateActiveGroup(ctx context.Context, createdBy int64) (*active.Group, error) {
 	if m.getOrCreateActiveFunc != nil {
 		return m.getOrCreateActiveFunc(ctx, createdBy)
