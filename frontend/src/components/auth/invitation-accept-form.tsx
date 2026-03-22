@@ -123,12 +123,12 @@ export function InvitationAcceptForm({
 
       setTimeout(() => {
         // Redirect to tenant subdomain if available, otherwise root
-        if (result.tenantSlug && typeof window !== "undefined") {
+        if (result.tenantSlug && typeof globalThis.window !== "undefined") {
           const tenantDomain = process.env.NEXT_PUBLIC_TENANT_DOMAIN;
           if (tenantDomain) {
-            const protocol = window.location.protocol;
-            const port = window.location.port ? `:${window.location.port}` : "";
-            window.location.href = `${protocol}//${result.tenantSlug}.${tenantDomain}${port}/`;
+            const { protocol, port: locationPort } = globalThis.window.location;
+            const port = locationPort ? `:${locationPort}` : "";
+            globalThis.window.location.href = `${protocol}//${result.tenantSlug}.${tenantDomain}${port}/`;
             return;
           }
         }
