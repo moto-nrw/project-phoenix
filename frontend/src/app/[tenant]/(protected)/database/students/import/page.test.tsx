@@ -6,7 +6,7 @@ import {
   cleanup,
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import StudentCSVImportPage from "./page";
+import StudentImportPage from "./page";
 
 // Mock next-auth/react
 vi.mock("next-auth/react", () => ({
@@ -122,7 +122,7 @@ vi.mock("~/components/import", () => ({
   ),
 }));
 
-describe("StudentCSVImportPage", () => {
+describe("StudentImportPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     global.fetch = vi.fn();
@@ -133,16 +133,16 @@ describe("StudentCSVImportPage", () => {
   });
 
   it("renders the page with instruction section", () => {
-    render(<StudentCSVImportPage />);
+    render(<StudentImportPage />);
 
-    expect(screen.getByText("CSV/Excel-Import Anleitung")).toBeInTheDocument();
+    expect(screen.getByText("Import-Anleitung")).toBeInTheDocument();
     expect(
       screen.getByText(/Laden Sie die Vorlage herunter/),
     ).toBeInTheDocument();
   });
 
   it("renders the template download section", () => {
-    render(<StudentCSVImportPage />);
+    render(<StudentImportPage />);
 
     expect(
       screen.getByText("Schritt 1: Vorlage herunterladen"),
@@ -152,13 +152,13 @@ describe("StudentCSVImportPage", () => {
   });
 
   it("renders the upload section", () => {
-    render(<StudentCSVImportPage />);
+    render(<StudentImportPage />);
 
     expect(screen.getByTestId("upload-section")).toBeInTheDocument();
   });
 
   it("allows selecting template format", () => {
-    render(<StudentCSVImportPage />);
+    render(<StudentImportPage />);
 
     const select = screen.getByRole("combobox");
     expect(select).toHaveValue("xlsx");
@@ -178,7 +178,7 @@ describe("StudentCSVImportPage", () => {
     global.URL.createObjectURL = vi.fn(() => "blob:test-url");
     global.URL.revokeObjectURL = vi.fn();
 
-    render(<StudentCSVImportPage />);
+    render(<StudentImportPage />);
 
     const downloadButton = screen.getByText("Vorlage herunterladen");
     fireEvent.click(downloadButton);
@@ -209,7 +209,7 @@ describe("StudentCSVImportPage", () => {
       json: () => Promise.resolve(mockPreviewResponse),
     });
 
-    render(<StudentCSVImportPage />);
+    render(<StudentImportPage />);
 
     const fileSelectButton = screen.getByTestId("file-select-trigger");
     fireEvent.click(fileSelectButton);
@@ -230,7 +230,7 @@ describe("StudentCSVImportPage", () => {
       json: () => Promise.resolve({ message: "API Error" }),
     });
 
-    render(<StudentCSVImportPage />);
+    render(<StudentImportPage />);
 
     const fileSelectButton = screen.getByTestId("file-select-trigger");
     fireEvent.click(fileSelectButton);
@@ -247,7 +247,7 @@ describe("StudentCSVImportPage", () => {
       json: () => Promise.resolve({ message: "Test Error" }),
     });
 
-    render(<StudentCSVImportPage />);
+    render(<StudentImportPage />);
 
     const fileSelectButton = screen.getByTestId("file-select-trigger");
     fireEvent.click(fileSelectButton);
@@ -263,7 +263,7 @@ describe("StudentCSVImportPage", () => {
   });
 
   it("shows loading state in upload section", () => {
-    render(<StudentCSVImportPage />);
+    render(<StudentImportPage />);
 
     // Initial state should not be loading
     expect(screen.getByTestId("is-loading")).toHaveTextContent("false");
@@ -306,7 +306,7 @@ describe("StudentCSVImportPage", () => {
       json: () => Promise.resolve(mockPreviewResponse),
     });
 
-    render(<StudentCSVImportPage />);
+    render(<StudentImportPage />);
 
     const fileSelectButton = screen.getByTestId("file-select-trigger");
     fireEvent.click(fileSelectButton);
@@ -354,7 +354,7 @@ describe("StudentCSVImportPage", () => {
       json: () => Promise.resolve(mockPreviewResponse),
     });
 
-    render(<StudentCSVImportPage />);
+    render(<StudentImportPage />);
 
     const fileSelectButton = screen.getByTestId("file-select-trigger");
     fireEvent.click(fileSelectButton);
@@ -418,7 +418,7 @@ describe("StudentCSVImportPage", () => {
       json: () => Promise.resolve(mockPreviewResponse),
     });
 
-    render(<StudentCSVImportPage />);
+    render(<StudentImportPage />);
 
     const fileSelectButton = screen.getByTestId("file-select-trigger");
     fireEvent.click(fileSelectButton);
@@ -466,7 +466,7 @@ describe("StudentCSVImportPage", () => {
       json: () => Promise.resolve(mockPreviewResponse),
     });
 
-    render(<StudentCSVImportPage />);
+    render(<StudentImportPage />);
 
     const fileSelectButton = screen.getByTestId("file-select-trigger");
     fireEvent.click(fileSelectButton);
@@ -492,7 +492,7 @@ describe("StudentCSVImportPage", () => {
       json: () => Promise.resolve(mockPreviewResponse),
     });
 
-    render(<StudentCSVImportPage />);
+    render(<StudentImportPage />);
 
     const fileSelectButton = screen.getByTestId("file-select-trigger");
     fireEvent.click(fileSelectButton);
@@ -509,7 +509,7 @@ describe("StudentCSVImportPage", () => {
       ok: false,
     });
 
-    render(<StudentCSVImportPage />);
+    render(<StudentImportPage />);
 
     const downloadButton = screen.getByText("Vorlage herunterladen");
     fireEvent.click(downloadButton);
@@ -535,7 +535,7 @@ describe("StudentCSVImportPage", () => {
       json: () => Promise.resolve(mockPreviewResponse),
     });
 
-    render(<StudentCSVImportPage />);
+    render(<StudentImportPage />);
 
     const fileSelectButton = screen.getByTestId("file-select-trigger");
     fireEvent.click(fileSelectButton);
@@ -578,7 +578,7 @@ describe("StudentCSVImportPage", () => {
         json: () => Promise.resolve(mockImportResponse),
       });
 
-    render(<StudentCSVImportPage />);
+    render(<StudentImportPage />);
 
     // Upload file
     const fileSelectButton = screen.getByTestId("file-select-trigger");
@@ -654,7 +654,7 @@ describe("StudentCSVImportPage", () => {
         json: () => Promise.resolve(mockImportResponse),
       });
 
-    render(<StudentCSVImportPage />);
+    render(<StudentImportPage />);
 
     // Upload file
     const fileSelectButton = screen.getByTestId("file-select-trigger");
@@ -705,7 +705,7 @@ describe("StudentCSVImportPage", () => {
         json: () => Promise.resolve({ message: "Import fehlgeschlagen" }),
       });
 
-    render(<StudentCSVImportPage />);
+    render(<StudentImportPage />);
 
     // Upload file
     const fileSelectButton = screen.getByTestId("file-select-trigger");
@@ -761,7 +761,7 @@ describe("StudentCSVImportPage", () => {
       json: () => Promise.resolve(mockPreviewResponse),
     });
 
-    render(<StudentCSVImportPage />);
+    render(<StudentImportPage />);
 
     const fileSelectButton = screen.getByTestId("file-select-trigger");
     fireEvent.click(fileSelectButton);
@@ -781,7 +781,7 @@ describe("StudentCSVImportPage", () => {
       update: vi.fn(),
     });
 
-    render(<StudentCSVImportPage />);
+    render(<StudentImportPage />);
 
     expect(screen.getByTestId("loading")).toBeInTheDocument();
   });
@@ -795,7 +795,7 @@ describe("StudentCSVImportPage", () => {
       update: vi.fn(),
     } as unknown as ReturnType<typeof useSession.useSession>);
 
-    render(<StudentCSVImportPage />);
+    render(<StudentImportPage />);
 
     const fileSelectButton = screen.getByTestId("file-select-trigger");
     fireEvent.click(fileSelectButton);

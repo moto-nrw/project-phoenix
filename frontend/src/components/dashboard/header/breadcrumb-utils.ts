@@ -86,7 +86,7 @@ export function getSubPageLabel(pathname: string): string {
   const lastSegment = segments.at(-1);
 
   const subPageLabels: Record<string, string> = {
-    "csv-import": "CSV-Import",
+    import: "Importieren",
     create: "Erstellen",
     edit: "Bearbeiten",
     details: "Details",

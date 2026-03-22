@@ -385,28 +385,24 @@ export default function StudentsPage() {
             !isMobile && (
               <div className="flex items-center gap-3">
                 <Link
-                  href="/database/students/csv-import"
-                  className="group relative flex h-10 items-center gap-2 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 px-4 text-white shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl active:scale-95"
-                  aria-label="CSV Import"
+                  href="/database/students/import"
+                  className="flex h-10 items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 active:bg-gray-100"
+                  aria-label="Schüler importieren"
                 >
-                  <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-150 group-hover:opacity-100"></div>
                   <svg
-                    className="relative h-5 w-5 transition-transform duration-300"
+                    className="h-4.5 w-4.5"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
-                    strokeWidth={2.5}
+                    strokeWidth={2}
                   >
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                      d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"
                     />
                   </svg>
-                  <span className="relative text-sm font-semibold">
-                    CSV Import
-                  </span>
-                  <div className="pointer-events-none absolute inset-0 scale-0 rounded-full bg-white/20 opacity-0 transition-transform duration-200 group-hover:scale-100 group-hover:opacity-100"></div>
+                  Importieren
                 </Link>
                 <button
                   onClick={() => setShowCreateModal(true)}

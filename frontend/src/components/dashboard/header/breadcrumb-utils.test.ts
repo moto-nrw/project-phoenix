@@ -146,10 +146,8 @@ describe("breadcrumb-utils", () => {
   });
 
   describe("getSubPageLabel", () => {
-    it("should return 'CSV-Import' for csv-import segment", () => {
-      expect(getSubPageLabel("/database/students/csv-import")).toBe(
-        "CSV-Import",
-      );
+    it("should return 'Importieren' for import segment", () => {
+      expect(getSubPageLabel("/database/students/import")).toBe("Importieren");
     });
 
     it("should return 'Erstellen' for create segment", () => {

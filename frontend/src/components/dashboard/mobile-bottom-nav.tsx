@@ -150,9 +150,9 @@ const additionalNavItems: AdditionalNavItem[] = [
     requiresAdmin: true,
   },
   {
-    href: "/settings",
-    label: "Einstellungen",
-    iconKey: "settings",
+    href: "/time-tracking",
+    label: "Zeiterfassung",
+    iconKey: "clock",
     alwaysShow: true,
   },
   {
@@ -162,9 +162,9 @@ const additionalNavItems: AdditionalNavItem[] = [
     alwaysShow: true,
   },
   {
-    href: "/time-tracking",
-    label: "Zeiterfassung",
-    iconKey: "clock",
+    href: "/settings",
+    label: "Einstellungen",
+    iconKey: "settings",
     alwaysShow: true,
   },
   // Coming soon features - shown to all users
