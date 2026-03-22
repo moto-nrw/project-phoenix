@@ -451,36 +451,45 @@ describe("InvitationAcceptForm", () => {
 
   it("redirects to tenant subdomain after successful accept", async () => {
     const originalEnv = process.env.NEXT_PUBLIC_TENANT_DOMAIN;
+    const originalLocation = window.location;
     process.env.NEXT_PUBLIC_TENANT_DOMAIN = "localhost";
 
     const mockLocation = { href: "", protocol: "http:", port: "3000" };
     Object.defineProperty(window, "location", {
       value: mockLocation,
       writable: true,
+      configurable: true,
     });
 
-    render(
-      <InvitationAcceptForm token="test-token" invitation={mockInvitation} />,
-    );
+    try {
+      render(
+        <InvitationAcceptForm token="test-token" invitation={mockInvitation} />,
+      );
 
-    const passwordInput = await screen.findByLabelText(/^Passwort$/);
-    const confirmInput = await screen.findByLabelText(/Passwort bestätigen/);
-    fireEvent.change(passwordInput, { target: { value: "Test1234%" } });
-    fireEvent.change(confirmInput, { target: { value: "Test1234%" } });
+      const passwordInput = await screen.findByLabelText(/^Passwort$/);
+      const confirmInput = await screen.findByLabelText(/Passwort bestätigen/);
+      fireEvent.change(passwordInput, { target: { value: "Test1234%" } });
+      fireEvent.change(confirmInput, { target: { value: "Test1234%" } });
 
-    fireEvent.click(
-      screen.getByRole("button", { name: /Einladung akzeptieren/i }),
-    );
+      fireEvent.click(
+        screen.getByRole("button", { name: /Einladung akzeptieren/i }),
+      );
 
-    // Wait for redirect to happen (1.5s timeout + buffer)
-    await waitFor(
-      () => {
-        expect(mockLocation.href).toBe("http://ogs-1.localhost:3000/");
-      },
-      { timeout: 3000 },
-    );
-
-    process.env.NEXT_PUBLIC_TENANT_DOMAIN = originalEnv;
+      // Wait for redirect to happen (1.5s timeout + buffer)
+      await waitFor(
+        () => {
+          expect(mockLocation.href).toBe("http://ogs-1.localhost:3000/");
+        },
+        { timeout: 3000 },
+      );
+    } finally {
+      process.env.NEXT_PUBLIC_TENANT_DOMAIN = originalEnv;
+      Object.defineProperty(window, "location", {
+        value: originalLocation,
+        writable: true,
+        configurable: true,
+      });
+    }
   });
 
   it("falls back to router.push when no tenant slug", async () => {
