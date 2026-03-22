@@ -25,7 +25,8 @@ async function tryRetryWithRefreshedToken<T>(
   originalToken: string,
   retryFn: (token: string) => Promise<T>,
 ): Promise<T | null> {
-  const { uncachedAuth } = await import("~/server/auth");
+  const { uncachedOperatorAuth: uncachedAuth } =
+    await import("~/server/auth/operator");
   const updatedSession = await uncachedAuth();
 
   if (
@@ -164,7 +165,7 @@ function createOperatorNoBodyHandler<T>(
     context: RouteContext,
   ): Promise<NextResponse> => {
     try {
-      const { auth } = await import("~/server/auth");
+      const { operatorAuth: auth } = await import("~/server/auth/operator");
       const session = await auth();
       if (!session?.user?.token) return createUnauthorizedResponse();
       const params = await extractParams(request, context);
@@ -186,7 +187,7 @@ function createOperatorWithBodyHandler<T, B>(handler: WithBodyHandler<T, B>) {
     context: RouteContext,
   ): Promise<NextResponse> => {
     try {
-      const { auth } = await import("~/server/auth");
+      const { operatorAuth: auth } = await import("~/server/auth/operator");
       const session = await auth();
       if (!session?.user?.token) return createUnauthorizedResponse();
       const params = await extractParams(request, context);

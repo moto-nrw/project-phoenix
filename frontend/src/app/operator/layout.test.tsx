@@ -1,6 +1,7 @@
 /**
- * Tests for Operator Layout
- * Tests the conditional rendering of layout based on pathname
+ * Tests for Operator Auth Guard
+ * Tests the conditional rendering based on auth state and pathname.
+ * (The layout itself is now a thin server component wrapping OperatorAuthGuard.)
  */
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -53,9 +54,9 @@ vi.mock("~/components/ui/loading", () => ({
   Loading: () => <div data-testid="loading">Loading...</div>,
 }));
 
-import OperatorLayout from "./layout";
+import { OperatorAuthGuard } from "./auth-guard";
 
-describe("OperatorLayout", () => {
+describe("OperatorAuthGuard", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -68,9 +69,9 @@ describe("OperatorLayout", () => {
     });
 
     render(
-      <OperatorLayout>
+      <OperatorAuthGuard>
         <div data-testid="test-content">Login Content</div>
-      </OperatorLayout>,
+      </OperatorAuthGuard>,
     );
 
     expect(screen.getByTestId("test-content")).toBeInTheDocument();
@@ -88,9 +89,9 @@ describe("OperatorLayout", () => {
     });
 
     render(
-      <OperatorLayout>
+      <OperatorAuthGuard>
         <div data-testid="test-content">App Content</div>
-      </OperatorLayout>,
+      </OperatorAuthGuard>,
     );
 
     expect(screen.getByTestId("operator-shell-provider")).toBeInTheDocument();
@@ -107,9 +108,9 @@ describe("OperatorLayout", () => {
     });
 
     render(
-      <OperatorLayout>
+      <OperatorAuthGuard>
         <div data-testid="test-content">Announcements</div>
-      </OperatorLayout>,
+      </OperatorAuthGuard>,
     );
 
     expect(screen.getByTestId("app-shell")).toBeInTheDocument();
@@ -124,9 +125,9 @@ describe("OperatorLayout", () => {
     });
 
     render(
-      <OperatorLayout>
+      <OperatorAuthGuard>
         <div data-testid="test-content">Settings</div>
-      </OperatorLayout>,
+      </OperatorAuthGuard>,
     );
 
     expect(screen.getByTestId("app-shell")).toBeInTheDocument();
@@ -141,9 +142,9 @@ describe("OperatorLayout", () => {
     });
 
     render(
-      <OperatorLayout>
+      <OperatorAuthGuard>
         <div data-testid="test-content">Content</div>
-      </OperatorLayout>,
+      </OperatorAuthGuard>,
     );
 
     expect(screen.getByTestId("loading")).toBeInTheDocument();
@@ -158,9 +159,9 @@ describe("OperatorLayout", () => {
     });
 
     render(
-      <OperatorLayout>
+      <OperatorAuthGuard>
         <div data-testid="test-content">Content</div>
-      </OperatorLayout>,
+      </OperatorAuthGuard>,
     );
 
     expect(mockPush).toHaveBeenCalledWith("/operator/login");
@@ -175,9 +176,9 @@ describe("OperatorLayout", () => {
     });
 
     render(
-      <OperatorLayout>
+      <OperatorAuthGuard>
         <div data-testid="test-content">Content</div>
-      </OperatorLayout>,
+      </OperatorAuthGuard>,
     );
 
     // Should redirect non-operator users away

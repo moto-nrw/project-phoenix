@@ -6,6 +6,11 @@ const { mockAuth, mockRevalidatePath } = vi.hoisted(() => ({
   mockRevalidatePath: vi.fn(),
 }));
 
+vi.mock("~/server/auth/operator", () => ({
+  operatorAuth: mockAuth,
+  uncachedOperatorAuth: mockAuth,
+}));
+
 vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
