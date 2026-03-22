@@ -502,6 +502,26 @@ export function useSupervision() {
 }
 
 /**
+ * Non-throwing variant for components shared between tenant and operator layouts.
+ * Returns safe defaults when no SupervisionProvider is present.
+ */
+const EMPTY_SUPERVISION: SupervisionContextType = {
+  hasGroups: false,
+  isLoadingGroups: false,
+  groups: [],
+  isSupervising: false,
+  supervisedRooms: [],
+  isLoadingSupervision: false,
+  // eslint-disable-next-line no-empty-function -- safe no-op default for operator context
+  refresh: async () => {},
+};
+
+export function useOptionalSupervision(): SupervisionContextType {
+  const context = useContext(SupervisionContext);
+  return context ?? EMPTY_SUPERVISION;
+}
+
+/**
  * Hook to check if user has groups (convenience wrapper)
  */
 export function useHasGroups(): boolean {

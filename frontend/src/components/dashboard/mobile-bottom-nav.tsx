@@ -12,7 +12,7 @@ import React, {
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useSupervision } from "~/lib/supervision-context";
+import { useOptionalSupervision } from "~/lib/supervision-context";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { isAdmin } from "~/lib/auth-utils";
 import { navigationIcons } from "~/lib/navigation-icons";
@@ -229,7 +229,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
 
   // Get supervision state
   const { hasGroups, isSupervising, isLoadingGroups, isLoadingSupervision } =
-    useSupervision();
+    useOptionalSupervision();
 
   // Get shell auth mode
   const { mode } = useShellAuth();
