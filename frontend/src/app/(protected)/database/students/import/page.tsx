@@ -10,7 +10,7 @@ import { UploadSection, StatsCards, StudentRowCard } from "~/components/import";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 
-const logger = createLogger({ component: "CsvImportPage" });
+const logger = createLogger({ component: "StudentImportPage" });
 
 // Types matching backend API response
 interface ImportError {
@@ -76,7 +76,7 @@ interface DisplayStudent {
   health_info: string;
 }
 
-export default function StudentCSVImportPage() {
+export default function StudentImportPage() {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [previewData, setPreviewData] = useState<DisplayStudent[]>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -253,7 +253,7 @@ export default function StudentCSVImportPage() {
         setPreviewData(displayData);
         setImportResult(importData);
       } catch (err) {
-        logger.error("csv_preview_failed", {
+        logger.error("student_preview_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
         setError(err instanceof Error ? err.message : "Unbekannter Fehler");
@@ -334,7 +334,7 @@ export default function StudentCSVImportPage() {
         resetForm();
       }
     } catch (err) {
-      logger.error("csv_import_failed", {
+      logger.error("student_import_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
       setError(err instanceof Error ? err.message : "Unbekannter Fehler");
@@ -379,7 +379,7 @@ export default function StudentCSVImportPage() {
       ) {
         handleFileUpload(file).catch(() => undefined);
       } else {
-        setError("Bitte nur CSV- oder Excel-Dateien hochladen");
+        setError("Bitte nur CSV- oder Excel-Dateien (.csv, .xlsx) hochladen");
       }
     }
   };
@@ -418,17 +418,12 @@ export default function StudentCSVImportPage() {
           </div>
           <div className="flex-1">
             <h3 className="mb-2 text-sm font-semibold text-gray-900">
-              CSV/Excel-Import Anleitung
+              Import-Anleitung
             </h3>
             <ul className="list-inside list-disc space-y-1 text-sm text-gray-600">
-              <li>
-                Laden Sie die Vorlage herunter (CSV oder Excel - siehe unten)
-              </li>
+              <li>Laden Sie die Vorlage herunter (siehe unten)</li>
               <li>Füllen Sie die Datei mit Ihren Schülerdaten aus</li>
-              <li>
-                Speichern Sie die Datei (CSV behält das Format, Excel wird als
-                .xlsx gespeichert)
-              </li>
+              <li>Speichern Sie die ausgefüllte Datei</li>
               <li>
                 Laden Sie die Datei hier hoch und überprüfen Sie die Vorschau
               </li>
@@ -468,7 +463,7 @@ export default function StudentCSVImportPage() {
       <div className="rounded-xl border border-gray-100 bg-white p-6">
         <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-gray-900">
           <svg
-            className="h-5 w-5 text-purple-600"
+            className="h-5 w-5 text-gray-600"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -497,7 +492,7 @@ export default function StudentCSVImportPage() {
                 onChange={(e) =>
                   setTemplateFormat(e.target.value as "csv" | "xlsx")
                 }
-                className="h-10 w-full appearance-none rounded-lg border border-gray-300 bg-white px-4 py-2 pr-10 text-sm text-gray-900 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 focus:outline-none"
+                className="h-10 w-full appearance-none rounded-lg border border-gray-300 bg-white px-4 py-2 pr-10 text-sm text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none"
               >
                 <option value="csv">CSV (Komma-getrennt)</option>
                 <option value="xlsx">Excel (.xlsx)</option>
