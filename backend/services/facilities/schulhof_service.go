@@ -41,6 +41,11 @@ type SchulhofService interface {
 	// creating one if it doesn't exist.
 	// createdBy is the staff ID to use when creating new infrastructure.
 	GetOrCreateActiveGroup(ctx context.Context, createdBy int64) (*active.Group, error)
+
+	// EnsureRoomAndCategory ensures the Schulhof room and activity category exist
+	// without creating the activity group (which requires a staff created_by FK).
+	// Used during tenant provisioning when no staff exists yet.
+	EnsureRoomAndCategory(ctx context.Context) error
 }
 
 // SchulhofStatus represents the current state of the Schulhof area.
@@ -446,6 +451,19 @@ func (s *schulhofService) ensureSchulhofRoom(ctx context.Context) (*facilities.R
 		slog.String("component", "schulhof"),
 		slog.Int64("room_id", newRoom.ID))
 	return newRoom, nil
+}
+
+// EnsureRoomAndCategory ensures the Schulhof room and activity category exist.
+// This is used during tenant provisioning when no staff member exists yet,
+// so the activity group (which requires created_by FK) is deferred to first use.
+func (s *schulhofService) EnsureRoomAndCategory(ctx context.Context) error {
+	if _, err := s.ensureSchulhofRoom(ctx); err != nil {
+		return fmt.Errorf("failed to ensure Schulhof room: %w", err)
+	}
+	if _, err := s.ensureSchulhofCategory(ctx); err != nil {
+		return fmt.Errorf("failed to ensure Schulhof category: %w", err)
+	}
+	return nil
 }
 
 // ensureSchulhofCategory finds or creates the Schulhof activity category.

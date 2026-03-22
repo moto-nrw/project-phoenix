@@ -423,6 +423,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		DeviceRepo:        repos.Device,
 		RoleRepo:          repos.Role,
 		InvitationService: invitationService,
+		SchulhofSetup:     schulhofService,
 		AuditLogRepo:      repos.OperatorAuditLog,
 		DB:                db,
 		Logger:            platformLogger,

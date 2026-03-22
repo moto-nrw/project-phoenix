@@ -60,9 +60,18 @@ type operatorProvisioningService struct {
 	deviceRepo        iotModels.DeviceRepository
 	roleRepo          authModels.RoleRepository
 	invitationService authSvc.InvitationService
+	schulhofSetup     SchulhofInfrastructureSetup
 	auditLogRepo      platform.OperatorAuditLogRepository
 	txHandler         *modelBase.TxHandler
 	logger            *slog.Logger
+}
+
+// SchulhofInfrastructureSetup is a narrow interface for creating Schulhof
+// infrastructure during tenant provisioning. Only creates the room and
+// category (no activity group, since that requires a staff created_by FK).
+// The activity group is auto-created on first supervisor use.
+type SchulhofInfrastructureSetup interface {
+	EnsureRoomAndCategory(ctx context.Context) error
 }
 
 // OperatorProvisioningServiceConfig holds dependencies for operator provisioning.
@@ -73,6 +82,7 @@ type OperatorProvisioningServiceConfig struct {
 	DeviceRepo        iotModels.DeviceRepository
 	RoleRepo          authModels.RoleRepository
 	InvitationService authSvc.InvitationService
+	SchulhofSetup     SchulhofInfrastructureSetup
 	AuditLogRepo      platform.OperatorAuditLogRepository
 	DB                *bun.DB
 	Logger            *slog.Logger
@@ -87,6 +97,7 @@ func NewOperatorProvisioningService(cfg OperatorProvisioningServiceConfig) Opera
 		deviceRepo:        cfg.DeviceRepo,
 		roleRepo:          cfg.RoleRepo,
 		invitationService: cfg.InvitationService,
+		schulhofSetup:     cfg.SchulhofSetup,
 		auditLogRepo:      cfg.AuditLogRepo,
 		txHandler:         modelBase.NewTxHandler(cfg.DB),
 		logger:            cfg.Logger,
@@ -215,6 +226,9 @@ func (s *operatorProvisioningService) CreateSchool(ctx context.Context, school *
 		}
 		if deviceErr := s.createWebManualDevice(adminCtx, school.ID); deviceErr != nil {
 			return deviceErr
+		}
+		if schulhofErr := s.ensureSchulhofInfrastructure(adminCtx, school.ID); schulhofErr != nil {
+			return schulhofErr
 		}
 		s.logAction(adminCtx, operatorID, platform.ActionCreate, platform.ResourceSchool, &school.ID, clientIP, map[string]any{
 			"name":           school.Name,
@@ -486,6 +500,22 @@ func (s *operatorProvisioningService) createWebManualDevice(ctx context.Context,
 	s.getLogger().Info("created web manual device for tenant",
 		slog.Int64("tenant_id", tenantID),
 		slog.String("device_id", webManualDeviceID),
+	)
+	return nil
+}
+
+func (s *operatorProvisioningService) ensureSchulhofInfrastructure(ctx context.Context, tenantID int64) error {
+	if s.schulhofSetup == nil || tenantID <= 0 {
+		return nil
+	}
+
+	schulhofCtx := tenant.WithTenantID(ctx, tenantID)
+	if err := s.schulhofSetup.EnsureRoomAndCategory(schulhofCtx); err != nil {
+		return fmt.Errorf("create schulhof infrastructure for tenant %d: %w", tenantID, err)
+	}
+
+	s.getLogger().Info("created schulhof infrastructure for tenant",
+		slog.Int64("tenant_id", tenantID),
 	)
 	return nil
 }
