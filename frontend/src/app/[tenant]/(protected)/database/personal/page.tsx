@@ -1,7 +1,7 @@
 "use client";
 
 import { createLogger } from "~/lib/logger";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 
 const logger = createLogger({ component: "DatabaseTeachersPage" });
 import { useSession } from "next-auth/react";
@@ -58,6 +58,21 @@ export default function TeachersPage() {
 
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+
+  // Stable onClose handlers to prevent Modal animation-reset flicker
+  const handleCloseChoiceModal = useCallback(
+    () => setShowChoiceModal(false),
+    [],
+  );
+  const handleCloseCreateModal = useCallback(
+    () => setShowCreateModal(false),
+    [],
+  );
+  const handleCloseDetailModal = useCallback(() => {
+    setShowDetailModal(false);
+    setSelectedTeacher(null);
+  }, []);
+  const handleCloseEditModal = useCallback(() => setShowEditModal(false), []);
   const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
@@ -474,7 +489,7 @@ export default function TeachersPage() {
       {/* Choice Modal - Create or Invite */}
       <Modal
         isOpen={showChoiceModal}
-        onClose={() => setShowChoiceModal(false)}
+        onClose={handleCloseChoiceModal}
         title="Personal hinzufügen"
       >
         <div className="space-y-4">
@@ -560,7 +575,7 @@ export default function TeachersPage() {
       {/* Create Teacher Modal */}
       <TeacherCreateModal
         isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
+        onClose={handleCloseCreateModal}
         onCreate={handleCreateTeacher}
         loading={createLoading}
       />
@@ -569,10 +584,7 @@ export default function TeachersPage() {
       {selectedTeacher && (
         <TeacherDetailModal
           isOpen={showDetailModal}
-          onClose={() => {
-            setShowDetailModal(false);
-            setSelectedTeacher(null);
-          }}
+          onClose={handleCloseDetailModal}
           teacher={selectedTeacher}
           onEdit={handleEditClick}
           onDelete={handleDeleteTeacher}
@@ -606,9 +618,7 @@ export default function TeachersPage() {
       {selectedTeacher && (
         <TeacherEditModal
           isOpen={showEditModal}
-          onClose={() => {
-            setShowEditModal(false);
-          }}
+          onClose={handleCloseEditModal}
           teacher={selectedTeacher}
           onSave={handleEditTeacher}
           loading={detailLoading}
