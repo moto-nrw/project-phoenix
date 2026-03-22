@@ -420,6 +420,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		OrganizationRepo:  repos.Organization,
 		SchoolRepo:        repos.School,
 		CategoryRepo:      repos.ActivityCategory,
+		RoomRepo:          repos.Room,
 		DeviceRepo:        repos.Device,
 		RoleRepo:          repos.Role,
 		InvitationService: invitationService,

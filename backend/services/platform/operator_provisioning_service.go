@@ -10,9 +10,11 @@ import (
 	"net"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/constants"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/models/facilities"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
@@ -57,6 +59,7 @@ type operatorProvisioningService struct {
 	organizationRepo  platform.OrganizationRepository
 	schoolRepo        platform.SchoolRepository
 	categoryRepo      activityModels.CategoryRepository
+	roomRepo          facilities.RoomRepository
 	deviceRepo        iotModels.DeviceRepository
 	roleRepo          authModels.RoleRepository
 	invitationService authSvc.InvitationService
@@ -70,6 +73,7 @@ type OperatorProvisioningServiceConfig struct {
 	OrganizationRepo  platform.OrganizationRepository
 	SchoolRepo        platform.SchoolRepository
 	CategoryRepo      activityModels.CategoryRepository
+	RoomRepo          facilities.RoomRepository
 	DeviceRepo        iotModels.DeviceRepository
 	RoleRepo          authModels.RoleRepository
 	InvitationService authSvc.InvitationService
@@ -84,6 +88,7 @@ func NewOperatorProvisioningService(cfg OperatorProvisioningServiceConfig) Opera
 		organizationRepo:  cfg.OrganizationRepo,
 		schoolRepo:        cfg.SchoolRepo,
 		categoryRepo:      cfg.CategoryRepo,
+		roomRepo:          cfg.RoomRepo,
 		deviceRepo:        cfg.DeviceRepo,
 		roleRepo:          cfg.RoleRepo,
 		invitationService: cfg.InvitationService,
@@ -215,6 +220,9 @@ func (s *operatorProvisioningService) CreateSchool(ctx context.Context, school *
 		}
 		if deviceErr := s.createWebManualDevice(adminCtx, school.ID); deviceErr != nil {
 			return deviceErr
+		}
+		if wcErr := s.createWCRoom(adminCtx, school.ID); wcErr != nil {
+			return wcErr
 		}
 		s.logAction(adminCtx, operatorID, platform.ActionCreate, platform.ResourceSchool, &school.ID, clientIP, map[string]any{
 			"name":           school.Name,
@@ -486,6 +494,38 @@ func (s *operatorProvisioningService) createWebManualDevice(ctx context.Context,
 	s.getLogger().Info("created web manual device for tenant",
 		slog.Int64("tenant_id", tenantID),
 		slog.String("device_id", webManualDeviceID),
+	)
+	return nil
+}
+
+func (s *operatorProvisioningService) createWCRoom(ctx context.Context, tenantID int64) error {
+	if s.roomRepo == nil || tenantID <= 0 {
+		return nil
+	}
+
+	capacity := constants.WCRoomCapacity
+	category := constants.WCCategoryName
+	color := constants.WCColor
+
+	room := &facilities.Room{
+		Name:     constants.WCRoomName,
+		Capacity: &capacity,
+		Category: &category,
+		Color:    &color,
+	}
+	room.SetTenantID(tenantID)
+
+	roomCtx := tenant.WithTenantID(ctx, tenantID)
+	if err := s.roomRepo.Create(roomCtx, room); err != nil {
+		if isUniqueViolation(err) {
+			return nil
+		}
+		return fmt.Errorf("create WC room for tenant %d: %w", tenantID, err)
+	}
+
+	s.getLogger().Info("created WC room for tenant",
+		slog.Int64("tenant_id", tenantID),
+		slog.String("room_name", constants.WCRoomName),
 	)
 	return nil
 }
