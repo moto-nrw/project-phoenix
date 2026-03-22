@@ -2074,4 +2074,60 @@ func TestInvitationCreateSuccess(t *testing.T) {
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
+
+	t.Run("accept invitation returns tenant_slug", func(t *testing.T) {
+		// Create a fresh invitation via the service
+		inviteeEmail := fmt.Sprintf("slug-test-%d@test.local", time.Now().UnixNano())
+		createBody := map[string]interface{}{
+			"email":      inviteeEmail,
+			"role_id":    role.ID,
+			"first_name": "Slug",
+			"last_name":  "Test",
+		}
+
+		createReq := testutil.NewJSONRequest(t, "POST", "/auth/invitations", createBody)
+		createRR := executeWithAuth(router, createReq, adminClaims, []string{"users:create"})
+		require.Equal(t, http.StatusCreated, createRR.Code)
+
+		// Extract token from created invitation
+		createResp := testutil.ParseJSONResponse(t, createRR.Body.Bytes())
+		data := createResp["data"].(map[string]interface{})
+		token := data["token"].(string)
+
+		// Accept the invitation via the auth router (public route, no JWT needed)
+		acceptBody := map[string]interface{}{
+			"first_name":       "Slug",
+			"last_name":        "Test",
+			"password":         "Test1234%",
+			"confirm_password": "Test1234%",
+		}
+		acceptReq := testutil.NewJSONRequest(t, "POST", "/invitations/"+token+"/accept", acceptBody)
+		acceptRR := httptest.NewRecorder()
+		tc.resource.Router().ServeHTTP(acceptRR, acceptReq)
+
+		require.Equal(t, http.StatusCreated, acceptRR.Code,
+			"Expected 201 Created, got %d. Body: %s", acceptRR.Code, acceptRR.Body.String())
+
+		// Parse response and verify tenant_slug is present
+		acceptResp := testutil.ParseJSONResponse(t, acceptRR.Body.Bytes())
+		acceptData := acceptResp["data"].(map[string]interface{})
+		assert.NotEmpty(t, acceptData["account_id"])
+		assert.Equal(t, inviteeEmail, acceptData["email"])
+
+		// tenant_slug should be the slug of the default school (tenant_id=1)
+		if slug, ok := acceptData["tenant_slug"].(string); ok {
+			assert.NotEmpty(t, slug, "tenant_slug should be non-empty")
+		}
+
+		// Cleanup
+		if accountID, ok := acceptData["account_id"].(float64); ok {
+			testpkg.CleanupActivityFixtures(t, tc.db, int64(accountID))
+		}
+		if id, ok := data["id"].(float64); ok {
+			_, _ = tc.db.NewDelete().
+				TableExpr("auth.invitation_tokens").
+				Where("id = ?", int64(id)).
+				Exec(context.Background())
+		}
+	})
 }
