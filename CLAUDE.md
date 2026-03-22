@@ -185,6 +185,8 @@ NEXT_PUBLIC_OPERATOR_HOSTNAME: z.string().min(1)
 - Put the correct value in `.env.example` as documentation
 - Let `env.js` validation crash the build if the var is missing
 - In Edge runtime (middleware) where `env.js` can't run, throw explicitly
+- If required in `env.js`: add as `ARG` + `ENV` in `frontend/Dockerfile.prod` and as `build-args` in `.github/workflows/build.yml`
+- `next build` runs env validation inside the Docker container — missing build args break CI
 
 ## Environment Management (SOPS)
 
