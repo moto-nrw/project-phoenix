@@ -345,7 +345,7 @@ func (a *API) registerRoutesWithRateLimiting() {
 				authLimit = parsed
 			}
 		}
-		authRateLimiter = customMiddleware.NewRateLimiter(authLimit, 2) // small burst for auth
+		authRateLimiter = customMiddleware.NewRateLimiter(authLimit, 10) // allow reasonable burst for login attempts
 		if securityLogger != nil {
 			authRateLimiter.SetLogger(securityLogger)
 		}
@@ -363,15 +363,11 @@ func (a *API) registerRoutesWithRateLimiting() {
 
 	// Mount API resources
 	// Auth routes mounted at root level to match frontend expectations
-	// Apply stricter rate limiting to auth endpoints if enabled
+	// Rate limiting is applied per-route inside Auth.Router() (only login, register, password-reset)
 	if rateLimitEnabled && authRateLimiter != nil {
-		a.Router.Route("/auth", func(r chi.Router) {
-			r.Use(authRateLimiter.Middleware())
-			r.Mount("/", a.Auth.Router())
-		})
-	} else {
-		a.Router.Mount("/auth", a.Auth.Router())
+		a.Auth.SetAuthRateLimiter(authRateLimiter.Middleware())
 	}
+	a.Router.Mount("/auth", a.Auth.Router())
 
 	// Other API routes under /api prefix for organization
 	a.Router.Route("/api", func(r chi.Router) {

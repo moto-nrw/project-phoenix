@@ -45,6 +45,12 @@ type Resource struct {
 	InvitationService authService.InvitationService
 	SchoolRepo        platform.SchoolRepository
 	db                *bun.DB
+	authRateLimiter   func(http.Handler) http.Handler
+}
+
+// SetAuthRateLimiter sets the rate limiter middleware for auth endpoints (login, register, password-reset).
+func (rs *Resource) SetAuthRateLimiter(mw func(http.Handler) http.Handler) {
+	rs.authRateLimiter = mw
 }
 
 // NewResource creates a new auth resource
@@ -65,11 +71,18 @@ func (rs *Resource) Router() chi.Router {
 	// Create JWT auth instance for middleware
 	tokenAuth, _ := jwt.NewTokenAuth()
 
-	// Public routes
-	r.Post("/login", rs.login)
-	r.Post("/register", rs.register)
-	r.Post("/password-reset", rs.initiatePasswordReset)
-	r.Post("/password-reset/confirm", rs.resetPassword)
+	// Rate-limited public routes (brute-force protection)
+	r.Group(func(r chi.Router) {
+		if rs.authRateLimiter != nil {
+			r.Use(rs.authRateLimiter)
+		}
+		r.Post("/login", rs.login)
+		r.Post("/register", rs.register)
+		r.Post("/password-reset", rs.initiatePasswordReset)
+		r.Post("/password-reset/confirm", rs.resetPassword)
+	})
+
+	// Public routes (no rate limiting — these are read-only lookups)
 	r.Get("/invitations/{token}", rs.validateInvitation)
 	r.Post("/invitations/{token}/accept", rs.acceptInvitation)
 	r.Get("/tenant/resolve", rs.resolveTenant)
