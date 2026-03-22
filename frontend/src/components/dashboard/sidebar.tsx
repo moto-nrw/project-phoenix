@@ -7,7 +7,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
 import { useSession } from "next-auth/react";
-import { useSupervision } from "~/lib/supervision-context";
+import { useOptionalSupervision } from "~/lib/supervision-context";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { isAdmin } from "~/lib/auth-utils";
 import { operatorPath } from "~/lib/operator-url";
@@ -236,7 +236,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
 
   // Get supervision state
   const { isLoadingGroups, isLoadingSupervision, groups, supervisedRooms } =
-    useSupervision();
+    useOptionalSupervision();
 
   // Get unread suggestions count for badge (teacher mode)
   const { unreadCount: suggestionsUnreadCount } = useSuggestionsUnread();

@@ -14,7 +14,7 @@ vi.mock("next-auth/react", () => ({
 }));
 
 vi.mock("~/lib/supervision-context", () => ({
-  useSupervision: vi.fn(),
+  useOptionalSupervision: vi.fn(),
 }));
 
 vi.mock("~/lib/auth-utils", () => ({
@@ -74,14 +74,14 @@ vi.mock("~/lib/operator-url", () => ({
 import { MobileBottomNav } from "./mobile-bottom-nav";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useSupervision } from "~/lib/supervision-context";
+import { useOptionalSupervision } from "~/lib/supervision-context";
 import { isAdmin } from "~/lib/auth-utils";
 import { useShellAuth } from "~/lib/shell-auth-context";
 
 const mockUsePathname = vi.mocked(usePathname);
 const mockUseSearchParams = vi.mocked(useSearchParams);
 const mockUseSession = vi.mocked(useSession);
-const mockUseSupervision = vi.mocked(useSupervision);
+const mockUseSupervision = vi.mocked(useOptionalSupervision);
 const mockIsAdmin = vi.mocked(isAdmin);
 const mockUseShellAuth = vi.mocked(useShellAuth);
 
