@@ -353,4 +353,170 @@ describe("PasswordChangeModal", () => {
 
     expect(mockOnClose).toHaveBeenCalled();
   });
+
+  it("shows German error for invalid password backend response", async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({ error: "invalid username or password" }),
+    });
+
+    render(
+      <PasswordChangeModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onSuccess={mockOnSuccess}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText(/Aktuelles Passwort/i), {
+      target: { value: "WrongPass1!" },
+    });
+    fireEvent.change(screen.getByLabelText(/^Neues Passwort$/i), {
+      target: { value: "NewPass123!" },
+    });
+    fireEvent.change(screen.getByLabelText(/Neues Passwort bestätigen/i), {
+      target: { value: "NewPass123!" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Passwort ändern/i }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Das aktuelle Passwort ist falsch/i),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("shows German error for weak password backend response", async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({
+        error: "password doesn't meet complexity requirements",
+      }),
+    });
+
+    render(
+      <PasswordChangeModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onSuccess={mockOnSuccess}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText(/Aktuelles Passwort/i), {
+      target: { value: "OldPass123!" },
+    });
+    fireEvent.change(screen.getByLabelText(/^Neues Passwort$/i), {
+      target: { value: "NewPass123!" },
+    });
+    fireEvent.change(screen.getByLabelText(/Neues Passwort bestätigen/i), {
+      target: { value: "NewPass123!" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Passwort ändern/i }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Das neue Passwort ist zu schwach/i),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("shows German error for account not found backend response", async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({ error: "account not found" }),
+    });
+
+    render(
+      <PasswordChangeModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onSuccess={mockOnSuccess}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText(/Aktuelles Passwort/i), {
+      target: { value: "OldPass123!" },
+    });
+    fireEvent.change(screen.getByLabelText(/^Neues Passwort$/i), {
+      target: { value: "NewPass123!" },
+    });
+    fireEvent.change(screen.getByLabelText(/Neues Passwort bestätigen/i), {
+      target: { value: "NewPass123!" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Passwort ändern/i }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Ihr Konto konnte nicht gefunden werden/i),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("shows generic German error for unknown backend error", async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({ error: "some unknown error" }),
+    });
+
+    render(
+      <PasswordChangeModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onSuccess={mockOnSuccess}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText(/Aktuelles Passwort/i), {
+      target: { value: "OldPass123!" },
+    });
+    fireEvent.change(screen.getByLabelText(/^Neues Passwort$/i), {
+      target: { value: "NewPass123!" },
+    });
+    fireEvent.change(screen.getByLabelText(/Neues Passwort bestätigen/i), {
+      target: { value: "NewPass123!" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Passwort ändern/i }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Passwortänderung fehlgeschlagen/i),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("calls onSuccess after successful password change timeout", async () => {
+    render(
+      <PasswordChangeModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onSuccess={mockOnSuccess}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText(/Aktuelles Passwort/i), {
+      target: { value: "OldPass123!" },
+    });
+    fireEvent.change(screen.getByLabelText(/^Neues Passwort$/i), {
+      target: { value: "NewPass123!" },
+    });
+    fireEvent.change(screen.getByLabelText(/Neues Passwort bestätigen/i), {
+      target: { value: "NewPass123!" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Passwort ändern/i }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Passwort erfolgreich geändert!/i),
+      ).toBeInTheDocument();
+    });
+
+    // Wait for the 2s setTimeout to fire onSuccess + handleClose
+    await waitFor(
+      () => {
+        expect(mockOnSuccess).toHaveBeenCalled();
+      },
+      { timeout: 3000 },
+    );
+    expect(mockOnClose).toHaveBeenCalled();
+  });
 });
