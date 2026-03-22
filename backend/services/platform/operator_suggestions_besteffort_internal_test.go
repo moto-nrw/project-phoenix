@@ -22,7 +22,7 @@ func newTestServiceWithTx(t *testing.T) (*operatorSuggestionsService, sqlmock.Sq
 
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	t.Cleanup(func() { sqlDB.Close() })
+	t.Cleanup(func() { _ = sqlDB.Close() })
 
 	bunDB := bun.NewDB(sqlDB, pgdialect.New())
 
