@@ -40,6 +40,8 @@ type SuggestionResponse struct {
 	UnreadCount      int                `json:"unread_count,omitempty"`
 	IsNew            bool               `json:"is_new,omitempty"`
 	OperatorComments []*CommentResponse `json:"operator_comments,omitempty"`
+	SchoolID         int64              `json:"school_id"`
+	SchoolName       string             `json:"school_name"`
 }
 
 // CommentResponse represents a comment in the response (shared between operator and user APIs)
@@ -105,6 +107,8 @@ func (rs *SuggestionsResource) ListSuggestions(w http.ResponseWriter, r *http.Re
 			AuthorName:   post.AuthorName,
 			CreatedAt:    post.CreatedAt.UTC().Format(time.RFC3339),
 			UpdatedAt:    post.UpdatedAt.UTC().Format(time.RFC3339),
+			SchoolID:     post.TenantID,
+			SchoolName:   post.SchoolName,
 		})
 	}
 
@@ -153,6 +157,8 @@ func (rs *SuggestionsResource) GetSuggestion(w http.ResponseWriter, r *http.Requ
 		CommentCount:     len(comments),
 		UnreadCount:      post.UnreadCount,
 		OperatorComments: commentResponses,
+		SchoolID:         post.TenantID,
+		SchoolName:       post.SchoolName,
 	}
 
 	common.Respond(w, r, http.StatusOK, response, "Suggestion retrieved successfully")

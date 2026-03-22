@@ -41,7 +41,7 @@ export default function RootPage() {
     const tenant = tenants.find((t) => t.slug === selectedSlug);
     if (!tenant) return;
 
-    const tenantDomain = env.NEXT_PUBLIC_TENANT_DOMAIN ?? "localhost";
+    const tenantDomain = env.NEXT_PUBLIC_TENANT_DOMAIN;
     const portSuffix = window.location.port ? `:${window.location.port}` : "";
     const host = `${tenant.subdomain}.${tenantDomain}${portSuffix}`;
 

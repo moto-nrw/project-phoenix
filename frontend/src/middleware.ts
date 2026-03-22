@@ -77,7 +77,14 @@ function isOperatorHost(hostname: string): boolean {
 function handleOperatorSubdomain(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
 
-  // Pass through: all API routes, static assets
+  // Block tenant auth endpoints on the operator host. Tenant session cookies
+  // are domain-scoped and sent to subdomains, so allowing /api/auth/* here
+  // would expose tenant session data on operator.moto-app.de.
+  if (pathname.startsWith("/api/auth/")) {
+    return withSecurityHeaders(new NextResponse(null, { status: 404 }));
+  }
+
+  // Pass through: operator API routes, static assets
   if (
     pathname.startsWith("/api/") ||
     pathname.startsWith("/_next") ||

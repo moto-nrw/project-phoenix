@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { mutate } from "~/lib/swr";
 import { clearSessionCache } from "~/lib/session-cache";
@@ -19,22 +19,66 @@ const logger = createLogger({ component: "TenantGuard" });
  * 2. Tab B (school-b): session=school-a, URL=school-b → mismatch → auto-switch
  * 3. Return to Tab A: SessionProvider refetches, session=school-b, URL=school-a → auto-switch back
  *
+ * Operator isolation:
+ * If a platform-scoped (operator) session leaks to a tenant subdomain via
+ * shared cookies, the guard signs out immediately and redirects to the tenant
+ * login page. This prevents operator sessions from accessing tenant-scoped UI.
+ *
  * RLS provides defense-in-depth during any brief mismatch window.
  */
 export function TenantGuard({ children }: { children: React.ReactNode }) {
   const { data: session, status, update } = useSession();
   const { tenant } = useTenant();
   const switchAttempted = useRef(false);
+  const [signingOutOperator, setSigningOutOperator] = useState(false);
 
   const sessionTenantId = session?.user?.tenantId;
+  const sessionScope = session?.user?.scope;
   const urlTenantId = tenant?.tenantId;
   const urlSlug = tenant?.slug;
+
+  // Operator session on tenant subdomain — sign out immediately
+  useEffect(() => {
+    if (status !== "authenticated" || !tenant) return;
+    if (sessionScope !== "platform") return;
+
+    logger.warn("operator_session_on_tenant", {
+      url_slug: urlSlug,
+      scope: sessionScope,
+    });
+
+    setSigningOutOperator(true);
+
+    void (async () => {
+      try {
+        await mutate(() => true, undefined, { revalidate: false });
+        clearSessionCache();
+      } catch (err) {
+        logger.warn("operator_signout_cache_clear_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+
+      try {
+        await signOut({ redirect: false });
+      } catch (err) {
+        logger.warn("operator_signout_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      } finally {
+        window.location.assign("/");
+      }
+    })();
+  }, [status, tenant, sessionScope, urlSlug]);
 
   useEffect(() => {
     // Only check when authenticated and tenant context is resolved
     if (status !== "authenticated" || !tenant) return;
 
-    // Skip when session has no tenantId (e.g. platform admins)
+    // Operator sessions are handled by the effect above
+    if (sessionScope === "platform") return;
+
+    // Skip when session has no tenantId
     if (sessionTenantId === undefined) return;
 
     // No mismatch — reset guard for future switches
@@ -90,13 +134,37 @@ export function TenantGuard({ children }: { children: React.ReactNode }) {
         }
       }
     })();
-  }, [status, tenant, sessionTenantId, urlTenantId, urlSlug, update]);
+  }, [
+    status,
+    tenant,
+    sessionScope,
+    sessionTenantId,
+    urlTenantId,
+    urlSlug,
+    update,
+  ]);
 
   // Show loading state while session is loading
   if (status === "loading") {
     return (
       <div className="flex min-h-[200px] items-center justify-center">
         <div className="text-sm text-gray-500">Sitzung wird geladen...</div>
+      </div>
+    );
+  }
+
+  // Block render for operator sessions — covers both before effect fires
+  // and during sign-out (signingOutOperator state)
+  const isOperatorOnTenant =
+    signingOutOperator ||
+    (status === "authenticated" && sessionScope === "platform" && !!tenant);
+
+  if (isOperatorOnTenant) {
+    return (
+      <div className="flex min-h-[200px] items-center justify-center">
+        <div className="text-sm text-gray-500">
+          Operator-Sitzung wird beendet...
+        </div>
       </div>
     );
   }

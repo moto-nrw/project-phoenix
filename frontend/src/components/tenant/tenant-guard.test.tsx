@@ -110,7 +110,7 @@ describe("TenantGuard", () => {
     originalLocation = window.location;
     Object.defineProperty(window, "location", {
       writable: true,
-      value: { ...originalLocation, href: "" },
+      value: { ...originalLocation, href: "", assign: vi.fn() },
     });
   });
 
@@ -253,9 +253,101 @@ describe("TenantGuard", () => {
     });
   });
 
-  it("skips check when session tenantId is undefined", () => {
+  it("signs out operator session on tenant subdomain and blocks render", async () => {
     mockUseSession.mockReturnValue({
-      data: { user: { tenantId: undefined } },
+      data: { user: { tenantId: undefined, scope: "platform" } },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+    mockUseTenant.mockReturnValue({
+      tenantSlug: "school-a",
+      tenant: tenantA,
+    });
+
+    render(
+      <TenantGuard>
+        <div>Protected Content</div>
+      </TenantGuard>,
+    );
+
+    // Children must NOT render — operator session is blocked
+    expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Operator-Sitzung wird beendet..."),
+    ).toBeInTheDocument();
+
+    // Should clear caches, sign out, and redirect to tenant login
+    await waitFor(() => {
+      expect(mockSignOut).toHaveBeenCalledWith({ redirect: false });
+    });
+    expect(mockMutate).toHaveBeenCalled();
+    expect(mockClearSessionCache).toHaveBeenCalled();
+    // eslint-disable-next-line @typescript-eslint/unbound-method
+    expect(window.location.assign).toHaveBeenCalledWith("/");
+
+    // Should NOT attempt tenant switching
+    expect(mockSwitchTenant).not.toHaveBeenCalled();
+  });
+
+  it("redirects to tenant login even when signOut fails", async () => {
+    mockUseSession.mockReturnValue({
+      data: { user: { tenantId: undefined, scope: "platform" } },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+    mockUseTenant.mockReturnValue({
+      tenantSlug: "school-a",
+      tenant: tenantA,
+    });
+    mockSignOut.mockRejectedValue(new Error("network down"));
+
+    render(
+      <TenantGuard>
+        <div>Protected Content</div>
+      </TenantGuard>,
+    );
+
+    // Children must NOT render
+    expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
+
+    // Even though signOut fails, redirect must still fire (finally block)
+    await waitFor(() => {
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      expect(window.location.assign).toHaveBeenCalledWith("/");
+    });
+  });
+
+  it("redirects to tenant login even when cache clear fails", async () => {
+    mockUseSession.mockReturnValue({
+      data: { user: { tenantId: undefined, scope: "platform" } },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+    mockUseTenant.mockReturnValue({
+      tenantSlug: "school-a",
+      tenant: tenantA,
+    });
+    mockMutate.mockRejectedValue(new Error("cache error"));
+
+    render(
+      <TenantGuard>
+        <div>Protected Content</div>
+      </TenantGuard>,
+    );
+
+    // signOut should still be called despite cache clear failure
+    await waitFor(() => {
+      expect(mockSignOut).toHaveBeenCalledWith({ redirect: false });
+    });
+
+    // Redirect must fire regardless
+    // eslint-disable-next-line @typescript-eslint/unbound-method
+    expect(window.location.assign).toHaveBeenCalledWith("/");
+  });
+
+  it("skips check when session tenantId is undefined and scope is not platform", () => {
+    mockUseSession.mockReturnValue({
+      data: { user: { tenantId: undefined, scope: undefined } },
       status: "authenticated",
       update: vi.fn(),
     });

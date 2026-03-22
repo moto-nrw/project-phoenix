@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, Suspense, useMemo } from "react";
-// SSE is handled globally by AuthWrapper - real-time updates work automatically
+// SSE is handled globally by TenantAuthWrapper - real-time updates work automatically
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
@@ -167,7 +167,7 @@ function SearchPageContent() {
   const hasFetchedOnce =
     studentsData !== undefined || studentsError !== undefined;
 
-  // SSE is handled globally by AuthWrapper - no page-level setup needed.
+  // SSE is handled globally by TenantAuthWrapper - no page-level setup needed.
   // When student_checkin/checkout events occur, global SSE invalidates "student*" caches,
   // which triggers SWR refetch for search-students-* keys automatically.
 

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { TenantProvider } from "~/components/tenant/tenant-provider";
 import { TenantGuard } from "~/components/tenant/tenant-guard";
+import { TenantProviders } from "./providers";
 import type { TenantInfo, TenantSettings } from "~/lib/tenant-api";
 import { RESERVED_SLUGS } from "~/lib/reserved-slugs";
 
@@ -75,8 +76,10 @@ export default async function TenantLayout({
   }
 
   return (
-    <TenantProvider tenantSlug={tenantSlug} tenant={tenant}>
-      <TenantGuard>{children}</TenantGuard>
-    </TenantProvider>
+    <TenantProviders>
+      <TenantProvider tenantSlug={tenantSlug} tenant={tenant}>
+        <TenantGuard>{children}</TenantGuard>
+      </TenantProvider>
+    </TenantProviders>
   );
 }

@@ -8,6 +8,11 @@ const { mockAuth, mockFetch, mockGetServerApiUrl } = vi.hoisted(() => ({
   mockGetServerApiUrl: vi.fn(() => "http://localhost:8080"),
 }));
 
+vi.mock("~/server/auth/operator", () => ({
+  operatorAuth: mockAuth,
+  uncachedOperatorAuth: mockAuth,
+}));
+
 vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));

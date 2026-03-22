@@ -17,7 +17,7 @@ export const env = createEnv({
       .default("development"),
     NEXTAUTH_URL: z.url().optional().default("http://localhost:3000"),
     NEXTAUTH_SECRET: z.string().optional(),
-    TENANT_DOMAIN: z.string().default("localhost"),
+    TENANT_DOMAIN: z.string().min(1),
   },
 
   /**
@@ -30,7 +30,7 @@ export const env = createEnv({
     NEXT_PUBLIC_LOG_LEVEL: z
       .enum(["debug", "info", "warn", "error"])
       .default("info"),
-    NEXT_PUBLIC_TENANT_DOMAIN: z.string().default("localhost"),
+    NEXT_PUBLIC_TENANT_DOMAIN: z.string().min(1),
     NEXT_PUBLIC_POSTHOG_KEY: z.string().optional(),
     NEXT_PUBLIC_POSTHOG_HOST: z.url().optional(),
     NEXT_PUBLIC_OPERATOR_HOSTNAME: z.string().min(1),

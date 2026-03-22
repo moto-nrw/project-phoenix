@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { authConfig, _resetRefreshState, _testHelpers } from "./config";
+import { operatorAuthConfig } from "./operator-config";
 import type { NextAuthConfig, User } from "next-auth";
 
 // Shared JWT token constants — decoded payloads documented inline
@@ -28,6 +29,7 @@ vi.mock("~/env", () => ({
     NEXT_PUBLIC_API_URL: "http://localhost:8080",
     AUTH_JWT_EXPIRY: "15m",
     AUTH_JWT_REFRESH_EXPIRY: "1h",
+    TENANT_DOMAIN: "moto-app.de",
   },
 }));
 
@@ -1208,19 +1210,16 @@ describe("authConfig", () => {
   });
 
   describe("Credentials authorize - operator flow", () => {
-    // The operator provider is the second CredentialsProvider (index 2 in providers).
-    // Both CredentialsProviders get id "credentials" from Auth.js default;
-    // the real authorize is in `options.authorize`.
+    // The operator provider is now in its own config (operatorAuthConfig).
     function getOperatorAuthorize() {
-      const providers = authConfig.providers.filter(
+      const providers = operatorAuthConfig.providers.filter(
         (p) =>
           typeof p === "object" &&
           p !== null &&
           "type" in p &&
           p.type === "credentials",
       );
-      // Second credentials provider is the operator one
-      const provider = providers[1] as unknown as
+      const provider = providers[0] as unknown as
         | Record<string, unknown>
         | undefined;
       const opts = provider?.options as Record<string, unknown> | undefined;
@@ -1563,71 +1562,151 @@ describe("authConfig", () => {
   });
 
   describe("redirect callback", () => {
-    function callRedirect(url: string, baseUrl: string): string {
+    async function callRedirect(url: string, baseUrl: string): Promise<string> {
       const redirectFn = authConfig.callbacks?.redirect;
       if (!redirectFn) throw new Error("redirect callback not found");
       return redirectFn({ url, baseUrl });
     }
 
-    it("should resolve relative URLs against baseUrl", () => {
-      expect(callRedirect("/dashboard", "http://localhost:3000")).toBe(
+    it("should resolve relative URLs against baseUrl", async () => {
+      expect(await callRedirect("/dashboard", "http://localhost:3000")).toBe(
         "http://localhost:3000/dashboard",
       );
     });
 
-    it("should allow same origin redirects", () => {
+    it("should allow same origin redirects", async () => {
       expect(
-        callRedirect(
+        await callRedirect(
           "http://localhost:3000/dashboard",
           "http://localhost:3000",
         ),
       ).toBe("http://localhost:3000/dashboard");
     });
 
-    it("should allow cross-subdomain localhost redirects", () => {
+    it("should allow cross-subdomain localhost redirects", async () => {
       expect(
-        callRedirect(
+        await callRedirect(
           "http://operator.localhost:3000/login",
           "http://localhost:3000",
         ),
       ).toBe("http://operator.localhost:3000/login");
     });
 
-    it("should allow same parent domain redirects", () => {
+    it("should allow same parent domain redirects", async () => {
       expect(
-        callRedirect(
+        await callRedirect(
           "http://operator.moto-app.de/login",
           "http://altenberge.moto-app.de",
         ),
       ).toBe("http://operator.moto-app.de/login");
     });
 
-    it("should block redirects to different domains", () => {
+    it("should block redirects to different domains", async () => {
       expect(
-        callRedirect("http://evil.com/phish", "http://localhost:3000"),
+        await callRedirect("http://evil.com/phish", "http://localhost:3000"),
       ).toBe("http://localhost:3000");
     });
 
-    it("should block redirects when parent domains differ", () => {
+    it("should block redirects when parent domains differ", async () => {
       expect(
-        callRedirect(
+        await callRedirect(
           "http://evil.other-site.com/phish",
           "http://app.moto-app.de",
         ),
       ).toBe("http://app.moto-app.de");
     });
 
-    it("should handle two-part hostnames without subdomain stripping", () => {
+    it("should handle two-part hostnames without subdomain stripping", async () => {
       // getParentDomain returns hostname as-is when there are only 2 parts
       expect(
-        callRedirect("http://moto-app.de/path", "http://moto-app.de"),
+        await callRedirect("http://moto-app.de/path", "http://moto-app.de"),
       ).toBe("http://moto-app.de/path");
     });
 
-    it("should block when one host is localhost and the other is not", () => {
+    it("should block when one host is localhost and the other is not", async () => {
       expect(
-        callRedirect("http://evil.com/phish", "http://app.moto-app.de"),
+        await callRedirect("http://evil.com/phish", "http://app.moto-app.de"),
       ).toBe("http://app.moto-app.de");
+    });
+  });
+
+  describe("operator redirect callback", () => {
+    async function callOperatorRedirect(
+      url: string,
+      baseUrl: string,
+    ): Promise<string> {
+      const redirectFn = operatorAuthConfig.callbacks?.redirect;
+      if (!redirectFn) throw new Error("operator redirect callback not found");
+      return redirectFn({ url, baseUrl });
+    }
+
+    it("should resolve relative URLs against baseUrl", async () => {
+      expect(
+        await callOperatorRedirect(
+          "/operator/suggestions",
+          "http://operator.moto-app.de",
+        ),
+      ).toBe("http://operator.moto-app.de/operator/suggestions");
+    });
+
+    it("should allow same origin redirects", async () => {
+      expect(
+        await callOperatorRedirect(
+          "http://operator.moto-app.de/operator/suggestions",
+          "http://operator.moto-app.de",
+        ),
+      ).toBe("http://operator.moto-app.de/operator/suggestions");
+    });
+
+    it("should block cross-subdomain redirects on the same parent domain", async () => {
+      expect(
+        await callOperatorRedirect(
+          "http://school-a.moto-app.de/",
+          "http://operator.moto-app.de",
+        ),
+      ).toBe("http://operator.moto-app.de");
+    });
+  });
+
+  describe("cookie configuration", () => {
+    it("should configure tenant cookies for cross-subdomain sharing", () => {
+      expect(authConfig.cookies?.sessionToken?.name).toBe(
+        "next-auth.session-token",
+      );
+      expect(authConfig.cookies?.sessionToken?.options.domain).toBe(
+        ".moto-app.de",
+      );
+      expect(authConfig.cookies?.callbackUrl?.name).toBe(
+        "next-auth.callback-url",
+      );
+      expect(authConfig.cookies?.callbackUrl?.options.domain).toBe(
+        ".moto-app.de",
+      );
+      expect(authConfig.cookies?.csrfToken?.name).toBe("next-auth.csrf-token");
+      expect(authConfig.cookies?.csrfToken?.options.domain).toBe(
+        ".moto-app.de",
+      );
+    });
+
+    it("should configure operator cookies as host-only with unique names", () => {
+      expect(operatorAuthConfig.cookies?.sessionToken?.name).toBe(
+        "operator.session-token",
+      );
+      expect(
+        "domain" in (operatorAuthConfig.cookies?.sessionToken?.options ?? {}),
+      ).toBe(false);
+      expect(operatorAuthConfig.cookies?.callbackUrl?.name).toBe(
+        "operator.callback-url",
+      );
+      expect(
+        "domain" in (operatorAuthConfig.cookies?.callbackUrl?.options ?? {}),
+      ).toBe(false);
+      expect(operatorAuthConfig.cookies?.csrfToken?.name).toBe(
+        "operator.csrf-token",
+      );
+      expect(
+        "domain" in (operatorAuthConfig.cookies?.csrfToken?.options ?? {}),
+      ).toBe(false);
     });
   });
 

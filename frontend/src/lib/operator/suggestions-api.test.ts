@@ -85,6 +85,8 @@ describe("OperatorSuggestionsService", () => {
           author_name: "User",
           created_at: "2024-01-01T00:00:00Z",
           updated_at: "2024-01-01T00:00:00Z",
+          school_id: 5,
+          school_name: "OGS Testschule",
         },
       ];
       mockOperatorFetch.mockResolvedValue(mockData);
@@ -110,6 +112,8 @@ describe("OperatorSuggestionsService", () => {
         author_name: "Alice",
         created_at: "2024-02-01T00:00:00Z",
         updated_at: "2024-02-01T00:00:00Z",
+        school_id: 2,
+        school_name: "OGS Musterstadt",
       };
       mockOperatorFetch.mockResolvedValue(mockData);
 
@@ -132,6 +136,8 @@ describe("OperatorSuggestionsService", () => {
         author_name: "Bob",
         created_at: "2024-03-01T00:00:00Z",
         updated_at: "2024-03-02T00:00:00Z",
+        school_id: 1,
+        school_name: "OGS Demo",
       };
       mockOperatorFetch.mockResolvedValue(mockData);
 

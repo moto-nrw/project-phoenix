@@ -98,6 +98,8 @@
       "src/lib/database/configs/*.{ts,tsx}",
       "src/lib/swr/index.ts",
       "src/server/auth/token-refresh.ts",
+      "src/server/auth/shared.ts",
+      "src/server/auth/operator.ts",
       "src/**/*.test.{ts,tsx}",
       "src/test/mocks/*.ts",
       "src/test/fixtures/*.ts",

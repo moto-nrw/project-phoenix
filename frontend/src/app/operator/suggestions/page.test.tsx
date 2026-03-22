@@ -151,6 +151,8 @@ describe("OperatorSuggestionsPage", () => {
     unreadCount: 1,
     isNew: true,
     createdAt: new Date("2025-01-01"),
+    schoolId: "7",
+    schoolName: "OGS Musterstadt",
   };
 
   beforeEach(() => {
