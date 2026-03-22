@@ -91,7 +91,33 @@ export function PasswordChangeModal({
 
       if (!response.ok) {
         const data = (await response.json()) as { error?: string };
-        throw new Error(data.error ?? "Passwortänderung fehlgeschlagen");
+        const backendError = data.error ?? "";
+
+        // Map backend errors to user-friendly German messages
+        if (
+          backendError.includes("invalid") &&
+          backendError.includes("password")
+        ) {
+          throw new Error(
+            "Das aktuelle Passwort ist falsch. Bitte versuchen Sie es erneut.",
+          );
+        }
+        if (
+          backendError.includes("too weak") ||
+          backendError.includes("complexity")
+        ) {
+          throw new Error(
+            "Das neue Passwort ist zu schwach. Verwenden Sie mindestens 8 Zeichen mit Groß-/Kleinbuchstaben, Zahlen und Sonderzeichen.",
+          );
+        }
+        if (backendError.includes("not found")) {
+          throw new Error(
+            "Ihr Konto konnte nicht gefunden werden. Bitte melden Sie sich erneut an.",
+          );
+        }
+        throw new Error(
+          "Passwortänderung fehlgeschlagen. Bitte versuchen Sie es später erneut.",
+        );
       }
 
       setSuccess(true);
