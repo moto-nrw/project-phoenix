@@ -10,9 +10,11 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/moto-nrw/project-phoenix/constants"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
@@ -184,6 +186,37 @@ func (s *internalCategoryRepoStub) FindByName(context.Context, string) (*activit
 	return nil, nil
 }
 func (s *internalCategoryRepoStub) ListAll(context.Context) ([]*activityModels.Category, error) {
+	return nil, nil
+}
+
+type internalRoomRepoStub struct {
+	createFn func(context.Context, *facilityModels.Room) error
+}
+
+func (s *internalRoomRepoStub) Create(ctx context.Context, room *facilityModels.Room) error {
+	if s.createFn != nil {
+		return s.createFn(ctx, room)
+	}
+	return nil
+}
+func (s *internalRoomRepoStub) FindByID(context.Context, interface{}) (*facilityModels.Room, error) {
+	return nil, nil
+}
+func (s *internalRoomRepoStub) FindByName(context.Context, string) (*facilityModels.Room, error) {
+	return nil, nil
+}
+func (s *internalRoomRepoStub) FindByBuilding(context.Context, string) ([]*facilityModels.Room, error) {
+	return nil, nil
+}
+func (s *internalRoomRepoStub) FindByCategory(context.Context, string) ([]*facilityModels.Room, error) {
+	return nil, nil
+}
+func (s *internalRoomRepoStub) FindByFloor(context.Context, string, int) ([]*facilityModels.Room, error) {
+	return nil, nil
+}
+func (s *internalRoomRepoStub) Update(context.Context, *facilityModels.Room) error { return nil }
+func (s *internalRoomRepoStub) Delete(context.Context, interface{}) error          { return nil }
+func (s *internalRoomRepoStub) List(context.Context, map[string]interface{}) ([]*facilityModels.Room, error) {
 	return nil, nil
 }
 
@@ -388,6 +421,75 @@ func TestCreateWebManualDevice_CreateError(t *testing.T) {
 	err := svc.createWebManualDevice(context.Background(), 42)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "create web manual device for tenant 42")
+	assert.ErrorIs(t, err, assert.AnError)
+}
+
+// ---------------------------------------------------------------------------
+// createWCRoom
+// ---------------------------------------------------------------------------
+
+func TestCreateWCRoom_NilRoomRepo(t *testing.T) {
+	svc := &operatorProvisioningService{}
+	require.NoError(t, svc.createWCRoom(context.Background(), 1))
+}
+
+func TestCreateWCRoom_ZeroTenantID(t *testing.T) {
+	svc := &operatorProvisioningService{roomRepo: &internalRoomRepoStub{}}
+	require.NoError(t, svc.createWCRoom(context.Background(), 0))
+}
+
+func TestCreateWCRoom_NegativeTenantID(t *testing.T) {
+	svc := &operatorProvisioningService{roomRepo: &internalRoomRepoStub{}}
+	require.NoError(t, svc.createWCRoom(context.Background(), -1))
+}
+
+func TestCreateWCRoom_Success(t *testing.T) {
+	var created *facilityModels.Room
+	svc := &operatorProvisioningService{
+		roomRepo: &internalRoomRepoStub{
+			createFn: func(_ context.Context, room *facilityModels.Room) error {
+				created = room
+				return nil
+			},
+		},
+		logger: slog.Default(),
+	}
+
+	err := svc.createWCRoom(context.Background(), 42)
+	require.NoError(t, err)
+	require.NotNil(t, created)
+	assert.Equal(t, constants.WCRoomName, created.Name)
+	require.NotNil(t, created.Capacity)
+	assert.Equal(t, constants.WCRoomCapacity, *created.Capacity)
+	require.NotNil(t, created.Category)
+	assert.Equal(t, constants.WCCategoryName, *created.Category)
+	require.NotNil(t, created.Color)
+	assert.Equal(t, constants.WCColor, *created.Color)
+	assert.Equal(t, int64(42), created.TenantID)
+}
+
+func TestCreateWCRoom_UniqueViolation(t *testing.T) {
+	svc := &operatorProvisioningService{
+		roomRepo: &internalRoomRepoStub{
+			createFn: func(context.Context, *facilityModels.Room) error {
+				return newPgError("23505")
+			},
+		},
+	}
+	require.NoError(t, svc.createWCRoom(context.Background(), 42))
+}
+
+func TestCreateWCRoom_CreateError(t *testing.T) {
+	svc := &operatorProvisioningService{
+		roomRepo: &internalRoomRepoStub{
+			createFn: func(context.Context, *facilityModels.Room) error {
+				return assert.AnError
+			},
+		},
+	}
+	err := svc.createWCRoom(context.Background(), 42)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "create WC room for tenant 42")
 	assert.ErrorIs(t, err, assert.AnError)
 }
 
