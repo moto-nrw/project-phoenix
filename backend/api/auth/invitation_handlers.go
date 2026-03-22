@@ -215,8 +215,28 @@ func (req *AcceptInvitationRequest) Bind(_ *http.Request) error {
 }
 
 type AcceptInvitationResponse struct {
-	AccountID int64  `json:"account_id"`
-	Email     string `json:"email"`
+	AccountID  int64  `json:"account_id"`
+	Email      string `json:"email"`
+	TenantSlug string `json:"tenant_slug,omitempty"`
+}
+
+// renderAcceptError maps service-layer errors to HTTP responses.
+// Returns true if the error was handled.
+func renderAcceptError(w http.ResponseWriter, r *http.Request, err error) bool {
+	switch {
+	case errors.Is(err, authService.ErrPasswordTooWeak),
+		errors.Is(err, authService.ErrPasswordMismatch):
+		common.RenderError(w, r, ErrorInvalidRequest(err))
+	case errors.Is(err, authService.ErrEmailAlreadyExists):
+		common.RenderError(w, r, common.ErrorConflict(authService.ErrEmailAlreadyExists))
+	case errors.Is(err, authService.ErrInvitationNameRequired):
+		common.RenderError(w, r, ErrorInvalidRequest(authService.ErrInvitationNameRequired))
+	case renderInvitationError(w, r, err):
+		// handled by renderInvitationError
+	default:
+		return false
+	}
+	return true
 }
 
 func (rs *Resource) acceptInvitation(w http.ResponseWriter, r *http.Request) {
@@ -254,26 +274,9 @@ func (rs *Resource) acceptInvitation(w http.ResponseWriter, r *http.Request) {
 		account, err = rs.InvitationService.AcceptInvitation(r.Context(), token, userData)
 	}
 	if err != nil {
-		if errors.Is(err, authService.ErrPasswordTooWeak) || errors.Is(err, authService.ErrPasswordMismatch) {
-			common.RenderError(w, r, ErrorInvalidRequest(err))
-			return
+		if !renderAcceptError(w, r, err) {
+			common.RenderError(w, r, ErrorInternalServer(err))
 		}
-
-		if errors.Is(err, authService.ErrEmailAlreadyExists) {
-			common.RenderError(w, r, common.ErrorConflict(authService.ErrEmailAlreadyExists))
-			return
-		}
-
-		if errors.Is(err, authService.ErrInvitationNameRequired) {
-			common.RenderError(w, r, ErrorInvalidRequest(authService.ErrInvitationNameRequired))
-			return
-		}
-
-		if renderInvitationError(w, r, err) {
-			return
-		}
-
-		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -284,7 +287,37 @@ func (rs *Resource) acceptInvitation(w http.ResponseWriter, r *http.Request) {
 		AccountID: account.ID,
 		Email:     account.Email,
 	}
+	if rs.SchoolRepo != nil && rs.db != nil {
+		if slug := rs.lookupTenantSlugForInvitation(r.Context(), token); slug != "" {
+			resp.TenantSlug = slug
+		}
+	}
 	common.Respond(w, r, http.StatusCreated, resp, "Invitation accepted successfully")
+}
+
+// lookupTenantSlugForInvitation resolves the tenant slug from an invitation token.
+// Best-effort: returns "" on any error so the accept response still succeeds.
+func (rs *Resource) lookupTenantSlugForInvitation(ctx context.Context, token string) string {
+	var slug string
+	_ = tenant.WithAdminTx(ctx, rs.db, func(txCtx context.Context, tx bun.Tx) error {
+		invitation := new(authModels.InvitationToken)
+		err := tx.NewSelect().
+			Model(invitation).
+			ModelTableExpr(`auth.invitation_tokens AS "invitation_token"`).
+			Column("tenant_id").
+			Where(`"invitation_token".token = ?`, token).
+			Scan(txCtx)
+		if err != nil {
+			return err
+		}
+		school, err := rs.SchoolRepo.FindByID(txCtx, invitation.TenantID)
+		if err != nil {
+			return err
+		}
+		slug = school.Slug
+		return nil
+	})
+	return slug
 }
 
 func (rs *Resource) listPendingInvitations(w http.ResponseWriter, r *http.Request) {

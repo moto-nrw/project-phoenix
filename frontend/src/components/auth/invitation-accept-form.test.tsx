@@ -29,8 +29,11 @@ vi.mock("~/contexts/ToastContext", () => ({
 }));
 
 // Mock invitation-api
+const { mockAcceptInvitation } = vi.hoisted(() => ({
+  mockAcceptInvitation: vi.fn().mockResolvedValue({ tenantSlug: "ogs-1" }),
+}));
 vi.mock("~/lib/invitation-api", () => ({
-  acceptInvitation: vi.fn(() => Promise.resolve()),
+  acceptInvitation: mockAcceptInvitation,
 }));
 
 // Mock auth-helpers
@@ -85,6 +88,7 @@ describe("InvitationAcceptForm", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockAcceptInvitation.mockResolvedValue({ tenantSlug: "ogs-1" });
   });
 
   it("renders the form with invitation details", async () => {
@@ -237,6 +241,311 @@ describe("InvitationAcceptForm", () => {
       const firstNameInput =
         screen.getByTestId<HTMLInputElement>("input-firstName");
       expect(firstNameInput.value).toBe("");
+    });
+  });
+
+  it("validates missing name fields", async () => {
+    const invitationNoName: InvitationValidation = {
+      ...mockInvitation,
+      firstName: undefined,
+      lastName: undefined,
+    };
+
+    render(
+      <InvitationAcceptForm token="test-token" invitation={invitationNoName} />,
+    );
+
+    const submitButton = await screen.findByRole("button", {
+      name: /Einladung akzeptieren/i,
+    });
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Bitte gib Vor- und Nachname an/i),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("validates password mismatch", async () => {
+    render(
+      <InvitationAcceptForm token="test-token" invitation={mockInvitation} />,
+    );
+
+    const passwordInput = await screen.findByLabelText(/^Passwort$/);
+    const confirmInput = await screen.findByLabelText(/Passwort bestätigen/);
+    fireEvent.change(passwordInput, { target: { value: "Test1234%" } });
+    fireEvent.change(confirmInput, { target: { value: "Different1!" } });
+
+    const submitButton = screen.getByRole("button", {
+      name: /Einladung akzeptieren/i,
+    });
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Passwörter stimmen nicht überein/i),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("validates weak password", async () => {
+    render(
+      <InvitationAcceptForm token="test-token" invitation={mockInvitation} />,
+    );
+
+    const passwordInput = await screen.findByLabelText(/^Passwort$/);
+    const confirmInput = await screen.findByLabelText(/Passwort bestätigen/);
+    fireEvent.change(passwordInput, { target: { value: "weak" } });
+    fireEvent.change(confirmInput, { target: { value: "weak" } });
+
+    const submitButton = screen.getByRole("button", {
+      name: /Einladung akzeptieren/i,
+    });
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Sicherheitsanforderungen/i)).toBeInTheDocument();
+    });
+  });
+
+  it("shows success state after successful submission", async () => {
+    render(
+      <InvitationAcceptForm token="test-token" invitation={mockInvitation} />,
+    );
+
+    const passwordInput = await screen.findByLabelText(/^Passwort$/);
+    const confirmInput = await screen.findByLabelText(/Passwort bestätigen/);
+    fireEvent.change(passwordInput, { target: { value: "Test1234%" } });
+    fireEvent.change(confirmInput, { target: { value: "Test1234%" } });
+
+    const submitButton = screen.getByRole("button", {
+      name: /Einladung akzeptieren/i,
+    });
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Konto erstellt/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(/Weiterleitung zur Anmeldung/i),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("shows error for 410 expired invitation", async () => {
+    mockAcceptInvitation.mockRejectedValueOnce({
+      status: 410,
+      message: "Expired",
+    });
+
+    render(
+      <InvitationAcceptForm token="test-token" invitation={mockInvitation} />,
+    );
+
+    const passwordInput = await screen.findByLabelText(/^Passwort$/);
+    const confirmInput = await screen.findByLabelText(/Passwort bestätigen/);
+    fireEvent.change(passwordInput, { target: { value: "Test1234%" } });
+    fireEvent.change(confirmInput, { target: { value: "Test1234%" } });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Einladung akzeptieren/i }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(/nicht mehr gültig/i)).toBeInTheDocument();
+    });
+  });
+
+  it("shows error for 409 email conflict", async () => {
+    mockAcceptInvitation.mockRejectedValueOnce({
+      status: 409,
+      message: "Conflict",
+    });
+
+    render(
+      <InvitationAcceptForm token="test-token" invitation={mockInvitation} />,
+    );
+
+    const passwordInput = await screen.findByLabelText(/^Passwort$/);
+    const confirmInput = await screen.findByLabelText(/Passwort bestätigen/);
+    fireEvent.change(passwordInput, { target: { value: "Test1234%" } });
+    fireEvent.change(confirmInput, { target: { value: "Test1234%" } });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Einladung akzeptieren/i }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(/bereits ein Konto/i)).toBeInTheDocument();
+    });
+  });
+
+  it("shows error for 404 not found", async () => {
+    mockAcceptInvitation.mockRejectedValueOnce({
+      status: 404,
+      message: "Not found",
+    });
+
+    render(
+      <InvitationAcceptForm token="test-token" invitation={mockInvitation} />,
+    );
+
+    const passwordInput = await screen.findByLabelText(/^Passwort$/);
+    const confirmInput = await screen.findByLabelText(/Passwort bestätigen/);
+    fireEvent.change(passwordInput, { target: { value: "Test1234%" } });
+    fireEvent.change(confirmInput, { target: { value: "Test1234%" } });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Einladung akzeptieren/i }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(/nicht gefunden/i)).toBeInTheDocument();
+    });
+  });
+
+  it("shows error for 400 bad request with message", async () => {
+    mockAcceptInvitation.mockRejectedValueOnce({
+      status: 400,
+      message: "Passwort zu schwach",
+    });
+
+    render(
+      <InvitationAcceptForm token="test-token" invitation={mockInvitation} />,
+    );
+
+    const passwordInput = await screen.findByLabelText(/^Passwort$/);
+    const confirmInput = await screen.findByLabelText(/Passwort bestätigen/);
+    fireEvent.change(passwordInput, { target: { value: "Test1234%" } });
+    fireEvent.change(confirmInput, { target: { value: "Test1234%" } });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Einladung akzeptieren/i }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(/Passwort zu schwach/i)).toBeInTheDocument();
+    });
+  });
+
+  it("shows generic error for unknown failure", async () => {
+    mockAcceptInvitation.mockRejectedValueOnce({});
+
+    render(
+      <InvitationAcceptForm token="test-token" invitation={mockInvitation} />,
+    );
+
+    const passwordInput = await screen.findByLabelText(/^Passwort$/);
+    const confirmInput = await screen.findByLabelText(/Passwort bestätigen/);
+    fireEvent.change(passwordInput, { target: { value: "Test1234%" } });
+    fireEvent.change(confirmInput, { target: { value: "Test1234%" } });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Einladung akzeptieren/i }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(/Fehler aufgetreten/i)).toBeInTheDocument();
+    });
+  });
+
+  it("redirects to tenant subdomain after successful accept", async () => {
+    const originalEnv = process.env.NEXT_PUBLIC_TENANT_DOMAIN;
+    const originalLocation = window.location;
+    process.env.NEXT_PUBLIC_TENANT_DOMAIN = "localhost";
+
+    const mockLocation = { href: "", protocol: "http:", port: "3000" };
+    Object.defineProperty(window, "location", {
+      value: mockLocation,
+      writable: true,
+      configurable: true,
+    });
+
+    try {
+      render(
+        <InvitationAcceptForm token="test-token" invitation={mockInvitation} />,
+      );
+
+      const passwordInput = await screen.findByLabelText(/^Passwort$/);
+      const confirmInput = await screen.findByLabelText(/Passwort bestätigen/);
+      fireEvent.change(passwordInput, { target: { value: "Test1234%" } });
+      fireEvent.change(confirmInput, { target: { value: "Test1234%" } });
+
+      fireEvent.click(
+        screen.getByRole("button", { name: /Einladung akzeptieren/i }),
+      );
+
+      // Wait for redirect to happen (1.5s timeout + buffer)
+      await waitFor(
+        () => {
+          expect(mockLocation.href).toBe("http://ogs-1.localhost:3000/");
+        },
+        { timeout: 3000 },
+      );
+    } finally {
+      process.env.NEXT_PUBLIC_TENANT_DOMAIN = originalEnv;
+      Object.defineProperty(window, "location", {
+        value: originalLocation,
+        writable: true,
+        configurable: true,
+      });
+    }
+  });
+
+  it("falls back to router.push when no tenant slug", async () => {
+    mockAcceptInvitation.mockResolvedValueOnce({ tenantSlug: undefined });
+
+    render(
+      <InvitationAcceptForm token="test-token" invitation={mockInvitation} />,
+    );
+
+    const passwordInput = await screen.findByLabelText(/^Passwort$/);
+    const confirmInput = await screen.findByLabelText(/Passwort bestätigen/);
+    fireEvent.change(passwordInput, { target: { value: "Test1234%" } });
+    fireEvent.change(confirmInput, { target: { value: "Test1234%" } });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Einladung akzeptieren/i }),
+    );
+
+    await waitFor(
+      () => {
+        expect(mockPush).toHaveBeenCalledWith("/");
+      },
+      { timeout: 3000 },
+    );
+  });
+
+  it("shows offline error when navigator is offline", async () => {
+    mockAcceptInvitation.mockRejectedValueOnce(new Error("Failed to fetch"));
+
+    // Simulate offline
+    Object.defineProperty(navigator, "onLine", {
+      value: false,
+      configurable: true,
+    });
+
+    render(
+      <InvitationAcceptForm token="test-token" invitation={mockInvitation} />,
+    );
+
+    const passwordInput = await screen.findByLabelText(/^Passwort$/);
+    const confirmInput = await screen.findByLabelText(/Passwort bestätigen/);
+    fireEvent.change(passwordInput, { target: { value: "Test1234%" } });
+    fireEvent.change(confirmInput, { target: { value: "Test1234%" } });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Einladung akzeptieren/i }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(/Keine Netzwerkverbindung/i)).toBeInTheDocument();
+    });
+
+    // Restore
+    Object.defineProperty(navigator, "onLine", {
+      value: true,
+      configurable: true,
     });
   });
 });

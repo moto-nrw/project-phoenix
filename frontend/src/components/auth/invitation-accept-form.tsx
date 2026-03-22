@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- redirect targets root login, not tenant route
 import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { useToast } from "~/contexts/ToastContext";
 import { Input } from "~/components/ui";
 import { getRoleDisplayName } from "~/lib/auth-helpers";
 import { acceptInvitation } from "~/lib/invitation-api";
@@ -66,8 +65,8 @@ export function InvitationAcceptForm({
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { success: toastSuccess } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isAccepted, setIsAccepted] = useState(false);
 
   useEffect(() => {
     setFirstName(invitation.firstName ?? "");
@@ -111,22 +110,30 @@ export function InvitationAcceptForm({
 
     try {
       setIsSubmitting(true);
-      await acceptInvitation(token, {
+      const result = await acceptInvitation(token, {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         password,
         confirmPassword,
       });
-      toastSuccess(
-        "Einladung erfolgreich angenommen! Du wirst zur Anmeldung weitergeleitet.",
-      );
+      setIsAccepted(true);
 
       // Logout any existing session before redirecting to login
       await signOut({ redirect: false });
 
       setTimeout(() => {
+        // Redirect to tenant subdomain if available, otherwise root
+        if (result.tenantSlug && globalThis.window !== undefined) {
+          const tenantDomain = process.env.NEXT_PUBLIC_TENANT_DOMAIN;
+          if (tenantDomain) {
+            const { protocol, port: locationPort } = globalThis.window.location;
+            const port = locationPort ? `:${locationPort}` : "";
+            globalThis.window.location.href = `${protocol}//${result.tenantSlug}.${tenantDomain}${port}/`;
+            return;
+          }
+        }
         router.push("/");
-      }, 2500);
+      }, 1500);
     } catch (err) {
       // Distinguish network/offline from HTTP errors
       if (typeof navigator !== "undefined" && !navigator.onLine) {
@@ -149,6 +156,48 @@ export function InvitationAcceptForm({
       setIsSubmitting(false);
     }
   };
+
+  if (isAccepted) {
+    return (
+      <div className="flex flex-col items-center py-12">
+        <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-full bg-gray-900">
+          <svg
+            className="h-6 w-6 text-white"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2.5}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M5 13l4 4L19 7"
+            />
+          </svg>
+        </div>
+        <h3 className="mb-1 text-base font-semibold text-gray-900">
+          Konto erstellt
+        </h3>
+        <p className="mb-6 text-sm text-gray-500">
+          Weiterleitung zur Anmeldung...
+        </p>
+        <div className="h-1 w-16 overflow-hidden rounded-full bg-gray-100">
+          <div
+            className="h-full rounded-full bg-gray-900"
+            style={{
+              animation: "progressFill 1.5s ease-in-out forwards",
+            }}
+          />
+        </div>
+        <style>{`
+          @keyframes progressFill {
+            from { width: 0%; }
+            to { width: 100%; }
+          }
+        `}</style>
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={handleSubmit} noValidate className="space-y-6">

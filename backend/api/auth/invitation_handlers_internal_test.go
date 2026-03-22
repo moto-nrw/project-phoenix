@@ -154,6 +154,27 @@ func TestInvitationHandlers_ValidateAndAccept(t *testing.T) {
 	acceptRR := httptest.NewRecorder()
 	resource.acceptInvitation(acceptRR, acceptReq)
 	assert.Equal(t, http.StatusCreated, acceptRR.Code)
+
+	// Verify response includes account_id and email but no tenant_slug (no SchoolRepo)
+	var acceptResp AcceptInvitationResponse
+	err := json.Unmarshal([]byte(extractDataJSON(t, acceptRR.Body.Bytes())), &acceptResp)
+	assert.NoError(t, err)
+	assert.Equal(t, int64(77), acceptResp.AccountID)
+	assert.Equal(t, "invitee@example.com", acceptResp.Email)
+	assert.Empty(t, acceptResp.TenantSlug, "tenant_slug should be empty when SchoolRepo is nil")
+}
+
+// extractDataJSON extracts the "data" field from the standard API response envelope.
+func extractDataJSON(t *testing.T, body []byte) string {
+	t.Helper()
+	var envelope struct {
+		Data json.RawMessage `json:"data"`
+	}
+	if err := json.Unmarshal(body, &envelope); err != nil {
+		// If no envelope, return raw body
+		return string(body)
+	}
+	return string(envelope.Data)
 }
 
 func TestInvitationHandlerHelpersAndErrors(t *testing.T) {
