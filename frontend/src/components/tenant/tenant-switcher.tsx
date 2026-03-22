@@ -95,7 +95,7 @@ export function TenantSwitcher() {
         // Always use subdomain routing — the middleware rewrites subdomains
         // to path segments, so navigating to a path directly on the old
         // subdomain creates a broken double-prefixed URL.
-        const tenantDomain = env.NEXT_PUBLIC_TENANT_DOMAIN || "localhost";
+        const tenantDomain = env.NEXT_PUBLIC_TENANT_DOMAIN;
         const port = window.location.port ? `:${window.location.port}` : "";
         const protocol = window.location.protocol;
         window.location.href = `${protocol}//${targetTenant.subdomain}.${tenantDomain}${port}/dashboard`;
