@@ -127,7 +127,7 @@ describe("tenant-api", () => {
   // --------------------------------------------------------------------------
 
   describe("listAllTenants", () => {
-    it("returns mapped tenants without internal IDs", async () => {
+    it("returns mapped tenants with status ok", async () => {
       const data = {
         data: [
           {
@@ -153,11 +153,12 @@ describe("tenant-api", () => {
       );
 
       const { listAllTenants } = await import("./tenant-api");
-      const result = await listAllTenants();
+      const result = await listAllTenants(1);
 
       expect(global.fetch).toHaveBeenCalledWith("/api/tenant/list");
-      expect(result).toHaveLength(2);
-      expect(result[0]).toEqual({
+      expect(result.status).toBe("ok");
+      expect(result.tenants).toHaveLength(2);
+      expect(result.tenants[0]).toEqual({
         tenantId: 0,
         slug: "school-a",
         name: "School A",
@@ -168,18 +169,18 @@ describe("tenant-api", () => {
       });
     });
 
-    it("returns empty array on error response", async () => {
-      vi.mocked(global.fetch).mockResolvedValueOnce(
+    it("returns error status after exhausting retries on server error", async () => {
+      vi.mocked(global.fetch).mockResolvedValue(
         new Response("Server Error", { status: 500 }),
       );
 
       const { listAllTenants } = await import("./tenant-api");
-      const result = await listAllTenants();
+      const result = await listAllTenants(1);
 
-      expect(result).toEqual([]);
+      expect(result).toEqual({ tenants: [], status: "error" });
     });
 
-    it("returns empty array when data field is missing", async () => {
+    it("returns empty tenants with status ok when data field is missing", async () => {
       vi.mocked(global.fetch).mockResolvedValueOnce(
         new Response(JSON.stringify({}), {
           status: 200,
@@ -188,18 +189,47 @@ describe("tenant-api", () => {
       );
 
       const { listAllTenants } = await import("./tenant-api");
-      const result = await listAllTenants();
+      const result = await listAllTenants(1);
 
-      expect(result).toEqual([]);
+      expect(result).toEqual({ tenants: [], status: "ok" });
     });
 
-    it("returns empty array on network error", async () => {
-      vi.mocked(global.fetch).mockRejectedValueOnce(new Error("Network error"));
+    it("returns error status after exhausting retries on network error", async () => {
+      vi.mocked(global.fetch).mockRejectedValue(new Error("Network error"));
 
       const { listAllTenants } = await import("./tenant-api");
-      const result = await listAllTenants();
+      const result = await listAllTenants(1);
 
-      expect(result).toEqual([]);
+      expect(result).toEqual({ tenants: [], status: "error" });
+    });
+
+    it("retries on transient failure then succeeds", async () => {
+      const data = {
+        data: [
+          {
+            slug: "school-a",
+            name: "School A",
+            subdomain: "school-a",
+            organization_name: "Org Alpha",
+          },
+        ],
+      };
+
+      vi.mocked(global.fetch)
+        .mockRejectedValueOnce(new Error("Network error"))
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify(data), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+
+      const { listAllTenants } = await import("./tenant-api");
+      const result = await listAllTenants(2);
+
+      expect(global.fetch).toHaveBeenCalledTimes(2);
+      expect(result.status).toBe("ok");
+      expect(result.tenants).toHaveLength(1);
     });
   });
 

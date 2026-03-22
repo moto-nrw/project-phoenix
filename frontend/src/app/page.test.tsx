@@ -45,26 +45,29 @@ describe("RootPage", () => {
   });
 
   it("renders tenant options in select after loading", async () => {
-    mockListAllTenants.mockResolvedValue([
-      {
-        tenantId: 0,
-        slug: "school-a",
-        name: "Testschule A",
-        subdomain: "school-a",
-        organizationId: 0,
-        organizationName: "",
-        settings: {},
-      },
-      {
-        tenantId: 0,
-        slug: "school-b",
-        name: "Testschule B",
-        subdomain: "school-b",
-        organizationId: 0,
-        organizationName: "",
-        settings: {},
-      },
-    ]);
+    mockListAllTenants.mockResolvedValue({
+      status: "ok",
+      tenants: [
+        {
+          tenantId: 0,
+          slug: "school-a",
+          name: "Testschule A",
+          subdomain: "school-a",
+          organizationId: 0,
+          organizationName: "",
+          settings: {},
+        },
+        {
+          tenantId: 0,
+          slug: "school-b",
+          name: "Testschule B",
+          subdomain: "school-b",
+          organizationId: 0,
+          organizationName: "",
+          settings: {},
+        },
+      ],
+    });
 
     render(<RootPage />);
 
@@ -81,17 +84,20 @@ describe("RootPage", () => {
   });
 
   it("disables button when no tenant is selected", async () => {
-    mockListAllTenants.mockResolvedValue([
-      {
-        tenantId: 0,
-        slug: "school-a",
-        name: "School A",
-        subdomain: "school-a",
-        organizationId: 0,
-        organizationName: "",
-        settings: {},
-      },
-    ]);
+    mockListAllTenants.mockResolvedValue({
+      status: "ok",
+      tenants: [
+        {
+          tenantId: 0,
+          slug: "school-a",
+          name: "School A",
+          subdomain: "school-a",
+          organizationId: 0,
+          organizationName: "",
+          settings: {},
+        },
+      ],
+    });
 
     render(<RootPage />);
 
@@ -104,17 +110,20 @@ describe("RootPage", () => {
   });
 
   it("enables button when a tenant is selected", async () => {
-    mockListAllTenants.mockResolvedValue([
-      {
-        tenantId: 0,
-        slug: "school-a",
-        name: "School A",
-        subdomain: "school-a",
-        organizationId: 0,
-        organizationName: "",
-        settings: {},
-      },
-    ]);
+    mockListAllTenants.mockResolvedValue({
+      status: "ok",
+      tenants: [
+        {
+          tenantId: 0,
+          slug: "school-a",
+          name: "School A",
+          subdomain: "school-a",
+          organizationId: 0,
+          organizationName: "",
+          settings: {},
+        },
+      ],
+    });
 
     render(<RootPage />);
 
@@ -131,17 +140,20 @@ describe("RootPage", () => {
   });
 
   it("navigates to tenant subdomain when clicking Weiter", async () => {
-    mockListAllTenants.mockResolvedValue([
-      {
-        tenantId: 0,
-        slug: "school-a",
-        name: "School A",
-        subdomain: "school-a",
-        organizationId: 0,
-        organizationName: "",
-        settings: {},
-      },
-    ]);
+    mockListAllTenants.mockResolvedValue({
+      status: "ok",
+      tenants: [
+        {
+          tenantId: 0,
+          slug: "school-a",
+          name: "School A",
+          subdomain: "school-a",
+          organizationId: 0,
+          organizationName: "",
+          settings: {},
+        },
+      ],
+    });
 
     render(<RootPage />);
 
@@ -164,17 +176,20 @@ describe("RootPage", () => {
   });
 
   it("does not navigate when selected slug has no matching tenant", async () => {
-    mockListAllTenants.mockResolvedValue([
-      {
-        tenantId: 0,
-        slug: "school-a",
-        name: "School A",
-        subdomain: "school-a",
-        organizationId: 0,
-        organizationName: "",
-        settings: {},
-      },
-    ]);
+    mockListAllTenants.mockResolvedValue({
+      status: "ok",
+      tenants: [
+        {
+          tenantId: 0,
+          slug: "school-a",
+          name: "School A",
+          subdomain: "school-a",
+          organizationId: 0,
+          organizationName: "",
+          settings: {},
+        },
+      ],
+    });
 
     render(<RootPage />);
 
@@ -196,8 +211,8 @@ describe("RootPage", () => {
     hrefSpy.mockRestore();
   });
 
-  it("shows error message when error is not an Error instance", async () => {
-    mockListAllTenants.mockRejectedValue("string error");
+  it("shows backend error when listAllTenants returns error status", async () => {
+    mockListAllTenants.mockResolvedValue({ tenants: [], status: "error" });
 
     render(<RootPage />);
 
@@ -212,32 +227,14 @@ describe("RootPage", () => {
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
   });
 
-  it("shows error message when backend is unreachable", async () => {
-    mockListAllTenants.mockRejectedValue(new Error("Network error"));
+  it("shows empty message when backend returns no tenants", async () => {
+    mockListAllTenants.mockResolvedValue({ tenants: [], status: "ok" });
 
     render(<RootPage />);
 
     await waitFor(() => {
       expect(
-        screen.getByText(
-          "Backend nicht erreichbar — bitte versuchen Sie es später erneut.",
-        ),
-      ).toBeInTheDocument();
-    });
-
-    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
-  });
-
-  it("shows error message when API returns empty list", async () => {
-    mockListAllTenants.mockResolvedValue([]);
-
-    render(<RootPage />);
-
-    await waitFor(() => {
-      expect(
-        screen.getByText(
-          "Backend nicht erreichbar — bitte versuchen Sie es später erneut.",
-        ),
+        screen.getByText("Aktuell sind keine Einrichtungen verfügbar."),
       ).toBeInTheDocument();
     });
 
