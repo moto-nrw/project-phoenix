@@ -501,6 +501,105 @@ func TestOperatorProvisioningService_CreateSchool_CategorySeedError(t *testing.T
 	require.ErrorIs(t, err, assert.AnError)
 }
 
+// --- Schulhof Infrastructure tests ---
+
+type mockSchulhofSetup struct {
+	called bool
+	err    error
+}
+
+func (m *mockSchulhofSetup) EnsureRoomAndCategory(_ context.Context) error {
+	m.called = true
+	return m.err
+}
+
+func TestOperatorProvisioningService_CreateSchool_CallsSchulhofSetup(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectCommit()
+
+	schulhof := &mockSchulhofSetup{}
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		OrganizationRepo: &mockOrganizationRepo{
+			findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
+				return &platformModels.Organization{Model: base.Model{ID: 1}, Name: "Org", Slug: "org", Active: true}, nil
+			},
+		},
+		SchoolRepo: &mockSchoolRepo{
+			findByOrgAndSlugFn: func(context.Context, int64, string) (*platformModels.School, error) { return nil, nil },
+			findBySubdomainFn:  func(context.Context, string) (*platformModels.School, error) { return nil, nil },
+			createFn: func(_ context.Context, school *platformModels.School) error {
+				school.ID = 99
+				return nil
+			},
+		},
+		CategoryRepo:  &mockCategoryRepo{},
+		SchulhofSetup: schulhof,
+		AuditLogRepo:  &mockAuditLogRepoShared{},
+		DB:            bunDB,
+	})
+
+	school, err := service.CreateSchool(context.Background(), &platformModels.School{
+		OrganizationID: 1, Name: "Test School", Slug: "test", Subdomain: "test", Active: true,
+	}, 1, net.IPv4(127, 0, 0, 1))
+	require.NoError(t, err)
+	require.NotNil(t, school)
+	assert.True(t, schulhof.called, "EnsureRoomAndCategory should have been called")
+}
+
+func TestOperatorProvisioningService_CreateSchool_SchulhofSetupError(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectRollback()
+
+	schulhof := &mockSchulhofSetup{err: assert.AnError}
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		OrganizationRepo: &mockOrganizationRepo{
+			findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
+				return &platformModels.Organization{Model: base.Model{ID: 1}, Name: "Org", Slug: "org", Active: true}, nil
+			},
+		},
+		SchoolRepo: &mockSchoolRepo{
+			findByOrgAndSlugFn: func(context.Context, int64, string) (*platformModels.School, error) { return nil, nil },
+			findBySubdomainFn:  func(context.Context, string) (*platformModels.School, error) { return nil, nil },
+			createFn: func(_ context.Context, school *platformModels.School) error {
+				school.ID = 99
+				return nil
+			},
+		},
+		CategoryRepo:  &mockCategoryRepo{},
+		SchulhofSetup: schulhof,
+		AuditLogRepo:  &mockAuditLogRepoShared{},
+		DB:            bunDB,
+	})
+
+	school, err := service.CreateSchool(context.Background(), &platformModels.School{
+		OrganizationID: 1, Name: "Test School", Slug: "test", Subdomain: "test", Active: true,
+	}, 1, net.IPv4(127, 0, 0, 1))
+	require.Nil(t, school)
+	require.ErrorIs(t, err, assert.AnError)
+}
+
 func TestOperatorProvisioningService_InviteSchoolAdmin_SchoolNotFound(t *testing.T) {
 	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
 		SchoolRepo: &mockSchoolRepo{},
