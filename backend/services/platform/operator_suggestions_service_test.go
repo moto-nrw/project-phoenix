@@ -1077,6 +1077,273 @@ func TestDeleteComment_RepoErrorOnFindByID(t *testing.T) {
 	assert.ErrorIs(t, err, expectedErr)
 }
 
+func TestUpdatePostStatus_RepoErrorOnFindByID(t *testing.T) {
+	ctx := context.Background()
+	clientIP := net.ParseIP("192.168.1.1")
+	expectedErr := errors.New("find error")
+
+	postRepo := &mockPostRepo{
+		findByIDFn: func(ctx context.Context, id int64) (*suggestions.Post, error) {
+			return nil, expectedErr
+		},
+	}
+
+	svc := platformService.NewOperatorSuggestionsService(platformService.OperatorSuggestionsServiceConfig{
+		PostRepo:        postRepo,
+		CommentRepo:     &mockCommentRepo{},
+		CommentReadRepo: &mockCommentReadRepo{},
+		PostReadRepo:    &mockPostReadRepo{},
+		AuditLogRepo:    &mockAuditLogRepoShared{},
+		Logger:          slog.Default(),
+	})
+
+	err := svc.UpdatePostStatus(ctx, 456, suggestions.StatusDone, 123, clientIP)
+	assert.ErrorIs(t, err, expectedErr)
+}
+
+func TestUpdatePostStatus_MarkViewedFails_StillSucceeds(t *testing.T) {
+	ctx := context.Background()
+	clientIP := net.ParseIP("192.168.1.1")
+
+	postRepo := &mockPostRepo{
+		findByIDFn: func(ctx context.Context, id int64) (*suggestions.Post, error) {
+			return &suggestions.Post{Status: suggestions.StatusOpen}, nil
+		},
+		updateFn: func(ctx context.Context, post *suggestions.Post) error {
+			return nil
+		},
+	}
+
+	postReadRepo := &mockPostReadRepo{
+		markViewedFn: func(ctx context.Context, accountID, postID int64, readerType string) error {
+			return errors.New("mark viewed failed")
+		},
+	}
+
+	svc := platformService.NewOperatorSuggestionsService(platformService.OperatorSuggestionsServiceConfig{
+		PostRepo:        postRepo,
+		CommentRepo:     &mockCommentRepo{},
+		CommentReadRepo: &mockCommentReadRepo{},
+		PostReadRepo:    postReadRepo,
+		AuditLogRepo:    &mockAuditLogRepoShared{},
+		Logger:          slog.Default(),
+	})
+
+	// bestEffort catches the markViewed error — overall operation should succeed
+	err := svc.UpdatePostStatus(ctx, 456, suggestions.StatusDone, 123, clientIP)
+	require.NoError(t, err)
+}
+
+func TestUpdatePostStatus_AuditLogFails_StillSucceeds(t *testing.T) {
+	ctx := context.Background()
+	clientIP := net.ParseIP("192.168.1.1")
+
+	postRepo := &mockPostRepo{
+		findByIDFn: func(ctx context.Context, id int64) (*suggestions.Post, error) {
+			return &suggestions.Post{Status: suggestions.StatusOpen}, nil
+		},
+		updateFn: func(ctx context.Context, post *suggestions.Post) error {
+			return nil
+		},
+	}
+
+	auditLogRepo := &mockAuditLogRepoShared{
+		createFn: func(ctx context.Context, entry *platform.OperatorAuditLog) error {
+			return errors.New("audit log failed")
+		},
+	}
+
+	svc := platformService.NewOperatorSuggestionsService(platformService.OperatorSuggestionsServiceConfig{
+		PostRepo:        postRepo,
+		CommentRepo:     &mockCommentRepo{},
+		CommentReadRepo: &mockCommentReadRepo{},
+		PostReadRepo:    &mockPostReadRepo{},
+		AuditLogRepo:    auditLogRepo,
+		Logger:          slog.Default(),
+	})
+
+	// bestEffort catches the audit log error — overall operation should succeed
+	err := svc.UpdatePostStatus(ctx, 456, suggestions.StatusDone, 123, clientIP)
+	require.NoError(t, err)
+}
+
+func TestAddComment_RepoErrorOnFindByID(t *testing.T) {
+	ctx := context.Background()
+	clientIP := net.ParseIP("192.168.1.1")
+	expectedErr := errors.New("find error")
+
+	postRepo := &mockPostRepo{
+		findByIDFn: func(ctx context.Context, id int64) (*suggestions.Post, error) {
+			return nil, expectedErr
+		},
+	}
+
+	svc := platformService.NewOperatorSuggestionsService(platformService.OperatorSuggestionsServiceConfig{
+		PostRepo:        postRepo,
+		CommentRepo:     &mockCommentRepo{},
+		CommentReadRepo: &mockCommentReadRepo{},
+		PostReadRepo:    &mockPostReadRepo{},
+		AuditLogRepo:    &mockAuditLogRepoShared{},
+		Logger:          slog.Default(),
+	})
+
+	comment := &suggestions.Comment{
+		PostID:   456,
+		AuthorID: 123,
+		Content:  "Test comment",
+	}
+
+	err := svc.AddComment(ctx, comment, clientIP)
+	assert.ErrorIs(t, err, expectedErr)
+}
+
+func TestAddComment_AuditLogFails_StillSucceeds(t *testing.T) {
+	ctx := context.Background()
+	clientIP := net.ParseIP("192.168.1.1")
+
+	postRepo := &mockPostRepo{
+		findByIDFn: func(ctx context.Context, id int64) (*suggestions.Post, error) {
+			return &suggestions.Post{}, nil
+		},
+	}
+
+	commentRepo := &mockCommentRepo{
+		createFn: func(ctx context.Context, comment *suggestions.Comment) error {
+			return nil
+		},
+	}
+
+	auditLogRepo := &mockAuditLogRepoShared{
+		createFn: func(ctx context.Context, entry *platform.OperatorAuditLog) error {
+			return errors.New("audit log failed")
+		},
+	}
+
+	svc := platformService.NewOperatorSuggestionsService(platformService.OperatorSuggestionsServiceConfig{
+		PostRepo:        postRepo,
+		CommentRepo:     commentRepo,
+		CommentReadRepo: &mockCommentReadRepo{},
+		PostReadRepo:    &mockPostReadRepo{},
+		AuditLogRepo:    auditLogRepo,
+		Logger:          slog.Default(),
+	})
+
+	comment := &suggestions.Comment{
+		PostID:   456,
+		AuthorID: 123,
+		Content:  "Test comment",
+	}
+
+	err := svc.AddComment(ctx, comment, clientIP)
+	require.NoError(t, err)
+}
+
+func TestDeleteComment_AuditLogFails_StillSucceeds(t *testing.T) {
+	ctx := context.Background()
+	clientIP := net.ParseIP("192.168.1.1")
+
+	commentRepo := &mockCommentRepo{
+		findByIDFn: func(ctx context.Context, id int64) (*suggestions.Comment, error) {
+			return &suggestions.Comment{PostID: 456}, nil
+		},
+		deleteFn: func(ctx context.Context, id int64) error {
+			return nil
+		},
+	}
+
+	auditLogRepo := &mockAuditLogRepoShared{
+		createFn: func(ctx context.Context, entry *platform.OperatorAuditLog) error {
+			return errors.New("audit log failed")
+		},
+	}
+
+	svc := platformService.NewOperatorSuggestionsService(platformService.OperatorSuggestionsServiceConfig{
+		PostRepo:        &mockPostRepo{},
+		CommentRepo:     commentRepo,
+		CommentReadRepo: &mockCommentReadRepo{},
+		PostReadRepo:    &mockPostReadRepo{},
+		AuditLogRepo:    auditLogRepo,
+		Logger:          slog.Default(),
+	})
+
+	err := svc.DeleteComment(ctx, 789, 123, clientIP)
+	require.NoError(t, err)
+}
+
+func TestNewOperatorSuggestionsService_NilLogger(t *testing.T) {
+	ctx := context.Background()
+
+	postRepo := &mockPostRepo{
+		listFn: func(ctx context.Context, accountID int64, readerType string, sortBy string, status string) ([]*suggestions.Post, error) {
+			return []*suggestions.Post{}, nil
+		},
+	}
+
+	// Create service with nil logger — getLogger() should fall back to slog.Default()
+	svc := platformService.NewOperatorSuggestionsService(platformService.OperatorSuggestionsServiceConfig{
+		PostRepo:        postRepo,
+		CommentRepo:     &mockCommentRepo{},
+		CommentReadRepo: &mockCommentReadRepo{},
+		PostReadRepo:    &mockPostReadRepo{},
+		AuditLogRepo:    &mockAuditLogRepoShared{},
+		Logger:          nil,
+	})
+
+	posts, err := svc.ListAllPosts(ctx, 123, "open", "score")
+	require.NoError(t, err)
+	assert.NotNil(t, posts)
+}
+
+func TestHasDB_WithNilDB(t *testing.T) {
+	ctx := context.Background()
+
+	postRepo := &mockPostRepo{
+		listFn: func(ctx context.Context, accountID int64, readerType string, sortBy string, status string) ([]*suggestions.Post, error) {
+			return []*suggestions.Post{}, nil
+		},
+	}
+
+	// No DB — withAdminTx should detect hasDB()=false and call fn directly
+	svc := platformService.NewOperatorSuggestionsService(platformService.OperatorSuggestionsServiceConfig{
+		PostRepo:        postRepo,
+		CommentRepo:     &mockCommentRepo{},
+		CommentReadRepo: &mockCommentReadRepo{},
+		PostReadRepo:    &mockPostReadRepo{},
+		AuditLogRepo:    &mockAuditLogRepoShared{},
+		DB:              nil,
+		Logger:          slog.Default(),
+	})
+
+	posts, err := svc.ListAllPosts(ctx, 123, "open", "score")
+	require.NoError(t, err)
+	assert.NotNil(t, posts)
+}
+
+func TestHasDB_WithZeroValueDB(t *testing.T) {
+	ctx := context.Background()
+
+	postRepo := &mockPostRepo{
+		listFn: func(ctx context.Context, accountID int64, readerType string, sortBy string, status string) ([]*suggestions.Post, error) {
+			return []*suggestions.Post{}, nil
+		},
+	}
+
+	// Zero-value bun.DB panics on DBStats() — hasDB() should recover and return false
+	svc := platformService.NewOperatorSuggestionsService(platformService.OperatorSuggestionsServiceConfig{
+		PostRepo:        postRepo,
+		CommentRepo:     &mockCommentRepo{},
+		CommentReadRepo: &mockCommentReadRepo{},
+		PostReadRepo:    &mockPostReadRepo{},
+		AuditLogRepo:    &mockAuditLogRepoShared{},
+		DB:              &bun.DB{},
+		Logger:          slog.Default(),
+	})
+
+	posts, err := svc.ListAllPosts(ctx, 123, "open", "score")
+	require.NoError(t, err)
+	assert.NotNil(t, posts)
+}
+
 func TestDeleteComment_RepoErrorOnDelete(t *testing.T) {
 	ctx := context.Background()
 	clientIP := net.ParseIP("192.168.1.1")
