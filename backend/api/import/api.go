@@ -17,6 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
+	"github.com/moto-nrw/project-phoenix/models/users"
 	importService "github.com/moto-nrw/project-phoenix/services/import"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -38,14 +39,24 @@ const (
 type Resource struct {
 	studentImportService *importService.ImportService[importModels.StudentImportRow]
 	auditRepo            audit.DataImportRepository
+	personRepo           users.PersonRepository
+	staffRepo            users.StaffRepository
 	db                   *bun.DB
 }
 
 // NewResource creates a new import resource
-func NewResource(studentImportService *importService.ImportService[importModels.StudentImportRow], auditRepo audit.DataImportRepository, db *bun.DB) *Resource {
+func NewResource(
+	studentImportService *importService.ImportService[importModels.StudentImportRow],
+	auditRepo audit.DataImportRepository,
+	personRepo users.PersonRepository,
+	staffRepo users.StaffRepository,
+	db *bun.DB,
+) *Resource {
 	return &Resource{
 		studentImportService: studentImportService,
 		auditRepo:            auditRepo,
+		personRepo:           personRepo,
+		staffRepo:            staffRepo,
 		db:                   db,
 	}
 }
@@ -392,8 +403,15 @@ func (rs *Resource) previewStudentImport(w http.ResponseWriter, r *http.Request)
 		return // Error already handled by validateAndParseCSVFile
 	}
 
-	// Get user ID from context
-	userID, err := getUserIDFromContext(r.Context())
+	// Resolve staff ID from JWT (pickup schedule FK references users.staff, not auth.accounts)
+	staffID, err := rs.getStaffIDFromJWT(r.Context())
+	if err != nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		return
+	}
+
+	// Get account ID for audit logging (GDPR: audit tracks auth identity)
+	accountID, err := getAccountIDFromContext(r.Context())
 	if err != nil {
 		common.RenderError(w, r, common.ErrorUnauthorized(err))
 		return
@@ -406,7 +424,7 @@ func (rs *Resource) previewStudentImport(w http.ResponseWriter, r *http.Request)
 		Mode:            importModels.ImportModeCreate, // Create-only: duplicates will error
 		DryRun:          true,                          // PREVIEW ONLY
 		StopOnError:     false,                         // Collect all errors
-		UserID:          userID,
+		UserID:          staffID,
 		SkipInvalidRows: false,
 	}
 
@@ -417,7 +435,7 @@ func (rs *Resource) previewStudentImport(w http.ResponseWriter, r *http.Request)
 	}
 
 	// GDPR Compliance: Audit log for preview (Article 30)
-	rs.logImportAudit(uploadResult.Filename, result, userID, true, tenant.FromContext(r.Context()))
+	rs.logImportAudit(uploadResult.Filename, result, accountID, true, tenant.FromContext(r.Context()))
 
 	common.Respond(w, r, http.StatusOK, result, "Import-Vorschau erfolgreich")
 }
@@ -430,26 +448,33 @@ func (rs *Resource) importStudents(w http.ResponseWriter, r *http.Request) {
 		return // Error already handled by validateAndParseCSVFile
 	}
 
-	// Get user ID from context
-	userID, err := getUserIDFromContext(r.Context())
+	// Get account ID for audit logging (GDPR: audit tracks auth identity)
+	accountID, err := getAccountIDFromContext(r.Context())
 	if err != nil {
 		common.RenderError(w, r, common.ErrorUnauthorized(err))
 		return
 	}
 
-	// Run actual import
-	request := importModels.ImportRequest[importModels.StudentImportRow]{
-		Rows:            uploadResult.Rows,
-		Mode:            importModels.ImportModeCreate, // Create-only: duplicates will error
-		DryRun:          false,                         // ACTUAL IMPORT
-		StopOnError:     false,                         // Continue on errors
-		UserID:          userID,
-		SkipInvalidRows: true, // Skip invalid rows, import valid ones
-	}
-
+	// Run actual import inside tenant transaction.
+	// Staff ID resolution must happen inside the TX because RLS requires tenant context.
 	tenantID := tenant.FromContext(r.Context())
 	var result *importModels.ImportResult[importModels.StudentImportRow]
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		// Resolve staff ID within tenant TX (pickup schedule FK references users.staff, not auth.accounts)
+		staffID, staffErr := rs.getStaffIDFromJWT(ctx)
+		if staffErr != nil {
+			return fmt.Errorf("staff resolution failed: %w", staffErr)
+		}
+
+		request := importModels.ImportRequest[importModels.StudentImportRow]{
+			Rows:            uploadResult.Rows,
+			Mode:            importModels.ImportModeCreate, // Create-only: duplicates will error
+			DryRun:          false,                         // ACTUAL IMPORT
+			StopOnError:     false,                         // Continue on errors
+			UserID:          staffID,
+			SkipInvalidRows: true, // Skip invalid rows, import valid ones
+		}
+
 		var txErr error
 		result, txErr = rs.studentImportService.Import(ctx, request)
 		return txErr
@@ -466,7 +491,7 @@ func (rs *Resource) importStudents(w http.ResponseWriter, r *http.Request) {
 		slog.String("filename", uploadResult.Filename))
 
 	// GDPR Compliance: Audit log for actual import (Article 30)
-	rs.logImportAudit(uploadResult.Filename, result, userID, false, tenant.FromContext(r.Context()))
+	rs.logImportAudit(uploadResult.Filename, result, accountID, false, tenant.FromContext(r.Context()))
 
 	// Build success message
 	message := fmt.Sprintf("Import abgeschlossen: %d erstellt, %d aktualisiert, %d Fehler",
@@ -475,14 +500,35 @@ func (rs *Resource) importStudents(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, result, message)
 }
 
-// getUserIDFromContext extracts the user ID from the JWT context
-func getUserIDFromContext(ctx context.Context) (int64, error) {
+// getAccountIDFromContext extracts the account ID from the JWT context
+func getAccountIDFromContext(ctx context.Context) (int64, error) {
 	claims, ok := ctx.Value(jwt.CtxClaims).(jwt.AppClaims)
 	if !ok {
 		return 0, fmt.Errorf("no claims in context")
 	}
 
 	return int64(claims.ID), nil
+}
+
+// getStaffIDFromJWT resolves the staff ID from JWT claims by looking up account → person → staff.
+// The pickup schedule FK (created_by) references users.staff, not auth.accounts.
+func (rs *Resource) getStaffIDFromJWT(ctx context.Context) (int64, error) {
+	accountID, err := getAccountIDFromContext(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	person, err := rs.personRepo.FindByAccountID(ctx, accountID)
+	if err != nil || person == nil {
+		return 0, fmt.Errorf("person not found for account %d", accountID)
+	}
+
+	staff, err := rs.staffRepo.FindByPersonID(ctx, person.ID)
+	if err != nil || staff == nil {
+		return 0, fmt.Errorf("user is not a staff member")
+	}
+
+	return staff.ID, nil
 }
 
 // logImportAudit creates an audit record for import operations (GDPR compliance)
