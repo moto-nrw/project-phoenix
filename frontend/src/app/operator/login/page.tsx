@@ -121,7 +121,7 @@ export default function OperatorLoginPage() {
         >
           Willkommen bei moto
         </h1>
-        <p className="mb-6 text-xl text-gray-700 sm:mb-10">
+        <p className="mb-6 text-3xl font-semibold tracking-wide text-gray-900 sm:mb-10">
           Operator Dashboard
         </p>
 
