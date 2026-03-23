@@ -70,6 +70,45 @@ func (r *RoleRepository) FindByAccountID(ctx context.Context, accountID int64) (
 	return roles, nil
 }
 
+// FindRoleNamesByAccountIDs batch-loads the primary role name for each account ID.
+// Returns a map of accountID → role name (first role found per account).
+func (r *RoleRepository) FindRoleNamesByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64]string, error) {
+	if len(accountIDs) == 0 {
+		return make(map[int64]string), nil
+	}
+
+	type accountRoleRow struct {
+		AccountID int64  `bun:"account_id"`
+		RoleName  string `bun:"role_name"`
+	}
+
+	var rows []accountRoleRow
+	err := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr("auth.account_roles AS ar").
+		Join("JOIN auth.roles AS role ON role.id = ar.role_id").
+		ColumnExpr("ar.account_id").
+		ColumnExpr("role.name AS role_name").
+		Where("ar.account_id IN (?)", bun.In(accountIDs)).
+		Scan(ctx, &rows)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find role names by account IDs",
+			Err: err,
+		}
+	}
+
+	result := make(map[int64]string, len(rows))
+	for _, row := range rows {
+		// Keep first role found per account (don't overwrite)
+		if _, exists := result[row.AccountID]; !exists {
+			result[row.AccountID] = row.RoleName
+		}
+	}
+
+	return result, nil
+}
+
 // AssignRoleToAccount assigns a role to an account
 // DEPRECATED: Use AccountRoleRepository.Create instead
 func (r *RoleRepository) AssignRoleToAccount(_ context.Context, _ int64, _ int64) error {

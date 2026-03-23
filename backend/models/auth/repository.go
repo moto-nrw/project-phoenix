@@ -29,6 +29,7 @@ type RoleRepository interface {
 	List(ctx context.Context, filters map[string]interface{}) ([]*Role, error)
 	FindByName(ctx context.Context, name string) (*Role, error)
 	FindByAccountID(ctx context.Context, accountID int64) ([]*Role, error)
+	FindRoleNamesByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64]string, error)
 	AssignRoleToAccount(ctx context.Context, accountID int64, roleID int64) error
 	RemoveRoleFromAccount(ctx context.Context, accountID int64, roleID int64) error
 	GetRoleWithPermissions(ctx context.Context, roleID int64) (*Role, error)

@@ -229,6 +229,9 @@ func (s *internalRoleRepoStub) FindByName(context.Context, string) (*authModels.
 func (s *internalRoleRepoStub) FindByAccountID(context.Context, int64) ([]*authModels.Role, error) {
 	return nil, nil
 }
+func (s *internalRoleRepoStub) FindRoleNamesByAccountIDs(context.Context, []int64) (map[int64]string, error) {
+	return nil, nil
+}
 func (s *internalRoleRepoStub) AssignRoleToAccount(context.Context, int64, int64) error   { return nil }
 func (s *internalRoleRepoStub) RemoveRoleFromAccount(context.Context, int64, int64) error { return nil }
 func (s *internalRoleRepoStub) GetRoleWithPermissions(context.Context, int64) (*authModels.Role, error) {

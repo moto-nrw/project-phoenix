@@ -65,13 +65,17 @@ export function getStaffLocationStatus(staff: Staff): LocationStatus {
 
 // Get a display-friendly role/type for staff
 export function getStaffDisplayType(staff: Staff): string {
-  // Check role first (Admin/Betreuer/Extern)
+  // Check custom position first (set on teacher profile)
   if (staff.role) {
     return staff.role;
   }
   // Fall back to specialization if available
   if (staff.isTeacher && staff.specialization) {
     return staff.specialization;
+  }
+  // Fall back to auth role (Admin/Betreuer/Extern)
+  if (staff.accountRole) {
+    return staff.accountRole;
   }
   return "Betreuer";
 }

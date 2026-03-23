@@ -134,3 +134,13 @@ func (s *Service) GetAccountRoles(ctx context.Context, accountID int) ([]*auth.R
 	}
 	return roles, nil
 }
+
+// GetAccountRoleNames batch-loads the primary role name for multiple accounts.
+// Returns a map of accountID → role name.
+func (s *Service) GetAccountRoleNames(ctx context.Context, accountIDs []int64) (map[int64]string, error) {
+	roleNames, err := s.repos.Role.FindRoleNamesByAccountIDs(ctx, accountIDs)
+	if err != nil {
+		return nil, &AuthError{Op: "get account role names", Err: err}
+	}
+	return roleNames, nil
+}

@@ -153,26 +153,50 @@ describe("getStaffDisplayType", () => {
     expect(result).toBe("Mathematics");
   });
 
-  it("returns Betreuer for teachers without role or specialization", () => {
+  it("returns accountRole for teachers without role or specialization", () => {
     const staff = createSampleStaff({
       role: undefined,
       isTeacher: true,
       specialization: undefined,
+      accountRole: "Admin",
+    });
+    const result = getStaffDisplayType(staff);
+
+    expect(result).toBe("Admin");
+  });
+
+  it("returns accountRole for non-teachers without role", () => {
+    const staff = createSampleStaff({
+      role: undefined,
+      isTeacher: false,
+      specialization: "Some Specialization",
+      accountRole: "Extern",
+    });
+    const result = getStaffDisplayType(staff);
+
+    expect(result).toBe("Extern");
+  });
+
+  it("returns Betreuer when no role, specialization, or accountRole", () => {
+    const staff = createSampleStaff({
+      role: undefined,
+      isTeacher: true,
+      specialization: undefined,
+      accountRole: undefined,
     });
     const result = getStaffDisplayType(staff);
 
     expect(result).toBe("Betreuer");
   });
 
-  it("returns Betreuer for non-teachers without role", () => {
+  it("prefers custom role over accountRole", () => {
     const staff = createSampleStaff({
-      role: undefined,
-      isTeacher: false,
-      specialization: "Some Specialization",
+      role: "Gruppenleitung",
+      accountRole: "Admin",
     });
     const result = getStaffDisplayType(staff);
 
-    expect(result).toBe("Betreuer");
+    expect(result).toBe("Gruppenleitung");
   });
 });
 
