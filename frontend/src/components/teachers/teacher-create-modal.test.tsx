@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { TeacherCreateModal } from "./teacher-create-modal";
 
@@ -82,20 +82,10 @@ describe("TeacherCreateModal", () => {
     );
   });
 
-  it("shows loading state when loading is true", () => {
-    render(<TeacherCreateModal {...defaultProps} loading={true} />);
-
-    expect(screen.getByText("Daten werden geladen...")).toBeInTheDocument();
-    expect(screen.queryByTestId("teacher-form")).not.toBeInTheDocument();
-  });
-
-  it("shows TeacherForm when not loading", () => {
-    render(<TeacherCreateModal {...defaultProps} loading={false} />);
+  it("shows TeacherForm when open", () => {
+    render(<TeacherCreateModal {...defaultProps} />);
 
     expect(screen.getByTestId("teacher-form")).toBeInTheDocument();
-    expect(
-      screen.queryByText("Daten werden geladen..."),
-    ).not.toBeInTheDocument();
   });
 
   it("passes correct props to TeacherForm", () => {
@@ -124,12 +114,83 @@ describe("TeacherCreateModal", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  it("displays loading spinner during loading state", () => {
-    const { container } = render(
-      <TeacherCreateModal {...defaultProps} loading={true} />,
-    );
+  describe("link confirmation flow", () => {
+    it("shows link confirmation when onCreate returns account_exists", async () => {
+      const onCreate = vi.fn().mockResolvedValue({
+        status: "account_exists",
+        email: "existing@example.com",
+      });
+      render(<TeacherCreateModal {...defaultProps} onCreate={onCreate} />);
 
-    const spinner = container.querySelector(".animate-spin");
-    expect(spinner).toBeInTheDocument();
+      // Trigger form submission
+      fireEvent.click(screen.getByTestId("submit-btn"));
+
+      // Should now show confirmation dialog
+      await waitFor(() => {
+        expect(screen.getByText("Konto verknüpfen")).toBeInTheDocument();
+      });
+      expect(screen.getByText(/existing@example.com/)).toBeInTheDocument();
+      expect(
+        screen.getByText(/bestehende Passwort bleibt unverändert/),
+      ).toBeInTheDocument();
+    });
+
+    it("calls onCreate with linkExisting when confirm button clicked", async () => {
+      const onCreate = vi
+        .fn()
+        .mockResolvedValueOnce({
+          status: "account_exists",
+          email: "existing@example.com",
+        })
+        .mockResolvedValueOnce(undefined);
+
+      render(<TeacherCreateModal {...defaultProps} onCreate={onCreate} />);
+
+      // Trigger first submission to show confirmation
+      fireEvent.click(screen.getByTestId("submit-btn"));
+
+      await waitFor(() => {
+        expect(screen.getByText("Konto verknüpfen")).toBeInTheDocument();
+      });
+
+      // Click the confirm link button
+      fireEvent.click(screen.getByText("Verknüpfen"));
+
+      await waitFor(() => {
+        expect(onCreate).toHaveBeenCalledTimes(2);
+      });
+
+      // Second call should have linkExisting: true
+      const secondCall = onCreate.mock.calls[1]?.[0] as Record<string, unknown>;
+      expect(secondCall.linkExisting).toBe(true);
+    });
+
+    it("closes modal and resets state when cancel clicked during confirmation", async () => {
+      const onClose = vi.fn();
+      const onCreate = vi.fn().mockResolvedValue({
+        status: "account_exists",
+        email: "existing@example.com",
+      });
+
+      render(
+        <TeacherCreateModal
+          {...defaultProps}
+          onClose={onClose}
+          onCreate={onCreate}
+        />,
+      );
+
+      // Trigger confirmation flow
+      fireEvent.click(screen.getByTestId("submit-btn"));
+
+      await waitFor(() => {
+        expect(screen.getByText("Konto verknüpfen")).toBeInTheDocument();
+      });
+
+      // Click cancel / Abbrechen
+      fireEvent.click(screen.getByText("Abbrechen"));
+
+      expect(onClose).toHaveBeenCalled();
+    });
   });
 });
