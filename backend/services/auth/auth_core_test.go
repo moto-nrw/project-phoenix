@@ -145,7 +145,7 @@ func TestAuthService_Register(t *testing.T) {
 		assert.Equal(t, 0, accountCount, "registration should fail before creating an unusable account")
 	})
 
-	t.Run("returns error for duplicate email", func(t *testing.T) {
+	t.Run("silently reuses existing account for duplicate email", func(t *testing.T) {
 		// ARRANGE - create first account
 		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
 		email := fmt.Sprintf("duplicate-%s@test.local", uniqueID)
@@ -154,13 +154,14 @@ func TestAuthService_Register(t *testing.T) {
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account1.ID)
 
-		// ACT - try to register with same email
+		// ACT - register again with same email (different username)
 		username2 := fmt.Sprintf("user2-%s", uniqueID)
 		account2, err := service.Register(ctx, email, username2, testPassword, nil, 0)
 
-		// ASSERT
-		require.Error(t, err)
-		assert.Nil(t, account2)
+		// ASSERT - should return existing account, no error
+		require.NoError(t, err)
+		require.NotNil(t, account2)
+		assert.Equal(t, account1.ID, account2.ID, "should return the same account")
 	})
 }
 

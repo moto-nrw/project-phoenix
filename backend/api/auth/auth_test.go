@@ -505,7 +505,7 @@ func TestRegister(t *testing.T) {
 		testpkg.CleanupAccount(t, db, accountID)
 	})
 
-	t.Run("bad request with duplicate email", func(t *testing.T) {
+	t.Run("silently reuses existing account with duplicate email", func(t *testing.T) {
 		// Use unique email that we register twice
 		uniqueEmail := fmt.Sprintf("duplicate_%d@example.com", time.Now().UnixNano())
 		username1 := fmt.Sprintf("user1_%d", time.Now().UnixNano())
@@ -527,13 +527,14 @@ func TestRegister(t *testing.T) {
 		accountID := extractAccountID(t, rr)
 		defer testpkg.CleanupAccount(t, db, accountID)
 
-		// Second registration with same email, different username
+		// Second registration with same email — should silently reuse account
 		body["username"] = fmt.Sprintf("user2_%d", time.Now().UnixNano())
 		req = testutil.NewJSONRequest(t, "POST", "/auth/register", body)
 		req.Header.Set("Authorization", "Bearer "+adminToken)
 		rr = testutil.ExecuteRequest(router, req)
 
-		testutil.AssertBadRequest(t, rr)
+		// Should succeed (account linked to tenant, not rejected)
+		require.Equal(t, http.StatusCreated, rr.Code, "Second registration should reuse existing account. Body: %s", rr.Body.String())
 	})
 
 	t.Run("bad request with weak password", func(t *testing.T) {
