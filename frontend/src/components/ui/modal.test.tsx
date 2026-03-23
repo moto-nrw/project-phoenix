@@ -257,7 +257,7 @@ describe("Modal", () => {
     expect(screen.queryByText("Test")).not.toBeInTheDocument();
   });
 
-  it("should reset animation when onClose identity changes while open", async () => {
+  it("should stay stable when onClose identity changes while open", async () => {
     const onClose1 = vi.fn();
     const onClose2 = vi.fn();
 
@@ -275,7 +275,7 @@ describe("Modal", () => {
 
     expect(screen.getByText("Step 1")).toBeInTheDocument();
 
-    // Change onClose identity while modal stays open (simulates multi-step announcements)
+    // Change onClose identity while modal stays open — should NOT flicker
     rerender(
       <TestWrapper>
         <Modal isOpen={true} onClose={onClose2} title="">
@@ -284,12 +284,7 @@ describe("Modal", () => {
       </TestWrapper>,
     );
 
-    // Advance timer for re-triggered enter animation
-    await act(async () => {
-      vi.advanceTimersByTime(20);
-    });
-
-    // Modal should still be open with new content
+    // Modal should stay open with new content, no animation reset
     expect(screen.getByText("Step 2")).toBeInTheDocument();
   });
 });
