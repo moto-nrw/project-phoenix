@@ -34,12 +34,70 @@ if [ "$RESTORE_DB" = "true" ]; then
   docker compose stop server frontend
 
   docker compose exec -T postgres psql -U postgres -d template1 -c "DROP DATABASE IF EXISTS postgres WITH (FORCE);" 2>/dev/null || true
-  docker compose exec -T postgres psql -U postgres -d template1 -c "CREATE DATABASE postgres OWNER postgres;"
-  docker compose exec -T postgres pg_restore -U postgres -d postgres --no-owner --no-acl < "$BACKUP_FILE" || true
+  docker compose exec -T postgres psql -U postgres -d template1 -c "CREATE DATABASE postgres OWNER postgres TEMPLATE template0;"
 
-  # Verify DB is usable after restore (pg_restore returns non-zero on harmless warnings)
-  if ! docker compose exec -T postgres psql -U postgres -d postgres -c "SELECT 1;" > /dev/null 2>&1; then
-    echo "CRITICAL: Database restore verification failed — DB may be corrupt"
+  RESTORE_LOG=$(mktemp)
+  if ! docker compose exec -T postgres pg_restore -U postgres -d postgres --exit-on-error < "$BACKUP_FILE" 2>"$RESTORE_LOG"; then
+    echo "CRITICAL: pg_restore failed with errors:"
+    cat "$RESTORE_LOG"
+    rm -f "$RESTORE_LOG"
+    exit 1
+  fi
+  rm -f "$RESTORE_LOG"
+
+  # Verify restored DB has the role grants the app needs to function.
+  # Checks all three roles the request path uses:
+  #   phoenix_auth   — connection role, pre-auth queries (login, tenant resolve, operator refresh)
+  #   phoenix_tenant — SET LOCAL ROLE per tenant request (tenant/tx.go:33)
+  #   phoenix_admin  — SET LOCAL ROLE for cross-tenant ops (tenant/tx.go:63)
+  if ! docker compose exec -T postgres psql -U postgres -d postgres -c "
+    DO \$\$ BEGIN
+      -- Role membership: phoenix_auth can SET ROLE to both
+      IF NOT pg_has_role('phoenix_auth', 'phoenix_tenant', 'MEMBER') THEN
+        RAISE EXCEPTION 'phoenix_auth is not a member of phoenix_tenant';
+      END IF;
+      IF NOT pg_has_role('phoenix_auth', 'phoenix_admin', 'MEMBER') THEN
+        RAISE EXCEPTION 'phoenix_auth is not a member of phoenix_admin';
+      END IF;
+
+      -- phoenix_auth: pre-auth paths (login, token refresh, operator auth)
+      IF NOT has_schema_privilege('phoenix_auth', 'auth', 'USAGE') THEN
+        RAISE EXCEPTION 'phoenix_auth lacks USAGE on schema auth';
+      END IF;
+      IF NOT has_schema_privilege('phoenix_auth', 'platform', 'USAGE') THEN
+        RAISE EXCEPTION 'phoenix_auth lacks USAGE on schema platform';
+      END IF;
+      IF NOT has_table_privilege('phoenix_auth', 'auth.accounts', 'SELECT') THEN
+        RAISE EXCEPTION 'phoenix_auth lacks SELECT on auth.accounts';
+      END IF;
+      IF NOT has_table_privilege('phoenix_auth', 'platform.operators', 'SELECT') THEN
+        RAISE EXCEPTION 'phoenix_auth lacks SELECT on platform.operators';
+      END IF;
+
+      -- phoenix_tenant: tenant-scoped request path (all CRUD after SET LOCAL ROLE)
+      IF NOT has_schema_privilege('phoenix_tenant', 'auth', 'USAGE') THEN
+        RAISE EXCEPTION 'phoenix_tenant lacks USAGE on schema auth';
+      END IF;
+      IF NOT has_schema_privilege('phoenix_tenant', 'active', 'USAGE') THEN
+        RAISE EXCEPTION 'phoenix_tenant lacks USAGE on schema active';
+      END IF;
+      IF NOT has_table_privilege('phoenix_tenant', 'auth.account_tenants', 'SELECT') THEN
+        RAISE EXCEPTION 'phoenix_tenant lacks SELECT on auth.account_tenants';
+      END IF;
+      IF NOT has_table_privilege('phoenix_tenant', 'active.visits', 'INSERT') THEN
+        RAISE EXCEPTION 'phoenix_tenant lacks INSERT on active.visits';
+      END IF;
+
+      -- phoenix_admin: cross-tenant ops (migrations, operator routes, exports)
+      IF NOT has_schema_privilege('phoenix_admin', 'platform', 'USAGE') THEN
+        RAISE EXCEPTION 'phoenix_admin lacks USAGE on schema platform';
+      END IF;
+      IF NOT has_table_privilege('phoenix_admin', 'platform.operators', 'SELECT') THEN
+        RAISE EXCEPTION 'phoenix_admin lacks SELECT on platform.operators';
+      END IF;
+    END \$\$;
+  " > /dev/null 2>&1; then
+    echo "CRITICAL: Database restored but role privileges are missing — restore may have dropped ACLs"
     exit 1
   fi
   echo "Database restored and verified"
