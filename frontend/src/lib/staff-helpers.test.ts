@@ -189,7 +189,7 @@ describe("getStaffDisplayType", () => {
     expect(result).toBe("Betreuer");
   });
 
-  it("returns Betreuer when no role, specialization, or accountRole", () => {
+  it("returns empty string when no role, specialization, or accountRole", () => {
     const staff = createSampleStaff({
       role: undefined,
       isTeacher: true,
@@ -198,7 +198,7 @@ describe("getStaffDisplayType", () => {
     });
     const result = getStaffDisplayType(staff);
 
-    expect(result).toBe("Betreuer");
+    expect(result).toBe("");
   });
 
   it("prefers custom role over accountRole", () => {

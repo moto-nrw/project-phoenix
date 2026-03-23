@@ -89,7 +89,7 @@ export function getStaffDisplayType(staff: Staff): string {
   if (staff.accountRole) {
     return formatAccountRole(staff.accountRole);
   }
-  return "Betreuer";
+  return "";
 }
 
 // Get additional info to display on card
