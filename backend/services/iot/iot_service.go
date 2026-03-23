@@ -259,9 +259,9 @@ func (s *service) PingDevice(ctx context.Context, deviceID string) error {
 		return &IoTError{Op: "PingDevice", Err: &DeviceNotFoundError{DeviceID: deviceID}}
 	}
 
-	// Update the last seen time
+	// Update the last seen time using PK (globally unique, cross-tenant safe)
 	now := time.Now()
-	if err := s.deviceRepo.UpdateLastSeen(ctx, deviceID, now); err != nil {
+	if err := s.deviceRepo.UpdateLastSeen(ctx, existingDevice.ID, now); err != nil {
 		return &IoTError{Op: "PingDevice", Err: err}
 	}
 
@@ -374,20 +374,21 @@ func (s *service) ScanNetwork(_ context.Context) (map[string]string, error) {
 	return nil, &IoTError{Op: "ScanNetwork", Err: errors.New("network scanning not implemented")}
 }
 
-// UpdateDeviceLastSeen updates only the last_seen timestamp for a device.
+// UpdateDeviceLastSeen updates only the last_seen timestamp for a device by PK.
 // This is a targeted update that skips existence checks and full-model validation,
 // intended for use in middleware where the device has already been authenticated.
-func (s *service) UpdateDeviceLastSeen(ctx context.Context, deviceID string) error {
-	return s.UpdateDeviceLastSeenAt(ctx, deviceID, time.Now())
+func (s *service) UpdateDeviceLastSeen(ctx context.Context, id int64) error {
+	return s.UpdateDeviceLastSeenAt(ctx, id, time.Now())
 }
 
 // UpdateDeviceLastSeenAt updates only the last_seen timestamp for a device using
-// the caller-supplied observation time.
-func (s *service) UpdateDeviceLastSeenAt(ctx context.Context, deviceID string, lastSeen time.Time) error {
-	if deviceID == "" {
-		return &IoTError{Op: "UpdateDeviceLastSeenAt", Err: errors.New(errDeviceIDEmpty)}
+// the caller-supplied observation time. Uses the integer PK (globally unique)
+// rather than device_id (unique per tenant) for cross-tenant safety.
+func (s *service) UpdateDeviceLastSeenAt(ctx context.Context, id int64, lastSeen time.Time) error {
+	if id <= 0 {
+		return &IoTError{Op: "UpdateDeviceLastSeenAt", Err: errors.New("device ID must be positive")}
 	}
-	return s.deviceRepo.UpdateLastSeen(ctx, deviceID, lastSeen)
+	return s.deviceRepo.UpdateLastSeen(ctx, id, lastSeen)
 }
 
 // GetDeviceByAPIKey retrieves a device by its API key for authentication

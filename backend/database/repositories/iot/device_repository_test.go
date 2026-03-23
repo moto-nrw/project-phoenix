@@ -414,7 +414,7 @@ func TestDeviceRepository_UpdateLastSeen(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, device.ID, 0, 0)
 
 		newLastSeen := time.Now().Add(-10 * time.Minute)
-		err := repo.UpdateLastSeen(ctx, device.DeviceID, newLastSeen)
+		err := repo.UpdateLastSeen(ctx, device.ID, newLastSeen)
 		require.NoError(t, err)
 
 		found, err := repo.FindByID(ctx, device.ID)

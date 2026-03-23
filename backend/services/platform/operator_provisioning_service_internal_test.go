@@ -141,7 +141,7 @@ func (s *internalDeviceRepoStub) FindByStatus(context.Context, iotModels.DeviceS
 func (s *internalDeviceRepoStub) FindByRegisteredBy(context.Context, int64) ([]*iotModels.Device, error) {
 	return nil, nil
 }
-func (s *internalDeviceRepoStub) UpdateLastSeen(context.Context, string, time.Time) error {
+func (s *internalDeviceRepoStub) UpdateLastSeen(context.Context, int64, time.Time) error {
 	return nil
 }
 func (s *internalDeviceRepoStub) UpdateStatus(context.Context, string, iotModels.DeviceStatus) error {

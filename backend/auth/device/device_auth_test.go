@@ -97,11 +97,11 @@ func (m *mockIoTService) GetDeviceTypeStatistics(_ context.Context) (map[string]
 }
 func (m *mockIoTService) DetectNewDevices(_ context.Context) ([]*iot.Device, error) { return nil, nil }
 func (m *mockIoTService) ScanNetwork(_ context.Context) (map[string]string, error)  { return nil, nil }
-func (m *mockIoTService) UpdateDeviceLastSeen(ctx context.Context, deviceID string) error {
-	return m.UpdateDeviceLastSeenAt(ctx, deviceID, time.Now())
+func (m *mockIoTService) UpdateDeviceLastSeen(ctx context.Context, id int64) error {
+	return m.UpdateDeviceLastSeenAt(ctx, id, time.Now())
 }
 
-func (m *mockIoTService) UpdateDeviceLastSeenAt(_ context.Context, _ string, lastSeen time.Time) error {
+func (m *mockIoTService) UpdateDeviceLastSeenAt(_ context.Context, _ int64, lastSeen time.Time) error {
 	if m.updateStarted != nil {
 		select {
 		case m.updateStarted <- struct{}{}:

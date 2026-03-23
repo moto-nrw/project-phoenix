@@ -155,17 +155,15 @@ func (r *DeviceRepository) FindByRegisteredBy(ctx context.Context, personID int6
 	return devices, nil
 }
 
-// UpdateLastSeen updates the last seen timestamp for a device
-func (r *DeviceRepository) UpdateLastSeen(ctx context.Context, deviceID string, lastSeen time.Time) error {
+// UpdateLastSeen updates the last seen timestamp for a device by its primary key.
+// Uses the integer PK (globally unique) rather than device_id (unique per tenant)
+// to ensure cross-tenant safety when called from device auth without tenant context.
+func (r *DeviceRepository) UpdateLastSeen(ctx context.Context, id int64, lastSeen time.Time) error {
 	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*iot.Device)(nil)).
 		ModelTableExpr(tableIoTDevices).
 		Set("last_seen = ?", lastSeen).
-		Where(whereDeviceIDEqual, deviceID)
-
-	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
-		query = query.Where("tenant_id = ?", tenantID)
-	}
+		Where("id = ?", id)
 
 	result, err := query.Exec(ctx)
 
