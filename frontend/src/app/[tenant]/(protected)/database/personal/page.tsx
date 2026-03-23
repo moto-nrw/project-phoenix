@@ -182,7 +182,7 @@ export default function TeachersPage() {
 
   // Handle create teacher
   const handleCreateTeacher = async (
-    data: Partial<Teacher> & { password?: string },
+    data: Partial<Teacher> & { password?: string; linkExisting?: boolean },
   ) => {
     try {
       setCreateLoading(true);

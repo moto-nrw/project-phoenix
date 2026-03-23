@@ -4,6 +4,14 @@ import { sessionFetch } from "./session-cache";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "TeacherAPI" });
+
+/** Thrown when Register returns "email already exists" — signals the UI to show a link confirmation. */
+export class AccountExistsError extends Error {
+  constructor(public readonly email: string) {
+    super("email already exists");
+    this.name = "AccountExistsError";
+  }
+}
 import type { Activity } from "./activity-helpers";
 
 /**
@@ -200,13 +208,9 @@ class TeacherService {
     teacherData: Omit<Teacher, "id" | "name" | "created_at" | "updated_at"> & {
       password?: string;
       role_id?: number;
+      linkExisting?: boolean;
     },
   ): Promise<TeacherWithCredentials> {
-    const password = teacherData.password;
-    if (!password) {
-      throw new Error("Password is required for creating a teacher");
-    }
-
     const roleId = teacherData.role_id;
     if (!roleId) {
       throw new Error("Role ID is required for creating a teacher");
@@ -218,14 +222,24 @@ class TeacherService {
     const username = `${teacherData.first_name.toLowerCase()}_${teacherData.last_name.toLowerCase()}`;
     const fullName = `${teacherData.first_name} ${teacherData.last_name}`;
 
-    // Step 1: Create account
-    const accountId = await this.createAccount(
-      email,
-      username,
-      fullName,
-      password,
-      roleId,
-    );
+    // Step 1: Create account or link existing
+    let accountId: string | number;
+    if (teacherData.linkExisting) {
+      // Link existing account — password is NOT changed
+      accountId = await this.linkAccountToTenant(email, roleId);
+    } else {
+      const password = teacherData.password;
+      if (!password) {
+        throw new Error("Password is required for creating a teacher");
+      }
+      accountId = await this.createAccount(
+        email,
+        username,
+        fullName,
+        password,
+        roleId,
+      );
+    }
 
     // Step 2: Create person linked to account
     const personId = await this.createPerson(teacherData, accountId);
@@ -240,7 +254,9 @@ class TeacherService {
       last_name: teacherData.last_name,
       name: fullName,
       email: email,
-      temporaryCredentials: { email, password },
+      temporaryCredentials: teacherData.linkExisting
+        ? undefined
+        : { email, password: teacherData.password ?? "" },
     } as TeacherWithCredentials;
   }
 
@@ -270,9 +286,11 @@ class TeacherService {
         error?: string;
         message?: string;
       };
-      throw new Error(
-        `Failed to create account: ${extractErrorMessage(errorData, response.statusText)}`,
-      );
+      const msg = extractErrorMessage(errorData, response.statusText);
+      if (msg.includes("email already exists")) {
+        throw new AccountExistsError(email);
+      }
+      throw new Error(`Failed to create account: ${msg}`);
     }
 
     const data = (await response.json()) as {
@@ -284,6 +302,40 @@ class TeacherService {
     if (!accountId) {
       logger.error("failed to get account ID from response");
       throw new Error("Failed to get account ID from response");
+    }
+
+    return accountId;
+  }
+
+  /** Links an existing account to the current tenant. */
+  private async linkAccountToTenant(
+    email: string,
+    roleId: number,
+  ): Promise<string | number> {
+    const response = await sessionFetch("/api/auth/link-to-tenant", {
+      method: "POST",
+      credentials: "include",
+      body: JSON.stringify({ email, role_id: roleId }),
+    });
+
+    if (!response.ok) {
+      const errorData = (await response.json()) as {
+        error?: string;
+        message?: string;
+      };
+      throw new Error(
+        `Failed to link account: ${extractErrorMessage(errorData, response.statusText)}`,
+      );
+    }
+
+    const data = (await response.json()) as {
+      id?: string | number;
+      data?: { id?: string | number };
+    };
+    const accountId = extractIdFromResponse(data);
+
+    if (!accountId) {
+      throw new Error("Failed to get account ID from link response");
     }
 
     return accountId;

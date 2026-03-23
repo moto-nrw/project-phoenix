@@ -75,6 +75,9 @@ type AuthService interface {
 	// Tenant Switching
 	SwitchTenant(ctx context.Context, accountID int64, tenantSlug string) (accessToken, refreshToken string, err error)
 
+	// Multi-Tenant Account Linking
+	LinkAccountToTenant(ctx context.Context, email string, roleID *int64, tenantID int64) (*auth.Account, error)
+
 	// Parent Account Management
 	CreateParentAccount(ctx context.Context, email, username, password string) (*auth.AccountParent, error)
 	GetParentAccountByID(ctx context.Context, id int) (*auth.AccountParent, error)

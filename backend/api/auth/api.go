@@ -112,6 +112,9 @@ func (rs *Resource) Router() chi.Router {
 		// Password change - users can change their own password without special permissions
 		r.Post("/password", rs.changePassword)
 
+		// Link existing account to current tenant (admin only, for staff creation)
+		r.Post("/link-to-tenant", rs.linkToTenant)
+
 		// Admin routes - require admin role or specific permissions
 		r.Group(func(r chi.Router) {
 			// Role management routes
@@ -517,6 +520,57 @@ func (rs *Resource) register(w http.ResponseWriter, r *http.Request) {
 
 	resp := buildAccountResponse(account)
 	common.Respond(w, r, http.StatusCreated, resp, "Account registered successfully")
+}
+
+// LinkToTenantRequest represents a request to link an existing account to the current tenant.
+type LinkToTenantRequest struct {
+	Email  string `json:"email"`
+	RoleID *int64 `json:"role_id,omitempty"`
+}
+
+func (req *LinkToTenantRequest) Bind(_ *http.Request) error {
+	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
+	return validation.ValidateStruct(req,
+		validation.Field(&req.Email, validation.Required, is.Email),
+	)
+}
+
+// linkToTenant links an existing account to the caller's tenant.
+// Requires admin authentication with a valid tenant context.
+func (rs *Resource) linkToTenant(w http.ResponseWriter, r *http.Request) {
+	req := &LinkToTenantRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, ErrorInvalidRequest(err))
+		return
+	}
+
+	// Require admin auth and resolve role + tenant from JWT
+	roleID, callerTenantID, shouldReturn := rs.authorizeRoleAssignment(w, r, req.RoleID)
+	if shouldReturn {
+		return
+	}
+
+	account, err := rs.AuthService.LinkAccountToTenant(r.Context(), req.Email, roleID, callerTenantID)
+	if err != nil {
+		var authErr *authService.AuthError
+		if errors.As(err, &authErr) {
+			switch {
+			case errors.Is(authErr.Err, authService.ErrAccountNotFound):
+				common.RenderError(w, r, ErrorNotFound(authErr.Err))
+			case errors.Is(authErr.Err, authService.ErrAccountInactive):
+				common.RenderError(w, r, common.ErrorConflict(authErr.Err))
+			default:
+				common.RenderError(w, r, ErrorInternalServer(err))
+			}
+			return
+		}
+		common.RenderError(w, r, ErrorInternalServer(err))
+		return
+	}
+
+	// Return minimal response — only ID and email, no data from other tenants
+	resp := buildAccountResponse(account)
+	common.Respond(w, r, http.StatusOK, resp, "Account linked to tenant successfully")
 }
 
 // authorizeRoleAssignment checks if the caller is an authenticated admin and has provided a valid role_id.

@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -15,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 // Login authenticates a user and returns access and refresh tokens
@@ -656,6 +658,87 @@ func (s *Service) persistAccountWithRole(ctx context.Context, account *auth.Acco
 
 		return nil
 	})
+}
+
+// LinkAccountToTenant links an existing account to a tenant with an optional role assignment.
+// The password is NOT changed — the user keeps their current credentials.
+// Returns ErrAccountNotFound if no account exists with the given email.
+// Returns ErrAccountInactive if the account is deactivated.
+func (s *Service) LinkAccountToTenant(ctx context.Context, email string, roleID *int64, tenantID int64) (*auth.Account, error) {
+	email = strings.TrimSpace(strings.ToLower(email))
+
+	if tenantID <= 0 {
+		return nil, &AuthError{Op: "link-to-tenant", Err: ErrTenantRequiredForRoleAssignment}
+	}
+
+	// Find existing account
+	account, err := s.repos.Account.FindByEmail(ctx, email)
+	if err != nil {
+		return nil, &AuthError{Op: "link-to-tenant", Err: ErrAccountNotFound}
+	}
+
+	if !account.Active {
+		return nil, &AuthError{Op: "link-to-tenant", Err: ErrAccountInactive}
+	}
+
+	// Link to tenant (idempotent — handles already-linked case)
+	if err := s.linkAccountToTenant(ctx, account, roleID, tenantID); err != nil {
+		return nil, err
+	}
+
+	s.getLogger().Info("account linked to tenant",
+		slog.Int64("account_id", account.ID),
+		slog.Int64("tenant_id", tenantID))
+
+	return account, nil
+}
+
+// linkAccountToTenant creates a tenant mapping and role assignment for an existing account.
+func (s *Service) linkAccountToTenant(ctx context.Context, account *auth.Account, roleID *int64, tenantID int64) error {
+	return tenant.WithTenantTx(ctx, s.db, tenantID, func(ctx context.Context, tx bun.Tx) error {
+		txService := s.WithTx(tx).(*Service)
+
+		// Check if already linked — skip mapping creation if so
+		alreadyLinked, _ := txService.repos.AccountTenant.ExistsByAccountAndTenant(ctx, account.ID, tenantID)
+		if !alreadyLinked {
+			now := time.Now()
+			mapping := &auth.AccountTenant{
+				AccountID:   account.ID,
+				TenantID:    tenantID,
+				Status:      auth.AccountTenantStatusActive,
+				ActivatedAt: &now,
+			}
+			if err := txService.repos.AccountTenant.Create(ctx, mapping); err != nil {
+				return fmt.Errorf("failed to create account-tenant mapping: %w", err)
+			}
+		}
+
+		// Assign role if specified
+		if roleID != nil && *roleID > 0 {
+			accountRole := &auth.AccountRole{
+				AccountID: account.ID,
+				RoleID:    *roleID,
+			}
+			accountRole.SetTenantID(tenantID)
+			if err := txService.repos.AccountRole.Create(ctx, accountRole); err != nil {
+				// Ignore duplicate role errors (already has this role in this tenant)
+				if !isDuplicateKeyError(err) {
+					return fmt.Errorf("failed to assign role to account: %w", err)
+				}
+			}
+		}
+
+		return nil
+	})
+}
+
+// isDuplicateKeyError checks if a database error is a unique constraint violation (PG code 23505).
+func isDuplicateKeyError(err error) bool {
+	var pgErr pgdriver.Error
+	if errors.As(err, &pgErr) {
+		return pgErr.Field('C') == "23505"
+	}
+	return false
 }
 
 // ValidateToken validates an access token and returns the associated account and parsed claims.
