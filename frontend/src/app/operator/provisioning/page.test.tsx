@@ -18,6 +18,12 @@ const {
   mockUpdateOrganization,
   mockUpdateSchool,
   mockInviteSchoolAdmin,
+  mockListSchoolAccounts,
+  mockListOrganizationAccounts,
+  mockListAllAccounts,
+  mockListSchoolDevices,
+  mockListOrganizationDevices,
+  mockListAllDevices,
 } = vi.hoisted(() => ({
   mockUseSession: vi.fn(),
   mockUseSWR: vi.fn(),
@@ -30,6 +36,12 @@ const {
   mockUpdateOrganization: vi.fn(),
   mockUpdateSchool: vi.fn(),
   mockInviteSchoolAdmin: vi.fn(),
+  mockListSchoolAccounts: vi.fn(),
+  mockListOrganizationAccounts: vi.fn(),
+  mockListAllAccounts: vi.fn(),
+  mockListSchoolDevices: vi.fn(),
+  mockListOrganizationDevices: vi.fn(),
+  mockListAllDevices: vi.fn(),
 }));
 
 vi.mock("next-auth/react", () => ({
@@ -53,7 +65,23 @@ vi.mock("~/lib/operator/provisioning-api", () => ({
     updateOrganization: mockUpdateOrganization,
     updateSchool: mockUpdateSchool,
     inviteSchoolAdmin: mockInviteSchoolAdmin,
+    listSchoolAccounts: mockListSchoolAccounts,
+    listOrganizationAccounts: mockListOrganizationAccounts,
+    listAllAccounts: mockListAllAccounts,
+    listSchoolDevices: mockListSchoolDevices,
+    listOrganizationDevices: mockListOrganizationDevices,
+    listAllDevices: mockListAllDevices,
   },
+}));
+
+vi.mock("~/lib/format-utils", () => ({
+  getRelativeTime: (dateStr: string) => `relative(${dateStr})`,
+}));
+
+vi.mock("~/lib/iot-helpers", () => ({
+  getDeviceTypeDisplayName: (type: string) => `type:${type}`,
+  getDeviceStatusDisplayName: (status: string) => `status:${status}`,
+  formatLastSeen: (lastSeen: string) => `formatted:${lastSeen}`,
 }));
 
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-return */
@@ -1491,5 +1519,789 @@ describe("OperatorProvisioningPage", () => {
     // Now changing name should NOT update slug
     fireEvent.change(nameInput, { target: { value: "Changed Name" } });
     expect((slugInput as HTMLInputElement).value).toBe("custom-slug");
+  });
+
+  // --- Accounts Tab ---
+
+  describe("Accounts Tab", () => {
+    const mockAccount: {
+      accountId: string;
+      email: string;
+      active: boolean;
+      firstName: string;
+      lastName: string;
+      roleName: string;
+      pedagogicRole: string;
+      status: string;
+    } = {
+      accountId: "100",
+      email: "teacher@school.de",
+      active: true,
+      firstName: "Anna",
+      lastName: "Schmidt",
+      roleName: "Lehrer",
+      pedagogicRole: "Klassenleitung",
+      status: "active",
+    };
+
+    const mockOrgAccount = {
+      ...mockAccount,
+      schoolId: "10",
+      schoolName: "Test School",
+    };
+
+    function setupSWRWithAccounts(
+      accountsKey: string,
+      accounts: unknown[] | undefined,
+      accountsLoading = false,
+    ) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mockUseSWR.mockImplementation((key: any) => {
+        if (key === "operator-organizations") {
+          return {
+            data: [mockOrg],
+            isLoading: false,
+            mutate: mockMutateOrgs,
+          };
+        }
+        if (key === "operator-schools") {
+          return {
+            data: [mockSchool],
+            isLoading: false,
+            mutate: mockMutateSchools,
+          };
+        }
+        if (key === accountsKey) {
+          return {
+            data: accountsLoading ? undefined : accounts,
+            isLoading: accountsLoading,
+            mutate: vi.fn(),
+          };
+        }
+        return { data: undefined, isLoading: false, mutate: vi.fn() };
+      });
+    }
+
+    it("renders accounts tab with all accounts view", () => {
+      setupSWRWithAccounts("operator-all-accounts", [mockOrgAccount]);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-accounts"));
+
+      expect(screen.getByText("Anna Schmidt")).toBeInTheDocument();
+      expect(screen.getByText("teacher@school.de")).toBeInTheDocument();
+      expect(screen.getByText("Lehrer")).toBeInTheDocument();
+      expect(screen.getByText("Klassenleitung")).toBeInTheDocument();
+      expect(screen.getByText("Aktiv")).toBeInTheDocument();
+    });
+
+    it("shows empty state for all accounts", () => {
+      setupSWRWithAccounts("operator-all-accounts", []);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-accounts"));
+
+      expect(screen.getByText("Keine Konten")).toBeInTheDocument();
+      expect(
+        screen.getByText("Es gibt noch keine Konten im System."),
+      ).toBeInTheDocument();
+    });
+
+    it("shows school name column when showSchool is true", () => {
+      setupSWRWithAccounts("operator-all-accounts", [mockOrgAccount]);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-accounts"));
+
+      // "Schule" appears as both filter label and table header
+      const schuleElements = screen.getAllByText("Schule");
+      expect(schuleElements.length).toBeGreaterThanOrEqual(2);
+      expect(screen.getByText("Test School")).toBeInTheDocument();
+    });
+
+    it("filters accounts by organization", () => {
+      setupSWRWithAccounts(`operator-org-accounts-1`, [mockOrgAccount]);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-accounts"));
+
+      // Select org filter
+      const orgSelect = screen.getByLabelText("Träger");
+      fireEvent.change(orgSelect, { target: { value: "1" } });
+
+      expect(screen.getByText("Anna Schmidt")).toBeInTheDocument();
+    });
+
+    it("shows empty state for org-level accounts", () => {
+      setupSWRWithAccounts(`operator-org-accounts-1`, []);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-accounts"));
+
+      const orgSelect = screen.getByLabelText("Träger");
+      fireEvent.change(orgSelect, { target: { value: "1" } });
+
+      expect(screen.getByText("Keine Konten")).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "Für diesen Träger gibt es noch keine zugewiesenen Konten.",
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("filters accounts by school", () => {
+      setupSWRWithAccounts(`operator-school-accounts-10`, [mockAccount]);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-accounts"));
+
+      // Select org, then school
+      const orgSelect = screen.getByLabelText("Träger");
+      fireEvent.change(orgSelect, { target: { value: "1" } });
+
+      const schoolSelect = screen.getByLabelText("Schule");
+      fireEvent.change(schoolSelect, { target: { value: "10" } });
+
+      expect(screen.getByText("Anna Schmidt")).toBeInTheDocument();
+      // School header should appear
+      expect(screen.getByText("Test School")).toBeInTheDocument();
+    });
+
+    it("shows school-level account count badge", () => {
+      setupSWRWithAccounts(`operator-school-accounts-10`, [mockAccount]);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-accounts"));
+
+      const orgSelect = screen.getByLabelText("Träger");
+      fireEvent.change(orgSelect, { target: { value: "1" } });
+
+      const schoolSelect = screen.getByLabelText("Schule");
+      fireEvent.change(schoolSelect, { target: { value: "10" } });
+
+      expect(screen.getByText("1 Konto")).toBeInTheDocument();
+    });
+
+    it("shows empty state for school-level accounts", () => {
+      setupSWRWithAccounts(`operator-school-accounts-10`, []);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-accounts"));
+
+      const orgSelect = screen.getByLabelText("Träger");
+      fireEvent.change(orgSelect, { target: { value: "1" } });
+
+      const schoolSelect = screen.getByLabelText("Schule");
+      fireEvent.change(schoolSelect, { target: { value: "10" } });
+
+      expect(screen.getByText("Keine Konten")).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "Für diese Schule gibt es noch keine zugewiesenen Konten.",
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("renders account with pending status badge", () => {
+      const pendingAccount = { ...mockOrgAccount, status: "pending" };
+      setupSWRWithAccounts("operator-all-accounts", [pendingAccount]);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-accounts"));
+
+      expect(screen.getByText("Ausstehend")).toBeInTheDocument();
+    });
+
+    it("renders account with invited status badge", () => {
+      const invitedAccount = {
+        ...mockOrgAccount,
+        accountId: "0",
+        status: "invited",
+        firstName: "",
+        lastName: "",
+      };
+      setupSWRWithAccounts("operator-all-accounts", [invitedAccount]);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-accounts"));
+
+      expect(screen.getByText("Eingeladen")).toBeInTheDocument();
+    });
+
+    it("renders account with inactive status badge", () => {
+      const inactiveAccount = { ...mockOrgAccount, status: "inactive" };
+      setupSWRWithAccounts("operator-all-accounts", [inactiveAccount]);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-accounts"));
+
+      expect(screen.getByText("Inaktiv")).toBeInTheDocument();
+    });
+
+    it("renders dash when account has no name", () => {
+      const noNameAccount = {
+        ...mockOrgAccount,
+        firstName: "",
+        lastName: "",
+      };
+      setupSWRWithAccounts("operator-all-accounts", [noNameAccount]);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-accounts"));
+
+      // Name column should show dash
+      const cells = screen.getAllByText("—");
+      expect(cells.length).toBeGreaterThan(0);
+    });
+
+    it("renders dash when account has no role", () => {
+      const noRoleAccount = { ...mockOrgAccount, roleName: "" };
+      setupSWRWithAccounts("operator-all-accounts", [noRoleAccount]);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-accounts"));
+
+      const cells = screen.getAllByText("—");
+      expect(cells.length).toBeGreaterThan(0);
+    });
+
+    it("renders multiple roles as separate badges", () => {
+      const multiRoleAccount = {
+        ...mockOrgAccount,
+        roleName: "Lehrer, Admin",
+      };
+      setupSWRWithAccounts("operator-all-accounts", [multiRoleAccount]);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-accounts"));
+
+      expect(screen.getByText("Lehrer")).toBeInTheDocument();
+      expect(screen.getByText("Admin")).toBeInTheDocument();
+    });
+
+    it("sorts accounts by clicking column header", () => {
+      const account1 = { ...mockOrgAccount, email: "a@school.de" };
+      const account2 = {
+        ...mockOrgAccount,
+        accountId: "101",
+        email: "z@school.de",
+      };
+      setupSWRWithAccounts("operator-all-accounts", [account2, account1]);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-accounts"));
+
+      // Click email header to sort
+      fireEvent.click(screen.getByText("E-Mail"));
+
+      const rows = screen.getAllByText(/@school.de/);
+      expect(rows[0]!.textContent).toBe("a@school.de");
+      expect(rows[1]!.textContent).toBe("z@school.de");
+
+      // Click again to reverse sort
+      fireEvent.click(screen.getByText("E-Mail"));
+
+      const rowsReversed = screen.getAllByText(/@school.de/);
+      expect(rowsReversed[0]!.textContent).toBe("z@school.de");
+      expect(rowsReversed[1]!.textContent).toBe("a@school.de");
+    });
+
+    it("navigates to accounts tab via school card Konten button", () => {
+      setupSWRWithAccounts(`operator-school-accounts-10`, [mockAccount]);
+
+      render(<OperatorProvisioningPage />);
+
+      // Start on schools tab
+      fireEvent.click(screen.getByTestId("tab-schools"));
+
+      // Click "Konten" button on school card (not the tab)
+      const kontenButtons = screen.getAllByText("Konten");
+      // The school card button is not the tab
+      const cardButton = kontenButtons.find(
+        (el) => el.tagName === "BUTTON" && !el.closest("[data-testid='tabs']"),
+      );
+      fireEvent.click(cardButton!);
+
+      // Should now be on accounts tab with school selected
+      expect(screen.getByText("Anna Schmidt")).toBeInTheDocument();
+    });
+
+    it("shows accounts loading state", () => {
+      setupSWRWithAccounts("operator-all-accounts", undefined, true);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-accounts"));
+
+      expect(screen.getAllByTestId("skeleton").length).toBeGreaterThan(0);
+    });
+
+    it("shows plural Konten for multiple accounts", () => {
+      const account2 = { ...mockAccount, accountId: "101", email: "b@s.de" };
+      setupSWRWithAccounts(`operator-school-accounts-10`, [
+        mockAccount,
+        account2,
+      ]);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-accounts"));
+
+      const orgSelect = screen.getByLabelText("Träger");
+      fireEvent.change(orgSelect, { target: { value: "1" } });
+
+      const schoolSelect = screen.getByLabelText("Schule");
+      fireEvent.change(schoolSelect, { target: { value: "10" } });
+
+      expect(screen.getByText("2 Konten")).toBeInTheDocument();
+    });
+
+    it("clears school filter when org filter changes to different org", () => {
+      const secondOrg = {
+        ...mockOrg,
+        id: "2",
+        name: "Other Org",
+        slug: "other-org",
+      };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mockUseSWR.mockImplementation((key: any) => {
+        if (key === "operator-organizations") {
+          return {
+            data: [mockOrg, secondOrg],
+            isLoading: false,
+            mutate: mockMutateOrgs,
+          };
+        }
+        if (key === "operator-schools") {
+          return {
+            data: [mockSchool],
+            isLoading: false,
+            mutate: mockMutateSchools,
+          };
+        }
+        if (key === `operator-school-accounts-10`) {
+          return { data: [mockAccount], isLoading: false, mutate: vi.fn() };
+        }
+        if (key === `operator-org-accounts-2`) {
+          return { data: [], isLoading: false, mutate: vi.fn() };
+        }
+        return { data: undefined, isLoading: false, mutate: vi.fn() };
+      });
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-accounts"));
+
+      // Select org 1, then school
+      const orgSelect = screen.getByLabelText("Träger");
+      fireEvent.change(orgSelect, { target: { value: "1" } });
+
+      const schoolSelect = screen.getByLabelText("Schule");
+      fireEvent.change(schoolSelect, { target: { value: "10" } });
+
+      // Switch to a different org — school should be cleared
+      fireEvent.change(orgSelect, { target: { value: "2" } });
+
+      // School select should be reset
+      expect((schoolSelect as HTMLSelectElement).value).toBe("");
+    });
+  });
+
+  // --- Devices Tab ---
+
+  describe("Devices Tab", () => {
+    const mockDevice = {
+      id: "200",
+      deviceId: "DEV-001",
+      deviceType: "rfid_reader",
+      name: "Eingang",
+      status: "active",
+      apiKey: "full-api-key-value",
+      maskedApiKey: "****-key",
+      lastSeen: "2026-03-20T10:00:00Z",
+      isOnline: true,
+      schoolId: "10",
+      schoolName: "Test School",
+      organizationId: "1",
+      organizationName: "Test Org",
+      createdAt: "2025-01-01T00:00:00Z",
+      updatedAt: "2025-01-01T00:00:00Z",
+    };
+
+    function setupSWRWithDevices(
+      devicesKey: string,
+      devices: unknown[] | undefined,
+      devicesLoading = false,
+    ) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mockUseSWR.mockImplementation((key: any) => {
+        if (key === "operator-organizations") {
+          return {
+            data: [mockOrg],
+            isLoading: false,
+            mutate: mockMutateOrgs,
+          };
+        }
+        if (key === "operator-schools") {
+          return {
+            data: [mockSchool],
+            isLoading: false,
+            mutate: mockMutateSchools,
+          };
+        }
+        if (key === devicesKey) {
+          return {
+            data: devicesLoading ? undefined : devices,
+            isLoading: devicesLoading,
+            mutate: vi.fn(),
+          };
+        }
+        return { data: undefined, isLoading: false, mutate: vi.fn() };
+      });
+    }
+
+    it("renders devices tab with all devices view", () => {
+      setupSWRWithDevices("operator-all-devices", [mockDevice]);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-devices"));
+
+      expect(screen.getByText("DEV-001")).toBeInTheDocument();
+      expect(screen.getByText("Eingang")).toBeInTheDocument();
+      expect(screen.getByText("type:rfid_reader")).toBeInTheDocument();
+      expect(screen.getByText("Online")).toBeInTheDocument();
+      expect(screen.getByText("****-key")).toBeInTheDocument();
+    });
+
+    it("shows empty state for all devices", () => {
+      setupSWRWithDevices("operator-all-devices", []);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-devices"));
+
+      expect(screen.getByText("Keine Geräte")).toBeInTheDocument();
+      expect(
+        screen.getByText("Es gibt noch keine registrierten Geräte im System."),
+      ).toBeInTheDocument();
+    });
+
+    it("filters devices by organization", () => {
+      setupSWRWithDevices(`operator-org-devices-1`, [mockDevice]);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-devices"));
+
+      const orgSelect = screen.getByLabelText("Träger");
+      fireEvent.change(orgSelect, { target: { value: "1" } });
+
+      expect(screen.getByText("DEV-001")).toBeInTheDocument();
+    });
+
+    it("shows empty state for org-level devices", () => {
+      setupSWRWithDevices(`operator-org-devices-1`, []);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-devices"));
+
+      const orgSelect = screen.getByLabelText("Träger");
+      fireEvent.change(orgSelect, { target: { value: "1" } });
+
+      expect(screen.getByText("Keine Geräte")).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "Für diesen Träger gibt es noch keine registrierten Geräte.",
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("filters devices by school", () => {
+      setupSWRWithDevices(`operator-school-devices-10`, [mockDevice]);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-devices"));
+
+      const orgSelect = screen.getByLabelText("Träger");
+      fireEvent.change(orgSelect, { target: { value: "1" } });
+
+      const schoolSelect = screen.getByLabelText("Schule");
+      fireEvent.change(schoolSelect, { target: { value: "10" } });
+
+      expect(screen.getByText("DEV-001")).toBeInTheDocument();
+      expect(screen.getByText("Test School")).toBeInTheDocument();
+    });
+
+    it("shows school-level device count badge", () => {
+      setupSWRWithDevices(`operator-school-devices-10`, [mockDevice]);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-devices"));
+
+      const orgSelect = screen.getByLabelText("Träger");
+      fireEvent.change(orgSelect, { target: { value: "1" } });
+
+      const schoolSelect = screen.getByLabelText("Schule");
+      fireEvent.change(schoolSelect, { target: { value: "10" } });
+
+      expect(screen.getByText("1 Gerät")).toBeInTheDocument();
+    });
+
+    it("shows plural Geräte for multiple devices", () => {
+      const device2 = { ...mockDevice, id: "201", deviceId: "DEV-002" };
+      setupSWRWithDevices(`operator-school-devices-10`, [mockDevice, device2]);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-devices"));
+
+      const orgSelect = screen.getByLabelText("Träger");
+      fireEvent.change(orgSelect, { target: { value: "1" } });
+
+      const schoolSelect = screen.getByLabelText("Schule");
+      fireEvent.change(schoolSelect, { target: { value: "10" } });
+
+      expect(screen.getByText("2 Geräte")).toBeInTheDocument();
+    });
+
+    it("shows empty state for school-level devices", () => {
+      setupSWRWithDevices(`operator-school-devices-10`, []);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-devices"));
+
+      const orgSelect = screen.getByLabelText("Träger");
+      fireEvent.change(orgSelect, { target: { value: "1" } });
+
+      const schoolSelect = screen.getByLabelText("Schule");
+      fireEvent.change(schoolSelect, { target: { value: "10" } });
+
+      expect(screen.getByText("Keine Geräte")).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "Für diese Schule gibt es noch keine registrierten Geräte.",
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("renders offline device with status badge", () => {
+      const offlineDevice = {
+        ...mockDevice,
+        isOnline: false,
+        status: "offline",
+      };
+      setupSWRWithDevices("operator-all-devices", [offlineDevice]);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-devices"));
+
+      expect(screen.getByText("status:offline")).toBeInTheDocument();
+    });
+
+    it("renders device with no lastSeen as Nie", () => {
+      const neverSeenDevice = {
+        ...mockDevice,
+        lastSeen: null,
+        isOnline: false,
+        status: "inactive",
+      };
+      setupSWRWithDevices("operator-all-devices", [neverSeenDevice]);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-devices"));
+
+      expect(screen.getByText("Nie")).toBeInTheDocument();
+    });
+
+    it("renders device with no name as dash", () => {
+      const noNameDevice = { ...mockDevice, name: "" };
+      setupSWRWithDevices("operator-all-devices", [noNameDevice]);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-devices"));
+
+      const cells = screen.getAllByText("—");
+      expect(cells.length).toBeGreaterThan(0);
+    });
+
+    it("renders device with no maskedApiKey as dash", () => {
+      const noKeyDevice = { ...mockDevice, maskedApiKey: "", apiKey: "" };
+      setupSWRWithDevices("operator-all-devices", [noKeyDevice]);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-devices"));
+
+      const cells = screen.getAllByText("—");
+      expect(cells.length).toBeGreaterThan(0);
+    });
+
+    it("copies API key to clipboard", async () => {
+      const writeText = vi.fn().mockResolvedValue(undefined);
+      Object.defineProperty(navigator, "clipboard", {
+        value: { writeText },
+        writable: true,
+        configurable: true,
+      });
+
+      setupSWRWithDevices("operator-all-devices", [mockDevice]);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-devices"));
+
+      const copyButton = screen.getByTitle("API-Key kopieren");
+      fireEvent.click(copyButton);
+
+      await waitFor(() => {
+        expect(writeText).toHaveBeenCalledWith("full-api-key-value");
+      });
+    });
+
+    it("shows devices loading state", () => {
+      setupSWRWithDevices("operator-all-devices", undefined, true);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-devices"));
+
+      expect(screen.getAllByTestId("skeleton").length).toBeGreaterThan(0);
+    });
+
+    it("sorts devices by clicking column header", () => {
+      const device1 = { ...mockDevice, deviceId: "AAA-001" };
+      const device2 = {
+        ...mockDevice,
+        id: "201",
+        deviceId: "ZZZ-999",
+      };
+      setupSWRWithDevices("operator-all-devices", [device2, device1]);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-devices"));
+
+      // Click device ID header to sort ascending
+      fireEvent.click(screen.getByText("Geräte-ID"));
+
+      const rows = screen.getAllByText(/[AZ]{3}-\d{3}/);
+      expect(rows[0]!.textContent).toBe("AAA-001");
+      expect(rows[1]!.textContent).toBe("ZZZ-999");
+
+      // Click again to reverse
+      fireEvent.click(screen.getByText("Geräte-ID"));
+
+      const rowsReversed = screen.getAllByText(/[AZ]{3}-\d{3}/);
+      expect(rowsReversed[0]!.textContent).toBe("ZZZ-999");
+      expect(rowsReversed[1]!.textContent).toBe("AAA-001");
+    });
+
+    it("shows school column in all-devices view", () => {
+      setupSWRWithDevices("operator-all-devices", [mockDevice]);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-devices"));
+
+      // "Schule" appears as both filter label and table header
+      const schuleElements = screen.getAllByText("Schule");
+      expect(schuleElements.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it("renders maintenance status badge", () => {
+      const maintenanceDevice = {
+        ...mockDevice,
+        isOnline: false,
+        status: "maintenance",
+      };
+      setupSWRWithDevices("operator-all-devices", [maintenanceDevice]);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-devices"));
+
+      expect(screen.getByText("status:maintenance")).toBeInTheDocument();
+    });
+
+    it("shows organization name in school-level header", () => {
+      setupSWRWithDevices(`operator-school-devices-10`, [mockDevice]);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-devices"));
+
+      const orgSelect = screen.getByLabelText("Träger");
+      fireEvent.change(orgSelect, { target: { value: "1" } });
+
+      const schoolSelect = screen.getByLabelText("Schule");
+      fireEvent.change(schoolSelect, { target: { value: "10" } });
+
+      // Org name appears in both dropdown option and header
+      const orgNameElements = screen.getAllByText("Test Org");
+      expect(orgNameElements.length).toBeGreaterThanOrEqual(2);
+    });
+  });
+
+  // --- OrgSchoolFilter ---
+
+  describe("OrgSchoolFilter", () => {
+    it("shows 'Schule auswählen…' when no org is selected", () => {
+      setupSWR();
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-accounts"));
+
+      const schoolSelect = screen.getByLabelText("Schule");
+      expect(schoolSelect).toHaveTextContent("Schule auswählen…");
+    });
+
+    it("shows 'Alle Schulen' when an org is selected", () => {
+      setupSWR();
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-accounts"));
+
+      const orgSelect = screen.getByLabelText("Träger");
+      fireEvent.change(orgSelect, { target: { value: "1" } });
+
+      const schoolSelect = screen.getByLabelText("Schule");
+      expect(schoolSelect).toHaveTextContent("Alle Schulen");
+    });
+
+    it("shows 'Alle Träger' option in org filter", () => {
+      setupSWR();
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-accounts"));
+
+      const orgSelect = screen.getByLabelText("Träger");
+      expect(orgSelect).toHaveTextContent("Alle Träger");
+    });
   });
 });
