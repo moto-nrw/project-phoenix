@@ -28,6 +28,16 @@ echo "Starting $DEPLOY_DIR deployment ($DEPLOY_SHA)..."
 cp .env .env.rollback 2>/dev/null || true
 cp docker-compose.yml docker-compose.yml.rollback 2>/dev/null || true
 
+# ── Verify new config files were delivered by CI ──
+if [ ! -f .env.new ]; then
+  echo "FATAL: .env.new not found — SCP delivery failed or concurrent deploy consumed it"
+  exit 1
+fi
+if [ ! -f docker-compose.yml.new ]; then
+  echo "FATAL: docker-compose.yml.new not found — SCP delivery failed or concurrent deploy consumed it"
+  exit 1
+fi
+
 # ── Swap in new config ──
 mv .env.new .env
 mv docker-compose.yml.new docker-compose.yml
@@ -41,7 +51,7 @@ if ! docker compose pull; then
   echo "Pull failed, restoring old config"
   cp .env.rollback .env 2>/dev/null || true
   cp docker-compose.yml.rollback docker-compose.yml 2>/dev/null || true
-  docker compose up -d --wait 2>/dev/null || true
+  docker compose up -d --wait --remove-orphans 2>/dev/null || true
   exit 1
 fi
 
@@ -59,7 +69,7 @@ if [ ! -s "$BACKUP_FILE" ]; then
   cp .env.rollback .env 2>/dev/null || true
   cp docker-compose.yml.rollback docker-compose.yml 2>/dev/null || true
   docker compose pull 2>/dev/null || true
-  docker compose up -d --wait 2>/dev/null || true
+  docker compose up -d --wait --remove-orphans 2>/dev/null || true
   exit 1
 fi
 echo "Backup: $(basename "$BACKUP_FILE") ($(du -h "$BACKUP_FILE" | cut -f1))"
@@ -79,7 +89,7 @@ fi
 
 # ── Start services (skip if migration failed) ──
 if [ "$DEPLOY_FAILED" = "false" ]; then
-  if ! docker compose up -d --wait; then
+  if ! docker compose up -d --wait --remove-orphans; then
     echo "Healthcheck FAILED"
     DEPLOY_FAILED=true
   fi
@@ -116,7 +126,7 @@ fi
 cp .env.rollback .env 2>/dev/null || true
 cp docker-compose.yml.rollback docker-compose.yml 2>/dev/null || true
 
-if docker compose pull && docker compose up -d --wait; then
+if docker compose pull && docker compose up -d --wait --remove-orphans; then
   echo "Rollback successful — restored previous version"
   exit 10
 else
