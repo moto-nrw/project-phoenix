@@ -92,33 +92,9 @@ describe("middleware", () => {
       expect(redirect).toBeNull();
     });
 
-    it("passes through /favicon.ico", () => {
-      const res = middleware(
-        makeRequest(
-          `http://${OPERATOR_HOSTNAME}/favicon.ico`,
-          OPERATOR_HOSTNAME,
-        ),
-      );
-
-      const rewrite = res.headers.get("x-middleware-rewrite");
-      const redirect = res.headers.get("location");
-      expect(rewrite).toBeNull();
-      expect(redirect).toBeNull();
-    });
-
-    it("passes through /images/* routes", () => {
-      const res = middleware(
-        makeRequest(
-          `http://${OPERATOR_HOSTNAME}/images/logo.png`,
-          OPERATOR_HOSTNAME,
-        ),
-      );
-
-      const rewrite = res.headers.get("x-middleware-rewrite");
-      const redirect = res.headers.get("location");
-      expect(rewrite).toBeNull();
-      expect(redirect).toBeNull();
-    });
+    // Note: favicon.ico, favicon.png, apple-touch-icon.png, site.webmanifest,
+    // icons/, and images/ are excluded from middleware via the matcher config.
+    // They never reach the middleware function in production.
 
     it("uses x-forwarded-host header when present", () => {
       const req = new NextRequest(`http://internal-host/suggestions`);

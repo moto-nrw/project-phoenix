@@ -85,14 +85,9 @@ function handleOperatorSubdomain(request: NextRequest): NextResponse {
   }
 
   // Pass through: operator API routes, static assets
-  if (
-    pathname.startsWith("/api/") ||
-    pathname.startsWith("/_next") ||
-    pathname === "/favicon.ico" ||
-    pathname === "/site.webmanifest" ||
-    pathname.startsWith("/icons/") ||
-    pathname.startsWith("/images")
-  ) {
+  // Note: favicon.ico, favicon.png, apple-touch-icon.png, site.webmanifest,
+  // icons/, and images/ are excluded from the middleware matcher entirely.
+  if (pathname.startsWith("/api/") || pathname.startsWith("/_next")) {
     return withSecurityHeaders(NextResponse.next());
   }
 
@@ -206,5 +201,7 @@ export function middleware(request: NextRequest): NextResponse {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|images/).*)"],
+  matcher: [
+    "/((?!_next/static|_next/image|favicon\\.ico|favicon\\.png|apple-touch-icon\\.png|site\\.webmanifest|icons/|images/).*)",
+  ],
 };
