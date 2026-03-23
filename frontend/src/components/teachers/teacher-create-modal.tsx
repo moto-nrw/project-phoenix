@@ -4,6 +4,8 @@ import { Modal } from "~/components/ui/modal";
 import { TeacherForm } from "./teacher-form";
 import type { Teacher } from "@/lib/teacher-api";
 
+const EMPTY_INITIAL_DATA: Partial<Teacher> = {};
+
 interface TeacherCreateModalProps {
   readonly isOpen: boolean;
   readonly onClose: () => void;
@@ -21,24 +23,15 @@ export function TeacherCreateModal({
 }: TeacherCreateModalProps) {
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Neues Personal anlegen">
-      {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="flex flex-col items-center gap-4">
-            <div className="h-12 w-12 animate-spin rounded-full border-2 border-gray-200 border-t-[#F78C10]"></div>
-            <p className="text-gray-600">Daten werden geladen...</p>
-          </div>
-        </div>
-      ) : (
-        <TeacherForm
-          initialData={{}}
-          onSubmitAction={onCreate}
-          onCancelAction={onClose}
-          isLoading={loading}
-          formTitle=""
-          wrapInCard={false}
-          submitLabel="Erstellen"
-        />
-      )}
+      <TeacherForm
+        initialData={EMPTY_INITIAL_DATA}
+        onSubmitAction={onCreate}
+        onCancelAction={onClose}
+        isLoading={loading}
+        formTitle=""
+        wrapInCard={false}
+        submitLabel="Erstellen"
+      />
     </Modal>
   );
 }

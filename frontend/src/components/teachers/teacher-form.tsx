@@ -220,12 +220,18 @@ export function TeacherForm({
       // Submit the form
       await onSubmitAction(formData);
     } catch (err) {
-      logger.error("failed to submit form", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      setSubmitError(
-        "Es ist ein Fehler aufgetreten. Bitte versuchen Sie es später erneut.",
-      );
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      logger.error("failed to submit form", { error: errorMsg });
+
+      if (errorMsg.includes("email already exists")) {
+        setSubmitError(
+          "Es existiert bereits ein Konto mit dieser E-Mail-Adresse.",
+        );
+      } else {
+        setSubmitError(
+          "Es ist ein Fehler aufgetreten. Bitte versuchen Sie es später erneut.",
+        );
+      }
     }
   };
 
@@ -241,12 +247,6 @@ export function TeacherForm({
         <h3 className="mb-4 text-base font-semibold text-gray-800 md:mb-6 md:text-lg">
           {formTitle}
         </h3>
-      )}
-
-      {submitError && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-800 md:mb-6 md:p-4 md:text-sm">
-          {submitError}
-        </div>
       )}
 
       <form
@@ -560,6 +560,12 @@ export function TeacherForm({
             </div>
           </div>
         </div>
+
+        {submitError && (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-800 md:p-4 md:text-sm">
+            {submitError}
+          </div>
+        )}
 
         {/* Form Actions */}
         <div className="sticky bottom-0 -mx-4 mt-4 -mb-4 flex gap-2 border-t border-gray-100 bg-white/95 px-4 pt-3 pb-3 backdrop-blur-sm md:-mx-6 md:mt-6 md:-mb-6 md:gap-3 md:px-6 md:pt-4 md:pb-4">
