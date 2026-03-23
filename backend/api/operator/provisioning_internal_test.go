@@ -70,6 +70,15 @@ func (m *mockProvisioningService) ListOrganizationAccounts(_ context.Context, _ 
 func (m *mockProvisioningService) ListAllAccounts(_ context.Context) ([]authModels.OrgAccountInfo, error) {
 	return nil, nil
 }
+func (m *mockProvisioningService) ListAllDevices(_ context.Context) ([]platformSvc.OperatorDeviceInfo, error) {
+	return nil, nil
+}
+func (m *mockProvisioningService) ListSchoolDevices(_ context.Context, _ int64) ([]platformSvc.OperatorDeviceInfo, error) {
+	return nil, nil
+}
+func (m *mockProvisioningService) ListOrganizationDevices(_ context.Context, _ int64) ([]platformSvc.OperatorDeviceInfo, error) {
+	return nil, nil
+}
 
 func withOperatorClaims(req *http.Request, operatorID int) *http.Request {
 	claims := jwtPkg.AppClaims{ID: operatorID, Scope: "platform"}

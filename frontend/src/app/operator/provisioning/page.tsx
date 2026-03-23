@@ -12,8 +12,14 @@ import type {
   School,
   SchoolAccount,
   OrgAccount,
+  OperatorDevice,
 } from "~/lib/operator/provisioning-helpers";
 import { getRelativeTime } from "~/lib/format-utils";
+import {
+  getDeviceTypeDisplayName,
+  getDeviceStatusDisplayName,
+  formatLastSeen,
+} from "~/lib/iot-helpers";
 import { createLogger } from "~/lib/logger";
 import {
   StatusBadge,
@@ -29,7 +35,7 @@ import { InviteAdminModal } from "./invite-admin-modal";
 
 const logger = createLogger({ component: "OperatorProvisioningPage" });
 
-type ActiveTab = "organizations" | "schools" | "accounts";
+type ActiveTab = "organizations" | "schools" | "accounts" | "devices";
 
 export default function OperatorProvisioningPage() {
   const { status } = useSession();
@@ -126,11 +132,59 @@ export default function OperatorProvisioningPage() {
     },
   );
 
+  // School-level devices (when a specific school is selected on devices tab)
+  const { data: schoolDevices, isLoading: schoolDevicesLoading } = useSWR(
+    isAuthenticated && activeTab === "devices" && selectedSchool
+      ? `operator-school-devices-${selectedSchool.id}`
+      : null,
+    () => operatorProvisioningService.listSchoolDevices(selectedSchool!.id),
+    {
+      keepPreviousData: true,
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
+    },
+  );
+
+  // Org-level devices (when only an org is selected, no specific school)
+  const { data: orgDevices, isLoading: orgDevicesLoading } = useSWR(
+    isAuthenticated && activeTab === "devices" && filterOrgId && !selectedSchool
+      ? `operator-org-devices-${filterOrgId}`
+      : null,
+    () => operatorProvisioningService.listOrganizationDevices(filterOrgId),
+    {
+      keepPreviousData: true,
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
+    },
+  );
+
+  // All devices (no filter selected)
+  const { data: allDevices, isLoading: allDevicesLoading } = useSWR(
+    isAuthenticated &&
+      activeTab === "devices" &&
+      !filterOrgId &&
+      !selectedSchool
+      ? "operator-all-devices"
+      : null,
+    () => operatorProvisioningService.listAllDevices(),
+    {
+      keepPreviousData: true,
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
+    },
+  );
+
   const accountsLoading = selectedSchool
     ? schoolAccountsLoading
     : filterOrgId
       ? orgAccountsLoading
       : allAccountsLoading;
+
+  const devicesLoading = selectedSchool
+    ? schoolDevicesLoading
+    : filterOrgId
+      ? orgDevicesLoading
+      : allDevicesLoading;
 
   // Schools filtered by selected organization (for accounts tab filter)
   const filteredSchools = useMemo(() => {
@@ -160,6 +214,18 @@ export default function OperatorProvisioningPage() {
                   : allAccounts?.length
               : undefined,
         },
+        {
+          id: "devices",
+          label: "Geräte",
+          count:
+            activeTab === "devices"
+              ? selectedSchool
+                ? schoolDevices?.length
+                : filterOrgId
+                  ? orgDevices?.length
+                  : allDevices?.length
+              : undefined,
+        },
       ],
       activeTab,
       onTabChange: (tabId: string) => {
@@ -175,6 +241,9 @@ export default function OperatorProvisioningPage() {
       schoolAccounts?.length,
       orgAccounts?.length,
       allAccounts?.length,
+      schoolDevices?.length,
+      orgDevices?.length,
+      allDevices?.length,
     ],
   );
 
@@ -541,6 +610,158 @@ export default function OperatorProvisioningPage() {
               )}
               {schoolAccounts && schoolAccounts.length > 0 && (
                 <AccountsTable accounts={schoolAccounts} />
+              )}
+            </>
+          )}
+        </>
+      )}
+
+      {/* Devices Tab */}
+      {activeTab === "devices" && (
+        <>
+          {/* Filters */}
+          <div className="mt-4 mb-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div className="flex-1">
+              <label
+                htmlFor="filter-device-org"
+                className="mb-1 block text-xs font-medium text-gray-500"
+              >
+                Träger
+              </label>
+              <select
+                id="filter-device-org"
+                value={filterOrgId}
+                onChange={(e) => {
+                  setFilterOrgId(e.target.value);
+                  const newOrgId = e.target.value;
+                  if (
+                    selectedSchool &&
+                    newOrgId &&
+                    selectedSchool.organizationId !== newOrgId
+                  ) {
+                    setSelectedSchool(null);
+                  }
+                }}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-gray-400 focus:ring-1 focus:ring-gray-400 focus:outline-none"
+              >
+                <option value="">Alle Träger</option>
+                {organizations?.map((org) => (
+                  <option key={org.id} value={org.id}>
+                    {org.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex-1">
+              <label
+                htmlFor="filter-device-school"
+                className="mb-1 block text-xs font-medium text-gray-500"
+              >
+                Schule
+              </label>
+              <select
+                id="filter-device-school"
+                value={selectedSchool?.id ?? ""}
+                onChange={(e) => {
+                  const schoolId = e.target.value;
+                  if (!schoolId) {
+                    setSelectedSchool(null);
+                    return;
+                  }
+                  const school = schools?.find((s) => s.id === schoolId);
+                  if (school) {
+                    setSelectedSchool(school);
+                  }
+                }}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-gray-400 focus:ring-1 focus:ring-gray-400 focus:outline-none"
+              >
+                <option value="">
+                  {filterOrgId ? "Alle Schulen" : "Schule auswählen…"}
+                </option>
+                {filteredSchools.map((school) => (
+                  <option key={school.id} value={school.id}>
+                    {school.name}
+                    {school.organization
+                      ? ` (${school.organization.name})`
+                      : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Loading */}
+          {devicesLoading && <CardSkeletons />}
+
+          {/* Org-level view (no specific school selected) */}
+          {!selectedSchool && filterOrgId && !orgDevicesLoading && (
+            <>
+              {orgDevices?.length === 0 && (
+                <div className="flex flex-col items-center gap-3 py-12 text-center">
+                  <p className="text-lg font-medium text-gray-900">
+                    Keine Geräte
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    Für diesen Träger gibt es noch keine registrierten Geräte.
+                  </p>
+                </div>
+              )}
+              {orgDevices && orgDevices.length > 0 && (
+                <DevicesTable devices={orgDevices} showSchool />
+              )}
+            </>
+          )}
+
+          {/* All devices view (no filter) */}
+          {!selectedSchool && !filterOrgId && !allDevicesLoading && (
+            <>
+              {allDevices?.length === 0 && (
+                <div className="flex flex-col items-center gap-3 py-12 text-center">
+                  <p className="text-lg font-medium text-gray-900">
+                    Keine Geräte
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    Es gibt noch keine registrierten Geräte im System.
+                  </p>
+                </div>
+              )}
+              {allDevices && allDevices.length > 0 && (
+                <DevicesTable devices={allDevices} showSchool />
+              )}
+            </>
+          )}
+
+          {/* School-level view */}
+          {selectedSchool && !schoolDevicesLoading && (
+            <>
+              <div className="mb-3 flex items-center gap-2">
+                <h3 className="text-sm font-semibold text-gray-900">
+                  {selectedSchool.name}
+                </h3>
+                {selectedSchool.organization && (
+                  <span className="text-xs text-gray-400">
+                    {selectedSchool.organization.name}
+                  </span>
+                )}
+                {schoolDevices && (
+                  <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
+                    {schoolDevices.length}{" "}
+                    {schoolDevices.length === 1 ? "Gerät" : "Geräte"}
+                  </span>
+                )}
+              </div>
+              {schoolDevices?.length === 0 && (
+                <div className="flex flex-col items-center gap-3 py-12 text-center">
+                  <p className="text-lg font-medium text-gray-900">
+                    Keine Geräte
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    Für diese Schule gibt es noch keine registrierten Geräte.
+                  </p>
+                </div>
+              )}
+              {schoolDevices && schoolDevices.length > 0 && (
+                <DevicesTable devices={schoolDevices} />
               )}
             </>
           )}
@@ -1073,5 +1294,261 @@ function AccountStatusBadge({ status }: { readonly status: string }) {
     >
       {labels[status] ?? status}
     </span>
+  );
+}
+
+// --- Device Tab Components ---
+
+type DeviceSortKey =
+  | "schoolName"
+  | "deviceId"
+  | "deviceType"
+  | "name"
+  | "status"
+  | "lastSeen"
+  | "apiKey";
+
+function sortDevices(
+  devices: readonly OperatorDevice[],
+  sort: SortState<DeviceSortKey>,
+): OperatorDevice[] {
+  const dir = sort.direction === "asc" ? 1 : -1;
+  return [...devices].sort((a, b) => {
+    let av: string;
+    let bv: string;
+    switch (sort.key) {
+      case "schoolName":
+        av = a.schoolName.toLowerCase();
+        bv = b.schoolName.toLowerCase();
+        break;
+      case "deviceId":
+        av = a.deviceId.toLowerCase();
+        bv = b.deviceId.toLowerCase();
+        break;
+      case "deviceType":
+        av = a.deviceType.toLowerCase();
+        bv = b.deviceType.toLowerCase();
+        break;
+      case "name":
+        av = (a.name || "").toLowerCase();
+        bv = (b.name || "").toLowerCase();
+        break;
+      case "status":
+        av = a.status.toLowerCase();
+        bv = b.status.toLowerCase();
+        break;
+      case "lastSeen":
+        av = a.lastSeen ?? "";
+        bv = b.lastSeen ?? "";
+        break;
+      case "apiKey":
+        av = a.maskedApiKey.toLowerCase();
+        bv = b.maskedApiKey.toLowerCase();
+        break;
+    }
+    return av < bv ? -dir : av > bv ? dir : 0;
+  });
+}
+
+function DevicesTable({
+  devices,
+  showSchool = false,
+}: {
+  readonly devices: OperatorDevice[];
+  readonly showSchool?: boolean;
+}) {
+  const { sort, toggle } = useSort<DeviceSortKey>(
+    showSchool ? "schoolName" : "deviceId",
+  );
+  const sorted = useMemo(() => sortDevices(devices, sort), [devices, sort]);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const handleCopyApiKey = useCallback(async (device: OperatorDevice) => {
+    if (!device.apiKey) return;
+    try {
+      await navigator.clipboard.writeText(device.apiKey);
+      setCopiedId(device.id);
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch {
+      logger.error("clipboard_copy_failed", {
+        error: "Failed to copy API key to clipboard",
+      });
+    }
+  }, []);
+
+  return (
+    <div className="overflow-x-auto rounded-2xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md">
+      <table className="w-full text-left text-sm">
+        <thead>
+          <tr className="border-b border-gray-100 text-xs font-medium text-gray-500">
+            {showSchool && (
+              <SortableHeader
+                label="Schule"
+                sortKey="schoolName"
+                sort={sort}
+                onToggle={toggle}
+              />
+            )}
+            <SortableHeader
+              label="Geräte-ID"
+              sortKey="deviceId"
+              sort={sort}
+              onToggle={toggle}
+            />
+            <SortableHeader
+              label="Name"
+              sortKey="name"
+              sort={sort}
+              onToggle={toggle}
+            />
+            <SortableHeader
+              label="Typ"
+              sortKey="deviceType"
+              sort={sort}
+              onToggle={toggle}
+            />
+            <SortableHeader
+              label="Status"
+              sortKey="status"
+              sort={sort}
+              onToggle={toggle}
+            />
+            <SortableHeader
+              label="Zuletzt online"
+              sortKey="lastSeen"
+              sort={sort}
+              onToggle={toggle}
+            />
+            <SortableHeader
+              label="API-Key"
+              sortKey="apiKey"
+              sort={sort}
+              onToggle={toggle}
+            />
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map((device) => (
+            <tr
+              key={device.id}
+              className="border-b border-gray-50 last:border-0"
+            >
+              {showSchool && (
+                <td className="px-5 py-3 text-gray-600">{device.schoolName}</td>
+              )}
+              <td className="px-5 py-3 font-mono text-xs font-medium text-gray-900">
+                {device.deviceId}
+              </td>
+              <td className="px-5 py-3 text-gray-600">{device.name || "—"}</td>
+              <td className="px-5 py-3">
+                <span className="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
+                  {getDeviceTypeDisplayName(device.deviceType)}
+                </span>
+              </td>
+              <td className="px-5 py-3">
+                <DeviceStatusBadge
+                  status={device.status}
+                  isOnline={device.isOnline}
+                />
+              </td>
+              <td className="px-5 py-3 text-gray-600">
+                {device.lastSeen ? (
+                  <span title={formatLastSeen(device.lastSeen)}>
+                    {getRelativeTime(device.lastSeen)}
+                  </span>
+                ) : (
+                  <span className="text-gray-400">Nie</span>
+                )}
+              </td>
+              <td className="px-5 py-3">
+                {device.maskedApiKey ? (
+                  <button
+                    type="button"
+                    onClick={() => void handleCopyApiKey(device)}
+                    className="group flex items-center gap-1.5 font-mono text-xs text-gray-500 transition-colors hover:text-gray-900"
+                    title="API-Key kopieren"
+                  >
+                    <span>{device.maskedApiKey}</span>
+                    <span className="text-gray-300 transition-colors group-hover:text-gray-600">
+                      {copiedId === device.id ? <CheckIcon /> : <CopyIcon />}
+                    </span>
+                  </button>
+                ) : (
+                  <span className="text-gray-400">—</span>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function DeviceStatusBadge({
+  status,
+  isOnline,
+}: {
+  readonly status: string;
+  readonly isOnline: boolean;
+}) {
+  if (isOnline) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+        <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+        Online
+      </span>
+    );
+  }
+  const styles: Record<string, string> = {
+    active: "bg-green-100 text-green-700",
+    inactive: "bg-gray-100 text-gray-500",
+    maintenance: "bg-yellow-100 text-yellow-700",
+    offline: "bg-red-100 text-red-700",
+  };
+  return (
+    <span
+      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${styles[status] ?? "bg-gray-100 text-gray-500"}`}
+    >
+      {getDeviceStatusDisplayName(status)}
+    </span>
+  );
+}
+
+function CopyIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+      <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="text-green-600"
+    >
+      <path d="M20 6 9 17l-5-5" />
+    </svg>
   );
 }

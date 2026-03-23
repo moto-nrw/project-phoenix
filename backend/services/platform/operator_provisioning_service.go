@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net"
 	"strings"
+	"time"
 
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
@@ -54,6 +55,51 @@ type OperatorProvisioningService interface {
 	ListSchoolAccounts(ctx context.Context, schoolID int64) ([]authModels.TenantAccountInfo, error)
 	ListOrganizationAccounts(ctx context.Context, organizationID int64) ([]authModels.OrgAccountInfo, error)
 	ListAllAccounts(ctx context.Context) ([]authModels.OrgAccountInfo, error)
+	ListAllDevices(ctx context.Context) ([]OperatorDeviceInfo, error)
+	ListSchoolDevices(ctx context.Context, schoolID int64) ([]OperatorDeviceInfo, error)
+	ListOrganizationDevices(ctx context.Context, organizationID int64) ([]OperatorDeviceInfo, error)
+}
+
+// OperatorDeviceInfo holds device information with school/org context for operator views.
+type OperatorDeviceInfo struct {
+	ID               int64      `bun:"id" json:"id"`
+	DeviceID         string     `bun:"device_id" json:"device_id"`
+	DeviceType       string     `bun:"device_type" json:"device_type"`
+	Name             *string    `bun:"name" json:"name,omitempty"`
+	Status           string     `bun:"status" json:"status"`
+	APIKey           *string    `bun:"api_key" json:"api_key,omitempty"`
+	MaskedAPIKey     string     `bun:"-" json:"masked_api_key"`
+	LastSeen         *time.Time `bun:"last_seen" json:"last_seen,omitempty"`
+	IsOnline         bool       `bun:"-" json:"is_online"`
+	SchoolID         int64      `bun:"school_id" json:"school_id"`
+	SchoolName       string     `bun:"school_name" json:"school_name"`
+	OrganizationID   int64      `bun:"organization_id" json:"organization_id"`
+	OrganizationName string     `bun:"organization_name" json:"organization_name"`
+	CreatedAt        time.Time  `bun:"created_at" json:"created_at"`
+	UpdatedAt        time.Time  `bun:"updated_at" json:"updated_at"`
+}
+
+// maskAPIKey returns the first 5 characters followed by asterisks.
+func maskAPIKey(key *string) string {
+	if key == nil || *key == "" {
+		return ""
+	}
+	k := *key
+	if len(k) <= 10 {
+		return k
+	}
+	return k[:10] + "..."
+}
+
+// enrichDeviceInfo computes derived fields (IsOnline, MaskedAPIKey).
+func enrichDeviceInfo(devices []OperatorDeviceInfo) []OperatorDeviceInfo {
+	for i := range devices {
+		devices[i].MaskedAPIKey = maskAPIKey(devices[i].APIKey)
+		if devices[i].LastSeen != nil {
+			devices[i].IsOnline = time.Since(*devices[i].LastSeen) <= 5*time.Minute
+		}
+	}
+	return devices
 }
 
 type operatorProvisioningService struct {
@@ -420,6 +466,87 @@ func (s *operatorProvisioningService) ListAllAccounts(ctx context.Context) ([]au
 		return nil, err
 	}
 	return result, nil
+}
+
+const operatorDeviceQuery = `
+SELECT
+	"d".id,
+	"d".device_id,
+	"d".device_type,
+	"d".name,
+	"d".status,
+	"d".api_key,
+	"d".last_seen,
+	"d".created_at,
+	"d".updated_at,
+	"s".id AS school_id,
+	"s".name AS school_name,
+	"o".id AS organization_id,
+	"o".name AS organization_name
+FROM iot.devices AS "d"
+INNER JOIN platform.schools AS "s" ON "s".id = "d".tenant_id
+INNER JOIN platform.organizations AS "o" ON "o".id = "s".organization_id
+`
+
+func (s *operatorProvisioningService) queryDevices(ctx context.Context, whereClause string, args ...interface{}) ([]OperatorDeviceInfo, error) {
+	var result []OperatorDeviceInfo
+	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
+		var db bun.IDB = s.txHandler.DB
+		if tx, ok := modelBase.TxFromContext(adminCtx); ok && tx != nil {
+			db = tx
+		}
+		q := operatorDeviceQuery
+		if whereClause != "" {
+			q += " WHERE " + whereClause
+		}
+		q += ` ORDER BY "o".name, "s".name, "d".device_id`
+
+		scanErr := db.NewRaw(q, args...).Scan(adminCtx, &result)
+		return scanErr
+	})
+	if err != nil {
+		return nil, err
+	}
+	if result == nil {
+		result = []OperatorDeviceInfo{}
+	}
+	return enrichDeviceInfo(result), nil
+}
+
+func (s *operatorProvisioningService) ListAllDevices(ctx context.Context) ([]OperatorDeviceInfo, error) {
+	return s.queryDevices(ctx, "")
+}
+
+func (s *operatorProvisioningService) ListSchoolDevices(ctx context.Context, schoolID int64) ([]OperatorDeviceInfo, error) {
+	var school *platform.School
+	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
+		var findErr error
+		school, findErr = s.schoolRepo.FindByID(adminCtx, schoolID)
+		return findErr
+	})
+	if err != nil {
+		return nil, err
+	}
+	if school == nil {
+		return nil, &SchoolNotFoundError{SchoolID: schoolID}
+	}
+	return s.queryDevices(ctx, `"d".tenant_id = ?`, schoolID)
+}
+
+func (s *operatorProvisioningService) ListOrganizationDevices(ctx context.Context, organizationID int64) ([]OperatorDeviceInfo, error) {
+	var org *platform.Organization
+	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
+		var findErr error
+		org, findErr = s.organizationRepo.FindByID(adminCtx, organizationID)
+		return findErr
+	})
+	if err != nil {
+		return nil, err
+	}
+	if org == nil {
+		return nil, &OrganizationNotFoundError{OrganizationID: organizationID}
+	}
+	return s.queryDevices(ctx, `"o".id = ?`, organizationID)
 }
 
 func (s *operatorProvisioningService) validateSchoolCreate(ctx context.Context, school *platform.School) error {

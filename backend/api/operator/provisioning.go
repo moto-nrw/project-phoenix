@@ -408,6 +408,41 @@ func operatorInvitationDeliveryStatus(sentAt *time.Time, emailError *string) str
 	return "pending"
 }
 
+func (rs *ProvisioningResource) ListAllDevices(w http.ResponseWriter, r *http.Request) {
+	devices, err := rs.service.ListAllDevices(r.Context())
+	if err != nil {
+		common.RenderError(w, r, ProvisioningErrorRenderer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, devices, "All devices retrieved successfully")
+}
+
+func (rs *ProvisioningResource) ListSchoolDevices(w http.ResponseWriter, r *http.Request) {
+	schoolID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid school ID")
+	if !ok {
+		return
+	}
+	devices, err := rs.service.ListSchoolDevices(r.Context(), schoolID)
+	if err != nil {
+		common.RenderError(w, r, ProvisioningErrorRenderer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, devices, "School devices retrieved successfully")
+}
+
+func (rs *ProvisioningResource) ListOrganizationDevices(w http.ResponseWriter, r *http.Request) {
+	orgID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid organization ID")
+	if !ok {
+		return
+	}
+	devices, err := rs.service.ListOrganizationDevices(r.Context(), orgID)
+	if err != nil {
+		common.RenderError(w, r, ProvisioningErrorRenderer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, devices, "Organization devices retrieved successfully")
+}
+
 func shouldExposeSeedInvitationToken(r *http.Request) bool {
 	if !strings.EqualFold(strings.TrimSpace(r.Header.Get(seedTokenHeader)), "true") {
 		return false

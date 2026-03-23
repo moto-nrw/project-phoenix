@@ -245,6 +245,64 @@ export interface UpdateSchoolRequest {
   active: boolean;
 }
 
+// Device types for operator device listing
+
+export interface BackendOperatorDevice {
+  id: number;
+  device_id: string;
+  device_type: string;
+  name?: string;
+  status: string;
+  api_key?: string;
+  masked_api_key: string;
+  last_seen?: string;
+  is_online: boolean;
+  school_id: number;
+  school_name: string;
+  organization_id: number;
+  organization_name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OperatorDevice {
+  id: string;
+  deviceId: string;
+  deviceType: string;
+  name: string;
+  status: string;
+  apiKey: string;
+  maskedApiKey: string;
+  lastSeen: string | null;
+  isOnline: boolean;
+  schoolId: string;
+  schoolName: string;
+  organizationId: string;
+  organizationName: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export function mapOperatorDevice(data: BackendOperatorDevice): OperatorDevice {
+  return {
+    id: data.id.toString(),
+    deviceId: data.device_id,
+    deviceType: data.device_type,
+    name: data.name ?? "",
+    status: data.status,
+    apiKey: data.api_key ?? "",
+    maskedApiKey: data.masked_api_key,
+    lastSeen: data.last_seen ?? null,
+    isOnline: data.is_online,
+    schoolId: data.school_id.toString(),
+    schoolName: data.school_name,
+    organizationId: data.organization_id.toString(),
+    organizationName: data.organization_name,
+    createdAt: data.created_at,
+    updatedAt: data.updated_at,
+  };
+}
+
 // Slug helpers
 
 const SLUG_REGEX = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
