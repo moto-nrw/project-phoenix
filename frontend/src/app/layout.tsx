@@ -7,8 +7,9 @@ import { Inter } from "next/font/google";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata = {
-  title: "moto",
-  description: "A modern full-stack application",
+  title: "moto – Digitale Ganztagsbetreuung",
+  description:
+    "Das innovative An- und Abmeldesystem mit NFC-Armbändern für die offene Ganztagsschule. DSGVO-konform, entwickelt an der Universität Münster.",
   icons: [
     { rel: "icon", url: "/favicon.png", type: "image/png" },
     { rel: "apple-touch-icon", url: "/apple-touch-icon.png", sizes: "180x180" },
@@ -29,7 +30,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="de">
       <body className={`font-sans ${inter.className}`}>
         <Providers>
           <BackgroundWrapper>{children}</BackgroundWrapper>

@@ -80,17 +80,18 @@ func collectStudentStats(ctx context.Context, s *databaseService, claims jwt.App
 	}
 }
 
-// collectTeacherStats collects teacher statistics
+// collectTeacherStats collects staff/personal statistics
+// Uses Staff.List (not Teacher.List) to match what the personal page actually shows
 func collectTeacherStats(ctx context.Context, s *databaseService, claims jwt.AppClaims, response *StatsResponse) {
 	if !checkUserPermission(claims, permissions.UsersRead, permissions.UsersList) {
 		return
 	}
 
 	response.Permissions.CanViewTeachers = true
-	if teachers, err := s.repos.Teacher.List(ctx, nil); err != nil {
-		s.getLogger().ErrorContext(ctx, "Error counting teachers", slog.String("error", err.Error()))
+	if staff, err := s.repos.Staff.List(ctx, nil); err != nil {
+		s.getLogger().ErrorContext(ctx, "Error counting staff", slog.String("error", err.Error()))
 	} else {
-		response.Teachers = len(teachers)
+		response.Teachers = len(staff)
 	}
 }
 
