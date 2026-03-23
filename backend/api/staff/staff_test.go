@@ -2,6 +2,7 @@ package staff_test
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 	"testing"
 	"time"
@@ -34,7 +35,7 @@ func setupTestContext(t *testing.T) *testContext {
 
 	// Create repo factory to get GroupSupervisor repository
 	repoFactory := repositories.NewFactory(db)
-	resource := staffAPI.NewResource(svc.Users, svc.Education, svc.Auth, repoFactory.GroupSupervisor, svc.WorkSession, repoFactory.StaffAbsence, db)
+	resource := staffAPI.NewResource(svc.Users, svc.Education, svc.Auth, repoFactory.GroupSupervisor, svc.WorkSession, repoFactory.StaffAbsence, db, slog.Default())
 
 	return &testContext{
 		db:       db,

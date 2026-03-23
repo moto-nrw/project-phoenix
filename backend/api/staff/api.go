@@ -36,6 +36,7 @@ type Resource struct {
 	WorkSessionService  activeSvc.WorkSessionService
 	AbsenceRepo         active.StaffAbsenceRepository
 	db                  *bun.DB
+	logger              *slog.Logger
 }
 
 // NewResource creates a new staff resource
@@ -47,6 +48,7 @@ func NewResource(
 	workSessionService activeSvc.WorkSessionService,
 	absenceRepo active.StaffAbsenceRepository,
 	db *bun.DB,
+	logger *slog.Logger,
 ) *Resource {
 	return &Resource{
 		PersonService:       personService,
@@ -58,7 +60,16 @@ func NewResource(
 		WorkSessionService:  workSessionService,
 		AbsenceRepo:         absenceRepo,
 		db:                  db,
+		logger:              logger,
 	}
+}
+
+// getLogger returns the injected logger, falling back to slog.Default()
+func (rs *Resource) getLogger() *slog.Logger {
+	if rs.logger != nil {
+		return rs.logger
+	}
+	return slog.Default()
 }
 
 // Router returns a configured router for staff endpoints
@@ -293,7 +304,7 @@ func (rs *Resource) loadWorkStatusMap(ctx context.Context) map[int64]string {
 	}
 	wsm, err := rs.WorkSessionService.GetTodayPresenceMap(ctx)
 	if err != nil {
-		slog.Default().Warn("failed to fetch work status map", slog.String("error", err.Error()))
+		rs.getLogger().Warn("failed to fetch work status map", slog.String("error", err.Error()))
 		return make(map[int64]string)
 	}
 	return wsm
@@ -306,7 +317,7 @@ func (rs *Resource) loadAbsenceMap(ctx context.Context) map[int64]string {
 	}
 	am, err := rs.AbsenceRepo.GetTodayAbsenceMap(ctx)
 	if err != nil {
-		slog.Default().Warn("failed to fetch absence map", slog.String("error", err.Error()))
+		rs.getLogger().Warn("failed to fetch absence map", slog.String("error", err.Error()))
 		return make(map[int64]string)
 	}
 	return am
@@ -332,7 +343,7 @@ func (rs *Resource) loadAccountRoleMap(ctx context.Context, staffMembers []*user
 
 	roleMap, err := rs.AuthService.GetAccountRoleNames(ctx, accountIDs)
 	if err != nil {
-		slog.Default().Warn("failed to fetch account role map", slog.String("error", err.Error()))
+		rs.getLogger().Warn("failed to fetch account role map", slog.String("error", err.Error()))
 		return make(map[int64]string)
 	}
 	return roleMap
@@ -368,7 +379,7 @@ func (rs *Resource) listStaff(w http.ResponseWriter, r *http.Request) {
 	presentStaffIDs, err := rs.GroupSupervisorRepo.GetStaffIDsWithSupervisionToday(ctx)
 	if err != nil {
 		// Log warning but continue - presence status is non-critical
-		slog.Default().Warn("failed to fetch present staff IDs", slog.String("error", err.Error()))
+		rs.getLogger().Warn("failed to fetch present staff IDs", slog.String("error", err.Error()))
 		presentStaffIDs = []int64{}
 	}
 
@@ -414,7 +425,7 @@ func (rs *Resource) getStaff(w http.ResponseWriter, r *http.Request) {
 	if staff.Person == nil && staff.PersonID > 0 {
 		person, err := rs.PersonService.Get(r.Context(), staff.PersonID)
 		if err != nil {
-			slog.Default().Warn("failed to get person data for staff member",
+			rs.getLogger().Warn("failed to get person data for staff member",
 				slog.Int64("staff_id", id),
 				slog.String("error", err.Error()))
 			// Don't fail the request, just log the warning
@@ -458,7 +469,7 @@ func (rs *Resource) grantDefaultPermissions(ctx context.Context, accountID int64
 	if err == nil && perm != nil {
 		// Grant the permission to the account
 		if err := rs.AuthService.GrantPermissionToAccount(ctx, int(accountID), int(perm.ID)); err != nil {
-			slog.Default().Error("failed to grant groups:read permission",
+			rs.getLogger().Error("failed to grant groups:read permission",
 				slog.String("role", role),
 				slog.Int64("account_id", accountID),
 				slog.String("error", err.Error()))
@@ -1031,7 +1042,7 @@ func (rs *Resource) updatePIN(w http.ResponseWriter, r *http.Request) {
 		if result == pinVerificationFailed {
 			account.IncrementPINAttempts()
 			if updateErr := rs.AuthService.UpdateAccount(r.Context(), account); updateErr != nil {
-				slog.Default().Error("failed to update account PIN attempts",
+				rs.getLogger().Error("failed to update account PIN attempts",
 					slog.String("error", updateErr.Error()))
 			}
 		}
