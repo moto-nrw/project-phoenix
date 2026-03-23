@@ -216,7 +216,7 @@ class TeacherService {
     const email =
       teacherData.email ??
       `${teacherData.first_name.toLowerCase()}.${teacherData.last_name.toLowerCase()}@school.local`;
-    const username = `${teacherData.first_name.toLowerCase()}_${teacherData.last_name.toLowerCase()}`;
+    const username = `${teacherData.first_name.toLowerCase()}_${teacherData.last_name.toLowerCase()}_${Date.now()}`;
     const fullName = `${teacherData.first_name} ${teacherData.last_name}`;
 
     // Step 1: Create account or link existing
@@ -296,9 +296,14 @@ class TeacherService {
       };
       const msg = extractErrorMessage(errorData, response.statusText);
       if (msg.includes("email already exists")) {
-        return { status: "account_exists" };
+        return { status: "account_exists" as const };
       }
-      throw new Error(`Failed to create account: ${msg}`);
+      if (msg.includes("username already exists")) {
+        throw new Error(
+          "Ein Konto mit diesem Benutzernamen existiert bereits.",
+        );
+      }
+      throw new Error(`Konto konnte nicht erstellt werden: ${msg}`);
     }
 
     const data = (await response.json()) as {
