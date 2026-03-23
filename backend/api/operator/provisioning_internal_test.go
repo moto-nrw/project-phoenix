@@ -61,6 +61,9 @@ func (m *mockProvisioningService) UpdateSchool(ctx context.Context, id int64, re
 func (m *mockProvisioningService) InviteSchoolAdmin(ctx context.Context, schoolID, operatorID int64, clientIP net.IP, req authSvc.InvitationRequest) (*authModels.InvitationToken, error) {
 	return m.inviteSchoolAdminFn(ctx, schoolID, operatorID, clientIP, req)
 }
+func (m *mockProvisioningService) ListSchoolAccounts(_ context.Context, _ int64) ([]authModels.TenantAccountInfo, error) {
+	return nil, nil
+}
 
 func withOperatorClaims(req *http.Request, operatorID int) *http.Request {
 	claims := jwtPkg.AppClaims{ID: operatorID, Scope: "platform"}
