@@ -93,8 +93,42 @@ vi.mock("~/components/ui/chart", () => ({
   }) => <div data-testid="chart-container">{children}</div>,
   ChartLegend: () => <div data-testid="chart-legend" />,
   ChartLegendContent: () => <div />,
-  ChartTooltip: () => <div data-testid="chart-tooltip" />,
-  ChartTooltipContent: () => <div />,
+  ChartTooltip: ({ content }: { content?: React.ReactElement }) =>
+    content ? (
+      <div data-testid="chart-tooltip">{content}</div>
+    ) : (
+      <div data-testid="chart-tooltip" />
+    ),
+  ChartTooltipContent: ({
+    labelFormatter,
+    formatter,
+  }: {
+    labelFormatter?: (
+      value: unknown,
+      payload: ReadonlyArray<{ payload?: { label?: string } }>,
+    ) => string;
+    formatter?: (
+      value: number | string | ReadonlyArray<number | string> | undefined,
+      name: string | number | undefined,
+    ) => string;
+  }) => {
+    // Invoke formatters to ensure code coverage on the callbacks
+    const labelResult = labelFormatter?.("", [
+      { payload: { label: "Mo 01.01" } },
+    ]);
+    const fmtResult1 = formatter?.(120, "netMinutes");
+    const fmtResult2 = formatter?.(30, "breakMinutes");
+    const fmtResult3 = formatter?.(undefined, undefined);
+    return (
+      <div
+        data-testid="chart-tooltip-content"
+        data-label={labelResult}
+        data-fmt1={fmtResult1}
+        data-fmt2={fmtResult2}
+        data-fmt3={fmtResult3}
+      />
+    );
+  },
 }));
 
 vi.mock("recharts", () => ({
@@ -607,6 +641,32 @@ describe("TimeTrackingPage", () => {
       setupDefaultMocks({ history: [mockHistorySession] });
       render(<TimeTrackingPage />);
       expect(screen.getByTestId("bar-chart")).toBeInTheDocument();
+    });
+  });
+
+  // ── WeekChart tooltip formatters ────────────────────────────────────────
+
+  describe("WeekChart tooltip formatters", () => {
+    it("invokes tooltipLabelFormatter and tooltipValueFormatter via mock", () => {
+      setupDefaultMocks({ history: [mockHistorySession] });
+      render(<TimeTrackingPage />);
+
+      // The ChartTooltipContent mock invokes the formatters and stores results as data attributes
+      const tooltipContent = screen.getByTestId("chart-tooltip-content");
+
+      // labelFormatter: receives payload with label "Mo 01.01" → returns "Mo 01.01"
+      expect(tooltipContent.getAttribute("data-label")).toBe("Mo 01.01");
+
+      // formatter with netMinutes: 120 min → "Arbeitszeit: 2h 0min"
+      expect(tooltipContent.getAttribute("data-fmt1")).toBe(
+        "Arbeitszeit: 2h 0min",
+      );
+
+      // formatter with breakMinutes: 30 min → "Pause: 0h 30min"
+      expect(tooltipContent.getAttribute("data-fmt2")).toBe("Pause: 0h 30min");
+
+      // formatter with undefined value → fallback (value ?? 0) → "Pause: 0h 0min"
+      expect(tooltipContent.getAttribute("data-fmt3")).toBe("Pause: 0h 0min");
     });
   });
 

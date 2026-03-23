@@ -611,6 +611,45 @@ describe("ChartTooltipContent", () => {
     expect(screen.getByText("My Name")).toBeInTheDocument();
   });
 
+  it("handles function dataKey in tooltip label resolution", () => {
+    renderTooltipContent({
+      active: true,
+      payload: makePayload({ dataKey: () => "computed" }),
+    });
+
+    // Should still render without crashing; label falls back to item.name
+    expect(screen.getByText("1,234")).toBeInTheDocument();
+  });
+
+  it("uses index as key when itemDataKey is undefined (function dataKey)", () => {
+    const payload = [
+      {
+        dataKey: () => "computed",
+        name: "revenue",
+        value: 777,
+        color: "blue",
+        payload: { fill: "blue" },
+      },
+      {
+        dataKey: () => "computed2",
+        name: "expenses",
+        value: 333,
+        color: "red",
+        payload: { fill: "red" },
+      },
+    ] as never;
+
+    renderTooltipContent({
+      active: true,
+      payload,
+      hideLabel: true,
+    });
+
+    // Both items render (keyed by index fallback)
+    expect(screen.getByText("777")).toBeInTheDocument();
+    expect(screen.getByText("333")).toBeInTheDocument();
+  });
+
   it("applies labelClassName to label element", () => {
     const { container } = renderTooltipContent({
       active: true,
