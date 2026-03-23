@@ -423,12 +423,12 @@ func (rs *Resource) getStaff(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Load account role (non-critical)
+	// Load account role with tenant scoping (non-critical)
 	var accountRole string
 	if staff.Person != nil && staff.Person.AccountID != nil && rs.AuthService != nil {
-		roles, roleErr := rs.AuthService.GetAccountRoles(r.Context(), int(*staff.Person.AccountID))
-		if roleErr == nil && len(roles) > 0 {
-			accountRole = roles[0].Name
+		roleMap, roleErr := rs.AuthService.GetAccountRoleNames(r.Context(), []int64{*staff.Person.AccountID})
+		if roleErr == nil {
+			accountRole = roleMap[*staff.Person.AccountID]
 		}
 	}
 
