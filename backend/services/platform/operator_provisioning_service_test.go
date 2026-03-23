@@ -2,6 +2,7 @@ package platform_test
 
 import (
 	"context"
+	"database/sql"
 	"net"
 	"testing"
 	"time"
@@ -10,6 +11,7 @@ import (
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
@@ -111,6 +113,56 @@ func (m *mockSchoolRepo) Update(ctx context.Context, school *platformModels.Scho
 		return m.updateFn(ctx, school)
 	}
 	return nil
+}
+
+type mockDeviceRepo struct {
+	createFn func(context.Context, *iotModels.Device) error
+}
+
+func (m *mockDeviceRepo) Create(ctx context.Context, device *iotModels.Device) error {
+	if m.createFn != nil {
+		return m.createFn(ctx, device)
+	}
+	return nil
+}
+func (m *mockDeviceRepo) FindByID(context.Context, interface{}) (*iotModels.Device, error) {
+	return nil, nil
+}
+func (m *mockDeviceRepo) Update(context.Context, *iotModels.Device) error { return nil }
+func (m *mockDeviceRepo) Delete(context.Context, interface{}) error       { return nil }
+func (m *mockDeviceRepo) List(context.Context, map[string]interface{}) ([]*iotModels.Device, error) {
+	return nil, nil
+}
+func (m *mockDeviceRepo) FindByDeviceID(context.Context, string) (*iotModels.Device, error) {
+	return nil, nil
+}
+func (m *mockDeviceRepo) FindByAPIKey(context.Context, string) (*iotModels.Device, error) {
+	return nil, nil
+}
+func (m *mockDeviceRepo) FindByType(context.Context, string) ([]*iotModels.Device, error) {
+	return nil, nil
+}
+func (m *mockDeviceRepo) FindByStatus(context.Context, iotModels.DeviceStatus) ([]*iotModels.Device, error) {
+	return nil, nil
+}
+func (m *mockDeviceRepo) FindByRegisteredBy(context.Context, int64) ([]*iotModels.Device, error) {
+	return nil, nil
+}
+func (m *mockDeviceRepo) UpdateLastSeen(context.Context, int64, time.Time) error { return nil }
+func (m *mockDeviceRepo) UpdateStatus(context.Context, string, iotModels.DeviceStatus) error {
+	return nil
+}
+func (m *mockDeviceRepo) FindActiveDevices(context.Context) ([]*iotModels.Device, error) {
+	return nil, nil
+}
+func (m *mockDeviceRepo) FindDevicesRequiringMaintenance(context.Context) ([]*iotModels.Device, error) {
+	return nil, nil
+}
+func (m *mockDeviceRepo) FindOfflineDevices(context.Context, time.Duration) ([]*iotModels.Device, error) {
+	return nil, nil
+}
+func (m *mockDeviceRepo) CountDevicesByType(context.Context) (map[string]int, error) {
+	return nil, nil
 }
 
 type mockRoleRepo struct {
@@ -462,6 +514,340 @@ func TestOperatorProvisioningService_CreateSchool_SubdomainConflict(t *testing.T
 	require.Error(t, err)
 	var conflictErr *platformSvc.ConflictError
 	require.ErrorAs(t, err, &conflictErr)
+}
+
+// --- ListSchoolAccounts tests ---
+
+func TestOperatorProvisioningService_ListSchoolAccounts_Success(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectCommit()
+
+	expected := []authModels.TenantAccountInfo{
+		{AccountID: 1, Email: "admin@example.com", Active: true, FirstName: "Admin", LastName: "User", RoleName: "admin", Status: "active"},
+	}
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SchoolRepo: &mockSchoolRepo{
+			findByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
+				return &platformModels.School{Model: base.Model{ID: 9}, OrganizationID: 1, Name: "School", Slug: "school", Subdomain: "school", Active: true}, nil
+			},
+		},
+		AccountTenantRepo: &mockAccountTenantRepo{
+			listAccountsByTenantIDFn: func(_ context.Context, tenantID int64) ([]authModels.TenantAccountInfo, error) {
+				assert.Equal(t, int64(9), tenantID)
+				return expected, nil
+			},
+		},
+		DB: bunDB,
+	})
+
+	accounts, err := service.ListSchoolAccounts(context.Background(), 9)
+	require.NoError(t, err)
+	require.Equal(t, expected, accounts)
+}
+
+func TestOperatorProvisioningService_ListSchoolAccounts_SchoolNotFound_NilReturn(t *testing.T) {
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SchoolRepo: &mockSchoolRepo{},
+	})
+
+	accounts, err := service.ListSchoolAccounts(context.Background(), 999)
+	require.Nil(t, accounts)
+	require.Error(t, err)
+	var notFoundErr *platformSvc.SchoolNotFoundError
+	require.ErrorAs(t, err, &notFoundErr)
+}
+
+func TestOperatorProvisioningService_ListSchoolAccounts_SchoolNotFound_SqlErrNoRows(t *testing.T) {
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SchoolRepo: &mockSchoolRepo{
+			findByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
+				return nil, sql.ErrNoRows
+			},
+		},
+	})
+
+	accounts, err := service.ListSchoolAccounts(context.Background(), 999)
+	require.Nil(t, accounts)
+	require.Error(t, err)
+	var notFoundErr *platformSvc.SchoolNotFoundError
+	require.ErrorAs(t, err, &notFoundErr)
+}
+
+// --- ListOrganizationAccounts tests ---
+
+func TestOperatorProvisioningService_ListOrganizationAccounts_Success(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectCommit()
+
+	expected := []authModels.OrgAccountInfo{
+		{
+			TenantAccountInfo: authModels.TenantAccountInfo{AccountID: 1, Email: "admin@example.com", Active: true, RoleName: "admin", Status: "active"},
+			SchoolID:          9,
+			SchoolName:        "School A",
+		},
+	}
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		OrganizationRepo: &mockOrganizationRepo{
+			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
+				return &platformModels.Organization{Model: base.Model{ID: 5}, Name: "Org", Slug: "org", Active: true}, nil
+			},
+		},
+		AccountTenantRepo: &mockAccountTenantRepo{
+			listAccountsByOrganizationFn: func(_ context.Context, orgID int64) ([]authModels.OrgAccountInfo, error) {
+				assert.Equal(t, int64(5), orgID)
+				return expected, nil
+			},
+		},
+		DB: bunDB,
+	})
+
+	accounts, err := service.ListOrganizationAccounts(context.Background(), 5)
+	require.NoError(t, err)
+	require.Equal(t, expected, accounts)
+}
+
+func TestOperatorProvisioningService_ListOrganizationAccounts_OrgNotFound(t *testing.T) {
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		OrganizationRepo: &mockOrganizationRepo{},
+	})
+
+	accounts, err := service.ListOrganizationAccounts(context.Background(), 999)
+	require.Nil(t, accounts)
+	require.Error(t, err)
+	var notFoundErr *platformSvc.OrganizationNotFoundError
+	require.ErrorAs(t, err, &notFoundErr)
+}
+
+// --- ListAllAccounts tests ---
+
+func TestOperatorProvisioningService_ListAllAccounts_Success(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectCommit()
+
+	expected := []authModels.OrgAccountInfo{
+		{
+			TenantAccountInfo: authModels.TenantAccountInfo{AccountID: 1, Email: "admin@example.com", Active: true},
+			SchoolID:          9,
+			SchoolName:        "School A",
+		},
+		{
+			TenantAccountInfo: authModels.TenantAccountInfo{AccountID: 2, Email: "teacher@example.com", Active: true},
+			SchoolID:          10,
+			SchoolName:        "School B",
+		},
+	}
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		AccountTenantRepo: &mockAccountTenantRepo{
+			listAllAccountsFn: func(_ context.Context) ([]authModels.OrgAccountInfo, error) {
+				return expected, nil
+			},
+		},
+		DB: bunDB,
+	})
+
+	accounts, err := service.ListAllAccounts(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, expected, accounts)
+}
+
+// --- ListSchoolDevices error tests ---
+
+func TestOperatorProvisioningService_ListSchoolDevices_SchoolNotFound_NilReturn(t *testing.T) {
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SchoolRepo: &mockSchoolRepo{},
+	})
+
+	devices, err := service.ListSchoolDevices(context.Background(), 999)
+	require.Nil(t, devices)
+	require.Error(t, err)
+	var notFoundErr *platformSvc.SchoolNotFoundError
+	require.ErrorAs(t, err, &notFoundErr)
+}
+
+func TestOperatorProvisioningService_ListSchoolDevices_SchoolNotFound_SqlErrNoRows(t *testing.T) {
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SchoolRepo: &mockSchoolRepo{
+			findByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
+				return nil, sql.ErrNoRows
+			},
+		},
+	})
+
+	devices, err := service.ListSchoolDevices(context.Background(), 999)
+	require.Nil(t, devices)
+	require.Error(t, err)
+	var notFoundErr *platformSvc.SchoolNotFoundError
+	require.ErrorAs(t, err, &notFoundErr)
+}
+
+// --- ListOrganizationDevices error tests ---
+
+func TestOperatorProvisioningService_ListOrganizationDevices_OrgNotFound(t *testing.T) {
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		OrganizationRepo: &mockOrganizationRepo{},
+	})
+
+	devices, err := service.ListOrganizationDevices(context.Background(), 999)
+	require.Nil(t, devices)
+	require.Error(t, err)
+	var notFoundErr *platformSvc.OrganizationNotFoundError
+	require.ErrorAs(t, err, &notFoundErr)
+}
+
+// --- CreateOrganization unique violation on create (race condition) ---
+
+func TestOperatorProvisioningService_CreateOrganization_UniqueViolationOnCreate(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectRollback()
+
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		OrganizationRepo: &mockOrganizationRepo{
+			findBySlugFn: func(context.Context, string) (*platformModels.Organization, error) {
+				return nil, nil // slug appears available
+			},
+			createFn: func(_ context.Context, org *platformModels.Organization) error {
+				// Race condition: another request created it between FindBySlug and Create
+				return assert.AnError // non-unique violation error for this test path
+			},
+		},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+		DB:           bunDB,
+	})
+
+	org, err := service.CreateOrganization(context.Background(), &platformModels.Organization{
+		Name:   "Race Org",
+		Slug:   "race-org",
+		Active: true,
+	}, 7, net.IPv4(127, 0, 0, 1))
+	require.Nil(t, org)
+	require.Error(t, err)
+}
+
+// --- CreateSchool nil input and validation error ---
+
+func TestOperatorProvisioningService_CreateSchool_NilInput(t *testing.T) {
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{})
+
+	school, err := service.CreateSchool(context.Background(), nil, 1, net.IPv4(127, 0, 0, 1))
+	require.Nil(t, school)
+	require.Error(t, err)
+	var invalidErr *platformSvc.InvalidDataError
+	require.ErrorAs(t, err, &invalidErr)
+}
+
+func TestOperatorProvisioningService_CreateSchool_ValidationError(t *testing.T) {
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{})
+
+	school, err := service.CreateSchool(context.Background(), &platformModels.School{
+		OrganizationID: 1,
+		Name:           "", // empty name fails validation
+		Slug:           "test",
+		Subdomain:      "test",
+		Active:         true,
+	}, 1, net.IPv4(127, 0, 0, 1))
+	require.Nil(t, school)
+	require.Error(t, err)
+	var invalidErr *platformSvc.InvalidDataError
+	require.ErrorAs(t, err, &invalidErr)
+}
+
+func TestOperatorProvisioningService_CreateSchool_DeviceCreateError(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectRollback()
+
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		OrganizationRepo: &mockOrganizationRepo{
+			findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
+				return &platformModels.Organization{Model: base.Model{ID: 2}, Name: "Org", Slug: "org", Active: true}, nil
+			},
+		},
+		SchoolRepo: &mockSchoolRepo{
+			findByOrgAndSlugFn: func(context.Context, int64, string) (*platformModels.School, error) {
+				return nil, nil
+			},
+			findBySubdomainFn: func(context.Context, string) (*platformModels.School, error) {
+				return nil, nil
+			},
+			createFn: func(_ context.Context, school *platformModels.School) error {
+				school.ID = 55
+				return nil
+			},
+		},
+		CategoryRepo: &mockCategoryRepo{},
+		DeviceRepo: &mockDeviceRepo{
+			createFn: func(context.Context, *iotModels.Device) error {
+				return assert.AnError
+			},
+		},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+		DB:           bunDB,
+	})
+
+	school, err := service.CreateSchool(context.Background(), &platformModels.School{
+		OrganizationID: 2,
+		Name:           "Device Error School",
+		Slug:           "device-error-school",
+		Subdomain:      "device-error-school",
+		Active:         true,
+	}, 1, net.IPv4(127, 0, 0, 1))
+	require.Nil(t, school)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "create web manual device")
 }
 
 func TestOperatorProvisioningService_CreateSchool_CategorySeedError(t *testing.T) {
