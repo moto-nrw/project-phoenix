@@ -1135,7 +1135,10 @@ function WeekChart({
   }, [history, currentSession, weekOffset]);
 
   const tooltipLabelFormatter = useCallback(
-    (_value: unknown, payload: Array<{ payload?: { label?: string } }>) => {
+    (
+      _value: unknown,
+      payload: ReadonlyArray<{ payload?: { label?: string } }>,
+    ) => {
       const item = payload[0]?.payload;
       return item?.label ?? "";
     },
@@ -1144,10 +1147,10 @@ function WeekChart({
 
   const tooltipValueFormatter = useCallback(
     (
-      value: number | string | Array<number | string>,
-      name: string | number,
+      value: number | string | ReadonlyArray<number | string> | undefined,
+      name: string | number | undefined,
     ) => {
-      const totalMins = value as number;
+      const totalMins = (value ?? 0) as number;
       const hours = Math.floor(totalMins / 60);
       const mins = totalMins % 60;
       const label = name === "netMinutes" ? "Arbeitszeit" : "Pause";

@@ -2,10 +2,16 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
+/* eslint-disable @typescript-eslint/no-unsafe-call */
 "use client";
 
 import * as React from "react";
 import * as RechartsPrimitive from "recharts";
+import type {
+  LegendPayload,
+  VerticalAlignmentType,
+} from "recharts/types/component/DefaultLegendContent";
+import type { TooltipContentProps } from "recharts/types/component/Tooltip";
 
 import { cn } from "~/lib/utils";
 
@@ -110,7 +116,7 @@ const ChartTooltip = RechartsPrimitive.Tooltip;
 
 const ChartTooltipContent = React.forwardRef<
   HTMLDivElement,
-  React.ComponentProps<typeof RechartsPrimitive.Tooltip> &
+  Partial<TooltipContentProps> &
     React.ComponentProps<"div"> & {
       hideLabel?: boolean;
       hideIndicator?: boolean;
@@ -145,7 +151,9 @@ const ChartTooltipContent = React.forwardRef<
       }
 
       const [item] = payload;
-      const key = `${labelKey || item?.dataKey || item?.name || "value"}`;
+      const dataKey =
+        typeof item?.dataKey === "function" ? undefined : item?.dataKey;
+      const key = `${labelKey || dataKey || item?.name || "value"}`;
       const itemConfig = getPayloadConfigFromPayload(config, item, key);
       const value =
         !labelKey && typeof label === "string"
@@ -194,13 +202,15 @@ const ChartTooltipContent = React.forwardRef<
           {payload
             .filter((item) => item.type !== "none")
             .map((item, index) => {
-              const key = `${nameKey || item.name || item.dataKey || "value"}`;
+              const itemDataKey =
+                typeof item.dataKey === "function" ? undefined : item.dataKey;
+              const key = `${nameKey || item.name || itemDataKey || "value"}`;
               const itemConfig = getPayloadConfigFromPayload(config, item, key);
               const indicatorColor = color || item.payload.fill || item.color;
 
               return (
                 <div
-                  key={item.dataKey}
+                  key={itemDataKey ?? index}
                   className={cn(
                     "[&>svg]:text-muted-foreground flex w-full flex-wrap items-stretch gap-2 [&>svg]:h-2.5 [&>svg]:w-2.5",
                     indicator === "dot" && "items-center",
@@ -305,11 +315,12 @@ const ChartLegend = RechartsPrimitive.Legend;
 
 const ChartLegendContent = React.forwardRef<
   HTMLDivElement,
-  React.ComponentProps<"div"> &
-    Pick<RechartsPrimitive.LegendProps, "payload" | "verticalAlign"> & {
-      hideIcon?: boolean;
-      nameKey?: string;
-    }
+  React.ComponentProps<"div"> & {
+    payload?: ReadonlyArray<LegendPayload>;
+    verticalAlign?: VerticalAlignmentType;
+    hideIcon?: boolean;
+    nameKey?: string;
+  }
 >(
   (
     { className, hideIcon = false, payload, verticalAlign = "bottom", nameKey },
