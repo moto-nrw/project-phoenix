@@ -559,8 +559,15 @@ function AccountsTable({ accounts }: { readonly accounts: SchoolAccount[] }) {
               <td className="px-5 py-3 text-gray-600">{account.email}</td>
               <td className="px-5 py-3">
                 {account.roleName ? (
-                  <span className="inline-flex rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
-                    {account.roleName}
+                  <span className="inline-flex flex-wrap gap-1">
+                    {account.roleName.split(", ").map((role) => (
+                      <span
+                        key={role}
+                        className="inline-flex rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700"
+                      >
+                        {role}
+                      </span>
+                    ))}
                   </span>
                 ) : (
                   <span className="text-gray-400">—</span>
@@ -584,11 +591,13 @@ function AccountStatusBadge({ status }: { readonly status: string }) {
   const styles: Record<string, string> = {
     active: "bg-green-100 text-green-700",
     pending: "bg-yellow-100 text-yellow-700",
+    invited: "bg-purple-100 text-purple-700",
     inactive: "bg-gray-100 text-gray-500",
   };
   const labels: Record<string, string> = {
     active: "Aktiv",
     pending: "Ausstehend",
+    invited: "Eingeladen",
     inactive: "Inaktiv",
   };
   return (
