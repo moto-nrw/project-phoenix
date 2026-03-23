@@ -533,25 +533,26 @@ func TestOperatorProvisioningService_ListSchoolAccounts_Success(t *testing.T) {
 	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectCommit()
 
+	schoolID := int64(9) // nolint: mock school ID for assertion
 	expected := []authModels.TenantAccountInfo{
 		{AccountID: 1, Email: "admin@example.com", Active: true, FirstName: "Admin", LastName: "User", RoleName: "admin", Status: "active"},
 	}
 	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
 		SchoolRepo: &mockSchoolRepo{
 			findByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
-				return &platformModels.School{Model: base.Model{ID: 9}, OrganizationID: 1, Name: "School", Slug: "school", Subdomain: "school", Active: true}, nil
+				return &platformModels.School{Model: base.Model{ID: schoolID}, OrganizationID: 1, Name: "School", Slug: "school", Subdomain: "school", Active: true}, nil
 			},
 		},
 		AccountTenantRepo: &mockAccountTenantRepo{
 			listAccountsByTenantIDFn: func(_ context.Context, tenantID int64) ([]authModels.TenantAccountInfo, error) {
-				assert.Equal(t, int64(9), tenantID)
+				assert.Equal(t, schoolID, tenantID)
 				return expected, nil
 			},
 		},
 		DB: bunDB,
 	})
 
-	accounts, err := service.ListSchoolAccounts(context.Background(), 9)
+	accounts, err := service.ListSchoolAccounts(context.Background(), schoolID)
 	require.NoError(t, err)
 	require.Equal(t, expected, accounts)
 }
@@ -601,6 +602,7 @@ func TestOperatorProvisioningService_ListOrganizationAccounts_Success(t *testing
 	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectCommit()
 
+	orgID := int64(5) // nolint: mock org ID for assertion
 	expected := []authModels.OrgAccountInfo{
 		{
 			TenantAccountInfo: authModels.TenantAccountInfo{AccountID: 1, Email: "admin@example.com", Active: true, RoleName: "admin", Status: "active"},
@@ -611,19 +613,19 @@ func TestOperatorProvisioningService_ListOrganizationAccounts_Success(t *testing
 	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
 		OrganizationRepo: &mockOrganizationRepo{
 			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
-				return &platformModels.Organization{Model: base.Model{ID: 5}, Name: "Org", Slug: "org", Active: true}, nil
+				return &platformModels.Organization{Model: base.Model{ID: orgID}, Name: "Org", Slug: "org", Active: true}, nil
 			},
 		},
 		AccountTenantRepo: &mockAccountTenantRepo{
-			listAccountsByOrganizationFn: func(_ context.Context, orgID int64) ([]authModels.OrgAccountInfo, error) {
-				assert.Equal(t, int64(5), orgID)
+			listAccountsByOrganizationFn: func(_ context.Context, receivedOrgID int64) ([]authModels.OrgAccountInfo, error) {
+				assert.Equal(t, orgID, receivedOrgID)
 				return expected, nil
 			},
 		},
 		DB: bunDB,
 	})
 
-	accounts, err := service.ListOrganizationAccounts(context.Background(), 5)
+	accounts, err := service.ListOrganizationAccounts(context.Background(), orgID)
 	require.NoError(t, err)
 	require.Equal(t, expected, accounts)
 }
