@@ -90,6 +90,43 @@ export interface Invitation {
   emailRetryCount: number;
 }
 
+// Account types for operator school accounts listing
+
+export interface BackendSchoolAccount {
+  account_id: number;
+  email: string;
+  active: boolean;
+  first_name: string;
+  last_name: string;
+  role_name: string;
+  pedagogic_role: string;
+  status: string;
+}
+
+export interface SchoolAccount {
+  accountId: string;
+  email: string;
+  active: boolean;
+  firstName: string;
+  lastName: string;
+  roleName: string;
+  pedagogicRole: string;
+  status: string;
+}
+
+export function mapSchoolAccount(data: BackendSchoolAccount): SchoolAccount {
+  return {
+    accountId: data.account_id.toString(),
+    email: data.email,
+    active: data.active,
+    firstName: data.first_name,
+    lastName: data.last_name,
+    roleName: data.role_name,
+    pedagogicRole: data.pedagogic_role,
+    status: data.status,
+  };
+}
+
 // Request types (snake_case for backend)
 
 export interface CreateOrganizationRequest {

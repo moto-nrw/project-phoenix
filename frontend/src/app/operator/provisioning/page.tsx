@@ -7,7 +7,11 @@ import { useSession } from "next-auth/react";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
-import type { Organization, School } from "~/lib/operator/provisioning-helpers";
+import type {
+  Organization,
+  School,
+  SchoolAccount,
+} from "~/lib/operator/provisioning-helpers";
 import { getRelativeTime } from "~/lib/format-utils";
 import { createLogger } from "~/lib/logger";
 import {
@@ -24,7 +28,7 @@ import { InviteAdminModal } from "./invite-admin-modal";
 
 const logger = createLogger({ component: "OperatorProvisioningPage" });
 
-type ActiveTab = "organizations" | "schools";
+type ActiveTab = "organizations" | "schools" | "accounts";
 
 export default function OperatorProvisioningPage() {
   const { status } = useSession();
@@ -41,6 +45,7 @@ export default function OperatorProvisioningPage() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteSchoolId, setInviteSchoolId] = useState<string | null>(null);
   const [inviteSchoolName, setInviteSchoolName] = useState("");
+  const [selectedSchool, setSelectedSchool] = useState<School | null>(null);
 
   // Toggle error state
   const [orgToggleError, setOrgToggleError] = useState("");
@@ -74,6 +79,18 @@ export default function OperatorProvisioningPage() {
     },
   );
 
+  const { data: accounts, isLoading: accountsLoading } = useSWR(
+    isAuthenticated && activeTab === "accounts" && selectedSchool
+      ? `operator-school-accounts-${selectedSchool.id}`
+      : null,
+    () => operatorProvisioningService.listSchoolAccounts(selectedSchool!.id),
+    {
+      keepPreviousData: true,
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
+    },
+  );
+
   const tabs = useMemo(
     () => ({
       items: [
@@ -83,11 +100,26 @@ export default function OperatorProvisioningPage() {
           count: organizations?.length,
         },
         { id: "schools", label: "Schulen", count: schools?.length },
+        {
+          id: "accounts",
+          label: selectedSchool ? `Konten – ${selectedSchool.name}` : "Konten",
+          count: accounts?.length,
+        },
       ],
       activeTab,
-      onTabChange: (tabId: string) => setActiveTab(tabId as ActiveTab),
+      onTabChange: (tabId: string) => {
+        const tab = tabId as ActiveTab;
+        if (tab === "accounts" && !selectedSchool) return;
+        setActiveTab(tab);
+      },
     }),
-    [activeTab, organizations?.length, schools?.length],
+    [
+      activeTab,
+      organizations?.length,
+      schools?.length,
+      selectedSchool,
+      accounts?.length,
+    ],
   );
 
   // Open handlers
@@ -105,6 +137,11 @@ export default function OperatorProvisioningPage() {
     setInviteSchoolId(school.id);
     setInviteSchoolName(school.name);
     setInviteOpen(true);
+  }, []);
+
+  const openSchoolAccounts = useCallback((school: School) => {
+    setSelectedSchool(school);
+    setActiveTab("accounts");
   }, []);
 
   // Toggle handlers
@@ -183,7 +220,11 @@ export default function OperatorProvisioningPage() {
   );
 
   const isLoading =
-    activeTab === "organizations" ? orgsLoading : schoolsLoading;
+    activeTab === "organizations"
+      ? orgsLoading
+      : activeTab === "schools"
+        ? schoolsLoading
+        : accountsLoading;
 
   const actionButton =
     activeTab === "organizations" ? (
@@ -194,7 +235,7 @@ export default function OperatorProvisioningPage() {
       >
         Neuer Träger
       </button>
-    ) : (
+    ) : activeTab === "schools" ? (
       <button
         type="button"
         onClick={() => setCreateSchoolOpen(true)}
@@ -202,7 +243,7 @@ export default function OperatorProvisioningPage() {
       >
         Neue Schule
       </button>
-    );
+    ) : null;
 
   const mobileActionButton =
     activeTab === "organizations" ? (
@@ -214,7 +255,7 @@ export default function OperatorProvisioningPage() {
       >
         <PlusIcon />
       </button>
-    ) : (
+    ) : activeTab === "schools" ? (
       <button
         type="button"
         onClick={() => setCreateSchoolOpen(true)}
@@ -223,7 +264,7 @@ export default function OperatorProvisioningPage() {
       >
         <PlusIcon />
       </button>
-    );
+    ) : null;
 
   return (
     <div className="-mt-1.5 w-full">
@@ -285,12 +326,40 @@ export default function OperatorProvisioningPage() {
                   onEdit={openEditSchool}
                   onToggleActive={handleToggleSchoolActive}
                   onInviteAdmin={openInviteAdmin}
+                  onViewAccounts={openSchoolAccounts}
                 />
               ))}
             </div>
           )}
           {schoolToggleError && (
             <p className="mt-2 text-sm text-red-600">{schoolToggleError}</p>
+          )}
+        </>
+      )}
+
+      {/* Accounts Tab */}
+      {activeTab === "accounts" && !accountsLoading && selectedSchool && (
+        <>
+          <div className="mt-4 mb-4 flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setActiveTab("schools")}
+              className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200"
+            >
+              &larr; Zurück zu Schulen
+            </button>
+            <span className="text-sm text-gray-500">{selectedSchool.name}</span>
+          </div>
+          {accounts?.length === 0 && (
+            <div className="flex flex-col items-center gap-3 py-12 text-center">
+              <p className="text-lg font-medium text-gray-900">Keine Konten</p>
+              <p className="text-sm text-gray-500">
+                Für diese Schule gibt es noch keine zugewiesenen Konten.
+              </p>
+            </div>
+          )}
+          {accounts && accounts.length > 0 && (
+            <AccountsTable accounts={accounts} />
           )}
         </>
       )}
@@ -389,11 +458,13 @@ function SchoolCard({
   onEdit,
   onToggleActive,
   onInviteAdmin,
+  onViewAccounts,
 }: {
   readonly school: School;
   readonly onEdit: (school: School) => void;
   readonly onToggleActive: (school: School) => Promise<void>;
   readonly onInviteAdmin: (school: School) => void;
+  readonly onViewAccounts: (school: School) => void;
 }) {
   return (
     <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150">
@@ -436,6 +507,13 @@ function SchoolCard({
         <div className="flex gap-2">
           <button
             type="button"
+            onClick={() => onViewAccounts(school)}
+            className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200"
+          >
+            Konten
+          </button>
+          <button
+            type="button"
             onClick={() => onEdit(school)}
             className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200"
           >
@@ -451,5 +529,73 @@ function SchoolCard({
         </div>
       </div>
     </div>
+  );
+}
+
+function AccountsTable({ accounts }: { readonly accounts: SchoolAccount[] }) {
+  return (
+    <div className="overflow-x-auto rounded-2xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md">
+      <table className="w-full text-left text-sm">
+        <thead>
+          <tr className="border-b border-gray-100 text-xs font-medium text-gray-500">
+            <th className="px-5 py-3">Name</th>
+            <th className="px-5 py-3">E-Mail</th>
+            <th className="px-5 py-3">Rolle</th>
+            <th className="px-5 py-3">Päd. Rolle</th>
+            <th className="px-5 py-3">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {accounts.map((account) => (
+            <tr
+              key={account.accountId}
+              className="border-b border-gray-50 last:border-0"
+            >
+              <td className="px-5 py-3 font-medium text-gray-900">
+                {account.firstName || account.lastName
+                  ? `${account.firstName} ${account.lastName}`.trim()
+                  : "—"}
+              </td>
+              <td className="px-5 py-3 text-gray-600">{account.email}</td>
+              <td className="px-5 py-3">
+                {account.roleName ? (
+                  <span className="inline-flex rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
+                    {account.roleName}
+                  </span>
+                ) : (
+                  <span className="text-gray-400">—</span>
+                )}
+              </td>
+              <td className="px-5 py-3 text-gray-600">
+                {account.pedagogicRole || "—"}
+              </td>
+              <td className="px-5 py-3">
+                <AccountStatusBadge status={account.status} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function AccountStatusBadge({ status }: { readonly status: string }) {
+  const styles: Record<string, string> = {
+    active: "bg-green-100 text-green-700",
+    pending: "bg-yellow-100 text-yellow-700",
+    inactive: "bg-gray-100 text-gray-500",
+  };
+  const labels: Record<string, string> = {
+    active: "Aktiv",
+    pending: "Ausstehend",
+    inactive: "Inaktiv",
+  };
+  return (
+    <span
+      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${styles[status] ?? "bg-gray-100 text-gray-500"}`}
+    >
+      {labels[status] ?? status}
+    </span>
   );
 }

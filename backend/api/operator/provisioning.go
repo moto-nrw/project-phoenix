@@ -319,6 +319,19 @@ func (rs *ProvisioningResource) InviteSchoolAdmin(w http.ResponseWriter, r *http
 	common.Respond(w, r, http.StatusCreated, resp, "School admin invitation created successfully")
 }
 
+func (rs *ProvisioningResource) ListSchoolAccounts(w http.ResponseWriter, r *http.Request) {
+	schoolID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid school ID")
+	if !ok {
+		return
+	}
+	accounts, err := rs.service.ListSchoolAccounts(r.Context(), schoolID)
+	if err != nil {
+		common.RenderError(w, r, ProvisioningErrorRenderer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, accounts, "School accounts retrieved successfully")
+}
+
 // ProvisioningErrorRenderer maps provisioning errors to HTTP responses.
 func ProvisioningErrorRenderer(err error) render.Renderer {
 	var invalidData *platformSvc.InvalidDataError

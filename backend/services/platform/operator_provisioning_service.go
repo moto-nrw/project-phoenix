@@ -51,6 +51,7 @@ type OperatorProvisioningService interface {
 	ListSchools(ctx context.Context) ([]*platform.School, error)
 	UpdateSchool(ctx context.Context, id int64, req UpdateSchoolRequest, operatorID int64, clientIP net.IP) (*platform.School, error)
 	InviteSchoolAdmin(ctx context.Context, schoolID, operatorID int64, clientIP net.IP, req authSvc.InvitationRequest) (*authModels.InvitationToken, error)
+	ListSchoolAccounts(ctx context.Context, schoolID int64) ([]authModels.TenantAccountInfo, error)
 }
 
 type operatorProvisioningService struct {
@@ -59,6 +60,7 @@ type operatorProvisioningService struct {
 	categoryRepo      activityModels.CategoryRepository
 	deviceRepo        iotModels.DeviceRepository
 	roleRepo          authModels.RoleRepository
+	accountTenantRepo authModels.AccountTenantRepository
 	invitationService authSvc.InvitationService
 	auditLogRepo      platform.OperatorAuditLogRepository
 	txHandler         *modelBase.TxHandler
@@ -72,6 +74,7 @@ type OperatorProvisioningServiceConfig struct {
 	CategoryRepo      activityModels.CategoryRepository
 	DeviceRepo        iotModels.DeviceRepository
 	RoleRepo          authModels.RoleRepository
+	AccountTenantRepo authModels.AccountTenantRepository
 	InvitationService authSvc.InvitationService
 	AuditLogRepo      platform.OperatorAuditLogRepository
 	DB                *bun.DB
@@ -86,6 +89,7 @@ func NewOperatorProvisioningService(cfg OperatorProvisioningServiceConfig) Opera
 		categoryRepo:      cfg.CategoryRepo,
 		deviceRepo:        cfg.DeviceRepo,
 		roleRepo:          cfg.RoleRepo,
+		accountTenantRepo: cfg.AccountTenantRepo,
 		invitationService: cfg.InvitationService,
 		auditLogRepo:      cfg.AuditLogRepo,
 		txHandler:         modelBase.NewTxHandler(cfg.DB),
@@ -349,6 +353,32 @@ func (s *operatorProvisioningService) InviteSchoolAdmin(ctx context.Context, sch
 		return nil, err
 	}
 	return invitation, nil
+}
+
+func (s *operatorProvisioningService) ListSchoolAccounts(ctx context.Context, schoolID int64) ([]authModels.TenantAccountInfo, error) {
+	var result []authModels.TenantAccountInfo
+	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
+		school, findErr := s.schoolRepo.FindByID(adminCtx, schoolID)
+		if findErr != nil {
+			if isSchoolLookupNotFound(findErr) {
+				return &SchoolNotFoundError{SchoolID: schoolID}
+			}
+			return findErr
+		}
+		if school == nil {
+			return &SchoolNotFoundError{SchoolID: schoolID}
+		}
+		accounts, listErr := s.accountTenantRepo.ListAccountsByTenantID(adminCtx, schoolID)
+		if listErr != nil {
+			return listErr
+		}
+		result = accounts
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 func (s *operatorProvisioningService) validateSchoolCreate(ctx context.Context, school *platform.School) error {

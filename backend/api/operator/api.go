@@ -89,6 +89,7 @@ func (rs *Resource) Router() chi.Router {
 			r.Post("/", rs.provisioningResource.CreateSchool)
 			r.Put("/{id}", rs.provisioningResource.UpdateSchool)
 			r.Post("/{id}/invite-admin", rs.provisioningResource.InviteSchoolAdmin)
+			r.Get("/{id}/accounts", rs.provisioningResource.ListSchoolAccounts)
 		})
 
 		// Suggestions management
