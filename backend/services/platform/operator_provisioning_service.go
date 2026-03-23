@@ -53,6 +53,7 @@ type OperatorProvisioningService interface {
 	InviteSchoolAdmin(ctx context.Context, schoolID, operatorID int64, clientIP net.IP, req authSvc.InvitationRequest) (*authModels.InvitationToken, error)
 	ListSchoolAccounts(ctx context.Context, schoolID int64) ([]authModels.TenantAccountInfo, error)
 	ListOrganizationAccounts(ctx context.Context, organizationID int64) ([]authModels.OrgAccountInfo, error)
+	ListAllAccounts(ctx context.Context) ([]authModels.OrgAccountInfo, error)
 }
 
 type operatorProvisioningService struct {
@@ -393,6 +394,22 @@ func (s *operatorProvisioningService) ListOrganizationAccounts(ctx context.Conte
 			return &OrganizationNotFoundError{OrganizationID: organizationID}
 		}
 		accounts, listErr := s.accountTenantRepo.ListAccountsByOrganizationID(adminCtx, organizationID)
+		if listErr != nil {
+			return listErr
+		}
+		result = accounts
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (s *operatorProvisioningService) ListAllAccounts(ctx context.Context) ([]authModels.OrgAccountInfo, error) {
+	var result []authModels.OrgAccountInfo
+	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
+		accounts, listErr := s.accountTenantRepo.ListAllAccounts(adminCtx)
 		if listErr != nil {
 			return listErr
 		}

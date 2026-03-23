@@ -206,6 +206,7 @@ type AccountTenantRepository interface {
 	ExistsByAccountAndTenant(ctx context.Context, accountID, tenantID int64) (bool, error)
 	ListAccountsByTenantID(ctx context.Context, tenantID int64) ([]TenantAccountInfo, error)
 	ListAccountsByOrganizationID(ctx context.Context, organizationID int64) ([]OrgAccountInfo, error)
+	ListAllAccounts(ctx context.Context) ([]OrgAccountInfo, error)
 }
 
 // GuardianInvitationRepository defines operations for managing guardian invitations.

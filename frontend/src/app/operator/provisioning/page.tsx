@@ -110,9 +110,27 @@ export default function OperatorProvisioningPage() {
     },
   );
 
+  // All accounts (no filter selected)
+  const { data: allAccounts, isLoading: allAccountsLoading } = useSWR(
+    isAuthenticated &&
+      activeTab === "accounts" &&
+      !filterOrgId &&
+      !selectedSchool
+      ? "operator-all-accounts"
+      : null,
+    () => operatorProvisioningService.listAllAccounts(),
+    {
+      keepPreviousData: true,
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
+    },
+  );
+
   const accountsLoading = selectedSchool
     ? schoolAccountsLoading
-    : orgAccountsLoading;
+    : filterOrgId
+      ? orgAccountsLoading
+      : allAccountsLoading;
 
   // Schools filtered by selected organization (for accounts tab filter)
   const filteredSchools = useMemo(() => {
@@ -139,7 +157,7 @@ export default function OperatorProvisioningPage() {
                 ? schoolAccounts?.length
                 : filterOrgId
                   ? orgAccounts?.length
-                  : undefined
+                  : allAccounts?.length
               : undefined,
         },
       ],
@@ -156,6 +174,7 @@ export default function OperatorProvisioningPage() {
       filterOrgId,
       schoolAccounts?.length,
       orgAccounts?.length,
+      allAccounts?.length,
     ],
   );
 
@@ -450,23 +469,8 @@ export default function OperatorProvisioningPage() {
             </div>
           </div>
 
-          {/* No filter selected — prompt */}
-          {!selectedSchool && !filterOrgId && (
-            <div className="flex flex-col items-center gap-3 py-12 text-center">
-              <p className="text-lg font-medium text-gray-900">
-                Kein Filter ausgewählt
-              </p>
-              <p className="text-sm text-gray-500">
-                Wählen Sie oben einen Träger oder eine Schule aus, um Konten
-                anzuzeigen.
-              </p>
-            </div>
-          )}
-
           {/* Loading */}
-          {(selectedSchool ?? filterOrgId) && accountsLoading && (
-            <CardSkeletons />
-          )}
+          {accountsLoading && <CardSkeletons />}
 
           {/* Org-level view (no specific school selected) */}
           {!selectedSchool && filterOrgId && !orgAccountsLoading && (
@@ -482,7 +486,26 @@ export default function OperatorProvisioningPage() {
                 </div>
               )}
               {orgAccounts && orgAccounts.length > 0 && (
-                <AccountsTable accounts={orgAccounts} showSchool />
+                <OrgAccountsTable accounts={orgAccounts} />
+              )}
+            </>
+          )}
+
+          {/* All accounts view (no filter) */}
+          {!selectedSchool && !filterOrgId && !allAccountsLoading && (
+            <>
+              {allAccounts?.length === 0 && (
+                <div className="flex flex-col items-center gap-3 py-12 text-center">
+                  <p className="text-lg font-medium text-gray-900">
+                    Keine Konten
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    Es gibt noch keine Konten im System.
+                  </p>
+                </div>
+              )}
+              {allAccounts && allAccounts.length > 0 && (
+                <OrgAccountsTable accounts={allAccounts} />
               )}
             </>
           )}
@@ -692,76 +715,339 @@ function SchoolCard({
   );
 }
 
-function AccountsTable({
-  accounts,
-  showSchool,
+type SortDirection = "asc" | "desc";
+
+interface SortState<K extends string> {
+  key: K;
+  direction: SortDirection;
+}
+
+function useSort<K extends string>(
+  defaultKey: K,
+  defaultDirection: SortDirection = "asc",
+) {
+  const [sort, setSort] = useState<SortState<K>>({
+    key: defaultKey,
+    direction: defaultDirection,
+  });
+
+  const toggle = useCallback((key: K) => {
+    setSort((prev) =>
+      prev.key === key
+        ? { key, direction: prev.direction === "asc" ? "desc" : "asc" }
+        : { key, direction: "asc" },
+    );
+  }, []);
+
+  return { sort, toggle };
+}
+
+function SortIndicator({
+  active,
+  direction,
 }: {
-  readonly accounts: readonly (SchoolAccount | OrgAccount)[];
-  readonly showSchool?: boolean;
+  readonly active: boolean;
+  readonly direction: SortDirection;
 }) {
+  return (
+    <span
+      className={`ml-1 inline-block ${active ? "text-gray-700" : "text-gray-300"}`}
+    >
+      {active ? (direction === "asc" ? "↑" : "↓") : "↕"}
+    </span>
+  );
+}
+
+function SortableHeader<K extends string>({
+  label,
+  sortKey,
+  sort,
+  onToggle,
+}: {
+  readonly label: string;
+  readonly sortKey: K;
+  readonly sort: SortState<K>;
+  readonly onToggle: (key: K) => void;
+}) {
+  return (
+    <th
+      className="cursor-pointer px-5 py-3 transition-colors select-none hover:text-gray-700"
+      onClick={() => onToggle(sortKey)}
+    >
+      {label}
+      <SortIndicator active={sort.key === sortKey} direction={sort.direction} />
+    </th>
+  );
+}
+
+function getAccountName(account: SchoolAccount): string {
+  return account.firstName || account.lastName
+    ? `${account.lastName} ${account.firstName}`.trim().toLowerCase()
+    : "";
+}
+
+type SchoolAccountSortKey =
+  | "name"
+  | "email"
+  | "roleName"
+  | "pedagogicRole"
+  | "status";
+
+function sortSchoolAccounts(
+  accounts: readonly SchoolAccount[],
+  sort: SortState<SchoolAccountSortKey>,
+): SchoolAccount[] {
+  const dir = sort.direction === "asc" ? 1 : -1;
+  return [...accounts].sort((a, b) => {
+    let av: string;
+    let bv: string;
+    switch (sort.key) {
+      case "name":
+        av = getAccountName(a);
+        bv = getAccountName(b);
+        break;
+      case "email":
+        av = a.email.toLowerCase();
+        bv = b.email.toLowerCase();
+        break;
+      case "roleName":
+        av = a.roleName.toLowerCase();
+        bv = b.roleName.toLowerCase();
+        break;
+      case "pedagogicRole":
+        av = a.pedagogicRole.toLowerCase();
+        bv = b.pedagogicRole.toLowerCase();
+        break;
+      case "status":
+        av = a.status.toLowerCase();
+        bv = b.status.toLowerCase();
+        break;
+    }
+    return av < bv ? -dir : av > bv ? dir : 0;
+  });
+}
+
+function AccountsTable({ accounts }: { readonly accounts: SchoolAccount[] }) {
+  const { sort, toggle } = useSort<SchoolAccountSortKey>("name");
+  const sorted = useMemo(
+    () => sortSchoolAccounts(accounts, sort),
+    [accounts, sort],
+  );
+
   return (
     <div className="overflow-x-auto rounded-2xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md">
       <table className="w-full text-left text-sm">
         <thead>
           <tr className="border-b border-gray-100 text-xs font-medium text-gray-500">
-            {showSchool && <th className="px-5 py-3">Schule</th>}
-            <th className="px-5 py-3">Name</th>
-            <th className="px-5 py-3">E-Mail</th>
-            <th className="px-5 py-3">Rolle</th>
-            <th className="px-5 py-3">Päd. Rolle</th>
-            <th className="px-5 py-3">Status</th>
+            <SortableHeader
+              label="Name"
+              sortKey="name"
+              sort={sort}
+              onToggle={toggle}
+            />
+            <SortableHeader
+              label="E-Mail"
+              sortKey="email"
+              sort={sort}
+              onToggle={toggle}
+            />
+            <SortableHeader
+              label="Rolle"
+              sortKey="roleName"
+              sort={sort}
+              onToggle={toggle}
+            />
+            <SortableHeader
+              label="Päd. Rolle"
+              sortKey="pedagogicRole"
+              sort={sort}
+              onToggle={toggle}
+            />
+            <SortableHeader
+              label="Status"
+              sortKey="status"
+              sort={sort}
+              onToggle={toggle}
+            />
           </tr>
         </thead>
         <tbody>
-          {accounts.map((account) => {
-            const isOrg = "schoolId" in account;
-            const key =
-              account.accountId !== "0"
-                ? isOrg
-                  ? `${account.schoolId}-${account.accountId}`
-                  : account.accountId
-                : isOrg
-                  ? `${account.schoolId}-invited-${account.email}`
-                  : `invited-${account.email}`;
-
-            return (
-              <tr key={key} className="border-b border-gray-50 last:border-0">
-                {showSchool && isOrg && (
-                  <td className="px-5 py-3 text-gray-600">
-                    {account.schoolName}
-                  </td>
+          {sorted.map((account) => (
+            <tr
+              key={
+                account.accountId !== "0"
+                  ? account.accountId
+                  : `invited-${account.email}`
+              }
+              className="border-b border-gray-50 last:border-0"
+            >
+              <td className="px-5 py-3 font-medium text-gray-900">
+                {account.firstName || account.lastName
+                  ? `${account.firstName} ${account.lastName}`.trim()
+                  : "—"}
+              </td>
+              <td className="px-5 py-3 text-gray-600">{account.email}</td>
+              <td className="px-5 py-3">
+                {account.roleName ? (
+                  <span className="inline-flex flex-wrap gap-1">
+                    {account.roleName.split(", ").map((role) => (
+                      <span
+                        key={role}
+                        className="inline-flex rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700"
+                      >
+                        {role}
+                      </span>
+                    ))}
+                  </span>
+                ) : (
+                  <span className="text-gray-400">—</span>
                 )}
-                <td className="px-5 py-3 font-medium text-gray-900">
-                  {account.firstName || account.lastName
-                    ? `${account.firstName} ${account.lastName}`.trim()
-                    : "—"}
-                </td>
-                <td className="px-5 py-3 text-gray-600">{account.email}</td>
-                <td className="px-5 py-3">
-                  {account.roleName ? (
-                    <span className="inline-flex flex-wrap gap-1">
-                      {account.roleName.split(", ").map((role) => (
-                        <span
-                          key={role}
-                          className="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700"
-                        >
-                          {role}
-                        </span>
-                      ))}
-                    </span>
-                  ) : (
-                    <span className="text-gray-400">—</span>
-                  )}
-                </td>
-                <td className="px-5 py-3 text-gray-600">
-                  {account.pedagogicRole || "—"}
-                </td>
-                <td className="px-5 py-3">
-                  <AccountStatusBadge status={account.status} />
-                </td>
-              </tr>
-            );
-          })}
+              </td>
+              <td className="px-5 py-3 text-gray-600">
+                {account.pedagogicRole || "—"}
+              </td>
+              <td className="px-5 py-3">
+                <AccountStatusBadge status={account.status} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+type OrgAccountSortKey = "schoolName" | SchoolAccountSortKey;
+
+function sortOrgAccounts(
+  accounts: readonly OrgAccount[],
+  sort: SortState<OrgAccountSortKey>,
+): OrgAccount[] {
+  const dir = sort.direction === "asc" ? 1 : -1;
+  return [...accounts].sort((a, b) => {
+    let av: string;
+    let bv: string;
+    switch (sort.key) {
+      case "schoolName":
+        av = a.schoolName.toLowerCase();
+        bv = b.schoolName.toLowerCase();
+        break;
+      case "name":
+        av = getAccountName(a);
+        bv = getAccountName(b);
+        break;
+      case "email":
+        av = a.email.toLowerCase();
+        bv = b.email.toLowerCase();
+        break;
+      case "roleName":
+        av = a.roleName.toLowerCase();
+        bv = b.roleName.toLowerCase();
+        break;
+      case "pedagogicRole":
+        av = a.pedagogicRole.toLowerCase();
+        bv = b.pedagogicRole.toLowerCase();
+        break;
+      case "status":
+        av = a.status.toLowerCase();
+        bv = b.status.toLowerCase();
+        break;
+    }
+    return av < bv ? -dir : av > bv ? dir : 0;
+  });
+}
+
+function OrgAccountsTable({ accounts }: { readonly accounts: OrgAccount[] }) {
+  const { sort, toggle } = useSort<OrgAccountSortKey>("schoolName");
+  const sorted = useMemo(
+    () => sortOrgAccounts(accounts, sort),
+    [accounts, sort],
+  );
+
+  return (
+    <div className="overflow-x-auto rounded-2xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md">
+      <table className="w-full text-left text-sm">
+        <thead>
+          <tr className="border-b border-gray-100 text-xs font-medium text-gray-500">
+            <SortableHeader
+              label="Schule"
+              sortKey="schoolName"
+              sort={sort}
+              onToggle={toggle}
+            />
+            <SortableHeader
+              label="Name"
+              sortKey="name"
+              sort={sort}
+              onToggle={toggle}
+            />
+            <SortableHeader
+              label="E-Mail"
+              sortKey="email"
+              sort={sort}
+              onToggle={toggle}
+            />
+            <SortableHeader
+              label="Rolle"
+              sortKey="roleName"
+              sort={sort}
+              onToggle={toggle}
+            />
+            <SortableHeader
+              label="Päd. Rolle"
+              sortKey="pedagogicRole"
+              sort={sort}
+              onToggle={toggle}
+            />
+            <SortableHeader
+              label="Status"
+              sortKey="status"
+              sort={sort}
+              onToggle={toggle}
+            />
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map((account) => (
+            <tr
+              key={
+                account.accountId !== "0"
+                  ? `${account.schoolId}-${account.accountId}`
+                  : `${account.schoolId}-invited-${account.email}`
+              }
+              className="border-b border-gray-50 last:border-0"
+            >
+              <td className="px-5 py-3 text-gray-600">{account.schoolName}</td>
+              <td className="px-5 py-3 font-medium text-gray-900">
+                {account.firstName || account.lastName
+                  ? `${account.firstName} ${account.lastName}`.trim()
+                  : "—"}
+              </td>
+              <td className="px-5 py-3 text-gray-600">{account.email}</td>
+              <td className="px-5 py-3">
+                {account.roleName ? (
+                  <span className="inline-flex flex-wrap gap-1">
+                    {account.roleName.split(", ").map((role) => (
+                      <span
+                        key={role}
+                        className="inline-flex rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700"
+                      >
+                        {role}
+                      </span>
+                    ))}
+                  </span>
+                ) : (
+                  <span className="text-gray-400">—</span>
+                )}
+              </td>
+              <td className="px-5 py-3 text-gray-600">
+                {account.pedagogicRole || "—"}
+              </td>
+              <td className="px-5 py-3">
+                <AccountStatusBadge status={account.status} />
+              </td>
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>
@@ -772,7 +1058,7 @@ function AccountStatusBadge({ status }: { readonly status: string }) {
   const styles: Record<string, string> = {
     active: "bg-green-100 text-green-700",
     pending: "bg-yellow-100 text-yellow-700",
-    invited: "bg-yellow-100 text-yellow-700",
+    invited: "bg-purple-100 text-purple-700",
     inactive: "bg-gray-100 text-gray-500",
   };
   const labels: Record<string, string> = {

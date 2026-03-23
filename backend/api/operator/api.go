@@ -78,6 +78,8 @@ func (rs *Resource) Router() chi.Router {
 		r.Use(jwt.Authenticator)
 		r.Use(RequiresOperatorScope)
 
+		r.Get("/accounts", rs.provisioningResource.ListAllAccounts)
+
 		r.Route("/organizations", func(r chi.Router) {
 			r.Get("/", rs.provisioningResource.ListOrganizations)
 			r.Post("/", rs.provisioningResource.CreateOrganization)

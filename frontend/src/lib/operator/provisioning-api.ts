@@ -90,6 +90,13 @@ class OperatorProvisioningService {
     return data.map(mapOrgAccount);
   }
 
+  async listAllAccounts(): Promise<OrgAccount[]> {
+    const data = await operatorFetch<BackendOrgAccount[]>(
+      "/api/operator/provisioning/accounts",
+    );
+    return data.map(mapOrgAccount);
+  }
+
   async inviteSchoolAdmin(
     schoolId: string,
     data: InviteAdminRequest,
