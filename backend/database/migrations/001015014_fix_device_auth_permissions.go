@@ -34,10 +34,15 @@ func init() {
 				return fmt.Errorf("grant USAGE on schema iot: %w", err)
 			}
 
-			// Grant SELECT (FindByAPIKey) and UPDATE (UpdateDeviceLastSeenAt) on iot.devices.
-			_, err = db.ExecContext(ctx, `GRANT SELECT, UPDATE ON iot.devices TO phoenix_auth;`)
+			// Grant SELECT (FindByAPIKey) on the whole table, but restrict UPDATE to
+			// only the last_seen column (UpdateDeviceLastSeenAt). Principle of least
+			// privilege: phoenix_auth must not be able to mutate api_key, tenant_id, etc.
+			_, err = db.ExecContext(ctx, `
+				GRANT SELECT ON iot.devices TO phoenix_auth;
+				GRANT UPDATE (last_seen) ON iot.devices TO phoenix_auth;
+			`)
 			if err != nil {
-				return fmt.Errorf("grant SELECT, UPDATE on iot.devices: %w", err)
+				return fmt.Errorf("grant SELECT + UPDATE(last_seen) on iot.devices: %w", err)
 			}
 
 			// RLS policy: device auth is a cross-tenant operation (we don't know the
@@ -71,7 +76,8 @@ func init() {
 			_, err := db.ExecContext(ctx, `
 				DROP POLICY IF EXISTS device_auth_update ON iot.devices;
 				DROP POLICY IF EXISTS device_auth_select ON iot.devices;
-				REVOKE SELECT, UPDATE ON iot.devices FROM phoenix_auth;
+				REVOKE UPDATE (last_seen) ON iot.devices FROM phoenix_auth;
+				REVOKE SELECT ON iot.devices FROM phoenix_auth;
 				REVOKE USAGE ON SCHEMA iot FROM phoenix_auth;
 			`)
 			if err != nil {
