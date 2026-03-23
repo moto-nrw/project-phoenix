@@ -67,6 +67,9 @@ func (m *mockProvisioningService) ListSchoolAccounts(_ context.Context, _ int64)
 func (m *mockProvisioningService) ListOrganizationAccounts(_ context.Context, _ int64) ([]authModels.OrgAccountInfo, error) {
 	return nil, nil
 }
+func (m *mockProvisioningService) ListAllAccounts(_ context.Context) ([]authModels.OrgAccountInfo, error) {
+	return nil, nil
+}
 
 func withOperatorClaims(req *http.Request, operatorID int) *http.Request {
 	claims := jwtPkg.AppClaims{ID: operatorID, Scope: "platform"}

@@ -1045,6 +1045,9 @@ func (r *stubAccountTenantRepository) ListAccountsByTenantID(context.Context, in
 func (r *stubAccountTenantRepository) ListAccountsByOrganizationID(context.Context, int64) ([]authModel.OrgAccountInfo, error) {
 	return nil, nil
 }
+func (r *stubAccountTenantRepository) ListAllAccounts(context.Context) ([]authModel.OrgAccountInfo, error) {
+	return nil, nil
+}
 
 func (r *stubTokenRepository) DeleteByAccountID(_ context.Context, accountID int64) error {
 	r.mu.Lock()
