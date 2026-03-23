@@ -923,6 +923,106 @@ func TestIoTService_ScanNetwork(t *testing.T) {
 }
 
 // =============================================================================
+// UpdateDeviceLastSeen Tests
+// =============================================================================
+
+func TestIoTService_UpdateDeviceLastSeen(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupIoTService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	t.Run("updates last seen to current time", func(t *testing.T) {
+		// ARRANGE
+		device := testpkg.CreateTestDevice(t, db, "lastseen-now")
+		defer testpkg.CleanupActivityFixtures(t, db, device.ID)
+
+		before := time.Now().Add(-1 * time.Second)
+
+		// ACT
+		err := service.UpdateDeviceLastSeen(ctx, device.ID)
+
+		// ASSERT
+		require.NoError(t, err)
+
+		// Verify last_seen was updated to approximately now
+		updated, err := service.GetDeviceByID(ctx, device.ID)
+		require.NoError(t, err)
+		require.NotNil(t, updated.LastSeen)
+		assert.True(t, updated.LastSeen.After(before), "last_seen should be after the time before the call")
+	})
+
+	t.Run("returns error for zero ID", func(t *testing.T) {
+		// ACT
+		err := service.UpdateDeviceLastSeen(ctx, 0)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "device ID must be positive")
+	})
+
+	t.Run("returns error for negative ID", func(t *testing.T) {
+		// ACT
+		err := service.UpdateDeviceLastSeen(ctx, -5)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "device ID must be positive")
+	})
+}
+
+// =============================================================================
+// UpdateDeviceLastSeenAt Tests
+// =============================================================================
+
+func TestIoTService_UpdateDeviceLastSeenAt(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupIoTService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	t.Run("updates last seen to specified time", func(t *testing.T) {
+		// ARRANGE
+		device := testpkg.CreateTestDevice(t, db, "lastseen-at")
+		defer testpkg.CleanupActivityFixtures(t, db, device.ID)
+
+		targetTime := time.Date(2026, 3, 20, 14, 30, 0, 0, time.UTC)
+
+		// ACT
+		err := service.UpdateDeviceLastSeenAt(ctx, device.ID, targetTime)
+
+		// ASSERT
+		require.NoError(t, err)
+
+		// Verify last_seen was set to the exact time
+		updated, err := service.GetDeviceByID(ctx, device.ID)
+		require.NoError(t, err)
+		require.NotNil(t, updated.LastSeen)
+		assert.True(t, updated.LastSeen.Equal(targetTime), "last_seen should match the provided time")
+	})
+
+	t.Run("returns error for zero ID", func(t *testing.T) {
+		// ACT
+		err := service.UpdateDeviceLastSeenAt(ctx, 0, time.Now())
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "device ID must be positive")
+	})
+
+	t.Run("returns error for negative ID", func(t *testing.T) {
+		// ACT
+		err := service.UpdateDeviceLastSeenAt(ctx, -1, time.Now())
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "device ID must be positive")
+	})
+}
+
+// =============================================================================
 // GetDeviceByAPIKey Tests
 // =============================================================================
 

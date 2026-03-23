@@ -112,11 +112,13 @@ func extractAndValidateAPIKey(r *http.Request, iotService iotSvc.Service) (*iot.
 }
 
 // updateDeviceLastSeen updates the device's last seen timestamp, logging any errors.
+// Uses device.ID (PK, globally unique) for the debounce cache key and DB update
+// to avoid cross-tenant collisions when device_id strings overlap.
 func updateDeviceLastSeen(r *http.Request, iotService iotSvc.Service, device *iot.Device) {
 	now := time.Now()
 	device.LastSeen = &now
 
-	state := getOrCreateLastSeenState(device.DeviceID)
+	state := getOrCreateLastSeenState(device.ID)
 	state.mu.Lock()
 	state.latestSeen = now
 
@@ -124,33 +126,33 @@ func updateDeviceLastSeen(r *http.Request, iotService iotSvc.Service, device *io
 	if shouldWriteNow {
 		state.writeInFlight = true
 		state.mu.Unlock()
-		persistLastSeen(r.Context(), iotService, device.DeviceID, now, state)
+		persistLastSeen(r.Context(), iotService, device.ID, now, state)
 		return
 	}
 
 	if !state.writeInFlight {
-		scheduleDeferredFlushLocked(iotService, device.DeviceID, state, now)
+		scheduleDeferredFlushLocked(iotService, device.ID, state, now)
 	}
 	state.mu.Unlock()
 }
 
-func getOrCreateLastSeenState(deviceID string) *lastSeenDebounceState {
-	if existing, ok := lastSeenWriteCache.Load(deviceID); ok {
+func getOrCreateLastSeenState(id int64) *lastSeenDebounceState {
+	if existing, ok := lastSeenWriteCache.Load(id); ok {
 		if state, ok := existing.(*lastSeenDebounceState); ok {
 			return state
 		}
 	}
 
 	state := &lastSeenDebounceState{}
-	actual, _ := lastSeenWriteCache.LoadOrStore(deviceID, state)
+	actual, _ := lastSeenWriteCache.LoadOrStore(id, state)
 	actualState, _ := actual.(*lastSeenDebounceState)
 	return actualState
 }
 
-func persistLastSeen(ctx context.Context, iotService iotSvc.Service, deviceID string, observedAt time.Time, state *lastSeenDebounceState) {
-	if err := iotService.UpdateDeviceLastSeenAt(ctx, deviceID, observedAt); err != nil {
+func persistLastSeen(ctx context.Context, iotService iotSvc.Service, id int64, observedAt time.Time, state *lastSeenDebounceState) {
+	if err := iotService.UpdateDeviceLastSeenAt(ctx, id, observedAt); err != nil {
 		slog.Warn("failed to update device last seen time",
-			slog.String("device_id", deviceID),
+			slog.Int64("device_pk", id),
 			slog.String("error", err.Error()),
 		)
 		state.mu.Lock()
@@ -158,7 +160,7 @@ func persistLastSeen(ctx context.Context, iotService iotSvc.Service, deviceID st
 		if state.latestSeen.After(observedAt) {
 			state.lastPersisted = observedAt
 		}
-		scheduleDeferredFlushLocked(iotService, deviceID, state, time.Now())
+		scheduleDeferredFlushLocked(iotService, id, state, time.Now())
 		state.mu.Unlock()
 		return
 	}
@@ -166,11 +168,11 @@ func persistLastSeen(ctx context.Context, iotService iotSvc.Service, deviceID st
 	state.mu.Lock()
 	state.lastPersisted = observedAt
 	state.writeInFlight = false
-	scheduleDeferredFlushLocked(iotService, deviceID, state, time.Now())
+	scheduleDeferredFlushLocked(iotService, id, state, time.Now())
 	state.mu.Unlock()
 }
 
-func flushDeferredLastSeen(iotService iotSvc.Service, deviceID string, state *lastSeenDebounceState) {
+func flushDeferredLastSeen(iotService iotSvc.Service, id int64, state *lastSeenDebounceState) {
 	state.mu.Lock()
 	latestSeen := state.latestSeen
 	lastPersisted := state.lastPersisted
@@ -182,10 +184,10 @@ func flushDeferredLastSeen(iotService iotSvc.Service, deviceID string, state *la
 	state.writeInFlight = true
 	state.mu.Unlock()
 
-	persistLastSeen(context.Background(), iotService, deviceID, latestSeen, state)
+	persistLastSeen(context.Background(), iotService, id, latestSeen, state)
 }
 
-func scheduleDeferredFlushLocked(iotService iotSvc.Service, deviceID string, state *lastSeenDebounceState, now time.Time) {
+func scheduleDeferredFlushLocked(iotService iotSvc.Service, id int64, state *lastSeenDebounceState, now time.Time) {
 	if state.writeInFlight || state.flushTimer != nil || state.lastPersisted.IsZero() || !state.latestSeen.After(state.lastPersisted) {
 		return
 	}
@@ -196,7 +198,7 @@ func scheduleDeferredFlushLocked(iotService iotSvc.Service, deviceID string, sta
 	}
 
 	state.flushTimer = time.AfterFunc(delay, func() {
-		flushDeferredLastSeen(iotService, deviceID, state)
+		flushDeferredLastSeen(iotService, id, state)
 	})
 }
 
