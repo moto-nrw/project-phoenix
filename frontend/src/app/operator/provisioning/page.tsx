@@ -692,21 +692,164 @@ function SchoolCard({
   );
 }
 
+type SortDirection = "asc" | "desc";
+
+interface SortState<K extends string> {
+  key: K;
+  direction: SortDirection;
+}
+
+function useSort<K extends string>(
+  defaultKey: K,
+  defaultDirection: SortDirection = "asc",
+) {
+  const [sort, setSort] = useState<SortState<K>>({
+    key: defaultKey,
+    direction: defaultDirection,
+  });
+
+  const toggle = useCallback((key: K) => {
+    setSort((prev) =>
+      prev.key === key
+        ? { key, direction: prev.direction === "asc" ? "desc" : "asc" }
+        : { key, direction: "asc" },
+    );
+  }, []);
+
+  return { sort, toggle };
+}
+
+function SortIndicator({
+  active,
+  direction,
+}: {
+  readonly active: boolean;
+  readonly direction: SortDirection;
+}) {
+  return (
+    <span
+      className={`ml-1 inline-block ${active ? "text-gray-700" : "text-gray-300"}`}
+    >
+      {active ? (direction === "asc" ? "↑" : "↓") : "↕"}
+    </span>
+  );
+}
+
+function SortableHeader<K extends string>({
+  label,
+  sortKey,
+  sort,
+  onToggle,
+}: {
+  readonly label: string;
+  readonly sortKey: K;
+  readonly sort: SortState<K>;
+  readonly onToggle: (key: K) => void;
+}) {
+  return (
+    <th
+      className="cursor-pointer px-5 py-3 transition-colors select-none hover:text-gray-700"
+      onClick={() => onToggle(sortKey)}
+    >
+      {label}
+      <SortIndicator active={sort.key === sortKey} direction={sort.direction} />
+    </th>
+  );
+}
+
+function getAccountName(account: SchoolAccount): string {
+  return account.firstName || account.lastName
+    ? `${account.lastName} ${account.firstName}`.trim().toLowerCase()
+    : "";
+}
+
+type SchoolAccountSortKey =
+  | "name"
+  | "email"
+  | "roleName"
+  | "pedagogicRole"
+  | "status";
+
+function sortSchoolAccounts(
+  accounts: readonly SchoolAccount[],
+  sort: SortState<SchoolAccountSortKey>,
+): SchoolAccount[] {
+  const dir = sort.direction === "asc" ? 1 : -1;
+  return [...accounts].sort((a, b) => {
+    let av: string;
+    let bv: string;
+    switch (sort.key) {
+      case "name":
+        av = getAccountName(a);
+        bv = getAccountName(b);
+        break;
+      case "email":
+        av = a.email.toLowerCase();
+        bv = b.email.toLowerCase();
+        break;
+      case "roleName":
+        av = a.roleName.toLowerCase();
+        bv = b.roleName.toLowerCase();
+        break;
+      case "pedagogicRole":
+        av = a.pedagogicRole.toLowerCase();
+        bv = b.pedagogicRole.toLowerCase();
+        break;
+      case "status":
+        av = a.status.toLowerCase();
+        bv = b.status.toLowerCase();
+        break;
+    }
+    return av < bv ? -dir : av > bv ? dir : 0;
+  });
+}
+
 function AccountsTable({ accounts }: { readonly accounts: SchoolAccount[] }) {
+  const { sort, toggle } = useSort<SchoolAccountSortKey>("name");
+  const sorted = useMemo(
+    () => sortSchoolAccounts(accounts, sort),
+    [accounts, sort],
+  );
+
   return (
     <div className="overflow-x-auto rounded-2xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md">
       <table className="w-full text-left text-sm">
         <thead>
           <tr className="border-b border-gray-100 text-xs font-medium text-gray-500">
-            <th className="px-5 py-3">Name</th>
-            <th className="px-5 py-3">E-Mail</th>
-            <th className="px-5 py-3">Rolle</th>
-            <th className="px-5 py-3">Päd. Rolle</th>
-            <th className="px-5 py-3">Status</th>
+            <SortableHeader
+              label="Name"
+              sortKey="name"
+              sort={sort}
+              onToggle={toggle}
+            />
+            <SortableHeader
+              label="E-Mail"
+              sortKey="email"
+              sort={sort}
+              onToggle={toggle}
+            />
+            <SortableHeader
+              label="Rolle"
+              sortKey="roleName"
+              sort={sort}
+              onToggle={toggle}
+            />
+            <SortableHeader
+              label="Päd. Rolle"
+              sortKey="pedagogicRole"
+              sort={sort}
+              onToggle={toggle}
+            />
+            <SortableHeader
+              label="Status"
+              sortKey="status"
+              sort={sort}
+              onToggle={toggle}
+            />
           </tr>
         </thead>
         <tbody>
-          {accounts.map((account) => (
+          {sorted.map((account) => (
             <tr
               key={
                 account.accountId !== "0"
@@ -751,22 +894,98 @@ function AccountsTable({ accounts }: { readonly accounts: SchoolAccount[] }) {
   );
 }
 
+type OrgAccountSortKey = "schoolName" | SchoolAccountSortKey;
+
+function sortOrgAccounts(
+  accounts: readonly OrgAccount[],
+  sort: SortState<OrgAccountSortKey>,
+): OrgAccount[] {
+  const dir = sort.direction === "asc" ? 1 : -1;
+  return [...accounts].sort((a, b) => {
+    let av: string;
+    let bv: string;
+    switch (sort.key) {
+      case "schoolName":
+        av = a.schoolName.toLowerCase();
+        bv = b.schoolName.toLowerCase();
+        break;
+      case "name":
+        av = getAccountName(a);
+        bv = getAccountName(b);
+        break;
+      case "email":
+        av = a.email.toLowerCase();
+        bv = b.email.toLowerCase();
+        break;
+      case "roleName":
+        av = a.roleName.toLowerCase();
+        bv = b.roleName.toLowerCase();
+        break;
+      case "pedagogicRole":
+        av = a.pedagogicRole.toLowerCase();
+        bv = b.pedagogicRole.toLowerCase();
+        break;
+      case "status":
+        av = a.status.toLowerCase();
+        bv = b.status.toLowerCase();
+        break;
+    }
+    return av < bv ? -dir : av > bv ? dir : 0;
+  });
+}
+
 function OrgAccountsTable({ accounts }: { readonly accounts: OrgAccount[] }) {
+  const { sort, toggle } = useSort<OrgAccountSortKey>("schoolName");
+  const sorted = useMemo(
+    () => sortOrgAccounts(accounts, sort),
+    [accounts, sort],
+  );
+
   return (
     <div className="overflow-x-auto rounded-2xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md">
       <table className="w-full text-left text-sm">
         <thead>
           <tr className="border-b border-gray-100 text-xs font-medium text-gray-500">
-            <th className="px-5 py-3">Schule</th>
-            <th className="px-5 py-3">Name</th>
-            <th className="px-5 py-3">E-Mail</th>
-            <th className="px-5 py-3">Rolle</th>
-            <th className="px-5 py-3">Päd. Rolle</th>
-            <th className="px-5 py-3">Status</th>
+            <SortableHeader
+              label="Schule"
+              sortKey="schoolName"
+              sort={sort}
+              onToggle={toggle}
+            />
+            <SortableHeader
+              label="Name"
+              sortKey="name"
+              sort={sort}
+              onToggle={toggle}
+            />
+            <SortableHeader
+              label="E-Mail"
+              sortKey="email"
+              sort={sort}
+              onToggle={toggle}
+            />
+            <SortableHeader
+              label="Rolle"
+              sortKey="roleName"
+              sort={sort}
+              onToggle={toggle}
+            />
+            <SortableHeader
+              label="Päd. Rolle"
+              sortKey="pedagogicRole"
+              sort={sort}
+              onToggle={toggle}
+            />
+            <SortableHeader
+              label="Status"
+              sortKey="status"
+              sort={sort}
+              onToggle={toggle}
+            />
           </tr>
         </thead>
         <tbody>
-          {accounts.map((account) => (
+          {sorted.map((account) => (
             <tr
               key={
                 account.accountId !== "0"
