@@ -548,7 +548,11 @@ function AccountsTable({ accounts }: { readonly accounts: SchoolAccount[] }) {
         <tbody>
           {accounts.map((account) => (
             <tr
-              key={account.accountId}
+              key={
+                account.accountId !== "0"
+                  ? account.accountId
+                  : `invited-${account.email}`
+              }
               className="border-b border-gray-50 last:border-0"
             >
               <td className="px-5 py-3 font-medium text-gray-900">
