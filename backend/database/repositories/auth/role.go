@@ -88,7 +88,7 @@ func (r *RoleRepository) FindRoleNamesByAccountIDs(ctx context.Context, accountI
 		Join("JOIN auth.roles AS role ON role.id = ar.role_id").
 		ColumnExpr("ar.account_id").
 		ColumnExpr("role.name AS role_name").
-		Where("ar.account_id IN (?)", bun.In(accountIDs))
+		Where("ar.account_id IN (?)", bun.List(accountIDs))
 
 	if where, val, ok := base.TenantWhere(ctx, "ar"); ok {
 		query = query.Where(where, val)
