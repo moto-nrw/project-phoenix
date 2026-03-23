@@ -4,7 +4,6 @@ import { useState, useCallback } from "react";
 import { Modal } from "~/components/ui/modal";
 import { TeacherForm } from "./teacher-form";
 import type { Teacher } from "@/lib/teacher-api";
-import type { CreateTeacherResult } from "@/lib/teacher-api";
 
 const EMPTY_INITIAL_DATA: Partial<Teacher> = {};
 
@@ -13,7 +12,7 @@ interface TeacherCreateModalProps {
   readonly onClose: () => void;
   readonly onCreate: (
     data: Partial<Teacher> & { password?: string; linkExisting?: boolean },
-  ) => Promise<CreateTeacherResult | void>;
+  ) => Promise<{ status?: string; email?: string } | void>;
   readonly loading?: boolean;
 }
 
