@@ -594,44 +594,12 @@ func (s *Service) linkExistingAccountToTenant(ctx context.Context, account *auth
 		// Check if account is already linked to this tenant
 		alreadyLinked, _ := txService.repos.AccountTenant.ExistsByAccountAndTenant(ctx, account.ID, tenantID)
 		if alreadyLinked {
-			// Already linked — just ensure role is assigned
-			if roleID != nil && *roleID > 0 {
-				accountRole := &auth.AccountRole{
-					AccountID: account.ID,
-					RoleID:    *roleID,
-				}
-				accountRole.SetTenantID(tenantID)
-				// Ignore duplicate role errors
-				_ = txService.repos.AccountRole.Create(ctx, accountRole)
-			}
+			// Already linked — just ensure role is assigned (ignore duplicate errors)
+			_ = txService.ensureRoleAssignment(ctx, account.ID, roleID, tenantID)
 			return nil
 		}
 
-		// Create tenant mapping
-		now := time.Now()
-		mapping := &auth.AccountTenant{
-			AccountID:   account.ID,
-			TenantID:    tenantID,
-			Status:      auth.AccountTenantStatusActive,
-			ActivatedAt: &now,
-		}
-		if err := txService.repos.AccountTenant.Create(ctx, mapping); err != nil {
-			return fmt.Errorf("failed to create account-tenant mapping: %w", err)
-		}
-
-		// Assign role scoped to this tenant
-		if roleID != nil && *roleID > 0 {
-			accountRole := &auth.AccountRole{
-				AccountID: account.ID,
-				RoleID:    *roleID,
-			}
-			accountRole.SetTenantID(tenantID)
-			if err := txService.repos.AccountRole.Create(ctx, accountRole); err != nil {
-				return fmt.Errorf("failed to assign role to account: %w", err)
-			}
-		}
-
-		return nil
+		return txService.createTenantMappingAndRole(ctx, account.ID, roleID, tenantID)
 	})
 }
 
@@ -680,32 +648,41 @@ func (s *Service) persistAccountWithRole(ctx context.Context, account *auth.Acco
 			return err
 		}
 
-		// Map account to tenant so the user can log into this school
-		now := time.Now()
-		mapping := &auth.AccountTenant{
-			AccountID:   account.ID,
-			TenantID:    tenantID,
-			Status:      auth.AccountTenantStatusActive,
-			ActivatedAt: &now,
-		}
-		if err := txService.repos.AccountTenant.Create(ctx, mapping); err != nil {
-			return fmt.Errorf("failed to create account-tenant mapping: %w", err)
-		}
-
-		// Assign role scoped to this tenant (RLS WITH CHECK enforces tenant_id match)
-		if roleID != nil && *roleID > 0 {
-			accountRole := &auth.AccountRole{
-				AccountID: account.ID,
-				RoleID:    *roleID,
-			}
-			accountRole.SetTenantID(tenantID)
-			if err := txService.repos.AccountRole.Create(ctx, accountRole); err != nil {
-				return fmt.Errorf("failed to assign role to account: %w", err)
-			}
-		}
-
-		return nil
+		return txService.createTenantMappingAndRole(ctx, account.ID, roleID, tenantID)
 	})
+}
+
+// createTenantMappingAndRole creates an account-tenant mapping and assigns a role.
+// Shared by persistAccountWithRole (new accounts) and linkExistingAccountToTenant (existing accounts).
+func (s *Service) createTenantMappingAndRole(ctx context.Context, accountID int64, roleID *int64, tenantID int64) error {
+	now := time.Now()
+	mapping := &auth.AccountTenant{
+		AccountID:   accountID,
+		TenantID:    tenantID,
+		Status:      auth.AccountTenantStatusActive,
+		ActivatedAt: &now,
+	}
+	if err := s.repos.AccountTenant.Create(ctx, mapping); err != nil {
+		return fmt.Errorf("failed to create account-tenant mapping: %w", err)
+	}
+
+	return s.ensureRoleAssignment(ctx, accountID, roleID, tenantID)
+}
+
+// ensureRoleAssignment assigns a role to an account scoped to a tenant.
+func (s *Service) ensureRoleAssignment(ctx context.Context, accountID int64, roleID *int64, tenantID int64) error {
+	if roleID == nil || *roleID <= 0 {
+		return nil
+	}
+	accountRole := &auth.AccountRole{
+		AccountID: accountID,
+		RoleID:    *roleID,
+	}
+	accountRole.SetTenantID(tenantID)
+	if err := s.repos.AccountRole.Create(ctx, accountRole); err != nil {
+		return fmt.Errorf("failed to assign role to account: %w", err)
+	}
+	return nil
 }
 
 // ValidateToken validates an access token and returns the associated account and parsed claims.

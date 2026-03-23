@@ -163,6 +163,25 @@ func TestAuthService_Register(t *testing.T) {
 		require.NotNil(t, account2)
 		assert.Equal(t, account1.ID, account2.ID, "should return the same account")
 	})
+
+	t.Run("links existing account to new tenant with role", func(t *testing.T) {
+		// ARRANGE - create account in tenant 1
+		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
+		email := fmt.Sprintf("multitenant-%s@test.local", uniqueID)
+		username := fmt.Sprintf("mt-%s", uniqueID)
+		role := testpkg.GetOrCreateTestRole(t, db, "user")
+		roleID := role.ID
+
+		account1, err := service.Register(ctx, email, username, testPassword, &roleID, 1)
+		require.NoError(t, err)
+		defer testpkg.CleanupAuthFixtures(t, db, account1.ID)
+
+		// ACT - register same email in tenant 1 again (idempotent)
+		account2, err := service.Register(ctx, email, "other-username", testPassword, &roleID, 1)
+		require.NoError(t, err)
+		require.NotNil(t, account2)
+		assert.Equal(t, account1.ID, account2.ID, "should reuse existing account")
+	})
 }
 
 // =============================================================================
