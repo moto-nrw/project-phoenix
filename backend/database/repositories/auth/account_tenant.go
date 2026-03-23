@@ -97,7 +97,7 @@ func (r *AccountTenantRepository) ListAccountsByTenantID(ctx context.Context, te
 		Where(`"at".tenant_id = ?`, tenantID).
 		GroupExpr(`"at".account_id, "a".email, "a".active, "p".first_name, "p".last_name, "t".role, "at".status`).
 		OrderExpr(`"p".last_name ASC, "p".first_name ASC`).
-		Scan(ctx)
+		Scan(ctx, &accounts)
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +123,7 @@ func (r *AccountTenantRepository) ListAccountsByTenantID(ctx context.Context, te
 			INNER JOIN auth.accounts AS "ea" ON "ea".id = "existing".account_id
 			WHERE "existing".tenant_id = ? AND LOWER("ea".email) = LOWER("inv".email)
 		)`, tenantID).
-		Scan(ctx)
+		Scan(ctx, &invitations)
 	if err != nil {
 		return nil, err
 	}
