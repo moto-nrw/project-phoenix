@@ -153,28 +153,40 @@ describe("getStaffDisplayType", () => {
     expect(result).toBe("Mathematics");
   });
 
-  it("returns accountRole for teachers without role or specialization", () => {
+  it("returns formatted accountRole for teachers without role or specialization", () => {
     const staff = createSampleStaff({
       role: undefined,
       isTeacher: true,
       specialization: undefined,
-      accountRole: "Admin",
+      accountRole: "admin",
     });
     const result = getStaffDisplayType(staff);
 
     expect(result).toBe("Admin");
   });
 
-  it("returns accountRole for non-teachers without role", () => {
+  it("returns formatted accountRole for non-teachers without role", () => {
     const staff = createSampleStaff({
       role: undefined,
       isTeacher: false,
       specialization: "Some Specialization",
-      accountRole: "Extern",
+      accountRole: "guest",
     });
     const result = getStaffDisplayType(staff);
 
-    expect(result).toBe("Extern");
+    expect(result).toBe("Gast");
+  });
+
+  it("maps 'user' accountRole to Betreuer", () => {
+    const staff = createSampleStaff({
+      role: undefined,
+      isTeacher: false,
+      specialization: undefined,
+      accountRole: "user",
+    });
+    const result = getStaffDisplayType(staff);
+
+    expect(result).toBe("Betreuer");
   });
 
   it("returns Betreuer when no role, specialization, or accountRole", () => {
@@ -192,11 +204,23 @@ describe("getStaffDisplayType", () => {
   it("prefers custom role over accountRole", () => {
     const staff = createSampleStaff({
       role: "Gruppenleitung",
-      accountRole: "Admin",
+      accountRole: "admin",
     });
     const result = getStaffDisplayType(staff);
 
     expect(result).toBe("Gruppenleitung");
+  });
+
+  it("passes through unknown accountRole as-is", () => {
+    const staff = createSampleStaff({
+      role: undefined,
+      isTeacher: false,
+      specialization: undefined,
+      accountRole: "extern",
+    });
+    const result = getStaffDisplayType(staff);
+
+    expect(result).toBe("extern");
   });
 });
 

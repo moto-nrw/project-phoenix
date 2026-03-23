@@ -83,13 +83,18 @@ func (r *RoleRepository) FindRoleNamesByAccountIDs(ctx context.Context, accountI
 	}
 
 	var rows []accountRoleRow
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr("auth.account_roles AS ar").
 		Join("JOIN auth.roles AS role ON role.id = ar.role_id").
 		ColumnExpr("ar.account_id").
 		ColumnExpr("role.name AS role_name").
-		Where("ar.account_id IN (?)", bun.In(accountIDs)).
-		Scan(ctx, &rows)
+		Where("ar.account_id IN (?)", bun.In(accountIDs))
+
+	if where, val, ok := base.TenantWhere(ctx, "ar"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx, &rows)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{

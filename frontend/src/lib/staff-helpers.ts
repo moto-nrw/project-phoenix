@@ -63,6 +63,18 @@ export function getStaffLocationStatus(staff: Staff): LocationStatus {
   return buildLocationStatus("Anwesend", LOCATION_COLORS.Anwesend!);
 }
 
+// Map auth role names to German display labels
+const ROLE_DISPLAY_NAMES: Record<string, string> = {
+  admin: "Admin",
+  user: "Betreuer",
+  guest: "Gast",
+  guardian: "Erziehungsberechtigte/r",
+};
+
+function formatAccountRole(role: string): string {
+  return ROLE_DISPLAY_NAMES[role] ?? role;
+}
+
 // Get a display-friendly role/type for staff
 export function getStaffDisplayType(staff: Staff): string {
   // Check custom position first (set on teacher profile)
@@ -73,9 +85,9 @@ export function getStaffDisplayType(staff: Staff): string {
   if (staff.isTeacher && staff.specialization) {
     return staff.specialization;
   }
-  // Fall back to auth role (Admin/Betreuer/Extern)
+  // Fall back to auth role with display name
   if (staff.accountRole) {
-    return staff.accountRole;
+    return formatAccountRole(staff.accountRole);
   }
   return "Betreuer";
 }
