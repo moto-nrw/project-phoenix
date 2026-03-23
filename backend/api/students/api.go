@@ -130,9 +130,13 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Post("/pickup-times/bulk", rs.getBulkPickupTimes)
 	})
 
-	// Device-authenticated routes for RFID devices
+	// Device-authenticated routes for RFID devices.
+	// DeviceAuthenticator validates API key + PIN and sets tenant context,
+	// then TenantTxMiddleware wraps each handler in a tenant-scoped transaction
+	// (SET LOCAL ROLE phoenix_tenant + set_config) so RLS is enforced.
 	r.Group(func(r chi.Router) {
 		r.Use(device.DeviceAuthenticator(rs.IoTService, rs.PersonService))
+		r.Use(tenant.TenantTxMiddleware(rs.db))
 
 		// RFID tag assignment endpoint
 		r.Post("/{id}/rfid", rs.assignRFIDTag)
