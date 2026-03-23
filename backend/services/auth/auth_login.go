@@ -540,16 +540,32 @@ func (s *Service) logFailedLogin(ctx context.Context, accountID int64, ipAddress
 
 // Register creates a new user account
 func (s *Service) Register(ctx context.Context, email, username, password string, roleID *int64, tenantID int64) (*auth.Account, error) {
-	// Validate and normalize registration inputs
-	if err := s.validateRegistrationInputs(ctx, email, username, password); err != nil {
-		return nil, err
+	email = strings.TrimSpace(strings.ToLower(email))
+
+	if err := ValidatePasswordStrength(password); err != nil {
+		return nil, &AuthError{Op: "register", Err: err}
 	}
 
 	if roleID != nil && *roleID > 0 && tenantID <= 0 {
 		return nil, &AuthError{Op: "register", Err: ErrTenantRequiredForRoleAssignment}
 	}
 
-	// Create account object with hashed password
+	// Check if account already exists — if so, reuse it silently
+	// (add tenant mapping + role assignment without changing the password)
+	existingAccount, findErr := s.repos.Account.FindByEmail(ctx, email)
+	if findErr == nil && existingAccount != nil {
+		if err := s.linkExistingAccountToTenant(ctx, existingAccount, roleID, tenantID); err != nil {
+			return nil, err
+		}
+		return existingAccount, nil
+	}
+
+	// Check if username already exists
+	if _, err := s.repos.Account.FindByUsername(ctx, username); err == nil {
+		return nil, &AuthError{Op: "register", Err: ErrUsernameAlreadyExists}
+	}
+
+	// Create new account with hashed password
 	account, err := s.createAccountObject(email, username, password)
 	if err != nil {
 		return nil, err
@@ -563,26 +579,60 @@ func (s *Service) Register(ctx context.Context, email, username, password string
 	return account, nil
 }
 
-// validateRegistrationInputs validates registration data and checks for conflicts
-func (s *Service) validateRegistrationInputs(ctx context.Context, email, username, password string) error {
-	email = strings.TrimSpace(strings.ToLower(email))
-	username = strings.TrimSpace(username)
-
-	if err := ValidatePasswordStrength(password); err != nil {
-		return &AuthError{Op: "register", Err: err}
+// linkExistingAccountToTenant adds a tenant mapping and role assignment for an
+// existing account. The password is NOT changed — the user keeps their current
+// credentials. This prevents multi-tenant data leakage: the admin creating staff
+// never learns whether the email was new or already existed.
+func (s *Service) linkExistingAccountToTenant(ctx context.Context, account *auth.Account, roleID *int64, tenantID int64) error {
+	if tenantID <= 0 {
+		return nil // No tenant context — nothing to link
 	}
 
-	// Check if email already exists
-	if _, err := s.repos.Account.FindByEmail(ctx, email); err == nil {
-		return &AuthError{Op: "register", Err: ErrEmailAlreadyExists}
-	}
+	return tenant.WithTenantTx(ctx, s.db, tenantID, func(ctx context.Context, tx bun.Tx) error {
+		txService := s.WithTx(tx).(*Service)
 
-	// Check if username already exists
-	if _, err := s.repos.Account.FindByUsername(ctx, username); err == nil {
-		return &AuthError{Op: "register", Err: ErrUsernameAlreadyExists}
-	}
+		// Check if account is already linked to this tenant
+		alreadyLinked, _ := txService.repos.AccountTenant.ExistsByAccountAndTenant(ctx, account.ID, tenantID)
+		if alreadyLinked {
+			// Already linked — just ensure role is assigned
+			if roleID != nil && *roleID > 0 {
+				accountRole := &auth.AccountRole{
+					AccountID: account.ID,
+					RoleID:    *roleID,
+				}
+				accountRole.SetTenantID(tenantID)
+				// Ignore duplicate role errors
+				_ = txService.repos.AccountRole.Create(ctx, accountRole)
+			}
+			return nil
+		}
 
-	return nil
+		// Create tenant mapping
+		now := time.Now()
+		mapping := &auth.AccountTenant{
+			AccountID:   account.ID,
+			TenantID:    tenantID,
+			Status:      auth.AccountTenantStatusActive,
+			ActivatedAt: &now,
+		}
+		if err := txService.repos.AccountTenant.Create(ctx, mapping); err != nil {
+			return fmt.Errorf("failed to create account-tenant mapping: %w", err)
+		}
+
+		// Assign role scoped to this tenant
+		if roleID != nil && *roleID > 0 {
+			accountRole := &auth.AccountRole{
+				AccountID: account.ID,
+				RoleID:    *roleID,
+			}
+			accountRole.SetTenantID(tenantID)
+			if err := txService.repos.AccountRole.Create(ctx, accountRole); err != nil {
+				return fmt.Errorf("failed to assign role to account: %w", err)
+			}
+		}
+
+		return nil
+	})
 }
 
 // createAccountObject creates a new account with hashed password
