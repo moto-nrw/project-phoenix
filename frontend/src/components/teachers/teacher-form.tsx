@@ -220,18 +220,12 @@ export function TeacherForm({
       // Submit the form
       await onSubmitAction(formData);
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : String(err);
-      logger.error("failed to submit form", { error: errorMsg });
-
-      if (errorMsg.includes("email already exists")) {
-        setSubmitError(
-          "Es existiert bereits ein Konto mit dieser E-Mail-Adresse.",
-        );
-      } else {
-        setSubmitError(
-          "Es ist ein Fehler aufgetreten. Bitte versuchen Sie es später erneut.",
-        );
-      }
+      logger.error("failed to submit form", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      setSubmitError(
+        "Es ist ein Fehler aufgetreten. Bitte versuchen Sie es später erneut.",
+      );
     }
   };
 
