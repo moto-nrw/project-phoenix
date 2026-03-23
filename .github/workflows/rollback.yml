@@ -112,6 +112,7 @@ jobs:
           SSH_HOST: ${{ steps.ssh.outputs.host }}
         run: |
           scp -i ~/.ssh/deploy_key scripts/rollback-remote.sh root@$SSH_HOST:~/rollback-remote.sh
+          scp -i ~/.ssh/deploy_key scripts/restore-db.sh root@$SSH_HOST:~/restore-db.sh
 
           set +e
           ssh -i ~/.ssh/deploy_key "root@${SSH_HOST}" \

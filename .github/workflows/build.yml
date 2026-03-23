@@ -328,6 +328,7 @@ jobs:
           scp -i ~/.ssh/deploy_key /tmp/staging.env root@$SSH_HOST:~/staging/.env.new
           scp -i ~/.ssh/deploy_key environments/staging.compose.yml root@$SSH_HOST:~/staging/docker-compose.yml.new
           scp -i ~/.ssh/deploy_key scripts/deploy-remote.sh root@$SSH_HOST:~/deploy-remote.sh
+          scp -i ~/.ssh/deploy_key scripts/restore-db.sh root@$SSH_HOST:~/restore-db.sh
 
           set +e
           ssh -i ~/.ssh/deploy_key root@$SSH_HOST \
@@ -403,6 +404,7 @@ jobs:
           scp -i ~/.ssh/deploy_key /tmp/demo.env root@$SSH_HOST:~/demo/.env.new
           scp -i ~/.ssh/deploy_key environments/demo.compose.yml root@$SSH_HOST:~/demo/docker-compose.yml.new
           scp -i ~/.ssh/deploy_key scripts/deploy-remote.sh root@$SSH_HOST:~/deploy-remote.sh
+          scp -i ~/.ssh/deploy_key scripts/restore-db.sh root@$SSH_HOST:~/restore-db.sh
 
           set +e
           ssh -i ~/.ssh/deploy_key root@$SSH_HOST \
@@ -478,6 +480,7 @@ jobs:
           scp -i ~/.ssh/deploy_key /tmp/production.env root@$SSH_HOST:~/production/.env.new
           scp -i ~/.ssh/deploy_key environments/production.compose.yml root@$SSH_HOST:~/production/docker-compose.yml.new
           scp -i ~/.ssh/deploy_key scripts/deploy-remote.sh root@$SSH_HOST:~/deploy-remote.sh
+          scp -i ~/.ssh/deploy_key scripts/restore-db.sh root@$SSH_HOST:~/restore-db.sh
 
           set +e
           ssh -i ~/.ssh/deploy_key root@$SSH_HOST \
