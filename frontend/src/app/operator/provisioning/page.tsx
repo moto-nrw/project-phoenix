@@ -24,6 +24,7 @@ import { createLogger } from "~/lib/logger";
 import {
   StatusBadge,
   EmptyState,
+  SimpleEmptyState,
   PlusIcon,
   CardSkeletons,
 } from "./provisioning-shared";
@@ -264,6 +265,30 @@ export default function OperatorProvisioningPage() {
     setInviteOpen(true);
   }, []);
 
+  const handleOrgFilterChange = useCallback(
+    (orgId: string) => {
+      setFilterOrgId(orgId);
+      if (selectedSchool && orgId && selectedSchool.organizationId !== orgId) {
+        setSelectedSchool(null);
+      }
+    },
+    [selectedSchool],
+  );
+
+  const handleSchoolFilterChange = useCallback(
+    (schoolId: string) => {
+      if (!schoolId) {
+        setSelectedSchool(null);
+        return;
+      }
+      const school = schools?.find((s) => s.id === schoolId);
+      if (school) {
+        setSelectedSchool(school);
+      }
+    },
+    [schools],
+  );
+
   const openSchoolAccounts = useCallback((school: School) => {
     setFilterOrgId(school.organizationId);
     setSelectedSchool(school);
@@ -466,77 +491,15 @@ export default function OperatorProvisioningPage() {
       {/* Accounts Tab */}
       {activeTab === "accounts" && (
         <>
-          {/* Filters */}
-          <div className="mt-4 mb-4 flex flex-col gap-3 sm:flex-row sm:items-end">
-            <div className="flex-1">
-              <label
-                htmlFor="filter-org"
-                className="mb-1 block text-xs font-medium text-gray-500"
-              >
-                Träger
-              </label>
-              <select
-                id="filter-org"
-                value={filterOrgId}
-                onChange={(e) => {
-                  setFilterOrgId(e.target.value);
-                  // Reset school selection when org changes
-                  const newOrgId = e.target.value;
-                  if (
-                    selectedSchool &&
-                    newOrgId &&
-                    selectedSchool.organizationId !== newOrgId
-                  ) {
-                    setSelectedSchool(null);
-                  }
-                }}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-gray-400 focus:ring-1 focus:ring-gray-400 focus:outline-none"
-              >
-                <option value="">Alle Träger</option>
-                {organizations?.map((org) => (
-                  <option key={org.id} value={org.id}>
-                    {org.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex-1">
-              <label
-                htmlFor="filter-school"
-                className="mb-1 block text-xs font-medium text-gray-500"
-              >
-                Schule
-              </label>
-              <select
-                id="filter-school"
-                value={selectedSchool?.id ?? ""}
-                onChange={(e) => {
-                  const schoolId = e.target.value;
-                  if (!schoolId) {
-                    setSelectedSchool(null);
-                    return;
-                  }
-                  const school = schools?.find((s) => s.id === schoolId);
-                  if (school) {
-                    setSelectedSchool(school);
-                  }
-                }}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-gray-400 focus:ring-1 focus:ring-gray-400 focus:outline-none"
-              >
-                <option value="">
-                  {filterOrgId ? "Alle Schulen" : "Schule auswählen…"}
-                </option>
-                {filteredSchools.map((school) => (
-                  <option key={school.id} value={school.id}>
-                    {school.name}
-                    {school.organization
-                      ? ` (${school.organization.name})`
-                      : ""}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
+          <OrgSchoolFilter
+            idPrefix="account"
+            organizations={organizations}
+            filteredSchools={filteredSchools}
+            filterOrgId={filterOrgId}
+            selectedSchool={selectedSchool}
+            onOrgChange={handleOrgFilterChange}
+            onSchoolChange={handleSchoolFilterChange}
+          />
 
           {/* Loading */}
           {accountsLoading && <CardSkeletons />}
@@ -545,17 +508,13 @@ export default function OperatorProvisioningPage() {
           {!selectedSchool && filterOrgId && !orgAccountsLoading && (
             <>
               {orgAccounts?.length === 0 && (
-                <div className="flex flex-col items-center gap-3 py-12 text-center">
-                  <p className="text-lg font-medium text-gray-900">
-                    Keine Konten
-                  </p>
-                  <p className="text-sm text-gray-500">
-                    Für diesen Träger gibt es noch keine zugewiesenen Konten.
-                  </p>
-                </div>
+                <SimpleEmptyState
+                  title="Keine Konten"
+                  description="Für diesen Träger gibt es noch keine zugewiesenen Konten."
+                />
               )}
               {orgAccounts && orgAccounts.length > 0 && (
-                <OrgAccountsTable accounts={orgAccounts} />
+                <AccountsTable accounts={orgAccounts} showSchool />
               )}
             </>
           )}
@@ -564,17 +523,13 @@ export default function OperatorProvisioningPage() {
           {!selectedSchool && !filterOrgId && !allAccountsLoading && (
             <>
               {allAccounts?.length === 0 && (
-                <div className="flex flex-col items-center gap-3 py-12 text-center">
-                  <p className="text-lg font-medium text-gray-900">
-                    Keine Konten
-                  </p>
-                  <p className="text-sm text-gray-500">
-                    Es gibt noch keine Konten im System.
-                  </p>
-                </div>
+                <SimpleEmptyState
+                  title="Keine Konten"
+                  description="Es gibt noch keine Konten im System."
+                />
               )}
               {allAccounts && allAccounts.length > 0 && (
-                <OrgAccountsTable accounts={allAccounts} />
+                <AccountsTable accounts={allAccounts} showSchool />
               )}
             </>
           )}
@@ -599,14 +554,10 @@ export default function OperatorProvisioningPage() {
                 )}
               </div>
               {schoolAccounts?.length === 0 && (
-                <div className="flex flex-col items-center gap-3 py-12 text-center">
-                  <p className="text-lg font-medium text-gray-900">
-                    Keine Konten
-                  </p>
-                  <p className="text-sm text-gray-500">
-                    Für diese Schule gibt es noch keine zugewiesenen Konten.
-                  </p>
-                </div>
+                <SimpleEmptyState
+                  title="Keine Konten"
+                  description="Für diese Schule gibt es noch keine zugewiesenen Konten."
+                />
               )}
               {schoolAccounts && schoolAccounts.length > 0 && (
                 <AccountsTable accounts={schoolAccounts} />
@@ -619,76 +570,15 @@ export default function OperatorProvisioningPage() {
       {/* Devices Tab */}
       {activeTab === "devices" && (
         <>
-          {/* Filters */}
-          <div className="mt-4 mb-4 flex flex-col gap-3 sm:flex-row sm:items-end">
-            <div className="flex-1">
-              <label
-                htmlFor="filter-device-org"
-                className="mb-1 block text-xs font-medium text-gray-500"
-              >
-                Träger
-              </label>
-              <select
-                id="filter-device-org"
-                value={filterOrgId}
-                onChange={(e) => {
-                  setFilterOrgId(e.target.value);
-                  const newOrgId = e.target.value;
-                  if (
-                    selectedSchool &&
-                    newOrgId &&
-                    selectedSchool.organizationId !== newOrgId
-                  ) {
-                    setSelectedSchool(null);
-                  }
-                }}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-gray-400 focus:ring-1 focus:ring-gray-400 focus:outline-none"
-              >
-                <option value="">Alle Träger</option>
-                {organizations?.map((org) => (
-                  <option key={org.id} value={org.id}>
-                    {org.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex-1">
-              <label
-                htmlFor="filter-device-school"
-                className="mb-1 block text-xs font-medium text-gray-500"
-              >
-                Schule
-              </label>
-              <select
-                id="filter-device-school"
-                value={selectedSchool?.id ?? ""}
-                onChange={(e) => {
-                  const schoolId = e.target.value;
-                  if (!schoolId) {
-                    setSelectedSchool(null);
-                    return;
-                  }
-                  const school = schools?.find((s) => s.id === schoolId);
-                  if (school) {
-                    setSelectedSchool(school);
-                  }
-                }}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-gray-400 focus:ring-1 focus:ring-gray-400 focus:outline-none"
-              >
-                <option value="">
-                  {filterOrgId ? "Alle Schulen" : "Schule auswählen…"}
-                </option>
-                {filteredSchools.map((school) => (
-                  <option key={school.id} value={school.id}>
-                    {school.name}
-                    {school.organization
-                      ? ` (${school.organization.name})`
-                      : ""}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
+          <OrgSchoolFilter
+            idPrefix="device"
+            organizations={organizations}
+            filteredSchools={filteredSchools}
+            filterOrgId={filterOrgId}
+            selectedSchool={selectedSchool}
+            onOrgChange={handleOrgFilterChange}
+            onSchoolChange={handleSchoolFilterChange}
+          />
 
           {/* Loading */}
           {devicesLoading && <CardSkeletons />}
@@ -697,14 +587,10 @@ export default function OperatorProvisioningPage() {
           {!selectedSchool && filterOrgId && !orgDevicesLoading && (
             <>
               {orgDevices?.length === 0 && (
-                <div className="flex flex-col items-center gap-3 py-12 text-center">
-                  <p className="text-lg font-medium text-gray-900">
-                    Keine Geräte
-                  </p>
-                  <p className="text-sm text-gray-500">
-                    Für diesen Träger gibt es noch keine registrierten Geräte.
-                  </p>
-                </div>
+                <SimpleEmptyState
+                  title="Keine Geräte"
+                  description="Für diesen Träger gibt es noch keine registrierten Geräte."
+                />
               )}
               {orgDevices && orgDevices.length > 0 && (
                 <DevicesTable devices={orgDevices} showSchool />
@@ -716,14 +602,10 @@ export default function OperatorProvisioningPage() {
           {!selectedSchool && !filterOrgId && !allDevicesLoading && (
             <>
               {allDevices?.length === 0 && (
-                <div className="flex flex-col items-center gap-3 py-12 text-center">
-                  <p className="text-lg font-medium text-gray-900">
-                    Keine Geräte
-                  </p>
-                  <p className="text-sm text-gray-500">
-                    Es gibt noch keine registrierten Geräte im System.
-                  </p>
-                </div>
+                <SimpleEmptyState
+                  title="Keine Geräte"
+                  description="Es gibt noch keine registrierten Geräte im System."
+                />
               )}
               {allDevices && allDevices.length > 0 && (
                 <DevicesTable devices={allDevices} showSchool />
@@ -751,14 +633,10 @@ export default function OperatorProvisioningPage() {
                 )}
               </div>
               {schoolDevices?.length === 0 && (
-                <div className="flex flex-col items-center gap-3 py-12 text-center">
-                  <p className="text-lg font-medium text-gray-900">
-                    Keine Geräte
-                  </p>
-                  <p className="text-sm text-gray-500">
-                    Für diese Schule gibt es noch keine registrierten Geräte.
-                  </p>
-                </div>
+                <SimpleEmptyState
+                  title="Keine Geräte"
+                  description="Für diese Schule gibt es noch keine registrierten Geräte."
+                />
               )}
               {schoolDevices && schoolDevices.length > 0 && (
                 <DevicesTable devices={schoolDevices} />
@@ -1001,65 +879,109 @@ function SortableHeader<K extends string>({
   );
 }
 
-function getAccountName(account: SchoolAccount): string {
-  return account.firstName || account.lastName
-    ? `${account.lastName} ${account.firstName}`.trim().toLowerCase()
-    : "";
+function getAccountSortValue(account: SchoolAccount, key: string): string {
+  switch (key) {
+    case "name":
+      return account.firstName || account.lastName
+        ? `${account.lastName} ${account.firstName}`.trim().toLowerCase()
+        : "";
+    case "email":
+      return account.email.toLowerCase();
+    case "roleName":
+      return account.roleName.toLowerCase();
+    case "pedagogicRole":
+      return account.pedagogicRole.toLowerCase();
+    case "status":
+      return account.status.toLowerCase();
+    case "schoolName":
+      return "schoolName" in account
+        ? (account as OrgAccount).schoolName.toLowerCase()
+        : "";
+    default:
+      return "";
+  }
 }
 
-type SchoolAccountSortKey =
+type AccountSortKey =
   | "name"
   | "email"
   | "roleName"
   | "pedagogicRole"
-  | "status";
+  | "status"
+  | "schoolName";
 
-function sortSchoolAccounts(
-  accounts: readonly SchoolAccount[],
-  sort: SortState<SchoolAccountSortKey>,
-): SchoolAccount[] {
+function sortAccounts<T extends SchoolAccount>(
+  accounts: readonly T[],
+  sort: SortState<AccountSortKey>,
+): T[] {
   const dir = sort.direction === "asc" ? 1 : -1;
   return [...accounts].sort((a, b) => {
-    let av: string;
-    let bv: string;
-    switch (sort.key) {
-      case "name":
-        av = getAccountName(a);
-        bv = getAccountName(b);
-        break;
-      case "email":
-        av = a.email.toLowerCase();
-        bv = b.email.toLowerCase();
-        break;
-      case "roleName":
-        av = a.roleName.toLowerCase();
-        bv = b.roleName.toLowerCase();
-        break;
-      case "pedagogicRole":
-        av = a.pedagogicRole.toLowerCase();
-        bv = b.pedagogicRole.toLowerCase();
-        break;
-      case "status":
-        av = a.status.toLowerCase();
-        bv = b.status.toLowerCase();
-        break;
-    }
+    const av = getAccountSortValue(a, sort.key);
+    const bv = getAccountSortValue(b, sort.key);
     return av < bv ? -dir : av > bv ? dir : 0;
   });
 }
 
-function AccountsTable({ accounts }: { readonly accounts: SchoolAccount[] }) {
-  const { sort, toggle } = useSort<SchoolAccountSortKey>("name");
-  const sorted = useMemo(
-    () => sortSchoolAccounts(accounts, sort),
-    [accounts, sort],
+function AccountRow({ account }: { readonly account: SchoolAccount }) {
+  return (
+    <>
+      <td className="px-5 py-3 font-medium text-gray-900">
+        {account.firstName || account.lastName
+          ? `${account.firstName} ${account.lastName}`.trim()
+          : "—"}
+      </td>
+      <td className="px-5 py-3 text-gray-600">{account.email}</td>
+      <td className="px-5 py-3">
+        {account.roleName ? (
+          <span className="inline-flex flex-wrap gap-1">
+            {account.roleName.split(", ").map((role) => (
+              <span
+                key={role}
+                className="inline-flex rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700"
+              >
+                {role}
+              </span>
+            ))}
+          </span>
+        ) : (
+          <span className="text-gray-400">—</span>
+        )}
+      </td>
+      <td className="px-5 py-3 text-gray-600">
+        {account.pedagogicRole || "—"}
+      </td>
+      <td className="px-5 py-3">
+        <AccountStatusBadge status={account.status} />
+      </td>
+    </>
   );
+}
+
+function AccountsTable({
+  accounts,
+  showSchool = false,
+}: {
+  readonly accounts: SchoolAccount[] | OrgAccount[];
+  readonly showSchool?: boolean;
+}) {
+  const { sort, toggle } = useSort<AccountSortKey>(
+    showSchool ? "schoolName" : "name",
+  );
+  const sorted = useMemo(() => sortAccounts(accounts, sort), [accounts, sort]);
 
   return (
     <div className="overflow-x-auto rounded-2xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md">
       <table className="w-full text-left text-sm">
         <thead>
           <tr className="border-b border-gray-100 text-xs font-medium text-gray-500">
+            {showSchool && (
+              <SortableHeader
+                label="Schule"
+                sortKey="schoolName"
+                sort={sort}
+                onToggle={toggle}
+              />
+            )}
             <SortableHeader
               label="Name"
               sortKey="name"
@@ -1093,184 +1015,96 @@ function AccountsTable({ accounts }: { readonly accounts: SchoolAccount[] }) {
           </tr>
         </thead>
         <tbody>
-          {sorted.map((account) => (
-            <tr
-              key={
-                account.accountId !== "0"
-                  ? account.accountId
-                  : `invited-${account.email}`
-              }
-              className="border-b border-gray-50 last:border-0"
-            >
-              <td className="px-5 py-3 font-medium text-gray-900">
-                {account.firstName || account.lastName
-                  ? `${account.firstName} ${account.lastName}`.trim()
-                  : "—"}
-              </td>
-              <td className="px-5 py-3 text-gray-600">{account.email}</td>
-              <td className="px-5 py-3">
-                {account.roleName ? (
-                  <span className="inline-flex flex-wrap gap-1">
-                    {account.roleName.split(", ").map((role) => (
-                      <span
-                        key={role}
-                        className="inline-flex rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700"
-                      >
-                        {role}
-                      </span>
-                    ))}
-                  </span>
-                ) : (
-                  <span className="text-gray-400">—</span>
+          {sorted.map((account) => {
+            const orgAccount = showSchool ? (account as OrgAccount) : undefined;
+            return (
+              <tr
+                key={
+                  account.accountId !== "0"
+                    ? `${orgAccount?.schoolId ?? ""}-${account.accountId}`
+                    : `${orgAccount?.schoolId ?? ""}-invited-${account.email}`
+                }
+                className="border-b border-gray-50 last:border-0"
+              >
+                {showSchool && orgAccount && (
+                  <td className="px-5 py-3 text-gray-600">
+                    {orgAccount.schoolName}
+                  </td>
                 )}
-              </td>
-              <td className="px-5 py-3 text-gray-600">
-                {account.pedagogicRole || "—"}
-              </td>
-              <td className="px-5 py-3">
-                <AccountStatusBadge status={account.status} />
-              </td>
-            </tr>
-          ))}
+                <AccountRow account={account} />
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
   );
 }
 
-type OrgAccountSortKey = "schoolName" | SchoolAccountSortKey;
-
-function sortOrgAccounts(
-  accounts: readonly OrgAccount[],
-  sort: SortState<OrgAccountSortKey>,
-): OrgAccount[] {
-  const dir = sort.direction === "asc" ? 1 : -1;
-  return [...accounts].sort((a, b) => {
-    let av: string;
-    let bv: string;
-    switch (sort.key) {
-      case "schoolName":
-        av = a.schoolName.toLowerCase();
-        bv = b.schoolName.toLowerCase();
-        break;
-      case "name":
-        av = getAccountName(a);
-        bv = getAccountName(b);
-        break;
-      case "email":
-        av = a.email.toLowerCase();
-        bv = b.email.toLowerCase();
-        break;
-      case "roleName":
-        av = a.roleName.toLowerCase();
-        bv = b.roleName.toLowerCase();
-        break;
-      case "pedagogicRole":
-        av = a.pedagogicRole.toLowerCase();
-        bv = b.pedagogicRole.toLowerCase();
-        break;
-      case "status":
-        av = a.status.toLowerCase();
-        bv = b.status.toLowerCase();
-        break;
-    }
-    return av < bv ? -dir : av > bv ? dir : 0;
-  });
-}
-
-function OrgAccountsTable({ accounts }: { readonly accounts: OrgAccount[] }) {
-  const { sort, toggle } = useSort<OrgAccountSortKey>("schoolName");
-  const sorted = useMemo(
-    () => sortOrgAccounts(accounts, sort),
-    [accounts, sort],
-  );
-
+function OrgSchoolFilter({
+  idPrefix,
+  organizations,
+  filteredSchools,
+  filterOrgId,
+  selectedSchool,
+  onOrgChange,
+  onSchoolChange,
+}: {
+  readonly idPrefix: string;
+  readonly organizations: Organization[] | undefined;
+  readonly filteredSchools: School[];
+  readonly filterOrgId: string;
+  readonly selectedSchool: School | null;
+  readonly onOrgChange: (orgId: string) => void;
+  readonly onSchoolChange: (schoolId: string) => void;
+}) {
   return (
-    <div className="overflow-x-auto rounded-2xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md">
-      <table className="w-full text-left text-sm">
-        <thead>
-          <tr className="border-b border-gray-100 text-xs font-medium text-gray-500">
-            <SortableHeader
-              label="Schule"
-              sortKey="schoolName"
-              sort={sort}
-              onToggle={toggle}
-            />
-            <SortableHeader
-              label="Name"
-              sortKey="name"
-              sort={sort}
-              onToggle={toggle}
-            />
-            <SortableHeader
-              label="E-Mail"
-              sortKey="email"
-              sort={sort}
-              onToggle={toggle}
-            />
-            <SortableHeader
-              label="Rolle"
-              sortKey="roleName"
-              sort={sort}
-              onToggle={toggle}
-            />
-            <SortableHeader
-              label="Päd. Rolle"
-              sortKey="pedagogicRole"
-              sort={sort}
-              onToggle={toggle}
-            />
-            <SortableHeader
-              label="Status"
-              sortKey="status"
-              sort={sort}
-              onToggle={toggle}
-            />
-          </tr>
-        </thead>
-        <tbody>
-          {sorted.map((account) => (
-            <tr
-              key={
-                account.accountId !== "0"
-                  ? `${account.schoolId}-${account.accountId}`
-                  : `${account.schoolId}-invited-${account.email}`
-              }
-              className="border-b border-gray-50 last:border-0"
-            >
-              <td className="px-5 py-3 text-gray-600">{account.schoolName}</td>
-              <td className="px-5 py-3 font-medium text-gray-900">
-                {account.firstName || account.lastName
-                  ? `${account.firstName} ${account.lastName}`.trim()
-                  : "—"}
-              </td>
-              <td className="px-5 py-3 text-gray-600">{account.email}</td>
-              <td className="px-5 py-3">
-                {account.roleName ? (
-                  <span className="inline-flex flex-wrap gap-1">
-                    {account.roleName.split(", ").map((role) => (
-                      <span
-                        key={role}
-                        className="inline-flex rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700"
-                      >
-                        {role}
-                      </span>
-                    ))}
-                  </span>
-                ) : (
-                  <span className="text-gray-400">—</span>
-                )}
-              </td>
-              <td className="px-5 py-3 text-gray-600">
-                {account.pedagogicRole || "—"}
-              </td>
-              <td className="px-5 py-3">
-                <AccountStatusBadge status={account.status} />
-              </td>
-            </tr>
+    <div className="mt-4 mb-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+      <div className="flex-1">
+        <label
+          htmlFor={`filter-${idPrefix}-org`}
+          className="mb-1 block text-xs font-medium text-gray-500"
+        >
+          Träger
+        </label>
+        <select
+          id={`filter-${idPrefix}-org`}
+          value={filterOrgId}
+          onChange={(e) => onOrgChange(e.target.value)}
+          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-gray-400 focus:ring-1 focus:ring-gray-400 focus:outline-none"
+        >
+          <option value="">Alle Träger</option>
+          {organizations?.map((org) => (
+            <option key={org.id} value={org.id}>
+              {org.name}
+            </option>
           ))}
-        </tbody>
-      </table>
+        </select>
+      </div>
+      <div className="flex-1">
+        <label
+          htmlFor={`filter-${idPrefix}-school`}
+          className="mb-1 block text-xs font-medium text-gray-500"
+        >
+          Schule
+        </label>
+        <select
+          id={`filter-${idPrefix}-school`}
+          value={selectedSchool?.id ?? ""}
+          onChange={(e) => onSchoolChange(e.target.value)}
+          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-gray-400 focus:ring-1 focus:ring-gray-400 focus:outline-none"
+        >
+          <option value="">
+            {filterOrgId ? "Alle Schulen" : "Schule auswählen…"}
+          </option>
+          {filteredSchools.map((school) => (
+            <option key={school.id} value={school.id}>
+              {school.name}
+              {school.organization ? ` (${school.organization.name})` : ""}
+            </option>
+          ))}
+        </select>
+      </div>
     </div>
   );
 }

@@ -79,7 +79,7 @@ type OperatorDeviceInfo struct {
 	UpdatedAt        time.Time  `bun:"updated_at" json:"updated_at"`
 }
 
-// maskAPIKey returns the first 5 characters followed by asterisks.
+// maskAPIKey returns the first 10 characters followed by ellipsis.
 func maskAPIKey(key *string) string {
 	if key == nil || *key == "" {
 		return ""
@@ -488,23 +488,21 @@ INNER JOIN platform.schools AS "s" ON "s".id = "d".tenant_id
 INNER JOIN platform.organizations AS "o" ON "o".id = "s".organization_id
 `
 
-func (s *operatorProvisioningService) queryDevices(ctx context.Context, whereClause string, args ...interface{}) ([]OperatorDeviceInfo, error) {
-	var result []OperatorDeviceInfo
-	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
-		var db bun.IDB = s.txHandler.DB
-		if tx, ok := modelBase.TxFromContext(adminCtx); ok && tx != nil {
-			db = tx
-		}
-		q := operatorDeviceQuery
-		if whereClause != "" {
-			q += " WHERE " + whereClause
-		}
-		q += ` ORDER BY "o".name, "s".name, "d".device_id`
+// queryDevices runs the shared device query with an optional WHERE clause.
+// All callers pass static WHERE strings with parameterized args — no user input is concatenated.
+func (s *operatorProvisioningService) queryDevices(adminCtx context.Context, whereClause string, args ...interface{}) ([]OperatorDeviceInfo, error) {
+	var db bun.IDB = s.txHandler.DB
+	if tx, ok := modelBase.TxFromContext(adminCtx); ok && tx != nil {
+		db = tx
+	}
+	q := operatorDeviceQuery
+	if whereClause != "" {
+		q += " WHERE " + whereClause
+	}
+	q += ` ORDER BY "o".name, "s".name, "d".device_id`
 
-		scanErr := db.NewRaw(q, args...).Scan(adminCtx, &result)
-		return scanErr
-	})
-	if err != nil {
+	var result []OperatorDeviceInfo
+	if err := db.NewRaw(q, args...).Scan(adminCtx, &result); err != nil {
 		return nil, err
 	}
 	if result == nil {
@@ -514,39 +512,50 @@ func (s *operatorProvisioningService) queryDevices(ctx context.Context, whereCla
 }
 
 func (s *operatorProvisioningService) ListAllDevices(ctx context.Context) ([]OperatorDeviceInfo, error) {
-	return s.queryDevices(ctx, "")
+	var result []OperatorDeviceInfo
+	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
+		var queryErr error
+		result, queryErr = s.queryDevices(adminCtx, "")
+		return queryErr
+	})
+	return result, err
 }
 
 func (s *operatorProvisioningService) ListSchoolDevices(ctx context.Context, schoolID int64) ([]OperatorDeviceInfo, error) {
-	var school *platform.School
+	var result []OperatorDeviceInfo
 	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
-		var findErr error
-		school, findErr = s.schoolRepo.FindByID(adminCtx, schoolID)
-		return findErr
+		school, findErr := s.schoolRepo.FindByID(adminCtx, schoolID)
+		if findErr != nil {
+			if isSchoolLookupNotFound(findErr) {
+				return &SchoolNotFoundError{SchoolID: schoolID}
+			}
+			return findErr
+		}
+		if school == nil {
+			return &SchoolNotFoundError{SchoolID: schoolID}
+		}
+		var queryErr error
+		result, queryErr = s.queryDevices(adminCtx, `"d".tenant_id = ?`, schoolID)
+		return queryErr
 	})
-	if err != nil {
-		return nil, err
-	}
-	if school == nil {
-		return nil, &SchoolNotFoundError{SchoolID: schoolID}
-	}
-	return s.queryDevices(ctx, `"d".tenant_id = ?`, schoolID)
+	return result, err
 }
 
 func (s *operatorProvisioningService) ListOrganizationDevices(ctx context.Context, organizationID int64) ([]OperatorDeviceInfo, error) {
-	var org *platform.Organization
+	var result []OperatorDeviceInfo
 	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
-		var findErr error
-		org, findErr = s.organizationRepo.FindByID(adminCtx, organizationID)
-		return findErr
+		org, findErr := s.organizationRepo.FindByID(adminCtx, organizationID)
+		if findErr != nil {
+			return findErr
+		}
+		if org == nil {
+			return &OrganizationNotFoundError{OrganizationID: organizationID}
+		}
+		var queryErr error
+		result, queryErr = s.queryDevices(adminCtx, `"o".id = ?`, organizationID)
+		return queryErr
 	})
-	if err != nil {
-		return nil, err
-	}
-	if org == nil {
-		return nil, &OrganizationNotFoundError{OrganizationID: organizationID}
-	}
-	return s.queryDevices(ctx, `"o".id = ?`, organizationID)
+	return result, err
 }
 
 func (s *operatorProvisioningService) validateSchoolCreate(ctx context.Context, school *platform.School) error {

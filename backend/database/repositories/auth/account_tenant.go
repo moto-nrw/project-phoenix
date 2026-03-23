@@ -72,11 +72,9 @@ func (r *AccountTenantRepository) ExistsByAccountAndTenant(ctx context.Context, 
 
 // ListAccountsByTenantID returns all accounts for a given tenant with their roles and pedagogic info,
 // plus pending invitations that haven't been accepted yet.
-// Roles are aggregated (comma-separated) so accounts with multiple roles show all of them.
 func (r *AccountTenantRepository) ListAccountsByTenantID(ctx context.Context, tenantID int64) ([]auth.TenantAccountInfo, error) {
 	db := base.GetDB(ctx, r.db)
 
-	// Query 1: existing accounts with aggregated roles
 	var accounts []auth.TenantAccountInfo
 	err := db.NewSelect().
 		ColumnExpr(`"at".account_id`).
@@ -102,9 +100,18 @@ func (r *AccountTenantRepository) ListAccountsByTenantID(ctx context.Context, te
 		return nil, err
 	}
 
-	// Query 2: pending invitations not yet accepted (no account_tenant entry exists)
 	var invitations []auth.TenantAccountInfo
-	err = db.NewSelect().
+	err = r.scanPendingInvitationsTenant(ctx, db, tenantID, &invitations)
+	if err != nil {
+		return nil, err
+	}
+
+	return append(accounts, invitations...), nil
+}
+
+// scanPendingInvitationsTenant fetches pending invitations for a single tenant.
+func (r *AccountTenantRepository) scanPendingInvitationsTenant(ctx context.Context, db bun.IDB, tenantID int64, out *[]auth.TenantAccountInfo) error {
+	return db.NewSelect().
 		ColumnExpr(`0 AS account_id`).
 		ColumnExpr(`"inv".email`).
 		ColumnExpr(`false AS active`).
@@ -123,12 +130,7 @@ func (r *AccountTenantRepository) ListAccountsByTenantID(ctx context.Context, te
 			INNER JOIN auth.accounts AS "ea" ON "ea".id = "existing".account_id
 			WHERE "existing".tenant_id = ? AND LOWER("ea".email) = LOWER("inv".email)
 		)`, tenantID).
-		Scan(ctx, &invitations)
-	if err != nil {
-		return nil, err
-	}
-
-	return append(accounts, invitations...), nil
+		Scan(ctx, out)
 }
 
 // ListAccountsByOrganizationID returns all accounts across all schools belonging to an organization,
@@ -136,60 +138,12 @@ func (r *AccountTenantRepository) ListAccountsByTenantID(ctx context.Context, te
 func (r *AccountTenantRepository) ListAccountsByOrganizationID(ctx context.Context, organizationID int64) ([]auth.OrgAccountInfo, error) {
 	db := base.GetDB(ctx, r.db)
 
-	// Query 1: existing accounts with aggregated roles, joined with school info
-	var accounts []auth.OrgAccountInfo
-	err := db.NewSelect().
-		ColumnExpr(`"at".tenant_id AS school_id`).
-		ColumnExpr(`"sch".name AS school_name`).
-		ColumnExpr(`"at".account_id`).
-		ColumnExpr(`"a".email`).
-		ColumnExpr(`"a".active`).
-		ColumnExpr(`COALESCE("p".first_name, '') AS first_name`).
-		ColumnExpr(`COALESCE("p".last_name, '') AS last_name`).
-		ColumnExpr(`COALESCE(string_agg(DISTINCT "r".name, ', ' ORDER BY "r".name), '') AS role_name`).
-		ColumnExpr(`COALESCE("t".role, '') AS pedagogic_role`).
-		ColumnExpr(`"at".status`).
-		TableExpr(`auth.account_tenants AS "at"`).
-		Join(`INNER JOIN platform.schools AS "sch" ON "sch".id = "at".tenant_id`).
-		Join(`INNER JOIN auth.accounts AS "a" ON "a".id = "at".account_id`).
-		Join(`LEFT JOIN auth.account_roles AS "ar" ON "ar".account_id = "at".account_id AND "ar".tenant_id = "at".tenant_id`).
-		Join(`LEFT JOIN auth.roles AS "r" ON "r".id = "ar".role_id`).
-		Join(`LEFT JOIN users.persons AS "p" ON "p".account_id = "at".account_id AND "p".tenant_id = "at".tenant_id`).
-		Join(`LEFT JOIN users.staff AS "s" ON "s".person_id = "p".id AND "s".tenant_id = "at".tenant_id`).
-		Join(`LEFT JOIN users.teachers AS "t" ON "t".staff_id = "s".id AND "t".tenant_id = "at".tenant_id`).
-		Where(`"sch".organization_id = ?`, organizationID).
-		GroupExpr(`"at".tenant_id, "sch".name, "at".account_id, "a".email, "a".active, "p".first_name, "p".last_name, "t".role, "at".status`).
-		OrderExpr(`"sch".name ASC, "p".last_name ASC, "p".first_name ASC`).
-		Scan(ctx, &accounts)
+	accounts, err := r.queryOrgAccounts(ctx, db, `"sch".organization_id = ?`, organizationID)
 	if err != nil {
 		return nil, err
 	}
 
-	// Query 2: pending invitations across all schools in the organization
-	var invitations []auth.OrgAccountInfo
-	err = db.NewSelect().
-		ColumnExpr(`"inv".tenant_id AS school_id`).
-		ColumnExpr(`"sch".name AS school_name`).
-		ColumnExpr(`0 AS account_id`).
-		ColumnExpr(`"inv".email`).
-		ColumnExpr(`false AS active`).
-		ColumnExpr(`COALESCE("inv".first_name, '') AS first_name`).
-		ColumnExpr(`COALESCE("inv".last_name, '') AS last_name`).
-		ColumnExpr(`COALESCE("r".name, '') AS role_name`).
-		ColumnExpr(`'' AS pedagogic_role`).
-		ColumnExpr(`'invited' AS status`).
-		TableExpr(`auth.invitation_tokens AS "inv"`).
-		Join(`INNER JOIN platform.schools AS "sch" ON "sch".id = "inv".tenant_id`).
-		Join(`LEFT JOIN auth.roles AS "r" ON "r".id = "inv".role_id`).
-		Where(`"sch".organization_id = ?`, organizationID).
-		Where(`"inv".used_at IS NULL`).
-		Where(`"inv".expires_at > NOW()`).
-		Where(`NOT EXISTS (
-			SELECT 1 FROM auth.account_tenants AS "existing"
-			INNER JOIN auth.accounts AS "ea" ON "ea".id = "existing".account_id
-			WHERE "existing".tenant_id = "inv".tenant_id AND LOWER("ea".email) = LOWER("inv".email)
-		)`).
-		Scan(ctx, &invitations)
+	invitations, err := r.queryOrgInvitations(ctx, db, `"sch".organization_id = ?`, organizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -202,9 +156,23 @@ func (r *AccountTenantRepository) ListAccountsByOrganizationID(ctx context.Conte
 func (r *AccountTenantRepository) ListAllAccounts(ctx context.Context) ([]auth.OrgAccountInfo, error) {
 	db := base.GetDB(ctx, r.db)
 
-	// Query 1: existing accounts with aggregated roles, joined with school info
+	accounts, err := r.queryOrgAccounts(ctx, db, "", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	invitations, err := r.queryOrgInvitations(ctx, db, "", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return append(accounts, invitations...), nil
+}
+
+// queryOrgAccounts builds the shared org-level accounts query with an optional WHERE clause.
+func (r *AccountTenantRepository) queryOrgAccounts(ctx context.Context, db bun.IDB, whereClause string, arg interface{}) ([]auth.OrgAccountInfo, error) {
 	var accounts []auth.OrgAccountInfo
-	err := db.NewSelect().
+	q := db.NewSelect().
 		ColumnExpr(`"at".tenant_id AS school_id`).
 		ColumnExpr(`"sch".name AS school_name`).
 		ColumnExpr(`"at".account_id`).
@@ -222,17 +190,21 @@ func (r *AccountTenantRepository) ListAllAccounts(ctx context.Context) ([]auth.O
 		Join(`LEFT JOIN auth.roles AS "r" ON "r".id = "ar".role_id`).
 		Join(`LEFT JOIN users.persons AS "p" ON "p".account_id = "at".account_id AND "p".tenant_id = "at".tenant_id`).
 		Join(`LEFT JOIN users.staff AS "s" ON "s".person_id = "p".id AND "s".tenant_id = "at".tenant_id`).
-		Join(`LEFT JOIN users.teachers AS "t" ON "t".staff_id = "s".id AND "t".tenant_id = "at".tenant_id`).
+		Join(`LEFT JOIN users.teachers AS "t" ON "t".staff_id = "s".id AND "t".tenant_id = "at".tenant_id`)
+	if whereClause != "" {
+		q = q.Where(whereClause, arg)
+	}
+	err := q.
 		GroupExpr(`"at".tenant_id, "sch".name, "at".account_id, "a".email, "a".active, "p".first_name, "p".last_name, "t".role, "at".status`).
 		OrderExpr(`"sch".name ASC, "p".last_name ASC, "p".first_name ASC`).
 		Scan(ctx, &accounts)
-	if err != nil {
-		return nil, err
-	}
+	return accounts, err
+}
 
-	// Query 2: pending invitations across all schools
+// queryOrgInvitations builds the shared org-level pending invitations query with an optional WHERE clause.
+func (r *AccountTenantRepository) queryOrgInvitations(ctx context.Context, db bun.IDB, whereClause string, arg interface{}) ([]auth.OrgAccountInfo, error) {
 	var invitations []auth.OrgAccountInfo
-	err = db.NewSelect().
+	q := db.NewSelect().
 		ColumnExpr(`"inv".tenant_id AS school_id`).
 		ColumnExpr(`"sch".name AS school_name`).
 		ColumnExpr(`0 AS account_id`).
@@ -245,7 +217,11 @@ func (r *AccountTenantRepository) ListAllAccounts(ctx context.Context) ([]auth.O
 		ColumnExpr(`'invited' AS status`).
 		TableExpr(`auth.invitation_tokens AS "inv"`).
 		Join(`INNER JOIN platform.schools AS "sch" ON "sch".id = "inv".tenant_id`).
-		Join(`LEFT JOIN auth.roles AS "r" ON "r".id = "inv".role_id`).
+		Join(`LEFT JOIN auth.roles AS "r" ON "r".id = "inv".role_id`)
+	if whereClause != "" {
+		q = q.Where(whereClause, arg)
+	}
+	err := q.
 		Where(`"inv".used_at IS NULL`).
 		Where(`"inv".expires_at > NOW()`).
 		Where(`NOT EXISTS (
@@ -254,9 +230,5 @@ func (r *AccountTenantRepository) ListAllAccounts(ctx context.Context) ([]auth.O
 			WHERE "existing".tenant_id = "inv".tenant_id AND LOWER("ea".email) = LOWER("inv".email)
 		)`).
 		Scan(ctx, &invitations)
-	if err != nil {
-		return nil, err
-	}
-
-	return append(accounts, invitations...), nil
+	return invitations, err
 }
