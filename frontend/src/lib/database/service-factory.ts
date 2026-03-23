@@ -275,6 +275,10 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
 
         return result;
       } catch (error) {
+        // AccountExistsError is expected control flow (triggers link confirmation modal)
+        if (error instanceof Error && error.name === "AccountExistsError") {
+          throw error;
+        }
         logger.error("error creating entity", {
           entity: config.name.singular,
           error: String(error),
