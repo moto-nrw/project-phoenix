@@ -192,12 +192,20 @@ type TenantAccountInfo struct {
 	Status        string `bun:"status" json:"status"`
 }
 
+// OrgAccountInfo extends TenantAccountInfo with school context for org-level listings.
+type OrgAccountInfo struct {
+	TenantAccountInfo
+	SchoolID   int64  `bun:"school_id" json:"school_id"`
+	SchoolName string `bun:"school_name" json:"school_name"`
+}
+
 // AccountTenantRepository defines operations for querying account-tenant mappings.
 type AccountTenantRepository interface {
 	Create(ctx context.Context, mapping *AccountTenant) error
 	FindActiveByAccountID(ctx context.Context, accountID int64) ([]AccountTenant, error)
 	ExistsByAccountAndTenant(ctx context.Context, accountID, tenantID int64) (bool, error)
 	ListAccountsByTenantID(ctx context.Context, tenantID int64) ([]TenantAccountInfo, error)
+	ListAccountsByOrganizationID(ctx context.Context, organizationID int64) ([]OrgAccountInfo, error)
 }
 
 // GuardianInvitationRepository defines operations for managing guardian invitations.

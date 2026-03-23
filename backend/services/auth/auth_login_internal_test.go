@@ -67,6 +67,9 @@ func (s stubAuthLoginAccountTenantRepo) ExistsByAccountAndTenant(ctx context.Con
 func (s stubAuthLoginAccountTenantRepo) ListAccountsByTenantID(context.Context, int64) ([]authModels.TenantAccountInfo, error) {
 	panic("unexpected ListAccountsByTenantID")
 }
+func (s stubAuthLoginAccountTenantRepo) ListAccountsByOrganizationID(context.Context, int64) ([]authModels.OrgAccountInfo, error) {
+	panic("unexpected ListAccountsByOrganizationID")
+}
 
 func setupInternalAuthService(t *testing.T, db *bun.DB) *Service {
 	t.Helper()

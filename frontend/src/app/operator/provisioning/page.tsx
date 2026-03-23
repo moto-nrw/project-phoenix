@@ -11,6 +11,7 @@ import type {
   Organization,
   School,
   SchoolAccount,
+  OrgAccount,
 } from "~/lib/operator/provisioning-helpers";
 import { getRelativeTime } from "~/lib/format-utils";
 import { createLogger } from "~/lib/logger";
@@ -46,6 +47,7 @@ export default function OperatorProvisioningPage() {
   const [inviteSchoolId, setInviteSchoolId] = useState<string | null>(null);
   const [inviteSchoolName, setInviteSchoolName] = useState("");
   const [selectedSchool, setSelectedSchool] = useState<School | null>(null);
+  const [filterOrgId, setFilterOrgId] = useState<string>("");
 
   // Toggle error state
   const [orgToggleError, setOrgToggleError] = useState("");
@@ -79,7 +81,8 @@ export default function OperatorProvisioningPage() {
     },
   );
 
-  const { data: accounts, isLoading: accountsLoading } = useSWR(
+  // School-level accounts (when a specific school is selected)
+  const { data: schoolAccounts, isLoading: schoolAccountsLoading } = useSWR(
     isAuthenticated && activeTab === "accounts" && selectedSchool
       ? `operator-school-accounts-${selectedSchool.id}`
       : null,
@@ -90,6 +93,33 @@ export default function OperatorProvisioningPage() {
       dedupingInterval: 5000,
     },
   );
+
+  // Org-level accounts (when only an org is selected, no specific school)
+  const { data: orgAccounts, isLoading: orgAccountsLoading } = useSWR(
+    isAuthenticated &&
+      activeTab === "accounts" &&
+      filterOrgId &&
+      !selectedSchool
+      ? `operator-org-accounts-${filterOrgId}`
+      : null,
+    () => operatorProvisioningService.listOrganizationAccounts(filterOrgId),
+    {
+      keepPreviousData: true,
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
+    },
+  );
+
+  const accountsLoading = selectedSchool
+    ? schoolAccountsLoading
+    : orgAccountsLoading;
+
+  // Schools filtered by selected organization (for accounts tab filter)
+  const filteredSchools = useMemo(() => {
+    if (!schools) return [];
+    if (!filterOrgId) return schools;
+    return schools.filter((s) => s.organizationId === filterOrgId);
+  }, [schools, filterOrgId]);
 
   const tabs = useMemo(
     () => ({
@@ -102,15 +132,20 @@ export default function OperatorProvisioningPage() {
         { id: "schools", label: "Schulen", count: schools?.length },
         {
           id: "accounts",
-          label: selectedSchool ? `Konten – ${selectedSchool.name}` : "Konten",
-          count: accounts?.length,
+          label: "Konten",
+          count:
+            activeTab === "accounts"
+              ? selectedSchool
+                ? schoolAccounts?.length
+                : filterOrgId
+                  ? orgAccounts?.length
+                  : undefined
+              : undefined,
         },
       ],
       activeTab,
       onTabChange: (tabId: string) => {
-        const tab = tabId as ActiveTab;
-        if (tab === "accounts" && !selectedSchool) return;
-        setActiveTab(tab);
+        setActiveTab(tabId as ActiveTab);
       },
     }),
     [
@@ -118,7 +153,9 @@ export default function OperatorProvisioningPage() {
       organizations?.length,
       schools?.length,
       selectedSchool,
-      accounts?.length,
+      filterOrgId,
+      schoolAccounts?.length,
+      orgAccounts?.length,
     ],
   );
 
@@ -140,6 +177,7 @@ export default function OperatorProvisioningPage() {
   }, []);
 
   const openSchoolAccounts = useCallback((school: School) => {
+    setFilterOrgId(school.organizationId);
     setSelectedSchool(school);
     setActiveTab("accounts");
   }, []);
@@ -224,7 +262,7 @@ export default function OperatorProvisioningPage() {
       ? orgsLoading
       : activeTab === "schools"
         ? schoolsLoading
-        : accountsLoading;
+        : false; // accounts tab handles its own loading inline
 
   const actionButton =
     activeTab === "organizations" ? (
@@ -338,28 +376,150 @@ export default function OperatorProvisioningPage() {
       )}
 
       {/* Accounts Tab */}
-      {activeTab === "accounts" && !accountsLoading && selectedSchool && (
+      {activeTab === "accounts" && (
         <>
-          <div className="mt-4 mb-4 flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setActiveTab("schools")}
-              className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200"
-            >
-              &larr; Zurück zu Schulen
-            </button>
-            <span className="text-sm text-gray-500">{selectedSchool.name}</span>
+          {/* Filters */}
+          <div className="mt-4 mb-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div className="flex-1">
+              <label
+                htmlFor="filter-org"
+                className="mb-1 block text-xs font-medium text-gray-500"
+              >
+                Träger
+              </label>
+              <select
+                id="filter-org"
+                value={filterOrgId}
+                onChange={(e) => {
+                  setFilterOrgId(e.target.value);
+                  // Reset school selection when org changes
+                  const newOrgId = e.target.value;
+                  if (
+                    selectedSchool &&
+                    newOrgId &&
+                    selectedSchool.organizationId !== newOrgId
+                  ) {
+                    setSelectedSchool(null);
+                  }
+                }}
+                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm transition-colors focus:border-gray-400 focus:outline-none"
+              >
+                <option value="">Alle Träger</option>
+                {organizations?.map((org) => (
+                  <option key={org.id} value={org.id}>
+                    {org.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex-1">
+              <label
+                htmlFor="filter-school"
+                className="mb-1 block text-xs font-medium text-gray-500"
+              >
+                Schule
+              </label>
+              <select
+                id="filter-school"
+                value={selectedSchool?.id ?? ""}
+                onChange={(e) => {
+                  const schoolId = e.target.value;
+                  if (!schoolId) {
+                    setSelectedSchool(null);
+                    return;
+                  }
+                  const school = schools?.find((s) => s.id === schoolId);
+                  if (school) {
+                    setSelectedSchool(school);
+                  }
+                }}
+                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm transition-colors focus:border-gray-400 focus:outline-none"
+              >
+                <option value="">
+                  {filterOrgId ? "Alle Schulen" : "Schule auswählen…"}
+                </option>
+                {filteredSchools.map((school) => (
+                  <option key={school.id} value={school.id}>
+                    {school.name}
+                    {school.organization
+                      ? ` (${school.organization.name})`
+                      : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
-          {accounts?.length === 0 && (
-            <div className="flex flex-col items-center gap-3 py-12 text-center">
-              <p className="text-lg font-medium text-gray-900">Keine Konten</p>
-              <p className="text-sm text-gray-500">
-                Für diese Schule gibt es noch keine zugewiesenen Konten.
+
+          {/* No filter selected — prompt */}
+          {!selectedSchool && !filterOrgId && (
+            <div className="flex flex-col items-center gap-2 py-16 text-center">
+              <p className="text-base font-medium text-gray-400">
+                Träger oder Schule auswählen
+              </p>
+              <p className="max-w-sm text-sm text-gray-400">
+                Wählen Sie oben einen Träger oder eine Schule aus, um Konten
+                anzuzeigen.
               </p>
             </div>
           )}
-          {accounts && accounts.length > 0 && (
-            <AccountsTable accounts={accounts} />
+
+          {/* Loading */}
+          {(selectedSchool ?? filterOrgId) && accountsLoading && (
+            <CardSkeletons />
+          )}
+
+          {/* Org-level view (no specific school selected) */}
+          {!selectedSchool && filterOrgId && !orgAccountsLoading && (
+            <>
+              {orgAccounts?.length === 0 && (
+                <div className="flex flex-col items-center gap-3 py-12 text-center">
+                  <p className="text-lg font-medium text-gray-900">
+                    Keine Konten
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    Für diesen Träger gibt es noch keine zugewiesenen Konten.
+                  </p>
+                </div>
+              )}
+              {orgAccounts && orgAccounts.length > 0 && (
+                <OrgAccountsTable accounts={orgAccounts} />
+              )}
+            </>
+          )}
+
+          {/* School-level view */}
+          {selectedSchool && !schoolAccountsLoading && (
+            <>
+              <div className="mb-3 flex items-center gap-2">
+                <h3 className="text-sm font-semibold text-gray-900">
+                  {selectedSchool.name}
+                </h3>
+                {selectedSchool.organization && (
+                  <span className="text-xs text-gray-400">
+                    {selectedSchool.organization.name}
+                  </span>
+                )}
+                {schoolAccounts && (
+                  <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
+                    {schoolAccounts.length}{" "}
+                    {schoolAccounts.length === 1 ? "Konto" : "Konten"}
+                  </span>
+                )}
+              </div>
+              {schoolAccounts?.length === 0 && (
+                <div className="flex flex-col items-center gap-3 py-12 text-center">
+                  <p className="text-lg font-medium text-gray-900">
+                    Keine Konten
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    Für diese Schule gibt es noch keine zugewiesenen Konten.
+                  </p>
+                </div>
+              )}
+              {schoolAccounts && schoolAccounts.length > 0 && (
+                <AccountsTable accounts={schoolAccounts} />
+              )}
+            </>
           )}
         </>
       )}
@@ -555,6 +715,67 @@ function AccountsTable({ accounts }: { readonly accounts: SchoolAccount[] }) {
               }
               className="border-b border-gray-50 last:border-0"
             >
+              <td className="px-5 py-3 font-medium text-gray-900">
+                {account.firstName || account.lastName
+                  ? `${account.firstName} ${account.lastName}`.trim()
+                  : "—"}
+              </td>
+              <td className="px-5 py-3 text-gray-600">{account.email}</td>
+              <td className="px-5 py-3">
+                {account.roleName ? (
+                  <span className="inline-flex flex-wrap gap-1">
+                    {account.roleName.split(", ").map((role) => (
+                      <span
+                        key={role}
+                        className="inline-flex rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700"
+                      >
+                        {role}
+                      </span>
+                    ))}
+                  </span>
+                ) : (
+                  <span className="text-gray-400">—</span>
+                )}
+              </td>
+              <td className="px-5 py-3 text-gray-600">
+                {account.pedagogicRole || "—"}
+              </td>
+              <td className="px-5 py-3">
+                <AccountStatusBadge status={account.status} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function OrgAccountsTable({ accounts }: { readonly accounts: OrgAccount[] }) {
+  return (
+    <div className="overflow-x-auto rounded-2xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md">
+      <table className="w-full text-left text-sm">
+        <thead>
+          <tr className="border-b border-gray-100 text-xs font-medium text-gray-500">
+            <th className="px-5 py-3">Schule</th>
+            <th className="px-5 py-3">Name</th>
+            <th className="px-5 py-3">E-Mail</th>
+            <th className="px-5 py-3">Rolle</th>
+            <th className="px-5 py-3">Päd. Rolle</th>
+            <th className="px-5 py-3">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {accounts.map((account) => (
+            <tr
+              key={
+                account.accountId !== "0"
+                  ? `${account.schoolId}-${account.accountId}`
+                  : `${account.schoolId}-invited-${account.email}`
+              }
+              className="border-b border-gray-50 last:border-0"
+            >
+              <td className="px-5 py-3 text-gray-600">{account.schoolName}</td>
               <td className="px-5 py-3 font-medium text-gray-900">
                 {account.firstName || account.lastName
                   ? `${account.firstName} ${account.lastName}`.trim()

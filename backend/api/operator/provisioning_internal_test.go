@@ -64,6 +64,9 @@ func (m *mockProvisioningService) InviteSchoolAdmin(ctx context.Context, schoolI
 func (m *mockProvisioningService) ListSchoolAccounts(_ context.Context, _ int64) ([]authModels.TenantAccountInfo, error) {
 	return nil, nil
 }
+func (m *mockProvisioningService) ListOrganizationAccounts(_ context.Context, _ int64) ([]authModels.OrgAccountInfo, error) {
+	return nil, nil
+}
 
 func withOperatorClaims(req *http.Request, operatorID int) *http.Request {
 	claims := jwtPkg.AppClaims{ID: operatorID, Scope: "platform"}

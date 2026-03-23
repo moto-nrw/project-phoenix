@@ -82,6 +82,7 @@ func (rs *Resource) Router() chi.Router {
 			r.Get("/", rs.provisioningResource.ListOrganizations)
 			r.Post("/", rs.provisioningResource.CreateOrganization)
 			r.Put("/{id}", rs.provisioningResource.UpdateOrganization)
+			r.Get("/{id}/accounts", rs.provisioningResource.ListOrganizationAccounts)
 		})
 
 		r.Route("/schools", func(r chi.Router) {

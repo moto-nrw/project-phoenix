@@ -4,10 +4,12 @@ import type {
   BackendSchool,
   BackendInvitation,
   BackendSchoolAccount,
+  BackendOrgAccount,
   Organization,
   School,
   Invitation,
   SchoolAccount,
+  OrgAccount,
   CreateOrganizationRequest,
   CreateSchoolRequest,
   InviteAdminRequest,
@@ -19,6 +21,7 @@ import {
   mapSchool,
   mapInvitation,
   mapSchoolAccount,
+  mapOrgAccount,
 } from "./provisioning-helpers";
 
 class OperatorProvisioningService {
@@ -78,6 +81,13 @@ class OperatorProvisioningService {
       `/api/operator/provisioning/schools/${encodeURIComponent(schoolId)}/accounts`,
     );
     return data.map(mapSchoolAccount);
+  }
+
+  async listOrganizationAccounts(orgId: string): Promise<OrgAccount[]> {
+    const data = await operatorFetch<BackendOrgAccount[]>(
+      `/api/operator/provisioning/organizations/${encodeURIComponent(orgId)}/accounts`,
+    );
+    return data.map(mapOrgAccount);
   }
 
   async inviteSchoolAdmin(

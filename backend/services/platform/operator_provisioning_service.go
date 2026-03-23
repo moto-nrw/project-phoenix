@@ -52,6 +52,7 @@ type OperatorProvisioningService interface {
 	UpdateSchool(ctx context.Context, id int64, req UpdateSchoolRequest, operatorID int64, clientIP net.IP) (*platform.School, error)
 	InviteSchoolAdmin(ctx context.Context, schoolID, operatorID int64, clientIP net.IP, req authSvc.InvitationRequest) (*authModels.InvitationToken, error)
 	ListSchoolAccounts(ctx context.Context, schoolID int64) ([]authModels.TenantAccountInfo, error)
+	ListOrganizationAccounts(ctx context.Context, organizationID int64) ([]authModels.OrgAccountInfo, error)
 }
 
 type operatorProvisioningService struct {
@@ -369,6 +370,29 @@ func (s *operatorProvisioningService) ListSchoolAccounts(ctx context.Context, sc
 			return &SchoolNotFoundError{SchoolID: schoolID}
 		}
 		accounts, listErr := s.accountTenantRepo.ListAccountsByTenantID(adminCtx, schoolID)
+		if listErr != nil {
+			return listErr
+		}
+		result = accounts
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (s *operatorProvisioningService) ListOrganizationAccounts(ctx context.Context, organizationID int64) ([]authModels.OrgAccountInfo, error) {
+	var result []authModels.OrgAccountInfo
+	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
+		org, findErr := s.organizationRepo.FindByID(adminCtx, organizationID)
+		if findErr != nil {
+			return findErr
+		}
+		if org == nil {
+			return &OrganizationNotFoundError{OrganizationID: organizationID}
+		}
+		accounts, listErr := s.accountTenantRepo.ListAccountsByOrganizationID(adminCtx, organizationID)
 		if listErr != nil {
 			return listErr
 		}

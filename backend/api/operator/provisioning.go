@@ -332,6 +332,19 @@ func (rs *ProvisioningResource) ListSchoolAccounts(w http.ResponseWriter, r *htt
 	common.Respond(w, r, http.StatusOK, accounts, "School accounts retrieved successfully")
 }
 
+func (rs *ProvisioningResource) ListOrganizationAccounts(w http.ResponseWriter, r *http.Request) {
+	orgID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid organization ID")
+	if !ok {
+		return
+	}
+	accounts, err := rs.service.ListOrganizationAccounts(r.Context(), orgID)
+	if err != nil {
+		common.RenderError(w, r, ProvisioningErrorRenderer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, accounts, "Organization accounts retrieved successfully")
+}
+
 // ProvisioningErrorRenderer maps provisioning errors to HTTP responses.
 func ProvisioningErrorRenderer(err error) render.Renderer {
 	var invalidData *platformSvc.InvalidDataError

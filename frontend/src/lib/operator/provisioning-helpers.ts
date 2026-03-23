@@ -127,6 +127,26 @@ export function mapSchoolAccount(data: BackendSchoolAccount): SchoolAccount {
   };
 }
 
+// Org-level account types (includes school context)
+
+export interface BackendOrgAccount extends BackendSchoolAccount {
+  school_id: number;
+  school_name: string;
+}
+
+export interface OrgAccount extends SchoolAccount {
+  schoolId: string;
+  schoolName: string;
+}
+
+export function mapOrgAccount(data: BackendOrgAccount): OrgAccount {
+  return {
+    ...mapSchoolAccount(data),
+    schoolId: data.school_id.toString(),
+    schoolName: data.school_name,
+  };
+}
+
 // Request types (snake_case for backend)
 
 export interface CreateOrganizationRequest {
