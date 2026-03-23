@@ -61,11 +61,13 @@ describe("RootLayout", () => {
 
   describe("metadata", () => {
     it("has correct title", () => {
-      expect(metadata.title).toBe("moto");
+      expect(metadata.title).toBe("moto – Digitale Ganztagsbetreuung");
     });
 
     it("has correct description", () => {
-      expect(metadata.description).toBe("A modern full-stack application");
+      expect(metadata.description).toBe(
+        "Das innovative An- und Abmeldesystem mit NFC-Armbändern für die offene Ganztagsschule. DSGVO-konform, entwickelt an der Universität Münster.",
+      );
     });
 
     it("has correct icons", () => {
