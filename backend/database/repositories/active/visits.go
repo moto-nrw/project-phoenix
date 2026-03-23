@@ -217,7 +217,7 @@ func (r *VisitRepository) FindWithActiveGroup(ctx context.Context, id int64) (*a
 	// Load active group separately — BUN Relation("ActiveGroup") does not
 	// resolve the schema:active tag for relation sub-queries.
 	group := new(active.Group)
-	err = r.db.NewSelect().
+	err = base.GetDB(ctx, r.db).NewSelect().
 		Model(group).
 		ModelTableExpr(`active.groups AS "group"`).
 		Where(`"group".id = ?`, visit.ActiveGroupID).
@@ -445,7 +445,7 @@ func (r *VisitRepository) GetCurrentByStudentIDWithRoom(ctx context.Context, stu
 	}
 
 	row := new(currentVisitRow)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(`active.visits AS "visit"`).
 		ColumnExpr(`"visit".id AS visit_id`).
 		ColumnExpr(`"visit".student_id AS visit_student_id`).
@@ -580,7 +580,7 @@ func (r *VisitRepository) GetCurrentByStudentIDs(ctx context.Context, studentIDs
 
 // CountActiveByRoomID counts active visits across all active groups in the given room.
 func (r *VisitRepository) CountActiveByRoomID(ctx context.Context, roomID int64) (int, error) {
-	count, err := r.db.NewSelect().
+	count, err := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(`active.visits AS "visit"`).
 		Join(`JOIN active.groups AS "group" ON "group".id = "visit".active_group_id`).
 		Where(`"group".room_id = ?`, roomID).
@@ -599,7 +599,7 @@ func (r *VisitRepository) CountActiveByRoomID(ctx context.Context, roomID int64)
 
 // CountActiveByGroupID counts active visits in the given active group.
 func (r *VisitRepository) CountActiveByGroupID(ctx context.Context, activeGroupID int64) (int, error) {
-	count, err := r.db.NewSelect().
+	count, err := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(`active.visits AS "visit"`).
 		Where(`"visit".active_group_id = ?`, activeGroupID).
 		Where(`"visit".exit_time IS NULL`).

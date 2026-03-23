@@ -84,7 +84,7 @@ func (r *CommentRepository) FindByID(ctx context.Context, id int64) (*suggestion
 func (r *CommentRepository) FindByIDWithAuthor(ctx context.Context, id int64) (*suggestions.Comment, error) {
 	comment := new(suggestions.Comment)
 
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(comment).
 		ModelTableExpr(tableSuggestionsCommentsAlias).
 		ColumnExpr(`"comment".*`).
