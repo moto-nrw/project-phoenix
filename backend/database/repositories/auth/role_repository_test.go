@@ -340,3 +340,98 @@ func TestRoleRepository_GetRoleWithPermissions(t *testing.T) {
 		// Permissions may be empty or nil for a new role
 	})
 }
+
+// ============================================================================
+// Batch Role Name Loading Tests
+// ============================================================================
+
+func TestRoleRepository_FindRoleNamesByAccountIDs(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).Role
+	ctx := testpkg.TenantContext(1)
+
+	t.Run("returns role names for multiple accounts", func(t *testing.T) {
+		account1 := testpkg.CreateTestAccount(t, db, "batch_role_1")
+		account2 := testpkg.CreateTestAccount(t, db, "batch_role_2")
+		role1 := testpkg.CreateTestRole(t, db, fmt.Sprintf("BatchAdmin_%d", time.Now().UnixNano()))
+		role2 := testpkg.CreateTestRole(t, db, fmt.Sprintf("BatchUser_%d", time.Now().UnixNano()))
+		defer cleanupRoleRecords(t, db, role1.ID, role2.ID)
+		defer cleanupAccountRecords(t, db, account1.ID, account2.ID)
+
+		// Assign roles
+		_, err := db.ExecContext(ctx,
+			"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, 1), (?, ?, 1)",
+			account1.ID, role1.ID, account2.ID, role2.ID)
+		require.NoError(t, err)
+
+		result, err := repo.FindRoleNamesByAccountIDs(ctx, []int64{account1.ID, account2.ID})
+		require.NoError(t, err)
+		assert.Len(t, result, 2)
+		assert.Equal(t, role1.Name, result[account1.ID])
+		assert.Equal(t, role2.Name, result[account2.ID])
+	})
+
+	t.Run("returns empty map for empty input", func(t *testing.T) {
+		result, err := repo.FindRoleNamesByAccountIDs(ctx, []int64{})
+		require.NoError(t, err)
+		assert.Empty(t, result)
+	})
+
+	t.Run("returns empty map for accounts with no roles", func(t *testing.T) {
+		account := testpkg.CreateTestAccount(t, db, "batch_norole")
+		defer cleanupAccountRecords(t, db, account.ID)
+
+		result, err := repo.FindRoleNamesByAccountIDs(ctx, []int64{account.ID})
+		require.NoError(t, err)
+		assert.Empty(t, result)
+	})
+
+	t.Run("keeps first role when account has multiple roles", func(t *testing.T) {
+		account := testpkg.CreateTestAccount(t, db, "batch_multi")
+		role1 := testpkg.CreateTestRole(t, db, fmt.Sprintf("MultiFirst_%d", time.Now().UnixNano()))
+		role2 := testpkg.CreateTestRole(t, db, fmt.Sprintf("MultiSecond_%d", time.Now().UnixNano()))
+		defer cleanupRoleRecords(t, db, role1.ID, role2.ID)
+		defer cleanupAccountRecords(t, db, account.ID)
+
+		// Assign two roles — first inserted should be returned (ORDER BY created_at ASC)
+		_, err := db.ExecContext(ctx,
+			"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, 1)",
+			account.ID, role1.ID)
+		require.NoError(t, err)
+		_, err = db.ExecContext(ctx,
+			"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, 1)",
+			account.ID, role2.ID)
+		require.NoError(t, err)
+
+		result, err := repo.FindRoleNamesByAccountIDs(ctx, []int64{account.ID})
+		require.NoError(t, err)
+		assert.Len(t, result, 1)
+		assert.Equal(t, role1.Name, result[account.ID])
+	})
+
+	t.Run("respects tenant scoping", func(t *testing.T) {
+		account := testpkg.CreateTestAccount(t, db, "batch_tenant")
+		role := testpkg.CreateTestRole(t, db, fmt.Sprintf("TenantRole_%d", time.Now().UnixNano()))
+		defer cleanupRoleRecords(t, db, role.ID)
+		defer cleanupAccountRecords(t, db, account.ID)
+
+		// Assign role to tenant 1
+		_, err := db.ExecContext(ctx,
+			"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, 1)",
+			account.ID, role.ID)
+		require.NoError(t, err)
+
+		// Query with tenant 1 context — should find it
+		result, err := repo.FindRoleNamesByAccountIDs(ctx, []int64{account.ID})
+		require.NoError(t, err)
+		assert.Equal(t, role.Name, result[account.ID])
+
+		// Query with tenant 2 context — should not find it
+		ctx2 := testpkg.TenantContext(2)
+		result2, err := repo.FindRoleNamesByAccountIDs(ctx2, []int64{account.ID})
+		require.NoError(t, err)
+		assert.Empty(t, result2)
+	})
+}

@@ -18,6 +18,7 @@ interface BackendStaffResponse {
   specialization?: string;
   role?: string;
   qualifications?: string;
+  account_role?: string;
   person?: {
     id: number;
     first_name: string;
@@ -85,6 +86,7 @@ function mapBackendStaff(staff: BackendStaffResponse) {
     specialization: staff.specialization ?? null,
     role: staff.role ?? null,
     qualifications: staff.qualifications ?? null,
+    account_role: staff.account_role ?? null,
     tag_id: staff.person?.tag_id ?? null,
     staff_notes: staff.staff_notes ?? null,
     created_at: staff.created_at,

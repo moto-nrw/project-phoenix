@@ -220,6 +220,9 @@ func (m *mockRoleRepo) FindByName(context.Context, string) (*authModels.Role, er
 func (m *mockRoleRepo) FindByAccountID(context.Context, int64) ([]*authModels.Role, error) {
 	return nil, nil
 }
+func (m *mockRoleRepo) FindRoleNamesByAccountIDs(context.Context, []int64) (map[int64]string, error) {
+	return nil, nil
+}
 func (m *mockRoleRepo) AssignRoleToAccount(context.Context, int64, int64) error { return nil }
 func (m *mockRoleRepo) RemoveRoleFromAccount(context.Context, int64, int64) error {
 	return nil
