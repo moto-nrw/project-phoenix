@@ -35,7 +35,7 @@ if [ "$RESTORE_DB" = "true" ]; then
 
   docker compose exec -T postgres psql -U postgres -d template1 -c "DROP DATABASE IF EXISTS postgres WITH (FORCE);" 2>/dev/null || true
   docker compose exec -T postgres psql -U postgres -d template1 -c "CREATE DATABASE postgres OWNER postgres;"
-  docker compose exec -T postgres pg_restore -U postgres -d postgres --no-owner --no-acl < "$BACKUP_FILE" || true
+  docker compose exec -T postgres pg_restore -U postgres -d postgres < "$BACKUP_FILE" || true
 
   # Verify DB is usable after restore (pg_restore returns non-zero on harmless warnings)
   if ! docker compose exec -T postgres psql -U postgres -d postgres -c "SELECT 1;" > /dev/null 2>&1; then
