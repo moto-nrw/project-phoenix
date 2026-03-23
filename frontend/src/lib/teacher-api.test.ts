@@ -271,13 +271,16 @@ describe("teacher-api", () => {
         role_id: 1,
       });
 
-      expect(result.first_name).toBe("Test");
-      expect(result.last_name).toBe("Teacher");
-      expect(result.name).toBe("Test Teacher");
-      expect(result.temporaryCredentials).toEqual({
-        email: "test.teacher@school.local",
-        password: "SecurePass123!",
-      });
+      expect(result.status).toBe("created");
+      if (result.status === "created") {
+        expect(result.data.first_name).toBe("Test");
+        expect(result.data.last_name).toBe("Teacher");
+        expect(result.data.name).toBe("Test Teacher");
+        expect(result.data.temporaryCredentials).toEqual({
+          email: "test.teacher@school.local",
+          password: "SecurePass123!",
+        });
+      }
     });
 
     it("uses provided email instead of generating one", async () => {
@@ -309,8 +312,13 @@ describe("teacher-api", () => {
         role_id: 1,
       });
 
-      expect(result.email).toBe("custom@example.com");
-      expect(result.temporaryCredentials?.email).toBe("custom@example.com");
+      expect(result.status).toBe("created");
+      if (result.status === "created") {
+        expect(result.data.email).toBe("custom@example.com");
+        expect(result.data.temporaryCredentials?.email).toBe(
+          "custom@example.com",
+        );
+      }
     });
 
     it("throws error when account creation fails", async () => {

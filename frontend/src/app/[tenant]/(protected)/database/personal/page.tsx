@@ -22,7 +22,6 @@ import { TeacherCreateModal } from "@/components/teachers/teacher-create-modal";
 import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
 import { teachersConfig } from "@/lib/database/configs/teachers.config";
-import { AccountExistsError } from "@/lib/teacher-api";
 import type { Teacher } from "@/lib/teacher-api";
 import { Modal, ConfirmationModal } from "~/components/ui/modal";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
@@ -194,10 +193,6 @@ export default function TeachersPage() {
       );
       await tenantMutate("database-teachers-list");
     } catch (err) {
-      // AccountExistsError is expected control flow — let the modal handle it
-      if (err instanceof AccountExistsError) {
-        throw err;
-      }
       logger.error("failed to create teacher", {
         error: err instanceof Error ? err.message : String(err),
       });

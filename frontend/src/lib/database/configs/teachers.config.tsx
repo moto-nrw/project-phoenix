@@ -419,7 +419,11 @@ export const teachersConfig = defineEntityConfig<Teacher>({
           "id" | "name" | "created_at" | "updated_at"
         > & { password?: string; linkExisting?: boolean },
       );
-      return result;
+      if (result.status === "account_exists") {
+        // Return the result as-is — the modal will handle the confirmation flow
+        return result as unknown as Teacher;
+      }
+      return result.data;
     },
 
     // Custom update handler for teacher-specific flow

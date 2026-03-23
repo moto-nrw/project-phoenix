@@ -220,10 +220,6 @@ export function TeacherForm({
       // Submit the form
       await onSubmitAction(formData);
     } catch (err) {
-      // AccountExistsError is handled by the modal — don't log or show form error
-      if (err instanceof Error && err.name === "AccountExistsError") {
-        return;
-      }
       const errorMsg = err instanceof Error ? err.message : String(err);
       logger.error("failed to submit form", { error: errorMsg });
       setSubmitError(

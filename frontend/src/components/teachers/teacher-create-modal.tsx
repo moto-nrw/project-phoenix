@@ -4,7 +4,7 @@ import { useState, useCallback } from "react";
 import { Modal } from "~/components/ui/modal";
 import { TeacherForm } from "./teacher-form";
 import type { Teacher } from "@/lib/teacher-api";
-import { AccountExistsError } from "@/lib/teacher-api";
+import type { CreateTeacherResult } from "@/lib/teacher-api";
 
 const EMPTY_INITIAL_DATA: Partial<Teacher> = {};
 
@@ -13,7 +13,7 @@ interface TeacherCreateModalProps {
   readonly onClose: () => void;
   readonly onCreate: (
     data: Partial<Teacher> & { password?: string; linkExisting?: boolean },
-  ) => Promise<void>;
+  ) => Promise<CreateTeacherResult | void>;
   readonly loading?: boolean;
 }
 
@@ -37,14 +37,18 @@ export function TeacherCreateModal({
 
   const handleCreate = useCallback(
     async (data: Partial<Teacher> & { password?: string }) => {
-      try {
-        await onCreate(data);
-      } catch (err) {
-        if (err instanceof AccountExistsError) {
-          setLinkConfirmation({ email: err.email, data });
-          return;
-        }
-        throw err; // re-throw for TeacherForm error display
+      const result = await onCreate(data);
+      // Check if the result signals an existing account
+      if (
+        result &&
+        typeof result === "object" &&
+        "status" in result &&
+        result.status === "account_exists" &&
+        "email" in result &&
+        typeof result.email === "string"
+      ) {
+        setLinkConfirmation({ email: result.email, data });
+        return;
       }
     },
     [onCreate],
