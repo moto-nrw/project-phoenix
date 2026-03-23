@@ -15,4 +15,5 @@ const { auth: uncachedAuth, handlers, signIn } = NextAuth(tenantAuthConfig);
 
 const auth = cache(uncachedAuth);
 
+/** @public uncachedAuth — false positive in knip 6.x, used by route-wrapper.ts */
 export { auth, uncachedAuth, handlers, signIn };
