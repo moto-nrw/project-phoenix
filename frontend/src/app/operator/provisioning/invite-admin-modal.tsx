@@ -25,7 +25,6 @@ export function InviteAdminModal({
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteFirstName, setInviteFirstName] = useState("");
   const [inviteLastName, setInviteLastName] = useState("");
-  const [invitePosition, setInvitePosition] = useState("");
   const [inviteSaving, setInviteSaving] = useState(false);
   const [inviteError, setInviteError] = useState("");
   const [inviteResult, setInviteResult] = useState<Invitation | null>(null);
@@ -36,7 +35,6 @@ export function InviteAdminModal({
       setInviteEmail("");
       setInviteFirstName("");
       setInviteLastName("");
-      setInvitePosition("");
       setInviteError("");
       setInviteResult(null);
     }
@@ -55,7 +53,6 @@ export function InviteAdminModal({
             email: inviteEmail.trim(),
             ...(inviteFirstName && { first_name: inviteFirstName.trim() }),
             ...(inviteLastName && { last_name: inviteLastName.trim() }),
-            ...(invitePosition && { position: invitePosition.trim() }),
           },
         );
         setInviteResult(result);
@@ -70,7 +67,7 @@ export function InviteAdminModal({
         setInviteSaving(false);
       }
     },
-    [schoolId, inviteEmail, inviteFirstName, inviteLastName, invitePosition],
+    [schoolId, inviteEmail, inviteFirstName, inviteLastName],
   );
 
   const handleClose = useCallback(() => {
@@ -188,16 +185,6 @@ export function InviteAdminModal({
               />
             </FormField>
           </div>
-          <FormField label="Position" htmlFor="invite-position">
-            <input
-              id="invite-position"
-              type="text"
-              value={invitePosition}
-              onChange={(e) => setInvitePosition(e.target.value)}
-              placeholder="z.B. Schulleiter"
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
-            />
-          </FormField>
           {inviteError && <FormError message={inviteError} />}
         </form>
       )}

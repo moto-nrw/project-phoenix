@@ -1361,10 +1361,6 @@ describe("OperatorProvisioningPage", () => {
     fireEvent.change(screen.getByLabelText(/Nachname/), {
       target: { value: "Lovelace" },
     });
-    fireEvent.change(screen.getByLabelText(/Position/), {
-      target: { value: "Principal" },
-    });
-
     fireEvent.click(screen.getByText("Einladung senden"));
 
     await waitFor(() => {
@@ -1372,7 +1368,6 @@ describe("OperatorProvisioningPage", () => {
         email: "admin@school.de",
         first_name: "Ada",
         last_name: "Lovelace",
-        position: "Principal",
       });
     });
   });
