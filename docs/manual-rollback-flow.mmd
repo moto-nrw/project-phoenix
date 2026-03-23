@@ -33,7 +33,7 @@ flowchart TD
         FIND_BACKUP["Find latest backup in\n~/backups/{env}/"] --> BACKUP_EXISTS{Backup\nfound?}
         BACKUP_EXISTS -->|no| FAIL_NO_BACKUP["FAIL: No backup files found.\nManual intervention needed."]
         BACKUP_EXISTS -->|yes| STOP_APPS["docker compose stop\nserver frontend"]
-        STOP_APPS --> DROP_DB["psql -d template1:\nTerminate connections\nDROP DATABASE postgres\nCREATE DATABASE postgres"]
+        STOP_APPS --> DROP_DB["psql -d template1:\nTerminate connections\nDROP DATABASE postgres\nCREATE DATABASE postgres TEMPLATE template0"]
         DROP_DB --> RESTORE["pg_restore -d postgres\n--exit-on-error backup.dump\nVerify role privileges"]
         RESTORE --> RESTORE_OK{Restore\nsucceeded?}
         RESTORE_OK -->|no| FAIL_RESTORE["FAIL: DB restore failed.\nBackup may be corrupted.\nManual intervention needed."]
