@@ -78,10 +78,15 @@ func (rs *Resource) Router() chi.Router {
 		r.Use(jwt.Authenticator)
 		r.Use(RequiresOperatorScope)
 
+		r.Get("/accounts", rs.provisioningResource.ListAllAccounts)
+		r.Get("/devices", rs.provisioningResource.ListAllDevices)
+
 		r.Route("/organizations", func(r chi.Router) {
 			r.Get("/", rs.provisioningResource.ListOrganizations)
 			r.Post("/", rs.provisioningResource.CreateOrganization)
 			r.Put("/{id}", rs.provisioningResource.UpdateOrganization)
+			r.Get("/{id}/accounts", rs.provisioningResource.ListOrganizationAccounts)
+			r.Get("/{id}/devices", rs.provisioningResource.ListOrganizationDevices)
 		})
 
 		r.Route("/schools", func(r chi.Router) {
@@ -89,6 +94,8 @@ func (rs *Resource) Router() chi.Router {
 			r.Post("/", rs.provisioningResource.CreateSchool)
 			r.Put("/{id}", rs.provisioningResource.UpdateSchool)
 			r.Post("/{id}/invite-admin", rs.provisioningResource.InviteSchoolAdmin)
+			r.Get("/{id}/accounts", rs.provisioningResource.ListSchoolAccounts)
+			r.Get("/{id}/devices", rs.provisioningResource.ListSchoolDevices)
 		})
 
 		// Suggestions management

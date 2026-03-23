@@ -12,6 +12,10 @@ import { operatorProvisioningService } from "./provisioning-api";
 import type {
   BackendOrganization,
   BackendSchool,
+  BackendSchoolAccount,
+  BackendOrgAccount,
+  BackendOperatorDevice,
+  BackendInvitation,
 } from "./provisioning-helpers";
 
 const NOW = "2026-03-15T10:00:00Z";
@@ -41,6 +45,54 @@ const mockBackendSchool: BackendSchool = {
   settings: null,
   created_at: NOW,
   updated_at: NOW,
+};
+
+const mockBackendSchoolAccount: BackendSchoolAccount = {
+  account_id: 1,
+  email: "teacher@school.de",
+  active: true,
+  first_name: "Maria",
+  last_name: "Schmidt",
+  role_name: "teacher",
+  pedagogic_role: "Erzieher",
+  status: "active",
+};
+
+const mockBackendOrgAccount: BackendOrgAccount = {
+  ...mockBackendSchoolAccount,
+  school_id: 10,
+  school_name: "GGS Europaschule",
+};
+
+const mockBackendDevice: BackendOperatorDevice = {
+  id: 1,
+  device_id: "dev-001",
+  device_type: "rfid_reader",
+  name: "Eingang Hauptgebäude",
+  status: "active",
+  api_key: undefined,
+  masked_api_key: "dk_...abc",
+  last_seen: NOW,
+  is_online: true,
+  school_id: 10,
+  school_name: "GGS Europaschule",
+  organization_id: 5,
+  organization_name: "Stadt Köln",
+  created_at: NOW,
+  updated_at: NOW,
+};
+
+const mockBackendInvitation: BackendInvitation = {
+  id: 1,
+  email: "admin@example.com",
+  role_id: 4,
+  role_name: "admin",
+  expires_at: NOW,
+  first_name: "Ada",
+  last_name: "Lovelace",
+  created_by: 0,
+  delivery_status: "pending",
+  email_retry_count: 0,
 };
 
 describe("OperatorProvisioningService", () => {
@@ -213,18 +265,194 @@ describe("OperatorProvisioningService", () => {
     });
   });
 
+  describe("listSchoolAccounts", () => {
+    it("calls correct endpoint with school id", async () => {
+      mockOperatorFetch.mockResolvedValue([mockBackendSchoolAccount]);
+
+      await operatorProvisioningService.listSchoolAccounts("10");
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/schools/10/accounts",
+      );
+    });
+
+    it("encodes school id in URL", async () => {
+      mockOperatorFetch.mockResolvedValue([]);
+
+      await operatorProvisioningService.listSchoolAccounts("10/evil");
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/schools/10%2Fevil/accounts",
+      );
+    });
+
+    it("maps response data correctly", async () => {
+      mockOperatorFetch.mockResolvedValue([mockBackendSchoolAccount]);
+
+      const result = await operatorProvisioningService.listSchoolAccounts("10");
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual({
+        accountId: "1",
+        email: "teacher@school.de",
+        active: true,
+        firstName: "Maria",
+        lastName: "Schmidt",
+        roleName: "teacher",
+        pedagogicRole: "Erzieher",
+        status: "active",
+      });
+    });
+  });
+
+  describe("listOrganizationAccounts", () => {
+    it("calls correct endpoint with org id", async () => {
+      mockOperatorFetch.mockResolvedValue([mockBackendOrgAccount]);
+
+      await operatorProvisioningService.listOrganizationAccounts("5");
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/organizations/5/accounts",
+      );
+    });
+
+    it("maps response data correctly", async () => {
+      mockOperatorFetch.mockResolvedValue([mockBackendOrgAccount]);
+
+      const result =
+        await operatorProvisioningService.listOrganizationAccounts("5");
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual({
+        accountId: "1",
+        email: "teacher@school.de",
+        active: true,
+        firstName: "Maria",
+        lastName: "Schmidt",
+        roleName: "teacher",
+        pedagogicRole: "Erzieher",
+        status: "active",
+        schoolId: "10",
+        schoolName: "GGS Europaschule",
+      });
+    });
+  });
+
+  describe("listAllAccounts", () => {
+    it("calls correct endpoint", async () => {
+      mockOperatorFetch.mockResolvedValue([mockBackendOrgAccount]);
+
+      await operatorProvisioningService.listAllAccounts();
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/accounts",
+      );
+    });
+
+    it("maps response data correctly", async () => {
+      mockOperatorFetch.mockResolvedValue([mockBackendOrgAccount]);
+
+      const result = await operatorProvisioningService.listAllAccounts();
+
+      expect(result).toHaveLength(1);
+      expect(result[0]!.schoolId).toBe("10");
+      expect(result[0]!.schoolName).toBe("GGS Europaschule");
+    });
+  });
+
+  describe("listAllDevices", () => {
+    it("calls correct endpoint", async () => {
+      mockOperatorFetch.mockResolvedValue([mockBackendDevice]);
+
+      await operatorProvisioningService.listAllDevices();
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/devices",
+      );
+    });
+
+    it("maps response data correctly", async () => {
+      mockOperatorFetch.mockResolvedValue([mockBackendDevice]);
+
+      const result = await operatorProvisioningService.listAllDevices();
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual({
+        id: "1",
+        deviceId: "dev-001",
+        deviceType: "rfid_reader",
+        name: "Eingang Hauptgebäude",
+        status: "active",
+        apiKey: "",
+        maskedApiKey: "dk_...abc",
+        lastSeen: NOW,
+        isOnline: true,
+        schoolId: "10",
+        schoolName: "GGS Europaschule",
+        organizationId: "5",
+        organizationName: "Stadt Köln",
+        createdAt: NOW,
+        updatedAt: NOW,
+      });
+    });
+  });
+
+  describe("listSchoolDevices", () => {
+    it("calls correct endpoint with school id", async () => {
+      mockOperatorFetch.mockResolvedValue([mockBackendDevice]);
+
+      await operatorProvisioningService.listSchoolDevices("10");
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/schools/10/devices",
+      );
+    });
+
+    it("encodes school id in URL", async () => {
+      mockOperatorFetch.mockResolvedValue([]);
+
+      await operatorProvisioningService.listSchoolDevices("10/evil");
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/schools/10%2Fevil/devices",
+      );
+    });
+
+    it("maps response data correctly", async () => {
+      mockOperatorFetch.mockResolvedValue([mockBackendDevice]);
+
+      const result = await operatorProvisioningService.listSchoolDevices("10");
+
+      expect(result).toHaveLength(1);
+      expect(result[0]!.deviceId).toBe("dev-001");
+    });
+  });
+
+  describe("listOrganizationDevices", () => {
+    it("calls correct endpoint with org id", async () => {
+      mockOperatorFetch.mockResolvedValue([mockBackendDevice]);
+
+      await operatorProvisioningService.listOrganizationDevices("5");
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/organizations/5/devices",
+      );
+    });
+
+    it("maps response data correctly", async () => {
+      mockOperatorFetch.mockResolvedValue([mockBackendDevice]);
+
+      const result =
+        await operatorProvisioningService.listOrganizationDevices("5");
+
+      expect(result).toHaveLength(1);
+      expect(result[0]!.organizationId).toBe("5");
+    });
+  });
+
   describe("inviteSchoolAdmin", () => {
     it("calls correct endpoint with POST method", async () => {
-      mockOperatorFetch.mockResolvedValue({
-        id: 1,
-        email: "admin@example.com",
-        role_id: 4,
-        role_name: "admin",
-        expires_at: NOW,
-        created_by: 0,
-        delivery_status: "pending",
-        email_retry_count: 0,
-      });
+      mockOperatorFetch.mockResolvedValue(mockBackendInvitation);
 
       await operatorProvisioningService.inviteSchoolAdmin("10", {
         email: "admin@example.com",
@@ -243,6 +471,33 @@ describe("OperatorProvisioningService", () => {
           },
         },
       );
+    });
+
+    it("maps invitation response correctly", async () => {
+      mockOperatorFetch.mockResolvedValue(mockBackendInvitation);
+
+      const result = await operatorProvisioningService.inviteSchoolAdmin("10", {
+        email: "admin@example.com",
+        first_name: "Ada",
+        last_name: "Lovelace",
+      });
+
+      expect(result).toEqual({
+        id: "1",
+        email: "admin@example.com",
+        roleId: "4",
+        roleName: "admin",
+        expiresAt: NOW,
+        firstName: "Ada",
+        lastName: "Lovelace",
+        position: null,
+        createdBy: "0",
+        creator: "",
+        deliveryStatus: "pending",
+        emailSentAt: null,
+        emailError: null,
+        emailRetryCount: 0,
+      });
     });
   });
 });

@@ -115,6 +115,21 @@ export function EmptyState({
   );
 }
 
+export function SimpleEmptyState({
+  title,
+  description,
+}: {
+  readonly title: string;
+  readonly description: string;
+}) {
+  return (
+    <div className="flex flex-col items-center gap-3 py-12 text-center">
+      <p className="text-lg font-medium text-gray-900">{title}</p>
+      <p className="text-sm text-gray-500">{description}</p>
+    </div>
+  );
+}
+
 export function PlusIcon() {
   return (
     <svg

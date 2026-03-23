@@ -10,6 +10,7 @@ import (
 	"time"
 	"unsafe"
 
+	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -19,6 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
 	"github.com/uptrace/bun/driver/pgdriver"
 )
 
@@ -1050,4 +1052,311 @@ func (f *failingInvitationServiceStub) RevokeInvitation(context.Context, int64, 
 }
 func (f *failingInvitationServiceStub) CleanupExpiredInvitations(context.Context) (int, error) {
 	return 0, nil
+}
+
+// ---------------------------------------------------------------------------
+// maskAPIKey
+// ---------------------------------------------------------------------------
+
+func TestMaskAPIKey(t *testing.T) {
+	tests := []struct {
+		name string
+		key  *string
+		want string
+	}{
+		{"nil pointer", nil, ""},
+		{"empty string", strPtr(""), ""},
+		{"short key (5 chars)", strPtr("abcde"), "abcde"},
+		{"exactly 10 chars", strPtr("1234567890"), "1234567890"},
+		{"longer than 10 chars", strPtr("1234567890abcdef"), "1234567890..."},
+		{"11 chars", strPtr("12345678901"), "1234567890..."},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, maskAPIKey(tt.key))
+		})
+	}
+}
+
+func strPtr(s string) *string { return &s }
+
+// ---------------------------------------------------------------------------
+// enrichDeviceInfo
+// ---------------------------------------------------------------------------
+
+func TestEnrichDeviceInfo_EmptySlice(t *testing.T) {
+	result := enrichDeviceInfo([]OperatorDeviceInfo{})
+	assert.Empty(t, result)
+}
+
+func TestEnrichDeviceInfo_NilSlice(t *testing.T) {
+	result := enrichDeviceInfo(nil)
+	assert.Nil(t, result)
+}
+
+func TestEnrichDeviceInfo_NilLastSeen(t *testing.T) {
+	apiKey := "abcdef1234567890"
+	devices := []OperatorDeviceInfo{
+		{ID: 1, DeviceID: "dev-1", APIKey: &apiKey, LastSeen: nil},
+	}
+	result := enrichDeviceInfo(devices)
+	require.Len(t, result, 1)
+	assert.False(t, result[0].IsOnline)
+	assert.Equal(t, "abcdef1234...", result[0].MaskedAPIKey)
+}
+
+func TestEnrichDeviceInfo_LastSeenWithin5Min(t *testing.T) {
+	recent := time.Now().Add(-2 * time.Minute)
+	devices := []OperatorDeviceInfo{
+		{ID: 1, DeviceID: "dev-1", LastSeen: &recent},
+	}
+	result := enrichDeviceInfo(devices)
+	require.Len(t, result, 1)
+	assert.True(t, result[0].IsOnline)
+}
+
+func TestEnrichDeviceInfo_LastSeenOlderThan5Min(t *testing.T) {
+	old := time.Now().Add(-10 * time.Minute)
+	devices := []OperatorDeviceInfo{
+		{ID: 1, DeviceID: "dev-1", LastSeen: &old},
+	}
+	result := enrichDeviceInfo(devices)
+	require.Len(t, result, 1)
+	assert.False(t, result[0].IsOnline)
+}
+
+func TestEnrichDeviceInfo_MultipleDevices(t *testing.T) {
+	recent := time.Now().Add(-1 * time.Minute)
+	old := time.Now().Add(-10 * time.Minute)
+	key1 := "shortkey"
+	key2 := "verylongapikey1234567890"
+	devices := []OperatorDeviceInfo{
+		{ID: 1, DeviceID: "dev-1", APIKey: &key1, LastSeen: &recent},
+		{ID: 2, DeviceID: "dev-2", APIKey: &key2, LastSeen: &old},
+		{ID: 3, DeviceID: "dev-3", APIKey: nil, LastSeen: nil},
+	}
+	result := enrichDeviceInfo(devices)
+	require.Len(t, result, 3)
+	assert.True(t, result[0].IsOnline)
+	assert.Equal(t, "shortkey", result[0].MaskedAPIKey)
+	assert.False(t, result[1].IsOnline)
+	assert.Equal(t, "verylongap...", result[1].MaskedAPIKey)
+	assert.False(t, result[2].IsOnline)
+	assert.Equal(t, "", result[2].MaskedAPIKey)
+}
+
+// ---------------------------------------------------------------------------
+// queryDevices
+// ---------------------------------------------------------------------------
+
+func TestQueryDevices_NoWhereClause(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+	})
+
+	mock.ExpectQuery("SELECT").WillReturnRows(sqlmock.NewRows([]string{
+		"id", "device_id", "device_type", "name", "status", "api_key",
+		"last_seen", "created_at", "updated_at",
+		"school_id", "school_name", "organization_id", "organization_name",
+	}))
+
+	svc := &operatorProvisioningService{
+		txHandler: modelBase.NewTxHandler(bunDB),
+	}
+	result, err := svc.queryDevices(context.Background(), "")
+	require.NoError(t, err)
+	assert.Empty(t, result)
+}
+
+func TestQueryDevices_WithWhereClause(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+	})
+
+	mock.ExpectQuery("SELECT").WillReturnRows(sqlmock.NewRows([]string{
+		"id", "device_id", "device_type", "name", "status", "api_key",
+		"last_seen", "created_at", "updated_at",
+		"school_id", "school_name", "organization_id", "organization_name",
+	}))
+
+	svc := &operatorProvisioningService{
+		txHandler: modelBase.NewTxHandler(bunDB),
+	}
+	result, err := svc.queryDevices(context.Background(), `"d".tenant_id = ?`, int64(42))
+	require.NoError(t, err)
+	assert.Empty(t, result)
+}
+
+func TestQueryDevices_ScanError(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+	})
+
+	mock.ExpectQuery("SELECT").WillReturnError(assert.AnError)
+
+	svc := &operatorProvisioningService{
+		txHandler: modelBase.NewTxHandler(bunDB),
+	}
+	result, err := svc.queryDevices(context.Background(), "")
+	require.Error(t, err)
+	assert.Nil(t, result)
+}
+
+func TestQueryDevices_UsesTxFromContext(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+	})
+
+	// Start a tx, put it in context
+	mock.ExpectBegin()
+	tx, err := bunDB.Begin()
+	require.NoError(t, err)
+	ctx := modelBase.ContextWithTx(context.Background(), &tx)
+
+	mock.ExpectQuery("SELECT").WillReturnRows(sqlmock.NewRows([]string{
+		"id", "device_id", "device_type", "name", "status", "api_key",
+		"last_seen", "created_at", "updated_at",
+		"school_id", "school_name", "organization_id", "organization_name",
+	}))
+
+	svc := &operatorProvisioningService{
+		txHandler: modelBase.NewTxHandler(bunDB),
+	}
+	result, err := svc.queryDevices(ctx, "")
+	require.NoError(t, err)
+	assert.Empty(t, result)
+
+	mock.ExpectRollback()
+	_ = tx.Rollback()
+}
+
+// ---------------------------------------------------------------------------
+// ListAllDevices (via queryDevices)
+// ---------------------------------------------------------------------------
+
+func TestListAllDevices_Success(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+	})
+
+	// withAdminTx starts a tx; then queryDevices runs the SELECT inside it
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectQuery("SELECT").WillReturnRows(sqlmock.NewRows([]string{
+		"id", "device_id", "device_type", "name", "status", "api_key",
+		"last_seen", "created_at", "updated_at",
+		"school_id", "school_name", "organization_id", "organization_name",
+	}))
+	mock.ExpectCommit()
+
+	svc := &operatorProvisioningService{
+		txHandler: modelBase.NewTxHandler(bunDB),
+	}
+	result, err := svc.ListAllDevices(context.Background())
+	require.NoError(t, err)
+	assert.Empty(t, result)
+}
+
+// ---------------------------------------------------------------------------
+// ListSchoolDevices (success via queryDevices)
+// ---------------------------------------------------------------------------
+
+func TestListSchoolDevices_Success(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectQuery("SELECT").WillReturnRows(sqlmock.NewRows([]string{
+		"id", "device_id", "device_type", "name", "status", "api_key",
+		"last_seen", "created_at", "updated_at",
+		"school_id", "school_name", "organization_id", "organization_name",
+	}))
+	mock.ExpectCommit()
+
+	svc := &operatorProvisioningService{
+		schoolRepo: &internalSchoolRepoStub{
+			findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+				return &platformModels.School{
+					Model:          modelBase.Model{ID: 42},
+					OrganizationID: 1,
+					Name:           "School",
+					Slug:           "school",
+					Subdomain:      "school",
+					Active:         true,
+				}, nil
+			},
+		},
+		txHandler: modelBase.NewTxHandler(bunDB),
+	}
+	result, err := svc.ListSchoolDevices(context.Background(), 42)
+	require.NoError(t, err)
+	assert.Empty(t, result)
+}
+
+// ---------------------------------------------------------------------------
+// ListOrganizationDevices (success via queryDevices)
+// ---------------------------------------------------------------------------
+
+func TestListOrganizationDevices_Success(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectQuery("SELECT").WillReturnRows(sqlmock.NewRows([]string{
+		"id", "device_id", "device_type", "name", "status", "api_key",
+		"last_seen", "created_at", "updated_at",
+		"school_id", "school_name", "organization_id", "organization_name",
+	}))
+	mock.ExpectCommit()
+
+	svc := &operatorProvisioningService{
+		organizationRepo: &internalOrgRepoStub{
+			findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
+				return &platformModels.Organization{Model: modelBase.Model{ID: 5}, Name: "Org", Slug: "org", Active: true}, nil
+			},
+		},
+		txHandler: modelBase.NewTxHandler(bunDB),
+	}
+	result, err := svc.ListOrganizationDevices(context.Background(), 5)
+	require.NoError(t, err)
+	assert.Empty(t, result)
 }

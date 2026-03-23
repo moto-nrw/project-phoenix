@@ -25,13 +25,19 @@ import (
 )
 
 type mockProvisioningService struct {
-	createOrganizationFn func(context.Context, *platformModels.Organization, int64, net.IP) (*platformModels.Organization, error)
-	listOrganizationsFn  func(context.Context) ([]*platformModels.Organization, error)
-	updateOrganizationFn func(context.Context, int64, platformSvc.UpdateOrganizationRequest, int64, net.IP) (*platformModels.Organization, error)
-	createSchoolFn       func(context.Context, *platformModels.School, int64, net.IP) (*platformModels.School, error)
-	listSchoolsFn        func(context.Context) ([]*platformModels.School, error)
-	updateSchoolFn       func(context.Context, int64, platformSvc.UpdateSchoolRequest, int64, net.IP) (*platformModels.School, error)
-	inviteSchoolAdminFn  func(context.Context, int64, int64, net.IP, authSvc.InvitationRequest) (*authModels.InvitationToken, error)
+	createOrganizationFn      func(context.Context, *platformModels.Organization, int64, net.IP) (*platformModels.Organization, error)
+	listOrganizationsFn       func(context.Context) ([]*platformModels.Organization, error)
+	updateOrganizationFn      func(context.Context, int64, platformSvc.UpdateOrganizationRequest, int64, net.IP) (*platformModels.Organization, error)
+	createSchoolFn            func(context.Context, *platformModels.School, int64, net.IP) (*platformModels.School, error)
+	listSchoolsFn             func(context.Context) ([]*platformModels.School, error)
+	updateSchoolFn            func(context.Context, int64, platformSvc.UpdateSchoolRequest, int64, net.IP) (*platformModels.School, error)
+	inviteSchoolAdminFn       func(context.Context, int64, int64, net.IP, authSvc.InvitationRequest) (*authModels.InvitationToken, error)
+	listSchoolAccountsFn      func(context.Context, int64) ([]authModels.TenantAccountInfo, error)
+	listOrgAccountsFn         func(context.Context, int64) ([]authModels.OrgAccountInfo, error)
+	listAllAccountsFn         func(context.Context) ([]authModels.OrgAccountInfo, error)
+	listAllDevicesFn          func(context.Context) ([]platformSvc.OperatorDeviceInfo, error)
+	listSchoolDevicesFn       func(context.Context, int64) ([]platformSvc.OperatorDeviceInfo, error)
+	listOrganizationDevicesFn func(context.Context, int64) ([]platformSvc.OperatorDeviceInfo, error)
 }
 
 func (m *mockProvisioningService) CreateOrganization(ctx context.Context, org *platformModels.Organization, operatorID int64, clientIP net.IP) (*platformModels.Organization, error) {
@@ -60,6 +66,42 @@ func (m *mockProvisioningService) UpdateSchool(ctx context.Context, id int64, re
 }
 func (m *mockProvisioningService) InviteSchoolAdmin(ctx context.Context, schoolID, operatorID int64, clientIP net.IP, req authSvc.InvitationRequest) (*authModels.InvitationToken, error) {
 	return m.inviteSchoolAdminFn(ctx, schoolID, operatorID, clientIP, req)
+}
+func (m *mockProvisioningService) ListSchoolAccounts(ctx context.Context, schoolID int64) ([]authModels.TenantAccountInfo, error) {
+	if m.listSchoolAccountsFn != nil {
+		return m.listSchoolAccountsFn(ctx, schoolID)
+	}
+	return nil, nil
+}
+func (m *mockProvisioningService) ListOrganizationAccounts(ctx context.Context, orgID int64) ([]authModels.OrgAccountInfo, error) {
+	if m.listOrgAccountsFn != nil {
+		return m.listOrgAccountsFn(ctx, orgID)
+	}
+	return nil, nil
+}
+func (m *mockProvisioningService) ListAllAccounts(ctx context.Context) ([]authModels.OrgAccountInfo, error) {
+	if m.listAllAccountsFn != nil {
+		return m.listAllAccountsFn(ctx)
+	}
+	return nil, nil
+}
+func (m *mockProvisioningService) ListAllDevices(ctx context.Context) ([]platformSvc.OperatorDeviceInfo, error) {
+	if m.listAllDevicesFn != nil {
+		return m.listAllDevicesFn(ctx)
+	}
+	return nil, nil
+}
+func (m *mockProvisioningService) ListSchoolDevices(ctx context.Context, schoolID int64) ([]platformSvc.OperatorDeviceInfo, error) {
+	if m.listSchoolDevicesFn != nil {
+		return m.listSchoolDevicesFn(ctx, schoolID)
+	}
+	return nil, nil
+}
+func (m *mockProvisioningService) ListOrganizationDevices(ctx context.Context, orgID int64) ([]platformSvc.OperatorDeviceInfo, error) {
+	if m.listOrganizationDevicesFn != nil {
+		return m.listOrganizationDevicesFn(ctx, orgID)
+	}
+	return nil, nil
 }
 
 func withOperatorClaims(req *http.Request, operatorID int) *http.Request {
@@ -521,6 +563,370 @@ func TestProvisioningResource_UpdateSchool_Conflict(t *testing.T) {
 
 	resource.UpdateSchool(rr, req)
 	assert.Equal(t, http.StatusConflict, rr.Code)
+}
+
+// --- Bind method tests ---
+
+func TestUpdateOrganizationRequest_Bind_MissingName(t *testing.T) {
+	req := &updateOrganizationRequest{Name: "", Slug: "valid-slug", Active: true}
+	err := req.Bind(nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "name is required")
+}
+
+func TestUpdateOrganizationRequest_Bind_MissingSlug(t *testing.T) {
+	req := &updateOrganizationRequest{Name: "Valid Name", Slug: "", Active: true}
+	err := req.Bind(nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "slug is required")
+}
+
+func TestUpdateOrganizationRequest_Bind_TrimWhitespace(t *testing.T) {
+	req := &updateOrganizationRequest{Name: "  Org Name  ", Slug: "  org-slug  ", Active: true}
+	err := req.Bind(nil)
+	require.NoError(t, err)
+	assert.Equal(t, "Org Name", req.Name)
+	assert.Equal(t, "org-slug", req.Slug)
+}
+
+func TestUpdateSchoolRequest_Bind_MissingName(t *testing.T) {
+	req := &updateSchoolRequest{Name: "", Slug: "valid", Subdomain: "valid"}
+	err := req.Bind(nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "name is required")
+}
+
+func TestUpdateSchoolRequest_Bind_MissingSlug(t *testing.T) {
+	req := &updateSchoolRequest{Name: "Valid", Slug: "", Subdomain: "valid"}
+	err := req.Bind(nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "slug is required")
+}
+
+func TestUpdateSchoolRequest_Bind_MissingSubdomain(t *testing.T) {
+	req := &updateSchoolRequest{Name: "Valid", Slug: "valid", Subdomain: ""}
+	err := req.Bind(nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "subdomain is required")
+}
+
+func TestUpdateSchoolRequest_Bind_TrimAndLowercaseEmail(t *testing.T) {
+	req := &updateSchoolRequest{
+		Name:      "  School  ",
+		Slug:      "  school  ",
+		Subdomain: "  school-sub  ",
+		Address:   "  123 Main St  ",
+		City:      "  Cologne  ",
+		Zip:       "  50667  ",
+		Phone:     "  +49 221  ",
+		Email:     "  SCHOOL@EXAMPLE.COM  ",
+		Active:    true,
+	}
+	err := req.Bind(nil)
+	require.NoError(t, err)
+	assert.Equal(t, "School", req.Name)
+	assert.Equal(t, "school", req.Slug)
+	assert.Equal(t, "school-sub", req.Subdomain)
+	assert.Equal(t, "123 Main St", req.Address)
+	assert.Equal(t, "Cologne", req.City)
+	assert.Equal(t, "50667", req.Zip)
+	assert.Equal(t, "+49 221", req.Phone)
+	assert.Equal(t, "school@example.com", req.Email)
+}
+
+func TestCreateOrganizationRequest_Bind_TrimWhitespace(t *testing.T) {
+	req := &createOrganizationRequest{Name: "  Org  ", Slug: "  org-slug  "}
+	err := req.Bind(nil)
+	require.NoError(t, err)
+	assert.Equal(t, "Org", req.Name)
+	assert.Equal(t, "org-slug", req.Slug)
+}
+
+func TestCreateSchoolRequest_Bind_TrimAndLowercaseEmail(t *testing.T) {
+	req := &createSchoolRequest{
+		Name:      "  School  ",
+		Slug:      "  school  ",
+		Subdomain: "  school-sub  ",
+		Email:     "  SCHOOL@EXAMPLE.COM  ",
+	}
+	err := req.Bind(nil)
+	require.NoError(t, err)
+	assert.Equal(t, "School", req.Name)
+	assert.Equal(t, "school", req.Slug)
+	assert.Equal(t, "school-sub", req.Subdomain)
+	assert.Equal(t, "school@example.com", req.Email)
+}
+
+func TestInviteSchoolAdminRequest_Bind_TrimAndLowercaseEmail(t *testing.T) {
+	req := &inviteSchoolAdminRequest{
+		Email:     "  ADMIN@EXAMPLE.COM  ",
+		FirstName: "  Ada  ",
+		LastName:  "  Lovelace  ",
+		Position:  "  Principal  ",
+	}
+	err := req.Bind(nil)
+	require.NoError(t, err)
+	assert.Equal(t, "admin@example.com", req.Email)
+	assert.Equal(t, "Ada", req.FirstName)
+	assert.Equal(t, "Lovelace", req.LastName)
+	assert.Equal(t, "Principal", req.Position)
+}
+
+// --- Account listing handler tests ---
+
+func TestProvisioningResource_ListSchoolAccounts(t *testing.T) {
+	expected := []authModels.TenantAccountInfo{
+		{AccountID: 1, Email: "admin@example.com", Active: true, RoleName: "admin"},
+	}
+	resource := NewProvisioningResource(&mockProvisioningService{
+		listSchoolAccountsFn: func(_ context.Context, schoolID int64) ([]authModels.TenantAccountInfo, error) {
+			assert.Equal(t, int64(7), schoolID)
+			return expected, nil
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/operator/schools/7/accounts", nil)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "7")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.ListSchoolAccounts(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+}
+
+func TestProvisioningResource_ListSchoolAccounts_InvalidID(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{})
+	req := httptest.NewRequest(http.MethodGet, "/operator/schools/abc/accounts", nil)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "abc")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.ListSchoolAccounts(rr, req)
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestProvisioningResource_ListSchoolAccounts_ServiceError(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{
+		listSchoolAccountsFn: func(_ context.Context, _ int64) ([]authModels.TenantAccountInfo, error) {
+			return nil, &platformSvc.SchoolNotFoundError{SchoolID: 7}
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/operator/schools/7/accounts", nil)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "7")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.ListSchoolAccounts(rr, req)
+	assert.Equal(t, http.StatusNotFound, rr.Code)
+}
+
+func TestProvisioningResource_ListOrganizationAccounts(t *testing.T) {
+	expected := []authModels.OrgAccountInfo{
+		{TenantAccountInfo: authModels.TenantAccountInfo{AccountID: 1, Email: "admin@example.com"}, SchoolID: 9, SchoolName: "School A"},
+	}
+	resource := NewProvisioningResource(&mockProvisioningService{
+		listOrgAccountsFn: func(_ context.Context, orgID int64) ([]authModels.OrgAccountInfo, error) {
+			assert.Equal(t, int64(3), orgID)
+			return expected, nil
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/operator/organizations/3/accounts", nil)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "3")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.ListOrganizationAccounts(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+}
+
+func TestProvisioningResource_ListOrganizationAccounts_InvalidID(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{})
+	req := httptest.NewRequest(http.MethodGet, "/operator/organizations/nope/accounts", nil)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "nope")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.ListOrganizationAccounts(rr, req)
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestProvisioningResource_ListOrganizationAccounts_ServiceError(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{
+		listOrgAccountsFn: func(_ context.Context, _ int64) ([]authModels.OrgAccountInfo, error) {
+			return nil, &platformSvc.OrganizationNotFoundError{OrganizationID: 3}
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/operator/organizations/3/accounts", nil)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "3")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.ListOrganizationAccounts(rr, req)
+	assert.Equal(t, http.StatusNotFound, rr.Code)
+}
+
+func TestProvisioningResource_ListAllAccounts(t *testing.T) {
+	expected := []authModels.OrgAccountInfo{
+		{TenantAccountInfo: authModels.TenantAccountInfo{AccountID: 1, Email: "admin@example.com"}, SchoolID: 9},
+	}
+	resource := NewProvisioningResource(&mockProvisioningService{
+		listAllAccountsFn: func(_ context.Context) ([]authModels.OrgAccountInfo, error) {
+			return expected, nil
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/operator/accounts", nil)
+	rr := httptest.NewRecorder()
+
+	resource.ListAllAccounts(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+}
+
+func TestProvisioningResource_ListAllAccounts_Error(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{
+		listAllAccountsFn: func(_ context.Context) ([]authModels.OrgAccountInfo, error) {
+			return nil, errors.New("db fail")
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/operator/accounts", nil)
+	rr := httptest.NewRecorder()
+
+	resource.ListAllAccounts(rr, req)
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+}
+
+// --- Device listing handler tests ---
+
+func TestProvisioningResource_ListAllDevices(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{
+		listAllDevicesFn: func(_ context.Context) ([]platformSvc.OperatorDeviceInfo, error) {
+			return []platformSvc.OperatorDeviceInfo{{ID: 1, DeviceID: "dev-1"}}, nil
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/operator/devices", nil)
+	rr := httptest.NewRecorder()
+
+	resource.ListAllDevices(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+}
+
+func TestProvisioningResource_ListAllDevices_Error(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{
+		listAllDevicesFn: func(_ context.Context) ([]platformSvc.OperatorDeviceInfo, error) {
+			return nil, errors.New("db fail")
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/operator/devices", nil)
+	rr := httptest.NewRecorder()
+
+	resource.ListAllDevices(rr, req)
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+}
+
+func TestProvisioningResource_ListSchoolDevices(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{
+		listSchoolDevicesFn: func(_ context.Context, schoolID int64) ([]platformSvc.OperatorDeviceInfo, error) {
+			assert.Equal(t, int64(7), schoolID)
+			return []platformSvc.OperatorDeviceInfo{{ID: 1, DeviceID: "dev-1"}}, nil
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/operator/schools/7/devices", nil)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "7")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.ListSchoolDevices(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+}
+
+func TestProvisioningResource_ListSchoolDevices_InvalidID(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{})
+	req := httptest.NewRequest(http.MethodGet, "/operator/schools/nope/devices", nil)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "nope")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.ListSchoolDevices(rr, req)
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestProvisioningResource_ListSchoolDevices_Error(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{
+		listSchoolDevicesFn: func(_ context.Context, _ int64) ([]platformSvc.OperatorDeviceInfo, error) {
+			return nil, &platformSvc.SchoolNotFoundError{SchoolID: 7}
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/operator/schools/7/devices", nil)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "7")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.ListSchoolDevices(rr, req)
+	assert.Equal(t, http.StatusNotFound, rr.Code)
+}
+
+func TestProvisioningResource_ListOrganizationDevices(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{
+		listOrganizationDevicesFn: func(_ context.Context, orgID int64) ([]platformSvc.OperatorDeviceInfo, error) {
+			assert.Equal(t, int64(3), orgID)
+			return []platformSvc.OperatorDeviceInfo{{ID: 1, DeviceID: "dev-1"}}, nil
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/operator/organizations/3/devices", nil)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "3")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.ListOrganizationDevices(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+}
+
+func TestProvisioningResource_ListOrganizationDevices_InvalidID(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{})
+	req := httptest.NewRequest(http.MethodGet, "/operator/organizations/nope/devices", nil)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "nope")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.ListOrganizationDevices(rr, req)
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestProvisioningResource_ListOrganizationDevices_Error(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{
+		listOrganizationDevicesFn: func(_ context.Context, _ int64) ([]platformSvc.OperatorDeviceInfo, error) {
+			return nil, &platformSvc.OrganizationNotFoundError{OrganizationID: 3}
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/operator/organizations/3/devices", nil)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "3")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.ListOrganizationDevices(rr, req)
+	assert.Equal(t, http.StatusNotFound, rr.Code)
 }
 
 func ptrInt64(v int64) *int64 { return &v }

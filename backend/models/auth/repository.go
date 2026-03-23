@@ -180,11 +180,33 @@ type InvitationTokenRepository interface {
 	List(ctx context.Context, filters map[string]interface{}) ([]*InvitationToken, error)
 }
 
+// TenantAccountInfo holds flattened account data for a given tenant, used by operator dashboard.
+type TenantAccountInfo struct {
+	AccountID     int64  `bun:"account_id" json:"account_id"`
+	Email         string `bun:"email" json:"email"`
+	Active        bool   `bun:"active" json:"active"`
+	FirstName     string `bun:"first_name" json:"first_name"`
+	LastName      string `bun:"last_name" json:"last_name"`
+	RoleName      string `bun:"role_name" json:"role_name"`
+	PedagogicRole string `bun:"pedagogic_role" json:"pedagogic_role"`
+	Status        string `bun:"status" json:"status"`
+}
+
+// OrgAccountInfo extends TenantAccountInfo with school context for org-level listings.
+type OrgAccountInfo struct {
+	TenantAccountInfo
+	SchoolID   int64  `bun:"school_id" json:"school_id"`
+	SchoolName string `bun:"school_name" json:"school_name"`
+}
+
 // AccountTenantRepository defines operations for querying account-tenant mappings.
 type AccountTenantRepository interface {
 	Create(ctx context.Context, mapping *AccountTenant) error
 	FindActiveByAccountID(ctx context.Context, accountID int64) ([]AccountTenant, error)
 	ExistsByAccountAndTenant(ctx context.Context, accountID, tenantID int64) (bool, error)
+	ListAccountsByTenantID(ctx context.Context, tenantID int64) ([]TenantAccountInfo, error)
+	ListAccountsByOrganizationID(ctx context.Context, organizationID int64) ([]OrgAccountInfo, error)
+	ListAllAccounts(ctx context.Context) ([]OrgAccountInfo, error)
 }
 
 // GuardianInvitationRepository defines operations for managing guardian invitations.

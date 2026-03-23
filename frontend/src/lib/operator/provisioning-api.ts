@@ -3,9 +3,15 @@ import type {
   BackendOrganization,
   BackendSchool,
   BackendInvitation,
+  BackendSchoolAccount,
+  BackendOrgAccount,
+  BackendOperatorDevice,
   Organization,
   School,
   Invitation,
+  SchoolAccount,
+  OrgAccount,
+  OperatorDevice,
   CreateOrganizationRequest,
   CreateSchoolRequest,
   InviteAdminRequest,
@@ -16,6 +22,9 @@ import {
   mapOrganization,
   mapSchool,
   mapInvitation,
+  mapSchoolAccount,
+  mapOrgAccount,
+  mapOperatorDevice,
 } from "./provisioning-helpers";
 
 class OperatorProvisioningService {
@@ -68,6 +77,48 @@ class OperatorProvisioningService {
       { method: "PUT", body: data },
     );
     return mapSchool(result);
+  }
+
+  async listSchoolAccounts(schoolId: string): Promise<SchoolAccount[]> {
+    const data = await operatorFetch<BackendSchoolAccount[]>(
+      `/api/operator/provisioning/schools/${encodeURIComponent(schoolId)}/accounts`,
+    );
+    return data.map(mapSchoolAccount);
+  }
+
+  async listOrganizationAccounts(orgId: string): Promise<OrgAccount[]> {
+    const data = await operatorFetch<BackendOrgAccount[]>(
+      `/api/operator/provisioning/organizations/${encodeURIComponent(orgId)}/accounts`,
+    );
+    return data.map(mapOrgAccount);
+  }
+
+  async listAllAccounts(): Promise<OrgAccount[]> {
+    const data = await operatorFetch<BackendOrgAccount[]>(
+      "/api/operator/provisioning/accounts",
+    );
+    return data.map(mapOrgAccount);
+  }
+
+  async listAllDevices(): Promise<OperatorDevice[]> {
+    const data = await operatorFetch<BackendOperatorDevice[]>(
+      "/api/operator/provisioning/devices",
+    );
+    return data.map(mapOperatorDevice);
+  }
+
+  async listSchoolDevices(schoolId: string): Promise<OperatorDevice[]> {
+    const data = await operatorFetch<BackendOperatorDevice[]>(
+      `/api/operator/provisioning/schools/${encodeURIComponent(schoolId)}/devices`,
+    );
+    return data.map(mapOperatorDevice);
+  }
+
+  async listOrganizationDevices(orgId: string): Promise<OperatorDevice[]> {
+    const data = await operatorFetch<BackendOperatorDevice[]>(
+      `/api/operator/provisioning/organizations/${encodeURIComponent(orgId)}/devices`,
+    );
+    return data.map(mapOperatorDevice);
   }
 
   async inviteSchoolAdmin(

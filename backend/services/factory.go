@@ -422,6 +422,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		CategoryRepo:      repos.ActivityCategory,
 		DeviceRepo:        repos.Device,
 		RoleRepo:          repos.Role,
+		AccountTenantRepo: repos.AccountTenant,
 		InvitationService: invitationService,
 		AuditLogRepo:      repos.OperatorAuditLog,
 		DB:                db,

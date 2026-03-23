@@ -64,6 +64,15 @@ func (s stubAuthLoginAccountTenantRepo) FindActiveByAccountID(ctx context.Contex
 func (s stubAuthLoginAccountTenantRepo) ExistsByAccountAndTenant(ctx context.Context, accountID, tenantID int64) (bool, error) {
 	return s.existsFn(ctx, accountID, tenantID)
 }
+func (s stubAuthLoginAccountTenantRepo) ListAccountsByTenantID(context.Context, int64) ([]authModels.TenantAccountInfo, error) {
+	panic("unexpected ListAccountsByTenantID")
+}
+func (s stubAuthLoginAccountTenantRepo) ListAccountsByOrganizationID(context.Context, int64) ([]authModels.OrgAccountInfo, error) {
+	panic("unexpected ListAccountsByOrganizationID")
+}
+func (s stubAuthLoginAccountTenantRepo) ListAllAccounts(context.Context) ([]authModels.OrgAccountInfo, error) {
+	panic("unexpected ListAllAccounts")
+}
 
 func setupInternalAuthService(t *testing.T, db *bun.DB) *Service {
 	t.Helper()

@@ -90,6 +90,63 @@ export interface Invitation {
   emailRetryCount: number;
 }
 
+// Account types for operator school accounts listing
+
+export interface BackendSchoolAccount {
+  account_id: number;
+  email: string;
+  active: boolean;
+  first_name: string;
+  last_name: string;
+  role_name: string;
+  pedagogic_role: string;
+  status: string;
+}
+
+export interface SchoolAccount {
+  accountId: string;
+  email: string;
+  active: boolean;
+  firstName: string;
+  lastName: string;
+  roleName: string;
+  pedagogicRole: string;
+  status: string;
+}
+
+export function mapSchoolAccount(data: BackendSchoolAccount): SchoolAccount {
+  return {
+    accountId: data.account_id.toString(),
+    email: data.email,
+    active: data.active,
+    firstName: data.first_name,
+    lastName: data.last_name,
+    roleName: data.role_name,
+    pedagogicRole: data.pedagogic_role,
+    status: data.status,
+  };
+}
+
+// Org-level account types (includes school context)
+
+export interface BackendOrgAccount extends BackendSchoolAccount {
+  school_id: number;
+  school_name: string;
+}
+
+export interface OrgAccount extends SchoolAccount {
+  schoolId: string;
+  schoolName: string;
+}
+
+export function mapOrgAccount(data: BackendOrgAccount): OrgAccount {
+  return {
+    ...mapSchoolAccount(data),
+    schoolId: data.school_id.toString(),
+    schoolName: data.school_name,
+  };
+}
+
 // Request types (snake_case for backend)
 
 export interface CreateOrganizationRequest {
@@ -186,6 +243,64 @@ export interface UpdateSchoolRequest {
   phone: string;
   email: string;
   active: boolean;
+}
+
+// Device types for operator device listing
+
+export interface BackendOperatorDevice {
+  id: number;
+  device_id: string;
+  device_type: string;
+  name?: string;
+  status: string;
+  api_key?: string;
+  masked_api_key: string;
+  last_seen?: string;
+  is_online: boolean;
+  school_id: number;
+  school_name: string;
+  organization_id: number;
+  organization_name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OperatorDevice {
+  id: string;
+  deviceId: string;
+  deviceType: string;
+  name: string;
+  status: string;
+  apiKey: string;
+  maskedApiKey: string;
+  lastSeen: string | null;
+  isOnline: boolean;
+  schoolId: string;
+  schoolName: string;
+  organizationId: string;
+  organizationName: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export function mapOperatorDevice(data: BackendOperatorDevice): OperatorDevice {
+  return {
+    id: data.id.toString(),
+    deviceId: data.device_id,
+    deviceType: data.device_type,
+    name: data.name ?? "",
+    status: data.status,
+    apiKey: data.api_key ?? "",
+    maskedApiKey: data.masked_api_key,
+    lastSeen: data.last_seen ?? null,
+    isOnline: data.is_online,
+    schoolId: data.school_id.toString(),
+    schoolName: data.school_name,
+    organizationId: data.organization_id.toString(),
+    organizationName: data.organization_name,
+    createdAt: data.created_at,
+    updatedAt: data.updated_at,
+  };
 }
 
 // Slug helpers

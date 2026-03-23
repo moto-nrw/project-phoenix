@@ -319,6 +319,41 @@ func (rs *ProvisioningResource) InviteSchoolAdmin(w http.ResponseWriter, r *http
 	common.Respond(w, r, http.StatusCreated, resp, "School admin invitation created successfully")
 }
 
+func (rs *ProvisioningResource) ListSchoolAccounts(w http.ResponseWriter, r *http.Request) {
+	schoolID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid school ID")
+	if !ok {
+		return
+	}
+	accounts, err := rs.service.ListSchoolAccounts(r.Context(), schoolID)
+	if err != nil {
+		common.RenderError(w, r, ProvisioningErrorRenderer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, accounts, "School accounts retrieved successfully")
+}
+
+func (rs *ProvisioningResource) ListOrganizationAccounts(w http.ResponseWriter, r *http.Request) {
+	orgID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid organization ID")
+	if !ok {
+		return
+	}
+	accounts, err := rs.service.ListOrganizationAccounts(r.Context(), orgID)
+	if err != nil {
+		common.RenderError(w, r, ProvisioningErrorRenderer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, accounts, "Organization accounts retrieved successfully")
+}
+
+func (rs *ProvisioningResource) ListAllAccounts(w http.ResponseWriter, r *http.Request) {
+	accounts, err := rs.service.ListAllAccounts(r.Context())
+	if err != nil {
+		common.RenderError(w, r, ProvisioningErrorRenderer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, accounts, "All accounts retrieved successfully")
+}
+
 // ProvisioningErrorRenderer maps provisioning errors to HTTP responses.
 func ProvisioningErrorRenderer(err error) render.Renderer {
 	var invalidData *platformSvc.InvalidDataError
@@ -371,6 +406,41 @@ func operatorInvitationDeliveryStatus(sentAt *time.Time, emailError *string) str
 		return "failed"
 	}
 	return "pending"
+}
+
+func (rs *ProvisioningResource) ListAllDevices(w http.ResponseWriter, r *http.Request) {
+	devices, err := rs.service.ListAllDevices(r.Context())
+	if err != nil {
+		common.RenderError(w, r, ProvisioningErrorRenderer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, devices, "All devices retrieved successfully")
+}
+
+func (rs *ProvisioningResource) ListSchoolDevices(w http.ResponseWriter, r *http.Request) {
+	schoolID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid school ID")
+	if !ok {
+		return
+	}
+	devices, err := rs.service.ListSchoolDevices(r.Context(), schoolID)
+	if err != nil {
+		common.RenderError(w, r, ProvisioningErrorRenderer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, devices, "School devices retrieved successfully")
+}
+
+func (rs *ProvisioningResource) ListOrganizationDevices(w http.ResponseWriter, r *http.Request) {
+	orgID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid organization ID")
+	if !ok {
+		return
+	}
+	devices, err := rs.service.ListOrganizationDevices(r.Context(), orgID)
+	if err != nil {
+		common.RenderError(w, r, ProvisioningErrorRenderer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, devices, "Organization devices retrieved successfully")
 }
 
 func shouldExposeSeedInvitationToken(r *http.Request) bool {
