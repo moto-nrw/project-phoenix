@@ -83,8 +83,29 @@ runs:
 
         BODY="<p>${STATUS}</p><p><a href=\"${RUN_URL}\">${LINK_TEXT}</a></p><p>${COMMIT_HTML}Triggered by: ${ACTOR}</p>"
 
-        curl -sS -X POST https://api.resend.com/emails \
+        # Build JSON payload with jq to safely encode special characters for the Resend API.
+        # This entire block is best-effort — notification failures must never mask the real deploy failure.
+        if ! PAYLOAD=$(jq -n \
+          --arg from "Phoenix CI <ci@ci.moto-app.de>" \
+          --argjson to "$NOTIFY_EMAILS" \
+          --arg subject "$SUBJECT" \
+          --arg html "$BODY" \
+          '{from: $from, to: $to, subject: $subject, html: $html}' 2>&1); then
+          echo "::warning::Failed to build email payload (non-critical): $PAYLOAD"
+          exit 0
+        fi
+
+        if ! HTTP_RESPONSE=$(curl -sS -o /tmp/resend_response.txt -w "%{http_code}" \
+          -X POST https://api.resend.com/emails \
           -H "Authorization: Bearer $RESEND_API_KEY" \
           -H "Content-Type: application/json" \
-          -d "{\"from\":\"Phoenix CI <ci@ci.moto-app.de>\",\"to\":${NOTIFY_EMAILS},\"subject\":\"${SUBJECT}\",\"html\":\"${BODY}\"}" \
-          || echo "WARNING: Email notification failed (non-critical)"
+          -d "$PAYLOAD" 2>&1); then
+          echo "::warning::Email notification request failed (non-critical): $HTTP_RESPONSE"
+          exit 0
+        fi
+
+        if [ "$HTTP_RESPONSE" -ge 200 ] 2>/dev/null && [ "$HTTP_RESPONSE" -lt 300 ] 2>/dev/null; then
+          echo "Email notification sent (HTTP $HTTP_RESPONSE)"
+        else
+          echo "::warning::Email notification rejected (HTTP $HTTP_RESPONSE, non-critical): $(cat /tmp/resend_response.txt 2>/dev/null)"
+        fi
