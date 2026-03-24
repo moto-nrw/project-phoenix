@@ -24,6 +24,7 @@ const TTL_MS = 10_000; // 10 second cache window
 export function clearSessionCache() {
   cached = null;
   cachedTenantId = undefined;
+  inflight = null;
 }
 
 export async function getCachedSession() {

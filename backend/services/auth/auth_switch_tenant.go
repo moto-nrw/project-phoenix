@@ -9,6 +9,11 @@ import (
 
 // SwitchTenant authenticates a user to a different tenant and returns new tokens.
 // The account must be active and have an active mapping to the requested tenant.
+//
+// Old refresh tokens are intentionally kept alive — the account may have active
+// sessions on other devices or tenants. Token cleanup happens on logout
+// (LogoutWithAudit deletes all tokens for the account) and on login
+// (persistTokenInTransaction caps tokens at 5 per account).
 func (s *Service) SwitchTenant(ctx context.Context, accountID int64, tenantSlug string) (string, string, error) {
 	// 1. Look up the account by ID
 	account, err := s.repos.Account.FindByID(ctx, accountID)

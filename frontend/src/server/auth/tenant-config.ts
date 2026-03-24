@@ -20,6 +20,7 @@ import {
   sharedRedirectCallback,
   sharedJwtCallback,
   sharedSessionCallback,
+  _resetRefreshState,
 } from "./shared";
 
 export const tenantAuthConfig = {
@@ -95,6 +96,14 @@ export const tenantAuthConfig = {
     redirect: sharedRedirectCallback,
     jwt: sharedJwtCallback,
     session: sharedSessionCallback,
+  },
+  events: {
+    // Clear the module-level refresh cache on sign-out so that a subsequent
+    // login by a different user cannot hit stale cached tokens from the
+    // previous session.
+    signOut() {
+      _resetRefreshState();
+    },
   },
   trustHost: true,
   pages: {

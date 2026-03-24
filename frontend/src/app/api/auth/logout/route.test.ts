@@ -7,7 +7,7 @@ import { NextRequest } from "next/server";
 // ============================================================================
 
 interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
+  user: Session["user"] & { token?: string; refreshToken?: string };
 }
 
 // ============================================================================
@@ -40,7 +40,12 @@ function createMockRequest(path: string): NextRequest {
 }
 
 const defaultSession: ExtendedSession = {
-  user: { id: "1", token: "test-token", name: "Test User" },
+  user: {
+    id: "1",
+    token: "test-access-token",
+    refreshToken: "test-refresh-token",
+    name: "Test User",
+  },
   expires: "2099-01-01",
 };
 
@@ -72,26 +77,42 @@ describe("POST /api/auth/logout", () => {
     expect(JSON.parse(text)).toEqual({ error: "No active session" });
   });
 
-  it("successfully logs out and returns 204", async () => {
+  it("returns 401 when session has no refresh token", async () => {
+    mockAuth.mockResolvedValueOnce({
+      user: { id: "1", token: "access-token-only", name: "Test" },
+      expires: "2099-01-01",
+    });
+
+    const request = createMockRequest("/api/auth/logout");
+    const response = await POST(request);
+
+    expect(response.status).toBe(401);
+  });
+
+  it("sends refresh token (not access token) to backend", async () => {
     vi.mocked(global.fetch).mockResolvedValueOnce(
       new Response(null, { status: 204 }),
     );
 
     const request = createMockRequest("/api/auth/logout");
     const response = await POST(request);
-    const [, requestInit] = vi.mocked(global.fetch).mock.calls[0] as [
+    const [url, requestInit] = vi.mocked(global.fetch).mock.calls[0] as [
       string,
       RequestInit,
     ];
 
     expect(global.fetch).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(global.fetch).mock.calls[0]?.[0]).toBe(
-      "http://localhost:8080/auth/logout",
-    );
+    expect(url).toBe("http://localhost:8080/auth/logout");
+
+    // Must send refresh token — backend /auth/logout is guarded by
+    // AuthenticateRefreshJWT which rejects access tokens.
+    const headers = requestInit.headers as Record<string, string>;
+    expect(headers.Authorization).toBe("Bearer test-refresh-token");
+
     expect(requestInit).toMatchObject({
       method: "POST",
       headers: {
-        Authorization: "Bearer test-token",
+        Authorization: "Bearer test-refresh-token",
         "Content-Type": "application/json",
         "User-Agent": "unknown",
         "X-Forwarded-For": "unknown",

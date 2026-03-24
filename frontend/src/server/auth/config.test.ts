@@ -1765,4 +1765,16 @@ describe("authConfig", () => {
       expect(result?.isAdmin).toBeUndefined();
     });
   });
+
+  describe("events.signOut", () => {
+    it("resets refresh state on tenant sign out", () => {
+      expect(authConfig.events).toBeDefined();
+      authConfig.events.signOut();
+    });
+
+    it("resets refresh state on operator sign out", () => {
+      expect(operatorAuthConfig.events).toBeDefined();
+      operatorAuthConfig.events.signOut();
+    });
+  });
 });

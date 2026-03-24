@@ -22,6 +22,7 @@ import {
   operatorRedirectCallback,
   sharedJwtCallback,
   sharedSessionCallback,
+  _resetRefreshState,
 } from "./shared";
 
 export const operatorAuthConfig = {
@@ -108,6 +109,11 @@ export const operatorAuthConfig = {
     redirect: operatorRedirectCallback,
     jwt: sharedJwtCallback,
     session: sharedSessionCallback,
+  },
+  events: {
+    signOut() {
+      _resetRefreshState();
+    },
   },
   trustHost: true,
   pages: {

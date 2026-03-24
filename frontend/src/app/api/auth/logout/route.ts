@@ -10,15 +10,18 @@ export async function POST(request: NextRequest) {
   try {
     const session = await auth();
 
-    if (!session?.user?.token) {
+    const refreshToken = session?.user?.refreshToken;
+    if (!refreshToken) {
       return NextResponse.json({ error: "No active session" }, { status: 401 });
     }
 
-    // Forward to backend
+    // Forward the refresh token to the backend. The backend /auth/logout route
+    // is guarded by AuthenticateRefreshJWT, so we must send the refresh token,
+    // not the access token.
     const response = await fetch(`${getServerApiUrl()}/auth/logout`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${session.user.token}`,
+        Authorization: `Bearer ${refreshToken}`,
         "Content-Type": "application/json",
         ...getClientForwardHeaders(request),
       },

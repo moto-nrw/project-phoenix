@@ -4,6 +4,10 @@ import React, { createContext, useContext, useMemo } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { useProfile } from "~/lib/profile-context";
 import { operatorAbsoluteUrl, operatorPath } from "~/lib/operator-url";
+import { clearSessionCache } from "~/lib/session-cache";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "ShellAuthContext" });
 
 export interface ShellUser {
   name: string;
@@ -83,6 +87,18 @@ export function TeacherShellProvider({
       status,
       isSessionExpired: session?.error === "RefreshTokenExpired",
       logout: async () => {
+        // Delete backend refresh tokens. Fire-and-forget: the cookie is
+        // included in the request headers at send time, so signOut() clearing
+        // the cookie afterward doesn't affect the in-flight request.
+        fetch("/api/auth/logout", {
+          method: "POST",
+          signal: AbortSignal.timeout(5000),
+        }).catch((err: unknown) => {
+          logger.warn("backend_logout_failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        });
+        clearSessionCache();
         await signOut({ redirect: false });
         window.location.href = "/";
       },
@@ -138,6 +154,11 @@ export function OperatorShellProvider({
       status,
       isSessionExpired: session?.error === "RefreshTokenExpired",
       logout: async () => {
+        // Note: operator backend has no logout endpoint — tokens expire naturally.
+        // The tenant /api/auth/logout route uses tenant auth cookies and would
+        // return 401 for operator sessions. Operator accounts don't do tenant
+        // switching, so the stale-session issue from #1067 doesn't apply here.
+        clearSessionCache();
         await signOut({ callbackUrl: operatorAbsoluteUrl("/operator/login") });
       },
       mode: "operator" as const,
