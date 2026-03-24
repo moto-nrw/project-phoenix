@@ -1879,6 +1879,11 @@ func TestSetDeviceAPIKey_Success_AutoKey(t *testing.T) {
 				return nil
 			},
 		},
+		schoolRepo: &internalSchoolRepoStub{
+			findByIDFn: func(_ context.Context, _ int64) (*platformModels.School, error) {
+				return &platformModels.School{Active: true}, nil
+			},
+		},
 		auditLogRepo: &internalAuditLogRepoStub{},
 		txHandler:    modelBase.NewTxHandler(bunDB),
 		logger:       slog.Default(),
@@ -1940,6 +1945,11 @@ func TestSetDeviceAPIKey_Success_ManualKey(t *testing.T) {
 				return nil
 			},
 		},
+		schoolRepo: &internalSchoolRepoStub{
+			findByIDFn: func(_ context.Context, _ int64) (*platformModels.School, error) {
+				return &platformModels.School{Active: true}, nil
+			},
+		},
 		auditLogRepo: &internalAuditLogRepoStub{},
 		txHandler:    modelBase.NewTxHandler(bunDB),
 		logger:       slog.Default(),
@@ -1972,6 +1982,11 @@ func TestSetDeviceAPIKey_ManualKeyConflict(t *testing.T) {
 			},
 			updateFn: func(context.Context, *iotModels.Device) error {
 				return newPgErrorWithConstraint("23505", "devices_api_key_key")
+			},
+		},
+		schoolRepo: &internalSchoolRepoStub{
+			findByIDFn: func(_ context.Context, _ int64) (*platformModels.School, error) {
+				return &platformModels.School{Active: true}, nil
 			},
 		},
 	}

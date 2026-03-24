@@ -360,6 +360,7 @@ func ProvisioningErrorRenderer(err error) render.Renderer {
 	var conflictErr *platformSvc.ConflictError
 	var organizationNotFound *platformSvc.OrganizationNotFoundError
 	var schoolNotFound *platformSvc.SchoolNotFoundError
+	var schoolInactive *platformSvc.SchoolInactiveError
 	var operatorDeviceNotFound *platformSvc.OperatorDeviceNotFoundError
 	var authErr *authSvc.AuthError
 
@@ -387,6 +388,8 @@ func ProvisioningErrorRenderer(err error) render.Renderer {
 		return ErrNotFound("Organization not found")
 	case errors.As(err, &schoolNotFound):
 		return ErrNotFound("School not found")
+	case errors.As(err, &schoolInactive):
+		return ErrForbidden("School is inactive")
 	case errors.As(err, &operatorDeviceNotFound):
 		return ErrNotFound("Device not found")
 	default:

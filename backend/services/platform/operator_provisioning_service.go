@@ -639,6 +639,9 @@ func (s *operatorProvisioningService) CreateDevice(ctx context.Context, schoolID
 		if school == nil {
 			return &SchoolNotFoundError{SchoolID: schoolID}
 		}
+		if !school.Active {
+			return &SchoolInactiveError{SchoolID: schoolID}
+		}
 
 		device := &iotModels.Device{
 			DeviceID:   strings.TrimSpace(deviceID),
@@ -724,6 +727,15 @@ func (s *operatorProvisioningService) SetDeviceAPIKey(ctx context.Context, id in
 		}
 		if device == nil {
 			return &OperatorDeviceNotFoundError{DeviceID: id}
+		}
+
+		// Reject key rotation for devices in inactive schools.
+		school, schoolErr := s.schoolRepo.FindByID(adminCtx, device.TenantID)
+		if schoolErr != nil {
+			return fmt.Errorf("SetDeviceAPIKey: lookup school: %w", schoolErr)
+		}
+		if school == nil || !school.Active {
+			return &SchoolInactiveError{SchoolID: device.TenantID}
 		}
 
 		var updated bool

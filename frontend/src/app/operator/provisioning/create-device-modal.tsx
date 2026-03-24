@@ -175,7 +175,13 @@ export function CreateDeviceModal({
           <button
             type="button"
             onClick={(e) => void handleCreate(e)}
-            disabled={isSaving || !schoolId || !deviceId.trim() || !deviceType}
+            disabled={
+              isSaving ||
+              !schoolId ||
+              !deviceId.trim() ||
+              !deviceType ||
+              (apiKeyMode === "manual" && !customApiKey.trim())
+            }
             className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isSaving ? "Wird erstellt..." : "Erstellen"}
