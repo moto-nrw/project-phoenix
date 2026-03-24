@@ -222,13 +222,7 @@ export function TeacherForm({
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
       logger.error("failed to submit form", { error: errorMsg });
-      // Show the specific error from the backend if it's user-facing German text,
-      // otherwise fall back to generic message
-      setSubmitError(
-        errorMsg.startsWith("Ein ") || errorMsg.startsWith("Konto ")
-          ? errorMsg
-          : "Es ist ein Fehler aufgetreten. Bitte versuchen Sie es später erneut.",
-      );
+      setSubmitError(errorMsg);
     }
   };
 
