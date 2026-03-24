@@ -106,8 +106,6 @@ const sampleBackendAnalytics: BackendAnalytics = {
   active_groups_count: 5,
   total_visits_count: 150,
   active_visits_count: 45,
-  room_utilization: 0.75,
-  attendance_rate: 0.92,
 };
 
 describe("active-service", () => {
@@ -805,42 +803,6 @@ describe("active-service", () => {
 
         expect(result.activeGroupsCount).toBe(5);
         expect(result.totalVisitsCount).toBe(150);
-      });
-    });
-
-    describe("getRoomUtilization", () => {
-      it("fetches room utilization analytics", async () => {
-        const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
-        mockFetch.mockResolvedValueOnce({
-          ok: true,
-          json: () => Promise.resolve({ data: sampleBackendAnalytics }),
-        } as Response);
-
-        const result = await activeService.getRoomUtilization("5");
-
-        expect(mockFetch).toHaveBeenCalledWith(
-          "/api/active/analytics/room/5/utilization",
-          expect.any(Object),
-        );
-        expect(result.roomUtilization).toBe(0.75);
-      });
-    });
-
-    describe("getStudentAttendance", () => {
-      it("fetches student attendance analytics", async () => {
-        const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
-        mockFetch.mockResolvedValueOnce({
-          ok: true,
-          json: () => Promise.resolve({ data: sampleBackendAnalytics }),
-        } as Response);
-
-        const result = await activeService.getStudentAttendance("50");
-
-        expect(mockFetch).toHaveBeenCalledWith(
-          "/api/active/analytics/student/50/attendance",
-          expect.any(Object),
-        );
-        expect(result.attendanceRate).toBe(0.92);
       });
     });
   });

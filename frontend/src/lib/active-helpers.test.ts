@@ -99,8 +99,6 @@ const sampleBackendAnalytics: BackendAnalytics = {
   active_groups_count: 5,
   total_visits_count: 150,
   active_visits_count: 45,
-  room_utilization: 0.75,
-  attendance_rate: 0.92,
 };
 
 describe("active-helpers", () => {
@@ -298,8 +296,6 @@ describe("active-helpers", () => {
       expect(result.activeGroupsCount).toBe(5);
       expect(result.totalVisitsCount).toBe(150);
       expect(result.activeVisitsCount).toBe(45);
-      expect(result.roomUtilization).toBe(0.75);
-      expect(result.attendanceRate).toBe(0.92);
     });
 
     it("handles undefined optional fields", () => {
@@ -310,23 +306,18 @@ describe("active-helpers", () => {
       expect(result.activeGroupsCount).toBeUndefined();
       expect(result.totalVisitsCount).toBeUndefined();
       expect(result.activeVisitsCount).toBeUndefined();
-      expect(result.roomUtilization).toBeUndefined();
-      expect(result.attendanceRate).toBeUndefined();
     });
 
     it("handles partial analytics data", () => {
       const partialAnalytics: BackendAnalytics = {
         active_groups_count: 3,
-        room_utilization: 0.5,
       };
 
       const result = mapAnalyticsResponse(partialAnalytics);
 
       expect(result.activeGroupsCount).toBe(3);
-      expect(result.roomUtilization).toBe(0.5);
       expect(result.totalVisitsCount).toBeUndefined();
       expect(result.activeVisitsCount).toBeUndefined();
-      expect(result.attendanceRate).toBeUndefined();
     });
   });
 

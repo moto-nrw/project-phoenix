@@ -630,9 +630,6 @@ func TestExportedHandlers_NotNil(t *testing.T) {
 	// Analytics Handlers
 	assert.NotNil(t, rs.GetCountsHandler())
 	assert.NotNil(t, rs.GetDashboardAnalyticsHandler())
-	assert.NotNil(t, rs.GetRoomUtilizationHandler())
-	assert.NotNil(t, rs.GetStudentAttendanceHandler())
-
 	// Combined Group Handlers
 	assert.NotNil(t, rs.ListCombinedGroupsHandler())
 	assert.NotNil(t, rs.GetCombinedGroupHandler())

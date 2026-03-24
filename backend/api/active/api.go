@@ -152,8 +152,6 @@ func (rs *Resource) Router() chi.Router {
 		// Analytics
 		r.Route("/analytics", func(r chi.Router) {
 			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/counts", rs.getCounts)
-			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/room/{roomId}/utilization", rs.getRoomUtilization)
-			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/student/{studentId}/attendance", rs.getStudentAttendance)
 			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/dashboard", rs.getDashboardAnalytics)
 		})
 
