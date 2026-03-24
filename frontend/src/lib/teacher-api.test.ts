@@ -808,7 +808,9 @@ describe("teacher-api", () => {
           role_id: 1,
           linkExisting: true,
         }),
-      ).rejects.toThrow("Failed to link account: account not found");
+      ).rejects.toThrow(
+        "Konto konnte nicht verknüpft werden: account not found",
+      );
     });
 
     it("throws error when link response has no account ID", async () => {
@@ -827,7 +829,9 @@ describe("teacher-api", () => {
           role_id: 1,
           linkExisting: true,
         }),
-      ).rejects.toThrow("Failed to get account ID from link response");
+      ).rejects.toThrow(
+        "Konto-ID konnte nicht aus der Verknüpfungs-Antwort gelesen werden.",
+      );
     });
   });
 });
