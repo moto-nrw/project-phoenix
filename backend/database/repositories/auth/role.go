@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 
@@ -226,11 +227,19 @@ func (r *RoleRepository) Delete(ctx context.Context, id any) error {
 		query = query.Where("role.tenant_id = ?", tenantID)
 	}
 
-	_, err := query.Exec(ctx)
+	result, err := query.Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "delete",
 			Err: err,
+		}
+	}
+
+	affected, _ := result.RowsAffected()
+	if affected == 0 {
+		return &modelBase.DatabaseError{
+			Op:  "delete",
+			Err: sql.ErrNoRows,
 		}
 	}
 
@@ -274,11 +283,19 @@ func (r *RoleRepository) Update(ctx context.Context, role *auth.Role) error {
 		query = query.Where("role.tenant_id = ?", tenantID)
 	}
 
-	_, err := query.Exec(ctx)
+	result, err := query.Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update",
 			Err: err,
+		}
+	}
+
+	affected, _ := result.RowsAffected()
+	if affected == 0 {
+		return &modelBase.DatabaseError{
+			Op:  "update",
+			Err: sql.ErrNoRows,
 		}
 	}
 
