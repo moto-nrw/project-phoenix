@@ -90,7 +90,10 @@ export function TeacherShellProvider({
         // Delete backend refresh tokens before clearing the session cookie.
         // Fire-and-forget: don't block logout if the backend call fails.
         try {
-          await fetch("/api/auth/logout", { method: "POST" });
+          await fetch("/api/auth/logout", {
+            method: "POST",
+            signal: AbortSignal.timeout(5000),
+          });
         } catch (err) {
           logger.warn("backend_logout_failed", {
             error: err instanceof Error ? err.message : String(err),
