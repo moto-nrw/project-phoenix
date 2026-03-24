@@ -4,7 +4,7 @@ import React, { createContext, useContext, useMemo } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { useProfile } from "~/lib/profile-context";
 import { operatorAbsoluteUrl, operatorPath } from "~/lib/operator-url";
-import { clearSessionCache } from "~/lib/session-cache";
+import { clearSessionCache, DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "ShellAuthContext" });
@@ -87,6 +87,14 @@ export function TeacherShellProvider({
       status,
       isSessionExpired: session?.error === "RefreshTokenExpired",
       logout: async () => {
+        // Mark as deliberate logout so the login page suppresses the
+        // "session expired" banner that NextAuth's required-session
+        // redirect would otherwise trigger (race with useSession).
+        try {
+          sessionStorage.setItem(DELIBERATE_LOGOUT_KEY, "1");
+        } catch {
+          // sessionStorage unavailable (e.g. private browsing quota)
+        }
         // Delete backend refresh tokens. Fire-and-forget: the cookie is
         // included in the request headers at send time, so signOut() clearing
         // the cookie afterward doesn't affect the in-flight request.

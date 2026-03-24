@@ -26,14 +26,16 @@ vi.mock("next-auth/react", () => ({
 // Mock next/navigation
 const mockPush = vi.fn();
 const mockRefresh = vi.fn();
+const mockSearchParamsGet = vi.fn((_key: string): string | null => null);
+// Stable reference — real useSearchParams returns the same object between renders.
+// A fresh object each call causes the useEffect([searchParams]) to re-fire.
+const stableSearchParams = { get: mockSearchParamsGet };
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
     push: mockPush,
     refresh: mockRefresh,
   }),
-  useSearchParams: () => ({
-    get: vi.fn((_key: string) => null),
-  }),
+  useSearchParams: () => stableSearchParams,
 }));
 
 // Mock tenant-router
@@ -782,6 +784,88 @@ describe("Login URL error handling", () => {
         : null;
 
     expect(expectedMessage).toBeNull();
+  });
+});
+
+describe("Deliberate logout suppression", () => {
+  const replaceStateSpy = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(useSession).mockReturnValue({
+      data: null,
+      status: "unauthenticated",
+      update: vi.fn(),
+    });
+    Element.prototype.animate = mockAnimate;
+    sessionStorage.clear();
+    // Spy on history.replaceState to verify URL cleanup
+    Object.defineProperty(window, "history", {
+      value: { ...window.history, replaceState: replaceStateSpy },
+      writable: true,
+    });
+  });
+
+  afterEach(() => {
+    sessionStorage.clear();
+    mockSearchParamsGet.mockImplementation((_key: string) => null);
+  });
+
+  it("suppresses error when deliberateLogout flag is set", async () => {
+    sessionStorage.setItem("deliberateLogout", "1");
+    mockSearchParamsGet.mockImplementation((key: string) =>
+      key === "error" ? "SessionRequired" : null,
+    );
+
+    await act(async () => {
+      render(<HomePage />);
+    });
+
+    expect(screen.queryByTestId("alert-error")).not.toBeInTheDocument();
+  });
+
+  it("shows error when deliberateLogout flag is not set", async () => {
+    mockSearchParamsGet.mockImplementation((key: string) =>
+      key === "error" ? "SessionRequired" : null,
+    );
+
+    await act(async () => {
+      render(<HomePage />);
+    });
+
+    expect(screen.getByTestId("alert-error")).toHaveTextContent(
+      "Ihre Sitzung ist abgelaufen",
+    );
+  });
+
+  it("consumes the deliberateLogout flag after reading it", async () => {
+    sessionStorage.setItem("deliberateLogout", "1");
+    mockSearchParamsGet.mockImplementation((key: string) =>
+      key === "error" ? "SessionExpired" : null,
+    );
+
+    await act(async () => {
+      render(<HomePage />);
+    });
+
+    expect(sessionStorage.getItem("deliberateLogout")).toBeNull();
+  });
+
+  it("cleans up URL params after deliberate logout", async () => {
+    sessionStorage.setItem("deliberateLogout", "1");
+    mockSearchParamsGet.mockImplementation((key: string) =>
+      key === "error" ? "SessionRequired" : null,
+    );
+
+    await act(async () => {
+      render(<HomePage />);
+    });
+
+    expect(replaceStateSpy).toHaveBeenCalledWith(
+      {},
+      "",
+      window.location.pathname,
+    );
   });
 });
 

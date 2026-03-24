@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { useShellAuth } from "~/lib/shell-auth-context";
+import { DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
 import { Modal } from "./modal";
 import { createLogger } from "~/lib/logger";
 
@@ -146,6 +147,13 @@ export function LogoutModal({ isOpen, onClose }: LogoutModalProps) {
       logger.error("failed to sign out", {
         error: error instanceof Error ? error.message : String(error),
       });
+      // Clear the deliberate-logout flag so a genuine session expiry
+      // later in this tab still shows the warning banner.
+      try {
+        sessionStorage.removeItem(DELIBERATE_LOGOUT_KEY);
+      } catch {
+        // sessionStorage unavailable
+      }
       setIsLoggingOut(false);
     }
   };
