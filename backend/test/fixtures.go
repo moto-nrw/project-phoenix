@@ -1251,6 +1251,14 @@ func AssignStudentToGroup(tb testing.TB, db *bun.DB, studentID, groupID int64) {
 // CreateTestRole creates a role in the database for permission testing.
 func CreateTestRole(tb testing.TB, db *bun.DB, name string) *auth.Role {
 	tb.Helper()
+	return CreateTestRoleForTenant(tb, db, name, 1)
+}
+
+// CreateTestRoleForTenant creates a role scoped to the given tenant.
+// Use this when the test operates under a specific tenant context so that
+// FindByID's tenant filter (tenant_id = ? OR tenant_id IS NULL) can find it.
+func CreateTestRoleForTenant(tb testing.TB, db *bun.DB, name string, tenantID int64) *auth.Role {
+	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -1258,7 +1266,6 @@ func CreateTestRole(tb testing.TB, db *bun.DB, name string) *auth.Role {
 	// Make name unique
 	uniqueName := fmt.Sprintf("%s-%d", name, time.Now().UnixNano())
 
-	tenantID := int64(1) // matches TenantContext(1) used by tests
 	role := &auth.Role{
 		Name:        uniqueName,
 		Description: "Test role: " + name,
