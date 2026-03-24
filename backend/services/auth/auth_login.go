@@ -700,7 +700,12 @@ func (s *Service) linkAccountToTenant(ctx context.Context, account *auth.Account
 		txService := s.WithTx(tx).(*Service)
 
 		// Check if already linked — skip mapping creation if so
-		alreadyLinked, _ := txService.repos.AccountTenant.ExistsByAccountAndTenant(ctx, account.ID, tenantID)
+		alreadyLinked, checkErr := txService.repos.AccountTenant.ExistsByAccountAndTenant(ctx, account.ID, tenantID)
+		if checkErr != nil {
+			s.getLogger().Warn("failed to check existing tenant link, proceeding with create",
+				slog.Int64("account_id", account.ID),
+				slog.Int64("tenant_id", tenantID))
+		}
 		if !alreadyLinked {
 			now := time.Now()
 			mapping := &auth.AccountTenant{

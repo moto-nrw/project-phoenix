@@ -216,7 +216,8 @@ class TeacherService {
     const email =
       teacherData.email ??
       `${teacherData.first_name.toLowerCase()}.${teacherData.last_name.toLowerCase()}@school.local`;
-    const username = `${teacherData.first_name.toLowerCase()}_${teacherData.last_name.toLowerCase()}_${Date.now()}`;
+    const suffix = Math.random().toString(36).slice(2, 6);
+    const username = `${teacherData.first_name.toLowerCase()}_${teacherData.last_name.toLowerCase()}_${suffix}`;
     const fullName = `${teacherData.first_name} ${teacherData.last_name}`;
 
     // Step 1: Create account or link existing
@@ -337,7 +338,7 @@ class TeacherService {
         message?: string;
       };
       throw new Error(
-        `Failed to link account: ${extractErrorMessage(errorData, response.statusText)}`,
+        `Konto konnte nicht verknüpft werden: ${extractErrorMessage(errorData, response.statusText)}`,
       );
     }
 
@@ -348,7 +349,9 @@ class TeacherService {
     const accountId = extractIdFromResponse(data);
 
     if (!accountId) {
-      throw new Error("Failed to get account ID from link response");
+      throw new Error(
+        "Konto-ID konnte nicht aus der Verknüpfungs-Antwort gelesen werden.",
+      );
     }
 
     return accountId;

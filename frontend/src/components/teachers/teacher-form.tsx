@@ -222,7 +222,9 @@ export function TeacherForm({
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
       logger.error("failed to submit form", { error: errorMsg });
-      setSubmitError(errorMsg);
+      setSubmitError(
+        "Es ist ein Fehler aufgetreten. Bitte versuchen Sie es später erneut.",
+      );
     }
   };
 

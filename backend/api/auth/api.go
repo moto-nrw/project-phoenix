@@ -112,11 +112,11 @@ func (rs *Resource) Router() chi.Router {
 		// Password change - users can change their own password without special permissions
 		r.Post("/password", rs.changePassword)
 
-		// Link existing account to current tenant (admin only, for staff creation)
-		r.Post("/link-to-tenant", rs.linkToTenant)
-
 		// Admin routes - require admin role or specific permissions
 		r.Group(func(r chi.Router) {
+			// Link existing account to current tenant (for multi-tenant staff creation)
+			r.With(authorize.RequiresPermission("users:create")).Post("/link-to-tenant", rs.linkToTenant)
+
 			// Role management routes
 			r.Route("/roles", func(r chi.Router) {
 				r.With(authorize.RequiresPermission("roles:create")).Post("/", rs.createRole)
@@ -568,9 +568,11 @@ func (rs *Resource) linkToTenant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Return minimal response — only ID and email, no data from other tenants
-	resp := buildAccountResponse(account)
-	common.Respond(w, r, http.StatusOK, resp, "Account linked to tenant successfully")
+	// Return ONLY id and email — never leak roles, username, or active status from other tenants
+	common.Respond(w, r, http.StatusOK, map[string]any{
+		"id":    account.ID,
+		"email": account.Email,
+	}, "Account linked to tenant successfully")
 }
 
 // authorizeRoleAssignment checks if the caller is an authenticated admin and has provided a valid role_id.
