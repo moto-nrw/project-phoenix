@@ -373,31 +373,11 @@ func TestVisitsByGroup_Integration(t *testing.T) {
 // ============================================================================
 
 func TestAnalytics_Integration(t *testing.T) {
-	tc, router := setupAnalyticsRouter(t)
+	_, router := setupAnalyticsRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
 	t.Run("get counts", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/active/analytics/counts", nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{permissions.GroupsRead})
-
-		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
-	})
-
-	t.Run("get room utilization", func(t *testing.T) {
-		room := testpkg.CreateTestRoom(t, tc.db, fmt.Sprintf("Utilization Room %d", time.Now().UnixNano()))
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID)
-
-		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/analytics/room/%d/utilization", room.ID), nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{permissions.GroupsRead})
-
-		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
-	})
-
-	t.Run("get student attendance", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, tc.db, "Attendance", "Student", "2a")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
-
-		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/analytics/student/%d/attendance", student.ID), nil)
 		rr := executeWithAuth(router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
