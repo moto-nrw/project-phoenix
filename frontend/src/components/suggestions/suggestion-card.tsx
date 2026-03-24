@@ -48,7 +48,7 @@ export function SuggestionCard({
   }, [menuOpen]);
 
   return (
-    <div className="rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150 md:hover:-translate-y-0.5 md:hover:border-blue-200/50 md:hover:shadow-[0_12px_40px_rgb(0,0,0,0.18)]">
+    <div className="overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150 md:hover:-translate-y-0.5 md:hover:border-blue-200/50 md:hover:shadow-[0_12px_40px_rgb(0,0,0,0.18)]">
       <div className="flex flex-col gap-3 p-5 md:flex-row md:gap-4">
         {/* Vote column - hidden on mobile, shown on desktop */}
         <div className="hidden md:flex md:items-start md:pt-1">
@@ -58,7 +58,7 @@ export function SuggestionCard({
         {/* Content */}
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
-            <h3 className="min-w-0 overflow-hidden text-base font-semibold break-words text-gray-900">
+            <h3 className="min-w-0 text-base font-semibold wrap-anywhere text-gray-900">
               {suggestion.title}
             </h3>
             <div className="flex shrink-0 items-center gap-2">
