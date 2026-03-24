@@ -71,6 +71,11 @@ export const errorTranslations: Record<string, string> = {
   "student not found": "Schüler/in nicht gefunden",
   "relationship already exists": "Diese Verknüpfung existiert bereits",
   "validation failed": "Validierung fehlgeschlagen",
+  "invalid phone number format":
+    "Ungültiges Telefonnummernformat (nur Ziffern, Leerzeichen, +, -, Klammern)",
+  "phone number must contain at least 3 digits":
+    "Telefonnummer muss mindestens 3 Ziffern enthalten",
+  "phone number is required": "Telefonnummer ist erforderlich",
   unauthorized: "Keine Berechtigung",
   forbidden: "Zugriff verweigert",
 };
