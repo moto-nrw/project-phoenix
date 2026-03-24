@@ -2,6 +2,7 @@
 
 import { sessionFetch } from "./session-cache";
 import { createLogger } from "~/lib/logger";
+import type { Activity } from "./activity-helpers";
 
 const logger = createLogger({ component: "TeacherAPI" });
 
@@ -9,7 +10,6 @@ const logger = createLogger({ component: "TeacherAPI" });
 export type CreateTeacherResult =
   | { status: "created"; data: TeacherWithCredentials }
   | { status: "account_exists"; email: string };
-import type { Activity } from "./activity-helpers";
 
 /**
  * Extracts error message from API error response
@@ -216,7 +216,7 @@ class TeacherService {
     const email =
       teacherData.email ??
       `${teacherData.first_name.toLowerCase()}.${teacherData.last_name.toLowerCase()}@school.local`;
-    const suffix = Math.random().toString(36).slice(2, 6);
+    const suffix = Math.random().toString(36).slice(2, 8);
     const username = `${teacherData.first_name.toLowerCase()}_${teacherData.last_name.toLowerCase()}_${suffix}`;
     const fullName = `${teacherData.first_name} ${teacherData.last_name}`;
 

@@ -27,10 +27,12 @@ export function TeacherCreateModal({
     data: Partial<Teacher> & { password?: string };
   } | null>(null);
   const [isLinking, setIsLinking] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
 
   const handleClose = useCallback(() => {
     setLinkConfirmation(null);
     setIsLinking(false);
+    setLinkError(null);
     onClose();
   }, [onClose]);
 
@@ -55,9 +57,16 @@ export function TeacherCreateModal({
   const handleConfirmLink = useCallback(async () => {
     if (!linkConfirmation) return;
     setIsLinking(true);
+    setLinkError(null);
     try {
       await onCreate({ ...linkConfirmation.data, linkExisting: true });
       setLinkConfirmation(null);
+    } catch (err) {
+      setLinkError(
+        err instanceof Error
+          ? err.message
+          : "Verknüpfung fehlgeschlagen. Bitte versuchen Sie es später erneut.",
+      );
     } finally {
       setIsLinking(false);
     }
@@ -80,6 +89,12 @@ export function TeacherCreateModal({
             bestehende Passwort bleibt unverändert.
           </p>
 
+          {linkError && (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-800">
+              {linkError}
+            </div>
+          )}
+
           <div className="flex gap-3 border-t border-gray-100 pt-4">
             <button
               type="button"
@@ -91,7 +106,9 @@ export function TeacherCreateModal({
             <button
               type="button"
               onClick={() => {
-                handleConfirmLink().catch(() => undefined);
+                handleConfirmLink().catch(() => {
+                  // Error handled inside handleConfirmLink via linkError state
+                });
               }}
               disabled={isLinking}
               className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700 disabled:opacity-50"

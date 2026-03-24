@@ -683,8 +683,8 @@ func (s *Service) LinkAccountToTenant(ctx context.Context, email string, roleID 
 	}
 
 	// Link to tenant (idempotent — handles already-linked case)
-	if err := s.linkAccountToTenant(ctx, account, roleID, tenantID); err != nil {
-		return nil, err
+	if err := s.performAccountTenantLink(ctx, account, roleID, tenantID); err != nil {
+		return nil, &AuthError{Op: op, Err: fmt.Errorf("link failed: %w", err)}
 	}
 
 	s.getLogger().Info("account linked to tenant",
@@ -694,8 +694,8 @@ func (s *Service) LinkAccountToTenant(ctx context.Context, email string, roleID 
 	return account, nil
 }
 
-// linkAccountToTenant creates a tenant mapping and role assignment for an existing account.
-func (s *Service) linkAccountToTenant(ctx context.Context, account *auth.Account, roleID *int64, tenantID int64) error {
+// performAccountTenantLink creates a tenant mapping and role assignment for an existing account.
+func (s *Service) performAccountTenantLink(ctx context.Context, account *auth.Account, roleID *int64, tenantID int64) error {
 	return tenant.WithTenantTx(ctx, s.db, tenantID, func(ctx context.Context, tx bun.Tx) error {
 		txService := s.WithTx(tx).(*Service)
 
@@ -708,15 +708,6 @@ func (s *Service) linkAccountToTenant(ctx context.Context, account *auth.Account
 
 // ensureTenantMapping creates an account-tenant mapping if one does not already exist.
 func (s *Service) ensureTenantMapping(ctx context.Context, accountID, tenantID int64) error {
-	alreadyLinked, checkErr := s.repos.AccountTenant.ExistsByAccountAndTenant(ctx, accountID, tenantID)
-	if checkErr != nil {
-		s.getLogger().Warn("failed to check existing tenant link, proceeding with create",
-			slog.Int64("account_id", accountID),
-			slog.Int64("tenant_id", tenantID))
-	}
-	if alreadyLinked {
-		return nil
-	}
 	now := time.Now()
 	mapping := &auth.AccountTenant{
 		AccountID:   accountID,
@@ -725,7 +716,9 @@ func (s *Service) ensureTenantMapping(ctx context.Context, accountID, tenantID i
 		ActivatedAt: &now,
 	}
 	if err := s.repos.AccountTenant.Create(ctx, mapping); err != nil {
-		return fmt.Errorf("failed to create account-tenant mapping: %w", err)
+		if !isDuplicateKeyError(err) {
+			return fmt.Errorf("failed to create account-tenant mapping: %w", err)
+		}
 	}
 	return nil
 }
