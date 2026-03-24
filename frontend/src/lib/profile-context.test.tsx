@@ -630,6 +630,67 @@ describe("ProfileContext", () => {
       // Profile state should remain stable
       expect(result.current.profile).toEqual(mockProfile);
     });
+
+    it("should reset debounce on re-login to same tenant after logout", async () => {
+      const sessionWithTenant = {
+        ...mockSession,
+        user: { ...mockSession.user, tenantId: 1 },
+      };
+
+      vi.mocked(nextAuthReact.useSession).mockReturnValue({
+        data: sessionWithTenant,
+        status: "authenticated",
+        update: vi.fn(),
+      });
+
+      const wrapper = ({ children }: { children: ReactNode }) => (
+        <ProfileProvider>{children}</ProfileProvider>
+      );
+
+      const { result, rerender } = renderHook(() => useProfile(), { wrapper });
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      // Initial fetch
+      expect(profileApi.fetchProfile).toHaveBeenCalledTimes(1);
+      vi.clearAllMocks();
+
+      // Logout: tenantId becomes undefined
+      vi.mocked(nextAuthReact.useSession).mockReturnValue({
+        data: {
+          ...mockSession,
+          user: { ...mockSession.user, tenantId: undefined },
+        },
+        status: "authenticated",
+        update: vi.fn(),
+      });
+
+      rerender();
+
+      // Re-login to same tenant (tenantId back to 1) with new token
+      vi.mocked(nextAuthReact.useSession).mockReturnValue({
+        data: {
+          ...mockSession,
+          user: {
+            ...mockSession.user,
+            tenantId: 1,
+            token: "fresh-token-after-relogin",
+          },
+        },
+        status: "authenticated",
+        update: vi.fn(),
+      });
+
+      rerender();
+
+      // Debounce should have been reset (prevTenantIdRef tracked undefined),
+      // so the token change triggers a fresh fetch
+      await waitFor(() => {
+        expect(profileApi.fetchProfile).toHaveBeenCalled();
+      });
+    });
   });
 
   describe("useProfile hook", () => {

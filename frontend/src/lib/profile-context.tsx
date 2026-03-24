@@ -149,8 +149,10 @@ export function ProfileProvider({
   const tenantId = session?.user?.tenantId;
   const prevTenantIdRef = React.useRef(tenantId);
   useEffect(() => {
-    if (prevTenantIdRef.current !== tenantId && tenantId !== undefined) {
-      lastRefreshRef.current = 0;
+    if (prevTenantIdRef.current !== tenantId) {
+      if (tenantId !== undefined) {
+        lastRefreshRef.current = 0;
+      }
       prevTenantIdRef.current = tenantId;
     }
   }, [tenantId]);
