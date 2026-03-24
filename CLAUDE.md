@@ -122,6 +122,13 @@ devbox search <tool>     # Find packages
 devbox add <tool>@latest # Add to devbox.json — never rely on global installs
 ```
 
+### 10. Migrations and RLS: No Bypass Needed
+Migrations connect via `DB_DSN` as the `postgres` **superuser**. PostgreSQL superusers always bypass Row Level Security, even with `FORCE ROW LEVEL SECURITY` enabled. This means:
+- **Data migrations (UPDATE/INSERT/DELETE) do NOT need to disable RLS** — the superuser connection sees all rows across all tenants automatically
+- **DDL migrations (CREATE TABLE, ALTER, GRANT)** are never affected by RLS regardless of role
+- **Never add `ALTER TABLE ... DISABLE/ENABLE ROW LEVEL SECURITY`** in migration code — it's unnecessary and can cause test failures
+- **Migration version numbers must be unique** — two migrations sharing a version in `MigrationRegistry` causes a map key collision where one silently overwrites the other
+
 ## Essential Commands
 
 **RULE: Always suggest Docker Compose commands** when advising how to run, build, test, or debug services. Never default to bare `go run` or `pnpm run dev` unless the user explicitly asks for it. The development environment runs through Docker Compose.
