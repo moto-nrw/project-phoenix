@@ -37,6 +37,7 @@ export default function DevicesPage() {
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
@@ -138,6 +139,7 @@ export default function DevicesPage() {
   const handleCreateDevice = async (data: Partial<Device>) => {
     try {
       setCreateLoading(true);
+      setCreateError(null);
       if (devicesConfig.form.transformBeforeSubmit)
         data = devicesConfig.form.transformBeforeSubmit(data);
       const created = await service.create(data);
@@ -153,6 +155,23 @@ export default function DevicesPage() {
       setSelectedDevice(created);
       setShowDetailModal(true);
       await fetchDevices();
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      if (
+        errorMessage.includes("duplicate device ID") ||
+        errorMessage.includes("409")
+      ) {
+        setCreateError(
+          `Die Geräte-ID "${data.device_id ?? ""}" ist bereits vergeben. Bitte wählen Sie eine andere ID.`,
+        );
+      } else {
+        setCreateError(
+          "Fehler beim Erstellen des Geräts. Bitte versuchen Sie es erneut.",
+        );
+      }
+      logger.error("device_create_failed", {
+        error: errorMessage,
+      });
     } finally {
       setCreateLoading(false);
     }
@@ -405,9 +424,13 @@ export default function DevicesPage() {
       {/* Create */}
       <DeviceCreateModal
         isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
+        onClose={() => {
+          setShowCreateModal(false);
+          setCreateError(null);
+        }}
         onCreate={handleCreateDevice}
         loading={createLoading}
+        error={createError}
       />
 
       {/* Detail */}

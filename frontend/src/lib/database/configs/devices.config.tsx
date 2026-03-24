@@ -11,6 +11,7 @@ import {
   formatLastSeen,
   getDeviceTypeEmoji,
   generateDefaultDeviceName,
+  DEVICE_TYPE_OPTIONS,
 } from "@/lib/iot-helpers";
 
 export const devicesConfig = defineEntityConfig<Device>({
@@ -44,7 +45,16 @@ export const devicesConfig = defineEntityConfig<Device>({
             placeholder: "z.B. T-001",
             helperText: "Eindeutige Kennung für das Gerät",
           },
-          // Gerätetyp: kein Feld in Tenant-UI (Default "terminal"); Operator-UI hat Dropdown
+          {
+            name: "device_type",
+            label: "Gerätetyp",
+            type: "select",
+            required: true,
+            options: Object.entries(DEVICE_TYPE_OPTIONS).map(
+              ([value, label]) => ({ value, label }),
+            ),
+            helperText: "Art des Geräts",
+          },
           {
             name: "name",
             label: "Gerätename",
@@ -52,25 +62,11 @@ export const devicesConfig = defineEntityConfig<Device>({
             placeholder: "z.B. Eingangsbereich Terminal",
             helperText: "Optionaler Name zur besseren Identifikation",
           },
-          {
-            name: "status",
-            label: "Status",
-            type: "select",
-            required: true,
-            options: [
-              { value: "active", label: "Aktiv" },
-              { value: "inactive", label: "Inaktiv" },
-              { value: "maintenance", label: "Wartung" },
-            ],
-            helperText:
-              "Online/Offline wird automatisch basierend auf der letzten Kommunikation bestimmt",
-          },
         ],
       },
     ],
 
     defaultValues: {
-      status: "active" as const,
       device_type: "terminal",
     },
 
