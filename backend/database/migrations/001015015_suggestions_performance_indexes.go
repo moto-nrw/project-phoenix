@@ -77,16 +77,8 @@ func createSuggestionsPerformanceIndexes(ctx context.Context, db *bun.DB) error 
 		return fmt.Errorf("error creating comment_reads composite index: %w", err)
 	}
 
-	// Composite index on post_reads for the is_new NOT EXISTS check.
-	// The subquery probes (account_id, post_id, reader_type) — this makes it
-	// a single index lookup per post.
-	_, err = tx.ExecContext(ctx, `
-		CREATE INDEX IF NOT EXISTS idx_suggestions_post_reads_account_post
-		ON suggestions.post_reads(account_id, post_id, reader_type);
-	`)
-	if err != nil {
-		return fmt.Errorf("error creating post_reads composite index: %w", err)
-	}
+	// post_reads already has PRIMARY KEY (account_id, post_id, reader_type)
+	// which covers the NOT EXISTS probe — no additional index needed.
 
 	fmt.Println("Migration 1.15.15: Successfully added suggestions performance indexes")
 	return tx.Commit()
@@ -109,7 +101,6 @@ func dropSuggestionsPerformanceIndexes(ctx context.Context, db *bun.DB) error {
 		DROP INDEX IF EXISTS suggestions.idx_suggestions_votes_post_direction;
 		DROP INDEX IF EXISTS suggestions.idx_suggestions_comments_post_active;
 		DROP INDEX IF EXISTS suggestions.idx_suggestions_comment_reads_post_account;
-		DROP INDEX IF EXISTS suggestions.idx_suggestions_post_reads_account_post;
 	`)
 	if err != nil {
 		return fmt.Errorf("error dropping suggestions performance indexes: %w", err)
