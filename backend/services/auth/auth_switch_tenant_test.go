@@ -121,3 +121,95 @@ func TestAuthService_SwitchTenant(t *testing.T) {
 		assert.NotEmpty(t, refreshToken)
 	})
 }
+
+// TestLogoutInvalidatesTokensBeforeTenantSwitch reproduces the scenario from issue #1067:
+//
+//  1. User A logs in on tenant 1, switches to tenant 2
+//  2. User A logs out
+//  3. User B logs in on tenant 1, switches to tenant 2
+//  4. User B should see their own identity, NOT User A's
+//
+// The root cause was that logout never actually deleted backend tokens (frontend
+// sent access token instead of refresh token). This test verifies that after a
+// proper logout, the old user's refresh tokens are invalidated and a different
+// user can switch tenants cleanly.
+func TestLogoutInvalidatesTokensBeforeTenantSwitch(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	// Ensure tenant 2 exists
+	testpkg.EnsureTestTenant(t, db, 2)
+
+	// ARRANGE: Create User A (admin) mapped to both tenants
+	emailA, usernameA := uniqueTestCredentials("userA-1067")
+	accountA, err := service.Register(ctx, emailA, usernameA, testPassword, nil, 0)
+	require.NoError(t, err)
+	defer testpkg.CleanupAuthFixtures(t, db, accountA.ID)
+	testpkg.MapAccountToTenant(t, db, accountA.ID, 2)
+
+	// ARRANGE: Create User B (betreuer) mapped to both tenants
+	emailB, usernameB := uniqueTestCredentials("userB-1067")
+	accountB, err := service.Register(ctx, emailB, usernameB, testPassword, nil, 0)
+	require.NoError(t, err)
+	defer testpkg.CleanupAuthFixtures(t, db, accountB.ID)
+	testpkg.MapAccountToTenant(t, db, accountB.ID, 2)
+
+	// Step 1: User A logs in on tenant 1
+	_, refreshTokenA, err := service.Login(ctx, emailA, testPassword)
+	require.NoError(t, err, "User A login should succeed")
+
+	// Step 2: User A switches to tenant 2
+	_, _, err = service.SwitchTenant(ctx, accountA.ID, "t2")
+	require.NoError(t, err, "User A switch to tenant 2 should succeed")
+
+	// Step 3: User A logs out — this should invalidate User A's tokens
+	err = service.Logout(ctx, refreshTokenA)
+	require.NoError(t, err, "User A logout should succeed")
+
+	// Verify: User A's refresh token is now invalid
+	_, _, err = service.RefreshToken(ctx, refreshTokenA)
+	require.Error(t, err, "User A's refresh token should be invalidated after logout")
+
+	// Step 4: User B logs in on tenant 1
+	_, _, err = service.Login(ctx, emailB, testPassword)
+	require.NoError(t, err, "User B login should succeed")
+
+	// Step 5: User B switches to tenant 2 — should get User B's tokens, NOT User A's
+	accessTokenB, _, err := service.SwitchTenant(ctx, accountB.ID, "t2")
+	require.NoError(t, err, "User B switch to tenant 2 should succeed")
+	assert.NotEmpty(t, accessTokenB, "User B should receive a valid access token")
+}
+
+// TestLogoutInvalidatesRefreshToken verifies that after logout, the refresh
+// token used to authenticate is invalidated and cannot be reused.
+func TestLogoutInvalidatesRefreshToken(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	// ARRANGE
+	email, username := uniqueTestCredentials("logout-invalidate")
+	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
+	require.NoError(t, err)
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+	_, refreshToken, err := service.Login(ctx, email, testPassword)
+	require.NoError(t, err)
+
+	// Refresh should work before logout
+	_, _, err = service.RefreshToken(ctx, refreshToken)
+	require.NoError(t, err, "refresh should succeed before logout")
+
+	// ACT: Logout
+	err = service.Logout(ctx, refreshToken)
+	require.NoError(t, err)
+
+	// ASSERT: Refresh must fail after logout
+	_, _, err = service.RefreshToken(ctx, refreshToken)
+	require.Error(t, err, "refresh should fail after logout — token was deleted")
+}
