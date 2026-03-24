@@ -500,4 +500,86 @@ describe("OperatorProvisioningService", () => {
       });
     });
   });
+
+  describe("createDevice", () => {
+    it("calls correct endpoint with POST method", async () => {
+      mockOperatorFetch.mockResolvedValue(mockBackendDevice);
+
+      const createData = {
+        school_id: 10,
+        device_id: "DEV-001",
+        device_type: "rfid_reader",
+        name: "Eingang Hauptgebäude",
+        api_key: "manual-key",
+      };
+      await operatorProvisioningService.createDevice(createData);
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/devices",
+        { method: "POST", body: createData },
+      );
+    });
+
+    it("maps response data correctly", async () => {
+      mockOperatorFetch.mockResolvedValue({
+        ...mockBackendDevice,
+        api_key: "manual-key",
+      });
+
+      const result = await operatorProvisioningService.createDevice({
+        school_id: 10,
+        device_id: "DEV-001",
+        device_type: "rfid_reader",
+      });
+
+      expect(result).toEqual({
+        id: "1",
+        deviceId: "dev-001",
+        deviceType: "rfid_reader",
+        name: "Eingang Hauptgebäude",
+        status: "active",
+        apiKey: "manual-key",
+        maskedApiKey: "dk_...abc",
+        lastSeen: NOW,
+        isOnline: true,
+        schoolId: "10",
+        schoolName: "GGS Europaschule",
+        organizationId: "5",
+        organizationName: "Stadt Köln",
+        createdAt: NOW,
+        updatedAt: NOW,
+      });
+    });
+  });
+
+  describe("setDeviceAPIKey", () => {
+    it("encodes the device id and sends manual api key", async () => {
+      mockOperatorFetch.mockResolvedValue(mockBackendDevice);
+
+      await operatorProvisioningService.setDeviceAPIKey(
+        "1/unsafe",
+        "manual-key",
+      );
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/devices/1%2Funsafe/set-api-key",
+        { method: "POST", body: { api_key: "manual-key" } },
+      );
+    });
+
+    it("sends an empty body when auto-generating a key", async () => {
+      mockOperatorFetch.mockResolvedValue({
+        ...mockBackendDevice,
+        api_key: "generated-key",
+      });
+
+      const result = await operatorProvisioningService.setDeviceAPIKey("1");
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/devices/1/set-api-key",
+        { method: "POST", body: {} },
+      );
+      expect(result.apiKey).toBe("generated-key");
+    });
+  });
 });

@@ -58,6 +58,14 @@ func TestInvalidDataError_WithNilError(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid data")
 }
 
+func TestInvalidDataError_Unwrap(t *testing.T) {
+	innerErr := errors.New("validation failed")
+	err := &platform.InvalidDataError{Err: innerErr}
+
+	assert.ErrorIs(t, err, innerErr)
+	assert.Equal(t, innerErr, err.Unwrap())
+}
+
 func TestConflictError(t *testing.T) {
 	err := &platform.ConflictError{Err: errors.New("duplicate slug")}
 	assert.Contains(t, err.Error(), "conflict")
@@ -90,5 +98,11 @@ func TestOrganizationNotFoundError(t *testing.T) {
 func TestSchoolNotFoundError(t *testing.T) {
 	err := &platform.SchoolNotFoundError{SchoolID: 444}
 	assert.Contains(t, err.Error(), "444")
+	assert.Contains(t, err.Error(), "not found")
+}
+
+func TestOperatorDeviceNotFoundError(t *testing.T) {
+	err := &platform.OperatorDeviceNotFoundError{DeviceID: 555}
+	assert.Contains(t, err.Error(), "555")
 	assert.Contains(t, err.Error(), "not found")
 }

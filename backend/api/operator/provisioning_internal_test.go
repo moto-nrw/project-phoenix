@@ -38,6 +38,8 @@ type mockProvisioningService struct {
 	listAllDevicesFn          func(context.Context) ([]platformSvc.OperatorDeviceInfo, error)
 	listSchoolDevicesFn       func(context.Context, int64) ([]platformSvc.OperatorDeviceInfo, error)
 	listOrganizationDevicesFn func(context.Context, int64) ([]platformSvc.OperatorDeviceInfo, error)
+	createDeviceFn            func(context.Context, int64, string, string, *string, *string, int64, net.IP) (*platformSvc.OperatorDeviceInfo, error)
+	setDeviceAPIKeyFn         func(context.Context, int64, *string, int64, net.IP) (*platformSvc.OperatorDeviceInfo, error)
 }
 
 func (m *mockProvisioningService) CreateOrganization(ctx context.Context, org *platformModels.Organization, operatorID int64, clientIP net.IP) (*platformModels.Organization, error) {
@@ -103,10 +105,16 @@ func (m *mockProvisioningService) ListOrganizationDevices(ctx context.Context, o
 	}
 	return nil, nil
 }
-func (m *mockProvisioningService) CreateDevice(_ context.Context, _ int64, _, _ string, _, _ *string, _ int64, _ net.IP) (*platformSvc.OperatorDeviceInfo, error) {
+func (m *mockProvisioningService) CreateDevice(ctx context.Context, schoolID int64, deviceID, deviceType string, name, apiKey *string, operatorID int64, clientIP net.IP) (*platformSvc.OperatorDeviceInfo, error) {
+	if m.createDeviceFn != nil {
+		return m.createDeviceFn(ctx, schoolID, deviceID, deviceType, name, apiKey, operatorID, clientIP)
+	}
 	return nil, nil
 }
-func (m *mockProvisioningService) SetDeviceAPIKey(_ context.Context, _ int64, _ *string, _ int64, _ net.IP) (*platformSvc.OperatorDeviceInfo, error) {
+func (m *mockProvisioningService) SetDeviceAPIKey(ctx context.Context, deviceID int64, apiKey *string, operatorID int64, clientIP net.IP) (*platformSvc.OperatorDeviceInfo, error) {
+	if m.setDeviceAPIKeyFn != nil {
+		return m.setDeviceAPIKeyFn(ctx, deviceID, apiKey, operatorID, clientIP)
+	}
 	return nil, nil
 }
 
@@ -678,6 +686,57 @@ func TestInviteSchoolAdminRequest_Bind_TrimAndLowercaseEmail(t *testing.T) {
 	assert.Equal(t, "Principal", req.Position)
 }
 
+func TestCreateDeviceRequest_Bind_TrimWhitespace(t *testing.T) {
+	req := &createDeviceRequest{
+		SchoolID:   9,
+		DeviceID:   "  DEV-123  ",
+		DeviceType: "  rfid_reader  ",
+		Name:       "  Eingang  ",
+		APIKey:     "  custom-key  ",
+	}
+
+	err := req.Bind(nil)
+
+	require.NoError(t, err)
+	assert.Equal(t, "DEV-123", req.DeviceID)
+	assert.Equal(t, "rfid_reader", req.DeviceType)
+	assert.Equal(t, "Eingang", req.Name)
+	assert.Equal(t, "custom-key", req.APIKey)
+}
+
+func TestCreateDeviceRequest_Bind_RequiresSchoolID(t *testing.T) {
+	req := &createDeviceRequest{DeviceID: "DEV-123", DeviceType: "rfid_reader"}
+
+	err := req.Bind(nil)
+
+	require.EqualError(t, err, "school_id is required")
+}
+
+func TestCreateDeviceRequest_Bind_RequiresDeviceID(t *testing.T) {
+	req := &createDeviceRequest{SchoolID: 9, DeviceType: "rfid_reader"}
+
+	err := req.Bind(nil)
+
+	require.EqualError(t, err, "device_id is required")
+}
+
+func TestCreateDeviceRequest_Bind_RequiresDeviceType(t *testing.T) {
+	req := &createDeviceRequest{SchoolID: 9, DeviceID: "DEV-123"}
+
+	err := req.Bind(nil)
+
+	require.EqualError(t, err, "device_type is required")
+}
+
+func TestSetDeviceAPIKeyRequest_Bind_TrimWhitespace(t *testing.T) {
+	req := &setDeviceAPIKeyRequest{APIKey: "  manual-key  "}
+
+	err := req.Bind(nil)
+
+	require.NoError(t, err)
+	assert.Equal(t, "manual-key", req.APIKey)
+}
+
 // --- Account listing handler tests ---
 
 func TestProvisioningResource_ListSchoolAccounts(t *testing.T) {
@@ -935,7 +994,156 @@ func TestProvisioningResource_ListOrganizationDevices_Error(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, rr.Code)
 }
 
-func ptrInt64(v int64) *int64 { return &v }
+func TestProvisioningResource_CreateDevice(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{
+		createDeviceFn: func(_ context.Context, schoolID int64, deviceID, deviceType string, name, apiKey *string, operatorID int64, clientIP net.IP) (*platformSvc.OperatorDeviceInfo, error) {
+			assert.Equal(t, int64(42), operatorID)
+			assert.Equal(t, int64(9), schoolID)
+			assert.Equal(t, "DEV-123", deviceID)
+			assert.Equal(t, "rfid_reader", deviceType)
+			require.NotNil(t, name)
+			require.NotNil(t, apiKey)
+			assert.Equal(t, "Eingang", *name)
+			assert.Equal(t, "manual-key", *apiKey)
+			assert.Equal(t, "203.0.113.77", clientIP.String())
+			return &platformSvc.OperatorDeviceInfo{ID: 5, DeviceID: deviceID, APIKey: apiKey}, nil
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/operator/devices", bytes.NewBufferString(`{"school_id":9,"device_id":"  DEV-123  ","device_type":"  rfid_reader  ","name":"  Eingang  ","api_key":"  manual-key  "}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = "203.0.113.77:9876"
+	req = withOperatorClaims(req, 42)
+	rr := httptest.NewRecorder()
+
+	resource.CreateDevice(rr, req)
+
+	require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
+	body := decodeBody(t, rr)
+	data := body["data"].(map[string]any)
+	assert.Equal(t, float64(5), data["id"])
+	assert.Equal(t, "DEV-123", data["device_id"])
+	assert.Equal(t, "manual-key", data["api_key"])
+}
+
+func TestProvisioningResource_CreateDevice_InvalidRequest(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{})
+	req := httptest.NewRequest(http.MethodPost, "/operator/devices", bytes.NewBufferString(`{"school_id":0,"device_id":"","device_type":""}`))
+	req.Header.Set("Content-Type", "application/json")
+	req = withOperatorClaims(req, 42)
+	rr := httptest.NewRecorder()
+
+	resource.CreateDevice(rr, req)
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestProvisioningResource_CreateDevice_Conflict(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{
+		createDeviceFn: func(_ context.Context, _ int64, _, _ string, _, _ *string, _ int64, _ net.IP) (*platformSvc.OperatorDeviceInfo, error) {
+			return nil, &platformSvc.ConflictError{Err: errors.New("api_key already exists")}
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/operator/devices", bytes.NewBufferString(`{"school_id":9,"device_id":"DEV-123","device_type":"rfid_reader"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req = withOperatorClaims(req, 42)
+	rr := httptest.NewRecorder()
+
+	resource.CreateDevice(rr, req)
+
+	assert.Equal(t, http.StatusConflict, rr.Code)
+}
+
+func TestProvisioningResource_SetDeviceAPIKey(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{
+		setDeviceAPIKeyFn: func(_ context.Context, deviceID int64, apiKey *string, operatorID int64, clientIP net.IP) (*platformSvc.OperatorDeviceInfo, error) {
+			assert.Equal(t, int64(42), operatorID)
+			assert.Equal(t, int64(17), deviceID)
+			require.NotNil(t, apiKey)
+			assert.Equal(t, "manual-key", *apiKey)
+			assert.Equal(t, "198.51.100.30", clientIP.String())
+			return &platformSvc.OperatorDeviceInfo{ID: deviceID, APIKey: apiKey}, nil
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/operator/devices/17/set-api-key", bytes.NewBufferString(`{"api_key":"  manual-key  "}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = "198.51.100.30:4444"
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "17")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	req = withOperatorClaims(req, 42)
+	rr := httptest.NewRecorder()
+
+	resource.SetDeviceAPIKey(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	body := decodeBody(t, rr)
+	data := body["data"].(map[string]any)
+	assert.Equal(t, float64(17), data["id"])
+	assert.Equal(t, "manual-key", data["api_key"])
+}
+
+func TestProvisioningResource_SetDeviceAPIKey_AutoGenerated(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{
+		setDeviceAPIKeyFn: func(_ context.Context, deviceID int64, apiKey *string, _ int64, _ net.IP) (*platformSvc.OperatorDeviceInfo, error) {
+			assert.Equal(t, int64(17), deviceID)
+			assert.Nil(t, apiKey)
+			return &platformSvc.OperatorDeviceInfo{ID: deviceID, APIKey: ptrString("generated-key")}, nil
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/operator/devices/17/set-api-key", bytes.NewBufferString(`{}`))
+	req.Header.Set("Content-Type", "application/json")
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "17")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	req = withOperatorClaims(req, 42)
+	rr := httptest.NewRecorder()
+
+	resource.SetDeviceAPIKey(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+}
+
+func TestProvisioningResource_SetDeviceAPIKey_InvalidID(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{})
+	req := httptest.NewRequest(http.MethodPost, "/operator/devices/nope/set-api-key", bytes.NewBufferString(`{}`))
+	req.Header.Set("Content-Type", "application/json")
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "nope")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	req = withOperatorClaims(req, 42)
+	rr := httptest.NewRecorder()
+
+	resource.SetDeviceAPIKey(rr, req)
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestProvisioningResource_SetDeviceAPIKey_NotFound(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{
+		setDeviceAPIKeyFn: func(_ context.Context, _ int64, _ *string, _ int64, _ net.IP) (*platformSvc.OperatorDeviceInfo, error) {
+			return nil, &platformSvc.OperatorDeviceNotFoundError{DeviceID: 17}
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/operator/devices/17/set-api-key", bytes.NewBufferString(`{}`))
+	req.Header.Set("Content-Type", "application/json")
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "17")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	req = withOperatorClaims(req, 42)
+	rr := httptest.NewRecorder()
+
+	resource.SetDeviceAPIKey(rr, req)
+
+	assert.Equal(t, http.StatusNotFound, rr.Code)
+}
+
+func ptrInt64(v int64) *int64    { return &v }
+func ptrString(v string) *string { return &v }
 
 var _ platformSvc.OperatorProvisioningService = (*mockProvisioningService)(nil)
 var _ interface{ WithTx(bun.Tx) interface{} } = (*mockProvisioningService)(nil)

@@ -2189,6 +2189,36 @@ describe("OperatorProvisioningPage", () => {
       });
     });
 
+    it("logs clipboard errors when copying fails", async () => {
+      const consoleError = vi.spyOn(console, "error").mockImplementation(() => {
+        // noop
+      });
+      const writeText = vi.fn().mockRejectedValue(new Error("denied"));
+      Object.defineProperty(navigator, "clipboard", {
+        value: { writeText },
+        writable: true,
+        configurable: true,
+      });
+
+      setupSWRWithDevices("operator-all-devices", [mockDevice]);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-devices"));
+      fireEvent.click(screen.getByTitle("API-Key kopieren"));
+
+      await waitFor(() => {
+        expect(consoleError).toHaveBeenCalledWith(
+          "clipboard_copy_failed",
+          expect.objectContaining({
+            error: "Failed to copy API key to clipboard",
+          }),
+        );
+      });
+
+      consoleError.mockRestore();
+    });
+
     it("shows devices loading state", () => {
       setupSWRWithDevices("operator-all-devices", undefined, true);
 
@@ -2225,6 +2255,21 @@ describe("OperatorProvisioningPage", () => {
       const rowsReversed = screen.getAllByText(/[AZ]{3}-\d{3}/);
       expect(rowsReversed[0]!.textContent).toBe("ZZZ-999");
       expect(rowsReversed[1]!.textContent).toBe("AAA-001");
+    });
+
+    it("sorts devices by api key column", () => {
+      const device1 = { ...mockDevice, id: "201", maskedApiKey: "aaaa-key" };
+      const device2 = { ...mockDevice, id: "202", maskedApiKey: "zzzz-key" };
+      setupSWRWithDevices("operator-all-devices", [device2, device1]);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-devices"));
+      fireEvent.click(screen.getByText("API-Key"));
+
+      const apiKeyButtons = screen.getAllByTitle("API-Key kopieren");
+      expect(apiKeyButtons[0]).toHaveTextContent("aaaa-key");
+      expect(apiKeyButtons[1]).toHaveTextContent("zzzz-key");
     });
 
     it("shows school column in all-devices view", () => {
@@ -2294,6 +2339,19 @@ describe("OperatorProvisioningPage", () => {
       fireEvent.click(screen.getByTestId("tab-devices"));
 
       expect(screen.getByText("Key ändern")).toBeInTheDocument();
+    });
+
+    it("opens the set api key modal from the devices table", async () => {
+      setupSWRWithDevices("operator-all-devices", [mockDevice]);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-devices"));
+      fireEvent.click(screen.getByText("Key ändern"));
+
+      await waitFor(() => {
+        expect(screen.getByText("API-Key ändern")).toBeInTheDocument();
+      });
     });
   });
 
