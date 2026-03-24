@@ -58,7 +58,7 @@ export function SuggestionCard({
         {/* Content */}
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
-            <h3 className="min-w-0 text-base font-semibold break-words text-gray-900">
+            <h3 className="min-w-0 overflow-hidden text-base font-semibold break-words text-gray-900">
               {suggestion.title}
             </h3>
             <div className="flex shrink-0 items-center gap-2">
