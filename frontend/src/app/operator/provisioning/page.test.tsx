@@ -54,6 +54,7 @@ vi.mock("~/lib/breadcrumb-context", () => ({
 
 vi.mock("swr", () => ({
   default: mockUseSWR,
+  useSWRConfig: () => ({ mutate: vi.fn() }),
 }));
 
 vi.mock("~/lib/operator/provisioning-api", () => ({
@@ -82,6 +83,13 @@ vi.mock("~/lib/iot-helpers", () => ({
   getDeviceTypeDisplayName: (type: string) => `type:${type}`,
   getDeviceStatusDisplayName: (status: string) => `status:${status}`,
   formatLastSeen: (lastSeen: string) => `formatted:${lastSeen}`,
+  DEVICE_TYPE_OPTIONS: {
+    rfid_reader: "RFID-Leser",
+    scanner: "Scanner",
+    tablet: "Tablet",
+    sensor: "Sensor",
+    camera: "Kamera",
+  },
 }));
 
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-return */
@@ -2181,6 +2189,36 @@ describe("OperatorProvisioningPage", () => {
       });
     });
 
+    it("logs clipboard errors when copying fails", async () => {
+      const consoleError = vi.spyOn(console, "error").mockImplementation(() => {
+        // noop
+      });
+      const writeText = vi.fn().mockRejectedValue(new Error("denied"));
+      Object.defineProperty(navigator, "clipboard", {
+        value: { writeText },
+        writable: true,
+        configurable: true,
+      });
+
+      setupSWRWithDevices("operator-all-devices", [mockDevice]);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-devices"));
+      fireEvent.click(screen.getByTitle("API-Key kopieren"));
+
+      await waitFor(() => {
+        expect(consoleError).toHaveBeenCalledWith(
+          "clipboard_copy_failed",
+          expect.objectContaining({
+            error: "Failed to copy API key to clipboard",
+          }),
+        );
+      });
+
+      consoleError.mockRestore();
+    });
+
     it("shows devices loading state", () => {
       setupSWRWithDevices("operator-all-devices", undefined, true);
 
@@ -2217,6 +2255,21 @@ describe("OperatorProvisioningPage", () => {
       const rowsReversed = screen.getAllByText(/[AZ]{3}-\d{3}/);
       expect(rowsReversed[0]!.textContent).toBe("ZZZ-999");
       expect(rowsReversed[1]!.textContent).toBe("AAA-001");
+    });
+
+    it("sorts devices by api key column", () => {
+      const device1 = { ...mockDevice, id: "201", maskedApiKey: "aaaa-key" };
+      const device2 = { ...mockDevice, id: "202", maskedApiKey: "zzzz-key" };
+      setupSWRWithDevices("operator-all-devices", [device2, device1]);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-devices"));
+      fireEvent.click(screen.getByText("API-Key"));
+
+      const apiKeyButtons = screen.getAllByTitle("API-Key kopieren");
+      expect(apiKeyButtons[0]).toHaveTextContent("aaaa-key");
+      expect(apiKeyButtons[1]).toHaveTextContent("zzzz-key");
     });
 
     it("shows school column in all-devices view", () => {
@@ -2262,6 +2315,43 @@ describe("OperatorProvisioningPage", () => {
       // Org name appears in both dropdown option and header
       const orgNameElements = screen.getAllByText("Test Org");
       expect(orgNameElements.length).toBeGreaterThanOrEqual(2);
+    });
+
+    // --- Neues Gerät button ---
+
+    it("shows create device button in devices tab", () => {
+      setupSWRWithDevices("operator-all-devices", [mockDevice]);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-devices"));
+
+      expect(screen.getByText("Neues Gerät")).toBeInTheDocument();
+    });
+
+    // --- DevicesTable actions column ---
+
+    it("shows Key ändern button for each device", () => {
+      setupSWRWithDevices("operator-all-devices", [mockDevice]);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-devices"));
+
+      expect(screen.getByText("Key ändern")).toBeInTheDocument();
+    });
+
+    it("opens the set api key modal from the devices table", async () => {
+      setupSWRWithDevices("operator-all-devices", [mockDevice]);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-devices"));
+      fireEvent.click(screen.getByText("Key ändern"));
+
+      await waitFor(() => {
+        expect(screen.getByText("API-Key ändern")).toBeInTheDocument();
+      });
     });
   });
 

@@ -23,7 +23,7 @@ vi.mock("~/lib/server-api-url", () => ({
 
 global.fetch = mockFetch as unknown as typeof fetch;
 
-import { GET } from "./route";
+import { GET, POST } from "./route";
 
 const mockContext: RouteContext = { params: Promise.resolve({}) };
 
@@ -69,6 +69,67 @@ describe("GET /api/operator/provisioning/devices", () => {
       "http://localhost:3000/api/operator/provisioning/devices",
     );
     const response = await GET(request, mockContext);
+
+    expect(response.status).toBe(401);
+    const json = (await response.json()) as {
+      data?: unknown;
+      error?: string;
+    };
+    expect(json.error).toBe("Unauthorized");
+  });
+});
+
+describe("POST /api/operator/provisioning/devices", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("creates a device successfully", async () => {
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
+    const device = { id: 1, device_id: "dev-003", status: "active" };
+
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ status: "success", data: device }),
+    });
+
+    const request = new NextRequest(
+      "http://localhost:3000/api/operator/provisioning/devices",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          device_id: "dev-003",
+          device_type: "rfid_reader",
+          school_id: 10,
+        }),
+      },
+    );
+    const response = await POST(request, mockContext);
+
+    expect(response.status).toBe(200);
+    const json = (await response.json()) as {
+      data?: unknown;
+      error?: string;
+    };
+    expect(json.data).toEqual(device);
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://localhost:8080/operator/devices",
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+
+  it("returns 401 when not authenticated", async () => {
+    mockAuth.mockResolvedValue(null);
+
+    const request = new NextRequest(
+      "http://localhost:3000/api/operator/provisioning/devices",
+      {
+        method: "POST",
+        body: JSON.stringify({ device_id: "dev-003" }),
+      },
+    );
+    const response = await POST(request, mockContext);
 
     expect(response.status).toBe(401);
     const json = (await response.json()) as {

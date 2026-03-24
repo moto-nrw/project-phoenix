@@ -104,3 +104,23 @@ type SchoolNotFoundError struct {
 func (e *SchoolNotFoundError) Error() string {
 	return fmt.Sprintf("school with ID %d not found", e.SchoolID)
 }
+
+// SchoolInactiveError is returned when an operation targets an inactive school.
+type SchoolInactiveError struct {
+	SchoolID int64
+}
+
+func (e *SchoolInactiveError) Error() string {
+	return fmt.Sprintf("school with ID %d is inactive", e.SchoolID)
+}
+
+// OperatorDeviceNotFoundError is returned when a device does not exist.
+// Named "Operator..." to distinguish from services/iot.DeviceNotFoundError
+// which uses string DeviceID (human-readable). This uses int64 DB primary key.
+type OperatorDeviceNotFoundError struct {
+	DeviceID int64
+}
+
+func (e *OperatorDeviceNotFoundError) Error() string {
+	return fmt.Sprintf("device with ID %d not found", e.DeviceID)
+}

@@ -360,6 +360,8 @@ func ProvisioningErrorRenderer(err error) render.Renderer {
 	var conflictErr *platformSvc.ConflictError
 	var organizationNotFound *platformSvc.OrganizationNotFoundError
 	var schoolNotFound *platformSvc.SchoolNotFoundError
+	var schoolInactive *platformSvc.SchoolInactiveError
+	var operatorDeviceNotFound *platformSvc.OperatorDeviceNotFoundError
 	var authErr *authSvc.AuthError
 
 	if errors.As(err, &authErr) && authErr.Err != nil {
@@ -386,6 +388,10 @@ func ProvisioningErrorRenderer(err error) render.Renderer {
 		return ErrNotFound("Organization not found")
 	case errors.As(err, &schoolNotFound):
 		return ErrNotFound("School not found")
+	case errors.As(err, &schoolInactive):
+		return ErrForbidden("School is inactive")
+	case errors.As(err, &operatorDeviceNotFound):
+		return ErrNotFound("Device not found")
 	default:
 		return ErrInternal("An error occurred")
 	}
@@ -441,6 +447,86 @@ func (rs *ProvisioningResource) ListOrganizationDevices(w http.ResponseWriter, r
 		return
 	}
 	common.Respond(w, r, http.StatusOK, devices, "Organization devices retrieved successfully")
+}
+
+type createDeviceRequest struct {
+	SchoolID   int64  `json:"school_id"`
+	DeviceID   string `json:"device_id"`
+	DeviceType string `json:"device_type"`
+	Name       string `json:"name,omitempty"`
+	APIKey     string `json:"api_key,omitempty"`
+}
+
+func (req *createDeviceRequest) Bind(_ *http.Request) error {
+	req.DeviceID = strings.TrimSpace(req.DeviceID)
+	req.DeviceType = strings.TrimSpace(req.DeviceType)
+	req.Name = strings.TrimSpace(req.Name)
+	req.APIKey = strings.TrimSpace(req.APIKey)
+	if req.SchoolID <= 0 {
+		return errors.New("school_id is required")
+	}
+	if req.DeviceID == "" {
+		return errors.New("device_id is required")
+	}
+	if req.DeviceType == "" {
+		return errors.New("device_type is required")
+	}
+	return nil
+}
+
+type setDeviceAPIKeyRequest struct {
+	APIKey string `json:"api_key,omitempty"`
+}
+
+func (req *setDeviceAPIKeyRequest) Bind(_ *http.Request) error {
+	req.APIKey = strings.TrimSpace(req.APIKey)
+	return nil
+}
+
+func (rs *ProvisioningResource) CreateDevice(w http.ResponseWriter, r *http.Request) {
+	req := &createDeviceRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, ErrInvalidRequest(err))
+		return
+	}
+	operatorID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	var name *string
+	if req.Name != "" {
+		name = &req.Name
+	}
+	var apiKey *string
+	if req.APIKey != "" {
+		apiKey = &req.APIKey
+	}
+	device, err := rs.service.CreateDevice(r.Context(), req.SchoolID, req.DeviceID, req.DeviceType, name, apiKey, operatorID, getClientIP(r))
+	if err != nil {
+		common.RenderError(w, r, ProvisioningErrorRenderer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusCreated, device, "Device created successfully")
+}
+
+func (rs *ProvisioningResource) SetDeviceAPIKey(w http.ResponseWriter, r *http.Request) {
+	deviceID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid device ID")
+	if !ok {
+		return
+	}
+	req := &setDeviceAPIKeyRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, ErrInvalidRequest(err))
+		return
+	}
+	operatorID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	var apiKey *string
+	if req.APIKey != "" {
+		apiKey = &req.APIKey
+	}
+	device, err := rs.service.SetDeviceAPIKey(r.Context(), deviceID, apiKey, operatorID, getClientIP(r))
+	if err != nil {
+		common.RenderError(w, r, ProvisioningErrorRenderer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, device, "Device API key updated successfully")
 }
 
 func shouldExposeSeedInvitationToken(r *http.Request) bool {

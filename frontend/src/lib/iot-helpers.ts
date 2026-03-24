@@ -95,19 +95,23 @@ export function prepareDeviceForBackend(
 }
 
 /**
+ * Single source of truth for device type values and their German display labels.
+ * Used by both getDeviceTypeDisplayName and the operator create-device modal dropdown.
+ */
+export const DEVICE_TYPE_OPTIONS: Record<string, string> = {
+  rfid_reader: "RFID-Leser",
+  scanner: "Scanner",
+  tablet: "Tablet",
+  sensor: "Sensor",
+  camera: "Kamera",
+  beacon: "Beacon",
+};
+
+/**
  * Get device type display name in German
  */
 export function getDeviceTypeDisplayName(deviceType: string): string {
-  const typeMap: Record<string, string> = {
-    rfid_reader: "RFID-Leser",
-    scanner: "Scanner",
-    tablet: "Tablet",
-    sensor: "Sensor",
-    camera: "Kamera",
-    beacon: "Beacon",
-  };
-
-  return typeMap[deviceType] ?? deviceType;
+  return DEVICE_TYPE_OPTIONS[deviceType] ?? deviceType;
 }
 
 /**
