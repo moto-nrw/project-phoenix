@@ -3,10 +3,13 @@ import { renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
 
 // Use vi.hoisted for mock values referenced in vi.mock
-const { mockUseSession, mockSignOut } = vi.hoisted(() => ({
-  mockUseSession: vi.fn(),
-  mockSignOut: vi.fn(),
-}));
+const { mockUseSession, mockSignOut, mockClearSessionCache } = vi.hoisted(
+  () => ({
+    mockUseSession: vi.fn(),
+    mockSignOut: vi.fn(),
+    mockClearSessionCache: vi.fn(),
+  }),
+);
 
 const mockProfile = {
   firstName: "John",
@@ -38,6 +41,10 @@ vi.mock("~/lib/profile-context", () => ({
 vi.mock("~/lib/operator-url", () => ({
   operatorAbsoluteUrl: (path: string) => path,
   operatorPath: (path: string) => path,
+}));
+
+vi.mock("~/lib/session-cache", () => ({
+  clearSessionCache: mockClearSessionCache,
 }));
 
 import {
@@ -180,6 +187,49 @@ describe("TeacherShellProvider", () => {
     await result.current.logout();
 
     expect(mockSignOut).toHaveBeenCalledWith({ redirect: false });
+  });
+
+  it("fires backend logout and clears session cache on teacher logout", async () => {
+    const mockFetch = vi.fn().mockResolvedValue(new Response(null));
+    vi.stubGlobal("fetch", mockFetch);
+
+    mockUseSession.mockReturnValue({
+      data: { user: { name: "User", email: "user@example.com", roles: [] } },
+      status: "authenticated",
+    });
+
+    const { result } = renderHook(() => useShellAuth(), { wrapper });
+
+    await result.current.logout();
+
+    expect(mockFetch).toHaveBeenCalledWith("/api/auth/logout", {
+      method: "POST",
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- vitest asymmetric matcher
+      signal: expect.any(AbortSignal) as AbortSignal,
+    });
+    expect(mockClearSessionCache).toHaveBeenCalled();
+
+    vi.unstubAllGlobals();
+  });
+
+  it("handles backend logout failure gracefully", async () => {
+    const mockFetch = vi.fn().mockRejectedValue(new Error("network error"));
+    vi.stubGlobal("fetch", mockFetch);
+
+    mockUseSession.mockReturnValue({
+      data: { user: { name: "User", email: "user@example.com", roles: [] } },
+      status: "authenticated",
+    });
+
+    const { result } = renderHook(() => useShellAuth(), { wrapper });
+
+    // Should not throw even when fetch fails
+    await result.current.logout();
+
+    expect(mockSignOut).toHaveBeenCalledWith({ redirect: false });
+    expect(mockClearSessionCache).toHaveBeenCalled();
+
+    vi.unstubAllGlobals();
   });
 
   it("provides empty roles array when not specified", () => {
@@ -401,6 +451,25 @@ describe("OperatorShellProvider", () => {
     expect(mockSignOut).toHaveBeenCalledWith({
       callbackUrl: "/operator/login",
     });
+  });
+
+  it("clears session cache on operator logout", async () => {
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          name: "Operator",
+          email: "op@example.com",
+          roles: ["operator"],
+        },
+      },
+      status: "authenticated",
+    });
+
+    const { result } = renderHook(() => useShellAuth(), { wrapper });
+
+    await result.current.logout();
+
+    expect(mockClearSessionCache).toHaveBeenCalled();
   });
 });
 
