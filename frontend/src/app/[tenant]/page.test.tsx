@@ -225,12 +225,14 @@ describe("HomePage (Login)", () => {
 
     render(<HomePage />);
 
-    // Login form is rendered but invisible (opacity-0) to avoid layout flicker
-    const submitButton = screen.getByRole("button", { name: /anmelden/i });
-    const formContainer = submitButton.closest(
+    // Login form is hidden while checking auth
+    const formContainer = document.querySelector(
       "div[class*='transition-opacity']",
     );
-    expect(formContainer).toHaveClass("opacity-0");
+    expect(formContainer).toHaveClass("hidden");
+
+    // Loading spinner is visible with checking message
+    expect(screen.getByText("Sitzung wird überprüft…")).toBeInTheDocument();
   });
 
   it("calls signIn with credentials on form submission", async () => {
