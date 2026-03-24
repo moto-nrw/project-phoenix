@@ -2677,7 +2677,7 @@ func TestAuthService_LinkAccountToTenant(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	tenantID := int64(1)
+	const tenantID int64 = 53
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	t.Run("links existing account to tenant", func(t *testing.T) {
