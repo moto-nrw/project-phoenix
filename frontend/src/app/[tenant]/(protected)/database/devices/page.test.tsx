@@ -125,7 +125,7 @@ vi.mock("@/components/devices", () => ({
             onCreate({
               device_id: "NEW-001",
               name: "New Device",
-              device_type: "rfid_reader",
+              device_type: "terminal",
             })
           }
         >
@@ -298,7 +298,7 @@ describe("DevicesPage", () => {
           id: "1",
           device_id: "DEV-001",
           name: "Reader 1",
-          device_type: "rfid_reader",
+          device_type: "terminal",
         },
       ],
     });
@@ -307,7 +307,7 @@ describe("DevicesPage", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Reader 1")).toBeInTheDocument();
-      expect(screen.getByText("RFID_READER")).toBeInTheDocument();
+      expect(screen.getByText("TERMINAL")).toBeInTheDocument();
     });
   });
 
@@ -318,7 +318,7 @@ describe("DevicesPage", () => {
           id: "1",
           device_id: "DEV-001",
           name: null,
-          device_type: "rfid_reader",
+          device_type: "terminal",
         },
       ],
     });
@@ -374,13 +374,13 @@ describe("DevicesPage", () => {
           id: "1",
           device_id: "DEV-001",
           name: "Reader 1",
-          device_type: "rfid_reader",
+          device_type: "terminal",
         },
         {
           id: "2",
           device_id: "DEV-002",
           name: "Reader 2",
-          device_type: "camera",
+          device_type: "info_point",
         },
       ],
     });
@@ -407,13 +407,13 @@ describe("DevicesPage", () => {
           id: "1",
           device_id: "DEV-001",
           name: "Reader 1",
-          device_type: "rfid_reader",
+          device_type: "terminal",
         },
         {
           id: "2",
           device_id: "ABC-002",
           name: "Reader 2",
-          device_type: "camera",
+          device_type: "info_point",
         },
       ],
     });
@@ -440,13 +440,13 @@ describe("DevicesPage", () => {
           id: "1",
           device_id: "DEV-001",
           name: "Reader 1",
-          device_type: "rfid_reader",
+          device_type: "terminal",
         },
         {
           id: "2",
           device_id: "DEV-002",
-          name: "Camera 1",
-          device_type: "camera",
+          name: "Info-Point 1",
+          device_type: "info_point",
         },
       ],
     });
@@ -458,11 +458,11 @@ describe("DevicesPage", () => {
     });
 
     const searchInput = screen.getByTestId("search-input");
-    fireEvent.change(searchInput, { target: { value: "camera" } });
+    fireEvent.change(searchInput, { target: { value: "info_point" } });
 
     await waitFor(() => {
       expect(screen.queryByText("Reader 1")).not.toBeInTheDocument();
-      expect(screen.getByText("Camera 1")).toBeInTheDocument();
+      expect(screen.getByText("Info-Point 1")).toBeInTheDocument();
     });
   });
 
@@ -473,7 +473,7 @@ describe("DevicesPage", () => {
           id: "1",
           device_id: "DEV-001",
           name: "Reader 1",
-          device_type: "rfid_reader",
+          device_type: "terminal",
         },
       ],
     });
@@ -502,7 +502,7 @@ describe("DevicesPage", () => {
           id: "1",
           device_id: "DEV-001",
           name: "Reader 1",
-          device_type: "rfid_reader",
+          device_type: "terminal",
         },
       ],
     });
@@ -529,7 +529,7 @@ describe("DevicesPage", () => {
           id: "1",
           device_id: "DEV-001",
           name: "Reader 1",
-          device_type: "rfid_reader",
+          device_type: "terminal",
         },
       ],
     });
@@ -608,7 +608,7 @@ describe("DevicesPage", () => {
       id: "1",
       device_id: "NEW-001",
       name: "New Device",
-      device_type: "rfid_reader",
+      device_type: "terminal",
     });
 
     render(<DevicesPage />);
@@ -639,7 +639,7 @@ describe("DevicesPage", () => {
       id: "1",
       device_id: "NEW-001",
       name: null,
-      device_type: "rfid_reader",
+      device_type: "terminal",
     });
     mockTransform.mockReset();
 
@@ -689,7 +689,7 @@ describe("DevicesPage", () => {
           id: "1",
           device_id: "DEV-001",
           name: "Reader 1",
-          device_type: "rfid_reader",
+          device_type: "terminal",
         },
       ],
     });
@@ -697,7 +697,7 @@ describe("DevicesPage", () => {
       id: "1",
       device_id: "DEV-001",
       name: "Reader 1 Full",
-      device_type: "rfid_reader",
+      device_type: "terminal",
     });
 
     render(<DevicesPage />);
@@ -724,7 +724,7 @@ describe("DevicesPage", () => {
           id: "1",
           device_id: "DEV-001",
           name: "Reader 1",
-          device_type: "rfid_reader",
+          device_type: "terminal",
         },
       ],
     });
@@ -732,7 +732,7 @@ describe("DevicesPage", () => {
       id: "1",
       device_id: "DEV-001",
       name: "Reader 1",
-      device_type: "rfid_reader",
+      device_type: "terminal",
     });
 
     render(<DevicesPage />);
@@ -760,7 +760,7 @@ describe("DevicesPage", () => {
           id: "1",
           device_id: "DEV-001",
           name: "Reader 1",
-          device_type: "rfid_reader",
+          device_type: "terminal",
         },
       ],
     });
@@ -768,7 +768,7 @@ describe("DevicesPage", () => {
       id: "1",
       device_id: "DEV-001",
       name: "Reader 1",
-      device_type: "rfid_reader",
+      device_type: "terminal",
     });
 
     render(<DevicesPage />);
@@ -797,7 +797,7 @@ describe("DevicesPage", () => {
           id: "1",
           device_id: "DEV-001",
           name: "Reader 1",
-          device_type: "rfid_reader",
+          device_type: "terminal",
         },
       ],
     });
@@ -805,7 +805,7 @@ describe("DevicesPage", () => {
       id: "1",
       device_id: "DEV-001",
       name: "Reader 1",
-      device_type: "rfid_reader",
+      device_type: "terminal",
     });
     mockUpdate.mockResolvedValue({});
 
@@ -842,7 +842,7 @@ describe("DevicesPage", () => {
           id: "1",
           device_id: "DEV-001",
           name: "Reader 1",
-          device_type: "rfid_reader",
+          device_type: "terminal",
         },
       ],
     });
@@ -850,7 +850,7 @@ describe("DevicesPage", () => {
       id: "1",
       device_id: "DEV-001",
       name: "Reader 1",
-      device_type: "rfid_reader",
+      device_type: "terminal",
     });
 
     render(<DevicesPage />);
@@ -883,7 +883,7 @@ describe("DevicesPage", () => {
           id: "1",
           device_id: "DEV-001",
           name: "Reader 1",
-          device_type: "rfid_reader",
+          device_type: "terminal",
         },
       ],
     });
@@ -891,7 +891,7 @@ describe("DevicesPage", () => {
       id: "1",
       device_id: "DEV-001",
       name: "Reader 1",
-      device_type: "rfid_reader",
+      device_type: "terminal",
     });
 
     render(<DevicesPage />);
@@ -918,7 +918,7 @@ describe("DevicesPage", () => {
           id: "1",
           device_id: "DEV-001",
           name: "Reader 1",
-          device_type: "rfid_reader",
+          device_type: "terminal",
         },
       ],
     });
@@ -926,7 +926,7 @@ describe("DevicesPage", () => {
       id: "1",
       device_id: "DEV-001",
       name: "Reader 1",
-      device_type: "rfid_reader",
+      device_type: "terminal",
     });
 
     render(<DevicesPage />);
@@ -953,7 +953,7 @@ describe("DevicesPage", () => {
           id: "1",
           device_id: "DEV-001",
           name: "Reader 1",
-          device_type: "rfid_reader",
+          device_type: "terminal",
         },
       ],
     });
@@ -961,7 +961,7 @@ describe("DevicesPage", () => {
       id: "1",
       device_id: "DEV-001",
       name: "Reader 1",
-      device_type: "rfid_reader",
+      device_type: "terminal",
     });
     mockDelete.mockResolvedValue({});
     mockConfirmDelete.mockImplementation((fn: () => void) => fn());
@@ -993,7 +993,7 @@ describe("DevicesPage", () => {
           id: "1",
           device_id: "DEV-001",
           name: "Reader 1",
-          device_type: "rfid_reader",
+          device_type: "terminal",
         },
       ],
     });
@@ -1001,7 +1001,7 @@ describe("DevicesPage", () => {
       id: "1",
       device_id: "DEV-001",
       name: "Reader 1",
-      device_type: "rfid_reader",
+      device_type: "terminal",
     });
 
     render(<DevicesPage />);

@@ -217,7 +217,7 @@ export function CreateDeviceModal({
             type="text"
             value={deviceId}
             onChange={(e) => setDeviceId(e.target.value)}
-            placeholder="z.B. RFID-001"
+            placeholder="z.B. T-001"
             className="w-full rounded-lg border border-gray-200 px-3 py-2 font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
             required
           />

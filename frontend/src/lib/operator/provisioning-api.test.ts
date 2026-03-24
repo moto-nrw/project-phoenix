@@ -67,7 +67,7 @@ const mockBackendOrgAccount: BackendOrgAccount = {
 const mockBackendDevice: BackendOperatorDevice = {
   id: 1,
   device_id: "dev-001",
-  device_type: "rfid_reader",
+  device_type: "terminal",
   name: "Eingang Hauptgebäude",
   status: "active",
   api_key: undefined,
@@ -380,7 +380,7 @@ describe("OperatorProvisioningService", () => {
       expect(result[0]).toEqual({
         id: "1",
         deviceId: "dev-001",
-        deviceType: "rfid_reader",
+        deviceType: "terminal",
         name: "Eingang Hauptgebäude",
         status: "active",
         apiKey: "",
@@ -508,7 +508,7 @@ describe("OperatorProvisioningService", () => {
       const createData = {
         school_id: 10,
         device_id: "DEV-001",
-        device_type: "rfid_reader",
+        device_type: "terminal",
         name: "Eingang Hauptgebäude",
         api_key: "manual-key",
       };
@@ -529,13 +529,13 @@ describe("OperatorProvisioningService", () => {
       const result = await operatorProvisioningService.createDevice({
         school_id: 10,
         device_id: "DEV-001",
-        device_type: "rfid_reader",
+        device_type: "terminal",
       });
 
       expect(result).toEqual({
         id: "1",
         deviceId: "dev-001",
-        deviceType: "rfid_reader",
+        deviceType: "terminal",
         name: "Eingang Hauptgebäude",
         status: "active",
         apiKey: "manual-key",

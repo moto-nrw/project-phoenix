@@ -344,7 +344,7 @@ export const SPECIFIC_PAGE_HELP: Record<string, ReactNode> = {
   "database-devices": (
     <DatabaseSectionHelp
       title="Geräte Verwaltung"
-      description="Verwalte alle IoT-Geräte und RFID-Reader zentral an einem Ort."
+      description="Verwalte alle Terminals und IoT-Geräte zentral an einem Ort."
       entityName="Geräte"
     />
   ),
@@ -866,7 +866,7 @@ export const NAVIGATION_HELP: Record<
             />
             <InfoListItem
               title="Geräte"
-              description="IoT-Geräte und RFID-Reader verwalten"
+              description="Terminals und IoT-Geräte verwalten"
             />
             <InfoListItem
               title="Berechtigungen"

@@ -887,7 +887,7 @@ func (s *FixedSeeder) seedDevices(_ context.Context, result *FixedResult) error 
 		body := map[string]any{
 			"device_id":   device.DeviceID,
 			"name":        device.Name,
-			"device_type": "rfid_scanner",
+			"device_type": "terminal",
 			"status":      "active",
 		}
 

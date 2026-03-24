@@ -100,7 +100,7 @@ describe("POST /api/operator/provisioning/devices", () => {
         method: "POST",
         body: JSON.stringify({
           device_id: "dev-003",
-          device_type: "rfid_reader",
+          device_type: "terminal",
           school_id: 10,
         }),
       },

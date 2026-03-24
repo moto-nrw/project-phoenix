@@ -690,7 +690,7 @@ func TestCreateDeviceRequest_Bind_TrimWhitespace(t *testing.T) {
 	req := &createDeviceRequest{
 		SchoolID:   9,
 		DeviceID:   "  DEV-123  ",
-		DeviceType: "  rfid_reader  ",
+		DeviceType: "  terminal  ",
 		Name:       "  Eingang  ",
 		APIKey:     "  custom-key  ",
 	}
@@ -699,13 +699,13 @@ func TestCreateDeviceRequest_Bind_TrimWhitespace(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, "DEV-123", req.DeviceID)
-	assert.Equal(t, "rfid_reader", req.DeviceType)
+	assert.Equal(t, "terminal", req.DeviceType)
 	assert.Equal(t, "Eingang", req.Name)
 	assert.Equal(t, "custom-key", req.APIKey)
 }
 
 func TestCreateDeviceRequest_Bind_RequiresSchoolID(t *testing.T) {
-	req := &createDeviceRequest{DeviceID: "DEV-123", DeviceType: "rfid_reader"}
+	req := &createDeviceRequest{DeviceID: "DEV-123", DeviceType: "terminal"}
 
 	err := req.Bind(nil)
 
@@ -713,7 +713,7 @@ func TestCreateDeviceRequest_Bind_RequiresSchoolID(t *testing.T) {
 }
 
 func TestCreateDeviceRequest_Bind_RequiresDeviceID(t *testing.T) {
-	req := &createDeviceRequest{SchoolID: 9, DeviceType: "rfid_reader"}
+	req := &createDeviceRequest{SchoolID: 9, DeviceType: "terminal"}
 
 	err := req.Bind(nil)
 
@@ -1000,7 +1000,7 @@ func TestProvisioningResource_CreateDevice(t *testing.T) {
 			assert.Equal(t, int64(42), operatorID)
 			assert.Equal(t, int64(9), schoolID)
 			assert.Equal(t, "DEV-123", deviceID)
-			assert.Equal(t, "rfid_reader", deviceType)
+			assert.Equal(t, "terminal", deviceType)
 			require.NotNil(t, name)
 			require.NotNil(t, apiKey)
 			assert.Equal(t, "Eingang", *name)
@@ -1010,7 +1010,7 @@ func TestProvisioningResource_CreateDevice(t *testing.T) {
 		},
 	})
 
-	req := httptest.NewRequest(http.MethodPost, "/operator/devices", bytes.NewBufferString(`{"school_id":9,"device_id":"  DEV-123  ","device_type":"  rfid_reader  ","name":"  Eingang  ","api_key":"  manual-key  "}`))
+	req := httptest.NewRequest(http.MethodPost, "/operator/devices", bytes.NewBufferString(`{"school_id":9,"device_id":"  DEV-123  ","device_type":"  terminal  ","name":"  Eingang  ","api_key":"  manual-key  "}`))
 	req.Header.Set("Content-Type", "application/json")
 	req.RemoteAddr = "203.0.113.77:9876"
 	req = withOperatorClaims(req, 42)
@@ -1045,7 +1045,7 @@ func TestProvisioningResource_CreateDevice_Conflict(t *testing.T) {
 		},
 	})
 
-	req := httptest.NewRequest(http.MethodPost, "/operator/devices", bytes.NewBufferString(`{"school_id":9,"device_id":"DEV-123","device_type":"rfid_reader"}`))
+	req := httptest.NewRequest(http.MethodPost, "/operator/devices", bytes.NewBufferString(`{"school_id":9,"device_id":"DEV-123","device_type":"terminal"}`))
 	req.Header.Set("Content-Type", "application/json")
 	req = withOperatorClaims(req, 42)
 	rr := httptest.NewRecorder()

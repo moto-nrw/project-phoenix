@@ -134,7 +134,7 @@ func (m *mockIoTService) UpdateDeviceLastSeenAt(_ context.Context, _ int64, last
 func TestDeviceFromCtx_ValidDevice(t *testing.T) {
 	device := &iot.Device{
 		DeviceID:   "device-001",
-		DeviceType: "rfid_reader",
+		DeviceType: "terminal",
 		Status:     iot.DeviceStatusActive,
 	}
 
@@ -143,7 +143,7 @@ func TestDeviceFromCtx_ValidDevice(t *testing.T) {
 	result := DeviceFromCtx(ctx)
 	require.NotNil(t, result)
 	assert.Equal(t, "device-001", result.DeviceID)
-	assert.Equal(t, "rfid_reader", result.DeviceType)
+	assert.Equal(t, "terminal", result.DeviceType)
 }
 
 func TestDeviceFromCtx_NoDevice(t *testing.T) {
@@ -239,7 +239,7 @@ func TestDeviceOnlyAuthenticator_ValidAPIKey(t *testing.T) {
 	apiKey := "valid-api-key-123"
 	device := &iot.Device{
 		DeviceID:   "device-001",
-		DeviceType: "rfid_reader",
+		DeviceType: "terminal",
 		Status:     iot.DeviceStatusActive,
 	}
 	mockService.addDevice(apiKey, device)
@@ -338,7 +338,7 @@ func TestDeviceOnlyAuthenticator_InactiveDevice(t *testing.T) {
 	apiKey := "valid-api-key-123"
 	device := &iot.Device{
 		DeviceID:   "device-001",
-		DeviceType: "rfid_reader",
+		DeviceType: "terminal",
 		Status:     iot.DeviceStatusInactive, // Not active
 	}
 	mockService.addDevice(apiKey, device)
@@ -362,7 +362,7 @@ func TestDeviceOnlyAuthenticator_OfflineDevice(t *testing.T) {
 	apiKey := "valid-api-key-123"
 	device := &iot.Device{
 		DeviceID:   "device-001",
-		DeviceType: "rfid_reader",
+		DeviceType: "terminal",
 		Status:     iot.DeviceStatusOffline, // Offline
 	}
 	mockService.addDevice(apiKey, device)
@@ -386,7 +386,7 @@ func TestDeviceOnlyAuthenticator_MaintenanceDevice(t *testing.T) {
 	apiKey := "valid-api-key-123"
 	device := &iot.Device{
 		DeviceID:   "device-001",
-		DeviceType: "rfid_reader",
+		DeviceType: "terminal",
 		Status:     iot.DeviceStatusMaintenance, // In maintenance
 	}
 	mockService.addDevice(apiKey, device)
@@ -421,7 +421,7 @@ func TestDeviceAuthenticator_ValidAPIKeyAndPIN(t *testing.T) {
 	apiKey := "valid-api-key-123"
 	device := &iot.Device{
 		DeviceID:   "device-001",
-		DeviceType: "rfid_reader",
+		DeviceType: "terminal",
 		Status:     iot.DeviceStatusActive,
 	}
 	mockIoT.addDevice(apiKey, device)
@@ -458,7 +458,7 @@ func TestDeviceAuthenticator_MissingPIN(t *testing.T) {
 	apiKey := "valid-api-key-123"
 	device := &iot.Device{
 		DeviceID:   "device-001",
-		DeviceType: "rfid_reader",
+		DeviceType: "terminal",
 		Status:     iot.DeviceStatusActive,
 	}
 	mockIoT.addDevice(apiKey, device)
@@ -486,7 +486,7 @@ func TestDeviceAuthenticator_InvalidPIN(t *testing.T) {
 	apiKey := "valid-api-key-123"
 	device := &iot.Device{
 		DeviceID:   "device-001",
-		DeviceType: "rfid_reader",
+		DeviceType: "terminal",
 		Status:     iot.DeviceStatusActive,
 	}
 	mockIoT.addDevice(apiKey, device)
@@ -514,7 +514,7 @@ func TestDeviceAuthenticator_MissingOGSPINConfig(t *testing.T) {
 	apiKey := "valid-api-key-123"
 	device := &iot.Device{
 		DeviceID:   "device-001",
-		DeviceType: "rfid_reader",
+		DeviceType: "terminal",
 		Status:     iot.DeviceStatusActive,
 	}
 	mockIoT.addDevice(apiKey, device)
@@ -585,7 +585,7 @@ func TestDeviceAuthenticator_InactiveDevice(t *testing.T) {
 	apiKey := "valid-api-key-123"
 	device := &iot.Device{
 		DeviceID:   "device-001",
-		DeviceType: "rfid_reader",
+		DeviceType: "terminal",
 		Status:     iot.DeviceStatusInactive,
 	}
 	mockIoT.addDevice(apiKey, device)
@@ -698,7 +698,7 @@ func TestDeviceOnlyAuthenticator_UpdateLastSeenError(t *testing.T) {
 	apiKey := "valid-api-key-123"
 	device := &iot.Device{
 		DeviceID:   "device-001",
-		DeviceType: "rfid_reader",
+		DeviceType: "terminal",
 		Status:     iot.DeviceStatusActive,
 	}
 	mockService.addDevice(apiKey, device)
@@ -726,7 +726,7 @@ func TestDeviceOnlyAuthenticator_DebouncesLastSeenWrites(t *testing.T) {
 	apiKey := "valid-api-key-123"
 	device := &iot.Device{
 		DeviceID:   "device-001",
-		DeviceType: "rfid_reader",
+		DeviceType: "terminal",
 		Status:     iot.DeviceStatusActive,
 	}
 	mockService.addDevice(apiKey, device)
