@@ -4,6 +4,10 @@ import React, { createContext, useContext, useMemo } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { useProfile } from "~/lib/profile-context";
 import { operatorAbsoluteUrl, operatorPath } from "~/lib/operator-url";
+import { clearSessionCache } from "~/lib/session-cache";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "ShellAuthContext" });
 
 export interface ShellUser {
   name: string;
@@ -83,6 +87,16 @@ export function TeacherShellProvider({
       status,
       isSessionExpired: session?.error === "RefreshTokenExpired",
       logout: async () => {
+        // Delete backend refresh tokens before clearing the session cookie.
+        // Fire-and-forget: don't block logout if the backend call fails.
+        try {
+          await fetch("/api/auth/logout", { method: "POST" });
+        } catch (err) {
+          logger.warn("backend_logout_failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+        clearSessionCache();
         await signOut({ redirect: false });
         window.location.href = "/";
       },
@@ -138,6 +152,14 @@ export function OperatorShellProvider({
       status,
       isSessionExpired: session?.error === "RefreshTokenExpired",
       logout: async () => {
+        try {
+          await fetch("/api/auth/logout", { method: "POST" });
+        } catch (err) {
+          logger.warn("backend_logout_failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+        clearSessionCache();
         await signOut({ callbackUrl: operatorAbsoluteUrl("/operator/login") });
       },
       mode: "operator" as const,
