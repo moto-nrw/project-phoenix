@@ -346,10 +346,17 @@ export default function GuardianFormModal({
         return `Vorname und Nachname sind erforderlich${label}`;
       }
 
-      // Validate email format if provided
+      // Validate email format if provided (basic check, backend does full validation)
       if (entry.email.trim() !== "") {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(entry.email.trim())) {
+        const trimmedEmail = entry.email.trim();
+        const atIndex = trimmedEmail.indexOf("@");
+        const dotIndex = trimmedEmail.lastIndexOf(".");
+        if (
+          atIndex < 1 ||
+          dotIndex < atIndex + 2 ||
+          dotIndex >= trimmedEmail.length - 1 ||
+          trimmedEmail.includes(" ")
+        ) {
           return `Ungültiges E-Mail-Format${label}`;
         }
       }
