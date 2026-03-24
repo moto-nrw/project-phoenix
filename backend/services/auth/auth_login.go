@@ -665,20 +665,21 @@ func (s *Service) persistAccountWithRole(ctx context.Context, account *auth.Acco
 // Returns ErrAccountNotFound if no account exists with the given email.
 // Returns ErrAccountInactive if the account is deactivated.
 func (s *Service) LinkAccountToTenant(ctx context.Context, email string, roleID *int64, tenantID int64) (*auth.Account, error) {
+	const op = "link-to-tenant"
 	email = strings.TrimSpace(strings.ToLower(email))
 
 	if tenantID <= 0 {
-		return nil, &AuthError{Op: "link-to-tenant", Err: ErrTenantRequiredForRoleAssignment}
+		return nil, &AuthError{Op: op, Err: ErrTenantRequiredForRoleAssignment}
 	}
 
 	// Find existing account
 	account, err := s.repos.Account.FindByEmail(ctx, email)
 	if err != nil {
-		return nil, &AuthError{Op: "link-to-tenant", Err: ErrAccountNotFound}
+		return nil, &AuthError{Op: op, Err: ErrAccountNotFound}
 	}
 
 	if !account.Active {
-		return nil, &AuthError{Op: "link-to-tenant", Err: ErrAccountInactive}
+		return nil, &AuthError{Op: op, Err: ErrAccountInactive}
 	}
 
 	// Link to tenant (idempotent — handles already-linked case)
