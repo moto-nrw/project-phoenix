@@ -2607,8 +2607,9 @@ func TestAcceptInvitation_WithTenantID_CreatesAccountTenant(t *testing.T) {
 	const tenantID int64 = 52
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
-	// Create a role for the invitation
-	role := testpkg.CreateTestRole(t, db, fmt.Sprintf("invite-role-%d", time.Now().UnixNano()))
+	// Create a role scoped to the same tenant used by the invitation context,
+	// so that FindByID's tenant filter (tenant_id = ? OR tenant_id IS NULL) finds it.
+	role := testpkg.CreateTestRoleForTenant(t, db, fmt.Sprintf("invite-role-%d", time.Now().UnixNano()), tenantID)
 	defer testpkg.CleanupTableRecords(t, db, "auth.roles", role.ID)
 
 	// Create invitation with tenant context so it gets tenant_id set

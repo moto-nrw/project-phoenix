@@ -1817,12 +1817,12 @@ func TestDeleteRole(t *testing.T) {
 		assert.Equal(t, http.StatusNoContent, rr.Code, "Delete failed: %s", rr.Body.String())
 	})
 
-	t.Run("delete role not found returns no content", func(t *testing.T) {
+	t.Run("delete role not found returns error", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "DELETE", "/auth/roles/99999", nil)
 		rr := executeWithAuth(router, req, adminClaims, []string{"roles:delete"})
 
-		// Delete operation is idempotent - returns 204 even for non-existent roles
-		assert.Equal(t, http.StatusNoContent, rr.Code, "Body: %s", rr.Body.String())
+		// DeleteRole validates role existence (to check IsSystem), so non-existent roles return 404
+		assert.Equal(t, http.StatusNotFound, rr.Code, "Body: %s", rr.Body.String())
 	})
 
 	t.Run("delete role bad request with invalid id", func(t *testing.T) {

@@ -91,6 +91,7 @@ describe("RolePermissionManagementModal", () => {
     id: "1",
     name: "teacher",
     description: "Teacher role",
+    isSystem: false,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };

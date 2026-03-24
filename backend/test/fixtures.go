@@ -1251,6 +1251,14 @@ func AssignStudentToGroup(tb testing.TB, db *bun.DB, studentID, groupID int64) {
 // CreateTestRole creates a role in the database for permission testing.
 func CreateTestRole(tb testing.TB, db *bun.DB, name string) *auth.Role {
 	tb.Helper()
+	return CreateTestRoleForTenant(tb, db, name, 1)
+}
+
+// CreateTestRoleForTenant creates a role scoped to the given tenant.
+// Use this when the test operates under a specific tenant context so that
+// FindByID's tenant filter (tenant_id = ? OR tenant_id IS NULL) can find it.
+func CreateTestRoleForTenant(tb testing.TB, db *bun.DB, name string, tenantID int64) *auth.Role {
+	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -1262,6 +1270,7 @@ func CreateTestRole(tb testing.TB, db *bun.DB, name string) *auth.Role {
 		Name:        uniqueName,
 		Description: "Test role: " + name,
 		IsSystem:    false,
+		TenantID:    &tenantID,
 	}
 
 	err := db.NewInsert().
@@ -1269,6 +1278,32 @@ func CreateTestRole(tb testing.TB, db *bun.DB, name string) *auth.Role {
 		ModelTableExpr(`auth.roles`).
 		Scan(ctx)
 	require.NoError(tb, err, "Failed to create test role")
+
+	return role
+}
+
+// CreateTestSystemRole creates a system role (tenant_id IS NULL, is_system = true).
+// System roles are immutable and visible to all tenants.
+func CreateTestSystemRole(tb testing.TB, db *bun.DB, name string) *auth.Role {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	uniqueName := fmt.Sprintf("%s-%d", name, time.Now().UnixNano())
+
+	role := &auth.Role{
+		Name:        uniqueName,
+		Description: "System role: " + name,
+		IsSystem:    true,
+		TenantID:    nil,
+	}
+
+	err := db.NewInsert().
+		Model(role).
+		ModelTableExpr(`auth.roles`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test system role")
 
 	return role
 }
@@ -1769,10 +1804,12 @@ func GetOrCreateTestRole(tb testing.TB, db *bun.DB, name string) *auth.Role {
 	}
 
 	// Create a new role if not found
+	tenantID := int64(1) // matches TenantContext(1) used by tests
 	role = auth.Role{
 		Name:        fmt.Sprintf("%s-%d", name, time.Now().UnixNano()),
 		Description: "Test role for " + name,
 		IsSystem:    false,
+		TenantID:    &tenantID,
 	}
 
 	err = db.NewInsert().

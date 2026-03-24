@@ -365,6 +365,31 @@ func TestRole_BeforeAppendModel(t *testing.T) {
 	})
 }
 
+func TestRole_GetTenantID(t *testing.T) {
+	t.Run("returns tenant ID when set", func(t *testing.T) {
+		tid := int64(42)
+		role := &Role{Name: "test", TenantID: &tid}
+		if got := role.GetTenantID(); got != 42 {
+			t.Errorf("GetTenantID() = %v, want 42", got)
+		}
+	})
+
+	t.Run("returns 0 for system role (nil tenant)", func(t *testing.T) {
+		role := &Role{Name: "system", TenantID: nil, IsSystem: true}
+		if got := role.GetTenantID(); got != 0 {
+			t.Errorf("GetTenantID() = %v, want 0", got)
+		}
+	})
+}
+
+func TestRole_SetTenantID(t *testing.T) {
+	role := &Role{Name: "test"}
+	role.SetTenantID(99)
+	if role.TenantID == nil || *role.TenantID != 99 {
+		t.Errorf("SetTenantID(99) did not set TenantID correctly")
+	}
+}
+
 func TestRole_GetID(t *testing.T) {
 	role := &Role{
 		Model: base.Model{ID: 42},

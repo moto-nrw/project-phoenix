@@ -2,12 +2,14 @@ package auth
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -25,21 +27,32 @@ type RoleRepository struct {
 
 // NewRoleRepository creates a new RoleRepository
 func NewRoleRepository(db *bun.DB) auth.RoleRepository {
+	repo := base.NewRepository[*auth.Role](db, roleTable, "Role")
+	repo.TenantScoped = true
 	return &RoleRepository{
-		Repository: base.NewRepository[*auth.Role](db, roleTable, "Role"),
+		Repository: repo,
 		db:         db,
 	}
 }
 
-// FindByName retrieves a role by its name
+// FindByName retrieves a role by its name, scoped to the current tenant.
+// Prefers tenant-specific roles over system roles when both exist.
 func (r *RoleRepository) FindByName(ctx context.Context, name string) (*auth.Role, error) {
 	role := new(auth.Role)
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(role).
 		ModelTableExpr(roleTableAlias).
-		Where("LOWER(role.name) = LOWER(?)", name).
-		Scan(ctx)
+		Where("LOWER(role.name) = LOWER(?)", name)
 
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("(role.tenant_id = ? OR role.tenant_id IS NULL)", tenantID)
+		// Prefer tenant-specific role over system role
+		query = query.OrderExpr("role.tenant_id IS NULL ASC")
+	}
+
+	query = query.Limit(1)
+
+	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by name",
@@ -140,11 +153,16 @@ func (r *RoleRepository) RemoveRoleFromAccount(_ context.Context, _ int64, _ int
 // GetRoleWithPermissions retrieves a role with its associated permissions
 func (r *RoleRepository) GetRoleWithPermissions(ctx context.Context, roleID int64) (*auth.Role, error) {
 	role := new(auth.Role)
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(role).
 		ModelTableExpr(roleTableAlias).
-		Where(whereRoleID, roleID).
-		Scan(ctx)
+		Where(whereRoleID, roleID)
+
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("(role.tenant_id = ? OR role.tenant_id IS NULL)", tenantID)
+	}
+
+	err := query.Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -173,6 +191,61 @@ func (r *RoleRepository) GetRoleWithPermissions(ctx context.Context, roleID int6
 	return role, nil
 }
 
+// FindByID overrides the base FindByID to include system roles (tenant_id IS NULL)
+// alongside tenant-specific roles in tenant-scoped lookups.
+func (r *RoleRepository) FindByID(ctx context.Context, id any) (*auth.Role, error) {
+	role := new(auth.Role)
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(role).
+		ModelTableExpr(roleTableAlias).
+		Where(whereRoleID, id)
+
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("(role.tenant_id = ? OR role.tenant_id IS NULL)", tenantID)
+	}
+
+	err := query.Scan(ctx)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by id",
+			Err: err,
+		}
+	}
+
+	return role, nil
+}
+
+// Delete overrides the base Delete to restrict deletions to tenant-owned roles only.
+// System roles (tenant_id IS NULL) cannot be deleted at the repository level.
+func (r *RoleRepository) Delete(ctx context.Context, id any) error {
+	query := base.GetDB(ctx, r.db).NewDelete().
+		Model((*auth.Role)(nil)).
+		ModelTableExpr(roleTableAlias).
+		Where(whereRoleID, id)
+
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("role.tenant_id = ?", tenantID)
+	}
+
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "delete",
+			Err: err,
+		}
+	}
+
+	affected, _ := result.RowsAffected()
+	if affected == 0 {
+		return &modelBase.DatabaseError{
+			Op:  "delete",
+			Err: sql.ErrNoRows,
+		}
+	}
+
+	return nil
+}
+
 // Create overrides the base Create method to handle validation
 func (r *RoleRepository) Create(ctx context.Context, role *auth.Role) error {
 	if role == nil {
@@ -199,12 +272,18 @@ func (r *RoleRepository) Update(ctx context.Context, role *auth.Role) error {
 		return err
 	}
 
-	// Execute the query using GetDB for transaction support
-	_, err := base.GetDB(ctx, r.db).NewUpdate().
+	// Execute the query using GetDB for transaction support.
+	// Only tenant-owned roles can be updated; system roles (tenant_id IS NULL) are excluded.
+	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model(role).
 		Where(whereRoleID, role.ID).
-		ModelTableExpr(roleTableAlias).
-		Exec(ctx)
+		ModelTableExpr(roleTableAlias)
+
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("role.tenant_id = ?", tenantID)
+	}
+
+	result, err := query.Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update",
@@ -212,15 +291,30 @@ func (r *RoleRepository) Update(ctx context.Context, role *auth.Role) error {
 		}
 	}
 
+	affected, _ := result.RowsAffected()
+	if affected == 0 {
+		return &modelBase.DatabaseError{
+			Op:  "update",
+			Err: sql.ErrNoRows,
+		}
+	}
+
 	return nil
 }
 
-// List retrieves roles matching the provided filters
+// List retrieves roles matching the provided filters.
+// For tenant-scoped requests, returns both system roles (tenant_id IS NULL)
+// and the tenant's own roles.
 func (r *RoleRepository) List(ctx context.Context, filters map[string]interface{}) ([]*auth.Role, error) {
 	var roles []*auth.Role
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&roles).
 		ModelTableExpr(roleTableAlias)
+
+	// Tenant filter: show system roles + tenant's own roles
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("(role.tenant_id = ? OR role.tenant_id IS NULL)", tenantID)
+	}
 
 	// Apply filters
 	for field, value := range filters {

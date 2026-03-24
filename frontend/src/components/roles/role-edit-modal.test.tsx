@@ -86,6 +86,7 @@ describe("RoleEditModal", () => {
     id: "1",
     name: "Test Role",
     description: "Test role description",
+    isSystem: false,
     createdAt: "2024-01-01T00:00:00Z",
     updatedAt: "2024-01-01T00:00:00Z",
   };

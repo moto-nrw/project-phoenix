@@ -81,12 +81,90 @@ func TestAuthService_DeleteRole_Extended(t *testing.T) {
 		}
 	})
 
-	t.Run("is idempotent for non-existent role", func(t *testing.T) {
-		// ACT - DeleteRole is idempotent, doesn't error on non-existent role
+	t.Run("returns error for non-existent role", func(t *testing.T) {
+		// ACT - DeleteRole validates existence (to check IsSystem), so non-existent role returns error
 		err := service.DeleteRole(ctx, 99999999)
 
 		// ASSERT
+		require.Error(t, err)
+	})
+
+	t.Run("returns error when deleting a system role", func(t *testing.T) {
+		// ARRANGE - create a system role directly in the DB
+		systemRole := testpkg.CreateTestSystemRole(t, db, "test-system")
+
+		// ACT
+		err := service.DeleteRole(ctx, int(systemRole.ID))
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "system roles cannot be modified")
+	})
+}
+
+func TestAuthService_UpdateRole_SystemRoleProtection(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthServiceWithDB(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	t.Run("returns error when updating a system role", func(t *testing.T) {
+		// ARRANGE
+		systemRole := testpkg.CreateTestSystemRole(t, db, "test-system")
+		systemRole.Description = "attempted update"
+
+		// ACT
+		err := service.UpdateRole(ctx, systemRole)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "system roles cannot be modified")
+	})
+}
+
+func TestAuthService_AssignPermissionToRole_SystemRoleProtection(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthServiceWithDB(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	t.Run("returns error when assigning permission to a system role", func(t *testing.T) {
+		// ARRANGE
+		systemRole := testpkg.CreateTestSystemRole(t, db, "test-system")
+
+		permName := fmt.Sprintf("sys-role-perm-%d", time.Now().UnixNano())
+		resource := fmt.Sprintf("sys-role-res-%d", time.Now().UnixNano())
+		perm, err := service.CreatePermission(ctx, permName, "Test permission", resource, "read")
 		require.NoError(t, err)
+
+		// ACT
+		err = service.AssignPermissionToRole(ctx, int(systemRole.ID), int(perm.ID))
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "system roles cannot be modified")
+	})
+}
+
+func TestAuthService_RemovePermissionFromRole_SystemRoleProtection(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthServiceWithDB(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	t.Run("returns error when removing permission from a system role", func(t *testing.T) {
+		// ARRANGE
+		systemRole := testpkg.CreateTestSystemRole(t, db, "test-system")
+
+		// ACT
+		err := service.RemovePermissionFromRole(ctx, int(systemRole.ID), 1)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "system roles cannot be modified")
 	})
 }
 

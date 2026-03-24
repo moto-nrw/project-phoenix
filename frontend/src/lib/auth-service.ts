@@ -56,6 +56,8 @@ interface RawRoleData {
   id?: number;
   name?: string;
   description?: string;
+  is_system?: boolean;
+  isSystem?: boolean;
   created_at?: string;
   createdAt?: string;
   updated_at?: string;
@@ -119,6 +121,7 @@ function normalizeRoleCasing(roleData: BackendRole): BackendRole {
       ID: raw.id,
       Name: raw.name ?? "",
       Description: raw.description ?? "",
+      IsSystem: raw.is_system ?? raw.isSystem ?? false,
       CreatedAt: raw.created_at ?? raw.createdAt ?? "",
       UpdatedAt: raw.updated_at ?? raw.updatedAt ?? "",
       Permissions: raw.permissions,
