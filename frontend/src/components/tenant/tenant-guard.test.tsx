@@ -16,8 +16,8 @@ const { mockUseTenant } = vi.hoisted(() => ({
   mockUseTenant: vi.fn(),
 }));
 
-const { mockSwitchTenant } = vi.hoisted(() => ({
-  mockSwitchTenant: vi.fn(),
+const { mockPerformTenantSwitch } = vi.hoisted(() => ({
+  mockPerformTenantSwitch: vi.fn(),
 }));
 
 const { mockMutate } = vi.hoisted(() => ({
@@ -39,7 +39,7 @@ vi.mock("~/components/tenant/tenant-provider", () => ({
 }));
 
 vi.mock("~/lib/tenant-api", () => ({
-  switchTenant: mockSwitchTenant,
+  performTenantSwitch: mockPerformTenantSwitch,
   TenantSwitchError: class TenantSwitchError extends Error {
     status: number;
     code: "access_denied" | "unknown";
@@ -175,7 +175,7 @@ describe("TenantGuard", () => {
       tenant: tenantB,
     });
     // Prevent the switch from resolving immediately
-    mockSwitchTenant.mockReturnValue(new Promise(vi.fn()));
+    mockPerformTenantSwitch.mockReturnValue(new Promise(vi.fn()));
 
     render(
       <TenantGuard>
@@ -187,7 +187,7 @@ describe("TenantGuard", () => {
     expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
   });
 
-  it("calls switchTenant + signIn + cache clear on mismatch", async () => {
+  it("calls performTenantSwitch + update on mismatch", async () => {
     const mockUpdate = vi.fn().mockResolvedValue(undefined);
     mockUseSession.mockReturnValue({
       data: { user: { tenantId: 1 } },
@@ -198,7 +198,7 @@ describe("TenantGuard", () => {
       tenantSlug: "school-b",
       tenant: tenantB,
     });
-    mockSwitchTenant.mockResolvedValue({
+    mockPerformTenantSwitch.mockResolvedValue({
       access_token: "new-access",
       refresh_token: "new-refresh",
     });
@@ -210,18 +210,13 @@ describe("TenantGuard", () => {
     );
 
     await waitFor(() => {
-      expect(mockSwitchTenant).toHaveBeenCalledWith("school-b");
+      expect(mockPerformTenantSwitch).toHaveBeenCalledWith(
+        "school-b",
+        mockSignIn,
+        mockMutate,
+      );
     });
 
-    expect(mockSignIn).toHaveBeenCalledWith("credentials", {
-      redirect: false,
-      internalRefresh: true,
-      token: "new-access",
-      refreshToken: "new-refresh",
-    });
-
-    expect(mockMutate).toHaveBeenCalled();
-    expect(mockClearSessionCache).toHaveBeenCalled();
     expect(mockUpdate).toHaveBeenCalled();
   });
 
@@ -235,7 +230,7 @@ describe("TenantGuard", () => {
       tenantSlug: "school-b",
       tenant: tenantB,
     });
-    mockSwitchTenant.mockRejectedValue(
+    mockPerformTenantSwitch.mockRejectedValue(
       new TenantSwitchError(
         "account does not have access to this tenant",
         401,
@@ -287,7 +282,7 @@ describe("TenantGuard", () => {
     expect(window.location.assign).toHaveBeenCalledWith("/");
 
     // Should NOT attempt tenant switching
-    expect(mockSwitchTenant).not.toHaveBeenCalled();
+    expect(mockPerformTenantSwitch).not.toHaveBeenCalled();
   });
 
   it("redirects to tenant login even when signOut fails", async () => {
@@ -365,7 +360,7 @@ describe("TenantGuard", () => {
 
     // Should render children without attempting a switch
     expect(screen.getByText("Protected Content")).toBeInTheDocument();
-    expect(mockSwitchTenant).not.toHaveBeenCalled();
+    expect(mockPerformTenantSwitch).not.toHaveBeenCalled();
   });
 
   it("does not sign out on transient switch failures", async () => {
@@ -378,7 +373,7 @@ describe("TenantGuard", () => {
       tenantSlug: "school-b",
       tenant: tenantB,
     });
-    mockSwitchTenant.mockRejectedValue(new Error("network down"));
+    mockPerformTenantSwitch.mockRejectedValue(new Error("network down"));
 
     render(
       <TenantGuard>
@@ -387,7 +382,11 @@ describe("TenantGuard", () => {
     );
 
     await waitFor(() => {
-      expect(mockSwitchTenant).toHaveBeenCalledWith("school-b");
+      expect(mockPerformTenantSwitch).toHaveBeenCalledWith(
+        "school-b",
+        mockSignIn,
+        mockMutate,
+      );
     });
 
     expect(mockSignOut).not.toHaveBeenCalled();
@@ -403,7 +402,7 @@ describe("TenantGuard", () => {
       tenantSlug: "school-b",
       tenant: tenantB,
     });
-    mockSwitchTenant.mockRejectedValue(new Error("temporary failure"));
+    mockPerformTenantSwitch.mockRejectedValue(new Error("temporary failure"));
 
     const { unmount } = render(
       <TenantGuard>
@@ -412,13 +411,19 @@ describe("TenantGuard", () => {
     );
 
     await waitFor(() => {
-      expect(mockSwitchTenant).toHaveBeenCalledWith("school-b");
+      expect(mockPerformTenantSwitch).toHaveBeenCalledWith(
+        "school-b",
+        mockSignIn,
+        mockMutate,
+      );
     });
 
-    expect(mockSwitchTenant).toHaveBeenCalledTimes(1);
+    expect(mockPerformTenantSwitch).toHaveBeenCalledTimes(1);
 
     unmount();
-    mockSwitchTenant.mockRejectedValueOnce(new Error("temporary failure"));
+    mockPerformTenantSwitch.mockRejectedValueOnce(
+      new Error("temporary failure"),
+    );
 
     render(
       <TenantGuard>
@@ -427,7 +432,7 @@ describe("TenantGuard", () => {
     );
 
     await waitFor(() => {
-      expect(mockSwitchTenant).toHaveBeenCalledTimes(2);
+      expect(mockPerformTenantSwitch).toHaveBeenCalledTimes(2);
     });
 
     expect(mockSignOut).not.toHaveBeenCalled();
@@ -452,6 +457,6 @@ describe("TenantGuard", () => {
 
     // tenant is null — guard skips check, renders children
     expect(screen.getByText("Protected Content")).toBeInTheDocument();
-    expect(mockSwitchTenant).not.toHaveBeenCalled();
+    expect(mockPerformTenantSwitch).not.toHaveBeenCalled();
   });
 });

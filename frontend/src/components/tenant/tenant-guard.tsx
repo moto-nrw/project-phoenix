@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { mutate } from "~/lib/swr";
 import { clearSessionCache } from "~/lib/session-cache";
-import { TenantSwitchError, switchTenant } from "~/lib/tenant-api";
+import { TenantSwitchError, performTenantSwitch } from "~/lib/tenant-api";
 import { useTenant } from "~/components/tenant/tenant-provider";
 import { createLogger } from "~/lib/logger";
 
@@ -99,24 +99,9 @@ export function TenantGuard({ children }: { children: React.ReactNode }) {
 
     void (async () => {
       try {
-        // 1. Get new tokens for the URL tenant
-        const tokens = await switchTenant(urlSlug!);
+        await performTenantSwitch(urlSlug!, signIn, mutate);
 
-        // 2. Update NextAuth session with the new tokens
-        await signIn("credentials", {
-          redirect: false,
-          internalRefresh: true,
-          token: tokens.access_token,
-          refreshToken: tokens.refresh_token,
-        });
-
-        // 3. Clear SWR cache to prevent stale cross-tenant data
-        await mutate(() => true, undefined, { revalidate: false });
-
-        // 4. Clear session cache for fresh token resolution
-        clearSessionCache();
-
-        // 5. Refetch session to trigger re-render with new tenant
+        // Refetch session to trigger re-render with new tenant
         await update();
 
         logger.info("tenant_auto_switched", {
