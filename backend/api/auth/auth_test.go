@@ -635,14 +635,14 @@ func TestRegisterRequiresAdminAuth(t *testing.T) {
 		testutil.AssertUnauthorized(t, rr)
 	})
 
-	t.Run("non-admin returns unauthorized", func(t *testing.T) {
+	t.Run("non-admin returns forbidden", func(t *testing.T) {
 		// Create a regular (non-admin) account and log in
 		userEmail := fmt.Sprintf("nonadmin_%d@example.com", time.Now().UnixNano())
 		userPassword := "UserPass123!"
 		userAccount := testpkg.CreateTestAccountWithPassword(t, db, userEmail, userPassword)
 		testpkg.EnsureAccountTenant(t, db, userAccount.ID, 1)
 
-		// Assign a "user" role (not admin)
+		// Assign a "user" role (not admin) — no users:create permission
 		userRole := testpkg.GetOrCreateTestRole(t, db, "user")
 		ctx := context.Background()
 		userAccountRole := &authModel.AccountRole{
@@ -670,12 +670,12 @@ func TestRegisterRequiresAdminAuth(t *testing.T) {
 		loginResp := testutil.ParseJSONResponse(t, loginRR.Body.Bytes())
 		accessToken := loginResp["access_token"].(string)
 
-		// Try to register with non-admin token
+		// Try to register with non-admin token — 403 because user lacks users:create permission
 		req := testutil.NewJSONRequest(t, "POST", "/auth/register", validBody())
 		req.Header.Set("Authorization", "Bearer "+accessToken)
 		rr := testutil.ExecuteRequest(router, req)
 
-		testutil.AssertUnauthorized(t, rr)
+		testutil.AssertForbidden(t, rr)
 	})
 
 	t.Run("admin without role_id returns bad request", func(t *testing.T) {
