@@ -81,12 +81,12 @@ func TestAuthService_DeleteRole_Extended(t *testing.T) {
 		}
 	})
 
-	t.Run("is idempotent for non-existent role", func(t *testing.T) {
-		// ACT - DeleteRole is idempotent, doesn't error on non-existent role
+	t.Run("returns error for non-existent role", func(t *testing.T) {
+		// ACT - DeleteRole validates existence (to check IsSystem), so non-existent role returns error
 		err := service.DeleteRole(ctx, 99999999)
 
 		// ASSERT
-		require.NoError(t, err)
+		require.Error(t, err)
 	})
 }
 

@@ -1258,10 +1258,12 @@ func CreateTestRole(tb testing.TB, db *bun.DB, name string) *auth.Role {
 	// Make name unique
 	uniqueName := fmt.Sprintf("%s-%d", name, time.Now().UnixNano())
 
+	tenantID := int64(1) // matches TenantContext(1) used by tests
 	role := &auth.Role{
 		Name:        uniqueName,
 		Description: "Test role: " + name,
 		IsSystem:    false,
+		TenantID:    &tenantID,
 	}
 
 	err := db.NewInsert().
@@ -1769,10 +1771,12 @@ func GetOrCreateTestRole(tb testing.TB, db *bun.DB, name string) *auth.Role {
 	}
 
 	// Create a new role if not found
+	tenantID := int64(1) // matches TenantContext(1) used by tests
 	role = auth.Role{
 		Name:        fmt.Sprintf("%s-%d", name, time.Now().UnixNano()),
 		Description: "Test role for " + name,
 		IsSystem:    false,
+		TenantID:    &tenantID,
 	}
 
 	err = db.NewInsert().

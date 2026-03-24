@@ -1105,6 +1105,10 @@ func renderRoleMutationError(err error) render.Renderer {
 			return ErrorNotFound(authErr.Err)
 		}
 	}
+	// FindByID failures (sql.ErrNoRows wrapped in DatabaseError) → 404
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrorNotFound(errors.New("role not found"))
+	}
 	return ErrorInternalServer(err)
 }
 
