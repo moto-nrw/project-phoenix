@@ -317,6 +317,23 @@ export default function GuardianFormModal({
     setEntries((prev) => prev.filter((entry) => entry.id !== id));
   };
 
+  // Validate phone number format (matches backend: digits, spaces, +, -, parens, min 3 digits)
+  const validatePhoneNumber = (phone: string): string | null => {
+    const trimmed = phone.trim();
+    if (trimmed === "") return null; // Empty phones are filtered out before submit
+
+    if (!/^[\d\s+\-()]+$/.test(trimmed)) {
+      return "Ungültiges Format (nur Ziffern, Leerzeichen, +, -, Klammern erlaubt)";
+    }
+
+    const digitCount = (trimmed.match(/\d/g) ?? []).length;
+    if (digitCount < 3) {
+      return "Telefonnummer muss mindestens 3 Ziffern enthalten";
+    }
+
+    return null;
+  };
+
   // Validate all entries
   const validateEntries = (): string | null => {
     for (let i = 0; i < entries.length; i++) {
@@ -327,6 +344,29 @@ export default function GuardianFormModal({
 
       if (!entry.firstName.trim() || !entry.lastName.trim()) {
         return `Vorname und Nachname sind erforderlich${label}`;
+      }
+
+      // Validate email format if provided (basic check, backend does full validation)
+      if (entry.email.trim() !== "") {
+        const trimmedEmail = entry.email.trim();
+        const atIndex = trimmedEmail.indexOf("@");
+        const dotIndex = trimmedEmail.lastIndexOf(".");
+        if (
+          atIndex < 1 ||
+          dotIndex < atIndex + 2 ||
+          dotIndex >= trimmedEmail.length - 1 ||
+          trimmedEmail.includes(" ")
+        ) {
+          return `Ungültiges E-Mail-Format${label}`;
+        }
+      }
+
+      // Validate phone number formats
+      for (const phone of entry.phoneNumbers) {
+        const phoneError = validatePhoneNumber(phone.phoneNumber);
+        if (phoneError) {
+          return `${phoneError}${label}`;
+        }
       }
 
       // Check for at least one contact method
