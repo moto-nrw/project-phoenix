@@ -2,6 +2,13 @@
 // Caches getSession() results to avoid redundant calls when multiple
 // service files fetch data in parallel (e.g. 5 parallel fetches = 1 session call).
 
+/**
+ * sessionStorage key used to distinguish a deliberate logout from a
+ * session-expiry redirect.  Shared between the logout flow
+ * (shell-auth-context) and the login page ([tenant]/page.tsx).
+ */
+export const DELIBERATE_LOGOUT_KEY = "deliberateLogout";
+
 import { getSession } from "next-auth/react";
 
 let cached: {

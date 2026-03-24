@@ -15,6 +15,7 @@ import { LoginHelpContent } from "~/components/shared/login-help-content";
 import { useTenant } from "~/components/tenant/tenant-provider";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { env } from "~/env";
+import { DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
 
 import { createLogger } from "~/lib/logger";
 
@@ -87,11 +88,27 @@ function LoginForm() {
     void checkAndRedirect();
   }, [status, session]);
 
-  // Check for session errors in URL
+  // Check for session errors in URL — but suppress after a deliberate logout.
+  // NextAuth's useSession({ required: true }) races the logout navigation and
+  // can redirect here with ?error=SessionRequired before the page unloads.
   useEffect(() => {
     const urlError = searchParams.get("error");
     if (urlError === "SessionRequired" || urlError === "SessionExpired") {
-      setError("Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.");
+      let deliberate = false;
+      try {
+        deliberate = sessionStorage.getItem(DELIBERATE_LOGOUT_KEY) === "1";
+        sessionStorage.removeItem(DELIBERATE_LOGOUT_KEY);
+      } catch {
+        // sessionStorage unavailable
+      }
+      if (deliberate) {
+        // Clean up NextAuth's error/callbackUrl params from the URL
+        window.history.replaceState({}, "", window.location.pathname);
+      } else {
+        setError(
+          "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.",
+        );
+      }
     }
   }, [searchParams]);
 
