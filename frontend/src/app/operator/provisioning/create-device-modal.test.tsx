@@ -70,7 +70,7 @@ describe("CreateDeviceModal", () => {
     mockCreateDevice.mockResolvedValue({
       id: "200",
       deviceId: "DEV-001",
-      deviceType: "rfid_reader",
+      deviceType: "terminal",
       name: "Eingang",
       status: "active",
       apiKey: "manual-key",
@@ -98,7 +98,7 @@ describe("CreateDeviceModal", () => {
       target: { value: "  DEV-001  " },
     });
     fireEvent.change(screen.getByLabelText(/Typ/), {
-      target: { value: "rfid_reader" },
+      target: { value: "terminal" },
     });
     fireEvent.change(screen.getByLabelText("Name"), {
       target: { value: "  Eingang  " },
@@ -114,7 +114,7 @@ describe("CreateDeviceModal", () => {
       expect(mockCreateDevice).toHaveBeenCalledWith({
         school_id: 10,
         device_id: "DEV-001",
-        device_type: "rfid_reader",
+        device_type: "terminal",
         name: "Eingang",
         api_key: "manual-key",
       });
@@ -145,7 +145,7 @@ describe("CreateDeviceModal", () => {
       target: { value: "DEV-001" },
     });
     fireEvent.change(screen.getByLabelText(/Typ/), {
-      target: { value: "rfid_reader" },
+      target: { value: "terminal" },
     });
     fireEvent.click(screen.getByText("Erstellen"));
 
@@ -174,7 +174,7 @@ describe("CreateDeviceModal", () => {
       target: { value: "DEV-001" },
     });
     fireEvent.change(screen.getByLabelText(/Typ/), {
-      target: { value: "rfid_reader" },
+      target: { value: "terminal" },
     });
     fireEvent.click(screen.getByText("Erstellen"));
 
@@ -203,7 +203,7 @@ describe("CreateDeviceModal", () => {
       target: { value: "DEV-001" },
     });
     fireEvent.change(screen.getByLabelText(/Typ/), {
-      target: { value: "rfid_reader" },
+      target: { value: "terminal" },
     });
     fireEvent.click(screen.getByText("Erstellen"));
 
@@ -220,7 +220,7 @@ describe("CreateDeviceModal", () => {
     mockCreateDevice.mockResolvedValue({
       id: "200",
       deviceId: "DEV-001",
-      deviceType: "rfid_reader",
+      deviceType: "terminal",
       name: "Eingang",
       status: "active",
       apiKey: "",
@@ -251,7 +251,7 @@ describe("CreateDeviceModal", () => {
       target: { value: "DEV-001" },
     });
     fireEvent.change(screen.getByLabelText(/Typ/), {
-      target: { value: "rfid_reader" },
+      target: { value: "terminal" },
     });
 
     fireEvent.submit(container.querySelector("#create-device-form")!);
@@ -273,7 +273,7 @@ describe("CreateDeviceModal", () => {
     mockCreateDevice.mockResolvedValue({
       id: "200",
       deviceId: "DEV-001",
-      deviceType: "rfid_reader",
+      deviceType: "terminal",
       name: "Eingang",
       status: "active",
       apiKey: "manual-key",
@@ -301,7 +301,7 @@ describe("CreateDeviceModal", () => {
       target: { value: "DEV-001" },
     });
     fireEvent.change(screen.getByLabelText(/Typ/), {
-      target: { value: "rfid_reader" },
+      target: { value: "terminal" },
     });
     fireEvent.click(screen.getByText("Erstellen"));
 
@@ -327,7 +327,7 @@ describe("CreateDeviceModal", () => {
     mockCreateDevice.mockResolvedValue({
       id: "200",
       deviceId: "DEV-001",
-      deviceType: "rfid_reader",
+      deviceType: "terminal",
       name: "Eingang",
       status: "active",
       apiKey: "manual-key",
@@ -355,7 +355,7 @@ describe("CreateDeviceModal", () => {
       target: { value: "DEV-001" },
     });
     fireEvent.change(screen.getByLabelText(/Typ/), {
-      target: { value: "rfid_reader" },
+      target: { value: "terminal" },
     });
     fireEvent.click(screen.getByText("Erstellen"));
 

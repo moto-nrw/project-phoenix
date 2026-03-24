@@ -41,15 +41,15 @@ export const devicesConfig = defineEntityConfig<Device>({
             label: "Geräte-ID",
             type: "text",
             required: true,
-            placeholder: "z.B. RFID-001",
+            placeholder: "z.B. T-001",
             helperText: "Eindeutige Kennung für das Gerät",
           },
-          // Gerätetyp ist immer RFID-Leser; Feld in der UI ausgeblendet (Default wird genutzt)
+          // Gerätetyp: kein Feld in Tenant-UI (Default "terminal"); Operator-UI hat Dropdown
           {
             name: "name",
             label: "Gerätename",
             type: "text",
-            placeholder: "z.B. Haupteingang RFID-Leser",
+            placeholder: "z.B. Eingangsbereich Terminal",
             helperText: "Optionaler Name zur besseren Identifikation",
           },
           {
@@ -71,7 +71,7 @@ export const devicesConfig = defineEntityConfig<Device>({
 
     defaultValues: {
       status: "active" as const,
-      device_type: "rfid_reader",
+      device_type: "terminal",
     },
 
     transformBeforeSubmit: (data) => {

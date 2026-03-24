@@ -65,7 +65,7 @@ func TestListDevices_WithTypeFilter(t *testing.T) {
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Get("/devices", ctx.resource.ListDevicesHandler())
 
-	req := testutil.NewAuthenticatedRequest(t, "GET", "/devices?device_type=rfid_reader", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/devices?device_type=terminal", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:read"),
 	)
@@ -228,7 +228,7 @@ func TestCreateDevice_Success(t *testing.T) {
 	uniqueID := fmt.Sprintf("new-device-%d", time.Now().UnixNano())
 	body := map[string]interface{}{
 		"device_id":   uniqueID,
-		"device_type": "rfid_reader",
+		"device_type": "terminal",
 		"name":        "Test Device",
 	}
 
@@ -258,7 +258,7 @@ func TestCreateDevice_MissingDeviceID(t *testing.T) {
 	router.Post("/devices", ctx.resource.CreateDeviceHandler())
 
 	body := map[string]interface{}{
-		"device_type": "rfid_reader",
+		"device_type": "terminal",
 		"name":        "Test Device",
 	}
 
@@ -313,7 +313,7 @@ func TestUpdateDevice_Success(t *testing.T) {
 
 	body := map[string]interface{}{
 		"device_id":   uniqueID,
-		"device_type": "rfid_reader",
+		"device_type": "terminal",
 		"name":        "Updated Device Name",
 	}
 
@@ -336,7 +336,7 @@ func TestUpdateDevice_NotFound(t *testing.T) {
 
 	body := map[string]interface{}{
 		"device_id":   "test",
-		"device_type": "rfid_reader",
+		"device_type": "terminal",
 		"name":        "Test",
 	}
 
@@ -359,7 +359,7 @@ func TestUpdateDevice_InvalidID(t *testing.T) {
 
 	body := map[string]interface{}{
 		"device_id":   "test",
-		"device_type": "rfid_reader",
+		"device_type": "terminal",
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/devices/invalid", body,
@@ -539,7 +539,7 @@ func TestGetDevicesByType_Success(t *testing.T) {
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Get("/devices/type/{type}", ctx.resource.GetDevicesByTypeHandler())
 
-	req := testutil.NewAuthenticatedRequest(t, "GET", "/devices/type/rfid_reader", nil,
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/devices/type/terminal", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:read"),
 	)

@@ -17,7 +17,7 @@ func TestDevice_Validate(t *testing.T) {
 			name: "Valid device",
 			device: Device{
 				DeviceID:   "dev-001",
-				DeviceType: "sensor",
+				DeviceType: "terminal",
 				Status:     DeviceStatusActive,
 			},
 			wantErr: false,
@@ -26,7 +26,7 @@ func TestDevice_Validate(t *testing.T) {
 			name: "Empty device ID",
 			device: Device{
 				DeviceID:   "",
-				DeviceType: "sensor",
+				DeviceType: "terminal",
 				Status:     DeviceStatusActive,
 			},
 			wantErr: true,
@@ -44,7 +44,7 @@ func TestDevice_Validate(t *testing.T) {
 			name: "Invalid status",
 			device: Device{
 				DeviceID:   "dev-001",
-				DeviceType: "sensor",
+				DeviceType: "terminal",
 				Status:     "invalid_status",
 			},
 			wantErr: true,
@@ -53,7 +53,7 @@ func TestDevice_Validate(t *testing.T) {
 			name: "Empty status defaulting to active",
 			device: Device{
 				DeviceID:   "dev-001",
-				DeviceType: "sensor",
+				DeviceType: "terminal",
 				Status:     "",
 			},
 			wantErr: false,
@@ -109,7 +109,7 @@ func TestDevice_IsActive(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			device := Device{
 				DeviceID:   "dev-001",
-				DeviceType: "sensor",
+				DeviceType: "terminal",
 				Status:     tt.status,
 			}
 
@@ -123,7 +123,7 @@ func TestDevice_IsActive(t *testing.T) {
 func TestDevice_UpdateLastSeen(t *testing.T) {
 	device := Device{
 		DeviceID:   "dev-001",
-		DeviceType: "sensor",
+		DeviceType: "terminal",
 	}
 
 	// Verify LastSeen is initially nil
@@ -150,7 +150,7 @@ func TestDevice_UpdateLastSeen(t *testing.T) {
 func TestDevice_SetStatus(t *testing.T) {
 	device := Device{
 		DeviceID:   "dev-001",
-		DeviceType: "sensor",
+		DeviceType: "terminal",
 		Status:     DeviceStatusActive,
 	}
 
@@ -177,7 +177,7 @@ func TestDevice_GetLastSeenDuration(t *testing.T) {
 	// Test with nil LastSeen
 	device := Device{
 		DeviceID:   "dev-001",
-		DeviceType: "sensor",
+		DeviceType: "terminal",
 		LastSeen:   nil,
 	}
 
@@ -206,7 +206,7 @@ func TestDevice_IsOnline(t *testing.T) {
 	// Test with nil LastSeen
 	device := Device{
 		DeviceID:   "dev-001",
-		DeviceType: "sensor",
+		DeviceType: "terminal",
 		LastSeen:   nil,
 	}
 
@@ -258,7 +258,7 @@ func TestDevice_HasAPIKey(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			device := &Device{
 				DeviceID:   "dev-001",
-				DeviceType: "sensor",
+				DeviceType: "terminal",
 				APIKey:     tt.apiKey,
 			}
 
@@ -273,7 +273,7 @@ func TestDevice_BeforeAppendModel(t *testing.T) {
 	t.Run("handles nil query", func(t *testing.T) {
 		device := &Device{
 			DeviceID:   "dev-001",
-			DeviceType: "sensor",
+			DeviceType: "terminal",
 			Status:     DeviceStatusActive,
 		}
 		err := device.BeforeAppendModel(nil)
@@ -285,7 +285,7 @@ func TestDevice_BeforeAppendModel(t *testing.T) {
 	t.Run("returns no error for unknown query type", func(t *testing.T) {
 		device := &Device{
 			DeviceID:   "dev-001",
-			DeviceType: "sensor",
+			DeviceType: "terminal",
 			Status:     DeviceStatusActive,
 		}
 		err := device.BeforeAppendModel("some string")
@@ -334,7 +334,7 @@ func TestDevice_IsOffline(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			device := Device{
 				DeviceID:   "dev-001",
-				DeviceType: "sensor",
+				DeviceType: "terminal",
 				Status:     tt.status,
 			}
 
@@ -349,7 +349,7 @@ func TestDevice_GetID(t *testing.T) {
 	device := &Device{
 		Model:      base.Model{ID: 42},
 		DeviceID:   "dev-001",
-		DeviceType: "sensor",
+		DeviceType: "terminal",
 		Status:     DeviceStatusActive,
 	}
 
@@ -363,7 +363,7 @@ func TestDevice_GetCreatedAt(t *testing.T) {
 	device := &Device{
 		Model:      base.Model{CreatedAt: now},
 		DeviceID:   "dev-001",
-		DeviceType: "sensor",
+		DeviceType: "terminal",
 		Status:     DeviceStatusActive,
 	}
 
@@ -377,7 +377,7 @@ func TestDevice_GetUpdatedAt(t *testing.T) {
 	device := &Device{
 		Model:      base.Model{UpdatedAt: now},
 		DeviceID:   "dev-001",
-		DeviceType: "sensor",
+		DeviceType: "terminal",
 		Status:     DeviceStatusActive,
 	}
 

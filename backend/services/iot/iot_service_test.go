@@ -41,7 +41,7 @@ func TestIoTService_CreateDevice(t *testing.T) {
 		// ARRANGE
 		device := &iotModels.Device{
 			DeviceID:   fmt.Sprintf("test-device-%d", time.Now().UnixNano()),
-			DeviceType: "rfid_reader",
+			DeviceType: "terminal",
 			Name:       stringPtr("Test Device"),
 		}
 
@@ -64,7 +64,7 @@ func TestIoTService_CreateDevice(t *testing.T) {
 		providedAPIKey := fmt.Sprintf("custom-api-key-%d", time.Now().UnixNano())
 		device := &iotModels.Device{
 			DeviceID:   fmt.Sprintf("test-device-custom-%d", time.Now().UnixNano()),
-			DeviceType: "rfid_reader",
+			DeviceType: "terminal",
 			APIKey:     &providedAPIKey,
 		}
 
@@ -92,7 +92,7 @@ func TestIoTService_CreateDevice(t *testing.T) {
 		// ARRANGE
 		device := &iotModels.Device{
 			DeviceID:   "", // invalid
-			DeviceType: "rfid_reader",
+			DeviceType: "terminal",
 		}
 
 		// ACT
@@ -124,7 +124,7 @@ func TestIoTService_CreateDevice(t *testing.T) {
 		// Try to create another device with the same device ID
 		duplicateDevice := &iotModels.Device{
 			DeviceID:   existingDevice.DeviceID,
-			DeviceType: "rfid_reader",
+			DeviceType: "terminal",
 		}
 
 		// ACT
@@ -255,7 +255,7 @@ func TestIoTService_UpdateDevice(t *testing.T) {
 		// Modify device
 		newName := "Updated Device Name"
 		device.Name = &newName
-		device.DeviceType = "temperature_sensor"
+		device.DeviceType = "terminal"
 
 		// ACT
 		err := service.UpdateDevice(ctx, device)
@@ -267,7 +267,7 @@ func TestIoTService_UpdateDevice(t *testing.T) {
 		updated, err := service.GetDeviceByID(ctx, device.ID)
 		require.NoError(t, err)
 		assert.Equal(t, newName, *updated.Name)
-		assert.Equal(t, "temperature_sensor", updated.DeviceType)
+		assert.Equal(t, "terminal", updated.DeviceType)
 	})
 
 	t.Run("returns error for nil device", func(t *testing.T) {
@@ -283,7 +283,7 @@ func TestIoTService_UpdateDevice(t *testing.T) {
 		// ARRANGE
 		device := &iotModels.Device{
 			DeviceID:   "some-device",
-			DeviceType: "rfid_reader",
+			DeviceType: "terminal",
 		}
 		device.ID = 0 // Set ID via embedded base.Model
 
@@ -299,7 +299,7 @@ func TestIoTService_UpdateDevice(t *testing.T) {
 		// ARRANGE
 		device := &iotModels.Device{
 			DeviceID:   "non-existent",
-			DeviceType: "rfid_reader",
+			DeviceType: "terminal",
 		}
 		device.ID = 99999999 // Set ID via embedded base.Model
 
@@ -579,18 +579,18 @@ func TestIoTService_GetDevicesByType(t *testing.T) {
 	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns devices of specified type", func(t *testing.T) {
-		// ARRANGE - CreateTestDevice creates rfid_reader type
+		// ARRANGE - CreateTestDevice creates terminal type
 		device := testpkg.CreateTestDevice(t, db, "type-filter")
 		defer testpkg.CleanupActivityFixtures(t, db, device.ID)
 
 		// ACT
-		result, err := service.GetDevicesByType(ctx, "rfid_reader")
+		result, err := service.GetDevicesByType(ctx, "terminal")
 
 		// ASSERT
 		require.NoError(t, err)
 		assert.NotEmpty(t, result)
 		for _, d := range result {
-			assert.Equal(t, "rfid_reader", d.DeviceType)
+			assert.Equal(t, "terminal", d.DeviceType)
 		}
 	})
 
@@ -668,7 +668,7 @@ func TestIoTService_GetDevicesByRegisteredBy(t *testing.T) {
 
 		device := &iotModels.Device{
 			DeviceID:       fmt.Sprintf("registered-device-%d", time.Now().UnixNano()),
-			DeviceType:     "rfid_reader",
+			DeviceType:     "terminal",
 			RegisteredByID: &person.ID,
 		}
 		err := service.CreateDevice(ctx, device)
@@ -864,7 +864,7 @@ func TestIoTService_GetDeviceTypeStatistics(t *testing.T) {
 	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns device type statistics", func(t *testing.T) {
-		// ARRANGE - create test devices (they have rfid_reader type)
+		// ARRANGE - create test devices (they have terminal type)
 		device1 := testpkg.CreateTestDevice(t, db, "stats-1")
 		device2 := testpkg.CreateTestDevice(t, db, "stats-2")
 		defer testpkg.CleanupActivityFixtures(t, db, device1.ID, device2.ID)
@@ -875,9 +875,9 @@ func TestIoTService_GetDeviceTypeStatistics(t *testing.T) {
 		// ASSERT
 		require.NoError(t, err)
 		assert.NotNil(t, result)
-		// Should have rfid_reader type with count >= 2
-		count, exists := result["rfid_reader"]
-		assert.True(t, exists, "Expected rfid_reader type in statistics")
+		// Should have terminal type with count >= 2
+		count, exists := result["terminal"]
+		assert.True(t, exists, "Expected terminal type in statistics")
 		assert.GreaterOrEqual(t, count, 2)
 	})
 }

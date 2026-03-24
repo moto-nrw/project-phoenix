@@ -84,11 +84,8 @@ vi.mock("~/lib/iot-helpers", () => ({
   getDeviceStatusDisplayName: (status: string) => `status:${status}`,
   formatLastSeen: (lastSeen: string) => `formatted:${lastSeen}`,
   DEVICE_TYPE_OPTIONS: {
-    rfid_reader: "RFID-Leser",
-    scanner: "Scanner",
-    tablet: "Tablet",
-    sensor: "Sensor",
-    camera: "Kamera",
+    terminal: "Terminal",
+    info_point: "Info-Point",
   },
 }));
 
@@ -1936,7 +1933,7 @@ describe("OperatorProvisioningPage", () => {
     const mockDevice = {
       id: "200",
       deviceId: "DEV-001",
-      deviceType: "rfid_reader",
+      deviceType: "terminal",
       name: "Eingang",
       status: "active",
       apiKey: "full-api-key-value",
@@ -1992,7 +1989,7 @@ describe("OperatorProvisioningPage", () => {
 
       expect(screen.getByText("DEV-001")).toBeInTheDocument();
       expect(screen.getByText("Eingang")).toBeInTheDocument();
-      expect(screen.getByText("type:rfid_reader")).toBeInTheDocument();
+      expect(screen.getByText("type:terminal")).toBeInTheDocument();
       expect(screen.getByText("Online")).toBeInTheDocument();
       expect(screen.getByText("****-key")).toBeInTheDocument();
     });

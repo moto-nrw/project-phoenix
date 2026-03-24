@@ -35,13 +35,13 @@ describe("devicesConfig", () => {
 
   it("has default values", () => {
     expect(devicesConfig.form.defaultValues?.status).toBe("active");
-    expect(devicesConfig.form.defaultValues?.device_type).toBe("rfid_reader");
+    expect(devicesConfig.form.defaultValues?.device_type).toBe("terminal");
   });
 
   it("transforms data before submit with auto-generated name", () => {
     const data: Partial<Device> = {
       device_id: "RFID-001",
-      device_type: "rfid_reader",
+      device_type: "terminal",
       status: "active",
     };
 
@@ -53,7 +53,7 @@ describe("devicesConfig", () => {
     const data: Partial<Device> = {
       device_id: "RFID-001",
       name: "Custom Name",
-      device_type: "rfid_reader",
+      device_type: "terminal",
       status: "active",
     };
 
@@ -66,7 +66,7 @@ describe("devicesConfig", () => {
       id: "1",
       device_id: "RFID-001",
       name: "Main Entrance",
-      device_type: "rfid_reader",
+      device_type: "terminal",
       status: "active",
       is_online: false,
       created_at: new Date().toISOString(),
@@ -82,7 +82,7 @@ describe("devicesConfig", () => {
     const mockDevice: Device = {
       id: "1",
       device_id: "RFID-001",
-      device_type: "rfid_reader",
+      device_type: "terminal",
       status: "active",
       is_online: false,
       created_at: new Date().toISOString(),
@@ -111,7 +111,7 @@ describe("devicesConfig", () => {
       id: "1",
       device_id: "RFID-001",
       name: "Main Entrance",
-      device_type: "rfid_reader",
+      device_type: "terminal",
       status: "active",
       is_online: false,
       created_at: new Date().toISOString(),

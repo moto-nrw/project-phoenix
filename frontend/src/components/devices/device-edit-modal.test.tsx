@@ -84,7 +84,7 @@ describe("DeviceEditModal", () => {
     id: "1",
     device_id: "DEV001",
     name: "Test Device",
-    device_type: "rfid_reader",
+    device_type: "terminal",
     status: "active",
     is_online: true,
     last_seen: "2024-01-01T12:00:00Z",

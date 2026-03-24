@@ -20,7 +20,7 @@ describe("iot-helpers", () => {
       const backendDevice: BackendDevice = {
         id: 123,
         device_id: "RFID-001",
-        device_type: "rfid_reader",
+        device_type: "terminal",
         name: "Main Reader",
         status: "active",
         last_seen: "2024-01-15T10:30:00Z",
@@ -36,7 +36,7 @@ describe("iot-helpers", () => {
       expect(result).toEqual({
         id: "123",
         device_id: "RFID-001",
-        device_type: "rfid_reader",
+        device_type: "terminal",
         name: "Main Reader",
         status: "active",
         last_seen: "2024-01-15T10:30:00Z",
@@ -52,7 +52,7 @@ describe("iot-helpers", () => {
       const backendDevice: BackendDevice = {
         id: 123,
         device_id: "RFID-001",
-        device_type: "rfid_reader",
+        device_type: "terminal",
         status: "active",
         is_online: false,
         created_at: "2024-01-01T00:00:00Z",
@@ -89,7 +89,7 @@ describe("iot-helpers", () => {
     it("should throw error when id is missing", () => {
       const backendDevice = {
         device_id: "RFID-001",
-        device_type: "rfid_reader",
+        device_type: "terminal",
         status: "active",
         is_online: true,
         created_at: "2024-01-01T00:00:00Z",
@@ -104,7 +104,7 @@ describe("iot-helpers", () => {
     it("should throw error when device_id is missing", () => {
       const backendDevice = {
         id: 123,
-        device_type: "rfid_reader",
+        device_type: "terminal",
         status: "active",
         is_online: true,
         created_at: "2024-01-01T00:00:00Z",
@@ -135,7 +135,7 @@ describe("iot-helpers", () => {
       const backendDevice = {
         id: 123,
         device_id: "RFID-001",
-        device_type: "rfid_reader",
+        device_type: "terminal",
         status: "active",
         created_at: "2024-01-01T00:00:00Z",
         updated_at: "2024-01-15T10:30:00Z",
@@ -150,7 +150,7 @@ describe("iot-helpers", () => {
     it("should prepare device data with all fields", () => {
       const device: Partial<Device> = {
         device_id: "RFID-001",
-        device_type: "rfid_reader",
+        device_type: "terminal",
         name: "Main Reader",
         status: "active",
         registered_by_id: "456",
@@ -160,7 +160,7 @@ describe("iot-helpers", () => {
 
       expect(result).toEqual({
         device_id: "RFID-001",
-        device_type: "rfid_reader",
+        device_type: "terminal",
         name: "Main Reader",
         status: "active",
         registered_by_id: 456,
@@ -170,7 +170,7 @@ describe("iot-helpers", () => {
     it("should handle device without registered_by_id", () => {
       const device: Partial<Device> = {
         device_id: "RFID-001",
-        device_type: "rfid_reader",
+        device_type: "terminal",
         name: "Main Reader",
         status: "active",
       };
@@ -179,7 +179,7 @@ describe("iot-helpers", () => {
 
       expect(result).toEqual({
         device_id: "RFID-001",
-        device_type: "rfid_reader",
+        device_type: "terminal",
         name: "Main Reader",
         status: "active",
         registered_by_id: undefined,
@@ -189,14 +189,14 @@ describe("iot-helpers", () => {
     it("should handle device with minimal fields", () => {
       const device: Partial<Device> = {
         device_id: "RFID-001",
-        device_type: "rfid_reader",
+        device_type: "terminal",
       };
 
       const result = prepareDeviceForBackend(device);
 
       expect(result).toEqual({
         device_id: "RFID-001",
-        device_type: "rfid_reader",
+        device_type: "terminal",
         name: undefined,
         status: undefined,
         registered_by_id: undefined,
@@ -205,28 +205,12 @@ describe("iot-helpers", () => {
   });
 
   describe("getDeviceTypeDisplayName", () => {
-    it("should return German name for rfid_reader", () => {
-      expect(getDeviceTypeDisplayName("rfid_reader")).toBe("RFID-Leser");
+    it("should return German name for terminal", () => {
+      expect(getDeviceTypeDisplayName("terminal")).toBe("Terminal");
     });
 
-    it("should return German name for scanner", () => {
-      expect(getDeviceTypeDisplayName("scanner")).toBe("Scanner");
-    });
-
-    it("should return German name for tablet", () => {
-      expect(getDeviceTypeDisplayName("tablet")).toBe("Tablet");
-    });
-
-    it("should return German name for sensor", () => {
-      expect(getDeviceTypeDisplayName("sensor")).toBe("Sensor");
-    });
-
-    it("should return German name for camera", () => {
-      expect(getDeviceTypeDisplayName("camera")).toBe("Kamera");
-    });
-
-    it("should return German name for beacon", () => {
-      expect(getDeviceTypeDisplayName("beacon")).toBe("Beacon");
+    it("should return German name for info_point", () => {
+      expect(getDeviceTypeDisplayName("info_point")).toBe("Info-Point");
     });
 
     it("should return original type for unknown device type", () => {
@@ -316,28 +300,12 @@ describe("iot-helpers", () => {
   });
 
   describe("getDeviceTypeEmoji", () => {
-    it("should return emoji for rfid_reader", () => {
-      expect(getDeviceTypeEmoji("rfid_reader")).toBe("📡");
+    it("should return emoji for terminal", () => {
+      expect(getDeviceTypeEmoji("terminal")).toBe("📡");
     });
 
-    it("should return emoji for scanner", () => {
-      expect(getDeviceTypeEmoji("scanner")).toBe("📷");
-    });
-
-    it("should return emoji for tablet", () => {
-      expect(getDeviceTypeEmoji("tablet")).toBe("💻");
-    });
-
-    it("should return emoji for sensor", () => {
-      expect(getDeviceTypeEmoji("sensor")).toBe("🔍");
-    });
-
-    it("should return emoji for camera", () => {
-      expect(getDeviceTypeEmoji("camera")).toBe("📹");
-    });
-
-    it("should return emoji for beacon", () => {
-      expect(getDeviceTypeEmoji("beacon")).toBe("📶");
+    it("should return emoji for info_point", () => {
+      expect(getDeviceTypeEmoji("info_point")).toBe("ℹ️");
     });
 
     it("should return wrench emoji for unknown type", () => {
@@ -346,30 +314,14 @@ describe("iot-helpers", () => {
   });
 
   describe("generateDefaultDeviceName", () => {
-    it("should generate name for rfid_reader", () => {
-      expect(generateDefaultDeviceName("rfid_reader", "001")).toBe(
-        "RFID-Leser 001",
+    it("should generate name for terminal", () => {
+      expect(generateDefaultDeviceName("terminal", "001")).toBe("Terminal 001");
+    });
+
+    it("should generate name for info_point", () => {
+      expect(generateDefaultDeviceName("info_point", "002")).toBe(
+        "Info-Point 002",
       );
-    });
-
-    it("should generate name for scanner", () => {
-      expect(generateDefaultDeviceName("scanner", "002")).toBe("Scanner 002");
-    });
-
-    it("should generate name for tablet", () => {
-      expect(generateDefaultDeviceName("tablet", "003")).toBe("Tablet 003");
-    });
-
-    it("should generate name for sensor", () => {
-      expect(generateDefaultDeviceName("sensor", "004")).toBe("Sensor 004");
-    });
-
-    it("should generate name for camera", () => {
-      expect(generateDefaultDeviceName("camera", "005")).toBe("Kamera 005");
-    });
-
-    it("should generate name for beacon", () => {
-      expect(generateDefaultDeviceName("beacon", "006")).toBe("Beacon 006");
     });
 
     it("should generate default name for unknown type", () => {

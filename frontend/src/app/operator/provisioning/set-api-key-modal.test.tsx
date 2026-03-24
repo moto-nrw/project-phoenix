@@ -48,7 +48,7 @@ describe("SetApiKeyModal", () => {
   const device = {
     id: "200",
     deviceId: "DEV-001",
-    deviceType: "rfid_reader",
+    deviceType: "terminal",
     name: "Eingang",
     status: "active",
     apiKey: "",

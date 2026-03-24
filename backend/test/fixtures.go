@@ -152,7 +152,7 @@ func CreateTestDevice(tb testing.TB, db *bun.DB, deviceID string) *iot.Device {
 
 	device := &iot.Device{
 		DeviceID:   uniqueDeviceID,
-		DeviceType: "rfid_reader",
+		DeviceType: "terminal",
 		Name:       stringPtr("Test Device"),
 		Status:     iot.DeviceStatusActive,
 		APIKey:     stringPtr("test-api-key-" + uniqueDeviceID),
@@ -2135,7 +2135,7 @@ func CreateTestDeviceForTenant(tb testing.TB, db *bun.DB, tenantID int64, device
 
 	device := &iot.Device{
 		DeviceID:   uniqueDeviceID,
-		DeviceType: "rfid_reader",
+		DeviceType: "terminal",
 		Name:       stringPtr("Test Device " + uniqueDeviceID),
 		Status:     iot.DeviceStatusActive,
 		APIKey:     stringPtr("test-api-key-" + uniqueDeviceID),
