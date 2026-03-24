@@ -2668,3 +2668,136 @@ func TestAcceptInvitation_WithTenantID_CreatesAccountTenant(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, roleCount, "role should be scoped to invitation tenant")
 }
+
+// =============================================================================
+// LinkAccountToTenant Tests
+// =============================================================================
+
+func TestAuthService_LinkAccountToTenant(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	const tenantID int64 = 53
+	testpkg.EnsureTestTenant(t, db, tenantID)
+
+	t.Run("links existing account to tenant", func(t *testing.T) {
+		// ARRANGE — create an account that is NOT linked to tenantID yet
+		email, _ := uniqueTestCredentials("link-happy")
+		account, err := service.Register(testpkg.TenantContext(tenantID), email, email, testPassword, nil, 0)
+		require.NoError(t, err)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		// Remove any auto-created tenant mapping so we start from a clean state
+		_, _ = db.NewDelete().
+			TableExpr("auth.account_tenants").
+			Where("account_id = ? AND tenant_id = ?", account.ID, tenantID).
+			Exec(context.Background())
+
+		role := testpkg.GetOrCreateTestRole(t, db, fmt.Sprintf("link-role-%d", time.Now().UnixNano()))
+		roleID := role.ID
+
+		// ACT
+		linked, err := service.LinkAccountToTenant(context.Background(), email, &roleID, tenantID)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.NotNil(t, linked)
+		assert.Equal(t, account.ID, linked.ID)
+
+		// Verify tenant mapping was created
+		var tenantCount int
+		err = db.NewSelect().
+			TableExpr("auth.account_tenants").
+			ColumnExpr("COUNT(*)").
+			Where("account_id = ? AND tenant_id = ?", account.ID, tenantID).
+			Scan(context.Background(), &tenantCount)
+		require.NoError(t, err)
+		assert.Equal(t, 1, tenantCount, "account_tenant mapping should exist")
+
+		// Verify role was assigned
+		var roleCount int
+		err = db.NewSelect().
+			TableExpr("auth.account_roles").
+			ColumnExpr("COUNT(*)").
+			Where("account_id = ? AND role_id = ? AND tenant_id = ?", account.ID, roleID, tenantID).
+			Scan(context.Background(), &roleCount)
+		require.NoError(t, err)
+		assert.Equal(t, 1, roleCount, "role should be assigned")
+
+		// Cleanup role assignment
+		_, _ = db.NewDelete().
+			TableExpr("auth.account_roles").
+			Where("account_id = ? AND role_id = ? AND tenant_id = ?", account.ID, roleID, tenantID).
+			Exec(context.Background())
+	})
+
+	t.Run("returns error for non-existent email", func(t *testing.T) {
+		// ACT
+		result, err := service.LinkAccountToTenant(context.Background(), "nonexistent@test.local", nil, tenantID)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Nil(t, result)
+
+		var authErr *auth.AuthError
+		require.True(t, errors.As(err, &authErr))
+		assert.True(t, errors.Is(authErr.Err, auth.ErrAccountNotFound))
+	})
+
+	t.Run("returns error for inactive account", func(t *testing.T) {
+		// ARRANGE — create account then deactivate it
+		email, _ := uniqueTestCredentials("link-inactive")
+		account, err := service.Register(testpkg.TenantContext(tenantID), email, email, testPassword, nil, 0)
+		require.NoError(t, err)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		// Deactivate
+		_, err = db.NewUpdate().
+			TableExpr("auth.accounts").
+			Set("active = ?", false).
+			Where("id = ?", account.ID).
+			Exec(context.Background())
+		require.NoError(t, err)
+
+		// ACT
+		result, err := service.LinkAccountToTenant(context.Background(), email, nil, tenantID)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Nil(t, result)
+
+		var authErr *auth.AuthError
+		require.True(t, errors.As(err, &authErr))
+		assert.True(t, errors.Is(authErr.Err, auth.ErrAccountInactive))
+	})
+
+	t.Run("idempotent when already linked", func(t *testing.T) {
+		// ARRANGE — create an account already linked to tenantID
+		email, _ := uniqueTestCredentials("link-idempotent")
+		account, err := service.Register(testpkg.TenantContext(tenantID), email, email, testPassword, nil, 0)
+		require.NoError(t, err)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		// Ensure it is linked
+		testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
+
+		// ACT — link again (should not error)
+		result, err := service.LinkAccountToTenant(context.Background(), email, nil, tenantID)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, account.ID, result.ID)
+
+		// Verify exactly one mapping still exists (no duplicate)
+		var tenantCount int
+		err = db.NewSelect().
+			TableExpr("auth.account_tenants").
+			ColumnExpr("COUNT(*)").
+			Where("account_id = ? AND tenant_id = ?", account.ID, tenantID).
+			Scan(context.Background(), &tenantCount)
+		require.NoError(t, err)
+		assert.Equal(t, 1, tenantCount, "should still have exactly one mapping")
+	})
+}

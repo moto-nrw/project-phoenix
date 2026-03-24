@@ -151,7 +151,8 @@ func TestGroupSubstitution_Validate(t *testing.T) {
 }
 
 func TestGroupSubstitution_Duration(t *testing.T) {
-	now := time.Now()
+	// Use a fixed date in UTC to avoid DST edge cases
+	now := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
 
 	tests := []struct {
 		name         string

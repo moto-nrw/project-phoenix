@@ -9,11 +9,42 @@
 
 import * as React from "react";
 import * as RechartsPrimitive from "recharts";
-import type {
-  LegendPayload,
-  VerticalAlignmentType,
-} from "recharts/types/component/DefaultLegendContent";
-import type { TooltipContentProps } from "recharts/types/component/Tooltip";
+// Inline types — recharts type exports vary between versions
+type VerticalAlignmentType = "top" | "middle" | "bottom";
+interface LegendPayload {
+  value: string;
+  id?: string;
+  type?: string;
+  color?: string;
+  dataKey?: string;
+}
+// Inline type — recharts removed TooltipContentProps export in v2.15
+interface TooltipPayloadItem {
+  type?: string;
+  dataKey?: string | ((obj: unknown) => string);
+  name?: string;
+  payload?: { fill?: string; label?: string; [key: string]: unknown };
+  color?: string;
+  value?: string | number;
+}
+
+interface TooltipContentProps {
+  active?: boolean;
+  payload?: TooltipPayloadItem[];
+  label?: string;
+  labelFormatter?: (
+    label: string,
+    payload: TooltipPayloadItem[],
+  ) => React.ReactNode;
+  labelClassName?: string;
+  formatter?: (
+    value: string | number,
+    name: string,
+    item: TooltipPayloadItem,
+    index: number,
+    payload: unknown,
+  ) => React.ReactNode;
+}
 
 import { cn } from "~/lib/utils";
 
@@ -166,7 +197,8 @@ const ChartTooltipContent = React.forwardRef<
       if (labelFormatter) {
         return (
           <div className={cn("font-medium", labelClassName)}>
-            {labelFormatter(value, payload)}
+            {/* oxlint-disable-next-line typescript-eslint/no-base-to-string */}
+            {labelFormatter(String(value ?? ""), payload)}
           </div>
         );
       }
@@ -203,13 +235,13 @@ const ChartTooltipContent = React.forwardRef<
         {nestLabel ? null : tooltipLabel}
         <div className="grid gap-1.5">
           {payload
-            .filter((item) => item.type !== "none")
-            .map((item, index) => {
+            .filter((item: TooltipPayloadItem) => item.type !== "none")
+            .map((item: TooltipPayloadItem, index: number) => {
               const itemDataKey =
                 typeof item.dataKey === "function" ? undefined : item.dataKey;
               const key = `${nameKey || item.name || itemDataKey || "value"}`;
               const itemConfig = getPayloadConfigFromPayload(config, item, key);
-              const indicatorColor = color || item.payload.fill || item.color;
+              const indicatorColor = color || item.payload?.fill || item.color;
 
               return (
                 <div
@@ -220,7 +252,13 @@ const ChartTooltipContent = React.forwardRef<
                   )}
                 >
                   {formatter && item?.value !== undefined && item.name ? (
-                    formatter(item.value, item.name, item, index, item.payload)
+                    formatter(
+                      item.value ?? 0,
+                      item.name ?? "",
+                      item,
+                      index,
+                      item.payload,
+                    )
                   ) : (
                     <>
                       {itemConfig?.icon ? (

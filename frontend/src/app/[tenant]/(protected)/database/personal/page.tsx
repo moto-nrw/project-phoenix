@@ -182,11 +182,18 @@ export default function TeachersPage() {
 
   // Handle create teacher
   const handleCreateTeacher = async (
-    data: Partial<Teacher> & { password?: string },
+    data: Partial<Teacher> & { password?: string; linkExisting?: boolean },
   ) => {
     try {
       setCreateLoading(true);
-      await service.create(data);
+      const result = await service.create(data);
+
+      // Check if the result signals an existing account needing confirmation
+      const typed = result as { status?: string; email?: string } | undefined;
+      if (typed?.status === "account_exists") {
+        return typed;
+      }
+
       setShowCreateModal(false);
       toastSuccess(
         getDbOperationMessage("create", teachersConfig.name.singular),

@@ -409,14 +409,21 @@ export const teachersConfig = defineEntityConfig<Teacher>({
       // Teacher creation requires multiple API calls (account, person, staff)
       // Use the teacher service which handles this complex flow
       logger.debug("creating teacher", { data: JSON.stringify(data) });
-      const teacherData = data as Partial<Teacher> & { password?: string };
+      const teacherData = data as Partial<Teacher> & {
+        password?: string;
+        linkExisting?: boolean;
+      };
       const result = await teacherService.createTeacher(
         teacherData as Omit<
           Teacher,
           "id" | "name" | "created_at" | "updated_at"
-        > & { password?: string },
+        > & { password?: string; linkExisting?: boolean },
       );
-      return result;
+      if (result.status === "account_exists") {
+        // Return the result as-is — the modal will handle the confirmation flow
+        return result as unknown as Teacher;
+      }
+      return result.data;
     },
 
     // Custom update handler for teacher-specific flow

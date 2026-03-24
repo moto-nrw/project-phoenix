@@ -161,4 +161,63 @@ describe("teachersConfig", () => {
   it("has onCreateSuccess callback", () => {
     expect(teachersConfig.onCreateSuccess).toBeDefined();
   });
+
+  describe("service.create handler", () => {
+    it("returns teacher data on successful creation", async () => {
+      const { teacherService } = await import("@/lib/teacher-api");
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      const createFn = teacherService.createTeacher;
+      const mockedCreate = vi.mocked(createFn);
+
+      const mockTeacher: Teacher = {
+        id: "42",
+        name: "Test Teacher",
+        first_name: "Test",
+        last_name: "Teacher",
+        email: "test@example.com",
+      };
+
+      mockedCreate.mockResolvedValueOnce({
+        status: "created",
+        data: {
+          ...mockTeacher,
+          temporaryCredentials: { email: "test@example.com", password: "pass" },
+        },
+      });
+
+      const result = await teachersConfig.service!.create!({
+        first_name: "Test",
+        last_name: "Teacher",
+        password: "SecurePass123!",
+      } as Record<string, unknown>);
+
+      expect(result).toMatchObject({
+        id: "42",
+        first_name: "Test",
+      });
+    });
+
+    it("returns account_exists result as Teacher-shaped object", async () => {
+      const { teacherService } = await import("@/lib/teacher-api");
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      const createFn = teacherService.createTeacher;
+      const mockedCreate = vi.mocked(createFn);
+
+      mockedCreate.mockResolvedValueOnce({
+        status: "account_exists",
+        email: "exists@example.com",
+      });
+
+      const result = await teachersConfig.service!.create!({
+        first_name: "Exists",
+        last_name: "User",
+        password: "SecurePass123!",
+      } as Record<string, unknown>);
+
+      // The handler casts the result to Teacher — verify the shape is preserved
+      const typed = result as unknown as { status: string; email: string };
+      expect(typed.status).toBe("account_exists");
+      expect(typed.email).toBe("exists@example.com");
+    });
+  });
 });

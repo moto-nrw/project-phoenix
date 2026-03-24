@@ -2131,3 +2131,74 @@ func TestInvitationCreateSuccess(t *testing.T) {
 		}
 	})
 }
+
+// =============================================================================
+// LinkToTenant Tests
+// =============================================================================
+
+func TestLinkToTenant(t *testing.T) {
+	db, router := setupPublicRouterWithDB(t)
+
+	// Get admin token and a valid role ID
+	adminToken, validRoleID := loginAsAdmin(t, db, router)
+
+	t.Run("success with valid admin request", func(t *testing.T) {
+		// ARRANGE — create an account to link
+		email := fmt.Sprintf("link-success-%d@example.com", time.Now().UnixNano())
+		password := "SecurePass123!"
+		account := testpkg.CreateTestAccountWithPassword(t, db, email, password)
+		defer testpkg.CleanupAccount(t, db, account.ID)
+
+		body := map[string]interface{}{
+			"email":   email,
+			"role_id": validRoleID,
+		}
+
+		req := testutil.NewJSONRequest(t, "POST", "/auth/link-to-tenant", body)
+		req.Header.Set("Authorization", "Bearer "+adminToken)
+		rr := testutil.ExecuteRequest(router, req)
+
+		// ASSERT
+		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+		data, ok := response["data"].(map[string]interface{})
+		require.True(t, ok, "Expected data to be an object")
+		assert.Equal(t, email, data["email"])
+
+		// Cleanup tenant mapping + role assignment created by link
+		_, _ = db.NewDelete().
+			TableExpr("auth.account_roles").
+			Where("account_id = ?", account.ID).
+			Exec(context.Background())
+		_, _ = db.NewDelete().
+			TableExpr("auth.account_tenants").
+			Where("account_id = ?", account.ID).
+			Exec(context.Background())
+	})
+
+	t.Run("returns 404 for non-existent email", func(t *testing.T) {
+		body := map[string]interface{}{
+			"email":   fmt.Sprintf("nonexistent-%d@example.com", time.Now().UnixNano()),
+			"role_id": validRoleID,
+		}
+
+		req := testutil.NewJSONRequest(t, "POST", "/auth/link-to-tenant", body)
+		req.Header.Set("Authorization", "Bearer "+adminToken)
+		rr := testutil.ExecuteRequest(router, req)
+
+		assert.Equal(t, http.StatusNotFound, rr.Code, "Body: %s", rr.Body.String())
+	})
+
+	t.Run("returns 401 without auth", func(t *testing.T) {
+		body := map[string]interface{}{
+			"email":   "someone@example.com",
+			"role_id": validRoleID,
+		}
+
+		req := testutil.NewJSONRequest(t, "POST", "/auth/link-to-tenant", body)
+		rr := testutil.ExecuteRequest(router, req)
+
+		testutil.AssertUnauthorized(t, rr)
+	})
+}

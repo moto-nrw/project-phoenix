@@ -28,6 +28,7 @@ import (
 
 // Constants for permission strings, headers, route patterns, and error messages (S1192 - avoid duplicate string literals)
 const (
+	permUsersCreate      = "users:create"
 	permUsersManage      = "users:manage"
 	permUsersList        = "users:list"
 	permRolesRead        = "roles:read"
@@ -114,6 +115,9 @@ func (rs *Resource) Router() chi.Router {
 
 		// Admin routes - require admin role or specific permissions
 		r.Group(func(r chi.Router) {
+			// Link existing account to current tenant (for multi-tenant staff creation)
+			r.With(authorize.RequiresPermission(permUsersCreate)).Post("/link-to-tenant", rs.linkToTenant)
+
 			// Role management routes
 			r.Route("/roles", func(r chi.Router) {
 				r.With(authorize.RequiresPermission("roles:create")).Post("/", rs.createRole)
@@ -185,7 +189,7 @@ func (rs *Resource) Router() chi.Router {
 			})
 
 			r.Route("/invitations", func(r chi.Router) {
-				r.With(authorize.RequiresPermission("users:create")).Post("/", rs.createInvitation)
+				r.With(authorize.RequiresPermission(permUsersCreate)).Post("/", rs.createInvitation)
 				r.With(authorize.RequiresPermission(permUsersList)).Get("/", rs.listPendingInvitations)
 				r.Route("/{id}", func(r chi.Router) {
 					r.With(authorize.RequiresPermission(permUsersManage)).Post("/resend", rs.resendInvitation)
@@ -195,7 +199,7 @@ func (rs *Resource) Router() chi.Router {
 
 			// Parent account management
 			r.Route("/parent-accounts", func(r chi.Router) {
-				r.With(authorize.RequiresPermission("users:create")).Post("/", rs.createParentAccount)
+				r.With(authorize.RequiresPermission(permUsersCreate)).Post("/", rs.createParentAccount)
 				r.With(authorize.RequiresPermission(permUsersList)).Get("/", rs.listParentAccounts)
 				r.Route("/{id}", func(r chi.Router) {
 					r.With(authorize.RequiresPermission("users:read")).Get("/", rs.getParentAccountByID)
@@ -517,6 +521,59 @@ func (rs *Resource) register(w http.ResponseWriter, r *http.Request) {
 
 	resp := buildAccountResponse(account)
 	common.Respond(w, r, http.StatusCreated, resp, "Account registered successfully")
+}
+
+// LinkToTenantRequest represents a request to link an existing account to the current tenant.
+type LinkToTenantRequest struct {
+	Email  string `json:"email"`
+	RoleID *int64 `json:"role_id,omitempty"`
+}
+
+func (req *LinkToTenantRequest) Bind(_ *http.Request) error {
+	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
+	return validation.ValidateStruct(req,
+		validation.Field(&req.Email, validation.Required, is.Email),
+	)
+}
+
+// linkToTenant links an existing account to the caller's tenant.
+// Requires admin authentication with a valid tenant context.
+func (rs *Resource) linkToTenant(w http.ResponseWriter, r *http.Request) {
+	req := &LinkToTenantRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, ErrorInvalidRequest(err))
+		return
+	}
+
+	// Require admin auth and resolve role + tenant from JWT
+	roleID, callerTenantID, shouldReturn := rs.authorizeRoleAssignment(w, r, req.RoleID)
+	if shouldReturn {
+		return
+	}
+
+	account, err := rs.AuthService.LinkAccountToTenant(r.Context(), req.Email, roleID, callerTenantID)
+	if err != nil {
+		var authErr *authService.AuthError
+		if errors.As(err, &authErr) {
+			switch {
+			case errors.Is(authErr.Err, authService.ErrAccountNotFound):
+				common.RenderError(w, r, ErrorNotFound(authErr.Err))
+			case errors.Is(authErr.Err, authService.ErrAccountInactive):
+				common.RenderError(w, r, common.ErrorConflict(authErr.Err))
+			default:
+				common.RenderError(w, r, ErrorInternalServer(err))
+			}
+			return
+		}
+		common.RenderError(w, r, ErrorInternalServer(err))
+		return
+	}
+
+	// Return ONLY id and email — never leak roles, username, or active status from other tenants
+	common.Respond(w, r, http.StatusOK, map[string]any{
+		"id":    account.ID,
+		"email": account.Email,
+	}, "Account linked to tenant successfully")
 }
 
 // authorizeRoleAssignment checks if the caller is an authenticated admin and has provided a valid role_id.
