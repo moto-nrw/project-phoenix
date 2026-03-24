@@ -76,7 +76,7 @@ export function TenantSwitcher() {
         });
 
         // 5. Hard-navigate to the new tenant subdomain.
-        // Always use subdomain routing — the middleware rewrites subdomains
+        // Always use subdomain routing — the proxy rewrites subdomains
         // to path segments, so navigating to a path directly on the old
         // subdomain creates a broken double-prefixed URL.
         const tenantDomain = env.NEXT_PUBLIC_TENANT_DOMAIN;

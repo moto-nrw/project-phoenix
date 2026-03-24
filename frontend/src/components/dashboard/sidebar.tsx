@@ -225,7 +225,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
 
   // Strip tenant prefix so all path checks use unprefixed paths (e.g. "/database").
   // useTenantRouter().push() produces paths like "/school-a/database" while <Link href="/database">
-  // goes through middleware rewrite and keeps "/database". Normalizing here avoids mismatches.
+  // goes through proxy rewrite and keeps "/database". Normalizing here avoids mismatches.
   // When tenantSlug is null (operator mode), no stripping needed.
   const pathname =
     tenantSlug && rawPathname.startsWith(`/${tenantSlug}/`)

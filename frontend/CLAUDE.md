@@ -86,7 +86,7 @@ Both `api-helpers.ts` and `operator/route-wrapper.ts` use this pattern. The same
 
 ### Subdomain-Based Tenant Resolution
 
-Middleware (`src/middleware.ts`) handles all tenant routing:
+Proxy (`src/proxy.ts`) handles all tenant routing:
 
 1. **Operator requests** (`NEXT_PUBLIC_OPERATOR_HOSTNAME`): rewritten to `/operator/*` internally
 2. **Tenant requests** (`{slug}.TENANT_DOMAIN`): rewritten to `/[tenant]/*` for the dynamic segment
@@ -100,7 +100,7 @@ src/app/
 │   ├── login/
 │   ├── provisioning/      # Create/manage organizations + schools
 │   └── suggestions/
-├── [tenant]/              # Dynamic tenant segment (resolved by middleware)
+├── [tenant]/              # Dynamic tenant segment (resolved by proxy)
 │   ├── layout.tsx         # Validates slug via /auth/tenant/resolve, wraps in TenantProvider
 │   ├── (protected)/       # Auth-required routes (dashboard, students, rooms, etc.)
 │   └── (public)/          # Pre-auth routes (invite, reset-password)

@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { RESERVED_SLUGS } from "~/lib/reserved-slugs";
 
 /**
- * Combined middleware for:
+ * Combined proxy for:
  * 1. Operator subdomain separation (from development)
  * 2. Subdomain-based tenant routing (from multi-tenancy)
  * 3. CSP security headers
@@ -11,7 +11,7 @@ import { RESERVED_SLUGS } from "~/lib/reserved-slugs";
 
 const isDev = process.env.NODE_ENV === "development";
 
-// --- Fail-fast environment checks (Edge runtime — no t3-env) ---
+// --- Fail-fast environment checks (no t3-env at proxy level) ---
 
 const OPERATOR_HOSTNAME = process.env.NEXT_PUBLIC_OPERATOR_HOSTNAME;
 if (!OPERATOR_HOSTNAME) {
@@ -86,7 +86,7 @@ function handleOperatorSubdomain(request: NextRequest): NextResponse {
 
   // Pass through: operator API routes, static assets
   // Note: favicon.ico, favicon.png, apple-touch-icon.png, site.webmanifest,
-  // icons/, and images/ are excluded from the middleware matcher entirely.
+  // icons/, and images/ are excluded from the proxy matcher entirely.
   if (pathname.startsWith("/api/") || pathname.startsWith("/_next")) {
     return withSecurityHeaders(NextResponse.next());
   }
@@ -145,9 +145,9 @@ function extractTenantSlug(host: string): string | null {
   return null;
 }
 
-// --- Main middleware ---
+// --- Main proxy ---
 
-export function middleware(request: NextRequest): NextResponse {
+export function proxy(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
 
   // /_next/* — Next.js internals; skip entirely (static assets).
