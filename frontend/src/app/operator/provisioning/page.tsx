@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useCallback } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
-import useSWR from "swr";
+import useSWR, { useSWRConfig } from "swr";
 import { useSession } from "next-auth/react";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
@@ -33,6 +33,8 @@ import { EditOrganizationModal } from "./edit-organization-modal";
 import { CreateSchoolModal } from "./create-school-modal";
 import { EditSchoolModal } from "./edit-school-modal";
 import { InviteAdminModal } from "./invite-admin-modal";
+import { CreateDeviceModal } from "./create-device-modal";
+import { SetApiKeyModal } from "./set-api-key-modal";
 
 const logger = createLogger({ component: "OperatorProvisioningPage" });
 
@@ -55,6 +57,10 @@ export default function OperatorProvisioningPage() {
   const [inviteSchoolName, setInviteSchoolName] = useState("");
   const [selectedSchool, setSelectedSchool] = useState<School | null>(null);
   const [filterOrgId, setFilterOrgId] = useState<string>("");
+  const [createDeviceOpen, setCreateDeviceOpen] = useState(false);
+  const [setKeyDevice, setSetKeyDevice] = useState<OperatorDevice | null>(null);
+
+  const { mutate: globalMutate } = useSWRConfig();
 
   // Toggle error state
   const [orgToggleError, setOrgToggleError] = useState("");
@@ -186,6 +192,23 @@ export default function OperatorProvisioningPage() {
     : filterOrgId
       ? orgDevicesLoading
       : allDevicesLoading;
+
+  const DEVICE_SWR_PREFIXES = useMemo(
+    () => [
+      "operator-all-devices",
+      "operator-school-devices-",
+      "operator-org-devices-",
+    ],
+    [],
+  );
+
+  const refreshDevices = useCallback(() => {
+    return globalMutate(
+      (key: unknown) =>
+        typeof key === "string" &&
+        DEVICE_SWR_PREFIXES.some((p) => key.startsWith(p)),
+    );
+  }, [globalMutate, DEVICE_SWR_PREFIXES]);
 
   // Schools filtered by selected organization (for accounts tab filter)
   const filteredSchools = useMemo(() => {
@@ -570,6 +593,17 @@ export default function OperatorProvisioningPage() {
       {/* Devices Tab */}
       {activeTab === "devices" && (
         <>
+          <div className="mb-4 flex items-center justify-between">
+            <div />
+            <button
+              type="button"
+              onClick={() => setCreateDeviceOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-gray-800"
+            >
+              <PlusIcon />
+              Neues Gerät
+            </button>
+          </div>
           <OrgSchoolFilter
             idPrefix="device"
             organizations={organizations}
@@ -593,7 +627,11 @@ export default function OperatorProvisioningPage() {
                 />
               )}
               {orgDevices && orgDevices.length > 0 && (
-                <DevicesTable devices={orgDevices} showSchool />
+                <DevicesTable
+                  devices={orgDevices}
+                  showSchool
+                  onSetKey={setSetKeyDevice}
+                />
               )}
             </>
           )}
@@ -608,7 +646,11 @@ export default function OperatorProvisioningPage() {
                 />
               )}
               {allDevices && allDevices.length > 0 && (
-                <DevicesTable devices={allDevices} showSchool />
+                <DevicesTable
+                  devices={allDevices}
+                  showSchool
+                  onSetKey={setSetKeyDevice}
+                />
               )}
             </>
           )}
@@ -639,7 +681,10 @@ export default function OperatorProvisioningPage() {
                 />
               )}
               {schoolDevices && schoolDevices.length > 0 && (
-                <DevicesTable devices={schoolDevices} />
+                <DevicesTable
+                  devices={schoolDevices}
+                  onSetKey={setSetKeyDevice}
+                />
               )}
             </>
           )}
@@ -682,6 +727,22 @@ export default function OperatorProvisioningPage() {
         onClose={() => setInviteOpen(false)}
         schoolId={inviteSchoolId}
         schoolName={inviteSchoolName}
+      />
+      <CreateDeviceModal
+        isOpen={createDeviceOpen}
+        onClose={() => setCreateDeviceOpen(false)}
+        schools={schools}
+        onCreated={() => {
+          void refreshDevices();
+        }}
+      />
+      <SetApiKeyModal
+        isOpen={setKeyDevice !== null}
+        onClose={() => setSetKeyDevice(null)}
+        device={setKeyDevice}
+        onKeySet={() => {
+          void refreshDevices();
+        }}
       />
     </div>
   );
@@ -1187,9 +1248,11 @@ function sortDevices(
 function DevicesTable({
   devices,
   showSchool = false,
+  onSetKey,
 }: {
   readonly devices: OperatorDevice[];
   readonly showSchool?: boolean;
+  readonly onSetKey?: (device: OperatorDevice) => void;
 }) {
   const { sort, toggle } = useSort<DeviceSortKey>(
     showSchool ? "schoolName" : "deviceId",
@@ -1259,6 +1322,11 @@ function DevicesTable({
               sort={sort}
               onToggle={toggle}
             />
+            {onSetKey && (
+              <th className="px-5 py-3 text-xs font-medium text-gray-500">
+                Aktionen
+              </th>
+            )}
           </tr>
         </thead>
         <tbody>
@@ -1311,6 +1379,18 @@ function DevicesTable({
                   <span className="text-gray-400">—</span>
                 )}
               </td>
+              {onSetKey && (
+                <td className="px-5 py-3">
+                  <button
+                    type="button"
+                    onClick={() => onSetKey(device)}
+                    className="rounded-lg border border-gray-200 px-2 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900"
+                    title="API-Key ändern"
+                  >
+                    Key ändern
+                  </button>
+                </td>
+              )}
             </tr>
           ))}
         </tbody>

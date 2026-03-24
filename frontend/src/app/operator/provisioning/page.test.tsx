@@ -54,6 +54,7 @@ vi.mock("~/lib/breadcrumb-context", () => ({
 
 vi.mock("swr", () => ({
   default: mockUseSWR,
+  useSWRConfig: () => ({ mutate: vi.fn() }),
 }));
 
 vi.mock("~/lib/operator/provisioning-api", () => ({
@@ -82,6 +83,13 @@ vi.mock("~/lib/iot-helpers", () => ({
   getDeviceTypeDisplayName: (type: string) => `type:${type}`,
   getDeviceStatusDisplayName: (status: string) => `status:${status}`,
   formatLastSeen: (lastSeen: string) => `formatted:${lastSeen}`,
+  DEVICE_TYPE_OPTIONS: {
+    rfid_reader: "RFID-Leser",
+    scanner: "Scanner",
+    tablet: "Tablet",
+    sensor: "Sensor",
+    camera: "Kamera",
+  },
 }));
 
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-return */
@@ -2262,6 +2270,30 @@ describe("OperatorProvisioningPage", () => {
       // Org name appears in both dropdown option and header
       const orgNameElements = screen.getAllByText("Test Org");
       expect(orgNameElements.length).toBeGreaterThanOrEqual(2);
+    });
+
+    // --- Neues Gerät button ---
+
+    it("shows create device button in devices tab", () => {
+      setupSWRWithDevices("operator-all-devices", [mockDevice]);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-devices"));
+
+      expect(screen.getByText("Neues Gerät")).toBeInTheDocument();
+    });
+
+    // --- DevicesTable actions column ---
+
+    it("shows Key ändern button for each device", () => {
+      setupSWRWithDevices("operator-all-devices", [mockDevice]);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-devices"));
+
+      expect(screen.getByText("Key ändern")).toBeInTheDocument();
     });
   });
 

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 	"unsafe"
@@ -111,7 +112,9 @@ func (s *internalOrgRepoStub) Update(context.Context, *platformModels.Organizati
 }
 
 type internalDeviceRepoStub struct {
-	createFn func(context.Context, *iotModels.Device) error
+	createFn   func(context.Context, *iotModels.Device) error
+	findByIDFn func(context.Context, interface{}) (*iotModels.Device, error)
+	updateFn   func(context.Context, *iotModels.Device) error
 }
 
 func (s *internalDeviceRepoStub) Create(ctx context.Context, device *iotModels.Device) error {
@@ -120,11 +123,19 @@ func (s *internalDeviceRepoStub) Create(ctx context.Context, device *iotModels.D
 	}
 	return nil
 }
-func (s *internalDeviceRepoStub) FindByID(context.Context, interface{}) (*iotModels.Device, error) {
+func (s *internalDeviceRepoStub) FindByID(ctx context.Context, id interface{}) (*iotModels.Device, error) {
+	if s.findByIDFn != nil {
+		return s.findByIDFn(ctx, id)
+	}
 	return nil, nil
 }
-func (s *internalDeviceRepoStub) Update(context.Context, *iotModels.Device) error { return nil }
-func (s *internalDeviceRepoStub) Delete(context.Context, interface{}) error       { return nil }
+func (s *internalDeviceRepoStub) Update(ctx context.Context, device *iotModels.Device) error {
+	if s.updateFn != nil {
+		return s.updateFn(ctx, device)
+	}
+	return nil
+}
+func (s *internalDeviceRepoStub) Delete(context.Context, interface{}) error { return nil }
 func (s *internalDeviceRepoStub) List(context.Context, map[string]interface{}) ([]*iotModels.Device, error) {
 	return nil, nil
 }
@@ -252,6 +263,17 @@ func newPgError(code string) error {
 	mField := v.FieldByName("m")
 	ptr := unsafe.Pointer(mField.UnsafeAddr()) //nolint:gosec
 	*(*map[byte]string)(ptr) = map[byte]string{'C': code}
+	return pgErr
+}
+
+// newPgErrorWithConstraint constructs a pgdriver.Error with SQLSTATE and constraint name.
+// Field 'C' = SQLSTATE code, field 'n' = constraint name (PostgreSQL protocol).
+func newPgErrorWithConstraint(code, constraintName string) error {
+	pgErr := pgdriver.Error{}
+	v := reflect.ValueOf(&pgErr).Elem()
+	mField := v.FieldByName("m")
+	ptr := unsafe.Pointer(mField.UnsafeAddr()) //nolint:gosec
+	*(*map[byte]string)(ptr) = map[byte]string{'C': code, 'n': constraintName}
 	return pgErr
 }
 
@@ -1362,4 +1384,601 @@ func TestListOrganizationDevices_Success(t *testing.T) {
 	result, err := svc.ListOrganizationDevices(context.Background(), 5)
 	require.NoError(t, err)
 	assert.Empty(t, result)
+}
+
+// ---------------------------------------------------------------------------
+// isAPIKeyConstraintViolation
+// ---------------------------------------------------------------------------
+
+func TestIsAPIKeyConstraintViolation(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{
+			"positive: devices_api_key_key constraint",
+			newPgErrorWithConstraint("23505", "devices_api_key_key"),
+			true,
+		},
+		{
+			"other constraint: devices_device_id_key",
+			newPgErrorWithConstraint("23505", "devices_device_id_key"),
+			false,
+		},
+		{
+			"non-pg error",
+			assert.AnError,
+			false,
+		},
+		{
+			"DatabaseError wrapping api_key constraint",
+			&modelBase.DatabaseError{Op: "create", Err: newPgErrorWithConstraint("23505", "devices_api_key_key")},
+			true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, isAPIKeyConstraintViolation(tt.err))
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// CreateDevice — validation errors
+// ---------------------------------------------------------------------------
+
+func TestCreateDevice_InvalidInput(t *testing.T) {
+	svc := &operatorProvisioningService{}
+
+	t.Run("schoolID <= 0", func(t *testing.T) {
+		result, err := svc.CreateDevice(context.Background(), 0, "dev-1", "rfid", nil, nil, 1, net.IPv4(127, 0, 0, 1))
+		require.Nil(t, result)
+		var invalidErr *InvalidDataError
+		require.ErrorAs(t, err, &invalidErr)
+		assert.Contains(t, err.Error(), "school_id is required")
+	})
+
+	t.Run("empty deviceID", func(t *testing.T) {
+		result, err := svc.CreateDevice(context.Background(), 1, "", "rfid", nil, nil, 1, net.IPv4(127, 0, 0, 1))
+		require.Nil(t, result)
+		var invalidErr *InvalidDataError
+		require.ErrorAs(t, err, &invalidErr)
+		assert.Contains(t, err.Error(), "device_id is required")
+	})
+
+	t.Run("whitespace-only deviceID", func(t *testing.T) {
+		result, err := svc.CreateDevice(context.Background(), 1, "   ", "rfid", nil, nil, 1, net.IPv4(127, 0, 0, 1))
+		require.Nil(t, result)
+		var invalidErr *InvalidDataError
+		require.ErrorAs(t, err, &invalidErr)
+		assert.Contains(t, err.Error(), "device_id is required")
+	})
+
+	t.Run("empty deviceType", func(t *testing.T) {
+		result, err := svc.CreateDevice(context.Background(), 1, "dev-1", "", nil, nil, 1, net.IPv4(127, 0, 0, 1))
+		require.Nil(t, result)
+		var invalidErr *InvalidDataError
+		require.ErrorAs(t, err, &invalidErr)
+		assert.Contains(t, err.Error(), "device_type is required")
+	})
+}
+
+// ---------------------------------------------------------------------------
+// CreateDevice — school not found
+// ---------------------------------------------------------------------------
+
+func TestCreateDevice_SchoolNotFound(t *testing.T) {
+	svc := &operatorProvisioningService{
+		schoolRepo: &internalSchoolRepoStub{
+			findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+				return nil, nil // nil school, no error
+			},
+		},
+	}
+	result, err := svc.CreateDevice(context.Background(), 99, "dev-1", "rfid", nil, nil, 1, net.IPv4(127, 0, 0, 1))
+	require.Nil(t, result)
+	var notFoundErr *SchoolNotFoundError
+	require.ErrorAs(t, err, &notFoundErr)
+	assert.Equal(t, int64(99), notFoundErr.SchoolID)
+}
+
+func TestCreateDevice_SchoolNotFound_SqlErrNoRows(t *testing.T) {
+	svc := &operatorProvisioningService{
+		schoolRepo: &internalSchoolRepoStub{
+			findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+				return nil, sql.ErrNoRows
+			},
+		},
+	}
+	result, err := svc.CreateDevice(context.Background(), 99, "dev-1", "rfid", nil, nil, 1, net.IPv4(127, 0, 0, 1))
+	require.Nil(t, result)
+	var notFoundErr *SchoolNotFoundError
+	require.ErrorAs(t, err, &notFoundErr)
+}
+
+// ---------------------------------------------------------------------------
+// CreateDevice — success with auto-generated key
+// ---------------------------------------------------------------------------
+
+func TestCreateDevice_Success_AutoKey(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+	})
+
+	var createdDevice *iotModels.Device
+	deviceName := "Test Reader"
+
+	// withAdminTx opens tx; queryDeviceSingle runs SELECT inside it
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectQuery("SELECT").WillReturnRows(sqlmock.NewRows([]string{
+		"id", "device_id", "device_type", "name", "status", "api_key",
+		"last_seen", "created_at", "updated_at",
+		"school_id", "school_name", "organization_id", "organization_name",
+	}).AddRow(
+		int64(10), "dev-1", "rfid", "Test Reader", "active", "dev_autokey",
+		nil, time.Now(), time.Now(),
+		int64(42), "Test School", int64(1), "Test Org",
+	))
+	mock.ExpectCommit()
+
+	svc := &operatorProvisioningService{
+		schoolRepo: &internalSchoolRepoStub{
+			findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+				return &platformModels.School{
+					Model:          modelBase.Model{ID: 42},
+					OrganizationID: 1,
+					Name:           "Test School",
+					Slug:           "test-school",
+					Subdomain:      "test-school",
+					Active:         true,
+				}, nil
+			},
+		},
+		deviceRepo: &internalDeviceRepoStub{
+			createFn: func(_ context.Context, device *iotModels.Device) error {
+				createdDevice = device
+				device.ID = 10
+				return nil
+			},
+		},
+		auditLogRepo: &internalAuditLogRepoStub{},
+		txHandler:    modelBase.NewTxHandler(bunDB),
+		logger:       slog.Default(),
+	}
+
+	result, err := svc.CreateDevice(context.Background(), 42, "dev-1", "rfid", &deviceName, nil, 1, net.IPv4(127, 0, 0, 1))
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, int64(10), result.ID)
+	assert.Equal(t, "dev-1", result.DeviceID)
+
+	// Verify the device was created with auto-generated key
+	require.NotNil(t, createdDevice)
+	assert.Equal(t, "dev-1", createdDevice.DeviceID)
+	assert.Equal(t, "rfid", createdDevice.DeviceType)
+	assert.Equal(t, iotModels.DeviceStatusActive, createdDevice.Status)
+	require.NotNil(t, createdDevice.APIKey)
+	assert.True(t, strings.HasPrefix(*createdDevice.APIKey, "dev_"), "auto key should start with dev_")
+	assert.Len(t, *createdDevice.APIKey, 4+64, "dev_ prefix + 64 hex chars")
+}
+
+// ---------------------------------------------------------------------------
+// CreateDevice — success with manual key
+// ---------------------------------------------------------------------------
+
+func TestCreateDevice_Success_ManualKey(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+	})
+
+	var createdDevice *iotModels.Device
+	manualKey := "my-custom-api-key-12345"
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectQuery("SELECT").WillReturnRows(sqlmock.NewRows([]string{
+		"id", "device_id", "device_type", "name", "status", "api_key",
+		"last_seen", "created_at", "updated_at",
+		"school_id", "school_name", "organization_id", "organization_name",
+	}).AddRow(
+		int64(11), "dev-2", "rfid", nil, "active", manualKey,
+		nil, time.Now(), time.Now(),
+		int64(42), "Test School", int64(1), "Test Org",
+	))
+	mock.ExpectCommit()
+
+	svc := &operatorProvisioningService{
+		schoolRepo: &internalSchoolRepoStub{
+			findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+				return &platformModels.School{
+					Model:          modelBase.Model{ID: 42},
+					OrganizationID: 1,
+					Name:           "Test School",
+					Slug:           "test-school",
+					Subdomain:      "test-school",
+					Active:         true,
+				}, nil
+			},
+		},
+		deviceRepo: &internalDeviceRepoStub{
+			createFn: func(_ context.Context, device *iotModels.Device) error {
+				createdDevice = device
+				device.ID = 11
+				return nil
+			},
+		},
+		auditLogRepo: &internalAuditLogRepoStub{},
+		txHandler:    modelBase.NewTxHandler(bunDB),
+		logger:       slog.Default(),
+	}
+
+	result, err := svc.CreateDevice(context.Background(), 42, "dev-2", "rfid", nil, &manualKey, 1, net.IPv4(127, 0, 0, 1))
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	require.NotNil(t, createdDevice)
+	require.NotNil(t, createdDevice.APIKey)
+	assert.Equal(t, manualKey, *createdDevice.APIKey)
+}
+
+// ---------------------------------------------------------------------------
+// CreateDevice — duplicate device_id (unique violation on device_id constraint)
+// ---------------------------------------------------------------------------
+
+func TestCreateDevice_DuplicateDeviceID(t *testing.T) {
+	svc := &operatorProvisioningService{
+		schoolRepo: &internalSchoolRepoStub{
+			findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+				return &platformModels.School{
+					Model:          modelBase.Model{ID: 42},
+					OrganizationID: 1,
+					Name:           "School",
+					Slug:           "school",
+					Subdomain:      "school",
+					Active:         true,
+				}, nil
+			},
+		},
+		deviceRepo: &internalDeviceRepoStub{
+			createFn: func(context.Context, *iotModels.Device) error {
+				// unique violation on device_id constraint (not api_key)
+				return newPgErrorWithConstraint("23505", "devices_device_id_key")
+			},
+		},
+	}
+
+	result, err := svc.CreateDevice(context.Background(), 42, "dev-dup", "rfid", nil, nil, 1, net.IPv4(127, 0, 0, 1))
+	require.Nil(t, result)
+	var conflictErr *ConflictError
+	require.ErrorAs(t, err, &conflictErr)
+	assert.Contains(t, err.Error(), "device_id already exists for this school")
+}
+
+// ---------------------------------------------------------------------------
+// CreateDevice — auto-key collision retry (first attempt fails, second succeeds)
+// ---------------------------------------------------------------------------
+
+func TestCreateDevice_AutoKeyCollisionRetry(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+	})
+
+	attempt := 0
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectQuery("SELECT").WillReturnRows(sqlmock.NewRows([]string{
+		"id", "device_id", "device_type", "name", "status", "api_key",
+		"last_seen", "created_at", "updated_at",
+		"school_id", "school_name", "organization_id", "organization_name",
+	}).AddRow(
+		int64(10), "dev-1", "rfid", nil, "active", "dev_somekey",
+		nil, time.Now(), time.Now(),
+		int64(42), "School", int64(1), "Org",
+	))
+	mock.ExpectCommit()
+
+	svc := &operatorProvisioningService{
+		schoolRepo: &internalSchoolRepoStub{
+			findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+				return &platformModels.School{
+					Model:          modelBase.Model{ID: 42},
+					OrganizationID: 1,
+					Name:           "School",
+					Slug:           "school",
+					Subdomain:      "school",
+					Active:         true,
+				}, nil
+			},
+		},
+		deviceRepo: &internalDeviceRepoStub{
+			createFn: func(_ context.Context, device *iotModels.Device) error {
+				attempt++
+				if attempt == 1 {
+					// First attempt: api_key collision
+					return newPgErrorWithConstraint("23505", "devices_api_key_key")
+				}
+				// Second attempt: success
+				device.ID = 10
+				return nil
+			},
+		},
+		auditLogRepo: &internalAuditLogRepoStub{},
+		txHandler:    modelBase.NewTxHandler(bunDB),
+		logger:       slog.Default(),
+	}
+
+	result, err := svc.CreateDevice(context.Background(), 42, "dev-1", "rfid", nil, nil, 1, net.IPv4(127, 0, 0, 1))
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, 2, attempt, "should have retried after api_key collision")
+}
+
+// ---------------------------------------------------------------------------
+// CreateDevice — manual key conflict (api_key collision with provided key)
+// ---------------------------------------------------------------------------
+
+func TestCreateDevice_ManualKeyConflict(t *testing.T) {
+	manualKey := "my-conflicting-key"
+	svc := &operatorProvisioningService{
+		schoolRepo: &internalSchoolRepoStub{
+			findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+				return &platformModels.School{
+					Model:          modelBase.Model{ID: 42},
+					OrganizationID: 1,
+					Name:           "School",
+					Slug:           "school",
+					Subdomain:      "school",
+					Active:         true,
+				}, nil
+			},
+		},
+		deviceRepo: &internalDeviceRepoStub{
+			createFn: func(context.Context, *iotModels.Device) error {
+				return newPgErrorWithConstraint("23505", "devices_api_key_key")
+			},
+		},
+	}
+
+	result, err := svc.CreateDevice(context.Background(), 42, "dev-1", "rfid", nil, &manualKey, 1, net.IPv4(127, 0, 0, 1))
+	require.Nil(t, result)
+	var conflictErr *ConflictError
+	require.ErrorAs(t, err, &conflictErr)
+	assert.Contains(t, err.Error(), "api_key already in use")
+}
+
+// ---------------------------------------------------------------------------
+// SetDeviceAPIKey — invalid ID
+// ---------------------------------------------------------------------------
+
+func TestSetDeviceAPIKey_InvalidID(t *testing.T) {
+	svc := &operatorProvisioningService{}
+
+	t.Run("id zero", func(t *testing.T) {
+		result, err := svc.SetDeviceAPIKey(context.Background(), 0, nil, 1, net.IPv4(127, 0, 0, 1))
+		require.Nil(t, result)
+		var invalidErr *InvalidDataError
+		require.ErrorAs(t, err, &invalidErr)
+		assert.Contains(t, err.Error(), "device id is required")
+	})
+
+	t.Run("id negative", func(t *testing.T) {
+		result, err := svc.SetDeviceAPIKey(context.Background(), -1, nil, 1, net.IPv4(127, 0, 0, 1))
+		require.Nil(t, result)
+		var invalidErr *InvalidDataError
+		require.ErrorAs(t, err, &invalidErr)
+	})
+}
+
+// ---------------------------------------------------------------------------
+// SetDeviceAPIKey — device not found
+// ---------------------------------------------------------------------------
+
+func TestSetDeviceAPIKey_DeviceNotFound(t *testing.T) {
+	t.Run("nil device returned", func(t *testing.T) {
+		svc := &operatorProvisioningService{
+			deviceRepo: &internalDeviceRepoStub{
+				findByIDFn: func(context.Context, interface{}) (*iotModels.Device, error) {
+					return nil, nil
+				},
+			},
+		}
+		result, err := svc.SetDeviceAPIKey(context.Background(), 99, nil, 1, net.IPv4(127, 0, 0, 1))
+		require.Nil(t, result)
+		var notFoundErr *OperatorDeviceNotFoundError
+		require.ErrorAs(t, err, &notFoundErr)
+		assert.Equal(t, int64(99), notFoundErr.DeviceID)
+	})
+
+	t.Run("sql.ErrNoRows", func(t *testing.T) {
+		svc := &operatorProvisioningService{
+			deviceRepo: &internalDeviceRepoStub{
+				findByIDFn: func(context.Context, interface{}) (*iotModels.Device, error) {
+					return nil, sql.ErrNoRows
+				},
+			},
+		}
+		result, err := svc.SetDeviceAPIKey(context.Background(), 99, nil, 1, net.IPv4(127, 0, 0, 1))
+		require.Nil(t, result)
+		var notFoundErr *OperatorDeviceNotFoundError
+		require.ErrorAs(t, err, &notFoundErr)
+	})
+
+	t.Run("DatabaseError wrapping sql.ErrNoRows", func(t *testing.T) {
+		svc := &operatorProvisioningService{
+			deviceRepo: &internalDeviceRepoStub{
+				findByIDFn: func(context.Context, interface{}) (*iotModels.Device, error) {
+					return nil, &modelBase.DatabaseError{Op: "find", Err: sql.ErrNoRows}
+				},
+			},
+		}
+		result, err := svc.SetDeviceAPIKey(context.Background(), 99, nil, 1, net.IPv4(127, 0, 0, 1))
+		require.Nil(t, result)
+		var notFoundErr *OperatorDeviceNotFoundError
+		require.ErrorAs(t, err, &notFoundErr)
+	})
+}
+
+// ---------------------------------------------------------------------------
+// SetDeviceAPIKey — success with auto-generated key
+// ---------------------------------------------------------------------------
+
+func TestSetDeviceAPIKey_Success_AutoKey(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+	})
+
+	var updatedDevice *iotModels.Device
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectQuery("SELECT").WillReturnRows(sqlmock.NewRows([]string{
+		"id", "device_id", "device_type", "name", "status", "api_key",
+		"last_seen", "created_at", "updated_at",
+		"school_id", "school_name", "organization_id", "organization_name",
+	}).AddRow(
+		int64(10), "dev-1", "rfid", nil, "active", "dev_newkey",
+		nil, time.Now(), time.Now(),
+		int64(42), "School", int64(1), "Org",
+	))
+	mock.ExpectCommit()
+
+	svc := &operatorProvisioningService{
+		deviceRepo: &internalDeviceRepoStub{
+			findByIDFn: func(_ context.Context, id interface{}) (*iotModels.Device, error) {
+				return &iotModels.Device{
+					Model:      modelBase.Model{ID: 10},
+					DeviceID:   "dev-1",
+					DeviceType: "rfid",
+					Status:     iotModels.DeviceStatusActive,
+				}, nil
+			},
+			updateFn: func(_ context.Context, device *iotModels.Device) error {
+				updatedDevice = device
+				return nil
+			},
+		},
+		auditLogRepo: &internalAuditLogRepoStub{},
+		txHandler:    modelBase.NewTxHandler(bunDB),
+		logger:       slog.Default(),
+	}
+
+	result, err := svc.SetDeviceAPIKey(context.Background(), 10, nil, 1, net.IPv4(127, 0, 0, 1))
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, int64(10), result.ID)
+
+	require.NotNil(t, updatedDevice)
+	require.NotNil(t, updatedDevice.APIKey)
+	assert.True(t, strings.HasPrefix(*updatedDevice.APIKey, "dev_"), "auto key should start with dev_")
+	assert.Len(t, *updatedDevice.APIKey, 4+64)
+}
+
+// ---------------------------------------------------------------------------
+// SetDeviceAPIKey — success with manual key
+// ---------------------------------------------------------------------------
+
+func TestSetDeviceAPIKey_Success_ManualKey(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+	})
+
+	manualKey := "custom-key-abc"
+	var updatedDevice *iotModels.Device
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectQuery("SELECT").WillReturnRows(sqlmock.NewRows([]string{
+		"id", "device_id", "device_type", "name", "status", "api_key",
+		"last_seen", "created_at", "updated_at",
+		"school_id", "school_name", "organization_id", "organization_name",
+	}).AddRow(
+		int64(10), "dev-1", "rfid", nil, "active", manualKey,
+		nil, time.Now(), time.Now(),
+		int64(42), "School", int64(1), "Org",
+	))
+	mock.ExpectCommit()
+
+	svc := &operatorProvisioningService{
+		deviceRepo: &internalDeviceRepoStub{
+			findByIDFn: func(_ context.Context, id interface{}) (*iotModels.Device, error) {
+				return &iotModels.Device{
+					Model:      modelBase.Model{ID: 10},
+					DeviceID:   "dev-1",
+					DeviceType: "rfid",
+					Status:     iotModels.DeviceStatusActive,
+				}, nil
+			},
+			updateFn: func(_ context.Context, device *iotModels.Device) error {
+				updatedDevice = device
+				return nil
+			},
+		},
+		auditLogRepo: &internalAuditLogRepoStub{},
+		txHandler:    modelBase.NewTxHandler(bunDB),
+		logger:       slog.Default(),
+	}
+
+	result, err := svc.SetDeviceAPIKey(context.Background(), 10, &manualKey, 1, net.IPv4(127, 0, 0, 1))
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	require.NotNil(t, updatedDevice)
+	require.NotNil(t, updatedDevice.APIKey)
+	assert.Equal(t, manualKey, *updatedDevice.APIKey)
+}
+
+// ---------------------------------------------------------------------------
+// SetDeviceAPIKey — manual key conflict (api_key collision)
+// ---------------------------------------------------------------------------
+
+func TestSetDeviceAPIKey_ManualKeyConflict(t *testing.T) {
+	manualKey := "conflicting-key"
+	svc := &operatorProvisioningService{
+		deviceRepo: &internalDeviceRepoStub{
+			findByIDFn: func(_ context.Context, id interface{}) (*iotModels.Device, error) {
+				return &iotModels.Device{
+					Model:      modelBase.Model{ID: 10},
+					DeviceID:   "dev-1",
+					DeviceType: "rfid",
+					Status:     iotModels.DeviceStatusActive,
+				}, nil
+			},
+			updateFn: func(context.Context, *iotModels.Device) error {
+				return newPgErrorWithConstraint("23505", "devices_api_key_key")
+			},
+		},
+	}
+
+	result, err := svc.SetDeviceAPIKey(context.Background(), 10, &manualKey, 1, net.IPv4(127, 0, 0, 1))
+	require.Nil(t, result)
+	var conflictErr *ConflictError
+	require.ErrorAs(t, err, &conflictErr)
+	assert.Contains(t, err.Error(), "api_key already in use")
 }

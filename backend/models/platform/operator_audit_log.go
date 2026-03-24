@@ -21,6 +21,7 @@ const (
 	ActionLogin         = "login"
 	ActionAddComment    = "add_comment"
 	ActionDeleteComment = "delete_comment"
+	ActionRotateAPIKey  = "rotate_api_key"
 )
 
 // Common resource type constants
@@ -32,6 +33,7 @@ const (
 	ResourceOrganization = "organization"
 	ResourceSchool       = "school"
 	ResourceInvitation   = "invitation"
+	ResourceDevice       = "device"
 )
 
 // OperatorAuditLog tracks operator actions for auditing

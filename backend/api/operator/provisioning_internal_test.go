@@ -103,6 +103,12 @@ func (m *mockProvisioningService) ListOrganizationDevices(ctx context.Context, o
 	}
 	return nil, nil
 }
+func (m *mockProvisioningService) CreateDevice(_ context.Context, _ int64, _, _ string, _, _ *string, _ int64, _ net.IP) (*platformSvc.OperatorDeviceInfo, error) {
+	return nil, nil
+}
+func (m *mockProvisioningService) SetDeviceAPIKey(_ context.Context, _ int64, _ *string, _ int64, _ net.IP) (*platformSvc.OperatorDeviceInfo, error) {
+	return nil, nil
+}
 
 func withOperatorClaims(req *http.Request, operatorID int) *http.Request {
 	claims := jwtPkg.AppClaims{ID: operatorID, Scope: "platform"}

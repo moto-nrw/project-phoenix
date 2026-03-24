@@ -245,6 +245,20 @@ export interface UpdateSchoolRequest {
   active: boolean;
 }
 
+// Device creation / API key management
+
+export interface CreateDeviceRequest {
+  school_id: number;
+  device_id: string;
+  device_type: string;
+  name?: string;
+  api_key?: string;
+}
+
+export interface SetDeviceAPIKeyRequest {
+  api_key?: string;
+}
+
 // Device types for operator device listing
 
 export interface BackendOperatorDevice {

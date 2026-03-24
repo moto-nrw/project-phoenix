@@ -14,6 +14,7 @@ import type {
   OperatorDevice,
   CreateOrganizationRequest,
   CreateSchoolRequest,
+  CreateDeviceRequest,
   InviteAdminRequest,
   UpdateOrganizationRequest,
   UpdateSchoolRequest,
@@ -119,6 +120,25 @@ class OperatorProvisioningService {
       `/api/operator/provisioning/organizations/${encodeURIComponent(orgId)}/devices`,
     );
     return data.map(mapOperatorDevice);
+  }
+
+  async createDevice(data: CreateDeviceRequest): Promise<OperatorDevice> {
+    const result = await operatorFetch<BackendOperatorDevice>(
+      "/api/operator/provisioning/devices",
+      { method: "POST", body: data },
+    );
+    return mapOperatorDevice(result);
+  }
+
+  async setDeviceAPIKey(
+    deviceId: string,
+    apiKey?: string,
+  ): Promise<OperatorDevice> {
+    const result = await operatorFetch<BackendOperatorDevice>(
+      `/api/operator/provisioning/devices/${encodeURIComponent(deviceId)}/set-api-key`,
+      { method: "POST", body: apiKey ? { api_key: apiKey } : {} },
+    );
+    return mapOperatorDevice(result);
   }
 
   async inviteSchoolAdmin(
