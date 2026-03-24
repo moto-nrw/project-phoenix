@@ -307,7 +307,7 @@ describe("DevicesPage", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Reader 1")).toBeInTheDocument();
-      expect(screen.getByText("Terminal")).toBeInTheDocument();
+      expect(screen.getByText("TERMINAL")).toBeInTheDocument();
     });
   });
 
