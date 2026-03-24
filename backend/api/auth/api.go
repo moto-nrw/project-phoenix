@@ -1072,7 +1072,7 @@ func (rs *Resource) updateRole(w http.ResponseWriter, r *http.Request) {
 	role.Description = req.Description
 
 	if err := rs.AuthService.UpdateRole(r.Context(), role); err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, renderRoleMutationError(err))
 		return
 	}
 
@@ -1087,11 +1087,25 @@ func (rs *Resource) deleteRole(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := rs.AuthService.DeleteRole(r.Context(), id); err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, renderRoleMutationError(err))
 		return
 	}
 
 	common.RespondNoContent(w, r)
+}
+
+// renderRoleMutationError maps service-layer role errors to appropriate HTTP responses.
+func renderRoleMutationError(err error) render.Renderer {
+	var authErr *authService.AuthError
+	if errors.As(err, &authErr) {
+		if errors.Is(authErr.Err, authService.ErrSystemRoleImmutable) {
+			return ErrorForbidden(authErr.Err)
+		}
+		if errors.Is(authErr.Err, authService.ErrRoleNotFound) {
+			return ErrorNotFound(authErr.Err)
+		}
+	}
+	return ErrorInternalServer(err)
 }
 
 // listRoles handles listing roles
@@ -1465,7 +1479,7 @@ func (rs *Resource) assignPermissionToRole(w http.ResponseWriter, r *http.Reques
 	}
 
 	if err := rs.AuthService.AssignPermissionToRole(r.Context(), roleID, permissionID); err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, renderRoleMutationError(err))
 		return
 	}
 
@@ -1485,7 +1499,7 @@ func (rs *Resource) removePermissionFromRole(w http.ResponseWriter, r *http.Requ
 	}
 
 	if err := rs.AuthService.RemovePermissionFromRole(r.Context(), roleID, permissionID); err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, renderRoleMutationError(err))
 		return
 	}
 

@@ -47,8 +47,13 @@ func (s *Service) GetRoleByName(ctx context.Context, name string) (*auth.Role, e
 
 // UpdateRole updates an existing role. System roles cannot be modified.
 func (s *Service) UpdateRole(ctx context.Context, role *auth.Role) error {
-	if role.IsSystem {
-		return &AuthError{Op: "update role", Err: errors.New("system roles cannot be modified")}
+	// Always verify against the DB record — never trust the caller's IsSystem value
+	existing, err := s.repos.Role.FindByID(ctx, role.ID)
+	if err != nil {
+		return &AuthError{Op: "update role", Err: ErrRoleNotFound}
+	}
+	if existing.IsSystem {
+		return &AuthError{Op: "update role", Err: ErrSystemRoleImmutable}
 	}
 	if err := s.repos.Role.Update(ctx, role); err != nil {
 		return &AuthError{Op: "update role", Err: err}
@@ -64,7 +69,7 @@ func (s *Service) DeleteRole(ctx context.Context, id int) error {
 		return &AuthError{Op: "delete role", Err: err}
 	}
 	if role.IsSystem {
-		return &AuthError{Op: "delete role", Err: errors.New("system roles cannot be deleted")}
+		return &AuthError{Op: "delete role", Err: ErrSystemRoleImmutable}
 	}
 
 	// First remove all account-role mappings for this role (batch delete)

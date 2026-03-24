@@ -214,8 +214,8 @@ func (r *RoleRepository) FindByID(ctx context.Context, id any) (*auth.Role, erro
 	return role, nil
 }
 
-// Delete overrides the base Delete to include system roles in tenant-scoped lookups.
-// Note: the service layer prevents deletion of system roles before this is reached.
+// Delete overrides the base Delete to restrict deletions to tenant-owned roles only.
+// System roles (tenant_id IS NULL) cannot be deleted at the repository level.
 func (r *RoleRepository) Delete(ctx context.Context, id any) error {
 	query := base.GetDB(ctx, r.db).NewDelete().
 		Model((*auth.Role)(nil)).
@@ -223,7 +223,7 @@ func (r *RoleRepository) Delete(ctx context.Context, id any) error {
 		Where(whereRoleID, id)
 
 	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
-		query = query.Where("(role.tenant_id = ? OR role.tenant_id IS NULL)", tenantID)
+		query = query.Where("role.tenant_id = ?", tenantID)
 	}
 
 	_, err := query.Exec(ctx)
@@ -263,14 +263,15 @@ func (r *RoleRepository) Update(ctx context.Context, role *auth.Role) error {
 		return err
 	}
 
-	// Execute the query using GetDB for transaction support
+	// Execute the query using GetDB for transaction support.
+	// Only tenant-owned roles can be updated; system roles (tenant_id IS NULL) are excluded.
 	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model(role).
 		Where(whereRoleID, role.ID).
 		ModelTableExpr(roleTableAlias)
 
 	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
-		query = query.Where("(role.tenant_id = ? OR role.tenant_id IS NULL)", tenantID)
+		query = query.Where("role.tenant_id = ?", tenantID)
 	}
 
 	_, err := query.Exec(ctx)

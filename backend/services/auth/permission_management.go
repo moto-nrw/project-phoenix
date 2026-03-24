@@ -2,7 +2,6 @@ package auth
 
 import (
 	"context"
-	"errors"
 
 	"github.com/moto-nrw/project-phoenix/models/auth"
 )
@@ -152,7 +151,7 @@ func (s *Service) AssignPermissionToRole(ctx context.Context, roleID, permission
 		return &AuthError{Op: opAssignPermissionToRole, Err: ErrRoleNotFound}
 	}
 	if role.IsSystem {
-		return &AuthError{Op: opAssignPermissionToRole, Err: errors.New("system role permissions cannot be modified")}
+		return &AuthError{Op: opAssignPermissionToRole, Err: ErrSystemRoleImmutable}
 	}
 
 	// Verify permission exists
@@ -175,7 +174,7 @@ func (s *Service) RemovePermissionFromRole(ctx context.Context, roleID, permissi
 		return &AuthError{Op: "remove permission from role", Err: ErrRoleNotFound}
 	}
 	if role.IsSystem {
-		return &AuthError{Op: "remove permission from role", Err: errors.New("system role permissions cannot be modified")}
+		return &AuthError{Op: "remove permission from role", Err: ErrSystemRoleImmutable}
 	}
 
 	if err := s.repos.Permission.RemovePermissionFromRole(ctx, int64(roleID), int64(permissionID)); err != nil {
