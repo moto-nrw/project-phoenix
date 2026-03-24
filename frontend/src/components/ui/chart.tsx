@@ -1,8 +1,10 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
 /* eslint-disable @typescript-eslint/prefer-nullish-coalescing */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 /* eslint-disable @typescript-eslint/no-unsafe-call */
+// @ts-nocheck — shadcn/ui generated file; recharts v2.15 broke internal type exports
 "use client";
 
 import * as React from "react";
@@ -116,6 +118,7 @@ const ChartTooltip = RechartsPrimitive.Tooltip;
 
 const ChartTooltipContent = React.forwardRef<
   HTMLDivElement,
+  // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents -- recharts type export is broken
   Partial<TooltipContentProps> &
     React.ComponentProps<"div"> & {
       hideLabel?: boolean;
