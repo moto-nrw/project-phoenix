@@ -48,8 +48,33 @@ func init() {
 //
 // System roles (is_system = true) intentionally have NULL tenant_id and are
 // shared across all tenants, so they are left untouched.
+// rlsTables lists tables touched by this migration that have RLS enabled.
+// RLS must be disabled before DML and re-enabled after, otherwise the tenant
+// isolation policy filters out all rows (no app.current_tenant_id is set
+// during migrations).
+var backfillRLSTables = []string{
+	"auth.roles",
+	"auth.account_roles",
+	"auth.invitation_tokens",
+	"auth.role_permissions",
+}
+
 func backfillRoleTenantIDs(ctx context.Context, db *bun.DB) error {
 	fmt.Println("Migration 1.15.17: Backfilling tenant_id on non-system roles with NULL tenant_id...")
+
+	// Disable RLS on all affected tables so cross-tenant queries work.
+	for _, table := range backfillRLSTables {
+		if _, err := db.ExecContext(ctx, fmt.Sprintf(`ALTER TABLE %s DISABLE ROW LEVEL SECURITY`, table)); err != nil {
+			return fmt.Errorf("error disabling RLS on %s: %w", table, err)
+		}
+	}
+	// Ensure RLS is re-enabled regardless of outcome.
+	defer func() {
+		for _, table := range backfillRLSTables {
+			_, _ = db.ExecContext(ctx, fmt.Sprintf(`ALTER TABLE %s ENABLE ROW LEVEL SECURITY`, table))
+			_, _ = db.ExecContext(ctx, fmt.Sprintf(`ALTER TABLE %s FORCE ROW LEVEL SECURITY`, table))
+		}
+	}()
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
