@@ -24,6 +24,7 @@ import (
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Constants for permission strings, headers, route patterns, and error messages (S1192 - avoid duplicate string literals)
@@ -114,7 +115,13 @@ func (rs *Resource) Router() chi.Router {
 		r.Post("/password", rs.changePassword)
 
 		// Admin routes - require admin role or specific permissions
+		// TenantTxMiddleware wraps each request in a DB transaction as phoenix_tenant
+		// with RLS scoping (SET LOCAL ROLE + set_config). Without this, queries run
+		// as phoenix_auth which only has SELECT on auth tables.
+		withTx := tenant.TenantTxMiddleware(rs.db)
 		r.Group(func(r chi.Router) {
+			r.Use(withTx)
+
 			// Link existing account to current tenant (for multi-tenant staff creation)
 			r.With(authorize.RequiresPermission(permUsersCreate)).Post("/link-to-tenant", rs.linkToTenant)
 
