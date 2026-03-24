@@ -635,19 +635,21 @@ func TestRegisterRequiresAdminAuth(t *testing.T) {
 		testutil.AssertUnauthorized(t, rr)
 	})
 
-	t.Run("non-admin returns unauthorized", func(t *testing.T) {
-		// Create a regular (non-admin) account and log in
+	t.Run("non-admin returns forbidden", func(t *testing.T) {
+		// Create a fresh role with NO permissions to guarantee 403
+		ctx := context.Background()
+		testpkg.EnsureTestTenant(t, db, 1)
+		noPermsRole := testpkg.CreateTestRole(t, db, "noperms")
+
+		// Create account, map to tenant, assign the empty role
 		userEmail := fmt.Sprintf("nonadmin_%d@example.com", time.Now().UnixNano())
 		userPassword := "UserPass123!"
 		userAccount := testpkg.CreateTestAccountWithPassword(t, db, userEmail, userPassword)
 		testpkg.EnsureAccountTenant(t, db, userAccount.ID, 1)
 
-		// Assign a "user" role (not admin)
-		userRole := testpkg.GetOrCreateTestRole(t, db, "user")
-		ctx := context.Background()
 		userAccountRole := &authModel.AccountRole{
 			AccountID: userAccount.ID,
-			RoleID:    userRole.ID,
+			RoleID:    noPermsRole.ID,
 		}
 		userAccountRole.SetTenantID(1)
 		_, err := db.NewInsert().Model(userAccountRole).ModelTableExpr("auth.account_roles").Exec(ctx)
@@ -657,9 +659,10 @@ func TestRegisterRequiresAdminAuth(t *testing.T) {
 			_, _ = db.NewDelete().TableExpr("auth.account_roles").Where("account_id = ?", userAccount.ID).Exec(ctx)
 			_, _ = db.NewDelete().TableExpr("auth.tokens").Where("account_id = ?", userAccount.ID).Exec(ctx)
 			testpkg.CleanupAccount(t, db, userAccount.ID)
+			_, _ = db.NewDelete().TableExpr("auth.roles").Where("id = ?", noPermsRole.ID).Exec(ctx)
 		})
 
-		// Login to get a real token
+		// Login to get a real token — JWT will have zero permissions
 		loginReq := testutil.NewJSONRequest(t, "POST", "/auth/login", map[string]string{
 			"email":    userEmail,
 			"password": userPassword,
@@ -670,12 +673,12 @@ func TestRegisterRequiresAdminAuth(t *testing.T) {
 		loginResp := testutil.ParseJSONResponse(t, loginRR.Body.Bytes())
 		accessToken := loginResp["access_token"].(string)
 
-		// Try to register with non-admin token
+		// Try to register — 403 because user has no permissions at all
 		req := testutil.NewJSONRequest(t, "POST", "/auth/register", validBody())
 		req.Header.Set("Authorization", "Bearer "+accessToken)
 		rr := testutil.ExecuteRequest(router, req)
 
-		testutil.AssertUnauthorized(t, rr)
+		testutil.AssertForbidden(t, rr)
 	})
 
 	t.Run("admin without role_id returns bad request", func(t *testing.T) {

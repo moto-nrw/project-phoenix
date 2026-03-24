@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { ChevronRight, Check, Minus } from "lucide-react";
 import { FormModal } from "~/components/ui";
 import { SimpleAlert } from "~/components/simple/SimpleAlert";
 import { useToast } from "~/contexts/ToastContext";
@@ -36,7 +37,6 @@ export function RolePermissionManagementModal({
   const [errorMessage, setErrorMessage] = useState("");
   // Warning alert disabled for now to reduce noise in UI
   const [allPermissions, setAllPermissions] = useState<Permission[]>([]);
-  const [rolePermissions, setRolePermissions] = useState<Permission[]>([]);
   const [assignedMap, setAssignedMap] = useState<Record<string, boolean>>({});
   const [initialAssignedMap, setInitialAssignedMap] = useState<
     Record<string, boolean>
@@ -44,24 +44,19 @@ export function RolePermissionManagementModal({
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-
-  const showSuccess = (message: string) => {
-    toastSuccess(message);
-  };
+  const [collapsedGroups, setCollapsedGroups] = useState<
+    Record<string, boolean>
+  >({});
 
   const showError = (message: string) => {
     setErrorMessage(message);
     setShowErrorAlert(true);
   };
 
-  // showWarning helper currently unused
-
-  // Fetch all permissions and role permissions
   const fetchPermissions = async () => {
     try {
       setLoading(true);
 
-      // Fetch all permissions
       const [allPerms, rolePerms] = await Promise.all([
         authService.getPermissions(),
         authService.getRolePermissions(role.id),
@@ -73,7 +68,6 @@ export function RolePermissionManagementModal({
       });
 
       setAllPermissions(allPerms);
-      setRolePermissions(rolePerms);
       const map: Record<string, boolean> = {};
       rolePerms.forEach((p) => {
         map[p.id] = true;
@@ -97,16 +91,32 @@ export function RolePermissionManagementModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, role.id]);
 
-  // Filter permissions based on search term
-  const filteredPermissions = allPermissions.filter((permission) => {
+  const filteredPermissions = useMemo(() => {
     const searchLower = searchTerm.toLowerCase();
-    return (
-      permission.name.toLowerCase().includes(searchLower) ||
-      permission.description.toLowerCase().includes(searchLower) ||
-      permission.resource.toLowerCase().includes(searchLower) ||
-      permission.action.toLowerCase().includes(searchLower)
+    return allPermissions.filter(
+      (permission) =>
+        permission.name.toLowerCase().includes(searchLower) ||
+        permission.description.toLowerCase().includes(searchLower) ||
+        permission.resource.toLowerCase().includes(searchLower) ||
+        permission.action.toLowerCase().includes(searchLower) ||
+        localizeResource(permission.resource)
+          .toLowerCase()
+          .includes(searchLower) ||
+        localizeAction(permission.action).toLowerCase().includes(searchLower),
     );
-  });
+  }, [allPermissions, searchTerm]);
+
+  const groupedPermissions = useMemo(() => {
+    const groups: Record<string, Permission[]> = {};
+    for (const permission of filteredPermissions) {
+      const resource = permission.resource;
+      groups[resource] ??= [];
+      groups[resource].push(permission);
+    }
+    return Object.entries(groups).sort(([a], [b]) =>
+      localizeResource(a).localeCompare(localizeResource(b), "de"),
+    );
+  }, [filteredPermissions]);
 
   const handleTogglePermission = (permissionId: string) => {
     setAssignedMap((prev) => ({
@@ -114,6 +124,37 @@ export function RolePermissionManagementModal({
       [permissionId]: !prev[permissionId],
     }));
   };
+
+  // Shared toggle: checks state inside the updater so the callback has no `assignedMap` dependency
+  const handleTogglePermissions = useCallback((permissions: Permission[]) => {
+    setAssignedMap((prev) => {
+      const allChecked = permissions.every((p) => !!prev[p.id]);
+      const next = { ...prev };
+      for (const p of permissions) {
+        next[p.id] = !allChecked;
+      }
+      return next;
+    });
+  }, []);
+
+  const toggleGroupCollapsed = (resource: string) => {
+    setCollapsedGroups((prev) => ({
+      ...prev,
+      [resource]: !prev[resource],
+    }));
+  };
+
+  const totalAssignedCount = useMemo(
+    () => allPermissions.filter((p) => !!assignedMap[p.id]).length,
+    [allPermissions, assignedMap],
+  );
+
+  const allFilteredChecked = useMemo(
+    () =>
+      filteredPermissions.length > 0 &&
+      filteredPermissions.every((p) => !!assignedMap[p.id]),
+    [filteredPermissions, assignedMap],
+  );
 
   const hasChanges = useMemo(() => {
     const keys = new Set([
@@ -152,7 +193,7 @@ export function RolePermissionManagementModal({
         ),
       ]);
 
-      showSuccess("Berechtigungen aktualisiert");
+      toastSuccess("Berechtigungen aktualisiert");
       await fetchPermissions();
       onUpdate();
       onClose();
@@ -165,8 +206,6 @@ export function RolePermissionManagementModal({
       setSaving(false);
     }
   };
-
-  // Unused: handleRemovePermission kept for future quick actions in list
 
   const footer = (
     <div className="flex w-full gap-2 md:gap-3">
@@ -207,68 +246,133 @@ export function RolePermissionManagementModal({
                 Zugewiesene Berechtigungen
               </span>
               <span className="text-sm font-semibold text-gray-900 md:text-base">
-                {rolePermissions.length}
+                {totalAssignedCount} / {allPermissions.length}
               </span>
             </div>
           </div>
 
-          {/* Hinweiszeile */}
-          <div className="flex items-center justify-between text-xs text-gray-600 md:text-sm">
-            <span>
-              Aktiviere oder deaktiviere Berechtigungen und speichere die
-              Änderungen.
-            </span>
-            <span className="hidden text-gray-500 md:inline">
-              {rolePermissions.length} zugewiesen
-            </span>
+          {/* Search + Select All */}
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              placeholder="Berechtigungen suchen..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none md:px-4 md:py-2"
+            />
+            <button
+              type="button"
+              onClick={() => handleTogglePermissions(filteredPermissions)}
+              disabled={filteredPermissions.length === 0}
+              className="shrink-0 rounded-lg border border-gray-300 px-3 py-2 text-xs font-medium text-gray-700 transition-all duration-200 hover:border-purple-400 hover:bg-purple-50 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+            >
+              {allFilteredChecked ? "Alle abwählen" : "Alle auswählen"}
+            </button>
           </div>
 
-          {/* Search */}
-          <input
-            type="text"
-            placeholder="Berechtigungen suchen..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none md:px-4 md:py-2"
-          />
-
-          {/* Content */}
+          {/* Permission groups */}
           {loading ? (
             <div className="py-8 text-center text-gray-500">Laden...</div>
           ) : (
-            <div className="max-h-96 space-y-1.5 overflow-y-auto rounded-xl border border-gray-100 bg-white">
-              {filteredPermissions.length === 0 ? (
+            <div className="max-h-96 overflow-y-auto rounded-xl border border-gray-100 bg-white">
+              {groupedPermissions.length === 0 ? (
                 <p className="py-8 text-center text-gray-500">
                   Keine Berechtigungen gefunden
                 </p>
               ) : (
-                filteredPermissions.map((permission) => {
-                  const checked = !!assignedMap[permission.id];
+                groupedPermissions.map(([resource, permissions]) => {
+                  const groupAssignedCount = permissions.filter(
+                    (p) => !!assignedMap[p.id],
+                  ).length;
+                  const allGroupChecked =
+                    groupAssignedCount === permissions.length;
+                  const someGroupChecked =
+                    !allGroupChecked && groupAssignedCount > 0;
+                  const isCollapsed = !!collapsedGroups[resource];
+
                   return (
-                    <div
-                      key={permission.id}
-                      className="flex items-center justify-between p-3 hover:bg-gray-50 md:p-3.5"
-                    >
-                      <div className="min-w-0 flex-1 pr-3">
-                        <div className="text-sm font-medium text-gray-900">
-                          {getPermissionDisplayName(permission)}
-                        </div>
-                        <div className="mt-1 text-[11px] text-gray-500 md:text-xs">
-                          Ressource: {localizeResource(permission.resource)} •
-                          Aktion: {localizeAction(permission.action)}
-                        </div>
+                    <div key={resource}>
+                      {/* Resource group header */}
+                      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-100 bg-gray-50 px-3 py-2 md:px-4">
+                        <button
+                          type="button"
+                          onClick={() => toggleGroupCollapsed(resource)}
+                          className="flex min-w-0 flex-1 items-center gap-2"
+                        >
+                          <ChevronRight
+                            className={`h-3.5 w-3.5 shrink-0 text-gray-400 transition-transform duration-200 ${isCollapsed ? "" : "rotate-90"}`}
+                            strokeWidth={2.5}
+                          />
+                          <span className="text-xs font-semibold text-gray-700 md:text-sm">
+                            {localizeResource(resource)}
+                          </span>
+                          <span className="text-[10px] text-gray-400 md:text-xs">
+                            {groupAssignedCount}/{permissions.length}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleTogglePermissions(permissions);
+                          }}
+                          className="relative ml-2 flex h-5 w-5 shrink-0 items-center justify-center rounded border border-gray-300 bg-white transition-colors hover:border-purple-400 hover:bg-purple-50 md:h-[18px] md:w-[18px]"
+                          title={
+                            allGroupChecked
+                              ? `Alle ${localizeResource(resource)}-Berechtigungen abwählen`
+                              : `Alle ${localizeResource(resource)}-Berechtigungen auswählen`
+                          }
+                        >
+                          {allGroupChecked && (
+                            <Check
+                              className="h-3 w-3 text-purple-600"
+                              strokeWidth={3}
+                            />
+                          )}
+                          {someGroupChecked && (
+                            <Minus
+                              className="h-3 w-3 text-purple-600"
+                              strokeWidth={3}
+                            />
+                          )}
+                        </button>
                       </div>
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={checked}
-                        onClick={() => handleTogglePermission(permission.id)}
-                        className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-200 focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:outline-none ${checked ? "bg-purple-600" : "bg-gray-300"}`}
-                      >
-                        <span
-                          className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform duration-200 ${checked ? "translate-x-6" : "translate-x-1"}`}
-                        />
-                      </button>
+
+                      {/* Permission rows */}
+                      {!isCollapsed &&
+                        permissions.map((permission) => {
+                          const checked = !!assignedMap[permission.id];
+                          return (
+                            <div
+                              key={permission.id}
+                              className="flex items-center justify-between p-3 hover:bg-gray-50 md:p-3.5"
+                            >
+                              <div className="min-w-0 flex-1 pr-3">
+                                <div className="text-sm font-medium text-gray-900">
+                                  {getPermissionDisplayName(permission)}
+                                </div>
+                                <div className="mt-1 text-[11px] text-gray-500 md:text-xs">
+                                  Ressource:{" "}
+                                  {localizeResource(permission.resource)} •
+                                  Aktion: {localizeAction(permission.action)}
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                role="switch"
+                                aria-checked={checked}
+                                onClick={() =>
+                                  handleTogglePermission(permission.id)
+                                }
+                                className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-200 focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:outline-none ${checked ? "bg-purple-600" : "bg-gray-300"}`}
+                              >
+                                <span
+                                  className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform duration-200 ${checked ? "translate-x-6" : "translate-x-1"}`}
+                                />
+                              </button>
+                            </div>
+                          );
+                        })}
                     </div>
                   );
                 })

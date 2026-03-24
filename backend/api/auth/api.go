@@ -79,7 +79,6 @@ func (rs *Resource) Router() chi.Router {
 			r.Use(rs.authRateLimiter)
 		}
 		r.Post("/login", rs.login)
-		r.Post("/register", rs.register)
 		r.Post("/password-reset", rs.initiatePasswordReset)
 		r.Post("/password-reset/confirm", rs.resetPassword)
 	})
@@ -122,7 +121,10 @@ func (rs *Resource) Router() chi.Router {
 		r.Group(func(r chi.Router) {
 			r.Use(withTx)
 
-			// Link existing account to current tenant (for multi-tenant staff creation)
+			// Account creation — uses users:manage (not users:create) because
+			// the "user" role is granted users:create in migrations; manage
+			// restricts this to actual administrators.
+			r.With(authorize.RequiresPermission(permUsersManage)).Post("/register", rs.register)
 			r.With(authorize.RequiresPermission(permUsersCreate)).Post("/link-to-tenant", rs.linkToTenant)
 
 			// Role management routes
@@ -583,33 +585,12 @@ func (rs *Resource) linkToTenant(w http.ResponseWriter, r *http.Request) {
 	}, "Account linked to tenant successfully")
 }
 
-// authorizeRoleAssignment checks if the caller is an authenticated admin and has provided a valid role_id.
-// Registration always requires admin authentication. Returns the authorized role ID, the caller's
-// tenant ID (from JWT), and a boolean indicating if the handler should return early (true = error
-// was rendered, caller should return).
+// authorizeRoleAssignment validates the role_id from the request and returns it along with the
+// caller's tenant ID. Auth and permission checks are handled by middleware (Authenticator +
+// TenantMiddleware + RequiresPermission). Returns the role ID, tenant ID, and whether the
+// handler should return early (true = error rendered).
 func (rs *Resource) authorizeRoleAssignment(w http.ResponseWriter, r *http.Request, requestedRoleID *int64) (*int64, int64, bool) {
-	authHeader := r.Header.Get("Authorization")
-	if !isValidAuthHeader(authHeader) {
-		common.RenderError(w, r, ErrorUnauthorized(
-			errors.New("admin authentication required to create accounts")))
-		return nil, 0, true
-	}
-
-	token := authHeader[7:]
-	callerAccount, callerClaims, err := rs.AuthService.ValidateToken(r.Context(), token)
-	if err != nil {
-		common.RenderError(w, r, ErrorUnauthorized(
-			errors.New("invalid or expired token")))
-		return nil, 0, true
-	}
-
-	if !hasAdminRole(callerAccount.Roles) {
-		slog.Default().Warn("Security: Non-admin attempted to register account",
-			slog.Int64("account_id", callerAccount.ID))
-		common.RenderError(w, r, ErrorUnauthorized(
-			errors.New("only administrators can create accounts")))
-		return nil, 0, true
-	}
+	claims := jwt.ClaimsFromCtx(r.Context())
 
 	if requestedRoleID == nil || *requestedRoleID <= 0 {
 		common.RenderError(w, r, ErrorInvalidRequest(
@@ -617,13 +598,13 @@ func (rs *Resource) authorizeRoleAssignment(w http.ResponseWriter, r *http.Reque
 		return nil, 0, true
 	}
 
-	if callerClaims.TenantID <= 0 {
+	if claims.TenantID <= 0 {
 		common.RenderError(w, r, ErrorInvalidRequest(
 			authService.ErrTenantRequiredForRoleAssignment))
 		return nil, 0, true
 	}
 
-	// Verify the role actually exists in the database
+	// Verify the role exists — TenantTxMiddleware ensures RLS sees tenant-scoped roles
 	if _, err := rs.AuthService.GetRoleByID(r.Context(), int(*requestedRoleID)); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			common.RenderError(w, r, ErrorInvalidRequest(
@@ -639,22 +620,7 @@ func (rs *Resource) authorizeRoleAssignment(w http.ResponseWriter, r *http.Reque
 		return nil, 0, true
 	}
 
-	return requestedRoleID, callerClaims.TenantID, false
-}
-
-// isValidAuthHeader checks if the Authorization header contains a valid Bearer token format
-func isValidAuthHeader(authHeader string) bool {
-	return authHeader != "" && len(authHeader) >= 8 && authHeader[:7] == "Bearer "
-}
-
-// hasAdminRole checks if any of the roles has the "admin" name
-func hasAdminRole(roles []*authModel.Role) bool {
-	for _, role := range roles {
-		if role.Name == "admin" {
-			return true
-		}
-	}
-	return false
+	return requestedRoleID, claims.TenantID, false
 }
 
 // handleRegistrationError handles authentication errors during registration
