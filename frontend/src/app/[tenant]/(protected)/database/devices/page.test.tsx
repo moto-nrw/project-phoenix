@@ -110,14 +110,17 @@ vi.mock("@/components/devices", () => ({
     onClose,
     onCreate,
     loading,
+    error,
   }: {
     isOpen: boolean;
     onClose: () => void;
     onCreate: (data: Partial<Device>) => void;
     loading: boolean;
+    error?: string | null;
   }) =>
     isOpen ? (
       <div data-testid="create-modal">
+        {error && <div data-testid="create-error">{error}</div>}
         <button
           data-testid="create-submit"
           disabled={loading}
@@ -982,6 +985,156 @@ describe("DevicesPage", () => {
     await waitFor(() => {
       expect(mockDelete).toHaveBeenCalledWith("1");
       expect(mockToastSuccess).toHaveBeenCalled();
+    });
+  });
+
+  it("shows duplicate device ID error on 409", async () => {
+    mockGetList.mockResolvedValue({ data: [] });
+    mockCreate.mockRejectedValue(
+      new Error("API error: 409 - duplicate device ID: NEW-001"),
+    );
+
+    render(<DevicesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("page-header")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getAllByLabelText("Gerät registrieren")[0]!);
+    await waitFor(() =>
+      expect(screen.getByTestId("create-modal")).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByTestId("create-submit"));
+
+    await waitFor(() => {
+      expect(mockCreate).toHaveBeenCalled();
+      expect(screen.getByTestId("create-error")).toBeInTheDocument();
+      expect(screen.getByTestId("create-error")).toHaveTextContent(
+        /bereits vergeben/,
+      );
+      expect(screen.getByTestId("create-error")).toHaveTextContent("NEW-001");
+    });
+  });
+
+  it("shows duplicate error when error contains 'duplicate device ID'", async () => {
+    mockGetList.mockResolvedValue({ data: [] });
+    mockCreate.mockRejectedValue(
+      new Error("duplicate device ID: NEW-001"),
+    );
+
+    render(<DevicesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("page-header")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getAllByLabelText("Gerät registrieren")[0]!);
+    await waitFor(() =>
+      expect(screen.getByTestId("create-modal")).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByTestId("create-submit"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("create-error")).toHaveTextContent(
+        /bereits vergeben/,
+      );
+    });
+  });
+
+  it("shows generic error when create fails with non-duplicate error", async () => {
+    mockGetList.mockResolvedValue({ data: [] });
+    mockCreate.mockRejectedValue(new Error("Network error"));
+
+    render(<DevicesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("page-header")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getAllByLabelText("Gerät registrieren")[0]!);
+    await waitFor(() =>
+      expect(screen.getByTestId("create-modal")).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByTestId("create-submit"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("create-error")).toHaveTextContent(
+        /Fehler beim Erstellen des Geräts/,
+      );
+    });
+  });
+
+  it("clears create error when modal is closed", async () => {
+    mockGetList.mockResolvedValue({ data: [] });
+    mockCreate.mockRejectedValue(
+      new Error("duplicate device ID: NEW-001"),
+    );
+
+    render(<DevicesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("page-header")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getAllByLabelText("Gerät registrieren")[0]!);
+    await waitFor(() =>
+      expect(screen.getByTestId("create-modal")).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByTestId("create-submit"));
+    await waitFor(() =>
+      expect(screen.getByTestId("create-error")).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByTestId("create-close"));
+    await waitFor(() =>
+      expect(screen.queryByTestId("create-modal")).not.toBeInTheDocument(),
+    );
+
+    // Reopen modal - error should be cleared
+    fireEvent.click(screen.getAllByLabelText("Gerät registrieren")[0]!);
+    await waitFor(() => {
+      expect(screen.getByTestId("create-modal")).toBeInTheDocument();
+      expect(screen.queryByTestId("create-error")).not.toBeInTheDocument();
+    });
+  });
+
+  it("clears create error on next successful attempt", async () => {
+    mockGetList.mockResolvedValue({ data: [] });
+    mockCreate.mockRejectedValueOnce(
+      new Error("duplicate device ID: NEW-001"),
+    );
+
+    render(<DevicesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("page-header")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getAllByLabelText("Gerät registrieren")[0]!);
+    await waitFor(() =>
+      expect(screen.getByTestId("create-modal")).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByTestId("create-submit"));
+    await waitFor(() =>
+      expect(screen.getByTestId("create-error")).toBeInTheDocument(),
+    );
+
+    // Now succeed on retry
+    mockCreate.mockResolvedValueOnce({
+      id: "1",
+      device_id: "NEW-001",
+      name: "New Device",
+      device_type: "terminal",
+    });
+
+    fireEvent.click(screen.getByTestId("create-submit"));
+    await waitFor(() => {
+      expect(screen.queryByTestId("create-error")).not.toBeInTheDocument();
     });
   });
 
