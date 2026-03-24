@@ -87,18 +87,17 @@ export function TeacherShellProvider({
       status,
       isSessionExpired: session?.error === "RefreshTokenExpired",
       logout: async () => {
-        // Delete backend refresh tokens before clearing the session cookie.
-        // Fire-and-forget: don't block logout if the backend call fails.
-        try {
-          await fetch("/api/auth/logout", {
-            method: "POST",
-            signal: AbortSignal.timeout(5000),
-          });
-        } catch (err) {
+        // Delete backend refresh tokens. Fire-and-forget: the cookie is
+        // included in the request headers at send time, so signOut() clearing
+        // the cookie afterward doesn't affect the in-flight request.
+        fetch("/api/auth/logout", {
+          method: "POST",
+          signal: AbortSignal.timeout(5000),
+        }).catch((err: unknown) => {
           logger.warn("backend_logout_failed", {
             error: err instanceof Error ? err.message : String(err),
           });
-        }
+        });
         clearSessionCache();
         await signOut({ redirect: false });
         window.location.href = "/";
