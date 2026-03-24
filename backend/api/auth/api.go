@@ -121,8 +121,10 @@ func (rs *Resource) Router() chi.Router {
 		r.Group(func(r chi.Router) {
 			r.Use(withTx)
 
-			// Account creation (admin-only, needs tenant tx for RLS on roles)
-			r.With(authorize.RequiresPermission(permUsersCreate)).Post("/register", rs.register)
+			// Account creation — uses users:manage (not users:create) because
+			// the "user" role is granted users:create in migrations; manage
+			// restricts this to actual administrators.
+			r.With(authorize.RequiresPermission(permUsersManage)).Post("/register", rs.register)
 			r.With(authorize.RequiresPermission(permUsersCreate)).Post("/link-to-tenant", rs.linkToTenant)
 
 			// Role management routes

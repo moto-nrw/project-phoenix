@@ -144,14 +144,17 @@ export function RolePermissionManagementModal({
     }));
   };
 
-  const { assignedCount, allFilteredChecked } = useMemo(() => {
-    const count = filteredPermissions.filter((p) => !!assignedMap[p.id]).length;
-    return {
-      assignedCount: count,
-      allFilteredChecked:
-        filteredPermissions.length > 0 && count === filteredPermissions.length,
-    };
-  }, [filteredPermissions, assignedMap]);
+  const totalAssignedCount = useMemo(
+    () => allPermissions.filter((p) => !!assignedMap[p.id]).length,
+    [allPermissions, assignedMap],
+  );
+
+  const allFilteredChecked = useMemo(
+    () =>
+      filteredPermissions.length > 0 &&
+      filteredPermissions.every((p) => !!assignedMap[p.id]),
+    [filteredPermissions, assignedMap],
+  );
 
   const hasChanges = useMemo(() => {
     const keys = new Set([
@@ -243,7 +246,7 @@ export function RolePermissionManagementModal({
                 Zugewiesene Berechtigungen
               </span>
               <span className="text-sm font-semibold text-gray-900 md:text-base">
-                {assignedCount} / {filteredPermissions.length}
+                {totalAssignedCount} / {allPermissions.length}
               </span>
             </div>
           </div>
