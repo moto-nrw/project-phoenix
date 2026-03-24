@@ -241,10 +241,10 @@ function OperatorSuggestionCard({
   }, [suggestion.description]);
 
   return (
-    <div className="rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md">
+    <div className="overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md">
       <div className="p-5">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-          <h3 className="flex min-w-0 items-center gap-2 text-base font-semibold break-words text-gray-900">
+          <h3 className="flex min-w-0 items-center gap-2 text-base font-semibold wrap-anywhere text-gray-900">
             {suggestion.title}
             {suggestion.isNew && (
               <span className="shrink-0 rounded-full bg-blue-500 px-2 py-0.5 text-[10px] font-semibold text-white">
