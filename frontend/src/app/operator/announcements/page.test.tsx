@@ -531,6 +531,83 @@ describe("OperatorAnnouncementsPage", () => {
     });
   });
 
+  it("renders expired announcement with Lesebestätigungen and expiration date", () => {
+    const expiredAnnouncement = {
+      ...mockAnnouncement,
+      status: "expired" as const,
+      publishedAt: new Date("2025-01-02"),
+      expiresAt: new Date("2025-02-01").toISOString(),
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseSWR.mockImplementation((key: any) => {
+      if (key === "operator-announcements") {
+        return {
+          data: [expiredAnnouncement],
+          isLoading: false,
+          mutate: mockMutate,
+        };
+      }
+      if (typeof key === "string" && key.startsWith("announcement-stats-")) {
+        return {
+          data: { seen_count: 3, dismissed_count: 1 },
+          isLoading: false,
+          mutate: mockMutate,
+        };
+      }
+      return { data: undefined, isLoading: false, mutate: mockMutate };
+    });
+
+    render(<OperatorAnnouncementsPage />);
+
+    expect(screen.getByText(/Veröffentlicht vor/)).toBeInTheDocument();
+    expect(screen.getByText(/Abgelaufen vor/)).toBeInTheDocument();
+    expect(screen.getByTestId("views-accordion")).toBeInTheDocument();
+  });
+
+  it("shows future expiration date for published announcement", () => {
+    const futureDate = new Date();
+    futureDate.setFullYear(futureDate.getFullYear() + 1);
+
+    const publishedWithExpiry = {
+      ...mockAnnouncement,
+      status: "published" as const,
+      publishedAt: new Date("2025-01-02"),
+      expiresAt: futureDate.toISOString(),
+    };
+
+    mockUseSWR.mockReturnValue({
+      data: [publishedWithExpiry],
+      isLoading: false,
+      mutate: mockMutate,
+    });
+
+    render(<OperatorAnnouncementsPage />);
+
+    expect(screen.getByText(/Läuft ab am/)).toBeInTheDocument();
+  });
+
+  it("does not show expiration date when expiresAt is null", () => {
+    const publishedNoExpiry = {
+      ...mockAnnouncement,
+      status: "published" as const,
+      publishedAt: new Date("2025-01-02"),
+      expiresAt: null,
+    };
+
+    mockUseSWR.mockReturnValue({
+      data: [publishedNoExpiry],
+      isLoading: false,
+      mutate: mockMutate,
+    });
+
+    render(<OperatorAnnouncementsPage />);
+
+    expect(screen.getByText(/Veröffentlicht vor/)).toBeInTheDocument();
+    expect(screen.queryByText(/Abgelaufen vor/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Läuft ab am/)).not.toBeInTheDocument();
+  });
+
   it("renders published announcement with timestamp", () => {
     const publishedAnnouncement = {
       ...mockAnnouncement,

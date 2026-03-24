@@ -820,7 +820,7 @@ function AnnouncementCard({
               <span>
                 {new Date(announcement.expiresAt) < new Date()
                   ? `Abgelaufen ${getRelativeTime(announcement.expiresAt)}`
-                  : `Läuft ab ${getRelativeTime(announcement.expiresAt)}`}
+                  : `Läuft ab am ${new Date(announcement.expiresAt).toLocaleDateString("de-DE")}`}
               </span>
             </>
           )}
