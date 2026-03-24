@@ -152,13 +152,10 @@ export function OperatorShellProvider({
       status,
       isSessionExpired: session?.error === "RefreshTokenExpired",
       logout: async () => {
-        try {
-          await fetch("/api/auth/logout", { method: "POST" });
-        } catch (err) {
-          logger.warn("backend_logout_failed", {
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
+        // Note: operator backend has no logout endpoint — tokens expire naturally.
+        // The tenant /api/auth/logout route uses tenant auth cookies and would
+        // return 401 for operator sessions. Operator accounts don't do tenant
+        // switching, so the stale-session issue from #1067 doesn't apply here.
         clearSessionCache();
         await signOut({ callbackUrl: operatorAbsoluteUrl("/operator/login") });
       },
