@@ -54,11 +54,6 @@ func (rs *Resource) GetDashboardAnalyticsHandler() http.HandlerFunc {
 	return rs.getDashboardAnalytics
 }
 
-func (rs *Resource) GetRoomUtilizationHandler() http.HandlerFunc { return rs.getRoomUtilization }
-func (rs *Resource) GetStudentAttendanceHandler() http.HandlerFunc {
-	return rs.getStudentAttendance
-}
-
 // Combined Group Handlers
 func (rs *Resource) ListCombinedGroupsHandler() http.HandlerFunc  { return rs.listCombinedGroups }
 func (rs *Resource) GetCombinedGroupHandler() http.HandlerFunc    { return rs.getCombinedGroup }

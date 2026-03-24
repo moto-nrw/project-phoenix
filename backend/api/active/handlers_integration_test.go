@@ -1198,8 +1198,6 @@ func setupAnalyticsRouter(t *testing.T) (*testContext, chi.Router) {
 
 	router.Route("/active/analytics", func(r chi.Router) {
 		r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/counts", tc.resource.GetCountsHandler())
-		r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/room/{roomId}/utilization", tc.resource.GetRoomUtilizationHandler())
-		r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/student/{studentId}/attendance", tc.resource.GetStudentAttendanceHandler())
 		r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/dashboard", tc.resource.GetDashboardAnalyticsHandler())
 	})
 

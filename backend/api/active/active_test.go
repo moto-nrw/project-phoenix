@@ -172,8 +172,6 @@ func setupExtendedProtectedRouter(t *testing.T) (*testContext, chi.Router) {
 		r.Route("/analytics", func(r chi.Router) {
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/counts", tc.resource.GetCountsHandler())
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/dashboard", tc.resource.GetDashboardAnalyticsHandler())
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/rooms/{roomId}/utilization", tc.resource.GetRoomUtilizationHandler())
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/students/{studentId}/attendance", tc.resource.GetStudentAttendanceHandler())
 		})
 
 		// Combined Groups
@@ -1017,60 +1015,6 @@ func TestEndSupervision(t *testing.T) {
 }
 
 // ============================================================================
-// EXTENDED ANALYTICS TESTS
-// ============================================================================
-
-func TestGetRoomUtilization(t *testing.T) {
-	tc, router := setupExtendedProtectedRouter(t)
-
-	adminClaims := testutil.AdminTestClaims(1)
-
-	t.Run("success with valid room id", func(t *testing.T) {
-		room := testpkg.CreateTestRoom(t, tc.db, fmt.Sprintf("Utilization Room %d", time.Now().UnixNano()))
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID)
-
-		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/analytics/rooms/%d/utilization", room.ID), nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{permissions.GroupsRead})
-
-		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
-	})
-
-	t.Run("not found with invalid room id", func(t *testing.T) {
-		req := testutil.NewJSONRequest(t, "GET", "/active/analytics/rooms/99999/utilization", nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{permissions.GroupsRead})
-
-		// May return 404, 200 with empty data, or 500 if service returns database error
-		assert.True(t, rr.Code == http.StatusOK || rr.Code == http.StatusNotFound || rr.Code == http.StatusInternalServerError,
-			"Expected 200, 404, or 500, got %d: %s", rr.Code, rr.Body.String())
-	})
-}
-
-func TestGetStudentAttendance(t *testing.T) {
-	tc, router := setupExtendedProtectedRouter(t)
-
-	adminClaims := testutil.AdminTestClaims(1)
-
-	t.Run("success with valid student id", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, tc.db, "Attendance", "Student", "4d")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
-
-		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/analytics/students/%d/attendance", student.ID), nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{permissions.GroupsRead})
-
-		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
-	})
-
-	t.Run("not found with invalid student id", func(t *testing.T) {
-		req := testutil.NewJSONRequest(t, "GET", "/active/analytics/students/99999/attendance", nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{permissions.GroupsRead})
-
-		// May return 404 or 200 with empty data
-		assert.True(t, rr.Code == http.StatusOK || rr.Code == http.StatusNotFound,
-			"Expected 200 or 404, got %d: %s", rr.Code, rr.Body.String())
-	})
-}
-
-// ============================================================================
 // COMBINED GROUP TESTS
 // ============================================================================
 
@@ -1842,51 +1786,6 @@ func TestUpdateCombinedGroupValidation(t *testing.T) {
 		// Should either return 404 (not found), 500 (database error), or 400 (more validation)
 		assert.True(t, rr.Code == http.StatusNotFound || rr.Code == http.StatusInternalServerError || rr.Code == http.StatusBadRequest,
 			"Expected 404, 500, or 400, got %d: %s", rr.Code, rr.Body.String())
-	})
-}
-
-// =============================================================================
-// ROOM UTILIZATION TESTS - Additional
-// =============================================================================
-
-func TestGetRoomUtilizationAdditional(t *testing.T) {
-	tc, router := setupExtendedProtectedRouter(t)
-	adminClaims := testutil.AdminTestClaims(1)
-
-	room := testpkg.CreateTestRoom(t, tc.db, fmt.Sprintf("UtilAdd Room %d", time.Now().UnixNano()))
-	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID)
-
-	t.Run("with valid room_id path param", func(t *testing.T) {
-		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/analytics/rooms/%d/utilization", room.ID), nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{permissions.GroupsRead})
-
-		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
-	})
-}
-
-// =============================================================================
-// STUDENT ATTENDANCE TESTS - Additional
-// =============================================================================
-
-func TestGetStudentAttendanceAdditional(t *testing.T) {
-	tc, router := setupExtendedProtectedRouter(t)
-	adminClaims := testutil.AdminTestClaims(1)
-
-	student := testpkg.CreateTestStudent(t, tc.db, fmt.Sprintf("AttAdd %d", time.Now().UnixNano()), "Test", "2a")
-
-	t.Run("with valid student_id path param", func(t *testing.T) {
-		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/analytics/students/%d/attendance", student.ID), nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{permissions.GroupsRead})
-
-		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
-	})
-
-	t.Run("with non-existent student_id", func(t *testing.T) {
-		req := testutil.NewJSONRequest(t, "GET", "/active/analytics/students/999999/attendance", nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{permissions.GroupsRead})
-
-		// May return 200 with empty data or 404
-		t.Logf("Response: %d - %s", rr.Code, rr.Body.String())
 	})
 }
 

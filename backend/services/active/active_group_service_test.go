@@ -746,28 +746,6 @@ func TestActiveService_GetActiveVisitsCount(t *testing.T) {
 	})
 }
 
-func TestActiveService_GetRoomUtilization(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := createActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns room utilization", func(t *testing.T) {
-		// ARRANGE
-		room := testpkg.CreateTestRoom(t, db, "Utilization Room")
-		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
-
-		// ACT
-		utilization, err := service.GetRoomUtilization(ctx, room.ID)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, utilization, 0.0)
-		assert.LessOrEqual(t, utilization, 1.0) // 0-100% as decimal
-	})
-}
-
 func TestActiveService_GetDashboardAnalytics(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -889,69 +867,6 @@ func TestActiveService_CleanupAbandonedSessions(t *testing.T) {
 // Helper for unique test names
 func uniqueName(prefix string) string {
 	return fmt.Sprintf("%s-%d", prefix, time.Now().UnixNano())
-}
-
-// =============================================================================
-// Student Attendance Rate Tests
-// =============================================================================
-
-func TestActiveService_GetStudentAttendanceRate(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := createActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns 0 when student has no active visit", func(t *testing.T) {
-		// ARRANGE
-		student := testpkg.CreateTestStudent(t, db, "Rate", "NoVisit", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
-
-		// ACT
-		rate, err := service.GetStudentAttendanceRate(ctx, student.ID)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.Equal(t, 0.0, rate)
-	})
-
-	t.Run("returns 1.0 when student has active visit", func(t *testing.T) {
-		// ARRANGE
-		student := testpkg.CreateTestStudent(t, db, "Rate", "Active", "1a")
-		staff := testpkg.CreateTestStaff(t, db, "Rate", "Staff")
-		iotDevice := testpkg.CreateTestDevice(t, db, fmt.Sprintf("rate-device-%d", time.Now().UnixNano()))
-		activity := testpkg.CreateTestActivityGroup(t, db, "rate-activity")
-		room := testpkg.CreateTestRoom(t, db, "Rate Room")
-		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, iotDevice.ID, activity.ID, room.ID, activeGroup.ID)
-
-		// Create visit using context with device/staff
-		visit := &activeModels.Visit{
-			StudentID:     student.ID,
-			ActiveGroupID: activeGroup.ID,
-			EntryTime:     time.Now(),
-		}
-		staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
-		deviceCtx := context.WithValue(staffCtx, device.CtxDevice, iotDevice)
-		err := service.CreateVisit(deviceCtx, visit)
-		require.NoError(t, err)
-
-		// ACT
-		rate, err := service.GetStudentAttendanceRate(ctx, student.ID)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.Equal(t, 1.0, rate)
-	})
-
-	t.Run("returns 0 for non-existent student", func(t *testing.T) {
-		// ACT
-		rate, err := service.GetStudentAttendanceRate(ctx, 99999999)
-
-		// ASSERT - should not error, just return 0
-		require.NoError(t, err)
-		assert.Equal(t, 0.0, rate)
-	})
 }
 
 // =============================================================================

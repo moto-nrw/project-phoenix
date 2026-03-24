@@ -96,8 +96,6 @@ type Service interface {
 	GetActiveGroupsCount(ctx context.Context) (int, error)
 	GetTotalVisitsCount(ctx context.Context) (int, error)
 	GetActiveVisitsCount(ctx context.Context) (int, error)
-	GetRoomUtilization(ctx context.Context, roomID int64) (float64, error)
-	GetStudentAttendanceRate(ctx context.Context, studentID int64) (float64, error)
 	GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytics, error)
 	GetActiveGroupsByIDs(ctx context.Context, groupIDs []int64) (map[int64]*active.Group, error)
 

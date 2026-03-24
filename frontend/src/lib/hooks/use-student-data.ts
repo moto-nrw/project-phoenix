@@ -19,7 +19,6 @@ export interface ExtendedStudent extends Student {
   location_since?: string;
   birthday?: string;
   buskind?: boolean;
-  attendance_rate?: number;
   extra_info?: string;
   supervisor_notes?: string;
   health_info?: string;
@@ -79,7 +78,6 @@ function mapStudentResponse(
     current_room: undefined,
     birthday: mappedStudent.birthday ?? undefined,
     buskind: mappedStudent.bus ?? false,
-    attendance_rate: undefined,
     extra_info: hasAccess ? (mappedStudent.extra_info ?? undefined) : undefined,
     supervisor_notes: hasAccess
       ? (mappedStudent.supervisor_notes ?? undefined)

@@ -812,24 +812,6 @@ export const activeService = {
     );
   },
 
-  getRoomUtilization: async (roomId: string): Promise<Analytics> => {
-    return proxyGet<BackendAnalytics, Analytics>(
-      `/api/active/analytics/room/${roomId}/utilization`,
-      `${env.NEXT_PUBLIC_API_URL}/active/analytics/room/${roomId}/utilization`,
-      mapAnalyticsResponse,
-      "Get room utilization",
-    );
-  },
-
-  getStudentAttendance: async (studentId: string): Promise<Analytics> => {
-    return proxyGet<BackendAnalytics, Analytics>(
-      `/api/active/analytics/student/${studentId}/attendance`,
-      `${env.NEXT_PUBLIC_API_URL}/active/analytics/student/${studentId}/attendance`,
-      mapAnalyticsResponse,
-      "Get student attendance",
-    );
-  },
-
   // Unclaimed Groups (Deviceless Claiming)
   getUnclaimedGroups: async (): Promise<ActiveGroup[]> => {
     const useProxyApi = globalThis.window !== undefined;

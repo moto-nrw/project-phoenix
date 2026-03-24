@@ -1118,12 +1118,6 @@ func (m *mockActiveService) CountActiveVisitsByRoomID(_ context.Context, _ int64
 func (m *mockActiveService) CountActiveVisitsByActiveGroupID(_ context.Context, _ int64) (int, error) {
 	return 0, nil
 }
-func (m *mockActiveService) GetRoomUtilization(_ context.Context, _ int64) (float64, error) {
-	return 0, nil
-}
-func (m *mockActiveService) GetStudentAttendanceRate(_ context.Context, _ int64) (float64, error) {
-	return 0, nil
-}
 func (m *mockActiveService) GetDashboardAnalytics(_ context.Context) (*activeService.DashboardAnalytics, error) {
 	return nil, nil
 }
