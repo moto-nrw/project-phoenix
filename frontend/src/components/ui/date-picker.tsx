@@ -50,11 +50,18 @@ export function DatePicker({
         </span>
         <div className="flex items-center gap-1">
           {value && (
-            <button
-              type="button"
+            <span
+              role="button"
+              tabIndex={0}
               onClick={(e) => {
                 e.stopPropagation();
                 onChange(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.stopPropagation();
+                  onChange(null);
+                }
               }}
               className="rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
               aria-label="Datum löschen"
@@ -72,7 +79,7 @@ export function DatePicker({
                   d="M6 18L18 6M6 6l12 12"
                 />
               </svg>
-            </button>
+            </span>
           )}
           <svg
             className="h-4 w-4 text-gray-400"

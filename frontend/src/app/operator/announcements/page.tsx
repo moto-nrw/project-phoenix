@@ -808,15 +808,27 @@ function AnnouncementCard({
         </div>
       )}
 
-      {/* Published timestamp */}
-      {announcement.status === "published" && announcement.publishedAt && (
-        <p className="mt-3 text-xs text-gray-400">
-          Veröffentlicht {getRelativeTime(announcement.publishedAt)}
-        </p>
+      {/* Published + expired timestamps */}
+      {announcement.status !== "draft" && announcement.publishedAt && (
+        <div className="mt-3 flex flex-wrap items-center gap-x-2 text-xs text-gray-400">
+          <span>
+            Veröffentlicht {getRelativeTime(announcement.publishedAt)}
+          </span>
+          {announcement.expiresAt && (
+            <>
+              <span className="text-gray-300">·</span>
+              <span>
+                {new Date(announcement.expiresAt) < new Date()
+                  ? `Abgelaufen ${getRelativeTime(announcement.expiresAt)}`
+                  : `Läuft ab am ${new Date(announcement.expiresAt).toLocaleDateString("de-DE")}`}
+              </span>
+            </>
+          )}
+        </div>
       )}
 
       {/* Views accordion at the bottom */}
-      {announcement.status === "published" && (
+      {announcement.status !== "draft" && (
         <AnnouncementViewsAccordionWrapper announcementId={announcement.id} />
       )}
     </div>

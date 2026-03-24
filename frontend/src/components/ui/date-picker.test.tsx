@@ -191,6 +191,36 @@ describe("DatePicker", () => {
     expect(mockOnChange).toHaveBeenCalledWith(null);
   });
 
+  it("clears date when Enter key is pressed on clear button", () => {
+    const testDate = new Date("2024-01-15T00:00:00Z");
+    render(<DatePicker value={testDate} onChange={mockOnChange} />);
+
+    const clearButton = screen.getByRole("button", { name: /datum löschen/i });
+    fireEvent.keyDown(clearButton, { key: "Enter" });
+
+    expect(mockOnChange).toHaveBeenCalledWith(null);
+  });
+
+  it("clears date when Space key is pressed on clear button", () => {
+    const testDate = new Date("2024-01-15T00:00:00Z");
+    render(<DatePicker value={testDate} onChange={mockOnChange} />);
+
+    const clearButton = screen.getByRole("button", { name: /datum löschen/i });
+    fireEvent.keyDown(clearButton, { key: " " });
+
+    expect(mockOnChange).toHaveBeenCalledWith(null);
+  });
+
+  it("does not clear date on other key presses", () => {
+    const testDate = new Date("2024-01-15T00:00:00Z");
+    render(<DatePicker value={testDate} onChange={mockOnChange} />);
+
+    const clearButton = screen.getByRole("button", { name: /datum löschen/i });
+    fireEvent.keyDown(clearButton, { key: "Tab" });
+
+    expect(mockOnChange).not.toHaveBeenCalled();
+  });
+
   it("prevents calendar from opening when clear button is clicked", async () => {
     const testDate = new Date("2024-01-15T00:00:00Z");
     render(<DatePicker value={testDate} onChange={mockOnChange} />);
