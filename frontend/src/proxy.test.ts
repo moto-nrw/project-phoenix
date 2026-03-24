@@ -17,6 +17,34 @@ function makeRequest(url: string, host?: string): NextRequest {
   return req;
 }
 
+describe("proxy env validation", () => {
+  it("throws when NEXT_PUBLIC_OPERATOR_HOSTNAME is missing", async () => {
+    vi.stubEnv("NEXT_PUBLIC_OPERATOR_HOSTNAME", "");
+    vi.stubEnv("TENANT_DOMAIN", "localhost");
+
+    await expect(
+      // @ts-expect-error — query string forces fresh module evaluation
+      import("./proxy?missing-operator"),
+    ).rejects.toThrow("NEXT_PUBLIC_OPERATOR_HOSTNAME is not set");
+
+    // Restore for subsequent imports
+    vi.stubEnv("NEXT_PUBLIC_OPERATOR_HOSTNAME", OPERATOR_HOSTNAME);
+  });
+
+  it("throws when TENANT_DOMAIN is missing", async () => {
+    vi.stubEnv("NEXT_PUBLIC_OPERATOR_HOSTNAME", OPERATOR_HOSTNAME);
+    vi.stubEnv("TENANT_DOMAIN", "");
+
+    await expect(
+      // @ts-expect-error — query string forces fresh module evaluation
+      import("./proxy?missing-tenant"),
+    ).rejects.toThrow("TENANT_DOMAIN is not set");
+
+    // Restore
+    vi.stubEnv("TENANT_DOMAIN", "localhost");
+  });
+});
+
 describe("proxy", () => {
   describe("operator subdomain", () => {
     it("rewrites / to /operator", () => {
@@ -216,6 +244,108 @@ describe("proxy", () => {
     it("passes through /api/* routes", () => {
       const res = proxy(
         makeRequest(`http://${TENANT_HOST}/api/students`, TENANT_HOST),
+      );
+
+      const rewrite = res.headers.get("x-middleware-rewrite");
+      const redirect = res.headers.get("location");
+      expect(rewrite).toBeNull();
+      expect(redirect).toBeNull();
+    });
+
+    it("skips /_next routes without security headers on non-operator host", () => {
+      const res = proxy(
+        makeRequest(`http://${TENANT_HOST}/_next/static/chunk.js`, TENANT_HOST),
+      );
+
+      const rewrite = res.headers.get("x-middleware-rewrite");
+      const redirect = res.headers.get("location");
+      expect(rewrite).toBeNull();
+      expect(redirect).toBeNull();
+      // /_next early return skips withSecurityHeaders
+      expect(res.headers.get("Content-Security-Policy")).toBeNull();
+    });
+  });
+
+  describe("tenant subdomain routing", () => {
+    const TENANT_SUBDOMAIN_HOST = "school-a.localhost:3000";
+
+    it("rewrites /dashboard to /school-a/dashboard on tenant subdomain", () => {
+      const res = proxy(
+        makeRequest(
+          `http://${TENANT_SUBDOMAIN_HOST}/dashboard`,
+          TENANT_SUBDOMAIN_HOST,
+        ),
+      );
+
+      const rewrite = res.headers.get("x-middleware-rewrite");
+      expect(rewrite).toContain("/school-a/dashboard");
+    });
+
+    it("rewrites root / to /school-a on tenant subdomain", () => {
+      const res = proxy(
+        makeRequest(`http://${TENANT_SUBDOMAIN_HOST}/`, TENANT_SUBDOMAIN_HOST),
+      );
+
+      const rewrite = res.headers.get("x-middleware-rewrite");
+      expect(rewrite).toContain("/school-a");
+    });
+
+    it("skips rewrite when path already has tenant prefix with slash", () => {
+      const res = proxy(
+        makeRequest(
+          `http://${TENANT_SUBDOMAIN_HOST}/school-a/dashboard`,
+          TENANT_SUBDOMAIN_HOST,
+        ),
+      );
+
+      const rewrite = res.headers.get("x-middleware-rewrite");
+      expect(rewrite).toBeNull();
+      // Still gets security headers
+      expect(res.headers.get("Content-Security-Policy")).toBeTruthy();
+    });
+
+    it("skips rewrite when path is exactly the tenant slug", () => {
+      const res = proxy(
+        makeRequest(
+          `http://${TENANT_SUBDOMAIN_HOST}/school-a`,
+          TENANT_SUBDOMAIN_HOST,
+        ),
+      );
+
+      const rewrite = res.headers.get("x-middleware-rewrite");
+      expect(rewrite).toBeNull();
+    });
+
+    it("returns null slug for reserved subdomains", () => {
+      // "www" is in RESERVED_SLUGS — extractTenantSlug returns null,
+      // so it passes through as a bare domain (no rewrite).
+      const res = proxy(
+        makeRequest(
+          `http://www.localhost:3000/dashboard`,
+          "www.localhost:3000",
+        ),
+      );
+
+      const rewrite = res.headers.get("x-middleware-rewrite");
+      expect(rewrite).toBeNull();
+    });
+
+    it("attaches security headers to rewritten tenant responses", () => {
+      const res = proxy(
+        makeRequest(
+          `http://${TENANT_SUBDOMAIN_HOST}/dashboard`,
+          TENANT_SUBDOMAIN_HOST,
+        ),
+      );
+
+      expect(res.headers.get("Content-Security-Policy")).toBeTruthy();
+      expect(res.headers.get("X-Content-Type-Options")).toBe("nosniff");
+      expect(res.headers.get("X-Frame-Options")).toBe("DENY");
+    });
+
+    it("handles bare domain without subdomain as passthrough", () => {
+      const res = proxy(
+        makeRequest(`http://localhost:3000/some-page`, "localhost:3000"),
       );
 
       const rewrite = res.headers.get("x-middleware-rewrite");
