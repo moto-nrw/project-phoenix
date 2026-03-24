@@ -11,12 +11,14 @@ import (
 
 // Role Management
 
-// CreateRole creates a new role
+// CreateRole creates a new tenant-scoped role
 func (s *Service) CreateRole(ctx context.Context, name, description string) (*auth.Role, error) {
 	role := &auth.Role{
 		Name:        name,
 		Description: description,
 	}
+
+	// tenant_id is auto-set by base.Repository.Create via TenantScoped interface
 
 	if err := s.repos.Role.Create(ctx, role); err != nil {
 		return nil, &AuthError{Op: "create role", Err: err}
@@ -43,16 +45,28 @@ func (s *Service) GetRoleByName(ctx context.Context, name string) (*auth.Role, e
 	return role, nil
 }
 
-// UpdateRole updates an existing role
+// UpdateRole updates an existing role. System roles cannot be modified.
 func (s *Service) UpdateRole(ctx context.Context, role *auth.Role) error {
+	if role.IsSystem {
+		return &AuthError{Op: "update role", Err: errors.New("system roles cannot be modified")}
+	}
 	if err := s.repos.Role.Update(ctx, role); err != nil {
 		return &AuthError{Op: "update role", Err: err}
 	}
 	return nil
 }
 
-// DeleteRole deletes a role
+// DeleteRole deletes a role. System roles cannot be deleted.
 func (s *Service) DeleteRole(ctx context.Context, id int) error {
+	// Verify the role exists and check if it's a system role
+	role, err := s.repos.Role.FindByID(ctx, int64(id))
+	if err != nil {
+		return &AuthError{Op: "delete role", Err: err}
+	}
+	if role.IsSystem {
+		return &AuthError{Op: "delete role", Err: errors.New("system roles cannot be deleted")}
+	}
+
 	// First remove all account-role mappings for this role (batch delete)
 	if err := s.repos.AccountRole.DeleteByRoleID(ctx, int64(id)); err != nil {
 		return &AuthError{Op: "delete account role mappings", Err: err}

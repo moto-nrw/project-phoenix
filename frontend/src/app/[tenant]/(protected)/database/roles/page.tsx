@@ -368,13 +368,18 @@ export default function RolesPage() {
                         {getRoleDisplayDescription(role.name, role.description)}
                       </p>
                     )}
-                    {typeof role.permissions?.length === "number" && (
-                      <div className="mt-1 flex items-center gap-2">
+                    <div className="mt-1 flex items-center gap-2">
+                      {role.isSystem && (
+                        <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600">
+                          System
+                        </span>
+                      )}
+                      {typeof role.permissions?.length === "number" && (
                         <span className="inline-flex items-center rounded-full bg-purple-100 px-2 py-1 text-xs font-medium text-purple-700">
                           {role.permissions.length} Berechtigungen
                         </span>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
                   <div className="flex-shrink-0">
                     <svg

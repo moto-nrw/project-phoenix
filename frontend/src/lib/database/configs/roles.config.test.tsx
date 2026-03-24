@@ -44,6 +44,7 @@ describe("rolesConfig", () => {
       id: "1",
       name: "admin",
       description: "Administrator role",
+      isSystem: false,
       permissions: [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -57,6 +58,7 @@ describe("rolesConfig", () => {
       id: "1",
       name: "admin",
       description: "Administrator role",
+      isSystem: false,
       permissions: [
         {
           id: "1",
@@ -98,6 +100,7 @@ describe("rolesConfig", () => {
       id: "1",
       name: "admin",
       description: "Administrator role",
+      isSystem: false,
       permissions: [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),

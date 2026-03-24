@@ -62,6 +62,7 @@ const sampleBackendRole: BackendRole = {
   ID: 1,
   Name: "admin",
   Description: "Administrator role",
+  IsSystem: false,
   CreatedAt: "2024-01-01T00:00:00Z",
   UpdatedAt: "2024-01-01T00:00:00Z",
 };

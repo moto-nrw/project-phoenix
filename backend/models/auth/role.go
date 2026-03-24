@@ -97,6 +97,19 @@ func (r *Role) RemovePermission(permissionID int64) bool {
 	return false
 }
 
+// GetTenantID returns the tenant ID (0 if nil/system role).
+func (r *Role) GetTenantID() int64 {
+	if r.TenantID != nil {
+		return *r.TenantID
+	}
+	return 0
+}
+
+// SetTenantID sets the tenant ID.
+func (r *Role) SetTenantID(id int64) {
+	r.TenantID = &id
+}
+
 // GetID returns the entity's ID
 func (m *Role) GetID() interface{} {
 	return m.ID

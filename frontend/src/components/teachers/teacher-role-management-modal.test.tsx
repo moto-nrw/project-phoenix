@@ -86,6 +86,7 @@ describe("RoleInfo", () => {
       id: "1",
       name: "teacher",
       description: "Teacher role",
+      isSystem: false,
       createdAt: "2024-01-01T00:00:00Z",
       updatedAt: "2024-01-01T00:00:00Z",
     };
@@ -100,6 +101,7 @@ describe("RoleInfo", () => {
       id: "1",
       name: "teacher",
       description: "Teacher role",
+      isSystem: false,
       createdAt: "2024-01-01T00:00:00Z",
       updatedAt: "2024-01-01T00:00:00Z",
     };
@@ -114,6 +116,7 @@ describe("RoleInfo", () => {
       id: "1",
       name: "teacher",
       description: "Teacher role",
+      isSystem: false,
       createdAt: "2024-01-01T00:00:00Z",
       updatedAt: "2024-01-01T00:00:00Z",
       permissions: [
@@ -159,6 +162,7 @@ describe("TeacherRoleManagementModal", () => {
       id: "1",
       name: "teacher",
       description: "Teacher role",
+      isSystem: false,
       createdAt: "2024-01-01T00:00:00Z",
       updatedAt: "2024-01-01T00:00:00Z",
     },
@@ -166,6 +170,7 @@ describe("TeacherRoleManagementModal", () => {
       id: "2",
       name: "admin",
       description: "Admin role",
+      isSystem: false,
       createdAt: "2024-01-01T00:00:00Z",
       updatedAt: "2024-01-01T00:00:00Z",
     },

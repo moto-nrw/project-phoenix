@@ -835,6 +835,7 @@ type RoleResponse struct {
 	ID          int64    `json:"id"`
 	Name        string   `json:"name"`
 	Description string   `json:"description"`
+	IsSystem    bool     `json:"is_system"`
 	CreatedAt   string   `json:"created_at"`
 	UpdatedAt   string   `json:"updated_at"`
 	Permissions []string `json:"permissions,omitempty"`
@@ -1007,6 +1008,7 @@ func (rs *Resource) createRole(w http.ResponseWriter, r *http.Request) {
 		ID:          role.ID,
 		Name:        role.Name,
 		Description: role.Description,
+		IsSystem:    role.IsSystem,
 		CreatedAt:   role.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:   role.UpdatedAt.Format(time.RFC3339),
 	}
@@ -1038,6 +1040,7 @@ func (rs *Resource) getRoleByID(w http.ResponseWriter, r *http.Request) {
 		ID:          role.ID,
 		Name:        role.Name,
 		Description: role.Description,
+		IsSystem:    role.IsSystem,
 		CreatedAt:   role.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:   role.UpdatedAt.Format(time.RFC3339),
 		Permissions: permissionNames,
@@ -1112,6 +1115,7 @@ func (rs *Resource) listRoles(w http.ResponseWriter, r *http.Request) {
 			ID:          role.ID,
 			Name:        role.Name,
 			Description: role.Description,
+			IsSystem:    role.IsSystem,
 			CreatedAt:   role.CreatedAt.Format(time.RFC3339),
 			UpdatedAt:   role.UpdatedAt.Format(time.RFC3339),
 		}
@@ -1180,6 +1184,7 @@ func (rs *Resource) getAccountRoles(w http.ResponseWriter, r *http.Request) {
 			ID:          role.ID,
 			Name:        role.Name,
 			Description: role.Description,
+			IsSystem:    role.IsSystem,
 			CreatedAt:   role.CreatedAt.Format(time.RFC3339),
 			UpdatedAt:   role.UpdatedAt.Format(time.RFC3339),
 		}
