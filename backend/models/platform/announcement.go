@@ -149,8 +149,8 @@ type AnnouncementStats struct {
 
 // AnnouncementViewDetail contains info about a single user view
 type AnnouncementViewDetail struct {
-	UserID    int64     `json:"user_id"`
-	UserName  string    `json:"user_name"`
-	SeenAt    time.Time `json:"seen_at"`
-	Dismissed bool      `json:"dismissed"`
+	UserID    int64     `bun:"user_id" json:"user_id"`
+	UserName  string    `bun:"user_name" json:"user_name"`
+	SeenAt    time.Time `bun:"seen_at" json:"seen_at"`
+	Dismissed bool      `bun:"dismissed" json:"dismissed"`
 }
