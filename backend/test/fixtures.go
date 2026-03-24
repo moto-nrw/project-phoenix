@@ -1282,6 +1282,32 @@ func CreateTestRoleForTenant(tb testing.TB, db *bun.DB, name string, tenantID in
 	return role
 }
 
+// CreateTestSystemRole creates a system role (tenant_id IS NULL, is_system = true).
+// System roles are immutable and visible to all tenants.
+func CreateTestSystemRole(tb testing.TB, db *bun.DB, name string) *auth.Role {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	uniqueName := fmt.Sprintf("%s-%d", name, time.Now().UnixNano())
+
+	role := &auth.Role{
+		Name:        uniqueName,
+		Description: "System role: " + name,
+		IsSystem:    true,
+		TenantID:    nil,
+	}
+
+	err := db.NewInsert().
+		Model(role).
+		ModelTableExpr(`auth.roles`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test system role")
+
+	return role
+}
+
 // CreateTestPermission creates a permission in the database.
 // Note: The database has a unique constraint on (resource, action), so each call
 // creates a unique resource to avoid constraint violations.
