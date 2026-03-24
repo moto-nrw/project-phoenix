@@ -16,7 +16,13 @@ import { SettingsLayout } from "~/components/shared/settings-layout";
 const logger = createLogger({ component: "SettingsPage" });
 
 function SettingsContent() {
-  const { data: session, status } = useSession({ required: true });
+  const {
+    data: session,
+    status,
+    update: updateSession,
+  } = useSession({
+    required: true,
+  });
   const { success: toastSuccess } = useToast();
   const { profile, updateProfileData, refreshProfile } = useProfile();
 
@@ -68,6 +74,11 @@ function SettingsContent() {
 
       // Refresh from backend to ensure consistency
       await refreshProfile(true);
+
+      // Sync JWT session name so the header updates immediately
+      const newName =
+        `${formData.firstName} ${formData.lastName}`.trim() || undefined;
+      await updateSession({ name: newName });
 
       setIsEditing(false);
       toastSuccess("Profil erfolgreich aktualisiert");

@@ -3,10 +3,9 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { signIn, useSession } from "next-auth/react";
 import { mutate } from "~/lib/swr";
-import { clearSessionCache } from "~/lib/session-cache";
 import {
   listAvailableTenants,
-  switchTenant,
+  performTenantSwitch,
   type TenantInfo,
 } from "~/lib/tenant-api";
 import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
@@ -69,22 +68,7 @@ export function TenantSwitcher() {
       setIsOpen(false);
 
       try {
-        // 1. Get new tokens for the target tenant
-        const tokens = await switchTenant(targetTenant.slug);
-
-        // 2. Update NextAuth session with the new tokens
-        await signIn("credentials", {
-          redirect: false,
-          internalRefresh: true,
-          token: tokens.access_token,
-          refreshToken: tokens.refresh_token,
-        });
-
-        // 3. Clear SWR cache to prevent stale cross-tenant data
-        await mutate(() => true, undefined, { revalidate: false });
-
-        // 4. Clear session cache for fresh token resolution
-        clearSessionCache();
+        await performTenantSwitch(targetTenant.slug, signIn, mutate);
 
         logger.info("tenant_switched", {
           from_slug: currentSlug ?? "unknown",

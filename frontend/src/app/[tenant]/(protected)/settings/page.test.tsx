@@ -165,6 +165,7 @@ describe("SettingsPage", () => {
         },
       },
       status: "authenticated",
+      update: vi.fn().mockResolvedValue(undefined),
     });
 
     // Default profile mock

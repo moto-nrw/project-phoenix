@@ -145,6 +145,18 @@ export function ProfileProvider({
   // Store the refresh function in ref
   refreshRef.current = refreshProfile;
 
+  // Reset debounce when tenant changes so profile refreshes immediately after switch
+  const tenantId = session?.user?.tenantId;
+  const prevTenantIdRef = React.useRef(tenantId);
+  useEffect(() => {
+    if (prevTenantIdRef.current !== tenantId) {
+      if (tenantId !== undefined) {
+        lastRefreshRef.current = 0;
+      }
+      prevTenantIdRef.current = tenantId;
+    }
+  }, [tenantId]);
+
   // Initial load and refresh on session changes only
   useEffect(() => {
     // Only refresh when token actually changes (not on every render)

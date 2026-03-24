@@ -91,10 +91,8 @@ export function Header() {
   const historyType = getHistoryType(pathname);
   const subPageLabel = getSubPageLabel(pathname);
 
-  // Profile data from ShellAuth context
-  const displayName = profile
-    ? `${profile.firstName ?? ""} ${profile.lastName ?? ""}`.trim() || userName
-    : userName;
+  // Use JWT name as single source of truth (avoids flicker from async profile fetch)
+  const displayName = userName;
   const displayAvatar = profile?.avatar;
 
   const isSessionExpired = sessionExpired;

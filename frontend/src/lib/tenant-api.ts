@@ -4,7 +4,7 @@
  * tenant listing/switching (post-login).
  */
 
-import { sessionFetch } from "./session-cache";
+import { clearSessionCache, sessionFetch } from "./session-cache";
 
 const TENANT_ACCESS_DENIED_MESSAGE =
   "account does not have access to this tenant";
@@ -213,6 +213,43 @@ async function parseErrorMessage(response: Response): Promise<string> {
   } catch {
     return text;
   }
+}
+
+/**
+ * Perform the full tenant switch sequence (steps 1-4 of the switch spec).
+ * Returns the new tokens. Callers handle the final navigation/update (step 5).
+ *
+ * 1. Get new JWT tokens from backend
+ * 2. Update NextAuth session via signIn("credentials", { internalRefresh })
+ * 3. Clear SWR cache to prevent stale cross-tenant data
+ * 4. Clear session cache for fresh token resolution
+ */
+export async function performTenantSwitch(
+  slug: string,
+  signIn: (
+    provider: string,
+    options: Record<string, unknown>,
+  ) => Promise<unknown>,
+  swrMutate: (
+    matcher: (key: unknown) => boolean,
+    data: undefined,
+    opts: { revalidate: boolean },
+  ) => Promise<unknown>,
+): Promise<SwitchTenantResponse> {
+  const tokens = await switchTenant(slug);
+
+  await signIn("credentials", {
+    redirect: false,
+    internalRefresh: true,
+    token: tokens.access_token,
+    refreshToken: tokens.refresh_token,
+  });
+
+  await swrMutate(() => true, undefined, { revalidate: false });
+
+  clearSessionCache();
+
+  return tokens;
 }
 
 /**

@@ -6,10 +6,12 @@ import "@testing-library/jest-dom/vitest";
 // Mocks
 // ============================================================================
 
-const { mockListAvailableTenants, mockSwitchTenant } = vi.hoisted(() => ({
-  mockListAvailableTenants: vi.fn(),
-  mockSwitchTenant: vi.fn(),
-}));
+const { mockListAvailableTenants, mockPerformTenantSwitch } = vi.hoisted(
+  () => ({
+    mockListAvailableTenants: vi.fn(),
+    mockPerformTenantSwitch: vi.fn(),
+  }),
+);
 
 const { mockSignIn, mockUseSession } = vi.hoisted(() => ({
   mockSignIn: vi.fn(),
@@ -20,17 +22,13 @@ const { mockMutate } = vi.hoisted(() => ({
   mockMutate: vi.fn(),
 }));
 
-const { mockClearSessionCache } = vi.hoisted(() => ({
-  mockClearSessionCache: vi.fn(),
-}));
-
 const { mockUseTenantSlugSafe } = vi.hoisted(() => ({
   mockUseTenantSlugSafe: vi.fn(),
 }));
 
 vi.mock("~/lib/tenant-api", () => ({
   listAvailableTenants: mockListAvailableTenants,
-  switchTenant: mockSwitchTenant,
+  performTenantSwitch: mockPerformTenantSwitch,
 }));
 
 vi.mock("next-auth/react", () => ({
@@ -40,10 +38,6 @@ vi.mock("next-auth/react", () => ({
 
 vi.mock("~/lib/swr", () => ({
   mutate: mockMutate,
-}));
-
-vi.mock("~/lib/session-cache", () => ({
-  clearSessionCache: mockClearSessionCache,
 }));
 
 vi.mock("~/components/tenant/tenant-provider", () => ({
@@ -104,7 +98,7 @@ describe("TenantSwitcher", () => {
     mockUseSession.mockReturnValue({ status: "authenticated" });
     mockUseTenantSlugSafe.mockReturnValue("school-a");
     mockListAvailableTenants.mockResolvedValue([]);
-    mockSwitchTenant.mockResolvedValue({
+    mockPerformTenantSwitch.mockResolvedValue({
       access_token: "new-access",
       refresh_token: "new-refresh",
     });
@@ -223,18 +217,12 @@ describe("TenantSwitcher", () => {
     fireEvent.click(screen.getByText("School B"));
 
     await waitFor(() => {
-      expect(mockSwitchTenant).toHaveBeenCalledWith("school-b");
+      expect(mockPerformTenantSwitch).toHaveBeenCalledWith(
+        "school-b",
+        mockSignIn,
+        mockMutate,
+      );
     });
-
-    expect(mockSignIn).toHaveBeenCalledWith("credentials", {
-      redirect: false,
-      internalRefresh: true,
-      token: "new-access",
-      refreshToken: "new-refresh",
-    });
-
-    expect(mockMutate).toHaveBeenCalled();
-    expect(mockClearSessionCache).toHaveBeenCalled();
 
     // Should redirect to the new tenant subdomain
     expect(window.location.href).toBe(
@@ -244,7 +232,7 @@ describe("TenantSwitcher", () => {
 
   it("handles switch error gracefully", async () => {
     mockListAvailableTenants.mockResolvedValue([tenantA, tenantB]);
-    mockSwitchTenant.mockRejectedValue(new Error("switch failed"));
+    mockPerformTenantSwitch.mockRejectedValue(new Error("switch failed"));
 
     render(<TenantSwitcher />);
 
@@ -257,13 +245,15 @@ describe("TenantSwitcher", () => {
     fireEvent.click(screen.getByText("School B"));
 
     await waitFor(() => {
-      expect(mockSwitchTenant).toHaveBeenCalledWith("school-b");
+      expect(mockPerformTenantSwitch).toHaveBeenCalledWith(
+        "school-b",
+        mockSignIn,
+        mockMutate,
+      );
     });
 
-    // Should NOT redirect
+    // Should NOT redirect (performTenantSwitch threw)
     expect(window.location.href).toBe("");
-    // Should NOT have called signIn
-    expect(mockSignIn).not.toHaveBeenCalled();
   });
 
   it("shows organization headers when tenants span multiple orgs", async () => {
