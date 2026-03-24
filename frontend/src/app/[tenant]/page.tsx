@@ -220,9 +220,23 @@ function LoginForm() {
         )}
         {!tenant?.name && <div className="mb-10" />}
 
+        {/* Loading spinner while checking auth or awaiting redirect */}
+        {isCheckingAuth && (
+          <div className="flex items-center justify-center py-12">
+            <div className="flex flex-col items-center gap-4">
+              <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-200 border-t-[#5080D8]" />
+              <p className="text-sm text-gray-500">
+                {awaitingRedirect
+                  ? "Sie werden weitergeleitet…"
+                  : "Sitzung wird überprüft…"}
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Login Form — fades in after auth check */}
         <div
-          className={`transition-opacity duration-300 ${isCheckingAuth ? "pointer-events-none opacity-0" : "opacity-100"}`}
+          className={`transition-opacity duration-300 ${isCheckingAuth ? "pointer-events-none hidden" : "opacity-100"}`}
         >
           <form
             onSubmit={handleSubmit}
@@ -337,7 +351,10 @@ export default function HomePage() {
     <Suspense
       fallback={
         <div className="flex min-h-screen flex-col items-center justify-center p-4">
-          Loading...
+          <div className="flex flex-col items-center gap-4">
+            <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-200 border-t-[#5080D8]" />
+            <p className="text-sm text-gray-500">Laden…</p>
+          </div>
         </div>
       }
     >
