@@ -28,6 +28,7 @@ import (
 
 // Constants for permission strings, headers, route patterns, and error messages (S1192 - avoid duplicate string literals)
 const (
+	permUsersCreate      = "users:create"
 	permUsersManage      = "users:manage"
 	permUsersList        = "users:list"
 	permRolesRead        = "roles:read"
@@ -115,7 +116,7 @@ func (rs *Resource) Router() chi.Router {
 		// Admin routes - require admin role or specific permissions
 		r.Group(func(r chi.Router) {
 			// Link existing account to current tenant (for multi-tenant staff creation)
-			r.With(authorize.RequiresPermission("users:create")).Post("/link-to-tenant", rs.linkToTenant)
+			r.With(authorize.RequiresPermission(permUsersCreate)).Post("/link-to-tenant", rs.linkToTenant)
 
 			// Role management routes
 			r.Route("/roles", func(r chi.Router) {
@@ -188,7 +189,7 @@ func (rs *Resource) Router() chi.Router {
 			})
 
 			r.Route("/invitations", func(r chi.Router) {
-				r.With(authorize.RequiresPermission("users:create")).Post("/", rs.createInvitation)
+				r.With(authorize.RequiresPermission(permUsersCreate)).Post("/", rs.createInvitation)
 				r.With(authorize.RequiresPermission(permUsersList)).Get("/", rs.listPendingInvitations)
 				r.Route("/{id}", func(r chi.Router) {
 					r.With(authorize.RequiresPermission(permUsersManage)).Post("/resend", rs.resendInvitation)
@@ -198,7 +199,7 @@ func (rs *Resource) Router() chi.Router {
 
 			// Parent account management
 			r.Route("/parent-accounts", func(r chi.Router) {
-				r.With(authorize.RequiresPermission("users:create")).Post("/", rs.createParentAccount)
+				r.With(authorize.RequiresPermission(permUsersCreate)).Post("/", rs.createParentAccount)
 				r.With(authorize.RequiresPermission(permUsersList)).Get("/", rs.listParentAccounts)
 				r.Route("/{id}", func(r chi.Router) {
 					r.With(authorize.RequiresPermission("users:read")).Get("/", rs.getParentAccountByID)

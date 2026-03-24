@@ -699,43 +699,53 @@ func (s *Service) linkAccountToTenant(ctx context.Context, account *auth.Account
 	return tenant.WithTenantTx(ctx, s.db, tenantID, func(ctx context.Context, tx bun.Tx) error {
 		txService := s.WithTx(tx).(*Service)
 
-		// Check if already linked — skip mapping creation if so
-		alreadyLinked, checkErr := txService.repos.AccountTenant.ExistsByAccountAndTenant(ctx, account.ID, tenantID)
-		if checkErr != nil {
-			s.getLogger().Warn("failed to check existing tenant link, proceeding with create",
-				slog.Int64("account_id", account.ID),
-				slog.Int64("tenant_id", tenantID))
+		if err := txService.ensureTenantMapping(ctx, account.ID, tenantID); err != nil {
+			return err
 		}
-		if !alreadyLinked {
-			now := time.Now()
-			mapping := &auth.AccountTenant{
-				AccountID:   account.ID,
-				TenantID:    tenantID,
-				Status:      auth.AccountTenantStatusActive,
-				ActivatedAt: &now,
-			}
-			if err := txService.repos.AccountTenant.Create(ctx, mapping); err != nil {
-				return fmt.Errorf("failed to create account-tenant mapping: %w", err)
-			}
-		}
-
-		// Assign role if specified
-		if roleID != nil && *roleID > 0 {
-			accountRole := &auth.AccountRole{
-				AccountID: account.ID,
-				RoleID:    *roleID,
-			}
-			accountRole.SetTenantID(tenantID)
-			if err := txService.repos.AccountRole.Create(ctx, accountRole); err != nil {
-				// Ignore duplicate role errors (already has this role in this tenant)
-				if !isDuplicateKeyError(err) {
-					return fmt.Errorf("failed to assign role to account: %w", err)
-				}
-			}
-		}
-
-		return nil
+		return txService.ensureRoleAssignment(ctx, account.ID, roleID, tenantID)
 	})
+}
+
+// ensureTenantMapping creates an account-tenant mapping if one does not already exist.
+func (s *Service) ensureTenantMapping(ctx context.Context, accountID, tenantID int64) error {
+	alreadyLinked, checkErr := s.repos.AccountTenant.ExistsByAccountAndTenant(ctx, accountID, tenantID)
+	if checkErr != nil {
+		s.getLogger().Warn("failed to check existing tenant link, proceeding with create",
+			slog.Int64("account_id", accountID),
+			slog.Int64("tenant_id", tenantID))
+	}
+	if alreadyLinked {
+		return nil
+	}
+	now := time.Now()
+	mapping := &auth.AccountTenant{
+		AccountID:   accountID,
+		TenantID:    tenantID,
+		Status:      auth.AccountTenantStatusActive,
+		ActivatedAt: &now,
+	}
+	if err := s.repos.AccountTenant.Create(ctx, mapping); err != nil {
+		return fmt.Errorf("failed to create account-tenant mapping: %w", err)
+	}
+	return nil
+}
+
+// ensureRoleAssignment assigns a role to an account for a tenant, ignoring duplicates.
+func (s *Service) ensureRoleAssignment(ctx context.Context, accountID int64, roleID *int64, tenantID int64) error {
+	if roleID == nil || *roleID <= 0 {
+		return nil
+	}
+	accountRole := &auth.AccountRole{
+		AccountID: accountID,
+		RoleID:    *roleID,
+	}
+	accountRole.SetTenantID(tenantID)
+	if err := s.repos.AccountRole.Create(ctx, accountRole); err != nil {
+		if !isDuplicateKeyError(err) {
+			return fmt.Errorf("failed to assign role to account: %w", err)
+		}
+	}
+	return nil
 }
 
 // isDuplicateKeyError checks if a database error is a unique constraint violation (PG code 23505).
