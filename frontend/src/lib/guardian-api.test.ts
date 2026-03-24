@@ -115,6 +115,9 @@ describe("errorTranslations", () => {
       "student not found",
       "relationship already exists",
       "validation failed",
+      "invalid phone number format",
+      "phone number must contain at least 3 digits",
+      "phone number is required",
       "unauthorized",
       "forbidden",
     ];
@@ -132,8 +135,8 @@ describe("errorTranslations", () => {
     }
   });
 
-  it("has exactly 8 error translations", () => {
-    expect(Object.keys(errorTranslations).length).toBe(8);
+  it("has exactly 11 error translations", () => {
+    expect(Object.keys(errorTranslations).length).toBe(11);
   });
 });
 
