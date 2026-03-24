@@ -638,15 +638,8 @@ func TestRegisterRequiresAdminAuth(t *testing.T) {
 	t.Run("non-admin returns forbidden", func(t *testing.T) {
 		// Create a fresh role with NO permissions to guarantee 403
 		ctx := context.Background()
-		tenantID := int64(1)
-		noPermsRole := &authModel.Role{
-			Name:        fmt.Sprintf("noperms-%d", time.Now().UnixNano()),
-			Description: "Role with zero permissions for auth test",
-			IsSystem:    false,
-			TenantID:    &tenantID,
-		}
-		_, err := db.NewInsert().Model(noPermsRole).ModelTableExpr("auth.roles").Exec(ctx)
-		require.NoError(t, err, "Failed to create no-permissions role")
+		testpkg.EnsureTestTenant(t, db, 1)
+		noPermsRole := testpkg.CreateTestRole(t, db, "noperms")
 
 		// Create account, map to tenant, assign the empty role
 		userEmail := fmt.Sprintf("nonadmin_%d@example.com", time.Now().UnixNano())
@@ -659,7 +652,7 @@ func TestRegisterRequiresAdminAuth(t *testing.T) {
 			RoleID:    noPermsRole.ID,
 		}
 		userAccountRole.SetTenantID(1)
-		_, err = db.NewInsert().Model(userAccountRole).ModelTableExpr("auth.account_roles").Exec(ctx)
+		_, err := db.NewInsert().Model(userAccountRole).ModelTableExpr("auth.account_roles").Exec(ctx)
 		require.NoError(t, err)
 
 		t.Cleanup(func() {
