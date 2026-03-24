@@ -3,7 +3,7 @@
  *
  * Cookie: "next-auth.session-token" on .${TENANT_DOMAIN} (shared across tenant subdomains)
  * Providers: Teacher credentials + Discord
- * SignIn page: "/" (tenant login, resolved by subdomain middleware)
+ * SignIn page: "/" (tenant login, resolved by subdomain proxy)
  */
 
 import type { NextAuthConfig } from "next-auth";

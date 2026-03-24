@@ -8,10 +8,10 @@ import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
 /**
  * Detect whether the browser is running in subdomain-based tenant routing.
  * When a subdomain matches the tenant slug (e.g. school-a.localhost),
- * the middleware already rewrites paths internally, so the router must
+ * the proxy already rewrites paths internally, so the router must
  * NOT add the slug to the path — otherwise URLs become redundant:
  *   school-a.localhost:3000/school-a/dashboard  (wrong, double slug)
- *   school-a.localhost:3000/dashboard            (correct, middleware handles it)
+ *   school-a.localhost:3000/dashboard            (correct, proxy handles it)
  */
 function useIsSubdomainMode(tenantSlug: string): boolean {
   // Safe for SSR: window check prevents server-side errors.
@@ -24,7 +24,7 @@ function useIsSubdomainMode(tenantSlug: string): boolean {
  * Tenant-aware router that handles both subdomain and path-based routing.
  *
  * - **Subdomain mode** (school-a.localhost:3000): pushes bare paths (`/dashboard`),
- *   the middleware rewrites them internally to `/school-a/dashboard`.
+ *   the proxy rewrites them internally to `/school-a/dashboard`.
  * - **Path mode** (localhost:3000/school-a): prefixes paths with the tenant slug.
  *
  * Returns a memoized object so it can safely appear in useEffect dependency arrays

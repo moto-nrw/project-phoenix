@@ -2,7 +2,7 @@
  * Utilities for operator subdomain URL handling.
  *
  * On the operator subdomain (e.g. operator.moto-app.de), URLs use clean paths
- * like /suggestions instead of /operator/suggestions. The middleware rewrites
+ * like /suggestions instead of /operator/suggestions. The proxy rewrites
  * these to the actual /operator/* routes internally.
  */
 

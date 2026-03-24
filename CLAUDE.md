@@ -46,7 +46,7 @@ Platform Operator (moto)
 
 ### Frontend Routing
 
-- **Subdomain mode**: `{slug}.localhost:3000` → middleware rewrites to `/[tenant]/*` internally
+- **Subdomain mode**: `{slug}.localhost:3000` → proxy rewrites to `/[tenant]/*` internally
 - **Operator isolation**: `operator.localhost:3000` → rewrites to `/operator/*`, separate session
 - **Tenant resolution**: `[tenant]/layout.tsx` validates slug via `/auth/tenant/resolve?slug=...` (cached 5min)
 - **Tenant switching**: `POST /auth/switch-tenant` returns new JWT scoped to target school
@@ -176,7 +176,7 @@ NEXT_PUBLIC_OPERATOR_HOSTNAME: z.string().min(1)
 ```
 
 ### Where this applies
-- **All `process.env` reads** in middleware, server code, and client code
+- **All `process.env` reads** in proxy, server code, and client code
 - **All Zod schemas** in `env.js` for environment validation
 - **All docker-compose environment blocks** — use `${VAR}` not `${VAR:-default}`
 - **Exception**: Only `NODE_ENV` and `LOG_LEVEL` may have defaults (they have universally safe defaults like `"development"` and `"info"`)
@@ -184,7 +184,7 @@ NEXT_PUBLIC_OPERATOR_HOSTNAME: z.string().min(1)
 ### What to do instead
 - Put the correct value in `.env.example` as documentation
 - Let `env.js` validation crash the build if the var is missing
-- In Edge runtime (middleware) where `env.js` can't run, throw explicitly
+- In proxy (`proxy.ts`) where `env.js` can't run, throw explicitly
 - If required in `env.js`: add as `ARG` + `ENV` in `frontend/Dockerfile.prod` and as `build-args` in `.github/workflows/build.yml`
 - `next build` runs env validation inside the Docker container — missing build args break CI
 
