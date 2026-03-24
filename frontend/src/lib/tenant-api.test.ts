@@ -5,18 +5,21 @@ import type { TenantSwitchError } from "./tenant-api";
 // Mocks
 // ============================================================================
 
-const { mockSessionFetch } = vi.hoisted(() => ({
+const { mockSessionFetch, mockClearSessionCache } = vi.hoisted(() => ({
   mockSessionFetch: vi.fn(),
+  mockClearSessionCache: vi.fn(),
 }));
 
 vi.mock("./session-cache", () => ({
   sessionFetch: mockSessionFetch,
+  clearSessionCache: mockClearSessionCache,
 }));
 
 import {
   resolveTenant,
   listAvailableTenants,
   switchTenant,
+  performTenantSwitch,
 } from "./tenant-api";
 
 // ============================================================================
@@ -366,6 +369,171 @@ describe("tenant-api", () => {
         status: 500,
         code: "unknown",
       } satisfies Partial<TenantSwitchError>);
+    });
+
+    it("falls back to raw text when response body is not JSON", async () => {
+      mockSessionFetch.mockResolvedValueOnce(
+        new Response("plain text error", { status: 503 }),
+      );
+
+      await expect(switchTenant("bad")).rejects.toMatchObject({
+        name: "TenantSwitchError",
+        message: "plain text error",
+        status: 503,
+        code: "unknown",
+      } satisfies Partial<TenantSwitchError>);
+    });
+
+    it("uses message field when error field is missing", async () => {
+      mockSessionFetch.mockResolvedValueOnce(
+        new Response(JSON.stringify({ message: "something went wrong" }), {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+
+      await expect(switchTenant("bad")).rejects.toMatchObject({
+        name: "TenantSwitchError",
+        message: "something went wrong",
+        status: 400,
+        code: "unknown",
+      } satisfies Partial<TenantSwitchError>);
+    });
+
+    it("falls back to raw text when JSON has no error or message field", async () => {
+      mockSessionFetch.mockResolvedValueOnce(
+        new Response(JSON.stringify({ foo: "bar" }), {
+          status: 422,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+
+      await expect(switchTenant("bad")).rejects.toMatchObject({
+        name: "TenantSwitchError",
+        message: '{"foo":"bar"}',
+        status: 422,
+        code: "unknown",
+      } satisfies Partial<TenantSwitchError>);
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // performTenantSwitch (orchestrates switch + session update + cache clear)
+  // --------------------------------------------------------------------------
+
+  describe("performTenantSwitch", () => {
+    const tokens = {
+      access_token: "new-jwt",
+      refresh_token: "new-refresh",
+    };
+
+    const mockSignIn = vi.fn().mockResolvedValue(undefined);
+    const mockSwrMutate = vi.fn().mockResolvedValue(undefined);
+
+    beforeEach(() => {
+      mockSignIn.mockClear();
+      mockSwrMutate.mockClear();
+      mockClearSessionCache.mockClear();
+    });
+
+    it("performs full switch sequence and returns tokens", async () => {
+      mockSessionFetch.mockResolvedValueOnce(
+        new Response(JSON.stringify(tokens), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+
+      const result = await performTenantSwitch(
+        "school-b",
+        mockSignIn,
+        mockSwrMutate,
+      );
+
+      expect(result).toEqual(tokens);
+
+      // Step 1: switch-tenant called
+      expect(mockSessionFetch).toHaveBeenCalledWith("/api/auth/switch-tenant", {
+        method: "POST",
+        body: JSON.stringify({ tenant_slug: "school-b" }),
+      });
+
+      // Step 2: signIn called with new tokens
+      expect(mockSignIn).toHaveBeenCalledWith("credentials", {
+        redirect: false,
+        internalRefresh: true,
+        token: "new-jwt",
+        refreshToken: "new-refresh",
+      });
+
+      // Step 3: SWR cache cleared
+      expect(mockSwrMutate).toHaveBeenCalledWith(
+        expect.any(Function),
+        undefined,
+        { revalidate: false },
+      );
+
+      // Step 4: session cache cleared
+      expect(mockClearSessionCache).toHaveBeenCalledTimes(1);
+    });
+
+    it("calls steps in correct order", async () => {
+      const callOrder: string[] = [];
+
+      mockSessionFetch.mockImplementation(async () => {
+        callOrder.push("switchTenant");
+        return new Response(JSON.stringify(tokens), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      });
+
+      mockSignIn.mockImplementation(async () => {
+        callOrder.push("signIn");
+      });
+
+      mockSwrMutate.mockImplementation(async () => {
+        callOrder.push("swrMutate");
+      });
+
+      mockClearSessionCache.mockImplementation(() => {
+        callOrder.push("clearSessionCache");
+      });
+
+      await performTenantSwitch("school-b", mockSignIn, mockSwrMutate);
+
+      expect(callOrder).toEqual([
+        "switchTenant",
+        "signIn",
+        "swrMutate",
+        "clearSessionCache",
+      ]);
+    });
+
+    it("propagates TenantSwitchError when backend rejects", async () => {
+      mockSessionFetch.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            error: "account does not have access to this tenant",
+          }),
+          {
+            status: 401,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
+      );
+
+      await expect(
+        performTenantSwitch("bad-tenant", mockSignIn, mockSwrMutate),
+      ).rejects.toMatchObject({
+        name: "TenantSwitchError",
+        code: "access_denied",
+      });
+
+      // Should NOT have called signIn or cache clearing
+      expect(mockSignIn).not.toHaveBeenCalled();
+      expect(mockSwrMutate).not.toHaveBeenCalled();
+      expect(mockClearSessionCache).not.toHaveBeenCalled();
     });
   });
 });

@@ -535,6 +535,103 @@ describe("ProfileContext", () => {
     });
   });
 
+  describe("tenant change debounce reset", () => {
+    it("should reset debounce when tenantId changes, allowing immediate refresh", async () => {
+      const sessionWithTenant = {
+        ...mockSession,
+        user: { ...mockSession.user, tenantId: 1 },
+      };
+
+      vi.mocked(nextAuthReact.useSession).mockReturnValue({
+        data: sessionWithTenant,
+        status: "authenticated",
+        update: vi.fn(),
+      });
+
+      const wrapper = ({ children }: { children: ReactNode }) => (
+        <ProfileProvider>{children}</ProfileProvider>
+      );
+
+      const { result, rerender } = renderHook(() => useProfile(), { wrapper });
+
+      // Wait for initial load
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      // First refresh happened on mount
+      expect(profileApi.fetchProfile).toHaveBeenCalledTimes(1);
+      vi.clearAllMocks();
+
+      // Switch tenant
+      const newSession = {
+        ...mockSession,
+        user: {
+          ...mockSession.user,
+          tenantId: 2,
+          token: "new-token-for-tenant-2",
+        },
+      };
+
+      vi.mocked(nextAuthReact.useSession).mockReturnValue({
+        data: newSession,
+        status: "authenticated",
+        update: vi.fn(),
+      });
+
+      rerender();
+
+      // The token change triggers a new fetch
+      await waitFor(() => {
+        expect(profileApi.fetchProfile).toHaveBeenCalled();
+      });
+    });
+
+    it("should not reset debounce when tenantId is undefined", async () => {
+      const sessionWithTenant = {
+        ...mockSession,
+        user: { ...mockSession.user, tenantId: 1 },
+      };
+
+      vi.mocked(nextAuthReact.useSession).mockReturnValue({
+        data: sessionWithTenant,
+        status: "authenticated",
+        update: vi.fn(),
+      });
+
+      const wrapper = ({ children }: { children: ReactNode }) => (
+        <ProfileProvider>{children}</ProfileProvider>
+      );
+
+      const { result, rerender } = renderHook(() => useProfile(), { wrapper });
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      vi.clearAllMocks();
+
+      // Session becomes undefined tenantId (e.g. during logout transition)
+      const noTenantSession = {
+        ...mockSession,
+        user: { ...mockSession.user, tenantId: undefined },
+      };
+
+      vi.mocked(nextAuthReact.useSession).mockReturnValue({
+        data: noTenantSession,
+        status: "authenticated",
+        update: vi.fn(),
+      });
+
+      rerender();
+
+      // The debounce should NOT have been reset for undefined tenantId
+      // (the useEffect condition checks tenantId !== undefined)
+      // Profile state should remain stable
+      expect(result.current.profile).toEqual(mockProfile);
+    });
+  });
+
   describe("useProfile hook", () => {
     it("should throw error when used outside ProfileProvider", () => {
       // Suppress console.error for this test
