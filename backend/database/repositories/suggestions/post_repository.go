@@ -125,15 +125,10 @@ func (r *PostRepository) List(ctx context.Context, accountID int64, readerType s
 		TableExpr(tablePostsAlias).
 		ColumnExpr(`"post".*`).
 		ColumnExpr(`COALESCE(CONCAT(p.first_name, ' ', LEFT(p.last_name, 1), '.'), 'Unbekannt') AS author_name`).
-		ColumnExpr(`(SELECT COUNT(*) FROM suggestions.votes WHERE post_id = "post".id AND direction = 'up') AS upvotes`).
-		ColumnExpr(`(SELECT COUNT(*) FROM suggestions.votes WHERE post_id = "post".id AND direction = 'down') AS downvotes`).
-		ColumnExpr(`(SELECT COUNT(*) FROM suggestions.comments WHERE post_id = "post".id AND deleted_at IS NULL) AS comment_count`).
-		ColumnExpr(`(SELECT COUNT(*) FROM suggestions.comments c
-			LEFT JOIN suggestions.comment_reads cr ON cr.post_id = c.post_id AND cr.account_id = ? AND cr.reader_type = ?
-			WHERE c.post_id = "post".id
-			AND c.deleted_at IS NULL
-			AND (cr.last_read_at IS NULL OR c.created_at > cr.last_read_at)
-		) AS unread_count`, accountID, readerType).
+		ColumnExpr(`COALESCE(vc.upvotes, 0) AS upvotes`).
+		ColumnExpr(`COALESCE(vc.downvotes, 0) AS downvotes`).
+		ColumnExpr(`COALESCE(cc.comment_count, 0) AS comment_count`).
+		ColumnExpr(`COALESCE(cc.unread_count, 0) AS unread_count`).
 		ColumnExpr(`NOT EXISTS (
 			SELECT 1 FROM suggestions.post_reads pr
 			WHERE pr.account_id = ? AND pr.post_id = "post".id AND pr.reader_type = ?
@@ -142,7 +137,22 @@ func (r *PostRepository) List(ctx context.Context, accountID int64, readerType s
 		ColumnExpr(`COALESCE("sch".name, '') AS school_name`).
 		Join(`LEFT JOIN users.persons AS p ON p.account_id = "post".author_id`).
 		Join(`LEFT JOIN suggestions.votes AS v ON v.post_id = "post".id AND v.voter_id = ?`, accountID).
-		Join(`LEFT JOIN platform.schools AS "sch" ON "sch".id = "post".tenant_id`)
+		Join(`LEFT JOIN platform.schools AS "sch" ON "sch".id = "post".tenant_id`).
+		Join(`LEFT JOIN LATERAL (
+			SELECT
+				COUNT(*) FILTER (WHERE direction = 'up') AS upvotes,
+				COUNT(*) FILTER (WHERE direction = 'down') AS downvotes
+			FROM suggestions.votes WHERE post_id = "post".id
+		) vc ON true`).
+		Join(`LEFT JOIN LATERAL (
+			SELECT
+				COUNT(*) AS comment_count,
+				COUNT(*) FILTER (WHERE cr.last_read_at IS NULL OR c.created_at > cr.last_read_at) AS unread_count
+			FROM suggestions.comments c
+			LEFT JOIN suggestions.comment_reads cr
+				ON cr.post_id = c.post_id AND cr.account_id = ? AND cr.reader_type = ?
+			WHERE c.post_id = "post".id AND c.deleted_at IS NULL
+		) cc ON true`, accountID, readerType)
 
 	if where, val, ok := base.TenantWhere(ctx, "post"); ok {
 		query = query.Where(where, val)
@@ -184,20 +194,30 @@ func (r *PostRepository) FindByIDWithVote(ctx context.Context, id int64, account
 		TableExpr(tablePostsAlias).
 		ColumnExpr(`"post".*`).
 		ColumnExpr(`COALESCE(CONCAT(p.first_name, ' ', LEFT(p.last_name, 1), '.'), 'Unbekannt') AS author_name`).
-		ColumnExpr(`(SELECT COUNT(*) FROM suggestions.votes WHERE post_id = "post".id AND direction = 'up') AS upvotes`).
-		ColumnExpr(`(SELECT COUNT(*) FROM suggestions.votes WHERE post_id = "post".id AND direction = 'down') AS downvotes`).
-		ColumnExpr(`(SELECT COUNT(*) FROM suggestions.comments WHERE post_id = "post".id AND deleted_at IS NULL) AS comment_count`).
-		ColumnExpr(`(SELECT COUNT(*) FROM suggestions.comments c
-			LEFT JOIN suggestions.comment_reads cr ON cr.post_id = c.post_id AND cr.account_id = ? AND cr.reader_type = ?
-			WHERE c.post_id = "post".id
-			AND c.deleted_at IS NULL
-			AND (cr.last_read_at IS NULL OR c.created_at > cr.last_read_at)
-		) AS unread_count`, accountID, readerType).
+		ColumnExpr(`COALESCE(vc.upvotes, 0) AS upvotes`).
+		ColumnExpr(`COALESCE(vc.downvotes, 0) AS downvotes`).
+		ColumnExpr(`COALESCE(cc.comment_count, 0) AS comment_count`).
+		ColumnExpr(`COALESCE(cc.unread_count, 0) AS unread_count`).
 		ColumnExpr(`v.direction AS user_vote`).
 		ColumnExpr(`COALESCE("sch".name, '') AS school_name`).
 		Join(`LEFT JOIN users.persons AS p ON p.account_id = "post".author_id`).
 		Join(`LEFT JOIN suggestions.votes AS v ON v.post_id = "post".id AND v.voter_id = ?`, accountID).
 		Join(`LEFT JOIN platform.schools AS "sch" ON "sch".id = "post".tenant_id`).
+		Join(`LEFT JOIN LATERAL (
+			SELECT
+				COUNT(*) FILTER (WHERE direction = 'up') AS upvotes,
+				COUNT(*) FILTER (WHERE direction = 'down') AS downvotes
+			FROM suggestions.votes WHERE post_id = "post".id
+		) vc ON true`).
+		Join(`LEFT JOIN LATERAL (
+			SELECT
+				COUNT(*) AS comment_count,
+				COUNT(*) FILTER (WHERE cr.last_read_at IS NULL OR c.created_at > cr.last_read_at) AS unread_count
+			FROM suggestions.comments c
+			LEFT JOIN suggestions.comment_reads cr
+				ON cr.post_id = c.post_id AND cr.account_id = ? AND cr.reader_type = ?
+			WHERE c.post_id = "post".id AND c.deleted_at IS NULL
+		) cc ON true`, accountID, readerType).
 		Where(`"post".id = ?`, id)
 
 	if where, val, ok := base.TenantWhere(ctx, "post"); ok {
