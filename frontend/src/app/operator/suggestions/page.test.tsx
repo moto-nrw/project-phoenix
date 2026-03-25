@@ -571,6 +571,117 @@ describe("OperatorSuggestionsPage", () => {
     expect(screen.getByText("Jane Smith")).toBeInTheDocument();
   });
 
+  describe("school filter", () => {
+    const schoolASuggestion = {
+      ...mockSuggestion,
+      id: "1",
+      schoolId: "7",
+      schoolName: "OGS Musterstadt",
+    };
+    const schoolBSuggestion = {
+      ...mockSuggestion,
+      id: "2",
+      title: "Another Suggestion",
+      schoolId: "12",
+      schoolName: "OGS Beispielstadt",
+    };
+
+    beforeEach(() => {
+      mockUseSWR.mockReturnValue({
+        data: [schoolASuggestion, schoolBSuggestion],
+        isLoading: false,
+        mutate: mockMutate,
+      });
+    });
+
+    it("renders the school filter dropdown with unique schools", () => {
+      render(<OperatorSuggestionsPage />);
+
+      const schoolFilter = screen.getByTestId("filter-school");
+      expect(schoolFilter).toBeInTheDocument();
+
+      const options = schoolFilter.querySelectorAll("option");
+      // "Alle Schulen" + 2 unique schools
+      expect(options).toHaveLength(3);
+      expect(options[0]).toHaveTextContent("Alle Schulen");
+    });
+
+    it("filters suggestions by selected school", () => {
+      render(<OperatorSuggestionsPage />);
+
+      const schoolFilter = screen.getByTestId("filter-school");
+      fireEvent.change(schoolFilter, { target: { value: "7" } });
+
+      expect(screen.getByText("Test Suggestion")).toBeInTheDocument();
+      expect(screen.queryByText("Another Suggestion")).not.toBeInTheDocument();
+    });
+
+    it("shows all suggestions when 'Alle Schulen' is selected", () => {
+      render(<OperatorSuggestionsPage />);
+
+      const schoolFilter = screen.getByTestId("filter-school");
+      // First filter to a school
+      fireEvent.change(schoolFilter, { target: { value: "7" } });
+      // Then reset
+      fireEvent.change(schoolFilter, { target: { value: "all" } });
+
+      expect(screen.getByText("Test Suggestion")).toBeInTheDocument();
+      expect(screen.getByText("Another Suggestion")).toBeInTheDocument();
+    });
+
+    it("deduplicates schools from multiple suggestions", () => {
+      const duplicateSchoolSuggestion = {
+        ...mockSuggestion,
+        id: "3",
+        title: "Third Suggestion",
+        schoolId: "7",
+        schoolName: "OGS Musterstadt",
+      };
+
+      mockUseSWR.mockReturnValue({
+        data: [schoolASuggestion, schoolBSuggestion, duplicateSchoolSuggestion],
+        isLoading: false,
+        mutate: mockMutate,
+      });
+
+      render(<OperatorSuggestionsPage />);
+
+      const schoolFilter = screen.getByTestId("filter-school");
+      const options = schoolFilter.querySelectorAll("option");
+      // "Alle Schulen" + 2 unique schools (not 3)
+      expect(options).toHaveLength(3);
+    });
+
+    it("combines school filter with status filter", () => {
+      const doneSuggestion = {
+        ...schoolASuggestion,
+        id: "3",
+        title: "Done in School A",
+        status: "done" as const,
+      };
+
+      mockUseSWR.mockReturnValue({
+        data: [schoolASuggestion, schoolBSuggestion, doneSuggestion],
+        isLoading: false,
+        mutate: mockMutate,
+      });
+
+      render(<OperatorSuggestionsPage />);
+
+      // Filter to school A + status "done"
+      fireEvent.change(screen.getByTestId("filter-school"), {
+        target: { value: "7" },
+      });
+      fireEvent.change(screen.getByTestId("filter-status"), {
+        target: { value: "done" },
+      });
+
+      expect(screen.getByText("Done in School A")).toBeInTheDocument();
+      expect(screen.queryByText("Test Suggestion")).not.toBeInTheDocument();
+      expect(screen.queryByText("Another Suggestion")).not.toBeInTheDocument();
+    });
+  });
+
   it("marks suggestion as viewed when status is changed", async () => {
     mockUpdateStatus.mockResolvedValue(undefined);
 
