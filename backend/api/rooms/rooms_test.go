@@ -300,6 +300,20 @@ func TestDeleteRoom(t *testing.T) {
 		testutil.AssertErrorResponse(t, rr, http.StatusNotFound)
 	})
 
+	t.Run("conflict_when_room_has_active_group", func(t *testing.T) {
+		room := testpkg.CreateTestRoom(t, tc.db, "Room With Active Group")
+		activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, "ActiveGroupInRoom")
+		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
+		defer testpkg.CleanupActivityFixtures(t, tc.db, activeGroup.ID, activityGroup.ID)
+
+		router := setupRouter(tc.resource.DeleteRoomHandler(), "id")
+		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d", room.ID), nil)
+
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		testutil.AssertErrorResponse(t, rr, http.StatusConflict)
+	})
+
 	t.Run("bad_request_for_invalid_id", func(t *testing.T) {
 		router := setupRouter(tc.resource.DeleteRoomHandler(), "id")
 		req := testutil.NewRequest("DELETE", "/invalid", nil)

@@ -1129,6 +1129,32 @@ func TestDeleteStaff_WhoIsTeacher(t *testing.T) {
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
 
+func TestDeleteStaff_ConflictWithSupervision(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	// Create staff with active supervision
+	staff := testpkg.CreateTestStaff(t, ctx.db, "SupervisorDelete", "Test")
+	room := testpkg.CreateTestRoom(t, ctx.db, "SupervisionRoom")
+	activityGroup := testpkg.CreateTestActivityGroup(t, ctx.db, "SupervisionActivity")
+	activeGroup := testpkg.CreateTestActiveGroup(t, ctx.db, activityGroup.ID, room.ID)
+	testpkg.CreateTestGroupSupervisor(t, ctx.db, staff.ID, activeGroup.ID, "supervisor")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, activeGroup.ID, activityGroup.ID, room.ID)
+	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
+
+	router := chi.NewRouter()
+	router.Delete("/staff/{id}", ctx.resource.DeleteStaffHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/staff/%d", staff.ID), nil,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithPermissions("users:delete"),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertErrorResponse(t, rr, http.StatusConflict)
+}
+
 // =============================================================================
 // GET STAFF GROUPS - INVALID ID TEST
 // =============================================================================

@@ -573,6 +573,28 @@ describe("StudentsPage", () => {
     });
   });
 
+  it("shows error toast when delete returns error", async () => {
+    mockDelete.mockResolvedValueOnce("Schüler/in kann nicht gelöscht werden");
+
+    render(<StudentsPage />);
+    await waitFor(() => {
+      expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
+    });
+
+    const row = screen.getByText("Max Mustermann").closest("button");
+    if (row) fireEvent.click(row);
+    await waitFor(() => {
+      expect(screen.getByTestId("student-detail-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("delete-button"));
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith(
+        "Schüler/in kann nicht gelöscht werden",
+      );
+    });
+  });
+
   it("closes detail modal when close button is clicked", async () => {
     render(<StudentsPage />);
 

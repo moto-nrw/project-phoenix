@@ -514,6 +514,28 @@ describe("TeachersPage", () => {
     });
   });
 
+  it("shows error toast when delete returns error", async () => {
+    mockDelete.mockResolvedValueOnce("Personal kann nicht gelöscht werden");
+
+    render(<TeachersPage />);
+    await waitFor(() => {
+      expect(screen.getByText("Maria Müller")).toBeInTheDocument();
+    });
+
+    const row = screen.getByText("Maria Müller").closest("button");
+    if (row) fireEvent.click(row);
+    await waitFor(() => {
+      expect(screen.getByTestId("teacher-detail-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("delete-button"));
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith(
+        "Personal kann nicht gelöscht werden",
+      );
+    });
+  });
+
   it("closes detail modal when close button is clicked", async () => {
     render(<TeachersPage />);
 
