@@ -52,10 +52,11 @@ vi.mock("~/hooks/useDeleteConfirmation", () => ({
   })),
 }));
 
+const mockToastError = vi.fn();
 vi.mock("~/contexts/ToastContext", () => ({
   useToast: vi.fn(() => ({
     success: vi.fn(),
-    error: vi.fn(),
+    error: mockToastError,
   })),
 }));
 

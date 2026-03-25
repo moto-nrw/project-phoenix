@@ -370,3 +370,60 @@ func TestErrorGone_ResponseBody(t *testing.T) {
 	assert.Equal(t, "error", resp["status"])
 	assert.Equal(t, "invitation expired", resp["error"])
 }
+
+// =============================================================================
+// IsConstraintViolation Tests
+// =============================================================================
+
+func TestIsConstraintViolation(t *testing.T) {
+	t.Run("detects foreign key violation", func(t *testing.T) {
+		err := errors.New(`ERROR: update or delete on table "staff" violates foreign key constraint "fk_attendance_checked_in_by" (SQLSTATE=23503)`)
+		assert.True(t, common.IsConstraintViolation(err))
+	})
+
+	t.Run("detects not-null violation from cascading SET NULL", func(t *testing.T) {
+		err := errors.New(`ERROR: null value in column "tenant_id" of relation "groups" violates not-null constraint (SQLSTATE=23502)`)
+		assert.True(t, common.IsConstraintViolation(err))
+	})
+
+	t.Run("detects SQLSTATE 23503 code", func(t *testing.T) {
+		err := errors.New("some error SQLSTATE=23503")
+		assert.True(t, common.IsConstraintViolation(err))
+	})
+
+	t.Run("detects SQLSTATE 23502 code", func(t *testing.T) {
+		err := errors.New("some error SQLSTATE=23502")
+		assert.True(t, common.IsConstraintViolation(err))
+	})
+
+	t.Run("returns false for nil error", func(t *testing.T) {
+		assert.False(t, common.IsConstraintViolation(nil))
+	})
+
+	t.Run("returns false for unrelated error", func(t *testing.T) {
+		err := errors.New("connection refused")
+		assert.False(t, common.IsConstraintViolation(err))
+	})
+}
+
+// =============================================================================
+// ErrorConflictMessage Tests
+// =============================================================================
+
+func TestErrorConflictMessage(t *testing.T) {
+	renderer := common.ErrorConflictMessage("Raum kann nicht gelöscht werden")
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("DELETE", "/test", nil)
+
+	err := render.Render(w, r, renderer)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusConflict, w.Code)
+
+	var resp map[string]interface{}
+	err = json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+	assert.Equal(t, "error", resp["status"])
+	assert.Equal(t, "Raum kann nicht gelöscht werden", resp["error"])
+}

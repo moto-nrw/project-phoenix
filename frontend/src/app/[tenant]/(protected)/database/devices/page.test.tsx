@@ -230,8 +230,9 @@ vi.mock("@/lib/iot-helpers", () => ({
 }));
 
 const mockToastSuccess = vi.fn();
+const mockToastError = vi.fn();
 vi.mock("~/contexts/ToastContext", () => ({
-  useToast: () => ({ success: mockToastSuccess, error: vi.fn() }),
+  useToast: () => ({ success: mockToastSuccess, error: mockToastError }),
 }));
 
 const mockUseIsMobile = vi.fn(() => false);
@@ -985,6 +986,44 @@ describe("DevicesPage", () => {
     await waitFor(() => {
       expect(mockDelete).toHaveBeenCalledWith("1");
       expect(mockToastSuccess).toHaveBeenCalled();
+    });
+  });
+
+  it("shows error toast when delete returns error", async () => {
+    mockShowConfirmModal.mockReturnValue(true);
+    mockGetList.mockResolvedValue({
+      data: [
+        {
+          id: "1",
+          device_id: "DEV-001",
+          name: "Reader 1",
+          device_type: "terminal",
+        },
+      ],
+    });
+    mockGetOne.mockResolvedValue({
+      id: "1",
+      device_id: "DEV-001",
+      name: "Reader 1",
+      device_type: "terminal",
+    });
+    mockDelete.mockResolvedValue("Gerät kann nicht gelöscht werden");
+    mockConfirmDelete.mockImplementation((fn: () => void) => fn());
+
+    render(<DevicesPage />);
+    await waitFor(() => {
+      expect(screen.getByText("Reader 1")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("Reader 1"));
+    await waitFor(() => {
+      expect(screen.getByTestId("confirm-modal")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId("confirm-delete"));
+
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith(
+        "Gerät kann nicht gelöscht werden",
+      );
     });
   });
 
