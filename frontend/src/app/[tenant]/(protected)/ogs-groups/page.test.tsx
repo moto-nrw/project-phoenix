@@ -5133,5 +5133,6 @@ describe("RoleGuard integration", () => {
     render(<OGSGroupPage />);
 
     expect(screen.queryByText("Kein Zugriff")).not.toBeInTheDocument();
+    expect(screen.getByTestId("sse-boundary")).toBeInTheDocument();
   });
 });

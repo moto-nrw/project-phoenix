@@ -7299,5 +7299,6 @@ describe("RoleGuard integration", () => {
     render(<MeinRaumPage />);
 
     expect(screen.queryByText("Kein Zugriff")).not.toBeInTheDocument();
+    expect(screen.getByTestId("sse-boundary")).toBeInTheDocument();
   });
 });
