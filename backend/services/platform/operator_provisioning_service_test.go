@@ -2055,7 +2055,11 @@ func TestCreateSchoolAccount_RegisterFails(t *testing.T) {
 				}, nil
 			},
 		},
-		RoleRepo: &mockRoleRepo{},
+		RoleRepo: &mockRoleRepo{
+			findByIDFn: func(_ context.Context, id interface{}) (*authModels.Role, error) {
+				return &authModels.Role{Model: base.Model{ID: roleID}, Name: "admin", IsSystem: true}, nil
+			},
+		},
 		AuthService: &mockAuthService{
 			registerFn: func(context.Context, string, string, string, *int64, int64) (*authModels.Account, error) {
 				return nil, registerErr
@@ -2101,7 +2105,11 @@ func TestCreateSchoolAccount_PersonCreateFails(t *testing.T) {
 				}, nil
 			},
 		},
-		RoleRepo: &mockRoleRepo{},
+		RoleRepo: &mockRoleRepo{
+			findByIDFn: func(_ context.Context, id interface{}) (*authModels.Role, error) {
+				return &authModels.Role{Model: base.Model{ID: roleID}, Name: "admin", IsSystem: true}, nil
+			},
+		},
 		AuthService: &mockAuthService{
 			registerFn: func(_ context.Context, email, username, password string, rID *int64, tenantID int64) (*authModels.Account, error) {
 				return &authModels.Account{Model: base.Model{ID: 100}, Email: email}, nil
@@ -2153,7 +2161,11 @@ func TestCreateSchoolAccount_LinkPersonFails(t *testing.T) {
 				}, nil
 			},
 		},
-		RoleRepo: &mockRoleRepo{},
+		RoleRepo: &mockRoleRepo{
+			findByIDFn: func(_ context.Context, id interface{}) (*authModels.Role, error) {
+				return &authModels.Role{Model: base.Model{ID: roleID}, Name: "admin", IsSystem: true}, nil
+			},
+		},
 		AuthService: &mockAuthService{
 			registerFn: func(_ context.Context, email, username, password string, rID *int64, tenantID int64) (*authModels.Account, error) {
 				return &authModels.Account{Model: base.Model{ID: 100}, Email: email}, nil
@@ -2322,23 +2334,8 @@ func TestCreateSchoolAccount_TeacherCreateFails(t *testing.T) {
 	assert.Contains(t, err.Error(), "create teacher")
 }
 
-func TestCreateSchoolAccount_NonSystemRole_NoStaff(t *testing.T) {
-	sqlDB, mock, err := sqlmock.New()
-	require.NoError(t, err)
-	bunDB := bun.NewDB(sqlDB, pgdialect.New())
-	t.Cleanup(func() {
-		mock.ExpectClose()
-		require.NoError(t, bunDB.Close())
-		require.NoError(t, sqlDB.Close())
-		require.NoError(t, mock.ExpectationsWereMet())
-	})
-
-	mock.ExpectBegin()
-	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectCommit()
-
+func TestCreateSchoolAccount_NonSystemRole_Rejected(t *testing.T) {
 	roleID := int64(5)
-	staffCreated := false
 
 	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
 		SchoolRepo: &mockSchoolRepo{
@@ -2357,25 +2354,6 @@ func TestCreateSchoolAccount_NonSystemRole_NoStaff(t *testing.T) {
 				}, nil
 			},
 		},
-		AuthService: &mockAuthService{
-			registerFn: func(_ context.Context, email, username, password string, rID *int64, tenantID int64) (*authModels.Account, error) {
-				return &authModels.Account{Model: base.Model{ID: 100}, Email: email}, nil
-			},
-		},
-		PersonRepo: &mockPersonRepo{
-			createFn: func(_ context.Context, person *userModels.Person) error {
-				person.ID = 200
-				return nil
-			},
-		},
-		StaffRepo: &mockStaffRepo{
-			createFn: func(context.Context, *userModels.Staff) error {
-				staffCreated = true
-				return nil
-			},
-		},
-		AuditLogRepo: &mockAuditLogRepoShared{},
-		DB:           bunDB,
 	})
 
 	account, err := service.CreateSchoolAccount(context.Background(), 9, 7, net.IPv4(127, 0, 0, 1), platformSvc.CreateSchoolAccountRequest{
@@ -2385,9 +2363,109 @@ func TestCreateSchoolAccount_NonSystemRole_NoStaff(t *testing.T) {
 		LastName:  "User",
 		RoleID:    &roleID,
 	})
-	require.NoError(t, err)
-	require.NotNil(t, account)
-	assert.False(t, staffCreated, "staff should not be created for non-system role")
+	require.Nil(t, account)
+	require.Error(t, err)
+	var invalidErr *platformSvc.InvalidDataError
+	require.ErrorAs(t, err, &invalidErr)
+	assert.Contains(t, err.Error(), "only system roles are allowed")
+}
+
+func TestCreateSchoolAccount_GuardianRole_Rejected(t *testing.T) {
+	roleID := int64(6)
+
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SchoolRepo: &mockSchoolRepo{
+			findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+				return &platformModels.School{
+					Model: base.Model{ID: 9}, OrganizationID: 3, Name: "School", Slug: "school", Subdomain: "school", Active: true,
+				}, nil
+			},
+		},
+		RoleRepo: &mockRoleRepo{
+			findByIDFn: func(_ context.Context, id interface{}) (*authModels.Role, error) {
+				return &authModels.Role{
+					Model:    base.Model{ID: roleID},
+					Name:     "guardian",
+					IsSystem: true,
+				}, nil
+			},
+		},
+	})
+
+	account, err := service.CreateSchoolAccount(context.Background(), 9, 7, net.IPv4(127, 0, 0, 1), platformSvc.CreateSchoolAccountRequest{
+		Email:     "parent@example.com",
+		Password:  "SecureP@ss1",
+		FirstName: "Parent",
+		LastName:  "User",
+		RoleID:    &roleID,
+	})
+	require.Nil(t, account)
+	require.Error(t, err)
+	var invalidErr *platformSvc.InvalidDataError
+	require.ErrorAs(t, err, &invalidErr)
+	assert.Contains(t, err.Error(), "guardian")
+}
+
+func TestCreateSchoolAccount_RoleNotFound_Rejected(t *testing.T) {
+	roleID := int64(999)
+
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SchoolRepo: &mockSchoolRepo{
+			findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+				return &platformModels.School{
+					Model: base.Model{ID: 9}, OrganizationID: 3, Name: "School", Slug: "school", Subdomain: "school", Active: true,
+				}, nil
+			},
+		},
+		RoleRepo: &mockRoleRepo{
+			findByIDFn: func(_ context.Context, id interface{}) (*authModels.Role, error) {
+				return nil, nil
+			},
+		},
+	})
+
+	account, err := service.CreateSchoolAccount(context.Background(), 9, 7, net.IPv4(127, 0, 0, 1), platformSvc.CreateSchoolAccountRequest{
+		Email:     "test@example.com",
+		Password:  "SecureP@ss1",
+		FirstName: "Test",
+		LastName:  "User",
+		RoleID:    &roleID,
+	})
+	require.Nil(t, account)
+	require.Error(t, err)
+	var invalidErr *platformSvc.InvalidDataError
+	require.ErrorAs(t, err, &invalidErr)
+	assert.Contains(t, err.Error(), "not found")
+}
+
+func TestCreateSchoolAccount_RoleLookupError_Propagated(t *testing.T) {
+	roleID := int64(5)
+
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SchoolRepo: &mockSchoolRepo{
+			findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+				return &platformModels.School{
+					Model: base.Model{ID: 9}, OrganizationID: 3, Name: "School", Slug: "school", Subdomain: "school", Active: true,
+				}, nil
+			},
+		},
+		RoleRepo: &mockRoleRepo{
+			findByIDFn: func(_ context.Context, id interface{}) (*authModels.Role, error) {
+				return nil, assert.AnError
+			},
+		},
+	})
+
+	account, err := service.CreateSchoolAccount(context.Background(), 9, 7, net.IPv4(127, 0, 0, 1), platformSvc.CreateSchoolAccountRequest{
+		Email:     "test@example.com",
+		Password:  "SecureP@ss1",
+		FirstName: "Test",
+		LastName:  "User",
+		RoleID:    &roleID,
+	})
+	require.Nil(t, account)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "lookup role")
 }
 
 func TestCreateSchoolAccount_AdminRole_NoTeacher(t *testing.T) {

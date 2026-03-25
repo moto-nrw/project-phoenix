@@ -451,6 +451,21 @@ func (s *operatorProvisioningService) CreateSchoolAccount(ctx context.Context, s
 				return &InvalidDataError{Err: fmt.Errorf("admin role not found")}
 			}
 			roleID = &adminRole.ID
+		} else {
+			// Validate that the provided role is a system role and not guardian
+			role, roleErr := s.roleRepo.FindByID(adminCtx, *roleID)
+			if roleErr != nil {
+				return fmt.Errorf("lookup role: %w", roleErr)
+			}
+			if role == nil {
+				return &InvalidDataError{Err: fmt.Errorf("role with ID %d not found", *roleID)}
+			}
+			if !role.IsSystem {
+				return &InvalidDataError{Err: fmt.Errorf("only system roles are allowed for school account creation")}
+			}
+			if strings.EqualFold(role.Name, "guardian") {
+				return &InvalidDataError{Err: fmt.Errorf("guardian accounts must be created through the guardian invitation flow")}
+			}
 		}
 
 		// Auto-generate username from name
@@ -487,7 +502,10 @@ func (s *operatorProvisioningService) CreateSchoolAccount(ctx context.Context, s
 		// Step 3: Create Staff (only for system roles)
 		if roleID != nil {
 			role, roleErr := s.roleRepo.FindByID(tenantCtx, *roleID)
-			if roleErr == nil && role != nil && role.IsSystem {
+			if roleErr != nil {
+				return fmt.Errorf("lookup role for staff creation: %w", roleErr)
+			}
+			if role != nil && role.IsSystem {
 				staff := &userModels.Staff{PersonID: person.ID}
 				staff.SetTenantID(school.ID)
 				if err := s.staffRepo.Create(tenantCtx, staff); err != nil {
