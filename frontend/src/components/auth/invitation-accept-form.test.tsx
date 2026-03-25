@@ -516,7 +516,7 @@ describe("InvitationAcceptForm", () => {
     );
   });
 
-  it("redirects even when signOut fails", async () => {
+  it("shows manual redirect button when signOut fails instead of auto-redirecting", async () => {
     const { signOut } = await import("next-auth/react");
     vi.mocked(signOut).mockRejectedValueOnce(new Error("signOut failed"));
 
@@ -545,16 +545,27 @@ describe("InvitationAcceptForm", () => {
         screen.getByRole("button", { name: /Einladung akzeptieren/i }),
       );
 
-      // Redirect must still happen despite signOut failure
-      await waitFor(
-        () => {
-          expect(mockLocation.href).toBe("http://ogs-1.localhost:3000/");
-        },
-        { timeout: 3000 },
-      );
+      // Should show success state with manual button, NOT auto-redirect
+      await waitFor(() => {
+        expect(screen.getByText(/Konto erstellt/i)).toBeInTheDocument();
+        expect(
+          screen.getByText(/nicht automatisch beendet/i),
+        ).toBeInTheDocument();
+        expect(
+          screen.getByRole("button", { name: /Zur Anmeldung/i }),
+        ).toBeInTheDocument();
+      });
 
-      // Success state should still render
-      expect(screen.getByText(/Konto erstellt/i)).toBeInTheDocument();
+      // Should NOT have auto-redirected
+      expect(mockLocation.href).toBe("");
+
+      // Clicking the manual button should attempt redirect
+      vi.mocked(signOut).mockResolvedValueOnce({ url: "" });
+      fireEvent.click(screen.getByRole("button", { name: /Zur Anmeldung/i }));
+
+      await waitFor(() => {
+        expect(mockLocation.href).toBe("http://ogs-1.localhost:3000/");
+      });
     } finally {
       process.env.NEXT_PUBLIC_TENANT_DOMAIN = originalEnv;
       Object.defineProperty(window, "location", {

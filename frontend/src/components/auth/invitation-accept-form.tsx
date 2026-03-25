@@ -67,6 +67,10 @@ export function InvitationAcceptForm({
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAccepted, setIsAccepted] = useState(false);
+  const [signOutFailed, setSignOutFailed] = useState(false);
+  const [tenantRedirectUrl, setTenantRedirectUrl] = useState<string | null>(
+    null,
+  );
 
   useEffect(() => {
     setFirstName(invitation.firstName ?? "");
@@ -116,9 +120,22 @@ export function InvitationAcceptForm({
         password,
         confirmPassword,
       });
-      // Clear any existing session before showing success state.
-      // Wrapped in try/catch: even if signOut fails, the account was
-      // created successfully and the user must reach the login page.
+      // Build redirect URL before signOut (need window.location)
+      let redirectUrl: string | null = null;
+      if (result.tenantSlug && globalThis.window !== undefined) {
+        const tenantDomain = process.env.NEXT_PUBLIC_TENANT_DOMAIN;
+        if (tenantDomain) {
+          const { protocol, port: locationPort } = globalThis.window.location;
+          const port = locationPort ? `:${locationPort}` : "";
+          redirectUrl = `${protocol}//${result.tenantSlug}.${tenantDomain}${port}/`;
+        }
+      }
+
+      // Clear any existing session before redirecting to login.
+      // If signOut fails, we must NOT auto-redirect: the tenant login
+      // page auto-redirects authenticated sessions, so the user would
+      // bounce back as the old account instead of being able to log in
+      // as the newly created one.
       try {
         await signOut({ redirect: false });
       } catch (signOutError) {
@@ -128,20 +145,18 @@ export function InvitationAcceptForm({
               ? signOutError.message
               : String(signOutError),
         });
+        setSignOutFailed(true);
+        setTenantRedirectUrl(redirectUrl);
+        setIsAccepted(true);
+        return;
       }
 
       setIsAccepted(true);
 
       setTimeout(() => {
-        // Redirect to tenant subdomain if available, otherwise root
-        if (result.tenantSlug && globalThis.window !== undefined) {
-          const tenantDomain = process.env.NEXT_PUBLIC_TENANT_DOMAIN;
-          if (tenantDomain) {
-            const { protocol, port: locationPort } = globalThis.window.location;
-            const port = locationPort ? `:${locationPort}` : "";
-            globalThis.window.location.href = `${protocol}//${result.tenantSlug}.${tenantDomain}${port}/`;
-            return;
-          }
+        if (redirectUrl) {
+          globalThis.window.location.href = redirectUrl;
+          return;
         }
         router.push("/");
       }, 1500);
@@ -168,6 +183,20 @@ export function InvitationAcceptForm({
     }
   };
 
+  const handleManualRedirect = async () => {
+    // Retry signOut, then navigate regardless
+    try {
+      await signOut({ redirect: false });
+    } catch {
+      // Best-effort: navigate anyway so the user isn't stuck
+    }
+    if (tenantRedirectUrl) {
+      globalThis.window.location.href = tenantRedirectUrl;
+    } else {
+      router.push("/");
+    }
+  };
+
   if (isAccepted) {
     return (
       <div className="flex flex-col items-center py-12">
@@ -189,23 +218,40 @@ export function InvitationAcceptForm({
         <h3 className="mb-1 text-base font-semibold text-gray-900">
           Konto erstellt
         </h3>
-        <p className="mb-6 text-sm text-gray-500">
-          Bitte melde dich mit deinen neuen Zugangsdaten an.
-        </p>
-        <div className="h-1 w-16 overflow-hidden rounded-full bg-gray-100">
-          <div
-            className="h-full rounded-full bg-gray-900"
-            style={{
-              animation: "progressFill 1.5s ease-in-out forwards",
-            }}
-          />
-        </div>
-        <style>{`
-          @keyframes progressFill {
-            from { width: 0%; }
-            to { width: 100%; }
-          }
-        `}</style>
+        {signOutFailed ? (
+          <>
+            <p className="mb-4 text-sm text-gray-500">
+              Die vorherige Sitzung konnte nicht automatisch beendet werden.
+            </p>
+            <button
+              type="button"
+              onClick={handleManualRedirect}
+              className="rounded-xl bg-gray-900 px-6 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:bg-gray-800"
+            >
+              Zur Anmeldung
+            </button>
+          </>
+        ) : (
+          <>
+            <p className="mb-6 text-sm text-gray-500">
+              Bitte melde dich mit deinen neuen Zugangsdaten an.
+            </p>
+            <div className="h-1 w-16 overflow-hidden rounded-full bg-gray-100">
+              <div
+                className="h-full rounded-full bg-gray-900"
+                style={{
+                  animation: "progressFill 1.5s ease-in-out forwards",
+                }}
+              />
+            </div>
+            <style>{`
+              @keyframes progressFill {
+                from { width: 0%; }
+                to { width: 100%; }
+              }
+            `}</style>
+          </>
+        )}
       </div>
     );
   }
