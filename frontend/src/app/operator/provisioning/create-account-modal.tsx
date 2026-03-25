@@ -22,7 +22,6 @@ export function CreateAccountModal({
   readonly onCreated: () => void;
 }) {
   const [email, setEmail] = useState("");
-  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [saving, setSaving] = useState(false);
@@ -35,7 +34,6 @@ export function CreateAccountModal({
   useEffect(() => {
     if (isOpen) {
       setEmail("");
-      setUsername("");
       setPassword("");
       setConfirmPassword("");
       setError("");
@@ -46,7 +44,7 @@ export function CreateAccountModal({
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!schoolId || !email.trim() || !username.trim() || !password) return;
+      if (!schoolId || !email.trim() || !password) return;
 
       if (password !== confirmPassword) {
         setError("Passwörter stimmen nicht überein.");
@@ -60,7 +58,6 @@ export function CreateAccountModal({
           schoolId,
           {
             email: email.trim(),
-            username: username.trim(),
             password,
             confirm_password: confirmPassword,
           },
@@ -80,7 +77,7 @@ export function CreateAccountModal({
         setSaving(false);
       }
     },
-    [schoolId, email, username, password, confirmPassword, onCreated],
+    [schoolId, email, password, confirmPassword, onCreated],
   );
 
   const handleClose = useCallback(() => {
@@ -115,11 +112,7 @@ export function CreateAccountModal({
               type="button"
               onClick={(e) => void handleSubmit(e)}
               disabled={
-                saving ||
-                !email.trim() ||
-                !username.trim() ||
-                !password ||
-                !confirmPassword
+                saving || !email.trim() || !password || !confirmPassword
               }
               className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -168,22 +161,6 @@ export function CreateAccountModal({
               autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              maxLength={255}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
-              required
-            />
-          </FormField>
-          <FormField
-            label="Benutzername"
-            htmlFor="create-account-username"
-            required
-          >
-            <input
-              id="create-account-username"
-              type="text"
-              autoComplete="username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
               maxLength={255}
               className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
               required

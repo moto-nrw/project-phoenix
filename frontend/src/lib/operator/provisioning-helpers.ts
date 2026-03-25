@@ -175,7 +175,7 @@ export interface InviteAdminRequest {
 
 export interface CreateAccountRequest {
   email: string;
-  username: string;
+  username?: string;
   password: string;
   confirm_password: string;
   role_id?: number;

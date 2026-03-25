@@ -162,8 +162,9 @@ func (req *createSchoolAccountRequest) Bind(_ *http.Request) error {
 	if req.Email == "" {
 		return errors.New("email is required")
 	}
+	// Default username to email prefix if not provided
 	if req.Username == "" {
-		return errors.New("username is required")
+		req.Username = req.Email
 	}
 	if req.Password == "" {
 		return errors.New("password is required")
