@@ -437,7 +437,7 @@ describe("GroupsPage", () => {
   });
 
   it("calls delete service when deleting a group", async () => {
-    mockDelete.mockResolvedValueOnce({});
+    mockDelete.mockResolvedValueOnce(null);
 
     render(<GroupsPage />);
 

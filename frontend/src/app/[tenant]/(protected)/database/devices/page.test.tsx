@@ -966,7 +966,7 @@ describe("DevicesPage", () => {
       name: "Reader 1",
       device_type: "terminal",
     });
-    mockDelete.mockResolvedValue({});
+    mockDelete.mockResolvedValue(null);
     mockConfirmDelete.mockImplementation((fn: () => void) => fn());
 
     render(<DevicesPage />);
@@ -1019,9 +1019,7 @@ describe("DevicesPage", () => {
 
   it("shows duplicate error when error contains 'duplicate device ID'", async () => {
     mockGetList.mockResolvedValue({ data: [] });
-    mockCreate.mockRejectedValue(
-      new Error("duplicate device ID: NEW-001"),
-    );
+    mockCreate.mockRejectedValue(new Error("duplicate device ID: NEW-001"));
 
     render(<DevicesPage />);
 
@@ -1069,9 +1067,7 @@ describe("DevicesPage", () => {
 
   it("clears create error when modal is closed", async () => {
     mockGetList.mockResolvedValue({ data: [] });
-    mockCreate.mockRejectedValue(
-      new Error("duplicate device ID: NEW-001"),
-    );
+    mockCreate.mockRejectedValue(new Error("duplicate device ID: NEW-001"));
 
     render(<DevicesPage />);
 
@@ -1104,9 +1100,7 @@ describe("DevicesPage", () => {
 
   it("clears create error on next successful attempt", async () => {
     mockGetList.mockResolvedValue({ data: [] });
-    mockCreate.mockRejectedValueOnce(
-      new Error("duplicate device ID: NEW-001"),
-    );
+    mockCreate.mockRejectedValueOnce(new Error("duplicate device ID: NEW-001"));
 
     render(<DevicesPage />);
 

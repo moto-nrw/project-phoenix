@@ -419,7 +419,7 @@ describe("RoomsPage", () => {
   });
 
   it("calls delete service when deleting a room", async () => {
-    mockDelete.mockResolvedValueOnce({});
+    mockDelete.mockResolvedValueOnce(null);
 
     render(<RoomsPage />);
 

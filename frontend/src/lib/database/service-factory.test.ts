@@ -506,7 +506,8 @@ describe("createCrudService", () => {
 
       const service = createCrudService(configWithHooks);
 
-      await expect(service.delete("1")).rejects.toThrow("cancelled");
+      const result = await service.delete("1");
+      expect(result).toBe("Löschen wurde abgebrochen");
       expect(global.fetch).not.toHaveBeenCalled();
     });
   });

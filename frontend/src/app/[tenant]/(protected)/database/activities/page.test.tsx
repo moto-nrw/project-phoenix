@@ -421,7 +421,7 @@ describe("ActivitiesPage", () => {
   });
 
   it("calls delete service when deleting an activity", async () => {
-    mockDelete.mockResolvedValueOnce({});
+    mockDelete.mockResolvedValueOnce(null);
 
     render(<ActivitiesPage />);
 

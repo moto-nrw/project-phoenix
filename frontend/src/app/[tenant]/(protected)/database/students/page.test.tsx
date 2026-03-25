@@ -545,7 +545,7 @@ describe("StudentsPage", () => {
   });
 
   it("calls delete service when deleting a student", async () => {
-    mockDelete.mockResolvedValueOnce({});
+    mockDelete.mockResolvedValueOnce(null);
 
     render(<StudentsPage />);
 

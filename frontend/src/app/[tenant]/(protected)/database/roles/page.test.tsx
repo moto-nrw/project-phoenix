@@ -768,7 +768,7 @@ describe("RolesPage", () => {
 
   it("deletes role successfully", async () => {
     mockShowConfirmModal.mockReturnValue(true);
-    mockDelete.mockResolvedValue({});
+    mockDelete.mockResolvedValue(null);
     mockConfirmDelete.mockImplementation((fn: () => void) => fn());
 
     render(<RolesPage />);
