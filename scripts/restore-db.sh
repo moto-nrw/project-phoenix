@@ -26,6 +26,36 @@ fi
 
 echo "Restoring database from: $(basename "$BACKUP_FILE")"
 
+# ── Restore cluster globals (roles, passwords) if available ──
+# Naming conventions:
+#   deploy-remote.sh: backup-YYYYMMDD-HHMMSS.dump → globals-YYYYMMDD-HHMMSS.sql
+#   backup.sh:        phoenix_env_YYYYMMDD_HHMMSS.dump → phoenix_env_YYYYMMDD_HHMMSS_globals.sql
+BACKUP_DIR=$(dirname "$BACKUP_FILE")
+BACKUP_BASE=$(basename "$BACKUP_FILE" .dump)
+GLOBALS_FILE=""
+
+# Try deploy-remote.sh naming: backup-* → globals-*
+if [[ "$BACKUP_BASE" == backup-* ]]; then
+  TIMESTAMP_PART="${BACKUP_BASE#backup-}"
+  GLOBALS_FILE="${BACKUP_DIR}/globals-${TIMESTAMP_PART}.sql"
+fi
+
+# Try backup.sh naming: phoenix_env_timestamp.dump → phoenix_env_timestamp_globals.sql
+if [ -z "$GLOBALS_FILE" ] || [ ! -f "$GLOBALS_FILE" ]; then
+  CANDIDATE="${BACKUP_DIR}/${BACKUP_BASE}_globals.sql"
+  if [ -f "$CANDIDATE" ]; then
+    GLOBALS_FILE="$CANDIDATE"
+  fi
+fi
+
+if [ -n "$GLOBALS_FILE" ] && [ -f "$GLOBALS_FILE" ]; then
+  echo "Restoring cluster globals from: $(basename "$GLOBALS_FILE")"
+  docker compose exec -T postgres psql -U postgres -d template1 < "$GLOBALS_FILE" 2>/dev/null || true
+  echo "Cluster globals restored (roles, passwords)"
+else
+  echo "WARNING: No globals file found — roles must already exist on this cluster"
+fi
+
 # ── Drop and recreate database from clean template ──
 docker compose exec -T postgres psql -U postgres -d template1 -c "DROP DATABASE IF EXISTS postgres WITH (FORCE);" 2>/dev/null || true
 docker compose exec -T postgres psql -U postgres -d template1 -c "CREATE DATABASE postgres OWNER postgres TEMPLATE template0;"
