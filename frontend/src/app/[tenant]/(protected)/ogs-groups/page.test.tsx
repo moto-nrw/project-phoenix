@@ -2,7 +2,13 @@
  * Tests for OGS Groups Page
  * Tests the rendering states and user interactions of the OGS groups dashboard
  */
-import { render, screen, waitFor, cleanup } from "@testing-library/react";
+import {
+  render,
+  screen,
+  waitFor,
+  cleanup,
+  fireEvent,
+} from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 function createLocalStorageMock() {
@@ -78,6 +84,7 @@ vi.mock("~/components/ui/page-header", () => ({
     filters,
     activeFilters,
     onClearAllFilters,
+    actionButton,
   }: {
     title: string;
     filters?: Array<{
@@ -89,9 +96,11 @@ vi.mock("~/components/ui/page-header", () => ({
     }>;
     activeFilters?: Array<{ id: string; label: string; onRemove: () => void }>;
     onClearAllFilters?: () => void;
+    actionButton?: React.ReactNode;
   }) => (
     <div data-testid="page-header">
       {title}
+      {actionButton}
       {filters?.map((f) => (
         <div key={f.id} data-testid={`filter-${f.id}`} data-value={f.value}>
           {f.options.map((opt) => (
@@ -159,14 +168,19 @@ vi.mock("~/components/sse/SSEErrorBoundary", () => ({
   ),
 }));
 
-// Mock GroupTransferModal
+// Mock GroupTransferModal — capture availableUsers prop for filtering assertions
+const mockTransferModalProps = vi.fn();
 vi.mock("~/components/groups/group-transfer-modal", () => ({
-  GroupTransferModal: () => <div data-testid="transfer-modal" />,
+  GroupTransferModal: (props: Record<string, unknown>) => {
+    mockTransferModalProps(props);
+    return <div data-testid="transfer-modal" />;
+  },
 }));
 
 // Mock group-transfer-api
 vi.mock("~/lib/group-transfer-api", () => ({
   groupTransferService: {
+    getAllAvailableStaff: vi.fn(() => Promise.resolve([])),
     getStaffByRole: vi.fn(() => Promise.resolve([])),
     getActiveTransfersForGroup: vi.fn(() => Promise.resolve([])),
     transferGroup: vi.fn(() => Promise.resolve()),
@@ -249,6 +263,19 @@ vi.mock("lucide-react", () => ({
   ),
 }));
 
+// Mock useUserContext
+const mockUserContext = vi.fn(() => ({
+  userContext: undefined as
+    | { currentStaff: { id: string; personId: string } | null }
+    | undefined,
+  isLoading: false,
+  error: undefined,
+  isReady: true,
+}));
+vi.mock("~/lib/hooks/use-user-context", () => ({
+  useUserContext: () => mockUserContext(),
+}));
+
 // Mock SWR hook
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: vi.fn(),
@@ -258,6 +285,7 @@ vi.mock("~/lib/swr", () => ({
 import { useSWRAuth } from "~/lib/swr";
 import { isHomeLocation } from "~/lib/location-helper";
 import { studentService } from "~/lib/api";
+import { groupTransferService } from "~/lib/group-transfer-api";
 import OGSGroupPage from "./page";
 
 describe("OGSGroupPage", () => {
@@ -5102,5 +5130,89 @@ describe("OGSGroupPage ID-based selection: currentGroup useMemo", () => {
 
     // currentGroup useMemo should return null (lines 351-355)
     expect(screen.queryByTestId("student-card")).not.toBeInTheDocument();
+  });
+
+  it("filters current user from transfer modal available users", async () => {
+    // Current user has personId "p1"
+    mockUserContext.mockReturnValue({
+      userContext: {
+        currentStaff: { id: "s1", personId: "p1" },
+      },
+      isLoading: false,
+      error: undefined,
+      isReady: true,
+    });
+
+    // Staff list includes the current user (personId "p1")
+    // eslint-disable-next-line @typescript-eslint/unbound-method
+    vi.mocked(groupTransferService.getAllAvailableStaff).mockResolvedValue([
+      {
+        id: "s1",
+        personId: "p1",
+        firstName: "Current",
+        lastName: "User",
+        fullName: "Current User",
+        accountId: "a1",
+        email: "current@example.com",
+      },
+      {
+        id: "s2",
+        personId: "p2",
+        firstName: "Other",
+        lastName: "Teacher",
+        fullName: "Other Teacher",
+        accountId: "a2",
+        email: "other@example.com",
+      },
+    ]);
+
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: {
+        groups: [
+          {
+            id: 1,
+            name: "OGS Gruppe A",
+            room_id: 10,
+            room: { id: 10, name: "Raum 101" },
+          },
+        ],
+        students: [],
+        roomStatus: null,
+        substitutions: [],
+        pickupTimes: [],
+        firstGroupId: "1",
+      },
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never);
+
+    render(<OGSGroupPage />);
+
+    // Wait for page to render
+    await waitFor(() => {
+      expect(screen.getByTestId("page-header")).toBeInTheDocument();
+    });
+
+    const transferButton = screen.getByLabelText("Gruppe übergeben");
+    fireEvent.click(transferButton);
+
+    // Wait for staff to load and modal to re-render with availableUsers
+    await waitFor(() => {
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      expect(groupTransferService.getAllAvailableStaff).toHaveBeenCalled();
+    });
+
+    // The modal should receive only "Other Teacher", not "Current User"
+    await waitFor(() => {
+      const lastCall = mockTransferModalProps.mock.calls[
+        mockTransferModalProps.mock.calls.length - 1
+      ] as [{ availableUsers: Array<{ personId: string; fullName: string }> }];
+      const passedUsers = lastCall?.[0]?.availableUsers;
+      expect(passedUsers).toBeDefined();
+      expect(passedUsers).toHaveLength(1);
+      expect(passedUsers[0]?.fullName).toBe("Other Teacher");
+    });
   });
 });
