@@ -550,7 +550,7 @@ describe("createCrudService", () => {
       );
     });
 
-    it("returns error message on 500 with plain text", async () => {
+    it("returns generic German message on 500 server error", async () => {
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
         ok: false,
         status: 500,
@@ -559,7 +559,9 @@ describe("createCrudService", () => {
 
       const service = createCrudService(mockConfig);
       const result = await service.delete("1");
-      expect(result).toBe("API error: 500 - Internal Server Error");
+      expect(result).toBe(
+        "Ein unerwarteter Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.",
+      );
     });
 
     it("returns error message on 409 with simple JSON error", async () => {
