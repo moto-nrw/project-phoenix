@@ -32,6 +32,8 @@ type mockProvisioningService struct {
 	listSchoolsFn             func(context.Context) ([]*platformModels.School, error)
 	updateSchoolFn            func(context.Context, int64, platformSvc.UpdateSchoolRequest, int64, net.IP) (*platformModels.School, error)
 	inviteSchoolAdminFn       func(context.Context, int64, int64, net.IP, authSvc.InvitationRequest) (*authModels.InvitationToken, error)
+	listAssignableRolesFn     func(context.Context) ([]platformSvc.OperatorAssignableRole, error)
+	createSchoolAccountFn     func(context.Context, int64, int64, net.IP, platformSvc.CreateSchoolAccountRequest) (*platformSvc.OperatorProvisionedAccount, error)
 	listSchoolAccountsFn      func(context.Context, int64) ([]authModels.TenantAccountInfo, error)
 	listOrgAccountsFn         func(context.Context, int64) ([]authModels.OrgAccountInfo, error)
 	listAllAccountsFn         func(context.Context) ([]authModels.OrgAccountInfo, error)
@@ -68,6 +70,18 @@ func (m *mockProvisioningService) UpdateSchool(ctx context.Context, id int64, re
 }
 func (m *mockProvisioningService) InviteSchoolAdmin(ctx context.Context, schoolID, operatorID int64, clientIP net.IP, req authSvc.InvitationRequest) (*authModels.InvitationToken, error) {
 	return m.inviteSchoolAdminFn(ctx, schoolID, operatorID, clientIP, req)
+}
+func (m *mockProvisioningService) ListAssignableRoles(ctx context.Context) ([]platformSvc.OperatorAssignableRole, error) {
+	if m.listAssignableRolesFn != nil {
+		return m.listAssignableRolesFn(ctx)
+	}
+	return nil, nil
+}
+func (m *mockProvisioningService) CreateSchoolAccount(ctx context.Context, schoolID, operatorID int64, clientIP net.IP, req platformSvc.CreateSchoolAccountRequest) (*platformSvc.OperatorProvisionedAccount, error) {
+	if m.createSchoolAccountFn != nil {
+		return m.createSchoolAccountFn(ctx, schoolID, operatorID, clientIP, req)
+	}
+	return nil, nil
 }
 func (m *mockProvisioningService) ListSchoolAccounts(ctx context.Context, schoolID int64) ([]authModels.TenantAccountInfo, error) {
 	if m.listSchoolAccountsFn != nil {
@@ -341,6 +355,102 @@ func TestProvisioningResource_InviteSchoolAdmin_ServiceValidationError(t *testin
 
 	resource.InviteSchoolAdmin(rr, req)
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestProvisioningResource_ListAssignableRoles(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{
+		listAssignableRolesFn: func(context.Context) ([]platformSvc.OperatorAssignableRole, error) {
+			return []platformSvc.OperatorAssignableRole{
+				{ID: 1, Name: "admin", Description: "Admin", IsSystem: true},
+				{ID: 2, Name: "user", Description: "User", IsSystem: true},
+			}, nil
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/operator/accounts/roles", nil)
+	rr := httptest.NewRecorder()
+
+	resource.ListAssignableRoles(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	body := decodeBody(t, rr)
+	data := body["data"].([]any)
+	require.Len(t, data, 2)
+	first := data[0].(map[string]any)
+	assert.Equal(t, "admin", first["name"])
+}
+
+func TestProvisioningResource_CreateSchoolAccount(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{
+		createSchoolAccountFn: func(_ context.Context, schoolID, operatorID int64, clientIP net.IP, req platformSvc.CreateSchoolAccountRequest) (*platformSvc.OperatorProvisionedAccount, error) {
+			assert.Equal(t, int64(12), schoolID)
+			assert.Equal(t, int64(42), operatorID)
+			assert.Equal(t, "203.0.113.20", clientIP.String())
+			assert.Equal(t, "teacher@example.com", req.Email)
+			assert.Equal(t, "Ada", req.FirstName)
+			assert.Equal(t, "Lovelace", req.LastName)
+			assert.Equal(t, int64(2), req.RoleID)
+			assert.Equal(t, "Erzieher", req.Position)
+			return &platformSvc.OperatorProvisionedAccount{
+				AccountID: 77,
+				SchoolID:  schoolID,
+				Email:     req.Email,
+				FirstName: req.FirstName,
+				LastName:  req.LastName,
+				RoleID:    req.RoleID,
+				RoleName:  "user",
+				Status:    "created",
+				PersonID:  88,
+				StaffID:   ptrInt64(99),
+				TeacherID: ptrInt64(111),
+			}, nil
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/operator/schools/12/accounts", bytes.NewBufferString(`{"email":" TEACHER@example.com ","password":"Test1234!","confirm_password":"Test1234!","first_name":" Ada ","last_name":" Lovelace ","role_id":2,"position":" Erzieher "}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = "203.0.113.20:1234"
+	req = withOperatorClaims(req, 42)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "12")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.CreateSchoolAccount(rr, req)
+	require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
+	body := decodeBody(t, rr)
+	data := body["data"].(map[string]any)
+	assert.Equal(t, float64(77), data["account_id"])
+	assert.Equal(t, "created", data["status"])
+}
+
+func TestProvisioningResource_CreateSchoolAccount_AccountExists(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{
+		createSchoolAccountFn: func(_ context.Context, schoolID, operatorID int64, clientIP net.IP, req platformSvc.CreateSchoolAccountRequest) (*platformSvc.OperatorProvisionedAccount, error) {
+			return &platformSvc.OperatorProvisionedAccount{
+				SchoolID:  schoolID,
+				Email:     req.Email,
+				FirstName: req.FirstName,
+				LastName:  req.LastName,
+				RoleID:    req.RoleID,
+				RoleName:  "user",
+				Status:    "account_exists",
+			}, nil
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/operator/schools/12/accounts", bytes.NewBufferString(`{"email":"teacher@example.com","password":"Test1234!","confirm_password":"Test1234!","first_name":"Ada","last_name":"Lovelace","role_id":2}`))
+	req.Header.Set("Content-Type", "application/json")
+	req = withOperatorClaims(req, 42)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "12")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.CreateSchoolAccount(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	body := decodeBody(t, rr)
+	data := body["data"].(map[string]any)
+	assert.Equal(t, "account_exists", data["status"])
 }
 
 func TestProvisioningHelpers(t *testing.T) {

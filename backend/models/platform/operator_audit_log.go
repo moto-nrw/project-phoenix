@@ -36,6 +36,7 @@ const (
 	ResourceOrganization = "organization"
 	ResourceSchool       = "school"
 	ResourceInvitation   = "invitation"
+	ResourceAccount      = "account"
 	ResourceDevice       = "device"
 )
 

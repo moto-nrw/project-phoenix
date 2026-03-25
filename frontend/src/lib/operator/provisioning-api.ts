@@ -6,16 +6,21 @@ import type {
   BackendSchoolAccount,
   BackendOrgAccount,
   BackendOperatorDevice,
+  BackendAssignableRole,
+  BackendProvisionedAccount,
   Organization,
   School,
   Invitation,
   SchoolAccount,
   OrgAccount,
   OperatorDevice,
+  AssignableRole,
+  ProvisionedAccount,
   CreateOrganizationRequest,
   CreateSchoolRequest,
   CreateDeviceRequest,
   InviteAdminRequest,
+  CreateSchoolAccountRequest,
   UpdateOrganizationRequest,
   UpdateSchoolRequest,
 } from "./provisioning-helpers";
@@ -26,6 +31,8 @@ import {
   mapSchoolAccount,
   mapOrgAccount,
   mapOperatorDevice,
+  mapAssignableRole,
+  mapProvisionedAccount,
 } from "./provisioning-helpers";
 
 class OperatorProvisioningService {
@@ -99,6 +106,24 @@ class OperatorProvisioningService {
       "/api/operator/provisioning/accounts",
     );
     return data.map(mapOrgAccount);
+  }
+
+  async listAssignableRoles(): Promise<AssignableRole[]> {
+    const data = await operatorFetch<BackendAssignableRole[]>(
+      "/api/operator/provisioning/accounts/roles",
+    );
+    return data.map(mapAssignableRole);
+  }
+
+  async createSchoolAccount(
+    schoolId: string,
+    data: CreateSchoolAccountRequest,
+  ): Promise<ProvisionedAccount> {
+    const result = await operatorFetch<BackendProvisionedAccount>(
+      `/api/operator/provisioning/schools/${encodeURIComponent(schoolId)}/accounts`,
+      { method: "POST", body: data },
+    );
+    return mapProvisionedAccount(result);
   }
 
   async listAllDevices(): Promise<OperatorDevice[]> {

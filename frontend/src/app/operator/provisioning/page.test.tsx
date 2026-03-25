@@ -21,6 +21,8 @@ const {
   mockListSchoolAccounts,
   mockListOrganizationAccounts,
   mockListAllAccounts,
+  mockListAssignableRoles,
+  mockCreateSchoolAccount,
   mockListSchoolDevices,
   mockListOrganizationDevices,
   mockListAllDevices,
@@ -39,6 +41,8 @@ const {
   mockListSchoolAccounts: vi.fn(),
   mockListOrganizationAccounts: vi.fn(),
   mockListAllAccounts: vi.fn(),
+  mockListAssignableRoles: vi.fn(),
+  mockCreateSchoolAccount: vi.fn(),
   mockListSchoolDevices: vi.fn(),
   mockListOrganizationDevices: vi.fn(),
   mockListAllDevices: vi.fn(),
@@ -69,6 +73,8 @@ vi.mock("~/lib/operator/provisioning-api", () => ({
     listSchoolAccounts: mockListSchoolAccounts,
     listOrganizationAccounts: mockListOrganizationAccounts,
     listAllAccounts: mockListAllAccounts,
+    listAssignableRoles: mockListAssignableRoles,
+    createSchoolAccount: mockCreateSchoolAccount,
     listSchoolDevices: mockListSchoolDevices,
     listOrganizationDevices: mockListOrganizationDevices,
     listAllDevices: mockListAllDevices,
@@ -1676,6 +1682,27 @@ describe("OperatorProvisioningPage", () => {
       expect(screen.getByText("Anna Schmidt")).toBeInTheDocument();
       // School header should appear
       expect(screen.getByText("Test School")).toBeInTheDocument();
+    });
+
+    it("shows manual-create action only when a school is selected", () => {
+      setupSWRWithAccounts("operator-all-accounts", [mockOrgAccount]);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-accounts"));
+
+      const createButton = screen.getByRole("button", {
+        name: "Konto anlegen",
+      });
+      expect(createButton).toBeDisabled();
+
+      const orgSelect = screen.getByLabelText("Träger");
+      fireEvent.change(orgSelect, { target: { value: "1" } });
+
+      const schoolSelect = screen.getByLabelText("Schule");
+      fireEvent.change(schoolSelect, { target: { value: "10" } });
+
+      expect(createButton).toBeEnabled();
     });
 
     it("shows school-level account count badge", () => {

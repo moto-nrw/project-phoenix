@@ -134,9 +134,53 @@ export interface BackendOrgAccount extends BackendSchoolAccount {
   school_name: string;
 }
 
+export interface BackendAssignableRole {
+  id: number;
+  name: string;
+  description: string;
+  is_system: boolean;
+}
+
+export interface BackendProvisionedAccount {
+  account_id?: number;
+  school_id: number;
+  email: string;
+  first_name: string;
+  last_name: string;
+  role_id: number;
+  role_name: string;
+  pedagogic_role?: string | null;
+  status: "created" | "linked" | "account_exists";
+  person_id?: number;
+  staff_id?: number | null;
+  teacher_id?: number | null;
+}
+
 export interface OrgAccount extends SchoolAccount {
   schoolId: string;
   schoolName: string;
+}
+
+export interface AssignableRole {
+  id: string;
+  name: string;
+  description: string;
+  isSystem: boolean;
+}
+
+export interface ProvisionedAccount {
+  accountId?: string;
+  schoolId: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  roleId: string;
+  roleName: string;
+  pedagogicRole: string | null;
+  status: "created" | "linked" | "account_exists";
+  personId?: string;
+  staffId?: string | null;
+  teacherId?: string | null;
 }
 
 export function mapOrgAccount(data: BackendOrgAccount): OrgAccount {
@@ -144,6 +188,34 @@ export function mapOrgAccount(data: BackendOrgAccount): OrgAccount {
     ...mapSchoolAccount(data),
     schoolId: data.school_id.toString(),
     schoolName: data.school_name,
+  };
+}
+
+export function mapAssignableRole(data: BackendAssignableRole): AssignableRole {
+  return {
+    id: data.id.toString(),
+    name: data.name,
+    description: data.description,
+    isSystem: data.is_system,
+  };
+}
+
+export function mapProvisionedAccount(
+  data: BackendProvisionedAccount,
+): ProvisionedAccount {
+  return {
+    accountId: data.account_id?.toString(),
+    schoolId: data.school_id.toString(),
+    email: data.email,
+    firstName: data.first_name,
+    lastName: data.last_name,
+    roleId: data.role_id.toString(),
+    roleName: data.role_name,
+    pedagogicRole: data.pedagogic_role ?? null,
+    status: data.status,
+    personId: data.person_id?.toString(),
+    staffId: data.staff_id?.toString() ?? null,
+    teacherId: data.teacher_id?.toString() ?? null,
   };
 }
 
@@ -171,6 +243,18 @@ export interface InviteAdminRequest {
   first_name?: string;
   last_name?: string;
   position?: string;
+}
+
+export interface CreateSchoolAccountRequest {
+  email: string;
+  username?: string;
+  password?: string;
+  confirm_password?: string;
+  first_name: string;
+  last_name: string;
+  role_id: number;
+  position?: string;
+  link_existing?: boolean;
 }
 
 // Mapping functions

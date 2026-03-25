@@ -35,6 +35,7 @@ import { EditSchoolModal } from "./edit-school-modal";
 import { InviteAdminModal } from "./invite-admin-modal";
 import { CreateDeviceModal } from "./create-device-modal";
 import { SetApiKeyModal } from "./set-api-key-modal";
+import { ManualCreateAccountModal } from "./manual-create-account-modal";
 
 const logger = createLogger({ component: "OperatorProvisioningPage" });
 
@@ -59,6 +60,9 @@ export default function OperatorProvisioningPage() {
   const [filterOrgId, setFilterOrgId] = useState<string>("");
   const [createDeviceOpen, setCreateDeviceOpen] = useState(false);
   const [setKeyDevice, setSetKeyDevice] = useState<OperatorDevice | null>(null);
+  const [manualCreateOpen, setManualCreateOpen] = useState(false);
+  const [accountFeedback, setAccountFeedback] = useState("");
+  const [accountError, setAccountError] = useState("");
 
   const { mutate: globalMutate } = useSWRConfig();
 
@@ -202,6 +206,15 @@ export default function OperatorProvisioningPage() {
     [],
   );
 
+  const ACCOUNT_SWR_PREFIXES = useMemo(
+    () => [
+      "operator-all-accounts",
+      "operator-school-accounts-",
+      "operator-org-accounts-",
+    ],
+    [],
+  );
+
   const refreshDevices = useCallback(() => {
     return globalMutate(
       (key: unknown) =>
@@ -209,6 +222,14 @@ export default function OperatorProvisioningPage() {
         DEVICE_SWR_PREFIXES.some((p) => key.startsWith(p)),
     );
   }, [globalMutate, DEVICE_SWR_PREFIXES]);
+
+  const refreshAccounts = useCallback(() => {
+    return globalMutate(
+      (key: unknown) =>
+        typeof key === "string" &&
+        ACCOUNT_SWR_PREFIXES.some((p) => key.startsWith(p)),
+    );
+  }, [globalMutate, ACCOUNT_SWR_PREFIXES]);
 
   // Schools filtered by selected organization (for accounts tab filter)
   const filteredSchools = useMemo(() => {
@@ -316,7 +337,47 @@ export default function OperatorProvisioningPage() {
     setFilterOrgId(school.organizationId);
     setSelectedSchool(school);
     setActiveTab("accounts");
+    setAccountFeedback("");
+    setAccountError("");
   }, []);
+
+  const handleCreateSchoolAccount = useCallback(
+    async (data: {
+      email: string;
+      password?: string;
+      confirm_password?: string;
+      first_name: string;
+      last_name: string;
+      role_id: number;
+      position?: string;
+      link_existing?: boolean;
+      username?: string;
+    }) => {
+      if (!selectedSchool) {
+        throw new Error("Bitte wähle zuerst eine Schule aus.");
+      }
+
+      const result = await operatorProvisioningService.createSchoolAccount(
+        selectedSchool.id,
+        data,
+      );
+
+      if (result.status === "account_exists") {
+        return result;
+      }
+
+      await refreshAccounts();
+      setManualCreateOpen(false);
+      setAccountError("");
+      setAccountFeedback(
+        result.status === "linked"
+          ? "Bestehendes Konto wurde erfolgreich verknüpft."
+          : "Konto wurde erfolgreich angelegt.",
+      );
+      return result;
+    },
+    [refreshAccounts, selectedSchool],
+  );
 
   // Toggle handlers
   const handleToggleOrgActive = useCallback(
@@ -514,6 +575,26 @@ export default function OperatorProvisioningPage() {
       {/* Accounts Tab */}
       {activeTab === "accounts" && (
         <>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div className="text-sm text-gray-500">
+              {selectedSchool
+                ? `Manuelle Anlage für ${selectedSchool.name}`
+                : "Bitte zuerst eine Schule auswählen."}
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setAccountFeedback("");
+                setAccountError("");
+                setManualCreateOpen(true);
+              }}
+              disabled={!selectedSchool}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:bg-gray-300"
+            >
+              <PlusIcon />
+              Konto anlegen
+            </button>
+          </div>
           <OrgSchoolFilter
             idPrefix="account"
             organizations={organizations}
@@ -560,6 +641,16 @@ export default function OperatorProvisioningPage() {
           {/* School-level view */}
           {selectedSchool && !schoolAccountsLoading && (
             <>
+              {accountFeedback && (
+                <div className="mb-3 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">
+                  {accountFeedback}
+                </div>
+              )}
+              {accountError && (
+                <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                  {accountError}
+                </div>
+              )}
               <div className="mb-3 flex items-center gap-2">
                 <h3 className="text-sm font-semibold text-gray-900">
                   {selectedSchool.name}
@@ -743,6 +834,12 @@ export default function OperatorProvisioningPage() {
         onKeySet={() => {
           void refreshDevices();
         }}
+      />
+      <ManualCreateAccountModal
+        isOpen={manualCreateOpen}
+        schoolName={selectedSchool?.name ?? ""}
+        onClose={() => setManualCreateOpen(false)}
+        onCreate={handleCreateSchoolAccount}
       />
     </div>
   );

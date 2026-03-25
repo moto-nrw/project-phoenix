@@ -23,7 +23,7 @@ vi.mock("~/lib/server-api-url", () => ({
 
 global.fetch = mockFetch as unknown as typeof fetch;
 
-import { GET } from "./route";
+import { GET, POST } from "./route";
 
 describe("GET /api/operator/provisioning/schools/[id]/accounts", () => {
   beforeEach(() => {
@@ -106,5 +106,57 @@ describe("GET /api/operator/provisioning/schools/[id]/accounts", () => {
     const response = await GET(request, context);
 
     expect(response.status).toBe(500);
+  });
+});
+
+describe("POST /api/operator/provisioning/schools/[id]/accounts", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("creates a school account successfully", async () => {
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
+    const account = {
+      account_id: 1,
+      school_id: 10,
+      email: "teacher@school.de",
+      first_name: "Maria",
+      last_name: "Schmidt",
+      role_id: 2,
+      role_name: "user",
+      status: "created",
+    };
+
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 201,
+      json: async () => ({ status: "success", data: account }),
+    });
+
+    const request = new NextRequest(
+      "http://localhost:3000/api/operator/provisioning/schools/10/accounts",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          email: "teacher@school.de",
+          password: "Test1234!",
+          confirm_password: "Test1234!",
+          first_name: "Maria",
+          last_name: "Schmidt",
+          role_id: 2,
+        }),
+        headers: { "Content-Type": "application/json" },
+      },
+    );
+    const context: RouteContext = { params: Promise.resolve({ id: "10" }) };
+    const response = await POST(request, context);
+
+    expect(response.status).toBe(200);
+    const json = (await response.json()) as { data?: unknown };
+    expect(json.data).toEqual(account);
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://localhost:8080/operator/schools/10/accounts",
+      expect.objectContaining({ method: "POST" }),
+    );
   });
 });

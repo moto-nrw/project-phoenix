@@ -122,6 +122,18 @@ type inviteSchoolAdminRequest struct {
 	Position  string `json:"position,omitempty"`
 }
 
+type createSchoolAccountRequest struct {
+	Email           string `json:"email"`
+	Username        string `json:"username,omitempty"`
+	Password        string `json:"password,omitempty"`
+	ConfirmPassword string `json:"confirm_password,omitempty"`
+	FirstName       string `json:"first_name"`
+	LastName        string `json:"last_name"`
+	RoleID          int64  `json:"role_id"`
+	Position        string `json:"position,omitempty"`
+	LinkExisting    bool   `json:"link_existing,omitempty"`
+}
+
 type operatorInvitationResponse struct {
 	ID              int64      `json:"id"`
 	Email           string     `json:"email"`
@@ -145,6 +157,39 @@ func (req *inviteSchoolAdminRequest) Bind(_ *http.Request) error {
 	req.FirstName = strings.TrimSpace(req.FirstName)
 	req.LastName = strings.TrimSpace(req.LastName)
 	req.Position = strings.TrimSpace(req.Position)
+	return nil
+}
+
+func (req *createSchoolAccountRequest) Bind(_ *http.Request) error {
+	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
+	req.Username = strings.TrimSpace(req.Username)
+	req.Password = strings.TrimSpace(req.Password)
+	req.ConfirmPassword = strings.TrimSpace(req.ConfirmPassword)
+	req.FirstName = strings.TrimSpace(req.FirstName)
+	req.LastName = strings.TrimSpace(req.LastName)
+	req.Position = strings.TrimSpace(req.Position)
+
+	if req.Email == "" {
+		return errors.New("email is required")
+	}
+	if req.FirstName == "" {
+		return errors.New("first_name is required")
+	}
+	if req.LastName == "" {
+		return errors.New("last_name is required")
+	}
+	if req.RoleID <= 0 {
+		return errors.New("role_id is required")
+	}
+	if !req.LinkExisting {
+		if req.Password == "" {
+			return errors.New("password is required")
+		}
+		if req.Password != req.ConfirmPassword {
+			return errors.New("passwords do not match")
+		}
+	}
+
 	return nil
 }
 
@@ -319,6 +364,49 @@ func (rs *ProvisioningResource) InviteSchoolAdmin(w http.ResponseWriter, r *http
 	common.Respond(w, r, http.StatusCreated, resp, "School admin invitation created successfully")
 }
 
+func (rs *ProvisioningResource) ListAssignableRoles(w http.ResponseWriter, r *http.Request) {
+	roles, err := rs.service.ListAssignableRoles(r.Context())
+	if err != nil {
+		common.RenderError(w, r, ProvisioningErrorRenderer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, roles, "Assignable roles retrieved successfully")
+}
+
+func (rs *ProvisioningResource) CreateSchoolAccount(w http.ResponseWriter, r *http.Request) {
+	req := &createSchoolAccountRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, ErrInvalidRequest(err))
+		return
+	}
+	schoolID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid school ID")
+	if !ok {
+		return
+	}
+	operatorID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	account, err := rs.service.CreateSchoolAccount(r.Context(), schoolID, operatorID, getClientIP(r), platformSvc.CreateSchoolAccountRequest{
+		Email:           req.Email,
+		Username:        req.Username,
+		Password:        req.Password,
+		ConfirmPassword: req.ConfirmPassword,
+		FirstName:       req.FirstName,
+		LastName:        req.LastName,
+		RoleID:          req.RoleID,
+		Position:        req.Position,
+		LinkExisting:    req.LinkExisting,
+	})
+	if err != nil {
+		common.RenderError(w, r, ProvisioningErrorRenderer(err))
+		return
+	}
+
+	statusCode := http.StatusCreated
+	if account != nil && account.Status == "account_exists" {
+		statusCode = http.StatusOK
+	}
+	common.Respond(w, r, statusCode, account, "School account provisioned successfully")
+}
+
 func (rs *ProvisioningResource) ListSchoolAccounts(w http.ResponseWriter, r *http.Request) {
 	schoolID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid school ID")
 	if !ok {
@@ -369,6 +457,12 @@ func ProvisioningErrorRenderer(err error) render.Renderer {
 		switch {
 		case errors.Is(authErr.Err, authSvc.ErrEmailAlreadyExists):
 			return ErrConflict(authSvc.ErrEmailAlreadyExists.Error())
+		case errors.Is(authErr.Err, authSvc.ErrUsernameAlreadyExists):
+			return ErrConflict(authSvc.ErrUsernameAlreadyExists.Error())
+		case errors.Is(authErr.Err, authSvc.ErrAccountNotFound):
+			return ErrNotFound(authSvc.ErrAccountNotFound.Error())
+		case errors.Is(authErr.Err, authSvc.ErrAccountInactive):
+			return ErrConflict(authSvc.ErrAccountInactive.Error())
 		case errors.Is(authErr.Err, authSvc.ErrInvitationNameRequired),
 			errors.Is(authErr.Err, authSvc.ErrPasswordMismatch),
 			errors.Is(authErr.Err, authSvc.ErrPasswordTooWeak),

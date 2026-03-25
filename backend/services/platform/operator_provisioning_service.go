@@ -18,6 +18,7 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/platform"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -45,6 +46,44 @@ type UpdateSchoolRequest struct {
 	Active         bool
 }
 
+// CreateSchoolAccountRequest holds fields for manual operator-led account creation.
+type CreateSchoolAccountRequest struct {
+	Email           string
+	Username        string
+	Password        string
+	ConfirmPassword string
+	FirstName       string
+	LastName        string
+	RoleID          int64
+	Position        string
+	LinkExisting    bool
+}
+
+// OperatorProvisionedAccount captures the result of direct operator account creation.
+type OperatorProvisionedAccount struct {
+	AccountID      int64   `json:"account_id"`
+	SchoolID       int64   `json:"school_id"`
+	Email          string  `json:"email"`
+	FirstName      string  `json:"first_name"`
+	LastName       string  `json:"last_name"`
+	RoleID         int64   `json:"role_id"`
+	RoleName       string  `json:"role_name"`
+	PedagogicRole  *string `json:"pedagogic_role,omitempty"`
+	Status         string  `json:"status"`
+	PersonID       int64   `json:"person_id"`
+	StaffID        *int64  `json:"staff_id,omitempty"`
+	TeacherID      *int64  `json:"teacher_id,omitempty"`
+	TemporaryEmail *string `json:"temporary_email,omitempty"`
+}
+
+// OperatorAssignableRole holds the operator-facing subset of role fields.
+type OperatorAssignableRole struct {
+	ID          int64  `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	IsSystem    bool   `json:"is_system"`
+}
+
 // OperatorProvisioningService handles operator-led tenant provisioning.
 type OperatorProvisioningService interface {
 	CreateOrganization(ctx context.Context, organization *platform.Organization, operatorID int64, clientIP net.IP) (*platform.Organization, error)
@@ -54,6 +93,8 @@ type OperatorProvisioningService interface {
 	ListSchools(ctx context.Context) ([]*platform.School, error)
 	UpdateSchool(ctx context.Context, id int64, req UpdateSchoolRequest, operatorID int64, clientIP net.IP) (*platform.School, error)
 	InviteSchoolAdmin(ctx context.Context, schoolID, operatorID int64, clientIP net.IP, req authSvc.InvitationRequest) (*authModels.InvitationToken, error)
+	ListAssignableRoles(ctx context.Context) ([]OperatorAssignableRole, error)
+	CreateSchoolAccount(ctx context.Context, schoolID, operatorID int64, clientIP net.IP, req CreateSchoolAccountRequest) (*OperatorProvisionedAccount, error)
 	ListSchoolAccounts(ctx context.Context, schoolID int64) ([]authModels.TenantAccountInfo, error)
 	ListOrganizationAccounts(ctx context.Context, organizationID int64) ([]authModels.OrgAccountInfo, error)
 	ListAllAccounts(ctx context.Context) ([]authModels.OrgAccountInfo, error)
@@ -113,7 +154,11 @@ type operatorProvisioningService struct {
 	deviceRepo        iotModels.DeviceRepository
 	roleRepo          authModels.RoleRepository
 	accountTenantRepo authModels.AccountTenantRepository
+	authService       authSvc.AuthService
 	invitationService authSvc.InvitationService
+	personRepo        userModels.PersonRepository
+	staffRepo         userModels.StaffRepository
+	teacherRepo       userModels.TeacherRepository
 	auditLogRepo      platform.OperatorAuditLogRepository
 	txHandler         *modelBase.TxHandler
 	logger            *slog.Logger
@@ -127,7 +172,11 @@ type OperatorProvisioningServiceConfig struct {
 	DeviceRepo        iotModels.DeviceRepository
 	RoleRepo          authModels.RoleRepository
 	AccountTenantRepo authModels.AccountTenantRepository
+	AuthService       authSvc.AuthService
 	InvitationService authSvc.InvitationService
+	PersonRepo        userModels.PersonRepository
+	StaffRepo         userModels.StaffRepository
+	TeacherRepo       userModels.TeacherRepository
 	AuditLogRepo      platform.OperatorAuditLogRepository
 	DB                *bun.DB
 	Logger            *slog.Logger
@@ -142,7 +191,11 @@ func NewOperatorProvisioningService(cfg OperatorProvisioningServiceConfig) Opera
 		deviceRepo:        cfg.DeviceRepo,
 		roleRepo:          cfg.RoleRepo,
 		accountTenantRepo: cfg.AccountTenantRepo,
+		authService:       cfg.AuthService,
 		invitationService: cfg.InvitationService,
+		personRepo:        cfg.PersonRepo,
+		staffRepo:         cfg.StaffRepo,
+		teacherRepo:       cfg.TeacherRepo,
 		auditLogRepo:      cfg.AuditLogRepo,
 		txHandler:         modelBase.NewTxHandler(cfg.DB),
 		logger:            cfg.Logger,
@@ -405,6 +458,164 @@ func (s *operatorProvisioningService) InviteSchoolAdmin(ctx context.Context, sch
 		return nil, err
 	}
 	return invitation, nil
+}
+
+func (s *operatorProvisioningService) ListAssignableRoles(ctx context.Context) ([]OperatorAssignableRole, error) {
+	var result []OperatorAssignableRole
+	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
+		roles, listErr := s.roleRepo.List(adminCtx, map[string]interface{}{})
+		if listErr != nil {
+			return listErr
+		}
+
+		result = make([]OperatorAssignableRole, 0, len(roles))
+		for _, role := range roles {
+			if role == nil || !role.IsSystem {
+				continue
+			}
+			result = append(result, OperatorAssignableRole{
+				ID:          role.ID,
+				Name:        role.Name,
+				Description: role.Description,
+				IsSystem:    role.IsSystem,
+			})
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (s *operatorProvisioningService) CreateSchoolAccount(ctx context.Context, schoolID, operatorID int64, clientIP net.IP, req CreateSchoolAccountRequest) (*OperatorProvisionedAccount, error) {
+	if schoolID <= 0 {
+		return nil, &InvalidDataError{Err: fmt.Errorf("school id is required")}
+	}
+	if strings.TrimSpace(req.Email) == "" {
+		return nil, &InvalidDataError{Err: fmt.Errorf("email is required")}
+	}
+	if strings.TrimSpace(req.FirstName) == "" || strings.TrimSpace(req.LastName) == "" {
+		return nil, &InvalidDataError{Err: fmt.Errorf("first name and last name are required")}
+	}
+	if req.RoleID <= 0 {
+		return nil, &InvalidDataError{Err: fmt.Errorf("role id is required")}
+	}
+	if !req.LinkExisting && strings.TrimSpace(req.Password) == "" {
+		return nil, &InvalidDataError{Err: fmt.Errorf("password is required")}
+	}
+
+	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
+	req.Username = strings.TrimSpace(req.Username)
+	req.FirstName = strings.TrimSpace(req.FirstName)
+	req.LastName = strings.TrimSpace(req.LastName)
+	req.Position = strings.TrimSpace(req.Position)
+
+	var result *OperatorProvisionedAccount
+	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
+		school, findErr := s.schoolRepo.FindByID(adminCtx, schoolID)
+		if findErr != nil {
+			if isSchoolLookupNotFound(findErr) {
+				return &SchoolNotFoundError{SchoolID: schoolID}
+			}
+			return findErr
+		}
+		if school == nil {
+			return &SchoolNotFoundError{SchoolID: schoolID}
+		}
+		if !school.Active {
+			return &SchoolInactiveError{SchoolID: schoolID}
+		}
+
+		role, roleErr := s.roleRepo.FindByID(adminCtx, req.RoleID)
+		if roleErr != nil {
+			return roleErr
+		}
+		if role == nil {
+			return &InvalidDataError{Err: fmt.Errorf("role not found")}
+		}
+		if !role.IsSystem {
+			return &InvalidDataError{Err: fmt.Errorf("only system roles can be assigned")}
+		}
+
+		txCtx := tenant.WithTenantID(adminCtx, schoolID)
+		return s.txHandler.RunInTx(txCtx, func(txCtx context.Context, _ bun.Tx) error {
+			account, status, accountErr := s.createOrLinkSchoolAccount(txCtx, schoolID, req)
+			if accountErr != nil {
+				return accountErr
+			}
+			if status == "account_exists" {
+				result = &OperatorProvisionedAccount{
+					Email:     req.Email,
+					FirstName: req.FirstName,
+					LastName:  req.LastName,
+					RoleID:    req.RoleID,
+					RoleName:  role.Name,
+					SchoolID:  schoolID,
+					Status:    status,
+				}
+				return nil
+			}
+
+			person, personErr := s.ensureProvisionedPerson(txCtx, account.ID, req)
+			if personErr != nil {
+				return personErr
+			}
+
+			var staff *userModels.Staff
+			var teacher *userModels.Teacher
+			if role.IsSystem {
+				var staffErr error
+				staff, staffErr = s.ensureProvisionedStaff(txCtx, person.ID)
+				if staffErr != nil {
+					return staffErr
+				}
+			}
+			if staff != nil && shouldCreateTeacherForRoleName(role.Name) {
+				var teacherErr error
+				teacher, teacherErr = s.ensureProvisionedTeacher(txCtx, staff.ID, req.Position)
+				if teacherErr != nil {
+					return teacherErr
+				}
+			}
+
+			result = &OperatorProvisionedAccount{
+				AccountID: account.ID,
+				SchoolID:  schoolID,
+				Email:     account.Email,
+				FirstName: person.FirstName,
+				LastName:  person.LastName,
+				RoleID:    role.ID,
+				RoleName:  role.Name,
+				Status:    status,
+				PersonID:  person.ID,
+			}
+			if req.Position != "" {
+				result.PedagogicRole = &req.Position
+			}
+			if staff != nil {
+				result.StaffID = &staff.ID
+			}
+			if teacher != nil {
+				result.TeacherID = &teacher.ID
+			}
+
+			s.logAction(txCtx, operatorID, platform.ActionCreate, platform.ResourceAccount, &account.ID, clientIP, map[string]any{
+				"schoolID":      schoolID,
+				"accountID":     account.ID,
+				"roleID":        role.ID,
+				"roleName":      role.Name,
+				"status":        status,
+				"linkExisting":  req.LinkExisting,
+				"pedagogicRole": nullableStringValue(result.PedagogicRole),
+			})
+			return nil
+		})
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 func (s *operatorProvisioningService) ListSchoolAccounts(ctx context.Context, schoolID int64) ([]authModels.TenantAccountInfo, error) {
@@ -782,6 +993,144 @@ func (s *operatorProvisioningService) SetDeviceAPIKey(ctx context.Context, id in
 		return nil, err
 	}
 	return result, nil
+}
+
+func (s *operatorProvisioningService) createOrLinkSchoolAccount(ctx context.Context, schoolID int64, req CreateSchoolAccountRequest) (*authModels.Account, string, error) {
+	roleID := req.RoleID
+	if req.LinkExisting {
+		account, err := s.authService.LinkAccountToTenant(ctx, req.Email, &roleID, schoolID)
+		if err != nil {
+			return nil, "", err
+		}
+		return account, "linked", nil
+	}
+
+	for attempt := 0; attempt < 3; attempt++ {
+		username := req.Username
+		if username == "" {
+			username = buildGeneratedUsername(req.FirstName, req.LastName)
+		}
+		account, err := s.authService.Register(ctx, req.Email, username, req.Password, &roleID, schoolID)
+		if err == nil {
+			return account, "created", nil
+		}
+		if isAuthConflict(err, authSvc.ErrEmailAlreadyExists) {
+			return nil, "account_exists", nil
+		}
+		if req.Username == "" && isAuthConflict(err, authSvc.ErrUsernameAlreadyExists) {
+			continue
+		}
+		return nil, "", err
+	}
+	return nil, "", &ConflictError{Err: fmt.Errorf("failed to generate unique username")}
+}
+
+func (s *operatorProvisioningService) ensureProvisionedPerson(ctx context.Context, accountID int64, req CreateSchoolAccountRequest) (*userModels.Person, error) {
+	person, err := s.personRepo.FindByAccountID(ctx, accountID)
+	if err != nil && !isNoRowsError(err) {
+		return nil, err
+	}
+	if person == nil || isNoRowsError(err) {
+		person = &userModels.Person{
+			FirstName: req.FirstName,
+			LastName:  req.LastName,
+		}
+		person.SetTenantID(tenant.FromContext(ctx))
+		if createErr := s.personRepo.Create(ctx, person); createErr != nil {
+			return nil, createErr
+		}
+		if linkErr := s.personRepo.LinkToAccount(ctx, person.ID, accountID); linkErr != nil {
+			return nil, linkErr
+		}
+		return person, nil
+	}
+
+	person.FirstName = req.FirstName
+	person.LastName = req.LastName
+	if updateErr := s.personRepo.Update(ctx, person); updateErr != nil {
+		return nil, updateErr
+	}
+	return person, nil
+}
+
+func (s *operatorProvisioningService) ensureProvisionedStaff(ctx context.Context, personID int64) (*userModels.Staff, error) {
+	staff, err := s.staffRepo.FindByPersonID(ctx, personID)
+	if err != nil && !isNoRowsError(err) {
+		return nil, err
+	}
+	if staff != nil && !isNoRowsError(err) {
+		return staff, nil
+	}
+
+	staff = &userModels.Staff{PersonID: personID}
+	staff.SetTenantID(tenant.FromContext(ctx))
+	if createErr := s.staffRepo.Create(ctx, staff); createErr != nil {
+		return nil, createErr
+	}
+	return staff, nil
+}
+
+func (s *operatorProvisioningService) ensureProvisionedTeacher(ctx context.Context, staffID int64, position string) (*userModels.Teacher, error) {
+	teacher, err := s.teacherRepo.FindByStaffID(ctx, staffID)
+	if err != nil {
+		return nil, err
+	}
+	if teacher == nil {
+		teacher = &userModels.Teacher{StaffID: staffID}
+		teacher.SetTenantID(tenant.FromContext(ctx))
+		teacher.Role = position
+		if createErr := s.teacherRepo.Create(ctx, teacher); createErr != nil {
+			return nil, createErr
+		}
+		return teacher, nil
+	}
+
+	if teacher.Role == position {
+		return teacher, nil
+	}
+	teacher.Role = position
+	if updateErr := s.teacherRepo.Update(ctx, teacher); updateErr != nil {
+		return nil, updateErr
+	}
+	return teacher, nil
+}
+
+func shouldCreateTeacherForRoleName(roleName string) bool {
+	switch strings.ToLower(strings.TrimSpace(roleName)) {
+	case "user", "teacher":
+		return true
+	default:
+		return false
+	}
+}
+
+func buildGeneratedUsername(firstName, lastName string) string {
+	first := strings.ToLower(strings.TrimSpace(firstName))
+	last := strings.ToLower(strings.TrimSpace(lastName))
+	first = strings.ReplaceAll(first, " ", "_")
+	last = strings.ReplaceAll(last, " ", "_")
+	suffix := time.Now().UnixNano() % 1000000
+	return fmt.Sprintf("%s_%s_%06d", first, last, suffix)
+}
+
+func isNoRowsError(err error) bool {
+	if errors.Is(err, sql.ErrNoRows) {
+		return true
+	}
+	var dbErr *modelBase.DatabaseError
+	return errors.As(err, &dbErr) && errors.Is(dbErr.Err, sql.ErrNoRows)
+}
+
+func isAuthConflict(err error, target error) bool {
+	var authErr *authSvc.AuthError
+	return errors.As(err, &authErr) && errors.Is(authErr.Err, target)
+}
+
+func nullableStringValue(value *string) any {
+	if value == nil {
+		return nil
+	}
+	return *value
 }
 
 func (s *operatorProvisioningService) validateSchoolCreate(ctx context.Context, school *platform.School) error {

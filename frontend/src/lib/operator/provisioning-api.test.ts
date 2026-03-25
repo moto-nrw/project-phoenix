@@ -16,6 +16,8 @@ import type {
   BackendOrgAccount,
   BackendOperatorDevice,
   BackendInvitation,
+  BackendAssignableRole,
+  BackendProvisionedAccount,
 } from "./provisioning-helpers";
 
 const NOW = "2026-03-15T10:00:00Z";
@@ -93,6 +95,28 @@ const mockBackendInvitation: BackendInvitation = {
   created_by: 0,
   delivery_status: "pending",
   email_retry_count: 0,
+};
+
+const mockBackendRole: BackendAssignableRole = {
+  id: 2,
+  name: "user",
+  description: "User role",
+  is_system: true,
+};
+
+const mockProvisionedAccount: BackendProvisionedAccount = {
+  account_id: 5,
+  school_id: 10,
+  email: "teacher@school.de",
+  first_name: "Maria",
+  last_name: "Schmidt",
+  role_id: 2,
+  role_name: "user",
+  pedagogic_role: "Erzieher",
+  status: "created",
+  person_id: 20,
+  staff_id: 30,
+  teacher_id: 40,
 };
 
 describe("OperatorProvisioningService", () => {
@@ -203,6 +227,46 @@ describe("OperatorProvisioningService", () => {
       );
       expect(result).toHaveLength(1);
       expect(result[0]!.id).toBe("5");
+    });
+  });
+
+  describe("listAssignableRoles", () => {
+    it("calls correct endpoint", async () => {
+      mockOperatorFetch.mockResolvedValue([mockBackendRole]);
+
+      const result = await operatorProvisioningService.listAssignableRoles();
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/accounts/roles",
+      );
+      expect(result[0]).toEqual({
+        id: "2",
+        name: "user",
+        description: "User role",
+        isSystem: true,
+      });
+    });
+  });
+
+  describe("createSchoolAccount", () => {
+    it("calls correct endpoint with POST method", async () => {
+      mockOperatorFetch.mockResolvedValue(mockProvisionedAccount);
+
+      const payload = {
+        email: "teacher@school.de",
+        password: "Test1234!",
+        confirm_password: "Test1234!",
+        first_name: "Maria",
+        last_name: "Schmidt",
+        role_id: 2,
+        position: "Erzieher",
+      };
+      await operatorProvisioningService.createSchoolAccount("10", payload);
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/schools/10/accounts",
+        { method: "POST", body: payload },
+      );
     });
   });
 
