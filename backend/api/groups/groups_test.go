@@ -435,6 +435,33 @@ func TestDeleteGroup_InvalidID(t *testing.T) {
 	testutil.AssertBadRequest(t, rr)
 }
 
+func TestDeleteGroup_ConflictWithStudents(t *testing.T) {
+	tc, router := setupProtectedRouter(t)
+
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "GroupWithStudents")
+	student := testpkg.CreateTestStudent(t, tc.db, "GroupDel", "Student", "1a")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, student.PersonID)
+
+	// Assign student to group
+	ctx := testpkg.TenantContext(1)
+	student.GroupID = &group.ID
+	_, err := tc.db.NewUpdate().
+		Model(student).
+		ModelTableExpr(`users.students AS "student"`).
+		Column("group_id").
+		Where(`"student".id = ?`, student.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/groups/%d", group.ID), nil,
+		testutil.WithPermissions("groups:delete"),
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertErrorResponse(t, rr, http.StatusConflict)
+}
+
 func TestDeleteGroup_WithoutPermission(t *testing.T) {
 	tc, router := setupProtectedRouter(t)
 

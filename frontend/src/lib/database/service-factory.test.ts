@@ -3,7 +3,11 @@
  * Tests service creation and CRUD operations
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { createCrudService, createExtendedService } from "./service-factory";
+import {
+  createCrudService,
+  createExtendedService,
+  getDeleteErrorMessage,
+} from "./service-factory";
 import type { EntityConfig } from "./types";
 import { databaseThemes } from "@/components/ui/database/themes";
 
@@ -506,8 +510,92 @@ describe("createCrudService", () => {
 
       const service = createCrudService(configWithHooks);
 
-      await expect(service.delete("1")).rejects.toThrow("cancelled");
+      const result = await service.delete("1");
+      expect(result).toBe("Löschen wurde abgebrochen");
       expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    it("returns null on successful delete", async () => {
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ok: true,
+        status: 204,
+        headers: new Headers({ "content-length": "0" }),
+      });
+
+      const service = createCrudService(mockConfig);
+      const result = await service.delete("1");
+      expect(result).toBeNull();
+    });
+
+    it("returns error message on 409 Conflict with nested JSON", async () => {
+      const backendError = JSON.stringify({
+        status: "error",
+        error:
+          "education: DeleteGroup: Gruppe kann nicht gelöscht werden: Gruppe hat noch zugewiesene Schüler/innen",
+      });
+      const routeHandlerError = JSON.stringify({
+        error: `API error (409): ${backendError}`,
+      });
+
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ok: false,
+        status: 409,
+        text: () => Promise.resolve(routeHandlerError),
+      });
+
+      const service = createCrudService(mockConfig);
+      const result = await service.delete("1");
+      expect(result).toBe(
+        "Gruppe kann nicht gelöscht werden: Gruppe hat noch zugewiesene Schüler/innen",
+      );
+    });
+
+    it("returns generic German message on 500 server error", async () => {
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ok: false,
+        status: 500,
+        text: () => Promise.resolve("Internal Server Error"),
+      });
+
+      const service = createCrudService(mockConfig);
+      const result = await service.delete("1");
+      expect(result).toBe(
+        "Ein unerwarteter Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.",
+      );
+    });
+
+    it("returns error message on 409 with simple JSON error", async () => {
+      const simpleError = JSON.stringify({
+        error: "Raum wird noch von Gruppen verwendet",
+      });
+
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ok: false,
+        status: 409,
+        text: () => Promise.resolve(simpleError),
+      });
+
+      const service = createCrudService(mockConfig);
+      const result = await service.delete("1");
+      expect(result).toBe("Raum wird noch von Gruppen verwendet");
+    });
+  });
+
+  describe("getDeleteErrorMessage", () => {
+    it("extracts message from Error objects", () => {
+      expect(getDeleteErrorMessage(new Error("test error"))).toBe("test error");
+    });
+
+    it("returns fallback for non-Error objects", () => {
+      expect(getDeleteErrorMessage("string error")).toBe(
+        "Fehler beim Löschen. Bitte versuchen Sie es erneut.",
+      );
+    });
+
+    it("returns fallback for null", () => {
+      expect(getDeleteErrorMessage(null)).toBe(
+        "Fehler beim Löschen. Bitte versuchen Sie es erneut.",
+      );
     });
   });
 

@@ -33,6 +33,7 @@ func setupPolicyServices(t *testing.T, db *bun.DB) (education.Service, users.Per
 		repos.Room,
 		repos.Teacher,
 		repos.Staff,
+		repos.Student,
 		db,
 	)
 

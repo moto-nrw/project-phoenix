@@ -55,7 +55,7 @@ export default function RolesPage() {
     confirmDelete,
   } = useDeleteConfirmation(setShowDetailModal);
 
-  const { success: toastSuccess } = useToast();
+  const { success: toastSuccess, error: toastError } = useToast();
 
   const { status } = useSession({
     required: true,
@@ -177,7 +177,11 @@ export default function RolesPage() {
     if (!selectedRole) return;
     try {
       setDetailLoading(true);
-      await service.delete(selectedRole.id);
+      const deleteError = await service.delete(selectedRole.id);
+      if (deleteError) {
+        toastError(deleteError);
+        return;
+      }
       toastSuccess(
         getDbOperationMessage(
           "delete",

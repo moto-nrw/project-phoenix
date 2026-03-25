@@ -386,6 +386,10 @@ func (rs *Resource) deletePerson(w http.ResponseWriter, r *http.Request) {
 		return rs.PersonService.Delete(ctx, id)
 	})
 	if err != nil {
+		if common.IsConstraintViolation(err) {
+			common.RenderError(w, r, common.ErrorConflictMessage("Person kann nicht gelöscht werden: Person hat verknüpfte Personal-, Schüler- oder Kontodaten"))
+			return
+		}
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}

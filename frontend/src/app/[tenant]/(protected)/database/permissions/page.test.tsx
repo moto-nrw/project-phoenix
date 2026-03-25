@@ -73,10 +73,11 @@ vi.mock("~/hooks/useDeleteConfirmation", () => ({
 }));
 
 const mockToastSuccess = vi.fn();
+const mockToastError = vi.fn();
 vi.mock("~/contexts/ToastContext", () => ({
   useToast: () => ({
     success: mockToastSuccess,
-    error: vi.fn(),
+    error: mockToastError,
     info: vi.fn(),
     warning: vi.fn(),
   }),

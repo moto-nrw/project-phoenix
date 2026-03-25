@@ -346,5 +346,6 @@ export interface CrudService<T> {
   getOne(id: string): Promise<T>;
   create(data: Partial<T>): Promise<T>;
   update(id: string, data: Partial<T>): Promise<T>;
-  delete(id: string): Promise<void>;
+  /** Returns null on success, or a user-facing error message string on failure. */
+  delete(id: string): Promise<string | null>;
 }

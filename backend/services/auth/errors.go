@@ -65,6 +65,10 @@ var (
 	ErrInvitationExpired      = errors.New("invitation has expired")
 	ErrInvitationUsed         = errors.New("invitation has already been used")
 	ErrInvitationNameRequired = errors.New("first name and last name are required")
+
+	// Deletion constraint errors
+	ErrRoleInUse       = errors.New("Rolle kann nicht gelöscht werden: Rolle ist aktuell Konten zugewiesen")                           //nolint:staticcheck // ST1005: user-facing German message
+	ErrPermissionInUse = errors.New("Berechtigung kann nicht gelöscht werden: Berechtigung ist aktuell Rollen oder Konten zugewiesen") //nolint:staticcheck // ST1005: user-facing German message
 )
 
 // AuthError represents an authentication-related error

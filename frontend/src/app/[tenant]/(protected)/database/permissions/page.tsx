@@ -57,7 +57,7 @@ export default function PermissionsPage() {
     confirmDelete,
   } = useDeleteConfirmation(setShowDetailModal);
 
-  const { success: toastSuccess } = useToast();
+  const { success: toastSuccess, error: toastError } = useToast();
 
   const { status } = useSession({
     required: true,
@@ -239,7 +239,11 @@ export default function PermissionsPage() {
     if (!selectedPermission) return;
     try {
       setDetailLoading(true);
-      await service.delete(selectedPermission.id);
+      const deleteError = await service.delete(selectedPermission.id);
+      if (deleteError) {
+        toastError(deleteError);
+        return;
+      }
       const display = `${selectedPermission.resource}: ${selectedPermission.action}`;
       toastSuccess(
         getDbOperationMessage(

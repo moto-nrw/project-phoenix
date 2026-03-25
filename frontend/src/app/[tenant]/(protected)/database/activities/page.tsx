@@ -52,7 +52,7 @@ export default function ActivitiesPage() {
 
   // Secondary management modals (disabled for now)
 
-  const { success: toastSuccess } = useToast();
+  const { success: toastSuccess, error: toastError } = useToast();
 
   const { status } = useSession({
     required: true,
@@ -214,7 +214,11 @@ export default function ActivitiesPage() {
     if (!selectedActivity) return;
     try {
       setDetailLoading(true);
-      await service.delete(selectedActivity.id);
+      const deleteError = await service.delete(selectedActivity.id);
+      if (deleteError) {
+        toastError(deleteError);
+        return;
+      }
       toastSuccess(
         getDbOperationMessage(
           "delete",

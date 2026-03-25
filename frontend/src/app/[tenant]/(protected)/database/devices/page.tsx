@@ -51,7 +51,7 @@ export default function DevicesPage() {
     confirmDelete,
   } = useDeleteConfirmation(setShowDetailModal);
 
-  const { success: toastSuccess } = useToast();
+  const { success: toastSuccess, error: toastError } = useToast();
 
   const { status } = useSession({
     required: true,
@@ -205,7 +205,11 @@ export default function DevicesPage() {
     if (!selectedDevice) return;
     try {
       setDetailLoading(true);
-      await service.delete(selectedDevice.id);
+      const deleteError = await service.delete(selectedDevice.id);
+      if (deleteError) {
+        toastError(deleteError);
+        return;
+      }
       toastSuccess(
         getDbOperationMessage(
           "delete",

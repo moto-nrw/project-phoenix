@@ -51,10 +51,12 @@ vi.mock("~/hooks/useDeleteConfirmation", () => ({
   })),
 }));
 
+const mockToastSuccess = vi.fn();
+const mockToastError = vi.fn();
 vi.mock("~/contexts/ToastContext", () => ({
   useToast: vi.fn(() => ({
-    success: vi.fn(),
-    error: vi.fn(),
+    success: mockToastSuccess,
+    error: mockToastError,
   })),
 }));
 
@@ -437,7 +439,7 @@ describe("GroupsPage", () => {
   });
 
   it("calls delete service when deleting a group", async () => {
-    mockDelete.mockResolvedValueOnce({});
+    mockDelete.mockResolvedValueOnce(null);
 
     render(<GroupsPage />);
 
@@ -461,6 +463,37 @@ describe("GroupsPage", () => {
 
     await waitFor(() => {
       expect(mockDelete).toHaveBeenCalled();
+    });
+  });
+
+  it("shows error toast when delete returns error", async () => {
+    mockDelete.mockResolvedValueOnce(
+      "Gruppe kann nicht gelöscht werden: Gruppe hat noch zugewiesene Schüler/innen",
+    );
+
+    render(<GroupsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Gruppe A")).toBeInTheDocument();
+    });
+
+    const groupRow = screen.getByText("Gruppe A").closest("button");
+    if (groupRow) {
+      fireEvent.click(groupRow);
+    }
+
+    await waitFor(() => {
+      expect(screen.getByTestId("group-detail-modal")).toBeInTheDocument();
+    });
+
+    const deleteButton = screen.getByTestId("delete-button");
+    fireEvent.click(deleteButton);
+
+    await waitFor(() => {
+      expect(mockDelete).toHaveBeenCalled();
+      expect(mockToastError).toHaveBeenCalledWith(
+        "Gruppe kann nicht gelöscht werden: Gruppe hat noch zugewiesene Schüler/innen",
+      );
     });
   });
 

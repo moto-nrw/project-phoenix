@@ -251,6 +251,10 @@ func (m *mockVisitRepository) EndVisitsByActiveGroupIDs(ctx context.Context, act
 	return 0, nil
 }
 
+func (m *mockVisitRepository) CountActiveByStudentID(ctx context.Context, studentID int64) (int, error) {
+	return 0, nil
+}
+
 // mockGroupSupervisorRepository is a minimal mock implementation of active.GroupSupervisorRepository
 type mockGroupSupervisorRepository struct {
 	findByActiveGroupIDFunc func(ctx context.Context, activeGroupID int64, activeOnly bool) ([]*active.GroupSupervisor, error)

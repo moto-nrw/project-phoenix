@@ -51,10 +51,11 @@ vi.mock("~/hooks/useDeleteConfirmation", () => ({
   })),
 }));
 
+const mockToastError = vi.fn();
 vi.mock("~/contexts/ToastContext", () => ({
   useToast: vi.fn(() => ({
     success: vi.fn(),
-    error: vi.fn(),
+    error: mockToastError,
   })),
 }));
 
@@ -421,7 +422,7 @@ describe("ActivitiesPage", () => {
   });
 
   it("calls delete service when deleting an activity", async () => {
-    mockDelete.mockResolvedValueOnce({});
+    mockDelete.mockResolvedValueOnce(null);
 
     render(<ActivitiesPage />);
 
@@ -445,6 +446,28 @@ describe("ActivitiesPage", () => {
 
     await waitFor(() => {
       expect(mockDelete).toHaveBeenCalled();
+    });
+  });
+
+  it("shows error toast when delete returns error", async () => {
+    mockDelete.mockResolvedValueOnce("Aktivität kann nicht gelöscht werden");
+
+    render(<ActivitiesPage />);
+    await waitFor(() => {
+      expect(screen.getByText("Fußball AG")).toBeInTheDocument();
+    });
+
+    const row = screen.getByText("Fußball AG").closest("button");
+    if (row) fireEvent.click(row);
+    await waitFor(() => {
+      expect(screen.getByTestId("activity-detail-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("delete-button"));
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith(
+        "Aktivität kann nicht gelöscht werden",
+      );
     });
   });
 

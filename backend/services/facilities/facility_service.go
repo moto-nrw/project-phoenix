@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"log/slog"
 	"sort"
 	"time"
 
@@ -190,6 +191,18 @@ func (s *service) DeleteRoom(ctx context.Context, id int64) error {
 	_, err := s.roomRepo.FindByID(ctx, id)
 	if err != nil {
 		return &FacilitiesError{Op: "delete room", Err: ErrRoomNotFound}
+	}
+
+	// Best-effort pre-check: active groups would block deletion via FK RESTRICT.
+	// The real protection is the DB constraint; this gives a user-friendly error message.
+	activeGroups, preCheckErr := s.activeGroupRepo.FindActiveByRoomID(ctx, id)
+	if preCheckErr != nil {
+		slog.Warn("room_delete_precheck_failed",
+			"room_id", id,
+			"error", preCheckErr.Error(),
+		)
+	} else if len(activeGroups) > 0 {
+		return &FacilitiesError{Op: "delete room", Err: ErrRoomInUse}
 	}
 
 	// Delete the room

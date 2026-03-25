@@ -332,6 +332,21 @@ func TestFacilitiesService_DeleteRoom(t *testing.T) {
 		assert.Contains(t, err.Error(), "not found")
 	})
 
+	t.Run("returns error when room has active group", func(t *testing.T) {
+		// ARRANGE
+		room := testpkg.CreateTestRoom(t, db, "DeleteRoom-ActiveGroup")
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "ActiveInRoom")
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activityGroup.ID, room.ID)
+		defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID, activityGroup.ID)
+
+		// ACT
+		err := service.DeleteRoom(ctx, room.ID)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Raum kann nicht")
+	})
+
 	t.Run("returns error for non-existent room", func(t *testing.T) {
 		// ACT
 		err := service.DeleteRoom(ctx, 999999999)

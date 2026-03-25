@@ -44,7 +44,7 @@ export default function GroupsPage() {
     confirmDelete,
   } = useDeleteConfirmation(setShowDetailModal);
 
-  const { success: toastSuccess } = useToast();
+  const { success: toastSuccess, error: toastError } = useToast();
 
   const { status } = useSession({
     required: true,
@@ -192,7 +192,11 @@ export default function GroupsPage() {
     if (!selectedGroup) return;
     try {
       setDetailLoading(true);
-      await service.delete(selectedGroup.id);
+      const deleteError = await service.delete(selectedGroup.id);
+      if (deleteError) {
+        toastError(deleteError);
+        return;
+      }
       toastSuccess(
         getDbOperationMessage(
           "delete",

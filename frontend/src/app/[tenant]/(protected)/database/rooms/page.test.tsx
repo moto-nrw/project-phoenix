@@ -51,10 +51,11 @@ vi.mock("~/hooks/useDeleteConfirmation", () => ({
   })),
 }));
 
+const mockToastError = vi.fn();
 vi.mock("~/contexts/ToastContext", () => ({
   useToast: vi.fn(() => ({
     success: vi.fn(),
-    error: vi.fn(),
+    error: mockToastError,
   })),
 }));
 
@@ -419,7 +420,7 @@ describe("RoomsPage", () => {
   });
 
   it("calls delete service when deleting a room", async () => {
-    mockDelete.mockResolvedValueOnce({});
+    mockDelete.mockResolvedValueOnce(null);
 
     render(<RoomsPage />);
 
@@ -443,6 +444,27 @@ describe("RoomsPage", () => {
 
     await waitFor(() => {
       expect(mockDelete).toHaveBeenCalled();
+    });
+  });
+
+  it("shows error toast when delete returns error", async () => {
+    mockDelete.mockResolvedValueOnce("Raum kann nicht gelöscht werden");
+
+    render(<RoomsPage />);
+    await waitFor(() => {
+      expect(screen.getByText("Raum 101")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("Raum 101").closest("button")!);
+    await waitFor(() => {
+      expect(screen.getByTestId("room-detail-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("delete-button"));
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith(
+        "Raum kann nicht gelöscht werden",
+      );
     });
   });
 

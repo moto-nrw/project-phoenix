@@ -86,7 +86,7 @@ export default function TeachersPage() {
   const [roleModalOpen, setRoleModalOpen] = useState(false);
   const [permissionModalOpen, setPermissionModalOpen] = useState(false);
 
-  const { success: toastSuccess } = useToast();
+  const { success: toastSuccess, error: toastError } = useToast();
 
   const { status } = useSession({
     required: true,
@@ -210,18 +210,17 @@ export default function TeachersPage() {
 
     try {
       setDetailLoading(true);
-      await service.delete(selectedTeacher.id);
+      const deleteError = await service.delete(selectedTeacher.id);
+      if (deleteError) {
+        toastError(deleteError);
+        return;
+      }
       setShowDetailModal(false);
       toastSuccess(
         getDbOperationMessage("delete", teachersConfig.name.singular),
       );
       await tenantMutate("database-teachers-list");
       setSelectedTeacher(null);
-    } catch (err) {
-      logger.error("failed to delete teacher", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      throw err;
     } finally {
       setDetailLoading(false);
     }

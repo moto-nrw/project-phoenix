@@ -673,18 +673,16 @@ func (rs *Resource) deleteStaff(w http.ResponseWriter, r *http.Request) {
 
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		// Check if this staff member is also a teacher
-		teacher, err := rs.TeacherRepo.FindByStaffID(ctx, id)
-		if err == nil && teacher != nil {
-			// Delete teacher record first
-			if rs.TeacherRepo.Delete(ctx, teacher.ID) != nil {
-				return errors.New("failed to delete teacher record")
-			}
-		}
-
-		// Delete staff member
-		return rs.StaffRepo.Delete(ctx, id)
+		return rs.PersonService.DeleteStaff(ctx, id)
 	}); err != nil {
+		if errors.Is(err, usersSvc.ErrStaffInUse) {
+			common.RenderError(w, r, common.ErrorConflict(err))
+			return
+		}
+		if common.IsConstraintViolation(err) {
+			common.RenderError(w, r, common.ErrorConflictMessage("Personal kann nicht gelöscht werden: Mitarbeiter/in wird noch in anderen Bereichen referenziert"))
+			return
+		}
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}

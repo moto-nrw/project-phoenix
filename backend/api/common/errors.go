@@ -4,8 +4,10 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/render"
+	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 // RenderError renders an error response and logs any render failures.
@@ -134,6 +136,17 @@ func ErrorConflict(err error) render.Renderer {
 	}
 }
 
+// ErrorConflictMessage returns a 409 Conflict with a user-facing message string.
+// Use this instead of ErrorConflict(errors.New(...)) for localized messages
+// that would violate Go's lowercase error string convention (ST1005).
+func ErrorConflictMessage(message string) render.Renderer {
+	return &ErrResponse{
+		HTTPStatusCode: http.StatusConflict,
+		Status:         "error",
+		ErrorText:      message,
+	}
+}
+
 // ErrorTooManyRequests returns a 429 Too Many Requests error response
 func ErrorTooManyRequests(err error) render.Renderer {
 	return &ErrResponse{
@@ -142,6 +155,28 @@ func ErrorTooManyRequests(err error) render.Renderer {
 		Status:         "error",
 		ErrorText:      err.Error(),
 	}
+}
+
+// IsConstraintViolation checks if an error is a PostgreSQL constraint violation
+// that indicates the entity cannot be deleted due to dependencies.
+// Primary check uses typed pgdriver.Error with SQLSTATE codes (23503 = FK, 23502 = NOT NULL).
+// Fallback string matching covers errors that have been wrapped and lost the original type.
+func IsConstraintViolation(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	// Primary: typed pgdriver.Error with structured SQLSTATE code
+	var pgErr pgdriver.Error
+	if errors.As(err, &pgErr) {
+		code := pgErr.Field('C') // SQLSTATE code
+		return code == "23503" || code == "23502"
+	}
+
+	// Fallback: string matching for wrapped errors that lost the pgdriver.Error type
+	msg := err.Error()
+	return strings.Contains(msg, "violates foreign key constraint") ||
+		strings.Contains(msg, "violates not-null constraint")
 }
 
 // ErrorGone returns a 410 Gone error response

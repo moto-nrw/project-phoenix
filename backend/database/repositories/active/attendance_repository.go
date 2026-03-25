@@ -235,3 +235,24 @@ func (r *AttendanceRepository) FindForDate(ctx context.Context, date time.Time) 
 
 	return attendance, nil
 }
+
+// CountByStaffID counts attendance records where the staff member checked in or checked out students.
+func (r *AttendanceRepository) CountByStaffID(ctx context.Context, staffID int64) (int, error) {
+	query := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(`active.attendance AS "attendance"`).
+		Where(`"attendance".checked_in_by = ? OR "attendance".checked_out_by = ?`, staffID, staffID)
+
+	if where, val, ok := base.TenantWhere(ctx, "attendance"); ok {
+		query = query.Where(where, val)
+	}
+
+	count, err := query.Count(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "count by staff ID",
+			Err: err,
+		}
+	}
+
+	return count, nil
+}

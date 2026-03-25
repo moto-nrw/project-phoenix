@@ -29,6 +29,7 @@ func setupEducationService(t *testing.T, db *bun.DB) educationSvc.Service {
 		repoFactory.Room,
 		repoFactory.Teacher,
 		repoFactory.Staff,
+		repoFactory.Student,
 		db,
 	)
 }
@@ -789,6 +790,30 @@ func TestEducationService_DeleteGroup(t *testing.T) {
 
 		// ASSERT
 		require.NoError(t, err)
+	})
+
+	t.Run("returns error when group has students", func(t *testing.T) {
+		// ARRANGE
+		group := testpkg.CreateTestEducationGroup(t, db, "GroupWithStudents")
+		student := testpkg.CreateTestStudent(t, db, "GroupDel", "Student", "1a")
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID, student.PersonID)
+
+		// Assign student to group
+		student.GroupID = &group.ID
+		_, err := db.NewUpdate().
+			Model(student).
+			ModelTableExpr(`users.students AS "student"`).
+			Column("group_id").
+			Where(`"student".id = ?`, student.ID).
+			Exec(ctx)
+		require.NoError(t, err)
+
+		// ACT
+		err = service.DeleteGroup(ctx, group.ID)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Gruppe kann nicht")
 	})
 
 	t.Run("returns error for non-existent group", func(t *testing.T) {

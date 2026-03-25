@@ -49,7 +49,7 @@ export default function RoomsPage() {
     confirmDelete,
   } = useDeleteConfirmation(setShowDetailModal);
 
-  const { success: toastSuccess } = useToast();
+  const { success: toastSuccess, error: toastError } = useToast();
 
   const { status } = useSession({
     required: true,
@@ -213,7 +213,11 @@ export default function RoomsPage() {
     if (!selectedRoom) return;
     try {
       setDetailLoading(true);
-      await service.delete(selectedRoom.id);
+      const deleteError = await service.delete(selectedRoom.id);
+      if (deleteError) {
+        toastError(deleteError);
+        return;
+      }
       toastSuccess(
         getDbOperationMessage(
           "delete",

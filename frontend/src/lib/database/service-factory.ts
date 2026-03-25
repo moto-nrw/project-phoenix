@@ -6,6 +6,16 @@ import { createLogger } from "~/lib/logger";
 const logger = createLogger({ component: "ServiceFactory" });
 import type { EntityConfig, CrudService, PaginatedResponse } from "./types";
 
+/**
+ * Extract a user-friendly error message from a caught error.
+ * Use in catch blocks: `toastError(getDeleteErrorMessage(err))`
+ */
+export function getDeleteErrorMessage(err: unknown): string {
+  return err instanceof Error
+    ? err.message
+    : "Fehler beim Löschen. Bitte versuchen Sie es erneut.";
+}
+
 // Helper functions extracted to reduce cognitive complexity (S3776)
 
 /**
@@ -82,6 +92,53 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
     return session?.user?.token;
   };
 
+  // Extract a clean error message from potentially nested JSON error responses.
+  // The route handler wraps backend errors as: {"error":"API error (409): {\"status\":\"error\",\"error\":\"...\"}"}
+  // This function digs through the layers to find the original backend error text.
+  const extractErrorMessage = (
+    responseText: string,
+    status: number,
+  ): string => {
+    const fallback = `API error: ${status} - ${responseText}`;
+    try {
+      const parsed: unknown = JSON.parse(responseText);
+      if (
+        typeof parsed === "object" &&
+        parsed !== null &&
+        "error" in parsed &&
+        typeof (parsed as { error: string }).error === "string"
+      ) {
+        const innerError = (parsed as { error: string }).error;
+        // Try to extract nested backend JSON from "API error (409): {json}"
+        const innerMatch = /:\s*(\{.*\})\s*$/s.exec(innerError);
+        if (innerMatch?.[1]) {
+          try {
+            const backendError: unknown = JSON.parse(innerMatch[1]);
+            if (
+              typeof backendError === "object" &&
+              backendError !== null &&
+              "error" in backendError &&
+              typeof (backendError as { error: string }).error === "string"
+            ) {
+              // Strip Go service prefix like "education: DeleteGroup: "
+              return (backendError as { error: string }).error.replace(
+                /^\w+:\s*\w+:\s*/,
+                "",
+              );
+            }
+          } catch {
+            // Inner JSON parse failed, use the outer error string
+          }
+        }
+        // No nested JSON, just return the error field directly
+        return innerError;
+      }
+    } catch {
+      // Not JSON at all
+    }
+    return fallback;
+  };
+
   // Helper to make fetch requests with auth
   const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
     const token = await getToken();
@@ -106,8 +163,25 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
 
     if (!response.ok) {
       const errorText = await response.text();
-      logger.error("API error", { status: response.status, error: errorText });
-      throw new Error(`API error: ${response.status} - ${errorText}`);
+
+      // 4xx = expected business errors (conflict, not found, etc.) → warn
+      // 5xx = unexpected server errors → error
+      if (response.status >= 500) {
+        logger.error("api_server_error", {
+          status: response.status,
+          error: errorText,
+        });
+      } else {
+        logger.warn("api_request_rejected", {
+          status: response.status,
+          error: errorText,
+        });
+      }
+
+      // Try to extract a clean error message from the nested JSON response.
+      // The error chain is: backend → route handler → this fetch, each wrapping the previous.
+      const userMessage = extractErrorMessage(errorText, response.status);
+      throw new Error(userMessage);
     }
 
     // Handle empty responses (204 No Content, or empty body from DELETE)
@@ -334,13 +408,13 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
       }
     },
 
-    async delete(id: string): Promise<void> {
+    async delete(id: string): Promise<string | null> {
       try {
         // Apply hook
         if (config.hooks?.beforeDelete) {
           const shouldDelete = await config.hooks.beforeDelete(id);
           if (!shouldDelete) {
-            throw new Error("Delete operation cancelled");
+            return "Löschen wurde abgebrochen";
           }
         }
 
@@ -354,13 +428,28 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
         if (config.hooks?.afterDelete) {
           await config.hooks.afterDelete(id);
         }
+        return null;
       } catch (error) {
-        logger.error("error deleting entity", {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        const is5xx = /API error: 5\d\d/.test(errorMsg);
+
+        if (is5xx) {
+          // 5xx = unexpected server error → log at error level, show generic message
+          logger.error("entity_delete_server_error", {
+            entity: config.name.singular,
+            id,
+            error: errorMsg,
+          });
+          return "Ein unerwarteter Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.";
+        }
+
+        // 4xx = expected business error → warn level, show backend message
+        logger.warn("entity_delete_rejected", {
           entity: config.name.singular,
           id,
-          error: String(error),
+          error: errorMsg,
         });
-        throw error;
+        return getDeleteErrorMessage(error);
       }
     },
   };

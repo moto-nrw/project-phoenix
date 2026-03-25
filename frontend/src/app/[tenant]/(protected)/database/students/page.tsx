@@ -308,7 +308,11 @@ export default function StudentsPage() {
 
     try {
       setDetailLoading(true);
-      await service.delete(selectedStudent.id);
+      const deleteError = await service.delete(selectedStudent.id);
+      if (deleteError) {
+        toastError(deleteError);
+        return;
+      }
 
       // Only update state if still mounted
       if (!isMountedRef.current) return;
@@ -325,10 +329,6 @@ export default function StudentsPage() {
       setShowDetailModal(false);
       setSelectedStudent(null);
       await tenantMutate("database-students-list");
-    } catch (err) {
-      logger.error("failed to delete student", {
-        error: err instanceof Error ? err.message : String(err),
-      });
     } finally {
       if (isMountedRef.current) {
         setDetailLoading(false);

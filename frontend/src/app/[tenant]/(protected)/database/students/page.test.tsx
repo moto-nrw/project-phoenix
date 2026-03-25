@@ -52,10 +52,11 @@ vi.mock("~/hooks/useDeleteConfirmation", () => ({
   })),
 }));
 
+const mockToastError = vi.fn();
 vi.mock("~/contexts/ToastContext", () => ({
   useToast: vi.fn(() => ({
     success: vi.fn(),
-    error: vi.fn(),
+    error: mockToastError,
   })),
 }));
 
@@ -545,7 +546,7 @@ describe("StudentsPage", () => {
   });
 
   it("calls delete service when deleting a student", async () => {
-    mockDelete.mockResolvedValueOnce({});
+    mockDelete.mockResolvedValueOnce(null);
 
     render(<StudentsPage />);
 
@@ -569,6 +570,28 @@ describe("StudentsPage", () => {
 
     await waitFor(() => {
       expect(mockDelete).toHaveBeenCalled();
+    });
+  });
+
+  it("shows error toast when delete returns error", async () => {
+    mockDelete.mockResolvedValueOnce("Schüler/in kann nicht gelöscht werden");
+
+    render(<StudentsPage />);
+    await waitFor(() => {
+      expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
+    });
+
+    const row = screen.getByText("Max Mustermann").closest("button");
+    if (row) fireEvent.click(row);
+    await waitFor(() => {
+      expect(screen.getByTestId("student-detail-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("delete-button"));
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith(
+        "Schüler/in kann nicht gelöscht werden",
+      );
     });
   });
 

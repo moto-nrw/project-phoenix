@@ -76,6 +76,7 @@ func (m *mockPersonService) GetByIDs(_ context.Context, _ []int64) (map[int64]*u
 func (m *mockPersonService) Create(_ context.Context, _ *userModels.Person) error { return nil }
 func (m *mockPersonService) Update(_ context.Context, _ *userModels.Person) error { return nil }
 func (m *mockPersonService) Delete(_ context.Context, _ any) error                { return nil }
+func (m *mockPersonService) DeleteStaff(_ context.Context, _ int64) error         { return nil }
 func (m *mockPersonService) List(_ context.Context, _ *base.QueryOptions) ([]*userModels.Person, error) {
 	return nil, nil
 }

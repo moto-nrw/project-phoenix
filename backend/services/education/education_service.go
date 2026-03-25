@@ -2,6 +2,7 @@ package education
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -21,6 +22,7 @@ type service struct {
 	roomRepo         facilities.RoomRepository
 	teacherRepo      users.TeacherRepository
 	staffRepo        users.StaffRepository
+	studentRepo      users.StudentRepository
 	db               *bun.DB
 }
 
@@ -32,6 +34,7 @@ func NewService(
 	roomRepo facilities.RoomRepository,
 	teacherRepo users.TeacherRepository,
 	staffRepo users.StaffRepository,
+	studentRepo users.StudentRepository,
 	db *bun.DB,
 ) Service {
 	return &service{
@@ -41,6 +44,7 @@ func NewService(
 		roomRepo:         roomRepo,
 		teacherRepo:      teacherRepo,
 		staffRepo:        staffRepo,
+		studentRepo:      studentRepo,
 		db:               db,
 	}
 }
@@ -178,6 +182,18 @@ func roomIDHasChanged(oldRoomID, newRoomID *int64) bool {
 func (s *service) DeleteGroup(ctx context.Context, id int64) error {
 	if _, err := s.groupRepo.FindByID(ctx, id); err != nil {
 		return &EducationError{Op: "DeleteGroup", Err: ErrGroupNotFound}
+	}
+
+	// Best-effort pre-check: students with group_id would lose their group (SET NULL).
+	// The real protection is this check; the DB allows the delete but silently orphans students.
+	counts, preCheckErr := s.studentRepo.CountByGroupIDs(ctx, []int64{id})
+	if preCheckErr != nil {
+		slog.Warn("group_delete_precheck_failed",
+			"group_id", id,
+			"error", preCheckErr.Error(),
+		)
+	} else if count, ok := counts[id]; ok && count > 0 {
+		return &EducationError{Op: "DeleteGroup", Err: ErrGroupHasStudents}
 	}
 
 	if err := deleteGroupTeacherRelations(ctx, s, id); err != nil {

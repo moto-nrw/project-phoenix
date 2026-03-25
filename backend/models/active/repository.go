@@ -115,6 +115,9 @@ type VisitRepository interface {
 	// CountActiveByGroupID counts currently active visits in a single active group.
 	CountActiveByGroupID(ctx context.Context, activeGroupID int64) (int, error)
 
+	// CountActiveByStudentID counts active visits for a student.
+	CountActiveByStudentID(ctx context.Context, studentID int64) (int, error)
+
 	// FindActiveVisits finds all visits with no exit time (currently active)
 	FindActiveVisits(ctx context.Context) ([]*Visit, error)
 

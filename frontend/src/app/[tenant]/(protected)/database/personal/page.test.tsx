@@ -51,10 +51,11 @@ vi.mock("~/hooks/useDeleteConfirmation", () => ({
   })),
 }));
 
+const mockToastError = vi.fn();
 vi.mock("~/contexts/ToastContext", () => ({
   useToast: vi.fn(() => ({
     success: vi.fn(),
-    error: vi.fn(),
+    error: mockToastError,
   })),
 }));
 
@@ -457,7 +458,7 @@ describe("TeachersPage", () => {
   });
 
   it("calls delete service when deleting a teacher", async () => {
-    mockDelete.mockResolvedValueOnce({});
+    mockDelete.mockResolvedValueOnce(null);
 
     render(<TeachersPage />);
 
@@ -481,6 +482,28 @@ describe("TeachersPage", () => {
 
     await waitFor(() => {
       expect(mockDelete).toHaveBeenCalled();
+    });
+  });
+
+  it("shows error toast when delete returns error", async () => {
+    mockDelete.mockResolvedValueOnce("Personal kann nicht gelöscht werden");
+
+    render(<TeachersPage />);
+    await waitFor(() => {
+      expect(screen.getByText("Maria Müller")).toBeInTheDocument();
+    });
+
+    const row = screen.getByText("Maria Müller").closest("button");
+    if (row) fireEvent.click(row);
+    await waitFor(() => {
+      expect(screen.getByTestId("teacher-detail-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("delete-button"));
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith(
+        "Personal kann nicht gelöscht werden",
+      );
     });
   });
 

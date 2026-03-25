@@ -38,6 +38,8 @@ func ErrorRenderer(err error) render.Renderer {
 			return ErrorInvalidRequest(eduErr)
 		case education.ErrGroupTeacherNotFound:
 			return ErrorNotFound(eduErr)
+		case education.ErrGroupHasStudents:
+			return ErrorConflict(eduErr)
 		default:
 			return ErrorInternalServer(eduErr)
 		}
