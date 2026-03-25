@@ -31,6 +31,7 @@ export default function OperatorSuggestionsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [visibilityFilter, setVisibilityFilter] = useState("all");
+  const [schoolFilter, setSchoolFilter] = useState("all");
   const [statusUpdating, setStatusUpdating] = useState<string | null>(null);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
 
@@ -76,6 +77,19 @@ export default function OperatorSuggestionsPage() {
     prevCountsRef.current = { unviewed: unviewedCount, unread: unreadCount };
   }, [suggestions]);
 
+  const schoolOptions = useMemo(() => {
+    if (!suggestions) return [];
+    const schools = new Map<string, string>();
+    for (const s of suggestions) {
+      if (s.schoolId && s.schoolName) {
+        schools.set(s.schoolId, s.schoolName);
+      }
+    }
+    return Array.from(schools.entries())
+      .map(([id, name]) => ({ value: id, label: name }))
+      .sort((a, b) => a.label.localeCompare(b.label, "de"));
+  }, [suggestions]);
+
   const filteredSuggestions = useMemo(() => {
     if (!suggestions) return [];
     let result = suggestions;
@@ -86,6 +100,9 @@ export default function OperatorSuggestionsPage() {
       result = result.filter((s) => !s.isHidden);
     } else if (visibilityFilter === "hidden") {
       result = result.filter((s) => s.isHidden);
+    }
+    if (schoolFilter !== "all") {
+      result = result.filter((s) => s.schoolId === schoolFilter);
     }
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase();
@@ -98,7 +115,7 @@ export default function OperatorSuggestionsPage() {
       );
     }
     return result;
-  }, [suggestions, searchTerm, statusFilter, visibilityFilter]);
+  }, [suggestions, searchTerm, statusFilter, visibilityFilter, schoolFilter]);
 
   const handleStatusChange = useCallback(
     async (id: string, newStatus: OperatorSuggestionStatus) => {
@@ -154,6 +171,14 @@ export default function OperatorSuggestionsPage() {
         { value: "visible", label: "Sichtbar" },
         { value: "hidden", label: "Ausgeblendet" },
       ],
+    },
+    {
+      id: "school",
+      label: "Schule",
+      type: "dropdown",
+      value: schoolFilter,
+      onChange: (value) => setSchoolFilter(value as string),
+      options: [{ value: "all", label: "Alle Schulen" }, ...schoolOptions],
     },
   ];
 
