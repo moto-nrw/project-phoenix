@@ -68,6 +68,7 @@ export function InvitationAcceptForm({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAccepted, setIsAccepted] = useState(false);
   const [signOutFailed, setSignOutFailed] = useState(false);
+  const [signOutRetryFailed, setSignOutRetryFailed] = useState(false);
   const [tenantRedirectUrl, setTenantRedirectUrl] = useState<string | null>(
     null,
   );
@@ -184,12 +185,16 @@ export function InvitationAcceptForm({
   };
 
   const handleManualRedirect = async () => {
-    // Retry signOut, then navigate regardless
     try {
       await signOut({ redirect: false });
     } catch {
-      // Best-effort: navigate anyway so the user isn't stuck
+      // signOut failed again — don't redirect, the old session would
+      // cause the login page to bounce the user back as the old account.
+      setSignOutFailed(true);
+      setSignOutRetryFailed(true);
+      return;
     }
+    // signOut succeeded this time — safe to navigate
     if (tenantRedirectUrl) {
       globalThis.window.location.href = tenantRedirectUrl;
     } else {
@@ -218,7 +223,12 @@ export function InvitationAcceptForm({
         <h3 className="mb-1 text-base font-semibold text-gray-900">
           Konto erstellt
         </h3>
-        {signOutFailed ? (
+        {signOutRetryFailed ? (
+          <p className="mb-4 text-sm text-gray-500">
+            Die vorherige Sitzung konnte nicht beendet werden. Bitte schließe
+            alle Browser-Tabs und öffne die Anmeldeseite in einem neuen Fenster.
+          </p>
+        ) : signOutFailed ? (
           <>
             <p className="mb-4 text-sm text-gray-500">
               Die vorherige Sitzung konnte nicht automatisch beendet werden.
