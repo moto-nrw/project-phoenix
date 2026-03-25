@@ -26,6 +26,7 @@ import (
 	repoSchedule "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	repoSuggestions "github.com/moto-nrw/project-phoenix/database/repositories/suggestions"
 	repoUsers "github.com/moto-nrw/project-phoenix/database/repositories/users"
+	"github.com/moto-nrw/project-phoenix/models/suggestions"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -551,7 +552,7 @@ func TestTenantIsolation_SuggestionPostVisibility(t *testing.T) {
 	// --- Tenant A ---
 	ctx42 := ctxForTenant(tenantA)
 
-	resultA, err := repo.FindByID(ctx42, postB.ID)
+	resultA, err := repo.FindByID(ctx42, postB.ID, suggestions.ReaderTypeOperator)
 	assert.NoError(t, err, "PostRepository.FindByID returns nil on not-found, not error")
 	assert.Nil(t, resultA,
 		"cross-tenant FindByID should return nil: tenant A must not see tenant B post %d", postB.ID)
@@ -568,7 +569,7 @@ func TestTenantIsolation_SuggestionPostVisibility(t *testing.T) {
 	// --- Tenant B ---
 	ctx43 := ctxForTenant(tenantB)
 
-	resultB, err := repo.FindByID(ctx43, postA.ID)
+	resultB, err := repo.FindByID(ctx43, postA.ID, suggestions.ReaderTypeOperator)
 	assert.NoError(t, err)
 	assert.Nil(t, resultB,
 		"cross-tenant FindByID should return nil: tenant B must not see tenant A post %d", postA.ID)

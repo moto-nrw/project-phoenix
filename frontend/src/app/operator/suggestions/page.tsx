@@ -30,6 +30,7 @@ export default function OperatorSuggestionsPage() {
   useSetBreadcrumb({ pageTitle: "Feedback" });
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [visibilityFilter, setVisibilityFilter] = useState("all");
   const [statusUpdating, setStatusUpdating] = useState<string | null>(null);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
 
@@ -81,6 +82,11 @@ export default function OperatorSuggestionsPage() {
     if (statusFilter !== "all") {
       result = result.filter((s) => s.status === statusFilter);
     }
+    if (visibilityFilter === "visible") {
+      result = result.filter((s) => !s.isHidden);
+    } else if (visibilityFilter === "hidden") {
+      result = result.filter((s) => s.isHidden);
+    }
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase();
       result = result.filter(
@@ -92,7 +98,7 @@ export default function OperatorSuggestionsPage() {
       );
     }
     return result;
-  }, [suggestions, searchTerm, statusFilter]);
+  }, [suggestions, searchTerm, statusFilter, visibilityFilter]);
 
   const handleStatusChange = useCallback(
     async (id: string, newStatus: OperatorSuggestionStatus) => {
@@ -135,6 +141,18 @@ export default function OperatorSuggestionsPage() {
           value,
           label,
         })),
+      ],
+    },
+    {
+      id: "visibility",
+      label: "Sichtbarkeit",
+      type: "dropdown",
+      value: visibilityFilter,
+      onChange: (value) => setVisibilityFilter(value as string),
+      options: [
+        { value: "all", label: "Alle" },
+        { value: "visible", label: "Sichtbar" },
+        { value: "hidden", label: "Ausgeblendet" },
       ],
     },
   ];
@@ -241,7 +259,9 @@ function OperatorSuggestionCard({
   }, [suggestion.description]);
 
   return (
-    <div className="overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md">
+    <div
+      className={`overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md ${suggestion.isHidden ? "opacity-60" : ""}`}
+    >
       <div className="p-5">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <h3 className="flex min-w-0 items-center gap-2 text-base font-semibold wrap-anywhere text-gray-900">
@@ -249,6 +269,11 @@ function OperatorSuggestionCard({
             {suggestion.isNew && (
               <span className="shrink-0 rounded-full bg-blue-500 px-2 py-0.5 text-[10px] font-semibold text-white">
                 Neu
+              </span>
+            )}
+            {suggestion.isHidden && (
+              <span className="shrink-0 rounded-full bg-yellow-100 px-2 py-0.5 text-[10px] font-semibold text-yellow-700">
+                Ausgeblendet
               </span>
             )}
           </h3>

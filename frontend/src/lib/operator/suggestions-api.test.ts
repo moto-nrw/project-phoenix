@@ -87,6 +87,7 @@ describe("OperatorSuggestionsService", () => {
           updated_at: "2024-01-01T00:00:00Z",
           school_id: 5,
           school_name: "OGS Testschule",
+          is_hidden: false,
         },
       ];
       mockOperatorFetch.mockResolvedValue(mockData);
@@ -114,6 +115,7 @@ describe("OperatorSuggestionsService", () => {
         updated_at: "2024-02-01T00:00:00Z",
         school_id: 2,
         school_name: "OGS Musterstadt",
+        is_hidden: false,
       };
       mockOperatorFetch.mockResolvedValue(mockData);
 
@@ -138,6 +140,7 @@ describe("OperatorSuggestionsService", () => {
         updated_at: "2024-03-02T00:00:00Z",
         school_id: 1,
         school_name: "OGS Demo",
+        is_hidden: false,
       };
       mockOperatorFetch.mockResolvedValue(mockData);
 

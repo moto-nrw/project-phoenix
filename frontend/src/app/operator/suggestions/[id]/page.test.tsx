@@ -12,20 +12,26 @@ const {
   mockUseSession,
   mockUseSWR,
   mockMutate,
+  mockGlobalMutate,
   mockFetchById,
   mockUpdateStatus,
   mockAddComment,
   mockDeleteComment,
+  mockHidePost,
+  mockDeletePost,
 } = vi.hoisted(() => ({
   mockUseParams: vi.fn(),
   mockUsePush: vi.fn(),
   mockUseSession: vi.fn(),
   mockUseSWR: vi.fn(),
   mockMutate: vi.fn(),
+  mockGlobalMutate: vi.fn(),
   mockFetchById: vi.fn(),
   mockUpdateStatus: vi.fn(),
   mockAddComment: vi.fn(),
   mockDeleteComment: vi.fn(),
+  mockHidePost: vi.fn(),
+  mockDeletePost: vi.fn(),
 }));
 
 // Mock navigation
@@ -45,6 +51,7 @@ vi.mock("~/lib/breadcrumb-context", () => ({
 
 vi.mock("swr", () => ({
   default: mockUseSWR,
+  useSWRConfig: () => ({ mutate: mockGlobalMutate }),
 }));
 
 // Mock operator-url to avoid NEXT_PUBLIC_OPERATOR_HOSTNAME requirement
@@ -60,6 +67,8 @@ vi.mock("~/lib/operator/suggestions-api", () => ({
     updateStatus: mockUpdateStatus,
     addComment: mockAddComment,
     deleteComment: mockDeleteComment,
+    hidePost: mockHidePost,
+    deletePost: mockDeletePost,
   },
 }));
 
@@ -103,6 +112,9 @@ vi.mock("~/components/ui/skeleton", () => ({
   () => ({
     ThumbsUp: () => <span>ThumbsUp</span>,
     ThumbsDown: () => <span>ThumbsDown</span>,
+    EyeOff: () => <span>EyeOff</span>,
+    Eye: () => <span>Eye</span>,
+    Trash2: () => <span>Trash2</span>,
   }),
 );
 
@@ -130,6 +142,7 @@ describe("OperatorSuggestionDetailPage", () => {
     upvotes: 5,
     downvotes: 2,
     createdAt: new Date("2025-01-01"),
+    isHidden: false,
     operatorComments: [mockComment],
   };
 
@@ -146,6 +159,9 @@ describe("OperatorSuggestionDetailPage", () => {
       mutate: mockMutate,
     });
     mockMutate.mockResolvedValue(undefined);
+    mockGlobalMutate.mockResolvedValue(undefined);
+    mockHidePost.mockResolvedValue(undefined);
+    mockDeletePost.mockResolvedValue(undefined);
   });
 
   it("renders loading state", () => {

@@ -150,7 +150,7 @@ func TestPostRepository_FindByID(t *testing.T) {
 	defer cleanupPosts(t, db, post.ID)
 
 	t.Run("finds existing post", func(t *testing.T) {
-		found, err := repo.FindByID(ctx, post.ID)
+		found, err := repo.FindByID(ctx, post.ID, suggestions.ReaderTypeOperator)
 		require.NoError(t, err)
 		require.NotNil(t, found)
 		assert.Equal(t, post.ID, found.ID)
@@ -158,7 +158,7 @@ func TestPostRepository_FindByID(t *testing.T) {
 	})
 
 	t.Run("returns nil for non-existent post", func(t *testing.T) {
-		found, err := repo.FindByID(ctx, 999999999)
+		found, err := repo.FindByID(ctx, 999999999, suggestions.ReaderTypeOperator)
 		require.NoError(t, err)
 		assert.Nil(t, found)
 	})
@@ -184,7 +184,7 @@ func TestPostRepository_Update(t *testing.T) {
 		err := repo.Update(ctx, post)
 		require.NoError(t, err)
 
-		found, err := repo.FindByID(ctx, post.ID)
+		found, err := repo.FindByID(ctx, post.ID, suggestions.ReaderTypeOperator)
 		require.NoError(t, err)
 		assert.Equal(t, "Updated Title", found.Title)
 		assert.Equal(t, "Updated description", found.Description)
@@ -213,7 +213,7 @@ func TestPostRepository_Delete(t *testing.T) {
 		err := repo.Delete(ctx, post.ID)
 		require.NoError(t, err)
 
-		found, err := repo.FindByID(ctx, post.ID)
+		found, err := repo.FindByID(ctx, post.ID, suggestions.ReaderTypeOperator)
 		require.NoError(t, err)
 		assert.Nil(t, found)
 	})
@@ -343,7 +343,7 @@ func TestPostRepository_RecalculateScore(t *testing.T) {
 		err := repo.RecalculateScore(ctx, post.ID)
 		require.NoError(t, err)
 
-		found, err := repo.FindByID(ctx, post.ID)
+		found, err := repo.FindByID(ctx, post.ID, suggestions.ReaderTypeOperator)
 		require.NoError(t, err)
 		assert.Equal(t, 0, found.Score)
 	})
@@ -357,7 +357,7 @@ func TestPostRepository_RecalculateScore(t *testing.T) {
 		err := repo.RecalculateScore(ctx, post.ID)
 		require.NoError(t, err)
 
-		found, err := repo.FindByID(ctx, post.ID)
+		found, err := repo.FindByID(ctx, post.ID, suggestions.ReaderTypeOperator)
 		require.NoError(t, err)
 		assert.Equal(t, 1, found.Score)
 	})

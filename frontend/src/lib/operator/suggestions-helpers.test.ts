@@ -78,6 +78,7 @@ describe("mapOperatorSuggestion", () => {
       ],
       school_id: 7,
       school_name: "OGS Musterstadt",
+      is_hidden: false,
     };
 
     const result = mapOperatorSuggestion(backendSuggestion);
@@ -95,6 +96,7 @@ describe("mapOperatorSuggestion", () => {
     expect(result.commentCount).toBe(3);
     expect(result.unreadCount).toBe(1);
     expect(result.isNew).toBe(true);
+    expect(result.isHidden).toBe(false);
     expect(result.operatorComments).toHaveLength(1);
     expect(result.operatorComments[0]?.id).toBe("1");
     expect(result.schoolId).toBe("7");
@@ -115,6 +117,7 @@ describe("mapOperatorSuggestion", () => {
       updated_at: "2024-04-01T08:00:00Z",
       school_id: 3,
       school_name: "OGS Testschule",
+      is_hidden: false,
     };
 
     const result = mapOperatorSuggestion(backendSuggestion);
@@ -142,6 +145,7 @@ describe("mapOperatorSuggestion", () => {
       updated_at: "2024-05-02T00:00:00Z",
       school_id: 1,
       school_name: "OGS Demo",
+      is_hidden: true,
       operator_comments: [
         {
           id: 10,

@@ -40,6 +40,10 @@ type OperatorSuggestionsService interface {
 	AddComment(ctx context.Context, comment *suggestions.Comment, clientIP net.IP) error
 	GetComments(ctx context.Context, postID int64) ([]*suggestions.Comment, error)
 	DeleteComment(ctx context.Context, commentID int64, operatorID int64, clientIP net.IP) error
+
+	// Moderation
+	HidePost(ctx context.Context, postID int64, hidden bool, operatorID int64, clientIP net.IP) error
+	DeletePost(ctx context.Context, postID int64, operatorID int64, clientIP net.IP) error
 }
 
 type operatorSuggestionsService struct {
@@ -154,7 +158,7 @@ func (s *operatorSuggestionsService) GetPost(ctx context.Context, postID int64, 
 // Uses WithAdminTx to bypass RLS for cross-tenant access.
 func (s *operatorSuggestionsService) MarkCommentsRead(ctx context.Context, operatorAccountID, postID int64) error {
 	return s.withAdminTx(ctx, func(ctx context.Context) error {
-		post, err := s.postRepo.FindByID(ctx, postID)
+		post, err := s.postRepo.FindByID(ctx, postID, suggestions.ReaderTypeOperator)
 		if err != nil {
 			return err
 		}
@@ -184,7 +188,7 @@ func (s *operatorSuggestionsService) GetTotalUnreadCount(ctx context.Context, op
 // Uses WithAdminTx to bypass RLS for cross-tenant access.
 func (s *operatorSuggestionsService) MarkPostViewed(ctx context.Context, operatorAccountID, postID int64) error {
 	return s.withAdminTx(ctx, func(ctx context.Context) error {
-		post, err := s.postRepo.FindByID(ctx, postID)
+		post, err := s.postRepo.FindByID(ctx, postID, suggestions.ReaderTypeOperator)
 		if err != nil {
 			return err
 		}
@@ -218,7 +222,7 @@ func (s *operatorSuggestionsService) UpdatePostStatus(ctx context.Context, postI
 	}
 
 	return s.withAdminTx(ctx, func(ctx context.Context) error {
-		post, err := s.postRepo.FindByID(ctx, postID)
+		post, err := s.postRepo.FindByID(ctx, postID, suggestions.ReaderTypeOperator)
 		if err != nil {
 			return err
 		}
@@ -266,8 +270,8 @@ func (s *operatorSuggestionsService) AddComment(ctx context.Context, comment *su
 	comment.AuthorType = suggestions.AuthorTypeOperator
 
 	return s.withAdminTx(ctx, func(ctx context.Context) error {
-		// Verify post exists
-		post, err := s.postRepo.FindByID(ctx, comment.PostID)
+		// Verify post exists (operators can comment on hidden posts too)
+		post, err := s.postRepo.FindByID(ctx, comment.PostID, suggestions.ReaderTypeOperator)
 		if err != nil {
 			return err
 		}
@@ -329,6 +333,72 @@ func (s *operatorSuggestionsService) DeleteComment(ctx context.Context, commentI
 			"post_id": comment.PostID,
 		}
 		s.logAction(ctx, operatorID, platform.ActionDeleteComment, platform.ResourceComment, &commentID, clientIP, changes)
+
+		return nil
+	})
+}
+
+// HidePost toggles the visibility of a suggestion post.
+// Idempotent: if the post already has the requested visibility, it's a no-op.
+func (s *operatorSuggestionsService) HidePost(ctx context.Context, postID int64, hidden bool, operatorID int64, clientIP net.IP) error {
+	return s.withAdminTx(ctx, func(ctx context.Context) error {
+		post, err := s.postRepo.FindByID(ctx, postID, suggestions.ReaderTypeOperator)
+		if err != nil {
+			return err
+		}
+		if post == nil {
+			return &PostNotFoundError{PostID: postID}
+		}
+
+		// Idempotent: no-op if already in the requested state
+		if post.IsHidden == hidden {
+			return nil
+		}
+
+		post.IsHidden = hidden
+		if err := s.postRepo.Update(ctx, post); err != nil {
+			return err
+		}
+
+		action := platform.ActionHidePost
+		if !hidden {
+			action = platform.ActionUnhidePost
+		}
+
+		changes := map[string]any{
+			"post_id": postID,
+			"hidden":  hidden,
+		}
+		s.logAction(ctx, operatorID, action, platform.ResourceSuggestion, &postID, clientIP, changes)
+
+		return nil
+	})
+}
+
+// DeletePost permanently removes a suggestion post and all associated data (votes, comments, reads).
+// Child tables have ON DELETE CASCADE, so cleanup is automatic.
+func (s *operatorSuggestionsService) DeletePost(ctx context.Context, postID int64, operatorID int64, clientIP net.IP) error {
+	return s.withAdminTx(ctx, func(ctx context.Context) error {
+		post, err := s.postRepo.FindByID(ctx, postID, suggestions.ReaderTypeOperator)
+		if err != nil {
+			return err
+		}
+		if post == nil {
+			return &PostNotFoundError{PostID: postID}
+		}
+
+		// Snapshot title before delete — cascade wipes the row
+		title := post.Title
+
+		if err := s.postRepo.Delete(ctx, postID); err != nil {
+			return err
+		}
+
+		changes := map[string]any{
+			"post_id": postID,
+			"title":   title,
+		}
+		s.logAction(ctx, operatorID, platform.ActionDeletePost, platform.ResourceSuggestion, &postID, clientIP, changes)
 
 		return nil
 	})

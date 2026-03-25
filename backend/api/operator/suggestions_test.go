@@ -41,6 +41,8 @@ type mockOperatorSuggestionsService struct {
 	updatePostStatusFn     func(ctx context.Context, postID int64, status string, operatorID int64, clientIP net.IP) error
 	addCommentFn           func(ctx context.Context, comment *suggestions.Comment, clientIP net.IP) error
 	deleteCommentFn        func(ctx context.Context, commentID int64, operatorID int64, clientIP net.IP) error
+	hidePostFn             func(ctx context.Context, postID int64, hidden bool, operatorID int64, clientIP net.IP) error
+	deletePostFn           func(ctx context.Context, postID int64, operatorID int64, clientIP net.IP) error
 }
 
 func (m *mockOperatorSuggestionsService) ListAllPosts(ctx context.Context, operatorAccountID int64, status string, sortBy string) ([]*suggestions.Post, error) {
@@ -108,6 +110,20 @@ func (m *mockOperatorSuggestionsService) DeleteComment(ctx context.Context, comm
 
 func (m *mockOperatorSuggestionsService) GetComments(ctx context.Context, postID int64) ([]*suggestions.Comment, error) {
 	return nil, nil
+}
+
+func (m *mockOperatorSuggestionsService) HidePost(ctx context.Context, postID int64, hidden bool, operatorID int64, clientIP net.IP) error {
+	if m.hidePostFn != nil {
+		return m.hidePostFn(ctx, postID, hidden, operatorID, clientIP)
+	}
+	return nil
+}
+
+func (m *mockOperatorSuggestionsService) DeletePost(ctx context.Context, postID int64, operatorID int64, clientIP net.IP) error {
+	if m.deletePostFn != nil {
+		return m.deletePostFn(ctx, postID, operatorID, clientIP)
+	}
+	return nil
 }
 
 func TestListSuggestions_Success(t *testing.T) {

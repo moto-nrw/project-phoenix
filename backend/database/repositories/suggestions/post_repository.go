@@ -52,8 +52,10 @@ func (r *PostRepository) Create(ctx context.Context, post *suggestions.Post) err
 	return nil
 }
 
-// FindByID retrieves a post by ID (without vote/author info)
-func (r *PostRepository) FindByID(ctx context.Context, id int64) (*suggestions.Post, error) {
+// FindByID retrieves a post by ID (without vote/author info).
+// readerType controls visibility: ReaderTypeUser excludes hidden posts,
+// ReaderTypeOperator returns all posts including hidden ones.
+func (r *PostRepository) FindByID(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
 	post := new(suggestions.Post)
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(post).
@@ -62,6 +64,10 @@ func (r *PostRepository) FindByID(ctx context.Context, id int64) (*suggestions.P
 
 	if where, val, ok := base.TenantWhere(ctx, "post"); ok {
 		query = query.Where(where, val)
+	}
+
+	if readerType == suggestions.ReaderTypeUser {
+		query = query.Where(`"post".is_hidden = FALSE`)
 	}
 
 	err := query.Scan(ctx)
@@ -83,7 +89,7 @@ func (r *PostRepository) Update(ctx context.Context, post *suggestions.Post) err
 	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model(post).
 		ModelTableExpr(tablePostsAlias).
-		Column("title", "description", "status", "updated_at").
+		Column("title", "description", "status", "is_hidden", "updated_at").
 		WherePK().
 		Returning("*")
 
@@ -158,6 +164,10 @@ func (r *PostRepository) List(ctx context.Context, accountID int64, readerType s
 		query = query.Where(where, val)
 	}
 
+	if readerType == suggestions.ReaderTypeUser {
+		query = query.Where(`"post".is_hidden = FALSE`)
+	}
+
 	if status != "" {
 		query = query.Where(`"post".status = ?`, status)
 	}
@@ -222,6 +232,10 @@ func (r *PostRepository) FindByIDWithVote(ctx context.Context, id int64, account
 
 	if where, val, ok := base.TenantWhere(ctx, "post"); ok {
 		query = query.Where(where, val)
+	}
+
+	if readerType == suggestions.ReaderTypeUser {
+		query = query.Where(`"post".is_hidden = FALSE`)
 	}
 
 	err := query.Scan(ctx, post)

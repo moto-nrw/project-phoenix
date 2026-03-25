@@ -138,7 +138,7 @@ func (s *suggestionsService) UpdatePost(ctx context.Context, post *suggestions.P
 		return &InvalidDataError{Err: fmt.Errorf("post cannot be nil")}
 	}
 
-	existing, err := s.postRepo.FindByID(ctx, post.ID)
+	existing, err := s.postRepo.FindByID(ctx, post.ID, suggestions.ReaderTypeUser)
 	if err != nil {
 		return err
 	}
@@ -164,7 +164,7 @@ func (s *suggestionsService) UpdatePost(ctx context.Context, post *suggestions.P
 
 // DeletePost deletes a post. Only the author can delete their own posts.
 func (s *suggestionsService) DeletePost(ctx context.Context, id int64, accountID int64) error {
-	existing, err := s.postRepo.FindByID(ctx, id)
+	existing, err := s.postRepo.FindByID(ctx, id, suggestions.ReaderTypeUser)
 	if err != nil {
 		return err
 	}
@@ -191,8 +191,8 @@ func (s *suggestionsService) Vote(ctx context.Context, postID int64, accountID i
 		return nil, &InvalidDataError{Err: fmt.Errorf("direction must be 'up' or 'down'")}
 	}
 
-	// Verify post exists
-	existing, err := s.postRepo.FindByID(ctx, postID)
+	// Verify post exists and is visible to users
+	existing, err := s.postRepo.FindByID(ctx, postID, suggestions.ReaderTypeUser)
 	if err != nil {
 		return nil, err
 	}
@@ -220,8 +220,8 @@ func (s *suggestionsService) Vote(ctx context.Context, postID int64, accountID i
 
 // RemoveVote removes a user's vote from a post, then recalculates score
 func (s *suggestionsService) RemoveVote(ctx context.Context, postID int64, accountID int64) (*suggestions.Post, error) {
-	// Verify post exists
-	existing, err := s.postRepo.FindByID(ctx, postID)
+	// Verify post exists and is visible to users
+	existing, err := s.postRepo.FindByID(ctx, postID, suggestions.ReaderTypeUser)
 	if err != nil {
 		return nil, err
 	}
@@ -250,8 +250,8 @@ func (s *suggestionsService) CreateComment(ctx context.Context, comment *suggest
 	comment.AuthorType = suggestions.AuthorTypeUser
 	comment.SetTenantID(tenant.FromContext(ctx))
 
-	// Verify post exists
-	post, err := s.postRepo.FindByID(ctx, comment.PostID)
+	// Verify post exists and is visible to users
+	post, err := s.postRepo.FindByID(ctx, comment.PostID, suggestions.ReaderTypeUser)
 	if err != nil {
 		return err
 	}
@@ -281,12 +281,22 @@ func (s *suggestionsService) CreateComment(ctx context.Context, comment *suggest
 	return nil
 }
 
-// GetComments retrieves comments for a post
+// GetComments retrieves comments for a post.
+// Hidden posts return PostNotFoundError — comments on hidden posts are not accessible to users.
 func (s *suggestionsService) GetComments(ctx context.Context, postID int64) ([]*suggestions.Comment, error) {
+	post, err := s.postRepo.FindByID(ctx, postID, suggestions.ReaderTypeUser)
+	if err != nil {
+		return nil, err
+	}
+	if post == nil {
+		return nil, &PostNotFoundError{PostID: postID}
+	}
+
 	return s.commentRepo.FindByPostID(ctx, postID)
 }
 
-// DeleteComment deletes a user's own comment
+// DeleteComment deletes a user's own comment.
+// Hidden posts return PostNotFoundError — users cannot interact with hidden posts.
 func (s *suggestionsService) DeleteComment(ctx context.Context, commentID int64, accountID int64) error {
 	comment, err := s.commentRepo.FindByID(ctx, commentID)
 	if err != nil {
@@ -294,6 +304,15 @@ func (s *suggestionsService) DeleteComment(ctx context.Context, commentID int64,
 	}
 	if comment == nil {
 		return &CommentNotFoundError{CommentID: commentID}
+	}
+
+	// Verify the parent post is visible to users
+	post, err := s.postRepo.FindByID(ctx, comment.PostID, suggestions.ReaderTypeUser)
+	if err != nil {
+		return err
+	}
+	if post == nil {
+		return &PostNotFoundError{PostID: comment.PostID}
 	}
 
 	// Users can only delete their own comments
@@ -306,8 +325,8 @@ func (s *suggestionsService) DeleteComment(ctx context.Context, commentID int64,
 
 // MarkCommentsRead marks all comments on a post as read for the user
 func (s *suggestionsService) MarkCommentsRead(ctx context.Context, postID int64, accountID int64) error {
-	// Verify post exists
-	post, err := s.postRepo.FindByID(ctx, postID)
+	// Verify post exists and is visible to users
+	post, err := s.postRepo.FindByID(ctx, postID, suggestions.ReaderTypeUser)
 	if err != nil {
 		return err
 	}
