@@ -29,12 +29,11 @@ describe("devicesConfig", () => {
     const fieldNames = fields.map((f) => f.name);
 
     expect(fieldNames).toContain("device_id");
+    expect(fieldNames).toContain("device_type");
     expect(fieldNames).toContain("name");
-    expect(fieldNames).toContain("status");
   });
 
   it("has default values", () => {
-    expect(devicesConfig.form.defaultValues?.status).toBe("active");
     expect(devicesConfig.form.defaultValues?.device_type).toBe("terminal");
   });
 

@@ -10,6 +10,7 @@ interface Props {
   readonly onClose: () => void;
   readonly onCreate: (data: Partial<Device>) => Promise<void>;
   readonly loading?: boolean;
+  readonly error?: string | null;
 }
 
 export function DeviceCreateModal({
@@ -17,6 +18,7 @@ export function DeviceCreateModal({
   onClose,
   onCreate,
   loading = false,
+  error,
 }: Props) {
   return (
     <Modal
@@ -60,6 +62,7 @@ export function DeviceCreateModal({
           onSubmit={onCreate}
           onCancel={onClose}
           isLoading={loading}
+          error={error}
           submitLabel="Erstellen"
           stickyActions
         />
