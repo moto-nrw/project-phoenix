@@ -25,9 +25,16 @@ export function FormField({
   );
 }
 
-export function FormError({ message }: { readonly message: string }) {
+export function FormError({
+  message,
+  ref,
+}: {
+  readonly message: string;
+  readonly ref?: React.Ref<HTMLDivElement>;
+}) {
   return (
     <div
+      ref={ref}
       role="alert"
       className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600"
     >

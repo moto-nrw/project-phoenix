@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Modal } from "~/components/ui/modal";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import type {
@@ -31,6 +31,14 @@ export function CreateDeviceModal({
   const [customApiKey, setCustomApiKey] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
+  const errorRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (error && errorRef.current) {
+      errorRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [error]);
+
   const [createdDevice, setCreatedDevice] = useState<OperatorDevice | null>(
     null,
   );
@@ -294,7 +302,7 @@ export function CreateDeviceModal({
           </div>
         </div>
 
-        {error && <FormError message={error} />}
+        {error && <FormError ref={errorRef} message={error} />}
       </form>
     </Modal>
   );

@@ -667,4 +667,33 @@ describe("PickupScheduleFormModal", () => {
       expect(screen.getByText("Abbrechen")).not.toBeDisabled();
     });
   });
+
+  describe("Scroll to error", () => {
+    it("scrolls to error when submitting with no times filled in", async () => {
+      const scrollIntoViewMock = vi.fn();
+      Element.prototype.scrollIntoView = scrollIntoViewMock;
+
+      render(
+        <PickupScheduleFormModal
+          isOpen={true}
+          onClose={mockOnClose}
+          onSubmit={mockOnSubmit}
+          initialSchedules={emptySchedules}
+        />,
+      );
+
+      fireEvent.click(screen.getByText("Speichern"));
+
+      await waitFor(() => {
+        expect(
+          screen.getByText("Bitte geben Sie mindestens eine Abholzeit an."),
+        ).toBeInTheDocument();
+      });
+
+      expect(scrollIntoViewMock).toHaveBeenCalledWith({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+  });
 });

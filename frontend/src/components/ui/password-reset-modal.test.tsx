@@ -313,4 +313,34 @@ describe("PasswordResetModal", () => {
     // Should not show rate limit error
     expect(screen.queryByText(/Zu viele Versuche/i)).not.toBeInTheDocument();
   });
+
+  describe("Scroll to error", () => {
+    it("scrolls to error when API request fails", async () => {
+      const scrollIntoViewMock = vi.fn();
+      Element.prototype.scrollIntoView = scrollIntoViewMock;
+
+      mockRequestPasswordReset.mockRejectedValue({
+        message: "Email not found",
+      });
+
+      render(<PasswordResetModal isOpen={true} onClose={mockOnClose} />);
+
+      const emailInput = screen.getByTestId("input-reset-email");
+      fireEvent.change(emailInput, { target: { value: "test@example.com" } });
+
+      const submitButton = screen.getByRole("button", {
+        name: /Link senden/i,
+      });
+      fireEvent.click(submitButton);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("alert-error")).toBeInTheDocument();
+      });
+
+      expect(scrollIntoViewMock).toHaveBeenCalledWith({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+  });
 });

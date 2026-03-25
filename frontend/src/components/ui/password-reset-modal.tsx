@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Modal } from "./modal";
 import { Input, Alert } from "./index";
 import { requestPasswordReset, type ApiError } from "~/lib/auth-api";
@@ -65,7 +65,14 @@ export function PasswordResetModal({
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState("");
+  const errorRef = useRef<HTMLDivElement>(null);
   const [rateLimitUntil, setRateLimitUntil] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (error && errorRef.current) {
+      errorRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [error]);
   const [secondsRemaining, setSecondsRemaining] = useState(0);
 
   const RATE_LIMIT_STORAGE_KEY = "passwordResetRateLimitUntil";
@@ -216,7 +223,11 @@ export function PasswordResetModal({
             </p>
 
             <form onSubmit={handleSubmit} noValidate className="mt-6 space-y-4">
-              {error && <Alert type="error" message={error} />}
+              {error && (
+                <div ref={errorRef}>
+                  <Alert type="error" message={error} />
+                </div>
+              )}
 
               <div className="text-left">
                 <label

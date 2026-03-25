@@ -55,6 +55,14 @@ export function TeacherForm({
   // Form validation
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const errorRef = useRef<HTMLDivElement>(null);
+
+  // Scroll to error when validation fails
+  useEffect(() => {
+    if ((submitError || Object.keys(errors).length > 0) && errorRef.current) {
+      errorRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [submitError, errors]);
 
   // Store a reference to track when we need to reset the form
   const prevIdRef = useRef(initialData?.id);
@@ -243,7 +251,10 @@ export function TeacherForm({
       )}
 
       {submitError && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-800 md:mb-6 md:p-4 md:text-sm">
+        <div
+          ref={errorRef}
+          className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-800 md:mb-6 md:p-4 md:text-sm"
+        >
           {submitError}
         </div>
       )}

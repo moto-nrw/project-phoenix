@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Modal } from "~/components/ui/modal";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import { generateSlug, isValidSlug } from "~/lib/operator/provisioning-helpers";
@@ -33,6 +33,13 @@ export function CreateSchoolModal({
   const [schoolEmail, setSchoolEmail] = useState("");
   const [schoolSaving, setSchoolSaving] = useState(false);
   const [schoolError, setSchoolError] = useState("");
+  const errorRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (schoolError && errorRef.current) {
+      errorRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [schoolError]);
 
   // Reset form and pre-select org when opening
   useEffect(() => {
@@ -299,7 +306,7 @@ export function CreateSchoolModal({
             </div>
           </div>
         </div>
-        {schoolError && <FormError message={schoolError} />}
+        {schoolError && <FormError ref={errorRef} message={schoolError} />}
       </form>
     </Modal>
   );

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Modal } from "~/components/ui/modal";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import { isValidSlug } from "~/lib/operator/provisioning-helpers";
@@ -24,6 +24,13 @@ export function EditOrganizationModal({
   const [orgSlug, setOrgSlug] = useState("");
   const [orgSaving, setOrgSaving] = useState(false);
   const [orgError, setOrgError] = useState("");
+  const errorRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (orgError && errorRef.current) {
+      errorRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [orgError]);
 
   useEffect(() => {
     if (isOpen && organization) {
@@ -122,7 +129,7 @@ export function EditOrganizationModal({
           />
           <FieldWarning message="Slug-Änderungen können bestehende Verweise ungültig machen." />
         </FormField>
-        {orgError && <FormError message={orgError} />}
+        {orgError && <FormError ref={errorRef} message={orgError} />}
       </form>
     </Modal>
   );

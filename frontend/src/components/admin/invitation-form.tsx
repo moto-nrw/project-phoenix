@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useToast } from "~/contexts/ToastContext";
 import { Input } from "~/components/ui";
 import { authService } from "~/lib/auth-service";
@@ -38,6 +38,15 @@ export function InvitationForm({ onCreated }: InvitationFormProps) {
   const [isLoadingRoles, setIsLoadingRoles] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorFieldName, setErrorFieldName] = useState<string | null>(null);
+  const errorRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (error && errorRef.current) {
+      errorRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [error]);
+
   const [successInfo, setSuccessInfo] = useState<{
     email: string;
     link: string;
@@ -106,14 +115,17 @@ export function InvitationForm({ onCreated }: InvitationFormProps) {
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError(null);
+    setErrorFieldName(null);
     setSuccessInfo(null);
 
     if (!form.email.trim()) {
       setError("Bitte gib eine gültige E-Mail-Adresse ein.");
+      setErrorFieldName("email");
       return;
     }
     if (!form.roleId || form.roleId <= 0) {
       setError("Bitte wähle eine Rolle aus.");
+      setErrorFieldName("roleId");
       return;
     }
 
@@ -144,6 +156,7 @@ export function InvitationForm({ onCreated }: InvitationFormProps) {
         setError(
           "Für diese E-Mail-Adresse existiert bereits ein Account. Bitte verwende eine andere E-Mail-Adresse.",
         );
+        setErrorFieldName("email");
       } else {
         setError(
           apiError?.message ??
@@ -185,7 +198,10 @@ export function InvitationForm({ onCreated }: InvitationFormProps) {
 
       <form onSubmit={handleSubmit} noValidate className="space-y-4">
         {error && (
-          <div className="rounded-xl border border-red-200/50 bg-red-50/50 p-3">
+          <div
+            ref={errorRef}
+            className="rounded-xl border border-red-200/50 bg-red-50/50 p-3"
+          >
             <div className="flex items-start gap-2">
               <svg
                 className="mt-0.5 h-4 w-4 flex-shrink-0 text-red-600"
@@ -224,19 +240,20 @@ export function InvitationForm({ onCreated }: InvitationFormProps) {
           onChange={(event) => handleChange("email")(event.target.value)}
           disabled={isSubmitting}
           required
+          className={errorFieldName === "email" ? "ring-red-400" : ""}
         />
 
         <div>
           <label
             htmlFor="invitation-role"
-            className="mb-1 block text-sm font-medium text-gray-700"
+            className={`mb-1 block text-sm font-medium ${errorFieldName === "roleId" ? "text-red-600" : "text-gray-700"}`}
           >
             Rolle
           </label>
           <div className="relative">
             <select
               id="invitation-role"
-              className="w-full appearance-none rounded-lg border border-gray-200 bg-white px-3 py-2 pr-10 text-sm text-gray-900 transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-200 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500"
+              className={`w-full appearance-none rounded-lg border ${errorFieldName === "roleId" ? "border-red-400" : "border-gray-200"} bg-white px-3 py-2 pr-10 text-sm text-gray-900 transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-200 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500`}
               value={form.roleId ?? ""}
               onChange={(event) =>
                 handleChange("roleId")(Number(event.target.value) || undefined)

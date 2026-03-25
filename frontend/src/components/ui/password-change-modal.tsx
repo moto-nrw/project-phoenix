@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Modal } from "./modal";
 import { Alert } from "./alert";
 import { EyeIcon, EyeOffIcon, CheckIcon, SpinnerIcon } from "./icons";
@@ -73,6 +73,14 @@ export function PasswordChangeModal({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [errorFieldName, setErrorFieldName] = useState<string | null>(null);
+  const errorRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (error && errorRef.current) {
+      errorRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [error]);
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -80,20 +88,26 @@ export function PasswordChangeModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setErrorFieldName(null);
 
     // Validation
     if (!currentPassword || !newPassword || !confirmPassword) {
       setError("Bitte füllen Sie alle Felder aus.");
+      if (!currentPassword) setErrorFieldName("current-password");
+      else if (!newPassword) setErrorFieldName("new-password");
+      else setErrorFieldName("confirm-password");
       return;
     }
 
     if (newPassword !== confirmPassword) {
       setError("Die neuen Passwörter stimmen nicht überein.");
+      setErrorFieldName("confirm-password");
       return;
     }
 
     if (newPassword.length < 8) {
       setError("Das neue Passwort muss mindestens 8 Zeichen lang sein.");
+      setErrorFieldName("new-password");
       return;
     }
 
@@ -101,6 +115,7 @@ export function PasswordChangeModal({
       setError(
         "Das neue Passwort darf nicht mit dem aktuellen Passwort identisch sein.",
       );
+      setErrorFieldName("new-password");
       return;
     }
 
@@ -146,6 +161,7 @@ export function PasswordChangeModal({
     setNewPassword("");
     setConfirmPassword("");
     setError(null);
+    setErrorFieldName(null);
     setSuccess(false);
     setShowCurrentPassword(false);
     setShowNewPassword(false);
@@ -169,13 +185,17 @@ export function PasswordChangeModal({
         </div>
       ) : (
         <form onSubmit={handleSubmit} noValidate className="space-y-4">
-          {error && <Alert type="error" message={error} />}
+          {error && (
+            <div ref={errorRef}>
+              <Alert type="error" message={error} />
+            </div>
+          )}
 
           {/* Current Password */}
           <div>
             <label
               htmlFor="current-password"
-              className="mb-1 block text-sm font-medium text-gray-700"
+              className={`mb-1 block text-sm font-medium ${errorFieldName === "current-password" ? "text-red-600" : "text-gray-700"}`}
             >
               Aktuelles Passwort
             </label>
@@ -187,7 +207,7 @@ export function PasswordChangeModal({
                 onChange={(e) => setCurrentPassword(e.target.value)}
                 placeholder="••••••••"
                 required
-                className="block w-full rounded-lg border border-gray-200 bg-white px-4 py-3 pr-12 text-base text-gray-900 transition-colors placeholder:text-gray-400 focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
+                className={`block w-full rounded-lg border ${errorFieldName === "current-password" ? "border-red-400" : "border-gray-200"} bg-white px-4 py-3 pr-12 text-base text-gray-900 transition-colors placeholder:text-gray-400 focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]`}
               />
               <PasswordToggle
                 show={showCurrentPassword}
@@ -200,7 +220,7 @@ export function PasswordChangeModal({
           <div>
             <label
               htmlFor="new-password"
-              className="mb-1 block text-sm font-medium text-gray-700"
+              className={`mb-1 block text-sm font-medium ${errorFieldName === "new-password" ? "text-red-600" : "text-gray-700"}`}
             >
               Neues Passwort
             </label>
@@ -212,7 +232,7 @@ export function PasswordChangeModal({
                 onChange={(e) => setNewPassword(e.target.value)}
                 placeholder="••••••••"
                 required
-                className="block w-full rounded-lg border border-gray-200 bg-white px-4 py-3 pr-12 text-base text-gray-900 transition-colors placeholder:text-gray-400 focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
+                className={`block w-full rounded-lg border ${errorFieldName === "new-password" ? "border-red-400" : "border-gray-200"} bg-white px-4 py-3 pr-12 text-base text-gray-900 transition-colors placeholder:text-gray-400 focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]`}
               />
               <PasswordToggle
                 show={showNewPassword}
@@ -225,7 +245,7 @@ export function PasswordChangeModal({
           <div>
             <label
               htmlFor="confirm-password"
-              className="mb-1 block text-sm font-medium text-gray-700"
+              className={`mb-1 block text-sm font-medium ${errorFieldName === "confirm-password" ? "text-red-600" : "text-gray-700"}`}
             >
               Neues Passwort bestätigen
             </label>
@@ -237,7 +257,7 @@ export function PasswordChangeModal({
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="••••••••"
                 required
-                className="block w-full rounded-lg border border-gray-200 bg-white px-4 py-3 pr-12 text-base text-gray-900 transition-colors placeholder:text-gray-400 focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
+                className={`block w-full rounded-lg border ${errorFieldName === "confirm-password" ? "border-red-400" : "border-gray-200"} bg-white px-4 py-3 pr-12 text-base text-gray-900 transition-colors placeholder:text-gray-400 focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]`}
               />
               <PasswordToggle
                 show={showConfirmPassword}

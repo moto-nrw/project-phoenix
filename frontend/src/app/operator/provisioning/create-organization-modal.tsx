@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Modal } from "~/components/ui/modal";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import { generateSlug, isValidSlug } from "~/lib/operator/provisioning-helpers";
@@ -22,6 +22,13 @@ export function CreateOrganizationModal({
   const [orgSlugManual, setOrgSlugManual] = useState(false);
   const [orgSaving, setOrgSaving] = useState(false);
   const [orgError, setOrgError] = useState("");
+  const errorRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (orgError && errorRef.current) {
+      errorRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [orgError]);
 
   const resetForm = useCallback(() => {
     setOrgName("");
@@ -138,7 +145,7 @@ export function CreateOrganizationModal({
             URL-freundlicher Bezeichner (z.B. &quot;stadt-koeln&quot;)
           </p>
         </FormField>
-        {orgError && <FormError message={orgError} />}
+        {orgError && <FormError ref={errorRef} message={orgError} />}
       </form>
     </Modal>
   );

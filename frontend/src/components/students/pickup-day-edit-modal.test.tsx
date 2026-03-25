@@ -602,4 +602,36 @@ describe("PickupDayEditModal", () => {
       ).not.toBeInTheDocument();
     });
   });
+
+  describe("Scroll to error", () => {
+    it("scrolls to error when save exception fails", async () => {
+      const scrollIntoViewMock = vi.fn();
+      Element.prototype.scrollIntoView = scrollIntoViewMock;
+
+      mockOnSaveException.mockRejectedValueOnce(new Error("Save failed"));
+
+      render(
+        <PickupDayEditModal
+          isOpen={true}
+          day={createMockDayData()}
+          {...defaultProps}
+        />,
+      );
+
+      fireEvent.click(screen.getByText("Abweichende Zeit eintragen"));
+
+      const timeInput = screen.getByDisplayValue("");
+      fireEvent.change(timeInput, { target: { value: "14:00" } });
+      fireEvent.click(screen.getByText("Speichern"));
+
+      await waitFor(() => {
+        expect(screen.getByText("Save failed")).toBeInTheDocument();
+      });
+
+      expect(scrollIntoViewMock).toHaveBeenCalledWith({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+  });
 });

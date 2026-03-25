@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Loader2, Plus, Pencil, Trash2, X, StickyNote } from "lucide-react";
 import { FormModal } from "~/components/ui/form-modal";
 import type { PickupNote, DayData } from "@/lib/pickup-schedule-helpers";
@@ -53,6 +53,13 @@ export function PickupDayEditModal({
   const [isSavingNote, setIsSavingNote] = useState(false);
   const [deletingNoteId, setDeletingNoteId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const errorRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (error && errorRef.current) {
+      errorRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [error]);
 
   // Reset form when modal opens / day changes
   useEffect(() => {
@@ -215,7 +222,10 @@ export function PickupDayEditModal({
     >
       <div className="space-y-5">
         {error && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div
+            ref={errorRef}
+            className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+          >
             {error}
           </div>
         )}
