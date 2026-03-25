@@ -1,5 +1,6 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Modal } from "~/components/ui/modal";
+import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import type { Invitation } from "~/lib/operator/provisioning-helpers";
 import { createLogger } from "~/lib/logger";
@@ -27,13 +28,7 @@ export function InviteAdminModal({
   const [inviteLastName, setInviteLastName] = useState("");
   const [inviteSaving, setInviteSaving] = useState(false);
   const [inviteError, setInviteError] = useState("");
-  const errorRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (inviteError && errorRef.current) {
-      errorRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  }, [inviteError]);
+  const errorRef = useScrollToError(inviteError);
 
   const [inviteResult, setInviteResult] = useState<Invitation | null>(null);
 

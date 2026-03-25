@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { getDbOperationMessage } from "~/lib/use-notification";
+import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import { useScrollLock } from "~/hooks/useScrollLock";
 import { useModalAnimation } from "~/hooks/useModalAnimation";
 import { useModalBlurEffect } from "~/hooks/useModalBlurEffect";
@@ -64,14 +65,8 @@ export function QuickCreateActivityModal({
     validateForm,
   } = useActivityForm(defaultFormValues, isOpen);
 
-  const errorRef = useRef<HTMLDivElement>(null);
+  const errorRef = useScrollToError(error);
   const [errorFieldName, setErrorFieldName] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (error && errorRef.current) {
-      errorRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  }, [error]);
 
   // Use scroll lock hook
   useScrollLock(isOpen);

@@ -3,6 +3,7 @@ import type { Teacher } from "@/lib/teacher-api";
 import { authService } from "@/lib/auth-service";
 import { getRoleDisplayName } from "@/lib/auth-helpers";
 import { createLogger } from "~/lib/logger";
+import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 
 const logger = createLogger({ component: "TeacherForm" });
 
@@ -55,14 +56,9 @@ export function TeacherForm({
   // Form validation
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const errorRef = useRef<HTMLDivElement>(null);
-
-  // Scroll to error when validation fails
-  useEffect(() => {
-    if ((submitError || Object.keys(errors).length > 0) && errorRef.current) {
-      errorRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  }, [submitError, errors]);
+  const errorRef = useScrollToError(
+    submitError ?? (Object.keys(errors).length > 0 ? "validation" : null),
+  );
 
   // Store a reference to track when we need to reset the form
   const prevIdRef = useRef(initialData?.id);

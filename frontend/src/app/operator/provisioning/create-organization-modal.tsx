@@ -1,5 +1,6 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback } from "react";
 import { Modal } from "~/components/ui/modal";
+import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import { generateSlug, isValidSlug } from "~/lib/operator/provisioning-helpers";
 import { isOperatorApiError } from "~/lib/operator/api-helpers";
@@ -22,13 +23,7 @@ export function CreateOrganizationModal({
   const [orgSlugManual, setOrgSlugManual] = useState(false);
   const [orgSaving, setOrgSaving] = useState(false);
   const [orgError, setOrgError] = useState("");
-  const errorRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (orgError && errorRef.current) {
-      errorRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  }, [orgError]);
+  const errorRef = useScrollToError(orgError);
 
   const resetForm = useCallback(() => {
     setOrgName("");

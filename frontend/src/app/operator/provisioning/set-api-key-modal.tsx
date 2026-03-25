@@ -1,5 +1,6 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Modal } from "~/components/ui/modal";
+import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import type { OperatorDevice } from "~/lib/operator/provisioning-helpers";
 import { isOperatorApiError } from "~/lib/operator/api-helpers";
@@ -23,13 +24,7 @@ export function SetApiKeyModal({
   const [customKey, setCustomKey] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
-  const errorRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (error && errorRef.current) {
-      errorRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  }, [error]);
+  const errorRef = useScrollToError(error);
 
   const [updatedDevice, setUpdatedDevice] = useState<OperatorDevice | null>(
     null,

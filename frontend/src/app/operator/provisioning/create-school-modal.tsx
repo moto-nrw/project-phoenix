@@ -1,5 +1,6 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Modal } from "~/components/ui/modal";
+import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import { generateSlug, isValidSlug } from "~/lib/operator/provisioning-helpers";
 import type { Organization } from "~/lib/operator/provisioning-helpers";
@@ -33,13 +34,7 @@ export function CreateSchoolModal({
   const [schoolEmail, setSchoolEmail] = useState("");
   const [schoolSaving, setSchoolSaving] = useState(false);
   const [schoolError, setSchoolError] = useState("");
-  const errorRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (schoolError && errorRef.current) {
-      errorRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  }, [schoolError]);
+  const errorRef = useScrollToError(schoolError);
 
   // Reset form and pre-select org when opening
   useEffect(() => {

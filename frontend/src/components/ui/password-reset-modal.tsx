@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Modal } from "./modal";
 import { Input, Alert } from "./index";
 import { requestPasswordReset, type ApiError } from "~/lib/auth-api";
+import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "PasswordReset" });
@@ -65,14 +66,8 @@ export function PasswordResetModal({
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState("");
-  const errorRef = useRef<HTMLDivElement>(null);
+  const errorRef = useScrollToError(error);
   const [rateLimitUntil, setRateLimitUntil] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (error && errorRef.current) {
-      errorRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  }, [error]);
   const [secondsRemaining, setSecondsRemaining] = useState(0);
 
   const RATE_LIMIT_STORAGE_KEY = "passwordResetRateLimitUntil";

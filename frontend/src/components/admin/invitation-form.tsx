@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useToast } from "~/contexts/ToastContext";
 import { Input } from "~/components/ui";
+import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import { authService } from "~/lib/auth-service";
 import { getRoleDisplayName } from "~/lib/auth-helpers";
 import { createInvitation } from "~/lib/invitation-api";
@@ -39,13 +40,7 @@ export function InvitationForm({ onCreated }: InvitationFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [errorFieldName, setErrorFieldName] = useState<string | null>(null);
-  const errorRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (error && errorRef.current) {
-      errorRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  }, [error]);
+  const errorRef = useScrollToError(error);
 
   const [successInfo, setSuccessInfo] = useState<{
     email: string;

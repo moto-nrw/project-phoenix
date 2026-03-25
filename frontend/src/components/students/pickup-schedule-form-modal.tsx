@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { Loader2 } from "lucide-react";
+import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import { FormModal } from "~/components/ui/form-modal";
 import type {
   BulkPickupScheduleFormData,
@@ -29,13 +30,7 @@ export function PickupScheduleFormModal({
     useState<PickupScheduleFormData[]>(initialSchedules);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const errorRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (error && errorRef.current) {
-      errorRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  }, [error]);
+  const errorRef = useScrollToError(error);
 
   // Reset form when modal opens
   useEffect(() => {

@@ -5,6 +5,7 @@ import type { DatabaseTheme } from "./themes";
 import { getThemeClassNames } from "./themes";
 import { getAccentRing, getAccentText } from "./accents";
 import { Alert } from "~/components/ui/alert";
+import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "DatabaseForm" });
@@ -257,7 +258,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
   const [formData, setFormData] = useState<Record<string, unknown>>({});
   const [error, setError] = useState<string | null>(null);
   const [errorFieldName, setErrorFieldName] = useState<string | null>(null);
-  const errorRef = useRef<HTMLDivElement>(null);
+  const errorRef = useScrollToError(error);
   // Local submitting state to prevent double-clicks (set synchronously before async onSubmit)
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [asyncOptions, setAsyncOptions] = useState<
@@ -277,13 +278,6 @@ export function DatabaseForm<T = Record<string, unknown>>({
       isMountedRef.current = false;
     };
   }, []);
-
-  // Scroll to error banner when validation fails
-  useEffect(() => {
-    if (error && errorRef.current) {
-      errorRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  }, [error]);
 
   const themeClasses = getThemeClassNames(theme);
   const accentTextClass = getAccentText(theme.accent);

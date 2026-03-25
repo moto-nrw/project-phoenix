@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- redirect targets root login, not tenant route
 import { useRouter } from "next/navigation";
+import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import { signOut } from "next-auth/react";
 import { Input } from "~/components/ui";
 import { getRoleDisplayName } from "~/lib/auth-helpers";
@@ -72,14 +73,8 @@ export function InvitationAcceptForm({
   const [tenantRedirectUrl, setTenantRedirectUrl] = useState<string | null>(
     null,
   );
-  const errorRef = useRef<HTMLDivElement>(null);
+  const errorRef = useScrollToError(error);
   const [errorFieldName, setErrorFieldName] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (error && errorRef.current) {
-      errorRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  }, [error]);
 
   useEffect(() => {
     setFirstName(invitation.firstName ?? "");
