@@ -4,7 +4,7 @@ import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import { getRoleDisplayName } from "~/lib/auth-helpers";
 import { createLogger } from "~/lib/logger";
-import { FormField, FormError } from "./provisioning-shared";
+import { FormField, FormError, SelectWithChevron } from "./provisioning-shared";
 
 const logger = createLogger({ component: "CreateAccountModal" });
 
@@ -47,9 +47,6 @@ export function CreateAccountModal({
 
   const inputClasses =
     "w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none";
-
-  const selectClasses =
-    "w-full appearance-none rounded-lg border border-gray-200 bg-white px-3 py-2 pr-10 text-sm text-gray-900 transition-colors focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500";
 
   // Load roles on mount
   useEffect(() => {
@@ -294,44 +291,26 @@ export function CreateAccountModal({
             htmlFor="create-account-role"
             required
           >
-            <div className="relative">
-              <select
-                id="create-account-role"
-                className={selectClasses}
-                value={roleId ?? ""}
-                onChange={(e) =>
-                  setRoleId(
-                    e.target.value === "" ? undefined : Number(e.target.value),
-                  )
-                }
-                disabled={isLoadingRoles}
-                required
-              >
-                <option value="" disabled>
-                  {isLoadingRoles ? "Lade Rollen..." : "Rolle auswählen..."}
+            <SelectWithChevron
+              id="create-account-role"
+              value={roleId ?? ""}
+              onChange={(e) =>
+                setRoleId(
+                  e.target.value === "" ? undefined : Number(e.target.value),
+                )
+              }
+              disabled={isLoadingRoles}
+              required
+            >
+              <option value="" disabled>
+                {isLoadingRoles ? "Lade Rollen..." : "Rolle auswählen..."}
+              </option>
+              {roles.map((role) => (
+                <option key={role.id} value={role.id}>
+                  {role.name}
                 </option>
-                {roles.map((role) => (
-                  <option key={role.id} value={role.id}>
-                    {role.name}
-                  </option>
-                ))}
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-                <svg
-                  className="h-4 w-4 text-gray-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M19 9l-7 7-7-7"
-                  />
-                </svg>
-              </div>
-            </div>
+              ))}
+            </SelectWithChevron>
           </FormField>
           <FormField
             label="Passwort"
@@ -369,36 +348,18 @@ export function CreateAccountModal({
             />
           </FormField>
           <FormField label="Position" htmlFor="create-account-position">
-            <div className="relative">
-              <select
-                id="create-account-position"
-                className={selectClasses}
-                value={position}
-                onChange={(e) => setPosition(e.target.value)}
-              >
-                <option value="">Position auswählen...</option>
-                <option value="Pädagogische Fachkraft">
-                  Pädagogische Fachkraft
-                </option>
-                <option value="OGS-Büro">OGS-Büro</option>
-                <option value="Extern">Extern</option>
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-                <svg
-                  className="h-4 w-4 text-gray-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M19 9l-7 7-7-7"
-                  />
-                </svg>
-              </div>
-            </div>
+            <SelectWithChevron
+              id="create-account-position"
+              value={position}
+              onChange={(e) => setPosition(e.target.value)}
+            >
+              <option value="">Position auswählen...</option>
+              <option value="Pädagogische Fachkraft">
+                Pädagogische Fachkraft
+              </option>
+              <option value="OGS-Büro">OGS-Büro</option>
+              <option value="Extern">Extern</option>
+            </SelectWithChevron>
           </FormField>
           {error && <FormError ref={errorRef} message={error} />}
         </form>

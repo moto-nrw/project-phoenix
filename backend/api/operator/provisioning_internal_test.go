@@ -36,6 +36,7 @@ type mockProvisioningService struct {
 	listSchoolAccountsFn      func(context.Context, int64) ([]authModels.TenantAccountInfo, error)
 	listOrgAccountsFn         func(context.Context, int64) ([]authModels.OrgAccountInfo, error)
 	listAllAccountsFn         func(context.Context) ([]authModels.OrgAccountInfo, error)
+	listSystemRolesFn         func(context.Context) ([]*authModels.Role, error)
 	listAllDevicesFn          func(context.Context) ([]platformSvc.OperatorDeviceInfo, error)
 	listSchoolDevicesFn       func(context.Context, int64) ([]platformSvc.OperatorDeviceInfo, error)
 	listOrganizationDevicesFn func(context.Context, int64) ([]platformSvc.OperatorDeviceInfo, error)
@@ -76,7 +77,10 @@ func (m *mockProvisioningService) CreateSchoolAccount(ctx context.Context, schoo
 	}
 	return nil, errors.New("not implemented")
 }
-func (m *mockProvisioningService) ListSystemRoles(_ context.Context) ([]*authModels.Role, error) {
+func (m *mockProvisioningService) ListSystemRoles(ctx context.Context) ([]*authModels.Role, error) {
+	if m.listSystemRolesFn != nil {
+		return m.listSystemRolesFn(ctx)
+	}
 	return nil, nil
 }
 func (m *mockProvisioningService) ListSchoolAccounts(ctx context.Context, schoolID int64) ([]authModels.TenantAccountInfo, error) {
@@ -1150,6 +1154,238 @@ func TestProvisioningResource_SetDeviceAPIKey_NotFound(t *testing.T) {
 	resource.SetDeviceAPIKey(rr, req)
 
 	assert.Equal(t, http.StatusNotFound, rr.Code)
+}
+
+// --- CreateSchoolAccount handler tests ---
+
+func TestProvisioningResource_CreateSchoolAccount(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{
+		createSchoolAccountFn: func(_ context.Context, schoolID, operatorID int64, clientIP net.IP, req platformSvc.CreateSchoolAccountRequest) (*authModels.Account, error) {
+			assert.Equal(t, int64(7), schoolID)
+			assert.Equal(t, int64(42), operatorID)
+			assert.Equal(t, "203.0.113.50", clientIP.String())
+			assert.Equal(t, "teacher@example.com", req.Email)
+			assert.Equal(t, "Ada", req.FirstName)
+			assert.Equal(t, "Lovelace", req.LastName)
+			assert.Equal(t, "Secure123!", req.Password)
+			assert.Equal(t, "Lehrerin", req.Position)
+			require.NotNil(t, req.RoleID)
+			assert.Equal(t, int64(3), *req.RoleID)
+			return &authModels.Account{Model: modelBase.Model{ID: 99}, Email: "teacher@example.com"}, nil
+		},
+	})
+
+	body := `{"email":" TEACHER@example.com ","first_name":" Ada ","last_name":" Lovelace ","password":"Secure123!","confirm_password":"Secure123!","role_id":3,"position":" Lehrerin "}`
+	req := httptest.NewRequest(http.MethodPost, "/operator/schools/7/create-account", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = "203.0.113.50:1234"
+	req = withOperatorClaims(req, 42)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "7")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.CreateSchoolAccount(rr, req)
+	require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
+
+	body2 := decodeBody(t, rr)
+	data := body2["data"].(map[string]any)
+	assert.Equal(t, float64(99), data["id"])
+	assert.Equal(t, "teacher@example.com", data["email"])
+}
+
+func TestProvisioningResource_CreateSchoolAccount_InvalidSchoolID(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{})
+	req := httptest.NewRequest(http.MethodPost, "/operator/schools/abc/create-account", bytes.NewBufferString(`{"email":"a@b.com","first_name":"A","last_name":"B","password":"Secure123!","confirm_password":"Secure123!"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req = withOperatorClaims(req, 42)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "abc")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.CreateSchoolAccount(rr, req)
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestProvisioningResource_CreateSchoolAccount_InvalidRequest(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{})
+	req := httptest.NewRequest(http.MethodPost, "/operator/schools/7/create-account", bytes.NewBufferString(`{"email":"","first_name":"","last_name":"","password":"x","confirm_password":"y"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req = withOperatorClaims(req, 42)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "7")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.CreateSchoolAccount(rr, req)
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestProvisioningResource_CreateSchoolAccount_ServiceError(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{
+		createSchoolAccountFn: func(context.Context, int64, int64, net.IP, platformSvc.CreateSchoolAccountRequest) (*authModels.Account, error) {
+			return nil, &authSvc.AuthError{Op: "create account", Err: authSvc.ErrEmailAlreadyExists}
+		},
+	})
+
+	body := `{"email":"taken@example.com","first_name":"A","last_name":"B","password":"Secure123!","confirm_password":"Secure123!"}`
+	req := httptest.NewRequest(http.MethodPost, "/operator/schools/7/create-account", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = "203.0.113.50:1234"
+	req = withOperatorClaims(req, 42)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "7")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.CreateSchoolAccount(rr, req)
+	assert.Equal(t, http.StatusConflict, rr.Code)
+}
+
+// --- ListSystemRoles handler tests ---
+
+func TestProvisioningResource_ListSystemRoles(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{
+		listSystemRolesFn: func(_ context.Context) ([]*authModels.Role, error) {
+			return []*authModels.Role{{Name: "admin"}, {Name: "teacher"}}, nil
+		},
+	})
+	req := httptest.NewRequest(http.MethodGet, "/operator/roles", nil)
+	rr := httptest.NewRecorder()
+
+	resource.ListSystemRoles(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+}
+
+func TestProvisioningResource_ListSystemRoles_Error(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{
+		listSystemRolesFn: func(_ context.Context) ([]*authModels.Role, error) {
+			return nil, errors.New("db fail")
+		},
+	})
+	req := httptest.NewRequest(http.MethodGet, "/operator/roles", nil)
+	rr := httptest.NewRecorder()
+
+	resource.ListSystemRoles(rr, req)
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+}
+
+// --- createSchoolAccountRequest Bind tests ---
+
+func TestCreateSchoolAccountRequest_Bind_TrimAndLowercaseEmail(t *testing.T) {
+	roleID := int64(3)
+	req := &createSchoolAccountRequest{
+		Email:           "  TEACHER@EXAMPLE.COM  ",
+		FirstName:       "  Ada  ",
+		LastName:        "  Lovelace  ",
+		Password:        "Secure123!",
+		ConfirmPassword: "Secure123!",
+		RoleID:          &roleID,
+		Position:        "  Lehrerin  ",
+	}
+	err := req.Bind(nil)
+	require.NoError(t, err)
+	assert.Equal(t, "teacher@example.com", req.Email)
+	assert.Equal(t, "Ada", req.FirstName)
+	assert.Equal(t, "Lovelace", req.LastName)
+	assert.Equal(t, "Lehrerin", req.Position)
+}
+
+func TestCreateSchoolAccountRequest_Bind_RequiresEmail(t *testing.T) {
+	req := &createSchoolAccountRequest{Email: "", FirstName: "A", LastName: "B", Password: "Secure123!", ConfirmPassword: "Secure123!"}
+	err := req.Bind(nil)
+	require.EqualError(t, err, "email is required")
+}
+
+func TestCreateSchoolAccountRequest_Bind_RequiresFirstName(t *testing.T) {
+	req := &createSchoolAccountRequest{Email: "a@b.com", FirstName: "", LastName: "B", Password: "Secure123!", ConfirmPassword: "Secure123!"}
+	err := req.Bind(nil)
+	require.EqualError(t, err, "first name is required")
+}
+
+func TestCreateSchoolAccountRequest_Bind_RequiresLastName(t *testing.T) {
+	req := &createSchoolAccountRequest{Email: "a@b.com", FirstName: "A", LastName: "", Password: "Secure123!", ConfirmPassword: "Secure123!"}
+	err := req.Bind(nil)
+	require.EqualError(t, err, "last name is required")
+}
+
+func TestCreateSchoolAccountRequest_Bind_RequiresPassword(t *testing.T) {
+	req := &createSchoolAccountRequest{Email: "a@b.com", FirstName: "A", LastName: "B", Password: "", ConfirmPassword: ""}
+	err := req.Bind(nil)
+	require.EqualError(t, err, "password is required")
+}
+
+func TestCreateSchoolAccountRequest_Bind_PasswordsMustMatch(t *testing.T) {
+	req := &createSchoolAccountRequest{Email: "a@b.com", FirstName: "A", LastName: "B", Password: "Secure123!", ConfirmPassword: "Different!"}
+	err := req.Bind(nil)
+	require.EqualError(t, err, "passwords do not match")
+}
+
+// --- Additional ProvisioningErrorRenderer cases ---
+
+func TestProvisioningErrorRenderer_SchoolInactive(t *testing.T) {
+	renderer := ProvisioningErrorRenderer(&platformSvc.SchoolInactiveError{SchoolID: 1})
+	resp, ok := renderer.(*ErrResponse)
+	require.True(t, ok)
+	assert.Equal(t, http.StatusForbidden, resp.HTTPStatusCode)
+	assert.Contains(t, resp.ErrorText, "inactive")
+}
+
+func TestProvisioningErrorRenderer_DeviceNotFound(t *testing.T) {
+	renderer := ProvisioningErrorRenderer(&platformSvc.OperatorDeviceNotFoundError{DeviceID: 42})
+	resp, ok := renderer.(*ErrResponse)
+	require.True(t, ok)
+	assert.Equal(t, http.StatusNotFound, resp.HTTPStatusCode)
+}
+
+func TestProvisioningErrorRenderer_AuthEmailAlreadyExists(t *testing.T) {
+	renderer := ProvisioningErrorRenderer(&authSvc.AuthError{Op: "create", Err: authSvc.ErrEmailAlreadyExists})
+	resp, ok := renderer.(*ErrResponse)
+	require.True(t, ok)
+	assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
+}
+
+func TestProvisioningErrorRenderer_AuthUsernameAlreadyExists(t *testing.T) {
+	renderer := ProvisioningErrorRenderer(&authSvc.AuthError{Op: "create", Err: authSvc.ErrUsernameAlreadyExists})
+	resp, ok := renderer.(*ErrResponse)
+	require.True(t, ok)
+	assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
+}
+
+func TestProvisioningErrorRenderer_AuthPasswordMismatch(t *testing.T) {
+	renderer := ProvisioningErrorRenderer(&authSvc.AuthError{Op: "create", Err: authSvc.ErrPasswordMismatch})
+	resp, ok := renderer.(*ErrResponse)
+	require.True(t, ok)
+	assert.Equal(t, http.StatusBadRequest, resp.HTTPStatusCode)
+}
+
+func TestProvisioningErrorRenderer_AuthPasswordTooWeak(t *testing.T) {
+	renderer := ProvisioningErrorRenderer(&authSvc.AuthError{Op: "create", Err: authSvc.ErrPasswordTooWeak})
+	resp, ok := renderer.(*ErrResponse)
+	require.True(t, ok)
+	assert.Equal(t, http.StatusBadRequest, resp.HTTPStatusCode)
+}
+
+func TestProvisioningErrorRenderer_AuthInvitationNameRequired(t *testing.T) {
+	renderer := ProvisioningErrorRenderer(&authSvc.AuthError{Op: "create invitation", Err: authSvc.ErrInvitationNameRequired})
+	resp, ok := renderer.(*ErrResponse)
+	require.True(t, ok)
+	assert.Equal(t, http.StatusBadRequest, resp.HTTPStatusCode)
+}
+
+func TestProvisioningErrorRenderer_AuthGenericInvitationError(t *testing.T) {
+	renderer := ProvisioningErrorRenderer(&authSvc.AuthError{Op: "create invitation", Err: errors.New("some validation error")})
+	resp, ok := renderer.(*ErrResponse)
+	require.True(t, ok)
+	assert.Equal(t, http.StatusBadRequest, resp.HTTPStatusCode)
+}
+
+func TestProvisioningErrorRenderer_AuthDefaultError(t *testing.T) {
+	renderer := ProvisioningErrorRenderer(&authSvc.AuthError{Op: "some op", Err: errors.New("db error")})
+	resp, ok := renderer.(*ErrResponse)
+	require.True(t, ok)
+	assert.Equal(t, http.StatusInternalServerError, resp.HTTPStatusCode)
 }
 
 func ptrInt64(v int64) *int64    { return &v }

@@ -160,34 +160,28 @@ vi.mock("@/components/teachers/teacher-edit-modal", () => ({
     ) : null,
 }));
 
-vi.mock("@/components/teachers/teacher-create-modal", () => ({
-  TeacherCreateModal: ({
-    isOpen,
-    onClose,
-    onCreate,
-  }: {
-    isOpen: boolean;
-    onClose: () => void;
-    onCreate: (data: {
-      first_name: string;
-      last_name: string;
-    }) => Promise<void>;
-  }) =>
-    isOpen ? (
-      <div data-testid="teacher-create-modal">
-        <button
-          data-testid="submit-create"
-          onClick={() =>
-            void onCreate({ first_name: "New", last_name: "Teacher" })
-          }
-        >
-          Submit
-        </button>
-        <button data-testid="close-create-modal" onClick={onClose}>
-          Close
-        </button>
-      </div>
-    ) : null,
+vi.mock("~/components/admin/invitation-form", () => ({
+  InvitationForm: ({ onCreated }: { onCreated: () => void }) => (
+    <div data-testid="invitation-form">
+      <button data-testid="submit-invite" onClick={onCreated}>
+        Submit
+      </button>
+    </div>
+  ),
+}));
+
+vi.mock("~/components/admin/pending-invitations-list", () => ({
+  PendingInvitationsList: ({ refreshKey }: { refreshKey: number }) => (
+    <div data-testid="pending-list" data-refresh-key={refreshKey}>
+      Pending
+    </div>
+  ),
+}));
+
+vi.mock("~/components/auth/role-guard", () => ({
+  RoleGuard: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="role-guard">{children}</div>
+  ),
 }));
 
 vi.mock("~/components/ui/modal", () => ({
@@ -327,25 +321,17 @@ describe("TeachersPage", () => {
     });
   });
 
-  it("opens create modal when create button is clicked", async () => {
+  it("opens invite modal when add button is clicked", async () => {
     render(<TeachersPage />);
 
-    // Click the "Personal hinzufügen" button to open choice modal
+    // Click the "Personal hinzufügen" button to open invite modal
     const addButton = screen.getByLabelText("Personal hinzufügen");
     fireEvent.click(addButton);
 
-    // Wait for choice modal to appear
+    // Wait for invite modal to appear
     await waitFor(() => {
       expect(screen.getByTestId("modal")).toBeInTheDocument();
-    });
-
-    // Click on "Manuell erstellen" option in the choice modal
-    const createOption = screen.getByText("Manuell erstellen");
-    fireEvent.click(createOption);
-
-    // Now the create modal should open
-    await waitFor(() => {
-      expect(screen.getByTestId("teacher-create-modal")).toBeInTheDocument();
+      expect(screen.getByTestId("invitation-form")).toBeInTheDocument();
     });
   });
 
@@ -409,39 +395,24 @@ describe("TeachersPage", () => {
     });
   });
 
-  it("calls create service when submitting create form", async () => {
-    mockCreate.mockResolvedValueOnce({
-      id: "3",
-      first_name: "New",
-      last_name: "Teacher",
-    });
-
+  it("closes invite modal when invitation is created", async () => {
     render(<TeachersPage />);
 
-    // Click "Personal hinzufügen" to open choice modal
+    // Open invite modal
     const addButton = screen.getByLabelText("Personal hinzufügen");
     fireEvent.click(addButton);
 
-    // Wait for choice modal
     await waitFor(() => {
-      expect(screen.getByTestId("modal")).toBeInTheDocument();
+      expect(screen.getByTestId("invitation-form")).toBeInTheDocument();
     });
 
-    // Click on "Manuell erstellen" option
-    const createOption = screen.getByText("Manuell erstellen");
-    fireEvent.click(createOption);
-
-    // Now the create modal should open
-    await waitFor(() => {
-      expect(screen.getByTestId("teacher-create-modal")).toBeInTheDocument();
-    });
-
-    // Submit the form
-    const submitButton = screen.getByTestId("submit-create");
+    // Submit the invitation form (triggers onCreated callback)
+    const submitButton = screen.getByTestId("submit-invite");
     fireEvent.click(submitButton);
 
+    // Modal should close after invitation is created
     await waitFor(() => {
-      expect(mockCreate).toHaveBeenCalled();
+      expect(screen.queryByTestId("invitation-form")).not.toBeInTheDocument();
     });
   });
 
@@ -723,37 +694,17 @@ describe("TeachersPage", () => {
     });
   });
 
-  describe("Email invite navigation", () => {
-    it("navigates to invitations when email invite option is clicked", async () => {
-      const mockPush = vi.fn();
-      const useRouter = await import("next/navigation");
-      vi.mocked(useRouter.useRouter).mockReturnValue({
-        push: mockPush,
-        replace: vi.fn(),
-        refresh: vi.fn(),
-        back: vi.fn(),
-        forward: vi.fn(),
-        prefetch: vi.fn(),
-      } as ReturnType<typeof useRouter.useRouter>);
-
+  describe("Invite modal interaction", () => {
+    it("shows invitation form with title in modal", async () => {
       render(<TeachersPage />);
 
-      // Click the "Personal hinzufügen" button to open choice modal
+      // Click "Personal hinzufügen" to open invite modal
       const addButton = screen.getByLabelText("Personal hinzufügen");
       fireEvent.click(addButton);
 
-      // Wait for choice modal to appear
       await waitFor(() => {
         expect(screen.getByTestId("modal")).toBeInTheDocument();
-      });
-
-      // Click on "Per E-Mail einladen" option
-      const emailOption = screen.getByText("Per E-Mail einladen");
-      fireEvent.click(emailOption);
-
-      // Verify navigation to /invitations (useTenantRouter prefixes with tenant slug)
-      await waitFor(() => {
-        expect(mockPush).toHaveBeenCalledWith("/test-tenant/invitations");
+        expect(screen.getByTestId("invitation-form")).toBeInTheDocument();
       });
     });
   });
@@ -776,27 +727,19 @@ describe("TeachersPage", () => {
     });
   });
 
-  it("closes create modal via close button", async () => {
+  it("closes invite modal via close button", async () => {
     render(<TeachersPage />);
 
-    // Open choice modal first
+    // Open invite modal
     fireEvent.click(screen.getByLabelText("Personal hinzufügen"));
     await waitFor(() => {
       expect(screen.getByTestId("modal")).toBeInTheDocument();
     });
 
-    // Navigate to create modal
-    fireEvent.click(screen.getByText("Manuell erstellen"));
+    // Close the invite modal
+    fireEvent.click(screen.getByTestId("close-modal"));
     await waitFor(() => {
-      expect(screen.getByTestId("teacher-create-modal")).toBeInTheDocument();
-    });
-
-    // Close the create modal
-    fireEvent.click(screen.getByTestId("close-create-modal"));
-    await waitFor(() => {
-      expect(
-        screen.queryByTestId("teacher-create-modal"),
-      ).not.toBeInTheDocument();
+      expect(screen.queryByTestId("modal")).not.toBeInTheDocument();
     });
   });
 });
