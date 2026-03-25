@@ -64,6 +64,7 @@ var (
 	ErrInvitationNotFound     = errors.New("invitation not found")
 	ErrInvitationExpired      = errors.New("invitation has expired")
 	ErrInvitationUsed         = errors.New("invitation has already been used")
+	ErrInvitationRevoked      = errors.New("invitation has been revoked")
 	ErrInvitationNameRequired = errors.New("first name and last name are required")
 )
 

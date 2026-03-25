@@ -534,7 +534,7 @@ func (r *stubInvitationTokenRepository) FindValidByToken(_ context.Context, valu
 	if !ok {
 		return nil, sql.ErrNoRows
 	}
-	if token.IsUsed() || token.ExpiresAt.Before(now) {
+	if token.IsAccepted() || token.IsRevoked() || token.ExpiresAt.Before(now) {
 		return nil, sql.ErrNoRows
 	}
 	return token, nil
@@ -564,7 +564,23 @@ func (r *stubInvitationTokenRepository) MarkAsUsed(_ context.Context, id int64) 
 	return sql.ErrNoRows
 }
 
+func (r *stubInvitationTokenRepository) MarkAsRevoked(_ context.Context, id int64, actorID *int64) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if token, ok := r.tokens[id]; ok {
+		now := r.now()
+		token.RevokedAt = &now
+		token.RevokedBy = actorID
+		return nil
+	}
+	return sql.ErrNoRows
+}
+
 func (r *stubInvitationTokenRepository) InvalidateByEmail(ctx context.Context, email string) (int, error) {
+	return r.RevokeOpenByEmail(ctx, email, nil)
+}
+
+func (r *stubInvitationTokenRepository) RevokeOpenByEmail(ctx context.Context, email string, actorID *int64) (int, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	email = strings.ToLower(email)
@@ -575,8 +591,9 @@ func (r *stubInvitationTokenRepository) InvalidateByEmail(ctx context.Context, e
 		if targetTenantID > 0 && token.TenantID != targetTenantID {
 			continue
 		}
-		if strings.ToLower(token.Email) == email && token.UsedAt == nil {
-			token.UsedAt = &now
+		if strings.ToLower(token.Email) == email && token.UsedAt == nil && token.RevokedAt == nil {
+			token.RevokedAt = &now
+			token.RevokedBy = actorID
 			count++
 		}
 	}
@@ -587,8 +604,12 @@ func (r *stubInvitationTokenRepository) DeleteExpired(_ context.Context, now tim
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	count := 0
+	retentionCutoff := now.Add(-30 * 24 * time.Hour)
 	for id, token := range r.tokens {
-		if token.IsUsed() || !token.ExpiresAt.After(now) {
+		if (token.IsAccepted() && token.UsedAt != nil && token.UsedAt.Before(retentionCutoff)) ||
+			(token.IsRevoked() && token.RevokedAt != nil && token.RevokedAt.Before(retentionCutoff)) ||
+			(token.IsConsumable() == false && !token.IsAccepted() && !token.IsRevoked() && token.ExpiresAt.Before(retentionCutoff)) ||
+			(token.UsedAt == nil && token.RevokedAt == nil && token.ExpiresAt.Before(retentionCutoff)) {
 			delete(r.byToken, token.Token)
 			delete(r.tokens, id)
 			count++
@@ -608,12 +629,24 @@ func (r *stubInvitationTokenRepository) List(_ context.Context, filters map[stri
 			switch key {
 			case "pending":
 				if pending, ok := value.(bool); ok && pending {
-					if token.IsUsed() || !token.ExpiresAt.After(now) {
+					if token.IsAccepted() || token.IsRevoked() || !token.ExpiresAt.After(now) {
 						include = false
 					}
 				}
+			case "revoked":
+				if revoked, ok := value.(bool); ok && revoked && !token.IsRevoked() {
+					include = false
+				}
+			case "used":
+				if used, ok := value.(bool); ok && used && !token.IsAccepted() {
+					include = false
+				}
 			case "email":
 				if v, ok := value.(string); ok && !strings.EqualFold(token.Email, v) {
+					include = false
+				}
+			case "created_after":
+				if v, ok := value.(time.Time); ok && !v.IsZero() && token.CreatedAt.Before(v) {
 					include = false
 				}
 			}

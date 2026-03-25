@@ -54,8 +54,12 @@ type InvitationResponse struct {
 	Email           string     `json:"email"`
 	RoleID          int64      `json:"role_id"`
 	RoleName        string     `json:"role_name,omitempty"`
+	Status          string     `json:"status"`
 	Token           string     `json:"token"`
+	CreatedAt       time.Time  `json:"created_at"`
 	ExpiresAt       time.Time  `json:"expires_at"`
+	UsedAt          *time.Time `json:"used_at,omitempty"`
+	RevokedAt       *time.Time `json:"revoked_at,omitempty"`
 	FirstName       *string    `json:"first_name,omitempty"`
 	LastName        *string    `json:"last_name,omitempty"`
 	Position        *string    `json:"position,omitempty"`
@@ -143,8 +147,12 @@ func (rs *Resource) createInvitation(w http.ResponseWriter, r *http.Request) {
 		ID:              invitation.ID,
 		Email:           invitation.Email,
 		RoleID:          invitation.RoleID,
+		Status:          string(deriveInvitationStatus(invitation)),
 		Token:           invitation.Token,
+		CreatedAt:       invitation.CreatedAt,
 		ExpiresAt:       invitation.ExpiresAt,
+		UsedAt:          invitation.UsedAt,
+		RevokedAt:       invitation.RevokedAt,
 		FirstName:       invitation.FirstName,
 		LastName:        invitation.LastName,
 		Position:        invitation.Position,
@@ -331,12 +339,12 @@ func (rs *Resource) listPendingInvitations(w http.ResponseWriter, r *http.Reques
 	var err error
 	if rs.db != nil {
 		err = tenant.WithTenantTx(ctx, rs.db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
-			inv, txErr := rs.InvitationService.ListPendingInvitations(txCtx)
+			inv, txErr := rs.InvitationService.ListInvitations(txCtx)
 			invitations = inv
 			return txErr
 		})
 	} else {
-		invitations, err = rs.InvitationService.ListPendingInvitations(ctx)
+		invitations, err = rs.InvitationService.ListInvitations(ctx)
 	}
 	if err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
@@ -349,8 +357,12 @@ func (rs *Resource) listPendingInvitations(w http.ResponseWriter, r *http.Reques
 			ID:              invitation.ID,
 			Email:           invitation.Email,
 			RoleID:          invitation.RoleID,
+			Status:          string(deriveInvitationStatus(invitation)),
 			Token:           invitation.Token,
+			CreatedAt:       invitation.CreatedAt,
 			ExpiresAt:       invitation.ExpiresAt,
+			UsedAt:          invitation.UsedAt,
+			RevokedAt:       invitation.RevokedAt,
 			FirstName:       invitation.FirstName,
 			LastName:        invitation.LastName,
 			Position:        invitation.Position,
@@ -369,7 +381,7 @@ func (rs *Resource) listPendingInvitations(w http.ResponseWriter, r *http.Reques
 		responses = append(responses, resp)
 	}
 
-	common.Respond(w, r, http.StatusOK, responses, "Pending invitations retrieved successfully")
+	common.Respond(w, r, http.StatusOK, responses, "Invitations retrieved successfully")
 }
 
 func deriveDeliveryStatus(sentAt *time.Time, emailError *string) string {
@@ -380,6 +392,25 @@ func deriveDeliveryStatus(sentAt *time.Time, emailError *string) string {
 		return string(email.DeliveryStatusFailed)
 	}
 	return string(email.DeliveryStatusPending)
+}
+
+func deriveInvitationStatus(invitation *authModels.InvitationToken) authService.InvitationStatus {
+	if invitation == nil {
+		return authService.InvitationStatusPending
+	}
+	if invitation.RevokedAt != nil {
+		return authService.InvitationStatusRevoked
+	}
+	if invitation.UsedAt != nil {
+		return authService.InvitationStatusAccepted
+	}
+	if time.Now().After(invitation.ExpiresAt) {
+		return authService.InvitationStatusExpired
+	}
+	if invitation.EmailError != nil && strings.TrimSpace(*invitation.EmailError) != "" {
+		return authService.InvitationStatusFailed
+	}
+	return authService.InvitationStatusPending
 }
 
 func invitationCreatedByValue(createdBy *int64) int64 {
@@ -413,10 +444,6 @@ func (rs *Resource) resendInvitation(w http.ResponseWriter, r *http.Request) {
 		err = rs.InvitationService.ResendInvitation(ctx, invitationID, int64(claims.ID))
 	}
 	if err != nil {
-		if errors.Is(err, authService.ErrInvitationExpired) {
-			common.RenderError(w, r, ErrorInvalidRequest(authService.ErrInvitationExpired))
-			return
-		}
 		if renderInvitationError(w, r, err) {
 			return
 		}
@@ -485,7 +512,7 @@ func renderInvitationError(w http.ResponseWriter, r *http.Request, err error) bo
 			return false
 		}
 		return true
-	case errors.Is(err, authService.ErrInvitationExpired), errors.Is(err, authService.ErrInvitationUsed):
+	case errors.Is(err, authService.ErrInvitationExpired), errors.Is(err, authService.ErrInvitationUsed), errors.Is(err, authService.ErrInvitationRevoked):
 		if render.Render(w, r, common.ErrorGone(err)) != nil {
 			return false
 		}

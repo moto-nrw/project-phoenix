@@ -18,12 +18,11 @@ import {
 } from "@/components/teachers";
 import { TeacherDetailModal } from "@/components/teachers/teacher-detail-modal";
 import { TeacherEditModal } from "@/components/teachers/teacher-edit-modal";
-import { TeacherCreateModal } from "@/components/teachers/teacher-create-modal";
 import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
 import { teachersConfig } from "@/lib/database/configs/teachers.config";
 import type { Teacher } from "@/lib/teacher-api";
-import { Modal, ConfirmationModal } from "~/components/ui/modal";
+import { ConfirmationModal } from "~/components/ui/modal";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 
@@ -52,22 +51,10 @@ export default function TeachersPage() {
   const isMobile = useIsMobile();
 
   // Modal states
-  const [showChoiceModal, setShowChoiceModal] = useState(false);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [createLoading, setCreateLoading] = useState(false);
-
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
 
   // Stable onClose handlers to prevent Modal animation-reset flicker
-  const handleCloseChoiceModal = useCallback(
-    () => setShowChoiceModal(false),
-    [],
-  );
-  const handleCloseCreateModal = useCallback(
-    () => setShowCreateModal(false),
-    [],
-  );
   const handleCloseDetailModal = useCallback(() => {
     setShowDetailModal(false);
     setSelectedTeacher(null);
@@ -180,35 +167,6 @@ export default function TeachersPage() {
     }
   };
 
-  // Handle create teacher
-  const handleCreateTeacher = async (
-    data: Partial<Teacher> & { password?: string; linkExisting?: boolean },
-  ) => {
-    try {
-      setCreateLoading(true);
-      const result = await service.create(data);
-
-      // Check if the result signals an existing account needing confirmation
-      const typed = result as { status?: string; email?: string } | undefined;
-      if (typed?.status === "account_exists") {
-        return typed;
-      }
-
-      setShowCreateModal(false);
-      toastSuccess(
-        getDbOperationMessage("create", teachersConfig.name.singular),
-      );
-      await tenantMutate("database-teachers-list");
-    } catch (err) {
-      logger.error("failed to create teacher", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      throw err;
-    } finally {
-      setCreateLoading(false);
-    }
-  };
-
   // Handle edit teacher
   const handleEditTeacher = async (
     data: Partial<Teacher> & { password?: string },
@@ -305,7 +263,7 @@ export default function TeachersPage() {
           actionButton={
             !isMobile && (
               <button
-                onClick={() => setShowChoiceModal(true)}
+                onClick={() => router.push("/invitations")}
                 className="group relative flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#F78C10] to-[#e57a00] text-white shadow-lg transition-all duration-150 hover:scale-105 hover:shadow-xl active:scale-95"
                 style={{
                   background:
@@ -339,7 +297,7 @@ export default function TeachersPage() {
 
       {/* Mobile FAB Create Button */}
       <button
-        onClick={() => setShowChoiceModal(true)}
+        onClick={() => router.push("/invitations")}
         className="group pointer-events-auto fixed right-4 bottom-24 z-40 flex h-14 w-14 translate-y-0 items-center justify-center rounded-full bg-gradient-to-br from-[#F78C10] to-[#e57a00] text-white opacity-100 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-300 ease-out hover:shadow-[0_8px_40px_rgb(247,140,16,0.3)] active:scale-95 md:hidden"
         style={{
           background:
@@ -492,100 +450,6 @@ export default function TeachersPage() {
           })}
         </div>
       )}
-
-      {/* Choice Modal - Create or Invite */}
-      <Modal
-        isOpen={showChoiceModal}
-        onClose={handleCloseChoiceModal}
-        title="Personal hinzufügen"
-      >
-        <div className="space-y-4">
-          <p className="text-sm text-gray-600">
-            Wählen Sie, wie Sie neues Personal hinzufügen möchten:
-          </p>
-
-          <div className="grid grid-cols-1 gap-3">
-            {/* Manual Create Option */}
-            <button
-              onClick={() => {
-                setShowChoiceModal(false);
-                setShowCreateModal(true);
-              }}
-              className="group relative overflow-hidden rounded-xl border-2 border-gray-200 bg-white p-4 text-left transition-all duration-300 hover:border-gray-300 hover:bg-gray-50 active:scale-98"
-            >
-              <div className="flex items-start gap-3">
-                <div className="rounded-lg bg-gray-100 p-2.5 transition-all duration-300 group-hover:bg-gray-200">
-                  <svg
-                    className="h-5 w-5 text-gray-600 transition-colors duration-300"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                    />
-                  </svg>
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-semibold text-gray-900">
-                    Manuell erstellen
-                  </h3>
-                  <p className="mt-1 text-sm text-gray-600">
-                    Account direkt als Admin anlegen und Daten eingeben
-                  </p>
-                </div>
-              </div>
-            </button>
-
-            {/* Email Invite Option */}
-            <button
-              onClick={() => {
-                setShowChoiceModal(false);
-                router.push("/invitations");
-              }}
-              className="group relative overflow-hidden rounded-xl border-2 border-gray-200 bg-white p-4 text-left transition-all duration-300 hover:border-gray-300 hover:bg-gray-50 active:scale-98"
-            >
-              <div className="flex items-start gap-3">
-                <div className="rounded-lg bg-gray-100 p-2.5 transition-all duration-300 group-hover:bg-gray-200">
-                  <svg
-                    className="h-5 w-5 text-gray-600 transition-colors duration-300"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-                    />
-                  </svg>
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-semibold text-gray-900">
-                    Per E-Mail einladen
-                  </h3>
-                  <p className="mt-1 text-sm text-gray-600">
-                    Einladungslink per E-Mail senden - Personal erstellt eigenen
-                    Account
-                  </p>
-                </div>
-              </div>
-            </button>
-          </div>
-        </div>
-      </Modal>
-
-      {/* Create Teacher Modal */}
-      <TeacherCreateModal
-        isOpen={showCreateModal}
-        onClose={handleCloseCreateModal}
-        onCreate={handleCreateTeacher}
-        loading={createLoading}
-      />
 
       {/* Teacher Detail Modal */}
       {selectedTeacher && (

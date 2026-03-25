@@ -201,7 +201,8 @@ func TestCreateInvitationInvalidatesExistingTokens(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, invitation)
 
-	require.NotNil(t, existing.UsedAt, "existing invitation should be invalidated")
+	require.NotNil(t, existing.RevokedAt, "existing invitation should be revoked")
+	require.Nil(t, existing.UsedAt, "existing invitation must not be marked accepted")
 	require.NotEqual(t, "old-token", invitation.Token)
 }
 
@@ -243,8 +244,9 @@ func TestCreateInvitationOnlyInvalidatesExistingTokensInTargetTenant(t *testing.
 	require.Equal(t, int64(2), invitation.TenantID)
 	require.Nil(t, invitation.CreatedBy)
 
-	require.Nil(t, otherTenant.UsedAt, "invite in a different tenant must remain valid")
-	require.NotNil(t, targetTenant.UsedAt, "invite in the target tenant should be invalidated")
+	require.Nil(t, otherTenant.RevokedAt, "invite in a different tenant must remain valid")
+	require.NotNil(t, targetTenant.RevokedAt, "invite in the target tenant should be revoked")
+	require.Nil(t, targetTenant.UsedAt, "revoked invite must not be marked accepted")
 }
 
 func TestValidateInvitationReturnsDetails(t *testing.T) {
@@ -456,11 +458,11 @@ func TestResendInvitationExpired(t *testing.T) {
 	require.NoError(t, invitations.Create(ctx, token))
 
 	err := service.ResendInvitation(ctx, token.ID, 99)
-	require.Error(t, err)
-	require.True(t, errors.Is(err, ErrInvitationExpired))
+	require.NoError(t, err)
+	require.True(t, token.ExpiresAt.After(time.Now()), "expired invitation should get a fresh expiry")
 }
 
-func TestRevokeInvitationMarksAsUsed(t *testing.T) {
+func TestRevokeInvitationMarksAsRevoked(t *testing.T) {
 	service, invitations, _, _, _, _, _, _, cleanup := newInvitationTestEnv(t)
 	t.Cleanup(cleanup)
 
@@ -476,7 +478,40 @@ func TestRevokeInvitationMarksAsUsed(t *testing.T) {
 
 	err := service.RevokeInvitation(ctx, token.ID, 5)
 	require.NoError(t, err)
-	require.True(t, token.IsUsed(), "invitation should be marked used after revoke")
+	require.True(t, token.IsRevoked(), "invitation should be marked revoked after revoke")
+	require.False(t, token.IsAccepted(), "revoked invitation must not be marked accepted")
+	require.NotNil(t, token.RevokedBy)
+	require.Equal(t, int64(5), *token.RevokedBy)
+}
+
+func TestListInvitationsOnlyReturnsLastThirtyDays(t *testing.T) {
+	service, invitations, _, _, _, _, _, _, cleanup := newInvitationTestEnv(t)
+	t.Cleanup(cleanup)
+
+	ctx := context.Background()
+	recent := &authModel.InvitationToken{
+		Email:     "recent@example.com",
+		Token:     "recent-token",
+		RoleID:    2,
+		CreatedBy: nullableCreatedBy(1),
+		ExpiresAt: time.Now().Add(24 * time.Hour),
+		Model:     baseModel.Model{CreatedAt: time.Now().Add(-7 * 24 * time.Hour)},
+	}
+	old := &authModel.InvitationToken{
+		Email:     "old@example.com",
+		Token:     "old-token",
+		RoleID:    2,
+		CreatedBy: nullableCreatedBy(1),
+		ExpiresAt: time.Now().Add(-40 * 24 * time.Hour),
+		Model:     baseModel.Model{CreatedAt: time.Now().Add(-31 * 24 * time.Hour)},
+	}
+	require.NoError(t, invitations.Create(ctx, recent))
+	require.NoError(t, invitations.Create(ctx, old))
+
+	list, err := service.ListInvitations(ctx)
+	require.NoError(t, err)
+	require.Len(t, list, 1)
+	require.Equal(t, recent.Email, list[0].Email)
 }
 
 func TestTranslateRoleNameToGerman(t *testing.T) {

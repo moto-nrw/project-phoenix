@@ -20,6 +20,8 @@ type InvitationToken struct {
 	CreatedBy       *int64     `bun:"created_by,nullzero" json:"created_by,omitempty"`
 	ExpiresAt       time.Time  `bun:"expires_at,notnull" json:"expires_at"`
 	UsedAt          *time.Time `bun:"used_at,nullzero" json:"used_at,omitempty"`
+	RevokedAt       *time.Time `bun:"revoked_at,nullzero" json:"revoked_at,omitempty"`
+	RevokedBy       *int64     `bun:"revoked_by,nullzero" json:"revoked_by,omitempty"`
 	FirstName       *string    `bun:"first_name,nullzero" json:"first_name,omitempty"`
 	LastName        *string    `bun:"last_name,nullzero" json:"last_name,omitempty"`
 	Position        *string    `bun:"position,nullzero" json:"position,omitempty"`
@@ -80,20 +82,42 @@ func (t *InvitationToken) IsExpired() bool {
 	return time.Now().After(t.ExpiresAt)
 }
 
-// IsUsed returns true if the invitation was already accepted or revoked.
-func (t *InvitationToken) IsUsed() bool {
+// IsAccepted returns true if the invitation was already accepted.
+func (t *InvitationToken) IsAccepted() bool {
 	return t.UsedAt != nil
 }
 
-// IsValid checks whether the invitation can still be consumed.
+// IsRevoked returns true if the invitation was revoked or superseded.
+func (t *InvitationToken) IsRevoked() bool {
+	return t.RevokedAt != nil
+}
+
+// IsUsed is kept as a compatibility helper and now means accepted only.
+func (t *InvitationToken) IsUsed() bool {
+	return t.IsAccepted()
+}
+
+// IsConsumable checks whether the invitation can still be consumed.
+func (t *InvitationToken) IsConsumable() bool {
+	return !t.IsExpired() && !t.IsAccepted() && !t.IsRevoked()
+}
+
+// IsValid is kept as a compatibility helper and now means consumable.
 func (t *InvitationToken) IsValid() bool {
-	return !t.IsExpired() && !t.IsUsed()
+	return t.IsConsumable()
 }
 
 // MarkAsUsed sets the UsedAt timestamp to now.
 func (t *InvitationToken) MarkAsUsed() {
 	now := time.Now()
 	t.UsedAt = &now
+}
+
+// MarkAsRevoked sets the RevokedAt timestamp to now and records who revoked it.
+func (t *InvitationToken) MarkAsRevoked(actorID *int64) {
+	now := time.Now()
+	t.RevokedAt = &now
+	t.RevokedBy = actorID
 }
 
 // SetExpiry assigns a duration from now as the expiry.

@@ -7,12 +7,13 @@ import type {
   InvitationValidation,
   InvitationAcceptRequest,
   CreateInvitationRequest,
-  PendingInvitation,
+  InvitationRecord,
   BackendInvitationValidation,
   BackendInvitation,
 } from "./invitation-helpers";
 import {
   mapInvitationValidationResponse,
+  mapInvitationResponse,
   mapPendingInvitationResponse,
 } from "./invitation-helpers";
 
@@ -126,7 +127,7 @@ export async function acceptInvitation(
 
 export async function createInvitation(
   data: CreateInvitationRequest,
-): Promise<PendingInvitation> {
+): Promise<InvitationRecord> {
   const response = await fetch("/api/invitations", {
     method: "POST",
     headers: {
@@ -145,25 +146,29 @@ export async function createInvitation(
 
   const raw = (await response.json()) as unknown;
   const invitationData = extractData<BackendInvitation>(raw);
-  return mapPendingInvitationResponse(invitationData);
+  return mapInvitationResponse(invitationData);
 }
 
-export async function listPendingInvitations(): Promise<PendingInvitation[]> {
+export async function listInvitations(): Promise<InvitationRecord[]> {
   const response = await fetch("/api/invitations", {
     credentials: "include",
   });
   if (!response.ok) {
     throw await createApiError(
       response,
-      "Offene Einladungen konnten nicht geladen werden.",
+      "Einladungen konnten nicht geladen werden.",
     );
   }
   const raw = (await response.json()) as unknown;
   const extracted = extractData<BackendInvitation[] | BackendInvitation>(raw);
   if (Array.isArray(extracted)) {
-    return extracted.map(mapPendingInvitationResponse);
+    return extracted.map(mapInvitationResponse);
   }
-  return [mapPendingInvitationResponse(extracted)];
+  return [mapInvitationResponse(extracted)];
+}
+
+export async function listPendingInvitations(): Promise<InvitationRecord[]> {
+  return listInvitations();
 }
 
 export async function resendInvitation(id: number): Promise<void> {

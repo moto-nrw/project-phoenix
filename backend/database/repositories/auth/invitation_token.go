@@ -111,7 +111,8 @@ func (r *InvitationTokenRepository) FindValidByToken(ctx context.Context, token 
 		ModelTableExpr(invitationTableAlias).
 		Where(`"invitation_token".token = ?`, token).
 		Where(`"invitation_token".expires_at > ?`, now).
-		Where(`"invitation_token".used_at IS NULL`)
+		Where(`"invitation_token".used_at IS NULL`).
+		Where(`"invitation_token".revoked_at IS NULL`)
 
 	if where, val, ok := base.TenantWhere(ctx, "invitation_token"); ok {
 		query = query.Where(where, val)
@@ -173,33 +174,74 @@ func (r *InvitationTokenRepository) MarkAsUsed(ctx context.Context, id int64) er
 	return base.AssertRowsAffected(result, 1, "mark invitation as used")
 }
 
-// InvalidateByEmail marks all invitations for an email as used.
-func (r *InvitationTokenRepository) InvalidateByEmail(ctx context.Context, email string) (int, error) {
+// MarkAsRevoked sets the revoked_at timestamp for a token.
+func (r *InvitationTokenRepository) MarkAsRevoked(ctx context.Context, id int64, actorID *int64) error {
 	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*modelAuth.InvitationToken)(nil)).
 		ModelTableExpr(invitationTable).
-		Set(`used_at = NOW()`).
-		Where(`LOWER(email) = LOWER(?)`, email).
-		Where(`used_at IS NULL`)
+		Set(`revoked_at = NOW()`).
+		Where(`id = ?`, id)
 
 	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
 		query = query.Where("tenant_id = ?", tenantID)
 	}
 
+	if actorID != nil {
+		query = query.Set(`revoked_by = ?`, *actorID)
+	} else {
+		query = query.Set(`revoked_by = NULL`)
+	}
+
+	res, err := query.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "mark invitation as revoked",
+			Err: err,
+		}
+	}
+
+	return base.AssertRowsAffected(res, 1, "mark invitation as revoked")
+}
+
+// RevokeOpenByEmail revokes open invitations for an email address.
+func (r *InvitationTokenRepository) RevokeOpenByEmail(ctx context.Context, email string, actorID *int64) (int, error) {
+	query := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*modelAuth.InvitationToken)(nil)).
+		ModelTableExpr(invitationTable).
+		Set(`revoked_at = NOW()`).
+		Where(`LOWER(email) = LOWER(?)`, email).
+		Where(`used_at IS NULL`).
+		Where(`revoked_at IS NULL`)
+
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
+
+	if actorID != nil {
+		query = query.Set(`revoked_by = ?`, *actorID)
+	} else {
+		query = query.Set(`revoked_by = NULL`)
+	}
+
 	res, err := query.Exec(ctx)
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
-			Op:  "invalidate invitations by email",
+			Op:  "revoke open invitations by email",
 			Err: err,
 		}
 	}
 
 	count, err := res.RowsAffected()
 	if err != nil {
-		return 0, fmt.Errorf("failed to retrieve affected rows for invalidate invitations: %w", err)
+		return 0, fmt.Errorf("failed to retrieve affected rows for revoke open invitations: %w", err)
 	}
 
 	return int(count), nil
+}
+
+// InvalidateByEmail is kept for compatibility and now revokes open invitations.
+func (r *InvitationTokenRepository) InvalidateByEmail(ctx context.Context, email string) (int, error) {
+	return r.RevokeOpenByEmail(ctx, email, nil)
 }
 
 // DeleteExpired removes invitations that can no longer be used.
@@ -207,8 +249,13 @@ func (r *InvitationTokenRepository) DeleteExpired(ctx context.Context, now time.
 	query := base.GetDB(ctx, r.db).NewDelete().
 		Model((*modelAuth.InvitationToken)(nil)).
 		ModelTableExpr(invitationTable).
-		Where(`expires_at <= ?`, now).
-		WhereOr(`used_at IS NOT NULL`)
+		WhereGroup(" AND ", func(q *bun.DeleteQuery) *bun.DeleteQuery {
+			retentionCutoff := now.Add(-30 * 24 * time.Hour)
+			return q.
+				WhereOr(`used_at IS NOT NULL AND used_at < ?`, retentionCutoff).
+				WhereOr(`revoked_at IS NOT NULL AND revoked_at < ?`, retentionCutoff).
+				WhereOr(`used_at IS NULL AND revoked_at IS NULL AND expires_at < ?`, retentionCutoff)
+		})
 
 	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
 		query = query.Where("tenant_id = ?", tenantID)
@@ -264,6 +311,8 @@ func (r *InvitationTokenRepository) List(ctx context.Context, filters map[string
 		query = r.applyInvitationFilter(query, key, value, now)
 	}
 
+	query = query.OrderExpr(`"invitation_token".created_at DESC`)
+
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "list invitation tokens",
@@ -281,10 +330,14 @@ func (r *InvitationTokenRepository) applyInvitationFilter(query *bun.SelectQuery
 		return r.applyEmailFilter(query, value)
 	case "pending":
 		return r.applyPendingFilter(query, value, now)
+	case "revoked":
+		return r.applyRevokedFilter(query, value)
 	case "expired":
 		return r.applyExpiredFilter(query, value, now)
 	case "used":
 		return r.applyUsedFilter(query, value)
+	case "created_after":
+		return r.applyCreatedAfterFilter(query, value)
 	default:
 		return query
 	}
@@ -301,7 +354,10 @@ func (r *InvitationTokenRepository) applyEmailFilter(query *bun.SelectQuery, val
 // applyPendingFilter applies pending status filter (not used and not expired)
 func (r *InvitationTokenRepository) applyPendingFilter(query *bun.SelectQuery, value interface{}, now time.Time) *bun.SelectQuery {
 	if pending, ok := value.(bool); ok && pending {
-		return query.Where(`"invitation_token".used_at IS NULL`).Where(`"invitation_token".expires_at > ?`, now)
+		return query.
+			Where(`"invitation_token".used_at IS NULL`).
+			Where(`"invitation_token".revoked_at IS NULL`).
+			Where(`"invitation_token".expires_at > ?`, now)
 	}
 	return query
 }
@@ -309,7 +365,10 @@ func (r *InvitationTokenRepository) applyPendingFilter(query *bun.SelectQuery, v
 // applyExpiredFilter applies expired status filter
 func (r *InvitationTokenRepository) applyExpiredFilter(query *bun.SelectQuery, value interface{}, now time.Time) *bun.SelectQuery {
 	if expired, ok := value.(bool); ok && expired {
-		return query.Where(`"invitation_token".expires_at <= ?`, now)
+		return query.
+			Where(`"invitation_token".used_at IS NULL`).
+			Where(`"invitation_token".revoked_at IS NULL`).
+			Where(`"invitation_token".expires_at <= ?`, now)
 	}
 	return query
 }
@@ -318,6 +377,22 @@ func (r *InvitationTokenRepository) applyExpiredFilter(query *bun.SelectQuery, v
 func (r *InvitationTokenRepository) applyUsedFilter(query *bun.SelectQuery, value interface{}) *bun.SelectQuery {
 	if used, ok := value.(bool); ok && used {
 		return query.Where(`"invitation_token".used_at IS NOT NULL`)
+	}
+	return query
+}
+
+// applyCreatedAfterFilter restricts results to invitations created on or after a cutoff.
+func (r *InvitationTokenRepository) applyCreatedAfterFilter(query *bun.SelectQuery, value interface{}) *bun.SelectQuery {
+	if v, ok := value.(time.Time); ok && !v.IsZero() {
+		return query.Where(`"invitation_token".created_at >= ?`, v)
+	}
+	return query
+}
+
+// applyRevokedFilter applies revoked status filter.
+func (r *InvitationTokenRepository) applyRevokedFilter(query *bun.SelectQuery, value interface{}) *bun.SelectQuery {
+	if revoked, ok := value.(bool); ok && revoked {
+		return query.Where(`"invitation_token".revoked_at IS NOT NULL`)
 	}
 	return query
 }

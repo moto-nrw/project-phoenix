@@ -2015,10 +2015,10 @@ func TestInvitationService_RevokeInvitation(t *testing.T) {
 		// ASSERT
 		require.NoError(t, err)
 
-		// Verify the invitation is now marked as used
+		// Verify the invitation is now revoked
 		_, err = invitationService.ValidateInvitation(ctx, invitation.Token)
 		require.Error(t, err)
-		assert.True(t, errors.Is(err, auth.ErrInvitationUsed))
+		assert.True(t, errors.Is(err, auth.ErrInvitationRevoked))
 	})
 }
 

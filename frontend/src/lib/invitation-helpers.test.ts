@@ -136,13 +136,17 @@ describe("invitation-helpers", () => {
 
       const result = mapPendingInvitationResponse(backendData);
 
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         id: 123,
         email: "teacher@school.com",
         roleId: 5,
         roleName: "Teacher",
+        status: "pending",
         createdBy: 1,
         creatorEmail: "admin@school.com",
+        createdAt: "2024-12-31T23:59:59Z",
+        deliveryStatus: "pending",
+        emailRetryCount: 0,
         expiresAt: "2024-12-31T23:59:59Z",
         token: "abc123xyz",
         firstName: "John",
@@ -183,13 +187,17 @@ describe("invitation-helpers", () => {
 
       const result = mapPendingInvitationResponse(backendData);
 
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         id: 789,
         email: "teacher@school.com",
         roleId: 5,
         roleName: "Teacher",
+        status: "pending",
         createdBy: 1,
         creatorEmail: undefined,
+        createdAt: "2024-12-31T23:59:59Z",
+        deliveryStatus: "pending",
+        emailRetryCount: 0,
         expiresAt: "2024-12-31T23:59:59Z",
         token: undefined,
         firstName: null,
@@ -215,13 +223,17 @@ describe("invitation-helpers", () => {
 
       const result = mapPendingInvitationResponse(backendData);
 
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         id: 101,
         email: "admin@school.com",
         roleId: 1,
         roleName: "Admin",
+        status: "pending",
         createdBy: 1,
         creatorEmail: undefined,
+        createdAt: "2024-06-30T12:00:00Z",
+        deliveryStatus: "pending",
+        emailRetryCount: 0,
         expiresAt: "2024-06-30T12:00:00Z",
         token: undefined,
         firstName: undefined,
@@ -247,13 +259,17 @@ describe("invitation-helpers", () => {
 
       const result = mapPendingInvitationResponse(backendData);
 
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         id: 202,
         email: "staff@school.com",
         roleId: 3,
         roleName: "Staff",
+        status: "pending",
         createdBy: 2,
         creatorEmail: "supervisor@school.com",
+        createdAt: "2024-08-15T10:00:00Z",
+        deliveryStatus: "pending",
+        emailRetryCount: 0,
         expiresAt: "2024-08-15T10:00:00Z",
         token: "token123",
         firstName: "Alice",

@@ -176,7 +176,9 @@ type InvitationTokenRepository interface {
 	FindValidByToken(ctx context.Context, token string, now time.Time) (*InvitationToken, error)
 	FindByEmail(ctx context.Context, email string) ([]*InvitationToken, error)
 	MarkAsUsed(ctx context.Context, id int64) error
+	MarkAsRevoked(ctx context.Context, id int64, actorID *int64) error
 	InvalidateByEmail(ctx context.Context, email string) (int, error)
+	RevokeOpenByEmail(ctx context.Context, email string, actorID *int64) (int, error)
 	DeleteExpired(ctx context.Context, now time.Time) (int, error)
 	List(ctx context.Context, filters map[string]interface{}) ([]*InvitationToken, error)
 }

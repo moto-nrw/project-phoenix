@@ -256,6 +256,9 @@ func (m *mockInvitationService) ResendInvitation(context.Context, int64, int64) 
 func (m *mockInvitationService) ListPendingInvitations(context.Context) ([]*authModels.InvitationToken, error) {
 	return nil, nil
 }
+func (m *mockInvitationService) ListInvitations(context.Context) ([]*authModels.InvitationToken, error) {
+	return nil, nil
+}
 func (m *mockInvitationService) RevokeInvitation(context.Context, int64, int64) error { return nil }
 func (m *mockInvitationService) CleanupExpiredInvitations(context.Context) (int, error) {
 	return 0, nil

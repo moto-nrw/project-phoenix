@@ -1776,7 +1776,6 @@ func CleanupInvitationFixtures(tb testing.TB, db *bun.DB, invitationIDs ...int64
 
 	for _, id := range invitationIDs {
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
 			Table("auth.invitation_tokens").
 			Where(whereIDEquals, id),
 			"auth.invitation_tokens")

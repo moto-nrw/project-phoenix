@@ -38,6 +38,16 @@ type InvitationValidationResult struct {
 	ExpiresAt time.Time `json:"expires_at"`
 }
 
+type InvitationStatus string
+
+const (
+	InvitationStatusPending  InvitationStatus = "pending"
+	InvitationStatusFailed   InvitationStatus = "failed"
+	InvitationStatusExpired  InvitationStatus = "expired"
+	InvitationStatusAccepted InvitationStatus = "accepted"
+	InvitationStatusRevoked  InvitationStatus = "revoked"
+)
+
 // InvitationService defines the operations for managing invitation workflows.
 type InvitationService interface {
 	base.TransactionalService
@@ -46,6 +56,7 @@ type InvitationService interface {
 	ValidateInvitation(ctx context.Context, token string) (*InvitationValidationResult, error)
 	AcceptInvitation(ctx context.Context, token string, userData UserRegistrationData) (*authModels.Account, error)
 	ResendInvitation(ctx context.Context, invitationID int64, actorAccountID int64) error
+	ListInvitations(ctx context.Context) ([]*authModels.InvitationToken, error)
 	ListPendingInvitations(ctx context.Context) ([]*authModels.InvitationToken, error)
 	RevokeInvitation(ctx context.Context, invitationID int64, actorAccountID int64) error
 	CleanupExpiredInvitations(ctx context.Context) (int, error)

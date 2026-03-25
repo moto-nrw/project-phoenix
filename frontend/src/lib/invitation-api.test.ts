@@ -533,7 +533,7 @@ describe("invitation-api", () => {
       vi.spyOn(console, "warn").mockImplementation(() => undefined);
 
       await expect(listPendingInvitations()).rejects.toThrow(
-        "Offene Einladungen konnten nicht geladen werden.",
+        "Einladungen konnten nicht geladen werden.",
       );
     });
   });

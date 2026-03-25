@@ -43,12 +43,13 @@ vi.mock("~/components/ui/modal", () => ({
     ) : null,
 }));
 
-const mockListPendingInvitations = vi.fn();
+const mockListInvitations = vi.fn();
 const mockResendInvitation = vi.fn();
 const mockRevokeInvitation = vi.fn();
 
 vi.mock("~/lib/invitation-api", () => ({
-  listPendingInvitations: (): unknown => mockListPendingInvitations(),
+  listInvitations: (): unknown => mockListInvitations(),
+  listPendingInvitations: (): unknown => mockListInvitations(),
   resendInvitation: (id: number): unknown => mockResendInvitation(id),
   revokeInvitation: (id: number): unknown => mockRevokeInvitation(id),
 }));
@@ -69,10 +70,14 @@ const mockInvitations: PendingInvitation[] = [
     email: "test1@example.com",
     roleId: 1,
     roleName: "teacher",
+    status: "pending",
     createdBy: 1,
     creatorEmail: "admin@example.com",
+    createdAt: new Date(Date.now() - 3600000).toISOString(),
     firstName: "John",
     lastName: "Doe",
+    deliveryStatus: "sent",
+    emailRetryCount: 1,
     expiresAt: new Date(Date.now() + 86400000).toISOString(),
     token: "token1",
   },
@@ -81,10 +86,14 @@ const mockInvitations: PendingInvitation[] = [
     email: "test2@example.com",
     roleId: 1,
     roleName: "teacher",
+    status: "expired",
     createdBy: 1,
     creatorEmail: "admin@example.com",
+    createdAt: new Date(Date.now() - 7200000).toISOString(),
     firstName: "Jane",
     lastName: "Smith",
+    deliveryStatus: "failed",
+    emailRetryCount: 2,
     expiresAt: new Date(Date.now() - 86400000).toISOString(),
     token: "token2",
   },
@@ -93,15 +102,15 @@ const mockInvitations: PendingInvitation[] = [
 describe("PendingInvitationsList", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockListPendingInvitations.mockResolvedValue(mockInvitations);
+    mockListInvitations.mockResolvedValue(mockInvitations);
     mockResendInvitation.mockResolvedValue(undefined);
     mockRevokeInvitation.mockResolvedValue(undefined);
   });
 
-  it("shows loading state initially", () => {
+  it("shows dashboard header", async () => {
     render(<PendingInvitationsList refreshKey={0} />);
 
-    expect(screen.getByText("Wird geladen…")).toBeInTheDocument();
+    expect(await screen.findByText("Einladungsstatus")).toBeInTheDocument();
   });
 
   it("renders invitation list after loading", async () => {
@@ -117,7 +126,9 @@ describe("PendingInvitationsList", () => {
     render(<PendingInvitationsList refreshKey={0} />);
 
     await waitFor(() => {
-      expect(screen.getByText("2 offen")).toBeInTheDocument();
+      expect(
+        screen.getByText("2 Einladungen in den letzten 30 Tagen"),
+      ).toBeInTheDocument();
     });
   });
 
@@ -149,7 +160,7 @@ describe("PendingInvitationsList", () => {
     render(<PendingInvitationsList refreshKey={0} />);
 
     await waitFor(() => {
-      expect(screen.getAllByText("Löschen")).toHaveLength(2);
+      expect(screen.getAllByText("Widerrufen")).toHaveLength(2);
     });
   });
 
@@ -158,9 +169,7 @@ describe("PendingInvitationsList", () => {
 
     await waitFor(() => {
       const resendButtons = screen.getAllByText("Erneut");
-      // Invitations are sorted by expiration date (earliest first)
-      // ID 2 (expired) comes first, so click the second button for ID 1 (not expired)
-      fireEvent.click(resendButtons[1]!);
+      fireEvent.click(resendButtons[0]!);
     });
 
     await waitFor(() => {
@@ -172,7 +181,7 @@ describe("PendingInvitationsList", () => {
     render(<PendingInvitationsList refreshKey={0} />);
 
     await waitFor(() => {
-      const deleteButtons = screen.getAllByText("Löschen");
+      const deleteButtons = screen.getAllByText("Widerrufen");
       fireEvent.click(deleteButtons[0]!);
     });
 
@@ -186,9 +195,8 @@ describe("PendingInvitationsList", () => {
     render(<PendingInvitationsList refreshKey={0} />);
 
     await waitFor(() => {
-      const deleteButtons = screen.getAllByText("Löschen");
-      // Click the second delete button (ID 1, non-expired)
-      fireEvent.click(deleteButtons[1]!);
+      const deleteButtons = screen.getAllByText("Widerrufen");
+      fireEvent.click(deleteButtons[0]!);
     });
 
     await waitFor(() => {
@@ -202,17 +210,19 @@ describe("PendingInvitationsList", () => {
   });
 
   it("shows empty state when no invitations", async () => {
-    mockListPendingInvitations.mockResolvedValue([]);
+    mockListInvitations.mockResolvedValue([]);
 
     render(<PendingInvitationsList refreshKey={0} />);
 
     await waitFor(() => {
-      expect(screen.getByText("Keine offenen Einladungen")).toBeInTheDocument();
+      expect(
+        screen.getByText("Keine Einladungen in dieser Ansicht"),
+      ).toBeInTheDocument();
     });
   });
 
   it("shows error state when loading fails", async () => {
-    mockListPendingInvitations.mockRejectedValue(new Error("Failed to load"));
+    mockListInvitations.mockRejectedValue(new Error("Failed to load"));
 
     render(<PendingInvitationsList refreshKey={0} />);
 
@@ -226,37 +236,31 @@ describe("PendingInvitationsList", () => {
     const { rerender } = render(<PendingInvitationsList refreshKey={0} />);
 
     await waitFor(() => {
-      expect(mockListPendingInvitations).toHaveBeenCalledTimes(1);
+      expect(mockListInvitations).toHaveBeenCalledTimes(1);
     });
 
     rerender(<PendingInvitationsList refreshKey={1} />);
 
     await waitFor(() => {
-      expect(mockListPendingInvitations).toHaveBeenCalledTimes(2);
+      expect(mockListInvitations).toHaveBeenCalledTimes(2);
     });
   });
 
-  it("disables resend for expired invitations", async () => {
+  it("allows resend for expired invitations", async () => {
     render(<PendingInvitationsList refreshKey={0} />);
 
     await waitFor(() => {
       const resendButtons = screen.getAllByText("Erneut");
-      // ID 2 (expired) is sorted first, so it's at index 0
-      expect(resendButtons[0]).toBeDisabled();
+      expect(resendButtons[1]).not.toBeDisabled();
     });
   });
 
-  it("sorts invitations by expiration date", async () => {
+  it("shows filter chips", async () => {
     render(<PendingInvitationsList refreshKey={0} />);
 
     await waitFor(() => {
-      const emails = screen
-        .getAllByRole("row")
-        .slice(1)
-        .map((row) => row.textContent);
-
-      expect(emails[0]).toContain("test2@example.com");
-      expect(emails[1]).toContain("test1@example.com");
+      expect(screen.getByText("Alle (2)")).toBeInTheDocument();
+      expect(screen.getByText("Abgelaufen (1)")).toBeInTheDocument();
     });
   });
 });

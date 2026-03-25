@@ -1072,6 +1072,10 @@ func (f *failingInvitationServiceStub) ResendInvitation(context.Context, int64, 
 func (f *failingInvitationServiceStub) ListPendingInvitations(context.Context) ([]*authModels.InvitationToken, error) {
 	return nil, nil
 }
+
+func (f *failingInvitationServiceStub) ListInvitations(context.Context) ([]*authModels.InvitationToken, error) {
+	return nil, nil
+}
 func (f *failingInvitationServiceStub) RevokeInvitation(context.Context, int64, int64) error {
 	return nil
 }

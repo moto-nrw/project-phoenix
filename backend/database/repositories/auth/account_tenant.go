@@ -124,6 +124,7 @@ func (r *AccountTenantRepository) scanPendingInvitationsTenant(ctx context.Conte
 		Join(`LEFT JOIN auth.roles AS "r" ON "r".id = "inv".role_id`).
 		Where(`"inv".tenant_id = ?`, tenantID).
 		Where(`"inv".used_at IS NULL`).
+		Where(`"inv".revoked_at IS NULL`).
 		Where(`"inv".expires_at > NOW()`).
 		Where(`NOT EXISTS (
 			SELECT 1 FROM auth.account_tenants AS "existing"
@@ -223,6 +224,7 @@ func (r *AccountTenantRepository) queryOrgInvitations(ctx context.Context, db bu
 	}
 	err := q.
 		Where(`"inv".used_at IS NULL`).
+		Where(`"inv".revoked_at IS NULL`).
 		Where(`"inv".expires_at > NOW()`).
 		Where(`NOT EXISTS (
 			SELECT 1 FROM auth.account_tenants AS "existing"

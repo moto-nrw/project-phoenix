@@ -358,11 +358,13 @@ func TestInvitationTokenRepository_InvalidateByEmail_Success(t *testing.T) {
 	require.NoError(t, err)
 	assert.GreaterOrEqual(t, count, 2)
 
-	// Verify both are now marked as used
+	// Verify both are now revoked, not accepted
 	found1, _ := repo.FindByID(ctx, inv1.ID)
 	found2, _ := repo.FindByID(ctx, inv2.ID)
-	assert.NotNil(t, found1.UsedAt)
-	assert.NotNil(t, found2.UsedAt)
+	assert.NotNil(t, found1.RevokedAt)
+	assert.NotNil(t, found2.RevokedAt)
+	assert.Nil(t, found1.UsedAt)
+	assert.Nil(t, found2.UsedAt)
 }
 
 // ============================================================================
@@ -382,14 +384,14 @@ func TestInvitationTokenRepository_DeleteExpired_Success(t *testing.T) {
 	defer testpkg.CleanupTableRecords(t, db, "auth.roles", role.ID)
 	defer testpkg.CleanupAuthFixtures(t, db, creator.ID)
 
-	// Create expired invitation using raw SQL
+	// Create expired invitation old enough for retention cleanup
 	token := uuid.Must(uuid.NewV4()).String()
 	var expiredID int64
 	err := db.NewRaw(`
 		INSERT INTO auth.invitation_tokens (email, token, role_id, created_by, expires_at, tenant_id)
 		VALUES (?, ?, ?, ?, ?, 1)
 		RETURNING id
-	`, "expired-delete@example.com", token, role.ID, creator.ID, time.Now().Add(-1*time.Hour)).
+	`, "expired-delete@example.com", token, role.ID, creator.ID, time.Now().Add(-31*24*time.Hour)).
 		Scan(ctx, &expiredID)
 	require.NoError(t, err)
 
@@ -442,6 +444,49 @@ func TestInvitationTokenRepository_List_NoFilters(t *testing.T) {
 	// ASSERT
 	require.NoError(t, err)
 	assert.NotEmpty(t, results)
+}
+
+func TestInvitationTokenRepository_List_CreatedAfter(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).InvitationToken
+	ctx := testpkg.TenantContext(1)
+
+	role := testpkg.CreateTestRole(t, db, "list-created-after-role")
+	creator := testpkg.CreateTestAccount(t, db, "list-created-after-creator")
+	defer testpkg.CleanupTableRecords(t, db, "auth.roles", role.ID)
+	defer testpkg.CleanupAuthFixtures(t, db, creator.ID)
+
+	recentToken := uuid.Must(uuid.NewV4()).String()
+	var recentID int64
+	err := db.NewRaw(`
+		INSERT INTO auth.invitation_tokens (email, token, role_id, created_by, created_at, expires_at, tenant_id)
+		VALUES (?, ?, ?, ?, ?, ?, 1)
+		RETURNING id
+	`, "recent-list@example.com", recentToken, role.ID, creator.ID, time.Now().Add(-2*24*time.Hour), time.Now().Add(10*24*time.Hour)).
+		Scan(ctx, &recentID)
+	require.NoError(t, err)
+
+	oldToken := uuid.Must(uuid.NewV4()).String()
+	var oldID int64
+	err = db.NewRaw(`
+		INSERT INTO auth.invitation_tokens (email, token, role_id, created_by, created_at, expires_at, tenant_id)
+		VALUES (?, ?, ?, ?, ?, ?, 1)
+		RETURNING id
+	`, "old-list@example.com", oldToken, role.ID, creator.ID, time.Now().Add(-40*24*time.Hour), time.Now().Add(-35*24*time.Hour)).
+		Scan(ctx, &oldID)
+	require.NoError(t, err)
+	defer cleanupInvitationTokens(t, db, recentID, oldID)
+
+	list, err := repo.List(ctx, map[string]interface{}{
+		"email":         "recent-list@example.com",
+		"created_after": time.Now().Add(-30 * 24 * time.Hour),
+	})
+
+	require.NoError(t, err)
+	require.Len(t, list, 1)
+	assert.Equal(t, recentID, list[0].ID)
 }
 
 func TestInvitationTokenRepository_List_WithEmailFilter(t *testing.T) {

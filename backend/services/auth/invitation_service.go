@@ -232,9 +232,9 @@ func (s *invitationService) ensureRoleExists(ctx context.Context, roleID int64) 
 	return &AuthError{Op: opCreateInvitation, Err: err}
 }
 
-// invalidatePreviousInvitations marks any pending invitations for this email as used.
+// invalidatePreviousInvitations revokes any still-open invitations for this email.
 func (s *invitationService) invalidatePreviousInvitations(ctx context.Context, email string) error {
-	_, err := s.invitationRepo.InvalidateByEmail(ctx, email)
+	_, err := s.invitationRepo.RevokeOpenByEmail(ctx, email, nil)
 	if err != nil {
 		return &AuthError{Op: "invalidate invitations", Err: err}
 	}
@@ -652,11 +652,11 @@ func (s *invitationService) ResendInvitation(ctx context.Context, invitationID i
 		return &AuthError{Op: opResendInvitation, Err: err}
 	}
 
-	if invitation.IsUsed() {
+	if invitation.IsAccepted() {
 		return &AuthError{Op: opResendInvitation, Err: ErrInvitationUsed}
 	}
-	if invitation.IsExpired() {
-		return &AuthError{Op: opResendInvitation, Err: ErrInvitationExpired}
+	if invitation.IsRevoked() {
+		return &AuthError{Op: opResendInvitation, Err: ErrInvitationRevoked}
 	}
 
 	roleName, err := s.lookupRoleName(ctx, invitation.RoleID)
@@ -664,6 +664,9 @@ func (s *invitationService) ResendInvitation(ctx context.Context, invitationID i
 		return err
 	}
 
+	if invitation.IsExpired() {
+		invitation.ExpiresAt = time.Now().Add(s.invitationExpiry)
+	}
 	invitation.EmailSentAt = nil
 	invitation.EmailError = nil
 	invitation.UpdatedAt = time.Now()
@@ -680,16 +683,23 @@ func (s *invitationService) ResendInvitation(ctx context.Context, invitationID i
 	return nil
 }
 
-// ListPendingInvitations returns all invitations that are still valid.
-func (s *invitationService) ListPendingInvitations(ctx context.Context) ([]*authModels.InvitationToken, error) {
-	invitations, err := s.invitationRepo.List(ctx, map[string]interface{}{"pending": true})
+// ListInvitations returns all recent invitations for the current tenant.
+func (s *invitationService) ListInvitations(ctx context.Context) ([]*authModels.InvitationToken, error) {
+	invitations, err := s.invitationRepo.List(ctx, map[string]interface{}{
+		"created_after": time.Now().Add(-30 * 24 * time.Hour),
+	})
 	if err != nil {
 		return nil, &AuthError{Op: "list invitations", Err: err}
 	}
 	return invitations, nil
 }
 
-// RevokeInvitation marks an invitation as used so it can no longer be accepted.
+// ListPendingInvitations is kept for compatibility and now returns the full invitation list.
+func (s *invitationService) ListPendingInvitations(ctx context.Context) ([]*authModels.InvitationToken, error) {
+	return s.ListInvitations(ctx)
+}
+
+// RevokeInvitation revokes an invitation so it can no longer be accepted.
 func (s *invitationService) RevokeInvitation(ctx context.Context, invitationID int64, actorAccountID int64) error {
 	invitation, err := s.invitationRepo.FindByID(ctx, invitationID)
 	if err != nil {
@@ -699,11 +709,14 @@ func (s *invitationService) RevokeInvitation(ctx context.Context, invitationID i
 		return &AuthError{Op: opRevokeInvitation, Err: err}
 	}
 
-	if invitation.IsUsed() {
+	if invitation.IsAccepted() {
 		return &AuthError{Op: opRevokeInvitation, Err: ErrInvitationUsed}
 	}
+	if invitation.IsRevoked() {
+		return &AuthError{Op: opRevokeInvitation, Err: ErrInvitationRevoked}
+	}
 
-	if err := s.invitationRepo.MarkAsUsed(ctx, invitation.ID); err != nil {
+	if err := s.invitationRepo.MarkAsRevoked(ctx, invitation.ID, nullableCreatedBy(actorAccountID)); err != nil {
 		return &AuthError{Op: opRevokeInvitation, Err: err}
 	}
 
@@ -741,7 +754,11 @@ func (s *invitationService) fetchValidInvitation(ctx context.Context, token stri
 		return nil, &AuthError{Op: opFetchInvitation, Err: err}
 	}
 
-	if invitation.IsUsed() {
+	if invitation.IsRevoked() {
+		return nil, &AuthError{Op: opFetchInvitation, Err: ErrInvitationRevoked}
+	}
+
+	if invitation.IsAccepted() {
 		return nil, &AuthError{Op: opFetchInvitation, Err: ErrInvitationUsed}
 	}
 
