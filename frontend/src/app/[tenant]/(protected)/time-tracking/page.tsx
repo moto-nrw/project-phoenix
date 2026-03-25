@@ -3000,7 +3000,7 @@ function EditSessionModal({
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 rows={2}
-                maxLength={500}
+                maxLength={2000}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:border-gray-900 focus:ring-1 focus:ring-gray-900 focus:outline-none"
                 placeholder="Oder eigenen Grund eingeben..."
               />
@@ -3127,7 +3127,7 @@ function EditSessionModal({
                 value={absNote}
                 onChange={(e) => setAbsNote(e.target.value)}
                 rows={2}
-                maxLength={500}
+                maxLength={2000}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:border-gray-900 focus:ring-1 focus:ring-gray-900 focus:outline-none"
                 placeholder="z.B. Arzttermin, Schulung ..."
               />
@@ -3347,7 +3347,7 @@ function CreateAbsenceModal({
             value={note}
             onChange={(e) => setNote(e.target.value)}
             rows={2}
-            maxLength={500}
+            maxLength={2000}
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:border-gray-900 focus:ring-1 focus:ring-gray-900 focus:outline-none"
             placeholder="z.B. Arzttermin, Schulung ..."
           />

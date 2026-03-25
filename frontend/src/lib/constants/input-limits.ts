@@ -8,7 +8,6 @@
 export const INPUT_MAX_LENGTHS = {
   text: 255,
   email: 255,
-  password: 128,
   textarea: 2000,
 } as const;
 
