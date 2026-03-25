@@ -532,9 +532,7 @@ describe("GuardianFormModal", () => {
 
     // Should show validation error
     await waitFor(() => {
-      expect(
-        screen.getByText("Vorname und Nachname sind erforderlich"),
-      ).toBeInTheDocument();
+      expect(screen.getByText("Vorname ist erforderlich")).toBeInTheDocument();
     });
 
     // onSubmit should not be called

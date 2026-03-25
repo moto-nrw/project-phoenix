@@ -85,14 +85,37 @@ export const errorTranslations: Record<string, string> = {
  * Exported for testing
  */
 export function translateApiError(errorMessage: string): string {
-  // Check for exact matches first
   const lowerError = errorMessage.toLowerCase();
 
-  // Check if any known error pattern is contained in the message
+  // Check specific error patterns first (before generic "validation failed")
+  // Order matters: more specific patterns must be checked before generic ones
   for (const [pattern, translation] of Object.entries(errorTranslations)) {
+    if (pattern === "validation failed") continue; // Handle last
     if (lowerError.includes(pattern)) {
       return translation;
     }
+  }
+
+  // Handle "validation failed: <specific reason>" — extract and translate the reason
+  if (lowerError.includes("validation failed")) {
+    const colonIndex = lowerError.indexOf("validation failed:");
+    if (colonIndex !== -1) {
+      const reason = errorMessage
+        .substring(colonIndex + "validation failed:".length)
+        .trim();
+      if (reason) {
+        // Try to translate the extracted reason
+        const translatedReason = translateApiError(reason);
+        // If the reason itself translates to something specific, use it
+        if (
+          translatedReason !==
+          "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut."
+        ) {
+          return translatedReason;
+        }
+      }
+    }
+    return errorTranslations["validation failed"]!;
   }
 
   // Return generic message for unknown errors
