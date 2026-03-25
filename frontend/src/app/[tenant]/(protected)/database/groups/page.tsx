@@ -10,7 +10,10 @@ import type {
   ActiveFilter,
 } from "~/components/ui/page-header/types";
 import { getDbOperationMessage } from "@/lib/use-notification";
-import { createCrudService } from "@/lib/database/service-factory";
+import {
+  createCrudService,
+  getDeleteErrorMessage,
+} from "@/lib/database/service-factory";
 import { groupsConfig } from "@/lib/database/configs/groups.config";
 import type { Group } from "@/lib/group-helpers";
 import {
@@ -204,9 +207,7 @@ export default function GroupsPage() {
       setSelectedGroup(null);
       await tenantMutate("database-groups-list");
     } catch (err) {
-      toastError(
-        err instanceof Error ? err.message : "Fehler beim Löschen der Gruppe",
-      );
+      toastError(getDeleteErrorMessage(err));
     } finally {
       setDetailLoading(false);
     }

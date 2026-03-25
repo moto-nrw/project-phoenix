@@ -692,7 +692,7 @@ func (rs *Resource) deleteStaff(w http.ResponseWriter, r *http.Request) {
 		return rs.StaffRepo.Delete(ctx, id)
 	}); err != nil {
 		if errors.Is(err, usersSvc.ErrStaffInUse) {
-			common.RenderError(w, r, ErrorConflict(err))
+			common.RenderError(w, r, common.ErrorConflict(err))
 			return
 		}
 		common.RenderError(w, r, ErrorInternalServer(err))

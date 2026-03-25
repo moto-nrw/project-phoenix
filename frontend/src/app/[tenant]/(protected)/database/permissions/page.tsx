@@ -13,7 +13,10 @@ import type {
   FilterConfig,
 } from "~/components/ui/page-header/types";
 import { getDbOperationMessage } from "@/lib/use-notification";
-import { createCrudService } from "@/lib/database/service-factory";
+import {
+  createCrudService,
+  getDeleteErrorMessage,
+} from "@/lib/database/service-factory";
 import { permissionsConfig } from "@/lib/database/configs/permissions.config";
 import type { Permission } from "@/lib/auth-helpers";
 import {
@@ -252,11 +255,7 @@ export default function PermissionsPage() {
       setSelectedPermission(null);
       await fetchPermissions();
     } catch (err) {
-      toastError(
-        err instanceof Error
-          ? err.message
-          : "Fehler beim Löschen der Berechtigung",
-      );
+      toastError(getDeleteErrorMessage(err));
     } finally {
       setDetailLoading(false);
     }

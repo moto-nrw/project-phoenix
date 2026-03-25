@@ -61,16 +61,6 @@ func ErrorNotFound(err error) render.Renderer {
 	}
 }
 
-// ErrorConflict returns a 409 Conflict error
-func ErrorConflict(err error) render.Renderer {
-	return &ErrorResponse{
-		Err:            err,
-		HTTPStatusCode: http.StatusConflict,
-		Status:         "error",
-		ErrorText:      err.Error(),
-	}
-}
-
 // ErrorInternalServer returns a 500 Internal Server Error
 func ErrorInternalServer(err error) render.Renderer {
 	return &ErrorResponse{

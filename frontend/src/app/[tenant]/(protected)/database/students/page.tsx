@@ -20,7 +20,10 @@ import { StudentEditModal } from "@/components/students/student-edit-modal";
 import { StudentCreateModal } from "@/components/students/student-create-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { getDbOperationMessage } from "@/lib/use-notification";
-import { createCrudService } from "@/lib/database/service-factory";
+import {
+  createCrudService,
+  getDeleteErrorMessage,
+} from "@/lib/database/service-factory";
 import { studentsConfig } from "@/lib/database/configs/students.config";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import type { Student } from "@/lib/api";
@@ -329,9 +332,7 @@ export default function StudentsPage() {
       logger.error("failed to delete student", {
         error: err instanceof Error ? err.message : String(err),
       });
-      toastError(
-        err instanceof Error ? err.message : "Fehler beim Löschen des Schülers",
-      );
+      toastError(getDeleteErrorMessage(err));
     } finally {
       if (isMountedRef.current) {
         setDetailLoading(false);

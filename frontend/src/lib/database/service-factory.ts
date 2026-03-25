@@ -6,6 +6,16 @@ import { createLogger } from "~/lib/logger";
 const logger = createLogger({ component: "ServiceFactory" });
 import type { EntityConfig, CrudService, PaginatedResponse } from "./types";
 
+/**
+ * Extract a user-friendly error message from a caught error.
+ * Use in catch blocks: `toastError(getDeleteErrorMessage(err))`
+ */
+export function getDeleteErrorMessage(err: unknown): string {
+  return err instanceof Error
+    ? err.message
+    : "Fehler beim Löschen. Bitte versuchen Sie es erneut.";
+}
+
 // Helper functions extracted to reduce cognitive complexity (S3776)
 
 /**

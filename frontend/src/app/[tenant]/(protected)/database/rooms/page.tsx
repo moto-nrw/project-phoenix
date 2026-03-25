@@ -13,7 +13,10 @@ import type {
   ActiveFilter,
 } from "~/components/ui/page-header/types";
 import { getDbOperationMessage } from "@/lib/use-notification";
-import { createCrudService } from "@/lib/database/service-factory";
+import {
+  createCrudService,
+  getDeleteErrorMessage,
+} from "@/lib/database/service-factory";
 import { roomsConfig } from "@/lib/database/configs/rooms.config";
 import { formatFloor, type Room } from "@/lib/room-helpers";
 import {
@@ -225,9 +228,7 @@ export default function RoomsPage() {
       setSelectedRoom(null);
       await tenantMutate("database-rooms-list");
     } catch (err) {
-      toastError(
-        err instanceof Error ? err.message : "Fehler beim Löschen des Raums",
-      );
+      toastError(getDeleteErrorMessage(err));
     } finally {
       setDetailLoading(false);
     }

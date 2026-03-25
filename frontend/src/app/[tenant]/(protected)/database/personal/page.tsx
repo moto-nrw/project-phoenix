@@ -20,7 +20,10 @@ import { TeacherDetailModal } from "@/components/teachers/teacher-detail-modal";
 import { TeacherEditModal } from "@/components/teachers/teacher-edit-modal";
 import { TeacherCreateModal } from "@/components/teachers/teacher-create-modal";
 import { getDbOperationMessage } from "@/lib/use-notification";
-import { createCrudService } from "@/lib/database/service-factory";
+import {
+  createCrudService,
+  getDeleteErrorMessage,
+} from "@/lib/database/service-factory";
 import { teachersConfig } from "@/lib/database/configs/teachers.config";
 import type { Teacher } from "@/lib/teacher-api";
 import { Modal, ConfirmationModal } from "~/components/ui/modal";
@@ -252,11 +255,7 @@ export default function TeachersPage() {
       logger.error("failed to delete teacher", {
         error: err instanceof Error ? err.message : String(err),
       });
-      toastError(
-        err instanceof Error
-          ? err.message
-          : "Fehler beim Löschen des Personals",
-      );
+      toastError(getDeleteErrorMessage(err));
     } finally {
       setDetailLoading(false);
     }

@@ -13,7 +13,10 @@ import type {
 import { useToast } from "~/contexts/ToastContext";
 import { useIsMobile } from "~/hooks/useIsMobile";
 import { getDbOperationMessage } from "@/lib/use-notification";
-import { createCrudService } from "@/lib/database/service-factory";
+import {
+  createCrudService,
+  getDeleteErrorMessage,
+} from "@/lib/database/service-factory";
 import { activitiesConfig } from "@/lib/database/configs/activities.config";
 import type { Activity } from "@/lib/activity-helpers";
 import {
@@ -226,11 +229,7 @@ export default function ActivitiesPage() {
       setSelectedActivity(null);
       await tenantMutate("database-activities-list");
     } catch (err) {
-      toastError(
-        err instanceof Error
-          ? err.message
-          : "Fehler beim Löschen der Aktivität",
-      );
+      toastError(getDeleteErrorMessage(err));
     } finally {
       setDetailLoading(false);
     }
