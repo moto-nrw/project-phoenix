@@ -20,7 +20,7 @@ var (
 	ErrDatabaseOperation       = errors.New("database operation failed")
 	ErrInvalidData             = errors.New("invalid data provided")
 	ErrSubstitutionBackdated   = errors.New("substitutions cannot be created or updated for past dates")
-	ErrGroupHasStudents        = errors.New("Gruppe kann nicht gelöscht werden: Gruppe hat noch zugewiesene Schüler/innen")
+	ErrGroupHasStudents        = errors.New("Gruppe kann nicht gelöscht werden: Gruppe hat noch zugewiesene Schüler/innen") //nolint:staticcheck // ST1005: user-facing German message
 )
 
 // EducationError represents an error that occurred in the education service

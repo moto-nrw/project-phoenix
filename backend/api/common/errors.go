@@ -135,6 +135,17 @@ func ErrorConflict(err error) render.Renderer {
 	}
 }
 
+// ErrorConflictMessage returns a 409 Conflict with a user-facing message string.
+// Use this instead of ErrorConflict(errors.New(...)) for localized messages
+// that would violate Go's lowercase error string convention (ST1005).
+func ErrorConflictMessage(message string) render.Renderer {
+	return &ErrResponse{
+		HTTPStatusCode: http.StatusConflict,
+		Status:         "error",
+		ErrorText:      message,
+	}
+}
+
 // ErrorTooManyRequests returns a 429 Too Many Requests error response
 func ErrorTooManyRequests(err error) render.Renderer {
 	return &ErrResponse{

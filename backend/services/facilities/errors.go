@@ -14,7 +14,7 @@ var (
 	ErrRoomCapacityExceeded = errors.New("room capacity exceeded")
 	ErrBuildingNotFound     = errors.New("building not found")
 	ErrCategoryNotFound     = errors.New("category not found")
-	ErrRoomInUse            = errors.New("Raum kann nicht gelöscht werden: Raum wird aktuell von einer aktiven Gruppe verwendet")
+	ErrRoomInUse            = errors.New("Raum kann nicht gelöscht werden: Raum wird aktuell von einer aktiven Gruppe verwendet") //nolint:staticcheck // ST1005: user-facing German message
 )
 
 // FacilitiesError represents a facilities-related error
