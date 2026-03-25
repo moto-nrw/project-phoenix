@@ -254,7 +254,10 @@ func (s *personService) DeleteStaff(ctx context.Context, staffID int64) error {
 	if s.groupSupervisorRepo != nil {
 		supervisors, err := s.groupSupervisorRepo.FindActiveByStaffID(ctx, staffID)
 		if err != nil {
-			slog.Warn("staff_delete_precheck_failed", "staff_id", staffID, "error", err.Error())
+			slog.Warn("staff_delete_precheck_failed",
+				"staff_id", staffID,
+				"error", err.Error(),
+			)
 		} else if len(supervisors) > 0 {
 			return &UsersError{Op: op, Err: ErrStaffInUse}
 		}

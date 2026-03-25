@@ -197,7 +197,10 @@ func (s *service) DeleteRoom(ctx context.Context, id int64) error {
 	// The real protection is the DB constraint; this gives a user-friendly error message.
 	activeGroups, preCheckErr := s.activeGroupRepo.FindActiveByRoomID(ctx, id)
 	if preCheckErr != nil {
-		slog.Warn("room_delete_precheck_failed", "room_id", id, "error", preCheckErr.Error())
+		slog.Warn("room_delete_precheck_failed",
+			"room_id", id,
+			"error", preCheckErr.Error(),
+		)
 	} else if len(activeGroups) > 0 {
 		return &FacilitiesError{Op: "delete room", Err: ErrRoomInUse}
 	}

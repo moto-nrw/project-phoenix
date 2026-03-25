@@ -188,7 +188,10 @@ func (s *service) DeleteGroup(ctx context.Context, id int64) error {
 	// The real protection is this check; the DB allows the delete but silently orphans students.
 	counts, preCheckErr := s.studentRepo.CountByGroupIDs(ctx, []int64{id})
 	if preCheckErr != nil {
-		slog.Warn("group_delete_precheck_failed", "group_id", id, "error", preCheckErr.Error())
+		slog.Warn("group_delete_precheck_failed",
+			"group_id", id,
+			"error", preCheckErr.Error(),
+		)
 	} else if count, ok := counts[id]; ok && count > 0 {
 		return &EducationError{Op: "DeleteGroup", Err: ErrGroupHasStudents}
 	}
