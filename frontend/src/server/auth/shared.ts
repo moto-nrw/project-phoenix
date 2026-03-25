@@ -306,20 +306,39 @@ export async function performLogin(
 // ---------------------------------------------------------------------------
 
 type RefreshResult = { access_token: string; refresh_token: string };
-let activeRefreshPromise: Promise<RefreshResult | null> | null = null;
-let activeRefreshKey: string | null = null;
-let refreshCache: {
-  oldToken: string;
-  result: RefreshResult;
-  expiresAt: number;
-} | null = null;
+
+// Per-token maps: keyed by the OLD refresh token string so that concurrent
+// requests from different users (or the same user across tabs) never clobber
+// each other's deduplication state.
+const activeRefreshes = new Map<string, Promise<RefreshResult | null>>();
+const refreshCacheMap = new Map<
+  string,
+  { result: RefreshResult; expiresAt: number }
+>();
 const REFRESH_CACHE_TTL_MS = 5 * 60 * 1000;
+const MAX_CACHE_ENTRIES = 100;
+
+/** Evict expired entries so the maps don't leak memory. */
+function pruneRefreshCache(): void {
+  const now = Date.now();
+  for (const [key, entry] of refreshCacheMap) {
+    if (now >= entry.expiresAt) refreshCacheMap.delete(key);
+  }
+  // Safety cap: if still too large, drop oldest entries
+  if (refreshCacheMap.size > MAX_CACHE_ENTRIES) {
+    const excess = refreshCacheMap.size - MAX_CACHE_ENTRIES;
+    const keys = refreshCacheMap.keys();
+    for (let i = 0; i < excess; i++) {
+      const next = keys.next();
+      if (!next.done) refreshCacheMap.delete(next.value);
+    }
+  }
+}
 
 /** @internal Reset module-level refresh state (test isolation only) */
 export function _resetRefreshState(): void {
-  activeRefreshPromise = null;
-  activeRefreshKey = null;
-  refreshCache = null;
+  activeRefreshes.clear();
+  refreshCacheMap.clear();
 }
 
 /** @internal Exposed for unit testing only */
@@ -473,18 +492,19 @@ export const sharedJwtCallback: NonNullable<
   ) {
     const currentRefreshToken = token.refreshToken as string;
 
-    // Check cache
-    if (
-      refreshCache?.oldToken === currentRefreshToken &&
-      Date.now() < (refreshCache?.expiresAt ?? 0)
-    ) {
-      token.token = refreshCache.result.access_token;
-      token.refreshToken = refreshCache.result.refresh_token;
+    // Periodic cleanup of expired cache entries
+    pruneRefreshCache();
+
+    // Check per-token cache
+    const cached = refreshCacheMap.get(currentRefreshToken);
+    if (cached && Date.now() < cached.expiresAt) {
+      token.token = cached.result.access_token;
+      token.refreshToken = cached.result.refresh_token;
       token.tokenExpiry = Date.now() + accessTokenExpiry;
       token.refreshTokenExpiry = Date.now() + refreshTokenExpiry;
       token.error = undefined;
       token.needsRefresh = undefined;
-      const cachedPayload = parseJwtPayload(refreshCache.result.access_token);
+      const cachedPayload = parseJwtPayload(cached.result.access_token);
       if (cachedPayload) {
         token.tenantId = cachedPayload.tenant_id;
         token.orgId = cachedPayload.org_id;
@@ -496,9 +516,10 @@ export const sharedJwtCallback: NonNullable<
       return token;
     }
 
-    // Join in-flight refresh
-    if (activeRefreshPromise && activeRefreshKey === currentRefreshToken) {
-      const result = await activeRefreshPromise;
+    // Join in-flight refresh for the SAME token (per-token dedup)
+    const inflight = activeRefreshes.get(currentRefreshToken);
+    if (inflight) {
+      const result = await inflight;
       if (result) {
         token.token = result.access_token;
         token.refreshToken = result.refresh_token;
@@ -523,14 +544,13 @@ export const sharedJwtCallback: NonNullable<
       return token;
     }
 
-    // Start new refresh
+    // Start new refresh (keyed by this specific token)
     const isOperator = token.scope === "platform";
     const refreshUrl = isOperator
       ? `${getServerApiUrl()}/operator/auth/refresh`
       : `${getServerApiUrl()}/auth/refresh`;
 
-    activeRefreshKey = currentRefreshToken;
-    activeRefreshPromise = (async (): Promise<RefreshResult | null> => {
+    const refreshPromise = (async (): Promise<RefreshResult | null> => {
       try {
         const response = await fetch(refreshUrl, {
           method: "POST",
@@ -551,11 +571,10 @@ export const sharedJwtCallback: NonNullable<
           } else {
             tokens = (await response.json()) as RefreshResult;
           }
-          refreshCache = {
-            oldToken: currentRefreshToken,
+          refreshCacheMap.set(currentRefreshToken, {
             result: tokens,
             expiresAt: Date.now() + REFRESH_CACHE_TTL_MS,
-          };
+          });
           return tokens;
         }
         logger.warn("proactive_token_refresh_failed", {
@@ -570,12 +589,13 @@ export const sharedJwtCallback: NonNullable<
         });
         return null;
       } finally {
-        activeRefreshPromise = null;
-        activeRefreshKey = null;
+        activeRefreshes.delete(currentRefreshToken);
       }
     })();
 
-    const result = await activeRefreshPromise;
+    activeRefreshes.set(currentRefreshToken, refreshPromise);
+
+    const result = await refreshPromise;
     if (result) {
       token.token = result.access_token;
       token.refreshToken = result.refresh_token;
