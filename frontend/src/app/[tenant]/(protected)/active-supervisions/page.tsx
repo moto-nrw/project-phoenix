@@ -11,6 +11,7 @@ import {
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
+import { RoleGuard } from "~/components/auth/role-guard";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { Alert } from "~/components/ui/alert";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
@@ -1451,10 +1452,12 @@ function MeinRaumPageContent() {
 // Main component with Suspense wrapper
 export default function MeinRaumPage() {
   return (
-    <Suspense fallback={<Loading fullPage={false} />}>
-      <SSEErrorBoundary>
-        <MeinRaumPageContent />
-      </SSEErrorBoundary>
-    </Suspense>
+    <RoleGuard variant="staffOnly">
+      <Suspense fallback={<Loading fullPage={false} />}>
+        <SSEErrorBoundary>
+          <MeinRaumPageContent />
+        </SSEErrorBoundary>
+      </Suspense>
+    </RoleGuard>
   );
 }

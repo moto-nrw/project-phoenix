@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, Suspense } from "react";
 import { useSession } from "next-auth/react";
 import { useTenantRouter } from "~/lib/tenant-router";
+import { RoleGuard } from "~/components/auth/role-guard";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header";
 import { Modal, ConfirmationModal } from "~/components/ui/modal";
@@ -1069,8 +1070,10 @@ function SubstitutionPageContent() {
 // Main component with Suspense wrapper
 export default function SubstitutionPage() {
   return (
-    <Suspense fallback={<Loading fullPage={false} />}>
-      <SubstitutionPageContent />
-    </Suspense>
+    <RoleGuard variant="adminOnly">
+      <Suspense fallback={<Loading fullPage={false} />}>
+        <SubstitutionPageContent />
+      </Suspense>
+    </RoleGuard>
   );
 }
