@@ -16,6 +16,7 @@ import type {
   CreateSchoolRequest,
   CreateDeviceRequest,
   InviteAdminRequest,
+  CreateAccountRequest,
   UpdateOrganizationRequest,
   UpdateSchoolRequest,
 } from "./provisioning-helpers";
@@ -150,6 +151,30 @@ class OperatorProvisioningService {
       { method: "POST", body: data },
     );
     return mapInvitation(result);
+  }
+
+  async createSchoolAccount(
+    schoolId: string,
+    data: CreateAccountRequest,
+  ): Promise<{ id: string; email: string }> {
+    const result = await operatorFetch<{ id: number; email: string }>(
+      `/api/operator/provisioning/schools/${encodeURIComponent(schoolId)}/create-account`,
+      { method: "POST", body: data },
+    );
+    return { id: result.id.toString(), email: result.email };
+  }
+
+  async listSystemRoles(): Promise<
+    { id: string; name: string; isSystem: boolean }[]
+  > {
+    const result = await operatorFetch<
+      { id: number; name: string; is_system: boolean }[]
+    >(`/api/operator/provisioning/roles`);
+    return result.map((r) => ({
+      id: r.id.toString(),
+      name: r.name,
+      isSystem: r.is_system,
+    }));
   }
 }
 

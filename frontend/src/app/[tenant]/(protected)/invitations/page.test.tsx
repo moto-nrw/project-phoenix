@@ -1,42 +1,15 @@
-/* eslint-disable @typescript-eslint/no-unsafe-return */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
-import "@testing-library/jest-dom/vitest";
+import { render } from "@testing-library/react";
 import InvitationsPage from "./page";
 
-const mockUseSession = vi.fn();
-vi.mock("next-auth/react", () => ({
-  useSession: (...args: unknown[]) => mockUseSession(...args),
-}));
+const mockReplace = vi.fn();
 
-const mockRedirect = vi.fn();
-vi.mock("next/navigation", () => ({
-  redirect: (url: string) => mockRedirect(url),
-}));
-
-vi.mock("~/components/admin/invitation-form", () => ({
-  InvitationForm: ({ onCreated }: { onCreated: () => void }) => (
-    <div data-testid="invitation-form">
-      <button onClick={onCreated}>Create</button>
-    </div>
-  ),
-}));
-
-vi.mock("~/components/admin/pending-invitations-list", () => ({
-  PendingInvitationsList: ({ refreshKey }: { refreshKey: number }) => (
-    <div data-testid="pending-list" data-refresh-key={refreshKey}>
-      Pending
-    </div>
-  ),
-}));
-
-vi.mock("~/lib/auth-utils", () => ({
-  isAdmin: (session: { user?: { isAdmin?: boolean } } | null) =>
-    session?.user?.isAdmin ?? false,
-}));
-
-vi.mock("~/components/ui/loading", () => ({
-  Loading: () => <div data-testid="loading">Loading...</div>,
+vi.mock("~/lib/tenant-router", () => ({
+  useTenantRouter: () => ({
+    replace: mockReplace,
+    push: vi.fn(),
+    back: vi.fn(),
+  }),
 }));
 
 describe("InvitationsPage", () => {
@@ -44,64 +17,13 @@ describe("InvitationsPage", () => {
     vi.clearAllMocks();
   });
 
-  it("shows loading state", () => {
-    mockUseSession.mockReturnValue({
-      data: null,
-      status: "loading",
-    });
-
+  it("redirects to /database/personal", () => {
     render(<InvitationsPage />);
-
-    expect(screen.getByTestId("loading")).toBeInTheDocument();
+    expect(mockReplace).toHaveBeenCalledWith("/database/personal");
   });
 
-  it("shows access denied for non-admin users", () => {
-    mockUseSession.mockReturnValue({
-      data: {
-        user: {
-          id: "1",
-          name: "User",
-          email: "user@test.com",
-          token: "tok",
-          isAdmin: false,
-        },
-      },
-      status: "authenticated",
-    });
-
-    render(<InvitationsPage />);
-
-    expect(screen.getByText("Kein Zugriff")).toBeInTheDocument();
-  });
-
-  it("renders invitation form and pending list for admin users", () => {
-    mockUseSession.mockReturnValue({
-      data: {
-        user: {
-          id: "1",
-          name: "Admin",
-          email: "admin@test.com",
-          token: "tok",
-          isAdmin: true,
-        },
-      },
-      status: "authenticated",
-    });
-
-    render(<InvitationsPage />);
-
-    expect(screen.getByTestId("invitation-form")).toBeInTheDocument();
-    expect(screen.getByTestId("pending-list")).toBeInTheDocument();
-  });
-
-  it("shows access denied when session has no user", () => {
-    mockUseSession.mockReturnValue({
-      data: null,
-      status: "authenticated",
-    });
-
-    render(<InvitationsPage />);
-
-    expect(screen.getByText("Kein Zugriff")).toBeInTheDocument();
+  it("renders nothing (returns null)", () => {
+    const { container } = render(<InvitationsPage />);
+    expect(container.innerHTML).toBe("");
   });
 });

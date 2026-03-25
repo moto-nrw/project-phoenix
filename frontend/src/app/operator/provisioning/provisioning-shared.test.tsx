@@ -8,6 +8,7 @@ import {
   DeliveryStatusBadge,
   EmptyState,
   SimpleEmptyState,
+  SelectWithChevron,
   PlusIcon,
   CardSkeletons,
 } from "./provisioning-shared";
@@ -279,6 +280,70 @@ describe("SimpleEmptyState", () => {
     );
 
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+});
+
+describe("SelectWithChevron", () => {
+  it("should render a select element with children", () => {
+    render(
+      <SelectWithChevron data-testid="test-select">
+        <option value="a">Option A</option>
+        <option value="b">Option B</option>
+      </SelectWithChevron>,
+    );
+
+    const select = screen.getByTestId("test-select");
+    expect(select.tagName).toBe("SELECT");
+    expect(screen.getByText("Option A")).toBeInTheDocument();
+    expect(screen.getByText("Option B")).toBeInTheDocument();
+  });
+
+  it("should render a chevron SVG icon", () => {
+    const { container } = render(
+      <SelectWithChevron>
+        <option>Test</option>
+      </SelectWithChevron>,
+    );
+
+    const svg = container.querySelector("svg");
+    expect(svg).toBeInTheDocument();
+  });
+
+  it("should pass through HTML attributes", () => {
+    const onChange = vi.fn();
+
+    render(
+      <SelectWithChevron
+        data-testid="test-select"
+        value="b"
+        onChange={onChange}
+        disabled
+      >
+        <option value="a">Option A</option>
+        <option value="b">Option B</option>
+      </SelectWithChevron>,
+    );
+
+    const select = screen.getByTestId("test-select");
+    expect(select).toHaveValue("b");
+    expect(select).toBeDisabled();
+
+    fireEvent.change(select, { target: { value: "a" } });
+    expect(onChange).toHaveBeenCalledTimes(1);
+  });
+
+  it("should render option elements as children", () => {
+    render(
+      <SelectWithChevron data-testid="test-select">
+        <option value="1">First</option>
+        <option value="2">Second</option>
+        <option value="3">Third</option>
+      </SelectWithChevron>,
+    );
+
+    const select = screen.getByTestId("test-select");
+    const options = select.querySelectorAll("option");
+    expect(options).toHaveLength(3);
   });
 });
 

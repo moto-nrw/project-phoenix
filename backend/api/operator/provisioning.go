@@ -148,6 +148,39 @@ func (req *inviteSchoolAdminRequest) Bind(_ *http.Request) error {
 	return nil
 }
 
+type createSchoolAccountRequest struct {
+	Email           string `json:"email"`
+	FirstName       string `json:"first_name"`
+	LastName        string `json:"last_name"`
+	Password        string `json:"password"`
+	ConfirmPassword string `json:"confirm_password"`
+	RoleID          *int64 `json:"role_id,omitempty"`
+	Position        string `json:"position,omitempty"`
+}
+
+func (req *createSchoolAccountRequest) Bind(_ *http.Request) error {
+	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
+	req.FirstName = strings.TrimSpace(req.FirstName)
+	req.LastName = strings.TrimSpace(req.LastName)
+	req.Position = strings.TrimSpace(req.Position)
+	if req.Email == "" {
+		return errors.New("email is required")
+	}
+	if req.FirstName == "" {
+		return errors.New("first name is required")
+	}
+	if req.LastName == "" {
+		return errors.New("last name is required")
+	}
+	if req.Password == "" {
+		return errors.New("password is required")
+	}
+	if req.Password != req.ConfirmPassword {
+		return errors.New("passwords do not match")
+	}
+	return nil
+}
+
 func (rs *ProvisioningResource) CreateOrganization(w http.ResponseWriter, r *http.Request) {
 	req := &createOrganizationRequest{}
 	if err := render.Bind(r, req); err != nil {
@@ -319,6 +352,42 @@ func (rs *ProvisioningResource) InviteSchoolAdmin(w http.ResponseWriter, r *http
 	common.Respond(w, r, http.StatusCreated, resp, "School admin invitation created successfully")
 }
 
+func (rs *ProvisioningResource) CreateSchoolAccount(w http.ResponseWriter, r *http.Request) {
+	req := &createSchoolAccountRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, ErrInvalidRequest(err))
+		return
+	}
+	schoolID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid school ID")
+	if !ok {
+		return
+	}
+	operatorID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	svcReq := platformSvc.CreateSchoolAccountRequest{
+		Email:     req.Email,
+		Password:  req.Password,
+		FirstName: req.FirstName,
+		LastName:  req.LastName,
+		RoleID:    req.RoleID,
+		Position:  req.Position,
+	}
+	account, err := rs.service.CreateSchoolAccount(r.Context(), schoolID, operatorID, getClientIP(r), svcReq)
+	if err != nil {
+		common.RenderError(w, r, ProvisioningErrorRenderer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusCreated, account, "School account created successfully")
+}
+
+func (rs *ProvisioningResource) ListSystemRoles(w http.ResponseWriter, r *http.Request) {
+	roles, err := rs.service.ListSystemRoles(r.Context())
+	if err != nil {
+		common.RenderError(w, r, ProvisioningErrorRenderer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, roles, "System roles retrieved successfully")
+}
+
 func (rs *ProvisioningResource) ListSchoolAccounts(w http.ResponseWriter, r *http.Request) {
 	schoolID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid school ID")
 	if !ok {
@@ -369,6 +438,8 @@ func ProvisioningErrorRenderer(err error) render.Renderer {
 		switch {
 		case errors.Is(authErr.Err, authSvc.ErrEmailAlreadyExists):
 			return ErrConflict(authSvc.ErrEmailAlreadyExists.Error())
+		case errors.Is(authErr.Err, authSvc.ErrUsernameAlreadyExists):
+			return ErrConflict(authSvc.ErrUsernameAlreadyExists.Error())
 		case errors.Is(authErr.Err, authSvc.ErrInvitationNameRequired),
 			errors.Is(authErr.Err, authSvc.ErrPasswordMismatch),
 			errors.Is(authErr.Err, authSvc.ErrPasswordTooWeak),

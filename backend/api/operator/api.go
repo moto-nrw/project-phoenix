@@ -79,6 +79,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Use(RequiresOperatorScope)
 
 		r.Get("/accounts", rs.provisioningResource.ListAllAccounts)
+		r.Get("/roles", rs.provisioningResource.ListSystemRoles)
 		r.Route("/devices", func(r chi.Router) {
 			r.Get("/", rs.provisioningResource.ListAllDevices)
 			r.Post("/", rs.provisioningResource.CreateDevice)
@@ -98,6 +99,7 @@ func (rs *Resource) Router() chi.Router {
 			r.Post("/", rs.provisioningResource.CreateSchool)
 			r.Put("/{id}", rs.provisioningResource.UpdateSchool)
 			r.Post("/{id}/invite-admin", rs.provisioningResource.InviteSchoolAdmin)
+			r.Post("/{id}/create-account", rs.provisioningResource.CreateSchoolAccount)
 			r.Get("/{id}/accounts", rs.provisioningResource.ListSchoolAccounts)
 			r.Get("/{id}/devices", rs.provisioningResource.ListSchoolDevices)
 		})

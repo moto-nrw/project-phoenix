@@ -582,4 +582,97 @@ describe("OperatorProvisioningService", () => {
       expect(result.apiKey).toBe("generated-key");
     });
   });
+
+  describe("createSchoolAccount", () => {
+    const mockAccountData = {
+      email: "new@school.de",
+      first_name: "Max",
+      last_name: "Mustermann",
+      password: "SecurePass123!",
+      confirm_password: "SecurePass123!",
+    };
+
+    it("calls correct endpoint with POST method", async () => {
+      mockOperatorFetch.mockResolvedValue({ id: 99, email: "new@school.de" });
+
+      await operatorProvisioningService.createSchoolAccount(
+        "10",
+        mockAccountData,
+      );
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/schools/10/create-account",
+        { method: "POST", body: mockAccountData },
+      );
+    });
+
+    it("encodes school id in URL", async () => {
+      mockOperatorFetch.mockResolvedValue({ id: 99, email: "new@school.de" });
+
+      await operatorProvisioningService.createSchoolAccount(
+        "10/evil",
+        mockAccountData,
+      );
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/schools/10%2Fevil/create-account",
+        expect.any(Object),
+      );
+    });
+
+    it("maps response data correctly", async () => {
+      mockOperatorFetch.mockResolvedValue({ id: 99, email: "new@school.de" });
+
+      const result = await operatorProvisioningService.createSchoolAccount(
+        "10",
+        mockAccountData,
+      );
+
+      expect(result).toEqual({
+        id: "99",
+        email: "new@school.de",
+      });
+    });
+  });
+
+  describe("listSystemRoles", () => {
+    it("calls correct endpoint", async () => {
+      mockOperatorFetch.mockResolvedValue([
+        { id: 1, name: "admin", is_system: true },
+      ]);
+
+      await operatorProvisioningService.listSystemRoles();
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/roles",
+      );
+    });
+
+    it("maps response data correctly", async () => {
+      mockOperatorFetch.mockResolvedValue([
+        { id: 1, name: "admin", is_system: true },
+        { id: 2, name: "teacher", is_system: true },
+        { id: 3, name: "custom_role", is_system: false },
+      ]);
+
+      const result = await operatorProvisioningService.listSystemRoles();
+
+      expect(result).toHaveLength(3);
+      expect(result[0]).toEqual({
+        id: "1",
+        name: "admin",
+        isSystem: true,
+      });
+      expect(result[1]).toEqual({
+        id: "2",
+        name: "teacher",
+        isSystem: true,
+      });
+      expect(result[2]).toEqual({
+        id: "3",
+        name: "custom_role",
+        isSystem: false,
+      });
+    });
+  });
 });
