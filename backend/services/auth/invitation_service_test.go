@@ -346,7 +346,7 @@ func TestAcceptInvitationCreatesAccountAndPerson(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, storedAccount.PasswordHash)
 
-	require.True(t, token.IsUsed(), "invitation should be marked used")
+	require.True(t, token.IsAccepted(), "invitation should be marked used")
 	require.Equal(t, 1, len(persons.people))
 	require.Equal(t, 1, len(accountRoles.Assignments()))
 }
@@ -376,7 +376,7 @@ func TestAcceptInvitationRollsBackOnError(t *testing.T) {
 		ConfirmPassword: testStrongPassword,
 	})
 	require.Error(t, err)
-	require.False(t, token.IsUsed(), "invitation should remain unused on failure")
+	require.False(t, token.IsAccepted(), "invitation should remain unused on failure")
 
 	_, err = accounts.FindByEmail(ctx, "user@example.com")
 	require.ErrorIs(t, err, sql.ErrNoRows)
@@ -406,7 +406,7 @@ func TestAcceptInvitationWeakPassword(t *testing.T) {
 	})
 	require.Error(t, err)
 	require.True(t, errors.Is(err, ErrPasswordTooWeak))
-	require.False(t, token.IsUsed())
+	require.False(t, token.IsAccepted())
 }
 
 func TestResendInvitationSendsEmail(t *testing.T) {
@@ -656,7 +656,7 @@ func TestAcceptInvitationReusesExistingAccountForNewTenant(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, account)
 	require.Equal(t, int64(8), account.ID)
-	require.True(t, token.IsUsed())
+	require.True(t, token.IsAccepted())
 	require.Equal(t, 1, len(persons.people))
 	require.Equal(t, 1, len(accountRoles.Assignments()))
 
