@@ -604,11 +604,10 @@ func (r *stubInvitationTokenRepository) DeleteExpired(_ context.Context, now tim
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	count := 0
-	retentionCutoff := now.Add(-30 * 24 * time.Hour)
+	retentionCutoff := now.Add(-authModel.InvitationRetentionDays * 24 * time.Hour)
 	for id, token := range r.tokens {
-		if (token.IsAccepted() && token.UsedAt != nil && token.UsedAt.Before(retentionCutoff)) ||
-			(token.IsRevoked() && token.RevokedAt != nil && token.RevokedAt.Before(retentionCutoff)) ||
-			(token.IsConsumable() == false && !token.IsAccepted() && !token.IsRevoked() && token.ExpiresAt.Before(retentionCutoff)) ||
+		if (token.IsAccepted() && token.UsedAt.Before(retentionCutoff)) ||
+			(token.IsRevoked() && token.RevokedAt.Before(retentionCutoff)) ||
 			(token.UsedAt == nil && token.RevokedAt == nil && token.ExpiresAt.Before(retentionCutoff)) {
 			delete(r.byToken, token.Token)
 			delete(r.tokens, id)

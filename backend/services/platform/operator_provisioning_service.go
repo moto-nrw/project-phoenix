@@ -46,6 +46,13 @@ type UpdateSchoolRequest struct {
 	Active         bool
 }
 
+// Operator account provisioning status values.
+const (
+	AccountStatusCreated       = "created"
+	AccountStatusLinked        = "linked"
+	AccountStatusAccountExists = "account_exists"
+)
+
 // CreateSchoolAccountRequest holds fields for manual operator-led account creation.
 type CreateSchoolAccountRequest struct {
 	Email           string
@@ -544,7 +551,7 @@ func (s *operatorProvisioningService) CreateSchoolAccount(ctx context.Context, s
 			if accountErr != nil {
 				return accountErr
 			}
-			if status == "account_exists" {
+			if status == AccountStatusAccountExists {
 				result = &OperatorProvisionedAccount{
 					Email:     req.Email,
 					FirstName: req.FirstName,
@@ -1002,7 +1009,7 @@ func (s *operatorProvisioningService) createOrLinkSchoolAccount(ctx context.Cont
 		if err != nil {
 			return nil, "", err
 		}
-		return account, "linked", nil
+		return account, AccountStatusLinked, nil
 	}
 
 	for attempt := 0; attempt < 3; attempt++ {
@@ -1012,10 +1019,10 @@ func (s *operatorProvisioningService) createOrLinkSchoolAccount(ctx context.Cont
 		}
 		account, err := s.authService.Register(ctx, req.Email, username, req.Password, &roleID, schoolID)
 		if err == nil {
-			return account, "created", nil
+			return account, AccountStatusCreated, nil
 		}
 		if isAuthConflict(err, authSvc.ErrEmailAlreadyExists) {
-			return nil, "account_exists", nil
+			return nil, AccountStatusAccountExists, nil
 		}
 		if req.Username == "" && isAuthConflict(err, authSvc.ErrUsernameAlreadyExists) {
 			continue
@@ -1096,12 +1103,7 @@ func (s *operatorProvisioningService) ensureProvisionedTeacher(ctx context.Conte
 }
 
 func shouldCreateTeacherForRoleName(roleName string) bool {
-	switch strings.ToLower(strings.TrimSpace(roleName)) {
-	case "user", "teacher":
-		return true
-	default:
-		return false
-	}
+	return authModels.ShouldCreateTeacherForRole(roleName)
 }
 
 func buildGeneratedUsername(firstName, lastName string) string {
@@ -1109,8 +1111,9 @@ func buildGeneratedUsername(firstName, lastName string) string {
 	last := strings.ToLower(strings.TrimSpace(lastName))
 	first = strings.ReplaceAll(first, " ", "_")
 	last = strings.ReplaceAll(last, " ", "_")
-	suffix := time.Now().UnixNano() % 1000000
-	return fmt.Sprintf("%s_%s_%06d", first, last, suffix)
+	b := make([]byte, 3)
+	_, _ = rand.Read(b)
+	return fmt.Sprintf("%s_%s_%s", first, last, hex.EncodeToString(b))
 }
 
 func isNoRowsError(err error) bool {

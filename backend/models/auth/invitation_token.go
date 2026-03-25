@@ -9,6 +9,32 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// InvitationRetentionDays is the number of days invitations are kept for the status dashboard.
+const InvitationRetentionDays = 30
+
+// InvitationStatus represents the lifecycle state of an invitation.
+type InvitationStatus string
+
+const (
+	InvitationStatusPending  InvitationStatus = "pending"
+	InvitationStatusFailed   InvitationStatus = "failed"
+	InvitationStatusExpired  InvitationStatus = "expired"
+	InvitationStatusAccepted InvitationStatus = "accepted"
+	InvitationStatusRevoked  InvitationStatus = "revoked"
+)
+
+// ShouldCreateTeacherForRole returns true if the given role name warrants
+// a Teacher record alongside the Staff record. Used by both the invitation
+// acceptance flow and operator manual provisioning.
+func ShouldCreateTeacherForRole(roleName string) bool {
+	switch strings.ToLower(strings.TrimSpace(roleName)) {
+	case "user", "teacher":
+		return true
+	default:
+		return false
+	}
+}
+
 // InvitationToken represents an invitation sent to create a new account.
 type InvitationToken struct {
 	base.Model `bun:"schema:auth,table:invitation_tokens"`
@@ -92,7 +118,7 @@ func (t *InvitationToken) IsRevoked() bool {
 	return t.RevokedAt != nil
 }
 
-// IsUsed is kept as a compatibility helper and now means accepted only.
+// Deprecated: IsUsed is kept for compatibility. Use IsAccepted instead.
 func (t *InvitationToken) IsUsed() bool {
 	return t.IsAccepted()
 }
@@ -102,7 +128,7 @@ func (t *InvitationToken) IsConsumable() bool {
 	return !t.IsExpired() && !t.IsAccepted() && !t.IsRevoked()
 }
 
-// IsValid is kept as a compatibility helper and now means consumable.
+// Deprecated: IsValid is kept for compatibility. Use IsConsumable instead.
 func (t *InvitationToken) IsValid() bool {
 	return t.IsConsumable()
 }
@@ -118,6 +144,23 @@ func (t *InvitationToken) MarkAsRevoked(actorID *int64) {
 	now := time.Now()
 	t.RevokedAt = &now
 	t.RevokedBy = actorID
+}
+
+// DeriveStatus computes the current lifecycle status from the token's fields.
+func (t *InvitationToken) DeriveStatus() InvitationStatus {
+	if t.IsRevoked() {
+		return InvitationStatusRevoked
+	}
+	if t.IsAccepted() {
+		return InvitationStatusAccepted
+	}
+	if t.IsExpired() {
+		return InvitationStatusExpired
+	}
+	if t.EmailError != nil && strings.TrimSpace(*t.EmailError) != "" {
+		return InvitationStatusFailed
+	}
+	return InvitationStatusPending
 }
 
 // SetExpiry assigns a duration from now as the expiry.

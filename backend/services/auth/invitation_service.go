@@ -459,10 +459,6 @@ func (s *invitationService) createAccountWithRole(
 		return nil, err
 	}
 
-	if err := s.createAccountTenant(ctx, account.ID, invitation.TenantID); err != nil {
-		return nil, err
-	}
-
 	if err := s.createStaffAndTeacherIfSystemRole(ctx, person.ID, invitation); err != nil {
 		return nil, err
 	}
@@ -634,12 +630,7 @@ func (s *invitationService) createStaffAndTeacherIfSystemRole(
 }
 
 func shouldCreateTeacherForRole(roleName string) bool {
-	switch strings.ToLower(strings.TrimSpace(roleName)) {
-	case "user", "teacher":
-		return true
-	default:
-		return false
-	}
+	return authModels.ShouldCreateTeacherForRole(roleName)
 }
 
 // ResendInvitation queues another email for an existing invitation if it is still valid.
@@ -686,7 +677,7 @@ func (s *invitationService) ResendInvitation(ctx context.Context, invitationID i
 // ListInvitations returns all recent invitations for the current tenant.
 func (s *invitationService) ListInvitations(ctx context.Context) ([]*authModels.InvitationToken, error) {
 	invitations, err := s.invitationRepo.List(ctx, map[string]interface{}{
-		"created_after": time.Now().Add(-30 * 24 * time.Hour),
+		"created_after": time.Now().Add(-authModels.InvitationRetentionDays * 24 * time.Hour),
 	})
 	if err != nil {
 		return nil, &AuthError{Op: "list invitations", Err: err}

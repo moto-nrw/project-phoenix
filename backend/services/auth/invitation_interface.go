@@ -38,14 +38,15 @@ type InvitationValidationResult struct {
 	ExpiresAt time.Time `json:"expires_at"`
 }
 
-type InvitationStatus string
+// InvitationStatus is re-exported from the model layer for convenience.
+type InvitationStatus = authModels.InvitationStatus
 
 const (
-	InvitationStatusPending  InvitationStatus = "pending"
-	InvitationStatusFailed   InvitationStatus = "failed"
-	InvitationStatusExpired  InvitationStatus = "expired"
-	InvitationStatusAccepted InvitationStatus = "accepted"
-	InvitationStatusRevoked  InvitationStatus = "revoked"
+	InvitationStatusPending  = authModels.InvitationStatusPending
+	InvitationStatusFailed   = authModels.InvitationStatusFailed
+	InvitationStatusExpired  = authModels.InvitationStatusExpired
+	InvitationStatusAccepted = authModels.InvitationStatusAccepted
+	InvitationStatusRevoked  = authModels.InvitationStatusRevoked
 )
 
 // InvitationService defines the operations for managing invitation workflows.

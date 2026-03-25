@@ -401,7 +401,7 @@ func (rs *ProvisioningResource) CreateSchoolAccount(w http.ResponseWriter, r *ht
 	}
 
 	statusCode := http.StatusCreated
-	if account != nil && account.Status == "account_exists" {
+	if account != nil && account.Status == platformSvc.AccountStatusAccountExists {
 		statusCode = http.StatusOK
 	}
 	common.Respond(w, r, statusCode, account, "School account provisioned successfully")

@@ -49,18 +49,19 @@ const STATUS_STYLES: Record<InvitationStatus, string> = {
   revoked: "bg-gray-100 text-gray-700",
 };
 
+const dateFormatter = new Intl.DateTimeFormat("de-DE", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
 function formatDate(value?: string | null): string {
   if (!value) return "—";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Ungültig";
-  return `${date.toLocaleDateString("de-DE", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  })} ${date.toLocaleTimeString("de-DE", {
-    hour: "2-digit",
-    minute: "2-digit",
-  })}`;
+  return dateFormatter.format(date);
 }
 
 function matchesFilter(
@@ -85,12 +86,7 @@ function matchesFilter(
   }
 }
 
-function canResend(invitation: InvitationRecord): boolean {
-  const status = invitation.status ?? "pending";
-  return status === "pending" || status === "failed" || status === "expired";
-}
-
-function canRevoke(invitation: InvitationRecord): boolean {
+function canActOn(invitation: InvitationRecord): boolean {
   const status = invitation.status ?? "pending";
   return status === "pending" || status === "failed" || status === "expired";
 }
@@ -175,18 +171,26 @@ export function PendingInvitationsList({
   );
 
   const counts = useMemo(() => {
-    return invitations.reduce<Record<FilterKey, number>>(
-      (acc, invitation) => {
-        acc.all += 1;
-        if (matchesFilter(invitation, "open")) acc.open += 1;
-        if (matchesFilter(invitation, "expired")) acc.expired += 1;
-        if (matchesFilter(invitation, "accepted")) acc.accepted += 1;
-        if (matchesFilter(invitation, "revoked")) acc.revoked += 1;
-        if (matchesFilter(invitation, "failed")) acc.failed += 1;
-        return acc;
-      },
-      { all: 0, open: 0, expired: 0, accepted: 0, revoked: 0, failed: 0 },
-    );
+    const c = {
+      all: 0,
+      open: 0,
+      expired: 0,
+      accepted: 0,
+      revoked: 0,
+      failed: 0,
+    };
+    for (const inv of invitations) {
+      c.all++;
+      const s = inv.status ?? "pending";
+      if (s === "pending") c.open++;
+      else if (s === "failed") {
+        c.open++;
+        c.failed++;
+      } else if (s === "expired") c.expired++;
+      else if (s === "accepted") c.accepted++;
+      else if (s === "revoked") c.revoked++;
+    }
+    return c;
   }, [invitations]);
 
   if (isLoading) {
@@ -344,7 +348,7 @@ export function PendingInvitationsList({
                         type="button"
                         onClick={() => handleResend(invitation.id)}
                         disabled={
-                          !canResend(invitation) ||
+                          !canActOn(invitation) ||
                           actionLoading === invitation.id
                         }
                         className="min-h-[32px] rounded-lg bg-gray-100 px-2 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50 md:px-3"
@@ -355,7 +359,7 @@ export function PendingInvitationsList({
                         type="button"
                         onClick={() => setRevokeTarget(invitation)}
                         disabled={
-                          !canRevoke(invitation) ||
+                          !canActOn(invitation) ||
                           actionLoading === invitation.id
                         }
                         className="min-h-[32px] rounded-lg bg-red-50 px-2 py-1.5 text-xs font-medium text-red-700 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50 md:px-3"

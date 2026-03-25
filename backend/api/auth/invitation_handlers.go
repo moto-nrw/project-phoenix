@@ -394,23 +394,11 @@ func deriveDeliveryStatus(sentAt *time.Time, emailError *string) string {
 	return string(email.DeliveryStatusPending)
 }
 
-func deriveInvitationStatus(invitation *authModels.InvitationToken) authService.InvitationStatus {
+func deriveInvitationStatus(invitation *authModels.InvitationToken) authModels.InvitationStatus {
 	if invitation == nil {
-		return authService.InvitationStatusPending
+		return authModels.InvitationStatusPending
 	}
-	if invitation.RevokedAt != nil {
-		return authService.InvitationStatusRevoked
-	}
-	if invitation.UsedAt != nil {
-		return authService.InvitationStatusAccepted
-	}
-	if time.Now().After(invitation.ExpiresAt) {
-		return authService.InvitationStatusExpired
-	}
-	if invitation.EmailError != nil && strings.TrimSpace(*invitation.EmailError) != "" {
-		return authService.InvitationStatusFailed
-	}
-	return authService.InvitationStatusPending
+	return invitation.DeriveStatus()
 }
 
 func invitationCreatedByValue(createdBy *int64) int64 {

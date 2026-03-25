@@ -250,7 +250,7 @@ func (r *InvitationTokenRepository) DeleteExpired(ctx context.Context, now time.
 		Model((*modelAuth.InvitationToken)(nil)).
 		ModelTableExpr(invitationTable).
 		WhereGroup(" AND ", func(q *bun.DeleteQuery) *bun.DeleteQuery {
-			retentionCutoff := now.Add(-30 * 24 * time.Hour)
+			retentionCutoff := now.Add(-modelAuth.InvitationRetentionDays * 24 * time.Hour)
 			return q.
 				WhereOr(`used_at IS NOT NULL AND used_at < ?`, retentionCutoff).
 				WhereOr(`revoked_at IS NOT NULL AND revoked_at < ?`, retentionCutoff).

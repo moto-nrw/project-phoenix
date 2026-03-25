@@ -41,6 +41,18 @@ const logger = createLogger({ component: "OperatorProvisioningPage" });
 
 type ActiveTab = "organizations" | "schools" | "accounts" | "devices";
 
+const DEVICE_SWR_PREFIXES = [
+  "operator-all-devices",
+  "operator-school-devices-",
+  "operator-org-devices-",
+] as const;
+
+const ACCOUNT_SWR_PREFIXES = [
+  "operator-all-accounts",
+  "operator-school-accounts-",
+  "operator-org-accounts-",
+] as const;
+
 export default function OperatorProvisioningPage() {
   const { status } = useSession();
   const isAuthenticated = status === "authenticated";
@@ -197,31 +209,13 @@ export default function OperatorProvisioningPage() {
       ? orgDevicesLoading
       : allDevicesLoading;
 
-  const DEVICE_SWR_PREFIXES = useMemo(
-    () => [
-      "operator-all-devices",
-      "operator-school-devices-",
-      "operator-org-devices-",
-    ],
-    [],
-  );
-
-  const ACCOUNT_SWR_PREFIXES = useMemo(
-    () => [
-      "operator-all-accounts",
-      "operator-school-accounts-",
-      "operator-org-accounts-",
-    ],
-    [],
-  );
-
   const refreshDevices = useCallback(() => {
     return globalMutate(
       (key: unknown) =>
         typeof key === "string" &&
         DEVICE_SWR_PREFIXES.some((p) => key.startsWith(p)),
     );
-  }, [globalMutate, DEVICE_SWR_PREFIXES]);
+  }, [globalMutate]);
 
   const refreshAccounts = useCallback(() => {
     return globalMutate(
@@ -229,7 +223,7 @@ export default function OperatorProvisioningPage() {
         typeof key === "string" &&
         ACCOUNT_SWR_PREFIXES.some((p) => key.startsWith(p)),
     );
-  }, [globalMutate, ACCOUNT_SWR_PREFIXES]);
+  }, [globalMutate]);
 
   // Schools filtered by selected organization (for accounts tab filter)
   const filteredSchools = useMemo(() => {
