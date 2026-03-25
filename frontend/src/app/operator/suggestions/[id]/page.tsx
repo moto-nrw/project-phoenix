@@ -18,6 +18,8 @@ import { createLogger } from "~/lib/logger";
 import { operatorPath } from "~/lib/operator-url";
 
 const logger = createLogger({ component: "OperatorSuggestionDetailPage" });
+const UNREAD_REFRESH_EVENT = "operator-suggestions-unread-refresh";
+const UNVIEWED_REFRESH_EVENT = "operator-suggestions-unviewed-refresh";
 
 export default function OperatorSuggestionDetailPage() {
   const params = useParams();
@@ -140,6 +142,12 @@ export default function OperatorSuggestionDetailPage() {
       await operatorSuggestionsService.deletePost(suggestion.id);
       setShowDeleteModal(false);
       await globalMutate("operator-suggestions");
+      if (suggestion.unreadCount > 0) {
+        window.dispatchEvent(new CustomEvent(UNREAD_REFRESH_EVENT));
+      }
+      if (suggestion.isNew) {
+        window.dispatchEvent(new CustomEvent(UNVIEWED_REFRESH_EVENT));
+      }
       router.push(operatorPath("/operator/suggestions"));
     } catch (error) {
       logger.error("suggestion_delete_failed", {

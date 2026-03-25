@@ -144,6 +144,8 @@ describe("OperatorSuggestionDetailPage", () => {
     createdAt: new Date("2025-01-01"),
     schoolName: "OGS Musterstadt",
     isHidden: false,
+    unreadCount: 2,
+    isNew: true,
     operatorComments: [mockComment],
   };
 
@@ -444,6 +446,7 @@ describe("OperatorSuggestionDetailPage", () => {
 
   it("deletes post after confirmation and navigates back", async () => {
     mockDeletePost.mockResolvedValue(undefined);
+    const dispatchEventSpy = vi.spyOn(window, "dispatchEvent");
 
     render(<OperatorSuggestionDetailPage />);
 
@@ -458,6 +461,16 @@ describe("OperatorSuggestionDetailPage", () => {
     await waitFor(() => {
       expect(mockDeletePost).toHaveBeenCalledWith("1");
       expect(mockGlobalMutate).toHaveBeenCalledWith("operator-suggestions");
+      expect(dispatchEventSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "operator-suggestions-unread-refresh",
+        }),
+      );
+      expect(dispatchEventSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "operator-suggestions-unviewed-refresh",
+        }),
+      );
       expect(mockUsePush).toHaveBeenCalledWith("/operator/suggestions");
     });
   });
