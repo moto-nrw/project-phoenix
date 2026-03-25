@@ -36,8 +36,9 @@ describe("activitiesConfig", () => {
   });
 
   it("has form sections configured", () => {
-    expect(activitiesConfig.form.sections).toHaveLength(1);
+    expect(activitiesConfig.form.sections).toHaveLength(2);
     expect(activitiesConfig.form.sections[0]?.title).toBe("Grundinformationen");
+    expect(activitiesConfig.form.sections[1]?.title).toBe("Betreuer");
   });
 
   it("has required form fields", () => {
@@ -49,18 +50,19 @@ describe("activitiesConfig", () => {
     expect(fieldNames).toContain("max_participant");
   });
 
+  it("has supervisor field in Betreuer section", () => {
+    const fields = activitiesConfig.form.sections[1]?.fields ?? [];
+    const fieldNames = fields.map((f) => f.name);
+
+    expect(fieldNames).toContain("supervisor_id");
+  });
+
   it("has default max_participant value", () => {
     expect(activitiesConfig.form.defaultValues?.max_participant).toBe(20);
   });
 
-  it("transforms data before submit", () => {
-    const data: Partial<Activity> = {
-      name: "Test Activity",
-      max_participant: 25,
-    };
-
-    const transformed = activitiesConfig.form.transformBeforeSubmit?.(data);
-    expect(transformed).toEqual(data);
+  it("has no transformBeforeSubmit", () => {
+    expect(activitiesConfig.form.transformBeforeSubmit).toBeUndefined();
   });
 
   it("has detail header configuration", () => {
@@ -156,6 +158,23 @@ describe("activitiesConfig", () => {
       name: "Test Activity",
       max_participants: 25,
       category_id: 3,
+    });
+  });
+
+  it("maps request data with supervisor", () => {
+    const data: Partial<Activity> = {
+      name: "Test Activity",
+      max_participant: 25,
+      ag_category_id: "3",
+      supervisor_id: "42",
+    };
+
+    const mapped = activitiesConfig.service?.mapRequest?.(data);
+    expect(mapped).toEqual({
+      name: "Test Activity",
+      max_participants: 25,
+      category_id: 3,
+      supervisor_ids: [42],
     });
   });
 
