@@ -480,7 +480,7 @@ export default function ActivitiesPage() {
           onSuccess={handleManagementSuccess}
           activity={selectedActivity}
           currentStaffId={currentStaff?.id}
-          readOnly={false}
+          readOnly={!isActivityCreator(selectedActivity, currentStaff?.id)}
         />
       )}
 
