@@ -32,6 +32,11 @@ func ErrorInternalServer(err error) render.Renderer {
 	return common.ErrorInternalServer(err)
 }
 
+// ErrorForbidden returns a 403 Forbidden error response
+func ErrorForbidden(err error) render.Renderer {
+	return common.ErrorForbidden(err)
+}
+
 // ErrorNotFound returns a 404 Not Found error response
 func ErrorNotFound(err error) render.Renderer {
 	return common.ErrorNotFound(err)

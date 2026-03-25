@@ -11,9 +11,10 @@ import (
 // SupervisorPlanned represents a staff member assigned to supervise an activity group
 type SupervisorPlanned struct {
 	base.Model `bun:"schema:activities,table:supervisors"`
-	StaffID    int64 `bun:"staff_id,notnull" json:"staff_id"`
-	GroupID    int64 `bun:"group_id,notnull" json:"group_id"`
-	IsPrimary  bool  `bun:"is_primary,notnull,default:false" json:"is_primary"`
+	base.TenantModel
+	StaffID   int64 `bun:"staff_id,notnull" json:"staff_id"`
+	GroupID   int64 `bun:"group_id,notnull" json:"group_id"`
+	IsPrimary bool  `bun:"is_primary,notnull,default:false" json:"is_primary"`
 
 	// Relations - these would be populated when using the ORM's relations
 	Staff *users.Staff `bun:"rel:belongs-to,join:staff_id=id" json:"staff,omitempty"`

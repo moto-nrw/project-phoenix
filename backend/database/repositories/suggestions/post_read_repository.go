@@ -6,6 +6,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/suggestions"
 	"github.com/uptrace/bun"
@@ -30,7 +31,9 @@ func (r *PostReadRepository) MarkViewed(ctx context.Context, accountID, postID i
 		ViewedAt:   time.Now(),
 	}
 
-	_, err := r.db.NewInsert().
+	base.EnsureTenantID(ctx, pr)
+
+	_, err := base.GetDB(ctx, r.db).NewInsert().
 		Model(pr).
 		On("CONFLICT (account_id, post_id, reader_type) DO UPDATE").
 		Set("viewed_at = EXCLUDED.viewed_at").
@@ -43,7 +46,7 @@ func (r *PostReadRepository) MarkViewed(ctx context.Context, accountID, postID i
 
 // IsViewed checks if a reader has viewed a post
 func (r *PostReadRepository) IsViewed(ctx context.Context, accountID, postID int64, readerType string) (bool, error) {
-	exists, err := r.db.NewSelect().
+	exists, err := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr("suggestions.post_reads").
 		Where("account_id = ?", accountID).
 		Where("post_id = ?", postID).
@@ -55,15 +58,21 @@ func (r *PostReadRepository) IsViewed(ctx context.Context, accountID, postID int
 	return exists, nil
 }
 
-// CountUnviewed counts posts that a reader has not yet viewed
+// CountUnviewed counts posts that a reader has not yet viewed.
+// For ReaderTypeUser, hidden posts are excluded.
 func (r *PostReadRepository) CountUnviewed(ctx context.Context, accountID int64, readerType string) (int, error) {
-	count, err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr("suggestions.posts AS p").
 		Where(`NOT EXISTS (
 			SELECT 1 FROM suggestions.post_reads pr
 			WHERE pr.account_id = ? AND pr.post_id = p.id AND pr.reader_type = ?
-		)`, accountID, readerType).
-		Count(ctx)
+		)`, accountID, readerType)
+
+	if readerType == "user" {
+		query = query.Where("p.is_hidden = FALSE")
+	}
+
+	count, err := query.Count(ctx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return 0, nil

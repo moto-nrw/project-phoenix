@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/active"
 )
 
 // Analytics and statistics
@@ -52,102 +51,6 @@ func (s *service) GetActiveVisitsCount(ctx context.Context) (int, error) {
 	return count, nil
 }
 
-// GetRoomUtilization returns the current occupancy ratio for a room.
-//
-// Deprecated: This method is not used by any frontend UI components and provides
-// limited value in its current form. The dashboard uses GetDashboardAnalytics instead.
-// Consider using facilities.Service.GetRoomUtilization or removing this endpoint entirely.
-//
-// Current behavior:
-// - Returns real-time occupancy ratio: (active students) / (room capacity)
-// - Example: 15 students in a 20-capacity room = 0.75 (75%)
-// - Does NOT calculate historical time-based utilization
-//
-// API endpoint: GET /api/active/analytics/room/{roomId}/utilization
-// Exposed but unused by frontend. May be removed in a future version.
-func (s *service) GetRoomUtilization(ctx context.Context, roomID int64) (float64, error) {
-	capacity, err := s.getRoomCapacityOrZero(ctx, roomID)
-	if err != nil {
-		return 0.0, err
-	}
-	if capacity == 0 {
-		return 0.0, nil
-	}
-
-	activeGroups, err := s.groupRepo.FindActiveByRoomID(ctx, roomID)
-	if err != nil {
-		return 0.0, &ActiveError{Op: "GetRoomUtilization", Err: err}
-	}
-
-	currentOccupancy := s.countActiveOccupancyInRoom(ctx, activeGroups)
-	return float64(currentOccupancy) / float64(capacity), nil
-}
-
-// getRoomCapacityOrZero retrieves room capacity, returning 0 if room not found or has no capacity
-func (s *service) getRoomCapacityOrZero(ctx context.Context, roomID int64) (int, error) {
-	room, err := s.roomRepo.FindByID(ctx, roomID)
-	if err != nil {
-		return 0, &ActiveError{Op: "GetRoomUtilization", Err: err}
-	}
-
-	if room.Capacity == nil || *room.Capacity <= 0 {
-		return 0, nil
-	}
-
-	return *room.Capacity, nil
-}
-
-// countActiveOccupancyInRoom counts the number of active visits across all active groups
-func (s *service) countActiveOccupancyInRoom(ctx context.Context, activeGroups []*active.Group) int {
-	currentOccupancy := 0
-	for _, group := range activeGroups {
-		if !group.IsActive() {
-			continue
-		}
-
-		visits, err := s.visitRepo.FindByActiveGroupID(ctx, group.ID)
-		if err != nil {
-			continue
-		}
-
-		for _, visit := range visits {
-			if visit.IsActive() {
-				currentOccupancy++
-			}
-		}
-	}
-	return currentOccupancy
-}
-
-// GetStudentAttendanceRate returns a binary presence indicator for a student.
-//
-// Deprecated: This method is not used by any frontend UI components and provides
-// misleading semantics. Despite the name "AttendanceRate", it only returns binary
-// presence (1.0 if present, 0.0 if not), not a historical attendance rate.
-// The dashboard uses GetDashboardAnalytics or GetStudentAttendanceStatus instead.
-//
-// Current behavior:
-// - Returns 1.0 if student currently has an active visit (present)
-// - Returns 0.0 if student has no active visit (not present)
-// - Does NOT calculate historical attendance rates or activity participation
-//
-// API endpoint: GET /api/active/analytics/student/{studentId}/attendance
-// Exposed but unused by frontend. May be removed in a future version.
-// For actual attendance tracking, use GetStudentAttendanceStatus instead.
-func (s *service) GetStudentAttendanceRate(ctx context.Context, studentID int64) (float64, error) {
-	visit, err := s.GetStudentCurrentVisit(ctx, studentID)
-	if err != nil {
-		// If error, assume student not present
-		return 0.0, nil
-	}
-
-	if visit != nil && visit.IsActive() {
-		return 1.0, nil // Student is present
-	}
-
-	return 0.0, nil // Student is not present
-}
-
 func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytics, error) {
 	analytics := &DashboardAnalytics{
 		LastUpdated: time.Now(),
@@ -180,14 +83,11 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	}
 
 	// Phase 5: Build group-related maps
-	groupData, err := s.buildEducationGroupMaps(ctx, baseData.activeGroups, baseData.allEducationGroups, studentsWithGroups)
-	if err != nil {
-		return nil, &ActiveError{Op: "GetDashboardAnalytics", Err: ErrDatabaseOperation}
-	}
+	groupData := s.buildEducationGroupMaps(baseData.allEducationGroups, studentsWithGroups)
 
 	// Phase 6: Process active groups and calculate group metrics
-	activeGroupsCount, ogsGroupsCount, uniqueStudentsInRoomsOverall := s.processActiveGroups(
-		baseData.activeGroups, baseData.visitsByGroupID, groupData, roomData,
+	activeGroupsCount, ogsGroupsCount, uniqueStudentsInRoomsOverall := processActiveGroups(
+		baseData.activeGroups, baseData.visitsByGroupID, baseData.educationGroupsByID, roomData,
 	)
 	analytics.ActiveActivities = activeGroupsCount
 	analytics.ActiveOGSGroups = ogsGroupsCount
@@ -205,10 +105,10 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	analytics.StudentsInGroupRooms = locationData.studentsInGroupRooms
 	analytics.StudentsInHomeRoom = locationData.studentsInHomeRoom
 
-	// Phase 9: Build summary lists
-	analytics.RecentActivity = s.buildRecentActivity(ctx, baseData.activeGroups, roomData)
-	analytics.CurrentActivities = s.buildCurrentActivities(ctx, baseData.activeGroups, roomData)
-	analytics.ActiveGroupsSummary = s.buildActiveGroupsSummary(ctx, baseData.activeGroups, roomData)
+	// Phase 9: Build summary lists (using pre-loaded maps for O(1) name lookups)
+	analytics.RecentActivity = buildRecentActivity(baseData.activeGroups, baseData.activityGroupsByID, baseData.educationGroupsByID, roomData)
+	analytics.CurrentActivities = buildCurrentActivities(baseData.allActivityGroups, baseData.activeGroups, roomData)
+	analytics.ActiveGroupsSummary = buildActiveGroupsSummary(baseData.activeGroups, baseData.activityGroupsByID, baseData.educationGroupsByID, roomData)
 
 	return analytics, nil
 }

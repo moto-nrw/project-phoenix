@@ -14,6 +14,7 @@ import (
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/auth"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
@@ -74,7 +75,7 @@ func TestAuthService_Register(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("registers account successfully", func(t *testing.T) {
 		// ARRANGE
@@ -83,7 +84,7 @@ func TestAuthService_Register(t *testing.T) {
 		password := testPassword
 
 		// ACT
-		account, err := service.Register(ctx, email, username, password, nil)
+		account, err := service.Register(ctx, email, username, password, nil, 0)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -95,7 +96,7 @@ func TestAuthService_Register(t *testing.T) {
 
 	t.Run("returns error for empty email", func(t *testing.T) {
 		// ACT
-		account, err := service.Register(ctx, "", "username", testPassword, nil)
+		account, err := service.Register(ctx, "", "username", testPassword, nil, 0)
 
 		// ASSERT
 		require.Error(t, err)
@@ -104,7 +105,7 @@ func TestAuthService_Register(t *testing.T) {
 
 	t.Run("returns error for empty password", func(t *testing.T) {
 		// ACT
-		account, err := service.Register(ctx, "test@example.com", "username", "", nil)
+		account, err := service.Register(ctx, "test@example.com", "username", "", nil, 0)
 
 		// ASSERT
 		require.Error(t, err)
@@ -113,11 +114,35 @@ func TestAuthService_Register(t *testing.T) {
 
 	t.Run("returns error for weak password", func(t *testing.T) {
 		// ACT
-		account, err := service.Register(ctx, "weak@example.com", "username", "weak", nil)
+		account, err := service.Register(ctx, "weak@example.com", "username", "weak", nil, 0)
 
 		// ASSERT
 		require.Error(t, err)
 		assert.Nil(t, account)
+	})
+
+	t.Run("rejects role assignment without tenant context", func(t *testing.T) {
+		role := testpkg.CreateTestRole(t, db, fmt.Sprintf("platform-role-%d", time.Now().UnixNano()))
+		defer testpkg.CleanupTableRecords(t, db, "auth.roles", role.ID)
+
+		email := fmt.Sprintf("tenantless-role-%d@test.local", time.Now().UnixNano())
+		username := fmt.Sprintf("tenantless-role-%d", time.Now().UnixNano())
+		roleID := role.ID
+
+		account, err := service.Register(ctx, email, username, testPassword, &roleID, 0)
+
+		require.Error(t, err)
+		assert.Nil(t, account)
+		assert.True(t, errors.Is(err, auth.ErrTenantRequiredForRoleAssignment))
+
+		var accountCount int
+		err = db.NewSelect().
+			TableExpr("auth.accounts").
+			ColumnExpr("COUNT(*)").
+			Where("email = ?", strings.ToLower(email)).
+			Scan(context.Background(), &accountCount)
+		require.NoError(t, err)
+		assert.Equal(t, 0, accountCount, "registration should fail before creating an unusable account")
 	})
 
 	t.Run("returns error for duplicate email", func(t *testing.T) {
@@ -125,13 +150,13 @@ func TestAuthService_Register(t *testing.T) {
 		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
 		email := fmt.Sprintf("duplicate-%s@test.local", uniqueID)
 		username1 := fmt.Sprintf("user1-%s", uniqueID)
-		account1, err := service.Register(ctx, email, username1, testPassword, nil)
+		account1, err := service.Register(ctx, email, username1, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account1.ID)
 
 		// ACT - try to register with same email
 		username2 := fmt.Sprintf("user2-%s", uniqueID)
-		account2, err := service.Register(ctx, email, username2, testPassword, nil)
+		account2, err := service.Register(ctx, email, username2, testPassword, nil, 0)
 
 		// ASSERT
 		require.Error(t, err)
@@ -148,7 +173,7 @@ func TestAuthService_Login(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("login succeeds with valid credentials", func(t *testing.T) {
 		// ARRANGE - create account
@@ -156,7 +181,7 @@ func TestAuthService_Login(t *testing.T) {
 		email := fmt.Sprintf("login-%s@test.local", uniqueID)
 		username := fmt.Sprintf("loginuser-%s", uniqueID)
 		password := testPassword
-		account, err := service.Register(ctx, email, username, password, nil)
+		account, err := service.Register(ctx, email, username, password, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -174,7 +199,7 @@ func TestAuthService_Login(t *testing.T) {
 		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
 		email := fmt.Sprintf("wrongpwd-%s@test.local", uniqueID)
 		username := fmt.Sprintf("wrongpwd-%s", uniqueID)
-		account, err := service.Register(ctx, email, username, testPassword, nil)
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -212,7 +237,7 @@ func TestAuthService_Login(t *testing.T) {
 		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
 		email := fmt.Sprintf("emptypwd-%s@test.local", uniqueID)
 		username := fmt.Sprintf("emptypwd-%s", uniqueID)
-		account, err := service.Register(ctx, email, username, testPassword, nil)
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -235,12 +260,12 @@ func TestAuthService_ValidateToken(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("validates token successfully", func(t *testing.T) {
 		// ARRANGE
 		email, username := uniqueTestCredentials("validate")
-		account, err := service.Register(ctx, email, username, testPassword, nil)
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -248,17 +273,18 @@ func TestAuthService_ValidateToken(t *testing.T) {
 		require.NoError(t, err)
 
 		// ACT
-		validatedAccount, err := service.ValidateToken(ctx, accessToken)
+		validatedAccount, claims, err := service.ValidateToken(ctx, accessToken)
 
 		// ASSERT
 		require.NoError(t, err)
 		assert.NotNil(t, validatedAccount)
+		assert.NotNil(t, claims)
 		assert.Equal(t, account.ID, validatedAccount.ID)
 	})
 
 	t.Run("returns error for invalid token", func(t *testing.T) {
 		// ACT
-		account, err := service.ValidateToken(ctx, "invalid.token.here")
+		account, _, err := service.ValidateToken(ctx, "invalid.token.here")
 
 		// ASSERT
 		require.Error(t, err)
@@ -267,7 +293,7 @@ func TestAuthService_ValidateToken(t *testing.T) {
 
 	t.Run("returns error for empty token", func(t *testing.T) {
 		// ACT
-		account, err := service.ValidateToken(ctx, "")
+		account, _, err := service.ValidateToken(ctx, "")
 
 		// ASSERT
 		require.Error(t, err)
@@ -284,12 +310,12 @@ func TestAuthService_RefreshToken(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("refreshes token successfully", func(t *testing.T) {
 		// ARRANGE
 		email, username := uniqueTestCredentials("refresh")
-		account, err := service.Register(ctx, email, username, testPassword, nil)
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -335,11 +361,11 @@ func TestAuthService_RefreshToken_ConcurrentSingleflight(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// ARRANGE: create account and get a refresh token
 	email, username := uniqueTestCredentials("singleflight")
-	account, err := service.Register(ctx, email, username, testPassword, nil)
+	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 	require.NoError(t, err)
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -396,12 +422,12 @@ func TestAuthService_Logout(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("logout succeeds", func(t *testing.T) {
 		// ARRANGE
 		email, username := uniqueTestCredentials("logout")
-		account, err := service.Register(ctx, email, username, testPassword, nil)
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -437,14 +463,14 @@ func TestAuthService_ChangePassword(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("changes password successfully", func(t *testing.T) {
 		// ARRANGE
 		email, username := uniqueTestCredentials("changepwd")
 		oldPassword := testPassword
 		newPassword := "NewPassword1%"
-		account, err := service.Register(ctx, email, username, oldPassword, nil)
+		account, err := service.Register(ctx, email, username, oldPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -462,7 +488,7 @@ func TestAuthService_ChangePassword(t *testing.T) {
 	t.Run("returns error for wrong current password", func(t *testing.T) {
 		// ARRANGE
 		email, username := uniqueTestCredentials("wrongcurrent")
-		account, err := service.Register(ctx, email, username, testPassword, nil)
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -476,7 +502,7 @@ func TestAuthService_ChangePassword(t *testing.T) {
 	t.Run("returns error for weak new password", func(t *testing.T) {
 		// ARRANGE
 		email, username := uniqueTestCredentials("weaknew")
-		account, err := service.Register(ctx, email, username, testPassword, nil)
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -497,12 +523,12 @@ func TestAuthService_GetAccountByID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns account when found", func(t *testing.T) {
 		// ARRANGE
 		email, username := uniqueTestCredentials("getbyid")
-		account, err := service.Register(ctx, email, username, testPassword, nil)
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -535,12 +561,12 @@ func TestAuthService_GetAccountByEmail(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns account when found", func(t *testing.T) {
 		// ARRANGE
 		email, username := uniqueTestCredentials("getbyemail")
-		account, err := service.Register(ctx, email, username, testPassword, nil)
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -572,12 +598,12 @@ func TestAuthService_ActivateAccount(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("activates account successfully", func(t *testing.T) {
 		// ARRANGE
 		email, username := uniqueTestCredentials("activate")
-		account, err := service.Register(ctx, email, username, testPassword, nil)
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -611,12 +637,12 @@ func TestAuthService_DeactivateAccount(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deactivates account successfully", func(t *testing.T) {
 		// ARRANGE
 		email, username := uniqueTestCredentials("deactivate")
-		account, err := service.Register(ctx, email, username, testPassword, nil)
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -635,7 +661,7 @@ func TestAuthService_DeactivateAccount(t *testing.T) {
 	t.Run("deactivated account cannot login", func(t *testing.T) {
 		// ARRANGE
 		email, username := uniqueTestCredentials("nologin")
-		account, err := service.Register(ctx, email, username, testPassword, nil)
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -659,12 +685,12 @@ func TestAuthService_ListAccounts(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns accounts with no filters", func(t *testing.T) {
 		// ARRANGE
 		email, username := uniqueTestCredentials("list")
-		account, err := service.Register(ctx, email, username, testPassword, nil)
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -701,7 +727,7 @@ func TestAuthService_CleanupExpiredTokens(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("cleans up expired tokens", func(t *testing.T) {
 		// ACT
@@ -718,12 +744,12 @@ func TestAuthService_RevokeAllTokens(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("revokes all tokens for account", func(t *testing.T) {
 		// ARRANGE
 		email, username := uniqueTestCredentials("revoke")
-		account, err := service.Register(ctx, email, username, testPassword, nil)
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -748,12 +774,12 @@ func TestAuthService_GetActiveTokens(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns active tokens for account", func(t *testing.T) {
 		// ARRANGE
 		email, username := uniqueTestCredentials("activetokens")
-		account, err := service.Register(ctx, email, username, testPassword, nil)
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -772,7 +798,7 @@ func TestAuthService_GetActiveTokens(t *testing.T) {
 	t.Run("returns empty list for account with no tokens", func(t *testing.T) {
 		// ARRANGE
 		email, username := uniqueTestCredentials("notokens")
-		account, err := service.Register(ctx, email, username, testPassword, nil)
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -798,7 +824,7 @@ func TestAuthService_CreateRole(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates role successfully", func(t *testing.T) {
 		// ARRANGE
@@ -829,7 +855,7 @@ func TestAuthService_GetRoleByID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns role when found", func(t *testing.T) {
 		// ARRANGE
@@ -861,7 +887,7 @@ func TestAuthService_GetRoleByName(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns role when found", func(t *testing.T) {
 		// ARRANGE
@@ -893,7 +919,7 @@ func TestAuthService_UpdateRole(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates role successfully", func(t *testing.T) {
 		// ARRANGE
@@ -921,7 +947,7 @@ func TestAuthService_DeleteRole(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes role successfully", func(t *testing.T) {
 		// ARRANGE
@@ -946,7 +972,7 @@ func TestAuthService_ListRoles(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns roles", func(t *testing.T) {
 		// ARRANGE
@@ -968,12 +994,12 @@ func TestAuthService_AssignRoleToAccount(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("assigns role to account", func(t *testing.T) {
 		// ARRANGE
 		email, username := uniqueTestCredentials("assignrole")
-		account, err := service.Register(ctx, email, username, testPassword, nil)
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -1006,12 +1032,12 @@ func TestAuthService_RemoveRoleFromAccount(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("removes role from account", func(t *testing.T) {
 		// ARRANGE
 		email, username := uniqueTestCredentials("removerole")
-		account, err := service.Register(ctx, email, username, testPassword, nil)
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -1046,7 +1072,7 @@ func TestAuthService_CreatePermission(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates permission successfully", func(t *testing.T) {
 		// ARRANGE
@@ -1070,7 +1096,7 @@ func TestAuthService_GetPermissionByID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns permission when found", func(t *testing.T) {
 		// ARRANGE
@@ -1095,7 +1121,7 @@ func TestAuthService_ListPermissions(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns permissions", func(t *testing.T) {
 		// ACT
@@ -1112,13 +1138,13 @@ func TestAuthService_GrantPermissionToAccount(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("grants permission to account", func(t *testing.T) {
 		// ARRANGE
 		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
 		email, username := uniqueTestCredentials("grantperm")
-		account, err := service.Register(ctx, email, username, testPassword, nil)
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -1144,7 +1170,7 @@ func TestAuthService_CreateParentAccount(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates parent account successfully", func(t *testing.T) {
 		// ARRANGE
@@ -1185,7 +1211,7 @@ func TestAuthService_GetParentAccountByID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns parent account when found", func(t *testing.T) {
 		// ARRANGE
@@ -1219,7 +1245,7 @@ func TestAuthService_ListParentAccounts(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns parent accounts", func(t *testing.T) {
 		// ARRANGE
@@ -1247,7 +1273,7 @@ func TestAuthService_GetPermissionByName(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns permission when found", func(t *testing.T) {
 		// ARRANGE - create a permission with unique resource/action
@@ -1281,7 +1307,7 @@ func TestAuthService_UpdatePermission(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates permission successfully", func(t *testing.T) {
 		// ARRANGE
@@ -1311,7 +1337,7 @@ func TestAuthService_DeletePermission(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes permission successfully", func(t *testing.T) {
 		// ARRANGE
@@ -1338,12 +1364,12 @@ func TestAuthService_GetAccountPermissions(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns account permissions", func(t *testing.T) {
 		// ARRANGE - create account with permission
 		email, username := uniqueTestCredentials("acctperms")
-		account, err := service.Register(ctx, email, username, testPassword, nil)
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -1370,12 +1396,12 @@ func TestAuthService_GetAccountDirectPermissions(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns direct permissions only", func(t *testing.T) {
 		// ARRANGE
 		email, username := uniqueTestCredentials("directperms")
-		account, err := service.Register(ctx, email, username, testPassword, nil)
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -1402,12 +1428,12 @@ func TestAuthService_RemovePermissionFromAccount(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("removes permission from account", func(t *testing.T) {
 		// ARRANGE
 		email, username := uniqueTestCredentials("removeperm")
-		account, err := service.Register(ctx, email, username, testPassword, nil)
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -1437,7 +1463,7 @@ func TestAuthService_AssignPermissionToRole(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("assigns permission to role", func(t *testing.T) {
 		// ARRANGE
@@ -1464,7 +1490,7 @@ func TestAuthService_RemovePermissionFromRole(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("removes permission from role", func(t *testing.T) {
 		// ARRANGE
@@ -1494,7 +1520,7 @@ func TestAuthService_GetRolePermissions(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns role permissions", func(t *testing.T) {
 		// ARRANGE
@@ -1529,12 +1555,12 @@ func TestAuthService_UpdateAccount(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates account successfully", func(t *testing.T) {
 		// ARRANGE
 		email, username := uniqueTestCredentials("updateacct")
-		account, err := service.Register(ctx, email, username, testPassword, nil)
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -1558,7 +1584,7 @@ func TestAuthService_GetAccountsByRole(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns accounts with role or empty list", func(t *testing.T) {
 		// ACT - use existing teacher role name
@@ -1583,7 +1609,7 @@ func TestAuthService_CleanupExpiredPasswordResetTokens(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("cleans up expired tokens without error", func(t *testing.T) {
 		// ACT
@@ -1600,7 +1626,7 @@ func TestAuthService_CleanupExpiredRateLimits(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("cleans up expired rate limits without error", func(t *testing.T) {
 		// ACT
@@ -1629,7 +1655,8 @@ func TestAuthService_DenyPermissionToAccount(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
+	ctx = tenant.WithTenantID(ctx, 1)
 
 	t.Run("returns error for non-existent account", func(t *testing.T) {
 		// ARRANGE
@@ -1679,7 +1706,7 @@ func TestInvitationService_ListPendingInvitations(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	invitationService := setupInvitationService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns list without error", func(t *testing.T) {
 		// ACT
@@ -1697,7 +1724,7 @@ func TestInvitationService_CleanupExpiredInvitations(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	invitationService := setupInvitationService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("cleans up expired invitations without error", func(t *testing.T) {
 		// ACT
@@ -1715,7 +1742,7 @@ func TestInvitationService_CreateInvitation(t *testing.T) {
 
 	invitationService := setupInvitationService(t, db)
 	authService := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates invitation with valid data", func(t *testing.T) {
 		// ARRANGE - Get a role (use existing "User" role or create one)
@@ -1723,7 +1750,7 @@ func TestInvitationService_CreateInvitation(t *testing.T) {
 
 		// Create an account to be the creator
 		creatorEmail := fmt.Sprintf("creator-%d@test.local", time.Now().UnixNano())
-		creator, err := authService.Register(ctx, creatorEmail, fmt.Sprintf("creator%d", time.Now().UnixNano()), testPassword, nil)
+		creator, err := authService.Register(ctx, creatorEmail, fmt.Sprintf("creator%d", time.Now().UnixNano()), testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, creator.ID)
 
@@ -1756,7 +1783,7 @@ func TestInvitationService_CreateInvitation(t *testing.T) {
 		// ARRANGE
 		role := testpkg.GetOrCreateTestRole(t, db, "User")
 		creatorEmail := fmt.Sprintf("creator2-%d@test.local", time.Now().UnixNano())
-		creator, err := authService.Register(ctx, creatorEmail, fmt.Sprintf("creator2%d", time.Now().UnixNano()), testPassword, nil)
+		creator, err := authService.Register(ctx, creatorEmail, fmt.Sprintf("creator2%d", time.Now().UnixNano()), testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, creator.ID)
 
@@ -1787,13 +1814,13 @@ func TestInvitationService_ValidateInvitation(t *testing.T) {
 
 	invitationService := setupInvitationService(t, db)
 	authService := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("validates valid invitation token", func(t *testing.T) {
 		// ARRANGE
 		role := testpkg.GetOrCreateTestRole(t, db, "User")
 		creatorEmail := fmt.Sprintf("creator-val-%d@test.local", time.Now().UnixNano())
-		creator, err := authService.Register(ctx, creatorEmail, fmt.Sprintf("creatorval%d", time.Now().UnixNano()), testPassword, nil)
+		creator, err := authService.Register(ctx, creatorEmail, fmt.Sprintf("creatorval%d", time.Now().UnixNano()), testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, creator.ID)
 
@@ -1821,7 +1848,7 @@ func TestInvitationService_ValidateInvitation(t *testing.T) {
 		// ARRANGE
 		role := testpkg.GetOrCreateTestRole(t, db, "User")
 		creatorEmail := fmt.Sprintf("creator-exp-%d@test.local", time.Now().UnixNano())
-		creator, err := authService.Register(ctx, creatorEmail, fmt.Sprintf("creatorexp%d", time.Now().UnixNano()), testPassword, nil)
+		creator, err := authService.Register(ctx, creatorEmail, fmt.Sprintf("creatorexp%d", time.Now().UnixNano()), testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, creator.ID)
 
@@ -1856,13 +1883,13 @@ func TestInvitationService_AcceptInvitation(t *testing.T) {
 
 	invitationService := setupInvitationService(t, db)
 	authService := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("accepts invitation and creates account", func(t *testing.T) {
 		// ARRANGE
 		role := testpkg.GetOrCreateTestRole(t, db, "User")
 		creatorEmail := fmt.Sprintf("creator-acc-%d@test.local", time.Now().UnixNano())
-		creator, err := authService.Register(ctx, creatorEmail, fmt.Sprintf("creatoracc%d", time.Now().UnixNano()), testPassword, nil)
+		creator, err := authService.Register(ctx, creatorEmail, fmt.Sprintf("creatoracc%d", time.Now().UnixNano()), testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, creator.ID)
 
@@ -1902,7 +1929,7 @@ func TestInvitationService_AcceptInvitation(t *testing.T) {
 		// ARRANGE
 		role := testpkg.GetOrCreateTestRole(t, db, "User")
 		creatorEmail := fmt.Sprintf("creator-weak-%d@test.local", time.Now().UnixNano())
-		creator, err := authService.Register(ctx, creatorEmail, fmt.Sprintf("creatorweak%d", time.Now().UnixNano()), testPassword, nil)
+		creator, err := authService.Register(ctx, creatorEmail, fmt.Sprintf("creatorweak%d", time.Now().UnixNano()), testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, creator.ID)
 
@@ -1934,7 +1961,7 @@ func TestInvitationService_AcceptInvitation(t *testing.T) {
 		// ARRANGE
 		role := testpkg.GetOrCreateTestRole(t, db, "User")
 		creatorEmail := fmt.Sprintf("creator-exprej-%d@test.local", time.Now().UnixNano())
-		creator, err := authService.Register(ctx, creatorEmail, fmt.Sprintf("creatorexprej%d", time.Now().UnixNano()), testPassword, nil)
+		creator, err := authService.Register(ctx, creatorEmail, fmt.Sprintf("creatorexprej%d", time.Now().UnixNano()), testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, creator.ID)
 
@@ -1965,13 +1992,13 @@ func TestInvitationService_RevokeInvitation(t *testing.T) {
 
 	invitationService := setupInvitationService(t, db)
 	authService := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("revokes pending invitation", func(t *testing.T) {
 		// ARRANGE
 		role := testpkg.GetOrCreateTestRole(t, db, "User")
 		creatorEmail := fmt.Sprintf("creator-rev-%d@test.local", time.Now().UnixNano())
-		creator, err := authService.Register(ctx, creatorEmail, fmt.Sprintf("creatorrev%d", time.Now().UnixNano()), testPassword, nil)
+		creator, err := authService.Register(ctx, creatorEmail, fmt.Sprintf("creatorrev%d", time.Now().UnixNano()), testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, creator.ID)
 
@@ -2004,12 +2031,12 @@ func TestAuthService_InitiatePasswordReset(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates password reset token for existing account", func(t *testing.T) {
 		// ARRANGE - Create an account
 		email := fmt.Sprintf("reset-%d@test.local", time.Now().UnixNano())
-		account, err := service.Register(ctx, email, fmt.Sprintf("resetuser%d", time.Now().UnixNano()), testPassword, nil)
+		account, err := service.Register(ctx, email, fmt.Sprintf("resetuser%d", time.Now().UnixNano()), testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -2045,12 +2072,12 @@ func TestAuthService_ResetPassword(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("resets password with valid token", func(t *testing.T) {
 		// ARRANGE - Create an account and initiate password reset
 		email := fmt.Sprintf("resetpw-%d@test.local", time.Now().UnixNano())
-		account, err := service.Register(ctx, email, fmt.Sprintf("resetpw%d", time.Now().UnixNano()), testPassword, nil)
+		account, err := service.Register(ctx, email, fmt.Sprintf("resetpw%d", time.Now().UnixNano()), testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -2076,7 +2103,7 @@ func TestAuthService_ResetPassword(t *testing.T) {
 	t.Run("rejects weak password", func(t *testing.T) {
 		// ARRANGE
 		email := fmt.Sprintf("weakreset-%d@test.local", time.Now().UnixNano())
-		account, err := service.Register(ctx, email, fmt.Sprintf("weakreset%d", time.Now().UnixNano()), testPassword, nil)
+		account, err := service.Register(ctx, email, fmt.Sprintf("weakreset%d", time.Now().UnixNano()), testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -2104,7 +2131,7 @@ func TestAuthService_ResetPassword(t *testing.T) {
 	t.Run("rejects already-used token", func(t *testing.T) {
 		// ARRANGE
 		email := fmt.Sprintf("usedtoken-%d@test.local", time.Now().UnixNano())
-		account, err := service.Register(ctx, email, fmt.Sprintf("usedtoken%d", time.Now().UnixNano()), testPassword, nil)
+		account, err := service.Register(ctx, email, fmt.Sprintf("usedtoken%d", time.Now().UnixNano()), testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -2137,12 +2164,12 @@ func TestAuthService_PasswordResetRateLimit(t *testing.T) {
 	})
 
 	service := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("allows multiple reset requests within limit", func(t *testing.T) {
 		// ARRANGE
 		email := fmt.Sprintf("ratelimit-%d@test.local", time.Now().UnixNano())
-		account, err := service.Register(ctx, email, fmt.Sprintf("ratelimit%d", time.Now().UnixNano()), testPassword, nil)
+		account, err := service.Register(ctx, email, fmt.Sprintf("ratelimit%d", time.Now().UnixNano()), testPassword, nil, 0)
 		require.NoError(t, err)
 		t.Cleanup(func() {
 			testpkg.CleanupAuthFixtures(t, db, account.ID)
@@ -2167,7 +2194,7 @@ func TestAuthService_PasswordResetRateLimit(t *testing.T) {
 	t.Run("blocks requests after exceeding rate limit", func(t *testing.T) {
 		// ARRANGE
 		email := fmt.Sprintf("exceededlimit-%d@test.local", time.Now().UnixNano())
-		account, err := service.Register(ctx, email, fmt.Sprintf("exceededlimit%d", time.Now().UnixNano()), testPassword, nil)
+		account, err := service.Register(ctx, email, fmt.Sprintf("exceededlimit%d", time.Now().UnixNano()), testPassword, nil, 0)
 		require.NoError(t, err)
 		t.Cleanup(func() {
 			testpkg.CleanupAuthFixtures(t, db, account.ID)
@@ -2206,7 +2233,7 @@ func TestAuthService_GetParentAccountByEmail(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// NOTE: The "finds parent account by email" test is skipped because the repository
 	// uses an unqualified table name in some database configurations.
@@ -2227,7 +2254,7 @@ func TestAuthService_UpdateParentAccount(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates parent account successfully", func(t *testing.T) {
 		// ARRANGE
@@ -2268,7 +2295,7 @@ func TestAuthService_ActivateParentAccount(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("activates parent account successfully", func(t *testing.T) {
 		// ARRANGE
@@ -2306,7 +2333,7 @@ func TestAuthService_DeactivateParentAccount(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deactivates parent account successfully", func(t *testing.T) {
 		// ARRANGE
@@ -2339,7 +2366,7 @@ func TestAuthService_GetAccountsWithRolesAndPermissions(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns accounts with roles and permissions", func(t *testing.T) {
 		// ARRANGE
@@ -2470,5 +2497,307 @@ func TestRateLimitError_RetryAfterSeconds(t *testing.T) {
 
 		// ASSERT
 		assert.Equal(t, 0, result)
+	})
+}
+
+// =============================================================================
+// WithTenantTx Production Path Tests (Item 4)
+// =============================================================================
+
+func TestRegister_WithTenantID_CreatesAccountTenantAndRole(t *testing.T) {
+	// Register with a real tenantID > 0 should exercise the WithTenantTx path
+	// in persistAccountWithRole, creating account + account_tenant mapping +
+	// account_role assignment atomically.
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+
+	const tenantID int64 = 50
+	testpkg.EnsureTestTenant(t, db, tenantID)
+
+	// Create a role to assign
+	role := testpkg.CreateTestRole(t, db, fmt.Sprintf("test-role-%d", time.Now().UnixNano()))
+	defer testpkg.CleanupTableRecords(t, db, "auth.roles", role.ID)
+
+	ctx := testpkg.TenantContext(tenantID)
+	email, username := uniqueTestCredentials("tenant-register")
+	roleID := role.ID
+
+	// ACT
+	account, err := service.Register(ctx, email, username, testPassword, &roleID, tenantID)
+
+	// ASSERT
+	require.NoError(t, err)
+	require.NotNil(t, account)
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+	// Verify account_tenant mapping was created
+	var tenantCount int
+	err = db.NewSelect().
+		TableExpr("auth.account_tenants").
+		ColumnExpr("COUNT(*)").
+		Where("account_id = ? AND tenant_id = ?", account.ID, tenantID).
+		Scan(context.Background(), &tenantCount)
+	require.NoError(t, err)
+	assert.Equal(t, 1, tenantCount, "account_tenant mapping should exist")
+
+	// Verify account_role was created with correct tenant_id
+	var roleCount int
+	err = db.NewSelect().
+		TableExpr("auth.account_roles").
+		ColumnExpr("COUNT(*)").
+		Where("account_id = ? AND role_id = ? AND tenant_id = ?", account.ID, roleID, tenantID).
+		Scan(context.Background(), &roleCount)
+	require.NoError(t, err)
+	assert.Equal(t, 1, roleCount, "account_role should be scoped to the correct tenant")
+}
+
+func TestRegister_WithTenantID_NoRole(t *testing.T) {
+	// Register with tenantID > 0 but no roleID should still create the
+	// account_tenant mapping (without role assignment).
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+
+	const tenantID int64 = 51
+	testpkg.EnsureTestTenant(t, db, tenantID)
+
+	ctx := testpkg.TenantContext(tenantID)
+	email, username := uniqueTestCredentials("tenant-norole")
+
+	// ACT — nil roleID
+	account, err := service.Register(ctx, email, username, testPassword, nil, tenantID)
+
+	// ASSERT
+	require.NoError(t, err)
+	require.NotNil(t, account)
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+	// Verify account_tenant mapping exists
+	var tenantCount int
+	err = db.NewSelect().
+		TableExpr("auth.account_tenants").
+		ColumnExpr("COUNT(*)").
+		Where("account_id = ? AND tenant_id = ?", account.ID, tenantID).
+		Scan(context.Background(), &tenantCount)
+	require.NoError(t, err)
+	assert.Equal(t, 1, tenantCount, "account_tenant mapping should exist even without role")
+
+	// Verify no account_role was created
+	var roleCount int
+	err = db.NewSelect().
+		TableExpr("auth.account_roles").
+		ColumnExpr("COUNT(*)").
+		Where("account_id = ?", account.ID).
+		Scan(context.Background(), &roleCount)
+	require.NoError(t, err)
+	assert.Equal(t, 0, roleCount, "no role assignment should exist")
+}
+
+func TestAcceptInvitation_WithTenantID_CreatesAccountTenant(t *testing.T) {
+	// AcceptInvitation with an invitation that has a real TenantID should
+	// create the account, person, account_tenant mapping, and role assignment.
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	invService := setupInvitationService(t, db)
+
+	const tenantID int64 = 52
+	testpkg.EnsureTestTenant(t, db, tenantID)
+
+	// Create a role scoped to the same tenant used by the invitation context,
+	// so that FindByID's tenant filter (tenant_id = ? OR tenant_id IS NULL) finds it.
+	role := testpkg.CreateTestRoleForTenant(t, db, fmt.Sprintf("invite-role-%d", time.Now().UnixNano()), tenantID)
+	defer testpkg.CleanupTableRecords(t, db, "auth.roles", role.ID)
+
+	// Create invitation with tenant context so it gets tenant_id set
+	ctx := testpkg.TenantContext(tenantID)
+	email := fmt.Sprintf("invite-tenant-%d@test.local", time.Now().UnixNano())
+
+	invitation, err := invService.CreateInvitation(ctx, auth.InvitationRequest{
+		Email:     email,
+		RoleID:    role.ID,
+		CreatedBy: 1,
+		FirstName: strPtr("Test"),
+		LastName:  strPtr("User"),
+	})
+	require.NoError(t, err)
+	require.NotNil(t, invitation)
+
+	// ACT — accept the invitation (public route, no tenant in ctx)
+	account, err := invService.AcceptInvitation(context.Background(), invitation.Token, auth.UserRegistrationData{
+		FirstName:       "Test",
+		LastName:        "User",
+		Password:        testPassword,
+		ConfirmPassword: testPassword,
+	})
+
+	// ASSERT
+	require.NoError(t, err)
+	require.NotNil(t, account)
+	defer func() {
+		// Clean up: staff, person, invitation tokens, then auth fixtures (includes account_tenants)
+		_, _ = db.ExecContext(context.Background(),
+			`DELETE FROM users.staff WHERE person_id IN (SELECT id FROM users.persons WHERE account_id = ?)`, account.ID)
+		_, _ = db.ExecContext(context.Background(),
+			`DELETE FROM users.persons WHERE account_id = ?`, account.ID)
+		_, _ = db.ExecContext(context.Background(),
+			`DELETE FROM auth.invitation_tokens WHERE email = ?`, email)
+		testpkg.CleanupAuthFixtures(t, db, account.ID)
+	}()
+
+	// Verify account_tenant mapping was created
+	var tenantCount int
+	err = db.NewSelect().
+		TableExpr("auth.account_tenants").
+		ColumnExpr("COUNT(*)").
+		Where("account_id = ? AND tenant_id = ?", account.ID, tenantID).
+		Scan(context.Background(), &tenantCount)
+	require.NoError(t, err)
+	assert.Equal(t, 1, tenantCount, "account_tenant mapping should exist after invitation acceptance")
+
+	// Verify account_role was created scoped to tenant
+	var roleCount int
+	err = db.NewSelect().
+		TableExpr("auth.account_roles").
+		ColumnExpr("COUNT(*)").
+		Where("account_id = ? AND role_id = ? AND tenant_id = ?", account.ID, role.ID, tenantID).
+		Scan(context.Background(), &roleCount)
+	require.NoError(t, err)
+	assert.Equal(t, 1, roleCount, "role should be scoped to invitation tenant")
+}
+
+// =============================================================================
+// LinkAccountToTenant Tests
+// =============================================================================
+
+func TestAuthService_LinkAccountToTenant(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	const tenantID int64 = 53
+	testpkg.EnsureTestTenant(t, db, tenantID)
+
+	t.Run("links existing account to tenant", func(t *testing.T) {
+		// ARRANGE — create an account that is NOT linked to tenantID yet
+		email, _ := uniqueTestCredentials("link-happy")
+		account, err := service.Register(testpkg.TenantContext(tenantID), email, email, testPassword, nil, 0)
+		require.NoError(t, err)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		// Remove any auto-created tenant mapping so we start from a clean state
+		_, _ = db.NewDelete().
+			TableExpr("auth.account_tenants").
+			Where("account_id = ? AND tenant_id = ?", account.ID, tenantID).
+			Exec(context.Background())
+
+		role := testpkg.GetOrCreateTestRole(t, db, fmt.Sprintf("link-role-%d", time.Now().UnixNano()))
+		roleID := role.ID
+
+		// ACT
+		linked, err := service.LinkAccountToTenant(context.Background(), email, &roleID, tenantID)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.NotNil(t, linked)
+		assert.Equal(t, account.ID, linked.ID)
+
+		// Verify tenant mapping was created
+		var tenantCount int
+		err = db.NewSelect().
+			TableExpr("auth.account_tenants").
+			ColumnExpr("COUNT(*)").
+			Where("account_id = ? AND tenant_id = ?", account.ID, tenantID).
+			Scan(context.Background(), &tenantCount)
+		require.NoError(t, err)
+		assert.Equal(t, 1, tenantCount, "account_tenant mapping should exist")
+
+		// Verify role was assigned
+		var roleCount int
+		err = db.NewSelect().
+			TableExpr("auth.account_roles").
+			ColumnExpr("COUNT(*)").
+			Where("account_id = ? AND role_id = ? AND tenant_id = ?", account.ID, roleID, tenantID).
+			Scan(context.Background(), &roleCount)
+		require.NoError(t, err)
+		assert.Equal(t, 1, roleCount, "role should be assigned")
+
+		// Cleanup role assignment
+		_, _ = db.NewDelete().
+			TableExpr("auth.account_roles").
+			Where("account_id = ? AND role_id = ? AND tenant_id = ?", account.ID, roleID, tenantID).
+			Exec(context.Background())
+	})
+
+	t.Run("returns error for non-existent email", func(t *testing.T) {
+		// ACT
+		result, err := service.LinkAccountToTenant(context.Background(), "nonexistent@test.local", nil, tenantID)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Nil(t, result)
+
+		var authErr *auth.AuthError
+		require.True(t, errors.As(err, &authErr))
+		assert.True(t, errors.Is(authErr.Err, auth.ErrAccountNotFound))
+	})
+
+	t.Run("returns error for inactive account", func(t *testing.T) {
+		// ARRANGE — create account then deactivate it
+		email, _ := uniqueTestCredentials("link-inactive")
+		account, err := service.Register(testpkg.TenantContext(tenantID), email, email, testPassword, nil, 0)
+		require.NoError(t, err)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		// Deactivate
+		_, err = db.NewUpdate().
+			TableExpr("auth.accounts").
+			Set("active = ?", false).
+			Where("id = ?", account.ID).
+			Exec(context.Background())
+		require.NoError(t, err)
+
+		// ACT
+		result, err := service.LinkAccountToTenant(context.Background(), email, nil, tenantID)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Nil(t, result)
+
+		var authErr *auth.AuthError
+		require.True(t, errors.As(err, &authErr))
+		assert.True(t, errors.Is(authErr.Err, auth.ErrAccountInactive))
+	})
+
+	t.Run("idempotent when already linked", func(t *testing.T) {
+		// ARRANGE — create an account already linked to tenantID
+		email, _ := uniqueTestCredentials("link-idempotent")
+		account, err := service.Register(testpkg.TenantContext(tenantID), email, email, testPassword, nil, 0)
+		require.NoError(t, err)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		// Ensure it is linked
+		testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
+
+		// ACT — link again (should not error)
+		result, err := service.LinkAccountToTenant(context.Background(), email, nil, tenantID)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, account.ID, result.ID)
+
+		// Verify exactly one mapping still exists (no duplicate)
+		var tenantCount int
+		err = db.NewSelect().
+			TableExpr("auth.account_tenants").
+			ColumnExpr("COUNT(*)").
+			Where("account_id = ? AND tenant_id = ?", account.ID, tenantID).
+			Scan(context.Background(), &tenantCount)
+		require.NoError(t, err)
+		assert.Equal(t, 1, tenantCount, "should still have exactly one mapping")
 	})
 }

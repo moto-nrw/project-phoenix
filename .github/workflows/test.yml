@@ -47,7 +47,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Setup Go
-        uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6
         with:
           go-version-file: backend/go.mod
           cache: true
@@ -60,6 +60,7 @@ jobs:
         working-directory: backend
         env:
           DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_test?sslmode=disable
+          PHOENIX_AUTH_PASSWORD: phoenix_auth_ci
         run: go run main.go migrate
 
       - name: Run Go tests with coverage
@@ -84,7 +85,7 @@ jobs:
           sed -i 's|github.com/moto-nrw/project-phoenix/|backend/|g' backend/coverage.out
 
       - name: Upload backend coverage
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: coverage-backend
           path: |
@@ -94,7 +95,7 @@ jobs:
         if: always()
 
       - name: Publish backend test results
-        uses: mikepenz/action-junit-report@a294a61c909bd8a4b563024a2faa28897fd53ebc # v6.1.0
+        uses: mikepenz/action-junit-report@49b2ca06f62aa7ef83ae6769a2179271e160d8e4 # v6.3.1
         if: always()
         with:
           report_paths: backend/junit.xml
@@ -116,7 +117,7 @@ jobs:
         run: corepack enable
 
       - name: Setup Node.js
-        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
         with:
           node-version: "20"
           cache: "pnpm"
@@ -131,7 +132,7 @@ jobs:
         run: pnpm run test:run --coverage
 
       - name: Upload frontend coverage
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: coverage-frontend
           path: frontend/coverage/lcov.info
@@ -152,14 +153,14 @@ jobs:
           fetch-depth: 0 # Required for SonarCloud PR analysis and SCM blame
 
       - name: Download backend coverage
-        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: coverage-backend
           path: backend/
         continue-on-error: true
 
       - name: Download frontend coverage
-        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: coverage-frontend
           path: frontend/coverage/

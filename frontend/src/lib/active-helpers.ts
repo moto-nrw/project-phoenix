@@ -82,8 +82,6 @@ export interface BackendAnalytics {
   active_groups_count?: number;
   total_visits_count?: number;
   active_visits_count?: number;
-  room_utilization?: number;
-  attendance_rate?: number;
 }
 
 // Frontend types
@@ -167,8 +165,6 @@ export interface Analytics {
   activeGroupsCount?: number;
   totalVisitsCount?: number;
   activeVisitsCount?: number;
-  roomUtilization?: number;
-  attendanceRate?: number;
 }
 
 // Transformation functions
@@ -273,8 +269,6 @@ export function mapAnalyticsResponse(
     activeGroupsCount: backendAnalytics.active_groups_count,
     totalVisitsCount: backendAnalytics.total_visits_count,
     activeVisitsCount: backendAnalytics.active_visits_count,
-    roomUtilization: backendAnalytics.room_utilization,
-    attendanceRate: backendAnalytics.attendance_rate,
   };
 }
 

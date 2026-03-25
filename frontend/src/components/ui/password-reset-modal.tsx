@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Modal } from "./modal";
 import { Input, Alert } from "./index";
 import { requestPasswordReset, type ApiError } from "~/lib/auth-api";
+import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "PasswordReset" });
@@ -65,6 +66,7 @@ export function PasswordResetModal({
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState("");
+  const errorRef = useScrollToError(error);
   const [rateLimitUntil, setRateLimitUntil] = useState<number | null>(null);
   const [secondsRemaining, setSecondsRemaining] = useState(0);
 
@@ -116,13 +118,13 @@ export function PasswordResetModal({
     rateLimitUntil !== null && rateLimitUntil > Date.now();
 
   // Reset state when modal closes
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     setEmail("");
     setError("");
     setIsSuccess(false);
     setIsLoading(false);
     onClose();
-  };
+  }, [onClose]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -216,7 +218,11 @@ export function PasswordResetModal({
             </p>
 
             <form onSubmit={handleSubmit} noValidate className="mt-6 space-y-4">
-              {error && <Alert type="error" message={error} />}
+              {error && (
+                <div ref={errorRef}>
+                  <Alert type="error" message={error} />
+                </div>
+              )}
 
               <div className="text-left">
                 <label

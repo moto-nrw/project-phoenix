@@ -4,13 +4,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 )
 
 // Service defines the IoT service operations
 type Service interface {
-	base.TransactionalService
 	// Core device operations
 	CreateDevice(ctx context.Context, device *iot.Device) error
 	GetDeviceByID(ctx context.Context, id int64) (*iot.Device, error)
@@ -41,8 +39,9 @@ type Service interface {
 	// Authentication operations
 	GetDeviceByAPIKey(ctx context.Context, apiKey string) (*iot.Device, error)
 
-	// Targeted last-seen update (skips existence check and full-model update)
-	UpdateDeviceLastSeen(ctx context.Context, deviceID string) error
+	// Targeted last-seen update by PK (skips existence check and full-model update)
+	UpdateDeviceLastSeen(ctx context.Context, id int64) error
+	UpdateDeviceLastSeenAt(ctx context.Context, id int64, lastSeen time.Time) error
 
 	// Transaction support is provided by base.TransactionalService
 }

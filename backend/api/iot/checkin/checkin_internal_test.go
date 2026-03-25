@@ -24,6 +24,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -525,6 +526,109 @@ func TestRoomNameByID_WithRoomObject(t *testing.T) {
 	assert.Equal(t, "Test Room", name)
 }
 
+func TestRoomNameByID_FallbackToLookup(t *testing.T) {
+	tc := setupInternalTestResource(t)
+	defer func() { _ = tc.db.Close() }()
+
+	room := testpkg.CreateTestRoom(t, tc.db, "LookupRoom")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID)
+
+	// Pass nil room to force lookup by ID
+	name := tc.rs.roomNameByID(context.Background(), nil, room.ID)
+	assert.Contains(t, name, "LookupRoom")
+}
+
+func TestRoomNameByID_FallbackToFormattedID(t *testing.T) {
+	tc := setupInternalTestResource(t)
+	defer func() { _ = tc.db.Close() }()
+
+	// Use a non-existent room ID
+	name := tc.rs.roomNameByID(context.Background(), nil, 999999)
+	assert.Equal(t, "Room 999999", name)
+}
+
+func TestRoomNameForResponse_WithRoomID_NoVisit(t *testing.T) {
+	tc := setupInternalTestResource(t)
+	defer func() { _ = tc.db.Close() }()
+
+	room := testpkg.CreateTestRoom(t, tc.db, "ResponseRoom")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID)
+
+	roomID := room.ID
+	name := tc.rs.roomNameForResponse(context.Background(), nil, &roomID)
+	assert.Contains(t, name, "ResponseRoom")
+}
+
+func TestRoomNameForResponse_VisitWithoutRoom_FallbackToRoomID(t *testing.T) {
+	tc := setupInternalTestResource(t)
+	defer func() { _ = tc.db.Close() }()
+
+	room := testpkg.CreateTestRoom(t, tc.db, "FallbackRoom")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID)
+
+	// Visit without ActiveGroup.Room loaded
+	visit := &active.Visit{ActiveGroup: &active.Group{}}
+	roomID := room.ID
+	name := tc.rs.roomNameForResponse(context.Background(), visit, &roomID)
+	assert.Contains(t, name, "FallbackRoom")
+}
+
+// =============================================================================
+// processStudentCheckin TESTS (DB-backed)
+// =============================================================================
+
+func TestProcessStudentCheckin_NoRoomNotCheckedOut(t *testing.T) {
+	tc := setupInternalTestResource(t)
+	defer func() { _ = tc.db.Close() }()
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("POST", "/checkin", nil)
+	student := &users.Student{Model: base.Model{ID: 1}}
+	person := &users.Person{FirstName: "Test", LastName: "User"}
+
+	input := &checkinProcessingInput{
+		RoomID:      nil,
+		SkipCheckin: false,
+		CheckedOut:  false,
+	}
+
+	result := tc.rs.processStudentCheckin(r.Context(), w, r, student, person, input)
+	require.NotNil(t, result)
+	assert.Error(t, result.Error)
+	assert.Contains(t, result.Error.Error(), "room_id is required")
+}
+
+func TestProcessStudentCheckin_SkippedCheckin_GetsRoomName(t *testing.T) {
+	tc := setupInternalTestResource(t)
+	defer func() { _ = tc.db.Close() }()
+
+	room := testpkg.CreateTestRoom(t, tc.db, "SkipCheckinRoom")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("POST", "/checkin", nil)
+	student := &users.Student{Model: base.Model{ID: 1}}
+	person := &users.Person{FirstName: "Test", LastName: "User"}
+
+	roomID := room.ID
+	input := &checkinProcessingInput{
+		RoomID:      &roomID,
+		SkipCheckin: true,
+		CheckedOut:  true,
+		CurrentVisit: &active.Visit{
+			ActiveGroup: &active.Group{
+				Room: &facilities.Room{Name: "SkipCheckinRoom"},
+			},
+		},
+	}
+
+	result := tc.rs.processStudentCheckin(r.Context(), w, r, student, person, input)
+	require.NotNil(t, result)
+	assert.Nil(t, result.Error)
+	assert.Equal(t, "SkipCheckinRoom", result.RoomName)
+	assert.Nil(t, result.NewVisitID, "Should not create a new visit when skipping checkin")
+}
+
 // =============================================================================
 // sendCheckinResponse TESTS
 // =============================================================================
@@ -790,6 +894,12 @@ func setupInternalTestResource(t *testing.T) *internalTestContext {
 
 	db, svc := testutil.SetupAPITest(t)
 
+	// Belt-and-suspenders: ensure the FK target row for tenant_id=1 exists
+	// on the exact connection pool used by the services. SetupTestDB already
+	// calls EnsureTestTenant, but connection pool semantics can cause a fresh
+	// connection (without the SET search_path) to be used for subsequent queries.
+	testpkg.EnsureTestTenant(t, db, 1)
+
 	rs := &Resource{
 		IoTService:        svc.IoT,
 		UsersService:      svc.Users,
@@ -859,7 +969,7 @@ func TestEnsureWCRoom_AutoCreatesWhenNotFound(t *testing.T) {
 	cleanupWCTestArtifacts(t, tc)
 	defer cleanupWCTestArtifacts(t, tc)
 
-	ctx := context.Background()
+	ctx := tenant.WithTenantID(context.Background(), 1)
 	room, err := tc.rs.ensureWCRoom(ctx)
 
 	require.NoError(t, err, "ensureWCRoom should not return error")
@@ -877,7 +987,7 @@ func TestEnsureWCRoom_FindsExistingRoom(t *testing.T) {
 	cleanupWCTestArtifacts(t, tc)
 	defer cleanupWCTestArtifacts(t, tc)
 
-	ctx := context.Background()
+	ctx := tenant.WithTenantID(context.Background(), 1)
 
 	// Create WC room first
 	room1, err := tc.rs.ensureWCRoom(ctx)
@@ -901,7 +1011,7 @@ func TestEnsureWCCategory_AutoCreatesWhenNotFound(t *testing.T) {
 	cleanupWCTestArtifacts(t, tc)
 	defer cleanupWCTestArtifacts(t, tc)
 
-	ctx := context.Background()
+	ctx := tenant.WithTenantID(context.Background(), 1)
 	category, err := tc.rs.ensureWCCategory(ctx)
 
 	require.NoError(t, err, "ensureWCCategory should not return error")
@@ -919,7 +1029,7 @@ func TestEnsureWCCategory_FindsExistingCategory(t *testing.T) {
 	cleanupWCTestArtifacts(t, tc)
 	defer cleanupWCTestArtifacts(t, tc)
 
-	ctx := context.Background()
+	ctx := tenant.WithTenantID(context.Background(), 1)
 
 	// Create category first
 	cat1, err := tc.rs.ensureWCCategory(ctx)
@@ -950,8 +1060,8 @@ func TestWcActivityGroup_FullAutoCreate(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "WCInternal", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
-	// Set staff context
-	ctx := context.WithValue(context.Background(), device.CtxStaff, staff)
+	// Set staff context with tenant
+	ctx := tenant.WithTenantID(context.WithValue(context.Background(), device.CtxStaff, staff), 1)
 
 	group, err := tc.rs.wcActivityGroup(ctx)
 
@@ -976,7 +1086,7 @@ func TestWcActivityGroup_FindsExisting(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "WCExist", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
-	ctx := context.WithValue(context.Background(), device.CtxStaff, staff)
+	ctx := tenant.WithTenantID(context.WithValue(context.Background(), device.CtxStaff, staff), 1)
 
 	// First call - creates everything
 	group1, err := tc.rs.wcActivityGroup(ctx)
@@ -1004,7 +1114,7 @@ func TestEnsureSchulhofRoom_AutoCreatesWhenNotFound(t *testing.T) {
 	cleanupSchulhofTestArtifacts(t, tc)
 	defer cleanupSchulhofTestArtifacts(t, tc)
 
-	ctx := context.Background()
+	ctx := tenant.WithTenantID(context.Background(), 1)
 	room, err := tc.rs.ensureSchulhofRoom(ctx)
 
 	require.NoError(t, err, "ensureSchulhofRoom should not return error")
@@ -1022,7 +1132,7 @@ func TestEnsureSchulhofRoom_FindsExistingRoom(t *testing.T) {
 	cleanupSchulhofTestArtifacts(t, tc)
 	defer cleanupSchulhofTestArtifacts(t, tc)
 
-	ctx := context.Background()
+	ctx := tenant.WithTenantID(context.Background(), 1)
 
 	room1, err := tc.rs.ensureSchulhofRoom(ctx)
 	require.NoError(t, err)
@@ -1044,7 +1154,7 @@ func TestEnsureSchulhofCategory_AutoCreatesWhenNotFound(t *testing.T) {
 	cleanupSchulhofTestArtifacts(t, tc)
 	defer cleanupSchulhofTestArtifacts(t, tc)
 
-	ctx := context.Background()
+	ctx := tenant.WithTenantID(context.Background(), 1)
 	category, err := tc.rs.ensureSchulhofCategory(ctx)
 
 	require.NoError(t, err, "ensureSchulhofCategory should not return error")
@@ -1062,7 +1172,7 @@ func TestEnsureSchulhofCategory_FindsExistingCategory(t *testing.T) {
 	cleanupSchulhofTestArtifacts(t, tc)
 	defer cleanupSchulhofTestArtifacts(t, tc)
 
-	ctx := context.Background()
+	ctx := tenant.WithTenantID(context.Background(), 1)
 
 	cat1, err := tc.rs.ensureSchulhofCategory(ctx)
 	require.NoError(t, err)
@@ -1090,7 +1200,7 @@ func TestSchulhofActivityGroup_FullAutoCreate(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "SchulhofInt", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
-	ctx := context.WithValue(context.Background(), device.CtxStaff, staff)
+	ctx := tenant.WithTenantID(context.WithValue(context.Background(), device.CtxStaff, staff), 1)
 
 	group, err := tc.rs.schulhofActivityGroup(ctx)
 
@@ -1115,7 +1225,7 @@ func TestSchulhofActivityGroup_FindsExisting(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "SchulhofExist", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
-	ctx := context.WithValue(context.Background(), device.CtxStaff, staff)
+	ctx := tenant.WithTenantID(context.WithValue(context.Background(), device.CtxStaff, staff), 1)
 
 	group1, err := tc.rs.schulhofActivityGroup(ctx)
 	require.NoError(t, err)
@@ -1141,8 +1251,8 @@ func TestWcActivityGroup_NoStaffContext(t *testing.T) {
 	cleanupWCTestArtifacts(t, tc)
 	defer cleanupWCTestArtifacts(t, tc)
 
-	// No staff context — plain background context
-	ctx := context.Background()
+	// No staff context — tenant context only (no staff)
+	ctx := tenant.WithTenantID(context.Background(), 1)
 
 	group, err := tc.rs.wcActivityGroup(ctx)
 
@@ -1162,8 +1272,8 @@ func TestSchulhofActivityGroup_NoStaffContext(t *testing.T) {
 	cleanupSchulhofTestArtifacts(t, tc)
 	defer cleanupSchulhofTestArtifacts(t, tc)
 
-	// No staff context — plain background context
-	ctx := context.Background()
+	// No staff context — tenant context only (no staff)
+	ctx := tenant.WithTenantID(context.Background(), 1)
 
 	group, err := tc.rs.schulhofActivityGroup(ctx)
 

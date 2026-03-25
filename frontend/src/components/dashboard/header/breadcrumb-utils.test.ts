@@ -65,8 +65,8 @@ describe("breadcrumb-utils", () => {
         expect(getPageTitle("/database/students")).toBe("Kinder");
       });
 
-      it("should return 'Betreuer' for database teachers page", () => {
-        expect(getPageTitle("/database/teachers")).toBe("Betreuer");
+      it("should return 'Personal' for database personal page", () => {
+        expect(getPageTitle("/database/personal")).toBe("Personal");
       });
 
       it("should return 'Räume' for database rooms page", () => {
@@ -146,10 +146,8 @@ describe("breadcrumb-utils", () => {
   });
 
   describe("getSubPageLabel", () => {
-    it("should return 'CSV-Import' for csv-import segment", () => {
-      expect(getSubPageLabel("/database/students/csv-import")).toBe(
-        "CSV-Import",
-      );
+    it("should return 'Importieren' for import segment", () => {
+      expect(getSubPageLabel("/database/students/import")).toBe("Importieren");
     });
 
     it("should return 'Erstellen' for create segment", () => {

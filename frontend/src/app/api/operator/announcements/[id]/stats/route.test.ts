@@ -2,16 +2,19 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import type { RouteContext } from "~/lib/route-wrapper-utils";
 
-const { mockGetOperatorToken, mockFetch, mockGetServerApiUrl } = vi.hoisted(
-  () => ({
-    mockGetOperatorToken: vi.fn<() => Promise<string | undefined>>(),
-    mockFetch: vi.fn(),
-    mockGetServerApiUrl: vi.fn(() => "http://localhost:8080"),
-  }),
-);
+const { mockAuth, mockFetch, mockGetServerApiUrl } = vi.hoisted(() => ({
+  mockAuth: vi.fn(),
+  mockFetch: vi.fn(),
+  mockGetServerApiUrl: vi.fn(() => "http://localhost:8080"),
+}));
 
-vi.mock("~/lib/operator/cookies", () => ({
-  getOperatorToken: mockGetOperatorToken,
+vi.mock("~/server/auth/operator", () => ({
+  operatorAuth: mockAuth,
+  uncachedOperatorAuth: mockAuth,
+}));
+
+vi.mock("~/server/auth", () => ({
+  auth: mockAuth,
 }));
 
 vi.mock("~/lib/server-api-url", () => ({
@@ -28,7 +31,7 @@ describe("GET /api/operator/announcements/[id]/stats", () => {
   });
 
   it("fetches announcement stats successfully", async () => {
-    mockGetOperatorToken.mockResolvedValue("valid-token");
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
     const stats = {
       views: 42,
       dismissals: 5,
@@ -61,7 +64,7 @@ describe("GET /api/operator/announcements/[id]/stats", () => {
   });
 
   it("returns 401 when not authenticated", async () => {
-    mockGetOperatorToken.mockResolvedValue(undefined);
+    mockAuth.mockResolvedValue(null);
 
     const request = new NextRequest(
       "http://localhost:3000/api/operator/announcements/1/stats",
@@ -73,7 +76,7 @@ describe("GET /api/operator/announcements/[id]/stats", () => {
   });
 
   it("handles invalid id parameter", async () => {
-    mockGetOperatorToken.mockResolvedValue("valid-token");
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
 
     const request = new NextRequest(
       "http://localhost:3000/api/operator/announcements/1/stats",
@@ -87,7 +90,7 @@ describe("GET /api/operator/announcements/[id]/stats", () => {
   });
 
   it("returns 404 for non-existent announcement", async () => {
-    mockGetOperatorToken.mockResolvedValue("valid-token");
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
     mockFetch.mockResolvedValue({
       ok: false,
       status: 404,

@@ -17,6 +17,7 @@ export interface BackendRole {
   ID: number;
   Name: string;
   Description: string;
+  IsSystem: boolean;
   CreatedAt: string;
   UpdatedAt: string;
   Permissions?: BackendPermission[];
@@ -67,6 +68,7 @@ export interface Role {
   id: string;
   name: string;
   description: string;
+  isSystem: boolean;
   createdAt: string;
   updatedAt: string;
   permissions?: Permission[];
@@ -123,6 +125,8 @@ interface FlexibleRoleData {
   name?: string;
   Description?: string;
   description?: string;
+  IsSystem?: boolean;
+  is_system?: boolean;
   CreatedAt?: string;
   created_at?: string;
   UpdatedAt?: string;
@@ -140,6 +144,7 @@ export function mapRoleResponse(
     id: String(roleData.ID ?? roleData.id ?? 0),
     name: roleData.Name ?? roleData.name ?? "",
     description: roleData.Description ?? roleData.description ?? "",
+    isSystem: roleData.IsSystem ?? roleData.is_system ?? false,
     createdAt: roleData.CreatedAt ?? roleData.created_at ?? "",
     updatedAt: roleData.UpdatedAt ?? roleData.updated_at ?? "",
     permissions:

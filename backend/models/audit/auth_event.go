@@ -3,11 +3,14 @@ package audit
 import (
 	"errors"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // AuthEvent represents an authentication event for security auditing
 type AuthEvent struct {
-	ID           int64                  `bun:"id,pk,autoincrement" json:"id"`
+	ID int64 `bun:"id,pk,autoincrement" json:"id"`
+	base.TenantModel
 	AccountID    int64                  `bun:"account_id,notnull" json:"account_id"`
 	EventType    string                 `bun:"event_type,notnull" json:"event_type"`
 	Success      bool                   `bun:"success,notnull" json:"success"`
@@ -26,6 +29,7 @@ const (
 	EventTypeTokenExpired  = "token_expired"
 	EventTypePasswordReset = "password_reset"
 	EventTypeAccountLocked = "account_locked"
+	EventTypeTenantSwitch  = "tenant_switch"
 )
 
 // TableName returns the database table name
@@ -46,7 +50,8 @@ func (ae *AuthEvent) Validate() error {
 	// Validate event type
 	switch ae.EventType {
 	case EventTypeLogin, EventTypeLogout, EventTypeTokenRefresh,
-		EventTypeTokenExpired, EventTypePasswordReset, EventTypeAccountLocked:
+		EventTypeTokenExpired, EventTypePasswordReset, EventTypeAccountLocked,
+		EventTypeTenantSwitch:
 		// Valid types
 	default:
 		return errors.New("invalid event type")

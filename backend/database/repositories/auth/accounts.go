@@ -35,7 +35,7 @@ func (r *AccountRepository) FindByEmail(ctx context.Context, email string) (*aut
 	account := new(auth.Account)
 
 	// Explicitly specify the schema and table
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		ModelTableExpr(accountTable).
 		Where("LOWER(email) = LOWER(?)", email).
 		Scan(ctx, account)
@@ -55,7 +55,7 @@ func (r *AccountRepository) FindByUsername(ctx context.Context, username string)
 	account := new(auth.Account)
 
 	// Explicitly specify the schema and table
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		ModelTableExpr(accountTable).
 		Where("LOWER(username) = LOWER(?)", username).
 		Scan(ctx, account)
@@ -72,7 +72,7 @@ func (r *AccountRepository) FindByUsername(ctx context.Context, username string)
 
 // UpdateLastLogin updates the last login timestamp for an account
 func (r *AccountRepository) UpdateLastLogin(ctx context.Context, id int64) error {
-	_, err := r.db.NewUpdate().
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*auth.Account)(nil)).
 		ModelTableExpr(accountTable).
 		Set("last_login = ?", time.Now()).
@@ -91,7 +91,7 @@ func (r *AccountRepository) UpdateLastLogin(ctx context.Context, id int64) error
 
 // UpdatePassword updates the password hash for an account
 func (r *AccountRepository) UpdatePassword(ctx context.Context, id int64, passwordHash string) error {
-	_, err := r.db.NewUpdate().
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*auth.Account)(nil)).
 		ModelTableExpr(accountTable).
 		Set("password_hash = ?", passwordHash).
@@ -115,7 +115,7 @@ func (r *AccountRepository) FindByRole(ctx context.Context, role string) ([]*aut
 
 	// Use a SQL JOIN to retrieve accounts with the specified role
 	// This assumes your account_roles table exists and has the proper foreign keys
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&accounts).
 		ModelTableExpr(accountTableAlias).
 		Join(`JOIN auth.account_roles ar ON ar.account_id = "account".id`).
@@ -136,7 +136,7 @@ func (r *AccountRepository) FindByRole(ctx context.Context, role string) ([]*aut
 // List retrieves accounts matching the provided filters
 func (r *AccountRepository) List(ctx context.Context, filters map[string]interface{}) ([]*auth.Account, error) {
 	var accounts []*auth.Account
-	query := r.db.NewSelect().Model(&accounts).ModelTableExpr(accountTableAlias)
+	query := base.GetDB(ctx, r.db).NewSelect().Model(&accounts).ModelTableExpr(accountTableAlias)
 
 	// Apply filters
 	for field, value := range filters {
@@ -276,7 +276,7 @@ func (r *AccountRepository) loadAllAccountRolesAndPermissions(ctx context.Contex
 		ColumnExpr(`ar.account_id`).
 		ColumnExpr(`"role".id, "role".created_at, "role".updated_at, "role".name, "role".description, "role".is_system`).
 		Join(`JOIN auth.account_roles AS ar ON ar.role_id = "role".id`).
-		Where("ar.account_id IN (?)", bun.In(accountIDs)).
+		Where("ar.account_id IN (?)", bun.List(accountIDs)).
 		Scan(ctx, &roleResults)
 	if err != nil {
 		return err
@@ -296,7 +296,7 @@ func (r *AccountRepository) loadAllAccountRolesAndPermissions(ctx context.Contex
 		ColumnExpr(`ap.account_id`).
 		ColumnExpr(`"permission".id, "permission".created_at, "permission".updated_at, "permission".name, "permission".description, "permission".resource, "permission".action`).
 		Join(`JOIN auth.account_permissions AS ap ON ap.permission_id = "permission".id`).
-		Where("ap.account_id IN (?)", bun.In(accountIDs)).
+		Where("ap.account_id IN (?)", bun.List(accountIDs)).
 		Where("ap.granted = true").
 		Scan(ctx, &directPermResults)
 	if err != nil {
@@ -318,7 +318,7 @@ func (r *AccountRepository) loadAllAccountRolesAndPermissions(ctx context.Contex
 		ColumnExpr(`"permission".id, "permission".created_at, "permission".updated_at, "permission".name, "permission".description, "permission".resource, "permission".action`).
 		Join(`JOIN auth.role_permissions AS rp ON rp.permission_id = "permission".id`).
 		Join(`JOIN auth.account_roles AS ar ON ar.role_id = rp.role_id`).
-		Where("ar.account_id IN (?)", bun.In(accountIDs)).
+		Where("ar.account_id IN (?)", bun.List(accountIDs)).
 		Scan(ctx, &rolePermResults)
 	if err != nil {
 		return err
@@ -388,23 +388,12 @@ func (r *AccountRepository) Update(ctx context.Context, account *auth.Account) e
 		return err
 	}
 
-	// Get the query builder - detect if we're in a transaction
-	query := r.db.NewUpdate().
+	// Execute the query using GetDB for transaction support
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model(account).
 		Where(whereID, account.ID).
-		ModelTableExpr(accountTable)
-
-	// Extract transaction from context if it exists
-	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
-		// Use the transaction if available
-		query = tx.NewUpdate().
-			Model(account).
-			Where(whereID, account.ID).
-			ModelTableExpr(accountTable)
-	}
-
-	// Execute the query
-	_, err := query.Exec(ctx)
+		ModelTableExpr(accountTable).
+		Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update",

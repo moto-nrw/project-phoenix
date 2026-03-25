@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Loader2 } from "lucide-react";
+import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import { FormModal } from "~/components/ui/form-modal";
 import type {
   PickupException,
@@ -34,6 +35,8 @@ export function PickupExceptionFormModal({
   const [reason, setReason] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorFieldName, setErrorFieldName] = useState<string | null>(null);
+  const errorRef = useScrollToError(error);
 
   // Reset form when modal opens
   useEffect(() => {
@@ -65,25 +68,30 @@ export function PickupExceptionFormModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setErrorFieldName(null);
 
     // Validation
     if (!exceptionDate) {
       setError("Bitte wählen Sie ein Datum aus.");
+      setErrorFieldName("exception-date");
       return;
     }
 
     if (!pickupTime) {
       setError("Bitte geben Sie eine Abholzeit an.");
+      setErrorFieldName("pickup-time");
       return;
     }
 
     if (!reason.trim()) {
       setError("Bitte geben Sie einen Grund an.");
+      setErrorFieldName("reason");
       return;
     }
 
     if (reason.length > 255) {
       setError("Der Grund darf maximal 255 Zeichen lang sein.");
+      setErrorFieldName("reason");
       return;
     }
 
@@ -91,6 +99,7 @@ export function PickupExceptionFormModal({
     const timeRegex = /^([01]?\d|2[0-3]):[0-5]\d$/;
     if (!timeRegex.test(pickupTime)) {
       setError("Ungültiges Zeitformat. Bitte verwenden Sie HH:MM.");
+      setErrorFieldName("pickup-time");
       return;
     }
 
@@ -149,7 +158,10 @@ export function PickupExceptionFormModal({
       <form id="pickup-exception-form" onSubmit={handleSubmit}>
         <div className="space-y-4">
           {error && (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <div
+              ref={errorRef}
+              className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+            >
               {error}
             </div>
           )}
@@ -158,7 +170,7 @@ export function PickupExceptionFormModal({
           <div>
             <label
               htmlFor="exception-date"
-              className="mb-1 block text-sm font-medium text-gray-700"
+              className={`mb-1 block text-sm font-medium ${errorFieldName === "exception-date" ? "text-red-600" : "text-gray-700"}`}
             >
               Datum
             </label>
@@ -167,7 +179,7 @@ export function PickupExceptionFormModal({
               type="date"
               value={exceptionDate}
               onChange={(e) => setExceptionDate(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+              className={`w-full rounded-lg border ${errorFieldName === "exception-date" ? "border-red-400" : "border-gray-300"} px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none`}
               min={new Date().toISOString().split("T")[0]}
               required
             />
@@ -177,7 +189,7 @@ export function PickupExceptionFormModal({
           <div>
             <label
               htmlFor="pickup-time"
-              className="mb-1 block text-sm font-medium text-gray-700"
+              className={`mb-1 block text-sm font-medium ${errorFieldName === "pickup-time" ? "text-red-600" : "text-gray-700"}`}
             >
               Abweichende Abholzeit
             </label>
@@ -186,7 +198,7 @@ export function PickupExceptionFormModal({
               type="time"
               value={pickupTime}
               onChange={(e) => setPickupTime(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+              className={`w-full rounded-lg border ${errorFieldName === "pickup-time" ? "border-red-400" : "border-gray-300"} px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none`}
               required
             />
           </div>
@@ -195,7 +207,7 @@ export function PickupExceptionFormModal({
           <div>
             <label
               htmlFor="reason"
-              className="mb-1 block text-sm font-medium text-gray-700"
+              className={`mb-1 block text-sm font-medium ${errorFieldName === "reason" ? "text-red-600" : "text-gray-700"}`}
             >
               Grund
             </label>
@@ -204,7 +216,7 @@ export function PickupExceptionFormModal({
               type="text"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+              className={`w-full rounded-lg border ${errorFieldName === "reason" ? "border-red-400" : "border-gray-300"} px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none`}
               placeholder="z.B. Arzttermin, Familienfeier"
               maxLength={255}
               required

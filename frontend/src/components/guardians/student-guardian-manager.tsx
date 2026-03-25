@@ -16,6 +16,7 @@ import {
   fetchStudentGuardians,
   createGuardian,
   updateGuardian,
+  deleteGuardian,
   linkGuardianToStudent,
   updateStudentGuardianRelationship,
   removeGuardianFromStudent,
@@ -109,22 +110,38 @@ export default function StudentGuardianManager({
         // Create guardian profile
         const newGuardian = await createGuardian(guardianData);
 
-        // Link to student
-        await linkGuardianToStudent(studentId, {
-          guardianProfileId: newGuardian.id,
-          ...relationshipData,
-        });
+        try {
+          // Link to student
+          await linkGuardianToStudent(studentId, {
+            guardianProfileId: newGuardian.id,
+            ...relationshipData,
+          });
 
-        // Add phone numbers if provided
-        if (phoneNumbers && phoneNumbers.length > 0) {
-          for (const phone of phoneNumbers) {
-            await addGuardianPhoneNumber(newGuardian.id, {
-              phoneNumber: phone.phoneNumber,
-              phoneType: phone.phoneType,
-              label: phone.label,
-              isPrimary: phone.isPrimary,
+          // Add phone numbers if provided
+          if (phoneNumbers && phoneNumbers.length > 0) {
+            for (const phone of phoneNumbers) {
+              await addGuardianPhoneNumber(newGuardian.id, {
+                phoneNumber: phone.phoneNumber,
+                phoneType: phone.phoneType,
+                label: phone.label,
+                isPrimary: phone.isPrimary,
+              });
+            }
+          }
+        } catch (innerError) {
+          // Rollback: delete the guardian profile to prevent orphaned records
+          try {
+            await deleteGuardian(newGuardian.id);
+          } catch (rollbackError) {
+            logger.error("guardian_rollback_failed", {
+              error:
+                rollbackError instanceof Error
+                  ? rollbackError.message
+                  : String(rollbackError),
+              guardian_id: newGuardian.id,
             });
           }
+          throw innerError;
         }
 
         // Remove successfully created entry from modal (enables retry without duplicates)

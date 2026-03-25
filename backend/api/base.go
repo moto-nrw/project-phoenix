@@ -49,6 +49,8 @@ import (
 type API struct {
 	Services *services.Factory
 	Router   chi.Router
+	db       *bun.DB
+	repos    *repositories.Factory
 
 	// API Resources
 	Auth             *authAPI.Resource
@@ -80,8 +82,8 @@ type API struct {
 
 // New creates a new API instance
 func New(enableCORS bool, logger *slog.Logger) (*API, error) {
-	// Get database connection
-	db, err := database.DBConn()
+	// Get database connection as phoenix_auth (least-privilege for serve)
+	db, err := database.DBConnForServe()
 	if err != nil {
 		return nil, err
 	}
@@ -103,6 +105,8 @@ func New(enableCORS bool, logger *slog.Logger) (*API, error) {
 	api := &API{
 		Services: serviceFactory,
 		Router:   chi.NewRouter(),
+		db:       db,
+		repos:    repoFactory,
 	}
 
 	// Setup router middleware
@@ -145,31 +149,74 @@ func setupBasicMiddleware(router chi.Router, logger *slog.Logger) {
 	router.Use(customMiddleware.SecurityHeaders)
 }
 
-// setupCORS configures CORS middleware with allowed origins from environment
+// setupCORS configures CORS middleware with allowed origins from environment.
+// Supports wildcard subdomain patterns like "*.example.com" via AllowOriginFunc.
 func setupCORS(router chi.Router) {
-	allowedOrigins := parseAllowedOrigins()
-	router.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   allowedOrigins,
+	exactOrigins, wildcardSuffixes := parseAllowedOrigins()
+
+	opts := cors.Options{
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token", "X-Staff-PIN", "X-Staff-ID", "X-Device-Key"},
 		ExposedHeaders:   []string{"Link"},
 		AllowCredentials: true,
 		MaxAge:           300,
-	}))
+	}
+
+	if len(wildcardSuffixes) > 0 {
+		// Build a set for O(1) exact-match lookups
+		exactSet := make(map[string]bool, len(exactOrigins))
+		for _, o := range exactOrigins {
+			exactSet[o] = true
+		}
+		opts.AllowOriginFunc = func(_ *http.Request, origin string) bool {
+			if exactSet[origin] {
+				return true
+			}
+			// Extract the host portion of the origin (e.g. "https://school-a.example.com" → "school-a.example.com")
+			host := origin
+			if idx := strings.Index(origin, "://"); idx >= 0 {
+				host = origin[idx+3:]
+			}
+			for _, suffix := range wildcardSuffixes {
+				if strings.HasSuffix(host, suffix) && len(host) > len(suffix) {
+					return true
+				}
+			}
+			return false
+		}
+	} else {
+		opts.AllowedOrigins = exactOrigins
+	}
+
+	router.Use(cors.Handler(opts))
 }
 
-// parseAllowedOrigins parses CORS_ALLOWED_ORIGINS environment variable
-func parseAllowedOrigins() []string {
+// parseAllowedOrigins parses CORS_ALLOWED_ORIGINS and splits entries into
+// exact-match origins and wildcard subdomain suffixes (e.g. "*.example.com"
+// becomes suffix ".example.com").
+func parseAllowedOrigins() (exact []string, wildcardSuffixes []string) {
 	originsEnv := os.Getenv("CORS_ALLOWED_ORIGINS")
 	if originsEnv == "" {
-		return []string{"*"}
+		return []string{"*"}, nil
 	}
 
-	origins := strings.Split(originsEnv, ",")
-	for i := range origins {
-		origins[i] = strings.TrimSpace(origins[i])
+	for _, raw := range strings.Split(originsEnv, ",") {
+		origin := strings.TrimSpace(raw)
+		if origin == "" {
+			continue
+		}
+		if strings.HasPrefix(origin, "*.") {
+			// "*.example.com" → match any subdomain of ".example.com"
+			wildcardSuffixes = append(wildcardSuffixes, origin[1:]) // ".example.com"
+		} else {
+			exact = append(exact, origin)
+		}
 	}
-	return origins
+
+	if len(exact) == 0 && len(wildcardSuffixes) == 0 {
+		return []string{"*"}, nil
+	}
+	return exact, wildcardSuffixes
 }
 
 // setupSecurityLogging configures security logging middleware if enabled
@@ -215,8 +262,8 @@ func parsePositiveInt(envVar string, defaultValue int) int {
 
 // initializeAPIResources initializes all API resource instances
 func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun.DB, logger *slog.Logger) {
-	api.Auth = authAPI.NewResource(api.Services.Auth, api.Services.Invitation)
-	api.Rooms = roomsAPI.NewResource(api.Services.Facilities)
+	api.Auth = authAPI.NewResource(api.Services.Auth, api.Services.Invitation, repoFactory.School, db)
+	api.Rooms = roomsAPI.NewResource(api.Services.Facilities, db)
 	api.Students = studentsAPI.NewResource(studentsAPI.ResourceConfig{
 		PersonService:         api.Services.Users,
 		StudentRepo:           repoFactory.Student,
@@ -226,16 +273,17 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		IoTService:            api.Services.IoT,
 		PrivacyConsentRepo:    repoFactory.PrivacyConsent,
 		PickupScheduleService: api.Services.PickupSchedule,
+		DB:                    db,
 	})
-	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, repoFactory.Student, repoFactory.GroupSubstitution)
-	api.Guardians = guardiansAPI.NewResource(api.Services.Guardian, api.Services.Users, api.Services.Education, api.Services.UserContext, repoFactory.Student)
-	api.Import = importAPI.NewResource(api.Services.Import, repoFactory.DataImport)
-	api.Activities = activitiesAPI.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users, api.Services.UserContext)
-	api.Staff = staffAPI.NewResource(api.Services.Users, api.Services.Education, api.Services.Auth, repoFactory.GroupSupervisor, api.Services.WorkSession, repoFactory.StaffAbsence)
-	api.Feedback = feedbackAPI.NewResource(api.Services.Feedback)
-	api.Suggestions = suggestionsAPI.NewResource(api.Services.Suggestions)
-	api.Schedules = schedulesAPI.NewResource(api.Services.Schedule)
-	api.Config = configAPI.NewResource(api.Services.Config, api.Services.ActiveCleanup)
+	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, repoFactory.Student, repoFactory.GroupSubstitution, db)
+	api.Guardians = guardiansAPI.NewResource(api.Services.Guardian, api.Services.Users, api.Services.Education, api.Services.UserContext, repoFactory.Student, db)
+	api.Import = importAPI.NewResource(api.Services.Import, repoFactory.DataImport, api.Services.Users, db)
+	api.Activities = activitiesAPI.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users, api.Services.UserContext, db)
+	api.Staff = staffAPI.NewResource(api.Services.Users, api.Services.Education, api.Services.Auth, repoFactory.GroupSupervisor, api.Services.WorkSession, repoFactory.StaffAbsence, db, logger.With("handler", "staff"))
+	api.Feedback = feedbackAPI.NewResource(api.Services.Feedback, db)
+	api.Suggestions = suggestionsAPI.NewResource(api.Services.Suggestions, db)
+	api.Schedules = schedulesAPI.NewResource(api.Services.Schedule, db)
+	api.Config = configAPI.NewResource(api.Services.Config, api.Services.ActiveCleanup, db)
 	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, api.Services.Schulhof, api.Services.UserContext, db, logger.With("handler", "active"))
 	api.IoT = iotAPI.NewResource(iotAPI.ServiceDependencies{
 		IoTService:        api.Services.IoT,
@@ -247,18 +295,20 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		EducationService:  api.Services.Education,
 		FeedbackService:   api.Services.Feedback,
 		Logger:            logger.With("handler", "iot"),
+		DB:                db,
 	})
-	api.SSE = sseAPI.NewResource(api.Services.RealtimeHub, api.Services.Active, api.Services.Users, api.Services.UserContext, logger.With("handler", "sse"))
-	api.Users = usersAPI.NewResource(api.Services.Users)
-	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext, repoFactory.GroupSubstitution)
-	api.Substitutions = substitutionsAPI.NewResource(api.Services.Education)
-	api.Database = databaseAPI.NewResource(api.Services.Database)
-	api.GradeTransitions = adminAPI.NewGradeTransitionResource(api.Services.GradeTransition)
-	api.TimeTracking = timeTrackingAPI.NewResource(api.Services.WorkSession, api.Services.StaffAbsence, api.Services.Users)
+	api.SSE = sseAPI.NewResource(api.Services.RealtimeHub, api.Services.Active, api.Services.Users, api.Services.UserContext, db, logger.With("handler", "sse"))
+	api.Users = usersAPI.NewResource(api.Services.Users, db)
+	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext, repoFactory.GroupSubstitution, db)
+	api.Substitutions = substitutionsAPI.NewResource(api.Services.Education, db)
+	api.Database = databaseAPI.NewResource(api.Services.Database, db)
+	api.GradeTransitions = adminAPI.NewGradeTransitionResource(api.Services.GradeTransition, db)
+	api.TimeTracking = timeTrackingAPI.NewResource(api.Services.WorkSession, api.Services.StaffAbsence, api.Services.Users, db)
 
 	// Initialize operator dashboard resources
 	api.Operator = operatorAPI.NewResource(operatorAPI.ResourceConfig{
 		AuthService:          api.Services.OperatorAuth,
+		ProvisioningService:  api.Services.OperatorProvisioning,
 		SuggestionsService:   api.Services.OperatorSuggestions,
 		AnnouncementsService: api.Services.Announcement,
 		TokenAuth:            nil, // Created internally by operator API
@@ -295,7 +345,7 @@ func (a *API) registerRoutesWithRateLimiting() {
 				authLimit = parsed
 			}
 		}
-		authRateLimiter = customMiddleware.NewRateLimiter(authLimit, 2) // small burst for auth
+		authRateLimiter = customMiddleware.NewRateLimiter(authLimit, 10) // allow reasonable burst for login attempts
 		if securityLogger != nil {
 			authRateLimiter.SetLogger(securityLogger)
 		}
@@ -313,15 +363,11 @@ func (a *API) registerRoutesWithRateLimiting() {
 
 	// Mount API resources
 	// Auth routes mounted at root level to match frontend expectations
-	// Apply stricter rate limiting to auth endpoints if enabled
+	// Rate limiting is applied per-route inside Auth.Router() (only login, register, password-reset)
 	if rateLimitEnabled && authRateLimiter != nil {
-		a.Router.Route("/auth", func(r chi.Router) {
-			r.Use(authRateLimiter.Middleware())
-			r.Mount("/", a.Auth.Router())
-		})
-	} else {
-		a.Router.Mount("/auth", a.Auth.Router())
+		a.Auth.SetAuthRateLimiter(authRateLimiter.Middleware())
 	}
+	a.Router.Mount("/auth", a.Auth.Router())
 
 	// Other API routes under /api prefix for organization
 	a.Router.Route("/api", func(r chi.Router) {

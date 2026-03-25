@@ -1,7 +1,6 @@
 package iot_test
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -22,13 +21,13 @@ func TestDeviceRepository_Create(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Device
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates device with valid data", func(t *testing.T) {
 		uniqueDeviceID := fmt.Sprintf("device-%d", time.Now().UnixNano())
 		device := &iot.Device{
 			DeviceID:   uniqueDeviceID,
-			DeviceType: "rfid_reader",
+			DeviceType: "terminal",
 			Status:     iot.DeviceStatusActive,
 		}
 
@@ -43,7 +42,7 @@ func TestDeviceRepository_Create(t *testing.T) {
 		uniqueDeviceID := fmt.Sprintf("inactive-device-%d", time.Now().UnixNano())
 		device := &iot.Device{
 			DeviceID:   uniqueDeviceID,
-			DeviceType: "rfid_reader",
+			DeviceType: "terminal",
 			Status:     iot.DeviceStatusInactive,
 		}
 
@@ -60,7 +59,7 @@ func TestDeviceRepository_FindByID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Device
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds existing device", func(t *testing.T) {
 		device := testpkg.CreateTestDevice(t, db, "findbyid")
@@ -82,7 +81,7 @@ func TestDeviceRepository_FindByDeviceID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Device
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds device by device_id string", func(t *testing.T) {
 		device := testpkg.CreateTestDevice(t, db, "bydeviceid")
@@ -104,7 +103,7 @@ func TestDeviceRepository_Update(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Device
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates device status", func(t *testing.T) {
 		device := testpkg.CreateTestDevice(t, db, "update")
@@ -125,7 +124,7 @@ func TestDeviceRepository_Delete(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Device
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes existing device", func(t *testing.T) {
 		device := testpkg.CreateTestDevice(t, db, "delete")
@@ -147,7 +146,7 @@ func TestDeviceRepository_List(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Device
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("lists all devices", func(t *testing.T) {
 		device := testpkg.CreateTestDevice(t, db, "list")
@@ -164,7 +163,7 @@ func TestDeviceRepository_FindActiveDevices(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Device
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds only active devices", func(t *testing.T) {
 		device := testpkg.CreateTestDevice(t, db, "activedevice")
@@ -199,7 +198,7 @@ func TestDeviceRepository_Create_Validation(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Device
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error when device is nil", func(t *testing.T) {
 		err := repo.Create(ctx, nil)
@@ -209,7 +208,7 @@ func TestDeviceRepository_Create_Validation(t *testing.T) {
 
 	t.Run("returns error when device_id is missing", func(t *testing.T) {
 		device := &iot.Device{
-			DeviceType: "rfid_reader",
+			DeviceType: "terminal",
 			Status:     iot.DeviceStatusActive,
 		}
 
@@ -235,7 +234,7 @@ func TestDeviceRepository_Update_Validation(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Device
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error when device is nil", func(t *testing.T) {
 		err := repo.Update(ctx, nil)
@@ -253,13 +252,13 @@ func TestDeviceRepository_FindByAPIKey(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Device
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds device by API key", func(t *testing.T) {
 		apiKey := fmt.Sprintf("test-api-key-%d", time.Now().UnixNano())
 		device := &iot.Device{
 			DeviceID:   fmt.Sprintf("device-with-key-%d", time.Now().UnixNano()),
-			DeviceType: "rfid_reader",
+			DeviceType: "terminal",
 			Status:     iot.DeviceStatusActive,
 			APIKey:     &apiKey,
 		}
@@ -286,7 +285,7 @@ func TestDeviceRepository_FindByType(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Device
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds devices by type", func(t *testing.T) {
 		uniqueType := fmt.Sprintf("test-type-%d", time.Now().UnixNano())
@@ -326,12 +325,12 @@ func TestDeviceRepository_FindByStatus(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Device
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds devices by status", func(t *testing.T) {
 		device := &iot.Device{
 			DeviceID:   fmt.Sprintf("maintenance-device-%d", time.Now().UnixNano()),
-			DeviceType: "rfid_reader",
+			DeviceType: "terminal",
 			Status:     iot.DeviceStatusMaintenance,
 		}
 
@@ -359,7 +358,7 @@ func TestDeviceRepository_FindByRegisteredBy(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Device
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds devices registered by person", func(t *testing.T) {
 		// Create a person to register the device
@@ -368,7 +367,7 @@ func TestDeviceRepository_FindByRegisteredBy(t *testing.T) {
 
 		device := &iot.Device{
 			DeviceID:       fmt.Sprintf("registered-device-%d", time.Now().UnixNano()),
-			DeviceType:     "rfid_reader",
+			DeviceType:     "terminal",
 			Status:         iot.DeviceStatusActive,
 			RegisteredByID: &person.PersonID,
 		}
@@ -408,14 +407,14 @@ func TestDeviceRepository_UpdateLastSeen(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Device
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates last_seen timestamp", func(t *testing.T) {
 		device := testpkg.CreateTestDevice(t, db, "lastseen")
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, device.ID, 0, 0)
 
 		newLastSeen := time.Now().Add(-10 * time.Minute)
-		err := repo.UpdateLastSeen(ctx, device.DeviceID, newLastSeen)
+		err := repo.UpdateLastSeen(ctx, device.ID, newLastSeen)
 		require.NoError(t, err)
 
 		found, err := repo.FindByID(ctx, device.ID)
@@ -430,7 +429,7 @@ func TestDeviceRepository_UpdateStatus(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Device
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates device status", func(t *testing.T) {
 		device := testpkg.CreateTestDevice(t, db, "statusupdate")
@@ -466,12 +465,12 @@ func TestDeviceRepository_FindDevicesRequiringMaintenance(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Device
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds devices requiring maintenance", func(t *testing.T) {
 		device := &iot.Device{
 			DeviceID:   fmt.Sprintf("needs-maintenance-%d", time.Now().UnixNano()),
-			DeviceType: "rfid_reader",
+			DeviceType: "terminal",
 			Status:     iot.DeviceStatusMaintenance,
 		}
 
@@ -498,14 +497,14 @@ func TestDeviceRepository_FindOfflineDevices(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Device
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds devices offline for specified duration", func(t *testing.T) {
 		// Create device with old last_seen timestamp
 		oldTime := time.Now().Add(-2 * time.Hour)
 		device := &iot.Device{
 			DeviceID:   fmt.Sprintf("offline-device-%d", time.Now().UnixNano()),
-			DeviceType: "rfid_reader",
+			DeviceType: "terminal",
 			Status:     iot.DeviceStatusActive,
 			LastSeen:   &oldTime,
 		}
@@ -534,7 +533,7 @@ func TestDeviceRepository_FindOfflineDevices(t *testing.T) {
 		// Create device with no last_seen (will use old created_at)
 		device := &iot.Device{
 			DeviceID:   fmt.Sprintf("never-seen-%d", time.Now().UnixNano()),
-			DeviceType: "rfid_reader",
+			DeviceType: "terminal",
 			Status:     iot.DeviceStatusActive,
 		}
 
@@ -572,7 +571,7 @@ func TestDeviceRepository_CountDevicesByType(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Device
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("counts devices grouped by type", func(t *testing.T) {
 		uniqueType := fmt.Sprintf("count-type-%d", time.Now().UnixNano())
@@ -617,12 +616,12 @@ func TestDeviceRepository_List_WithFilters(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Device
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("filters by status", func(t *testing.T) {
 		device := &iot.Device{
 			DeviceID:   fmt.Sprintf("filter-status-%d", time.Now().UnixNano()),
-			DeviceType: "rfid_reader",
+			DeviceType: "terminal",
 			Status:     iot.DeviceStatusInactive,
 		}
 
@@ -677,7 +676,7 @@ func TestDeviceRepository_List_WithFilters(t *testing.T) {
 		uniquePrefix := fmt.Sprintf("like-%d", time.Now().UnixNano())
 		device := &iot.Device{
 			DeviceID:   fmt.Sprintf("%s-device", uniquePrefix),
-			DeviceType: "rfid_reader",
+			DeviceType: "terminal",
 			Status:     iot.DeviceStatusActive,
 		}
 
@@ -704,7 +703,7 @@ func TestDeviceRepository_List_WithFilters(t *testing.T) {
 		uniqueName := fmt.Sprintf("NameFilter-%d", time.Now().UnixNano())
 		device := &iot.Device{
 			DeviceID:   fmt.Sprintf("namefilter-%d", time.Now().UnixNano()),
-			DeviceType: "rfid_reader",
+			DeviceType: "terminal",
 			Status:     iot.DeviceStatusActive,
 			Name:       &uniqueName,
 		}
@@ -734,7 +733,7 @@ func TestDeviceRepository_List_WithFilters(t *testing.T) {
 		deviceName := fmt.Sprintf("Named Device %d", time.Now().UnixNano())
 		device := &iot.Device{
 			DeviceID:   fmt.Sprintf("hasname-%d", time.Now().UnixNano()),
-			DeviceType: "rfid_reader",
+			DeviceType: "terminal",
 			Status:     iot.DeviceStatusActive,
 			Name:       &deviceName,
 		}
@@ -756,7 +755,7 @@ func TestDeviceRepository_List_WithFilters(t *testing.T) {
 	t.Run("filters by has_name false", func(t *testing.T) {
 		device := &iot.Device{
 			DeviceID:   fmt.Sprintf("noname-%d", time.Now().UnixNano()),
-			DeviceType: "rfid_reader",
+			DeviceType: "terminal",
 			Status:     iot.DeviceStatusActive,
 		}
 
@@ -783,7 +782,7 @@ func TestDeviceRepository_List_WithFilters(t *testing.T) {
 		recentTime := time.Now().Add(-5 * time.Minute)
 		device := &iot.Device{
 			DeviceID:   fmt.Sprintf("seenafter-%d", time.Now().UnixNano()),
-			DeviceType: "rfid_reader",
+			DeviceType: "terminal",
 			Status:     iot.DeviceStatusActive,
 			LastSeen:   &recentTime,
 		}
@@ -814,7 +813,7 @@ func TestDeviceRepository_List_WithFilters(t *testing.T) {
 		oldTime := time.Now().Add(-20 * time.Minute)
 		device := &iot.Device{
 			DeviceID:   fmt.Sprintf("seenbefore-%d", time.Now().UnixNano()),
-			DeviceType: "rfid_reader",
+			DeviceType: "terminal",
 			Status:     iot.DeviceStatusActive,
 			LastSeen:   &oldTime,
 		}

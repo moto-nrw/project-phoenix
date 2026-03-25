@@ -12,9 +12,12 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	guardianSvc "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 // Error messages (S1192 - avoid duplicate string literals)
@@ -464,8 +467,13 @@ func (rs *Resource) createGuardian(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create guardian
-	guardian, err := rs.GuardianService.CreateGuardian(r.Context(), createReq)
-	if err != nil {
+	var guardian *users.GuardianProfile
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		var txErr error
+		guardian, txErr = rs.GuardianService.CreateGuardian(ctx, createReq)
+		return txErr
+	}); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
@@ -501,7 +509,10 @@ func (rs *Resource) updateGuardian(w http.ResponseWriter, r *http.Request) {
 
 	updateReq := buildGuardianUpdateRequest(guardian, req)
 
-	if err := rs.GuardianService.UpdateGuardian(r.Context(), id, updateReq); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.GuardianService.UpdateGuardian(ctx, id, updateReq)
+	}); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
@@ -591,7 +602,14 @@ func (rs *Resource) deleteGuardian(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Delete guardian
-	if err := rs.GuardianService.DeleteGuardian(r.Context(), id); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.GuardianService.DeleteGuardian(ctx, id)
+	}); err != nil {
+		if common.IsConstraintViolation(err) {
+			common.RenderError(w, r, common.ErrorConflictMessage("Erziehungsberechtigte/r kann nicht gelöscht werden: Noch mit Schüler/innen verknüpft"))
+			return
+		}
 		// Check for "not found" errors and return 404
 		if strings.Contains(err.Error(), "not found") {
 			common.RenderError(w, r, common.ErrorNotFound(err))
@@ -659,8 +677,13 @@ func (rs *Resource) sendInvitation(w http.ResponseWriter, r *http.Request) {
 		CreatedBy:         accountID,
 	}
 
-	invitation, err := rs.GuardianService.SendInvitation(r.Context(), invitationReq)
-	if err != nil {
+	var invitation *authModels.GuardianInvitation
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		var txErr error
+		invitation, txErr = rs.GuardianService.SendInvitation(ctx, invitationReq)
+		return txErr
+	}); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
@@ -817,8 +840,13 @@ func (rs *Resource) linkGuardianToStudent(w http.ResponseWriter, r *http.Request
 	}
 
 	// Link guardian to student
-	relationship, err := rs.GuardianService.LinkGuardianToStudent(r.Context(), linkReq)
-	if err != nil {
+	var relationship *users.StudentGuardian
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		var txErr error
+		relationship, txErr = rs.GuardianService.LinkGuardianToStudent(ctx, linkReq)
+		return txErr
+	}); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
@@ -867,7 +895,10 @@ func (rs *Resource) updateStudentGuardianRelationship(w http.ResponseWriter, r *
 	}
 
 	// Update relationship
-	if err := rs.GuardianService.UpdateStudentGuardianRelationship(r.Context(), relationshipID, updateReq); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.GuardianService.UpdateStudentGuardianRelationship(ctx, relationshipID, updateReq)
+	}); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
@@ -899,7 +930,10 @@ func (rs *Resource) removeGuardianFromStudent(w http.ResponseWriter, r *http.Req
 	}
 
 	// Remove guardian from student
-	if err := rs.GuardianService.RemoveGuardianFromStudent(r.Context(), studentID, guardianID); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.GuardianService.RemoveGuardianFromStudent(ctx, studentID, guardianID)
+	}); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
@@ -1154,8 +1188,13 @@ func (rs *Resource) addPhoneNumber(w http.ResponseWriter, r *http.Request) {
 		IsPrimary:   req.IsPrimary,
 	}
 
-	phone, err := rs.GuardianService.AddPhoneNumber(r.Context(), guardianID, createReq)
-	if err != nil {
+	var phone *users.GuardianPhoneNumber
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		var txErr error
+		phone, txErr = rs.GuardianService.AddPhoneNumber(ctx, guardianID, createReq)
+		return txErr
+	}); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
@@ -1184,7 +1223,10 @@ func (rs *Resource) updatePhoneNumber(w http.ResponseWriter, r *http.Request) {
 		Priority:    req.Priority,
 	}
 
-	if err := rs.GuardianService.UpdatePhoneNumber(r.Context(), phone.ID, updateReq); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.GuardianService.UpdatePhoneNumber(ctx, phone.ID, updateReq)
+	}); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
@@ -1206,7 +1248,10 @@ func (rs *Resource) deletePhoneNumber(w http.ResponseWriter, r *http.Request) {
 		return // Error already rendered
 	}
 
-	if err := rs.GuardianService.DeletePhoneNumber(r.Context(), phone.ID); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.GuardianService.DeletePhoneNumber(ctx, phone.ID)
+	}); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
@@ -1221,7 +1266,10 @@ func (rs *Resource) setPrimaryPhone(w http.ResponseWriter, r *http.Request) {
 		return // Error already rendered
 	}
 
-	if err := rs.GuardianService.SetPrimaryPhone(r.Context(), phone.ID); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.GuardianService.SetPrimaryPhone(ctx, phone.ID)
+	}); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}

@@ -1,0 +1,236 @@
+package auth_test
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	authRepo "github.com/moto-nrw/project-phoenix/database/repositories/auth"
+	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestAccountTenantRepository_CreateAndQuery(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := authRepo.NewAccountTenantRepository(db)
+	ctx := testpkg.TenantContext(1)
+	account := testpkg.CreateTestAccount(t, db, "acctenant")
+	tenantID := account.ID + 1000
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	t.Cleanup(func() {
+		_, _ = db.ExecContext(ctx, `DELETE FROM auth.account_tenants WHERE account_id = ?`, account.ID)
+		cleanupAccountRecords(t, db, account.ID)
+	})
+
+	t.Run("creates active mapping", func(t *testing.T) {
+		item := &authModels.AccountTenant{
+			AccountID: account.ID,
+			TenantID:  tenantID,
+			Status:    authModels.AccountTenantStatusActive,
+		}
+		err := repo.Create(ctx, item)
+		require.NoError(t, err)
+		assert.NotZero(t, item.ID)
+	})
+
+	t.Run("finds active mappings by account id", func(t *testing.T) {
+		items, err := repo.FindActiveByAccountID(ctx, account.ID)
+		require.NoError(t, err)
+		require.Len(t, items, 1)
+		assert.Equal(t, tenantID, items[0].TenantID)
+	})
+
+	t.Run("exists by account and tenant returns true", func(t *testing.T) {
+		exists, err := repo.ExistsByAccountAndTenant(ctx, account.ID, tenantID)
+		require.NoError(t, err)
+		assert.True(t, exists)
+	})
+
+	t.Run("exists by account and tenant returns false for missing mapping", func(t *testing.T) {
+		exists, err := repo.ExistsByAccountAndTenant(ctx, account.ID, tenantID+999999)
+		require.NoError(t, err)
+		assert.False(t, exists)
+	})
+}
+
+func TestAccountTenantRepository_CreateValidation(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := authRepo.NewAccountTenantRepository(db)
+	ctx := testpkg.TenantContext(1)
+
+	err := repo.Create(ctx, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "account tenant cannot be nil")
+
+	err = repo.Create(ctx, &authModels.AccountTenant{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "account_id is required")
+}
+
+func TestAccountTenantRepository_ListAccountsByTenantID(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	ctx := context.Background()
+
+	tenantID := int64(90001)
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	account := testpkg.CreateTestAccount(t, db, "list-by-tenant")
+	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
+
+	person := testpkg.CreateTestPersonForTenant(t, db, tenantID, "Maria", "Schmidt")
+	_, err := db.ExecContext(ctx,
+		`UPDATE users.persons SET account_id = ? WHERE id = ?`, account.ID, person.ID)
+	require.NoError(t, err)
+
+	// Cleanup in reverse order (data deps)
+	defer func() {
+		_, _ = db.ExecContext(ctx, `DELETE FROM auth.account_tenants WHERE account_id = ?`, account.ID)
+		_, _ = db.ExecContext(ctx, `DELETE FROM users.persons WHERE id = ?`, person.ID)
+		_, _ = db.ExecContext(ctx, `DELETE FROM auth.accounts WHERE id = ?`, account.ID)
+		_, _ = db.ExecContext(ctx, `DELETE FROM platform.schools WHERE id = ?`, tenantID)
+		_, _ = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id = ?`, tenantID)
+		_ = db.Close()
+	}()
+
+	repo := authRepo.NewAccountTenantRepository(db)
+
+	t.Run("returns accounts for tenant", func(t *testing.T) {
+		accounts, err := repo.ListAccountsByTenantID(ctx, tenantID)
+		require.NoError(t, err)
+
+		var found bool
+		for _, a := range accounts {
+			if a.Email == account.Email {
+				found = true
+				assert.Equal(t, account.ID, a.AccountID)
+				assert.Equal(t, "Maria", a.FirstName)
+				assert.Equal(t, "Schmidt", a.LastName)
+				break
+			}
+		}
+		assert.True(t, found, "expected to find test account in results")
+	})
+
+	t.Run("returns empty for nonexistent tenant", func(t *testing.T) {
+		accounts, err := repo.ListAccountsByTenantID(ctx, 999999)
+		require.NoError(t, err)
+		assert.Empty(t, accounts)
+	})
+}
+
+func TestAccountTenantRepository_ListAccountsByTenantID_IncludesPendingInvitations(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	ctx := context.Background()
+
+	tenantID := int64(90002)
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	role := testpkg.GetOrCreateTestRole(t, db, "admin")
+
+	invitation := testpkg.CreateTestInvitationToken(t, db, "pending-invite", role.ID, 0, time.Now().Add(24*time.Hour))
+	_, err := db.ExecContext(ctx,
+		`UPDATE auth.invitation_tokens SET tenant_id = ? WHERE id = ?`, tenantID, invitation.ID)
+	require.NoError(t, err)
+
+	defer func() {
+		_, _ = db.ExecContext(ctx, `DELETE FROM auth.invitation_tokens WHERE id = ?`, invitation.ID)
+		_, _ = db.ExecContext(ctx, `DELETE FROM platform.schools WHERE id = ?`, tenantID)
+		_, _ = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id = ?`, tenantID)
+		_ = db.Close()
+	}()
+
+	repo := authRepo.NewAccountTenantRepository(db)
+	accounts, err := repo.ListAccountsByTenantID(ctx, tenantID)
+	require.NoError(t, err)
+
+	var found bool
+	for _, a := range accounts {
+		if a.Email == invitation.Email {
+			found = true
+			assert.Equal(t, "invited", a.Status)
+			assert.Equal(t, int64(0), a.AccountID)
+			break
+		}
+	}
+	assert.True(t, found, "expected to find pending invitation in results")
+}
+
+func TestAccountTenantRepository_ListAccountsByOrganizationID(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	ctx := context.Background()
+
+	tenantID := int64(90003)
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	orgID := tenantID // EnsureTestTenant creates org with same ID
+
+	account := testpkg.CreateTestAccount(t, db, "list-by-org")
+	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
+
+	defer func() {
+		_, _ = db.ExecContext(ctx, `DELETE FROM auth.account_tenants WHERE account_id = ?`, account.ID)
+		_, _ = db.ExecContext(ctx, `DELETE FROM auth.accounts WHERE id = ?`, account.ID)
+		_, _ = db.ExecContext(ctx, `DELETE FROM platform.schools WHERE id = ?`, tenantID)
+		_, _ = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id = ?`, tenantID)
+		_ = db.Close()
+	}()
+
+	repo := authRepo.NewAccountTenantRepository(db)
+
+	t.Run("returns accounts for organization", func(t *testing.T) {
+		accounts, err := repo.ListAccountsByOrganizationID(ctx, orgID)
+		require.NoError(t, err)
+
+		var found bool
+		for _, a := range accounts {
+			if a.Email == account.Email {
+				found = true
+				assert.Equal(t, tenantID, a.SchoolID)
+				break
+			}
+		}
+		assert.True(t, found, "expected to find test account in org results")
+	})
+
+	t.Run("returns empty for nonexistent org", func(t *testing.T) {
+		accounts, err := repo.ListAccountsByOrganizationID(ctx, 999999)
+		require.NoError(t, err)
+		assert.Empty(t, accounts)
+	})
+}
+
+func TestAccountTenantRepository_ListAllAccounts(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	ctx := context.Background()
+
+	tenantID := int64(90004)
+	testpkg.EnsureTestTenant(t, db, tenantID)
+
+	account := testpkg.CreateTestAccount(t, db, "list-all")
+	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
+
+	defer func() {
+		_, _ = db.ExecContext(ctx, `DELETE FROM auth.account_tenants WHERE account_id = ?`, account.ID)
+		_, _ = db.ExecContext(ctx, `DELETE FROM auth.accounts WHERE id = ?`, account.ID)
+		_, _ = db.ExecContext(ctx, `DELETE FROM platform.schools WHERE id = ?`, tenantID)
+		_, _ = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id = ?`, tenantID)
+		_ = db.Close()
+	}()
+
+	repo := authRepo.NewAccountTenantRepository(db)
+	accounts, err := repo.ListAllAccounts(ctx)
+	require.NoError(t, err)
+
+	var found bool
+	for _, a := range accounts {
+		if a.Email == account.Email {
+			found = true
+			assert.Equal(t, tenantID, a.SchoolID)
+			break
+		}
+	}
+	assert.True(t, found, "expected to find test account in all accounts")
+}

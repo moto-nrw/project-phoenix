@@ -1,7 +1,6 @@
 package config_test
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -30,10 +29,10 @@ func cleanupSettingRecords(t *testing.T, db *bun.DB, settingIDs ...int64) {
 		return
 	}
 
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	_, err := db.NewDelete().
 		TableExpr("config.settings").
-		Where("id IN (?)", bun.In(settingIDs)).
+		Where("id IN (?)", bun.List(settingIDs)).
 		Exec(ctx)
 	if err != nil {
 		t.Logf("Warning: failed to cleanup settings: %v", err)
@@ -49,7 +48,7 @@ func TestSettingRepository_Create(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := setupSettingRepo(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates setting with valid data", func(t *testing.T) {
 		uniqueKey := fmt.Sprintf("test_key_%d", time.Now().UnixNano())
@@ -95,7 +94,7 @@ func TestSettingRepository_FindByID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := setupSettingRepo(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds existing setting", func(t *testing.T) {
 		uniqueKey := fmt.Sprintf("findbyid_key_%d", time.Now().UnixNano())
@@ -125,7 +124,7 @@ func TestSettingRepository_Update(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := setupSettingRepo(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates setting", func(t *testing.T) {
 		uniqueKey := fmt.Sprintf("update_key_%d", time.Now().UnixNano())
@@ -153,7 +152,7 @@ func TestSettingRepository_Delete(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := setupSettingRepo(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes existing setting", func(t *testing.T) {
 		uniqueKey := fmt.Sprintf("delete_key_%d", time.Now().UnixNano())
@@ -184,7 +183,7 @@ func TestSettingRepository_FindByKey(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := setupSettingRepo(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds setting by key", func(t *testing.T) {
 		uniqueKey := fmt.Sprintf("findbykey_%d", time.Now().UnixNano())
@@ -214,7 +213,7 @@ func TestSettingRepository_FindByCategory(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := setupSettingRepo(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds settings by category", func(t *testing.T) {
 		uniqueCategory := fmt.Sprintf("cat_%d", time.Now().UnixNano())
@@ -251,7 +250,7 @@ func TestSettingRepository_FindByKeyAndCategory(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := setupSettingRepo(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds setting by key and category", func(t *testing.T) {
 		uniqueKey := fmt.Sprintf("keycat_%d", time.Now().UnixNano())
@@ -276,7 +275,7 @@ func TestSettingRepository_GetValue(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := setupSettingRepo(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("gets setting value", func(t *testing.T) {
 		uniqueKey := fmt.Sprintf("getvalue_%d", time.Now().UnixNano())
@@ -300,7 +299,7 @@ func TestSettingRepository_GetBoolValue(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := setupSettingRepo(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("gets true boolean value", func(t *testing.T) {
 		uniqueKey := fmt.Sprintf("boolvalue_true_%d", time.Now().UnixNano())
@@ -340,7 +339,7 @@ func TestSettingRepository_UpdateValue(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := setupSettingRepo(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates setting value by key", func(t *testing.T) {
 		uniqueKey := fmt.Sprintf("updatevalue_%d", time.Now().UnixNano())
@@ -367,7 +366,7 @@ func TestSettingRepository_List(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := setupSettingRepo(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("lists all settings", func(t *testing.T) {
 		uniqueKey := fmt.Sprintf("list_%d", time.Now().UnixNano())
@@ -590,7 +589,7 @@ func TestSettingRepository_GetFullKey(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := setupSettingRepo(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("constructs full key from category and key", func(t *testing.T) {
 		fullKey, err := repo.GetFullKey(ctx, "system", "timeout")
@@ -616,7 +615,7 @@ func TestSettingRepository_Update_EdgeCases(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := setupSettingRepo(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("update with nil setting should fail", func(t *testing.T) {
 		err := repo.Update(ctx, nil)
@@ -648,7 +647,7 @@ func TestSettingRepository_Create_Validation(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := setupSettingRepo(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("create with empty key should fail", func(t *testing.T) {
 		setting := &config.Setting{
@@ -666,7 +665,7 @@ func TestSettingRepository_GetValue_NotFound(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := setupSettingRepo(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("get value for non-existent key returns error", func(t *testing.T) {
 		// GetValue should return an error for non-existent keys
@@ -684,7 +683,7 @@ func TestSettingRepository_GetBoolValue_NotFound(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := setupSettingRepo(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("get bool value for non-existent key returns error", func(t *testing.T) {
 		// GetBoolValue should return an error for non-existent keys
@@ -702,7 +701,7 @@ func TestSettingRepository_List_NonStringLikeFilter(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := setupSettingRepo(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("list with non-string key_like filter is ignored", func(t *testing.T) {
 		uniqueKey := fmt.Sprintf("nonstringfilter_%d", time.Now().UnixNano())

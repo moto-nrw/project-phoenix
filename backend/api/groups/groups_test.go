@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/render"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -55,6 +54,7 @@ func setupTestContext(t *testing.T) *testContext {
 		svc.UserContext,
 		repoFactory.Student,
 		repoFactory.GroupSubstitution,
+		db,
 	)
 
 	t.Cleanup(func() {
@@ -77,8 +77,7 @@ func setupProtectedRouter(t *testing.T) (*testContext, chi.Router) {
 
 	tc := setupTestContext(t)
 
-	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
+	router := testutil.NewTenantRouter(tc.db)
 
 	// Mount routes without JWT middleware for testing
 	router.Route("/groups", func(r chi.Router) {
@@ -434,6 +433,33 @@ func TestDeleteGroup_InvalidID(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 	testutil.AssertBadRequest(t, rr)
+}
+
+func TestDeleteGroup_ConflictWithStudents(t *testing.T) {
+	tc, router := setupProtectedRouter(t)
+
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "GroupWithStudents")
+	student := testpkg.CreateTestStudent(t, tc.db, "GroupDel", "Student", "1a")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, student.PersonID)
+
+	// Assign student to group
+	ctx := testpkg.TenantContext(1)
+	student.GroupID = &group.ID
+	_, err := tc.db.NewUpdate().
+		Model(student).
+		ModelTableExpr(`users.students AS "student"`).
+		Column("group_id").
+		Where(`"student".id = ?`, student.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/groups/%d", group.ID), nil,
+		testutil.WithPermissions("groups:delete"),
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertErrorResponse(t, rr, http.StatusConflict)
 }
 
 func TestDeleteGroup_WithoutPermission(t *testing.T) {
@@ -843,8 +869,7 @@ func setupTransferRouter(t *testing.T) (*testContext, chi.Router) {
 
 	tc := setupTestContext(t)
 
-	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
+	router := testutil.NewTenantRouter(tc.db)
 
 	router.Route("/groups", func(r chi.Router) {
 		r.Route("/{id}/transfer", func(r chi.Router) {

@@ -33,6 +33,33 @@ func sanitizeCellValue(value string) string {
 	return value
 }
 
+// columnAliases maps deprecated column names to their current equivalents.
+// This ensures old CSV templates with renamed columns still work.
+var columnAliases = map[string]string{
+	"erz1.primär":   "erz1.hauptansprechpartner",
+	"erz2.primär":   "erz2.hauptansprechpartner",
+	"erz3.primär":   "erz3.hauptansprechpartner",
+	"erz1.abholung": "erz1.abholberechtigt",
+	"erz2.abholung": "erz2.abholberechtigt",
+	"erz3.abholung": "erz3.abholberechtigt",
+}
+
+// normalizeHeaderKey normalizes a CSV/Excel header for column mapping.
+// Strips "(optional)", "(pflicht)" annotations and whitespace, then lowercases.
+// Also applies backward-compatible aliases for renamed columns.
+func normalizeHeaderKey(col string) string {
+	key := strings.ToLower(strings.TrimSpace(col))
+	// Strip annotation suffixes
+	for _, suffix := range []string{"(optional)", "(pflicht)"} {
+		key = strings.TrimSpace(strings.TrimSuffix(key, suffix))
+	}
+	// Apply backward-compatible aliases for renamed columns
+	if alias, ok := columnAliases[key]; ok {
+		key = alias
+	}
+	return key
+}
+
 // ColumnMapper provides column access functions for import parsing
 type ColumnMapper struct {
 	mapping map[string]int
@@ -123,13 +150,20 @@ func MapStudentRow(mapper *ColumnMapper) (importModels.StudentImportRow, error) 
 			Phone:              mapper.GetRawCol(phoneKey),
 			MobilePhone:        mapper.GetRawCol(mobileKey),
 			RelationshipType:   mapper.GetCol(fmt.Sprintf("erz%d.verhältnis", guardianNum)),
-			IsPrimary:          ParseBool(mapper.GetCol(fmt.Sprintf("erz%d.primär", guardianNum))),
+			IsPrimary:          ParseBool(mapper.GetCol(fmt.Sprintf("erz%d.hauptansprechpartner", guardianNum))),
 			IsEmergencyContact: ParseBool(mapper.GetCol(fmt.Sprintf("erz%d.notfall", guardianNum))),
-			CanPickup:          ParseBool(mapper.GetCol(fmt.Sprintf("erz%d.abholung", guardianNum))),
+			CanPickup:          ParseBool(mapper.GetCol(fmt.Sprintf("erz%d.abholberechtigt", guardianNum))),
 		}
 
 		// Parse flexible phone numbers into PhoneNumbers array
 		guardian.PhoneNumbers = ParseGuardianPhoneNumbers(guardianNum, mapper.GetRawCol)
+
+		// Guardian profile fields (address, notes, language)
+		guardian.AddressStreet = mapper.GetCol(fmt.Sprintf("erz%d.straße", guardianNum))
+		guardian.AddressCity = mapper.GetCol(fmt.Sprintf("erz%d.stadt", guardianNum))
+		guardian.AddressPostalCode = mapper.GetCol(fmt.Sprintf("erz%d.plz", guardianNum))
+		guardian.Notes = mapper.GetCol(fmt.Sprintf("erz%d.notizen", guardianNum))
+		guardian.LanguagePreference = mapper.GetCol(fmt.Sprintf("erz%d.sprache", guardianNum))
 
 		// Only add if has contact info (skip empty guardians)
 		hasPhoneNumbers := len(guardian.PhoneNumbers) > 0
@@ -138,6 +172,30 @@ func MapStudentRow(mapper *ColumnMapper) (importModels.StudentImportRow, error) 
 		}
 
 		guardianNum++
+	}
+
+	// Parse pickup schedule (Mon-Fri) with per-day notes
+	dayColumns := []struct {
+		key      string
+		notesKey string
+		weekday  int
+	}{
+		{"abholung.mo", "abholung.mo.notizen", 1},
+		{"abholung.di", "abholung.di.notizen", 2},
+		{"abholung.mi", "abholung.mi.notizen", 3},
+		{"abholung.do", "abholung.do.notizen", 4},
+		{"abholung.fr", "abholung.fr.notizen", 5},
+	}
+	for _, d := range dayColumns {
+		timeStr := mapper.GetCol(d.key)
+		notes := mapper.GetCol(d.notesKey)
+		if timeStr != "" {
+			row.PickupSchedules = append(row.PickupSchedules, importModels.PickupScheduleImportData{
+				Weekday:    d.weekday,
+				PickupTime: timeStr,
+				Notes:      notes,
+			})
+		}
 	}
 
 	return row, nil

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/uptrace/bun"
@@ -33,6 +34,8 @@ func (r *GuardianPhoneNumberRepository) Create(ctx context.Context, phone *users
 		return fmt.Errorf("validation failed: %w", err)
 	}
 
+	repoBase.EnsureTenantID(ctx, phone)
+
 	// Get the database connection (or transaction if in context)
 	var db bun.IDB = r.db
 	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
@@ -55,7 +58,7 @@ func (r *GuardianPhoneNumberRepository) Create(ctx context.Context, phone *users
 func (r *GuardianPhoneNumberRepository) FindByID(ctx context.Context, id int64) (*users.GuardianPhoneNumber, error) {
 	phone := new(users.GuardianPhoneNumber)
 
-	err := r.db.NewSelect().
+	err := repoBase.GetDB(ctx, r.db).NewSelect().
 		Model(phone).
 		ModelTableExpr(`users.guardian_phone_numbers AS "guardian_phone_number"`).
 		Where(`"guardian_phone_number".id = ?`, id).
@@ -75,7 +78,7 @@ func (r *GuardianPhoneNumberRepository) FindByID(ctx context.Context, id int64) 
 func (r *GuardianPhoneNumberRepository) FindByGuardianID(ctx context.Context, guardianProfileID int64) ([]*users.GuardianPhoneNumber, error) {
 	var phones []*users.GuardianPhoneNumber
 
-	err := r.db.NewSelect().
+	err := repoBase.GetDB(ctx, r.db).NewSelect().
 		Model(&phones).
 		ModelTableExpr(`users.guardian_phone_numbers AS "guardian_phone_number"`).
 		Where(`"guardian_phone_number".guardian_profile_id = ?`, guardianProfileID).
@@ -93,7 +96,7 @@ func (r *GuardianPhoneNumberRepository) FindByGuardianID(ctx context.Context, gu
 func (r *GuardianPhoneNumberRepository) GetPrimary(ctx context.Context, guardianProfileID int64) (*users.GuardianPhoneNumber, error) {
 	phone := new(users.GuardianPhoneNumber)
 
-	err := r.db.NewSelect().
+	err := repoBase.GetDB(ctx, r.db).NewSelect().
 		Model(phone).
 		ModelTableExpr(`users.guardian_phone_numbers AS "guardian_phone_number"`).
 		Where(`"guardian_phone_number".guardian_profile_id = ?`, guardianProfileID).
@@ -117,7 +120,7 @@ func (r *GuardianPhoneNumberRepository) Update(ctx context.Context, phone *users
 		return fmt.Errorf("validation failed: %w", err)
 	}
 
-	result, err := r.db.NewUpdate().
+	result, err := repoBase.GetDB(ctx, r.db).NewUpdate().
 		Model(phone).
 		ModelTableExpr(`users.guardian_phone_numbers AS "guardian_phone_number"`).
 		Where(`"guardian_phone_number".id = ?`, phone.ID).
@@ -141,7 +144,7 @@ func (r *GuardianPhoneNumberRepository) Update(ctx context.Context, phone *users
 
 // Delete removes a phone number
 func (r *GuardianPhoneNumberRepository) Delete(ctx context.Context, id int64) error {
-	result, err := r.db.NewDelete().
+	result, err := repoBase.GetDB(ctx, r.db).NewDelete().
 		Model((*users.GuardianPhoneNumber)(nil)).
 		ModelTableExpr(`users.guardian_phone_numbers AS "guardian_phone_number"`).
 		Where(`"guardian_phone_number".id = ?`, id).
@@ -163,17 +166,37 @@ func (r *GuardianPhoneNumberRepository) Delete(ctx context.Context, id int64) er
 	return nil
 }
 
-// SetPrimary sets a phone number as primary and unsets others for the guardian
+// SetPrimary sets a phone number as primary and unsets others for the guardian.
+// Uses the tenant transaction from context (via GetDB) for RLS compliance.
+// If no ambient transaction exists, creates one to ensure both updates are atomic —
+// without this, a failure on the second update would leave the guardian with no primary number.
 func (r *GuardianPhoneNumberRepository) SetPrimary(ctx context.Context, id int64, guardianProfileID int64) error {
-	// Start a transaction to ensure atomicity
+	// If already in a transaction (from middleware or service), reuse it.
+	// Otherwise start one to keep both updates atomic.
+	if _, hasTx := modelBase.TxFromContext(ctx); hasTx {
+		return r.setPrimaryInTx(ctx, id, guardianProfileID)
+	}
+
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	txCtx := modelBase.ContextWithTx(ctx, &tx)
+	if err := r.setPrimaryInTx(txCtx, id, guardianProfileID); err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+// setPrimaryInTx performs the two-step primary flag update within the current transaction.
+func (r *GuardianPhoneNumberRepository) setPrimaryInTx(ctx context.Context, id int64, guardianProfileID int64) error {
+	db := repoBase.GetDB(ctx, r.db)
+
 	// First, unset all primary flags for this guardian
-	_, err = tx.NewUpdate().
+	_, err := db.NewUpdate().
 		Model((*users.GuardianPhoneNumber)(nil)).
 		ModelTableExpr(`users.guardian_phone_numbers AS "guardian_phone_number"`).
 		Set(sqlSetIsPrimary, false).
@@ -185,7 +208,7 @@ func (r *GuardianPhoneNumberRepository) SetPrimary(ctx context.Context, id int64
 	}
 
 	// Then, set the specified phone as primary
-	result, err := tx.NewUpdate().
+	result, err := db.NewUpdate().
 		Model((*users.GuardianPhoneNumber)(nil)).
 		ModelTableExpr(`users.guardian_phone_numbers AS "guardian_phone_number"`).
 		Set(sqlSetIsPrimary, true).
@@ -206,12 +229,12 @@ func (r *GuardianPhoneNumberRepository) SetPrimary(ctx context.Context, id int64
 		return errors.New(errGuardianPhoneNotFound)
 	}
 
-	return tx.Commit()
+	return nil
 }
 
 // UnsetAllPrimary unsets primary flag for all phone numbers of a guardian
 func (r *GuardianPhoneNumberRepository) UnsetAllPrimary(ctx context.Context, guardianProfileID int64) error {
-	_, err := r.db.NewUpdate().
+	_, err := repoBase.GetDB(ctx, r.db).NewUpdate().
 		Model((*users.GuardianPhoneNumber)(nil)).
 		ModelTableExpr(`users.guardian_phone_numbers AS "guardian_phone_number"`).
 		Set(sqlSetIsPrimary, false).
@@ -227,7 +250,7 @@ func (r *GuardianPhoneNumberRepository) UnsetAllPrimary(ctx context.Context, gua
 
 // CountByGuardianID returns the number of phone numbers for a guardian
 func (r *GuardianPhoneNumberRepository) CountByGuardianID(ctx context.Context, guardianProfileID int64) (int, error) {
-	count, err := r.db.NewSelect().
+	count, err := repoBase.GetDB(ctx, r.db).NewSelect().
 		Model((*users.GuardianPhoneNumber)(nil)).
 		ModelTableExpr(`users.guardian_phone_numbers AS "guardian_phone_number"`).
 		Where(`"guardian_phone_number".guardian_profile_id = ?`, guardianProfileID).
@@ -242,7 +265,7 @@ func (r *GuardianPhoneNumberRepository) CountByGuardianID(ctx context.Context, g
 
 // DeleteByGuardianID removes all phone numbers for a guardian
 func (r *GuardianPhoneNumberRepository) DeleteByGuardianID(ctx context.Context, guardianProfileID int64) error {
-	_, err := r.db.NewDelete().
+	_, err := repoBase.GetDB(ctx, r.db).NewDelete().
 		Model((*users.GuardianPhoneNumber)(nil)).
 		ModelTableExpr(`users.guardian_phone_numbers AS "guardian_phone_number"`).
 		Where(`"guardian_phone_number".guardian_profile_id = ?`, guardianProfileID).
@@ -259,7 +282,7 @@ func (r *GuardianPhoneNumberRepository) DeleteByGuardianID(ctx context.Context, 
 func (r *GuardianPhoneNumberRepository) GetNextPriority(ctx context.Context, guardianProfileID int64) (int, error) {
 	var maxPriority int
 
-	err := r.db.NewSelect().
+	err := repoBase.GetDB(ctx, r.db).NewSelect().
 		Model((*users.GuardianPhoneNumber)(nil)).
 		ModelTableExpr(`users.guardian_phone_numbers AS "guardian_phone_number"`).
 		ColumnExpr("COALESCE(MAX(priority), 0)").

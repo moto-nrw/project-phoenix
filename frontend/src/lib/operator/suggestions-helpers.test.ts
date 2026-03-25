@@ -76,6 +76,9 @@ describe("mapOperatorSuggestion", () => {
           created_at: "2024-03-01T10:00:00Z",
         },
       ],
+      school_id: 7,
+      school_name: "OGS Musterstadt",
+      is_hidden: false,
     };
 
     const result = mapOperatorSuggestion(backendSuggestion);
@@ -93,8 +96,11 @@ describe("mapOperatorSuggestion", () => {
     expect(result.commentCount).toBe(3);
     expect(result.unreadCount).toBe(1);
     expect(result.isNew).toBe(true);
+    expect(result.isHidden).toBe(false);
     expect(result.operatorComments).toHaveLength(1);
     expect(result.operatorComments[0]?.id).toBe("1");
+    expect(result.schoolId).toBe("7");
+    expect(result.schoolName).toBe("OGS Musterstadt");
   });
 
   it("maps suggestion with missing optional fields", () => {
@@ -109,6 +115,9 @@ describe("mapOperatorSuggestion", () => {
       author_name: "Bob",
       created_at: "2024-04-01T08:00:00Z",
       updated_at: "2024-04-01T08:00:00Z",
+      school_id: 3,
+      school_name: "OGS Testschule",
+      is_hidden: false,
     };
 
     const result = mapOperatorSuggestion(backendSuggestion);
@@ -118,6 +127,8 @@ describe("mapOperatorSuggestion", () => {
     expect(result.unreadCount).toBe(0);
     expect(result.isNew).toBe(false);
     expect(result.operatorComments).toEqual([]);
+    expect(result.schoolId).toBe("3");
+    expect(result.schoolName).toBe("OGS Testschule");
   });
 
   it("maps nested operator comments correctly", () => {
@@ -132,6 +143,9 @@ describe("mapOperatorSuggestion", () => {
       author_name: "Charlie",
       created_at: "2024-05-01T00:00:00Z",
       updated_at: "2024-05-02T00:00:00Z",
+      school_id: 1,
+      school_name: "OGS Demo",
+      is_hidden: true,
       operator_comments: [
         {
           id: 10,

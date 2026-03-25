@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import { HelpButton } from "@/components/ui/help_button";
 import { getHelpContent } from "@/lib/help-content";
 import { LogoutModal } from "~/components/ui/logout-modal";
+import { TenantSwitcher } from "~/components/tenant/tenant-switcher";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { useBreadcrumb } from "~/lib/breadcrumb-context";
 
@@ -71,13 +72,16 @@ export function Header() {
         ? "Admin"
         : "Betreuer";
 
-  // Scroll effect for header shrinking
+  // Scroll effect for header shrinking (hysteresis to prevent flicker)
   useEffect(() => {
     const handleScroll = () => {
-      setIsScrolled(window.scrollY > 20);
+      const y = globalThis.window.scrollY;
+      setIsScrolled((prev) => (prev ? y > 10 : y > 30));
     };
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
+    globalThis.window.addEventListener("scroll", handleScroll, {
+      passive: true,
+    });
+    return () => globalThis.window.removeEventListener("scroll", handleScroll);
   }, []);
 
   // Get page type information
@@ -87,10 +91,8 @@ export function Header() {
   const historyType = getHistoryType(pathname);
   const subPageLabel = getSubPageLabel(pathname);
 
-  // Profile data from ShellAuth context
-  const displayName = profile
-    ? `${profile.firstName ?? ""} ${profile.lastName ?? ""}`.trim() || userName
-    : userName;
+  // Use JWT name as single source of truth (avoids flicker from async profile fetch)
+  const displayName = userName;
   const displayAvatar = profile?.avatar;
 
   const isSessionExpired = sessionExpired;
@@ -146,6 +148,9 @@ export function Header() {
               <SessionWarning isExpired={isSessionExpired} variant="mobile" />
               <RefreshButton />
             </div>
+
+            {/* Tenant switcher */}
+            <TenantSwitcher />
 
             {/* User menu */}
             <div className="relative">

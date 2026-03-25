@@ -34,7 +34,13 @@ func setupIntegrationService(t *testing.T) (*bun.DB, suggestionsService.Service,
 	commentRepo := repoSuggestions.NewCommentRepository(db)
 	commentReadRepo := repoSuggestions.NewCommentReadRepository(db)
 
-	svc := suggestionsService.NewService(postRepo, voteRepo, commentRepo, commentReadRepo, db)
+	svc := suggestionsService.NewService(suggestionsService.ServiceConfig{
+		PostRepo:        postRepo,
+		VoteRepo:        voteRepo,
+		CommentRepo:     commentRepo,
+		CommentReadRepo: commentReadRepo,
+		DB:              db,
+	})
 
 	account := testpkg.CreateTestAccount(t, db, "svc-vote-test")
 	person := testpkg.CreateTestPersonWithAccountID(t, db, "Vote", "Tester", account.ID)
@@ -68,7 +74,7 @@ func createExtraAccount(t *testing.T, db *bun.DB, prefix string) *testAccount {
 func cleanupAllSuggestionData(t *testing.T, db *bun.DB) {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
 	defer cancel()
 
 	// Delete votes first (FK)
@@ -91,7 +97,7 @@ func cleanupAllSuggestionData(t *testing.T, db *bun.DB) {
 
 func TestIntegration_Vote_Success(t *testing.T) {
 	_, svc, acct := setupIntegrationService(t)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create a post via the service
 	post := &suggestions.Post{
@@ -115,7 +121,7 @@ func TestIntegration_Vote_Success(t *testing.T) {
 
 func TestIntegration_Vote_ChangeDirection(t *testing.T) {
 	_, svc, acct := setupIntegrationService(t)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	post := &suggestions.Post{
 		Title:       fmt.Sprintf("Vote Change %d", time.Now().UnixNano()),
@@ -142,7 +148,7 @@ func TestIntegration_Vote_ChangeDirection(t *testing.T) {
 
 func TestIntegration_Vote_MultipleVoters(t *testing.T) {
 	db, svc, acct1 := setupIntegrationService(t)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	acct2 := createExtraAccount(t, db, "voter2")
 	acct3 := createExtraAccount(t, db, "voter3")
@@ -175,7 +181,7 @@ func TestIntegration_Vote_MultipleVoters(t *testing.T) {
 
 func TestIntegration_RemoveVote_Success(t *testing.T) {
 	_, svc, acct := setupIntegrationService(t)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	post := &suggestions.Post{
 		Title:       fmt.Sprintf("Remove Vote %d", time.Now().UnixNano()),
@@ -201,7 +207,7 @@ func TestIntegration_RemoveVote_Success(t *testing.T) {
 
 func TestIntegration_RemoveVote_NoExistingVote(t *testing.T) {
 	_, svc, acct := setupIntegrationService(t)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	post := &suggestions.Post{
 		Title:       fmt.Sprintf("Remove No Vote %d", time.Now().UnixNano()),
@@ -221,7 +227,7 @@ func TestIntegration_RemoveVote_NoExistingVote(t *testing.T) {
 
 func TestIntegration_Vote_Atomicity(t *testing.T) {
 	db, svc, acct1 := setupIntegrationService(t)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	acct2 := createExtraAccount(t, db, "atomic-voter")
 

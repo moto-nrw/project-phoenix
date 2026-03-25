@@ -1,7 +1,6 @@
 package active
 
 import (
-	"errors"
 	"net/http"
 	"time"
 
@@ -41,54 +40,6 @@ func (rs *Resource) getCounts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, response, "Counts retrieved successfully")
-}
-
-// getRoomUtilization handles getting room utilization for analytics
-func (rs *Resource) getRoomUtilization(w http.ResponseWriter, r *http.Request) {
-	// Parse room ID from URL
-	roomID, err := common.ParseIDParam(r, "roomId")
-	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid room ID")))
-		return
-	}
-
-	// Get room utilization
-	utilization, err := rs.ActiveService.GetRoomUtilization(r.Context(), roomID)
-	if err != nil {
-		common.RenderError(w, r, ErrorRenderer(err))
-		return
-	}
-
-	// Build response
-	response := AnalyticsResponse{
-		RoomUtilization: utilization,
-	}
-
-	common.Respond(w, r, http.StatusOK, response, "Room utilization retrieved successfully")
-}
-
-// getStudentAttendance handles getting student attendance rate for analytics
-func (rs *Resource) getStudentAttendance(w http.ResponseWriter, r *http.Request) {
-	// Parse student ID from URL
-	studentID, err := common.ParseIDParam(r, "studentId")
-	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidStudentID)))
-		return
-	}
-
-	// Get student attendance rate
-	attendanceRate, err := rs.ActiveService.GetStudentAttendanceRate(r.Context(), studentID)
-	if err != nil {
-		common.RenderError(w, r, ErrorRenderer(err))
-		return
-	}
-
-	// Build response
-	response := AnalyticsResponse{
-		AttendanceRate: attendanceRate,
-	}
-
-	common.Respond(w, r, http.StatusOK, response, "Student attendance rate retrieved successfully")
 }
 
 // getDashboardAnalytics handles getting dashboard analytics data

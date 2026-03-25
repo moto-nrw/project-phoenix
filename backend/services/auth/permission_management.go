@@ -143,11 +143,15 @@ func (s *Service) GetAccountDirectPermissions(ctx context.Context, accountID int
 	return permissions, nil
 }
 
-// AssignPermissionToRole assigns a permission to a role
+// AssignPermissionToRole assigns a permission to a role. System roles cannot be modified.
 func (s *Service) AssignPermissionToRole(ctx context.Context, roleID, permissionID int) error {
-	// Verify role exists
-	if _, err := s.repos.Role.FindByID(ctx, int64(roleID)); err != nil {
+	// Verify role exists and check system role protection
+	role, err := s.repos.Role.FindByID(ctx, int64(roleID))
+	if err != nil {
 		return &AuthError{Op: opAssignPermissionToRole, Err: ErrRoleNotFound}
+	}
+	if role.IsSystem {
+		return &AuthError{Op: opAssignPermissionToRole, Err: ErrSystemRoleImmutable}
 	}
 
 	// Verify permission exists
@@ -162,8 +166,17 @@ func (s *Service) AssignPermissionToRole(ctx context.Context, roleID, permission
 	return nil
 }
 
-// RemovePermissionFromRole removes a permission from a role
+// RemovePermissionFromRole removes a permission from a role. System roles cannot be modified.
 func (s *Service) RemovePermissionFromRole(ctx context.Context, roleID, permissionID int) error {
+	// Verify role exists and check system role protection
+	role, err := s.repos.Role.FindByID(ctx, int64(roleID))
+	if err != nil {
+		return &AuthError{Op: "remove permission from role", Err: ErrRoleNotFound}
+	}
+	if role.IsSystem {
+		return &AuthError{Op: "remove permission from role", Err: ErrSystemRoleImmutable}
+	}
+
 	if err := s.repos.Permission.RemovePermissionFromRole(ctx, int64(roleID), int64(permissionID)); err != nil {
 		return &AuthError{Op: "remove permission from role", Err: err}
 	}

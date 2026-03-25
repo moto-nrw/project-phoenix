@@ -14,8 +14,9 @@ const tableConfigSettings = "config.settings"
 
 // Setting represents a system configuration setting
 type Setting struct {
-	base.Model      `bun:"schema:config,table:settings"`
-	Key             string `bun:"key,notnull,unique" json:"key"`
+	base.Model `bun:"schema:config,table:settings"`
+	base.TenantModel
+	Key             string `bun:"key,notnull" json:"key"`
 	Value           string `bun:"value,notnull" json:"value"`
 	Category        string `bun:"category,notnull" json:"category"`
 	Description     string `bun:"description" json:"description,omitempty"`
@@ -24,9 +25,6 @@ type Setting struct {
 }
 
 func (s *Setting) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(tableConfigSettings)
-	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr(tableConfigSettings)
 	}

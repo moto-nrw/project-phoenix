@@ -1,0 +1,80 @@
+/* eslint-disable @typescript-eslint/no-unsafe-return */
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom/vitest";
+import DatabaseLayout from "./layout";
+
+const mockUseSession = vi.fn();
+vi.mock("next-auth/react", () => ({
+  useSession: (...args: unknown[]) => mockUseSession(...args),
+}));
+
+vi.mock("next/navigation", () => ({
+  redirect: vi.fn(),
+}));
+
+vi.mock("~/lib/auth-utils", () => ({
+  isAdmin: (session: { user?: { isAdmin?: boolean } } | null) =>
+    session?.user?.isAdmin ?? false,
+}));
+
+vi.mock("~/components/ui/loading", () => ({
+  Loading: () => <div data-testid="loading">Loading...</div>,
+}));
+
+describe("DatabaseLayout", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("renders children for admin users", () => {
+    mockUseSession.mockReturnValue({
+      data: { user: { isAdmin: true, token: "tok" } },
+      status: "authenticated",
+    });
+
+    render(
+      <DatabaseLayout>
+        <div data-testid="database-content">Database Content</div>
+      </DatabaseLayout>,
+    );
+
+    expect(screen.getByTestId("database-content")).toBeInTheDocument();
+  });
+
+  it("shows ForbiddenPage for non-admin users", () => {
+    mockUseSession.mockReturnValue({
+      data: { user: { isAdmin: false, token: "tok" } },
+      status: "authenticated",
+    });
+
+    render(
+      <DatabaseLayout>
+        <div data-testid="database-content">Database Content</div>
+      </DatabaseLayout>,
+    );
+
+    expect(screen.getByText("Kein Zugriff")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Du verfügst nicht über die notwendigen Berechtigungen, um die Datenverwaltung aufzurufen.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("database-content")).not.toBeInTheDocument();
+  });
+
+  it("shows loading state while session loads", () => {
+    mockUseSession.mockReturnValue({
+      data: null,
+      status: "loading",
+    });
+
+    render(
+      <DatabaseLayout>
+        <div>Content</div>
+      </DatabaseLayout>,
+    );
+
+    expect(screen.getByTestId("loading")).toBeInTheDocument();
+  });
+});

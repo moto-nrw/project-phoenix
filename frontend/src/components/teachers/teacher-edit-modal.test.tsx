@@ -133,7 +133,7 @@ describe("TeacherEditModal", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText("Betreuer bearbeiten")).toBeInTheDocument();
+      expect(screen.getByText("Personal bearbeiten")).toBeInTheDocument();
     });
   });
 

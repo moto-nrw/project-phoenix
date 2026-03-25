@@ -2,6 +2,7 @@ package staff_test
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 	"testing"
 	"time"
@@ -34,7 +35,7 @@ func setupTestContext(t *testing.T) *testContext {
 
 	// Create repo factory to get GroupSupervisor repository
 	repoFactory := repositories.NewFactory(db)
-	resource := staffAPI.NewResource(svc.Users, svc.Education, svc.Auth, repoFactory.GroupSupervisor, svc.WorkSession, repoFactory.StaffAbsence)
+	resource := staffAPI.NewResource(svc.Users, svc.Education, svc.Auth, repoFactory.GroupSupervisor, svc.WorkSession, repoFactory.StaffAbsence, db, slog.Default())
 
 	return &testContext{
 		db:       db,
@@ -657,6 +658,7 @@ func TestGetPINStatus_Success(t *testing.T) {
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/pin", nil,
 		testutil.WithClaims(jwt.AppClaims{
 			ID:       int(*person.AccountID),
+			TenantID: 1,
 			Username: "pintest",
 		}),
 	)
@@ -712,6 +714,7 @@ func TestUpdatePIN_InvalidPINFormat(t *testing.T) {
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/staff/pin", body,
 		testutil.WithClaims(jwt.AppClaims{
 			ID:       int(*person.AccountID),
+			TenantID: 1,
 			Username: "updatepin",
 		}),
 	)
@@ -744,6 +747,7 @@ func TestUpdatePIN_NonDigitPIN(t *testing.T) {
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/staff/pin", body,
 		testutil.WithClaims(jwt.AppClaims{
 			ID:       int(*person.AccountID),
+			TenantID: 1,
 			Username: "nondigitpin",
 		}),
 	)
@@ -773,6 +777,7 @@ func TestUpdatePIN_MissingNewPIN(t *testing.T) {
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/staff/pin", body,
 		testutil.WithClaims(jwt.AppClaims{
 			ID:       int(*person.AccountID),
+			TenantID: 1,
 			Username: "missingpin",
 		}),
 	)
@@ -827,6 +832,7 @@ func TestUpdatePIN_Success_FirstTime(t *testing.T) {
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/staff/pin", body,
 		testutil.WithClaims(jwt.AppClaims{
 			ID:       int(*person.AccountID),
+			TenantID: 1,
 			Username: "firstpinsetup",
 		}),
 	)
@@ -1121,6 +1127,32 @@ func TestDeleteStaff_WhoIsTeacher(t *testing.T) {
 
 	// Should successfully delete both teacher and staff records
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+}
+
+func TestDeleteStaff_ConflictWithSupervision(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	// Create staff with active supervision
+	staff := testpkg.CreateTestStaff(t, ctx.db, "SupervisorDelete", "Test")
+	room := testpkg.CreateTestRoom(t, ctx.db, "SupervisionRoom")
+	activityGroup := testpkg.CreateTestActivityGroup(t, ctx.db, "SupervisionActivity")
+	activeGroup := testpkg.CreateTestActiveGroup(t, ctx.db, activityGroup.ID, room.ID)
+	testpkg.CreateTestGroupSupervisor(t, ctx.db, staff.ID, activeGroup.ID, "supervisor")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, activeGroup.ID, activityGroup.ID, room.ID)
+	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
+
+	router := chi.NewRouter()
+	router.Delete("/staff/{id}", ctx.resource.DeleteStaffHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/staff/%d", staff.ID), nil,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithPermissions("users:delete"),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertErrorResponse(t, rr, http.StatusConflict)
 }
 
 // =============================================================================

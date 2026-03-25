@@ -1,6 +1,27 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { authConfig, _resetRefreshState } from "./config";
+import { authConfig, _resetRefreshState, _testHelpers } from "./config";
+import { operatorAuthConfig } from "./operator-config";
 import type { NextAuthConfig, User } from "next-auth";
+
+// Shared JWT token constants — decoded payloads documented inline
+// { id: 1, first_name: "John", last_name: "Doe", email: "john@example.com", roles: ["teacher"], is_admin: false }
+const TEACHER_JWT =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZmlyc3RfbmFtZSI6IkpvaG4iLCJsYXN0X25hbWUiOiJEb2UiLCJlbWFpbCI6ImpvaG5AZXhhbXBsZS5jb20iLCJyb2xlcyI6WyJ0ZWFjaGVyIl0sImlzX2FkbWluIjpmYWxzZX0.test";
+// { id: 1, first_name: "John", last_name: "Doe", email: "john@example.com" } (no roles)
+const TEACHER_JWT_NO_ROLES =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZmlyc3RfbmFtZSI6IkpvaG4iLCJsYXN0X25hbWUiOiJEb2UiLCJlbWFpbCI6ImpvaG5AZXhhbXBsZS5jb20ifQ.test";
+// { id: 123, first_name: "Test", last_name: "User", email: "test@example.com", roles: ["teacher"] }
+const INTERNAL_REFRESH_JWT =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MTIzLCJmaXJzdF9uYW1lIjoiVGVzdCIsImxhc3RfbmFtZSI6IlVzZXIiLCJlbWFpbCI6InRlc3RAZXhhbXBsZS5jb20iLCJyb2xlcyI6WyJ0ZWFjaGVyIl19.test";
+// { id: 1, first_name: "John", email: "john@example.com" } (no last_name, no roles)
+const TEACHER_JWT_MINIMAL =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZmlyc3RfbmFtZSI6IkpvaG4iLCJlbWFpbCI6ImpvaG5AZXhhbXBsZS5jb20ifQ.test";
+// { id: 45, first_name: "Op", email: "op@example.com", is_admin: true }
+const OPERATOR_JWT =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NDUsImZpcnN0X25hbWUiOiJPcCIsImVtYWlsIjoib3BAZXhhbXBsZS5jb20iLCJpc19hZG1pbiI6dHJ1ZX0.test";
+// { id: 45, first_name: "Op", email: "op@example.com" } (no is_admin)
+const OPERATOR_JWT_MINIMAL =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NDUsImZpcnN0X25hbWUiOiJPcCIsImVtYWlsIjoib3BAZXhhbXBsZS5jb20ifQ.test";
 
 // Mock ~/env
 vi.mock("~/env", () => ({
@@ -8,15 +29,41 @@ vi.mock("~/env", () => ({
     NEXT_PUBLIC_API_URL: "http://localhost:8080",
     AUTH_JWT_EXPIRY: "15m",
     AUTH_JWT_REFRESH_EXPIRY: "1h",
+    TENANT_DOMAIN: "moto-app.de",
   },
 }));
 
 // Mock fetch globally
 const mockFetch = vi.fn();
 
+// Shared helper: invoke JWT callback with test defaults
+function callJwt(token: Record<string, unknown>) {
+  return authConfig.callbacks?.jwt?.({
+    token,
+    user: undefined as unknown as User,
+    account: null,
+    profile: undefined,
+    trigger: "update",
+    isNewUser: false,
+    session: undefined,
+  });
+}
+
+// Shared helper: invoke session callback with test defaults
+function callSessionCallback(args: { session: unknown; token: unknown }) {
+  const sessionFn = authConfig.callbacks?.session;
+  if (!sessionFn) return undefined;
+  return (sessionFn as (args: unknown) => unknown)({
+    ...args,
+    user: undefined,
+    newSession: undefined,
+    trigger: "getSession",
+  }) as Record<string, unknown> | undefined;
+}
+
 describe("authConfig", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     vi.stubGlobal("fetch", mockFetch);
     _resetRefreshState();
   });
@@ -279,17 +326,6 @@ describe("authConfig", () => {
         tokenExpiry: Date.now() + 2 * 60 * 1000,
         refreshTokenExpiry: Date.now() + 7 * 24 * 60 * 60 * 1000,
       });
-
-      const callJwt = (token: Record<string, unknown>) =>
-        authConfig.callbacks?.jwt?.({
-          token,
-          user: undefined as unknown as User,
-          account: null,
-          profile: undefined,
-          trigger: "update",
-          isNewUser: false,
-          session: undefined,
-        });
 
       // First callback: performs the actual refresh
       const result1 = await callJwt(makeToken());
@@ -639,8 +675,7 @@ describe("authConfig", () => {
       const result = await credentialsProvider?.authorize?.(
         {
           internalRefresh: "true",
-          token:
-            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MTIzLCJmaXJzdF9uYW1lIjoiVGVzdCIsImxhc3RfbmFtZSI6IlVzZXIiLCJlbWFpbCI6InRlc3RAZXhhbXBsZS5jb20iLCJyb2xlcyI6WyJ0ZWFjaGVyIl19.test",
+          token: INTERNAL_REFRESH_JWT,
           refreshToken: "refresh-token",
         },
         new Request("http://localhost:3000"),
@@ -653,9 +688,1093 @@ describe("authConfig", () => {
 
   describe("parseDurationToMs", () => {
     it("should parse hour durations", () => {
-      // We can't directly test the function since it's not exported
-      // but we can test it indirectly through the config
-      expect(authConfig.session?.maxAge).toBeGreaterThan(0);
+      expect(_testHelpers.parseDurationToMs("1h")).toBe(3600000);
+      expect(_testHelpers.parseDurationToMs("12h")).toBe(43200000);
+    });
+
+    it("should parse minute durations", () => {
+      expect(_testHelpers.parseDurationToMs("15m")).toBe(900000);
+      expect(_testHelpers.parseDurationToMs("30m")).toBe(1800000);
+    });
+
+    it("should return 12h default for invalid input", () => {
+      expect(_testHelpers.parseDurationToMs("invalid")).toBe(43200000);
+      expect(_testHelpers.parseDurationToMs("10s")).toBe(43200000);
+      expect(_testHelpers.parseDurationToMs("")).toBe(43200000);
+    });
+  });
+
+  describe("parseJwtPayload", () => {
+    it("should parse valid JWT payload", () => {
+      const payload = _testHelpers.parseJwtPayload(TEACHER_JWT);
+
+      expect(payload).not.toBeNull();
+      expect(payload?.id).toBe(1);
+      expect(payload?.first_name).toBe("John");
+      expect(payload?.last_name).toBe("Doe");
+      expect(payload?.email).toBe("john@example.com");
+      expect(payload?.roles).toEqual(["teacher"]);
+      expect(payload?.is_admin).toBe(false);
+    });
+
+    it("should return null for token with wrong number of parts", () => {
+      expect(_testHelpers.parseJwtPayload("not-a-jwt")).toBeNull();
+      expect(_testHelpers.parseJwtPayload("only.two")).toBeNull();
+      expect(_testHelpers.parseJwtPayload("a.b.c.d")).toBeNull();
+    });
+
+    it("should return null for invalid base64 payload", () => {
+      const result = _testHelpers.parseJwtPayload(
+        "header.!!!invalid!!!.signature",
+      );
+      expect(result).toBeNull();
+    });
+  });
+
+  describe("buildDisplayName", () => {
+    it("should use first and last name when available", () => {
+      const payload = { id: 1, first_name: "John", last_name: "Doe" };
+      expect(_testHelpers.buildDisplayName(payload, "john@example.com")).toBe(
+        "John Doe",
+      );
+    });
+
+    it("should use first name only when last name is missing", () => {
+      const payload = { id: 1, first_name: "John" };
+      expect(_testHelpers.buildDisplayName(payload, "john@example.com")).toBe(
+        "John",
+      );
+    });
+
+    it("should fall back to username", () => {
+      const payload = { id: 1, username: "johnd" };
+      expect(_testHelpers.buildDisplayName(payload, "")).toBe("johnd");
+    });
+
+    it("should fall back to email", () => {
+      const payload = { id: 1 };
+      expect(_testHelpers.buildDisplayName(payload, "john@example.com")).toBe(
+        "john@example.com",
+      );
+    });
+
+    it("should fall back to ultimate fallback", () => {
+      const payload = { id: 1 };
+      expect(_testHelpers.buildDisplayName(payload, "", "Unknown")).toBe(
+        "Unknown",
+      );
+    });
+
+    it("should use default ultimate fallback", () => {
+      const payload = { id: 1 };
+      expect(_testHelpers.buildDisplayName(payload, "")).toBe("User");
+    });
+  });
+
+  describe("buildAuthUser", () => {
+    it("should build user with all fields", () => {
+      const payload = {
+        id: 1,
+        first_name: "John",
+        last_name: "Doe",
+        email: "john@example.com",
+        roles: ["teacher"],
+        is_admin: false,
+      };
+
+      const user = _testHelpers.buildAuthUser(
+        payload,
+        "access-token",
+        "refresh-token",
+        "john@example.com",
+      );
+
+      expect(user.id).toBe("1");
+      expect(user.name).toBe("John Doe");
+      expect(user.email).toBe("john@example.com");
+      expect(user.token).toBe("access-token");
+      expect(user.refreshToken).toBe("refresh-token");
+      expect(user.roles).toEqual(["teacher"]);
+      expect(user.isAdmin).toBe(false);
+      expect(user.scope).toBeUndefined();
+    });
+
+    it("should override roles with operator when scope is platform", () => {
+      const payload = {
+        id: 45,
+        first_name: "Op",
+        roles: ["admin"],
+        is_admin: true,
+      };
+
+      const user = _testHelpers.buildAuthUser(
+        payload,
+        "token",
+        "refresh",
+        "op@example.com",
+        "platform",
+      );
+
+      expect(user.roles).toEqual(["operator"]);
+      expect(user.scope).toBe("platform");
+      expect(user.isAdmin).toBe(true);
+    });
+
+    it("should handle missing roles with empty array", () => {
+      const payload = { id: 2, email: "test@example.com" };
+
+      const user = _testHelpers.buildAuthUser(
+        payload,
+        "token",
+        "refresh",
+        "test@example.com",
+      );
+
+      expect(user.roles).toEqual([]);
+    });
+
+    it("should handle non-array roles defensively", () => {
+      const payload = {
+        id: 3,
+        roles: "not-an-array" as unknown as string[],
+      };
+
+      const user = _testHelpers.buildAuthUser(
+        payload,
+        "token",
+        "refresh",
+        "test@example.com",
+      );
+
+      expect(user.roles).toEqual([]);
+    });
+  });
+
+  describe("performOperatorLogin", () => {
+    it("should return tokens on successful login", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          status: "success",
+          data: {
+            access_token: "op-access",
+            refresh_token: "op-refresh",
+            operator: { id: 1, email: "op@test.com", display_name: "Op" },
+          },
+        }),
+      });
+
+      const result = await _testHelpers.performOperatorLogin(
+        "op@test.com",
+        "pass",
+        false,
+      );
+
+      expect(result).toEqual({
+        access_token: "op-access",
+        refresh_token: "op-refresh",
+      });
+    });
+
+    it("should return tokens with dev logging enabled", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          status: "success",
+          data: {
+            access_token: "op-access",
+            refresh_token: "op-refresh",
+            operator: { id: 1, email: "op@test.com", display_name: "Op" },
+          },
+        }),
+      });
+
+      const result = await _testHelpers.performOperatorLogin(
+        "op@test.com",
+        "pass",
+        true,
+      );
+
+      expect(result).toEqual({
+        access_token: "op-access",
+        refresh_token: "op-refresh",
+      });
+    });
+
+    it("should return error status on HTTP error", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        text: async () => "Unauthorized",
+      });
+
+      const result = await _testHelpers.performOperatorLogin(
+        "op@test.com",
+        "wrong",
+        false,
+      );
+
+      expect(result).toEqual({
+        access_token: "",
+        refresh_token: "",
+        status: 401,
+      });
+    });
+
+    it("should return null on network error", async () => {
+      mockFetch.mockRejectedValueOnce(new Error("Network error"));
+
+      const result = await _testHelpers.performOperatorLogin(
+        "op@test.com",
+        "pass",
+        false,
+      );
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe("performLogin", () => {
+    it("should return tokens on successful login", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          access_token: "teacher-access",
+          refresh_token: "teacher-refresh",
+        }),
+      });
+
+      const result = await _testHelpers.performLogin(
+        "teacher@test.com",
+        "pass",
+        "",
+        false,
+      );
+
+      expect(result).toEqual({
+        access_token: "teacher-access",
+        refresh_token: "teacher-refresh",
+      });
+    });
+
+    it("should return tokens with dev logging enabled", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          access_token: "teacher-access",
+          refresh_token: "teacher-refresh",
+        }),
+      });
+
+      const result = await _testHelpers.performLogin(
+        "teacher@test.com",
+        "pass",
+        "",
+        true,
+      );
+
+      expect(result).toEqual({
+        access_token: "teacher-access",
+        refresh_token: "teacher-refresh",
+      });
+    });
+
+    it("should return null on HTTP error", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        text: async () => "Bad credentials",
+      });
+
+      const result = await _testHelpers.performLogin(
+        "teacher@test.com",
+        "wrong",
+        "",
+        false,
+      );
+
+      expect(result).toBeNull();
+    });
+
+    it("should return null on HTTP error with dev logging", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        text: async () => "Bad credentials",
+      });
+
+      const result = await _testHelpers.performLogin(
+        "teacher@test.com",
+        "wrong",
+        "",
+        true,
+      );
+
+      expect(result).toBeNull();
+    });
+
+    it("should return null on network error", async () => {
+      mockFetch.mockRejectedValueOnce(new Error("Connection refused"));
+
+      const result = await _testHelpers.performLogin(
+        "teacher@test.com",
+        "pass",
+        "",
+        false,
+      );
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe("parseDurationToMs via config", () => {
+    it("should correctly set session maxAge from refresh token expiry", () => {
+      // AUTH_JWT_REFRESH_EXPIRY is "1h" in mock, parseDurationToMs("1h") = 3600000ms
+      // maxAge = Math.floor(3600000 / 1000) = 3600 seconds
+      expect(authConfig.session?.maxAge).toBe(3600);
+    });
+  });
+
+  describe("Credentials authorize - teacher flow", () => {
+    // CredentialsProvider stores the real authorize in `options.authorize`,
+    // the top-level `authorize` is always `() => null` (Auth.js default).
+    function getTeacherAuthorize() {
+      const provider = authConfig.providers.find(
+        (p) =>
+          typeof p === "object" &&
+          p !== null &&
+          "id" in p &&
+          p.id === "credentials",
+      ) as unknown as Record<string, unknown> | undefined;
+      const opts = provider?.options as Record<string, unknown> | undefined;
+      return opts?.authorize as (
+        credentials: Record<string, string> | undefined,
+        request: Request,
+      ) => Promise<User | null>;
+    }
+
+    it("should return user on successful teacher login", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          access_token: TEACHER_JWT,
+          refresh_token: "refresh-token",
+        }),
+      });
+
+      const authorize = getTeacherAuthorize();
+      const result = await authorize(
+        { email: "john@example.com", password: "correct" },
+        new Request("http://localhost:3000"),
+      );
+
+      expect(result).not.toBeNull();
+      expect(result?.id).toBe("1");
+      expect(result?.name).toBe("John Doe");
+      expect(result?.roles).toEqual(["teacher"]);
+    });
+
+    it("should return null when login returns invalid JWT", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          access_token: "not-a-valid-jwt",
+          refresh_token: "refresh-token",
+        }),
+      });
+
+      const authorize = getTeacherAuthorize();
+      const result = await authorize(
+        { email: "john@example.com", password: "correct" },
+        new Request("http://localhost:3000"),
+      );
+
+      expect(result).toBeNull();
+    });
+
+    it("should return null for missing credentials", async () => {
+      const authorize = getTeacherAuthorize();
+      const result = await authorize({}, new Request("http://localhost:3000"));
+
+      expect(result).toBeNull();
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it("should return null for failed login", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        text: async () => "Unauthorized",
+      });
+
+      const authorize = getTeacherAuthorize();
+      const result = await authorize(
+        { email: "test@example.com", password: "wrong" },
+        new Request("http://localhost:3000"),
+      );
+
+      expect(result).toBeNull();
+    });
+
+    it("should handle internal refresh", async () => {
+      const authorize = getTeacherAuthorize();
+      const result = await authorize(
+        {
+          internalRefresh: "true",
+          token: INTERNAL_REFRESH_JWT,
+          refreshToken: "refresh-token",
+        },
+        new Request("http://localhost:3000"),
+      );
+
+      expect(result).not.toBeNull();
+      expect(result?.id).toBe("123");
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it("should return null for internal refresh with invalid JWT", async () => {
+      const authorize = getTeacherAuthorize();
+      const result = await authorize(
+        {
+          internalRefresh: "true",
+          token: "invalid-jwt",
+          refreshToken: "refresh-token",
+        },
+        new Request("http://localhost:3000"),
+      );
+
+      expect(result).toBeNull();
+    });
+
+    describe("with dev mode", () => {
+      beforeEach(() => {
+        vi.stubEnv("NODE_ENV", "development");
+      });
+      afterEach(() => {
+        vi.unstubAllEnvs();
+      });
+
+      it("should log debug info on successful login", async () => {
+        mockFetch.mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            access_token: TEACHER_JWT,
+            refresh_token: "refresh-token",
+          }),
+        });
+
+        const authorize = getTeacherAuthorize();
+        const result = await authorize(
+          { email: "john@example.com", password: "correct" },
+          new Request("http://localhost:3000"),
+        );
+
+        expect(result).not.toBeNull();
+        expect(result?.name).toBe("John Doe");
+      });
+
+      it("should log warning when token has no roles", async () => {
+        mockFetch.mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            access_token: TEACHER_JWT_NO_ROLES,
+            refresh_token: "refresh-token",
+          }),
+        });
+
+        const authorize = getTeacherAuthorize();
+        const result = await authorize(
+          { email: "john@example.com", password: "correct" },
+          new Request("http://localhost:3000"),
+        );
+
+        expect(result).not.toBeNull();
+        expect(result?.roles).toEqual([]);
+      });
+
+      it("should handle internal refresh logging", async () => {
+        const authorize = getTeacherAuthorize();
+        const result = await authorize(
+          {
+            internalRefresh: "true",
+            token: TEACHER_JWT_MINIMAL,
+            refreshToken: "refresh-token",
+          },
+          new Request("http://localhost:3000"),
+        );
+
+        expect(result).not.toBeNull();
+        expect(mockFetch).not.toHaveBeenCalled();
+      });
+    });
+  });
+
+  describe("Credentials authorize - operator flow", () => {
+    // The operator provider is now in its own config (operatorAuthConfig).
+    function getOperatorAuthorize() {
+      const providers = operatorAuthConfig.providers.filter(
+        (p) =>
+          typeof p === "object" &&
+          p !== null &&
+          "type" in p &&
+          p.type === "credentials",
+      );
+      const provider = providers[0] as unknown as
+        | Record<string, unknown>
+        | undefined;
+      const opts = provider?.options as Record<string, unknown> | undefined;
+      return opts?.authorize as (
+        credentials: Record<string, string> | undefined,
+        request: Request,
+      ) => Promise<User | null>;
+    }
+
+    it("should return user with platform scope on successful operator login", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          status: "success",
+          data: {
+            access_token: OPERATOR_JWT,
+            refresh_token: "op-refresh-token",
+            operator: {
+              id: 45,
+              email: "op@example.com",
+              display_name: "Op",
+            },
+          },
+        }),
+      });
+
+      const authorize = getOperatorAuthorize();
+      const result = await authorize(
+        { email: "op@example.com", password: "correct" },
+        new Request("http://localhost:3000"),
+      );
+
+      expect(result).not.toBeNull();
+      expect(result?.id).toBe("45");
+      expect(result?.roles).toEqual(["operator"]);
+      expect(result?.scope).toBe("platform");
+    });
+
+    it("should return null for missing credentials", async () => {
+      const authorize = getOperatorAuthorize();
+      const result = await authorize({}, new Request("http://localhost:3000"));
+
+      expect(result).toBeNull();
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it("should throw CredentialsSignin with invalid_credentials on failed operator login", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        text: async () => "Unauthorized",
+      });
+
+      const authorize = getOperatorAuthorize();
+      await expect(
+        authorize(
+          { email: "op@example.com", password: "wrong" },
+          new Request("http://localhost:3000"),
+        ),
+      ).rejects.toThrow();
+    });
+
+    it("should return null when operator login returns invalid JWT", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          status: "success",
+          data: {
+            access_token: "not-a-jwt",
+            refresh_token: "op-refresh",
+            operator: {
+              id: 1,
+              email: "op@example.com",
+              display_name: "Op",
+            },
+          },
+        }),
+      });
+
+      const authorize = getOperatorAuthorize();
+      const result = await authorize(
+        { email: "op@example.com", password: "correct" },
+        new Request("http://localhost:3000"),
+      );
+
+      expect(result).toBeNull();
+    });
+
+    it("should handle internal refresh with platform scope", async () => {
+      const authorize = getOperatorAuthorize();
+      const result = await authorize(
+        {
+          internalRefresh: "true",
+          token: OPERATOR_JWT,
+          refreshToken: "op-refresh",
+        },
+        new Request("http://localhost:3000"),
+      );
+
+      expect(result).not.toBeNull();
+      expect(result?.scope).toBe("platform");
+      expect(result?.roles).toEqual(["operator"]);
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it("should return null for internal refresh with invalid JWT", async () => {
+      const authorize = getOperatorAuthorize();
+      const result = await authorize(
+        {
+          internalRefresh: "true",
+          token: "bad-token",
+          refreshToken: "op-refresh",
+        },
+        new Request("http://localhost:3000"),
+      );
+
+      expect(result).toBeNull();
+    });
+
+    describe("with dev mode", () => {
+      beforeEach(() => {
+        vi.stubEnv("NODE_ENV", "development");
+      });
+      afterEach(() => {
+        vi.unstubAllEnvs();
+      });
+
+      it("should handle operator login logging", async () => {
+        mockFetch.mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            status: "success",
+            data: {
+              access_token: OPERATOR_JWT_MINIMAL,
+              refresh_token: "op-refresh",
+              operator: {
+                id: 45,
+                email: "op@example.com",
+                display_name: "Op",
+              },
+            },
+          }),
+        });
+
+        const authorize = getOperatorAuthorize();
+        const result = await authorize(
+          { email: "op@example.com", password: "correct" },
+          new Request("http://localhost:3000"),
+        );
+
+        expect(result).not.toBeNull();
+        expect(result?.scope).toBe("platform");
+      });
+
+      it("should handle operator internal refresh logging", async () => {
+        const authorize = getOperatorAuthorize();
+        const result = await authorize(
+          {
+            internalRefresh: "true",
+            token: OPERATOR_JWT_MINIMAL,
+            refreshToken: "op-refresh",
+          },
+          new Request("http://localhost:3000"),
+        );
+
+        expect(result).not.toBeNull();
+        expect(result?.scope).toBe("platform");
+        expect(mockFetch).not.toHaveBeenCalled();
+      });
+    });
+  });
+
+  describe("JWT callback - operator token refresh", () => {
+    it("should set RefreshTokenError on concurrent join failure when token expired", async () => {
+      // First callback starts the refresh (will fail)
+      let resolveRefresh: (value: unknown) => void;
+      mockFetch.mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveRefresh = resolve;
+        }),
+      );
+
+      const makeToken = () => ({
+        id: "123",
+        token: "old-access",
+        refreshToken: "fail-concurrent-token",
+        tokenExpiry: Date.now() - 60 * 1000, // Already expired
+        refreshTokenExpiry: Date.now() + 7 * 24 * 60 * 60 * 1000,
+      });
+
+      const callJwt = (token: Record<string, unknown>) =>
+        authConfig.callbacks?.jwt?.({
+          token,
+          user: undefined as unknown as User,
+          account: null,
+          profile: undefined,
+          trigger: "update",
+          isNewUser: false,
+          session: undefined,
+        });
+
+      const p1 = callJwt(makeToken());
+      const p2 = callJwt(makeToken());
+
+      // Resolve with failure
+      resolveRefresh!({ ok: false, status: 401 });
+
+      const [r1, r2] = await Promise.all([p1, p2]);
+
+      // Both should have error since token was already expired
+      expect(r1?.error).toBe("RefreshTokenError");
+      expect(r2?.error).toBe("RefreshTokenError");
+    });
+  });
+
+  describe("Session callback - additional paths", () => {
+    it("should return minimal session when token has RefreshTokenError", () => {
+      const session = {
+        user: { id: "", email: "", name: "" },
+        expires: "2099-12-31",
+      };
+
+      const token = {
+        id: "123",
+        email: "test@example.com",
+        error: "RefreshTokenError" as const,
+        firstName: "Test",
+      };
+
+      const result = callSessionCallback({ session, token });
+      const user = result?.user as Record<string, unknown> | undefined;
+
+      expect(user?.token).toBe("");
+      expect(user?.refreshToken).toBe("");
+      expect(user?.roles).toEqual([]);
+      expect(user?.isAdmin).toBe(false);
+      expect(result?.error).toBe("RefreshTokenError");
+    });
+
+    it("should propagate scope to session user", () => {
+      const session = {
+        user: { id: "", email: "", name: "" },
+        expires: "2099-12-31",
+      };
+
+      const token = {
+        id: "45",
+        email: "op@example.com",
+        token: "access",
+        refreshToken: "refresh",
+        roles: ["operator"],
+        firstName: "Operator",
+        isAdmin: true,
+        scope: "platform",
+      };
+
+      const result = callSessionCallback({ session, token });
+      const user = result?.user as Record<string, unknown> | undefined;
+
+      expect(user?.scope).toBe("platform");
+      expect(user?.isAdmin).toBe(true);
+    });
+  });
+
+  describe("JWT callback - operator scope refresh", () => {
+    it("should use operator refresh URL and parse envelope response", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: {
+            access_token: "new-op-access",
+            refresh_token: "new-op-refresh",
+          },
+        }),
+      });
+
+      const result = await callJwt({
+        id: "45",
+        token: "old-op-access",
+        refreshToken: "old-op-refresh",
+        tokenExpiry: Date.now() + 2 * 60 * 1000,
+        refreshTokenExpiry: Date.now() + 7 * 24 * 60 * 60 * 1000,
+        scope: "platform",
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining("/operator/auth/refresh"),
+        expect.any(Object),
+      );
+      expect(result?.token).toBe("new-op-access");
+      expect(result?.refreshToken).toBe("new-op-refresh");
+    });
+  });
+
+  describe("JWT callback - dev mode logging", () => {
+    beforeEach(() => {
+      vi.stubEnv("NODE_ENV", "development");
+    });
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it("should log during initial sign in", async () => {
+      const user = {
+        id: "123",
+        name: "Dev User",
+        email: "dev@example.com",
+        token: "dev-token",
+        refreshToken: "dev-refresh",
+        roles: ["teacher"],
+        firstName: "Dev",
+        isAdmin: false,
+      };
+
+      const result = await authConfig.callbacks?.jwt?.({
+        token: {},
+        user,
+        account: null,
+        profile: undefined,
+        trigger: "signIn",
+        isNewUser: false,
+        session: undefined,
+      });
+
+      expect(result?.id).toBe("123");
+      expect(result?.token).toBe("dev-token");
+    });
+
+    it("should log during token refresh", async () => {
+      const result = await callJwt({
+        id: "123",
+        token: "access",
+        refreshToken: "refresh",
+        tokenExpiry: Date.now() + 10 * 60 * 1000,
+        refreshTokenExpiry: Date.now() + 7 * 24 * 60 * 60 * 1000,
+      });
+
+      expect(result?.token).toBe("access");
+    });
+  });
+
+  describe("redirect callback", () => {
+    async function callRedirect(url: string, baseUrl: string): Promise<string> {
+      const redirectFn = authConfig.callbacks?.redirect;
+      if (!redirectFn) throw new Error("redirect callback not found");
+      return redirectFn({ url, baseUrl });
+    }
+
+    it("should resolve relative URLs against baseUrl", async () => {
+      expect(await callRedirect("/dashboard", "http://localhost:3000")).toBe(
+        "http://localhost:3000/dashboard",
+      );
+    });
+
+    it("should allow same origin redirects", async () => {
+      expect(
+        await callRedirect(
+          "http://localhost:3000/dashboard",
+          "http://localhost:3000",
+        ),
+      ).toBe("http://localhost:3000/dashboard");
+    });
+
+    it("should allow cross-subdomain localhost redirects", async () => {
+      expect(
+        await callRedirect(
+          "http://operator.localhost:3000/login",
+          "http://localhost:3000",
+        ),
+      ).toBe("http://operator.localhost:3000/login");
+    });
+
+    it("should allow same parent domain redirects", async () => {
+      expect(
+        await callRedirect(
+          "http://operator.moto-app.de/login",
+          "http://altenberge.moto-app.de",
+        ),
+      ).toBe("http://operator.moto-app.de/login");
+    });
+
+    it("should block redirects to different domains", async () => {
+      expect(
+        await callRedirect("http://evil.com/phish", "http://localhost:3000"),
+      ).toBe("http://localhost:3000");
+    });
+
+    it("should block redirects when parent domains differ", async () => {
+      expect(
+        await callRedirect(
+          "http://evil.other-site.com/phish",
+          "http://app.moto-app.de",
+        ),
+      ).toBe("http://app.moto-app.de");
+    });
+
+    it("should handle two-part hostnames without subdomain stripping", async () => {
+      // getParentDomain returns hostname as-is when there are only 2 parts
+      expect(
+        await callRedirect("http://moto-app.de/path", "http://moto-app.de"),
+      ).toBe("http://moto-app.de/path");
+    });
+
+    it("should block when one host is localhost and the other is not", async () => {
+      expect(
+        await callRedirect("http://evil.com/phish", "http://app.moto-app.de"),
+      ).toBe("http://app.moto-app.de");
+    });
+  });
+
+  describe("operator redirect callback", () => {
+    async function callOperatorRedirect(
+      url: string,
+      baseUrl: string,
+    ): Promise<string> {
+      const redirectFn = operatorAuthConfig.callbacks?.redirect;
+      if (!redirectFn) throw new Error("operator redirect callback not found");
+      return redirectFn({ url, baseUrl });
+    }
+
+    it("should resolve relative URLs against baseUrl", async () => {
+      expect(
+        await callOperatorRedirect(
+          "/operator/suggestions",
+          "http://operator.moto-app.de",
+        ),
+      ).toBe("http://operator.moto-app.de/operator/suggestions");
+    });
+
+    it("should allow same origin redirects", async () => {
+      expect(
+        await callOperatorRedirect(
+          "http://operator.moto-app.de/operator/suggestions",
+          "http://operator.moto-app.de",
+        ),
+      ).toBe("http://operator.moto-app.de/operator/suggestions");
+    });
+
+    it("should block cross-subdomain redirects on the same parent domain", async () => {
+      expect(
+        await callOperatorRedirect(
+          "http://school-a.moto-app.de/",
+          "http://operator.moto-app.de",
+        ),
+      ).toBe("http://operator.moto-app.de");
+    });
+  });
+
+  describe("cookie configuration", () => {
+    it("should configure tenant cookies for cross-subdomain sharing", () => {
+      expect(authConfig.cookies?.sessionToken?.name).toBe(
+        "next-auth.session-token",
+      );
+      expect(authConfig.cookies?.sessionToken?.options.domain).toBe(
+        ".moto-app.de",
+      );
+      expect(authConfig.cookies?.callbackUrl?.name).toBe(
+        "next-auth.callback-url",
+      );
+      expect(authConfig.cookies?.callbackUrl?.options.domain).toBe(
+        ".moto-app.de",
+      );
+      expect(authConfig.cookies?.csrfToken?.name).toBe("next-auth.csrf-token");
+      expect(authConfig.cookies?.csrfToken?.options.domain).toBe(
+        ".moto-app.de",
+      );
+    });
+
+    it("should configure operator cookies as host-only with unique names", () => {
+      expect(operatorAuthConfig.cookies?.sessionToken?.name).toBe(
+        "operator.session-token",
+      );
+      expect(
+        "domain" in (operatorAuthConfig.cookies?.sessionToken?.options ?? {}),
+      ).toBe(false);
+      expect(operatorAuthConfig.cookies?.callbackUrl?.name).toBe(
+        "operator.callback-url",
+      );
+      expect(
+        "domain" in (operatorAuthConfig.cookies?.callbackUrl?.options ?? {}),
+      ).toBe(false);
+      expect(operatorAuthConfig.cookies?.csrfToken?.name).toBe(
+        "operator.csrf-token",
+      );
+      expect(
+        "domain" in (operatorAuthConfig.cookies?.csrfToken?.options ?? {}),
+      ).toBe(false);
+    });
+  });
+
+  describe("JWT callback - initial sign in edge cases", () => {
+    it("should clear previous error states on sign in", async () => {
+      const token = {
+        error: "RefreshTokenExpired" as const,
+        needsRefresh: true,
+      };
+
+      const user = {
+        id: "123",
+        name: "User",
+        email: "user@example.com",
+        token: "new-token",
+        refreshToken: "new-refresh",
+        roles: ["teacher"],
+        isAdmin: false,
+      };
+
+      const result = await authConfig.callbacks?.jwt?.({
+        token,
+        user,
+        account: null,
+        profile: undefined,
+        trigger: "signIn",
+        isNewUser: false,
+        session: undefined,
+      });
+
+      expect(result?.error).toBeUndefined();
+      expect(result?.needsRefresh).toBeUndefined();
+      expect(result?.token).toBe("new-token");
+    });
+
+    it("should handle user with missing optional fields", async () => {
+      const user = {
+        id: "123",
+        name: "User",
+        email: "user@example.com",
+        // No token, refreshToken, roles, firstName, isAdmin
+      };
+
+      const result = await authConfig.callbacks?.jwt?.({
+        token: {},
+        user,
+        account: null,
+        profile: undefined,
+        trigger: "signIn",
+        isNewUser: false,
+        session: undefined,
+      });
+
+      expect(result?.token).toBe("");
+      expect(result?.refreshToken).toBe("");
+      expect(result?.isAdmin).toBeUndefined();
+    });
+  });
+
+  describe("events.signOut", () => {
+    it("resets refresh state on tenant sign out", () => {
+      expect(authConfig.events).toBeDefined();
+      authConfig.events.signOut();
+    });
+
+    it("resets refresh state on operator sign out", () => {
+      expect(operatorAuthConfig.events).toBeDefined();
+      operatorAuthConfig.events.signOut();
     });
   });
 });

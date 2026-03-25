@@ -34,19 +34,22 @@ export function Modal({
   // Use scroll lock hook
   useScrollLock(isOpen);
 
-  // Enhanced close handler with exit animation
+  // Store onClose in a ref so handleClose never changes identity
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  // Enhanced close handler with exit animation (stable — no deps on onClose)
   const handleClose = useCallback(() => {
     setIsExiting(true);
     setIsAnimating(false);
 
     // Delay actual close to allow exit animation
     setTimeout(() => {
-      onClose();
+      onCloseRef.current();
     }, 250);
-  }, [onClose]);
+  }, []);
 
   // Handle modal context state for blur overlay
-  // Only depends on isOpen - uses refs for stable function access
   useEffect(() => {
     if (isOpen) {
       openModalRef.current();
@@ -72,7 +75,7 @@ export function Modal({
 
     document.addEventListener("keydown", handleEscKey);
 
-    // Trigger sophisticated entrance animation with slight delay for smooth effect
+    // Trigger entrance animation with slight delay for smooth effect
     const animationTimer = setTimeout(() => {
       setIsAnimating(true);
     }, 10);

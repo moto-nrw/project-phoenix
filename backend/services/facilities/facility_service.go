@@ -5,12 +5,15 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"log/slog"
 	"sort"
 	"time"
 
+	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -25,7 +28,6 @@ type service struct {
 	roomRepo        facilities.RoomRepository
 	activeGroupRepo active.GroupRepository
 	db              *bun.DB
-	txHandler       *base.TxHandler
 }
 
 // NewService creates a new facilities service
@@ -34,31 +36,6 @@ func NewService(roomRepo facilities.RoomRepository, activeGroupRepo active.Group
 		roomRepo:        roomRepo,
 		activeGroupRepo: activeGroupRepo,
 		db:              db,
-		txHandler:       base.NewTxHandler(db),
-	}
-}
-
-// WithTx returns a new service that uses the provided transaction
-func (s *service) WithTx(tx bun.Tx) interface{} {
-	// Get repository with transaction if it implements the TransactionalRepository interface
-	var roomRepo = s.roomRepo
-	var activeGroupRepo = s.activeGroupRepo
-
-	// Try to cast repository to TransactionalRepository and apply the transaction
-	if txRepo, ok := s.roomRepo.(base.TransactionalRepository); ok {
-		roomRepo = txRepo.WithTx(tx).(facilities.RoomRepository)
-	}
-
-	if txRepo, ok := s.activeGroupRepo.(base.TransactionalRepository); ok {
-		activeGroupRepo = txRepo.WithTx(tx).(active.GroupRepository)
-	}
-
-	// Return a new service with the transaction
-	return &service{
-		roomRepo:        roomRepo,
-		activeGroupRepo: activeGroupRepo,
-		db:              s.db,
-		txHandler:       s.txHandler.WithTx(tx),
 	}
 }
 
@@ -96,7 +73,7 @@ func (s *service) GetRoomWithOccupancy(ctx context.Context, id int64) (RoomWithO
 
 	// Build query with LEFT JOINs for occupancy information
 	var result roomQueryResult
-	err := s.db.NewSelect().
+	err := repoBase.GetDB(ctx, s.db).NewSelect().
 		TableExpr("facilities.rooms AS r").
 		ColumnExpr("r.id, r.name, r.building, r.floor, r.capacity, r.category, r.color, r.created_at, r.updated_at").
 		ColumnExpr("CASE WHEN ag.id IS NOT NULL THEN true ELSE false END AS is_occupied").
@@ -160,6 +137,11 @@ func (s *service) CreateRoom(ctx context.Context, room *facilities.Room) error {
 		return &FacilitiesError{Op: opCreateRoom, Err: err}
 	}
 
+	// Set tenant ID from context
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		room.SetTenantID(tenantID)
+	}
+
 	// Check if a room with the same name already exists
 	existing, err := s.roomRepo.FindByName(ctx, room.Name)
 	if err == nil && existing != nil {
@@ -211,6 +193,18 @@ func (s *service) DeleteRoom(ctx context.Context, id int64) error {
 		return &FacilitiesError{Op: "delete room", Err: ErrRoomNotFound}
 	}
 
+	// Best-effort pre-check: active groups would block deletion via FK RESTRICT.
+	// The real protection is the DB constraint; this gives a user-friendly error message.
+	activeGroups, preCheckErr := s.activeGroupRepo.FindActiveByRoomID(ctx, id)
+	if preCheckErr != nil {
+		slog.Warn("room_delete_precheck_failed",
+			"room_id", id,
+			"error", preCheckErr.Error(),
+		)
+	} else if len(activeGroups) > 0 {
+		return &FacilitiesError{Op: "delete room", Err: ErrRoomInUse}
+	}
+
 	// Delete the room
 	if err := s.roomRepo.Delete(ctx, id); err != nil {
 		return &FacilitiesError{Op: "delete room", Err: err}
@@ -244,7 +238,7 @@ func (s *service) ListRooms(ctx context.Context, options *base.QueryOptions) ([]
 
 	// Build query with LEFT JOINs for occupancy information
 	// Use DISTINCT ON to handle rooms with multiple active groups (e.g., Schulhof with Freispiel + Garten)
-	query := s.db.NewSelect().
+	query := repoBase.GetDB(ctx, s.db).NewSelect().
 		TableExpr("facilities.rooms AS r").
 		DistinctOn("r.id").
 		ColumnExpr("r.id, r.name, r.building, r.floor, r.capacity, r.category, r.color, r.created_at, r.updated_at").
@@ -505,7 +499,7 @@ func (s *service) GetRoomHistory(ctx context.Context, roomID int64, startTime, e
 	var history []RoomHistoryEntry
 
 	// Build the query
-	err = s.db.NewSelect().
+	err = repoBase.GetDB(ctx, s.db).NewSelect().
 		TableExpr("active.visits AS v").
 		ColumnExpr("v.student_id").
 		ColumnExpr("CONCAT(p.first_name, ' ', p.last_name) AS student_name").

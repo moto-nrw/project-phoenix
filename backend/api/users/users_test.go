@@ -34,7 +34,7 @@ func setupTestContext(t *testing.T) *testContext {
 	t.Helper()
 
 	db, svc := testutil.SetupAPITest(t)
-	resource := usersAPI.NewResource(svc.Users)
+	resource := usersAPI.NewResource(svc.Users, db)
 
 	t.Cleanup(func() {
 		if err := db.Close(); err != nil {
@@ -762,7 +762,7 @@ func TestGetPersonByAccount_NotFound(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/users/by-account/999999", nil,
 		testutil.WithPermissions("users:read"),
-		testutil.WithClaims(jwt.AppClaims{ID: 1}),
+		testutil.WithClaims(jwt.AppClaims{ID: 1, TenantID: 1}),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)

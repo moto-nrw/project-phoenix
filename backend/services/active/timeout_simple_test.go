@@ -10,11 +10,12 @@
 package active_test
 
 import (
-	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/active"
+	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,7 +31,7 @@ func TestUpdateSessionActivity(t *testing.T) {
 	}()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("successful activity update", func(t *testing.T) {
 		// ARRANGE: Create test fixtures
@@ -69,8 +70,7 @@ func TestUpdateSessionActivity(t *testing.T) {
 
 		// ASSERT
 		require.Error(t, err)
-		// Service wraps repository errors with operation context
-		assert.Contains(t, err.Error(), "UpdateSessionActivity")
+		assert.ErrorIs(t, err, activeService.ErrActiveGroupNotFound)
 	})
 
 	t.Run("session already ended", func(t *testing.T) {
@@ -94,7 +94,16 @@ func TestUpdateSessionActivity(t *testing.T) {
 
 		// ASSERT
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "already ended")
+		assert.ErrorIs(t, err, activeService.ErrActiveGroupAlreadyEnded)
+	})
+
+	t.Run("wrapped active errors still unwrap to sentinels", func(t *testing.T) {
+		err := service.UpdateSessionActivity(ctx, 99999)
+
+		require.Error(t, err)
+		var activeErr *activeService.ActiveError
+		assert.True(t, errors.As(err, &activeErr))
+		assert.ErrorIs(t, activeErr, activeService.ErrActiveGroupNotFound)
 	})
 }
 
@@ -108,7 +117,7 @@ func TestValidateSessionTimeout(t *testing.T) {
 	}()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("valid timeout - session is timed out", func(t *testing.T) {
 		// ARRANGE: Create test fixtures
@@ -226,7 +235,7 @@ func TestGetSessionTimeoutInfo(t *testing.T) {
 	}()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("successful timeout info retrieval", func(t *testing.T) {
 		// ARRANGE: Create test fixtures
@@ -272,22 +281,26 @@ func TestGetSessionTimeoutInfo(t *testing.T) {
 		// Insert visits directly into database (bypasses attendance creation logic)
 		// This is acceptable for testing GetSessionTimeoutInfo since we're testing
 		// the timeout info retrieval, not the visit creation business logic
+		visit1 := &active.Visit{
+			StudentID:     student1.ID,
+			ActiveGroupID: session.ID,
+			EntryTime:     time.Now(),
+		}
+		visit1.SetTenantID(1)
 		_, err = db.NewInsert().
-			Model(&active.Visit{
-				StudentID:     student1.ID,
-				ActiveGroupID: session.ID,
-				EntryTime:     time.Now(),
-			}).
+			Model(visit1).
 			ModelTableExpr("active.visits").
 			Exec(ctx)
 		require.NoError(t, err)
 
+		visit2 := &active.Visit{
+			StudentID:     student2.ID,
+			ActiveGroupID: session.ID,
+			EntryTime:     time.Now(),
+		}
+		visit2.SetTenantID(1)
 		_, err = db.NewInsert().
-			Model(&active.Visit{
-				StudentID:     student2.ID,
-				ActiveGroupID: session.ID,
-				EntryTime:     time.Now(),
-			}).
+			Model(visit2).
 			ModelTableExpr("active.visits").
 			Exec(ctx)
 		require.NoError(t, err)

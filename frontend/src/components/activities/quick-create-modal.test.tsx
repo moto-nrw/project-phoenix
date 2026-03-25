@@ -447,4 +447,47 @@ describe("QuickCreateActivityModal", () => {
       });
     });
   });
+
+  describe("Scroll to error", () => {
+    it("scrolls to error when validation fails", async () => {
+      const scrollIntoViewMock = vi.fn();
+      Element.prototype.scrollIntoView = scrollIntoViewMock;
+
+      const mockSetError = vi.fn();
+      const { useActivityForm } = await import("~/hooks/useActivityForm");
+      vi.mocked(useActivityForm).mockReturnValue({
+        form: {
+          name: "Test Activity",
+          category_id: "1",
+          max_participants: "15",
+        },
+        setForm: vi.fn(),
+        categories: [
+          {
+            id: "1",
+            name: "Gruppenraum",
+            created_at: new Date("2024-01-01"),
+            updated_at: new Date("2024-01-01"),
+          },
+        ],
+        loading: false,
+        error: "Bitte gib einen name ein",
+        setError: mockSetError,
+        handleInputChange: vi.fn(),
+        validateForm: vi.fn(() => "Bitte gib einen name ein"),
+        loadCategories: vi.fn(),
+      });
+
+      render(<QuickCreateActivityModal isOpen={true} onClose={mockOnClose} />);
+
+      // The error is already set via the mock, so the error div with ref should render
+      // and trigger the scroll effect
+      await waitFor(() => {
+        expect(scrollIntoViewMock).toHaveBeenCalledWith({
+          behavior: "smooth",
+          block: "start",
+        });
+      });
+    });
+  });
 });

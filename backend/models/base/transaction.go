@@ -32,13 +32,14 @@ func ContextWithTx(ctx context.Context, tx *bun.Tx) context.Context {
 	return context.WithValue(ctx, txKey{}, tx)
 }
 
-// TxFromContext extracts a transaction from context if present
+// TxFromContext extracts a transaction from context if present.
+// ContextWithTx stores *bun.Tx, so the type assertion must match.
 func TxFromContext(ctx context.Context) (*bun.Tx, bool) {
-	tx, ok := ctx.Value(txKey{}).(bun.Tx)
-	if !ok {
+	tx, ok := ctx.Value(txKey{}).(*bun.Tx)
+	if !ok || tx == nil {
 		return nil, false
 	}
-	return &tx, true
+	return tx, true
 }
 
 // TxHandler provides common transaction handling functionality for services
@@ -93,16 +94,14 @@ func (h *TxHandler) RunInTx(ctx context.Context, fn func(ctx context.Context, tx
 		return err
 	}
 
-	// If we created a new transaction, we need to handle commit/rollback
-	if isNew {
-		defer func() { _ = tx.Rollback() }()
-	}
-
 	// Add transaction to context
 	txCtx := ContextWithTx(ctx, &tx)
 
 	// Execute the function with transaction context
 	if err := fn(txCtx, tx); err != nil {
+		if isNew {
+			_ = tx.Rollback()
+		}
 		return err
 	}
 

@@ -1,7 +1,6 @@
 package platform_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -17,7 +16,7 @@ func TestOperatorRepository_Create(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := platform.NewOperatorRepository(db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("Success", func(t *testing.T) {
 		operator := &platformModels.Operator{
@@ -83,7 +82,7 @@ func TestOperatorRepository_FindByID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := platform.NewOperatorRepository(db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("Success", func(t *testing.T) {
 		operator := createTestOperator(t, db, "find@example.com", "Find Test")
@@ -109,7 +108,7 @@ func TestOperatorRepository_FindByEmail(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := platform.NewOperatorRepository(db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("Success", func(t *testing.T) {
 		operator := createTestOperator(t, db, "email@example.com", "Email Test")
@@ -134,7 +133,7 @@ func TestOperatorRepository_Update(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := platform.NewOperatorRepository(db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("Success", func(t *testing.T) {
 		operator := createTestOperator(t, db, "update@example.com", "Original Name")
@@ -174,7 +173,7 @@ func TestOperatorRepository_Delete(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := platform.NewOperatorRepository(db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	operator := createTestOperator(t, db, "delete@example.com", "To Delete")
 
@@ -198,7 +197,7 @@ func TestOperatorRepository_UpdateLastLogin(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := platform.NewOperatorRepository(db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	operator := createTestOperator(t, db, "login@example.com", "Login Test")
 	defer cleanupTestOperator(t, db, operator.ID)

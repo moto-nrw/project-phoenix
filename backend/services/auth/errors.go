@@ -47,14 +47,28 @@ var (
 	// ErrRoleNotFound returned when role doesn't exist
 	ErrRoleNotFound = errors.New("role not found")
 
+	// ErrSystemRoleImmutable returned when attempting to modify a system role
+	ErrSystemRoleImmutable = errors.New("system roles cannot be modified")
+
+	// ErrTenantRequiredForRoleAssignment returned when tenant-scoped role setup is requested without a tenant context
+	ErrTenantRequiredForRoleAssignment = errors.New("tenant context is required when assigning a role during registration")
+
 	// ErrParentAccountNotFound returned when parent account doesn't exist
 	ErrParentAccountNotFound = errors.New("parent account not found")
+
+	// Tenant errors
+	ErrTenantNotFound     = errors.New("tenant not found")
+	ErrTenantAccessDenied = errors.New("account does not have access to this tenant")
 
 	// Invitation errors
 	ErrInvitationNotFound     = errors.New("invitation not found")
 	ErrInvitationExpired      = errors.New("invitation has expired")
 	ErrInvitationUsed         = errors.New("invitation has already been used")
 	ErrInvitationNameRequired = errors.New("first name and last name are required")
+
+	// Deletion constraint errors
+	ErrRoleInUse       = errors.New("Rolle kann nicht gelöscht werden: Rolle ist aktuell Konten zugewiesen")                           //nolint:staticcheck // ST1005: user-facing German message
+	ErrPermissionInUse = errors.New("Berechtigung kann nicht gelöscht werden: Berechtigung ist aktuell Rollen oder Konten zugewiesen") //nolint:staticcheck // ST1005: user-facing German message
 )
 
 // AuthError represents an authentication-related error

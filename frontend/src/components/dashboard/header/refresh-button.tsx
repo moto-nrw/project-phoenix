@@ -22,7 +22,7 @@ export function RefreshButton() {
     setState("spinning");
 
     try {
-      await mutate(() => true, undefined, { revalidate: true });
+      await mutate(() => true);
     } finally {
       // Signal stop — animation will finish current rotation first
       pendingStopRef.current = true;

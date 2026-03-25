@@ -1,7 +1,6 @@
 package active_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -51,7 +50,7 @@ func TestAttendanceRepository_Create(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Attendance
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	data := createAttendanceTestData(t, db)
 	defer cleanupAttendanceTestData(t, db, data)
 
@@ -165,7 +164,7 @@ func TestAttendanceRepository_FindByStudentAndDate(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Attendance
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	data := createAttendanceTestData(t, db)
 	defer cleanupAttendanceTestData(t, db, data)
 
@@ -406,7 +405,7 @@ func TestAttendanceRepository_FindLatestByStudent(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Attendance
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	data := createAttendanceTestData(t, db)
 	defer cleanupAttendanceTestData(t, db, data)
 
@@ -641,7 +640,7 @@ func TestAttendanceRepository_GetStudentCurrentStatus(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Attendance
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	data := createAttendanceTestData(t, db)
 	defer cleanupAttendanceTestData(t, db, data)
 
@@ -904,7 +903,7 @@ func TestAttendanceRepository_Update(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Attendance
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	data := createAttendanceTestData(t, db)
 	defer cleanupAttendanceTestData(t, db, data)
 
@@ -961,7 +960,7 @@ func TestAttendanceRepository_FindByID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Attendance
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	data := createAttendanceTestData(t, db)
 	defer cleanupAttendanceTestData(t, db, data)
 
@@ -1006,7 +1005,7 @@ func TestAttendanceRepository_Delete(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Attendance
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	data := createAttendanceTestData(t, db)
 	defer cleanupAttendanceTestData(t, db, data)
 
@@ -1039,7 +1038,7 @@ func TestAttendanceRepository_GetTodayByStudentID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Attendance
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	data := createAttendanceTestData(t, db)
 	defer cleanupAttendanceTestData(t, db, data)
 
@@ -1087,7 +1086,7 @@ func TestAttendanceRepository_FindForDate(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Attendance
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	data := createAttendanceTestData(t, db)
 	defer cleanupAttendanceTestData(t, db, data)
 

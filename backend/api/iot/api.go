@@ -23,6 +23,8 @@ import (
 	feedbackSvc "github.com/moto-nrw/project-phoenix/services/feedback"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 // delegateHandler creates an http.HandlerFunc that delegates to a subrouter.
@@ -44,6 +46,7 @@ type ServiceDependencies struct {
 	EducationService  educationSvc.Service
 	FeedbackService   feedbackSvc.Service
 	Logger            *slog.Logger
+	DB                *bun.DB
 }
 
 // Resource defines the IoT API resource
@@ -57,6 +60,7 @@ type Resource struct {
 	EducationService  educationSvc.Service
 	FeedbackService   feedbackSvc.Service
 	logger            *slog.Logger
+	db                *bun.DB
 }
 
 // NewResource creates a new IoT resource
@@ -71,6 +75,7 @@ func NewResource(deps ServiceDependencies) *Resource {
 		EducationService:  deps.EducationService,
 		FeedbackService:   deps.FeedbackService,
 		logger:            deps.Logger,
+		db:                deps.DB,
 	}
 }
 
@@ -100,25 +105,35 @@ func (rs *Resource) Router() chi.Router {
 	r.Group(func(r chi.Router) {
 		r.Use(tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
+		r.Use(jwt.TenantMiddleware)
+		withTx := tenant.TenantTxMiddleware(rs.db)
 
 		// Mount devices sub-router (handles device CRUD and admin operations)
 		// All device routes require JWT authentication with IOT permissions
 		devicesResource := devices.NewResource(rs.IoTService)
-		r.Mount("/", devicesResource.Router())
+		r.With(withTx).Mount("/", devicesResource.Router())
 	})
 
 	// Device-only authenticated routes (API key only, no PIN required)
+	// DeviceOnlyAuthenticator sets tenant context from device.TenantID,
+	// then TenantTxMiddleware wraps the handler in a tenant-scoped transaction
+	// so downstream queries run as phoenix_tenant with RLS enforced.
 	r.Group(func(r chi.Router) {
 		r.Use(device.DeviceOnlyAuthenticator(rs.IoTService))
+		r.Use(tenant.TenantTxMiddleware(rs.db))
 
 		// Mount data sub-router for teachers endpoint (device-only auth)
 		dataResource := dataAPI.NewResource(rs.IoTService, rs.UsersService, rs.ActivitiesService, rs.FacilityService)
 		r.Mount("/teachers", dataResource.TeachersRouter())
 	})
 
-	// Device-authenticated routes for RFID devices
+	// Device-authenticated routes for RFID devices.
+	// DeviceAuthenticator validates API key + PIN and sets tenant context,
+	// then TenantTxMiddleware wraps each handler in a tenant-scoped transaction
+	// (SET LOCAL ROLE phoenix_tenant + set_config) so RLS is enforced.
 	r.Group(func(r chi.Router) {
 		r.Use(device.DeviceAuthenticator(rs.IoTService, rs.UsersService))
+		r.Use(tenant.TenantTxMiddleware(rs.db))
 
 		// Check-in endpoints (student RFID check-in/checkout workflow)
 		checkinResource := checkinAPI.NewResource(

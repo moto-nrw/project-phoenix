@@ -2,6 +2,7 @@ package education
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -9,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -20,8 +22,8 @@ type service struct {
 	roomRepo         facilities.RoomRepository
 	teacherRepo      users.TeacherRepository
 	staffRepo        users.StaffRepository
+	studentRepo      users.StudentRepository
 	db               *bun.DB
-	txHandler        *base.TxHandler
 }
 
 // NewService creates a new education service instance
@@ -32,6 +34,7 @@ func NewService(
 	roomRepo facilities.RoomRepository,
 	teacherRepo users.TeacherRepository,
 	staffRepo users.StaffRepository,
+	studentRepo users.StudentRepository,
 	db *bun.DB,
 ) Service {
 	return &service{
@@ -41,51 +44,8 @@ func NewService(
 		roomRepo:         roomRepo,
 		teacherRepo:      teacherRepo,
 		staffRepo:        staffRepo,
+		studentRepo:      studentRepo,
 		db:               db,
-		txHandler:        base.NewTxHandler(db),
-	}
-}
-
-// WithTx returns a new service that uses the provided transaction
-func (s *service) WithTx(tx bun.Tx) interface{} {
-	// Get repositories with transaction if they implement the TransactionalRepository interface
-	var groupRepo = s.groupRepo
-	var groupTeacherRepo = s.groupTeacherRepo
-	var substitutionRepo = s.substitutionRepo
-	var roomRepo = s.roomRepo
-	var teacherRepo = s.teacherRepo
-	var staffRepo = s.staffRepo
-
-	// Try to cast repositories to TransactionalRepository and apply the transaction
-	if txRepo, ok := s.groupRepo.(base.TransactionalRepository); ok {
-		groupRepo = txRepo.WithTx(tx).(education.GroupRepository)
-	}
-	if txRepo, ok := s.groupTeacherRepo.(base.TransactionalRepository); ok {
-		groupTeacherRepo = txRepo.WithTx(tx).(education.GroupTeacherRepository)
-	}
-	if txRepo, ok := s.substitutionRepo.(base.TransactionalRepository); ok {
-		substitutionRepo = txRepo.WithTx(tx).(education.GroupSubstitutionRepository)
-	}
-	if txRepo, ok := s.roomRepo.(base.TransactionalRepository); ok {
-		roomRepo = txRepo.WithTx(tx).(facilities.RoomRepository)
-	}
-	if txRepo, ok := s.teacherRepo.(base.TransactionalRepository); ok {
-		teacherRepo = txRepo.WithTx(tx).(users.TeacherRepository)
-	}
-	if txRepo, ok := s.staffRepo.(base.TransactionalRepository); ok {
-		staffRepo = txRepo.WithTx(tx).(users.StaffRepository)
-	}
-
-	// Return a new service with the transaction
-	return &service{
-		groupRepo:        groupRepo,
-		groupTeacherRepo: groupTeacherRepo,
-		substitutionRepo: substitutionRepo,
-		roomRepo:         roomRepo,
-		teacherRepo:      teacherRepo,
-		staffRepo:        staffRepo,
-		db:               s.db,
-		txHandler:        s.txHandler.WithTx(tx),
 	}
 }
 
@@ -137,6 +97,7 @@ func (s *service) CreateGroup(ctx context.Context, group *education.Group) error
 	}
 
 	// Create the group
+	group.SetTenantID(tenant.FromContext(ctx))
 	if err := s.groupRepo.Create(ctx, group); err != nil {
 		return &EducationError{Op: "CreateGroup", Err: err}
 	}
@@ -223,22 +184,27 @@ func (s *service) DeleteGroup(ctx context.Context, id int64) error {
 		return &EducationError{Op: "DeleteGroup", Err: ErrGroupNotFound}
 	}
 
-	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		txService := s.WithTx(tx).(Service)
+	// Best-effort pre-check: students with group_id would lose their group (SET NULL).
+	// The real protection is this check; the DB allows the delete but silently orphans students.
+	counts, preCheckErr := s.studentRepo.CountByGroupIDs(ctx, []int64{id})
+	if preCheckErr != nil {
+		slog.Warn("group_delete_precheck_failed",
+			"group_id", id,
+			"error", preCheckErr.Error(),
+		)
+	} else if count, ok := counts[id]; ok && count > 0 {
+		return &EducationError{Op: "DeleteGroup", Err: ErrGroupHasStudents}
+	}
 
-		if err := deleteGroupTeacherRelations(ctx, txService, id); err != nil {
-			return err
-		}
+	if err := deleteGroupTeacherRelations(ctx, s, id); err != nil {
+		return &EducationError{Op: "DeleteGroup", Err: err}
+	}
 
-		if err := deleteGroupSubstitutions(ctx, txService, id); err != nil {
-			return err
-		}
+	if err := deleteGroupSubstitutions(ctx, s, id); err != nil {
+		return &EducationError{Op: "DeleteGroup", Err: err}
+	}
 
-		// Use transaction-bound repo for delete to maintain consistency
-		return txService.(*service).groupRepo.Delete(ctx, id)
-	})
-
-	if err != nil {
+	if err := s.groupRepo.Delete(ctx, id); err != nil {
 		return &EducationError{Op: "DeleteGroup", Err: err}
 	}
 
@@ -400,6 +366,7 @@ func (s *service) AddTeacherToGroup(ctx context.Context, groupID, teacherID int6
 		GroupID:   groupID,
 		TeacherID: teacher.ID,
 	}
+	groupTeacher.SetTenantID(tenant.FromContext(ctx))
 
 	if err := s.groupTeacherRepo.Create(ctx, groupTeacher); err != nil {
 		return &EducationError{Op: "AddTeacherToGroup", Err: err}
@@ -508,6 +475,7 @@ func (s *service) addTeacherToGroup(ctx context.Context, groupID, teacherID int6
 		GroupID:   groupID,
 		TeacherID: teacherID,
 	}
+	relation.SetTenantID(tenant.FromContext(ctx))
 
 	if err := s.groupTeacherRepo.Create(ctx, relation); err != nil {
 		return &EducationError{Op: "UpdateGroupTeachers", Err: err}
@@ -700,6 +668,7 @@ func (s *service) CreateSubstitution(ctx context.Context, substitution *educatio
 	// This enables a staff member to supervise multiple groups simultaneously.
 
 	// Create the substitution
+	substitution.SetTenantID(tenant.FromContext(ctx))
 	if err := s.substitutionRepo.Create(ctx, substitution); err != nil {
 		return &EducationError{Op: "CreateSubstitution", Err: err}
 	}

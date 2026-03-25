@@ -73,6 +73,37 @@ describe("translateApiError", () => {
     );
   });
 
+  it("extracts specific reason from 'validation failed: <reason>'", () => {
+    expect(
+      translateApiError("validation failed: invalid phone number format"),
+    ).toBe(
+      "Ungültiges Telefonnummernformat (nur Ziffern, Leerzeichen, +, -, Klammern)",
+    );
+    expect(
+      translateApiError(
+        "validation failed: phone number must contain at least 3 digits",
+      ),
+    ).toBe("Telefonnummer muss mindestens 3 Ziffern enthalten");
+    expect(translateApiError("validation failed: invalid email format")).toBe(
+      "Ungültiges E-Mail-Format",
+    );
+  });
+
+  it("falls back to generic 'validation failed' when reason is unknown", () => {
+    expect(translateApiError("validation failed: some unknown reason")).toBe(
+      "Validierung fehlgeschlagen",
+    );
+  });
+
+  it("handles 'validation failed' without colon", () => {
+    expect(translateApiError("validation failed")).toBe(
+      "Validierung fehlgeschlagen",
+    );
+    expect(translateApiError("something validation failed something")).toBe(
+      "Validierung fehlgeschlagen",
+    );
+  });
+
   it("translates 'unauthorized' to German", () => {
     expect(translateApiError("unauthorized")).toBe("Keine Berechtigung");
   });
@@ -115,6 +146,9 @@ describe("errorTranslations", () => {
       "student not found",
       "relationship already exists",
       "validation failed",
+      "invalid phone number format",
+      "phone number must contain at least 3 digits",
+      "phone number is required",
       "unauthorized",
       "forbidden",
     ];
@@ -132,8 +166,8 @@ describe("errorTranslations", () => {
     }
   });
 
-  it("has exactly 8 error translations", () => {
-    expect(Object.keys(errorTranslations).length).toBe(8);
+  it("has exactly 11 error translations", () => {
+    expect(Object.keys(errorTranslations).length).toBe(11);
   });
 });
 

@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
@@ -13,9 +14,9 @@ type AuthService interface {
 
 	// Existing methods
 	Login(ctx context.Context, email, password string) (accessToken, refreshToken string, err error)
-	LoginWithAudit(ctx context.Context, email, password, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
-	Register(ctx context.Context, email, username, password string, roleID *int64) (*auth.Account, error)
-	ValidateToken(ctx context.Context, token string) (*auth.Account, error)
+	LoginWithAudit(ctx context.Context, email, password, ipAddress, userAgent, tenantSlug string) (accessToken, refreshToken string, err error)
+	Register(ctx context.Context, email, username, password string, roleID *int64, tenantID int64) (*auth.Account, error)
+	ValidateToken(ctx context.Context, token string) (*auth.Account, *jwt.AppClaims, error)
 	RefreshToken(ctx context.Context, refreshToken string) (accessToken, newRefreshToken string, err error)
 	RefreshTokenWithAudit(ctx context.Context, refreshToken, ipAddress, userAgent string) (accessToken, newRefreshToken string, err error)
 	Logout(ctx context.Context, refreshToken string) error
@@ -34,6 +35,7 @@ type AuthService interface {
 	AssignRoleToAccount(ctx context.Context, accountID, roleID int) error
 	RemoveRoleFromAccount(ctx context.Context, accountID, roleID int) error
 	GetAccountRoles(ctx context.Context, accountID int) ([]*auth.Role, error)
+	GetAccountRoleNames(ctx context.Context, accountIDs []int64) (map[int64]string, error)
 
 	// Permission Management
 	CreatePermission(ctx context.Context, name, description, resource, action string) (*auth.Permission, error)
@@ -69,6 +71,12 @@ type AuthService interface {
 	CleanupExpiredPasswordResetTokens(ctx context.Context) (int, error)
 	RevokeAllTokens(ctx context.Context, accountID int) error
 	GetActiveTokens(ctx context.Context, accountID int) ([]*auth.Token, error)
+
+	// Tenant Switching
+	SwitchTenant(ctx context.Context, accountID int64, tenantSlug string) (accessToken, refreshToken string, err error)
+
+	// Multi-Tenant Account Linking
+	LinkAccountToTenant(ctx context.Context, email string, roleID *int64, tenantID int64) (*auth.Account, error)
 
 	// Parent Account Management
 	CreateParentAccount(ctx context.Context, email, username, password string) (*auth.AccountParent, error)

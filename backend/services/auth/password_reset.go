@@ -10,6 +10,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/models/auth"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/spf13/viper"
 	"github.com/uptrace/bun"
 )
@@ -96,6 +97,10 @@ func (s *Service) checkPasswordResetRateLimit(ctx context.Context, emailAddress 
 }
 
 // createPasswordResetTokenInTransaction creates a password reset token in a transaction
+//
+// Phase 3 deviation: RunInTx retained because this is a public password reset route (no JWT/tenant context).
+// Handler-level WithTenantTx requires authenticated tenant context, which doesn't exist
+// at password-reset request time. Tenant is not needed for token creation.
 func (s *Service) createPasswordResetTokenInTransaction(ctx context.Context, accountID int64) (*auth.PasswordResetToken, error) {
 	var resetToken *auth.PasswordResetToken
 
@@ -195,8 +200,10 @@ func (s *Service) ResetPassword(ctx context.Context, token, newPassword string) 
 		return &AuthError{Op: opHashPassword, Err: err}
 	}
 
-	// Execute in transaction
-	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+	// Uses WithAdminTx (BYPASSRLS) because password reset is a pre-authentication flow
+	// with no JWT/tenant context. Token.DeleteByAccountID touches auth.tokens which has
+	// RLS policies — phoenix_auth cannot satisfy them without tenant context.
+	err = tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
 		// Get transactional service
 		txService := s.WithTx(tx).(AuthService)
 

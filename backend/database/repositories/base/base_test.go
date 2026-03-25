@@ -1,7 +1,6 @@
 package base_test
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -37,7 +36,7 @@ func TestRepository_Create(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := base.NewRepository[*configModels.Setting](db, "config.settings", "Setting")
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	key := uniqueKey("test_base_repo_create")
 	setting := &configModels.Setting{
@@ -66,7 +65,7 @@ func TestRepository_Create_NilEntity(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := base.NewRepository[*configModels.Setting](db, "config.settings", "Setting")
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	var nilSetting *configModels.Setting
 	err := repo.Create(ctx, nilSetting)
@@ -80,7 +79,7 @@ func TestRepository_FindByID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := base.NewRepository[*configModels.Setting](db, "config.settings", "Setting")
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create a test setting using schema-qualified table
 	setting := &configModels.Setting{
@@ -89,6 +88,7 @@ func TestRepository_FindByID(t *testing.T) {
 		Description: "Test setting for FindByID",
 		Category:    "test",
 	}
+	setting.SetTenantID(1)
 	_, err := db.NewInsert().Model(setting).ModelTableExpr("config.settings").Exec(ctx)
 	require.NoError(t, err)
 
@@ -111,7 +111,7 @@ func TestRepository_FindByID_NotFound(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := base.NewRepository[*configModels.Setting](db, "config.settings", "Setting")
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	_, err := repo.FindByID(ctx, 999999)
 	require.Error(t, err)
@@ -123,7 +123,7 @@ func TestRepository_Update(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := base.NewRepository[*configModels.Setting](db, "config.settings", "Setting")
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create a test setting
 	key := uniqueKey("test_base_repo_update")
@@ -133,6 +133,7 @@ func TestRepository_Update(t *testing.T) {
 		Description: "Test setting for Update",
 		Category:    "test",
 	}
+	setting.SetTenantID(1)
 	_, err := db.NewInsert().Model(setting).ModelTableExpr("config.settings").Exec(ctx)
 	require.NoError(t, err)
 	require.NotZero(t, setting.ID)
@@ -162,7 +163,7 @@ func TestRepository_Update_NilEntity(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := base.NewRepository[*configModels.Setting](db, "config.settings", "Setting")
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	var nilSetting *configModels.Setting
 	err := repo.Update(ctx, nilSetting)
@@ -176,7 +177,7 @@ func TestRepository_Delete(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := base.NewRepository[*configModels.Setting](db, "config.settings", "Setting")
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create a test setting
 	setting := &configModels.Setting{
@@ -185,6 +186,7 @@ func TestRepository_Delete(t *testing.T) {
 		Description: "Test setting for Delete",
 		Category:    "test",
 	}
+	setting.SetTenantID(1)
 	_, err := db.NewInsert().Model(setting).ModelTableExpr("config.settings").Exec(ctx)
 	require.NoError(t, err)
 
@@ -208,7 +210,7 @@ func TestRepository_List(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := base.NewRepository[*configModels.Setting](db, "config.settings", "Setting")
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create test settings
 	settings := []*configModels.Setting{
@@ -216,6 +218,7 @@ func TestRepository_List(t *testing.T) {
 		{Key: "test_base_list_2", Value: "v2", Description: "Test 2", Category: "base_test"},
 	}
 	for _, s := range settings {
+		s.SetTenantID(1)
 		_, err := db.NewInsert().Model(s).ModelTableExpr("config.settings").Exec(ctx)
 		require.NoError(t, err)
 	}
@@ -239,7 +242,7 @@ func TestRepository_List_NoFilters(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := base.NewRepository[*configModels.Setting](db, "config.settings", "Setting")
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	results, err := repo.List(ctx, nil)
 	require.NoError(t, err)
@@ -252,7 +255,7 @@ func TestRepository_Count(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := base.NewRepository[*configModels.Setting](db, "config.settings", "Setting")
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create test settings
 	settings := []*configModels.Setting{
@@ -261,6 +264,7 @@ func TestRepository_Count(t *testing.T) {
 		{Key: "test_base_count_3", Value: "v3", Description: "Test 3", Category: "count_test"},
 	}
 	for _, s := range settings {
+		s.SetTenantID(1)
 		_, err := db.NewInsert().Model(s).ModelTableExpr("config.settings").Exec(ctx)
 		require.NoError(t, err)
 	}
@@ -284,7 +288,7 @@ func TestRepository_Count_NoFilters(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := base.NewRepository[*configModels.Setting](db, "config.settings", "Setting")
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	count, err := repo.Count(ctx, nil)
 	require.NoError(t, err)
@@ -297,7 +301,7 @@ func TestRepository_Transaction(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := base.NewRepository[*configModels.Setting](db, "config.settings", "Setting")
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	var createdID int64
 
@@ -317,6 +321,7 @@ func TestRepository_Transaction(t *testing.T) {
 			Description: "Test setting for Transaction",
 			Category:    "test",
 		}
+		setting.SetTenantID(1)
 		_, err := tx.NewInsert().Model(setting).ModelTableExpr("config.settings").Exec(ctx)
 		if err != nil {
 			return err
@@ -334,7 +339,7 @@ func TestRepository_Transaction_Rollback(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := base.NewRepository[*configModels.Setting](db, "config.settings", "Setting")
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	testKey := "test_base_transaction_rollback"
 
@@ -345,6 +350,7 @@ func TestRepository_Transaction_Rollback(t *testing.T) {
 			Description: "Test setting for Transaction rollback",
 			Category:    "test",
 		}
+		setting.SetTenantID(1)
 		_, err := tx.NewInsert().Model(setting).ModelTableExpr("config.settings").Exec(ctx)
 		if err != nil {
 			return err

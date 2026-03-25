@@ -58,6 +58,7 @@ func TestResourceAuthorizer_RequiresResourceAccess(t *testing.T) {
 			action:       policy.ActionView,
 			claims: jwt.AppClaims{
 				ID:       1,
+				TenantID: 1,
 				Username: "teacher1",
 				Roles:    []string{"teacher"},
 			},
@@ -73,6 +74,7 @@ func TestResourceAuthorizer_RequiresResourceAccess(t *testing.T) {
 			action:       policy.ActionView,
 			claims: jwt.AppClaims{
 				ID:       2,
+				TenantID: 1,
 				Username: "user2",
 				Roles:    []string{"user"},
 			},
@@ -88,6 +90,7 @@ func TestResourceAuthorizer_RequiresResourceAccess(t *testing.T) {
 			action:       policy.ActionEdit,
 			claims: jwt.AppClaims{
 				ID:       1,
+				TenantID: 1,
 				Username: "user1",
 				Roles:    []string{"user"},
 			},
@@ -280,6 +283,7 @@ func TestCombinePermissionAndResource(t *testing.T) {
 	// Setup context with claims and permissions
 	claims := jwt.AppClaims{
 		ID:       1,
+		TenantID: 1,
 		Username: "user1",
 		Roles:    []string{"user"},
 	}

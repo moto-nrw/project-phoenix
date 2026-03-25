@@ -78,6 +78,7 @@ func TestWithClaims(t *testing.T) {
 
 	claims := jwt.AppClaims{
 		ID:       42,
+		TenantID: 1,
 		Username: "testuser",
 		IsAdmin:  true,
 	}
@@ -152,7 +153,7 @@ func TestNewRequest(t *testing.T) {
 func TestNewRequest_WithOptions(t *testing.T) {
 	req := testutil.NewRequest("GET", "/api/test", nil,
 		testutil.WithPermissions("test:read"),
-		testutil.WithClaims(jwt.AppClaims{ID: 1}),
+		testutil.WithClaims(jwt.AppClaims{ID: 1, TenantID: 1}),
 	)
 
 	assert.Equal(t, "GET", req.Method)
@@ -246,7 +247,7 @@ func TestNewMultipartRequest_WithOptions(t *testing.T) {
 	req := testutil.NewMultipartRequest(t, "POST", "/api/upload",
 		"document", "data.json", `{"key": "value"}`,
 		testutil.WithPermissions("uploads:create"),
-		testutil.WithClaims(jwt.AppClaims{ID: 42}),
+		testutil.WithClaims(jwt.AppClaims{ID: 42, TenantID: 1}),
 	)
 
 	assert.Equal(t, "POST", req.Method)

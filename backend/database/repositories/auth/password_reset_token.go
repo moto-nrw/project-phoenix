@@ -33,7 +33,7 @@ func NewPasswordResetTokenRepository(db *bun.DB) auth.PasswordResetTokenReposito
 // FindByToken retrieves a password reset token by its token value
 func (r *PasswordResetTokenRepository) FindByToken(ctx context.Context, token string) (*auth.PasswordResetToken, error) {
 	resetToken := new(auth.PasswordResetToken)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(resetToken).
 		ModelTableExpr(passwordResetTokenTableAlias).
 		Where("token = ?", token).
@@ -52,7 +52,7 @@ func (r *PasswordResetTokenRepository) FindByToken(ctx context.Context, token st
 // FindByAccountID retrieves all password reset tokens for an account
 func (r *PasswordResetTokenRepository) FindByAccountID(ctx context.Context, accountID int64) ([]*auth.PasswordResetToken, error) {
 	var tokens []*auth.PasswordResetToken
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&tokens).
 		ModelTableExpr(passwordResetTokenTableAlias).
 		Where("account_id = ?", accountID).
@@ -71,7 +71,7 @@ func (r *PasswordResetTokenRepository) FindByAccountID(ctx context.Context, acco
 // FindValidByToken retrieves a valid (not expired, not used) password reset token
 func (r *PasswordResetTokenRepository) FindValidByToken(ctx context.Context, token string) (*auth.PasswordResetToken, error) {
 	resetToken := new(auth.PasswordResetToken)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(resetToken).
 		ModelTableExpr(passwordResetTokenTableAlias).
 		Where("token = ? AND expiry > ? AND used = FALSE", token, time.Now()).
@@ -89,7 +89,7 @@ func (r *PasswordResetTokenRepository) FindValidByToken(ctx context.Context, tok
 
 // MarkAsUsed marks a password reset token as used
 func (r *PasswordResetTokenRepository) MarkAsUsed(ctx context.Context, tokenID int64) error {
-	_, err := r.db.NewUpdate().
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*auth.PasswordResetToken)(nil)).
 		ModelTableExpr(passwordResetTokenTable).
 		Set("used = TRUE").
@@ -108,7 +108,7 @@ func (r *PasswordResetTokenRepository) MarkAsUsed(ctx context.Context, tokenID i
 
 // UpdateDeliveryResult updates the delivery metadata for a password reset token.
 func (r *PasswordResetTokenRepository) UpdateDeliveryResult(ctx context.Context, tokenID int64, sentAt *time.Time, emailError *string, retryCount int) error {
-	update := r.db.NewUpdate().
+	update := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*auth.PasswordResetToken)(nil)).
 		ModelTableExpr(passwordResetTokenTable).
 		Where(whereID, tokenID).
@@ -138,7 +138,7 @@ func (r *PasswordResetTokenRepository) UpdateDeliveryResult(ctx context.Context,
 
 // DeleteExpiredTokens removes all expired or used tokens
 func (r *PasswordResetTokenRepository) DeleteExpiredTokens(ctx context.Context) (int, error) {
-	res, err := r.db.NewDelete().
+	res, err := base.GetDB(ctx, r.db).NewDelete().
 		Model((*auth.PasswordResetToken)(nil)).
 		ModelTableExpr(passwordResetTokenTable).
 		Where("expiry < ? OR used = TRUE", time.Now()).
@@ -164,7 +164,7 @@ func (r *PasswordResetTokenRepository) DeleteExpiredTokens(ctx context.Context) 
 
 // InvalidateTokensByAccountID marks all tokens for an account as used
 func (r *PasswordResetTokenRepository) InvalidateTokensByAccountID(ctx context.Context, accountID int64) error {
-	_, err := r.db.NewUpdate().
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*auth.PasswordResetToken)(nil)).
 		ModelTableExpr(passwordResetTokenTable).
 		Set("used = TRUE").
@@ -207,23 +207,11 @@ func (r *PasswordResetTokenRepository) Update(ctx context.Context, token *auth.P
 		return err
 	}
 
-	// Get the query builder - detect if we're in a transaction
-	query := r.db.NewUpdate().
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model(token).
 		ModelTableExpr(passwordResetTokenTableAlias).
-		Where(whereID, token.ID)
-
-	// Extract transaction from context if it exists
-	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
-		// Use the transaction if available
-		query = tx.NewUpdate().
-			Model(token).
-			ModelTableExpr(passwordResetTokenTableAlias).
-			Where(whereID, token.ID)
-	}
-
-	// Execute the query
-	_, err := query.Exec(ctx)
+		Where(whereID, token.ID).
+		Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update",
@@ -237,7 +225,7 @@ func (r *PasswordResetTokenRepository) Update(ctx context.Context, token *auth.P
 // List retrieves password reset tokens matching the provided filters
 func (r *PasswordResetTokenRepository) List(ctx context.Context, filters map[string]interface{}) ([]*auth.PasswordResetToken, error) {
 	var tokens []*auth.PasswordResetToken
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&tokens).
 		ModelTableExpr(passwordResetTokenTableAlias)
 
@@ -292,7 +280,7 @@ func (r *PasswordResetTokenRepository) applyExpiredTokenFilter(query *bun.Select
 // FindTokensWithAccount retrieves password reset tokens with their associated account details
 func (r *PasswordResetTokenRepository) FindTokensWithAccount(ctx context.Context, filters map[string]interface{}) ([]*auth.PasswordResetToken, error) {
 	var tokens []*auth.PasswordResetToken
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&tokens).
 		Relation("Account")
 

@@ -1,7 +1,6 @@
 package facilities_test
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -24,7 +23,7 @@ func TestRoomRepository_Create(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Room
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates room with valid data", func(t *testing.T) {
 		uniqueName := fmt.Sprintf("TestRoom_%d", time.Now().UnixNano())
@@ -63,7 +62,7 @@ func TestRoomRepository_FindByID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Room
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds existing room", func(t *testing.T) {
 		uniqueName := fmt.Sprintf("FindRoom_%d", time.Now().UnixNano())
@@ -95,7 +94,7 @@ func TestRoomRepository_Update(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Room
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates room", func(t *testing.T) {
 		uniqueName := fmt.Sprintf("UpdateRoom_%d", time.Now().UnixNano())
@@ -132,7 +131,7 @@ func TestRoomRepository_Delete(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Room
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes existing room", func(t *testing.T) {
 		uniqueName := fmt.Sprintf("DeleteRoom_%d", time.Now().UnixNano())
@@ -163,7 +162,7 @@ func TestRoomRepository_FindByName(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Room
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds room by name", func(t *testing.T) {
 		uniqueName := fmt.Sprintf("UniqueRoomName_%d", time.Now().UnixNano())
@@ -189,7 +188,7 @@ func TestRoomRepository_FindByBuilding(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Room
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds rooms by building", func(t *testing.T) {
 		uniqueBuilding := fmt.Sprintf("Building_%d", time.Now().UnixNano())
@@ -225,7 +224,7 @@ func TestRoomRepository_FindByCategory(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Room
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds rooms by category", func(t *testing.T) {
 		uniqueCategory := fmt.Sprintf("category_%d", time.Now().UnixNano())
@@ -252,7 +251,7 @@ func TestRoomRepository_FindByFloor(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Room
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds rooms by floor", func(t *testing.T) {
 		uniqueBuilding := fmt.Sprintf("FloorBuilding_%d", time.Now().UnixNano())
@@ -297,7 +296,7 @@ func TestRoomRepository_List(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Room
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("lists all rooms", func(t *testing.T) {
 		room := &facilities.Room{
@@ -501,7 +500,7 @@ func TestRoomRepository_ListWithOptions(t *testing.T) {
 	// Use concrete repository to access ListWithOptions
 	repo := facilitiesRepo.NewRoomRepository(db)
 	concreteRepo := repo.(*facilitiesRepo.RoomRepository)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("lists with query options pagination", func(t *testing.T) {
 		room := &facilities.Room{
@@ -536,7 +535,7 @@ func TestRoomRepository_FindWithCapacity(t *testing.T) {
 	// Use concrete repository to access FindWithCapacity
 	repo := facilitiesRepo.NewRoomRepository(db)
 	concreteRepo := repo.(*facilitiesRepo.RoomRepository)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds rooms with minimum capacity", func(t *testing.T) {
 		room := &facilities.Room{
@@ -569,7 +568,7 @@ func TestRoomRepository_SearchByText(t *testing.T) {
 	// Use concrete repository to access SearchByText
 	repo := facilitiesRepo.NewRoomRepository(db)
 	concreteRepo := repo.(*facilitiesRepo.RoomRepository)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("searches rooms by text in name", func(t *testing.T) {
 		uniqueText := fmt.Sprintf("SearchText_%d", time.Now().UnixNano())

@@ -12,7 +12,8 @@ const tableActiveWorkSessionBreaks = "active.work_session_breaks"
 
 // WorkSessionBreak represents a single break period within a work session
 type WorkSessionBreak struct {
-	base.Model      `bun:"schema:active,table:work_session_breaks"`
+	base.Model `bun:"schema:active,table:work_session_breaks"`
+	base.TenantModel
 	SessionID       int64      `bun:"session_id,notnull" json:"session_id"`
 	StartedAt       time.Time  `bun:"started_at,notnull" json:"started_at"`
 	EndedAt         *time.Time `bun:"ended_at" json:"ended_at,omitempty"`
@@ -24,9 +25,6 @@ type WorkSessionBreak struct {
 
 // BeforeAppendModel implements the model hook for schema-qualified queries
 func (b *WorkSessionBreak) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(tableActiveWorkSessionBreaks)
-	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr(tableActiveWorkSessionBreaks)
 	}

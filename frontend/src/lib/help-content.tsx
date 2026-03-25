@@ -308,9 +308,9 @@ export const SPECIFIC_PAGE_HELP: Record<string, ReactNode> = {
   ),
   "database-teachers": (
     <DatabaseSectionHelp
-      title="Betreuer Verwaltung"
-      description="Verwalte alle Betreuerdaten zentral an einem Ort."
-      entityName="Betreuer"
+      title="Personal Verwaltung"
+      description="Verwalte alle Personaldaten zentral an einem Ort."
+      entityName="Personal"
     />
   ),
   "database-rooms": (
@@ -344,7 +344,7 @@ export const SPECIFIC_PAGE_HELP: Record<string, ReactNode> = {
   "database-devices": (
     <DatabaseSectionHelp
       title="Geräte Verwaltung"
-      description="Verwalte alle IoT-Geräte und RFID-Reader zentral an einem Ort."
+      description="Verwalte alle Terminals und IoT-Geräte zentral an einem Ort."
       entityName="Geräte"
     />
   ),
@@ -851,8 +851,8 @@ export const NAVIGATION_HELP: Record<
               description="Schülerdaten verwalten und bearbeiten"
             />
             <InfoListItem
-              title="Betreuer"
-              description="Daten der Betreuer verwalten"
+              title="Personal"
+              description="Personaldaten verwalten"
             />
             <InfoListItem title="Räume" description="Räume verwalten" />
             <InfoListItem
@@ -866,7 +866,7 @@ export const NAVIGATION_HELP: Record<
             />
             <InfoListItem
               title="Geräte"
-              description="IoT-Geräte und RFID-Reader verwalten"
+              description="Terminals und IoT-Geräte verwalten"
             />
             <InfoListItem
               title="Berechtigungen"
@@ -1211,8 +1211,8 @@ const DATABASE_ROUTES: ReadonlyArray<{
     key: "database-students",
   },
   {
-    prefix: "/database/teachers",
-    title: "Betreuer Verwaltung Hilfe",
+    prefix: "/database/personal",
+    title: "Personal Verwaltung Hilfe",
     key: "database-teachers",
   },
   {

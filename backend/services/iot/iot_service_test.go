@@ -2,7 +2,6 @@
 package iot_test
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -36,13 +35,13 @@ func TestIoTService_CreateDevice(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupIoTService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates device successfully", func(t *testing.T) {
 		// ARRANGE
 		device := &iotModels.Device{
 			DeviceID:   fmt.Sprintf("test-device-%d", time.Now().UnixNano()),
-			DeviceType: "rfid_reader",
+			DeviceType: "terminal",
 			Name:       stringPtr("Test Device"),
 		}
 
@@ -65,7 +64,7 @@ func TestIoTService_CreateDevice(t *testing.T) {
 		providedAPIKey := fmt.Sprintf("custom-api-key-%d", time.Now().UnixNano())
 		device := &iotModels.Device{
 			DeviceID:   fmt.Sprintf("test-device-custom-%d", time.Now().UnixNano()),
-			DeviceType: "rfid_reader",
+			DeviceType: "terminal",
 			APIKey:     &providedAPIKey,
 		}
 
@@ -93,7 +92,7 @@ func TestIoTService_CreateDevice(t *testing.T) {
 		// ARRANGE
 		device := &iotModels.Device{
 			DeviceID:   "", // invalid
-			DeviceType: "rfid_reader",
+			DeviceType: "terminal",
 		}
 
 		// ACT
@@ -125,7 +124,7 @@ func TestIoTService_CreateDevice(t *testing.T) {
 		// Try to create another device with the same device ID
 		duplicateDevice := &iotModels.Device{
 			DeviceID:   existingDevice.DeviceID,
-			DeviceType: "rfid_reader",
+			DeviceType: "terminal",
 		}
 
 		// ACT
@@ -146,7 +145,7 @@ func TestIoTService_GetDeviceByID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupIoTService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns device when found", func(t *testing.T) {
 		// ARRANGE
@@ -201,7 +200,7 @@ func TestIoTService_GetDeviceByDeviceID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupIoTService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns device when found", func(t *testing.T) {
 		// ARRANGE
@@ -246,7 +245,7 @@ func TestIoTService_UpdateDevice(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupIoTService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates device successfully", func(t *testing.T) {
 		// ARRANGE
@@ -256,7 +255,7 @@ func TestIoTService_UpdateDevice(t *testing.T) {
 		// Modify device
 		newName := "Updated Device Name"
 		device.Name = &newName
-		device.DeviceType = "temperature_sensor"
+		device.DeviceType = "terminal"
 
 		// ACT
 		err := service.UpdateDevice(ctx, device)
@@ -268,7 +267,7 @@ func TestIoTService_UpdateDevice(t *testing.T) {
 		updated, err := service.GetDeviceByID(ctx, device.ID)
 		require.NoError(t, err)
 		assert.Equal(t, newName, *updated.Name)
-		assert.Equal(t, "temperature_sensor", updated.DeviceType)
+		assert.Equal(t, "terminal", updated.DeviceType)
 	})
 
 	t.Run("returns error for nil device", func(t *testing.T) {
@@ -284,7 +283,7 @@ func TestIoTService_UpdateDevice(t *testing.T) {
 		// ARRANGE
 		device := &iotModels.Device{
 			DeviceID:   "some-device",
-			DeviceType: "rfid_reader",
+			DeviceType: "terminal",
 		}
 		device.ID = 0 // Set ID via embedded base.Model
 
@@ -300,7 +299,7 @@ func TestIoTService_UpdateDevice(t *testing.T) {
 		// ARRANGE
 		device := &iotModels.Device{
 			DeviceID:   "non-existent",
-			DeviceType: "rfid_reader",
+			DeviceType: "terminal",
 		}
 		device.ID = 99999999 // Set ID via embedded base.Model
 
@@ -354,7 +353,7 @@ func TestIoTService_DeleteDevice(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupIoTService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes device successfully", func(t *testing.T) {
 		// ARRANGE
@@ -407,7 +406,7 @@ func TestIoTService_ListDevices(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupIoTService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns devices with no filters", func(t *testing.T) {
 		// ARRANGE - create test devices
@@ -467,7 +466,7 @@ func TestIoTService_UpdateDeviceStatus(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupIoTService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates status successfully", func(t *testing.T) {
 		// ARRANGE
@@ -524,7 +523,7 @@ func TestIoTService_PingDevice(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupIoTService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates last seen time successfully", func(t *testing.T) {
 		// ARRANGE
@@ -577,21 +576,21 @@ func TestIoTService_GetDevicesByType(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupIoTService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns devices of specified type", func(t *testing.T) {
-		// ARRANGE - CreateTestDevice creates rfid_reader type
+		// ARRANGE - CreateTestDevice creates terminal type
 		device := testpkg.CreateTestDevice(t, db, "type-filter")
 		defer testpkg.CleanupActivityFixtures(t, db, device.ID)
 
 		// ACT
-		result, err := service.GetDevicesByType(ctx, "rfid_reader")
+		result, err := service.GetDevicesByType(ctx, "terminal")
 
 		// ASSERT
 		require.NoError(t, err)
 		assert.NotEmpty(t, result)
 		for _, d := range result {
-			assert.Equal(t, "rfid_reader", d.DeviceType)
+			assert.Equal(t, "terminal", d.DeviceType)
 		}
 	})
 
@@ -623,7 +622,7 @@ func TestIoTService_GetDevicesByStatus(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupIoTService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns devices with specified status", func(t *testing.T) {
 		// ARRANGE - CreateTestDevice creates active devices
@@ -660,7 +659,7 @@ func TestIoTService_GetDevicesByRegisteredBy(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupIoTService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns devices registered by person", func(t *testing.T) {
 		// ARRANGE - create a person and device with that person as registerer
@@ -669,7 +668,7 @@ func TestIoTService_GetDevicesByRegisteredBy(t *testing.T) {
 
 		device := &iotModels.Device{
 			DeviceID:       fmt.Sprintf("registered-device-%d", time.Now().UnixNano()),
-			DeviceType:     "rfid_reader",
+			DeviceType:     "terminal",
 			RegisteredByID: &person.ID,
 		}
 		err := service.CreateDevice(ctx, device)
@@ -734,7 +733,7 @@ func TestIoTService_GetActiveDevices(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupIoTService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns active devices", func(t *testing.T) {
 		// ARRANGE - CreateTestDevice creates active devices by default
@@ -762,7 +761,7 @@ func TestIoTService_GetDevicesRequiringMaintenance(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupIoTService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns devices in maintenance status", func(t *testing.T) {
 		// ARRANGE - create device and set to maintenance
@@ -800,7 +799,7 @@ func TestIoTService_GetOfflineDevices(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupIoTService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns devices offline for specified duration", func(t *testing.T) {
 		// ARRANGE - create device with old last seen
@@ -862,10 +861,10 @@ func TestIoTService_GetDeviceTypeStatistics(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupIoTService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns device type statistics", func(t *testing.T) {
-		// ARRANGE - create test devices (they have rfid_reader type)
+		// ARRANGE - create test devices (they have terminal type)
 		device1 := testpkg.CreateTestDevice(t, db, "stats-1")
 		device2 := testpkg.CreateTestDevice(t, db, "stats-2")
 		defer testpkg.CleanupActivityFixtures(t, db, device1.ID, device2.ID)
@@ -876,9 +875,9 @@ func TestIoTService_GetDeviceTypeStatistics(t *testing.T) {
 		// ASSERT
 		require.NoError(t, err)
 		assert.NotNil(t, result)
-		// Should have rfid_reader type with count >= 2
-		count, exists := result["rfid_reader"]
-		assert.True(t, exists, "Expected rfid_reader type in statistics")
+		// Should have terminal type with count >= 2
+		count, exists := result["terminal"]
+		assert.True(t, exists, "Expected terminal type in statistics")
 		assert.GreaterOrEqual(t, count, 2)
 	})
 }
@@ -892,7 +891,7 @@ func TestIoTService_DetectNewDevices(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupIoTService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns not implemented error", func(t *testing.T) {
 		// ACT
@@ -910,7 +909,7 @@ func TestIoTService_ScanNetwork(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupIoTService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns not implemented error", func(t *testing.T) {
 		// ACT
@@ -924,6 +923,106 @@ func TestIoTService_ScanNetwork(t *testing.T) {
 }
 
 // =============================================================================
+// UpdateDeviceLastSeen Tests
+// =============================================================================
+
+func TestIoTService_UpdateDeviceLastSeen(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupIoTService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	t.Run("updates last seen to current time", func(t *testing.T) {
+		// ARRANGE
+		device := testpkg.CreateTestDevice(t, db, "lastseen-now")
+		defer testpkg.CleanupActivityFixtures(t, db, device.ID)
+
+		before := time.Now().Add(-1 * time.Second)
+
+		// ACT
+		err := service.UpdateDeviceLastSeen(ctx, device.ID)
+
+		// ASSERT
+		require.NoError(t, err)
+
+		// Verify last_seen was updated to approximately now
+		updated, err := service.GetDeviceByID(ctx, device.ID)
+		require.NoError(t, err)
+		require.NotNil(t, updated.LastSeen)
+		assert.True(t, updated.LastSeen.After(before), "last_seen should be after the time before the call")
+	})
+
+	t.Run("returns error for zero ID", func(t *testing.T) {
+		// ACT
+		err := service.UpdateDeviceLastSeen(ctx, 0)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "device ID must be positive")
+	})
+
+	t.Run("returns error for negative ID", func(t *testing.T) {
+		// ACT
+		err := service.UpdateDeviceLastSeen(ctx, -5)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "device ID must be positive")
+	})
+}
+
+// =============================================================================
+// UpdateDeviceLastSeenAt Tests
+// =============================================================================
+
+func TestIoTService_UpdateDeviceLastSeenAt(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupIoTService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	t.Run("updates last seen to specified time", func(t *testing.T) {
+		// ARRANGE
+		device := testpkg.CreateTestDevice(t, db, "lastseen-at")
+		defer testpkg.CleanupActivityFixtures(t, db, device.ID)
+
+		targetTime := time.Date(2026, 3, 20, 14, 30, 0, 0, time.UTC)
+
+		// ACT
+		err := service.UpdateDeviceLastSeenAt(ctx, device.ID, targetTime)
+
+		// ASSERT
+		require.NoError(t, err)
+
+		// Verify last_seen was set to the exact time
+		updated, err := service.GetDeviceByID(ctx, device.ID)
+		require.NoError(t, err)
+		require.NotNil(t, updated.LastSeen)
+		assert.True(t, updated.LastSeen.Equal(targetTime), "last_seen should match the provided time")
+	})
+
+	t.Run("returns error for zero ID", func(t *testing.T) {
+		// ACT
+		err := service.UpdateDeviceLastSeenAt(ctx, 0, time.Now())
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "device ID must be positive")
+	})
+
+	t.Run("returns error for negative ID", func(t *testing.T) {
+		// ACT
+		err := service.UpdateDeviceLastSeenAt(ctx, -1, time.Now())
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "device ID must be positive")
+	})
+}
+
+// =============================================================================
 // GetDeviceByAPIKey Tests
 // =============================================================================
 
@@ -932,7 +1031,7 @@ func TestIoTService_GetDeviceByAPIKey(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupIoTService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns device when found by API key", func(t *testing.T) {
 		// ARRANGE - CreateTestDevice generates an API key
@@ -965,32 +1064,6 @@ func TestIoTService_GetDeviceByAPIKey(t *testing.T) {
 		// ASSERT
 		require.Error(t, err)
 		assert.Nil(t, result)
-	})
-}
-
-// =============================================================================
-// Transaction Support Tests
-// =============================================================================
-
-func TestIoTService_WithTx(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupIoTService(t, db)
-	ctx := context.Background()
-
-	t.Run("returns service instance with transaction", func(t *testing.T) {
-		// ARRANGE
-		tx, err := db.BeginTx(ctx, nil)
-		require.NoError(t, err)
-		defer func() { _ = tx.Rollback() }()
-
-		// ACT
-		txService := service.WithTx(tx)
-
-		// ASSERT - verify it returns a valid service interface
-		_, ok := txService.(iot.Service)
-		require.True(t, ok, "WithTx should return a valid Service interface")
 	})
 }
 

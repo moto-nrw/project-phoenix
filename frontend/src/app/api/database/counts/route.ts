@@ -1,5 +1,5 @@
 import { createGetHandler } from "~/lib/route-wrapper";
-import { apiGet } from "~/lib/api-client";
+import { apiGet } from "~/lib/api-helpers";
 
 // Database stats response type matching backend
 interface DatabaseStats {
@@ -24,6 +24,5 @@ interface DatabaseStats {
 }
 
 export const GET = createGetHandler(async (_request, token) => {
-  const response = await apiGet<DatabaseStats>(`/api/database/stats`, token);
-  return response.data;
+  return await apiGet<DatabaseStats>(`/api/database/stats`, token);
 });

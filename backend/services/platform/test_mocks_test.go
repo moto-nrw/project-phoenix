@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	auth "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 )
 
@@ -80,6 +81,58 @@ func (m *mockAuditLogRepoShared) FindByResourceType(ctx context.Context, resourc
 }
 
 func (m *mockAuditLogRepoShared) FindByDateRange(ctx context.Context, start, end time.Time, limit int) ([]*platform.OperatorAuditLog, error) {
+	return nil, nil
+}
+
+// Shared mock for account tenant repository
+type mockAccountTenantRepo struct {
+	createFn                     func(ctx context.Context, mapping *auth.AccountTenant) error
+	findActiveByAccountIDFn      func(ctx context.Context, accountID int64) ([]auth.AccountTenant, error)
+	existsByAccountAndTenantFn   func(ctx context.Context, accountID, tenantID int64) (bool, error)
+	listAccountsByTenantIDFn     func(ctx context.Context, tenantID int64) ([]auth.TenantAccountInfo, error)
+	listAccountsByOrganizationFn func(ctx context.Context, organizationID int64) ([]auth.OrgAccountInfo, error)
+	listAllAccountsFn            func(ctx context.Context) ([]auth.OrgAccountInfo, error)
+}
+
+func (m *mockAccountTenantRepo) Create(ctx context.Context, mapping *auth.AccountTenant) error {
+	if m.createFn != nil {
+		return m.createFn(ctx, mapping)
+	}
+	return nil
+}
+
+func (m *mockAccountTenantRepo) FindActiveByAccountID(ctx context.Context, accountID int64) ([]auth.AccountTenant, error) {
+	if m.findActiveByAccountIDFn != nil {
+		return m.findActiveByAccountIDFn(ctx, accountID)
+	}
+	return nil, nil
+}
+
+func (m *mockAccountTenantRepo) ExistsByAccountAndTenant(ctx context.Context, accountID, tenantID int64) (bool, error) {
+	if m.existsByAccountAndTenantFn != nil {
+		return m.existsByAccountAndTenantFn(ctx, accountID, tenantID)
+	}
+	return false, nil
+}
+
+func (m *mockAccountTenantRepo) ListAccountsByTenantID(ctx context.Context, tenantID int64) ([]auth.TenantAccountInfo, error) {
+	if m.listAccountsByTenantIDFn != nil {
+		return m.listAccountsByTenantIDFn(ctx, tenantID)
+	}
+	return nil, nil
+}
+
+func (m *mockAccountTenantRepo) ListAccountsByOrganizationID(ctx context.Context, organizationID int64) ([]auth.OrgAccountInfo, error) {
+	if m.listAccountsByOrganizationFn != nil {
+		return m.listAccountsByOrganizationFn(ctx, organizationID)
+	}
+	return nil, nil
+}
+
+func (m *mockAccountTenantRepo) ListAllAccounts(ctx context.Context) ([]auth.OrgAccountInfo, error) {
+	if m.listAllAccountsFn != nil {
+		return m.listAllAccountsFn(ctx)
+	}
 	return nil, nil
 }
 

@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { signOut } from "next-auth/react";
-import { useToast } from "~/contexts/ToastContext";
+// eslint-disable-next-line no-restricted-imports -- redirect targets root login, not tenant route
 import { useRouter } from "next/navigation";
+import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
+import { signOut } from "next-auth/react";
 import { Input } from "~/components/ui";
 import { getRoleDisplayName } from "~/lib/auth-helpers";
 import { acceptInvitation } from "~/lib/invitation-api";
@@ -65,8 +66,15 @@ export function InvitationAcceptForm({
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { success: toastSuccess } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isAccepted, setIsAccepted] = useState(false);
+  const [signOutFailed, setSignOutFailed] = useState(false);
+  const [signOutRetryFailed, setSignOutRetryFailed] = useState(false);
+  const [tenantRedirectUrl, setTenantRedirectUrl] = useState<string | null>(
+    null,
+  );
+  const errorRef = useScrollToError(error);
+  const [errorFieldName, setErrorFieldName] = useState<string | null>(null);
 
   useEffect(() => {
     setFirstName(invitation.firstName ?? "");
@@ -90,9 +98,11 @@ export function InvitationAcceptForm({
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError(null);
+    setErrorFieldName(null);
 
     if (!firstName.trim() || !lastName.trim()) {
       setError("Bitte gib Vor- und Nachname an.");
+      setErrorFieldName(!firstName.trim() ? "firstName" : "lastName");
       return;
     }
 
@@ -100,32 +110,64 @@ export function InvitationAcceptForm({
       setError(
         "Das Passwort erfüllt noch nicht alle Sicherheitsanforderungen.",
       );
+      setErrorFieldName("password");
       return;
     }
 
     if (password !== confirmPassword) {
       setError("Die Passwörter stimmen nicht überein.");
+      setErrorFieldName("confirmPassword");
       return;
     }
 
     try {
       setIsSubmitting(true);
-      await acceptInvitation(token, {
+      const result = await acceptInvitation(token, {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         password,
         confirmPassword,
       });
-      toastSuccess(
-        "Einladung erfolgreich angenommen! Du wirst zur Anmeldung weitergeleitet.",
-      );
+      // Build redirect URL before signOut (need window.location)
+      let redirectUrl: string | null = null;
+      if (result.tenantSlug && globalThis.window !== undefined) {
+        const tenantDomain = process.env.NEXT_PUBLIC_TENANT_DOMAIN;
+        if (tenantDomain) {
+          const { protocol, port: locationPort } = globalThis.window.location;
+          const port = locationPort ? `:${locationPort}` : "";
+          redirectUrl = `${protocol}//${result.tenantSlug}.${tenantDomain}${port}/`;
+        }
+      }
 
-      // Logout any existing session before redirecting to login
-      await signOut({ redirect: false });
+      // Clear any existing session before redirecting to login.
+      // If signOut fails, we must NOT auto-redirect: the tenant login
+      // page auto-redirects authenticated sessions, so the user would
+      // bounce back as the old account instead of being able to log in
+      // as the newly created one.
+      try {
+        await signOut({ redirect: false });
+      } catch (signOutError) {
+        logger.warn("sign_out_after_invite_failed", {
+          error:
+            signOutError instanceof Error
+              ? signOutError.message
+              : String(signOutError),
+        });
+        setSignOutFailed(true);
+        setTenantRedirectUrl(redirectUrl);
+        setIsAccepted(true);
+        return;
+      }
+
+      setIsAccepted(true);
 
       setTimeout(() => {
+        if (redirectUrl) {
+          globalThis.window.location.href = redirectUrl;
+          return;
+        }
         router.push("/");
-      }, 2500);
+      }, 1500);
     } catch (err) {
       // Distinguish network/offline from HTTP errors
       if (typeof navigator !== "undefined" && !navigator.onLine) {
@@ -149,10 +191,96 @@ export function InvitationAcceptForm({
     }
   };
 
+  const handleManualRedirect = async () => {
+    try {
+      await signOut({ redirect: false });
+    } catch {
+      // signOut failed again — don't redirect, the old session would
+      // cause the login page to bounce the user back as the old account.
+      setSignOutFailed(true);
+      setSignOutRetryFailed(true);
+      return;
+    }
+    // signOut succeeded this time — safe to navigate
+    if (tenantRedirectUrl) {
+      globalThis.window.location.href = tenantRedirectUrl;
+    } else {
+      router.push("/");
+    }
+  };
+
+  if (isAccepted) {
+    return (
+      <div className="flex flex-col items-center py-12">
+        <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-full bg-gray-900">
+          <svg
+            className="h-6 w-6 text-white"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2.5}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M5 13l4 4L19 7"
+            />
+          </svg>
+        </div>
+        <h3 className="mb-1 text-base font-semibold text-gray-900">
+          Konto erstellt
+        </h3>
+        {signOutRetryFailed ? (
+          <p className="mb-4 text-sm text-gray-500">
+            Die vorherige Sitzung konnte nicht beendet werden. Bitte lösche die
+            Websitedaten in deinen Browsereinstellungen oder versuche es später
+            erneut.
+          </p>
+        ) : signOutFailed ? (
+          <>
+            <p className="mb-4 text-sm text-gray-500">
+              Die vorherige Sitzung konnte nicht automatisch beendet werden.
+            </p>
+            <button
+              type="button"
+              onClick={handleManualRedirect}
+              className="rounded-xl bg-gray-900 px-6 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:bg-gray-800"
+            >
+              Zur Anmeldung
+            </button>
+          </>
+        ) : (
+          <>
+            <p className="mb-6 text-sm text-gray-500">
+              Bitte melde dich mit deinen neuen Zugangsdaten an.
+            </p>
+            <div className="h-1 w-16 overflow-hidden rounded-full bg-gray-100">
+              <div
+                className="h-full rounded-full bg-gray-900"
+                style={{
+                  animation: "progressFill 1.5s ease-in-out forwards",
+                }}
+              />
+            </div>
+            <style>{`
+              @keyframes progressFill {
+                from { width: 0%; }
+                to { width: 100%; }
+              }
+            `}</style>
+          </>
+        )}
+      </div>
+    );
+  }
+
   return (
     <form onSubmit={handleSubmit} noValidate className="space-y-6">
       {error && (
-        <div className="rounded-xl border border-red-200/50 bg-red-50/50 p-4">
+        <div
+          ref={errorRef}
+          className="rounded-xl border border-red-200/50 bg-red-50/50 p-4"
+        >
           <div className="flex items-start gap-3">
             <svg
               className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-600"
@@ -221,6 +349,7 @@ export function InvitationAcceptForm({
           disabled={isSubmitting}
           autoComplete="given-name"
           required
+          className={errorFieldName === "firstName" ? "ring-red-400" : ""}
         />
         <Input
           id="lastName"
@@ -231,13 +360,14 @@ export function InvitationAcceptForm({
           disabled={isSubmitting}
           autoComplete="family-name"
           required
+          className={errorFieldName === "lastName" ? "ring-red-400" : ""}
         />
       </div>
 
       <div>
         <label
           htmlFor="password"
-          className="mb-1 block text-sm font-medium text-gray-700"
+          className={`mb-1 block text-sm font-medium ${errorFieldName === "password" ? "text-red-600" : "text-gray-700"}`}
         >
           Passwort
         </label>
@@ -250,7 +380,7 @@ export function InvitationAcceptForm({
             onChange={(event) => setPassword(event.target.value)}
             disabled={isSubmitting}
             autoComplete="new-password"
-            className="w-full pr-10"
+            className={`w-full pr-10 ${errorFieldName === "password" ? "ring-red-400" : ""}`}
             required
           />
           <button
@@ -303,7 +433,7 @@ export function InvitationAcceptForm({
       <div>
         <label
           htmlFor="confirmPassword"
-          className="mb-1 block text-sm font-medium text-gray-700"
+          className={`mb-1 block text-sm font-medium ${errorFieldName === "confirmPassword" ? "text-red-600" : "text-gray-700"}`}
         >
           Passwort bestätigen
         </label>
@@ -316,7 +446,7 @@ export function InvitationAcceptForm({
             onChange={(event) => setConfirmPassword(event.target.value)}
             disabled={isSubmitting}
             autoComplete="new-password"
-            className="w-full pr-10"
+            className={`w-full pr-10 ${errorFieldName === "confirmPassword" ? "ring-red-400" : ""}`}
             required
           />
           <button

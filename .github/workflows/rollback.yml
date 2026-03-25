@@ -1,0 +1,144 @@
+name: Manual Rollback
+run-name: Rollback ${{ inputs.environment }} to ${{ inputs.target_sha || 'previous version' }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        type: choice
+        options:
+          - staging
+          - demo
+          - production
+      target_sha:
+        description: "Image SHA tag (7-char, e.g. abc1234). Leave empty to use previous deploy."
+        required: false
+        type: string
+      restore_db:
+        description: "Restore database from latest backup"
+        required: true
+        type: boolean
+        default: true
+
+permissions: {}
+
+env:
+  REGISTRY: ghcr.io
+  BACKEND_IMAGE: ghcr.io/moto-nrw/phoenix-server
+  FRONTEND_IMAGE: ghcr.io/moto-nrw/phoenix-frontend
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set environment config
+        id: env
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          case "$ENVIRONMENT" in
+            staging)    echo "dir=staging" >> $GITHUB_OUTPUT ;;
+            demo)       echo "dir=demo" >> $GITHUB_OUTPUT ;;
+            production) echo "dir=production" >> $GITHUB_OUTPUT ;;
+          esac
+
+      - name: Setup SSH
+        id: ssh
+        env:
+          SSH_KEY: ${{ inputs.environment == 'staging' && secrets.STAGING_SSH_KEY || inputs.environment == 'demo' && secrets.DEMO_SSH_KEY || secrets.PRODUCTION_SSH_KEY }}
+          SSH_HOST: ${{ inputs.environment == 'staging' && secrets.STAGING_HOST || inputs.environment == 'demo' && secrets.DEMO_HOST || secrets.PRODUCTION_HOST }}
+          SSH_KNOWN_HOSTS: ${{ inputs.environment == 'staging' && secrets.STAGING_SSH_KNOWN_HOSTS || inputs.environment == 'demo' && secrets.DEMO_SSH_KNOWN_HOSTS || secrets.PRODUCTION_SSH_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+          echo "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          echo "host=$SSH_HOST" >> $GITHUB_OUTPUT
+
+      - name: Determine target SHA
+        id: target
+        env:
+          INPUT_TARGET_SHA: ${{ inputs.target_sha }}
+          SSH_HOST: ${{ steps.ssh.outputs.host }}
+          DEPLOY_DIR: ${{ steps.env.outputs.dir }}
+        run: |
+          if [ -n "$INPUT_TARGET_SHA" ]; then
+            echo "sha=$INPUT_TARGET_SHA" >> $GITHUB_OUTPUT
+            echo "Using provided SHA: $INPUT_TARGET_SHA"
+          else
+            PREV=$(ssh -i ~/.ssh/deploy_key "root@${SSH_HOST}" \
+              "cat ~/${DEPLOY_DIR}/.deploy-state 2>/dev/null | grep '^PREVIOUS_SHA=' | cut -d= -f2")
+            if [ -z "$PREV" ]; then
+              echo "No .deploy-state found on server and no target_sha provided"
+              exit 1
+            fi
+            echo "sha=$PREV" >> $GITHUB_OUTPUT
+            echo "Using previous SHA from .deploy-state: $PREV"
+          fi
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Validate images exist in GHCR
+        env:
+          SHA: ${{ steps.target.outputs.sha }}
+        run: |
+          echo "Validating images for SHA: $SHA"
+          docker manifest inspect "${{ env.BACKEND_IMAGE }}:$SHA" > /dev/null 2>&1 \
+            || { echo "Backend image :$SHA not found in GHCR"; exit 1; }
+          docker manifest inspect "${{ env.FRONTEND_IMAGE }}:$SHA" > /dev/null 2>&1 \
+            || { echo "Frontend image :$SHA not found in GHCR"; exit 1; }
+          echo "Both images verified in GHCR"
+
+      - name: Rollback
+        id: rollback
+        env:
+          TARGET_SHA: ${{ steps.target.outputs.sha }}
+          DEPLOY_DIR: ${{ steps.env.outputs.dir }}
+          RESTORE_DB: ${{ inputs.restore_db }}
+          SSH_HOST: ${{ steps.ssh.outputs.host }}
+        run: |
+          scp -i ~/.ssh/deploy_key scripts/rollback-remote.sh root@$SSH_HOST:~/rollback-remote.sh
+          scp -i ~/.ssh/deploy_key scripts/restore-db.sh root@$SSH_HOST:~/restore-db.sh
+
+          set +e
+          ssh -i ~/.ssh/deploy_key "root@${SSH_HOST}" \
+            "TARGET_SHA=$TARGET_SHA DEPLOY_DIR=$DEPLOY_DIR RESTORE_DB=$RESTORE_DB bash ~/rollback-remote.sh"
+          ROLLBACK_EXIT=$?
+          set -e
+
+          echo "rollback_exit=$ROLLBACK_EXIT" >> $GITHUB_OUTPUT
+
+          if [ "$ROLLBACK_EXIT" -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: Cleanup SSH
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
+
+      - name: Notify on rollback failure
+        if: always() && steps.rollback.outputs.rollback_exit != '' && steps.rollback.outputs.rollback_exit != '0'
+        uses: ./.github/actions/notify-deploy-failure
+        with:
+          exit_code: ${{ steps.rollback.outputs.rollback_exit }}
+          environment: ${{ inputs.environment }}
+          resend_api_key: ${{ secrets.RESEND_API_KEY }}
+          notify_emails: ${{ vars.DEPLOY_NOTIFY_EMAILS }}
+          run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          sha: ${{ steps.target.outputs.sha }}
+          actor: ${{ github.actor }}
+          notification_type: rollback

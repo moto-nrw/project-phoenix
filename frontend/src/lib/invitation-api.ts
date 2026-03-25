@@ -93,10 +93,14 @@ export async function validateInvitation(
   return mapInvitationValidationResponse(data);
 }
 
+interface AcceptInvitationResult {
+  tenantSlug?: string;
+}
+
 export async function acceptInvitation(
   token: string,
   data: InvitationAcceptRequest,
-): Promise<void> {
+): Promise<AcceptInvitationResult> {
   const response = await fetch("/api/invitations/accept", {
     method: "POST",
     headers: {
@@ -111,6 +115,13 @@ export async function acceptInvitation(
       "Einladung konnte nicht angenommen werden.",
     );
   }
+
+  const raw = (await response.json()) as Record<string, unknown>;
+  const result = (raw.data ?? raw) as Record<string, unknown>;
+  return {
+    tenantSlug:
+      typeof result.tenant_slug === "string" ? result.tenant_slug : undefined,
+  };
 }
 
 export async function createInvitation(

@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/render"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -25,6 +24,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -62,8 +62,7 @@ func setupProtectedRouter(t *testing.T) (*testContext, chi.Router) {
 
 	tc := setupTestContext(t)
 
-	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
+	router := testutil.NewTenantRouter(tc.db)
 
 	// Mount routes without JWT middleware for testing
 	// We'll set context values directly in tests
@@ -116,6 +115,9 @@ func setupProtectedRouter(t *testing.T) (*testContext, chi.Router) {
 func executeWithAuth(router chi.Router, req *http.Request, claims jwt.AppClaims, perms []string) *httptest.ResponseRecorder {
 	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
 	ctx = context.WithValue(ctx, jwt.CtxPermissions, perms)
+	if claims.TenantID != 0 {
+		ctx = tenant.WithTenantID(ctx, claims.TenantID)
+	}
 	req = req.WithContext(ctx)
 
 	rr := httptest.NewRecorder()
@@ -129,8 +131,7 @@ func setupExtendedProtectedRouter(t *testing.T) (*testContext, chi.Router) {
 
 	tc := setupTestContext(t)
 
-	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
+	router := testutil.NewTenantRouter(tc.db)
 
 	router.Route("/active", func(r chi.Router) {
 		// Active Groups (same as setupProtectedRouter)
@@ -171,8 +172,6 @@ func setupExtendedProtectedRouter(t *testing.T) (*testContext, chi.Router) {
 		r.Route("/analytics", func(r chi.Router) {
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/counts", tc.resource.GetCountsHandler())
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/dashboard", tc.resource.GetDashboardAnalyticsHandler())
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/rooms/{roomId}/utilization", tc.resource.GetRoomUtilizationHandler())
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/students/{studentId}/attendance", tc.resource.GetStudentAttendanceHandler())
 		})
 
 		// Combined Groups
@@ -1016,60 +1015,6 @@ func TestEndSupervision(t *testing.T) {
 }
 
 // ============================================================================
-// EXTENDED ANALYTICS TESTS
-// ============================================================================
-
-func TestGetRoomUtilization(t *testing.T) {
-	tc, router := setupExtendedProtectedRouter(t)
-
-	adminClaims := testutil.AdminTestClaims(1)
-
-	t.Run("success with valid room id", func(t *testing.T) {
-		room := testpkg.CreateTestRoom(t, tc.db, fmt.Sprintf("Utilization Room %d", time.Now().UnixNano()))
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID)
-
-		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/analytics/rooms/%d/utilization", room.ID), nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{permissions.GroupsRead})
-
-		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
-	})
-
-	t.Run("not found with invalid room id", func(t *testing.T) {
-		req := testutil.NewJSONRequest(t, "GET", "/active/analytics/rooms/99999/utilization", nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{permissions.GroupsRead})
-
-		// May return 404, 200 with empty data, or 500 if service returns database error
-		assert.True(t, rr.Code == http.StatusOK || rr.Code == http.StatusNotFound || rr.Code == http.StatusInternalServerError,
-			"Expected 200, 404, or 500, got %d: %s", rr.Code, rr.Body.String())
-	})
-}
-
-func TestGetStudentAttendance(t *testing.T) {
-	tc, router := setupExtendedProtectedRouter(t)
-
-	adminClaims := testutil.AdminTestClaims(1)
-
-	t.Run("success with valid student id", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, tc.db, "Attendance", "Student", "4d")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
-
-		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/analytics/students/%d/attendance", student.ID), nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{permissions.GroupsRead})
-
-		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
-	})
-
-	t.Run("not found with invalid student id", func(t *testing.T) {
-		req := testutil.NewJSONRequest(t, "GET", "/active/analytics/students/99999/attendance", nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{permissions.GroupsRead})
-
-		// May return 404 or 200 with empty data
-		assert.True(t, rr.Code == http.StatusOK || rr.Code == http.StatusNotFound,
-			"Expected 200 or 404, got %d: %s", rr.Code, rr.Body.String())
-	})
-}
-
-// ============================================================================
 // COMBINED GROUP TESTS
 // ============================================================================
 
@@ -1845,51 +1790,6 @@ func TestUpdateCombinedGroupValidation(t *testing.T) {
 }
 
 // =============================================================================
-// ROOM UTILIZATION TESTS - Additional
-// =============================================================================
-
-func TestGetRoomUtilizationAdditional(t *testing.T) {
-	tc, router := setupExtendedProtectedRouter(t)
-	adminClaims := testutil.AdminTestClaims(1)
-
-	room := testpkg.CreateTestRoom(t, tc.db, fmt.Sprintf("UtilAdd Room %d", time.Now().UnixNano()))
-	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID)
-
-	t.Run("with valid room_id path param", func(t *testing.T) {
-		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/analytics/rooms/%d/utilization", room.ID), nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{permissions.GroupsRead})
-
-		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
-	})
-}
-
-// =============================================================================
-// STUDENT ATTENDANCE TESTS - Additional
-// =============================================================================
-
-func TestGetStudentAttendanceAdditional(t *testing.T) {
-	tc, router := setupExtendedProtectedRouter(t)
-	adminClaims := testutil.AdminTestClaims(1)
-
-	student := testpkg.CreateTestStudent(t, tc.db, fmt.Sprintf("AttAdd %d", time.Now().UnixNano()), "Test", "2a")
-
-	t.Run("with valid student_id path param", func(t *testing.T) {
-		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/analytics/students/%d/attendance", student.ID), nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{permissions.GroupsRead})
-
-		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
-	})
-
-	t.Run("with non-existent student_id", func(t *testing.T) {
-		req := testutil.NewJSONRequest(t, "GET", "/active/analytics/students/999999/attendance", nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{permissions.GroupsRead})
-
-		// May return 200 with empty data or 404
-		t.Logf("Response: %d - %s", rr.Code, rr.Body.String())
-	})
-}
-
-// =============================================================================
 // GROUP VISITS AND SUPERVISORS TESTS (0% coverage functions)
 // =============================================================================
 
@@ -2051,8 +1951,7 @@ func setupCheckoutRouter(t *testing.T) (*testContext, chi.Router) {
 
 	tc := setupTestContext(t)
 
-	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
+	router := testutil.NewTenantRouter(tc.db)
 
 	router.Route("/active", func(r chi.Router) {
 		r.Route("/visits", func(r chi.Router) {
@@ -2179,6 +2078,7 @@ func TestCheckoutStudent_AuthorizedAsRoomSupervisor(t *testing.T) {
 
 	supervisorClaims := jwt.AppClaims{
 		ID:          int(supervisorAccount.ID),
+		TenantID:    1,
 		Sub:         "supervisor@example.com",
 		Permissions: []string{permissions.VisitsUpdate},
 	}
@@ -2224,6 +2124,7 @@ func TestCheckoutStudent_AuthorizedAsGroupTeacher(t *testing.T) {
 
 	teacherClaims := jwt.AppClaims{
 		ID:          int(teacherAccount.ID),
+		TenantID:    1,
 		Sub:         "teacher@example.com",
 		Permissions: []string{permissions.VisitsUpdate},
 	}
@@ -2261,6 +2162,7 @@ func TestCheckoutStudent_AnyStaffCanCheckout(t *testing.T) {
 
 	staffClaims := jwt.AppClaims{
 		ID:          int(staffAccount.ID),
+		TenantID:    1,
 		Sub:         "unrelated@example.com",
 		Permissions: []string{permissions.VisitsUpdate},
 	}
@@ -2285,8 +2187,7 @@ func setupFullCoverageRouter(t *testing.T) (*testContext, chi.Router) {
 
 	tc := setupTestContext(t)
 
-	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
+	router := testutil.NewTenantRouter(tc.db)
 
 	router.Route("/active", func(r chi.Router) {
 		// Groups with full routes
@@ -2369,6 +2270,7 @@ func TestClaimGroup(t *testing.T) {
 
 	staffClaims := jwt.AppClaims{
 		ID:          int(staffAccount.ID),
+		TenantID:    1,
 		Sub:         "claim@example.com",
 		Permissions: []string{permissions.GroupsUpdate},
 	}
@@ -2423,6 +2325,7 @@ func TestGetActiveGroupVisitsWithDisplay(t *testing.T) {
 
 	staffClaims := jwt.AppClaims{
 		ID:          int(staffAccount.ID),
+		TenantID:    1,
 		Sub:         "display@example.com",
 		Permissions: []string{permissions.GroupsRead},
 	}

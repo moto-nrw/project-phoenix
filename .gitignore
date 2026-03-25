@@ -380,6 +380,8 @@ cython_debug/
 # Environment files
 **/*.env
 !**/.env.example
+# SOPS-encrypted environment files (committed to repo, values are encrypted)
+!environments/*.sops.env
 
 # Specific environment files
 **/dev.env
@@ -403,6 +405,8 @@ ci-cd-best-practices-guide.md
 
 # Claude AI specific files
 *.local.md
+.claude/worktrees
+.claude/scheduled_tasks.lock
 
 # Server logs and runtime files
 backend/*.log
@@ -455,6 +459,7 @@ docker-compose.sonar.yml
 .cursor/*
 
 backend/simulator/iot/simulator.yaml
+backend/.seed-state.json
 .cache_ggshield
 gitleaks-report.json
 

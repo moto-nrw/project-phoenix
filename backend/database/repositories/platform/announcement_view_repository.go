@@ -6,6 +6,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/uptrace/bun"
@@ -36,7 +37,7 @@ func (r *AnnouncementViewRepository) MarkSeen(ctx context.Context, userID, annou
 		Dismissed:      false,
 	}
 
-	_, err := r.db.NewInsert().
+	_, err := base.GetDB(ctx, r.db).NewInsert().
 		Model(view).
 		ModelTableExpr(tablePlatformAnnouncementViews).
 		On("CONFLICT (user_id, announcement_id) DO UPDATE").
@@ -62,7 +63,7 @@ func (r *AnnouncementViewRepository) MarkDismissed(ctx context.Context, userID, 
 		Dismissed:      true,
 	}
 
-	_, err := r.db.NewInsert().
+	_, err := base.GetDB(ctx, r.db).NewInsert().
 		Model(view).
 		ModelTableExpr(tablePlatformAnnouncementViews).
 		On("CONFLICT (user_id, announcement_id) DO UPDATE").
@@ -87,7 +88,7 @@ func (r *AnnouncementViewRepository) GetUnreadForUser(ctx context.Context, userI
 
 	// Use raw SQL for complex query with aliases to avoid BUN's quote escaping issues
 	// target_roles = '{}' means all roles can see it, otherwise check overlap with user's roles
-	err := r.db.NewRaw(`
+	err := base.GetDB(ctx, r.db).NewRaw(`
 		SELECT a.*
 		FROM platform.announcements a
 		LEFT JOIN platform.announcement_views v
@@ -100,7 +101,7 @@ func (r *AnnouncementViewRepository) GetUnreadForUser(ctx context.Context, userI
 			AND (a.target_roles = '{}' OR EXISTS (
 				SELECT 1 FROM unnest(a.target_roles) AS r WHERE r IN (?)))
 		ORDER BY a.published_at DESC
-	`, userID, now, now, bun.In(userRoles)).Scan(ctx, &announcements)
+	`, userID, now, now, bun.List(userRoles)).Scan(ctx, &announcements)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -117,7 +118,7 @@ func (r *AnnouncementViewRepository) CountUnread(ctx context.Context, userID int
 	now := time.Now()
 
 	var count int
-	err := r.db.NewRaw(`
+	err := base.GetDB(ctx, r.db).NewRaw(`
 		SELECT COUNT(*)
 		FROM platform.announcements a
 		LEFT JOIN platform.announcement_views v
@@ -129,7 +130,7 @@ func (r *AnnouncementViewRepository) CountUnread(ctx context.Context, userID int
 			AND v.seen_at IS NULL
 			AND (a.target_roles = '{}' OR EXISTS (
 				SELECT 1 FROM unnest(a.target_roles) AS r WHERE r IN (?)))
-	`, userID, now, now, bun.In(userRoles)).Scan(ctx, &count)
+	`, userID, now, now, bun.List(userRoles)).Scan(ctx, &count)
 
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
@@ -149,7 +150,7 @@ func (r *AnnouncementViewRepository) GetStats(ctx context.Context, announcementI
 
 	// Get the target_roles for this announcement
 	var targetRoles []string
-	err := r.db.NewRaw(`
+	err := base.GetDB(ctx, r.db).NewRaw(`
 		SELECT COALESCE(target_roles, '{}') FROM platform.announcements WHERE id = ?
 	`, announcementID).Scan(ctx, &targetRoles)
 	if err != nil {
@@ -162,20 +163,20 @@ func (r *AnnouncementViewRepository) GetStats(ctx context.Context, announcementI
 	// Count target users (users with matching roles)
 	if len(targetRoles) == 0 {
 		// All users can see it - count all accounts with roles
-		err = r.db.NewRaw(`
+		err = base.GetDB(ctx, r.db).NewRaw(`
 			SELECT COUNT(DISTINCT acc.id)
 			FROM auth.accounts acc
 			WHERE acc.id IS NOT NULL
 		`).Scan(ctx, &stats.TargetCount)
 	} else {
 		// Only users with matching roles
-		err = r.db.NewRaw(`
+		err = base.GetDB(ctx, r.db).NewRaw(`
 			SELECT COUNT(DISTINCT acc.id)
 			FROM auth.accounts acc
 			JOIN auth.account_roles ar ON ar.account_id = acc.id
 			JOIN auth.roles r ON r.id = ar.role_id
 			WHERE r.name IN (?)
-		`, bun.In(targetRoles)).Scan(ctx, &stats.TargetCount)
+		`, bun.List(targetRoles)).Scan(ctx, &stats.TargetCount)
 	}
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -185,7 +186,7 @@ func (r *AnnouncementViewRepository) GetStats(ctx context.Context, announcementI
 	}
 
 	// Count seen and dismissed
-	err = r.db.NewRaw(`
+	err = base.GetDB(ctx, r.db).NewRaw(`
 		SELECT
 			COALESCE(SUM(CASE WHEN seen_at IS NOT NULL THEN 1 ELSE 0 END), 0) as seen_count,
 			COALESCE(SUM(CASE WHEN dismissed = true THEN 1 ELSE 0 END), 0) as dismissed_count
@@ -206,7 +207,7 @@ func (r *AnnouncementViewRepository) GetStats(ctx context.Context, announcementI
 // HasSeen checks if a user has seen a specific announcement
 func (r *AnnouncementViewRepository) HasSeen(ctx context.Context, userID, announcementID int64) (bool, error) {
 	view := new(platform.AnnouncementView)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(view).
 		ModelTableExpr(tablePlatformAnnouncementViewsAlias).
 		Where(`"view".user_id = ?`, userID).
@@ -230,22 +231,27 @@ func (r *AnnouncementViewRepository) HasSeen(ctx context.Context, userID, announ
 func (r *AnnouncementViewRepository) GetViewDetails(ctx context.Context, announcementID int64) ([]*platform.AnnouncementViewDetail, error) {
 	var details []*platform.AnnouncementViewDetail
 
-	// Join with auth.accounts and users.persons to get user names
-	// Persons are linked directly to accounts via person.account_id
-	err := r.db.NewRaw(`
-		SELECT
-			v.user_id,
-			COALESCE(
-				CONCAT(p.first_name, ' ', p.last_name),
-				acc.email
-			) as user_name,
-			v.seen_at,
-			v.dismissed
-		FROM platform.announcement_views v
-		JOIN auth.accounts acc ON acc.id = v.user_id
-		LEFT JOIN users.persons p ON p.account_id = acc.id
-		WHERE v.announcement_id = ?
-		ORDER BY v.seen_at DESC
+	// Join with auth.accounts and users.persons to get user names.
+	// Use DISTINCT ON to avoid duplicate rows when an account has multiple persons
+	// (e.g. staff assigned to multiple tenants). Pick the most recently updated person.
+	err := base.GetDB(ctx, r.db).NewRaw(`
+		SELECT user_id, user_name, seen_at, dismissed
+		FROM (
+			SELECT DISTINCT ON (v.user_id)
+				v.user_id,
+				COALESCE(
+					NULLIF(CONCAT(p.first_name, ' ', p.last_name), ' '),
+					acc.email
+				) as user_name,
+				v.seen_at,
+				v.dismissed
+			FROM platform.announcement_views v
+			JOIN auth.accounts acc ON acc.id = v.user_id
+			LEFT JOIN users.persons p ON p.account_id = acc.id
+			WHERE v.announcement_id = ?
+			ORDER BY v.user_id, p.updated_at DESC NULLS LAST
+		) sub
+		ORDER BY seen_at DESC
 	`, announcementID).Scan(ctx, &details)
 
 	if err != nil {

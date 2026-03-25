@@ -1,0 +1,172 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { signIn, signOut, useSession } from "next-auth/react";
+import { mutate } from "~/lib/swr";
+import { clearSessionCache } from "~/lib/session-cache";
+import { TenantSwitchError, performTenantSwitch } from "~/lib/tenant-api";
+import { useTenant } from "~/components/tenant/tenant-provider";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "TenantGuard" });
+
+/**
+ * Client component that detects when the session's tenant differs from the
+ * URL tenant and auto-switches the session to match the URL.
+ *
+ * Two-tab scenario:
+ * 1. Tab A (school-a): session=school-a → no mismatch → renders normally
+ * 2. Tab B (school-b): session=school-a, URL=school-b → mismatch → auto-switch
+ * 3. Return to Tab A: SessionProvider refetches, session=school-b, URL=school-a → auto-switch back
+ *
+ * Operator isolation:
+ * If a platform-scoped (operator) session leaks to a tenant subdomain via
+ * shared cookies, the guard signs out immediately and redirects to the tenant
+ * login page. This prevents operator sessions from accessing tenant-scoped UI.
+ *
+ * RLS provides defense-in-depth during any brief mismatch window.
+ */
+export function TenantGuard({ children }: { children: React.ReactNode }) {
+  const { data: session, status, update } = useSession();
+  const { tenant } = useTenant();
+  const switchAttempted = useRef(false);
+  const [signingOutOperator, setSigningOutOperator] = useState(false);
+
+  const sessionTenantId = session?.user?.tenantId;
+  const sessionScope = session?.user?.scope;
+  const urlTenantId = tenant?.tenantId;
+  const urlSlug = tenant?.slug;
+
+  // Operator session on tenant subdomain — sign out immediately
+  useEffect(() => {
+    if (status !== "authenticated" || !tenant) return;
+    if (sessionScope !== "platform") return;
+
+    logger.warn("operator_session_on_tenant", {
+      url_slug: urlSlug,
+      scope: sessionScope,
+    });
+
+    setSigningOutOperator(true);
+
+    void (async () => {
+      try {
+        await mutate(() => true, undefined, { revalidate: false });
+        clearSessionCache();
+      } catch (err) {
+        logger.warn("operator_signout_cache_clear_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+
+      try {
+        await signOut({ redirect: false });
+      } catch (err) {
+        logger.warn("operator_signout_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      } finally {
+        window.location.assign("/");
+      }
+    })();
+  }, [status, tenant, sessionScope, urlSlug]);
+
+  useEffect(() => {
+    // Only check when authenticated and tenant context is resolved
+    if (status !== "authenticated" || !tenant) return;
+
+    // Operator sessions are handled by the effect above
+    if (sessionScope === "platform") return;
+
+    // Skip when session has no tenantId
+    if (sessionTenantId === undefined) return;
+
+    // No mismatch — reset guard for future switches
+    if (sessionTenantId === urlTenantId) {
+      switchAttempted.current = false;
+      return;
+    }
+
+    // Mismatch detected — auto-switch (but only once per mismatch)
+    if (switchAttempted.current) return;
+    switchAttempted.current = true;
+
+    logger.info("tenant_mismatch_detected", {
+      session_tenant_id: sessionTenantId,
+      url_tenant_id: urlTenantId,
+      url_slug: urlSlug,
+    });
+
+    void (async () => {
+      try {
+        await performTenantSwitch(urlSlug!, signIn, mutate);
+
+        // Refetch session to trigger re-render with new tenant
+        await update();
+
+        logger.info("tenant_auto_switched", {
+          from_tenant_id: sessionTenantId,
+          to_slug: urlSlug,
+        });
+      } catch (err) {
+        logger.error("tenant_auto_switch_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          target_slug: urlSlug,
+        });
+
+        if (err instanceof TenantSwitchError && err.code === "access_denied") {
+          await signOut({ callbackUrl: "/" });
+        }
+      }
+    })();
+  }, [
+    status,
+    tenant,
+    sessionScope,
+    sessionTenantId,
+    urlTenantId,
+    urlSlug,
+    update,
+  ]);
+
+  // While session is loading, render children transparently.
+  // Individual pages handle their own loading states (e.g. login form
+  // uses opacity fade). Blocking here causes visible flicker on every
+  // page load because the guard's placeholder has a different layout
+  // than the page content that replaces it.
+  if (status === "loading") {
+    return <>{children}</>;
+  }
+
+  // Block render for operator sessions — covers both before effect fires
+  // and during sign-out (signingOutOperator state)
+  const isOperatorOnTenant =
+    signingOutOperator ||
+    (status === "authenticated" && sessionScope === "platform" && !!tenant);
+
+  if (isOperatorOnTenant) {
+    return (
+      <div className="flex min-h-[200px] items-center justify-center">
+        <div className="text-sm text-gray-500">
+          Operator-Sitzung wird beendet...
+        </div>
+      </div>
+    );
+  }
+
+  // Show switching state during mismatch auto-switch
+  if (
+    status === "authenticated" &&
+    tenant &&
+    sessionTenantId !== undefined &&
+    sessionTenantId !== urlTenantId
+  ) {
+    return (
+      <div className="flex min-h-[200px] items-center justify-center">
+        <div className="text-sm text-gray-500">Mandant wird gewechselt...</div>
+      </div>
+    );
+  }
+
+  return <>{children}</>;
+}

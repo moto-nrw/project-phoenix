@@ -125,14 +125,15 @@ describe("parseRequestBody", () => {
     expect(result).toEqual({});
   });
 
-  it("returns empty object for invalid JSON", async () => {
+  it("throws on invalid JSON", async () => {
     const request = new NextRequest("http://localhost:3000/api/test", {
       method: "POST",
       body: "invalid json{",
       headers: { "Content-Type": "application/json" },
     });
-    const result = await parseRequestBody<Record<string, unknown>>(request);
-    expect(result).toEqual({});
+    await expect(
+      parseRequestBody<Record<string, unknown>>(request),
+    ).rejects.toThrow();
   });
 
   it("handles nested objects", async () => {

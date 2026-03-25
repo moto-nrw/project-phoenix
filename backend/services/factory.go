@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/policies"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	"github.com/moto-nrw/project-phoenix/email"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -65,9 +66,10 @@ type Factory struct {
 	PasswordResetTokenExpiry time.Duration
 
 	// Platform domain (operator dashboard)
-	OperatorAuth        platform.OperatorAuthService
-	Announcement        platform.AnnouncementService
-	OperatorSuggestions platform.OperatorSuggestionsService
+	OperatorAuth         platform.OperatorAuthService
+	OperatorProvisioning platform.OperatorProvisioningService
+	Announcement         platform.AnnouncementService
+	OperatorSuggestions  platform.OperatorSuggestionsService
 }
 
 // NewFactory creates a new services factory
@@ -136,6 +138,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.Room,
 		repos.Teacher,
 		repos.Staff,
+		repos.Student,
 		db,
 	)
 
@@ -149,14 +152,15 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 
 	// Initialize users service first (needed for active service)
 	usersService := users.NewPersonService(users.PersonServiceDependencies{
-		PersonRepo:         repos.Person,
-		RFIDRepo:           repos.RFIDCard,
-		AccountRepo:        repos.Account,
-		PersonGuardianRepo: repos.PersonGuardian,
-		StudentRepo:        repos.Student,
-		StaffRepo:          repos.Staff,
-		TeacherRepo:        repos.Teacher,
-		DB:                 db,
+		PersonRepo:          repos.Person,
+		RFIDRepo:            repos.RFIDCard,
+		AccountRepo:         repos.Account,
+		PersonGuardianRepo:  repos.PersonGuardian,
+		StudentRepo:         repos.Student,
+		StaffRepo:           repos.Staff,
+		TeacherRepo:         repos.Teacher,
+		GroupSupervisorRepo: repos.GroupSupervisor,
+		DB:                  db,
 	})
 
 	// Initialize guardian service
@@ -190,6 +194,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		CombinedGroupRepo:  repos.CombinedGroup,
 		GroupMappingRepo:   repos.GroupMapping,
 		AttendanceRepo:     repos.Attendance,
+		CrossTenantRepo:    activeRepo.NewCrossTenantRepository(db),
 		StudentRepo:        repos.Student,
 		PersonRepo:         repos.Person,
 		TeacherRepo:        repos.Teacher,
@@ -214,13 +219,19 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	)
 
 	// Initialize suggestions service
-	suggestionsService := suggestions.NewService(
-		repos.SuggestionPost,
-		repos.SuggestionVote,
-		repos.SuggestionComment,
-		repos.SuggestionCommentRead,
-		db,
-	)
+	suggestionsNotifyEmail := viper.GetString("suggestion_notify_email")
+	suggestionsService := suggestions.NewService(suggestions.ServiceConfig{
+		PostRepo:        repos.SuggestionPost,
+		VoteRepo:        repos.SuggestionVote,
+		CommentRepo:     repos.SuggestionComment,
+		CommentReadRepo: repos.SuggestionCommentRead,
+		DB:              db,
+		Dispatcher:      dispatcher,
+		DefaultFrom:     defaultFrom,
+		NotifyEmail:     suggestionsNotifyEmail,
+		FrontendURL:     frontendURL,
+		Logger:          logger.With("service", "suggestions"),
+	})
 
 	// Initialize IoT service
 	iotService := iot.NewService(
@@ -296,20 +307,22 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	}
 
 	invitationService := auth.NewInvitationService(auth.InvitationServiceConfig{
-		InvitationRepo:   repos.InvitationToken,
-		AccountRepo:      repos.Account,
-		RoleRepo:         repos.Role,
-		AccountRoleRepo:  repos.AccountRole,
-		PersonRepo:       repos.Person,
-		StaffRepo:        repos.Staff,
-		TeacherRepo:      repos.Teacher,
-		Mailer:           mailer,
-		Dispatcher:       dispatcher,
-		FrontendURL:      frontendURL,
-		DefaultFrom:      defaultFrom,
-		InvitationExpiry: invitationTokenExpiry,
-		DB:               db,
-		Logger:           authLogger,
+		InvitationRepo:    repos.InvitationToken,
+		AccountRepo:       repos.Account,
+		AccountTenantRepo: repos.AccountTenant,
+		RoleRepo:          repos.Role,
+		AccountRoleRepo:   repos.AccountRole,
+		PersonRepo:        repos.Person,
+		StaffRepo:         repos.Staff,
+		TeacherRepo:       repos.Teacher,
+		SchoolRepo:        repos.School,
+		Mailer:            mailer,
+		Dispatcher:        dispatcher,
+		FrontendURL:       frontendURL,
+		DefaultFrom:       defaultFrom,
+		InvitationExpiry:  invitationTokenExpiry,
+		DB:                db,
+		Logger:            authLogger,
 	})
 
 	// Initialize authorization
@@ -363,13 +376,14 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	relationshipResolver := importService.NewRelationshipResolver(repos.Group, repos.Room)
 	studentImportConfig := importService.NewStudentImportConfig(
 		importService.StudentImportDeps{
-			PersonRepo:        repos.Person,
-			StudentRepo:       repos.Student,
-			GuardianRepo:      repos.GuardianProfile,
-			GuardianPhoneRepo: repos.GuardianPhoneNumber,
-			RelationRepo:      repos.StudentGuardian,
-			PrivacyRepo:       repos.PrivacyConsent,
-			Resolver:          relationshipResolver,
+			PersonRepo:         repos.Person,
+			StudentRepo:        repos.Student,
+			GuardianRepo:       repos.GuardianProfile,
+			GuardianPhoneRepo:  repos.GuardianPhoneNumber,
+			RelationRepo:       repos.StudentGuardian,
+			PrivacyRepo:        repos.PrivacyConsent,
+			PickupScheduleRepo: repos.StudentPickupSchedule,
+			Resolver:           relationshipResolver,
 		},
 		db,
 	)
@@ -404,6 +418,23 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:          platformLogger,
 	})
 
+	operatorProvisioningService := platform.NewOperatorProvisioningService(platform.OperatorProvisioningServiceConfig{
+		OrganizationRepo:  repos.Organization,
+		SchoolRepo:        repos.School,
+		CategoryRepo:      repos.ActivityCategory,
+		DeviceRepo:        repos.Device,
+		RoleRepo:          repos.Role,
+		AccountTenantRepo: repos.AccountTenant,
+		PersonRepo:        repos.Person,
+		StaffRepo:         repos.Staff,
+		TeacherRepo:       repos.Teacher,
+		InvitationService: invitationService,
+		AuthService:       authService,
+		AuditLogRepo:      repos.OperatorAuditLog,
+		DB:                db,
+		Logger:            platformLogger,
+	})
+
 	return &Factory{
 		Auth:                     authService,
 		Active:                   activeService,
@@ -435,8 +466,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		PasswordResetTokenExpiry: passwordResetTokenExpiry,
 
 		// Platform services
-		OperatorAuth:        operatorAuthService,
-		Announcement:        announcementService,
-		OperatorSuggestions: operatorSuggestionsService,
+		OperatorAuth:         operatorAuthService,
+		OperatorProvisioning: operatorProvisioningService,
+		Announcement:         announcementService,
+		OperatorSuggestions:  operatorSuggestionsService,
 	}, nil
 }

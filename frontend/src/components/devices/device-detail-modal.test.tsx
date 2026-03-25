@@ -61,8 +61,8 @@ vi.mock("@/lib/iot-helpers", async () => {
     },
     getDeviceTypeDisplayName: (type: string) => {
       const map: Record<string, string> = {
-        rfid_reader: "RFID-Lesegerät",
-        sensor: "Sensor",
+        terminal: "Terminal",
+        info_point: "Info-Point",
       };
       return map[type] ?? type;
     },
@@ -82,7 +82,7 @@ describe("DeviceDetailModal", () => {
     id: "1",
     device_id: "DEV001",
     name: "Test Device",
-    device_type: "rfid_reader",
+    device_type: "terminal",
     status: "active",
     is_online: true,
     last_seen: "2024-01-01T12:00:00Z",
@@ -145,7 +145,7 @@ describe("DeviceDetailModal", () => {
     await waitFor(() => {
       expect(screen.getByTestId("modal")).toBeInTheDocument();
       expect(screen.getByText("Test Device")).toBeInTheDocument();
-      expect(screen.getByText("RFID-Lesegerät")).toBeInTheDocument();
+      expect(screen.getByText("Terminal")).toBeInTheDocument();
       expect(screen.getByText("DEV001")).toBeInTheDocument();
       expect(screen.getByText("Aktiv")).toBeInTheDocument();
       expect(screen.getAllByText("Online").length).toBeGreaterThan(0);

@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import {
   SupervisionProvider,
   useSupervision,
+  useOptionalSupervision,
   useHasGroups,
   useIsSupervising,
 } from "./supervision-context";
@@ -1449,6 +1450,45 @@ describe("SupervisionProvider uncovered condition coverage", () => {
     expect(result.current.supervisedRoomName).toBeUndefined();
   });
 
+  it("should handle non-OK supervised response with no Schulhof (all cleared)", async () => {
+    mockFetch.mockImplementation((url: string) => {
+      if (url.includes("/api/groups/context")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ groups: [] }),
+        });
+      }
+      if (url.includes("/api/me/groups/supervised")) {
+        return Promise.resolve({
+          ok: false,
+          status: 500,
+          json: async () => ({}),
+        });
+      }
+      if (url.includes("/api/active/schulhof/status")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ data: { data: { exists: false } } }),
+        });
+      }
+      return Promise.resolve({ ok: true, json: async () => ({}) });
+    });
+
+    const { result } = renderHook(() => useSupervision(), {
+      wrapper: createWrapper("test-token"),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoadingSupervision).toBe(false);
+    });
+
+    // No Schulhof, non-OK supervised response → not supervising
+    expect(result.current.isSupervising).toBe(false);
+    expect(result.current.supervisedRooms).toHaveLength(0);
+    expect(result.current.supervisedRoomId).toBeUndefined();
+    expect(result.current.supervisedRoomName).toBeUndefined();
+  });
+
   it("should handle Schulhof response that is not OK (null schulhofResponse)", async () => {
     mockFetch.mockImplementation((url: string) => {
       if (url.includes("/api/groups/context")) {
@@ -1502,5 +1542,82 @@ describe("SupervisionProvider uncovered condition coverage", () => {
     // But regular supervision should still work
     expect(result.current.isSupervising).toBe(true);
     expect(result.current.supervisedRoomId).toBe("5");
+  });
+});
+
+describe("SupervisionProvider periodic interval setup", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("should cleanup interval on unmount", async () => {
+    const clearIntervalSpy = vi.spyOn(global, "clearInterval");
+    setupFetchMock();
+
+    const { unmount } = renderHook(() => useSupervision(), {
+      wrapper: createWrapper("test-token"),
+    });
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalled();
+    });
+
+    unmount();
+
+    // clearInterval should have been called during cleanup
+    expect(clearIntervalSpy).toHaveBeenCalled();
+    clearIntervalSpy.mockRestore();
+  });
+});
+
+describe("useOptionalSupervision", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("should return safe defaults when used outside SupervisionProvider", () => {
+    const { result } = renderHook(() => useOptionalSupervision());
+
+    expect(result.current.hasGroups).toBe(false);
+    expect(result.current.isLoadingGroups).toBe(false);
+    expect(result.current.groups).toEqual([]);
+    expect(result.current.isSupervising).toBe(false);
+    expect(result.current.supervisedRooms).toEqual([]);
+    expect(result.current.isLoadingSupervision).toBe(false);
+    expect(result.current.refresh).toBeInstanceOf(Function);
+  });
+
+  it("should have a no-op refresh that resolves without error", async () => {
+    const { result } = renderHook(() => useOptionalSupervision());
+
+    // refresh should be callable and resolve without throwing
+    await expect(result.current.refresh()).resolves.toBeUndefined();
+  });
+
+  it("should return actual context when used inside SupervisionProvider", async () => {
+    setupFetchMock({
+      groups: { groups: [{ id: 1, name: "Group A" }] },
+    });
+
+    const { result } = renderHook(() => useOptionalSupervision(), {
+      wrapper: createWrapper("test-token"),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoadingGroups).toBe(false);
+    });
+
+    // Should have the real context values, not the defaults
+    expect(result.current.hasGroups).toBe(true);
+    expect(result.current.groups).toHaveLength(1);
+    expect(result.current.groups[0]?.name).toBe("Group A");
   });
 });

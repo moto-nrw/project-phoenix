@@ -196,6 +196,31 @@ describe("LogoutModal", () => {
     expect(confettiContainer).toBeTruthy();
   });
 
+  it("clears deliberateLogout flag on signOut failure", async () => {
+    const consoleErrorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation((_msg: unknown, ..._args: unknown[]) => {
+        // suppress console.error in tests
+      });
+    // Pre-set the flag (logout() sets it before calling signOut)
+    sessionStorage.setItem("deliberateLogout", "1");
+    mockLogout.mockRejectedValue(new Error("Sign out failed"));
+
+    render(<LogoutModal isOpen={true} onClose={mockOnClose} />);
+
+    const logoutButton = screen.getByRole("button", { name: /Abmelden/i });
+    fireEvent.click(logoutButton);
+
+    await act(async () => {
+      await vi.runAllTimersAsync();
+    });
+
+    // Flag should be cleared so a genuine session expiry still shows the banner
+    expect(sessionStorage.getItem("deliberateLogout")).toBeNull();
+
+    consoleErrorSpy.mockRestore();
+  });
+
   it("handles signOut errors gracefully", async () => {
     const consoleErrorSpy = vi
       .spyOn(console, "error")

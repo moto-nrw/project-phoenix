@@ -7,7 +7,7 @@ DO $$
 DECLARE
     -- String constants (eliminates S1192 duplicate literal violations)
     v_policy_version CONSTANT TEXT := '1.0';
-    v_device_type CONSTANT TEXT := 'rfid_reader';
+    v_device_type CONSTANT TEXT := 'terminal';
     v_device_status CONSTANT public.device_status := 'active'::public.device_status;
     v_building_a CONSTANT TEXT := 'Building A';
 

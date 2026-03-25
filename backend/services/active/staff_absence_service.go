@@ -7,6 +7,7 @@ import (
 	"time"
 
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // dateFormatISO is the standard date format for parsing and formatting
@@ -200,6 +201,7 @@ func (s *staffAbsenceService) createNewAbsence(
 	absence.CreatedAt = now
 	absence.UpdatedAt = now
 
+	absence.SetTenantID(tenant.FromContext(ctx))
 	if err := s.absenceRepo.Create(ctx, absence); err != nil {
 		return nil, fmt.Errorf("failed to create absence: %w", err)
 	}

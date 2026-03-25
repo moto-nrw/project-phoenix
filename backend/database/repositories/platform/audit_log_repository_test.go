@@ -19,7 +19,7 @@ func TestOperatorAuditLogRepository_Create(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := platform.NewOperatorAuditLogRepository(db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	operator := createTestOperator(t, db, "audit@example.com", "Audit Operator")
 	defer cleanupTestOperator(t, db, operator.ID)
@@ -57,7 +57,7 @@ func TestOperatorAuditLogRepository_Create(t *testing.T) {
 func cleanupTestAuditLog(t *testing.T, db *bun.DB, logID int64) {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
 	defer cancel()
 
 	_, err := db.NewDelete().

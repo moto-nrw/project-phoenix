@@ -24,6 +24,8 @@ import (
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 // GroupStudentResponse represents a student in a group response
@@ -52,10 +54,11 @@ type Resource struct {
 	StudentRepo        users.StudentRepository
 	StaffRepo          users.StaffRepository
 	SubstitutionRepo   education.GroupSubstitutionRepository
+	db                 *bun.DB
 }
 
 // NewResource creates a new groups resource
-func NewResource(educationService educationSvc.Service, activeService activeService.Service, userService userService.PersonService, userContextService userContextService.UserContextService, studentRepo users.StudentRepository, substitutionRepo education.GroupSubstitutionRepository) *Resource {
+func NewResource(educationService educationSvc.Service, activeService activeService.Service, userService userService.PersonService, userContextService userContextService.UserContextService, studentRepo users.StudentRepository, substitutionRepo education.GroupSubstitutionRepository, db *bun.DB) *Resource {
 	return &Resource{
 		EducationService:   educationService,
 		ActiveService:      activeService,
@@ -64,6 +67,7 @@ func NewResource(educationService educationSvc.Service, activeService activeServ
 		StudentRepo:        studentRepo,
 		StaffRepo:          userService.StaffRepository(),
 		SubstitutionRepo:   substitutionRepo,
+		db:                 db,
 	}
 }
 
@@ -79,19 +83,21 @@ func (rs *Resource) Router() chi.Router {
 	r.Group(func(r chi.Router) {
 		r.Use(tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
+		r.Use(jwt.TenantMiddleware)
+		withTx := tenant.TenantTxMiddleware(rs.db)
 
 		// Read operations only require groups:read permission
-		r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/", rs.listGroups)
-		r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}", rs.getGroup)
-		r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}/students", rs.getGroupStudents)
-		r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}/supervisors", rs.getGroupSupervisors)
-		r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}/students/room-status", rs.getGroupStudentsRoomStatus)
-		r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}/substitutions", rs.getGroupSubstitutions)
+		r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/", rs.listGroups)
+		r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/{id}", rs.getGroup)
+		r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/{id}/students", rs.getGroupStudents)
+		r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/{id}/supervisors", rs.getGroupSupervisors)
+		r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/{id}/students/room-status", rs.getGroupStudentsRoomStatus)
+		r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/{id}/substitutions", rs.getGroupSubstitutions)
 
 		// Write operations require groups:create, groups:update, or groups:delete permission
-		r.With(authorize.RequiresPermission(permissions.GroupsCreate)).Post("/", rs.createGroup)
-		r.With(authorize.RequiresPermission(permissions.GroupsUpdate)).Put("/{id}", rs.updateGroup)
-		r.With(authorize.RequiresPermission(permissions.GroupsDelete)).Delete("/{id}", rs.deleteGroup)
+		r.With(authorize.RequiresPermission(permissions.GroupsCreate), withTx).Post("/", rs.createGroup)
+		r.With(authorize.RequiresPermission(permissions.GroupsUpdate), withTx).Put("/{id}", rs.updateGroup)
+		r.With(authorize.RequiresPermission(permissions.GroupsDelete), withTx).Delete("/{id}", rs.deleteGroup)
 
 		// Group transfer operations - Self-service feature for group leaders
 		//
@@ -109,6 +115,7 @@ func (rs *Resource) Router() chi.Router {
 		// - Transfers: regular_staff_id IS NULL (additional access)
 		// - Substitutions: regular_staff_id IS NOT NULL (person replacement)
 		r.Route("/{id}/transfer", func(r chi.Router) {
+			r.Use(withTx)
 			r.Post("/", rs.transferGroup)
 			r.Delete("/{substitutionId}", rs.cancelSpecificTransfer)
 		})
@@ -585,19 +592,24 @@ func (rs *Resource) createGroup(w http.ResponseWriter, r *http.Request) {
 		RoomID: req.RoomID,
 	}
 
-	if err := rs.EducationService.CreateGroup(r.Context(), group); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		if err := rs.EducationService.CreateGroup(ctx, group); err != nil {
+			return err
+		}
+		// Assign teachers to the group if any were provided
+		if len(req.TeacherIDs) > 0 {
+			if err := rs.EducationService.UpdateGroupTeachers(ctx, group.ID, req.TeacherIDs); err != nil {
+				// Log the error but don't fail the entire operation
+				slog.Default().Warn("failed to assign teachers to group",
+					slog.Int64("group_id", group.ID),
+					slog.String("error", err.Error()))
+			}
+		}
+		return nil
+	}); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
-	}
-
-	// Assign teachers to the group if any were provided
-	if len(req.TeacherIDs) > 0 {
-		if err := rs.EducationService.UpdateGroupTeachers(r.Context(), group.ID, req.TeacherIDs); err != nil {
-			// Log the error but don't fail the entire operation
-			slog.Default().Warn("failed to assign teachers to group",
-				slog.Int64("group_id", group.ID),
-				slog.String("error", err.Error()))
-		}
 	}
 
 	// Get the created group with room details
@@ -641,19 +653,24 @@ func (rs *Resource) updateGroup(w http.ResponseWriter, r *http.Request) {
 	group.RoomID = req.RoomID
 
 	// Update group
-	if err := rs.EducationService.UpdateGroup(r.Context(), group); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		if err := rs.EducationService.UpdateGroup(ctx, group); err != nil {
+			return err
+		}
+		// Update teacher assignments if provided
+		if req.TeacherIDs != nil {
+			if err := rs.EducationService.UpdateGroupTeachers(ctx, group.ID, req.TeacherIDs); err != nil {
+				slog.Default().Error("failed to update group teachers",
+					slog.Int64("group_id", group.ID),
+					slog.String("error", err.Error()))
+				// Continue anyway - the group update was successful
+			}
+		}
+		return nil
+	}); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
-	}
-
-	// Update teacher assignments if provided
-	if req.TeacherIDs != nil {
-		if err := rs.EducationService.UpdateGroupTeachers(r.Context(), group.ID, req.TeacherIDs); err != nil {
-			slog.Default().Error("failed to update group teachers",
-				slog.Int64("group_id", group.ID),
-				slog.String("error", err.Error()))
-			// Continue anyway - the group update was successful
-		}
 	}
 
 	// Get updated group with room details
@@ -679,7 +696,14 @@ func (rs *Resource) deleteGroup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Delete group
-	if err := rs.EducationService.DeleteGroup(r.Context(), id); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.EducationService.DeleteGroup(ctx, id)
+	}); err != nil {
+		if common.IsConstraintViolation(err) {
+			common.RenderError(w, r, common.ErrorConflictMessage("Gruppe kann nicht gelöscht werden: Gruppe wird noch in anderen Bereichen referenziert"))
+			return
+		}
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -1055,7 +1079,10 @@ func (rs *Resource) transferGroup(w http.ResponseWriter, r *http.Request) {
 
 	// Create the transfer directly via repository (bypass service conflict check)
 	// For group transfers, we WANT users to have multiple groups, so skip FindOverlapping check
-	if err := rs.SubstitutionRepo.Create(r.Context(), substitution); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.SubstitutionRepo.Create(ctx, substitution)
+	}); err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
@@ -1124,7 +1151,10 @@ func (rs *Resource) cancelSpecificTransfer(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Delete the specific transfer
-	if err := rs.EducationService.DeleteSubstitution(r.Context(), substitutionID); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.EducationService.DeleteSubstitution(ctx, substitutionID)
+	}); err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}

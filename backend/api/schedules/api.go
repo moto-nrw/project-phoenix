@@ -1,6 +1,7 @@
 package schedules
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"time"
@@ -15,6 +16,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 // Use shared constants from common package
@@ -34,12 +37,14 @@ const (
 // Resource defines the schedules API resource
 type Resource struct {
 	ScheduleService scheduleSvc.Service
+	db              *bun.DB
 }
 
 // NewResource creates a new schedules resource
-func NewResource(scheduleService scheduleSvc.Service) *Resource {
+func NewResource(scheduleService scheduleSvc.Service, db *bun.DB) *Resource {
 	return &Resource{
 		ScheduleService: scheduleService,
+		db:              db,
 	}
 }
 
@@ -55,53 +60,55 @@ func (rs *Resource) Router() chi.Router {
 	r.Group(func(r chi.Router) {
 		r.Use(tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
+		r.Use(jwt.TenantMiddleware)
+		withTx := tenant.TenantTxMiddleware(rs.db)
 
 		// Current dateframe endpoint - requires schedules:read permission
-		r.With(authorize.RequiresPermission(permissions.SchedulesRead)).Get("/current-dateframe", rs.getCurrentDateframe)
+		r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).Get("/current-dateframe", rs.getCurrentDateframe)
 
 		// Dateframe endpoints
 		r.Route("/dateframes", func(r chi.Router) {
-			r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Get("/", rs.listDateframes)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Get("/{id}", rs.getDateframe)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesCreate)).Post("/", rs.createDateframe)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesUpdate)).Put("/{id}", rs.updateDateframe)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesDelete)).Delete("/{id}", rs.deleteDateframe)
+			r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/", rs.listDateframes)
+			r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/{id}", rs.getDateframe)
+			r.With(authorize.RequiresPermission(permissions.ActivitiesCreate), withTx).Post("/", rs.createDateframe)
+			r.With(authorize.RequiresPermission(permissions.ActivitiesUpdate), withTx).Put("/{id}", rs.updateDateframe)
+			r.With(authorize.RequiresPermission(permissions.ActivitiesDelete), withTx).Delete("/{id}", rs.deleteDateframe)
 
 			// Special dateframe queries
-			r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Get("/by-date", rs.getDateframesByDate)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Get("/overlapping", rs.getOverlappingDateframes)
+			r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/by-date", rs.getDateframesByDate)
+			r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/overlapping", rs.getOverlappingDateframes)
 		})
 
 		// Timeframe endpoints
 		r.Route("/timeframes", func(r chi.Router) {
-			r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Get("/", rs.listTimeframes)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Get("/{id}", rs.getTimeframe)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesCreate)).Post("/", rs.createTimeframe)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesUpdate)).Put("/{id}", rs.updateTimeframe)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesDelete)).Delete("/{id}", rs.deleteTimeframe)
+			r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/", rs.listTimeframes)
+			r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/{id}", rs.getTimeframe)
+			r.With(authorize.RequiresPermission(permissions.ActivitiesCreate), withTx).Post("/", rs.createTimeframe)
+			r.With(authorize.RequiresPermission(permissions.ActivitiesUpdate), withTx).Put("/{id}", rs.updateTimeframe)
+			r.With(authorize.RequiresPermission(permissions.ActivitiesDelete), withTx).Delete("/{id}", rs.deleteTimeframe)
 
 			// Special timeframe queries
-			r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Get("/active", rs.getActiveTimeframes)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Get("/by-range", rs.getTimeframesByRange)
+			r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/active", rs.getActiveTimeframes)
+			r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/by-range", rs.getTimeframesByRange)
 		})
 
 		// Recurrence rule endpoints
 		r.Route("/recurrence-rules", func(r chi.Router) {
-			r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Get("/", rs.listRecurrenceRules)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Get("/{id}", rs.getRecurrenceRule)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesCreate)).Post("/", rs.createRecurrenceRule)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesUpdate)).Put("/{id}", rs.updateRecurrenceRule)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesDelete)).Delete("/{id}", rs.deleteRecurrenceRule)
+			r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/", rs.listRecurrenceRules)
+			r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/{id}", rs.getRecurrenceRule)
+			r.With(authorize.RequiresPermission(permissions.ActivitiesCreate), withTx).Post("/", rs.createRecurrenceRule)
+			r.With(authorize.RequiresPermission(permissions.ActivitiesUpdate), withTx).Put("/{id}", rs.updateRecurrenceRule)
+			r.With(authorize.RequiresPermission(permissions.ActivitiesDelete), withTx).Delete("/{id}", rs.deleteRecurrenceRule)
 
 			// Special recurrence rule queries and operations
-			r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Get("/by-frequency", rs.getRecurrenceRulesByFrequency)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Get("/by-weekday", rs.getRecurrenceRulesByWeekday)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Post("/{id}/generate-events", rs.generateEvents)
+			r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/by-frequency", rs.getRecurrenceRulesByFrequency)
+			r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/by-weekday", rs.getRecurrenceRulesByWeekday)
+			r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).Post("/{id}/generate-events", rs.generateEvents)
 		})
 
 		// Advanced scheduling operations
-		r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Post("/check-conflict", rs.checkConflict)
-		r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Post("/find-available-slots", rs.findAvailableSlots)
+		r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).Post("/check-conflict", rs.checkConflict)
+		r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).Post("/find-available-slots", rs.findAvailableSlots)
 	})
 
 	return r
@@ -418,7 +425,10 @@ func (rs *Resource) createDateframe(w http.ResponseWriter, r *http.Request) {
 		Description: req.Description,
 	}
 
-	if err := rs.ScheduleService.CreateDateframe(r.Context(), dateframe); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.ScheduleService.CreateDateframe(ctx, dateframe)
+	}); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -461,7 +471,10 @@ func (rs *Resource) updateDateframe(w http.ResponseWriter, r *http.Request) {
 	dateframe.Description = req.Description
 
 	// Update dateframe
-	if err := rs.ScheduleService.UpdateDateframe(r.Context(), dateframe); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.ScheduleService.UpdateDateframe(ctx, dateframe)
+	}); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -478,7 +491,10 @@ func (rs *Resource) deleteDateframe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Delete dateframe
-	if err := rs.ScheduleService.DeleteDateframe(r.Context(), id); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.ScheduleService.DeleteDateframe(ctx, id)
+	}); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -639,7 +655,10 @@ func (rs *Resource) createTimeframe(w http.ResponseWriter, r *http.Request) {
 		Description: req.Description,
 	}
 
-	if err := rs.ScheduleService.CreateTimeframe(r.Context(), timeframe); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.ScheduleService.CreateTimeframe(ctx, timeframe)
+	}); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -682,7 +701,10 @@ func (rs *Resource) updateTimeframe(w http.ResponseWriter, r *http.Request) {
 	timeframe.Description = req.Description
 
 	// Update timeframe
-	if err := rs.ScheduleService.UpdateTimeframe(r.Context(), timeframe); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.ScheduleService.UpdateTimeframe(ctx, timeframe)
+	}); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -699,7 +721,10 @@ func (rs *Resource) deleteTimeframe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Delete timeframe
-	if err := rs.ScheduleService.DeleteTimeframe(r.Context(), id); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.ScheduleService.DeleteTimeframe(ctx, id)
+	}); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -840,7 +865,10 @@ func (rs *Resource) createRecurrenceRule(w http.ResponseWriter, r *http.Request)
 		rule.EndDate = &endDate
 	}
 
-	if err := rs.ScheduleService.CreateRecurrenceRule(r.Context(), rule); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.ScheduleService.CreateRecurrenceRule(ctx, rule)
+	}); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -885,7 +913,10 @@ func (rs *Resource) updateRecurrenceRule(w http.ResponseWriter, r *http.Request)
 	rule.EndDate = endDate
 
 	// Update recurrence rule
-	if err := rs.ScheduleService.UpdateRecurrenceRule(r.Context(), rule); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.ScheduleService.UpdateRecurrenceRule(ctx, rule)
+	}); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -902,7 +933,10 @@ func (rs *Resource) deleteRecurrenceRule(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Delete recurrence rule
-	if err := rs.ScheduleService.DeleteRecurrenceRule(r.Context(), id); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.ScheduleService.DeleteRecurrenceRule(ctx, id)
+	}); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}

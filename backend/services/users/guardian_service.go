@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -60,7 +61,6 @@ type guardianService struct {
 	defaultFrom             email.Email
 	invitationExpiry        time.Duration
 	db                      *bun.DB
-	txHandler               *base.TxHandler
 }
 
 // NewGuardianService creates a new GuardianService instance
@@ -84,56 +84,6 @@ func NewGuardianService(deps GuardianServiceDependencies) GuardianService {
 		defaultFrom:             deps.DefaultFrom,
 		invitationExpiry:        deps.InvitationExpiry,
 		db:                      deps.DB,
-		txHandler:               base.NewTxHandler(deps.DB),
-	}
-}
-
-// WithTx returns a new service instance with repositories bound to the transaction
-func (s *guardianService) WithTx(tx bun.Tx) interface{} {
-	var guardianProfileRepo = s.guardianProfileRepo
-	var guardianPhoneNumberRepo = s.guardianPhoneNumberRepo
-	var studentGuardianRepo = s.studentGuardianRepo
-	var guardianInvitationRepo = s.guardianInvitationRepo
-	var accountParentRepo = s.accountParentRepo
-	var studentRepo = s.studentRepo
-	var personRepo = s.personRepo
-
-	if txRepo, ok := s.guardianProfileRepo.(base.TransactionalRepository); ok {
-		guardianProfileRepo = txRepo.WithTx(tx).(users.GuardianProfileRepository)
-	}
-	if txRepo, ok := s.guardianPhoneNumberRepo.(base.TransactionalRepository); ok {
-		guardianPhoneNumberRepo = txRepo.WithTx(tx).(users.GuardianPhoneNumberRepository)
-	}
-	if txRepo, ok := s.studentGuardianRepo.(base.TransactionalRepository); ok {
-		studentGuardianRepo = txRepo.WithTx(tx).(users.StudentGuardianRepository)
-	}
-	if txRepo, ok := s.guardianInvitationRepo.(base.TransactionalRepository); ok {
-		guardianInvitationRepo = txRepo.WithTx(tx).(authModels.GuardianInvitationRepository)
-	}
-	if txRepo, ok := s.accountParentRepo.(base.TransactionalRepository); ok {
-		accountParentRepo = txRepo.WithTx(tx).(authModels.AccountParentRepository)
-	}
-	if txRepo, ok := s.studentRepo.(base.TransactionalRepository); ok {
-		studentRepo = txRepo.WithTx(tx).(users.StudentRepository)
-	}
-	if txRepo, ok := s.personRepo.(base.TransactionalRepository); ok {
-		personRepo = txRepo.WithTx(tx).(users.PersonRepository)
-	}
-
-	return &guardianService{
-		guardianProfileRepo:     guardianProfileRepo,
-		guardianPhoneNumberRepo: guardianPhoneNumberRepo,
-		studentGuardianRepo:     studentGuardianRepo,
-		guardianInvitationRepo:  guardianInvitationRepo,
-		accountParentRepo:       accountParentRepo,
-		studentRepo:             studentRepo,
-		personRepo:              personRepo,
-		dispatcher:              s.dispatcher,
-		frontendURL:             s.frontendURL,
-		defaultFrom:             s.defaultFrom,
-		invitationExpiry:        s.invitationExpiry,
-		db:                      s.db,
-		txHandler:               s.txHandler.WithTx(tx),
 	}
 }
 
@@ -163,6 +113,7 @@ func (s *guardianService) CreateGuardian(ctx context.Context, req GuardianCreate
 		profile.LanguagePreference = "de"
 	}
 
+	profile.SetTenantID(tenant.FromContext(ctx))
 	if err := s.guardianProfileRepo.Create(ctx, profile); err != nil {
 		return nil, fmt.Errorf("failed to create guardian profile: %w", err)
 	}
@@ -182,33 +133,16 @@ func (s *guardianService) CreateGuardianWithInvitation(ctx context.Context, req 
 		return nil, nil, fmt.Errorf("guardian with this email already has an account")
 	}
 
-	var profile *users.GuardianProfile
-	var invitation *authModels.GuardianInvitation
+	profile, err := s.CreateGuardian(ctx, req)
+	if err != nil {
+		return nil, nil, err
+	}
 
-	// Run in transaction
-	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		svc := s.WithTx(tx).(*guardianService)
-
-		// Create guardian profile
-		var err error
-		profile, err = svc.CreateGuardian(ctx, req)
-		if err != nil {
-			return err
-		}
-
-		// Create invitation
-		invitationReq := GuardianInvitationRequest{
-			GuardianProfileID: profile.ID,
-			CreatedBy:         createdBy,
-		}
-		invitation, err = svc.SendInvitation(ctx, invitationReq)
-		if err != nil {
-			return err
-		}
-
-		return nil
-	})
-
+	invitationReq := GuardianInvitationRequest{
+		GuardianProfileID: profile.ID,
+		CreatedBy:         createdBy,
+	}
+	invitation, err := s.SendInvitation(ctx, invitationReq)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -305,21 +239,24 @@ func (s *guardianService) SendInvitation(ctx context.Context, req GuardianInvita
 		CreatedBy:         req.CreatedBy,
 		ExpiresAt:         time.Now().Add(s.invitationExpiry),
 	}
+	invitation.SetTenantID(tenant.FromContext(ctx))
 
 	if err := s.guardianInvitationRepo.Create(ctx, invitation); err != nil {
 		return nil, fmt.Errorf("failed to create invitation: %w", err)
 	}
 
-	// Send invitation email asynchronously
+	// Send invitation email asynchronously — pass tenant context for DB calls
 	if s.dispatcher != nil && profile.Email != nil {
-		go s.sendInvitationEmail(invitation, profile)
+		tenantCtx := tenant.WithTenantID(context.Background(), tenant.FromContext(ctx))
+		go s.sendInvitationEmail(tenantCtx, invitation, profile)
 	}
 
 	return invitation, nil
 }
 
-// sendInvitationEmail sends the invitation email (called asynchronously)
-func (s *guardianService) sendInvitationEmail(invitation *authModels.GuardianInvitation, profile *users.GuardianProfile) {
+// sendInvitationEmail sends the invitation email (called asynchronously).
+// ctx should carry tenant context but NOT a transaction (use tenant.WithTenantID on Background).
+func (s *guardianService) sendInvitationEmail(ctx context.Context, invitation *authModels.GuardianInvitation, profile *users.GuardianProfile) {
 	if s.dispatcher == nil || profile.Email == nil {
 		return
 	}
@@ -330,7 +267,7 @@ func (s *guardianService) sendInvitationEmail(invitation *authModels.GuardianInv
 	// P2 FIX: Handle errors gracefully in async email context
 	// If we can't load student names, log the error but continue with empty list
 	// (better to send the invitation without student names than to fail completely)
-	studentNames, err := s.getStudentNamesForGuardian(context.Background(), profile.ID)
+	studentNames, err := s.getStudentNamesForGuardian(ctx, profile.ID)
 	if err != nil {
 		slog.Warn("failed to load student names for guardian invitation email",
 			slog.Int64("guardian_id", profile.ID),
@@ -362,7 +299,7 @@ func (s *guardianService) sendInvitationEmail(invitation *authModels.GuardianInv
 	}
 
 	if s.dispatcher != nil {
-		s.dispatcher.Dispatch(context.Background(), email.DeliveryRequest{
+		s.dispatcher.Dispatch(ctx, email.DeliveryRequest{
 			Message:  message,
 			Metadata: meta,
 		})
@@ -370,7 +307,7 @@ func (s *guardianService) sendInvitationEmail(invitation *authModels.GuardianInv
 
 	// Update email status
 	now := time.Now()
-	_ = s.guardianInvitationRepo.UpdateEmailStatus(context.Background(), invitation.ID, &now, nil, 0)
+	_ = s.guardianInvitationRepo.UpdateEmailStatus(ctx, invitation.ID, &now, nil, 0)
 }
 
 // getStudentNamesForGuardian retrieves the full names of all students linked to a guardian
@@ -448,24 +385,17 @@ func (s *guardianService) AcceptInvitation(ctx context.Context, req GuardianInvi
 		return nil, err
 	}
 
-	var account *authModels.AccountParent
-	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		svc := s.WithTx(tx).(*guardianService)
-
-		invitation, profile, err := svc.validateInvitationAndProfile(ctx, req.Token)
-		if err != nil {
-			return err
-		}
-
-		account, err = svc.createGuardianAccountFromInvitation(ctx, profile, req.Password)
-		if err != nil {
-			return err
-		}
-
-		return svc.finalizeInvitationAcceptance(ctx, invitation.ID, profile.ID, account.ID)
-	})
-
+	invitation, profile, err := s.validateInvitationAndProfile(ctx, req.Token)
 	if err != nil {
+		return nil, err
+	}
+
+	account, err := s.createGuardianAccountFromInvitation(ctx, profile, req.Password, invitation.TenantID)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.finalizeInvitationAcceptance(ctx, invitation.ID, profile.ID, account.ID); err != nil {
 		return nil, err
 	}
 
@@ -525,8 +455,10 @@ func (s *guardianService) validateInvitationStatus(invitation *authModels.Guardi
 	return fmt.Errorf("invitation is no longer valid")
 }
 
-// createGuardianAccountFromInvitation creates a new guardian account with hashed password
-func (s *guardianService) createGuardianAccountFromInvitation(ctx context.Context, profile *users.GuardianProfile, password string) (*authModels.AccountParent, error) {
+// createGuardianAccountFromInvitation creates a new guardian account with hashed password.
+// tenantID is passed explicitly because guardian invitation acceptance is a public route
+// where tenant.FromContext(ctx) would return 0.
+func (s *guardianService) createGuardianAccountFromInvitation(ctx context.Context, profile *users.GuardianProfile, password string, tenantID int64) (*authModels.AccountParent, error) {
 	passwordHash, err := userpass.HashPassword(password, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to hash password: %w", err)
@@ -537,6 +469,7 @@ func (s *guardianService) createGuardianAccountFromInvitation(ctx context.Contex
 		PasswordHash: &passwordHash,
 		Active:       true,
 	}
+	account.SetTenantID(tenantID)
 
 	if err := s.accountParentRepo.Create(ctx, account); err != nil {
 		return nil, fmt.Errorf("failed to create account: %w", err)
@@ -633,6 +566,7 @@ func (s *guardianService) LinkGuardianToStudent(ctx context.Context, req Student
 		PickupNotes:        req.PickupNotes,
 		EmergencyPriority:  req.EmergencyPriority,
 	}
+	relationship.SetTenantID(tenant.FromContext(ctx))
 
 	if err := s.studentGuardianRepo.Create(ctx, relationship); err != nil {
 		return nil, fmt.Errorf("failed to create relationship: %w", err)
@@ -775,21 +709,15 @@ func (s *guardianService) AddPhoneNumber(ctx context.Context, guardianID int64, 
 		IsPrimary:         isPrimary,
 		Priority:          priority,
 	}
+	phone.SetTenantID(tenant.FromContext(ctx))
 
-	// If setting as primary, wrap unset + create in transaction to avoid orphan state
+	// If setting as primary, unset existing primaries first
 	if isPrimary && count > 0 {
-		err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-			svc := s.WithTx(tx).(*guardianService)
-			if err := svc.guardianPhoneNumberRepo.UnsetAllPrimary(ctx, guardianID); err != nil {
-				return fmt.Errorf("failed to unset existing primary: %w", err)
-			}
-			if err := svc.guardianPhoneNumberRepo.Create(ctx, phone); err != nil {
-				return fmt.Errorf("failed to create phone number: %w", err)
-			}
-			return nil
-		})
-		if err != nil {
-			return nil, err
+		if err := s.guardianPhoneNumberRepo.UnsetAllPrimary(ctx, guardianID); err != nil {
+			return nil, fmt.Errorf("failed to unset existing primary: %w", err)
+		}
+		if err := s.guardianPhoneNumberRepo.Create(ctx, phone); err != nil {
+			return nil, fmt.Errorf("failed to create phone number: %w", err)
 		}
 		return phone, nil
 	}
@@ -825,16 +753,13 @@ func (s *guardianService) UpdatePhoneNumber(ctx context.Context, phoneID int64, 
 		phone.Priority = *req.Priority
 	}
 
-	// Handle primary flag change - wrap in transaction to avoid orphan state
+	// Handle primary flag change
 	if req.IsPrimary != nil && *req.IsPrimary && !phone.IsPrimary {
 		phone.IsPrimary = true
-		return s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-			svc := s.WithTx(tx).(*guardianService)
-			if err := svc.guardianPhoneNumberRepo.UnsetAllPrimary(ctx, phone.GuardianProfileID); err != nil {
-				return fmt.Errorf("failed to unset existing primary: %w", err)
-			}
-			return svc.guardianPhoneNumberRepo.Update(ctx, phone)
-		})
+		if err := s.guardianPhoneNumberRepo.UnsetAllPrimary(ctx, phone.GuardianProfileID); err != nil {
+			return fmt.Errorf("failed to unset existing primary: %w", err)
+		}
+		return s.guardianPhoneNumberRepo.Update(ctx, phone)
 	} else if req.IsPrimary != nil && !*req.IsPrimary && phone.IsPrimary {
 		// Unsetting primary - need to promote another number
 		phone.IsPrimary = false

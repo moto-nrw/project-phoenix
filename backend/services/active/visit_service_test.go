@@ -25,7 +25,7 @@ func TestActiveService_GetVisit(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns visit when found", func(t *testing.T) {
 		// ARRANGE
@@ -74,7 +74,7 @@ func TestActiveService_CreateVisit(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates visit successfully", func(t *testing.T) {
 		// ARRANGE
@@ -149,7 +149,7 @@ func TestActiveService_UpdateVisit(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates visit successfully", func(t *testing.T) {
 		// ARRANGE
@@ -206,7 +206,7 @@ func TestActiveService_DeleteVisit(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes visit successfully", func(t *testing.T) {
 		// ARRANGE
@@ -254,7 +254,7 @@ func TestActiveService_ListVisits(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns visits with no options", func(t *testing.T) {
 		// ARRANGE
@@ -297,7 +297,7 @@ func TestActiveService_FindVisitsByStudentID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns visits for student", func(t *testing.T) {
 		// ARRANGE
@@ -343,7 +343,7 @@ func TestActiveService_FindVisitsByActiveGroupID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns visits for active group", func(t *testing.T) {
 		// ARRANGE
@@ -391,7 +391,7 @@ func TestActiveService_FindVisitsByTimeRange(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns visits in time range", func(t *testing.T) {
 		// ARRANGE
@@ -424,7 +424,7 @@ func TestActiveService_EndVisit(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("ends visit successfully", func(t *testing.T) {
 		// ARRANGE
@@ -465,7 +465,7 @@ func TestActiveService_GetStudentCurrentVisit(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns current visit when student is visiting", func(t *testing.T) {
 		// ARRANGE
@@ -529,7 +529,7 @@ func TestActiveService_GetStudentsCurrentVisits(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns current visits for multiple students", func(t *testing.T) {
 		// ARRANGE
@@ -591,7 +591,7 @@ func TestActiveService_CheckTeacherStudentAccess(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns false when teacher has no access", func(t *testing.T) {
 		// ARRANGE - teacher and student not related

@@ -1,7 +1,6 @@
 package users_test
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -16,7 +15,7 @@ import (
 
 // cleanupPersonRecords removes specific person records
 func cleanupPersonRecords(t *testing.T, db *bun.DB, ids ...int64) {
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	for _, id := range ids {
 		_, err := db.NewDelete().
 			Model((*users.Person)(nil)).
@@ -38,7 +37,7 @@ func TestPersonRepository_Create(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Person
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	var createdIDs []int64
 	defer func() { cleanupPersonRecords(t, db, createdIDs...) }()
@@ -107,7 +106,7 @@ func TestPersonRepository_FindByID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Person
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create test person
 	person := testpkg.CreateTestPerson(t, db, "FindByID", "Test")
@@ -139,7 +138,7 @@ func TestPersonRepository_Update(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Person
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create test person
 	person := testpkg.CreateTestPerson(t, db, "Update", "Original")
@@ -171,7 +170,7 @@ func TestPersonRepository_Delete(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Person
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create test person
 	person := testpkg.CreateTestPerson(t, db, "Delete", "Test")
@@ -198,7 +197,7 @@ func TestPersonRepository_List(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Person
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create test persons with unique names for filtering
 	uniquePrefix := fmt.Sprintf("%d", time.Now().UnixNano())
@@ -239,7 +238,7 @@ func TestPersonRepository_FindByIDs(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Person
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create test persons
 	person1 := testpkg.CreateTestPerson(t, db, "FindByIDs1", "Test")
@@ -283,7 +282,7 @@ func TestPersonRepository_LinkToAccount(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Person
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create test person and account
 	person := testpkg.CreateTestPerson(t, db, "LinkAccount", "Test")
@@ -312,7 +311,7 @@ func TestPersonRepository_UnlinkFromAccount(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Person
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create person with account
 	person, account := testpkg.CreateTestPersonWithAccount(t, db, "Unlink", "Account")
@@ -339,7 +338,7 @@ func TestPersonRepository_FindByAccountID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Person
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create person with account
 	person, account := testpkg.CreateTestPersonWithAccount(t, db, "FindByAccount", "Test")
@@ -368,7 +367,7 @@ func TestPersonRepository_LinkToRFIDCard(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Person
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create test person and RFID card
 	person := testpkg.CreateTestPerson(t, db, "LinkRFID", "Test")
@@ -398,7 +397,7 @@ func TestPersonRepository_UnlinkFromRFIDCard(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Person
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create test person with RFID card linked
 	person := testpkg.CreateTestPerson(t, db, "UnlinkRFID", "Test")
@@ -431,7 +430,7 @@ func TestPersonRepository_FindByTagID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Person
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create test person with RFID card linked
 	person := testpkg.CreateTestPerson(t, db, "FindByTag", "Test")
@@ -474,7 +473,7 @@ func TestPersonRepository_FindWithAccount(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Person
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("find person with account", func(t *testing.T) {
 		// Create person with account
@@ -517,7 +516,7 @@ func TestPersonRepository_ListWithNullableFilters(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Person
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create test persons - one with account, one without
 	personWithAccount, account := testpkg.CreateTestPersonWithAccount(t, db, "HasAccount", "Test")
@@ -597,7 +596,7 @@ func TestPersonRepository_EdgeCases(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Person
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("create person with unicode names", func(t *testing.T) {
 		person := &users.Person{

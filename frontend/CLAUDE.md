@@ -9,7 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Description:** Next.js frontend application for a student attendance and room management system. Provides a modern web interface for tracking student presence via RFID and managing educational facilities.
 
 **Key Technologies:**
-- Next.js v15+ with App Router
+- Next.js v16+ with App Router
 - React v19+ 
 - TypeScript (strict mode)
 - Tailwind CSS v4+
@@ -28,7 +28,7 @@ pnpm run start                   # Start production server
 pnpm run preview                 # Build and preview production version
 
 # Code Quality (Run these before committing!)
-pnpm run lint                    # ESLint check with max-warnings=0
+pnpm run lint                    # Oxlint check
 pnpm run lint:fix                # Auto-fix linting issues  
 pnpm run typecheck               # TypeScript type checking
 pnpm run check                   # Run both lint and typecheck
@@ -82,6 +82,46 @@ import { getServerApiUrl } from "~/lib/server-api-url";
 
 Both `api-helpers.ts` and `operator/route-wrapper.ts` use this pattern. The same applies to any server-only import (`auth`, `refreshSessionTokensOnServer`, etc.).
 
+## Multi-Tenancy & Routing
+
+### Subdomain-Based Tenant Resolution
+
+Proxy (`src/proxy.ts`) handles all tenant routing:
+
+1. **Operator requests** (`NEXT_PUBLIC_OPERATOR_HOSTNAME`): rewritten to `/operator/*` internally
+2. **Tenant requests** (`{slug}.TENANT_DOMAIN`): rewritten to `/[tenant]/*` for the dynamic segment
+3. **Reserved slugs** (`src/lib/reserved-slugs.ts`): blocked from tenant resolution (www, api, operator, etc.)
+
+### App Directory Structure
+
+```
+src/app/
+├── operator/              # Operator dashboard (separate subdomain)
+│   ├── login/
+│   ├── provisioning/      # Create/manage organizations + schools
+│   └── suggestions/
+├── [tenant]/              # Dynamic tenant segment (resolved by proxy)
+│   ├── layout.tsx         # Validates slug via /auth/tenant/resolve, wraps in TenantProvider
+│   ├── (protected)/       # Auth-required routes (dashboard, students, rooms, etc.)
+│   └── (public)/          # Pre-auth routes (invite, reset-password)
+└── api/
+    ├── auth/tenant/       # Tenant resolution + listing endpoints
+    └── auth/switch-tenant/# Switch JWT scope to different school
+```
+
+### Tenant Context & Navigation
+
+- **`TenantProvider`** (`components/tenant/tenant-provider.tsx`): React context holding `tenantSlug` + resolved `tenant` metadata
+- **`useTenant()`**: Throws outside provider — use in tenant-scoped pages
+- **`useTenantSlugSafe()`**: Returns `null` outside provider — use for SWR cache key prefixing
+- **`useTenantRouter()`** (`lib/tenant-router.ts`): Auto-detects subdomain vs path mode for navigation. In subdomain mode pushes bare paths; in path mode prefixes with slug.
+- **`TenantGuard`** (`components/tenant/tenant-guard.tsx`): Detects session/URL tenant mismatch (e.g., multi-tab) and auto-switches the session to match the current URL tenant.
+
+### Tenant API Helpers
+
+- **`lib/tenant-api.ts`**: `resolveTenant(slug)`, `listTenants()`, `switchTenant(slug)`
+- **Error contract**: Backend returns `"account does not have access to this tenant"` — hardcoded mapping in `tenant-api.ts`. Changing this backend string breaks tenant switching silently.
+
 ## Code Architecture
 
 ### High-Level Architecture
@@ -90,7 +130,7 @@ The frontend follows a domain-driven structure with clear separation of concerns
 
 1. **Route Handlers** (`/src/app/api/`): Next.js API routes that proxy requests to the backend
    - All handlers use `route-wrapper.ts` for consistent auth and error handling
-   - Context parameter must include `params: Promise<Record<string, string | string[] | undefined>>` for Next.js 15+
+   - Context parameter must include `params: Promise<Record<string, string | string[] | undefined>>` for Next.js 16+
    - Returns `ApiResponse<T>` or `ApiErrorResponse`
 
 2. **Domain Services** (`/src/lib/`): Business logic and API integration
@@ -105,7 +145,7 @@ The frontend follows a domain-driven structure with clear separation of concerns
 
 ### Key Architectural Patterns
 
-**Route Handler Pattern** (Next.js 15+):
+**Route Handler Pattern** (Next.js 16+):
 ```typescript
 // In app/api/{resource}/route.ts
 export const GET = createGetHandler(async (request, token, params) => {
@@ -169,12 +209,13 @@ export const env = createEnv({
 
 ### Authentication Flow
 
-1. User logs in via `/app/api/auth/login` route
-2. Backend returns JWT access token (15min) and refresh token (1hr)
+1. User navigates to `{slug}.TENANT_DOMAIN` and logs in via `/app/api/auth/login`
+2. Backend returns JWT with `tenant_id`, `org_id`, `scope` + access token (15min) and refresh token (7d)
 3. NextAuth stores tokens in session
 4. Route handlers extract token from session for API calls
 5. API clients include token in Authorization header
 6. Refresh token used automatically when access token expires
+7. Tenant switching: `POST /auth/switch-tenant` returns new JWT scoped to a different school
 
 ### Error Handling
 
@@ -203,13 +244,14 @@ try {
 - Path aliases: `~/*` and `@/*` map to `./src/*`
 - Target: ES2022 with ESNext modules
 
-## ESLint Configuration
+## Oxlint Configuration
 
-**Important rules:**
-- `max-warnings: 0` - Zero warnings allowed
-- `@typescript-eslint/consistent-type-imports` - Use `import type` 
+Linting is handled by [oxlint](https://oxc.rs/docs/guide/usage/linter.html) (config: `.oxlintrc.json`), which replaced ESLint for ~11x faster linting. Oxlint respects existing `eslint-disable` comments natively.
+
+**Key rules:**
+- `@typescript-eslint/consistent-type-imports` - Use `import type`
 - `@typescript-eslint/prefer-nullish-coalescing` - Use `??` not `||` for nullish checks
-- `@typescript-eslint/no-unused-vars` - Prefix unused vars with `_`
+- `no-unused-vars` - Prefix unused vars with `_`
 
 ## Common Patterns
 
@@ -318,7 +360,7 @@ Project Phoenix uses Server-Sent Events (SSE) to push real-time notifications to
 
 **Key Implementation Details**:
 - Bypasses `route-wrapper.ts` because SSE requires streaming responses (not buffered JSON)
-- Uses `runtime='nodejs'` in Next.js 15+ (required for streaming)
+- Uses `runtime='nodejs'` in Next.js 16+ (required for streaming)
 - Injects JWT server-side before proxying to backend
 - EventSource API cannot set custom headers, so auth happens server-side
 
@@ -472,12 +514,12 @@ type SSEEventType =
 
 ### Type Errors
 - **API responses**: Ensure proper typing with generics
-- **Route params**: Use proper Next.js 15+ context typing
+- **Route params**: Use proper Next.js 16+ context typing
 - **Async components**: Only server components can be async
 
 ### Build Issues
 - Run `pnpm run check` before committing
-- Fix all ESLint errors (0 warnings policy)
+- Fix all oxlint errors
 - Ensure all TypeScript errors resolved
 
 ### Runtime Issues
@@ -506,6 +548,7 @@ The frontend proxies all API calls through Next.js route handlers to the Go back
 - Int64 IDs from backend stored as strings in frontend
 
 **Major API domains:**
+- `/api/auth/tenant/*` - Tenant resolution, listing, switching
 - `/api/auth/*` - Login, logout, refresh tokens
 - `/api/students/*` - Student CRUD and enrollment
 - `/api/rooms/*` - Room management and occupancy
@@ -619,3 +662,5 @@ The ONLY files allowed to use raw `console.*`:
 - `src/lib/logger.ts` — The logger implementation itself
 - `src/test/setup.ts` — Global test mock pass-through
 - `src/app/api/logs/route.ts` — Log shipping endpoint (writes JSON to stdout)
+
+@AGENTS.md

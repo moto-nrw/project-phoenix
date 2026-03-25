@@ -1,7 +1,6 @@
 package users_test
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"testing"
@@ -22,14 +21,14 @@ import (
 // createTestParentAccount creates a parent account in auth.accounts_parents for testing
 func createTestParentAccount(t *testing.T, db *bun.DB, emailPrefix string) int64 {
 	t.Helper()
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	uniqueEmail := fmt.Sprintf("%s-%d@test.local", emailPrefix, time.Now().UnixNano())
 
 	var id int64
 	err := db.NewRaw(
-		`INSERT INTO auth.accounts_parents (email, active, created_at, updated_at)
-		 VALUES (?, ?, NOW(), NOW()) RETURNING id`,
+		`INSERT INTO auth.accounts_parents (email, active, tenant_id, created_at, updated_at)
+		 VALUES (?, ?, 1, NOW(), NOW()) RETURNING id`,
 		uniqueEmail, true).Scan(ctx, &id)
 	require.NoError(t, err, "Failed to create test parent account")
 
@@ -39,7 +38,7 @@ func createTestParentAccount(t *testing.T, db *bun.DB, emailPrefix string) int64
 // createTestPersonGuardian creates a person guardian relationship for testing
 func createTestPersonGuardian(t *testing.T, db *bun.DB, personID, guardianAccountID int64, relType users.RelationshipType, isPrimary bool) *users.PersonGuardian {
 	t.Helper()
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	pg := &users.PersonGuardian{
 		PersonID:          personID,
@@ -48,6 +47,7 @@ func createTestPersonGuardian(t *testing.T, db *bun.DB, personID, guardianAccoun
 		IsPrimary:         isPrimary,
 		Permissions:       "{}",
 	}
+	pg.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(pg).
@@ -65,11 +65,11 @@ func cleanupPersonGuardianRecords(t *testing.T, db *bun.DB, pgIDs ...int64) {
 		return
 	}
 
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	_, err := db.NewDelete().
 		TableExpr("users.persons_guardians").
-		Where("id IN (?)", bun.In(pgIDs)).
+		Where("id IN (?)", bun.List(pgIDs)).
 		Exec(ctx)
 	if err != nil {
 		t.Logf("Warning: failed to cleanup person guardians: %v", err)
@@ -83,11 +83,11 @@ func cleanupParentAccounts(t *testing.T, db *bun.DB, accountIDs ...int64) {
 		return
 	}
 
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	_, err := db.NewDelete().
 		TableExpr("auth.accounts_parents").
-		Where("id IN (?)", bun.In(accountIDs)).
+		Where("id IN (?)", bun.List(accountIDs)).
 		Exec(ctx)
 	if err != nil {
 		t.Logf("Warning: failed to cleanup parent accounts: %v", err)
@@ -103,7 +103,7 @@ func TestPersonGuardianRepository_Create(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PersonGuardian
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates person guardian with valid data", func(t *testing.T) {
 		person := testpkg.CreateTestPerson(t, db, "Guardian", "Create")
@@ -163,7 +163,7 @@ func TestPersonGuardianRepository_FindByPersonID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PersonGuardian
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds guardians by person ID", func(t *testing.T) {
 		person := testpkg.CreateTestPerson(t, db, "FindByPerson", "Test")
@@ -196,7 +196,7 @@ func TestPersonGuardianRepository_FindByGuardianID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PersonGuardian
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds relationships by guardian account ID", func(t *testing.T) {
 		person := testpkg.CreateTestPerson(t, db, "FindByGuardian", "Test")
@@ -229,7 +229,7 @@ func TestPersonGuardianRepository_FindPrimaryByPersonID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PersonGuardian
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds primary guardian for person", func(t *testing.T) {
 		person := testpkg.CreateTestPerson(t, db, "FindPrimary", "Test")
@@ -261,7 +261,7 @@ func TestPersonGuardianRepository_FindByRelationshipType(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PersonGuardian
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds guardians by relationship type", func(t *testing.T) {
 		person := testpkg.CreateTestPerson(t, db, "FindRelType", "Test")
@@ -299,7 +299,7 @@ func TestPersonGuardianRepository_SetPrimary(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PersonGuardian
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("sets primary status", func(t *testing.T) {
 		person := testpkg.CreateTestPerson(t, db, "SetPrimary", "Test")
@@ -330,7 +330,7 @@ func TestPersonGuardianRepository_UpdatePermissions(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PersonGuardian
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates permissions", func(t *testing.T) {
 		person := testpkg.CreateTestPerson(t, db, "UpdatePerms", "Test")
@@ -366,7 +366,7 @@ func TestPersonGuardianRepository_List(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PersonGuardian
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("lists with filter options", func(t *testing.T) {
 		person := testpkg.CreateTestPerson(t, db, "ListOpts", "Test")
@@ -444,7 +444,7 @@ func TestPersonGuardianRepository_FindWithPerson(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PersonGuardian
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds relationship with person loaded", func(t *testing.T) {
 		person := testpkg.CreateTestPerson(t, db, "FindWith", "Person")
@@ -478,7 +478,7 @@ func TestPersonGuardianRepository_GrantPermissionToGuardian(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PersonGuardian
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("grants permission to guardian", func(t *testing.T) {
 		person := testpkg.CreateTestPerson(t, db, "GrantPerm", "Test")
@@ -514,7 +514,7 @@ func TestPersonGuardianRepository_RevokePermissionFromGuardian(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PersonGuardian
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("revokes permission from guardian", func(t *testing.T) {
 		person := testpkg.CreateTestPerson(t, db, "RevokePerm", "Test")

@@ -66,6 +66,36 @@ Project Phoenix is a comprehensive room and student management system designed f
 
 ---
 
+## 🏢 Multi-Tenancy
+
+Project Phoenix supports multiple after-school care providers (Träger) and their schools (OGS) on a single deployment. Data is fully isolated at the database level via Row-Level Security.
+
+### Tenant Hierarchy
+
+```
+Platform Operator (moto)
+ └── Träger (Organization)          e.g. "AWO Köln"
+      ├── OGS Sonnenschule (School)  → sonnenschule.moto-app.de
+      ├── OGS Waldschule (School)    → waldschule.moto-app.de
+      └── ...
+```
+
+| Concept | Model | Role |
+|---------|-------|------|
+| **Organization** (Träger) | `platform.organizations` | Groups schools under one administrative body |
+| **School** (OGS) | `platform.schools` | The tenant boundary — all data is scoped to `tenant_id` (= school ID) |
+| **Operator** | Platform scope | moto team — provisions organizations and schools |
+
+### How It Works
+
+- **Subdomain routing**: Each school gets a subdomain (`{slug}.moto-app.de`). Middleware extracts the slug and resolves the tenant.
+- **JWT scoping**: Login returns tokens with `tenant_id`, `org_id`, and `scope` (tenant / org / platform).
+- **Database isolation**: 58+ tables carry a `tenant_id` FK. PostgreSQL Row-Level Security enforces isolation at the DB level.
+- **Tenant switching**: Staff with access to multiple schools can switch via `/auth/switch-tenant` without re-authenticating.
+- **Operator dashboard**: Runs on a separate subdomain (`operator.moto-app.de`) with session isolation from tenant dashboards.
+
+---
+
 ## 🚀 Quick Start
 
 ### Prerequisites
@@ -229,7 +259,8 @@ The database uses PostgreSQL schemas to organize tables by domain:
 
 | Schema | Purpose |
 |--------|---------|
-| `auth` | Authentication, tokens, permissions |
+| `platform` | Organizations, schools (tenant definitions) |
+| `auth` | Authentication, tokens, permissions, account-tenant mappings |
 | `users` | User profiles, students, teachers, staff |
 | `education` | Groups and educational structures |
 | `facilities` | Rooms and physical locations |
@@ -306,6 +337,7 @@ This project handles sensitive student data and implements comprehensive securit
 - [x] GDPR compliance features (data retention, audit logging)
 - [x] Email invitation workflow
 - [x] Password reset with rate limiting
+- [x] Multi-tenancy (Träger → OGS isolation)
 - [ ] Mobile companion app
 - [ ] Real-time push notifications
 - [ ] Advanced analytics and reporting

@@ -6,8 +6,10 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/suggestions"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -28,14 +30,6 @@ func NewPostRepository(db *bun.DB) suggestions.PostRepository {
 	return &PostRepository{db: db}
 }
 
-// conn returns the transaction from context if present, otherwise the base DB.
-func (r *PostRepository) conn(ctx context.Context) bun.IDB {
-	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
-		return tx
-	}
-	return r.db
-}
-
 // Create inserts a new suggestion post
 func (r *PostRepository) Create(ctx context.Context, post *suggestions.Post) error {
 	if post == nil {
@@ -45,7 +39,9 @@ func (r *PostRepository) Create(ctx context.Context, post *suggestions.Post) err
 		return err
 	}
 
-	_, err := r.db.NewInsert().
+	base.EnsureTenantID(ctx, post)
+
+	_, err := base.GetDB(ctx, r.db).NewInsert().
 		Model(post).
 		ModelTableExpr(tablePosts).
 		Returning("*").
@@ -56,14 +52,25 @@ func (r *PostRepository) Create(ctx context.Context, post *suggestions.Post) err
 	return nil
 }
 
-// FindByID retrieves a post by ID (without vote/author info)
-func (r *PostRepository) FindByID(ctx context.Context, id int64) (*suggestions.Post, error) {
+// FindByID retrieves a post by ID (without vote/author info).
+// readerType controls visibility: ReaderTypeUser excludes hidden posts,
+// ReaderTypeOperator returns all posts including hidden ones.
+func (r *PostRepository) FindByID(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
 	post := new(suggestions.Post)
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(post).
 		ModelTableExpr(tablePostsAlias).
-		Where(`"post".id = ?`, id).
-		Scan(ctx)
+		Where(`"post".id = ?`, id)
+
+	if where, val, ok := base.TenantWhere(ctx, "post"); ok {
+		query = query.Where(where, val)
+	}
+
+	if readerType == suggestions.ReaderTypeUser {
+		query = query.Where(`"post".is_hidden = FALSE`)
+	}
+
+	err := query.Scan(ctx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -79,25 +86,82 @@ func (r *PostRepository) Update(ctx context.Context, post *suggestions.Post) err
 		return fmt.Errorf("post cannot be nil")
 	}
 
-	_, err := r.db.NewUpdate().
+	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model(post).
-		ModelTableExpr(tablePostsAlias).
-		Column("title", "description", "status", "updated_at").
-		WherePK().
-		Returning("*").
-		Exec(ctx)
+		ModelTableExpr(tablePosts).
+		Column("title", "description", "updated_at").
+		Where("id = ?", post.ID).
+		Returning("*")
+
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
+
+	_, err := query.Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{Op: "update post", Err: err}
 	}
 	return nil
 }
 
+// UpdateStatus updates only the status of an existing post.
+func (r *PostRepository) UpdateStatus(ctx context.Context, postID int64, status string) error {
+	post := &suggestions.Post{Model: modelBase.Model{ID: postID}, Status: status}
+
+	query := base.GetDB(ctx, r.db).NewUpdate().
+		Model(post).
+		ModelTableExpr(tablePosts).
+		Column("status", "updated_at").
+		Where("id = ?", postID).
+		Returning("*")
+
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
+
+	_, err := query.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "update post status", Err: err}
+	}
+	return nil
+}
+
+// UpdateHidden updates only the hidden state of an existing post.
+func (r *PostRepository) UpdateHidden(ctx context.Context, postID int64, hidden bool) error {
+	post := &suggestions.Post{
+		Model:    modelBase.Model{ID: postID},
+		IsHidden: hidden,
+	}
+
+	query := base.GetDB(ctx, r.db).NewUpdate().
+		Model(post).
+		ModelTableExpr(tablePosts).
+		Column("is_hidden", "updated_at").
+		Where("id = ?", postID).
+		Returning("*")
+
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
+
+	_, err := query.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "update post hidden", Err: err}
+	}
+	return nil
+}
+
 // Delete removes a post by ID
 func (r *PostRepository) Delete(ctx context.Context, id int64) error {
-	_, err := r.db.NewDelete().
+	query := base.GetDB(ctx, r.db).NewDelete().
 		TableExpr(tablePosts).
-		Where("id = ?", id).
-		Exec(ctx)
+		Where("id = ?", id)
+
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
+
+	_, err := query.Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{Op: "delete post", Err: err}
 	}
@@ -110,26 +174,46 @@ func (r *PostRepository) Delete(ctx context.Context, id int64) error {
 func (r *PostRepository) List(ctx context.Context, accountID int64, readerType string, sortBy string, status string) ([]*suggestions.Post, error) {
 	var posts []*suggestions.Post
 
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(tablePostsAlias).
 		ColumnExpr(`"post".*`).
 		ColumnExpr(`COALESCE(CONCAT(p.first_name, ' ', LEFT(p.last_name, 1), '.'), 'Unbekannt') AS author_name`).
-		ColumnExpr(`(SELECT COUNT(*) FROM suggestions.votes WHERE post_id = "post".id AND direction = 'up') AS upvotes`).
-		ColumnExpr(`(SELECT COUNT(*) FROM suggestions.votes WHERE post_id = "post".id AND direction = 'down') AS downvotes`).
-		ColumnExpr(`(SELECT COUNT(*) FROM suggestions.comments WHERE post_id = "post".id AND deleted_at IS NULL) AS comment_count`).
-		ColumnExpr(`(SELECT COUNT(*) FROM suggestions.comments c
-			LEFT JOIN suggestions.comment_reads cr ON cr.post_id = c.post_id AND cr.account_id = ? AND cr.reader_type = ?
-			WHERE c.post_id = "post".id
-			AND c.deleted_at IS NULL
-			AND (cr.last_read_at IS NULL OR c.created_at > cr.last_read_at)
-		) AS unread_count`, accountID, readerType).
+		ColumnExpr(`COALESCE(vc.upvotes, 0) AS upvotes`).
+		ColumnExpr(`COALESCE(vc.downvotes, 0) AS downvotes`).
+		ColumnExpr(`COALESCE(cc.comment_count, 0) AS comment_count`).
+		ColumnExpr(`COALESCE(cc.unread_count, 0) AS unread_count`).
 		ColumnExpr(`NOT EXISTS (
 			SELECT 1 FROM suggestions.post_reads pr
 			WHERE pr.account_id = ? AND pr.post_id = "post".id AND pr.reader_type = ?
 		) AS is_new`, accountID, readerType).
 		ColumnExpr(`v.direction AS user_vote`).
+		ColumnExpr(`COALESCE("sch".name, '') AS school_name`).
 		Join(`LEFT JOIN users.persons AS p ON p.account_id = "post".author_id`).
-		Join(`LEFT JOIN suggestions.votes AS v ON v.post_id = "post".id AND v.voter_id = ?`, accountID)
+		Join(`LEFT JOIN suggestions.votes AS v ON v.post_id = "post".id AND v.voter_id = ?`, accountID).
+		Join(`LEFT JOIN platform.schools AS "sch" ON "sch".id = "post".tenant_id`).
+		Join(`LEFT JOIN LATERAL (
+			SELECT
+				COUNT(*) FILTER (WHERE direction = 'up') AS upvotes,
+				COUNT(*) FILTER (WHERE direction = 'down') AS downvotes
+			FROM suggestions.votes WHERE post_id = "post".id
+		) vc ON true`).
+		Join(`LEFT JOIN LATERAL (
+			SELECT
+				COUNT(*) AS comment_count,
+				COUNT(*) FILTER (WHERE cr.last_read_at IS NULL OR c.created_at > cr.last_read_at) AS unread_count
+			FROM suggestions.comments c
+			LEFT JOIN suggestions.comment_reads cr
+				ON cr.post_id = c.post_id AND cr.account_id = ? AND cr.reader_type = ?
+			WHERE c.post_id = "post".id AND c.deleted_at IS NULL
+		) cc ON true`, accountID, readerType)
+
+	if where, val, ok := base.TenantWhere(ctx, "post"); ok {
+		query = query.Where(where, val)
+	}
+
+	if readerType == suggestions.ReaderTypeUser {
+		query = query.Where(`"post".is_hidden = FALSE`)
+	}
 
 	if status != "" {
 		query = query.Where(`"post".status = ?`, status)
@@ -163,24 +247,45 @@ func (r *PostRepository) List(ctx context.Context, accountID int64, readerType s
 func (r *PostRepository) FindByIDWithVote(ctx context.Context, id int64, accountID int64, readerType string) (*suggestions.Post, error) {
 	post := new(suggestions.Post)
 
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(tablePostsAlias).
 		ColumnExpr(`"post".*`).
 		ColumnExpr(`COALESCE(CONCAT(p.first_name, ' ', LEFT(p.last_name, 1), '.'), 'Unbekannt') AS author_name`).
-		ColumnExpr(`(SELECT COUNT(*) FROM suggestions.votes WHERE post_id = "post".id AND direction = 'up') AS upvotes`).
-		ColumnExpr(`(SELECT COUNT(*) FROM suggestions.votes WHERE post_id = "post".id AND direction = 'down') AS downvotes`).
-		ColumnExpr(`(SELECT COUNT(*) FROM suggestions.comments WHERE post_id = "post".id AND deleted_at IS NULL) AS comment_count`).
-		ColumnExpr(`(SELECT COUNT(*) FROM suggestions.comments c
-			LEFT JOIN suggestions.comment_reads cr ON cr.post_id = c.post_id AND cr.account_id = ? AND cr.reader_type = ?
-			WHERE c.post_id = "post".id
-			AND c.deleted_at IS NULL
-			AND (cr.last_read_at IS NULL OR c.created_at > cr.last_read_at)
-		) AS unread_count`, accountID, readerType).
+		ColumnExpr(`COALESCE(vc.upvotes, 0) AS upvotes`).
+		ColumnExpr(`COALESCE(vc.downvotes, 0) AS downvotes`).
+		ColumnExpr(`COALESCE(cc.comment_count, 0) AS comment_count`).
+		ColumnExpr(`COALESCE(cc.unread_count, 0) AS unread_count`).
 		ColumnExpr(`v.direction AS user_vote`).
+		ColumnExpr(`COALESCE("sch".name, '') AS school_name`).
 		Join(`LEFT JOIN users.persons AS p ON p.account_id = "post".author_id`).
 		Join(`LEFT JOIN suggestions.votes AS v ON v.post_id = "post".id AND v.voter_id = ?`, accountID).
-		Where(`"post".id = ?`, id).
-		Scan(ctx, post)
+		Join(`LEFT JOIN platform.schools AS "sch" ON "sch".id = "post".tenant_id`).
+		Join(`LEFT JOIN LATERAL (
+			SELECT
+				COUNT(*) FILTER (WHERE direction = 'up') AS upvotes,
+				COUNT(*) FILTER (WHERE direction = 'down') AS downvotes
+			FROM suggestions.votes WHERE post_id = "post".id
+		) vc ON true`).
+		Join(`LEFT JOIN LATERAL (
+			SELECT
+				COUNT(*) AS comment_count,
+				COUNT(*) FILTER (WHERE cr.last_read_at IS NULL OR c.created_at > cr.last_read_at) AS unread_count
+			FROM suggestions.comments c
+			LEFT JOIN suggestions.comment_reads cr
+				ON cr.post_id = c.post_id AND cr.account_id = ? AND cr.reader_type = ?
+			WHERE c.post_id = "post".id AND c.deleted_at IS NULL
+		) cc ON true`, accountID, readerType).
+		Where(`"post".id = ?`, id)
+
+	if where, val, ok := base.TenantWhere(ctx, "post"); ok {
+		query = query.Where(where, val)
+	}
+
+	if readerType == suggestions.ReaderTypeUser {
+		query = query.Where(`"post".is_hidden = FALSE`)
+	}
+
+	err := query.Scan(ctx, post)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -192,14 +297,19 @@ func (r *PostRepository) FindByIDWithVote(ctx context.Context, id int64, account
 
 // RecalculateScore updates the denormalized score on a post.
 func (r *PostRepository) RecalculateScore(ctx context.Context, postID int64) error {
-	_, err := r.conn(ctx).NewUpdate().
+	query := base.GetDB(ctx, r.db).NewUpdate().
 		TableExpr(tablePosts).
 		Set(`score = (
 			SELECT COALESCE(SUM(CASE WHEN direction = 'up' THEN 1 WHEN direction = 'down' THEN -1 ELSE 0 END), 0)
 			FROM suggestions.votes WHERE post_id = ?
 		)`, postID).
-		Where("id = ?", postID).
-		Exec(ctx)
+		Where("id = ?", postID)
+
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
+
+	_, err := query.Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{Op: "recalculate score", Err: err}
 	}

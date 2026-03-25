@@ -255,6 +255,7 @@ export function BaseCommentAccordion({
                   }}
                   placeholder="Kommentar schreiben..."
                   rows={1}
+                  maxLength={5000}
                   className="flex-1 resize-none rounded-lg border border-gray-200 px-3 py-2 text-xs transition-colors focus:border-gray-300 focus:ring-0 focus:outline-none"
                 />
                 <button

@@ -60,7 +60,7 @@ func (p *XLSXParser) ParseStudents(reader io.Reader) ([]importModels.StudentImpo
 	// Build column mapping (case-insensitive)
 	p.columnMapping = make(map[string]int)
 	for i, col := range header {
-		key := strings.ToLower(strings.TrimSpace(col))
+		key := normalizeHeaderKey(col)
 		p.columnMapping[key] = i
 	}
 
@@ -140,7 +140,7 @@ func (p *XLSXParser) ValidateHeader(reader io.Reader) error {
 	// Build column mapping
 	mapping := make(map[string]int)
 	for i, col := range header {
-		key := strings.ToLower(strings.TrimSpace(col))
+		key := normalizeHeaderKey(col)
 		mapping[key] = i
 	}
 

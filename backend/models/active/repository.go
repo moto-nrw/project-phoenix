@@ -14,6 +14,9 @@ type GroupRepository interface {
 	// FindActiveByRoomID finds all active groups in a specific room
 	FindActiveByRoomID(ctx context.Context, roomID int64) ([]*Group, error)
 
+	// FindActiveByRoomIDAndDeviceID finds the active group in a room that belongs to a specific device.
+	FindActiveByRoomIDAndDeviceID(ctx context.Context, roomID int64, deviceID int64) (*Group, error)
+
 	// FindActiveByGroupID finds all active instances of a specific activity group
 	FindActiveByGroupID(ctx context.Context, groupID int64) ([]*Group, error)
 
@@ -100,8 +103,20 @@ type VisitRepository interface {
 	// GetCurrentByStudentID finds the current active visit for a student
 	GetCurrentByStudentID(ctx context.Context, studentID int64) (*Visit, error)
 
+	// GetCurrentByStudentIDWithRoom finds the current active visit with its active group and room.
+	GetCurrentByStudentIDWithRoom(ctx context.Context, studentID int64) (*Visit, error)
+
 	// GetCurrentByStudentIDs finds the current active visit for multiple students
 	GetCurrentByStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]*Visit, error)
+
+	// CountActiveByRoomID counts currently active visits across all active groups in a room.
+	CountActiveByRoomID(ctx context.Context, roomID int64) (int, error)
+
+	// CountActiveByGroupID counts currently active visits in a single active group.
+	CountActiveByGroupID(ctx context.Context, activeGroupID int64) (int, error)
+
+	// CountActiveByStudentID counts active visits for a student.
+	CountActiveByStudentID(ctx context.Context, studentID int64) (int, error)
 
 	// FindActiveVisits finds all visits with no exit time (currently active)
 	FindActiveVisits(ctx context.Context) ([]*Visit, error)

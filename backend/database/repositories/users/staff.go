@@ -22,8 +22,10 @@ type StaffRepository struct {
 
 // NewStaffRepository creates a new StaffRepository
 func NewStaffRepository(db *bun.DB) users.StaffRepository {
+	repo := base.NewRepository[*users.Staff](db, "users.staff", "Staff")
+	repo.TenantScoped = true
 	return &StaffRepository{
-		Repository: base.NewRepository[*users.Staff](db, "users.staff", "Staff"),
+		Repository: repo,
 		db:         db,
 	}
 }
@@ -31,11 +33,16 @@ func NewStaffRepository(db *bun.DB) users.StaffRepository {
 // FindByPersonID retrieves a staff member by their person ID
 func (r *StaffRepository) FindByPersonID(ctx context.Context, personID int64) (*users.Staff, error) {
 	staff := new(users.Staff)
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(staff).
 		ModelTableExpr(`users.staff AS "staff"`).
-		Where(`"staff".person_id = ?`, personID).
-		Scan(ctx)
+		Where(`"staff".person_id = ?`, personID)
+
+	if where, val, ok := base.TenantWhere(ctx, "staff"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -49,13 +56,17 @@ func (r *StaffRepository) FindByPersonID(ctx context.Context, personID int64) (*
 
 // UpdateNotes updates staff notes
 func (r *StaffRepository) UpdateNotes(ctx context.Context, id int64, notes string) error {
-	_, err := r.db.NewUpdate().
+	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*users.Staff)(nil)).
 		ModelTableExpr(`users.staff AS "staff"`).
 		Set(`staff_notes = ?`, notes).
-		Where(`"staff".id = ?`, id).
-		Exec(ctx)
+		Where(`"staff".id = ?`, id)
 
+	if where, val, ok := base.TenantWhere(ctx, "staff"); ok {
+		query = query.Where(where, val)
+	}
+
+	result, err := query.Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update notes",
@@ -63,7 +74,7 @@ func (r *StaffRepository) UpdateNotes(ctx context.Context, id int64, notes strin
 		}
 	}
 
-	return nil
+	return base.AssertRowsAffected(result, 1, "update notes")
 }
 
 // Create overrides the base Create method to handle validation
@@ -116,9 +127,13 @@ func (r *StaffRepository) List(ctx context.Context, filters map[string]interface
 // ListWithOptions provides a type-safe way to list staff with query options
 func (r *StaffRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*users.Staff, error) {
 	var staffMembers []*users.Staff
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&staffMembers).
 		ModelTableExpr(`users.staff AS "staff"`)
+
+	if where, val, ok := base.TenantWhere(ctx, "staff"); ok {
+		query = query.Where(where, val)
+	}
 
 	// Apply query options
 	if options != nil {
@@ -145,12 +160,13 @@ func (r *StaffRepository) ListAllWithPerson(ctx context.Context) ([]*users.Staff
 
 	var results []staffResult
 
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&results).
 		ModelTableExpr(`users.staff AS "staff"`).
 		ColumnExpr(`"staff".id AS "staff__id"`).
 		ColumnExpr(`"staff".created_at AS "staff__created_at"`).
 		ColumnExpr(`"staff".updated_at AS "staff__updated_at"`).
+		ColumnExpr(`"staff".tenant_id AS "staff__tenant_id"`).
 		ColumnExpr(`"staff".person_id AS "staff__person_id"`).
 		ColumnExpr(`"staff".staff_notes AS "staff__staff_notes"`).
 		ColumnExpr(`"person".id AS "person__id"`).
@@ -160,8 +176,13 @@ func (r *StaffRepository) ListAllWithPerson(ctx context.Context) ([]*users.Staff
 		ColumnExpr(`"person".last_name AS "person__last_name"`).
 		ColumnExpr(`"person".tag_id AS "person__tag_id"`).
 		ColumnExpr(`"person".account_id AS "person__account_id"`).
-		Join(`LEFT JOIN users.persons AS "person" ON "person".id = "staff".person_id`).
-		Scan(ctx)
+		Join(`LEFT JOIN users.persons AS "person" ON "person".id = "staff".person_id`)
+
+	if where, val, ok := base.TenantWhere(ctx, "staff"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -186,12 +207,16 @@ func (r *StaffRepository) ListAllWithPerson(ctx context.Context) ([]*users.Staff
 func (r *StaffRepository) FindWithPerson(ctx context.Context, id int64) (*users.Staff, error) {
 	// First get the staff member
 	staff := new(users.Staff)
-	err := r.db.NewSelect().
+	staffQuery := base.GetDB(ctx, r.db).NewSelect().
 		Model(staff).
 		ModelTableExpr(`users.staff AS "staff"`).
-		Where(`"staff".id = ?`, id).
-		Scan(ctx)
+		Where(`"staff".id = ?`, id)
 
+	if where, val, ok := base.TenantWhere(ctx, "staff"); ok {
+		staffQuery = staffQuery.Where(where, val)
+	}
+
+	err := staffQuery.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find with person - staff",
@@ -202,11 +227,16 @@ func (r *StaffRepository) FindWithPerson(ctx context.Context, id int64) (*users.
 	// Then get the person if exists
 	if staff.PersonID > 0 {
 		person := new(users.Person)
-		personErr := r.db.NewSelect().
+		personQuery := base.GetDB(ctx, r.db).NewSelect().
 			Model(person).
 			ModelTableExpr(`users.persons AS "person"`).
-			Where(`"person".id = ?`, staff.PersonID).
-			Scan(ctx)
+			Where(`"person".id = ?`, staff.PersonID)
+
+		if where, val, ok := base.TenantWhere(ctx, "person"); ok {
+			personQuery = personQuery.Where(where, val)
+		}
+
+		personErr := personQuery.Scan(ctx)
 
 		if personErr == nil {
 			staff.Person = person
@@ -234,7 +264,7 @@ func (r *StaffRepository) ListStaffByRoles(ctx context.Context, roles []string) 
 
 	var results []*users.StaffWithRoleInfo
 
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		ModelTableExpr(`users.staff AS "staff"`).
 		ColumnExpr(`"staff".id AS staff_id`).
 		ColumnExpr(`"staff".created_at`).
@@ -248,8 +278,13 @@ func (r *StaffRepository) ListStaffByRoles(ctx context.Context, roles []string) 
 		Join(`INNER JOIN auth.accounts AS "account" ON "account".id = "person".account_id`).
 		Join(`INNER JOIN auth.account_roles AS "ar" ON "ar".account_id = "account".id`).
 		Join(`INNER JOIN auth.roles AS "role" ON "ar".role_id = "role".id`).
-		Where(`LOWER("role".name) IN (?)`, bun.In(lowerRoles)).
-		Scan(ctx, &results)
+		Where(`LOWER("role".name) IN (?)`, bun.List(lowerRoles))
+
+	if where, val, ok := base.TenantWhere(ctx, "staff"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx, &results)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -273,13 +308,17 @@ func (r *StaffRepository) AddNotes(ctx context.Context, id int64, notes string) 
 	staff.AddNotes(notes)
 
 	// Update the staff record
-	_, err = r.db.NewUpdate().
+	updateQuery := base.GetDB(ctx, r.db).NewUpdate().
 		Model(staff).
 		ModelTableExpr(`users.staff AS "staff"`).
 		Column(`"staff".staff_notes`).
-		WherePK().
-		Exec(ctx)
+		WherePK()
 
+	if where, val, ok := base.TenantWhere(ctx, "staff"); ok {
+		updateQuery = updateQuery.Where(where, val)
+	}
+
+	result, err := updateQuery.Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "add notes",
@@ -287,5 +326,5 @@ func (r *StaffRepository) AddNotes(ctx context.Context, id int64, notes string) 
 		}
 	}
 
-	return nil
+	return base.AssertRowsAffected(result, 1, "add notes")
 }

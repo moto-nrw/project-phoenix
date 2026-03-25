@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/iot"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -23,7 +23,6 @@ const (
 type service struct {
 	deviceRepo iot.DeviceRepository
 	db         *bun.DB
-	txHandler  *base.TxHandler
 }
 
 // NewService creates a new IoT service
@@ -31,25 +30,6 @@ func NewService(deviceRepo iot.DeviceRepository, db *bun.DB) Service {
 	return &service{
 		deviceRepo: deviceRepo,
 		db:         db,
-		txHandler:  base.NewTxHandler(db),
-	}
-}
-
-// WithTx returns a new service that uses the provided transaction
-func (s *service) WithTx(tx bun.Tx) interface{} {
-	// Get repositories with transaction if they implement the TransactionalRepository interface
-	var deviceRepo = s.deviceRepo
-
-	// Try to cast repository to TransactionalRepository and apply the transaction
-	if txRepo, ok := s.deviceRepo.(base.TransactionalRepository); ok {
-		deviceRepo = txRepo.WithTx(tx).(iot.DeviceRepository)
-	}
-
-	// Return a new service with the transaction
-	return &service{
-		deviceRepo: deviceRepo,
-		db:         s.db,
-		txHandler:  s.txHandler.WithTx(tx),
 	}
 }
 
@@ -80,6 +60,11 @@ func (s *service) CreateDevice(ctx context.Context, device *iot.Device) error {
 	existingDevice, err := s.deviceRepo.FindByDeviceID(ctx, device.DeviceID)
 	if err == nil && existingDevice != nil && existingDevice.ID > 0 {
 		return &IoTError{Op: "CreateDevice", Err: &DuplicateDeviceIDError{DeviceID: device.DeviceID}}
+	}
+
+	// Set tenant ID from context
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		device.SetTenantID(tenantID)
 	}
 
 	// Generate API key if not provided
@@ -274,9 +259,9 @@ func (s *service) PingDevice(ctx context.Context, deviceID string) error {
 		return &IoTError{Op: "PingDevice", Err: &DeviceNotFoundError{DeviceID: deviceID}}
 	}
 
-	// Update the last seen time
+	// Update the last seen time using PK (globally unique, cross-tenant safe)
 	now := time.Now()
-	if err := s.deviceRepo.UpdateLastSeen(ctx, deviceID, now); err != nil {
+	if err := s.deviceRepo.UpdateLastSeen(ctx, existingDevice.ID, now); err != nil {
 		return &IoTError{Op: "PingDevice", Err: err}
 	}
 
@@ -389,14 +374,21 @@ func (s *service) ScanNetwork(_ context.Context) (map[string]string, error) {
 	return nil, &IoTError{Op: "ScanNetwork", Err: errors.New("network scanning not implemented")}
 }
 
-// UpdateDeviceLastSeen updates only the last_seen timestamp for a device.
+// UpdateDeviceLastSeen updates only the last_seen timestamp for a device by PK.
 // This is a targeted update that skips existence checks and full-model validation,
 // intended for use in middleware where the device has already been authenticated.
-func (s *service) UpdateDeviceLastSeen(ctx context.Context, deviceID string) error {
-	if deviceID == "" {
-		return &IoTError{Op: "UpdateDeviceLastSeen", Err: errors.New(errDeviceIDEmpty)}
+func (s *service) UpdateDeviceLastSeen(ctx context.Context, id int64) error {
+	return s.UpdateDeviceLastSeenAt(ctx, id, time.Now())
+}
+
+// UpdateDeviceLastSeenAt updates only the last_seen timestamp for a device using
+// the caller-supplied observation time. Uses the integer PK (globally unique)
+// rather than device_id (unique per tenant) for cross-tenant safety.
+func (s *service) UpdateDeviceLastSeenAt(ctx context.Context, id int64, lastSeen time.Time) error {
+	if id <= 0 {
+		return &IoTError{Op: "UpdateDeviceLastSeenAt", Err: errors.New("device ID must be positive")}
 	}
-	return s.deviceRepo.UpdateLastSeen(ctx, deviceID, time.Now())
+	return s.deviceRepo.UpdateLastSeen(ctx, id, lastSeen)
 }
 
 // GetDeviceByAPIKey retrieves a device by its API key for authentication

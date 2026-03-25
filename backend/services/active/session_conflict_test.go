@@ -88,7 +88,6 @@
 package active_test
 
 import (
-	"context"
 	"log/slog"
 	"strings"
 	"sync"
@@ -126,7 +125,7 @@ func TestActivitySessionConflictDetection(t *testing.T) {
 	}()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("no conflict when activity not active", func(t *testing.T) {
 		// ARRANGE: Create test fixtures with real database records
@@ -272,7 +271,7 @@ func TestSessionLifecycle(t *testing.T) {
 	}()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("complete session lifecycle", func(t *testing.T) {
 		// ARRANGE: Create test fixtures
@@ -361,7 +360,7 @@ func TestConcurrentSessionAttempts(t *testing.T) {
 	}()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("concurrent start attempts on same activity", func(t *testing.T) {
 		// ARRANGE: Create test fixtures
@@ -444,7 +443,7 @@ func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 	}()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("force start with multiple supervisors", func(t *testing.T) {
 		// ARRANGE: Create test fixtures
@@ -540,7 +539,7 @@ func TestStartActivitySessionWithSupervisors(t *testing.T) {
 	}()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("start with multiple supervisors", func(t *testing.T) {
 		// ARRANGE

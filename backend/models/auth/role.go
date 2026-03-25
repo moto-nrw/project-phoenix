@@ -12,7 +12,8 @@ import (
 // Role represents a user role
 type Role struct {
 	base.Model  `bun:"schema:auth,table:roles"`
-	Name        string `bun:"name,notnull,unique" json:"name"`
+	TenantID    *int64 `bun:"tenant_id" json:"tenant_id,omitempty"`
+	Name        string `bun:"name,notnull" json:"name"`
 	Description string `bun:"description" json:"description"`
 	IsSystem    bool   `bun:"is_system,notnull,default:false" json:"is_system"`
 
@@ -26,9 +27,6 @@ func (r *Role) TableName() string {
 }
 
 func (r *Role) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(`auth.roles AS "role"`)
-	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr(`auth.roles AS "role"`)
 	}
@@ -97,6 +95,19 @@ func (r *Role) RemovePermission(permissionID int64) bool {
 	}
 
 	return false
+}
+
+// GetTenantID returns the tenant ID (0 if nil/system role).
+func (r *Role) GetTenantID() int64 {
+	if r.TenantID != nil {
+		return *r.TenantID
+	}
+	return 0
+}
+
+// SetTenantID sets the tenant ID.
+func (r *Role) SetTenantID(id int64) {
+	r.TenantID = &id
 }
 
 // GetID returns the entity's ID

@@ -1,6 +1,7 @@
 package realtime
 
 import (
+	"fmt"
 	"log/slog"
 	"testing"
 	"time"
@@ -43,7 +44,7 @@ func TestHubRegister(t *testing.T) {
 				SubscribedGroups: make(map[string]bool),
 			}
 
-			hub.Register(client, tt.activeGroupIDs)
+			hub.Register(client, int64(42), tt.activeGroupIDs)
 
 			// Verify client count
 			if got := hub.GetClientCount(); got != tt.expectedClientCount {
@@ -52,15 +53,16 @@ func TestHubRegister(t *testing.T) {
 
 			// Verify group subscriber counts
 			for groupID, expectedCount := range tt.expectedGroupCount {
-				if got := hub.GetGroupSubscriberCount(groupID); got != expectedCount {
+				if got := hub.GetGroupSubscriberCount(int64(42), groupID); got != expectedCount {
 					t.Errorf("GetGroupSubscriberCount(%s) = %v, want %v", groupID, got, expectedCount)
 				}
 			}
 
-			// Verify client's subscribed groups
+			// Verify client's subscribed groups (stored as composite "tenantID:groupID" keys)
 			for _, groupID := range tt.activeGroupIDs {
-				if !client.SubscribedGroups[groupID] {
-					t.Errorf("Client not subscribed to group %s", groupID)
+				key := fmt.Sprintf("%d:%s", int64(42), groupID)
+				if !client.SubscribedGroups[key] {
+					t.Errorf("Client not subscribed to group %s (key %s)", groupID, key)
 				}
 			}
 		})
@@ -88,20 +90,20 @@ func TestHubRegisterMultipleClients(t *testing.T) {
 		SubscribedGroups: make(map[string]bool),
 	}
 
-	hub.Register(client1, []string{"group_1"})
-	hub.Register(client2, []string{"group_1"})
-	hub.Register(client3, []string{"group_1", "group_2"})
+	hub.Register(client1, int64(42), []string{"group_1"})
+	hub.Register(client2, int64(42), []string{"group_1"})
+	hub.Register(client3, int64(42), []string{"group_1", "group_2"})
 
 	// Verify counts
 	if got := hub.GetClientCount(); got != 3 {
 		t.Errorf("GetClientCount() = %v, want 3", got)
 	}
 
-	if got := hub.GetGroupSubscriberCount("group_1"); got != 3 {
+	if got := hub.GetGroupSubscriberCount(int64(42), "group_1"); got != 3 {
 		t.Errorf("GetGroupSubscriberCount(group_1) = %v, want 3", got)
 	}
 
-	if got := hub.GetGroupSubscriberCount("group_2"); got != 1 {
+	if got := hub.GetGroupSubscriberCount(int64(42), "group_2"); got != 1 {
 		t.Errorf("GetGroupSubscriberCount(group_2) = %v, want 1", got)
 	}
 }
@@ -146,7 +148,7 @@ func TestHubUnregister(t *testing.T) {
 					UserID:           int64(i + 1),
 					SubscribedGroups: make(map[string]bool),
 				}
-				hub.Register(clients[i], []string{tt.groupID})
+				hub.Register(clients[i], int64(42), []string{tt.groupID})
 			}
 
 			// Unregister specified client
@@ -158,7 +160,7 @@ func TestHubUnregister(t *testing.T) {
 			}
 
 			// Verify group subscriber count
-			if got := hub.GetGroupSubscriberCount(tt.groupID); got != tt.expectedGroupCount {
+			if got := hub.GetGroupSubscriberCount(int64(42), tt.groupID); got != tt.expectedGroupCount {
 				t.Errorf("GetGroupSubscriberCount(%s) = %v, want %v", tt.groupID, got, tt.expectedGroupCount)
 			}
 
@@ -198,21 +200,21 @@ func TestHubUnregisterCleanup(t *testing.T) {
 		SubscribedGroups: make(map[string]bool),
 	}
 
-	hub.Register(client, []string{"group_1", "group_2"})
+	hub.Register(client, int64(42), []string{"group_1", "group_2"})
 
 	// Verify groups have subscribers
-	if got := hub.GetGroupSubscriberCount("group_1"); got != 1 {
+	if got := hub.GetGroupSubscriberCount(int64(42), "group_1"); got != 1 {
 		t.Errorf("GetGroupSubscriberCount(group_1) = %v, want 1", got)
 	}
 
 	hub.Unregister(client)
 
 	// Verify groups are cleaned up (no subscribers)
-	if got := hub.GetGroupSubscriberCount("group_1"); got != 0 {
+	if got := hub.GetGroupSubscriberCount(int64(42), "group_1"); got != 0 {
 		t.Errorf("GetGroupSubscriberCount(group_1) after cleanup = %v, want 0", got)
 	}
 
-	if got := hub.GetGroupSubscriberCount("group_2"); got != 0 {
+	if got := hub.GetGroupSubscriberCount(int64(42), "group_2"); got != 0 {
 		t.Errorf("GetGroupSubscriberCount(group_2) after cleanup = %v, want 0", got)
 	}
 
@@ -233,7 +235,7 @@ func TestHubBroadcastToSingleSubscriber(t *testing.T) {
 		SubscribedGroups: make(map[string]bool),
 	}
 
-	hub.Register(client, []string{"group_1"})
+	hub.Register(client, int64(42), []string{"group_1"})
 
 	event := NewEvent(EventStudentCheckIn, "group_1", EventData{
 		StudentID:   strPtr("123"),
@@ -241,7 +243,7 @@ func TestHubBroadcastToSingleSubscriber(t *testing.T) {
 	})
 
 	// Broadcast event
-	err := hub.BroadcastToGroup("group_1", event)
+	err := hub.BroadcastToGroup(int64(42), "group_1", event)
 	if err != nil {
 		t.Errorf("BroadcastToGroup() error = %v, want nil", err)
 	}
@@ -272,7 +274,7 @@ func TestHubBroadcastToMultipleSubscribers(t *testing.T) {
 			UserID:           int64(i + 1),
 			SubscribedGroups: make(map[string]bool),
 		}
-		hub.Register(clients[i], []string{"group_1"})
+		hub.Register(clients[i], int64(42), []string{"group_1"})
 	}
 
 	event := NewEvent(EventActivityStart, "group_1", EventData{
@@ -280,7 +282,7 @@ func TestHubBroadcastToMultipleSubscribers(t *testing.T) {
 	})
 
 	// Broadcast event
-	err := hub.BroadcastToGroup("group_1", event)
+	err := hub.BroadcastToGroup(int64(42), "group_1", event)
 	if err != nil {
 		t.Errorf("BroadcastToGroup() error = %v, want nil", err)
 	}
@@ -313,15 +315,15 @@ func TestHubBroadcastGroupIsolation(t *testing.T) {
 		SubscribedGroups: make(map[string]bool),
 	}
 
-	hub.Register(client1, []string{"group_1"})
-	hub.Register(client2, []string{"group_2"})
+	hub.Register(client1, int64(42), []string{"group_1"})
+	hub.Register(client2, int64(42), []string{"group_2"})
 
 	event := NewEvent(EventStudentCheckIn, "group_1", EventData{
 		StudentID: strPtr("123"),
 	})
 
 	// Broadcast to group_1
-	err := hub.BroadcastToGroup("group_1", event)
+	err := hub.BroadcastToGroup(int64(42), "group_1", event)
 	if err != nil {
 		t.Errorf("BroadcastToGroup() error = %v, want nil", err)
 	}
@@ -352,7 +354,7 @@ func TestHubBroadcastNoSubscribers(t *testing.T) {
 	})
 
 	// Broadcast to group with no subscribers (should not error)
-	err := hub.BroadcastToGroup("group_nonexistent", event)
+	err := hub.BroadcastToGroup(int64(42), "group_nonexistent", event)
 	if err != nil {
 		t.Errorf("BroadcastToGroup() with no subscribers should return nil, got error: %v", err)
 	}
@@ -374,7 +376,7 @@ func TestHubBroadcastChannelFull(t *testing.T) {
 		SubscribedGroups: make(map[string]bool),
 	}
 
-	hub.Register(client, []string{"group_1"})
+	hub.Register(client, int64(42), []string{"group_1"})
 
 	// Fill the channel
 	event1 := NewEvent(EventStudentCheckIn, "group_1", EventData{StudentID: strPtr("1")})
@@ -382,7 +384,7 @@ func TestHubBroadcastChannelFull(t *testing.T) {
 
 	// Try to broadcast when channel is full (should not block or error)
 	event2 := NewEvent(EventStudentCheckIn, "group_1", EventData{StudentID: strPtr("2")})
-	err := hub.BroadcastToGroup("group_1", event2)
+	err := hub.BroadcastToGroup(int64(42), "group_1", event2)
 	if err != nil {
 		t.Errorf("BroadcastToGroup() with full channel should return nil, got error: %v", err)
 	}
@@ -422,7 +424,7 @@ func TestHubGetClientCount(t *testing.T) {
 			UserID:           int64(i + 1),
 			SubscribedGroups: make(map[string]bool),
 		}
-		hub.Register(client, []string{"group_1"})
+		hub.Register(client, int64(42), []string{"group_1"})
 	}
 
 	if got := hub.GetClientCount(); got != 5 {
@@ -435,7 +437,7 @@ func TestHubGetGroupSubscriberCount(t *testing.T) {
 	hub := NewHub(slog.Default())
 
 	// Non-existent group
-	if got := hub.GetGroupSubscriberCount("nonexistent"); got != 0 {
+	if got := hub.GetGroupSubscriberCount(int64(42), "nonexistent"); got != 0 {
 		t.Errorf("GetGroupSubscriberCount(nonexistent) = %v, want 0", got)
 	}
 
@@ -446,11 +448,94 @@ func TestHubGetGroupSubscriberCount(t *testing.T) {
 			UserID:           int64(i + 1),
 			SubscribedGroups: make(map[string]bool),
 		}
-		hub.Register(client, []string{"group_1"})
+		hub.Register(client, int64(42), []string{"group_1"})
 	}
 
-	if got := hub.GetGroupSubscriberCount("group_1"); got != 3 {
+	if got := hub.GetGroupSubscriberCount(int64(42), "group_1"); got != 3 {
 		t.Errorf("GetGroupSubscriberCount(group_1) = %v, want 3", got)
+	}
+}
+
+// TestHubBroadcastToAllReachesAllClients verifies BroadcastToAll delivers to every client
+func TestHubBroadcastToAllReachesAllClients(t *testing.T) {
+	hub := NewHub(slog.Default())
+
+	// Register clients to different groups (and one with no groups)
+	clients := make([]*Client, 3)
+	for i := 0; i < 3; i++ {
+		clients[i] = &Client{
+			Channel:          make(chan Event, 10),
+			UserID:           int64(i + 1),
+			SubscribedGroups: make(map[string]bool),
+		}
+	}
+	hub.Register(clients[0], int64(42), []string{"group_1"})
+	hub.Register(clients[1], int64(42), []string{"group_2"})
+	hub.Register(clients[2], int64(42), []string{}) // zero-topic client
+
+	event := NewEvent(EventDashboardCountsChanged, "group_1", EventData{})
+
+	err := hub.BroadcastToAll(event)
+	if err != nil {
+		t.Errorf("BroadcastToAll() error = %v", err)
+	}
+
+	for i, client := range clients {
+		select {
+		case received := <-client.Channel:
+			if received.Type != EventDashboardCountsChanged {
+				t.Errorf("Client %d: got type %v, want %v", i, received.Type, EventDashboardCountsChanged)
+			}
+		case <-time.After(100 * time.Millisecond):
+			t.Errorf("Client %d: timeout waiting for broadcast-to-all event", i)
+		}
+	}
+}
+
+// TestHubBroadcastToAllNoClients verifies BroadcastToAll with empty hub
+func TestHubBroadcastToAllNoClients(t *testing.T) {
+	hub := NewHub(slog.Default())
+
+	err := hub.BroadcastToAll(NewEvent(EventDashboardCountsChanged, "", EventData{}))
+	if err != nil {
+		t.Errorf("BroadcastToAll() with no clients should return nil, got: %v", err)
+	}
+}
+
+// TestHubBroadcastToAllSkipsFullChannel verifies non-blocking behavior
+func TestHubBroadcastToAllSkipsFullChannel(t *testing.T) {
+	hub := NewHub(slog.Default())
+
+	fullClient := &Client{
+		Channel:          make(chan Event, 1),
+		UserID:           1,
+		SubscribedGroups: make(map[string]bool),
+	}
+	openClient := &Client{
+		Channel:          make(chan Event, 10),
+		UserID:           2,
+		SubscribedGroups: make(map[string]bool),
+	}
+	hub.Register(fullClient, int64(42), []string{})
+	hub.Register(openClient, int64(42), []string{})
+
+	// Fill fullClient's channel
+	fullClient.Channel <- NewEvent(EventStudentCheckIn, "g", EventData{})
+
+	// BroadcastToAll should not block
+	err := hub.BroadcastToAll(NewEvent(EventDashboardCountsChanged, "", EventData{}))
+	if err != nil {
+		t.Errorf("BroadcastToAll() should not error on full channel, got: %v", err)
+	}
+
+	// openClient got it
+	select {
+	case received := <-openClient.Channel:
+		if received.Type != EventDashboardCountsChanged {
+			t.Errorf("got type %v, want dashboard_counts_changed", received.Type)
+		}
+	default:
+		t.Error("openClient should have received the event")
 	}
 }
 

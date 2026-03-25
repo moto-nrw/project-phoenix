@@ -33,6 +33,7 @@ export function useSSE(
     reconnectInterval = 1000, // Start with 1 second
     maxReconnectAttempts = 5,
     enabled = true,
+    reconnectKey,
   } = options;
 
   const [isConnected, setIsConnected] = useState(false);
@@ -148,6 +149,7 @@ export function useSSE(
           "activity_start",
           "activity_end",
           "activity_update",
+          "dashboard_counts_changed",
         ];
 
         for (const eventType of eventTypes) {
@@ -283,6 +285,7 @@ export function useSSE(
     reconnectInterval,
     maxReconnectAttempts,
     enabled,
+    reconnectKey,
   ]);
 
   // Compute connection status based on state

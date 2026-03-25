@@ -1,7 +1,6 @@
 package suggestions_test
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -19,7 +18,7 @@ func TestCommentReadRepository_Upsert(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewCommentReadRepository(db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("comment-read-upsert-%d", time.Now().UnixNano()))
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -82,7 +81,7 @@ func TestCommentReadRepository_GetLastReadAt(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewCommentReadRepository(db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("comment-read-get-%d", time.Now().UnixNano()))
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -118,7 +117,7 @@ func TestCommentReadRepository_CountUnreadByPost(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewCommentReadRepository(db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("comment-unread-%d", time.Now().UnixNano()))
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -194,7 +193,7 @@ func TestCommentReadRepository_CountTotalUnread(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewCommentReadRepository(db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("comment-total-unread-%d", time.Now().UnixNano()))
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)

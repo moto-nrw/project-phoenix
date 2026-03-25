@@ -24,9 +24,6 @@ func (p *Permission) TableName() string {
 }
 
 func (p *Permission) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(`auth.permissions AS "permission"`)
-	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr(`auth.permissions AS "permission"`)
 	}

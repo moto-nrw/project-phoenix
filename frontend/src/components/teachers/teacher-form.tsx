@@ -3,6 +3,7 @@ import type { Teacher } from "@/lib/teacher-api";
 import { authService } from "@/lib/auth-service";
 import { getRoleDisplayName } from "@/lib/auth-helpers";
 import { createLogger } from "~/lib/logger";
+import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 
 const logger = createLogger({ component: "TeacherForm" });
 
@@ -32,7 +33,7 @@ export function TeacherForm({
   onSubmitAction,
   onCancelAction,
   isLoading,
-  formTitle = "Details der pädagogischen Fachkraft",
+  formTitle = "Details des Personals",
   submitLabel = "Speichern",
   rfidCards: _rfidCards = [],
   wrapInCard = true,
@@ -55,6 +56,9 @@ export function TeacherForm({
   // Form validation
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const errorRef = useScrollToError(
+    submitError ?? (Object.keys(errors).length > 0 ? "validation" : null),
+  );
 
   // Store a reference to track when we need to reset the form
   const prevIdRef = useRef(initialData?.id);
@@ -70,7 +74,7 @@ export function TeacherForm({
         const roleList = await authService.getRoles();
         if (cancelled) return;
 
-        // Filter guardian role — not assignable via Betreuer form (see also invitation-form.tsx)
+        // Filter guardian role — not assignable via Personal form (see also invitation-form.tsx)
         const options = roleList
           .filter((role) => role.name !== "guardian")
           .map<RoleOption>((role) => ({
@@ -220,9 +224,8 @@ export function TeacherForm({
       // Submit the form
       await onSubmitAction(formData);
     } catch (err) {
-      logger.error("failed to submit form", {
-        error: err instanceof Error ? err.message : String(err),
-      });
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      logger.error("failed to submit form", { error: errorMsg });
       setSubmitError(
         "Es ist ein Fehler aufgetreten. Bitte versuchen Sie es später erneut.",
       );
@@ -244,7 +247,10 @@ export function TeacherForm({
       )}
 
       {submitError && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-800 md:mb-6 md:p-4 md:text-sm">
+        <div
+          ref={errorRef}
+          className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-800 md:mb-6 md:p-4 md:text-sm"
+        >
           {submitError}
         </div>
       )}
@@ -294,6 +300,7 @@ export function TeacherForm({
                 } px-3 py-2 text-sm transition-colors`}
                 disabled={isLoading}
                 autoComplete="given-name"
+                maxLength={255}
               />
               {errors.firstName && (
                 <p className="mt-1 text-xs text-red-600">{errors.firstName}</p>
@@ -321,6 +328,7 @@ export function TeacherForm({
                 } px-3 py-2 text-sm transition-colors`}
                 disabled={isLoading}
                 autoComplete="family-name"
+                maxLength={255}
               />
               {errors.lastName && (
                 <p className="mt-1 text-xs text-red-600">{errors.lastName}</p>
@@ -347,6 +355,7 @@ export function TeacherForm({
                       : "border-gray-200 bg-white focus:border-[#F78C10] focus:ring-1 focus:ring-[#F78C10]"
                   } px-3 py-2 text-sm transition-colors`}
                   disabled={isLoading}
+                  maxLength={255}
                 />
                 {errors.email && (
                   <p className="mt-1 text-xs text-red-600">{errors.email}</p>

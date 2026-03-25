@@ -21,7 +21,7 @@ vi.mock("next-auth/react", () => ({
 }));
 
 vi.mock("~/lib/supervision-context", () => ({
-  useSupervision: vi.fn(),
+  useOptionalSupervision: vi.fn(),
 }));
 
 vi.mock("~/lib/auth-utils", () => ({
@@ -29,30 +29,35 @@ vi.mock("~/lib/auth-utils", () => ({
 }));
 
 vi.mock("~/lib/shell-auth-context", () => ({
-  useShellAuth: vi.fn(() => ({
-    user: { name: "Test User", email: "test@example.com", roles: [] },
-    profile: { firstName: "Test", lastName: "User" },
-    status: "authenticated",
-    isSessionExpired: false,
-    logout: vi.fn(),
-    mode: "teacher",
-    homeUrl: "/dashboard",
-    settingsUrl: "/settings",
-  })),
+  useShellAuth: vi.fn(),
+}));
+
+vi.mock("~/lib/operator-url", () => ({
+  operatorPath: (path: string) => path,
+}));
+
+vi.mock("~/lib/hooks/use-suggestions-unread", () => ({
+  useSuggestionsUnread: vi.fn(() => ({ unreadCount: 0 })),
+}));
+
+vi.mock("~/lib/hooks/use-operator-suggestions-unread", () => ({
+  useOperatorSuggestionsUnread: vi.fn(() => ({ unreadCount: 0 })),
 }));
 
 // Import after mocks
 import { Sidebar } from "./sidebar";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useSupervision } from "~/lib/supervision-context";
+import { useOptionalSupervision } from "~/lib/supervision-context";
 import { isAdmin } from "~/lib/auth-utils";
+import { useShellAuth } from "~/lib/shell-auth-context";
 
 const mockUsePathname = vi.mocked(usePathname);
 const mockUseSearchParams = vi.mocked(useSearchParams);
 const mockUseSession = vi.mocked(useSession);
-const mockUseSupervision = vi.mocked(useSupervision);
+const mockUseSupervision = vi.mocked(useOptionalSupervision);
 const mockIsAdmin = vi.mocked(isAdmin);
+const mockUseShellAuth = vi.mocked(useShellAuth);
 
 // Helper to create mock search params
 function createMockSearchParams(
@@ -97,6 +102,16 @@ describe("Sidebar", () => {
     vi.clearAllMocks();
 
     // Default mock implementations
+    mockUseShellAuth.mockReturnValue({
+      user: { name: "Test User", email: "test@example.com", roles: [] },
+      profile: { firstName: "Test", lastName: "User" },
+      status: "authenticated",
+      isSessionExpired: false,
+      logout: vi.fn(),
+      mode: "teacher",
+      homeUrl: "/dashboard",
+      settingsUrl: "/settings",
+    });
     mockUsePathname.mockReturnValue("/dashboard");
     mockUseSearchParams.mockReturnValue(createMockSearchParams());
     mockUseSession.mockReturnValue(createMockSession(false));
@@ -523,7 +538,7 @@ describe("Sidebar", () => {
 
       expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
       expect(screen.getByText("Kinder")).toBeInTheDocument();
-      expect(screen.getByText("Betreuer")).toBeInTheDocument();
+      expect(screen.getByText("Personal")).toBeInTheDocument();
       expect(screen.getByText("Gruppen")).toBeInTheDocument();
     });
   });
@@ -555,7 +570,9 @@ describe("Sidebar", () => {
       const groupHeader = screen.getByText("Meine Gruppe");
       fireEvent.click(groupHeader);
 
-      expect(mockRouterPush).toHaveBeenCalledWith("/ogs-groups?group=1");
+      expect(mockRouterPush).toHaveBeenCalledWith(
+        "/test-tenant/ogs-groups?group=1",
+      );
     });
 
     it("navigates to ogs-groups without group param when no groups", () => {
@@ -575,7 +592,7 @@ describe("Sidebar", () => {
       const groupHeader = screen.getByText("Meine Gruppe");
       fireEvent.click(groupHeader);
 
-      expect(mockRouterPush).toHaveBeenCalledWith("/ogs-groups");
+      expect(mockRouterPush).toHaveBeenCalledWith("/test-tenant/ogs-groups");
     });
 
     it("navigates to active-supervisions when supervisions toggle clicked from another page", () => {
@@ -596,7 +613,7 @@ describe("Sidebar", () => {
       fireEvent.click(supervisionHeader);
 
       expect(mockRouterPush).toHaveBeenCalledWith(
-        "/active-supervisions?room=10",
+        "/test-tenant/active-supervisions?room=10",
       );
     });
 
@@ -617,7 +634,9 @@ describe("Sidebar", () => {
       const supervisionHeader = screen.getByText("Aktuelle Aufsicht");
       fireEvent.click(supervisionHeader);
 
-      expect(mockRouterPush).toHaveBeenCalledWith("/active-supervisions");
+      expect(mockRouterPush).toHaveBeenCalledWith(
+        "/test-tenant/active-supervisions",
+      );
     });
 
     it("navigates to database hub when database toggle clicked from another page", () => {
@@ -630,7 +649,7 @@ describe("Sidebar", () => {
       const databaseHeader = screen.getByText("Datenverwaltung");
       fireEvent.click(databaseHeader);
 
-      expect(mockRouterPush).toHaveBeenCalledWith("/database");
+      expect(mockRouterPush).toHaveBeenCalledWith("/test-tenant/database");
     });
 
     it("navigates back to database hub when on a database sub-page", () => {
@@ -643,7 +662,7 @@ describe("Sidebar", () => {
       const databaseHeader = screen.getByText("Datenverwaltung");
       fireEvent.click(databaseHeader);
 
-      expect(mockRouterPush).toHaveBeenCalledWith("/database");
+      expect(mockRouterPush).toHaveBeenCalledWith("/test-tenant/database");
     });
 
     it("does not navigate when toggling database on hub page", () => {
@@ -1101,7 +1120,9 @@ describe("Sidebar", () => {
       const groupHeader = screen.getByText("Meine Gruppen");
       fireEvent.click(groupHeader);
 
-      expect(mockRouterPush).toHaveBeenCalledWith("/ogs-groups?group=2");
+      expect(mockRouterPush).toHaveBeenCalledWith(
+        "/test-tenant/ogs-groups?group=2",
+      );
     });
 
     it("navigates to saved room from localStorage when toggling supervisions", () => {
@@ -1134,7 +1155,7 @@ describe("Sidebar", () => {
       fireEvent.click(supervisionHeader);
 
       expect(mockRouterPush).toHaveBeenCalledWith(
-        "/active-supervisions?room=20",
+        "/test-tenant/active-supervisions?room=20",
       );
     });
 
@@ -1167,7 +1188,9 @@ describe("Sidebar", () => {
       const groupHeader = screen.getByText("Meine Gruppen");
       fireEvent.click(groupHeader);
 
-      expect(mockRouterPush).toHaveBeenCalledWith("/ogs-groups?group=1");
+      expect(mockRouterPush).toHaveBeenCalledWith(
+        "/test-tenant/ogs-groups?group=1",
+      );
     });
 
     it("falls back to first room when saved room not found", () => {
@@ -1200,8 +1223,59 @@ describe("Sidebar", () => {
       fireEvent.click(supervisionHeader);
 
       expect(mockRouterPush).toHaveBeenCalledWith(
-        "/active-supervisions?room=10",
+        "/test-tenant/active-supervisions?room=10",
       );
+    });
+  });
+
+  describe("operator mode navigation", () => {
+    beforeEach(() => {
+      mockUseShellAuth.mockReturnValue({
+        user: {
+          name: "Operator User",
+          email: "op@example.com",
+          roles: ["operator"],
+        },
+        profile: { firstName: "Operator", lastName: "User" },
+        status: "authenticated",
+        isSessionExpired: false,
+        logout: vi.fn(),
+        mode: "operator",
+        homeUrl: "/operator/suggestions",
+        settingsUrl: "/operator/settings",
+      });
+      mockUsePathname.mockReturnValue("/operator/suggestions");
+    });
+
+    it("renders operator navigation items", () => {
+      render(<Sidebar />);
+
+      expect(screen.getByText("Feedback")).toBeInTheDocument();
+      expect(screen.getByText("Ankündigungen")).toBeInTheDocument();
+      expect(screen.getByText("Einstellungen")).toBeInTheDocument();
+    });
+
+    it("does not render teacher-specific items", () => {
+      render(<Sidebar />);
+
+      expect(screen.queryByText("Kindersuche")).not.toBeInTheDocument();
+      expect(screen.queryByText("Aktivitäten")).not.toBeInTheDocument();
+      expect(screen.queryByText("Räume")).not.toBeInTheDocument();
+      expect(screen.queryByText("Mitarbeiter")).not.toBeInTheDocument();
+    });
+
+    it("renders with custom className in operator mode", () => {
+      const { container } = render(<Sidebar className="op-class" />);
+
+      const aside = container.querySelector("aside");
+      expect(aside).toHaveClass("op-class");
+    });
+
+    it("renders bottom pinned settings item", () => {
+      render(<Sidebar />);
+
+      const settingsLink = screen.getByText("Einstellungen").closest("a");
+      expect(settingsLink).toHaveAttribute("href", "/operator/settings");
     });
   });
 

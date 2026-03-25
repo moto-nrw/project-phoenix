@@ -37,6 +37,7 @@ type Factory struct {
 	// Auth domain
 	Account                authModels.AccountRepository
 	AccountParent          authModels.AccountParentRepository
+	AccountTenant          authModels.AccountTenantRepository
 	Role                   authModels.RoleRepository
 	Permission             authModels.PermissionRepository
 	RolePermission         authModels.RolePermissionRepository
@@ -120,10 +121,12 @@ type Factory struct {
 	WorkSessionEdit auditModels.WorkSessionEditRepository
 
 	// Platform domain (operator dashboard)
+	Organization     platformModels.OrganizationRepository
 	Operator         platformModels.OperatorRepository
 	Announcement     platformModels.AnnouncementRepository
 	AnnouncementView platformModels.AnnouncementViewRepository
 	OperatorAuditLog platformModels.OperatorAuditLogRepository
+	School           platformModels.SchoolRepository
 }
 
 // NewFactory creates a new repository factory with all repositories
@@ -132,6 +135,7 @@ func NewFactory(db *bun.DB) *Factory {
 		// Auth repositories
 		Account:                auth.NewAccountRepository(db),
 		AccountParent:          auth.NewAccountParentRepository(db),
+		AccountTenant:          auth.NewAccountTenantRepository(db),
 		Role:                   auth.NewRoleRepository(db),
 		Permission:             auth.NewPermissionRepository(db),
 		RolePermission:         auth.NewRolePermissionRepository(db),
@@ -215,9 +219,11 @@ func NewFactory(db *bun.DB) *Factory {
 		WorkSessionEdit: audit.NewWorkSessionEditRepository(db),
 
 		// Platform repositories
+		Organization:     platformRepo.NewOrganizationRepository(db),
 		Operator:         platformRepo.NewOperatorRepository(db),
 		Announcement:     platformRepo.NewAnnouncementRepository(db),
 		AnnouncementView: platformRepo.NewAnnouncementViewRepository(db),
 		OperatorAuditLog: platformRepo.NewOperatorAuditLogRepository(db),
+		School:           platformRepo.NewSchoolRepository(db),
 	}
 }

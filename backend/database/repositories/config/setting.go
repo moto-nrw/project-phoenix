@@ -10,6 +10,7 @@ import (
 	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -27,8 +28,10 @@ type SettingRepository struct {
 
 // NewSettingRepository creates a new SettingRepository
 func NewSettingRepository(db *bun.DB) config.SettingRepository {
+	repo := repoBase.NewRepository[*config.Setting](db, tableConfigSettings, "Setting")
+	repo.TenantScoped = true
 	return &SettingRepository{
-		Repository: repoBase.NewRepository[*config.Setting](db, tableConfigSettings, "Setting"),
+		Repository: repo,
 		db:         db,
 	}
 }
@@ -37,11 +40,16 @@ func NewSettingRepository(db *bun.DB) config.SettingRepository {
 // Returns (nil, nil) if no setting is found
 func (r *SettingRepository) FindByID(ctx context.Context, id interface{}) (*config.Setting, error) {
 	setting := new(config.Setting)
-	err := r.db.NewSelect().
+	query := repoBase.GetDB(ctx, r.db).NewSelect().
 		Model(setting).
 		ModelTableExpr(tableConfigSettingsAlias).
-		Where(`"setting".id = ?`, id).
-		Scan(ctx)
+		Where(`"setting".id = ?`, id)
+
+	if where, val, ok := repoBase.TenantWhere(ctx, "setting"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 
 	if err != nil {
 		// Return (nil, nil) for not found to allow service layer to handle it
@@ -64,11 +72,16 @@ func (r *SettingRepository) FindByKey(ctx context.Context, key string) (*config.
 	key = strings.ToLower(strings.ReplaceAll(key, " ", "_"))
 
 	setting := new(config.Setting)
-	err := r.db.NewSelect().
+	query := repoBase.GetDB(ctx, r.db).NewSelect().
 		Model(setting).
 		ModelTableExpr(tableConfigSettingsAlias).
-		Where("key = ?", key).
-		Scan(ctx)
+		Where("key = ?", key)
+
+	if where, val, ok := repoBase.TenantWhere(ctx, "setting"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 
 	if err != nil {
 		// Return (nil, nil) for not found to allow service layer to handle it
@@ -90,12 +103,16 @@ func (r *SettingRepository) FindByCategory(ctx context.Context, category string)
 	category = strings.ToLower(category)
 
 	var settings []*config.Setting
-	err := r.db.NewSelect().
+	query := repoBase.GetDB(ctx, r.db).NewSelect().
 		Model(&settings).
 		ModelTableExpr(tableConfigSettingsAlias).
-		Where("category = ?", category).
-		Order("key ASC").
-		Scan(ctx)
+		Where("category = ?", category)
+
+	if where, val, ok := repoBase.TenantWhere(ctx, "setting"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Order("key ASC").Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -115,11 +132,16 @@ func (r *SettingRepository) FindByKeyAndCategory(ctx context.Context, key string
 	category = strings.ToLower(category)
 
 	setting := new(config.Setting)
-	err := r.db.NewSelect().
+	query := repoBase.GetDB(ctx, r.db).NewSelect().
 		Model(setting).
 		ModelTableExpr(tableConfigSettingsAlias).
-		Where("key = ? AND category = ?", key, category).
-		Scan(ctx)
+		Where("key = ? AND category = ?", key, category)
+
+	if where, val, ok := repoBase.TenantWhere(ctx, "setting"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 
 	if err != nil {
 		// Return (nil, nil) for not found to allow service layer to handle it
@@ -140,12 +162,17 @@ func (r *SettingRepository) UpdateValue(ctx context.Context, key string, value s
 	// Normalize key to follow the project convention
 	key = strings.ToLower(strings.ReplaceAll(key, " ", "_"))
 
-	_, err := r.db.NewUpdate().
+	query := repoBase.GetDB(ctx, r.db).NewUpdate().
 		Model((*config.Setting)(nil)).
 		ModelTableExpr(tableConfigSettingsAlias).
 		Set("value = ?", value).
-		Where("key = ?", key).
-		Exec(ctx)
+		Where("key = ?", key)
+
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where(`"setting".tenant_id = ?`, tenantID)
+	}
+
+	result, err := query.Exec(ctx)
 
 	if err != nil {
 		return &modelBase.DatabaseError{
@@ -154,7 +181,7 @@ func (r *SettingRepository) UpdateValue(ctx context.Context, key string, value s
 		}
 	}
 
-	return nil
+	return repoBase.AssertRowsAffected(result, 1, "update setting value")
 }
 
 // GetValue retrieves the value of a setting by its key
@@ -239,7 +266,11 @@ func (r *SettingRepository) Update(ctx context.Context, setting *config.Setting)
 // List retrieves settings matching the provided filters
 func (r *SettingRepository) List(ctx context.Context, filters map[string]interface{}) ([]*config.Setting, error) {
 	var settings []*config.Setting
-	query := r.db.NewSelect().Model(&settings).ModelTableExpr(tableConfigSettingsAlias)
+	query := repoBase.GetDB(ctx, r.db).NewSelect().Model(&settings).ModelTableExpr(tableConfigSettingsAlias)
+
+	if where, val, ok := repoBase.TenantWhere(ctx, "setting"); ok {
+		query = query.Where(where, val)
+	}
 
 	// Apply filters
 	for field, value := range filters {

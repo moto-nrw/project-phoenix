@@ -271,13 +271,16 @@ describe("teacher-api", () => {
         role_id: 1,
       });
 
-      expect(result.first_name).toBe("Test");
-      expect(result.last_name).toBe("Teacher");
-      expect(result.name).toBe("Test Teacher");
-      expect(result.temporaryCredentials).toEqual({
-        email: "test.teacher@school.local",
-        password: "SecurePass123!",
-      });
+      expect(result.status).toBe("created");
+      if (result.status === "created") {
+        expect(result.data.first_name).toBe("Test");
+        expect(result.data.last_name).toBe("Teacher");
+        expect(result.data.name).toBe("Test Teacher");
+        expect(result.data.temporaryCredentials).toEqual({
+          email: "test.teacher@school.local",
+          password: "SecurePass123!",
+        });
+      }
     });
 
     it("uses provided email instead of generating one", async () => {
@@ -309,8 +312,13 @@ describe("teacher-api", () => {
         role_id: 1,
       });
 
-      expect(result.email).toBe("custom@example.com");
-      expect(result.temporaryCredentials?.email).toBe("custom@example.com");
+      expect(result.status).toBe("created");
+      if (result.status === "created") {
+        expect(result.data.email).toBe("custom@example.com");
+        expect(result.data.temporaryCredentials?.email).toBe(
+          "custom@example.com",
+        );
+      }
     });
 
     it("throws error when account creation fails", async () => {
@@ -328,7 +336,9 @@ describe("teacher-api", () => {
           password: "SecurePass123!",
           role_id: 1,
         }),
-      ).rejects.toThrow("Failed to create account: Email already exists");
+      ).rejects.toThrow(
+        "Konto konnte nicht erstellt werden: Email already exists",
+      );
     });
 
     it("throws error when person creation fails", async () => {
@@ -665,6 +675,162 @@ describe("teacher-api", () => {
       expect(consoleSpies.warn).toHaveBeenCalledWith(
         "activities endpoint not implemented for staff/teachers",
         undefined,
+      );
+    });
+  });
+
+  describe("teacherService.createTeacher — account_exists flow", () => {
+    it("returns account_exists when email already exists", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+
+      // Mock account creation returning "email already exists" error
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        statusText: "Conflict",
+        json: () => Promise.resolve({ error: "email already exists" }),
+      } as Response);
+
+      const result = await teacherService.createTeacher({
+        first_name: "Test",
+        last_name: "Teacher",
+        password: "SecurePass123!",
+        role_id: 1,
+      });
+
+      expect(result.status).toBe("account_exists");
+      if (result.status === "account_exists") {
+        expect(result.email).toBe("test.teacher@school.local");
+      }
+    });
+
+    it("throws error for username conflict", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        statusText: "Conflict",
+        json: () => Promise.resolve({ error: "username already exists" }),
+      } as Response);
+
+      await expect(
+        teacherService.createTeacher({
+          first_name: "Test",
+          last_name: "Teacher",
+          password: "SecurePass123!",
+          role_id: 1,
+        }),
+      ).rejects.toThrow(
+        "Ein Konto mit diesem Benutzernamen existiert bereits.",
+      );
+    });
+
+    it("throws generic error for other account creation failures", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        statusText: "Bad Request",
+        json: () => Promise.resolve({ error: "weak password" }),
+      } as Response);
+
+      await expect(
+        teacherService.createTeacher({
+          first_name: "Test",
+          last_name: "Teacher",
+          password: "weak",
+          role_id: 1,
+        }),
+      ).rejects.toThrow("Konto konnte nicht erstellt werden: weak password");
+    });
+  });
+
+  describe("teacherService.createTeacher — linkExisting flow", () => {
+    it("links existing account and creates person + staff", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+
+      // Mock link-to-tenant
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ id: 99 }),
+      } as Response);
+
+      // Mock person creation
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ data: { data: { id: 200 } } }),
+      } as Response);
+
+      // Mock staff creation
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(sampleTeacher),
+      } as Response);
+
+      const result = await teacherService.createTeacher({
+        first_name: "Linked",
+        last_name: "User",
+        email: "linked@example.com",
+        role_id: 1,
+        linkExisting: true,
+      });
+
+      expect(result.status).toBe("created");
+      if (result.status === "created") {
+        // No temporary credentials for linked accounts
+        expect(result.data.temporaryCredentials).toBeUndefined();
+        expect(result.data.email).toBe("linked@example.com");
+      }
+
+      // Verify it called link-to-tenant, not register
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/auth/link-to-tenant",
+        expect.objectContaining({
+          method: "POST",
+          body: expect.stringContaining('"email":"linked@example.com"'),
+        }),
+      );
+    });
+
+    it("throws error when link-to-tenant fails", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        statusText: "Not Found",
+        json: () => Promise.resolve({ error: "account not found" }),
+      } as Response);
+
+      await expect(
+        teacherService.createTeacher({
+          first_name: "Missing",
+          last_name: "User",
+          email: "missing@example.com",
+          role_id: 1,
+          linkExisting: true,
+        }),
+      ).rejects.toThrow(
+        "Konto konnte nicht verknüpft werden: account not found",
+      );
+    });
+
+    it("throws error when link response has no account ID", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({}),
+      } as Response);
+
+      await expect(
+        teacherService.createTeacher({
+          first_name: "No",
+          last_name: "ID",
+          email: "noid@example.com",
+          role_id: 1,
+          linkExisting: true,
+        }),
+      ).rejects.toThrow(
+        "Konto-ID konnte nicht aus der Verknüpfungs-Antwort gelesen werden.",
       );
     });
   });

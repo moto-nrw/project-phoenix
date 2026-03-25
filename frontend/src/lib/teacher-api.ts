@@ -2,9 +2,14 @@
 
 import { sessionFetch } from "./session-cache";
 import { createLogger } from "~/lib/logger";
+import type { Activity } from "./activity-helpers";
 
 const logger = createLogger({ component: "TeacherAPI" });
-import type { Activity } from "./activity-helpers";
+
+/** Result of a createTeacher call — either success or a prompt to link an existing account. */
+export type CreateTeacherResult =
+  | { status: "created"; data: TeacherWithCredentials }
+  | { status: "account_exists"; email: string };
 
 /**
  * Extracts error message from API error response
@@ -200,13 +205,9 @@ class TeacherService {
     teacherData: Omit<Teacher, "id" | "name" | "created_at" | "updated_at"> & {
       password?: string;
       role_id?: number;
+      linkExisting?: boolean;
     },
-  ): Promise<TeacherWithCredentials> {
-    const password = teacherData.password;
-    if (!password) {
-      throw new Error("Password is required for creating a teacher");
-    }
-
+  ): Promise<CreateTeacherResult> {
     const roleId = teacherData.role_id;
     if (!roleId) {
       throw new Error("Role ID is required for creating a teacher");
@@ -215,17 +216,33 @@ class TeacherService {
     const email =
       teacherData.email ??
       `${teacherData.first_name.toLowerCase()}.${teacherData.last_name.toLowerCase()}@school.local`;
-    const username = `${teacherData.first_name.toLowerCase()}_${teacherData.last_name.toLowerCase()}`;
+    const suffix = Math.random().toString(36).slice(2, 8);
+    const username = `${teacherData.first_name.toLowerCase()}_${teacherData.last_name.toLowerCase()}_${suffix}`;
     const fullName = `${teacherData.first_name} ${teacherData.last_name}`;
 
-    // Step 1: Create account
-    const accountId = await this.createAccount(
-      email,
-      username,
-      fullName,
-      password,
-      roleId,
-    );
+    // Step 1: Create account or link existing
+    let accountId: string | number;
+    if (teacherData.linkExisting) {
+      // Link existing account — password is NOT changed
+      accountId = await this.linkAccountToTenant(email, roleId);
+    } else {
+      const password = teacherData.password;
+      if (!password) {
+        throw new Error("Password is required for creating a teacher");
+      }
+      // Try to create — if email exists, return account_exists result (not an error)
+      const createResult = await this.tryCreateAccount(
+        email,
+        username,
+        fullName,
+        password,
+        roleId,
+      );
+      if (createResult.status === "account_exists") {
+        return { status: "account_exists", email };
+      }
+      accountId = createResult.accountId;
+    }
 
     // Step 2: Create person linked to account
     const personId = await this.createPerson(teacherData, accountId);
@@ -235,23 +252,31 @@ class TeacherService {
 
     // Return with credentials and name data
     return {
-      ...staffData,
-      first_name: teacherData.first_name,
-      last_name: teacherData.last_name,
-      name: fullName,
-      email: email,
-      temporaryCredentials: { email, password },
-    } as TeacherWithCredentials;
+      status: "created",
+      data: {
+        ...staffData,
+        first_name: teacherData.first_name,
+        last_name: teacherData.last_name,
+        name: fullName,
+        email: email,
+        temporaryCredentials: teacherData.linkExisting
+          ? undefined
+          : { email, password: teacherData.password ?? "" },
+      } as TeacherWithCredentials,
+    };
   }
 
-  /** Creates account for teacher registration */
-  private async createAccount(
+  /** Tries to create an account — returns account_exists status instead of throwing. */
+  private async tryCreateAccount(
     email: string,
     username: string,
     name: string,
     password: string,
     roleId: number,
-  ): Promise<string | number> {
+  ): Promise<
+    | { status: "created"; accountId: string | number }
+    | { status: "account_exists" }
+  > {
     const response = await sessionFetch("/api/auth/register", {
       method: "POST",
       credentials: "include",
@@ -270,9 +295,16 @@ class TeacherService {
         error?: string;
         message?: string;
       };
-      throw new Error(
-        `Failed to create account: ${extractErrorMessage(errorData, response.statusText)}`,
-      );
+      const msg = extractErrorMessage(errorData, response.statusText);
+      if (msg.includes("email already exists")) {
+        return { status: "account_exists" as const };
+      }
+      if (msg.includes("username already exists")) {
+        throw new Error(
+          "Ein Konto mit diesem Benutzernamen existiert bereits.",
+        );
+      }
+      throw new Error(`Konto konnte nicht erstellt werden: ${msg}`);
     }
 
     const data = (await response.json()) as {
@@ -284,6 +316,42 @@ class TeacherService {
     if (!accountId) {
       logger.error("failed to get account ID from response");
       throw new Error("Failed to get account ID from response");
+    }
+
+    return { status: "created" as const, accountId };
+  }
+
+  /** Links an existing account to the current tenant. */
+  private async linkAccountToTenant(
+    email: string,
+    roleId: number,
+  ): Promise<string | number> {
+    const response = await sessionFetch("/api/auth/link-to-tenant", {
+      method: "POST",
+      credentials: "include",
+      body: JSON.stringify({ email, role_id: roleId }),
+    });
+
+    if (!response.ok) {
+      const errorData = (await response.json()) as {
+        error?: string;
+        message?: string;
+      };
+      throw new Error(
+        `Konto konnte nicht verknüpft werden: ${extractErrorMessage(errorData, response.statusText)}`,
+      );
+    }
+
+    const data = (await response.json()) as {
+      id?: string | number;
+      data?: { id?: string | number };
+    };
+    const accountId = extractIdFromResponse(data);
+
+    if (!accountId) {
+      throw new Error(
+        "Konto-ID konnte nicht aus der Verknüpfungs-Antwort gelesen werden.",
+      );
     }
 
     return accountId;

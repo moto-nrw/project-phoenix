@@ -39,7 +39,10 @@ type SuggestionResponse struct {
 	CommentCount     int                `json:"comment_count,omitempty"`
 	UnreadCount      int                `json:"unread_count,omitempty"`
 	IsNew            bool               `json:"is_new,omitempty"`
+	IsHidden         bool               `json:"is_hidden"`
 	OperatorComments []*CommentResponse `json:"operator_comments,omitempty"`
+	SchoolID         int64              `json:"school_id"`
+	SchoolName       string             `json:"school_name"`
 }
 
 // CommentResponse represents a comment in the response (shared between operator and user APIs)
@@ -69,6 +72,19 @@ type AddCommentRequest struct {
 
 // Bind validates the add comment request
 func (req *AddCommentRequest) Bind(r *http.Request) error {
+	return nil
+}
+
+// HidePostRequest represents the hide/unhide request body
+type HidePostRequest struct {
+	Hidden *bool `json:"hidden"`
+}
+
+// Bind validates the hide post request
+func (req *HidePostRequest) Bind(r *http.Request) error {
+	if req.Hidden == nil {
+		return errors.New("hidden is required")
+	}
 	return nil
 }
 
@@ -102,9 +118,12 @@ func (rs *SuggestionsResource) ListSuggestions(w http.ResponseWriter, r *http.Re
 			CommentCount: post.CommentCount,
 			UnreadCount:  post.UnreadCount,
 			IsNew:        post.IsNew,
+			IsHidden:     post.IsHidden,
 			AuthorName:   post.AuthorName,
 			CreatedAt:    post.CreatedAt.UTC().Format(time.RFC3339),
 			UpdatedAt:    post.UpdatedAt.UTC().Format(time.RFC3339),
+			SchoolID:     post.TenantID,
+			SchoolName:   post.SchoolName,
 		})
 	}
 
@@ -152,7 +171,10 @@ func (rs *SuggestionsResource) GetSuggestion(w http.ResponseWriter, r *http.Requ
 		UpdatedAt:        post.UpdatedAt.UTC().Format(time.RFC3339),
 		CommentCount:     len(comments),
 		UnreadCount:      post.UnreadCount,
+		IsHidden:         post.IsHidden,
 		OperatorComments: commentResponses,
+		SchoolID:         post.TenantID,
+		SchoolName:       post.SchoolName,
 	}
 
 	common.Respond(w, r, http.StatusOK, response, "Suggestion retrieved successfully")
@@ -308,4 +330,50 @@ func (rs *SuggestionsResource) GetUnviewedCount(w http.ResponseWriter, r *http.R
 	}
 
 	common.Respond(w, r, http.StatusOK, map[string]int{"unviewed_count": count}, "Unviewed count retrieved successfully")
+}
+
+// HidePost toggles the visibility of a suggestion
+func (rs *SuggestionsResource) HidePost(w http.ResponseWriter, r *http.Request) {
+	claims := jwt.ClaimsFromCtx(r.Context())
+	operatorID := int64(claims.ID)
+
+	id, ok := common.ParseInt64IDWithError(w, r, "id", "invalid ID")
+	if !ok {
+		return
+	}
+
+	req := &HidePostRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, ErrInvalidRequest(err))
+		return
+	}
+
+	clientIP := getClientIP(r)
+
+	if err := rs.suggestionsService.HidePost(r.Context(), id, *req.Hidden, operatorID, clientIP); err != nil {
+		common.RenderError(w, r, SuggestionsErrorRenderer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, nil, "Post visibility updated successfully")
+}
+
+// DeletePost permanently removes a suggestion
+func (rs *SuggestionsResource) DeletePost(w http.ResponseWriter, r *http.Request) {
+	claims := jwt.ClaimsFromCtx(r.Context())
+	operatorID := int64(claims.ID)
+
+	id, ok := common.ParseInt64IDWithError(w, r, "id", "invalid ID")
+	if !ok {
+		return
+	}
+
+	clientIP := getClientIP(r)
+
+	if err := rs.suggestionsService.DeletePost(r.Context(), id, operatorID, clientIP); err != nil {
+		common.RenderError(w, r, SuggestionsErrorRenderer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, nil, "Post deleted successfully")
 }

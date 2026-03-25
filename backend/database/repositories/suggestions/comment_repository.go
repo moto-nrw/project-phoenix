@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/suggestions"
 	"github.com/uptrace/bun"
@@ -38,7 +39,9 @@ func (r *CommentRepository) Create(ctx context.Context, comment *suggestions.Com
 		return err
 	}
 
-	_, err := r.db.NewInsert().
+	base.EnsureTenantID(ctx, comment)
+
+	_, err := base.GetDB(ctx, r.db).NewInsert().
 		Model(comment).
 		ModelTableExpr(tableSuggestionsComments).
 		Returning("id, created_at, updated_at").
@@ -57,7 +60,7 @@ func (r *CommentRepository) Create(ctx context.Context, comment *suggestions.Com
 // FindByID retrieves a comment by ID
 func (r *CommentRepository) FindByID(ctx context.Context, id int64) (*suggestions.Comment, error) {
 	comment := new(suggestions.Comment)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(comment).
 		ModelTableExpr(tableSuggestionsCommentsAlias).
 		Where(`"comment".id = ?`, id).
@@ -77,18 +80,49 @@ func (r *CommentRepository) FindByID(ctx context.Context, id int64) (*suggestion
 	return comment, nil
 }
 
+// FindByIDWithAuthor retrieves a comment by ID with author name resolved.
+func (r *CommentRepository) FindByIDWithAuthor(ctx context.Context, id int64) (*suggestions.Comment, error) {
+	comment := new(suggestions.Comment)
+
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(comment).
+		ModelTableExpr(tableSuggestionsCommentsAlias).
+		ColumnExpr(`"comment".*`).
+		ColumnExpr(`COALESCE(CASE
+			WHEN "comment".author_type = 'operator' THEN "op".display_name
+			WHEN "comment".author_type = 'user' THEN CONCAT("person".first_name, ' ', LEFT("person".last_name, 1), '.')
+		END, 'Unbekannt') AS author_name`).
+		Join(`LEFT JOIN platform.operators AS "op" ON "comment".author_type = 'operator' AND "op".id = "comment".author_id`).
+		Join(`LEFT JOIN users.persons AS "person" ON "comment".author_type = 'user' AND "person".account_id = "comment".author_id`).
+		Where(`"comment".id = ?`, id).
+		Where(`"comment".deleted_at IS NULL`).
+		Scan(ctx)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, &modelBase.DatabaseError{
+			Op:  "find comment by id with author",
+			Err: err,
+		}
+	}
+
+	return comment, nil
+}
+
 // FindByPostID retrieves all comments for a post with author names resolved via polymorphic joins.
 func (r *CommentRepository) FindByPostID(ctx context.Context, postID int64) ([]*suggestions.Comment, error) {
 	var comments []*suggestions.Comment
 
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&comments).
 		ModelTableExpr(tableSuggestionsCommentsAlias).
 		ColumnExpr(`"comment".*`).
-		ColumnExpr(`CASE
+		ColumnExpr(`COALESCE(CASE
 			WHEN "comment".author_type = 'operator' THEN "op".display_name
-			WHEN "comment".author_type = 'user' THEN CONCAT("person".first_name, ' ', "person".last_name)
-		END AS author_name`).
+			WHEN "comment".author_type = 'user' THEN CONCAT("person".first_name, ' ', LEFT("person".last_name, 1), '.')
+		END, 'Unbekannt') AS author_name`).
 		Join(`LEFT JOIN platform.operators AS "op" ON "comment".author_type = 'operator' AND "op".id = "comment".author_id`).
 		Join(`LEFT JOIN users.persons AS "person" ON "comment".author_type = 'user' AND "person".account_id = "comment".author_id`).
 		Where(`"comment".post_id = ?`, postID).
@@ -109,7 +143,7 @@ func (r *CommentRepository) FindByPostID(ctx context.Context, postID int64) ([]*
 // Delete soft-deletes a comment by setting deleted_at
 func (r *CommentRepository) Delete(ctx context.Context, id int64) error {
 	now := time.Now()
-	_, err := r.db.NewUpdate().
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		ModelTableExpr(tableSuggestionsComments).
 		Set("deleted_at = ?", now).
 		Where("id = ?", id).
@@ -128,7 +162,7 @@ func (r *CommentRepository) Delete(ctx context.Context, id int64) error {
 
 // CountByPostID counts non-deleted comments for a post
 func (r *CommentRepository) CountByPostID(ctx context.Context, postID int64) (int, error) {
-	count, err := r.db.NewSelect().
+	count, err := base.GetDB(ctx, r.db).NewSelect().
 		ModelTableExpr(tableSuggestionsCommentsAlias).
 		Where(`"comment".post_id = ?`, postID).
 		Where(`"comment".deleted_at IS NULL`).

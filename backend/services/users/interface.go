@@ -15,7 +15,6 @@ type StudentWithGroup struct {
 
 // PersonService defines the operations available in the person service layer
 type PersonService interface {
-	base.TransactionalService
 	// Get retrieves a person by their ID
 	Get(ctx context.Context, id interface{}) (*userModels.Person, error)
 
@@ -30,6 +29,9 @@ type PersonService interface {
 
 	// Delete removes a person
 	Delete(ctx context.Context, id interface{}) error
+
+	// DeleteStaff removes a staff member after checking for active supervisions
+	DeleteStaff(ctx context.Context, staffID int64) error
 
 	// List retrieves persons matching the provided query options
 	List(ctx context.Context, options *base.QueryOptions) ([]*userModels.Person, error)

@@ -6,21 +6,26 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	"github.com/uptrace/bun"
+
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	databaseSvc "github.com/moto-nrw/project-phoenix/services/database"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Resource defines the database API resource
 type Resource struct {
 	DatabaseService databaseSvc.DatabaseService
+	db              *bun.DB
 }
 
 // NewResource creates a new database resource
-func NewResource(databaseService databaseSvc.DatabaseService) *Resource {
+func NewResource(databaseService databaseSvc.DatabaseService, db *bun.DB) *Resource {
 	return &Resource{
 		DatabaseService: databaseService,
+		db:              db,
 	}
 }
 
@@ -36,9 +41,11 @@ func (rs *Resource) Router() chi.Router {
 	r.Group(func(r chi.Router) {
 		r.Use(tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
+		r.Use(jwt.TenantMiddleware)
 
 		// Stats endpoint - requires system:manage permission (admin only)
-		r.With(authorize.RequiresPermission("system:manage")).Get("/stats", rs.getStats)
+		withTx := tenant.TenantTxMiddleware(rs.db)
+		r.With(authorize.RequiresPermission("system:manage"), withTx).Get("/stats", rs.getStats)
 	})
 
 	return r

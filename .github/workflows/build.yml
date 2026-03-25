@@ -11,6 +11,7 @@ on:
     paths:
       - 'backend/**'
       - 'frontend/**'
+      - 'environments/**'
       - '.github/workflows/build.yml'
       - '!**.md'
       - '!docs/**'
@@ -49,7 +50,7 @@ env:
 jobs:
   # Determine target environment and whether to proceed
   check-environment:
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     outputs:
       should_deploy: ${{ steps.check.outputs.should_deploy }}
       is_staging: ${{ steps.check.outputs.is_staging }}
@@ -133,10 +134,10 @@ jobs:
           ref: ${{ github.event_name == 'pull_request' && 'development' || github.ref }}
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -144,7 +145,7 @@ jobs:
 
       - name: Extract metadata for backend
         id: meta
-        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
+        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
         with:
           images: ${{ env.BACKEND_IMAGE }}
           tags: |
@@ -163,7 +164,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
 
       - name: Build and push backend
-        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
         with:
           context: ./backend
           file: ./backend/Dockerfile
@@ -196,10 +197,10 @@ jobs:
           ref: ${{ github.event_name == 'pull_request' && 'development' || github.ref }}
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -207,7 +208,7 @@ jobs:
 
       - name: Extract metadata for frontend
         id: meta
-        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
+        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
         with:
           images: ${{ env.FRONTEND_IMAGE }}
           tags: |
@@ -236,8 +237,30 @@ jobs:
             echo "url=https://api.moto-app.de" >> $GITHUB_OUTPUT
           fi
 
+      - name: Determine operator hostname
+        id: operator_hostname
+        run: |
+          if [[ "${{ needs.check-environment.outputs.is_staging }}" == "true" ]]; then
+            echo "hostname=operator.staging.moto-app.de" >> $GITHUB_OUTPUT
+          elif [[ "${{ needs.check-environment.outputs.is_demo }}" == "true" ]]; then
+            echo "hostname=operator.demo.moto-app.de" >> $GITHUB_OUTPUT
+          else
+            echo "hostname=operator.moto-app.de" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Determine tenant domain
+        id: tenant_domain
+        run: |
+          if [[ "${{ needs.check-environment.outputs.is_staging }}" == "true" ]]; then
+            echo "domain=staging.moto-app.de" >> $GITHUB_OUTPUT
+          elif [[ "${{ needs.check-environment.outputs.is_demo }}" == "true" ]]; then
+            echo "domain=demo.moto-app.de" >> $GITHUB_OUTPUT
+          else
+            echo "domain=moto-app.de" >> $GITHUB_OUTPUT
+          fi
+
       - name: Build and push frontend
-        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
         with:
           context: ./frontend
           file: ./frontend/Dockerfile.prod
@@ -247,6 +270,9 @@ jobs:
           platforms: linux/amd64
           build-args: |
             NEXT_PUBLIC_API_URL=${{ steps.api_url.outputs.url }}
+            NEXT_PUBLIC_OPERATOR_HOSTNAME=${{ steps.operator_hostname.outputs.hostname }}
+            TENANT_DOMAIN=${{ steps.tenant_domain.outputs.domain }}
+            NEXT_PUBLIC_TENANT_DOMAIN=${{ steps.tenant_domain.outputs.domain }}
           # Use separate cache scope to prevent backend overwriting frontend cache
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,mode=max,scope=frontend
@@ -255,15 +281,37 @@ jobs:
       - name: Image digest
         run: echo "Frontend image pushed with digest ${{ steps.meta.outputs.digest }}"
 
-  # Deploy to staging (merged PR with label or manual dispatch)
+  # Deploy to staging with automatic rollback on failure
   # Note: Currently staging runs on same server as production (different ports/dirs)
   # Using separate secrets allows easy migration to dedicated staging server later
+  # Exit codes from deploy-remote.sh: 0=success, 1=pre-deploy abort, 10=rollback ok, 11=rollback failed
   deploy-staging:
     needs: [check-environment, build-backend, build-frontend]
     if: needs.check-environment.outputs.should_deploy == 'true' && needs.check-environment.outputs.is_staging == 'true'
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    concurrency:
+      group: deploy-staging
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Install SOPS
+        run: |
+          curl -LsS https://github.com/getsops/sops/releases/download/v3.12.1/sops-v3.12.1.linux.amd64 -o /usr/local/bin/sops
+          chmod +x /usr/local/bin/sops
+
+      - name: Decrypt staging environment
+        env:
+          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+        run: sops decrypt environments/staging.sops.env > /tmp/staging.env
+
       - name: Deploy to staging
+        id: deploy
         env:
           SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
           SSH_HOST: ${{ secrets.STAGING_HOST }}
@@ -274,45 +322,72 @@ jobs:
           chmod 644 ~/.ssh/known_hosts
           echo "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh -i ~/.ssh/deploy_key root@$SSH_HOST '
-            set -e
-            echo "Starting staging deployment..."
-            cd ~/staging
 
-            # Pull new images first (needed for backup and migrate)
-            docker compose pull
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
 
-            # Backup
-            mkdir -p ~/backups/staging
-            BACKUP_FILE=~/backups/staging/backup-$(date +%Y%m%d-%H%M%S).dump
-            docker compose exec -T postgres pg_dump -U postgres -d postgres -Fc > "$BACKUP_FILE"
-            [ -s "$BACKUP_FILE" ] || { echo "Backup failed or empty"; exit 1; }
-            echo "Backup created: $(basename $BACKUP_FILE) ($(du -h $BACKUP_FILE | cut -f1))"
+          scp -i ~/.ssh/deploy_key /tmp/staging.env root@$SSH_HOST:~/staging/.env.new
+          scp -i ~/.ssh/deploy_key environments/staging.compose.yml root@$SSH_HOST:~/staging/docker-compose.yml.new
+          scp -i ~/.ssh/deploy_key scripts/deploy-remote.sh root@$SSH_HOST:~/deploy-remote.sh
+          scp -i ~/.ssh/deploy_key scripts/restore-db.sh root@$SSH_HOST:~/restore-db.sh
 
-            # Stop old server before schema changes (prevents mixed-version window)
-            docker compose stop server
+          set +e
+          ssh -i ~/.ssh/deploy_key root@$SSH_HOST \
+            "DEPLOY_DIR=staging DEPLOY_SHA=$SHORT_SHA BACKUP_RETENTION=3 bash ~/deploy-remote.sh"
+          DEPLOY_EXIT=$?
+          set -e
 
-            # Migrate before starting services (avoids deadlock if new server needs new schema)
-            docker compose run --rm server ./main migrate
+          echo "deploy_exit=$DEPLOY_EXIT" >> $GITHUB_OUTPUT
 
-            # Deploy (--wait blocks until healthcheck passes)
-            docker compose up -d --wait
-            echo "Server is healthy"
+          if [ "$DEPLOY_EXIT" -ne 0 ]; then
+            exit 1
+          fi
 
-            # Cleanup (keep 3)
-            ls -t ~/backups/staging/backup-*.dump 2>/dev/null | tail -n +4 | xargs -r rm -v
+      - name: Cleanup secrets
+        if: always()
+        run: rm -f ~/.ssh/deploy_key /tmp/staging.env
 
-            echo "Staging deployment complete"
-          '
-          rm ~/.ssh/deploy_key
+      - name: Notify on deploy failure
+        if: always() && steps.deploy.outputs.deploy_exit != '' && steps.deploy.outputs.deploy_exit != '0'
+        uses: ./.github/actions/notify-deploy-failure
+        with:
+          exit_code: ${{ steps.deploy.outputs.deploy_exit }}
+          environment: staging
+          resend_api_key: ${{ secrets.RESEND_API_KEY }}
+          notify_emails: ${{ vars.DEPLOY_NOTIFY_EMAILS }}
+          run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          commit_url: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
+          sha: ${{ github.sha }}
+          actor: ${{ github.actor }}
 
-  # Deploy to demo (merged PR with 'deploy-demo' label or manual dispatch)
+  # Deploy to demo with automatic rollback on failure
+  # Exit codes from deploy-remote.sh: 0=success, 1=pre-deploy abort, 10=rollback ok, 11=rollback failed
   deploy-demo:
     needs: [check-environment, build-backend, build-frontend]
     if: needs.check-environment.outputs.should_deploy == 'true' && needs.check-environment.outputs.is_demo == 'true'
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    concurrency:
+      group: deploy-demo
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Install SOPS
+        run: |
+          curl -LsS https://github.com/getsops/sops/releases/download/v3.12.1/sops-v3.12.1.linux.amd64 -o /usr/local/bin/sops
+          chmod +x /usr/local/bin/sops
+
+      - name: Decrypt demo environment
+        env:
+          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+        run: sops decrypt environments/demo.sops.env > /tmp/demo.env
+
       - name: Deploy to demo
+        id: deploy
         env:
           SSH_KEY: ${{ secrets.DEMO_SSH_KEY }}
           SSH_HOST: ${{ secrets.DEMO_HOST }}
@@ -323,34 +398,72 @@ jobs:
           chmod 644 ~/.ssh/known_hosts
           echo "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh -i ~/.ssh/deploy_key root@$SSH_HOST '
-            set -e
-            echo "Starting demo deployment..."
-            cd ~/demo
 
-            # Deploy (no backup for demo)
-            docker compose pull
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
 
-            # Stop old server before schema changes (prevents mixed-version window)
-            docker compose stop server
+          scp -i ~/.ssh/deploy_key /tmp/demo.env root@$SSH_HOST:~/demo/.env.new
+          scp -i ~/.ssh/deploy_key environments/demo.compose.yml root@$SSH_HOST:~/demo/docker-compose.yml.new
+          scp -i ~/.ssh/deploy_key scripts/deploy-remote.sh root@$SSH_HOST:~/deploy-remote.sh
+          scp -i ~/.ssh/deploy_key scripts/restore-db.sh root@$SSH_HOST:~/restore-db.sh
 
-            # Migrate before starting services (avoids deadlock if new server needs new schema)
-            docker compose run --rm server ./main migrate
+          set +e
+          ssh -i ~/.ssh/deploy_key root@$SSH_HOST \
+            "DEPLOY_DIR=demo DEPLOY_SHA=$SHORT_SHA BACKUP_RETENTION=3 bash ~/deploy-remote.sh"
+          DEPLOY_EXIT=$?
+          set -e
 
-            # Deploy (--wait blocks until healthcheck passes)
-            docker compose up -d --wait
+          echo "deploy_exit=$DEPLOY_EXIT" >> $GITHUB_OUTPUT
 
-            echo "Demo deployment complete"
-          '
-          rm ~/.ssh/deploy_key
+          if [ "$DEPLOY_EXIT" -ne 0 ]; then
+            exit 1
+          fi
 
-  # Deploy to production (push to main, release, or manual dispatch to production)
+      - name: Cleanup secrets
+        if: always()
+        run: rm -f ~/.ssh/deploy_key /tmp/demo.env
+
+      - name: Notify on deploy failure
+        if: always() && steps.deploy.outputs.deploy_exit != '' && steps.deploy.outputs.deploy_exit != '0'
+        uses: ./.github/actions/notify-deploy-failure
+        with:
+          exit_code: ${{ steps.deploy.outputs.deploy_exit }}
+          environment: demo
+          resend_api_key: ${{ secrets.RESEND_API_KEY }}
+          notify_emails: ${{ vars.DEPLOY_NOTIFY_EMAILS }}
+          run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          commit_url: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
+          sha: ${{ github.sha }}
+          actor: ${{ github.actor }}
+
+  # Deploy to production with automatic rollback on failure
+  # Exit codes from deploy-remote.sh: 0=success, 1=pre-deploy abort, 10=rollback ok, 11=rollback failed
   deploy-production:
     needs: [check-environment, build-backend, build-frontend]
     if: needs.check-environment.outputs.should_deploy == 'true' && needs.check-environment.outputs.is_staging == 'false' && needs.check-environment.outputs.is_demo == 'false'
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.ref }}
+
+      - name: Install SOPS
+        run: |
+          curl -LsS https://github.com/getsops/sops/releases/download/v3.12.1/sops-v3.12.1.linux.amd64 -o /usr/local/bin/sops
+          chmod +x /usr/local/bin/sops
+
+      - name: Decrypt production environment
+        env:
+          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+        run: sops decrypt environments/production.sops.env > /tmp/production.env
+
       - name: Deploy to production
+        id: deploy
         env:
           SSH_KEY: ${{ secrets.PRODUCTION_SSH_KEY }}
           SSH_HOST: ${{ secrets.PRODUCTION_HOST }}
@@ -361,41 +474,46 @@ jobs:
           chmod 644 ~/.ssh/known_hosts
           echo "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh -i ~/.ssh/deploy_key root@$SSH_HOST '
-            set -e
-            echo "Starting production deployment..."
-            cd ~/production
 
-            # Pull new images first (needed for backup and migrate)
-            docker compose pull
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
 
-            # Backup
-            mkdir -p ~/backups/production
-            BACKUP_FILE=~/backups/production/backup-$(date +%Y%m%d-%H%M%S).dump
-            docker compose exec -T postgres pg_dump -U postgres -d postgres -Fc > "$BACKUP_FILE"
-            [ -s "$BACKUP_FILE" ] || { echo "Backup failed or empty"; exit 1; }
-            echo "Backup created: $(basename $BACKUP_FILE) ($(du -h $BACKUP_FILE | cut -f1))"
+          scp -i ~/.ssh/deploy_key /tmp/production.env root@$SSH_HOST:~/production/.env.new
+          scp -i ~/.ssh/deploy_key environments/production.compose.yml root@$SSH_HOST:~/production/docker-compose.yml.new
+          scp -i ~/.ssh/deploy_key scripts/deploy-remote.sh root@$SSH_HOST:~/deploy-remote.sh
+          scp -i ~/.ssh/deploy_key scripts/restore-db.sh root@$SSH_HOST:~/restore-db.sh
 
-            # Stop old server before schema changes (prevents mixed-version window)
-            docker compose stop server
+          set +e
+          ssh -i ~/.ssh/deploy_key root@$SSH_HOST \
+            "DEPLOY_DIR=production DEPLOY_SHA=$SHORT_SHA BACKUP_RETENTION=7 bash ~/deploy-remote.sh"
+          DEPLOY_EXIT=$?
+          set -e
 
-            # Migrate before starting services (avoids deadlock if new server needs new schema)
-            docker compose run --rm server ./main migrate
+          echo "deploy_exit=$DEPLOY_EXIT" >> $GITHUB_OUTPUT
 
-            # Deploy (--wait blocks until healthcheck passes)
-            docker compose up -d --wait
-            echo "Server is healthy"
+          if [ "$DEPLOY_EXIT" -ne 0 ]; then
+            exit 1
+          fi
 
-            # Cleanup (keep 7)
-            ls -t ~/backups/production/backup-*.dump 2>/dev/null | tail -n +8 | xargs -r rm -v
+      - name: Cleanup secrets
+        if: always()
+        run: rm -f ~/.ssh/deploy_key /tmp/production.env
 
-            echo "Production deployment complete"
-          '
-          rm ~/.ssh/deploy_key
+      - name: Notify on deploy failure
+        if: always() && steps.deploy.outputs.deploy_exit != '' && steps.deploy.outputs.deploy_exit != '0'
+        uses: ./.github/actions/notify-deploy-failure
+        with:
+          exit_code: ${{ steps.deploy.outputs.deploy_exit }}
+          environment: production
+          resend_api_key: ${{ secrets.RESEND_API_KEY }}
+          notify_emails: ${{ vars.DEPLOY_NOTIFY_EMAILS }}
+          run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          commit_url: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
+          sha: ${{ github.sha }}
+          actor: ${{ github.actor }}
 
   # Summary job for branch protection
   build-status:
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     needs: [check-environment, build-backend, build-frontend]
     if: always() && needs.check-environment.outputs.should_deploy == 'true'
     steps:

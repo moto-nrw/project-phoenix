@@ -10,8 +10,6 @@ import (
 
 // Service defines operations for managing active groups and visits
 type Service interface {
-	base.TransactionalService
-
 	// Active Group operations
 	GetActiveGroup(ctx context.Context, id int64) (*active.Group, error)
 	CreateActiveGroup(ctx context.Context, group *active.Group) error
@@ -19,6 +17,7 @@ type Service interface {
 	DeleteActiveGroup(ctx context.Context, id int64) error
 	ListActiveGroups(ctx context.Context, options *base.QueryOptions) ([]*active.Group, error)
 	FindActiveGroupsByRoomID(ctx context.Context, roomID int64) ([]*active.Group, error)
+	FindDeviceActiveGroupInRoom(ctx context.Context, roomID int64, deviceID int64) (*active.Group, error)
 	FindActiveGroupsByGroupID(ctx context.Context, groupID int64) ([]*active.Group, error)
 	FindActiveGroupsByTimeRange(ctx context.Context, start, end time.Time) ([]*active.Group, error)
 	EndActiveGroupSession(ctx context.Context, id int64) error
@@ -36,7 +35,10 @@ type Service interface {
 	FindVisitsByTimeRange(ctx context.Context, start, end time.Time) ([]*active.Visit, error)
 	EndVisit(ctx context.Context, id int64) error
 	GetStudentCurrentVisit(ctx context.Context, studentID int64) (*active.Visit, error)
+	GetStudentCurrentVisitWithRoom(ctx context.Context, studentID int64) (*active.Visit, error)
 	GetStudentsCurrentVisits(ctx context.Context, studentIDs []int64) (map[int64]*active.Visit, error)
+	CountActiveVisitsByRoomID(ctx context.Context, roomID int64) (int, error)
+	CountActiveVisitsByActiveGroupID(ctx context.Context, activeGroupID int64) (int, error)
 
 	// Group Supervisor operations
 	GetGroupSupervisor(ctx context.Context, id int64) (*active.GroupSupervisor, error)
@@ -94,8 +96,6 @@ type Service interface {
 	GetActiveGroupsCount(ctx context.Context) (int, error)
 	GetTotalVisitsCount(ctx context.Context) (int, error)
 	GetActiveVisitsCount(ctx context.Context) (int, error)
-	GetRoomUtilization(ctx context.Context, roomID int64) (float64, error)
-	GetStudentAttendanceRate(ctx context.Context, studentID int64) (float64, error)
 	GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytics, error)
 	GetActiveGroupsByIDs(ctx context.Context, groupIDs []int64) (map[int64]*active.Group, error)
 
@@ -109,6 +109,9 @@ type Service interface {
 	// Unclaimed groups management (deviceless claiming)
 	GetUnclaimedActiveGroups(ctx context.Context) ([]*active.Group, error)
 	ClaimActiveGroup(ctx context.Context, groupID, staffID int64, role string) (*active.GroupSupervisor, error)
+
+	// Cross-tenant student visibility (Ferienbetreuung / holiday care)
+	GetCrossTenantStudents(ctx context.Context, hostingTenantID int64) ([]active.CrossTenantStudent, error)
 }
 
 // DashboardAnalytics represents aggregated analytics for dashboard

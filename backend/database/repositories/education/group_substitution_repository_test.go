@@ -1,7 +1,6 @@
 package education_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -30,7 +29,7 @@ func cleanupSubstitutionRecords(t *testing.T, db *bun.DB, ids ...int64) {
 // cleanupStaffChain cleans up staff -> person chain
 func cleanupStaffChain(t *testing.T, db *bun.DB, staffID int64) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Get person ID
 	var personID int64
@@ -59,7 +58,7 @@ func TestGroupSubstitutionRepository_Create(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupSubstitution
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates substitution with substitute only", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubCreate")
@@ -114,7 +113,7 @@ func TestGroupSubstitutionRepository_FindByID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupSubstitution
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds existing substitution", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubFindByID")
@@ -145,7 +144,7 @@ func TestGroupSubstitutionRepository_Update(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupSubstitution
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates substitution reason", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubUpdate")
@@ -174,7 +173,7 @@ func TestGroupSubstitutionRepository_Delete(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupSubstitution
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes existing substitution", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubDelete")
@@ -204,7 +203,7 @@ func TestGroupSubstitutionRepository_List(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupSubstitution
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("lists all substitutions", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubList")
@@ -229,7 +228,7 @@ func TestGroupSubstitutionRepository_ListWithOptions(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupSubstitution
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("lists with pagination", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubListOpts")
@@ -257,7 +256,7 @@ func TestGroupSubstitutionRepository_FindByGroup(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupSubstitution
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds substitutions by group ID", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubByGroup")
@@ -291,7 +290,7 @@ func TestGroupSubstitutionRepository_FindBySubstituteStaff(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupSubstitution
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds substitutions by substitute staff ID", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubBySubstitute")
@@ -316,7 +315,7 @@ func TestGroupSubstitutionRepository_FindActive(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupSubstitution
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds active substitutions for date", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubActive")
@@ -343,7 +342,7 @@ func TestGroupSubstitutionRepository_FindActiveByGroup(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupSubstitution
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds active substitutions for group and date", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubActiveGroup")
@@ -369,7 +368,7 @@ func TestGroupSubstitutionRepository_FindOverlapping(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupSubstitution
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds overlapping substitutions", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubOverlap")
@@ -423,7 +422,7 @@ func TestGroupSubstitutionRepository_FindByRegularStaff(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupSubstitution
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds substitutions by regular staff ID", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubByRegular")
@@ -469,7 +468,7 @@ func TestGroupSubstitutionRepository_FindActiveBySubstitute(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupSubstitution
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds active substitutions by substitute staff and date", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubActiveSubstitute")
@@ -527,7 +526,7 @@ func TestGroupSubstitutionRepository_Create_Validation(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupSubstitution
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error for nil substitution", func(t *testing.T) {
 		err := repo.Create(ctx, nil)
@@ -559,7 +558,7 @@ func TestGroupSubstitutionRepository_Update_Validation(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupSubstitution
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error for nil substitution", func(t *testing.T) {
 		err := repo.Update(ctx, nil)
@@ -577,7 +576,7 @@ func TestGroupSubstitutionRepository_List_WithFilters(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupSubstitution
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("filters by active status", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubActiveFilter")
@@ -673,7 +672,7 @@ func TestGroupSubstitutionRepository_FindByIDWithRelations(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupSubstitution
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("loads all relations including staff persons", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubWithRelations")
@@ -745,7 +744,7 @@ func TestGroupSubstitutionRepository_ListWithRelations(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupSubstitution
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("loads relations for multiple substitutions", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubListRelations")
@@ -801,7 +800,7 @@ func TestGroupSubstitutionRepository_FindActiveWithRelations(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupSubstitution
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds active substitutions with relations", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubActiveRel")
@@ -841,7 +840,7 @@ func TestGroupSubstitutionRepository_FindActiveBySubstituteWithRelations(t *test
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupSubstitution
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds active substitutions by substitute with relations", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubActiveSubRel")
@@ -873,7 +872,7 @@ func TestGroupSubstitutionRepository_FindActiveByGroupWithRelations(t *testing.T
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupSubstitution
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds active substitutions by group with relations", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubActiveGroupRel")

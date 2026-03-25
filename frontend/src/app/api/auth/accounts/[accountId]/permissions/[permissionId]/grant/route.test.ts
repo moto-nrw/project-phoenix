@@ -24,25 +24,10 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("@/lib/api-client", () => ({
-  apiPost: mockApiPost,
-  apiGet: vi.fn(),
-  apiPut: vi.fn(),
-  apiDelete: vi.fn(),
-}));
-
-vi.mock("@/lib/api-helpers", () => ({
-  handleApiError: vi.fn((error: unknown) => {
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-    const status = message.includes("(401)")
-      ? 401
-      : message.includes("(404)")
-        ? 404
-        : 500;
-    return new Response(JSON.stringify({ error: message }), { status });
-  }),
-}));
+vi.mock("@/lib/api-helpers", async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return { ...actual, apiPost: mockApiPost };
+});
 
 // ============================================================================
 // Test Helpers
@@ -140,8 +125,8 @@ describe("POST /api/auth/accounts/[accountId]/permissions/[permissionId]/grant",
 
     expect(mockApiPost).toHaveBeenCalledWith(
       "/auth/accounts/123/permissions/456/grant",
-      {},
       "test-token",
+      {},
     );
     expect(response.status).toBe(200);
 
@@ -150,7 +135,7 @@ describe("POST /api/auth/accounts/[accountId]/permissions/[permissionId]/grant",
   });
 
   it("handles API errors gracefully", async () => {
-    mockApiPost.mockRejectedValueOnce(new Error("Permission not found (404)"));
+    mockApiPost.mockRejectedValueOnce(new Error("API error (404): Permission not found"));
 
     const request = createMockRequest(
       "/api/auth/accounts/123/permissions/999/grant",
@@ -167,7 +152,7 @@ describe("POST /api/auth/accounts/[accountId]/permissions/[permissionId]/grant",
   });
 
   it("handles unauthorized grant attempts", async () => {
-    mockApiPost.mockRejectedValueOnce(new Error("Unauthorized (401)"));
+    mockApiPost.mockRejectedValueOnce(new Error("API error (401): Unauthorized"));
 
     const request = createMockRequest(
       "/api/auth/accounts/123/permissions/456/grant",

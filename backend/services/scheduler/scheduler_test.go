@@ -971,6 +971,9 @@ func (m *mockActiveService) ListActiveGroups(_ context.Context, _ *base.QueryOpt
 func (m *mockActiveService) FindActiveGroupsByRoomID(_ context.Context, _ int64) ([]*active.Group, error) {
 	return nil, nil
 }
+func (m *mockActiveService) FindDeviceActiveGroupInRoom(_ context.Context, _, _ int64) (*active.Group, error) {
+	return nil, nil
+}
 func (m *mockActiveService) FindActiveGroupsByGroupID(_ context.Context, _ int64) ([]*active.Group, error) {
 	return nil, nil
 }
@@ -1007,6 +1010,9 @@ func (m *mockActiveService) GetStudentCurrentVisit(_ context.Context, _ int64) (
 	return nil, nil
 }
 func (m *mockActiveService) GetStudentsCurrentVisits(_ context.Context, _ []int64) (map[int64]*active.Visit, error) {
+	return nil, nil
+}
+func (m *mockActiveService) GetStudentCurrentVisitWithRoom(_ context.Context, _ int64) (*active.Visit, error) {
 	return nil, nil
 }
 func (m *mockActiveService) GetGroupSupervisor(_ context.Context, _ int64) (*active.GroupSupervisor, error) {
@@ -1106,10 +1112,10 @@ func (m *mockActiveService) GetSessionTimeoutInfo(_ context.Context, _ int64) (*
 func (m *mockActiveService) GetActiveGroupsCount(_ context.Context) (int, error) { return 0, nil }
 func (m *mockActiveService) GetTotalVisitsCount(_ context.Context) (int, error)  { return 0, nil }
 func (m *mockActiveService) GetActiveVisitsCount(_ context.Context) (int, error) { return 0, nil }
-func (m *mockActiveService) GetRoomUtilization(_ context.Context, _ int64) (float64, error) {
+func (m *mockActiveService) CountActiveVisitsByRoomID(_ context.Context, _ int64) (int, error) {
 	return 0, nil
 }
-func (m *mockActiveService) GetStudentAttendanceRate(_ context.Context, _ int64) (float64, error) {
+func (m *mockActiveService) CountActiveVisitsByActiveGroupID(_ context.Context, _ int64) (int, error) {
 	return 0, nil
 }
 func (m *mockActiveService) GetDashboardAnalytics(_ context.Context) (*activeService.DashboardAnalytics, error) {
@@ -1135,6 +1141,9 @@ func (m *mockActiveService) GetUnclaimedActiveGroups(_ context.Context) ([]*acti
 	return nil, nil
 }
 func (m *mockActiveService) ClaimActiveGroup(_ context.Context, _, _ int64, _ string) (*active.GroupSupervisor, error) {
+	return nil, nil
+}
+func (m *mockActiveService) GetCrossTenantStudents(_ context.Context, _ int64) ([]active.CrossTenantStudent, error) {
 	return nil, nil
 }
 

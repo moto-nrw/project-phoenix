@@ -18,8 +18,10 @@ type ProfileRepository struct {
 
 // NewProfileRepository creates a new ProfileRepository
 func NewProfileRepository(db *bun.DB) users.ProfileRepository {
+	repo := base.NewRepository[*users.Profile](db, "users.profiles", "Profile")
+	repo.TenantScoped = true
 	return &ProfileRepository{
-		Repository: base.NewRepository[*users.Profile](db, "users.profiles", "Profile"),
+		Repository: repo,
 		db:         db,
 	}
 }
@@ -27,11 +29,16 @@ func NewProfileRepository(db *bun.DB) users.ProfileRepository {
 // FindByAccountID retrieves a profile by account ID
 func (r *ProfileRepository) FindByAccountID(ctx context.Context, accountID int64) (*users.Profile, error) {
 	profile := new(users.Profile)
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(profile).
 		ModelTableExpr(`users.profiles AS "profile"`).
-		Where(`"profile".account_id = ?`, accountID).
-		Scan(ctx)
+		Where(`"profile".account_id = ?`, accountID)
+
+	if where, val, ok := base.TenantWhere(ctx, "profile"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -45,13 +52,17 @@ func (r *ProfileRepository) FindByAccountID(ctx context.Context, accountID int64
 
 // UpdateAvatar updates a profile's avatar
 func (r *ProfileRepository) UpdateAvatar(ctx context.Context, id int64, avatar string) error {
-	_, err := r.db.NewUpdate().
+	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*users.Profile)(nil)).
 		ModelTableExpr(`users.profiles AS "profile"`).
 		Set("avatar = ?", avatar).
-		Where(`"profile".id = ?`, id).
-		Exec(ctx)
+		Where(`"profile".id = ?`, id)
 
+	if where, val, ok := base.TenantWhere(ctx, "profile"); ok {
+		query = query.Where(where, val)
+	}
+
+	result, err := query.Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update avatar",
@@ -59,18 +70,22 @@ func (r *ProfileRepository) UpdateAvatar(ctx context.Context, id int64, avatar s
 		}
 	}
 
-	return nil
+	return base.AssertRowsAffected(result, 1, "update avatar")
 }
 
 // UpdateBio updates a profile's bio
 func (r *ProfileRepository) UpdateBio(ctx context.Context, id int64, bio string) error {
-	_, err := r.db.NewUpdate().
+	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*users.Profile)(nil)).
 		ModelTableExpr(`users.profiles AS "profile"`).
 		Set("bio = ?", bio).
-		Where(`"profile".id = ?`, id).
-		Exec(ctx)
+		Where(`"profile".id = ?`, id)
 
+	if where, val, ok := base.TenantWhere(ctx, "profile"); ok {
+		query = query.Where(where, val)
+	}
+
+	result, err := query.Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update bio",
@@ -78,18 +93,22 @@ func (r *ProfileRepository) UpdateBio(ctx context.Context, id int64, bio string)
 		}
 	}
 
-	return nil
+	return base.AssertRowsAffected(result, 1, "update bio")
 }
 
 // UpdateSettings updates a profile's settings
 func (r *ProfileRepository) UpdateSettings(ctx context.Context, id int64, settings string) error {
-	_, err := r.db.NewUpdate().
+	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*users.Profile)(nil)).
 		ModelTableExpr(`users.profiles AS "profile"`).
 		Set("settings = ?", settings).
-		Where(`"profile".id = ?`, id).
-		Exec(ctx)
+		Where(`"profile".id = ?`, id)
 
+	if where, val, ok := base.TenantWhere(ctx, "profile"); ok {
+		query = query.Where(where, val)
+	}
+
+	result, err := query.Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update settings",
@@ -97,7 +116,7 @@ func (r *ProfileRepository) UpdateSettings(ctx context.Context, id int64, settin
 		}
 	}
 
-	return nil
+	return base.AssertRowsAffected(result, 1, "update settings")
 }
 
 // Create overrides the base Create method to handle validation
@@ -138,9 +157,13 @@ func (r *ProfileRepository) Delete(ctx context.Context, id interface{}) error {
 // List retrieves profiles matching the provided filters
 func (r *ProfileRepository) List(ctx context.Context, filters map[string]interface{}) ([]*users.Profile, error) {
 	var profiles []*users.Profile
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&profiles).
 		ModelTableExpr(`users.profiles AS "profile"`)
+
+	if where, val, ok := base.TenantWhere(ctx, "profile"); ok {
+		query = query.Where(where, val)
+	}
 
 	// Apply filters
 	for field, value := range filters {

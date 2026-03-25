@@ -5,7 +5,8 @@ export type SSEEventType =
   | "student_checkout"
   | "activity_start"
   | "activity_end"
-  | "activity_update";
+  | "activity_update"
+  | "dashboard_counts_changed";
 
 // SSE Connection Status
 export type ConnectionStatus = "connected" | "reconnecting" | "failed" | "idle";
@@ -40,6 +41,7 @@ export interface SSEHookOptions {
   reconnectInterval?: number;
   maxReconnectAttempts?: number;
   enabled?: boolean; // when false, do not establish EventSource
+  reconnectKey?: string | number; // when this changes, force teardown+reconnect (e.g. tenantId)
 }
 
 export interface SSEHookState {

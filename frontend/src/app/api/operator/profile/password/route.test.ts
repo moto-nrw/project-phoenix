@@ -2,16 +2,19 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import type { RouteContext } from "~/lib/route-wrapper-utils";
 
-const { mockGetOperatorToken, mockFetch, mockGetServerApiUrl } = vi.hoisted(
-  () => ({
-    mockGetOperatorToken: vi.fn<() => Promise<string | undefined>>(),
-    mockFetch: vi.fn(),
-    mockGetServerApiUrl: vi.fn(() => "http://localhost:8080"),
-  }),
-);
+const { mockAuth, mockFetch, mockGetServerApiUrl } = vi.hoisted(() => ({
+  mockAuth: vi.fn(),
+  mockFetch: vi.fn(),
+  mockGetServerApiUrl: vi.fn(() => "http://localhost:8080"),
+}));
 
-vi.mock("~/lib/operator/cookies", () => ({
-  getOperatorToken: mockGetOperatorToken,
+vi.mock("~/server/auth/operator", () => ({
+  operatorAuth: mockAuth,
+  uncachedOperatorAuth: mockAuth,
+}));
+
+vi.mock("~/server/auth", () => ({
+  auth: mockAuth,
 }));
 
 vi.mock("~/lib/server-api-url", () => ({
@@ -41,7 +44,7 @@ describe("POST /api/operator/profile/password", () => {
   });
 
   it("changes password successfully with snake_case body", async () => {
-    mockGetOperatorToken.mockResolvedValue("valid-token");
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
     mockFetch.mockResolvedValue({
       ok: true,
       status: 204,
@@ -69,7 +72,7 @@ describe("POST /api/operator/profile/password", () => {
   });
 
   it("changes password successfully with camelCase body", async () => {
-    mockGetOperatorToken.mockResolvedValue("valid-token");
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
     mockFetch.mockResolvedValue({
       ok: true,
       status: 204,
@@ -96,7 +99,7 @@ describe("POST /api/operator/profile/password", () => {
   });
 
   it("handles empty body gracefully", async () => {
-    mockGetOperatorToken.mockResolvedValue("valid-token");
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
     mockFetch.mockResolvedValue({
       ok: true,
       status: 204,
@@ -118,7 +121,7 @@ describe("POST /api/operator/profile/password", () => {
   });
 
   it("returns 401 when not authenticated", async () => {
-    mockGetOperatorToken.mockResolvedValue(undefined);
+    mockAuth.mockResolvedValue(null);
 
     const request = createMockRequest({
       current_password: "old",
@@ -132,7 +135,7 @@ describe("POST /api/operator/profile/password", () => {
   });
 
   it("handles incorrect current password", async () => {
-    mockGetOperatorToken.mockResolvedValue("valid-token");
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
     mockFetch.mockResolvedValue({
       ok: false,
       status: 401,
@@ -150,7 +153,7 @@ describe("POST /api/operator/profile/password", () => {
   });
 
   it("handles weak new password error", async () => {
-    mockGetOperatorToken.mockResolvedValue("valid-token");
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
     mockFetch.mockResolvedValue({
       ok: false,
       status: 400,

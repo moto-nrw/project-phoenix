@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/uptrace/bun"
@@ -33,6 +34,8 @@ func (r *GuardianProfileRepository) Create(ctx context.Context, profile *users.G
 		return fmt.Errorf("validation failed: %w", err)
 	}
 
+	repoBase.EnsureTenantID(ctx, profile)
+
 	// Get the database connection (or transaction if in context)
 	var db bun.IDB = r.db
 	if tx, ok := base.TxFromContext(ctx); ok && tx != nil {
@@ -55,7 +58,7 @@ func (r *GuardianProfileRepository) Create(ctx context.Context, profile *users.G
 func (r *GuardianProfileRepository) FindByID(ctx context.Context, id int64) (*users.GuardianProfile, error) {
 	profile := new(users.GuardianProfile)
 
-	err := r.db.NewSelect().
+	err := repoBase.GetDB(ctx, r.db).NewSelect().
 		Model(profile).
 		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
 		Where(`"guardian_profile".id = ?`, id).
@@ -75,7 +78,7 @@ func (r *GuardianProfileRepository) FindByID(ctx context.Context, id int64) (*us
 func (r *GuardianProfileRepository) FindByEmail(ctx context.Context, email string) (*users.GuardianProfile, error) {
 	profile := new(users.GuardianProfile)
 
-	err := r.db.NewSelect().
+	err := repoBase.GetDB(ctx, r.db).NewSelect().
 		Model(profile).
 		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
 		Where(`LOWER("guardian_profile".email) = LOWER(?)`, email).
@@ -95,7 +98,7 @@ func (r *GuardianProfileRepository) FindByEmail(ctx context.Context, email strin
 func (r *GuardianProfileRepository) FindByAccountID(ctx context.Context, accountID int64) (*users.GuardianProfile, error) {
 	profile := new(users.GuardianProfile)
 
-	err := r.db.NewSelect().
+	err := repoBase.GetDB(ctx, r.db).NewSelect().
 		Model(profile).
 		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
 		Where(`"guardian_profile".account_id = ?`, accountID).
@@ -115,7 +118,7 @@ func (r *GuardianProfileRepository) FindByAccountID(ctx context.Context, account
 func (r *GuardianProfileRepository) FindWithoutAccount(ctx context.Context) ([]*users.GuardianProfile, error) {
 	var profiles []*users.GuardianProfile
 
-	err := r.db.NewSelect().
+	err := repoBase.GetDB(ctx, r.db).NewSelect().
 		Model(&profiles).
 		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
 		Where(`"guardian_profile".account_id IS NULL`).
@@ -134,7 +137,7 @@ func (r *GuardianProfileRepository) FindWithoutAccount(ctx context.Context) ([]*
 func (r *GuardianProfileRepository) FindInvitable(ctx context.Context) ([]*users.GuardianProfile, error) {
 	var profiles []*users.GuardianProfile
 
-	err := r.db.NewSelect().
+	err := repoBase.GetDB(ctx, r.db).NewSelect().
 		Model(&profiles).
 		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
 		Where(`"guardian_profile".email IS NOT NULL`).
@@ -155,7 +158,7 @@ func (r *GuardianProfileRepository) FindInvitable(ctx context.Context) ([]*users
 func (r *GuardianProfileRepository) ListWithOptions(ctx context.Context, options *base.QueryOptions) ([]*users.GuardianProfile, error) {
 	var profiles []*users.GuardianProfile
 
-	query := r.db.NewSelect().
+	query := repoBase.GetDB(ctx, r.db).NewSelect().
 		Model(&profiles).
 		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`)
 
@@ -180,7 +183,7 @@ func (r *GuardianProfileRepository) ListWithOptions(ctx context.Context, options
 
 // Count returns the total number of guardian profiles
 func (r *GuardianProfileRepository) Count(ctx context.Context) (int, error) {
-	count, err := r.db.NewSelect().
+	count, err := repoBase.GetDB(ctx, r.db).NewSelect().
 		Model((*users.GuardianProfile)(nil)).
 		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
 		Count(ctx)
@@ -198,7 +201,7 @@ func (r *GuardianProfileRepository) Update(ctx context.Context, profile *users.G
 		return fmt.Errorf("validation failed: %w", err)
 	}
 
-	result, err := r.db.NewUpdate().
+	result, err := repoBase.GetDB(ctx, r.db).NewUpdate().
 		Model(profile).
 		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
 		Where(`"guardian_profile".id = ?`, profile.ID).
@@ -222,7 +225,7 @@ func (r *GuardianProfileRepository) Update(ctx context.Context, profile *users.G
 
 // Delete removes a guardian profile
 func (r *GuardianProfileRepository) Delete(ctx context.Context, id int64) error {
-	result, err := r.db.NewDelete().
+	result, err := repoBase.GetDB(ctx, r.db).NewDelete().
 		Model((*users.GuardianProfile)(nil)).
 		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
 		Where(`"guardian_profile".id = ?`, id).
@@ -246,7 +249,7 @@ func (r *GuardianProfileRepository) Delete(ctx context.Context, id int64) error 
 
 // LinkAccount links a guardian profile to a parent account
 func (r *GuardianProfileRepository) LinkAccount(ctx context.Context, profileID int64, accountID int64) error {
-	result, err := r.db.NewUpdate().
+	result, err := repoBase.GetDB(ctx, r.db).NewUpdate().
 		Model((*users.GuardianProfile)(nil)).
 		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
 		Set("account_id = ?", accountID).
@@ -272,7 +275,7 @@ func (r *GuardianProfileRepository) LinkAccount(ctx context.Context, profileID i
 
 // UnlinkAccount unlinks a guardian profile from their account
 func (r *GuardianProfileRepository) UnlinkAccount(ctx context.Context, profileID int64) error {
-	result, err := r.db.NewUpdate().
+	result, err := repoBase.GetDB(ctx, r.db).NewUpdate().
 		Model((*users.GuardianProfile)(nil)).
 		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
 		Set("account_id = NULL").
@@ -298,7 +301,7 @@ func (r *GuardianProfileRepository) UnlinkAccount(ctx context.Context, profileID
 
 // GetStudentCount returns the number of students for a guardian
 func (r *GuardianProfileRepository) GetStudentCount(ctx context.Context, profileID int64) (int, error) {
-	count, err := r.db.NewSelect().
+	count, err := repoBase.GetDB(ctx, r.db).NewSelect().
 		Model((*users.StudentGuardian)(nil)).
 		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
 		Where(`"student_guardian".guardian_profile_id = ?`, profileID).

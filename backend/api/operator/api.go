@@ -12,6 +12,7 @@ import (
 // Resource defines the operator API resource
 type Resource struct {
 	authResource          *AuthResource
+	provisioningResource  *ProvisioningResource
 	suggestionsResource   *SuggestionsResource
 	announcementsResource *AnnouncementsResource
 	profileResource       *ProfileResource
@@ -22,6 +23,7 @@ type Resource struct {
 // ResourceConfig holds dependencies for the operator resource
 type ResourceConfig struct {
 	AuthService          platformSvc.OperatorAuthService
+	ProvisioningService  platformSvc.OperatorProvisioningService
 	SuggestionsService   platformSvc.OperatorSuggestionsService
 	AnnouncementsService platformSvc.AnnouncementService
 	TokenAuth            *jwt.TokenAuth
@@ -42,6 +44,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 
 	return &Resource{
 		authResource:          NewAuthResource(cfg.AuthService),
+		provisioningResource:  NewProvisioningResource(cfg.ProvisioningService),
 		suggestionsResource:   NewSuggestionsResource(cfg.SuggestionsService),
 		announcementsResource: NewAnnouncementsResource(cfg.AnnouncementsService),
 		profileResource:       NewProfileResource(cfg.AuthService),
@@ -62,11 +65,44 @@ func (rs *Resource) Router() chi.Router {
 		r.Post("/login", rs.authResource.Login)
 	})
 
+	// Refresh token route (requires valid refresh JWT, no scope check)
+	r.Group(func(r chi.Router) {
+		r.Use(rs.tokenAuth.Verifier())
+		r.Use(jwt.AuthenticateRefreshJWT)
+		r.Post("/auth/refresh", rs.authResource.RefreshToken)
+	})
+
 	// Protected routes (require operator auth)
 	r.Group(func(r chi.Router) {
 		r.Use(rs.tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
 		r.Use(RequiresOperatorScope)
+
+		r.Get("/accounts", rs.provisioningResource.ListAllAccounts)
+		r.Get("/roles", rs.provisioningResource.ListSystemRoles)
+		r.Route("/devices", func(r chi.Router) {
+			r.Get("/", rs.provisioningResource.ListAllDevices)
+			r.Post("/", rs.provisioningResource.CreateDevice)
+			r.Post("/{id}/set-api-key", rs.provisioningResource.SetDeviceAPIKey)
+		})
+
+		r.Route("/organizations", func(r chi.Router) {
+			r.Get("/", rs.provisioningResource.ListOrganizations)
+			r.Post("/", rs.provisioningResource.CreateOrganization)
+			r.Put("/{id}", rs.provisioningResource.UpdateOrganization)
+			r.Get("/{id}/accounts", rs.provisioningResource.ListOrganizationAccounts)
+			r.Get("/{id}/devices", rs.provisioningResource.ListOrganizationDevices)
+		})
+
+		r.Route("/schools", func(r chi.Router) {
+			r.Get("/", rs.provisioningResource.ListSchools)
+			r.Post("/", rs.provisioningResource.CreateSchool)
+			r.Put("/{id}", rs.provisioningResource.UpdateSchool)
+			r.Post("/{id}/invite-admin", rs.provisioningResource.InviteSchoolAdmin)
+			r.Post("/{id}/create-account", rs.provisioningResource.CreateSchoolAccount)
+			r.Get("/{id}/accounts", rs.provisioningResource.ListSchoolAccounts)
+			r.Get("/{id}/devices", rs.provisioningResource.ListSchoolDevices)
+		})
 
 		// Suggestions management
 		r.Route("/suggestions", func(r chi.Router) {
@@ -75,6 +111,8 @@ func (rs *Resource) Router() chi.Router {
 			r.Get("/unviewed-count", rs.suggestionsResource.GetUnviewedCount)
 			r.Get("/{id}", rs.suggestionsResource.GetSuggestion)
 			r.Put("/{id}/status", rs.suggestionsResource.UpdateStatus)
+			r.Put("/{id}/hidden", rs.suggestionsResource.HidePost)
+			r.Delete("/{id}", rs.suggestionsResource.DeletePost)
 			r.Post("/{id}/view", rs.suggestionsResource.MarkPostViewed)
 			r.Post("/{id}/comments", rs.suggestionsResource.AddComment)
 			r.Post("/{id}/comments/read", rs.suggestionsResource.MarkCommentsRead)

@@ -14,6 +14,7 @@ export interface BackendStaffResponse {
   specialization?: string | null;
   role: string | null;
   qualifications: string | null;
+  account_role?: string | null;
   tag_id: string | null;
   staff_notes: string | null;
   created_at: string;
@@ -58,7 +59,8 @@ export interface Staff {
   firstName: string;
   lastName: string;
   email?: string;
-  role?: string; // Display role (Admin/Betreuer/Extern)
+  role?: string; // Display role (custom position from teacher profile)
+  accountRole?: string; // Auth role (Admin/Betreuer/Extern)
   specialization?: string;
   qualifications?: string;
   staffNotes?: string;
@@ -291,6 +293,7 @@ function mapStaffMember(
     lastName: staff.lastName,
     email: undefined,
     role: staff.role ?? undefined,
+    accountRole: staff.account_role ?? undefined,
     specialization: staff.specialization?.trim() ?? undefined,
     qualifications: staff.qualifications ?? undefined,
     staffNotes: staff.staff_notes ?? undefined,

@@ -27,7 +27,9 @@ func createTestComment(t *testing.T, db *bun.DB, postID, authorID int64, content
 		Content:    content,
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	comment.SetTenantID(1)
+
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
 	defer cancel()
 
 	_, err := db.NewInsert().
@@ -44,7 +46,7 @@ func createTestComment(t *testing.T, db *bun.DB, postID, authorID int64, content
 func createTestOperator(t *testing.T, db *bun.DB, displayName string) int64 {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
 	defer cancel()
 
 	type operator struct {
@@ -81,12 +83,12 @@ func cleanupComments(t *testing.T, db *bun.DB, commentIDs ...int64) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
 	defer cancel()
 
 	_, err := db.NewDelete().
 		TableExpr("suggestions.comments").
-		Where("id IN (?)", bun.In(commentIDs)).
+		Where("id IN (?)", bun.List(commentIDs)).
 		Exec(ctx)
 	if err != nil {
 		t.Logf("cleanup comments: %v", err)
@@ -100,12 +102,12 @@ func cleanupOperators(t *testing.T, db *bun.DB, operatorIDs ...int64) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
 	defer cancel()
 
 	_, err := db.NewDelete().
 		TableExpr("platform.operators").
-		Where("id IN (?)", bun.In(operatorIDs)).
+		Where("id IN (?)", bun.List(operatorIDs)).
 		Exec(ctx)
 	if err != nil {
 		t.Logf("cleanup operators: %v", err)
@@ -117,7 +119,7 @@ func TestCommentRepository_Create(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewCommentRepository(db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("comment-create-%d", time.Now().UnixNano()))
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -176,7 +178,7 @@ func TestCommentRepository_FindByID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewCommentRepository(db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("comment-findbyid-%d", time.Now().UnixNano()))
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -221,7 +223,7 @@ func TestCommentRepository_FindByPostID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewCommentRepository(db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("comment-findbypost-%d", time.Now().UnixNano()))
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -298,7 +300,7 @@ func TestCommentRepository_Delete(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewCommentRepository(db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("comment-delete-%d", time.Now().UnixNano()))
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -349,7 +351,7 @@ func TestCommentRepository_CountByPostID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewCommentRepository(db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("comment-count-%d", time.Now().UnixNano()))
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)

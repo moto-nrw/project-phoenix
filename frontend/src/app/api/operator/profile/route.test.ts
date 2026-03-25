@@ -2,16 +2,19 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import type { RouteContext } from "~/lib/route-wrapper-utils";
 
-const { mockGetOperatorToken, mockFetch, mockGetServerApiUrl } = vi.hoisted(
-  () => ({
-    mockGetOperatorToken: vi.fn<() => Promise<string | undefined>>(),
-    mockFetch: vi.fn(),
-    mockGetServerApiUrl: vi.fn(() => "http://localhost:8080"),
-  }),
-);
+const { mockAuth, mockFetch, mockGetServerApiUrl } = vi.hoisted(() => ({
+  mockAuth: vi.fn(),
+  mockFetch: vi.fn(),
+  mockGetServerApiUrl: vi.fn(() => "http://localhost:8080"),
+}));
 
-vi.mock("~/lib/operator/cookies", () => ({
-  getOperatorToken: mockGetOperatorToken,
+vi.mock("~/server/auth/operator", () => ({
+  operatorAuth: mockAuth,
+  uncachedOperatorAuth: mockAuth,
+}));
+
+vi.mock("~/server/auth", () => ({
+  auth: mockAuth,
 }));
 
 vi.mock("~/lib/server-api-url", () => ({
@@ -41,7 +44,7 @@ describe("GET /api/operator/profile", () => {
   });
 
   it("returns profile data when authenticated", async () => {
-    mockGetOperatorToken.mockResolvedValue("valid-token");
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
     const profileData = {
       id: 1,
       email: "admin@test.com",
@@ -72,7 +75,7 @@ describe("GET /api/operator/profile", () => {
   });
 
   it("returns 401 when not authenticated", async () => {
-    mockGetOperatorToken.mockResolvedValue(undefined);
+    mockAuth.mockResolvedValue(null);
 
     const request = createMockRequest("GET");
     const response = await GET(request, mockContext);
@@ -83,7 +86,7 @@ describe("GET /api/operator/profile", () => {
   });
 
   it("handles API error", async () => {
-    mockGetOperatorToken.mockResolvedValue("valid-token");
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
     mockFetch.mockResolvedValue({
       ok: false,
       status: 500,
@@ -103,7 +106,7 @@ describe("PUT /api/operator/profile", () => {
   });
 
   it("updates profile successfully", async () => {
-    mockGetOperatorToken.mockResolvedValue("valid-token");
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
     const updateBody = { display_name: "Updated Name" };
     const updatedProfile = {
       id: 1,
@@ -133,7 +136,7 @@ describe("PUT /api/operator/profile", () => {
   });
 
   it("returns 401 when not authenticated", async () => {
-    mockGetOperatorToken.mockResolvedValue(undefined);
+    mockAuth.mockResolvedValue(null);
 
     const request = createMockRequest("PUT", { display_name: "Test" });
     const response = await PUT(request, mockContext);
@@ -144,7 +147,7 @@ describe("PUT /api/operator/profile", () => {
   });
 
   it("handles validation error from backend", async () => {
-    mockGetOperatorToken.mockResolvedValue("valid-token");
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
     mockFetch.mockResolvedValue({
       ok: false,
       status: 400,

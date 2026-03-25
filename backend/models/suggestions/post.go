@@ -24,12 +24,14 @@ const tableSuggestionsPosts = "suggestions.posts"
 
 // Post represents a suggestion post from a user
 type Post struct {
-	base.Model  `bun:"schema:suggestions,table:posts"`
+	base.Model `bun:"schema:suggestions,table:posts"`
+	base.TenantModel
 	Title       string `bun:"title,notnull" json:"title"`
 	Description string `bun:"description,notnull" json:"description"`
 	AuthorID    int64  `bun:"author_id,notnull" json:"author_id"`
 	Status      string `bun:"status,notnull,default:'open'" json:"status"`
 	Score       int    `bun:"score,notnull,default:0" json:"score"`
+	IsHidden    bool   `bun:"is_hidden,notnull,default:false" json:"is_hidden"`
 
 	// Resolved at query time, not stored
 	AuthorName   string `bun:"author_name,scanonly" json:"author_name,omitempty"`
@@ -41,12 +43,11 @@ type Post struct {
 	IsNew bool `bun:"is_new,scanonly" json:"is_new"`
 	// Per-user vote direction, resolved at query time
 	UserVote *string `bun:"user_vote,scanonly" json:"user_vote"`
+	// School metadata, resolved at query time via JOIN to platform.schools
+	SchoolName string `bun:"school_name,scanonly" json:"school_name,omitempty"`
 }
 
 func (p *Post) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(tableSuggestionsPosts)
-	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr(tableSuggestionsPosts)
 	}

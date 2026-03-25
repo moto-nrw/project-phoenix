@@ -21,6 +21,10 @@ const (
 	ActionLogin         = "login"
 	ActionAddComment    = "add_comment"
 	ActionDeleteComment = "delete_comment"
+	ActionRotateAPIKey  = "rotate_api_key"
+	ActionHidePost      = "hide_post"
+	ActionUnhidePost    = "unhide_post"
+	ActionDeletePost    = "delete_post"
 )
 
 // Common resource type constants
@@ -29,6 +33,11 @@ const (
 	ResourceSuggestion   = "suggestion"
 	ResourceComment      = "operator_comment"
 	ResourceOperator     = "operator"
+	ResourceOrganization = "organization"
+	ResourceSchool       = "school"
+	ResourceInvitation   = "invitation"
+	ResourceDevice       = "device"
+	ResourceAccount      = "account"
 )
 
 // OperatorAuditLog tracks operator actions for auditing
@@ -47,9 +56,6 @@ type OperatorAuditLog struct {
 }
 
 func (l *OperatorAuditLog) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(tablePlatformOperatorAuditLog)
-	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr(tablePlatformOperatorAuditLog)
 	}

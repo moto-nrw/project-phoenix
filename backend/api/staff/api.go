@@ -21,6 +21,8 @@ import (
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 // Resource defines the staff API resource
@@ -33,6 +35,8 @@ type Resource struct {
 	GroupSupervisorRepo active.GroupSupervisorRepository
 	WorkSessionService  activeSvc.WorkSessionService
 	AbsenceRepo         active.StaffAbsenceRepository
+	db                  *bun.DB
+	logger              *slog.Logger
 }
 
 // NewResource creates a new staff resource
@@ -43,6 +47,8 @@ func NewResource(
 	groupSupervisorRepo active.GroupSupervisorRepository,
 	workSessionService activeSvc.WorkSessionService,
 	absenceRepo active.StaffAbsenceRepository,
+	db *bun.DB,
+	logger *slog.Logger,
 ) *Resource {
 	return &Resource{
 		PersonService:       personService,
@@ -53,7 +59,17 @@ func NewResource(
 		GroupSupervisorRepo: groupSupervisorRepo,
 		WorkSessionService:  workSessionService,
 		AbsenceRepo:         absenceRepo,
+		db:                  db,
+		logger:              logger,
 	}
+}
+
+// getLogger returns the injected logger, falling back to slog.Default()
+func (rs *Resource) getLogger() *slog.Logger {
+	if rs.logger != nil {
+		return rs.logger
+	}
+	return slog.Default()
 }
 
 // Router returns a configured router for staff endpoints
@@ -68,24 +84,26 @@ func (rs *Resource) Router() chi.Router {
 	r.Group(func(r chi.Router) {
 		r.Use(tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
+		r.Use(jwt.TenantMiddleware)
+		withTx := tenant.TenantTxMiddleware(rs.db)
 
 		// Read operations only require users:read permission
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/", rs.listStaff)
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}", rs.getStaff)
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}/groups", rs.getStaffGroups)
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}/substitutions", rs.getStaffSubstitutions)
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/available", rs.getAvailableStaff)
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/available-for-substitution", rs.getAvailableForSubstitution)
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/by-role", rs.getStaffByRole)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/", rs.listStaff)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}", rs.getStaff)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/groups", rs.getStaffGroups)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/substitutions", rs.getStaffSubstitutions)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/available", rs.getAvailableStaff)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/available-for-substitution", rs.getAvailableForSubstitution)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/by-role", rs.getStaffByRole)
 
 		// Write operations require users:create, users:update, or users:delete permission
-		r.With(authorize.RequiresPermission(permissions.UsersCreate)).Post("/", rs.createStaff)
-		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Put("/{id}", rs.updateStaff)
-		r.With(authorize.RequiresPermission(permissions.UsersDelete)).Delete("/{id}", rs.deleteStaff)
+		r.With(authorize.RequiresPermission(permissions.UsersCreate), withTx).Post("/", rs.createStaff)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}", rs.updateStaff)
+		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Delete("/{id}", rs.deleteStaff)
 
 		// PIN management endpoints - staff can manage their own PIN
-		r.Get("/pin", rs.getPINStatus)
-		r.Put("/pin", rs.updatePIN)
+		r.With(withTx).Get("/pin", rs.getPINStatus)
+		r.With(withTx).Put("/pin", rs.updatePIN)
 	})
 
 	return r
@@ -113,6 +131,7 @@ type StaffResponse struct {
 	WasPresentToday bool            `json:"was_present_today"`
 	WorkStatus      string          `json:"work_status,omitempty"`
 	AbsenceType     string          `json:"absence_type,omitempty"`
+	AccountRole     string          `json:"account_role,omitempty"`
 	CreatedAt       time.Time       `json:"created_at"`
 	UpdatedAt       time.Time       `json:"updated_at"`
 }
@@ -242,7 +261,7 @@ func (rs *Resource) parseAndGetStaff(w http.ResponseWriter, r *http.Request) (*u
 // =============================================================================
 
 // newStaffResponse creates a staff response
-func newStaffResponse(staff *users.Staff, isTeacher bool, wasPresentToday bool, workStatus string, absenceType string) StaffResponse {
+func newStaffResponse(staff *users.Staff, isTeacher bool, wasPresentToday bool, workStatus string, absenceType string, accountRole string) StaffResponse {
 	response := StaffResponse{
 		ID:              staff.ID,
 		PersonID:        staff.PersonID,
@@ -251,6 +270,7 @@ func newStaffResponse(staff *users.Staff, isTeacher bool, wasPresentToday bool, 
 		WasPresentToday: wasPresentToday,
 		WorkStatus:      workStatus,
 		AbsenceType:     absenceType,
+		AccountRole:     accountRole,
 		CreatedAt:       staff.CreatedAt,
 		UpdatedAt:       staff.UpdatedAt,
 	}
@@ -263,8 +283,8 @@ func newStaffResponse(staff *users.Staff, isTeacher bool, wasPresentToday bool, 
 }
 
 // newTeacherResponse creates a teacher response
-func newTeacherResponse(staff *users.Staff, teacher *users.Teacher, wasPresentToday bool, workStatus string, absenceType string) TeacherResponse {
-	staffResponse := newStaffResponse(staff, true, wasPresentToday, workStatus, absenceType)
+func newTeacherResponse(staff *users.Staff, teacher *users.Teacher, wasPresentToday bool, workStatus string, absenceType string, accountRole string) TeacherResponse {
+	staffResponse := newStaffResponse(staff, true, wasPresentToday, workStatus, absenceType, accountRole)
 
 	response := TeacherResponse{
 		StaffResponse:  staffResponse,
@@ -284,7 +304,7 @@ func (rs *Resource) loadWorkStatusMap(ctx context.Context) map[int64]string {
 	}
 	wsm, err := rs.WorkSessionService.GetTodayPresenceMap(ctx)
 	if err != nil {
-		slog.Default().Warn("failed to fetch work status map", slog.String("error", err.Error()))
+		rs.getLogger().Warn("failed to fetch work status map", slog.String("error", err.Error()))
 		return make(map[int64]string)
 	}
 	return wsm
@@ -297,10 +317,36 @@ func (rs *Resource) loadAbsenceMap(ctx context.Context) map[int64]string {
 	}
 	am, err := rs.AbsenceRepo.GetTodayAbsenceMap(ctx)
 	if err != nil {
-		slog.Default().Warn("failed to fetch absence map", slog.String("error", err.Error()))
+		rs.getLogger().Warn("failed to fetch absence map", slog.String("error", err.Error()))
 		return make(map[int64]string)
 	}
 	return am
+}
+
+// loadAccountRoleMap batch-loads auth role names for all staff members (non-critical, returns empty map on error)
+func (rs *Resource) loadAccountRoleMap(ctx context.Context, staffMembers []*users.Staff) map[int64]string {
+	if rs.AuthService == nil {
+		return make(map[int64]string)
+	}
+
+	// Collect account IDs from staff members
+	accountIDs := make([]int64, 0, len(staffMembers))
+	for _, s := range staffMembers {
+		if s.Person != nil && s.Person.AccountID != nil {
+			accountIDs = append(accountIDs, *s.Person.AccountID)
+		}
+	}
+
+	if len(accountIDs) == 0 {
+		return make(map[int64]string)
+	}
+
+	roleMap, err := rs.AuthService.GetAccountRoleNames(ctx, accountIDs)
+	if err != nil {
+		rs.getLogger().Warn("failed to fetch account role map", slog.String("error", err.Error()))
+		return make(map[int64]string)
+	}
+	return roleMap
 }
 
 // listStaff handles listing all staff members with optional filtering
@@ -333,7 +379,7 @@ func (rs *Resource) listStaff(w http.ResponseWriter, r *http.Request) {
 	presentStaffIDs, err := rs.GroupSupervisorRepo.GetStaffIDsWithSupervisionToday(ctx)
 	if err != nil {
 		// Log warning but continue - presence status is non-critical
-		slog.Default().Warn("failed to fetch present staff IDs", slog.String("error", err.Error()))
+		rs.getLogger().Warn("failed to fetch present staff IDs", slog.String("error", err.Error()))
 		presentStaffIDs = []int64{}
 	}
 
@@ -347,10 +393,13 @@ func (rs *Resource) listStaff(w http.ResponseWriter, r *http.Request) {
 	workStatusMap := rs.loadWorkStatusMap(ctx)
 	absenceMap := rs.loadAbsenceMap(ctx)
 
+	// Batch-load account roles for all staff members (non-critical)
+	accountRoleMap := rs.loadAccountRoleMap(ctx, staffMembers)
+
 	// Build response objects using pre-loaded data
 	responses := make([]interface{}, 0, len(staffMembers))
 	for _, staff := range staffMembers {
-		if response, include := rs.processStaffForListOptimized(ctx, staff, teacherMap, presentMap, workStatusMap, absenceMap, filters); include {
+		if response, include := rs.processStaffForListOptimized(ctx, staff, teacherMap, presentMap, workStatusMap, absenceMap, accountRoleMap, filters); include {
 			responses = append(responses, response)
 		}
 	}
@@ -376,12 +425,21 @@ func (rs *Resource) getStaff(w http.ResponseWriter, r *http.Request) {
 	if staff.Person == nil && staff.PersonID > 0 {
 		person, err := rs.PersonService.Get(r.Context(), staff.PersonID)
 		if err != nil {
-			slog.Default().Warn("failed to get person data for staff member",
+			rs.getLogger().Warn("failed to get person data for staff member",
 				slog.Int64("staff_id", id),
 				slog.String("error", err.Error()))
 			// Don't fail the request, just log the warning
 		} else {
 			staff.Person = person
+		}
+	}
+
+	// Load account role with tenant scoping (non-critical)
+	var accountRole string
+	if staff.Person != nil && staff.Person.AccountID != nil && rs.AuthService != nil {
+		roleMap, roleErr := rs.AuthService.GetAccountRoleNames(r.Context(), []int64{*staff.Person.AccountID})
+		if roleErr == nil {
+			accountRole = roleMap[*staff.Person.AccountID]
 		}
 	}
 
@@ -391,14 +449,12 @@ func (rs *Resource) getStaff(w http.ResponseWriter, r *http.Request) {
 
 	teacher, err = rs.TeacherRepo.FindByStaffID(r.Context(), staff.ID)
 	if err == nil && teacher != nil {
-		// Create teacher response (false for wasPresentToday - individual GET doesn't need this)
-		response := newTeacherResponse(staff, teacher, false, "", "")
+		response := newTeacherResponse(staff, teacher, false, "", "", accountRole)
 		common.Respond(w, r, http.StatusOK, response, "Teacher retrieved successfully")
 		return
 	}
 
-	// Create staff response (false for wasPresentToday - individual GET doesn't need this)
-	response := newStaffResponse(staff, isTeacher, false, "", "")
+	response := newStaffResponse(staff, isTeacher, false, "", "", accountRole)
 	common.Respond(w, r, http.StatusOK, response, "Staff member retrieved successfully")
 }
 
@@ -413,7 +469,7 @@ func (rs *Resource) grantDefaultPermissions(ctx context.Context, accountID int64
 	if err == nil && perm != nil {
 		// Grant the permission to the account
 		if err := rs.AuthService.GrantPermissionToAccount(ctx, int(accountID), int(perm.ID)); err != nil {
-			slog.Default().Error("failed to grant groups:read permission",
+			rs.getLogger().Error("failed to grant groups:read permission",
 				slog.String("role", role),
 				slog.Int64("account_id", accountID),
 				slog.String("error", err.Error()))
@@ -443,8 +499,44 @@ func (rs *Resource) createStaff(w http.ResponseWriter, r *http.Request) {
 		StaffNotes: req.StaffNotes,
 	}
 
-	// Create staff record
-	if err := rs.StaffRepo.Create(r.Context(), staff); err != nil {
+	// Create staff record (and optionally teacher) in tenant transaction
+	isTeacher := req.IsTeacher
+	var teacher *users.Teacher
+	var teacherCreationFailed bool
+
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		if err := rs.StaffRepo.Create(ctx, staff); err != nil {
+			return err
+		}
+
+		// If request indicates this is a teacher, create teacher record as well
+		if isTeacher {
+			teacher = &users.Teacher{
+				StaffID:        staff.ID,
+				Specialization: strings.TrimSpace(req.Specialization),
+				Role:           req.Role,
+				Qualifications: req.Qualifications,
+			}
+
+			if rs.TeacherRepo.Create(ctx, teacher) != nil {
+				// Still return staff member even if teacher creation fails
+				isTeacher = false
+				teacherCreationFailed = true
+			}
+		}
+
+		// Grant groups:read permission if they have an account
+		if person.AccountID != nil {
+			if isTeacher {
+				rs.grantDefaultPermissions(ctx, *person.AccountID, "teacher")
+			} else if !teacherCreationFailed {
+				rs.grantDefaultPermissions(ctx, *person.AccountID, "staff")
+			}
+		}
+
+		return nil
+	}); err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
@@ -452,44 +544,21 @@ func (rs *Resource) createStaff(w http.ResponseWriter, r *http.Request) {
 	// Set person data for response
 	staff.Person = person
 
-	// If request indicates this is a teacher, create teacher record as well
-	isTeacher := req.IsTeacher
-	var teacher *users.Teacher
+	if teacherCreationFailed {
+		response := newStaffResponse(staff, false, false, "", "", "")
+		common.Respond(w, r, http.StatusCreated, response, "Staff member created successfully, but failed to create teacher record")
+		return
+	}
 
 	if isTeacher {
-		teacher = &users.Teacher{
-			StaffID:        staff.ID,
-			Specialization: strings.TrimSpace(req.Specialization),
-			Role:           req.Role,
-			Qualifications: req.Qualifications,
-		}
-
-		if rs.TeacherRepo.Create(r.Context(), teacher) != nil {
-			// Still return staff member even if teacher creation fails
-			isTeacher = false
-			response := newStaffResponse(staff, isTeacher, false, "", "")
-			common.Respond(w, r, http.StatusCreated, response, "Staff member created successfully, but failed to create teacher record")
-			return
-		}
-
-		// Grant groups:read permission to teacher if they have an account
-		if person.AccountID != nil {
-			rs.grantDefaultPermissions(r.Context(), *person.AccountID, "teacher")
-		}
-
 		// Return teacher response
-		response := newTeacherResponse(staff, teacher, false, "", "")
+		response := newTeacherResponse(staff, teacher, false, "", "", "")
 		common.Respond(w, r, http.StatusCreated, response, "Teacher created successfully")
 		return
 	}
 
-	// Grant groups:read permission to staff if they have an account
-	if person.AccountID != nil {
-		rs.grantDefaultPermissions(r.Context(), *person.AccountID, "staff")
-	}
-
 	// Return staff response
-	response := newStaffResponse(staff, isTeacher, false, "", "")
+	response := newStaffResponse(staff, isTeacher, false, "", "", "")
 	common.Respond(w, r, http.StatusCreated, response, "Staff member created successfully")
 }
 
@@ -523,19 +592,28 @@ func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err := rs.StaffRepo.Update(r.Context(), staff); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	var response interface{}
+	var message string
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		if err := rs.StaffRepo.Update(ctx, staff); err != nil {
+			return err
+		}
+
+		// Reload staff with person data
+		rs.reloadStaffWithPerson(ctx, staff, id)
+
+		// Get existing teacher record if any
+		teacher, _ := rs.TeacherRepo.FindByStaffID(ctx, staff.ID)
+
+		// Handle teacher record based on request
+		response, message = rs.buildUpdateStaffResponse(ctx, staff, req, teacher)
+		return nil
+	}); err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
-	// Reload staff with person data
-	rs.reloadStaffWithPerson(r.Context(), staff, id)
-
-	// Get existing teacher record if any
-	teacher, _ := rs.TeacherRepo.FindByStaffID(r.Context(), staff.ID)
-
-	// Handle teacher record based on request
-	response, message := rs.buildUpdateStaffResponse(r.Context(), staff, req, teacher)
 	common.Respond(w, r, http.StatusOK, response, message)
 }
 
@@ -580,10 +658,10 @@ func (rs *Resource) buildUpdateStaffResponse(
 
 	// Return existing teacher response if they have a teacher record
 	if existingTeacher != nil {
-		return newTeacherResponse(staff, existingTeacher, false, "", ""), "Teacher updated successfully"
+		return newTeacherResponse(staff, existingTeacher, false, "", "", ""), "Teacher updated successfully"
 	}
 
-	return newStaffResponse(staff, false, false, "", ""), "Staff member updated successfully"
+	return newStaffResponse(staff, false, false, "", "", ""), "Staff member updated successfully"
 }
 
 // deleteStaff handles deleting a staff member
@@ -593,18 +671,18 @@ func (rs *Resource) deleteStaff(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if this staff member is also a teacher
-	teacher, err := rs.TeacherRepo.FindByStaffID(r.Context(), id)
-	if err == nil && teacher != nil {
-		// Delete teacher record first
-		if rs.TeacherRepo.Delete(r.Context(), teacher.ID) != nil {
-			common.RenderError(w, r, ErrorInternalServer(errors.New("failed to delete teacher record")))
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.PersonService.DeleteStaff(ctx, id)
+	}); err != nil {
+		if errors.Is(err, usersSvc.ErrStaffInUse) {
+			common.RenderError(w, r, common.ErrorConflict(err))
 			return
 		}
-	}
-
-	// Delete staff member
-	if err := rs.StaffRepo.Delete(r.Context(), id); err != nil {
+		if common.IsConstraintViolation(err) {
+			common.RenderError(w, r, common.ErrorConflictMessage("Personal kann nicht gelöscht werden: Mitarbeiter/in wird noch in anderen Bereichen referenziert"))
+			return
+		}
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
@@ -676,7 +754,7 @@ func (rs *Resource) getAvailableStaff(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Create teacher response using pre-loaded data (false for wasPresentToday - not needed here)
-		responses = append(responses, newTeacherResponse(teacher.Staff, teacher, false, "", ""))
+		responses = append(responses, newTeacherResponse(teacher.Staff, teacher, false, "", "", ""))
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Available staff members retrieved successfully")
@@ -759,7 +837,7 @@ func (rs *Resource) buildStaffSubstitutionStatus(
 	teacher *users.Teacher,
 	subs []*education.GroupSubstitution,
 ) StaffWithSubstitutionStatus {
-	staffResp := newStaffResponse(staff, false, false, "", "")
+	staffResp := newStaffResponse(staff, false, false, "", "", "")
 	result := StaffWithSubstitutionStatus{
 		StaffResponse:     &staffResp,
 		IsSubstituting:    len(subs) > 0,
@@ -962,7 +1040,7 @@ func (rs *Resource) updatePIN(w http.ResponseWriter, r *http.Request) {
 		if result == pinVerificationFailed {
 			account.IncrementPINAttempts()
 			if updateErr := rs.AuthService.UpdateAccount(r.Context(), account); updateErr != nil {
-				slog.Default().Error("failed to update account PIN attempts",
+				rs.getLogger().Error("failed to update account PIN attempts",
 					slog.String("error", updateErr.Error()))
 			}
 		}
@@ -977,7 +1055,10 @@ func (rs *Resource) updatePIN(w http.ResponseWriter, r *http.Request) {
 	}
 	account.ResetPINAttempts()
 
-	if err := rs.AuthService.UpdateAccount(r.Context(), account); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.AuthService.UpdateAccount(ctx, account)
+	}); err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}

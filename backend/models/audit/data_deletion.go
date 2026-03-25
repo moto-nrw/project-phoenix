@@ -3,11 +3,14 @@ package audit
 import (
 	"errors"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // DataDeletion represents a record of deleted data for GDPR compliance
 type DataDeletion struct {
-	ID             int64                  `bun:"id,pk,autoincrement" json:"id"`
+	ID int64 `bun:"id,pk,autoincrement" json:"id"`
+	base.TenantModel
 	StudentID      int64                  `bun:"student_id,notnull" json:"student_id"`
 	DeletionType   string                 `bun:"deletion_type,notnull" json:"deletion_type"` // 'visit_retention', 'manual', 'gdpr_request'
 	RecordsDeleted int                    `bun:"records_deleted,notnull" json:"records_deleted"`

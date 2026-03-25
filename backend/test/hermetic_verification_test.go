@@ -123,6 +123,8 @@ func checkHardcodedIDs(t *testing.T, root string) []string {
 		"Less",           // Assertions checking < n
 		"func()",         // Inline functions creating pointers
 		"return &id",     // Pointer helpers in model tests
+		"tenant_id",      // Tenant ID in raw SQL or map literals (required for multi-tenancy)
+		"TenantContext",  // Test helper setting tenant context
 	}
 
 	// Patterns that require word boundary matching to avoid false negatives.
@@ -134,13 +136,15 @@ func checkHardcodedIDs(t *testing.T, root string) []string {
 
 	// Files to skip (mock tests, model unit tests without DB)
 	skipPatterns := []string{
-		"_internal_test.go",                  // Internal tests often use mocks
-		"_mock_test.go",                      // Mock tests
-		"models/",                            // Model unit tests don't hit DB (Unix)
-		"models\\",                           // Model unit tests don't hit DB (Windows)
-		"invitation_service_test.go",         // Uses mocks
-		"password_reset_integration_test.go", // Uses mocks (sqlmock + stubs)
-		"handlers_unit_test.go",              // Unit tests for converters (no DB)
+		"_internal_test.go",                     // Internal tests often use mocks
+		"_mock_test.go",                         // Mock tests
+		"models/",                               // Model unit tests don't hit DB (Unix)
+		"models\\",                              // Model unit tests don't hit DB (Windows)
+		"invitation_service_test.go",            // Uses mocks
+		"password_reset_integration_test.go",    // Uses mocks (sqlmock + stubs)
+		"handlers_unit_test.go",                 // Unit tests for converters (no DB)
+		"http_middleware_test.go",               // Uses nil *bun.DB for unit testing middleware
+		"operator_provisioning_service_test.go", // Uses mocks (sqlmock + stubs)
 	}
 
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
@@ -268,6 +272,22 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 
 		// Skip this verification test
 		if strings.Contains(path, "hermetic_verification_test.go") {
+			return nil
+		}
+
+		// Skip files that reference DB types but don't perform real DB operations
+		normalizedPath := filepath.ToSlash(path)
+		skipFiles := []string{
+			"http_middleware_test.go", // Uses nil *bun.DB for unit testing middleware
+		}
+		skip := false
+		for _, sf := range skipFiles {
+			if strings.Contains(normalizedPath, sf) {
+				skip = true
+				break
+			}
+		}
+		if skip {
 			return nil
 		}
 

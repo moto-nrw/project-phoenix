@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"syscall"
 
+	seedapi "github.com/moto-nrw/project-phoenix/seed/api"
+	"github.com/moto-nrw/project-phoenix/simulate"
 	iotSimulator "github.com/moto-nrw/project-phoenix/simulator/iot"
 	"github.com/spf13/cobra"
 )
@@ -21,7 +23,7 @@ const (
 // simulateCmd runs the IoT simulator state discovery loop.
 var simulateCmd = &cobra.Command{
 	Use:   "simulate",
-	Short: "Run the IoT simulator discovery loop",
+	Short: "Run the IoT simulator and simulation commands",
 	Long: `Starts the IoT simulator discovery loop. The simulator authenticates every configured device,
 collects session/room/student/activity information, and keeps that snapshot fresh on the configured interval.`,
 	Run: func(cmd *cobra.Command, args []string) {
@@ -43,8 +45,65 @@ collects session/room/student/activity information, and keeps that snapshot fres
 	},
 }
 
+var simulateFullDayCmd = &cobra.Command{
+	Use:   "full-day",
+	Short: "Run a one-shot full-day simulation",
+	Long:  `Reads .seed-state.json, then exercises all API flows: RFID assignment, sessions, attendance, check-ins, and optionally end-of-day cleanup.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+
+		statePath, _ := cmd.Flags().GetString("state")
+		closeSessions, _ := cmd.Flags().GetBool("close")
+		verbose, _ := cmd.Flags().GetBool("verbose")
+
+		opts := simulate.FullDayOptions{
+			StatePath: statePath,
+			Close:     closeSessions,
+			Verbose:   verbose,
+		}
+
+		if err := simulate.RunFullDay(ctx, opts); err != nil {
+			log.Fatalf("Full-day simulation failed: %v", err)
+		}
+	},
+}
+
+var simulateStatusCmd = &cobra.Command{
+	Use:   "status",
+	Short: "Show current simulation state",
+	Long:  `Reads .seed-state.json, logs in as admin, and queries the server for active sessions, visits, and prints a summary.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+
+		statePath, _ := cmd.Flags().GetString("state")
+		verbose, _ := cmd.Flags().GetBool("verbose")
+
+		opts := simulate.StatusOptions{
+			StatePath: statePath,
+			Verbose:   verbose,
+		}
+
+		if err := simulate.RunStatus(ctx, opts); err != nil {
+			log.Fatalf("Status query failed: %v", err)
+		}
+	},
+}
+
 func init() {
 	RootCmd.AddCommand(simulateCmd)
+	simulateCmd.AddCommand(simulateFullDayCmd)
+	simulateCmd.AddCommand(simulateStatusCmd)
+
+	// full-day flags
+	simulateFullDayCmd.Flags().String("state", seedapi.DefaultSeedStatePath, "Path to .seed-state.json")
+	simulateFullDayCmd.Flags().Bool("close", false, "End sessions and checkout all students at the end")
+	simulateFullDayCmd.Flags().Bool("verbose", false, "Verbose output")
+
+	// status flags
+	simulateStatusCmd.Flags().String("state", seedapi.DefaultSeedStatePath, "Path to .seed-state.json")
+	simulateStatusCmd.Flags().Bool("verbose", false, "Verbose output")
 }
 
 func resolveSimulatorConfigPath() string {

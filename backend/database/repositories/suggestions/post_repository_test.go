@@ -27,7 +27,9 @@ func createTestPost(t *testing.T, db *bun.DB, accountID int64, title, descriptio
 		Score:       0,
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	post.SetTenantID(1)
+
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
 	defer cancel()
 
 	_, err := db.NewInsert().
@@ -50,7 +52,9 @@ func createTestVote(t *testing.T, db *bun.DB, postID, voterID int64, direction s
 		Direction: direction,
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	vote.SetTenantID(1)
+
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
 	defer cancel()
 
 	_, err := db.NewInsert().
@@ -70,13 +74,13 @@ func cleanupPosts(t *testing.T, db *bun.DB, postIDs ...int64) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
 	defer cancel()
 
 	// Delete votes first (FK constraint)
 	_, err := db.NewDelete().
 		TableExpr("suggestions.votes").
-		Where("post_id IN (?)", bun.In(postIDs)).
+		Where("post_id IN (?)", bun.List(postIDs)).
 		Exec(ctx)
 	if err != nil {
 		t.Logf("cleanup votes: %v", err)
@@ -84,7 +88,7 @@ func cleanupPosts(t *testing.T, db *bun.DB, postIDs ...int64) {
 
 	_, err = db.NewDelete().
 		TableExpr("suggestions.posts").
-		Where("id IN (?)", bun.In(postIDs)).
+		Where("id IN (?)", bun.List(postIDs)).
 		Exec(ctx)
 	if err != nil {
 		t.Logf("cleanup posts: %v", err)
@@ -96,7 +100,7 @@ func TestPostRepository_Create(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewPostRepository(db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	account := testpkg.CreateTestAccount(t, db, "suggestions-create")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -137,7 +141,7 @@ func TestPostRepository_FindByID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewPostRepository(db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	account := testpkg.CreateTestAccount(t, db, "suggestions-findbyid")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -146,7 +150,7 @@ func TestPostRepository_FindByID(t *testing.T) {
 	defer cleanupPosts(t, db, post.ID)
 
 	t.Run("finds existing post", func(t *testing.T) {
-		found, err := repo.FindByID(ctx, post.ID)
+		found, err := repo.FindByID(ctx, post.ID, suggestions.ReaderTypeOperator)
 		require.NoError(t, err)
 		require.NotNil(t, found)
 		assert.Equal(t, post.ID, found.ID)
@@ -154,7 +158,7 @@ func TestPostRepository_FindByID(t *testing.T) {
 	})
 
 	t.Run("returns nil for non-existent post", func(t *testing.T) {
-		found, err := repo.FindByID(ctx, 999999999)
+		found, err := repo.FindByID(ctx, 999999999, suggestions.ReaderTypeOperator)
 		require.NoError(t, err)
 		assert.Nil(t, found)
 	})
@@ -165,7 +169,7 @@ func TestPostRepository_Update(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewPostRepository(db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	account := testpkg.CreateTestAccount(t, db, "suggestions-update")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -180,7 +184,7 @@ func TestPostRepository_Update(t *testing.T) {
 		err := repo.Update(ctx, post)
 		require.NoError(t, err)
 
-		found, err := repo.FindByID(ctx, post.ID)
+		found, err := repo.FindByID(ctx, post.ID, suggestions.ReaderTypeOperator)
 		require.NoError(t, err)
 		assert.Equal(t, "Updated Title", found.Title)
 		assert.Equal(t, "Updated description", found.Description)
@@ -190,6 +194,77 @@ func TestPostRepository_Update(t *testing.T) {
 		err := repo.Update(ctx, nil)
 		require.Error(t, err)
 	})
+
+	t.Run("does not overwrite status or hidden state", func(t *testing.T) {
+		post.Status = suggestions.StatusDone
+		post.IsHidden = true
+		_, err := db.NewUpdate().
+			Model(post).
+			ModelTableExpr("suggestions.posts").
+			Column("status", "is_hidden").
+			Where("id = ?", post.ID).
+			Exec(ctx)
+		require.NoError(t, err)
+
+		post.Title = "Title only update"
+		post.Description = "Description only update"
+		post.Status = suggestions.StatusOpen
+		post.IsHidden = false
+
+		err = repo.Update(ctx, post)
+		require.NoError(t, err)
+
+		found, err := repo.FindByID(ctx, post.ID, suggestions.ReaderTypeOperator)
+		require.NoError(t, err)
+		assert.Equal(t, "Title only update", found.Title)
+		assert.Equal(t, "Description only update", found.Description)
+		assert.Equal(t, suggestions.StatusDone, found.Status)
+		assert.True(t, found.IsHidden)
+	})
+}
+
+func TestPostRepository_UpdateStatus(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repoSuggestions.NewPostRepository(db)
+	ctx := testpkg.TenantContext(1)
+
+	account := testpkg.CreateTestAccount(t, db, "suggestions-update-status")
+	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
+
+	post := createTestPost(t, db, account.ID, fmt.Sprintf("UpdateStatus %d", time.Now().UnixNano()), "Original desc")
+	defer cleanupPosts(t, db, post.ID)
+
+	err := repo.UpdateStatus(ctx, post.ID, suggestions.StatusDone)
+	require.NoError(t, err)
+
+	found, err := repo.FindByID(ctx, post.ID, suggestions.ReaderTypeOperator)
+	require.NoError(t, err)
+	assert.Equal(t, suggestions.StatusDone, found.Status)
+	assert.False(t, found.IsHidden)
+}
+
+func TestPostRepository_UpdateHidden(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repoSuggestions.NewPostRepository(db)
+	ctx := testpkg.TenantContext(1)
+
+	account := testpkg.CreateTestAccount(t, db, "suggestions-update-hidden")
+	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
+
+	post := createTestPost(t, db, account.ID, fmt.Sprintf("UpdateHidden %d", time.Now().UnixNano()), "Original desc")
+	defer cleanupPosts(t, db, post.ID)
+
+	err := repo.UpdateHidden(ctx, post.ID, true)
+	require.NoError(t, err)
+
+	found, err := repo.FindByID(ctx, post.ID, suggestions.ReaderTypeOperator)
+	require.NoError(t, err)
+	assert.True(t, found.IsHidden)
+	assert.Equal(t, suggestions.StatusOpen, found.Status)
 }
 
 func TestPostRepository_Delete(t *testing.T) {
@@ -197,7 +272,7 @@ func TestPostRepository_Delete(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewPostRepository(db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	account := testpkg.CreateTestAccount(t, db, "suggestions-delete")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -209,7 +284,7 @@ func TestPostRepository_Delete(t *testing.T) {
 		err := repo.Delete(ctx, post.ID)
 		require.NoError(t, err)
 
-		found, err := repo.FindByID(ctx, post.ID)
+		found, err := repo.FindByID(ctx, post.ID, suggestions.ReaderTypeOperator)
 		require.NoError(t, err)
 		assert.Nil(t, found)
 	})
@@ -220,7 +295,7 @@ func TestPostRepository_List(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewPostRepository(db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	account := testpkg.CreateTestAccount(t, db, "suggestions-list")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -282,7 +357,7 @@ func TestPostRepository_FindByIDWithVote(t *testing.T) {
 
 	repo := repoSuggestions.NewPostRepository(db)
 	voteRepo := repoSuggestions.NewVoteRepository(db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	account := testpkg.CreateTestAccount(t, db, "suggestions-findwithvote")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
@@ -325,7 +400,7 @@ func TestPostRepository_RecalculateScore(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repoSuggestions.NewPostRepository(db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	account1 := testpkg.CreateTestAccount(t, db, "suggestions-score1")
 	account2 := testpkg.CreateTestAccount(t, db, "suggestions-score2")
@@ -339,7 +414,7 @@ func TestPostRepository_RecalculateScore(t *testing.T) {
 		err := repo.RecalculateScore(ctx, post.ID)
 		require.NoError(t, err)
 
-		found, err := repo.FindByID(ctx, post.ID)
+		found, err := repo.FindByID(ctx, post.ID, suggestions.ReaderTypeOperator)
 		require.NoError(t, err)
 		assert.Equal(t, 0, found.Score)
 	})
@@ -353,7 +428,7 @@ func TestPostRepository_RecalculateScore(t *testing.T) {
 		err := repo.RecalculateScore(ctx, post.ID)
 		require.NoError(t, err)
 
-		found, err := repo.FindByID(ctx, post.ID)
+		found, err := repo.FindByID(ctx, post.ID, suggestions.ReaderTypeOperator)
 		require.NoError(t, err)
 		assert.Equal(t, 1, found.Score)
 	})

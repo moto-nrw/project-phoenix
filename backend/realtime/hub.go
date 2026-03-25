@@ -1,6 +1,7 @@
 package realtime
 
 import (
+	"fmt"
 	"log/slog"
 	"sync"
 )
@@ -9,7 +10,13 @@ import (
 type Client struct {
 	Channel          chan Event      // Channel to send events to this client
 	UserID           int64           // User ID for audit logging
-	SubscribedGroups map[string]bool // active_group_id -> subscribed
+	TenantID         int64           // Tenant ID for multi-tenancy isolation
+	SubscribedGroups map[string]bool // composite key (tenantID:groupID) -> subscribed
+}
+
+// tenantGroupKey builds a composite map key for tenant-isolated group lookups.
+func tenantGroupKey(tenantID int64, groupID string) string {
+	return fmt.Sprintf("%d:%s", tenantID, groupID)
 }
 
 // Hub manages SSE client connections and broadcasts events
@@ -38,20 +45,23 @@ func NewHub(logger *slog.Logger) *Hub {
 }
 
 // Register adds a client to the hub and subscribes them to specified active groups
-func (h *Hub) Register(client *Client, activeGroupIDs []string) {
+func (h *Hub) Register(client *Client, tenantID int64, activeGroupIDs []string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
+	client.TenantID = tenantID
 	h.clients[client] = true
 
-	// Subscribe client to each active group
+	// Subscribe client to each active group using composite keys
 	for _, groupID := range activeGroupIDs {
-		h.groupClients[groupID] = append(h.groupClients[groupID], client)
-		client.SubscribedGroups[groupID] = true
+		key := tenantGroupKey(tenantID, groupID)
+		h.groupClients[key] = append(h.groupClients[key], client)
+		client.SubscribedGroups[key] = true
 	}
 
 	h.getLogger().Info("SSE client connected",
 		slog.Int64("user_id", client.UserID),
+		slog.Int64("tenant_id", tenantID),
 		slog.Any("subscribed_groups", activeGroupIDs),
 		slog.Int("total_clients", len(h.clients)),
 	)
@@ -95,15 +105,17 @@ func (h *Hub) Unregister(client *Client) {
 
 // BroadcastToGroup sends an event to all clients subscribed to the specified active group
 // This is a fire-and-forget operation - errors don't affect service execution
-func (h *Hub) BroadcastToGroup(activeGroupID string, event Event) error {
+func (h *Hub) BroadcastToGroup(tenantID int64, activeGroupID string, event Event) error {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
-	clients := h.groupClients[activeGroupID]
+	key := tenantGroupKey(tenantID, activeGroupID)
+	clients := h.groupClients[key]
 	if len(clients) == 0 {
 		// No subscribers for this group - not an error
 		h.getLogger().Debug("no SSE subscribers for group",
 			slog.String("active_group_id", activeGroupID),
+			slog.Int64("tenant_id", tenantID),
 			slog.String("event_type", string(event.Type)),
 		)
 		return nil
@@ -120,6 +132,7 @@ func (h *Hub) BroadcastToGroup(activeGroupID string, event Event) error {
 			h.getLogger().Warn("SSE client channel full, skipping event",
 				slog.Int64("user_id", client.UserID),
 				slog.String("active_group_id", activeGroupID),
+				slog.Int64("tenant_id", tenantID),
 				slog.String("event_type", string(event.Type)),
 			)
 		}
@@ -127,11 +140,30 @@ func (h *Hub) BroadcastToGroup(activeGroupID string, event Event) error {
 
 	h.getLogger().Debug("SSE event broadcast",
 		slog.String("active_group_id", activeGroupID),
+		slog.Int64("tenant_id", tenantID),
 		slog.String("event_type", string(event.Type)),
 		slog.Int("recipient_count", len(clients)),
 		slog.Int("successful", successCount),
 	)
 
+	return nil
+}
+
+// BroadcastToAll sends an event to every connected client regardless of group subscriptions.
+func (h *Hub) BroadcastToAll(event Event) error {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	for client := range h.clients {
+		select {
+		case client.Channel <- event:
+		default:
+			h.getLogger().Warn("SSE client channel full, skipping broadcast-to-all",
+				slog.Int64("user_id", client.UserID),
+				slog.String("event_type", string(event.Type)),
+			)
+		}
+	}
 	return nil
 }
 
@@ -143,8 +175,8 @@ func (h *Hub) GetClientCount() int {
 }
 
 // GetGroupSubscriberCount returns the number of clients subscribed to a specific group
-func (h *Hub) GetGroupSubscriberCount(activeGroupID string) int {
+func (h *Hub) GetGroupSubscriberCount(tenantID int64, activeGroupID string) int {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
-	return len(h.groupClients[activeGroupID])
+	return len(h.groupClients[tenantGroupKey(tenantID, activeGroupID)])
 }

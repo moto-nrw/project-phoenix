@@ -1,7 +1,6 @@
 package active_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -23,7 +22,7 @@ func TestStaffAbsenceRepository_Create(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StaffAbsence
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
@@ -165,7 +164,7 @@ func TestStaffAbsenceRepository_List(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StaffAbsence
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
@@ -217,7 +216,7 @@ func TestStaffAbsenceRepository_GetByStaffAndDateRange(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StaffAbsence
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
@@ -290,7 +289,7 @@ func TestStaffAbsenceRepository_GetByStaffAndDate(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StaffAbsence
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
@@ -330,7 +329,7 @@ func TestStaffAbsenceRepository_GetTodayAbsenceMap(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StaffAbsence
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	staff1 := testpkg.CreateTestStaff(t, db, "Staff", "One")
 	staff2 := testpkg.CreateTestStaff(t, db, "Staff", "Two")
@@ -420,7 +419,7 @@ func TestStaffAbsenceRepository_GetByDateRange(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StaffAbsence
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	staff1 := testpkg.CreateTestStaff(t, db, "Staff", "One")
 	staff2 := testpkg.CreateTestStaff(t, db, "Staff", "Two")

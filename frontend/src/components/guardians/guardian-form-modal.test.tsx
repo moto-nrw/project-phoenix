@@ -532,13 +532,136 @@ describe("GuardianFormModal", () => {
 
     // Should show validation error
     await waitFor(() => {
-      expect(
-        screen.getByText("Vorname und Nachname sind erforderlich"),
-      ).toBeInTheDocument();
+      expect(screen.getByText("Vorname ist erforderlich")).toBeInTheDocument();
     });
 
     // onSubmit should not be called
     expect(mockOnSubmit).not.toHaveBeenCalled();
+  });
+
+  it("highlights only the first-name field when first name is empty", async () => {
+    render(
+      <GuardianFormModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onSubmit={mockOnSubmit}
+        mode="create"
+      />,
+    );
+
+    // Fill last name but leave first name empty
+    const lastNameInput = screen.getByPlaceholderText("Mustermann");
+    fireEvent.change(lastNameInput, { target: { value: "User" } });
+
+    fireEvent.click(screen.getByText("Hinzufügen"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Vorname ist erforderlich")).toBeInTheDocument();
+    });
+
+    // First name input should have red border
+    const firstNameInput = screen.getByPlaceholderText("Max");
+    expect(firstNameInput.className).toContain("border-red-400");
+
+    // Last name input should NOT have red border
+    expect(lastNameInput.className).not.toContain("border-red-400");
+
+    // Email should NOT have red border
+    const emailInput = screen.getByPlaceholderText(
+      "max.mustermann@example.com",
+    );
+    expect(emailInput.className).not.toContain("border-red-400");
+  });
+
+  it("highlights only the last-name field when last name is empty", async () => {
+    render(
+      <GuardianFormModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onSubmit={mockOnSubmit}
+        mode="create"
+      />,
+    );
+
+    const firstNameInput = screen.getByPlaceholderText("Max");
+    fireEvent.change(firstNameInput, { target: { value: "Test" } });
+
+    fireEvent.click(screen.getByText("Hinzufügen"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Nachname ist erforderlich")).toBeInTheDocument();
+    });
+
+    const lastNameInput = screen.getByPlaceholderText("Mustermann");
+    expect(lastNameInput.className).toContain("border-red-400");
+    expect(firstNameInput.className).not.toContain("border-red-400");
+  });
+
+  it("highlights email and phone fields when no contact method provided", async () => {
+    render(
+      <GuardianFormModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onSubmit={mockOnSubmit}
+        mode="create"
+      />,
+    );
+
+    fireEvent.change(screen.getByPlaceholderText("Max"), {
+      target: { value: "Test" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Mustermann"), {
+      target: { value: "User" },
+    });
+
+    fireEvent.click(screen.getByText("Hinzufügen"));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Mindestens eine Kontaktmöglichkeit ist erforderlich"),
+      ).toBeInTheDocument();
+    });
+
+    // Both email and phone should be highlighted
+    const emailInput = screen.getByPlaceholderText(
+      "max.mustermann@example.com",
+    );
+    expect(emailInput.className).toContain("border-red-400");
+
+    const phoneInput = screen.getByPlaceholderText("+49 170 1234567");
+    expect(phoneInput.className).toContain("border-red-400");
+  });
+
+  it("clears field errors on next submit attempt", async () => {
+    render(
+      <GuardianFormModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onSubmit={mockOnSubmit}
+        mode="create"
+      />,
+    );
+
+    // Submit empty — triggers first name error
+    fireEvent.click(screen.getByText("Hinzufügen"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Vorname ist erforderlich")).toBeInTheDocument();
+    });
+
+    const firstNameInput = screen.getByPlaceholderText("Max");
+    expect(firstNameInput.className).toContain("border-red-400");
+
+    // Fill first name and submit again — first name error should clear, last name error appears
+    fireEvent.change(firstNameInput, { target: { value: "Test" } });
+    fireEvent.click(screen.getByText("Hinzufügen"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Nachname ist erforderlich")).toBeInTheDocument();
+    });
+
+    // First name should no longer be highlighted
+    expect(firstNameInput.className).not.toContain("border-red-400");
   });
 
   it("shows contact validation error when no contact provided", async () => {

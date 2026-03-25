@@ -936,4 +936,140 @@ describe("PickupExceptionFormModal", () => {
       expect(screen.getByText("Abbrechen")).not.toBeDisabled();
     });
   });
+
+  describe("Scroll to error", () => {
+    const submitForm = () => {
+      const form = document.getElementById("pickup-exception-form");
+      if (form) {
+        fireEvent.submit(form);
+      }
+    };
+
+    it("scrolls to error when validation fails", async () => {
+      const scrollIntoViewMock = vi.fn();
+      Element.prototype.scrollIntoView = scrollIntoViewMock;
+
+      render(
+        <PickupExceptionFormModal
+          isOpen={true}
+          onClose={mockOnClose}
+          onSubmit={mockOnSubmit}
+          mode="create"
+          defaultDate="2025-03-15"
+        />,
+      );
+
+      // Clear date to trigger validation error
+      const dateInput = screen.getByLabelText("Datum");
+      fireEvent.change(dateInput, { target: { value: "" } });
+
+      // Fill other fields
+      const timeInput = screen.getByLabelText("Abweichende Abholzeit");
+      const reasonInput = screen.getByLabelText("Grund");
+      fireEvent.change(timeInput, { target: { value: "14:00" } });
+      fireEvent.change(reasonInput, { target: { value: "Test reason" } });
+
+      submitForm();
+
+      await waitFor(() => {
+        expect(
+          screen.getByText("Bitte wählen Sie ein Datum aus."),
+        ).toBeInTheDocument();
+      });
+
+      expect(scrollIntoViewMock).toHaveBeenCalledWith({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+
+    it("highlights the failing field label with red text on date error", async () => {
+      Element.prototype.scrollIntoView = vi.fn();
+
+      render(
+        <PickupExceptionFormModal
+          isOpen={true}
+          onClose={mockOnClose}
+          onSubmit={mockOnSubmit}
+          mode="create"
+          defaultDate="2025-03-15"
+        />,
+      );
+
+      const dateInput = screen.getByLabelText("Datum");
+      fireEvent.change(dateInput, { target: { value: "" } });
+
+      const timeInput = screen.getByLabelText("Abweichende Abholzeit");
+      const reasonInput = screen.getByLabelText("Grund");
+      fireEvent.change(timeInput, { target: { value: "14:00" } });
+      fireEvent.change(reasonInput, { target: { value: "Test reason" } });
+
+      submitForm();
+
+      await waitFor(() => {
+        expect(
+          screen.getByText("Bitte wählen Sie ein Datum aus."),
+        ).toBeInTheDocument();
+      });
+
+      const dateLabel = screen.getByText("Datum");
+      expect(dateLabel.className).toContain("text-red-600");
+    });
+
+    it("highlights the failing field label with red text on time error", async () => {
+      Element.prototype.scrollIntoView = vi.fn();
+
+      render(
+        <PickupExceptionFormModal
+          isOpen={true}
+          onClose={mockOnClose}
+          onSubmit={mockOnSubmit}
+          mode="create"
+          defaultDate="2025-03-15"
+        />,
+      );
+
+      const reasonInput = screen.getByLabelText("Grund");
+      fireEvent.change(reasonInput, { target: { value: "Test reason" } });
+
+      submitForm();
+
+      await waitFor(() => {
+        expect(
+          screen.getByText("Bitte geben Sie eine Abholzeit an."),
+        ).toBeInTheDocument();
+      });
+
+      const timeLabel = screen.getByText("Abweichende Abholzeit");
+      expect(timeLabel.className).toContain("text-red-600");
+    });
+
+    it("highlights the failing field label with red text on reason error", async () => {
+      Element.prototype.scrollIntoView = vi.fn();
+
+      render(
+        <PickupExceptionFormModal
+          isOpen={true}
+          onClose={mockOnClose}
+          onSubmit={mockOnSubmit}
+          mode="create"
+          defaultDate="2025-03-15"
+        />,
+      );
+
+      const timeInput = screen.getByLabelText("Abweichende Abholzeit");
+      fireEvent.change(timeInput, { target: { value: "14:00" } });
+
+      submitForm();
+
+      await waitFor(() => {
+        expect(
+          screen.getByText("Bitte geben Sie einen Grund an."),
+        ).toBeInTheDocument();
+      });
+
+      const reasonLabel = screen.getByText("Grund");
+      expect(reasonLabel.className).toContain("text-red-600");
+    });
+  });
 });

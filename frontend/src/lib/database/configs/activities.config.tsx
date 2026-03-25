@@ -3,6 +3,7 @@
 import { defineEntityConfig } from "../types";
 import { databaseThemes } from "@/components/ui/database/themes";
 import type { Activity, ActivitySupervisor } from "@/lib/activity-helpers";
+import { getSupervisors } from "@/lib/activity-api";
 import { getSession } from "next-auth/react";
 import { createLogger } from "~/lib/logger";
 
@@ -165,15 +166,32 @@ export const activitiesConfig = defineEntityConfig<Activity>({
           },
         ],
       },
+      {
+        title: "Betreuer",
+        backgroundColor: "bg-purple-50/30",
+        iconPath:
+          "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z",
+        fields: [
+          {
+            name: "supervisor_id",
+            label: "Hauptbetreuer",
+            type: "select",
+            required: false,
+            placeholder: "Kein Hauptbetreuer",
+            options: async () => {
+              const supervisors = await getSupervisors();
+              return supervisors.map((sup) => ({
+                value: sup.id,
+                label: sup.name,
+              }));
+            },
+          },
+        ],
+      },
     ],
 
     defaultValues: {
       max_participant: 20,
-    },
-
-    transformBeforeSubmit: (data: Partial<Activity>) => {
-      // Return the data as is - the service.mapRequest will handle the transformation
-      return data;
     },
   },
 
@@ -399,14 +417,20 @@ export const activitiesConfig = defineEntityConfig<Activity>({
   service: {
     mapRequest: (data: Partial<Activity>): Record<string, unknown> => {
       // Convert frontend Activity to backend format
-      // Only send name, category_id, and max_participants
-      return {
+      const request: Record<string, unknown> = {
         name: data.name,
         max_participants: data.max_participant,
         category_id: data.ag_category_id
           ? Number.parseInt(data.ag_category_id, 10)
           : undefined,
       };
+
+      // Backend expects supervisor_ids as an array even for single primary
+      if (data.supervisor_id) {
+        request.supervisor_ids = [Number.parseInt(data.supervisor_id, 10)];
+      }
+
+      return request;
     },
 
     mapResponse: (responseData: unknown): Activity => {

@@ -20,6 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -40,7 +41,7 @@ func setupTestContext(t *testing.T) *testContext {
 	svc, err := services.NewFactory(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 
-	resource := roomsAPI.NewResource(svc.Facilities)
+	resource := roomsAPI.NewResource(svc.Facilities, db)
 
 	t.Cleanup(func() {
 		if err := db.Close(); err != nil {
@@ -74,6 +75,9 @@ func setupRouter(handler http.HandlerFunc, urlParam string) chi.Router {
 func executeWithAuth(router chi.Router, req *http.Request, claims jwt.AppClaims, permissions []string) *httptest.ResponseRecorder {
 	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
 	ctx = context.WithValue(ctx, jwt.CtxPermissions, permissions)
+	if claims.TenantID != 0 {
+		ctx = tenant.WithTenantID(ctx, claims.TenantID)
+	}
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
@@ -292,8 +296,22 @@ func TestDeleteRoom(t *testing.T) {
 
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
-		// Service returns error when room doesn't exist
-		testutil.AssertErrorResponse(t, rr, http.StatusInternalServerError)
+		// Service returns not found when room doesn't exist (ErrorRenderer maps ErrRoomNotFound → 404)
+		testutil.AssertErrorResponse(t, rr, http.StatusNotFound)
+	})
+
+	t.Run("conflict_when_room_has_active_group", func(t *testing.T) {
+		room := testpkg.CreateTestRoom(t, tc.db, "Room With Active Group")
+		activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, "ActiveGroupInRoom")
+		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
+		defer testpkg.CleanupActivityFixtures(t, tc.db, activeGroup.ID, activityGroup.ID)
+
+		router := setupRouter(tc.resource.DeleteRoomHandler(), "id")
+		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d", room.ID), nil)
+
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		testutil.AssertErrorResponse(t, rr, http.StatusConflict)
 	})
 
 	t.Run("bad_request_for_invalid_id", func(t *testing.T) {

@@ -2,14 +2,21 @@
 // Ultra-minimalist mobile navigation following Instagram/Twitter/Uber patterns
 "use client";
 
-import React, { useRef, useCallback, useState, useEffect } from "react";
+import React, {
+  useRef,
+  useCallback,
+  useState,
+  useEffect,
+  useMemo,
+} from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useSupervision } from "~/lib/supervision-context";
+import { useOptionalSupervision } from "~/lib/supervision-context";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { isAdmin } from "~/lib/auth-utils";
 import { navigationIcons } from "~/lib/navigation-icons";
+import { operatorPath } from "~/lib/operator-url";
 import {
   Drawer,
   DrawerContent,
@@ -100,6 +107,12 @@ const OPERATOR_MAIN_ITEMS: NavItem[] = [
     iconKey: "bell",
     alwaysShow: true,
   },
+  {
+    href: "/operator/provisioning",
+    label: "Schulen",
+    iconKey: "buildingOffice",
+    alwaysShow: true,
+  },
 ];
 
 // Additional navigation items that appear in the overflow menu
@@ -137,9 +150,9 @@ const additionalNavItems: AdditionalNavItem[] = [
     requiresAdmin: true,
   },
   {
-    href: "/settings",
-    label: "Einstellungen",
-    iconKey: "settings",
+    href: "/time-tracking",
+    label: "Zeiterfassung",
+    iconKey: "clock",
     alwaysShow: true,
   },
   {
@@ -149,9 +162,9 @@ const additionalNavItems: AdditionalNavItem[] = [
     alwaysShow: true,
   },
   {
-    href: "/time-tracking",
-    label: "Zeiterfassung",
-    iconKey: "clock",
+    href: "/settings",
+    label: "Einstellungen",
+    iconKey: "settings",
     alwaysShow: true,
   },
   // Coming soon features - shown to all users
@@ -216,7 +229,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
 
   // Get supervision state
   const { hasGroups, isSupervising, isLoadingGroups, isLoadingSupervision } =
-    useSupervision();
+    useOptionalSupervision();
 
   // Get shell auth mode
   const { mode } = useShellAuth();
@@ -244,9 +257,18 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   };
 
   // Compute main navigation items per role and mode
+  // operatorPath is deterministic for the page lifetime — memoize to avoid per-render churn
+  const resolvedOperatorMainItems = useMemo(
+    () =>
+      OPERATOR_MAIN_ITEMS.map((item) => ({
+        ...item,
+        href: operatorPath(item.href),
+      })),
+    [],
+  );
   const baseMain =
     mode === "operator"
-      ? OPERATOR_MAIN_ITEMS
+      ? resolvedOperatorMainItems
       : isAdmin(session)
         ? ADMIN_MAIN_ITEMS
         : STAFF_MAIN_ITEMS;

@@ -23,10 +23,10 @@ const (
 	SchulhofRoomName = "Schulhof"
 
 	// SchulhofRoomCapacity is the default capacity for the Schulhof room.
-	SchulhofRoomCapacity = 100
+	SchulhofRoomCapacity = 300
 
 	// SchulhofMaxParticipants is the default max participants for the Schulhof activity.
-	SchulhofMaxParticipants = 100
+	SchulhofMaxParticipants = 300
 
 	// WCActivityName is the name of the permanent WC (toilet) activity.
 	// This activity is auto-created on first use if not found.

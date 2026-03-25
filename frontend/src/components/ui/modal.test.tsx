@@ -256,6 +256,37 @@ describe("Modal", () => {
 
     expect(screen.queryByText("Test")).not.toBeInTheDocument();
   });
+
+  it("should stay stable when onClose identity changes while open", async () => {
+    const onClose1 = vi.fn();
+    const onClose2 = vi.fn();
+
+    const { rerender } = render(
+      <TestWrapper>
+        <Modal isOpen={true} onClose={onClose1} title="">
+          <p>Step 1</p>
+        </Modal>
+      </TestWrapper>,
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+
+    expect(screen.getByText("Step 1")).toBeInTheDocument();
+
+    // Change onClose identity while modal stays open — should NOT flicker
+    rerender(
+      <TestWrapper>
+        <Modal isOpen={true} onClose={onClose2} title="">
+          <p>Step 2</p>
+        </Modal>
+      </TestWrapper>,
+    );
+
+    // Modal should stay open with new content, no animation reset
+    expect(screen.getByText("Step 2")).toBeInTheDocument();
+  });
 });
 
 describe("ConfirmationModal", () => {

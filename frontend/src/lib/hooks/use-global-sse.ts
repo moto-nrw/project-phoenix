@@ -48,26 +48,30 @@ const DEBOUNCE_MS = 500;
 export function useGlobalSSE(): SSEHookState {
   const { data: session, status: sessionStatus } = useSession();
 
-  // Only enable SSE when authenticated
+  // Only enable SSE when authenticated AND user is staff (has "user" role).
+  // Admin-only accounts lack a person/staff record, so the backend SSE
+  // endpoint rejects them with 401 — skip the connection entirely.
+  const isStaff = session?.user?.roles?.includes("user") ?? false;
   const isAuthenticated =
-    sessionStatus === "authenticated" && !!session?.user?.token;
+    sessionStatus === "authenticated" && !!session?.user?.token && isStaff;
 
   // Debounce state: collect affected group IDs, flush once after DEBOUNCE_MS
   const pendingGroupIds = useRef(new Set<string>());
   const pendingStudentIds = useRef(new Set<string>());
   const hasPendingActivityEvent = useRef(false);
+  const hasPendingDashboardEvent = useRef(false);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const flushInvalidations = useCallback(() => {
-    // Invalidate ALL supervision-visits caches for student events.
+    // Invalidate ALL supervision-visits caches for student/dashboard events.
     // A student checked out of Room A may appear on the Schulhof (catch-all),
     // so we can't limit to just the source group's cache key.
-    if (pendingGroupIds.current.size > 0) {
+    // Zero-topic clients only receive dashboard_counts_changed, so include
+    // that flag to keep their detail views in sync.
+    if (pendingGroupIds.current.size > 0 || hasPendingDashboardEvent.current) {
       mutate(
         (key) =>
           typeof key === "string" && key.startsWith("supervision-visits-"),
-        undefined,
-        { revalidate: true },
       ).catch((err) => {
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
@@ -86,8 +90,6 @@ export function useGlobalSSE(): SSEHookState {
     ) {
       mutate(
         (key) => typeof key === "string" && key.startsWith("ogs-students-"),
-        undefined,
-        { revalidate: true },
       ).catch((err) => {
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
@@ -110,15 +112,14 @@ export function useGlobalSSE(): SSEHookState {
     if (
       pendingGroupIds.current.size > 0 ||
       pendingStudentIds.current.size > 0 ||
-      hasPendingActivityEvent.current
+      hasPendingActivityEvent.current ||
+      hasPendingDashboardEvent.current
     ) {
       mutate(
         (key) =>
           typeof key === "string" &&
           (key.startsWith("active-supervision-dashboard") ||
             key.includes("dashboard")),
-        undefined,
-        { revalidate: true },
       ).catch((err) => {
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
@@ -135,8 +136,6 @@ export function useGlobalSSE(): SSEHookState {
           (key.includes("supervision") ||
             key.includes("active") ||
             key.includes("rooms")),
-        undefined,
-        { revalidate: true },
       ).catch((err) => {
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
@@ -149,6 +148,7 @@ export function useGlobalSSE(): SSEHookState {
     pendingGroupIds.current.clear();
     pendingStudentIds.current.clear();
     hasPendingActivityEvent.current = false;
+    hasPendingDashboardEvent.current = false;
   }, []);
 
   const scheduleFlush = useCallback(() => {
@@ -184,14 +184,25 @@ export function useGlobalSSE(): SSEHookState {
           scheduleFlush();
           break;
         }
+
+        case "dashboard_counts_changed": {
+          // Global event from BroadcastToAll — only refresh dashboard counts,
+          // NOT room/supervision/active caches (those are for activity events).
+          hasPendingDashboardEvent.current = true;
+          scheduleFlush();
+          break;
+        }
       }
     },
     [scheduleFlush],
   );
 
-  // Use the underlying SSE hook with global event handler
+  // Use the underlying SSE hook with global event handler.
+  // reconnectKey ensures the EventSource tears down and reconnects with a
+  // fresh JWT whenever the user switches tenant.
   return useSSE("/api/sse/events", {
     onMessage: handleSSEEvent,
     enabled: isAuthenticated,
+    reconnectKey: session?.user?.tenantId,
   });
 }

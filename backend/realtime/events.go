@@ -17,6 +17,9 @@ const (
 	EventActivityStart  EventType = "activity_start"
 	EventActivityEnd    EventType = "activity_end"
 	EventActivityUpdate EventType = "activity_update"
+
+	// Global refresh event — tells all clients to re-fetch dashboard counts
+	EventDashboardCountsChanged EventType = "dashboard_counts_changed"
 )
 
 // Event represents a Server-Sent Event that will be broadcast to clients

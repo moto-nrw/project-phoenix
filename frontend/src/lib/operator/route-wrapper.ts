@@ -1,6 +1,5 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { getOperatorToken } from "./cookies";
 import { handleApiError } from "../api-helpers";
 import {
   type RouteContext,
@@ -10,6 +9,35 @@ import {
   wrapInApiResponse,
   createUnauthorizedResponse,
 } from "../route-wrapper-utils";
+/**
+ * Checks if error is a 401 authentication error
+ */
+function is401Error(error: unknown): boolean {
+  return error instanceof Error && error.message.includes("API error (401)");
+}
+
+/**
+ * Attempts to retry a request with a refreshed token.
+ * NextAuth handles token refresh transparently via JWT callback —
+ * calling auth() again may return a fresh token.
+ */
+async function tryRetryWithRefreshedToken<T>(
+  originalToken: string,
+  retryFn: (token: string) => Promise<T>,
+): Promise<T | null> {
+  const { uncachedOperatorAuth: uncachedAuth } =
+    await import("~/server/auth/operator");
+  const updatedSession = await uncachedAuth();
+
+  if (
+    !updatedSession?.user?.token ||
+    updatedSession.user.token === originalToken
+  ) {
+    return null;
+  }
+
+  return retryFn(updatedSession.user.token);
+}
 
 async function operatorServerFetch<T>(
   endpoint: string,
@@ -33,23 +61,26 @@ async function operatorServerFetch<T>(
     throw new Error(`API error (${response.status}): ${errorText}`);
   }
 
+  return parseResponse<T>(response);
+}
+
+function parseResponse<T>(response: Response): Promise<T> {
   if (response.status === 204) {
-    return undefined as T;
+    return Promise.resolve(undefined as T);
   }
 
-  const json: unknown = await response.json();
-
-  // Unwrap backend envelope { status, data, message } from common.Respond()
-  if (
-    typeof json === "object" &&
-    json !== null &&
-    "data" in json &&
-    "status" in json
-  ) {
-    return (json as { data: T }).data;
-  }
-
-  return json as T;
+  return response.json().then((json: unknown) => {
+    // Unwrap backend envelope { status, data, message } from common.Respond()
+    if (
+      typeof json === "object" &&
+      json !== null &&
+      "data" in json &&
+      "status" in json
+    ) {
+      return (json as { data: T }).data;
+    }
+    return json as T;
+  });
 }
 
 export function operatorApiGet<T>(endpoint: string, token: string): Promise<T> {
@@ -92,6 +123,39 @@ type WithBodyHandler<T, B> = (
   params: Record<string, unknown>,
 ) => Promise<T>;
 
+/**
+ * Executes handler with retry logic on 401 errors.
+ * Mirrors the teacher route-wrapper pattern.
+ */
+async function executeWithRetry<T>(
+  token: string,
+  executeHandler: (token: string) => Promise<T>,
+  formatResponse: (data: T) => NextResponse,
+): Promise<NextResponse> {
+  try {
+    const data = await executeHandler(token);
+    return formatResponse(data);
+  } catch (handlerError) {
+    if (!is401Error(handlerError)) {
+      throw handlerError;
+    }
+
+    try {
+      const retryData = await tryRetryWithRefreshedToken(token, executeHandler);
+      if (retryData !== null) {
+        return formatResponse(retryData);
+      }
+    } catch {
+      // Retry failed, fall through to token expired
+    }
+
+    return NextResponse.json(
+      { error: "Token expired", code: "TOKEN_EXPIRED" },
+      { status: 401 },
+    );
+  }
+}
+
 function createOperatorNoBodyHandler<T>(
   handler: NoBodyHandler<T>,
   formatResponse: (data: T) => NextResponse,
@@ -101,11 +165,16 @@ function createOperatorNoBodyHandler<T>(
     context: RouteContext,
   ): Promise<NextResponse> => {
     try {
-      const token = await getOperatorToken();
-      if (!token) return createUnauthorizedResponse();
+      const { operatorAuth: auth } = await import("~/server/auth/operator");
+      const session = await auth();
+      if (!session?.user?.token) return createUnauthorizedResponse();
       const params = await extractParams(request, context);
-      const data = await handler(request, token, params);
-      return formatResponse(data);
+
+      return await executeWithRetry(
+        session.user.token,
+        (token) => handler(request, token, params),
+        formatResponse,
+      );
     } catch (error) {
       return handleApiError(error);
     }
@@ -118,12 +187,17 @@ function createOperatorWithBodyHandler<T, B>(handler: WithBodyHandler<T, B>) {
     context: RouteContext,
   ): Promise<NextResponse> => {
     try {
-      const token = await getOperatorToken();
-      if (!token) return createUnauthorizedResponse();
+      const { operatorAuth: auth } = await import("~/server/auth/operator");
+      const session = await auth();
+      if (!session?.user?.token) return createUnauthorizedResponse();
       const params = await extractParams(request, context);
       const body = await parseRequestBody<B>(request);
-      const data = await handler(request, body, token, params);
-      return NextResponse.json(wrapInApiResponse(data));
+
+      return await executeWithRetry(
+        session.user.token,
+        (token) => handler(request, body, token, params),
+        (data) => NextResponse.json(wrapInApiResponse(data)),
+      );
     } catch (error) {
       return handleApiError(error);
     }

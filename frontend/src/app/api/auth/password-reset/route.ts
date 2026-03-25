@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { getServerApiUrl } from "~/lib/server-api-url";
+import { getClientForwardHeaders } from "~/lib/client-headers";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "PasswordResetRoute" });
@@ -22,7 +23,10 @@ export async function POST(request: NextRequest) {
 
     const response = await fetch(`${getServerApiUrl()}/auth/password-reset`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...getClientForwardHeaders(request),
+      },
       body: JSON.stringify(body),
     });
 

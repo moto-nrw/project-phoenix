@@ -1,7 +1,6 @@
 package auth_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -22,7 +21,7 @@ func TestAccountRoleRepository_Create(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AccountRole
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates account-role mapping", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "role_create")
@@ -52,7 +51,7 @@ func TestAccountRoleRepository_FindByAccountID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AccountRole
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds roles by account ID", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "find_by_acc_role")
@@ -94,7 +93,7 @@ func TestAccountRoleRepository_FindByRoleID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AccountRole
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds accounts by role ID", func(t *testing.T) {
 		account1 := testpkg.CreateTestAccount(t, db, "find_by_role1")
@@ -131,7 +130,7 @@ func TestAccountRoleRepository_FindByAccountAndRole(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AccountRole
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds specific account-role mapping", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "find_specific_role")
@@ -165,7 +164,7 @@ func TestAccountRoleRepository_Update(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AccountRole
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates account role mapping", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "update_role")
@@ -206,7 +205,7 @@ func TestAccountRoleRepository_DeleteByAccountAndRole(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AccountRole
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes existing account-role mapping", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "delete_ar")
@@ -241,7 +240,7 @@ func TestAccountRoleRepository_DeleteByAccountID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AccountRole
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes all roles for account", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "delete_all_roles")
@@ -281,7 +280,7 @@ func TestAccountRoleRepository_DeleteByRoleID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AccountRole
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes all account-role mappings for a role", func(t *testing.T) {
 		account1 := testpkg.CreateTestAccount(t, db, "del_by_role1")
@@ -327,7 +326,7 @@ func TestAccountRoleRepository_List(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AccountRole
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("lists all account-role mappings", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "list_ar")
@@ -389,7 +388,7 @@ func TestAccountRoleRepository_FindAccountRolesWithDetails(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AccountRole
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds roles with account and role details", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "with_details")

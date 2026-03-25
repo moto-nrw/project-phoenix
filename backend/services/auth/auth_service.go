@@ -19,6 +19,7 @@ const (
 	opHashPassword                  = "hash password"
 	opGetAccount                    = "get account"
 	opUpdateAccount                 = "update account"
+	opValidateToken                 = "validate token"
 	opAssignPermissionToRole        = "assign permission to role"
 	opCreateParentAccount           = "create parent account"
 )

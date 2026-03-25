@@ -2,16 +2,19 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import type { RouteContext } from "~/lib/route-wrapper-utils";
 
-const { mockGetOperatorToken, mockFetch, mockGetServerApiUrl } = vi.hoisted(
-  () => ({
-    mockGetOperatorToken: vi.fn<() => Promise<string | undefined>>(),
-    mockFetch: vi.fn(),
-    mockGetServerApiUrl: vi.fn(() => "http://localhost:8080"),
-  }),
-);
+const { mockAuth, mockFetch, mockGetServerApiUrl } = vi.hoisted(() => ({
+  mockAuth: vi.fn(),
+  mockFetch: vi.fn(),
+  mockGetServerApiUrl: vi.fn(() => "http://localhost:8080"),
+}));
 
-vi.mock("~/lib/operator/cookies", () => ({
-  getOperatorToken: mockGetOperatorToken,
+vi.mock("~/server/auth/operator", () => ({
+  operatorAuth: mockAuth,
+  uncachedOperatorAuth: mockAuth,
+}));
+
+vi.mock("~/server/auth", () => ({
+  auth: mockAuth,
 }));
 
 vi.mock("~/lib/server-api-url", () => ({
@@ -20,7 +23,7 @@ vi.mock("~/lib/server-api-url", () => ({
 
 global.fetch = mockFetch as unknown as typeof fetch;
 
-import { GET } from "./route";
+import { DELETE, GET } from "./route";
 
 describe("GET /api/operator/suggestions/[id]", () => {
   beforeEach(() => {
@@ -28,7 +31,7 @@ describe("GET /api/operator/suggestions/[id]", () => {
   });
 
   it("fetches suggestion by id", async () => {
-    mockGetOperatorToken.mockResolvedValue("valid-token");
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
     const suggestion = {
       id: 1,
       title: "Test Suggestion",
@@ -62,7 +65,7 @@ describe("GET /api/operator/suggestions/[id]", () => {
   });
 
   it("returns 401 when not authenticated", async () => {
-    mockGetOperatorToken.mockResolvedValue(undefined);
+    mockAuth.mockResolvedValue(null);
 
     const request = new NextRequest(
       "http://localhost:3000/api/operator/suggestions/1",
@@ -74,7 +77,7 @@ describe("GET /api/operator/suggestions/[id]", () => {
   });
 
   it("handles invalid id parameter", async () => {
-    mockGetOperatorToken.mockResolvedValue("valid-token");
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
 
     const request = new NextRequest(
       "http://localhost:3000/api/operator/suggestions/1",
@@ -88,7 +91,7 @@ describe("GET /api/operator/suggestions/[id]", () => {
   });
 
   it("returns 404 for non-existent suggestion", async () => {
-    mockGetOperatorToken.mockResolvedValue("valid-token");
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
     mockFetch.mockResolvedValue({
       ok: false,
       status: 404,
@@ -100,6 +103,82 @@ describe("GET /api/operator/suggestions/[id]", () => {
     );
     const context: RouteContext = { params: Promise.resolve({ id: "999" }) };
     const response = await GET(request, context);
+
+    expect(response.status).toBe(404);
+  });
+});
+
+describe("DELETE /api/operator/suggestions/[id]", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("deletes suggestion by id", async () => {
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ status: "success", data: null }),
+    });
+
+    const request = new NextRequest(
+      "http://localhost:3000/api/operator/suggestions/1",
+      { method: "DELETE" },
+    );
+    const context: RouteContext = { params: Promise.resolve({ id: "1" }) };
+    const response = await DELETE(request, context);
+
+    expect(response.status).toBe(204);
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://localhost:8080/operator/suggestions/1",
+      expect.objectContaining({
+        method: "DELETE",
+      }),
+    );
+  });
+
+  it("returns 401 when delete is unauthenticated", async () => {
+    mockAuth.mockResolvedValue(null);
+
+    const request = new NextRequest(
+      "http://localhost:3000/api/operator/suggestions/1",
+      { method: "DELETE" },
+    );
+    const context: RouteContext = { params: Promise.resolve({ id: "1" }) };
+    const response = await DELETE(request, context);
+
+    expect(response.status).toBe(401);
+  });
+
+  it("handles invalid id parameter for delete", async () => {
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
+
+    const request = new NextRequest(
+      "http://localhost:3000/api/operator/suggestions/1",
+      { method: "DELETE" },
+    );
+    const context: RouteContext = {
+      params: Promise.resolve({ id: 123 as unknown as string }),
+    };
+    const response = await DELETE(request, context);
+
+    expect(response.status).toBe(500);
+  });
+
+  it("returns 404 when delete target does not exist", async () => {
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 404,
+      text: async () => JSON.stringify({ error: "Not found" }),
+    });
+
+    const request = new NextRequest(
+      "http://localhost:3000/api/operator/suggestions/999",
+      { method: "DELETE" },
+    );
+    const context: RouteContext = { params: Promise.resolve({ id: "999" }) };
+    const response = await DELETE(request, context);
 
     expect(response.status).toBe(404);
   });

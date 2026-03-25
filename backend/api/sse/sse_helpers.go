@@ -16,12 +16,13 @@ import (
 
 // sseConnection holds all state for an active SSE connection
 type sseConnection struct {
-	writer  http.ResponseWriter
-	flusher http.Flusher
-	staffID int64
-	client  *realtime.Client
-	topics  *sseTopics
-	logger  *slog.Logger
+	writer   http.ResponseWriter
+	flusher  http.Flusher
+	staffID  int64
+	tenantID int64
+	client   *realtime.Client
+	topics   *sseTopics
+	logger   *slog.Logger
 }
 
 // sseTopics holds subscription topic information
@@ -195,35 +196,15 @@ func (conn *sseConnection) sendHeartbeat() error {
 	return nil
 }
 
-// runHeartbeatOnlyLoop runs the event loop when there are no topics to subscribe to
-func (conn *sseConnection) runHeartbeatOnlyLoop(ctx context.Context) {
-	conn.getLogger().Info("SSE connection - no available topics (heartbeat only)",
-		slog.Int64("staff_id", conn.staffID),
-	)
-
-	ticker := time.NewTicker(30 * time.Second)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			if conn.sendHeartbeat() != nil {
-				return // Client disconnected
-			}
-		}
-	}
-}
-
 // createAndRegisterClient creates the SSE client and registers it with the hub
 func (rs *Resource) createAndRegisterClient(conn *sseConnection) {
 	conn.client = &realtime.Client{
 		Channel:          make(chan realtime.Event, 10), // Buffer up to 10 events
 		UserID:           conn.staffID,
+		TenantID:         conn.tenantID,
 		SubscribedGroups: make(map[string]bool),
 	}
-	rs.hub.Register(conn.client, conn.topics.allTopics)
+	rs.hub.Register(conn.client, conn.tenantID, conn.topics.allTopics)
 }
 
 // runEventLoop runs the main SSE event streaming loop

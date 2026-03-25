@@ -7,6 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/uptrace/bun"
 )
 
 // Resource defines the SSE resource with dependencies
@@ -15,6 +16,7 @@ type Resource struct {
 	activeSvc active.Service
 	personSvc users.PersonService
 	userCtx   usercontext.UserContextService
+	db        *bun.DB
 	logger    *slog.Logger
 }
 
@@ -32,6 +34,7 @@ func NewResource(
 	activeSvc active.Service,
 	personSvc users.PersonService,
 	userCtx usercontext.UserContextService,
+	db *bun.DB,
 	logger *slog.Logger,
 ) *Resource {
 	return &Resource{
@@ -39,6 +42,7 @@ func NewResource(
 		activeSvc: activeSvc,
 		personSvc: personSvc,
 		userCtx:   userCtx,
+		db:        db,
 		logger:    logger,
 	}
 }

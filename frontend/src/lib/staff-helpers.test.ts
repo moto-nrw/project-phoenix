@@ -153,26 +153,74 @@ describe("getStaffDisplayType", () => {
     expect(result).toBe("Mathematics");
   });
 
-  it("returns Betreuer for teachers without role or specialization", () => {
+  it("returns formatted accountRole for teachers without role or specialization", () => {
     const staff = createSampleStaff({
       role: undefined,
       isTeacher: true,
       specialization: undefined,
+      accountRole: "admin",
+    });
+    const result = getStaffDisplayType(staff);
+
+    expect(result).toBe("Admin");
+  });
+
+  it("returns formatted accountRole for non-teachers without role", () => {
+    const staff = createSampleStaff({
+      role: undefined,
+      isTeacher: false,
+      specialization: "Some Specialization",
+      accountRole: "guest",
+    });
+    const result = getStaffDisplayType(staff);
+
+    expect(result).toBe("Gast");
+  });
+
+  it("maps 'user' accountRole to Betreuer", () => {
+    const staff = createSampleStaff({
+      role: undefined,
+      isTeacher: false,
+      specialization: undefined,
+      accountRole: "user",
     });
     const result = getStaffDisplayType(staff);
 
     expect(result).toBe("Betreuer");
   });
 
-  it("returns Betreuer for non-teachers without role", () => {
+  it("returns empty string when no role, specialization, or accountRole", () => {
     const staff = createSampleStaff({
       role: undefined,
-      isTeacher: false,
-      specialization: "Some Specialization",
+      isTeacher: true,
+      specialization: undefined,
+      accountRole: undefined,
     });
     const result = getStaffDisplayType(staff);
 
-    expect(result).toBe("Betreuer");
+    expect(result).toBe("");
+  });
+
+  it("prefers custom role over accountRole", () => {
+    const staff = createSampleStaff({
+      role: "Gruppenleitung",
+      accountRole: "admin",
+    });
+    const result = getStaffDisplayType(staff);
+
+    expect(result).toBe("Gruppenleitung");
+  });
+
+  it("passes through unknown accountRole as-is", () => {
+    const staff = createSampleStaff({
+      role: undefined,
+      isTeacher: false,
+      specialization: undefined,
+      accountRole: "extern",
+    });
+    const result = getStaffDisplayType(staff);
+
+    expect(result).toBe("extern");
   });
 });
 

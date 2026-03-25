@@ -20,12 +20,22 @@ type StudentImportRow struct {
 	// Multiple guardians (extensible: Erz1, Erz2, Erz3, ...)
 	Guardians []GuardianImportData `json:"guardians,omitempty"`
 
+	// Pickup schedule (weekly recurring)
+	PickupSchedules []PickupScheduleImportData `json:"pickup_schedules,omitempty"`
+
 	// Privacy consent
 	PrivacyAccepted   bool `json:"privacy_accepted"`
 	DataRetentionDays int  `json:"data_retention_days"` // 1-31, default 30
 
 	// Resolved IDs (populated during validation, not in CSV)
 	GroupID *int64 `json:"-"`
+}
+
+// PickupScheduleImportData represents a weekly pickup schedule entry from CSV
+type PickupScheduleImportData struct {
+	Weekday    int    `json:"weekday"`         // 1-5 (Mon-Fri)
+	PickupTime string `json:"pickup_time"`     // HH:MM format
+	Notes      string `json:"notes,omitempty"` // Day-specific notes
 }
 
 // PhoneImportData represents a phone number from CSV import
@@ -49,4 +59,13 @@ type GuardianImportData struct {
 	CanPickup          bool   `json:"can_pickup"`
 	// PhoneNumbers contains flexible phone number data (from CSV columns like Erz{N}.Dienstlich)
 	PhoneNumbers []PhoneImportData `json:"phone_numbers,omitempty"`
+
+	// Address
+	AddressStreet     string `json:"address_street,omitempty"`
+	AddressCity       string `json:"address_city,omitempty"`
+	AddressPostalCode string `json:"address_postal_code,omitempty"`
+
+	// Preferences & Notes
+	Notes              string `json:"notes,omitempty"`
+	LanguagePreference string `json:"language_preference,omitempty"`
 }

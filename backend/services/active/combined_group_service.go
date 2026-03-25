@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -27,6 +28,7 @@ func (s *service) CreateCombinedGroup(ctx context.Context, group *active.Combine
 		return &ActiveError{Op: "CreateCombinedGroup", Err: ErrInvalidData}
 	}
 
+	group.SetTenantID(tenant.FromContext(ctx))
 	if s.combinedGroupRepo.Create(ctx, group) != nil {
 		return &ActiveError{Op: "CreateCombinedGroup", Err: ErrDatabaseOperation}
 	}
@@ -52,25 +54,20 @@ func (s *service) DeleteCombinedGroup(ctx context.Context, id int64) error {
 		return &ActiveError{Op: "DeleteCombinedGroup", Err: ErrCombinedGroupNotFound}
 	}
 
-	// Execute in transaction to ensure all mappings are deleted as well
-	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		// Delete all group mappings
-		mappings, err := s.groupMappingRepo.FindByActiveCombinedGroupID(ctx, id)
-		if err != nil {
-			return err
-		}
-
-		for _, mapping := range mappings {
-			if err := s.groupMappingRepo.Delete(ctx, mapping.ID); err != nil {
-				return err
-			}
-		}
-
-		// Delete the combined group
-		return s.combinedGroupRepo.Delete(ctx, id)
-	})
-
+	// Delete all group mappings
+	mappings, err := s.groupMappingRepo.FindByActiveCombinedGroupID(ctx, id)
 	if err != nil {
+		return &ActiveError{Op: "DeleteCombinedGroup", Err: ErrDatabaseOperation}
+	}
+
+	for _, mapping := range mappings {
+		if err := s.groupMappingRepo.Delete(ctx, mapping.ID); err != nil {
+			return &ActiveError{Op: "DeleteCombinedGroup", Err: ErrDatabaseOperation}
+		}
+	}
+
+	// Delete the combined group
+	if err := s.combinedGroupRepo.Delete(ctx, id); err != nil {
 		return &ActiveError{Op: "DeleteCombinedGroup", Err: ErrDatabaseOperation}
 	}
 
@@ -148,53 +145,50 @@ func (s *service) CreateCombinedGroupWithGroups(ctx context.Context, group *acti
 		seen[gid] = true
 	}
 
-	// Use tx directly for real atomicity (repos use r.DB, not tx from context)
-	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		// Step 1: Create the combined group
-		_, err := tx.NewInsert().
-			Model(group).
-			ModelTableExpr("active.combined_groups").
+	// Get tx from context (handler's WithTenantTx provides it)
+	tx, ok := base.TxFromContext(ctx)
+	if !ok {
+		return &ActiveError{Op: "CreateCombinedGroupWithGroups", Err: fmt.Errorf("no transaction in context")}
+	}
+
+	// Step 1: Create the combined group
+	group.SetTenantID(tenant.FromContext(ctx))
+	_, err := (*tx).NewInsert().
+		Model(group).
+		ModelTableExpr("active.combined_groups").
+		Exec(ctx)
+	if err != nil {
+		return &ActiveError{Op: "CreateCombinedGroupWithGroups", Err: fmt.Errorf("%w: %v", ErrDatabaseOperation, err)}
+	}
+
+	// Step 2: Verify all active group IDs exist
+	var existCount int
+	err = (*tx).NewSelect().
+		TableExpr("active.groups").
+		ColumnExpr("COUNT(*)").
+		Where("id IN (?)", bun.List(groupIDs)).
+		Scan(ctx, &existCount)
+	if err != nil {
+		return &ActiveError{Op: "CreateCombinedGroupWithGroups", Err: fmt.Errorf("%w: %v", ErrDatabaseOperation, err)}
+	}
+	if existCount != len(groupIDs) {
+		return &ActiveError{Op: "CreateCombinedGroupWithGroups", Err: fmt.Errorf("%w: one or more group IDs do not exist (expected %d, found %d)", ErrInvalidData, len(groupIDs), existCount)}
+	}
+
+	// Step 3: Insert all group mappings
+	for _, gid := range groupIDs {
+		mapping := &active.GroupMapping{
+			ActiveCombinedGroupID: group.ID,
+			ActiveGroupID:         gid,
+		}
+		mapping.SetTenantID(tenant.FromContext(ctx))
+		_, err := (*tx).NewInsert().
+			Model(mapping).
+			ModelTableExpr("active.group_mappings").
 			Exec(ctx)
 		if err != nil {
-			return fmt.Errorf("create combined group: %w", err)
+			return &ActiveError{Op: "CreateCombinedGroupWithGroups", Err: fmt.Errorf("%w: %v", ErrDatabaseOperation, err)}
 		}
-
-		// Step 2: Verify all active group IDs exist
-		var existCount int
-		err = tx.NewSelect().
-			TableExpr("active.groups").
-			ColumnExpr("COUNT(*)").
-			Where("id IN (?)", bun.In(groupIDs)).
-			Scan(ctx, &existCount)
-		if err != nil {
-			return fmt.Errorf("verify group IDs: %w", err)
-		}
-		if existCount != len(groupIDs) {
-			return fmt.Errorf("%w: one or more group IDs do not exist (expected %d, found %d)", ErrInvalidData, len(groupIDs), existCount)
-		}
-
-		// Step 3: Insert all group mappings
-		for _, gid := range groupIDs {
-			mapping := &active.GroupMapping{
-				ActiveCombinedGroupID: group.ID,
-				ActiveGroupID:         gid,
-			}
-			_, err := tx.NewInsert().
-				Model(mapping).
-				ModelTableExpr("active.group_mappings").
-				Exec(ctx)
-			if err != nil {
-				return fmt.Errorf("add group %d to combination: %w", gid, err)
-			}
-		}
-		return nil
-	})
-
-	if err != nil {
-		if errors.Is(err, ErrInvalidData) {
-			return &ActiveError{Op: "CreateCombinedGroupWithGroups", Err: err}
-		}
-		return &ActiveError{Op: "CreateCombinedGroupWithGroups", Err: fmt.Errorf("%w: %v", ErrDatabaseOperation, err)}
 	}
 
 	s.getLogger().Info("combined group created with groups",

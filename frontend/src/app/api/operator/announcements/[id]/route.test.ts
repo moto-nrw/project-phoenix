@@ -2,16 +2,19 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import type { RouteContext } from "~/lib/route-wrapper-utils";
 
-const { mockGetOperatorToken, mockFetch, mockGetServerApiUrl } = vi.hoisted(
-  () => ({
-    mockGetOperatorToken: vi.fn<() => Promise<string | undefined>>(),
-    mockFetch: vi.fn(),
-    mockGetServerApiUrl: vi.fn(() => "http://localhost:8080"),
-  }),
-);
+const { mockAuth, mockFetch, mockGetServerApiUrl } = vi.hoisted(() => ({
+  mockAuth: vi.fn(),
+  mockFetch: vi.fn(),
+  mockGetServerApiUrl: vi.fn(() => "http://localhost:8080"),
+}));
 
-vi.mock("~/lib/operator/cookies", () => ({
-  getOperatorToken: mockGetOperatorToken,
+vi.mock("~/server/auth/operator", () => ({
+  operatorAuth: mockAuth,
+  uncachedOperatorAuth: mockAuth,
+}));
+
+vi.mock("~/server/auth", () => ({
+  auth: mockAuth,
 }));
 
 vi.mock("~/lib/server-api-url", () => ({
@@ -28,7 +31,7 @@ describe("GET /api/operator/announcements/[id]", () => {
   });
 
   it("fetches announcement by id", async () => {
-    mockGetOperatorToken.mockResolvedValue("valid-token");
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
     const announcement = {
       id: 1,
       title: "Test Announcement",
@@ -61,7 +64,7 @@ describe("GET /api/operator/announcements/[id]", () => {
   });
 
   it("returns 401 when not authenticated", async () => {
-    mockGetOperatorToken.mockResolvedValue(undefined);
+    mockAuth.mockResolvedValue(null);
 
     const request = new NextRequest(
       "http://localhost:3000/api/operator/announcements/1",
@@ -73,7 +76,7 @@ describe("GET /api/operator/announcements/[id]", () => {
   });
 
   it("returns 404 for non-existent announcement", async () => {
-    mockGetOperatorToken.mockResolvedValue("valid-token");
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
     mockFetch.mockResolvedValue({
       ok: false,
       status: 404,
@@ -90,7 +93,7 @@ describe("GET /api/operator/announcements/[id]", () => {
   });
 
   it("handles invalid id parameter", async () => {
-    mockGetOperatorToken.mockResolvedValue("valid-token");
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
 
     const request = new NextRequest(
       "http://localhost:3000/api/operator/announcements/1",
@@ -110,7 +113,7 @@ describe("PUT /api/operator/announcements/[id]", () => {
   });
 
   it("updates announcement successfully", async () => {
-    mockGetOperatorToken.mockResolvedValue("valid-token");
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
     const updateData = {
       title: "Updated Title",
       content: "Updated content",
@@ -154,7 +157,7 @@ describe("PUT /api/operator/announcements/[id]", () => {
   });
 
   it("returns 401 when not authenticated", async () => {
-    mockGetOperatorToken.mockResolvedValue(undefined);
+    mockAuth.mockResolvedValue(null);
 
     const request = new NextRequest(
       "http://localhost:3000/api/operator/announcements/1",
@@ -176,7 +179,7 @@ describe("DELETE /api/operator/announcements/[id]", () => {
   });
 
   it("deletes announcement successfully with 204 response", async () => {
-    mockGetOperatorToken.mockResolvedValue("valid-token");
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
     mockFetch.mockResolvedValue({
       ok: true,
       status: 204,
@@ -198,7 +201,7 @@ describe("DELETE /api/operator/announcements/[id]", () => {
   });
 
   it("returns 401 when not authenticated", async () => {
-    mockGetOperatorToken.mockResolvedValue(undefined);
+    mockAuth.mockResolvedValue(null);
 
     const request = new NextRequest(
       "http://localhost:3000/api/operator/announcements/1",
@@ -210,7 +213,7 @@ describe("DELETE /api/operator/announcements/[id]", () => {
   });
 
   it("returns 404 for non-existent announcement", async () => {
-    mockGetOperatorToken.mockResolvedValue("valid-token");
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
     mockFetch.mockResolvedValue({
       ok: false,
       status: 404,

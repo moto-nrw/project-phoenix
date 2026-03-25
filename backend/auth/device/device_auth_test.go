@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -22,9 +23,14 @@ import (
 // =============================================================================
 
 type mockIoTService struct {
-	devices      map[string]*iot.Device
-	updateCalled bool
-	updateError  error
+	mu             sync.Mutex
+	devices        map[string]*iot.Device
+	updateCalled   bool
+	updateError    error
+	updateCount    int
+	lastSeenWrites []time.Time
+	updateStarted  chan struct{}
+	updateBlock    chan struct{}
 }
 
 func newMockIoTService() *mockIoTService {
@@ -91,8 +97,26 @@ func (m *mockIoTService) GetDeviceTypeStatistics(_ context.Context) (map[string]
 }
 func (m *mockIoTService) DetectNewDevices(_ context.Context) ([]*iot.Device, error) { return nil, nil }
 func (m *mockIoTService) ScanNetwork(_ context.Context) (map[string]string, error)  { return nil, nil }
-func (m *mockIoTService) UpdateDeviceLastSeen(_ context.Context, _ string) error {
+func (m *mockIoTService) UpdateDeviceLastSeen(ctx context.Context, id int64) error {
+	return m.UpdateDeviceLastSeenAt(ctx, id, time.Now())
+}
+
+func (m *mockIoTService) UpdateDeviceLastSeenAt(_ context.Context, _ int64, lastSeen time.Time) error {
+	if m.updateStarted != nil {
+		select {
+		case m.updateStarted <- struct{}{}:
+		default:
+		}
+	}
+	if m.updateBlock != nil {
+		<-m.updateBlock
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.updateCalled = true
+	m.updateCount++
+	m.lastSeenWrites = append(m.lastSeenWrites, lastSeen)
 	return m.updateError
 }
 
@@ -110,7 +134,7 @@ func (m *mockIoTService) UpdateDeviceLastSeen(_ context.Context, _ string) error
 func TestDeviceFromCtx_ValidDevice(t *testing.T) {
 	device := &iot.Device{
 		DeviceID:   "device-001",
-		DeviceType: "rfid_reader",
+		DeviceType: "terminal",
 		Status:     iot.DeviceStatusActive,
 	}
 
@@ -119,7 +143,7 @@ func TestDeviceFromCtx_ValidDevice(t *testing.T) {
 	result := DeviceFromCtx(ctx)
 	require.NotNil(t, result)
 	assert.Equal(t, "device-001", result.DeviceID)
-	assert.Equal(t, "rfid_reader", result.DeviceType)
+	assert.Equal(t, "terminal", result.DeviceType)
 }
 
 func TestDeviceFromCtx_NoDevice(t *testing.T) {
@@ -209,11 +233,13 @@ func TestSecureCompareStrings_DifferentLengths(t *testing.T) {
 // =============================================================================
 
 func TestDeviceOnlyAuthenticator_ValidAPIKey(t *testing.T) {
+	lastSeenWriteCache = sync.Map{}
+
 	mockService := newMockIoTService()
 	apiKey := "valid-api-key-123"
 	device := &iot.Device{
 		DeviceID:   "device-001",
-		DeviceType: "rfid_reader",
+		DeviceType: "terminal",
 		Status:     iot.DeviceStatusActive,
 	}
 	mockService.addDevice(apiKey, device)
@@ -312,7 +338,7 @@ func TestDeviceOnlyAuthenticator_InactiveDevice(t *testing.T) {
 	apiKey := "valid-api-key-123"
 	device := &iot.Device{
 		DeviceID:   "device-001",
-		DeviceType: "rfid_reader",
+		DeviceType: "terminal",
 		Status:     iot.DeviceStatusInactive, // Not active
 	}
 	mockService.addDevice(apiKey, device)
@@ -336,7 +362,7 @@ func TestDeviceOnlyAuthenticator_OfflineDevice(t *testing.T) {
 	apiKey := "valid-api-key-123"
 	device := &iot.Device{
 		DeviceID:   "device-001",
-		DeviceType: "rfid_reader",
+		DeviceType: "terminal",
 		Status:     iot.DeviceStatusOffline, // Offline
 	}
 	mockService.addDevice(apiKey, device)
@@ -360,7 +386,7 @@ func TestDeviceOnlyAuthenticator_MaintenanceDevice(t *testing.T) {
 	apiKey := "valid-api-key-123"
 	device := &iot.Device{
 		DeviceID:   "device-001",
-		DeviceType: "rfid_reader",
+		DeviceType: "terminal",
 		Status:     iot.DeviceStatusMaintenance, // In maintenance
 	}
 	mockService.addDevice(apiKey, device)
@@ -384,6 +410,8 @@ func TestDeviceOnlyAuthenticator_MaintenanceDevice(t *testing.T) {
 // =============================================================================
 
 func TestDeviceAuthenticator_ValidAPIKeyAndPIN(t *testing.T) {
+	lastSeenWriteCache = sync.Map{}
+
 	// Set up environment
 	ogsPin := "test-device-pin-123"
 	require.NoError(t, os.Setenv("OGS_DEVICE_PIN", ogsPin))
@@ -393,7 +421,7 @@ func TestDeviceAuthenticator_ValidAPIKeyAndPIN(t *testing.T) {
 	apiKey := "valid-api-key-123"
 	device := &iot.Device{
 		DeviceID:   "device-001",
-		DeviceType: "rfid_reader",
+		DeviceType: "terminal",
 		Status:     iot.DeviceStatusActive,
 	}
 	mockIoT.addDevice(apiKey, device)
@@ -430,7 +458,7 @@ func TestDeviceAuthenticator_MissingPIN(t *testing.T) {
 	apiKey := "valid-api-key-123"
 	device := &iot.Device{
 		DeviceID:   "device-001",
-		DeviceType: "rfid_reader",
+		DeviceType: "terminal",
 		Status:     iot.DeviceStatusActive,
 	}
 	mockIoT.addDevice(apiKey, device)
@@ -458,7 +486,7 @@ func TestDeviceAuthenticator_InvalidPIN(t *testing.T) {
 	apiKey := "valid-api-key-123"
 	device := &iot.Device{
 		DeviceID:   "device-001",
-		DeviceType: "rfid_reader",
+		DeviceType: "terminal",
 		Status:     iot.DeviceStatusActive,
 	}
 	mockIoT.addDevice(apiKey, device)
@@ -486,7 +514,7 @@ func TestDeviceAuthenticator_MissingOGSPINConfig(t *testing.T) {
 	apiKey := "valid-api-key-123"
 	device := &iot.Device{
 		DeviceID:   "device-001",
-		DeviceType: "rfid_reader",
+		DeviceType: "terminal",
 		Status:     iot.DeviceStatusActive,
 	}
 	mockIoT.addDevice(apiKey, device)
@@ -557,7 +585,7 @@ func TestDeviceAuthenticator_InactiveDevice(t *testing.T) {
 	apiKey := "valid-api-key-123"
 	device := &iot.Device{
 		DeviceID:   "device-001",
-		DeviceType: "rfid_reader",
+		DeviceType: "terminal",
 		Status:     iot.DeviceStatusInactive,
 	}
 	mockIoT.addDevice(apiKey, device)
@@ -662,13 +690,15 @@ func TestCtxKey_DistinctValues(t *testing.T) {
 // =============================================================================
 
 func TestDeviceOnlyAuthenticator_UpdateLastSeenError(t *testing.T) {
+	lastSeenWriteCache = sync.Map{}
+
 	mockService := newMockIoTService()
 	mockService.updateError = errors.New("database error")
 
 	apiKey := "valid-api-key-123"
 	device := &iot.Device{
 		DeviceID:   "device-001",
-		DeviceType: "rfid_reader",
+		DeviceType: "terminal",
 		Status:     iot.DeviceStatusActive,
 	}
 	mockService.addDevice(apiKey, device)
@@ -689,9 +719,105 @@ func TestDeviceOnlyAuthenticator_UpdateLastSeenError(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rr.Code)
 }
 
+func TestDeviceOnlyAuthenticator_DebouncesLastSeenWrites(t *testing.T) {
+	lastSeenWriteCache = sync.Map{}
+
+	mockService := newMockIoTService()
+	apiKey := "valid-api-key-123"
+	device := &iot.Device{
+		DeviceID:   "device-001",
+		DeviceType: "terminal",
+		Status:     iot.DeviceStatusActive,
+	}
+	mockService.addDevice(apiKey, device)
+
+	r := chi.NewRouter()
+	r.Use(DeviceOnlyAuthenticator(mockService))
+	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	req1 := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req1.Header.Set("Authorization", "Bearer "+apiKey)
+	rr1 := httptest.NewRecorder()
+	r.ServeHTTP(rr1, req1)
+	assert.Equal(t, http.StatusOK, rr1.Code)
+	assert.True(t, mockService.updateCalled, "first request should update last seen")
+
+	mockService.updateCalled = false
+
+	req2 := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req2.Header.Set("Authorization", "Bearer "+apiKey)
+	rr2 := httptest.NewRecorder()
+	r.ServeHTTP(rr2, req2)
+	assert.Equal(t, http.StatusOK, rr2.Code)
+	assert.False(t, mockService.updateCalled, "second request inside debounce window should skip last seen write")
+}
+
 // =============================================================================
 // PIN Timing Attack Resistance Tests
 // =============================================================================
+
+func TestExtractAndValidateAPIKey_NilDeviceReturn(t *testing.T) {
+	// Test the path where GetDeviceByAPIKey returns nil device with no error
+	mockService := &mockIoTServiceNilDevice{}
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.Header.Set("Authorization", "Bearer valid-key-nil-device")
+
+	device, errResp := extractAndValidateAPIKey(req, mockService)
+
+	assert.Nil(t, device)
+	assert.NotNil(t, errResp)
+}
+
+// mockIoTServiceNilDevice returns nil device without error
+type mockIoTServiceNilDevice struct {
+	mockIoTService
+}
+
+func (m *mockIoTServiceNilDevice) GetDeviceByAPIKey(_ context.Context, _ string) (*iot.Device, error) {
+	return nil, nil // nil device, no error
+}
+
+func TestDeviceAuthenticator_NilDeviceReturn(t *testing.T) {
+	// Test the full middleware path where device is nil
+	require.NoError(t, os.Setenv("OGS_DEVICE_PIN", "test-pin"))
+	defer func() { _ = os.Unsetenv("OGS_DEVICE_PIN") }()
+
+	mockService := &mockIoTServiceNilDevice{mockIoTService: *newMockIoTService()}
+
+	r := chi.NewRouter()
+	r.Use(DeviceAuthenticator(mockService, nil))
+	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/checkin", nil)
+	req.Header.Set("Authorization", "Bearer some-key")
+	req.Header.Set("X-Staff-PIN", "test-pin")
+	rr := httptest.NewRecorder()
+
+	r.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+}
+
+func TestDeviceOnlyAuthenticator_NilDeviceReturn(t *testing.T) {
+	mockService := &mockIoTServiceNilDevice{mockIoTService: *newMockIoTService()}
+
+	r := chi.NewRouter()
+	r.Use(DeviceOnlyAuthenticator(mockService))
+	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.Header.Set("Authorization", "Bearer some-key")
+	rr := httptest.NewRecorder()
+
+	r.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+}
 
 func TestSecureCompareStrings_TimingResistance(t *testing.T) {
 	// This test verifies the constant-time comparison is used

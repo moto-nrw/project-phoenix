@@ -67,14 +67,15 @@ type staffResponseBuilder struct {
 	wasPresentToday bool
 	workStatus      string
 	absenceType     string
+	accountRole     string
 }
 
 // buildResponse returns the appropriate response type based on teacher status
 func (b *staffResponseBuilder) buildResponse() interface{} {
 	if b.isTeacher && b.teacher != nil {
-		return newTeacherResponse(b.staff, b.teacher, b.wasPresentToday, b.workStatus, b.absenceType)
+		return newTeacherResponse(b.staff, b.teacher, b.wasPresentToday, b.workStatus, b.absenceType, b.accountRole)
 	}
-	return newStaffResponse(b.staff, false, b.wasPresentToday, b.workStatus, b.absenceType)
+	return newStaffResponse(b.staff, false, b.wasPresentToday, b.workStatus, b.absenceType, b.accountRole)
 }
 
 // processStaffForListOptimized processes a single staff member using pre-loaded data
@@ -87,6 +88,7 @@ func (rs *Resource) processStaffForListOptimized(
 	presentMap map[int64]bool,
 	workStatusMap map[int64]string,
 	absenceMap map[int64]string,
+	accountRoleMap map[int64]string,
 	filters listStaffFilters,
 ) (interface{}, bool) {
 	// Person is already loaded via ListAllWithPerson
@@ -114,6 +116,12 @@ func (rs *Resource) processStaffForListOptimized(
 	// Look up presence from pre-loaded map (O(1) lookup)
 	wasPresentToday := presentMap[staff.ID]
 
+	// Look up account role from pre-loaded map (O(1) lookup)
+	var accountRole string
+	if staff.Person != nil && staff.Person.AccountID != nil {
+		accountRole = accountRoleMap[*staff.Person.AccountID]
+	}
+
 	builder := &staffResponseBuilder{
 		staff:           staff,
 		teacher:         teacher,
@@ -121,6 +129,7 @@ func (rs *Resource) processStaffForListOptimized(
 		wasPresentToday: wasPresentToday,
 		workStatus:      workStatusMap[staff.ID],
 		absenceType:     absenceMap[staff.ID],
+		accountRole:     accountRole,
 	}
 
 	return builder.buildResponse(), true
@@ -144,10 +153,10 @@ func (rs *Resource) handleTeacherRecordUpdate(
 		existingTeacher.Qualifications = req.Qualifications
 
 		if rs.TeacherRepo.Update(ctx, existingTeacher) != nil {
-			return newStaffResponse(staff, false, false, "", ""), "Staff member updated successfully, but failed to update teacher record", true
+			return newStaffResponse(staff, false, false, "", "", ""), "Staff member updated successfully, but failed to update teacher record", true
 		}
 
-		return newTeacherResponse(staff, existingTeacher, false, "", ""), "Teacher updated successfully", false
+		return newTeacherResponse(staff, existingTeacher, false, "", "", ""), "Teacher updated successfully", false
 	}
 
 	teacher := &users.Teacher{
@@ -158,8 +167,8 @@ func (rs *Resource) handleTeacherRecordUpdate(
 	}
 
 	if rs.TeacherRepo.Create(ctx, teacher) != nil {
-		return newStaffResponse(staff, false, false, "", ""), "Staff member updated successfully, but failed to create teacher record", true
+		return newStaffResponse(staff, false, false, "", "", ""), "Staff member updated successfully, but failed to create teacher record", true
 	}
 
-	return newTeacherResponse(staff, teacher, false, "", ""), "Teacher updated successfully", false
+	return newTeacherResponse(staff, teacher, false, "", "", ""), "Teacher updated successfully", false
 }

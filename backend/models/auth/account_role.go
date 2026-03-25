@@ -14,8 +14,9 @@ const tableAuthAccountRoles = "auth.account_roles"
 // AccountRole represents a mapping between accounts and roles
 type AccountRole struct {
 	base.Model `bun:"schema:auth,table:account_roles"`
-	AccountID  int64 `bun:"account_id,notnull" json:"account_id"`
-	RoleID     int64 `bun:"role_id,notnull" json:"role_id"`
+	base.TenantModel
+	AccountID int64 `bun:"account_id,notnull" json:"account_id"`
+	RoleID    int64 `bun:"role_id,notnull" json:"role_id"`
 
 	// Relations
 	Account *Account `bun:"rel:belongs-to,join:account_id=id" json:"account,omitempty"`
@@ -23,9 +24,6 @@ type AccountRole struct {
 }
 
 func (ar *AccountRole) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(tableAuthAccountRoles)
-	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr(tableAuthAccountRoles)
 	}

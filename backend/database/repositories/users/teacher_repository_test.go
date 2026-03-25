@@ -1,7 +1,6 @@
 package users_test
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -26,13 +25,13 @@ func cleanupTeacherStaffRecords(t *testing.T, db *bun.DB, staffIDs ...int64) {
 		return
 	}
 
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	var personIDs []int64
 	err := db.NewSelect().
 		TableExpr("users.staff").
 		Column("person_id").
-		Where("id IN (?)", bun.In(staffIDs)).
+		Where("id IN (?)", bun.List(staffIDs)).
 		Scan(ctx, &personIDs)
 	if err != nil {
 		t.Logf("Warning: failed to get person IDs for cleanup: %v", err)
@@ -40,7 +39,7 @@ func cleanupTeacherStaffRecords(t *testing.T, db *bun.DB, staffIDs ...int64) {
 
 	_, err = db.NewDelete().
 		TableExpr("users.staff").
-		Where("id IN (?)", bun.In(staffIDs)).
+		Where("id IN (?)", bun.List(staffIDs)).
 		Exec(ctx)
 	if err != nil {
 		t.Logf("Warning: failed to cleanup staff: %v", err)
@@ -49,7 +48,7 @@ func cleanupTeacherStaffRecords(t *testing.T, db *bun.DB, staffIDs ...int64) {
 	if len(personIDs) > 0 {
 		_, err = db.NewDelete().
 			TableExpr("users.persons").
-			Where("id IN (?)", bun.In(personIDs)).
+			Where("id IN (?)", bun.List(personIDs)).
 			Exec(ctx)
 		if err != nil {
 			t.Logf("Warning: failed to cleanup persons: %v", err)
@@ -60,12 +59,12 @@ func cleanupTeacherStaffRecords(t *testing.T, db *bun.DB, staffIDs ...int64) {
 // cleanupTeacherEducationData removes education groups and group-teacher assignments
 func cleanupTeacherEducationData(t *testing.T, db *bun.DB, groupIDs []int64) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	if len(groupIDs) > 0 {
 		_, err := db.NewDelete().
 			TableExpr("education.group_teacher").
-			Where("group_id IN (?)", bun.In(groupIDs)).
+			Where("group_id IN (?)", bun.List(groupIDs)).
 			Exec(ctx)
 		if err != nil {
 			t.Logf("Warning: failed to cleanup group-teacher assignments: %v", err)
@@ -73,7 +72,7 @@ func cleanupTeacherEducationData(t *testing.T, db *bun.DB, groupIDs []int64) {
 
 		_, err = db.NewDelete().
 			TableExpr("education.groups").
-			Where("id IN (?)", bun.In(groupIDs)).
+			Where("id IN (?)", bun.List(groupIDs)).
 			Exec(ctx)
 		if err != nil {
 			t.Logf("Warning: failed to cleanup education groups: %v", err)
@@ -88,14 +87,14 @@ func cleanupTeacherRecords(t *testing.T, db *bun.DB, teacherIDs ...int64) {
 		return
 	}
 
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Get staff IDs before deleting teachers
 	var staffIDs []int64
 	err := db.NewSelect().
 		TableExpr("users.teachers").
 		Column("staff_id").
-		Where("id IN (?)", bun.In(teacherIDs)).
+		Where("id IN (?)", bun.List(teacherIDs)).
 		Scan(ctx, &staffIDs)
 	if err != nil {
 		t.Logf("Warning: failed to get staff IDs for cleanup: %v", err)
@@ -104,7 +103,7 @@ func cleanupTeacherRecords(t *testing.T, db *bun.DB, teacherIDs ...int64) {
 	// Delete teachers first
 	_, err = db.NewDelete().
 		TableExpr("users.teachers").
-		Where("id IN (?)", bun.In(teacherIDs)).
+		Where("id IN (?)", bun.List(teacherIDs)).
 		Exec(ctx)
 	if err != nil {
 		t.Logf("Warning: failed to cleanup teachers: %v", err)
@@ -116,7 +115,7 @@ func cleanupTeacherRecords(t *testing.T, db *bun.DB, teacherIDs ...int64) {
 		err := db.NewSelect().
 			TableExpr("users.staff").
 			Column("person_id").
-			Where("id IN (?)", bun.In(staffIDs)).
+			Where("id IN (?)", bun.List(staffIDs)).
 			Scan(ctx, &personIDs)
 		if err != nil {
 			t.Logf("Warning: failed to get person IDs for cleanup: %v", err)
@@ -124,7 +123,7 @@ func cleanupTeacherRecords(t *testing.T, db *bun.DB, teacherIDs ...int64) {
 
 		_, err = db.NewDelete().
 			TableExpr("users.staff").
-			Where("id IN (?)", bun.In(staffIDs)).
+			Where("id IN (?)", bun.List(staffIDs)).
 			Exec(ctx)
 		if err != nil {
 			t.Logf("Warning: failed to cleanup staff: %v", err)
@@ -133,7 +132,7 @@ func cleanupTeacherRecords(t *testing.T, db *bun.DB, teacherIDs ...int64) {
 		if len(personIDs) > 0 {
 			_, err = db.NewDelete().
 				TableExpr("users.persons").
-				Where("id IN (?)", bun.In(personIDs)).
+				Where("id IN (?)", bun.List(personIDs)).
 				Exec(ctx)
 			if err != nil {
 				t.Logf("Warning: failed to cleanup persons: %v", err)
@@ -151,7 +150,7 @@ func TestTeacherRepository_Create(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Teacher
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates teacher with valid data", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Teacher", "Create")
@@ -221,7 +220,7 @@ func TestTeacherRepository_FindByID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Teacher
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds existing teacher", func(t *testing.T) {
 		teacher := testpkg.CreateTestTeacher(t, db, "FindByID", "Teacher")
@@ -244,7 +243,7 @@ func TestTeacherRepository_FindByStaffID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Teacher
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds teacher by staff ID", func(t *testing.T) {
 		teacher := testpkg.CreateTestTeacher(t, db, "FindByStaff", "Teacher")
@@ -268,7 +267,7 @@ func TestTeacherRepository_FindByStaffIDs(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Teacher
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds multiple teachers by staff IDs", func(t *testing.T) {
 		teacher1 := testpkg.CreateTestTeacher(t, db, "FindByIDs1", "Teacher")
@@ -311,7 +310,7 @@ func TestTeacherRepository_Update(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Teacher
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates teacher specialization", func(t *testing.T) {
 		teacher := testpkg.CreateTestTeacher(t, db, "Update", "Teacher")
@@ -339,7 +338,7 @@ func TestTeacherRepository_Delete(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Teacher
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes existing teacher", func(t *testing.T) {
 		teacher := testpkg.CreateTestTeacher(t, db, "Delete", "Teacher")
@@ -366,7 +365,7 @@ func TestTeacherRepository_FindBySpecialization(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Teacher
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds teachers by specialization (case-insensitive)", func(t *testing.T) {
 		// Create teacher with unique specialization
@@ -396,7 +395,7 @@ func TestTeacherRepository_List(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Teacher
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("lists all teachers with no filters", func(t *testing.T) {
 		teacher := testpkg.CreateTestTeacher(t, db, "List", "Teacher")
@@ -425,7 +424,7 @@ func TestTeacherRepository_FindByGroupID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Teacher
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds teachers assigned to education group", func(t *testing.T) {
 		// Create education group
@@ -473,7 +472,7 @@ func TestTeacherRepository_FindWithStaffAndPerson(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Teacher
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds teacher with staff and person loaded", func(t *testing.T) {
 		teacher := testpkg.CreateTestTeacher(t, db, "WithStaff", "Person")
@@ -498,7 +497,7 @@ func TestTeacherRepository_ListAllWithStaffAndPerson(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Teacher
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns all teachers with staff and person data", func(t *testing.T) {
 		// Create multiple teachers
@@ -575,7 +574,7 @@ func TestTeacherRepository_ListWithStringFilters(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Teacher
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("filters teachers by specialization_like", func(t *testing.T) {
 		// Create teacher with unique specialization
@@ -641,7 +640,7 @@ func TestTeacherRepository_UpdateQualifications(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Teacher
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates teacher qualifications", func(t *testing.T) {
 		teacher := testpkg.CreateTestTeacher(t, db, "Update", "Qualifications")

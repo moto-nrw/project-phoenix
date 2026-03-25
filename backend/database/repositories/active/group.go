@@ -14,6 +14,7 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/iot"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -31,8 +32,10 @@ type GroupRepository struct {
 
 // NewGroupRepository creates a new GroupRepository
 func NewGroupRepository(db *bun.DB) active.GroupRepository {
+	repo := base.NewRepository[*active.Group](db, "active.groups", "Group")
+	repo.TenantScoped = true
 	return &GroupRepository{
-		Repository: base.NewRepository[*active.Group](db, "active.groups", "Group"),
+		Repository: repo,
 		db:         db,
 	}
 }
@@ -40,11 +43,16 @@ func NewGroupRepository(db *bun.DB) active.GroupRepository {
 // FindActiveByRoomID finds all active groups in a specific room
 func (r *GroupRepository) FindActiveByRoomID(ctx context.Context, roomID int64) ([]*active.Group, error) {
 	var groups []*active.Group
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groups).
 		ModelTableExpr(`active.groups AS "group"`).
-		Where(`"group".room_id = ? AND "group".end_time IS NULL`, roomID).
-		Scan(ctx)
+		Where(`"group".room_id = ? AND "group".end_time IS NULL`, roomID)
+
+	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -56,14 +64,44 @@ func (r *GroupRepository) FindActiveByRoomID(ctx context.Context, roomID int64) 
 	return groups, nil
 }
 
+// FindActiveByRoomIDAndDeviceID finds the active group in a room for a specific device.
+func (r *GroupRepository) FindActiveByRoomIDAndDeviceID(ctx context.Context, roomID int64, deviceID int64) (*active.Group, error) {
+	group := new(active.Group)
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(group).
+		ModelTableExpr(`active.groups AS "group"`).
+		Where(`"group".room_id = ?`, roomID).
+		Where(`"group".device_id = ?`, deviceID).
+		Where(`"group".end_time IS NULL`).
+		Limit(1).
+		Scan(ctx)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, &modelBase.DatabaseError{
+			Op:  "find active by room ID and device ID",
+			Err: err,
+		}
+	}
+
+	return group, nil
+}
+
 // FindActiveByGroupID finds all active instances of a specific activity group
 func (r *GroupRepository) FindActiveByGroupID(ctx context.Context, groupID int64) ([]*active.Group, error) {
 	var groups []*active.Group
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groups).
 		ModelTableExpr(`active.groups AS "group"`).
-		Where(`"group".group_id = ? AND "group".end_time IS NULL`, groupID).
-		Scan(ctx)
+		Where(`"group".group_id = ? AND "group".end_time IS NULL`, groupID)
+
+	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -82,11 +120,16 @@ func (r *GroupRepository) FindActiveByGroupIDs(ctx context.Context, groupIDs []i
 	}
 
 	var groups []*active.Group
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groups).
 		ModelTableExpr(`active.groups AS "group"`).
-		Where(`"group".group_id IN (?) AND "group".end_time IS NULL`, bun.In(groupIDs)).
-		Scan(ctx)
+		Where(`"group".group_id IN (?) AND "group".end_time IS NULL`, bun.List(groupIDs))
+
+	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -101,11 +144,16 @@ func (r *GroupRepository) FindActiveByGroupIDs(ctx context.Context, groupIDs []i
 // FindByTimeRange finds all groups active during a specific time range
 func (r *GroupRepository) FindByTimeRange(ctx context.Context, start, end time.Time) ([]*active.Group, error) {
 	var groups []*active.Group
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groups).
 		ModelTableExpr(`active.groups AS "group"`).
-		Where("start_time <= ? AND (end_time IS NULL OR end_time >= ?)", end, start).
-		Scan(ctx)
+		Where("start_time <= ? AND (end_time IS NULL OR end_time >= ?)", end, start)
+
+	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -119,13 +167,17 @@ func (r *GroupRepository) FindByTimeRange(ctx context.Context, start, end time.T
 
 // EndSession marks a group session as ended at the current time
 func (r *GroupRepository) EndSession(ctx context.Context, id int64) error {
-	_, err := r.db.NewUpdate().
+	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*active.Group)(nil)).
 		ModelTableExpr(`active.groups AS "group"`).
 		Set("end_time = ?", time.Now()).
-		Where(`"group".id = ? AND "group".end_time IS NULL`, id).
-		Exec(ctx)
+		Where(`"group".id = ? AND "group".end_time IS NULL`, id)
 
+	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
+		query = query.Where(where, val)
+	}
+
+	result, err := query.Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "end session",
@@ -133,7 +185,7 @@ func (r *GroupRepository) EndSession(ctx context.Context, id int64) error {
 		}
 	}
 
-	return nil
+	return base.AssertRowsAffected(result, 1, "end session")
 }
 
 // Create overrides base Create to handle validation
@@ -154,9 +206,13 @@ func (r *GroupRepository) Create(ctx context.Context, group *active.Group) error
 // List overrides the base List method to accept the new QueryOptions type
 func (r *GroupRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*active.Group, error) {
 	var groups []*active.Group
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groups).
 		ModelTableExpr(`active.groups AS "group"`)
+
+	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
+		query = query.Where(where, val)
+	}
 
 	// Apply query options with table alias
 	if options != nil {
@@ -180,11 +236,16 @@ func (r *GroupRepository) List(ctx context.Context, options *modelBase.QueryOpti
 // FindWithRelations retrieves a group with its associated relations
 func (r *GroupRepository) FindWithRelations(ctx context.Context, id int64) (*active.Group, error) {
 	group := new(active.Group)
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(group).
 		ModelTableExpr(`active.groups AS "group"`).
-		Where(`"group".id = ?`, id).
-		Scan(ctx)
+		Where(`"group".id = ?`, id)
+
+	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -200,11 +261,16 @@ func (r *GroupRepository) FindWithRelations(ctx context.Context, id int64) (*act
 func (r *GroupRepository) FindWithVisits(ctx context.Context, id int64) (*active.Group, error) {
 	// First get the group
 	group := new(active.Group)
-	err := r.db.NewSelect().
+	groupQuery := base.GetDB(ctx, r.db).NewSelect().
 		Model(group).
 		ModelTableExpr(`active.groups AS "group"`).
-		Where(`"group".id = ?`, id).
-		Scan(ctx)
+		Where(`"group".id = ?`, id)
+
+	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
+		groupQuery = groupQuery.Where(where, val)
+	}
+
+	err := groupQuery.Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -215,11 +281,16 @@ func (r *GroupRepository) FindWithVisits(ctx context.Context, id int64) (*active
 
 	// Then get the visits separately (Relation() doesn't work with multi-schema)
 	var visits []*active.Visit
-	err = r.db.NewSelect().
+	visitQuery := base.GetDB(ctx, r.db).NewSelect().
 		Model(&visits).
 		ModelTableExpr(`active.visits AS "visit"`).
-		Where(`"visit".active_group_id = ?`, id).
-		Scan(ctx)
+		Where(`"visit".active_group_id = ?`, id)
+
+	if where, val, ok := base.TenantWhere(ctx, "visit"); ok {
+		visitQuery = visitQuery.Where(where, val)
+	}
+
+	err = visitQuery.Scan(ctx)
 
 	if err != nil && err != sql.ErrNoRows {
 		return nil, &modelBase.DatabaseError{
@@ -236,11 +307,16 @@ func (r *GroupRepository) FindWithVisits(ctx context.Context, id int64) (*active
 func (r *GroupRepository) FindWithSupervisors(ctx context.Context, id int64) (*active.Group, error) {
 	// First get the group
 	group := new(active.Group)
-	err := r.db.NewSelect().
+	groupQuery := base.GetDB(ctx, r.db).NewSelect().
 		Model(group).
 		ModelTableExpr(`active.groups AS "group"`).
-		Where(`"group".id = ?`, id).
-		Scan(ctx)
+		Where(`"group".id = ?`, id)
+
+	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
+		groupQuery = groupQuery.Where(where, val)
+	}
+
+	err := groupQuery.Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -251,11 +327,16 @@ func (r *GroupRepository) FindWithSupervisors(ctx context.Context, id int64) (*a
 
 	// Then get the supervisors
 	var supervisors []*active.GroupSupervisor
-	err = r.db.NewSelect().
+	supQuery := base.GetDB(ctx, r.db).NewSelect().
 		Model(&supervisors).
 		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
-		Where(`"group_supervisor".group_id = ?`, id).
-		Scan(ctx)
+		Where(`"group_supervisor".group_id = ?`, id)
+
+	if where, val, ok := base.TenantWhere(ctx, "group_supervisor"); ok {
+		supQuery = supQuery.Where(where, val)
+	}
+
+	err = supQuery.Scan(ctx)
 
 	if err != nil {
 		// Don't fail if no supervisors found
@@ -276,11 +357,16 @@ func (r *GroupRepository) FindWithSupervisors(ctx context.Context, id int64) (*a
 // FindActiveByGroupIDWithDevice finds all active instances of a specific activity group with device information
 func (r *GroupRepository) FindActiveByGroupIDWithDevice(ctx context.Context, groupID int64) ([]*active.Group, error) {
 	var groups []*active.Group
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groups).
 		ModelTableExpr(`active.groups AS "group"`).
-		Where(`"group".group_id = ? AND "group".end_time IS NULL`, groupID).
-		Scan(ctx)
+		Where(`"group".group_id = ? AND "group".end_time IS NULL`, groupID)
+
+	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -308,12 +394,17 @@ func (r *GroupRepository) FindActiveByDeviceID(ctx context.Context, deviceID int
 	}
 
 	var result basicGroup
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(tableExprActiveGroupsAG).
 		ColumnExpr("ag.id, ag.start_time, ag.end_time, ag.last_activity, ag.timeout_minutes").
 		ColumnExpr("ag.group_id, ag.device_id, ag.room_id, ag.created_at, ag.updated_at").
-		Where("ag.device_id = ? AND ag.end_time IS NULL", deviceID).
-		Scan(ctx, &result)
+		Where("ag.device_id = ? AND ag.end_time IS NULL", deviceID)
+
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("ag.tenant_id = ?", tenantID)
+	}
+
+	err := query.Scan(ctx, &result)
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -372,7 +463,7 @@ func (r *GroupRepository) FindActiveByDeviceIDWithNames(ctx context.Context, dev
 
 	// Use facilities service pattern: TableExpr with explicit schema.table names
 	// This avoids BUN model hooks that cause "groups does not exist" errors
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(tableExprActiveGroupsAG).
 		ColumnExpr("ag.id, ag.start_time, ag.end_time, ag.last_activity, ag.timeout_minutes").
 		ColumnExpr("ag.group_id, ag.device_id, ag.room_id, ag.created_at, ag.updated_at").
@@ -380,8 +471,13 @@ func (r *GroupRepository) FindActiveByDeviceIDWithNames(ctx context.Context, dev
 		ColumnExpr("rm.name AS room_name").       // Use 'rm' not 'r' for clarity
 		Join("LEFT JOIN activities.groups AS actg ON actg.id = ag.group_id").
 		Join("LEFT JOIN facilities.rooms AS rm ON rm.id = ag.room_id").
-		Where("ag.device_id = ? AND ag.end_time IS NULL", deviceID).
-		Scan(ctx, &result)
+		Where("ag.device_id = ? AND ag.end_time IS NULL", deviceID)
+
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("ag.tenant_id = ?", tenantID)
+	}
+
+	err := query.Scan(ctx, &result)
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -432,7 +528,7 @@ func (r *GroupRepository) FindActiveByDeviceIDWithNames(ctx context.Context, dev
 // CheckRoomConflict checks if a room is already occupied by another active group
 func (r *GroupRepository) CheckRoomConflict(ctx context.Context, roomID int64, excludeGroupID int64) (bool, *active.Group, error) {
 	var group active.Group
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&group).
 		ModelTableExpr(`active.groups AS "group"`).
 		Where(`"group".room_id = ? AND "group".end_time IS NULL`, roomID)
@@ -440,6 +536,10 @@ func (r *GroupRepository) CheckRoomConflict(ctx context.Context, roomID int64, e
 	// Exclude the current group if specified (for updates)
 	if excludeGroupID > 0 {
 		query = query.Where(`"group".id != ?`, excludeGroupID)
+	}
+
+	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
+		query = query.Where(where, val)
 	}
 
 	err := query.Scan(ctx)
@@ -460,12 +560,16 @@ func (r *GroupRepository) CheckRoomConflict(ctx context.Context, roomID int64, e
 // UpdateLastActivity updates the last activity timestamp for a session
 func (r *GroupRepository) UpdateLastActivity(ctx context.Context, id int64, lastActivity time.Time) error {
 	// Use the base repository's transaction support
-	query := r.db.NewUpdate().
+	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*active.Group)(nil)).
 		ModelTableExpr(`active.groups AS "group"`).
 		Set("last_activity = ?", lastActivity).
 		Set("updated_at = ?", time.Now()).
 		Where(`"group".id = ? AND "group".end_time IS NULL`, id)
+
+	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
+		query = query.Where(where, val)
+	}
 
 	result, err := query.Exec(ctx)
 	if err != nil {
@@ -501,6 +605,7 @@ func (r *GroupRepository) FindActiveSessionsOlderThan(ctx context.Context, cutof
 		ID             int64      `bun:"id"`
 		CreatedAt      time.Time  `bun:"created_at"`
 		UpdatedAt      time.Time  `bun:"updated_at"`
+		TenantID       int64      `bun:"tenant_id"`
 		StartTime      time.Time  `bun:"start_time"`
 		EndTime        *time.Time `bun:"end_time"`
 		LastActivity   time.Time  `bun:"last_activity"`
@@ -522,9 +627,9 @@ func (r *GroupRepository) FindActiveSessionsOlderThan(ctx context.Context, cutof
 	var results []sessionWithDevice
 
 	// Use explicit JOIN with schema-qualified table name (BUN Relation() doesn't work with multi-schema)
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(tableExprActiveGroupsAG).
-		ColumnExpr("ag.id, ag.created_at, ag.updated_at, ag.start_time, ag.end_time").
+		ColumnExpr("ag.id, ag.created_at, ag.updated_at, ag.tenant_id, ag.start_time, ag.end_time").
 		ColumnExpr("ag.last_activity, ag.timeout_minutes, ag.group_id, ag.device_id, ag.room_id").
 		ColumnExpr(`d.id AS "device__id", d.created_at AS "device__created_at", d.updated_at AS "device__updated_at"`).
 		ColumnExpr(`d.device_id AS "device__device_id", d.device_type AS "device__device_type"`).
@@ -533,8 +638,13 @@ func (r *GroupRepository) FindActiveSessionsOlderThan(ctx context.Context, cutof
 		Where(whereEndTimeIsNull).                 // Only active sessions
 		Where("ag.last_activity < ?", cutoffTime). // Haven't had activity since cutoff
 		Where("ag.device_id IS NOT NULL").         // Only device-managed sessions
-		Order("ag.last_activity ASC").             // Oldest first
-		Scan(ctx, &results)
+		Order("ag.last_activity ASC")              // Oldest first
+
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("ag.tenant_id = ?", tenantID)
+	}
+
+	err := query.Scan(ctx, &results)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -588,7 +698,7 @@ func (r *GroupRepository) FindInactiveSessions(ctx context.Context, inactiveDura
 	cutoffTime := time.Now().Add(-inactiveDuration)
 
 	var groups []*active.Group
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groups).
 		ModelTableExpr(`active.groups AS "group"`).
 		Where("end_time IS NULL").              // Only active sessions
@@ -596,7 +706,13 @@ func (r *GroupRepository) FindInactiveSessions(ctx context.Context, inactiveDura
 		Where("device_id IS NOT NULL").         // Only device-managed sessions
 		Where("timeout_minutes > 0").           // Has timeout configured
 		// Only include sessions where inactivity exceeds their configured timeout
-		Where("EXTRACT(EPOCH FROM (NOW() - last_activity))/60 >= timeout_minutes").
+		Where("EXTRACT(EPOCH FROM (NOW() - last_activity))/60 >= timeout_minutes")
+
+	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.
 		Order("last_activity ASC"). // Oldest first
 		Scan(ctx)
 
@@ -613,10 +729,16 @@ func (r *GroupRepository) FindInactiveSessions(ctx context.Context, inactiveDura
 // FindActiveGroups finds all groups with no end time (currently active)
 func (r *GroupRepository) FindActiveGroups(ctx context.Context) ([]*active.Group, error) {
 	var groups []*active.Group
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groups).
 		ModelTableExpr(`active.groups AS "group"`).
-		Where(`"group".end_time IS NULL`).
+		Where(`"group".end_time IS NULL`)
+
+	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.
 		Order(`start_time ASC`).
 		Scan(ctx)
 
@@ -666,11 +788,16 @@ func deduplicateIDs(ids []int64) []int64 {
 // queryGroupsByIDs fetches groups by their IDs
 func (r *GroupRepository) queryGroupsByIDs(ctx context.Context, ids []int64) ([]*active.Group, error) {
 	var groups []*active.Group
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groups).
 		ModelTableExpr(`active.groups AS "group"`).
-		Where(`"group".id IN (?)`, bun.In(ids)).
-		Scan(ctx)
+		Where(`"group".id IN (?)`, bun.List(ids))
+
+	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find groups by IDs", Err: err}
 	}
@@ -711,10 +838,10 @@ func collectRoomIDs(groups []*active.Group) []int64 {
 // queryRoomsByIDs fetches rooms by their IDs
 func (r *GroupRepository) queryRoomsByIDs(ctx context.Context, ids []int64, op string) ([]*facilities.Room, error) {
 	var rooms []*facilities.Room
-	if err := r.db.NewSelect().
+	if err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&rooms).
 		ModelTableExpr(`facilities.rooms AS "room"`).
-		Where(`"room".id IN (?)`, bun.In(ids)).
+		Where(`"room".id IN (?)`, bun.List(ids)).
 		Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: op, Err: err}
 	}
@@ -762,14 +889,20 @@ func (r *GroupRepository) FindUnclaimed(ctx context.Context) ([]*active.Group, e
 // queryUnclaimedGroups fetches unclaimed groups from the database
 func (r *GroupRepository) queryUnclaimedGroups(ctx context.Context) ([]*active.Group, error) {
 	var groups []*active.Group
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groups).
 		ModelTableExpr(`active.groups AS "group"`).
 		Join(`LEFT JOIN active.group_supervisors AS "sup" ON "sup"."group_id" = "group"."id" AND ("sup"."end_date" IS NULL OR "sup"."end_date" > CURRENT_DATE)`).
 		Join(`INNER JOIN facilities.rooms AS "room" ON "room"."id" = "group"."room_id"`).
 		Where(`"group"."end_time" IS NULL`).
 		Where(`"sup"."id" IS NULL`).
-		Where(`"room"."name" = ?`, "Schulhof").
+		Where(`"room"."name" = ?`, "Schulhof")
+
+	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.
 		Order("start_time DESC").
 		Scan(ctx)
 
@@ -845,10 +978,10 @@ func (r *GroupRepository) loadAndAssignActivityGroups(ctx context.Context, group
 // queryActivityGroupsByIDs fetches activity groups by their IDs
 func (r *GroupRepository) queryActivityGroupsByIDs(ctx context.Context, ids []int64) ([]*activities.Group, error) {
 	var groups []*activities.Group
-	if err := r.db.NewSelect().
+	if err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groups).
 		ModelTableExpr(`activities.groups AS "group"`).
-		Where(`"group".id IN (?)`, bun.In(ids)).
+		Where(`"group".id IN (?)`, bun.List(ids)).
 		Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "batch load activity groups for unclaimed groups", Err: err}
 	}
@@ -877,12 +1010,17 @@ func (r *GroupRepository) GetOccupiedRoomIDs(ctx context.Context, roomIDs []int6
 
 	// Only fetch the room_id column for active groups in the specified rooms
 	var occupiedRoomIDs []int64
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(tableExprActiveGroupsAG).
 		ColumnExpr("DISTINCT ag.room_id").
-		Where("ag.room_id IN (?)", bun.In(roomIDs)).
-		Where(whereEndTimeIsNull).
-		Scan(ctx, &occupiedRoomIDs)
+		Where("ag.room_id IN (?)", bun.List(roomIDs)).
+		Where(whereEndTimeIsNull)
+
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("ag.tenant_id = ?", tenantID)
+	}
+
+	err := query.Scan(ctx, &occupiedRoomIDs)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -907,13 +1045,18 @@ func (r *GroupRepository) EndSessionsByIDs(ctx context.Context, ids []int64) (in
 		return 0, nil
 	}
 
-	result, err := r.db.NewUpdate().
+	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*active.Group)(nil)).
 		ModelTableExpr(`active.groups AS "group"`).
 		Set("end_time = ?", time.Now()).
-		Where(`"group".id IN (?)`, bun.In(ids)).
-		Where(`"group".end_time IS NULL`).
-		Exec(ctx)
+		Where(`"group".id IN (?)`, bun.List(ids)).
+		Where(`"group".end_time IS NULL`)
+
+	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
+		query = query.Where(where, val)
+	}
+
+	result, err := query.Exec(ctx)
 
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
@@ -942,12 +1085,17 @@ func (r *GroupRepository) GetOccupiedActivityGroupIDs(ctx context.Context, group
 
 	// Only fetch the group_id column for active groups with the specified activity group IDs
 	var occupiedGroupIDs []int64
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(tableExprActiveGroupsAG).
 		ColumnExpr("DISTINCT ag.group_id").
-		Where("ag.group_id IN (?)", bun.In(groupIDs)).
-		Where(whereEndTimeIsNull).
-		Scan(ctx, &occupiedGroupIDs)
+		Where("ag.group_id IN (?)", bun.List(groupIDs)).
+		Where(whereEndTimeIsNull)
+
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("ag.tenant_id = ?", tenantID)
+	}
+
+	err := query.Scan(ctx, &occupiedGroupIDs)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{

@@ -1,5 +1,46 @@
 import "@testing-library/jest-dom/vitest";
+import type React from "react";
 import { vi } from "vitest";
+
+function createStorageMock(): Storage {
+  const store = new Map<string, string>();
+
+  return {
+    get length() {
+      return store.size;
+    },
+    clear() {
+      store.clear();
+    },
+    getItem(key: string) {
+      return store.get(String(key)) ?? null;
+    },
+    key(index: number) {
+      return Array.from(store.keys())[index] ?? null;
+    },
+    removeItem(key: string) {
+      store.delete(String(key));
+    },
+    setItem(key: string, value: string) {
+      store.set(String(key), String(value));
+    },
+  };
+}
+
+const localStorageMock = createStorageMock();
+const sessionStorageMock = createStorageMock();
+
+Object.defineProperty(globalThis, "localStorage", {
+  configurable: true,
+  writable: true,
+  value: localStorageMock,
+});
+
+Object.defineProperty(globalThis, "sessionStorage", {
+  configurable: true,
+  writable: true,
+  value: sessionStorageMock,
+});
 
 // Mock ~/lib/logger globally to prevent ClientLogger from:
 // - Accessing window.location.pathname (crashes in test env)
@@ -35,6 +76,23 @@ vi.mock("~/env", () => ({
     AUTH_JWT_REFRESH_EXPIRY: "12h",
     NODE_ENV: "test",
   },
+}));
+
+// Mock tenant provider globally so tenant-scoped components can render in tests.
+// Individual tests can override by calling vi.mocked(useTenant).mockReturnValue(...)
+vi.mock("~/components/tenant/tenant-provider", () => ({
+  useTenant: vi.fn(() => ({
+    tenantSlug: "test-tenant",
+    tenant: null,
+  })),
+  useTenantSlugSafe: vi.fn(() => "test-tenant"),
+  TenantProvider: ({
+    children,
+  }: {
+    children: React.ReactNode;
+    tenantSlug: string;
+    tenant: unknown;
+  }) => children,
 }));
 
 // Mock SWR globally - individual tests can override with vi.mocked()

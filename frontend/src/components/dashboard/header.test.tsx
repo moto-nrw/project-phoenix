@@ -42,6 +42,10 @@ vi.mock("@/lib/help-content", () => ({
   getHelpContent: () => ({ title: "Help Title", content: "Help Content" }),
 }));
 
+vi.mock("~/components/tenant/tenant-switcher", () => ({
+  TenantSwitcher: () => <div data-testid="tenant-switcher">Tenant</div>,
+}));
+
 vi.mock("~/components/ui/logout-modal", () => ({
   LogoutModal: ({ isOpen }: { isOpen: boolean }) =>
     isOpen ? <div data-testid="logout-modal">Logout Modal</div> : null,
@@ -237,8 +241,8 @@ describe("Header", () => {
     // Initially not scrolled
     expect(header).not.toHaveClass("shadow-sm");
 
-    // Simulate scroll
-    Object.defineProperty(window, "scrollY", { value: 30, writable: true });
+    // Simulate scroll (must exceed hysteresis threshold of 30)
+    Object.defineProperty(window, "scrollY", { value: 31, writable: true });
     fireEvent.scroll(window);
 
     // Should have shadow

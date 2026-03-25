@@ -22,7 +22,8 @@ const tableFeedbackEntries = "feedback.entries"
 
 // Entry represents a feedback entry from a student
 type Entry struct {
-	base.Model      `bun:"schema:feedback,table:entries"`
+	base.Model `bun:"schema:feedback,table:entries"`
+	base.TenantModel
 	Value           string    `bun:"value,notnull" json:"value"`
 	Day             time.Time `bun:"day,notnull" json:"day"`
 	Time            time.Time `bun:"time,notnull" json:"time"`
@@ -34,9 +35,6 @@ type Entry struct {
 }
 
 func (e *Entry) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(tableFeedbackEntries)
-	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr(tableFeedbackEntries)
 	}
