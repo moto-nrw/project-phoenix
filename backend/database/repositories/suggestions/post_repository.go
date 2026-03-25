@@ -88,13 +88,13 @@ func (r *PostRepository) Update(ctx context.Context, post *suggestions.Post) err
 
 	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model(post).
-		ModelTableExpr(tablePostsAlias).
+		ModelTableExpr(tablePosts).
 		Column("title", "description", "updated_at").
-		WherePK().
+		Where("id = ?", post.ID).
 		Returning("*")
 
-	if where, val, ok := base.TenantWhere(ctx, "post"); ok {
-		query = query.Where(where, val)
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
 	}
 
 	_, err := query.Exec(ctx)
@@ -110,13 +110,13 @@ func (r *PostRepository) UpdateStatus(ctx context.Context, postID int64, status 
 
 	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model(post).
-		ModelTableExpr(tablePostsAlias).
+		ModelTableExpr(tablePosts).
 		Column("status", "updated_at").
-		WherePK().
+		Where("id = ?", postID).
 		Returning("*")
 
-	if where, val, ok := base.TenantWhere(ctx, "post"); ok {
-		query = query.Where(where, val)
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
 	}
 
 	_, err := query.Exec(ctx)
@@ -135,13 +135,13 @@ func (r *PostRepository) UpdateHidden(ctx context.Context, postID int64, hidden 
 
 	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model(post).
-		ModelTableExpr(tablePostsAlias).
+		ModelTableExpr(tablePosts).
 		Column("is_hidden", "updated_at").
-		WherePK().
+		Where("id = ?", postID).
 		Returning("*")
 
-	if where, val, ok := base.TenantWhere(ctx, "post"); ok {
-		query = query.Where(where, val)
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
 	}
 
 	_, err := query.Exec(ctx)

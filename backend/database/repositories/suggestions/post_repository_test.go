@@ -202,7 +202,7 @@ func TestPostRepository_Update(t *testing.T) {
 			Model(post).
 			ModelTableExpr("suggestions.posts").
 			Column("status", "is_hidden").
-			WherePK().
+			Where("id = ?", post.ID).
 			Exec(ctx)
 		require.NoError(t, err)
 
