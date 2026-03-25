@@ -327,7 +327,7 @@ describe("InvitationAcceptForm", () => {
     await waitFor(() => {
       expect(screen.getByText(/Konto erstellt/i)).toBeInTheDocument();
       expect(
-        screen.getByText(/Weiterleitung zur Anmeldung/i),
+        screen.getByText(/Bitte melde dich mit deinen neuen Zugangsdaten an/i),
       ).toBeInTheDocument();
     });
   });
@@ -514,6 +514,130 @@ describe("InvitationAcceptForm", () => {
       },
       { timeout: 3000 },
     );
+  });
+
+  it("shows manual redirect button when signOut fails instead of auto-redirecting", async () => {
+    const { signOut } = await import("next-auth/react");
+    vi.mocked(signOut).mockRejectedValueOnce(new Error("signOut failed"));
+
+    const originalEnv = process.env.NEXT_PUBLIC_TENANT_DOMAIN;
+    const originalLocation = window.location;
+    process.env.NEXT_PUBLIC_TENANT_DOMAIN = "localhost";
+
+    const mockLocation = { href: "", protocol: "http:", port: "3000" };
+    Object.defineProperty(window, "location", {
+      value: mockLocation,
+      writable: true,
+      configurable: true,
+    });
+
+    try {
+      render(
+        <InvitationAcceptForm token="test-token" invitation={mockInvitation} />,
+      );
+
+      const passwordInput = await screen.findByLabelText(/^Passwort$/);
+      const confirmInput = await screen.findByLabelText(/Passwort bestätigen/);
+      fireEvent.change(passwordInput, { target: { value: "Test1234%" } });
+      fireEvent.change(confirmInput, { target: { value: "Test1234%" } });
+
+      fireEvent.click(
+        screen.getByRole("button", { name: /Einladung akzeptieren/i }),
+      );
+
+      // Should show success state with manual button, NOT auto-redirect
+      await waitFor(() => {
+        expect(screen.getByText(/Konto erstellt/i)).toBeInTheDocument();
+        expect(
+          screen.getByText(/nicht automatisch beendet/i),
+        ).toBeInTheDocument();
+        expect(
+          screen.getByRole("button", { name: /Zur Anmeldung/i }),
+        ).toBeInTheDocument();
+      });
+
+      // Should NOT have auto-redirected
+      expect(mockLocation.href).toBe("");
+
+      // Clicking the manual button with signOut failing again should NOT redirect
+      vi.mocked(signOut).mockRejectedValueOnce(
+        new Error("signOut failed again"),
+      );
+      fireEvent.click(screen.getByRole("button", { name: /Zur Anmeldung/i }));
+
+      await waitFor(() => {
+        // Should show the final fallback message, not redirect
+        expect(
+          screen.getByText(/lösche die Websitedaten/i),
+        ).toBeInTheDocument();
+        // Button should be gone
+        expect(
+          screen.queryByRole("button", { name: /Zur Anmeldung/i }),
+        ).not.toBeInTheDocument();
+      });
+
+      // Should still NOT have redirected
+      expect(mockLocation.href).toBe("");
+    } finally {
+      process.env.NEXT_PUBLIC_TENANT_DOMAIN = originalEnv;
+      Object.defineProperty(window, "location", {
+        value: originalLocation,
+        writable: true,
+        configurable: true,
+      });
+    }
+  });
+
+  it("redirects when signOut retry succeeds", async () => {
+    const { signOut } = await import("next-auth/react");
+    vi.mocked(signOut).mockRejectedValueOnce(new Error("signOut failed"));
+
+    const originalEnv = process.env.NEXT_PUBLIC_TENANT_DOMAIN;
+    const originalLocation = window.location;
+    process.env.NEXT_PUBLIC_TENANT_DOMAIN = "localhost";
+
+    const mockLocation = { href: "", protocol: "http:", port: "3000" };
+    Object.defineProperty(window, "location", {
+      value: mockLocation,
+      writable: true,
+      configurable: true,
+    });
+
+    try {
+      render(
+        <InvitationAcceptForm token="test-token" invitation={mockInvitation} />,
+      );
+
+      const passwordInput = await screen.findByLabelText(/^Passwort$/);
+      const confirmInput = await screen.findByLabelText(/Passwort bestätigen/);
+      fireEvent.change(passwordInput, { target: { value: "Test1234%" } });
+      fireEvent.change(confirmInput, { target: { value: "Test1234%" } });
+
+      fireEvent.click(
+        screen.getByRole("button", { name: /Einladung akzeptieren/i }),
+      );
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole("button", { name: /Zur Anmeldung/i }),
+        ).toBeInTheDocument();
+      });
+
+      // Retry succeeds — should redirect
+      vi.mocked(signOut).mockResolvedValueOnce({ url: "" });
+      fireEvent.click(screen.getByRole("button", { name: /Zur Anmeldung/i }));
+
+      await waitFor(() => {
+        expect(mockLocation.href).toBe("http://ogs-1.localhost:3000/");
+      });
+    } finally {
+      process.env.NEXT_PUBLIC_TENANT_DOMAIN = originalEnv;
+      Object.defineProperty(window, "location", {
+        value: originalLocation,
+        writable: true,
+        configurable: true,
+      });
+    }
   });
 
   it("shows offline error when navigator is offline", async () => {
