@@ -225,8 +225,9 @@ export function InvitationAcceptForm({
         </h3>
         {signOutRetryFailed ? (
           <p className="mb-4 text-sm text-gray-500">
-            Die vorherige Sitzung konnte nicht beendet werden. Bitte schließe
-            alle Browser-Tabs und öffne die Anmeldeseite in einem neuen Fenster.
+            Die vorherige Sitzung konnte nicht beendet werden. Bitte lösche die
+            Websitedaten in deinen Browsereinstellungen oder versuche es später
+            erneut.
           </p>
         ) : signOutFailed ? (
           <>

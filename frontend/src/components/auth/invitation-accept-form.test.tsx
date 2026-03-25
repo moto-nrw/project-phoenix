@@ -568,7 +568,7 @@ describe("InvitationAcceptForm", () => {
       await waitFor(() => {
         // Should show the final fallback message, not redirect
         expect(
-          screen.getByText(/schließe alle Browser-Tabs/i),
+          screen.getByText(/lösche die Websitedaten/i),
         ).toBeInTheDocument();
         // Button should be gone
         expect(
