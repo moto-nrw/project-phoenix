@@ -79,9 +79,7 @@ function SearchPageContent() {
     }
 
     searchTimeoutRef.current = setTimeout(() => {
-      if (searchTerm.length >= 2 || searchTerm.length === 0) {
-        setDebouncedSearchTerm(searchTerm);
-      }
+      setDebouncedSearchTerm(searchTerm);
     }, 300);
 
     return () => {
