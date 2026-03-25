@@ -156,12 +156,19 @@ func ErrorTooManyRequests(err error) render.Renderer {
 	}
 }
 
-// IsForeignKeyViolation checks if an error is a PostgreSQL foreign key constraint violation.
-func IsForeignKeyViolation(err error) bool {
+// IsConstraintViolation checks if an error is a PostgreSQL constraint violation
+// that indicates the entity cannot be deleted due to dependencies.
+// Catches FK violations (23503), NOT NULL violations from cascading SET NULL (23502),
+// and other constraint errors that surface during delete operations.
+func IsConstraintViolation(err error) bool {
 	if err == nil {
 		return false
 	}
-	return strings.Contains(err.Error(), "violates foreign key constraint")
+	msg := err.Error()
+	return strings.Contains(msg, "violates foreign key constraint") ||
+		strings.Contains(msg, "violates not-null constraint") ||
+		strings.Contains(msg, "SQLSTATE=23503") ||
+		strings.Contains(msg, "SQLSTATE=23502")
 }
 
 // ErrorGone returns a 410 Gone error response

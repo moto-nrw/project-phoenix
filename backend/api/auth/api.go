@@ -1117,7 +1117,7 @@ func (rs *Resource) deleteRole(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := rs.AuthService.DeleteRole(r.Context(), id); err != nil {
-		if common.IsForeignKeyViolation(err) {
+		if common.IsConstraintViolation(err) {
 			common.RenderError(w, r, common.ErrorConflictMessage("Rolle kann nicht gelöscht werden: Rolle ist aktuell Konten zugewiesen"))
 			return
 		}
@@ -1341,7 +1341,7 @@ func (rs *Resource) deletePermission(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := rs.AuthService.DeletePermission(r.Context(), id); err != nil {
-		if common.IsForeignKeyViolation(err) {
+		if common.IsConstraintViolation(err) {
 			common.RenderError(w, r, common.ErrorConflictMessage("Berechtigung kann nicht gelöscht werden: Berechtigung ist aktuell Rollen oder Konten zugewiesen"))
 			return
 		}

@@ -695,6 +695,10 @@ func (rs *Resource) deleteStaff(w http.ResponseWriter, r *http.Request) {
 			common.RenderError(w, r, common.ErrorConflict(err))
 			return
 		}
+		if common.IsConstraintViolation(err) {
+			common.RenderError(w, r, common.ErrorConflictMessage("Personal kann nicht gelöscht werden: Mitarbeiter/in wird noch in anderen Bereichen referenziert"))
+			return
+		}
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}

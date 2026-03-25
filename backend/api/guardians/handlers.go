@@ -606,7 +606,7 @@ func (rs *Resource) deleteGuardian(w http.ResponseWriter, r *http.Request) {
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return rs.GuardianService.DeleteGuardian(ctx, id)
 	}); err != nil {
-		if common.IsForeignKeyViolation(err) {
+		if common.IsConstraintViolation(err) {
 			common.RenderError(w, r, common.ErrorConflictMessage("Erziehungsberechtigte/r kann nicht gelöscht werden: Noch mit Schüler/innen verknüpft"))
 			return
 		}

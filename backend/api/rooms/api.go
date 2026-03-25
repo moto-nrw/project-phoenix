@@ -304,6 +304,12 @@ func (rs *Resource) deleteRoom(w http.ResponseWriter, r *http.Request) {
 		return rs.FacilityService.DeleteRoom(ctx, id)
 	})
 	if err != nil {
+		// Catch constraint violations not covered by service pre-checks
+		// (e.g., composite FK SET NULL causing NOT NULL violation on tenant_id)
+		if common.IsConstraintViolation(err) {
+			common.RenderError(w, r, common.ErrorConflictMessage("Raum kann nicht gelöscht werden: Raum wird noch von Gruppen verwendet"))
+			return
+		}
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}

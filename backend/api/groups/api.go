@@ -700,6 +700,10 @@ func (rs *Resource) deleteGroup(w http.ResponseWriter, r *http.Request) {
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return rs.EducationService.DeleteGroup(ctx, id)
 	}); err != nil {
+		if common.IsConstraintViolation(err) {
+			common.RenderError(w, r, common.ErrorConflictMessage("Gruppe kann nicht gelöscht werden: Gruppe wird noch in anderen Bereichen referenziert"))
+			return
+		}
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
