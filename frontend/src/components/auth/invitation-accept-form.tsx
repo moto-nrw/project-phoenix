@@ -116,10 +116,21 @@ export function InvitationAcceptForm({
         password,
         confirmPassword,
       });
-      setIsAccepted(true);
+      // Clear any existing session before showing success state.
+      // Wrapped in try/catch: even if signOut fails, the account was
+      // created successfully and the user must reach the login page.
+      try {
+        await signOut({ redirect: false });
+      } catch (signOutError) {
+        logger.warn("sign_out_after_invite_failed", {
+          error:
+            signOutError instanceof Error
+              ? signOutError.message
+              : String(signOutError),
+        });
+      }
 
-      // Logout any existing session before redirecting to login
-      await signOut({ redirect: false });
+      setIsAccepted(true);
 
       setTimeout(() => {
         // Redirect to tenant subdomain if available, otherwise root
@@ -179,7 +190,7 @@ export function InvitationAcceptForm({
           Konto erstellt
         </h3>
         <p className="mb-6 text-sm text-gray-500">
-          Weiterleitung zur Anmeldung...
+          Bitte melde dich mit deinen neuen Zugangsdaten an.
         </p>
         <div className="h-1 w-16 overflow-hidden rounded-full bg-gray-100">
           <div

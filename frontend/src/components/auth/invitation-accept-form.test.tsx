@@ -327,7 +327,7 @@ describe("InvitationAcceptForm", () => {
     await waitFor(() => {
       expect(screen.getByText(/Konto erstellt/i)).toBeInTheDocument();
       expect(
-        screen.getByText(/Weiterleitung zur Anmeldung/i),
+        screen.getByText(/Bitte melde dich mit deinen neuen Zugangsdaten an/i),
       ).toBeInTheDocument();
     });
   });
@@ -514,6 +514,55 @@ describe("InvitationAcceptForm", () => {
       },
       { timeout: 3000 },
     );
+  });
+
+  it("redirects even when signOut fails", async () => {
+    const { signOut } = await import("next-auth/react");
+    vi.mocked(signOut).mockRejectedValueOnce(new Error("signOut failed"));
+
+    const originalEnv = process.env.NEXT_PUBLIC_TENANT_DOMAIN;
+    const originalLocation = window.location;
+    process.env.NEXT_PUBLIC_TENANT_DOMAIN = "localhost";
+
+    const mockLocation = { href: "", protocol: "http:", port: "3000" };
+    Object.defineProperty(window, "location", {
+      value: mockLocation,
+      writable: true,
+      configurable: true,
+    });
+
+    try {
+      render(
+        <InvitationAcceptForm token="test-token" invitation={mockInvitation} />,
+      );
+
+      const passwordInput = await screen.findByLabelText(/^Passwort$/);
+      const confirmInput = await screen.findByLabelText(/Passwort bestätigen/);
+      fireEvent.change(passwordInput, { target: { value: "Test1234%" } });
+      fireEvent.change(confirmInput, { target: { value: "Test1234%" } });
+
+      fireEvent.click(
+        screen.getByRole("button", { name: /Einladung akzeptieren/i }),
+      );
+
+      // Redirect must still happen despite signOut failure
+      await waitFor(
+        () => {
+          expect(mockLocation.href).toBe("http://ogs-1.localhost:3000/");
+        },
+        { timeout: 3000 },
+      );
+
+      // Success state should still render
+      expect(screen.getByText(/Konto erstellt/i)).toBeInTheDocument();
+    } finally {
+      process.env.NEXT_PUBLIC_TENANT_DOMAIN = originalEnv;
+      Object.defineProperty(window, "location", {
+        value: originalLocation,
+        writable: true,
+        configurable: true,
+      });
+    }
   });
 
   it("shows offline error when navigator is offline", async () => {
