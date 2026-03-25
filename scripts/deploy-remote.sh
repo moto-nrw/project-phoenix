@@ -62,10 +62,31 @@ docker compose stop server frontend
 mkdir -p ~/backups/"$DEPLOY_DIR"
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 BACKUP_FILE=~/backups/$DEPLOY_DIR/backup-${TIMESTAMP}.dump
-docker compose exec -T postgres pg_dump -U postgres -d postgres -Fc > "$BACKUP_FILE"
-if [ ! -s "$BACKUP_FILE" ]; then
-  echo "Backup failed or empty, aborting deploy"
-  rm -f "$BACKUP_FILE"
+GLOBALS_FILE=~/backups/$DEPLOY_DIR/globals-${TIMESTAMP}.sql
+# Dump cluster globals (roles, passwords, tablespaces) — needed for full restore
+if ! docker compose exec -T postgres pg_dumpall -U postgres --globals-only > "$GLOBALS_FILE"; then
+  echo "pg_dumpall failed, aborting deploy"
+  rm -f "$GLOBALS_FILE"
+  cp .env.rollback .env 2>/dev/null || true
+  cp docker-compose.yml.rollback docker-compose.yml 2>/dev/null || true
+  docker compose pull 2>/dev/null || true
+  docker compose up -d --wait --remove-orphans 2>/dev/null || true
+  exit 1
+fi
+chmod 600 "$GLOBALS_FILE"
+# Dump database data + schema in custom format
+if ! docker compose exec -T postgres pg_dump -U postgres -d postgres -Fc > "$BACKUP_FILE"; then
+  echo "pg_dump failed, aborting deploy"
+  rm -f "$BACKUP_FILE" "$GLOBALS_FILE"
+  cp .env.rollback .env 2>/dev/null || true
+  cp docker-compose.yml.rollback docker-compose.yml 2>/dev/null || true
+  docker compose pull 2>/dev/null || true
+  docker compose up -d --wait --remove-orphans 2>/dev/null || true
+  exit 1
+fi
+if [ ! -s "$BACKUP_FILE" ] || [ ! -s "$GLOBALS_FILE" ]; then
+  echo "Backup files empty, aborting deploy"
+  rm -f "$BACKUP_FILE" "$GLOBALS_FILE"
   cp .env.rollback .env 2>/dev/null || true
   cp docker-compose.yml.rollback docker-compose.yml 2>/dev/null || true
   docker compose pull 2>/dev/null || true
@@ -104,6 +125,7 @@ if [ "$DEPLOY_FAILED" = "false" ]; then
   rm -f .env.rollback docker-compose.yml.rollback
   RETENTION_CUTOFF=$((BACKUP_RETENTION + 1))
   ls -t ~/backups/"$DEPLOY_DIR"/backup-*.dump 2>/dev/null | tail -n +"$RETENTION_CUTOFF" | xargs -r rm -v
+  ls -t ~/backups/"$DEPLOY_DIR"/globals-*.sql 2>/dev/null | tail -n +"$RETENTION_CUTOFF" | xargs -r rm -v
   echo "$DEPLOY_DIR deployment complete"
   exit 0
 fi
