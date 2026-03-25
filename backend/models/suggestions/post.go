@@ -31,6 +31,7 @@ type Post struct {
 	AuthorID    int64  `bun:"author_id,notnull" json:"author_id"`
 	Status      string `bun:"status,notnull,default:'open'" json:"status"`
 	Score       int    `bun:"score,notnull,default:0" json:"score"`
+	IsHidden    bool   `bun:"is_hidden,notnull,default:false" json:"is_hidden"`
 
 	// Resolved at query time, not stored
 	AuthorName   string `bun:"author_name,scanonly" json:"author_name,omitempty"`

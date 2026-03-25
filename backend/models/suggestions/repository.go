@@ -8,8 +8,13 @@ import (
 // PostRepository defines operations for managing suggestion posts
 type PostRepository interface {
 	Create(ctx context.Context, post *Post) error
-	FindByID(ctx context.Context, id int64) (*Post, error)
+	// FindByID retrieves a post by ID.
+	// readerType controls visibility: ReaderTypeUser excludes hidden posts,
+	// ReaderTypeOperator returns all posts including hidden ones.
+	FindByID(ctx context.Context, id int64, readerType string) (*Post, error)
 	Update(ctx context.Context, post *Post) error
+	UpdateStatus(ctx context.Context, postID int64, status string) error
+	UpdateHidden(ctx context.Context, postID int64, hidden bool) error
 	Delete(ctx context.Context, id int64) error
 
 	// List returns all posts with author name and current user's vote.

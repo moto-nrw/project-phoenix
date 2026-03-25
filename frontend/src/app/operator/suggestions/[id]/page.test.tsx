@@ -12,20 +12,26 @@ const {
   mockUseSession,
   mockUseSWR,
   mockMutate,
+  mockGlobalMutate,
   mockFetchById,
   mockUpdateStatus,
   mockAddComment,
   mockDeleteComment,
+  mockHidePost,
+  mockDeletePost,
 } = vi.hoisted(() => ({
   mockUseParams: vi.fn(),
   mockUsePush: vi.fn(),
   mockUseSession: vi.fn(),
   mockUseSWR: vi.fn(),
   mockMutate: vi.fn(),
+  mockGlobalMutate: vi.fn(),
   mockFetchById: vi.fn(),
   mockUpdateStatus: vi.fn(),
   mockAddComment: vi.fn(),
   mockDeleteComment: vi.fn(),
+  mockHidePost: vi.fn(),
+  mockDeletePost: vi.fn(),
 }));
 
 // Mock navigation
@@ -45,6 +51,7 @@ vi.mock("~/lib/breadcrumb-context", () => ({
 
 vi.mock("swr", () => ({
   default: mockUseSWR,
+  useSWRConfig: () => ({ mutate: mockGlobalMutate }),
 }));
 
 // Mock operator-url to avoid NEXT_PUBLIC_OPERATOR_HOSTNAME requirement
@@ -60,6 +67,8 @@ vi.mock("~/lib/operator/suggestions-api", () => ({
     updateStatus: mockUpdateStatus,
     addComment: mockAddComment,
     deleteComment: mockDeleteComment,
+    hidePost: mockHidePost,
+    deletePost: mockDeletePost,
   },
 }));
 
@@ -103,6 +112,9 @@ vi.mock("~/components/ui/skeleton", () => ({
   () => ({
     ThumbsUp: () => <span>ThumbsUp</span>,
     ThumbsDown: () => <span>ThumbsDown</span>,
+    EyeOff: () => <span>EyeOff</span>,
+    Eye: () => <span>Eye</span>,
+    Trash2: () => <span>Trash2</span>,
   }),
 );
 
@@ -130,6 +142,10 @@ describe("OperatorSuggestionDetailPage", () => {
     upvotes: 5,
     downvotes: 2,
     createdAt: new Date("2025-01-01"),
+    schoolName: "OGS Musterstadt",
+    isHidden: false,
+    unreadCount: 2,
+    isNew: true,
     operatorComments: [mockComment],
   };
 
@@ -146,6 +162,9 @@ describe("OperatorSuggestionDetailPage", () => {
       mutate: mockMutate,
     });
     mockMutate.mockResolvedValue(undefined);
+    mockGlobalMutate.mockResolvedValue(undefined);
+    mockHidePost.mockResolvedValue(undefined);
+    mockDeletePost.mockResolvedValue(undefined);
   });
 
   it("renders loading state", () => {
@@ -199,7 +218,26 @@ describe("OperatorSuggestionDetailPage", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getByText("John Doe")).toBeInTheDocument();
+    expect(screen.getByText("OGS Musterstadt")).toBeInTheDocument();
     expect(screen.getAllByText("2 hours ago").length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("shows hidden banner and unhide action for hidden suggestions", () => {
+    mockUseSWR.mockReturnValue({
+      data: {
+        ...mockSuggestion,
+        isHidden: true,
+      },
+      isLoading: false,
+      mutate: mockMutate,
+    });
+
+    render(<OperatorSuggestionDetailPage />);
+
+    expect(
+      screen.getByText("Dieser Beitrag ist für Benutzer ausgeblendet."),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Einblenden")).toBeInTheDocument();
   });
 
   it("displays upvotes and downvotes", () => {
@@ -350,6 +388,169 @@ describe("OperatorSuggestionDetailPage", () => {
       expect(mockDeleteComment).toHaveBeenCalledWith("1", "comment-1");
       expect(mockMutate).toHaveBeenCalled();
     });
+  });
+
+  it("toggles hidden state and refreshes the list cache", async () => {
+    mockHidePost.mockResolvedValue(undefined);
+
+    render(<OperatorSuggestionDetailPage />);
+
+    fireEvent.click(screen.getByLabelText("Ausblenden"));
+
+    await waitFor(() => {
+      expect(mockHidePost).toHaveBeenCalledWith("1", true);
+      expect(mockMutate).toHaveBeenCalledWith(
+        expect.objectContaining({ isHidden: true }),
+        { revalidate: false },
+      );
+      expect(mockGlobalMutate).toHaveBeenCalledWith("operator-suggestions");
+    });
+  });
+
+  it("logs hide toggle errors gracefully", async () => {
+    mockHidePost.mockRejectedValue(new Error("API Error"));
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {
+      // noop - suppress console.error in test
+    });
+
+    render(<OperatorSuggestionDetailPage />);
+
+    fireEvent.click(screen.getByLabelText("Ausblenden"));
+
+    await waitFor(() => {
+      expect(consoleError).toHaveBeenCalledWith(
+        "suggestion_hide_toggle_failed",
+        {
+          error: "API Error",
+        },
+      );
+    });
+
+    consoleError.mockRestore();
+  });
+
+  it("opens delete post confirmation modal", async () => {
+    render(<OperatorSuggestionDetailPage />);
+
+    fireEvent.click(screen.getByLabelText("Beitrag löschen"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Beitrag löschen?")).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          /Dieser Beitrag und alle zugehörigen Kommentare und Stimmen werden/,
+        ),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("deletes post after confirmation and navigates back", async () => {
+    mockDeletePost.mockResolvedValue(undefined);
+    const dispatchEventSpy = vi.spyOn(window, "dispatchEvent");
+
+    render(<OperatorSuggestionDetailPage />);
+
+    fireEvent.click(screen.getByLabelText("Beitrag löschen"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Beitrag löschen?")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("confirm-button"));
+
+    await waitFor(() => {
+      expect(mockDeletePost).toHaveBeenCalledWith("1");
+      expect(mockGlobalMutate).toHaveBeenCalledWith("operator-suggestions");
+      expect(dispatchEventSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "operator-suggestions-unread-refresh",
+        }),
+      );
+      expect(dispatchEventSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "operator-suggestions-unviewed-refresh",
+        }),
+      );
+      expect(mockUsePush).toHaveBeenCalledWith("/operator/suggestions");
+    });
+  });
+
+  it("refreshes badge counters after delete even when local counts look clear", async () => {
+    mockDeletePost.mockResolvedValue(undefined);
+    const dispatchEventSpy = vi.spyOn(window, "dispatchEvent");
+    mockUseSWR.mockReturnValue({
+      data: {
+        ...mockSuggestion,
+        unreadCount: 0,
+        isNew: false,
+      },
+      isLoading: false,
+      mutate: mockMutate,
+    });
+
+    render(<OperatorSuggestionDetailPage />);
+
+    fireEvent.click(screen.getByLabelText("Beitrag löschen"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Beitrag löschen?")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("confirm-button"));
+
+    await waitFor(() => {
+      expect(dispatchEventSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "operator-suggestions-unread-refresh",
+        }),
+      );
+      expect(dispatchEventSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "operator-suggestions-unviewed-refresh",
+        }),
+      );
+    });
+  });
+
+  it("closes delete post modal on cancel", async () => {
+    render(<OperatorSuggestionDetailPage />);
+
+    fireEvent.click(screen.getByLabelText("Beitrag löschen"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Beitrag löschen?")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("Cancel"));
+
+    await waitFor(() => {
+      expect(screen.queryByText("Beitrag löschen?")).not.toBeInTheDocument();
+    });
+  });
+
+  it("logs post deletion errors gracefully", async () => {
+    mockDeletePost.mockRejectedValue(new Error("API Error"));
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {
+      // noop - suppress console.error in test
+    });
+
+    render(<OperatorSuggestionDetailPage />);
+
+    fireEvent.click(screen.getByLabelText("Beitrag löschen"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Beitrag löschen?")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("confirm-button"));
+
+    await waitFor(() => {
+      expect(consoleError).toHaveBeenCalledWith("suggestion_delete_failed", {
+        error: "API Error",
+      });
+    });
+
+    consoleError.mockRestore();
   });
 
   it("closes delete modal on cancel", async () => {

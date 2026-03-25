@@ -72,6 +72,19 @@ class OperatorSuggestionsService {
     );
     return data.unviewed_count;
   }
+
+  async hidePost(id: string, hidden: boolean): Promise<void> {
+    await operatorFetch<unknown>(`/api/operator/suggestions/${id}/hidden`, {
+      method: "PUT",
+      body: { hidden },
+    });
+  }
+
+  async deletePost(id: string): Promise<void> {
+    await operatorFetch(`/api/operator/suggestions/${id}`, {
+      method: "DELETE",
+    });
+  }
 }
 
 export const operatorSuggestionsService = new OperatorSuggestionsService();

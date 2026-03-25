@@ -87,6 +87,7 @@ describe("OperatorSuggestionsService", () => {
           updated_at: "2024-01-01T00:00:00Z",
           school_id: 5,
           school_name: "OGS Testschule",
+          is_hidden: false,
         },
       ];
       mockOperatorFetch.mockResolvedValue(mockData);
@@ -114,6 +115,7 @@ describe("OperatorSuggestionsService", () => {
         updated_at: "2024-02-01T00:00:00Z",
         school_id: 2,
         school_name: "OGS Musterstadt",
+        is_hidden: false,
       };
       mockOperatorFetch.mockResolvedValue(mockData);
 
@@ -138,6 +140,7 @@ describe("OperatorSuggestionsService", () => {
         updated_at: "2024-03-02T00:00:00Z",
         school_id: 1,
         school_name: "OGS Demo",
+        is_hidden: false,
       };
       mockOperatorFetch.mockResolvedValue(mockData);
 
@@ -259,6 +262,37 @@ describe("OperatorSuggestionsService", () => {
       const result = await operatorSuggestionsService.fetchUnviewedCount();
 
       expect(result).toBe(0);
+    });
+  });
+
+  describe("hidePost", () => {
+    it("calls PUT endpoint with hidden flag", async () => {
+      mockOperatorFetch.mockResolvedValue(undefined);
+
+      await operatorSuggestionsService.hidePost("42", true);
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/suggestions/42/hidden",
+        {
+          method: "PUT",
+          body: { hidden: true },
+        },
+      );
+    });
+  });
+
+  describe("deletePost", () => {
+    it("calls DELETE endpoint for the post", async () => {
+      mockOperatorFetch.mockResolvedValue(undefined);
+
+      await operatorSuggestionsService.deletePost("42");
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/suggestions/42",
+        {
+          method: "DELETE",
+        },
+      );
     });
   });
 });

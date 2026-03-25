@@ -4,8 +4,8 @@ import { useState, useCallback } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator routes are not tenant-scoped
 import { useParams, useRouter } from "next/navigation";
 // eslint-disable-next-line no-restricted-imports -- operator pages use useOperatorAuth, not NextAuth
-import useSWR from "swr";
-import { ThumbsUp, ThumbsDown } from "lucide-react";
+import useSWR, { useSWRConfig } from "swr";
+import { ThumbsUp, ThumbsDown, EyeOff, Eye, Trash2 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { operatorSuggestionsService } from "~/lib/operator/suggestions-api";
@@ -18,6 +18,8 @@ import { createLogger } from "~/lib/logger";
 import { operatorPath } from "~/lib/operator-url";
 
 const logger = createLogger({ component: "OperatorSuggestionDetailPage" });
+const UNREAD_REFRESH_EVENT = "operator-suggestions-unread-refresh";
+const UNVIEWED_REFRESH_EVENT = "operator-suggestions-unviewed-refresh";
 
 export default function OperatorSuggestionDetailPage() {
   const params = useParams();
@@ -31,6 +33,10 @@ export default function OperatorSuggestionDetailPage() {
   const [statusUpdating, setStatusUpdating] = useState(false);
   const [deleteCommentId, setDeleteCommentId] = useState<string | null>(null);
   const [isDeletingComment, setIsDeletingComment] = useState(false);
+  const [isHiding, setIsHiding] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const { mutate: globalMutate } = useSWRConfig();
 
   const {
     data: suggestion,
@@ -109,6 +115,45 @@ export default function OperatorSuggestionDetailPage() {
     }
   }, [suggestion, deleteCommentId, mutate]);
 
+  const handleToggleHidden = useCallback(async () => {
+    if (!suggestion) return;
+    setIsHiding(true);
+    try {
+      const newHidden = !suggestion.isHidden;
+      await operatorSuggestionsService.hidePost(suggestion.id, newHidden);
+      await mutate(
+        { ...suggestion, isHidden: newHidden },
+        { revalidate: false },
+      );
+      await globalMutate("operator-suggestions");
+    } catch (error) {
+      logger.error("suggestion_hide_toggle_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setIsHiding(false);
+    }
+  }, [suggestion, mutate, globalMutate]);
+
+  const handleDeletePost = useCallback(async () => {
+    if (!suggestion) return;
+    setIsDeleting(true);
+    try {
+      await operatorSuggestionsService.deletePost(suggestion.id);
+      setShowDeleteModal(false);
+      await globalMutate("operator-suggestions");
+      window.dispatchEvent(new CustomEvent(UNREAD_REFRESH_EVENT));
+      window.dispatchEvent(new CustomEvent(UNVIEWED_REFRESH_EVENT));
+      router.push(operatorPath("/operator/suggestions"));
+    } catch (error) {
+      logger.error("suggestion_delete_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [suggestion, globalMutate, router]);
+
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -164,9 +209,16 @@ export default function OperatorSuggestionDetailPage() {
         Zurück
       </button>
 
+      {/* Hidden banner */}
+      {suggestion.isHidden && (
+        <div className="rounded-xl border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
+          Dieser Beitrag ist für Benutzer ausgeblendet.
+        </div>
+      )}
+
       {/* Main card */}
       <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-4 shadow-[0_8px_30px_rgb(0,0,0,0.12)] sm:p-6">
-        {/* Status dropdown (prominent) */}
+        {/* Status dropdown + moderation actions */}
         <div className="mb-4 flex items-center justify-between">
           <StatusDropdown
             value={suggestion.status}
@@ -175,6 +227,33 @@ export default function OperatorSuggestionDetailPage() {
             size="md"
           />
           <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => void handleToggleHidden()}
+              disabled={isHiding}
+              className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 disabled:opacity-50"
+              aria-label={suggestion.isHidden ? "Einblenden" : "Ausblenden"}
+              title={
+                suggestion.isHidden
+                  ? "Für Benutzer einblenden"
+                  : "Für Benutzer ausblenden"
+              }
+            >
+              {suggestion.isHidden ? (
+                <Eye className="h-4.5 w-4.5" />
+              ) : (
+                <EyeOff className="h-4.5 w-4.5" />
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowDeleteModal(true)}
+              className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500"
+              aria-label="Beitrag löschen"
+              title="Beitrag unwiderruflich löschen"
+            >
+              <Trash2 className="h-4.5 w-4.5" />
+            </button>
             <span className="flex items-center gap-1 text-[#83CD2D]">
               <ThumbsUp className="h-4.5 w-4.5" fill="currentColor" />
               <span className="text-sm font-bold">{suggestion.upvotes}</span>
@@ -316,6 +395,24 @@ export default function OperatorSuggestionDetailPage() {
       >
         <p className="text-sm text-gray-600">
           Dieser Kommentar wird unwiderruflich gelöscht.
+        </p>
+      </ConfirmationModal>
+
+      {/* Delete post confirmation */}
+      <ConfirmationModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={() => {
+          void handleDeletePost();
+        }}
+        title="Beitrag löschen?"
+        confirmText="Endgültig löschen"
+        confirmButtonClass="bg-red-500 hover:bg-red-600"
+        isConfirmLoading={isDeleting}
+      >
+        <p className="text-sm text-gray-600">
+          Dieser Beitrag und alle zugehörigen Kommentare und Stimmen werden
+          unwiderruflich gelöscht.
         </p>
       </ConfirmationModal>
     </div>

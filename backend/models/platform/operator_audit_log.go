@@ -22,6 +22,9 @@ const (
 	ActionAddComment    = "add_comment"
 	ActionDeleteComment = "delete_comment"
 	ActionRotateAPIKey  = "rotate_api_key"
+	ActionHidePost      = "hide_post"
+	ActionUnhidePost    = "unhide_post"
+	ActionDeletePost    = "delete_post"
 )
 
 // Common resource type constants
