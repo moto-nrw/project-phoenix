@@ -146,6 +146,15 @@ Migrations connect via `DB_DSN` as the `postgres` **superuser**. PostgreSQL supe
 
 **Seeder is DEV-ONLY**: `go run main.go seed` creates fake test data and must NEVER run on staging or production. Production infrastructure (system rooms, categories, activities) must be created via data migrations or admin UI — never via the seeder.
 
+### Hermetic Tests (MANDATORY)
+
+**ABSOLUTE RULE: All new backend tests MUST be hermetic and MUST pass the `TestHermeticTestPatterns` CI check.**
+
+- **No hardcoded IDs**: Never use `int64(1)` through `int64(9)` as entity IDs. Use test fixtures (`testpkg.CreateTestStudent`, `testpkg.CreateTestStaff`, etc.) and reference the returned `.ID`.
+- **Mock test files must be exempted**: If a new test file uses sqlmock/mock structs instead of real DB fixtures, add it to the `skipPatterns` in `backend/test/hermetic_verification_test.go`. Otherwise the `no_hardcoded_integer_ids` check will flag mock IDs as violations.
+- **Always run the hermetic check locally before pushing**: `cd backend && go test ./test/ -run TestHermeticTestPatterns -v`
+- **Each test creates its own data and cleans up**: Use `defer testpkg.Cleanup*` helpers. Never depend on seed data or shared state between tests.
+
 ### Test Database (port 5433)
 ```bash
 docker compose --profile test up -d postgres-test  # Start (isolated network)
