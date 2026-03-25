@@ -67,6 +67,7 @@ type OperatorProvisioningService interface {
 	UpdateSchool(ctx context.Context, id int64, req UpdateSchoolRequest, operatorID int64, clientIP net.IP) (*platform.School, error)
 	InviteSchoolAdmin(ctx context.Context, schoolID, operatorID int64, clientIP net.IP, req authSvc.InvitationRequest) (*authModels.InvitationToken, error)
 	CreateSchoolAccount(ctx context.Context, schoolID, operatorID int64, clientIP net.IP, req CreateSchoolAccountRequest) (*authModels.Account, error)
+	ListSystemRoles(ctx context.Context) ([]*authModels.Role, error)
 	ListSchoolAccounts(ctx context.Context, schoolID int64) ([]authModels.TenantAccountInfo, error)
 	ListOrganizationAccounts(ctx context.Context, organizationID int64) ([]authModels.OrgAccountInfo, error)
 	ListAllAccounts(ctx context.Context) ([]authModels.OrgAccountInfo, error)
@@ -517,6 +518,22 @@ func (s *operatorProvisioningService) CreateSchoolAccount(ctx context.Context, s
 		return nil, err
 	}
 	return account, nil
+}
+
+func (s *operatorProvisioningService) ListSystemRoles(ctx context.Context) ([]*authModels.Role, error) {
+	var result []*authModels.Role
+	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
+		roles, listErr := s.roleRepo.List(adminCtx, map[string]interface{}{"is_system": true})
+		if listErr != nil {
+			return listErr
+		}
+		result = roles
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 func (s *operatorProvisioningService) ListSchoolAccounts(ctx context.Context, schoolID int64) ([]authModels.TenantAccountInfo, error) {

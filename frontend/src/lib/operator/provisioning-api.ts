@@ -163,6 +163,19 @@ class OperatorProvisioningService {
     );
     return mapSchoolAccount(result);
   }
+
+  async listSystemRoles(): Promise<
+    { id: string; name: string; isSystem: boolean }[]
+  > {
+    const result = await operatorFetch<
+      { id: number; name: string; is_system: boolean }[]
+    >(`/api/operator/provisioning/roles`);
+    return result.map((r) => ({
+      id: r.id.toString(),
+      name: r.name,
+      isSystem: r.is_system,
+    }));
+  }
 }
 
 export const operatorProvisioningService = new OperatorProvisioningService();

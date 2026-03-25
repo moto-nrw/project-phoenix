@@ -76,6 +76,9 @@ func (m *mockProvisioningService) CreateSchoolAccount(ctx context.Context, schoo
 	}
 	return nil, errors.New("not implemented")
 }
+func (m *mockProvisioningService) ListSystemRoles(_ context.Context) ([]*authModels.Role, error) {
+	return nil, nil
+}
 func (m *mockProvisioningService) ListSchoolAccounts(ctx context.Context, schoolID int64) ([]authModels.TenantAccountInfo, error) {
 	if m.listSchoolAccountsFn != nil {
 		return m.listSchoolAccountsFn(ctx, schoolID)

@@ -379,6 +379,15 @@ func (rs *ProvisioningResource) CreateSchoolAccount(w http.ResponseWriter, r *ht
 	common.Respond(w, r, http.StatusCreated, account, "School account created successfully")
 }
 
+func (rs *ProvisioningResource) ListSystemRoles(w http.ResponseWriter, r *http.Request) {
+	roles, err := rs.service.ListSystemRoles(r.Context())
+	if err != nil {
+		common.RenderError(w, r, ProvisioningErrorRenderer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, roles, "System roles retrieved successfully")
+}
+
 func (rs *ProvisioningResource) ListSchoolAccounts(w http.ResponseWriter, r *http.Request) {
 	schoolID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid school ID")
 	if !ok {
