@@ -10,7 +10,9 @@ import (
 )
 
 func TestNotificationContext_NilUsesBackground(t *testing.T) {
-	ctx := notificationContext(nil)
+	var nilCtx context.Context
+
+	ctx := notificationContext(nilCtx)
 
 	require.NotNil(t, ctx)
 	assert.NoError(t, ctx.Err())
