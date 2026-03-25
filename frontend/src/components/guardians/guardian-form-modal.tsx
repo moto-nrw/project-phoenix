@@ -220,9 +220,12 @@ export default function GuardianFormModal({
 }: GuardianFormModalProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Tracks which fields have validation errors: "entryId:field" or "entryId:phone:phoneId"
+  const [fieldErrors, setFieldErrors] = useState<Set<string>>(new Set());
   const [entries, setEntries] = useState<GuardianEntry[]>([createEmptyEntry()]);
   const [newEntryId, setNewEntryId] = useState<string | null>(null);
   const entryRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const errorRef = useRef<HTMLDivElement>(null);
 
   // Reset entries when modal opens/closes or initialData changes
   useEffect(() => {
@@ -233,10 +236,18 @@ export default function GuardianFormModal({
         setEntries([createEmptyEntry()]);
       }
       setError(null);
+      setFieldErrors(new Set());
       setNewEntryId(null);
       entryRefs.current.clear();
     }
   }, [isOpen, initialData]);
+
+  // Scroll to error when it appears
+  useEffect(() => {
+    if (error && errorRef.current) {
+      errorRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [error]);
 
   // Scroll to newly added entry
   useEffect(() => {
@@ -334,7 +345,15 @@ export default function GuardianFormModal({
     return null;
   };
 
-  // Validate all entries
+  // Check if a field has a validation error
+  const hasFieldError = (entryId: string, field: string) =>
+    fieldErrors.has(`${entryId}:${field}`);
+
+  // Check if a phone field has a validation error
+  const hasPhoneError = (entryId: string, phoneId: string) =>
+    fieldErrors.has(`${entryId}:phone:${phoneId}`);
+
+  // Validate all entries — stops at first error and highlights only the affected field(s)
   const validateEntries = (): string | null => {
     for (let i = 0; i < entries.length; i++) {
       const entry = entries[i];
@@ -342,8 +361,13 @@ export default function GuardianFormModal({
 
       const label = entries.length > 1 ? ` (Person ${i + 1})` : "";
 
-      if (!entry.firstName.trim() || !entry.lastName.trim()) {
-        return `Vorname und Nachname sind erforderlich${label}`;
+      if (!entry.firstName.trim()) {
+        setFieldErrors(new Set([`${entry.id}:firstName`]));
+        return `Vorname ist erforderlich${label}`;
+      }
+      if (!entry.lastName.trim()) {
+        setFieldErrors(new Set([`${entry.id}:lastName`]));
+        return `Nachname ist erforderlich${label}`;
       }
 
       // Validate email format if provided (basic check, backend does full validation)
@@ -357,6 +381,7 @@ export default function GuardianFormModal({
           dotIndex >= trimmedEmail.length - 1 ||
           trimmedEmail.includes(" ")
         ) {
+          setFieldErrors(new Set([`${entry.id}:email`]));
           return `Ungültiges E-Mail-Format${label}`;
         }
       }
@@ -365,6 +390,7 @@ export default function GuardianFormModal({
       for (const phone of entry.phoneNumbers) {
         const phoneError = validatePhoneNumber(phone.phoneNumber);
         if (phoneError) {
+          setFieldErrors(new Set([`${entry.id}:phone:${phone.id}`]));
           return `${phoneError}${label}`;
         }
       }
@@ -376,9 +402,16 @@ export default function GuardianFormModal({
       );
 
       if (!hasEmail && !hasPhone) {
+        const contactErrors = new Set<string>([`${entry.id}:email`]);
+        for (const phone of entry.phoneNumbers) {
+          contactErrors.add(`${entry.id}:phone:${phone.id}`);
+        }
+        setFieldErrors(contactErrors);
         return `Mindestens eine Kontaktmöglichkeit ist erforderlich${label}`;
       }
     }
+
+    setFieldErrors(new Set());
     return null;
   };
 
@@ -429,6 +462,7 @@ export default function GuardianFormModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setFieldErrors(new Set());
 
     const validationError = validateEntries();
     if (validationError) {
@@ -468,7 +502,10 @@ export default function GuardianFormModal({
       >
         {/* Submit Error */}
         {error && (
-          <div className="rounded-lg border border-red-200 bg-red-50 p-2 md:p-3">
+          <div
+            ref={errorRef}
+            className="rounded-lg border border-red-200 bg-red-50 p-2 md:p-3"
+          >
             <p className="text-xs text-red-800 md:text-sm">{error}</p>
           </div>
         )}
@@ -526,7 +563,7 @@ export default function GuardianFormModal({
                 <div>
                   <label
                     htmlFor={`guardian-first-name-${entry.id}`}
-                    className="mb-1 block text-xs font-medium text-gray-700"
+                    className={`mb-1 block text-xs font-medium ${hasFieldError(entry.id, "firstName") ? "text-red-600" : "text-gray-700"}`}
                   >
                     Vorname <span className="text-red-500">*</span>
                   </label>
@@ -537,7 +574,7 @@ export default function GuardianFormModal({
                     onChange={(e) =>
                       updateEntry(entry.id, "firstName", e.target.value)
                     }
-                    className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
+                    className={`block w-full rounded-lg border bg-white px-3 py-2 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] ${hasFieldError(entry.id, "firstName") ? "border-red-400" : "border-gray-200"}`}
                     placeholder="Max"
                     required
                     disabled={isLoading}
@@ -547,7 +584,7 @@ export default function GuardianFormModal({
                 <div>
                   <label
                     htmlFor={`guardian-last-name-${entry.id}`}
-                    className="mb-1 block text-xs font-medium text-gray-700"
+                    className={`mb-1 block text-xs font-medium ${hasFieldError(entry.id, "lastName") ? "text-red-600" : "text-gray-700"}`}
                   >
                     Nachname <span className="text-red-500">*</span>
                   </label>
@@ -558,7 +595,7 @@ export default function GuardianFormModal({
                     onChange={(e) =>
                       updateEntry(entry.id, "lastName", e.target.value)
                     }
-                    className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
+                    className={`block w-full rounded-lg border bg-white px-3 py-2 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] ${hasFieldError(entry.id, "lastName") ? "border-red-400" : "border-gray-200"}`}
                     placeholder="Mustermann"
                     required
                     disabled={isLoading}
@@ -635,7 +672,7 @@ export default function GuardianFormModal({
               <div className="mb-4">
                 <label
                   htmlFor={`guardian-email-${entry.id}`}
-                  className="mb-1 block text-xs font-medium text-gray-700"
+                  className={`mb-1 block text-xs font-medium ${hasFieldError(entry.id, "email") ? "text-red-600" : "text-gray-700"}`}
                 >
                   E-Mail
                 </label>
@@ -646,7 +683,7 @@ export default function GuardianFormModal({
                   onChange={(e) =>
                     updateEntry(entry.id, "email", e.target.value)
                   }
-                  className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
+                  className={`block w-full rounded-lg border bg-white px-3 py-2 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] ${hasFieldError(entry.id, "email") ? "border-red-400" : "border-gray-200"}`}
                   placeholder="max.mustermann@example.com"
                   disabled={isLoading}
                 />
@@ -704,7 +741,7 @@ export default function GuardianFormModal({
                             e.target.value,
                           )
                         }
-                        className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
+                        className={`block w-full rounded-lg border bg-white px-3 py-1.5 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] ${hasPhoneError(entry.id, phone.id) ? "border-red-400" : "border-gray-200"}`}
                         placeholder="+49 170 1234567"
                         disabled={isLoading}
                         aria-label={`Telefonnummer ${phoneIndex + 1}`}
