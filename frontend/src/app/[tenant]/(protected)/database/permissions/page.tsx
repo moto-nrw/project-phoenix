@@ -13,10 +13,7 @@ import type {
   FilterConfig,
 } from "~/components/ui/page-header/types";
 import { getDbOperationMessage } from "@/lib/use-notification";
-import {
-  createCrudService,
-  getDeleteErrorMessage,
-} from "@/lib/database/service-factory";
+import { createCrudService } from "@/lib/database/service-factory";
 import { permissionsConfig } from "@/lib/database/configs/permissions.config";
 import type { Permission } from "@/lib/auth-helpers";
 import {
@@ -242,7 +239,11 @@ export default function PermissionsPage() {
     if (!selectedPermission) return;
     try {
       setDetailLoading(true);
-      await service.delete(selectedPermission.id);
+      const deleteError = await service.delete(selectedPermission.id);
+      if (deleteError) {
+        toastError(deleteError);
+        return;
+      }
       const display = `${selectedPermission.resource}: ${selectedPermission.action}`;
       toastSuccess(
         getDbOperationMessage(
@@ -254,8 +255,6 @@ export default function PermissionsPage() {
       setShowDetailModal(false);
       setSelectedPermission(null);
       await fetchPermissions();
-    } catch (err) {
-      toastError(getDeleteErrorMessage(err));
     } finally {
       setDetailLoading(false);
     }

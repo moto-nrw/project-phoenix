@@ -13,10 +13,7 @@ import type {
   ActiveFilter,
 } from "~/components/ui/page-header/types";
 import { getDbOperationMessage } from "@/lib/use-notification";
-import {
-  createCrudService,
-  getDeleteErrorMessage,
-} from "@/lib/database/service-factory";
+import { createCrudService } from "@/lib/database/service-factory";
 import { roomsConfig } from "@/lib/database/configs/rooms.config";
 import { formatFloor, type Room } from "@/lib/room-helpers";
 import {
@@ -216,7 +213,11 @@ export default function RoomsPage() {
     if (!selectedRoom) return;
     try {
       setDetailLoading(true);
-      await service.delete(selectedRoom.id);
+      const deleteError = await service.delete(selectedRoom.id);
+      if (deleteError) {
+        toastError(deleteError);
+        return;
+      }
       toastSuccess(
         getDbOperationMessage(
           "delete",
@@ -227,8 +228,6 @@ export default function RoomsPage() {
       setShowDetailModal(false);
       setSelectedRoom(null);
       await tenantMutate("database-rooms-list");
-    } catch (err) {
-      toastError(getDeleteErrorMessage(err));
     } finally {
       setDetailLoading(false);
     }

@@ -13,10 +13,7 @@ import type {
 import { useToast } from "~/contexts/ToastContext";
 import { useIsMobile } from "~/hooks/useIsMobile";
 import { getDbOperationMessage } from "@/lib/use-notification";
-import {
-  createCrudService,
-  getDeleteErrorMessage,
-} from "@/lib/database/service-factory";
+import { createCrudService } from "@/lib/database/service-factory";
 import { activitiesConfig } from "@/lib/database/configs/activities.config";
 import type { Activity } from "@/lib/activity-helpers";
 import {
@@ -217,7 +214,11 @@ export default function ActivitiesPage() {
     if (!selectedActivity) return;
     try {
       setDetailLoading(true);
-      await service.delete(selectedActivity.id);
+      const deleteError = await service.delete(selectedActivity.id);
+      if (deleteError) {
+        toastError(deleteError);
+        return;
+      }
       toastSuccess(
         getDbOperationMessage(
           "delete",
@@ -228,8 +229,6 @@ export default function ActivitiesPage() {
       setShowDetailModal(false);
       setSelectedActivity(null);
       await tenantMutate("database-activities-list");
-    } catch (err) {
-      toastError(getDeleteErrorMessage(err));
     } finally {
       setDetailLoading(false);
     }

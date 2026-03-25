@@ -408,13 +408,13 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
       }
     },
 
-    async delete(id: string): Promise<void> {
+    async delete(id: string): Promise<string | null> {
       try {
         // Apply hook
         if (config.hooks?.beforeDelete) {
           const shouldDelete = await config.hooks.beforeDelete(id);
           if (!shouldDelete) {
-            throw new Error("Delete operation cancelled");
+            return "Löschen wurde abgebrochen";
           }
         }
 
@@ -428,13 +428,14 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
         if (config.hooks?.afterDelete) {
           await config.hooks.afterDelete(id);
         }
+        return null;
       } catch (error) {
         logger.warn("entity_delete_rejected", {
           entity: config.name.singular,
           id,
           error: String(error),
         });
-        throw error;
+        return getDeleteErrorMessage(error);
       }
     },
   };

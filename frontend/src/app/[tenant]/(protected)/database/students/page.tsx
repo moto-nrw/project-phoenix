@@ -20,10 +20,7 @@ import { StudentEditModal } from "@/components/students/student-edit-modal";
 import { StudentCreateModal } from "@/components/students/student-create-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { getDbOperationMessage } from "@/lib/use-notification";
-import {
-  createCrudService,
-  getDeleteErrorMessage,
-} from "@/lib/database/service-factory";
+import { createCrudService } from "@/lib/database/service-factory";
 import { studentsConfig } from "@/lib/database/configs/students.config";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import type { Student } from "@/lib/api";
@@ -311,7 +308,11 @@ export default function StudentsPage() {
 
     try {
       setDetailLoading(true);
-      await service.delete(selectedStudent.id);
+      const deleteError = await service.delete(selectedStudent.id);
+      if (deleteError) {
+        toastError(deleteError);
+        return;
+      }
 
       // Only update state if still mounted
       if (!isMountedRef.current) return;
@@ -328,11 +329,6 @@ export default function StudentsPage() {
       setShowDetailModal(false);
       setSelectedStudent(null);
       await tenantMutate("database-students-list");
-    } catch (err) {
-      logger.error("failed to delete student", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      toastError(getDeleteErrorMessage(err));
     } finally {
       if (isMountedRef.current) {
         setDetailLoading(false);

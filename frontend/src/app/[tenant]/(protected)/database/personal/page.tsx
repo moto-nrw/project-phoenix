@@ -20,10 +20,7 @@ import { TeacherDetailModal } from "@/components/teachers/teacher-detail-modal";
 import { TeacherEditModal } from "@/components/teachers/teacher-edit-modal";
 import { TeacherCreateModal } from "@/components/teachers/teacher-create-modal";
 import { getDbOperationMessage } from "@/lib/use-notification";
-import {
-  createCrudService,
-  getDeleteErrorMessage,
-} from "@/lib/database/service-factory";
+import { createCrudService } from "@/lib/database/service-factory";
 import { teachersConfig } from "@/lib/database/configs/teachers.config";
 import type { Teacher } from "@/lib/teacher-api";
 import { Modal, ConfirmationModal } from "~/components/ui/modal";
@@ -244,18 +241,17 @@ export default function TeachersPage() {
 
     try {
       setDetailLoading(true);
-      await service.delete(selectedTeacher.id);
+      const deleteError = await service.delete(selectedTeacher.id);
+      if (deleteError) {
+        toastError(deleteError);
+        return;
+      }
       setShowDetailModal(false);
       toastSuccess(
         getDbOperationMessage("delete", teachersConfig.name.singular),
       );
       await tenantMutate("database-teachers-list");
       setSelectedTeacher(null);
-    } catch (err) {
-      logger.error("failed to delete teacher", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      toastError(getDeleteErrorMessage(err));
     } finally {
       setDetailLoading(false);
     }

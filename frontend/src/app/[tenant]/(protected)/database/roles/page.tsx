@@ -13,10 +13,7 @@ import type {
   ActiveFilter,
 } from "~/components/ui/page-header/types";
 import { getDbOperationMessage } from "@/lib/use-notification";
-import {
-  createCrudService,
-  getDeleteErrorMessage,
-} from "@/lib/database/service-factory";
+import { createCrudService } from "@/lib/database/service-factory";
 import { rolesConfig } from "@/lib/database/configs/roles.config";
 import type { Role } from "@/lib/auth-helpers";
 import {
@@ -180,7 +177,11 @@ export default function RolesPage() {
     if (!selectedRole) return;
     try {
       setDetailLoading(true);
-      await service.delete(selectedRole.id);
+      const deleteError = await service.delete(selectedRole.id);
+      if (deleteError) {
+        toastError(deleteError);
+        return;
+      }
       toastSuccess(
         getDbOperationMessage(
           "delete",
@@ -191,8 +192,6 @@ export default function RolesPage() {
       setShowDetailModal(false);
       setSelectedRole(null);
       await fetchRoles();
-    } catch (err) {
-      toastError(getDeleteErrorMessage(err));
     } finally {
       setDetailLoading(false);
     }
