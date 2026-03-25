@@ -329,6 +329,9 @@ export default function StudentsPage() {
       logger.error("failed to delete student", {
         error: err instanceof Error ? err.message : String(err),
       });
+      toastError(
+        err instanceof Error ? err.message : "Fehler beim Löschen des Schülers",
+      );
     } finally {
       if (isMountedRef.current) {
         setDetailLoading(false);

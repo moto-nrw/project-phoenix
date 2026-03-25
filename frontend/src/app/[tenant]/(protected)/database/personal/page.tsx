@@ -88,7 +88,7 @@ export default function TeachersPage() {
   const [roleModalOpen, setRoleModalOpen] = useState(false);
   const [permissionModalOpen, setPermissionModalOpen] = useState(false);
 
-  const { success: toastSuccess } = useToast();
+  const { success: toastSuccess, error: toastError } = useToast();
 
   const { status } = useSession({
     required: true,
@@ -252,7 +252,11 @@ export default function TeachersPage() {
       logger.error("failed to delete teacher", {
         error: err instanceof Error ? err.message : String(err),
       });
-      throw err;
+      toastError(
+        err instanceof Error
+          ? err.message
+          : "Fehler beim Löschen des Personals",
+      );
     } finally {
       setDetailLoading(false);
     }

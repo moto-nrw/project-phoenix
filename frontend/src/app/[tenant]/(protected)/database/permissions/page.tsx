@@ -57,7 +57,7 @@ export default function PermissionsPage() {
     confirmDelete,
   } = useDeleteConfirmation(setShowDetailModal);
 
-  const { success: toastSuccess } = useToast();
+  const { success: toastSuccess, error: toastError } = useToast();
 
   const { status } = useSession({
     required: true,
@@ -251,6 +251,12 @@ export default function PermissionsPage() {
       setShowDetailModal(false);
       setSelectedPermission(null);
       await fetchPermissions();
+    } catch (err) {
+      toastError(
+        err instanceof Error
+          ? err.message
+          : "Fehler beim Löschen der Berechtigung",
+      );
     } finally {
       setDetailLoading(false);
     }

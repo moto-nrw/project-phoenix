@@ -55,7 +55,7 @@ export default function RolesPage() {
     confirmDelete,
   } = useDeleteConfirmation(setShowDetailModal);
 
-  const { success: toastSuccess } = useToast();
+  const { success: toastSuccess, error: toastError } = useToast();
 
   const { status } = useSession({
     required: true,
@@ -188,6 +188,10 @@ export default function RolesPage() {
       setShowDetailModal(false);
       setSelectedRole(null);
       await fetchRoles();
+    } catch (err) {
+      toastError(
+        err instanceof Error ? err.message : "Fehler beim Löschen der Rolle",
+      );
     } finally {
       setDetailLoading(false);
     }
