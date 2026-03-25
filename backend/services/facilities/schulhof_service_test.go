@@ -887,7 +887,7 @@ func TestSchulhofService_GetOrCreateActiveGroup_EndsStaleGroups(t *testing.T) {
 	repoFactory := repositories.NewFactory(db)
 	educationService := educationSvc.NewService(
 		repoFactory.Group, repoFactory.GroupTeacher, repoFactory.GroupSubstitution,
-		repoFactory.Room, repoFactory.Teacher, repoFactory.Staff, db,
+		repoFactory.Room, repoFactory.Teacher, repoFactory.Staff, repoFactory.Student, db,
 	)
 	usersService := usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{
 		PersonRepo: repoFactory.Person, RFIDRepo: repoFactory.RFIDCard,

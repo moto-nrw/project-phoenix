@@ -29,6 +29,7 @@ func setupEducationService(t *testing.T, db *bun.DB) educationSvc.Service {
 		repoFactory.Room,
 		repoFactory.Teacher,
 		repoFactory.Staff,
+		repoFactory.Student,
 		db,
 	)
 }

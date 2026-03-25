@@ -296,8 +296,8 @@ func TestDeleteRoom(t *testing.T) {
 
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
-		// Service returns error when room doesn't exist
-		testutil.AssertErrorResponse(t, rr, http.StatusInternalServerError)
+		// Service returns not found when room doesn't exist (ErrorRenderer maps ErrRoomNotFound → 404)
+		testutil.AssertErrorResponse(t, rr, http.StatusNotFound)
 	})
 
 	t.Run("bad_request_for_invalid_id", func(t *testing.T) {
