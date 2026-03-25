@@ -75,7 +75,7 @@ export function DataListPage<T extends BaseEntity>({
   // Default entity renderer
   const defaultRenderEntity = (entity: T) => (
     <div className="flex w-full items-center justify-between">
-      <span>{entity.name || "Unbenannt"}</span>
+      <span className="min-w-0 truncate">{entity.name || "Unbenannt"}</span>
       <svg
         xmlns="http://www.w3.org/2000/svg"
         className="h-5 w-5 text-gray-400"

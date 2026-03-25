@@ -300,6 +300,7 @@ export function TeacherForm({
                 } px-3 py-2 text-sm transition-colors`}
                 disabled={isLoading}
                 autoComplete="given-name"
+                maxLength={255}
               />
               {errors.firstName && (
                 <p className="mt-1 text-xs text-red-600">{errors.firstName}</p>
@@ -327,6 +328,7 @@ export function TeacherForm({
                 } px-3 py-2 text-sm transition-colors`}
                 disabled={isLoading}
                 autoComplete="family-name"
+                maxLength={255}
               />
               {errors.lastName && (
                 <p className="mt-1 text-xs text-red-600">{errors.lastName}</p>
@@ -353,6 +355,7 @@ export function TeacherForm({
                       : "border-gray-200 bg-white focus:border-[#F78C10] focus:ring-1 focus:ring-[#F78C10]"
                   } px-3 py-2 text-sm transition-colors`}
                   disabled={isLoading}
+                  maxLength={255}
                 />
                 {errors.email && (
                   <p className="mt-1 text-xs text-red-600">{errors.email}</p>

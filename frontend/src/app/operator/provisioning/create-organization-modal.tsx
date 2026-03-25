@@ -120,6 +120,7 @@ export function CreateOrganizationModal({
             type="text"
             value={orgName}
             onChange={(e) => handleOrgNameChange(e.target.value)}
+            maxLength={255}
             className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
             required
           />
@@ -133,6 +134,7 @@ export function CreateOrganizationModal({
               setOrgSlugManual(true);
               setOrgSlug(e.target.value);
             }}
+            maxLength={255}
             className="w-full rounded-lg border border-gray-200 px-3 py-2 font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
             required
           />

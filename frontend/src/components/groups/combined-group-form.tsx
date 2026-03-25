@@ -131,6 +131,7 @@ export default function CombinedGroupForm({
                   onChange={handleChange}
                   required
                   className="w-full rounded-lg border border-gray-300 px-4 py-2 transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  maxLength={255}
                 />
               </div>
 
@@ -225,6 +226,7 @@ export default function CombinedGroupForm({
                     onChange={handleChange}
                     required
                     className="w-full rounded-lg border border-gray-300 px-4 py-2 transition-all duration-200 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                    maxLength={255}
                   />
                   <p className="mt-1 text-xs text-gray-500">
                     ID der Gruppe, deren Zugriffsberechtigungen verwendet werden

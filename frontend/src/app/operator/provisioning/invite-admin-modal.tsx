@@ -162,6 +162,7 @@ export function InviteAdminModal({
               autoComplete="email"
               value={inviteEmail}
               onChange={(e) => setInviteEmail(e.target.value)}
+              maxLength={255}
               className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
               required
             />
@@ -174,6 +175,7 @@ export function InviteAdminModal({
                 autoComplete="given-name"
                 value={inviteFirstName}
                 onChange={(e) => setInviteFirstName(e.target.value)}
+                maxLength={255}
                 className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
               />
             </FormField>
@@ -184,6 +186,7 @@ export function InviteAdminModal({
                 autoComplete="family-name"
                 value={inviteLastName}
                 onChange={(e) => setInviteLastName(e.target.value)}
+                maxLength={255}
                 className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
               />
             </FormField>

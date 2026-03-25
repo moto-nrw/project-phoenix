@@ -572,6 +572,7 @@ export default function GuardianFormModal({
                     placeholder="Max"
                     required
                     disabled={isLoading}
+                    maxLength={255}
                   />
                 </div>
 
@@ -593,6 +594,7 @@ export default function GuardianFormModal({
                     placeholder="Mustermann"
                     required
                     disabled={isLoading}
+                    maxLength={255}
                   />
                 </div>
 
@@ -680,6 +682,7 @@ export default function GuardianFormModal({
                   className={`block w-full rounded-lg border bg-white px-3 py-2 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] ${hasFieldError(entry.id, "email") ? "border-red-400" : "border-gray-200"}`}
                   placeholder="max.mustermann@example.com"
                   disabled={isLoading}
+                  maxLength={255}
                 />
               </div>
 
@@ -739,6 +742,7 @@ export default function GuardianFormModal({
                         placeholder="+49 170 1234567"
                         disabled={isLoading}
                         aria-label={`Telefonnummer ${phoneIndex + 1}`}
+                        maxLength={30}
                       />
                     </div>
 
@@ -760,6 +764,7 @@ export default function GuardianFormModal({
                         placeholder="Notiz"
                         disabled={isLoading}
                         aria-label={`Notiz für Nummer ${phoneIndex + 1}`}
+                        maxLength={255}
                       />
                     </div>
 
@@ -862,6 +867,7 @@ export default function GuardianFormModal({
                     className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
                     placeholder="Musterstr. 1"
                     disabled={isLoading}
+                    maxLength={255}
                   />
                 </div>
                 <div>
@@ -901,6 +907,7 @@ export default function GuardianFormModal({
                     className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
                     placeholder="Köln"
                     disabled={isLoading}
+                    maxLength={255}
                   />
                 </div>
               </div>
@@ -986,6 +993,7 @@ export default function GuardianFormModal({
                     placeholder="Interne Notizen zum Erziehungsberechtigten"
                     rows={2}
                     disabled={isLoading}
+                    maxLength={2000}
                   />
                 </div>
               </div>

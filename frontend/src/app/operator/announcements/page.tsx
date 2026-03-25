@@ -377,6 +377,7 @@ export default function OperatorAnnouncementsPage() {
               onChange={(e) =>
                 setFormData((prev) => ({ ...prev, title: e.target.value }))
               }
+              maxLength={200}
               className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
               required
             />
@@ -397,6 +398,7 @@ export default function OperatorAnnouncementsPage() {
                 setFormData((prev) => ({ ...prev, content: e.target.value }))
               }
               rows={5}
+              maxLength={5000}
               className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
               required
             />
@@ -521,6 +523,7 @@ export default function OperatorAnnouncementsPage() {
                   setFormData((prev) => ({ ...prev, version: e.target.value }))
                 }
                 placeholder="z.B. 2.1.0"
+                maxLength={255}
                 className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
               />
             </div>

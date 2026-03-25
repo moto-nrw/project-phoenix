@@ -108,6 +108,7 @@ function OperatorSettingsContent() {
                 setFormData({ ...formData, displayName: e.target.value })
               }
               disabled={!isEditing}
+              maxLength={255}
               className="w-full rounded-lg border border-gray-200 px-4 py-3 text-base transition-all focus:ring-2 focus:ring-[#5080D8] focus:outline-none disabled:bg-gray-50 disabled:text-gray-500"
             />
           </div>
@@ -123,6 +124,7 @@ function OperatorSettingsContent() {
               type="email"
               value={formData.email}
               disabled
+              maxLength={255}
               className="w-full rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-base text-gray-500"
             />
           </div>

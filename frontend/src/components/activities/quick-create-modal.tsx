@@ -245,6 +245,7 @@ export function QuickCreateActivityModal({
                     placeholder="z.B. Hausaufgaben, Malen, Basteln..."
                     className={`block w-full rounded-xl border-0 bg-white/80 px-4 py-3.5 text-base text-gray-900 shadow-sm ring-1 ${errorFieldName === "name" ? "ring-red-400" : "ring-gray-200/50"} backdrop-blur-sm transition-all duration-200 ring-inset placeholder:text-gray-400 focus:bg-white focus:ring-2 focus:ring-gray-700 focus:ring-inset`}
                     required
+                    maxLength={255}
                   />
                 </div>
               </div>

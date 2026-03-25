@@ -438,6 +438,7 @@ export function ActivityManagementModal({
                     className="block w-full rounded-lg border-0 bg-white/80 px-3 py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200/50 backdrop-blur-sm transition-all duration-200 ring-inset placeholder:text-gray-400 focus:bg-white focus:ring-2 focus:ring-[#5080D8] focus:ring-inset disabled:cursor-not-allowed disabled:bg-gray-50 md:py-2.5 md:text-sm"
                     required
                     disabled={readOnly}
+                    maxLength={255}
                   />
                 </div>
               </div>
