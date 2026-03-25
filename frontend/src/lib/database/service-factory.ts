@@ -82,6 +82,53 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
     return session?.user?.token;
   };
 
+  // Extract a clean error message from potentially nested JSON error responses.
+  // The route handler wraps backend errors as: {"error":"API error (409): {\"status\":\"error\",\"error\":\"...\"}"}
+  // This function digs through the layers to find the original backend error text.
+  const extractErrorMessage = (
+    responseText: string,
+    status: number,
+  ): string => {
+    const fallback = `API error: ${status} - ${responseText}`;
+    try {
+      const parsed: unknown = JSON.parse(responseText);
+      if (
+        typeof parsed === "object" &&
+        parsed !== null &&
+        "error" in parsed &&
+        typeof (parsed as { error: string }).error === "string"
+      ) {
+        const innerError = (parsed as { error: string }).error;
+        // Try to extract nested backend JSON from "API error (409): {json}"
+        const innerMatch = /:\s*(\{.*\})\s*$/s.exec(innerError);
+        if (innerMatch?.[1]) {
+          try {
+            const backendError: unknown = JSON.parse(innerMatch[1]);
+            if (
+              typeof backendError === "object" &&
+              backendError !== null &&
+              "error" in backendError &&
+              typeof (backendError as { error: string }).error === "string"
+            ) {
+              // Strip Go service prefix like "education: DeleteGroup: "
+              return (backendError as { error: string }).error.replace(
+                /^\w+:\s*\w+:\s*/,
+                "",
+              );
+            }
+          } catch {
+            // Inner JSON parse failed, use the outer error string
+          }
+        }
+        // No nested JSON, just return the error field directly
+        return innerError;
+      }
+    } catch {
+      // Not JSON at all
+    }
+    return fallback;
+  };
+
   // Helper to make fetch requests with auth
   const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
     const token = await getToken();
@@ -107,7 +154,11 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
     if (!response.ok) {
       const errorText = await response.text();
       logger.error("API error", { status: response.status, error: errorText });
-      throw new Error(`API error: ${response.status} - ${errorText}`);
+
+      // Try to extract a clean error message from the nested JSON response.
+      // The error chain is: backend → route handler → this fetch, each wrapping the previous.
+      const userMessage = extractErrorMessage(errorText, response.status);
+      throw new Error(userMessage);
     }
 
     // Handle empty responses (204 No Content, or empty body from DELETE)
