@@ -502,7 +502,7 @@ describe("validateFormFields", () => {
     expect(validateFormFields(sections, formData)).toBeNull();
   });
 
-  it("returns first error when validation fails", () => {
+  it("returns first error with field name when validation fails", () => {
     const sections: FormSection[] = [
       {
         title: "Personal",
@@ -523,9 +523,10 @@ describe("validateFormFields", () => {
       },
     ];
     const formData = { first_name: "", last_name: "Doe" };
-    expect(validateFormFields(sections, formData)).toBe(
-      "Vorname ist erforderlich.",
-    );
+    expect(validateFormFields(sections, formData)).toEqual({
+      message: "Vorname ist erforderlich.",
+      fieldName: "first_name",
+    });
   });
 
   it("validates across multiple sections", () => {
@@ -549,9 +550,10 @@ describe("validateFormFields", () => {
       },
     ];
     const formData = { first_name: "John", email: "" };
-    expect(validateFormFields(sections, formData)).toBe(
-      "E-Mail ist erforderlich.",
-    );
+    expect(validateFormFields(sections, formData)).toEqual({
+      message: "E-Mail ist erforderlich.",
+      fieldName: "email",
+    });
   });
 
   it("returns null for empty sections", () => {
@@ -1037,6 +1039,96 @@ describe("DatabaseForm", () => {
 
       // onSubmit should not have been called
       expect(onSubmit).not.toHaveBeenCalled();
+    });
+
+    it("highlights the failing field with red border and label on validation error", async () => {
+      const sectionsMulti: FormSection[] = [
+        {
+          title: "Test Section",
+          fields: [
+            {
+              name: "first_field",
+              label: "First Field",
+              type: "text",
+              required: false,
+            },
+            {
+              name: "second_field",
+              label: "Second Field",
+              type: "text",
+              required: true,
+            },
+          ],
+        },
+      ];
+
+      render(<DatabaseForm {...defaultProps} sections={sectionsMulti} />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+      await waitFor(() => {
+        expect(
+          screen.getByText("Second Field ist erforderlich."),
+        ).toBeInTheDocument();
+      });
+
+      // The failing field's label should have red text
+      const failingLabel = screen.getByText(/Second Field\*/);
+      expect(failingLabel.className).toContain("text-red-600");
+
+      // The non-failing field's label should remain gray
+      const passingLabel = screen.getByText("First Field");
+      expect(passingLabel.className).toContain("text-gray-700");
+    });
+
+    it("clears field highlighting on next submit attempt", async () => {
+      const onSubmit = vi.fn().mockResolvedValue(undefined);
+
+      render(<DatabaseForm {...defaultProps} onSubmit={onSubmit} />);
+
+      // First submit — validation fails
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+      await waitFor(() => {
+        expect(
+          screen.getByText("Test Field ist erforderlich."),
+        ).toBeInTheDocument();
+      });
+
+      const label = screen.getByText(/Test Field\*/);
+      expect(label.className).toContain("text-red-600");
+
+      // Fill in and re-submit
+      const input = screen.getByLabelText(/Test Field/);
+      fireEvent.change(input, { target: { value: "fixed" } });
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+      await waitFor(() => {
+        expect(onSubmit).toHaveBeenCalledTimes(1);
+      });
+
+      // Label should no longer be red
+      expect(label.className).toContain("text-gray-700");
+    });
+
+    it("scrolls to error banner on validation failure", async () => {
+      const scrollIntoViewMock = vi.fn();
+      Element.prototype.scrollIntoView = scrollIntoViewMock;
+
+      render(<DatabaseForm {...defaultProps} />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+      await waitFor(() => {
+        expect(
+          screen.getByText("Test Field ist erforderlich."),
+        ).toBeInTheDocument();
+      });
+
+      expect(scrollIntoViewMock).toHaveBeenCalledWith({
+        behavior: "smooth",
+        block: "start",
+      });
     });
 
     it("shows loading state during async submission", async () => {
