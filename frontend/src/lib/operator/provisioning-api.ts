@@ -156,12 +156,12 @@ class OperatorProvisioningService {
   async createSchoolAccount(
     schoolId: string,
     data: CreateAccountRequest,
-  ): Promise<SchoolAccount> {
-    const result = await operatorFetch<BackendSchoolAccount>(
+  ): Promise<{ id: string; email: string }> {
+    const result = await operatorFetch<{ id: number; email: string }>(
       `/api/operator/provisioning/schools/${encodeURIComponent(schoolId)}/create-account`,
       { method: "POST", body: data },
     );
-    return mapSchoolAccount(result);
+    return { id: result.id.toString(), email: result.email };
   }
 
   async listSystemRoles(): Promise<

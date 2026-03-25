@@ -2,7 +2,6 @@ import { useState, useCallback, useEffect } from "react";
 import { Modal } from "~/components/ui/modal";
 import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
-import type { SchoolAccount } from "~/lib/operator/provisioning-helpers";
 import { getRoleDisplayName } from "~/lib/auth-helpers";
 import { createLogger } from "~/lib/logger";
 import { FormField, FormError } from "./provisioning-shared";
@@ -41,7 +40,10 @@ export function CreateAccountModal({
   const [roles, setRoles] = useState<RoleOption[]>([]);
   const [isLoadingRoles, setIsLoadingRoles] = useState(true);
 
-  const [result, setResult] = useState<SchoolAccount | null>(null);
+  const [result, setResult] = useState<{
+    id: string;
+    email: string;
+  } | null>(null);
 
   const inputClasses =
     "w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none";
