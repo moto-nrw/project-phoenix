@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math/big"
 	"net"
 	"strings"
 	"time"
@@ -18,6 +19,7 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/platform"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -26,10 +28,12 @@ import (
 
 // CreateSchoolAccountRequest holds fields for operator-created school accounts.
 type CreateSchoolAccountRequest struct {
-	Email    string
-	Username string
-	Password string
-	RoleID   *int64
+	Email     string
+	Password  string
+	FirstName string
+	LastName  string
+	RoleID    *int64
+	Position  string // optional, maps to Teacher.Role
 }
 
 // UpdateOrganizationRequest holds fields for updating an organization.
@@ -122,6 +126,9 @@ type operatorProvisioningService struct {
 	deviceRepo        iotModels.DeviceRepository
 	roleRepo          authModels.RoleRepository
 	accountTenantRepo authModels.AccountTenantRepository
+	personRepo        userModels.PersonRepository
+	staffRepo         userModels.StaffRepository
+	teacherRepo       userModels.TeacherRepository
 	invitationService authSvc.InvitationService
 	authService       authSvc.AuthService
 	auditLogRepo      platform.OperatorAuditLogRepository
@@ -137,6 +144,9 @@ type OperatorProvisioningServiceConfig struct {
 	DeviceRepo        iotModels.DeviceRepository
 	RoleRepo          authModels.RoleRepository
 	AccountTenantRepo authModels.AccountTenantRepository
+	PersonRepo        userModels.PersonRepository
+	StaffRepo         userModels.StaffRepository
+	TeacherRepo       userModels.TeacherRepository
 	InvitationService authSvc.InvitationService
 	AuthService       authSvc.AuthService
 	AuditLogRepo      platform.OperatorAuditLogRepository
@@ -153,6 +163,9 @@ func NewOperatorProvisioningService(cfg OperatorProvisioningServiceConfig) Opera
 		deviceRepo:        cfg.DeviceRepo,
 		roleRepo:          cfg.RoleRepo,
 		accountTenantRepo: cfg.AccountTenantRepo,
+		personRepo:        cfg.PersonRepo,
+		staffRepo:         cfg.StaffRepo,
+		teacherRepo:       cfg.TeacherRepo,
 		invitationService: cfg.InvitationService,
 		authService:       cfg.AuthService,
 		auditLogRepo:      cfg.AuditLogRepo,
@@ -439,12 +452,61 @@ func (s *operatorProvisioningService) CreateSchoolAccount(ctx context.Context, s
 			roleID = &adminRole.ID
 		}
 
+		// Auto-generate username from name
+		suffix := generateRandomSuffix(6)
+		username := fmt.Sprintf("%s_%s_%s",
+			strings.ToLower(strings.TrimSpace(req.FirstName)),
+			strings.ToLower(strings.TrimSpace(req.LastName)),
+			suffix,
+		)
+
+		// Step 1: Create Account
 		tenantCtx := tenant.WithTenantID(adminCtx, school.ID)
-		created, createErr := s.authService.Register(tenantCtx, req.Email, req.Username, req.Password, roleID, school.ID)
+		created, createErr := s.authService.Register(tenantCtx, req.Email, username, req.Password, roleID, school.ID)
 		if createErr != nil {
 			return createErr
 		}
 		account = created
+
+		// Step 2: Create Person
+		person := &userModels.Person{
+			FirstName: req.FirstName,
+			LastName:  req.LastName,
+		}
+		person.SetTenantID(school.ID)
+		if err := s.personRepo.Create(tenantCtx, person); err != nil {
+			return fmt.Errorf("create person: %w", err)
+		}
+
+		// Link person to account
+		if err := s.personRepo.LinkToAccount(tenantCtx, person.ID, account.ID); err != nil {
+			return fmt.Errorf("link person to account: %w", err)
+		}
+
+		// Step 3: Create Staff (only for system roles)
+		if roleID != nil {
+			role, roleErr := s.roleRepo.FindByID(tenantCtx, *roleID)
+			if roleErr == nil && role != nil && role.IsSystem {
+				staff := &userModels.Staff{PersonID: person.ID}
+				staff.SetTenantID(school.ID)
+				if err := s.staffRepo.Create(tenantCtx, staff); err != nil {
+					return fmt.Errorf("create staff: %w", err)
+				}
+
+				// Create Teacher for "user" and "teacher" roles
+				if shouldCreateTeacher(role.Name) {
+					teacher := &userModels.Teacher{StaffID: staff.ID}
+					teacher.SetTenantID(school.ID)
+					if req.Position != "" {
+						teacher.Role = req.Position
+					}
+					if err := s.teacherRepo.Create(tenantCtx, teacher); err != nil {
+						return fmt.Errorf("create teacher: %w", err)
+					}
+				}
+			}
+		}
+
 		s.logAction(adminCtx, operatorID, platform.ActionCreate, platform.ResourceAccount, &account.ID, clientIP, map[string]any{
 			"schoolID": school.ID,
 			"email":    account.Email,
@@ -628,6 +690,27 @@ func (s *operatorProvisioningService) resolveAPIKey(apiKey *string) (string, err
 		return *apiKey, nil
 	}
 	return s.generateAPIKey()
+}
+
+// generateRandomSuffix creates a cryptographically random alphanumeric string of the given length.
+func generateRandomSuffix(length int) string {
+	const chars = "abcdefghijklmnopqrstuvwxyz0123456789"
+	b := make([]byte, length)
+	for i := range b {
+		n, _ := rand.Int(rand.Reader, big.NewInt(int64(len(chars))))
+		b[i] = chars[n.Int64()]
+	}
+	return string(b)
+}
+
+// shouldCreateTeacher returns true for roles that should have a Teacher record.
+func shouldCreateTeacher(roleName string) bool {
+	switch strings.ToLower(strings.TrimSpace(roleName)) {
+	case "user", "teacher":
+		return true
+	default:
+		return false
+	}
 }
 
 // isAPIKeyConstraintViolation checks whether a unique violation is on the api_key column.

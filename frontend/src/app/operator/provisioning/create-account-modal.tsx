@@ -3,10 +3,17 @@ import { Modal } from "~/components/ui/modal";
 import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import type { SchoolAccount } from "~/lib/operator/provisioning-helpers";
+import { authService } from "~/lib/auth-service";
+import { getRoleDisplayName } from "~/lib/auth-helpers";
 import { createLogger } from "~/lib/logger";
 import { FormField, FormError } from "./provisioning-shared";
 
 const logger = createLogger({ component: "CreateAccountModal" });
+
+interface RoleOption {
+  id: number;
+  name: string;
+}
 
 export function CreateAccountModal({
   isOpen,
@@ -21,21 +28,73 @@ export function CreateAccountModal({
   readonly schoolName: string;
   readonly onCreated: () => void;
 }) {
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
+  const [roleId, setRoleId] = useState<number | undefined>(undefined);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [position, setPosition] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const errorRef = useScrollToError(error);
 
+  const [roles, setRoles] = useState<RoleOption[]>([]);
+  const [isLoadingRoles, setIsLoadingRoles] = useState(true);
+
   const [result, setResult] = useState<SchoolAccount | null>(null);
+
+  const inputClasses =
+    "w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none";
+
+  const selectClasses =
+    "w-full appearance-none rounded-lg border border-gray-200 bg-white px-3 py-2 pr-10 text-sm text-gray-900 transition-colors focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500";
+
+  // Load roles on mount
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchRoles() {
+      try {
+        setIsLoadingRoles(true);
+        const roleList = await authService.getRoles();
+        if (cancelled) return;
+        const options = roleList
+          .filter((role) => role.name !== "guardian")
+          .map<RoleOption>((role) => ({
+            id: Number(role.id),
+            name: role.name
+              ? getRoleDisplayName(role.name)
+              : `Rolle ${role.id}`,
+          }))
+          .filter((role) => !Number.isNaN(role.id));
+        setRoles(options);
+      } catch (err) {
+        logger.error("failed_to_load_roles", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      } finally {
+        if (!cancelled) {
+          setIsLoadingRoles(false);
+        }
+      }
+    }
+
+    void fetchRoles();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Reset form when opening
   useEffect(() => {
     if (isOpen) {
+      setFirstName("");
+      setLastName("");
       setEmail("");
+      setRoleId(undefined);
       setPassword("");
       setConfirmPassword("");
+      setPosition("");
       setError("");
       setResult(null);
     }
@@ -44,7 +103,16 @@ export function CreateAccountModal({
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!schoolId || !email.trim() || !password) return;
+      if (
+        !schoolId ||
+        !firstName.trim() ||
+        !lastName.trim() ||
+        !email.trim() ||
+        !roleId ||
+        !password ||
+        !confirmPassword
+      )
+        return;
 
       if (password !== confirmPassword) {
         setError("Passwörter stimmen nicht überein.");
@@ -58,8 +126,12 @@ export function CreateAccountModal({
           schoolId,
           {
             email: email.trim(),
+            first_name: firstName.trim(),
+            last_name: lastName.trim(),
             password,
             confirm_password: confirmPassword,
+            role_id: roleId,
+            position: position || undefined,
           },
         );
         setResult(created);
@@ -77,13 +149,31 @@ export function CreateAccountModal({
         setSaving(false);
       }
     },
-    [schoolId, email, password, confirmPassword, onCreated],
+    [
+      schoolId,
+      firstName,
+      lastName,
+      email,
+      roleId,
+      password,
+      confirmPassword,
+      position,
+      onCreated,
+    ],
   );
 
   const handleClose = useCallback(() => {
     onClose();
     setResult(null);
   }, [onClose]);
+
+  const isFormValid =
+    firstName.trim() &&
+    lastName.trim() &&
+    email.trim() &&
+    roleId &&
+    password &&
+    confirmPassword;
 
   return (
     <Modal
@@ -111,9 +201,7 @@ export function CreateAccountModal({
             <button
               type="button"
               onClick={(e) => void handleSubmit(e)}
-              disabled={
-                saving || !email.trim() || !password || !confirmPassword
-              }
+              disabled={saving || !isFormValid}
               className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {saving ? "Wird erstellt..." : "Konto erstellen"}
@@ -154,6 +242,40 @@ export function CreateAccountModal({
           className="space-y-4"
           id="create-account-form"
         >
+          <div className="grid grid-cols-2 gap-4">
+            <FormField
+              label="Vorname"
+              htmlFor="create-account-first-name"
+              required
+            >
+              <input
+                id="create-account-first-name"
+                type="text"
+                autoComplete="given-name"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                maxLength={255}
+                className={inputClasses}
+                required
+              />
+            </FormField>
+            <FormField
+              label="Nachname"
+              htmlFor="create-account-last-name"
+              required
+            >
+              <input
+                id="create-account-last-name"
+                type="text"
+                autoComplete="family-name"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                maxLength={255}
+                className={inputClasses}
+                required
+              />
+            </FormField>
+          </div>
           <FormField label="E-Mail" htmlFor="create-account-email" required>
             <input
               id="create-account-email"
@@ -162,9 +284,53 @@ export function CreateAccountModal({
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               maxLength={255}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+              className={inputClasses}
               required
             />
+          </FormField>
+          <FormField
+            label="System-Rolle"
+            htmlFor="create-account-role"
+            required
+          >
+            <div className="relative">
+              <select
+                id="create-account-role"
+                className={selectClasses}
+                value={roleId ?? ""}
+                onChange={(e) =>
+                  setRoleId(
+                    e.target.value === "" ? undefined : Number(e.target.value),
+                  )
+                }
+                disabled={isLoadingRoles}
+                required
+              >
+                <option value="" disabled>
+                  {isLoadingRoles ? "Lade Rollen..." : "Rolle auswählen..."}
+                </option>
+                {roles.map((role) => (
+                  <option key={role.id} value={role.id}>
+                    {role.name}
+                  </option>
+                ))}
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+                <svg
+                  className="h-4 w-4 text-gray-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M19 9l-7 7-7-7"
+                  />
+                </svg>
+              </div>
+            </div>
           </FormField>
           <FormField
             label="Passwort"
@@ -178,9 +344,12 @@ export function CreateAccountModal({
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               maxLength={255}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+              className={inputClasses}
               required
             />
+            <p className="mt-1 text-xs text-gray-500">
+              Mind. 8 Zeichen, Groß-/Kleinbuchstaben, Zahl und Sonderzeichen
+            </p>
           </FormField>
           <FormField
             label="Passwort bestätigen"
@@ -194,9 +363,41 @@ export function CreateAccountModal({
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               maxLength={255}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+              className={inputClasses}
               required
             />
+          </FormField>
+          <FormField label="Position" htmlFor="create-account-position">
+            <div className="relative">
+              <select
+                id="create-account-position"
+                className={selectClasses}
+                value={position}
+                onChange={(e) => setPosition(e.target.value)}
+              >
+                <option value="">Position auswählen...</option>
+                <option value="Pädagogische Fachkraft">
+                  Pädagogische Fachkraft
+                </option>
+                <option value="OGS-Büro">OGS-Büro</option>
+                <option value="Extern">Extern</option>
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+                <svg
+                  className="h-4 w-4 text-gray-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M19 9l-7 7-7-7"
+                  />
+                </svg>
+              </div>
+            </div>
           </FormField>
           {error && <FormError ref={errorRef} message={error} />}
         </form>

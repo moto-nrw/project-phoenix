@@ -175,10 +175,12 @@ export interface InviteAdminRequest {
 
 export interface CreateAccountRequest {
   email: string;
-  username?: string;
+  first_name: string;
+  last_name: string;
   password: string;
   confirm_password: string;
   role_id?: number;
+  position?: string;
 }
 
 // Mapping functions

@@ -150,21 +150,27 @@ func (req *inviteSchoolAdminRequest) Bind(_ *http.Request) error {
 
 type createSchoolAccountRequest struct {
 	Email           string `json:"email"`
-	Username        string `json:"username"`
+	FirstName       string `json:"first_name"`
+	LastName        string `json:"last_name"`
 	Password        string `json:"password"`
 	ConfirmPassword string `json:"confirm_password"`
 	RoleID          *int64 `json:"role_id,omitempty"`
+	Position        string `json:"position,omitempty"`
 }
 
 func (req *createSchoolAccountRequest) Bind(_ *http.Request) error {
 	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
-	req.Username = strings.TrimSpace(req.Username)
+	req.FirstName = strings.TrimSpace(req.FirstName)
+	req.LastName = strings.TrimSpace(req.LastName)
+	req.Position = strings.TrimSpace(req.Position)
 	if req.Email == "" {
 		return errors.New("email is required")
 	}
-	// Default username to email prefix if not provided
-	if req.Username == "" {
-		req.Username = req.Email
+	if req.FirstName == "" {
+		return errors.New("first name is required")
+	}
+	if req.LastName == "" {
+		return errors.New("last name is required")
 	}
 	if req.Password == "" {
 		return errors.New("password is required")
@@ -358,10 +364,12 @@ func (rs *ProvisioningResource) CreateSchoolAccount(w http.ResponseWriter, r *ht
 	}
 	operatorID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
 	svcReq := platformSvc.CreateSchoolAccountRequest{
-		Email:    req.Email,
-		Username: req.Username,
-		Password: req.Password,
-		RoleID:   req.RoleID,
+		Email:     req.Email,
+		Password:  req.Password,
+		FirstName: req.FirstName,
+		LastName:  req.LastName,
+		RoleID:    req.RoleID,
+		Position:  req.Position,
 	}
 	account, err := rs.service.CreateSchoolAccount(r.Context(), schoolID, operatorID, getClientIP(r), svcReq)
 	if err != nil {
