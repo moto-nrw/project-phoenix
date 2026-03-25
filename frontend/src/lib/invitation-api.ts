@@ -14,7 +14,6 @@ import type {
 import {
   mapInvitationValidationResponse,
   mapInvitationResponse,
-  mapPendingInvitationResponse,
 } from "./invitation-helpers";
 
 const parseRetryAfter = (value: string | null): number | undefined => {
