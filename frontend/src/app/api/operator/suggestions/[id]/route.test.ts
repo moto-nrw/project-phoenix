@@ -23,7 +23,7 @@ vi.mock("~/lib/server-api-url", () => ({
 
 global.fetch = mockFetch as unknown as typeof fetch;
 
-import { GET } from "./route";
+import { DELETE, GET } from "./route";
 
 describe("GET /api/operator/suggestions/[id]", () => {
   beforeEach(() => {
@@ -103,6 +103,82 @@ describe("GET /api/operator/suggestions/[id]", () => {
     );
     const context: RouteContext = { params: Promise.resolve({ id: "999" }) };
     const response = await GET(request, context);
+
+    expect(response.status).toBe(404);
+  });
+});
+
+describe("DELETE /api/operator/suggestions/[id]", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("deletes suggestion by id", async () => {
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ status: "success", data: null }),
+    });
+
+    const request = new NextRequest(
+      "http://localhost:3000/api/operator/suggestions/1",
+      { method: "DELETE" },
+    );
+    const context: RouteContext = { params: Promise.resolve({ id: "1" }) };
+    const response = await DELETE(request, context);
+
+    expect(response.status).toBe(204);
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://localhost:8080/operator/suggestions/1",
+      expect.objectContaining({
+        method: "DELETE",
+      }),
+    );
+  });
+
+  it("returns 401 when delete is unauthenticated", async () => {
+    mockAuth.mockResolvedValue(null);
+
+    const request = new NextRequest(
+      "http://localhost:3000/api/operator/suggestions/1",
+      { method: "DELETE" },
+    );
+    const context: RouteContext = { params: Promise.resolve({ id: "1" }) };
+    const response = await DELETE(request, context);
+
+    expect(response.status).toBe(401);
+  });
+
+  it("handles invalid id parameter for delete", async () => {
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
+
+    const request = new NextRequest(
+      "http://localhost:3000/api/operator/suggestions/1",
+      { method: "DELETE" },
+    );
+    const context: RouteContext = {
+      params: Promise.resolve({ id: 123 as unknown as string }),
+    };
+    const response = await DELETE(request, context);
+
+    expect(response.status).toBe(500);
+  });
+
+  it("returns 404 when delete target does not exist", async () => {
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 404,
+      text: async () => JSON.stringify({ error: "Not found" }),
+    });
+
+    const request = new NextRequest(
+      "http://localhost:3000/api/operator/suggestions/999",
+      { method: "DELETE" },
+    );
+    const context: RouteContext = { params: Promise.resolve({ id: "999" }) };
+    const response = await DELETE(request, context);
 
     expect(response.status).toBe(404);
   });

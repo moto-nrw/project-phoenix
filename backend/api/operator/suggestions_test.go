@@ -644,6 +644,130 @@ func TestGetUnviewedCount_Success(t *testing.T) {
 	assert.Equal(t, float64(3), data["unviewed_count"])
 }
 
+func TestHidePost_Success(t *testing.T) {
+	mockService := &mockOperatorSuggestionsService{
+		hidePostFn: func(ctx context.Context, postID int64, hidden bool, operatorID int64, clientIP net.IP) error {
+			assert.Equal(t, testPostID, postID)
+			assert.True(t, hidden)
+			assert.Equal(t, testOperatorAccountID123, operatorID)
+			return nil
+		},
+	}
+
+	resource := operator.NewSuggestionsResource(mockService)
+
+	body := map[string]bool{"hidden": true}
+	jsonBody, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPut, "/suggestions/1/hidden", bytes.NewReader(jsonBody))
+	req.Header.Set("Content-Type", "application/json")
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "1")
+	claims := jwt.AppClaims{ID: 123}
+	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
+	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+
+	resource.HidePost(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+}
+
+func TestHidePost_InvalidRequest(t *testing.T) {
+	resource := operator.NewSuggestionsResource(&mockOperatorSuggestionsService{})
+
+	body := map[string]any{}
+	jsonBody, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPut, "/suggestions/1/hidden", bytes.NewReader(jsonBody))
+	req.Header.Set("Content-Type", "application/json")
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "1")
+	claims := jwt.AppClaims{ID: 1}
+	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
+	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+
+	resource.HidePost(rr, req)
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+	assert.Contains(t, rr.Body.String(), "hidden is required")
+}
+
+func TestHidePost_ServiceError(t *testing.T) {
+	mockService := &mockOperatorSuggestionsService{
+		hidePostFn: func(ctx context.Context, postID int64, hidden bool, operatorID int64, clientIP net.IP) error {
+			return &platformSvc.PostNotFoundError{}
+		},
+	}
+
+	resource := operator.NewSuggestionsResource(mockService)
+
+	body := map[string]bool{"hidden": false}
+	jsonBody, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPut, "/suggestions/999/hidden", bytes.NewReader(jsonBody))
+	req.Header.Set("Content-Type", "application/json")
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "999")
+	claims := jwt.AppClaims{ID: 1}
+	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
+	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+
+	resource.HidePost(rr, req)
+
+	assert.Equal(t, http.StatusNotFound, rr.Code)
+}
+
+func TestDeletePost_Success(t *testing.T) {
+	mockService := &mockOperatorSuggestionsService{
+		deletePostFn: func(ctx context.Context, postID int64, operatorID int64, clientIP net.IP) error {
+			assert.Equal(t, testPostID, postID)
+			assert.Equal(t, testOperatorAccountID123, operatorID)
+			return nil
+		},
+	}
+
+	resource := operator.NewSuggestionsResource(mockService)
+
+	req := httptest.NewRequest(http.MethodDelete, "/suggestions/1", nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "1")
+	claims := jwt.AppClaims{ID: 123}
+	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
+	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+
+	resource.DeletePost(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+}
+
+func TestDeletePost_NotFound(t *testing.T) {
+	mockService := &mockOperatorSuggestionsService{
+		deletePostFn: func(ctx context.Context, postID int64, operatorID int64, clientIP net.IP) error {
+			return &platformSvc.PostNotFoundError{}
+		},
+	}
+
+	resource := operator.NewSuggestionsResource(mockService)
+
+	req := httptest.NewRequest(http.MethodDelete, "/suggestions/999", nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "999")
+	claims := jwt.AppClaims{ID: 1}
+	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
+	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+
+	resource.DeletePost(rr, req)
+
+	assert.Equal(t, http.StatusNotFound, rr.Code)
+}
+
 func TestUpdateStatusRequest_Bind(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPut, "/suggestions/1/status", nil)
 	updateReq := &operator.UpdateStatusRequest{}
@@ -658,4 +782,17 @@ func TestAddCommentRequest_Bind(t *testing.T) {
 
 	err := addReq.Bind(req)
 	assert.NoError(t, err)
+}
+
+func TestHidePostRequest_Bind(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPut, "/suggestions/1/hidden", nil)
+
+	valid := &operator.HidePostRequest{Hidden: func() *bool {
+		value := true
+		return &value
+	}()}
+	assert.NoError(t, valid.Bind(req))
+
+	invalid := &operator.HidePostRequest{}
+	assert.EqualError(t, invalid.Bind(req), "hidden is required")
 }

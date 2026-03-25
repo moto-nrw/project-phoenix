@@ -264,4 +264,35 @@ describe("OperatorSuggestionsService", () => {
       expect(result).toBe(0);
     });
   });
+
+  describe("hidePost", () => {
+    it("calls PUT endpoint with hidden flag", async () => {
+      mockOperatorFetch.mockResolvedValue(undefined);
+
+      await operatorSuggestionsService.hidePost("42", true);
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/suggestions/42/hidden",
+        {
+          method: "PUT",
+          body: { hidden: true },
+        },
+      );
+    });
+  });
+
+  describe("deletePost", () => {
+    it("calls DELETE endpoint for the post", async () => {
+      mockOperatorFetch.mockResolvedValue(undefined);
+
+      await operatorSuggestionsService.deletePost("42");
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/suggestions/42",
+        {
+          method: "DELETE",
+        },
+      );
+    });
+  });
 });

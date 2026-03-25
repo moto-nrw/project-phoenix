@@ -1509,6 +1509,25 @@ func TestGetComments_RepoError(t *testing.T) {
 	assert.Nil(t, comments)
 }
 
+func TestGetComments_PostNotFound(t *testing.T) {
+	ctx := context.Background()
+
+	postRepo := &mockPostRepo{
+		findByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
+			assert.Equal(t, int64(456), id)
+			assert.Equal(t, suggestions.ReaderTypeUser, readerType)
+			return nil, nil
+		},
+	}
+
+	svc := newTestService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{})
+
+	comments, err := svc.GetComments(ctx, 456)
+	assert.Error(t, err)
+	assert.IsType(t, &suggestionsService.PostNotFoundError{}, err)
+	assert.Nil(t, comments)
+}
+
 func TestDeleteComment_Success(t *testing.T) {
 	ctx := context.Background()
 
@@ -1618,6 +1637,61 @@ func TestDeleteComment_RepoError(t *testing.T) {
 	}
 
 	svc := newTestService(&mockPostRepo{}, &mockVoteRepo{}, commentRepo, &mockCommentReadRepo{})
+
+	err := svc.DeleteComment(ctx, 789, 123)
+	assert.ErrorIs(t, err, expectedErr)
+}
+
+func TestDeleteComment_PostNotFound(t *testing.T) {
+	ctx := context.Background()
+
+	commentRepo := &mockCommentRepo{
+		findByIDFn: func(ctx context.Context, id int64) (*suggestions.Comment, error) {
+			return &suggestions.Comment{
+				PostID:     456,
+				AuthorType: suggestions.AuthorTypeUser,
+				AuthorID:   123,
+			}, nil
+		},
+	}
+
+	postRepo := &mockPostRepo{
+		findByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
+			assert.Equal(t, int64(456), id)
+			assert.Equal(t, suggestions.ReaderTypeUser, readerType)
+			return nil, nil
+		},
+	}
+
+	svc := newTestService(postRepo, &mockVoteRepo{}, commentRepo, &mockCommentReadRepo{})
+
+	err := svc.DeleteComment(ctx, 789, 123)
+	assert.Error(t, err)
+	assert.IsType(t, &suggestionsService.PostNotFoundError{}, err)
+}
+
+func TestDeleteComment_PostLookupError(t *testing.T) {
+	ctx := context.Background()
+	expectedErr := errors.New("post lookup error")
+
+	commentRepo := &mockCommentRepo{
+		findByIDFn: func(ctx context.Context, id int64) (*suggestions.Comment, error) {
+			return &suggestions.Comment{
+				PostID:     456,
+				AuthorType: suggestions.AuthorTypeUser,
+				AuthorID:   123,
+			}, nil
+		},
+	}
+
+	postRepo := &mockPostRepo{
+		findByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
+			assert.Equal(t, suggestions.ReaderTypeUser, readerType)
+			return nil, expectedErr
+		},
+	}
+
+	svc := newTestService(postRepo, &mockVoteRepo{}, commentRepo, &mockCommentReadRepo{})
 
 	err := svc.DeleteComment(ctx, 789, 123)
 	assert.ErrorIs(t, err, expectedErr)
