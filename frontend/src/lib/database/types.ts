@@ -46,6 +46,8 @@ export interface FieldConfig {
   // For number fields
   min?: number;
   max?: number;
+  // For text/email/textarea fields
+  maxLength?: number;
 }
 
 // Form field type (imported from database-form.tsx)
@@ -82,6 +84,7 @@ export interface FormField {
   colSpan?: 1 | 2;
   min?: number;
   max?: number;
+  maxLength?: number;
 }
 
 // Form section type (imported from database-form.tsx)
@@ -318,6 +321,7 @@ export function configToFormSection(section: SectionConfig): FormSection {
       colSpan: field.colSpan,
       min: field.min,
       max: field.max,
+      maxLength: field.maxLength,
     })),
     columns: section.columns,
     backgroundColor: section.backgroundColor,

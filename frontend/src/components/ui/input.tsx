@@ -1,5 +1,7 @@
 "use client";
 
+import { getDefaultMaxLength } from "~/lib/constants/input-limits";
+
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   readonly label?: string;
   readonly error?: string;
@@ -10,6 +12,8 @@ export function Input({
   name,
   error,
   className = "",
+  maxLength,
+  type,
   ...props
 }: InputProps) {
   return (
@@ -25,6 +29,8 @@ export function Input({
       <input
         id={name}
         name={name}
+        type={type}
+        maxLength={maxLength ?? getDefaultMaxLength(type ?? "text")}
         className={`block w-full rounded-lg border-0 bg-white px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:ring-2 focus:ring-gray-900 focus:outline-none focus:ring-inset disabled:bg-gray-50 disabled:text-gray-500 disabled:ring-gray-200 ${className}`}
         {...props}
       />

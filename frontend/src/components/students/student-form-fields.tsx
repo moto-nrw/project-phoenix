@@ -126,6 +126,7 @@ function TextInput({
             : "border-gray-200 bg-white focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
         }`}
         placeholder={placeholder}
+        maxLength={255}
       />
       {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
     </div>
@@ -264,6 +265,7 @@ function TextareaField({
         rows={rows}
         className="block w-full resize-none rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] md:text-sm"
         placeholder={placeholder}
+        maxLength={2000}
       />
     </div>
   );

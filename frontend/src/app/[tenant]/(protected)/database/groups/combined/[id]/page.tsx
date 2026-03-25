@@ -425,6 +425,7 @@ export default function CombinedGroupDetailPage() {
                           id="add_group_id"
                           name="add_group_id"
                           placeholder="Gruppen-ID"
+                          maxLength={255}
                           className="flex-1 rounded-lg border border-gray-300 px-3 py-2 transition-all duration-200 focus:ring-2 focus:ring-green-500 focus:outline-none"
                         />
                         <button

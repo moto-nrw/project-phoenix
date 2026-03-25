@@ -218,6 +218,7 @@ export function CreateDeviceModal({
             value={deviceId}
             onChange={(e) => setDeviceId(e.target.value)}
             placeholder="z.B. T-001"
+            maxLength={255}
             className="w-full rounded-lg border border-gray-200 px-3 py-2 font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
             required
           />
@@ -247,6 +248,7 @@ export function CreateDeviceModal({
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="z.B. Eingangsbereich"
+            maxLength={255}
             className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
           />
         </FormField>
@@ -288,6 +290,7 @@ export function CreateDeviceModal({
                 value={customApiKey}
                 onChange={(e) => setCustomApiKey(e.target.value)}
                 placeholder="API-Key eingeben..."
+                maxLength={255}
                 className="w-full rounded-lg border border-gray-200 px-3 py-2 font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
               />
             )}

@@ -6,6 +6,7 @@ import { getThemeClassNames } from "./themes";
 import { getAccentRing, getAccentText } from "./accents";
 import { Alert } from "~/components/ui/alert";
 import { createLogger } from "~/lib/logger";
+import { getDefaultMaxLength } from "~/lib/constants/input-limits";
 
 const logger = createLogger({ component: "DatabaseForm" });
 
@@ -218,6 +219,7 @@ export interface FormField {
   colSpan?: 1 | 2;
   min?: number;
   max?: number;
+  maxLength?: number;
 }
 
 export interface FormSection {
@@ -495,6 +497,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
               onChange={handleChange}
               required={field.required}
               placeholder={field.placeholder}
+              maxLength={field.maxLength ?? getDefaultMaxLength(field.type)}
               rows={3}
               className={baseInputClasses}
             />
@@ -727,6 +730,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
               required={field.required}
               placeholder={field.placeholder}
               autoComplete={field.autoComplete}
+              maxLength={field.maxLength ?? getDefaultMaxLength(field.type)}
               className={baseInputClasses}
             />
             {field.helperText && (

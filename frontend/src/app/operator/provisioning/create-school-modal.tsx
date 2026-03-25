@@ -210,6 +210,7 @@ export function CreateSchoolModal({
             type="text"
             value={schoolName}
             onChange={(e) => handleSchoolNameChange(e.target.value)}
+            maxLength={255}
             className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
             required
           />
@@ -224,6 +225,7 @@ export function CreateSchoolModal({
                 setSchoolSlugManual(true);
                 setSchoolSlug(e.target.value);
               }}
+              maxLength={100}
               className="w-full rounded-lg border border-gray-200 px-3 py-2 font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
               required
             />
@@ -237,6 +239,7 @@ export function CreateSchoolModal({
                 setSchoolSubdomainManual(true);
                 setSchoolSubdomain(e.target.value);
               }}
+              maxLength={63}
               className="w-full rounded-lg border border-gray-200 px-3 py-2 font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
               required
             />
@@ -254,6 +257,7 @@ export function CreateSchoolModal({
                 type="text"
                 value={schoolAddress}
                 onChange={(e) => setSchoolAddress(e.target.value)}
+                maxLength={255}
                 className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
               />
             </FormField>
@@ -264,6 +268,7 @@ export function CreateSchoolModal({
                   type="text"
                   value={schoolZip}
                   onChange={(e) => setSchoolZip(e.target.value)}
+                  maxLength={10}
                   className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
                 />
               </FormField>
@@ -273,6 +278,7 @@ export function CreateSchoolModal({
                   type="text"
                   value={schoolCity}
                   onChange={(e) => setSchoolCity(e.target.value)}
+                  maxLength={255}
                   className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
                 />
               </FormField>
@@ -284,6 +290,7 @@ export function CreateSchoolModal({
                   type="tel"
                   value={schoolPhone}
                   onChange={(e) => setSchoolPhone(e.target.value)}
+                  maxLength={30}
                   className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
                 />
               </FormField>
@@ -293,6 +300,7 @@ export function CreateSchoolModal({
                   type="email"
                   value={schoolEmail}
                   onChange={(e) => setSchoolEmail(e.target.value)}
+                  maxLength={255}
                   className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
                 />
               </FormField>
