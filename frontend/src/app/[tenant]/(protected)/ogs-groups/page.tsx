@@ -38,6 +38,7 @@ import { groupTransferService } from "~/lib/group-transfer-api";
 import type { StaffWithRole, GroupTransfer } from "~/lib/group-transfer-api";
 import { useToast } from "~/contexts/ToastContext";
 import { useSWRAuth } from "~/lib/swr";
+import { useUserContext } from "~/lib/hooks/use-user-context";
 
 import { Loading } from "~/components/ui/loading";
 import { LocationBadge } from "@/components/ui/location-badge";
@@ -144,6 +145,7 @@ function OGSGroupPageContent() {
   });
 
   const { success: showSuccessToast } = useToast();
+  const { userContext } = useUserContext();
 
   // Check if user has access to OGS groups
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
@@ -1269,7 +1271,13 @@ function OGSGroupPageContent() {
               }
             : null
         }
-        availableUsers={availableUsers}
+        availableUsers={
+          userContext?.currentStaff?.personId
+            ? availableUsers.filter(
+                (u) => u.personId !== userContext.currentStaff!.personId,
+              )
+            : availableUsers
+        }
         onTransfer={handleTransferGroup}
         existingTransfers={activeTransfers}
         onCancelTransfer={handleCancelTransfer}
