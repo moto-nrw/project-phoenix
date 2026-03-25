@@ -26,6 +26,7 @@ vi.mock("next-auth/react", () => ({
 // Mock next/navigation
 vi.mock("next/navigation", () => ({
   useRouter: vi.fn(),
+  redirect: vi.fn(),
 }));
 
 // Mock SWR hooks
@@ -256,7 +257,7 @@ describe("SubstitutionsPage", () => {
     vi.clearAllMocks();
     vi.mocked(useRouter).mockReturnValue({ push: mockPush } as never);
     vi.mocked(useSession).mockReturnValue({
-      data: { user: { id: "1" } },
+      data: { user: { id: "1", isAdmin: true } },
       status: "authenticated",
     } as never);
 

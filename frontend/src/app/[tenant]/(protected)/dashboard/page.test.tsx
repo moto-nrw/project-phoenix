@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-return */
 import { render, screen, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import DashboardPage from "./page";
@@ -5,11 +6,13 @@ import DashboardPage from "./page";
 const mockPush = vi.fn();
 const mockReplace = vi.fn();
 
+const mockRedirect = vi.fn();
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
     push: mockPush,
     replace: mockReplace,
   }),
+  redirect: (url: string) => mockRedirect(url),
 }));
 
 const mockSession = {
@@ -151,14 +154,17 @@ describe("DashboardPage", () => {
     });
   });
 
-  it("redirects non-admin users to /ogs-groups", async () => {
+  it("shows access denied for non-admin users", () => {
     vi.mocked(isAdmin).mockReturnValue(false);
+    vi.mocked(useSession).mockReturnValue({
+      data: { ...mockSession, user: { ...mockSession.user, isAdmin: false } },
+      status: "authenticated",
+      update: vi.fn(),
+    });
 
     render(<DashboardPage />);
 
-    await waitFor(() => {
-      expect(mockReplace).toHaveBeenCalledWith("/test-tenant/ogs-groups");
-    });
+    expect(screen.getByText("Kein Zugriff")).toBeInTheDocument();
   });
 
   it("shows loading state when session is loading", () => {
@@ -171,20 +177,6 @@ describe("DashboardPage", () => {
     render(<DashboardPage />);
 
     expect(screen.getByTestId("loading")).toBeInTheDocument();
-  });
-
-  it("returns null while redirecting non-admin users", () => {
-    vi.mocked(isAdmin).mockReturnValue(false);
-    vi.mocked(useSession).mockReturnValue({
-      data: { ...mockSession, user: { ...mockSession.user, isAdmin: false } },
-      status: "authenticated",
-      update: vi.fn(),
-    });
-
-    const { container } = render(<DashboardPage />);
-
-    // Container should be empty since the component returns null
-    expect(container.innerHTML).toBe("");
   });
 
   it("displays dashboard data after loading", async () => {

@@ -31,8 +31,8 @@ vi.mock("~/components/admin/pending-invitations-list", () => ({
 }));
 
 vi.mock("~/lib/auth-utils", () => ({
-  isAdmin: (session: { user?: { roles?: string[] } }) =>
-    session?.user?.roles?.includes("admin") ?? false,
+  isAdmin: (session: { user?: { isAdmin?: boolean } } | null) =>
+    session?.user?.isAdmin ?? false,
 }));
 
 vi.mock("~/components/ui/loading", () => ({
@@ -63,7 +63,7 @@ describe("InvitationsPage", () => {
           name: "User",
           email: "user@test.com",
           token: "tok",
-          roles: ["teacher"],
+          isAdmin: false,
         },
       },
       status: "authenticated",
@@ -71,7 +71,7 @@ describe("InvitationsPage", () => {
 
     render(<InvitationsPage />);
 
-    expect(screen.getByText("Keine Berechtigung")).toBeInTheDocument();
+    expect(screen.getByText("Kein Zugriff")).toBeInTheDocument();
   });
 
   it("renders invitation form and pending list for admin users", () => {
@@ -82,7 +82,7 @@ describe("InvitationsPage", () => {
           name: "Admin",
           email: "admin@test.com",
           token: "tok",
-          roles: ["admin"],
+          isAdmin: true,
         },
       },
       status: "authenticated",
@@ -94,7 +94,7 @@ describe("InvitationsPage", () => {
     expect(screen.getByTestId("pending-list")).toBeInTheDocument();
   });
 
-  it("shows no session access denied", () => {
+  it("shows access denied when session has no user", () => {
     mockUseSession.mockReturnValue({
       data: null,
       status: "authenticated",
@@ -102,6 +102,6 @@ describe("InvitationsPage", () => {
 
     render(<InvitationsPage />);
 
-    expect(screen.getByText("Keine Berechtigung")).toBeInTheDocument();
+    expect(screen.getByText("Kein Zugriff")).toBeInTheDocument();
   });
 });

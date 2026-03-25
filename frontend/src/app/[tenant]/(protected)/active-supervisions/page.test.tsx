@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-return */
 /**
  * Tests for Active Supervisions Page
  * Tests the rendering states and user interactions of the active supervisions dashboard
@@ -21,9 +22,11 @@ vi.mock("next-auth/react", () => ({
 
 // Mock next/navigation
 const mockPush = vi.fn();
+const mockRedirect = vi.fn();
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockPush }),
   useSearchParams: () => ({ get: () => null }),
+  redirect: (url: string) => mockRedirect(url),
 }));
 
 // Mock breadcrumb context
@@ -3797,7 +3800,8 @@ describe("Unauthenticated redirect coverage", () => {
     render(<MeinRaumPage />);
 
     await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith("/test-tenant/");
+      // RoleGuard handles unauthenticated redirect via next/navigation redirect()
+      expect(mockRedirect).toHaveBeenCalledWith("/");
     });
   });
 });

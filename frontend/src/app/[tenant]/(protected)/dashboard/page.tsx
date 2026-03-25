@@ -13,8 +13,8 @@ import {
   getActivityStatusColor,
   getGroupStatusColor,
 } from "~/lib/dashboard-helpers";
-import { isAdmin } from "~/lib/auth-utils";
 import { useSWRAuth } from "~/lib/swr/hooks";
+import { RoleGuard } from "~/components/auth/role-guard";
 
 import { Loading } from "~/components/ui/loading";
 
@@ -624,29 +624,11 @@ function DashboardContent() {
 
 // Main Dashboard Page Component
 export default function DashboardPage() {
-  const router = useTenantRouter();
-  const { data: session, status } = useSession();
-
-  // Redirect non-admins to OGS groups (must be in useEffect to avoid SSR issues)
-  useEffect(() => {
-    if (status !== "loading" && !isAdmin(session)) {
-      router.replace("/ogs-groups");
-    }
-  }, [status, session, router]);
-
-  // Gate access: only admins can view dashboard
-  if (status === "loading") {
-    return <Loading fullPage={false} />;
-  }
-
-  // Show nothing while redirecting non-admins
-  if (!isAdmin(session)) {
-    return null;
-  }
-
   return (
-    <UserContextProvider>
-      <DashboardContent />
-    </UserContextProvider>
+    <RoleGuard variant="adminOnly">
+      <UserContextProvider>
+        <DashboardContent />
+      </UserContextProvider>
+    </RoleGuard>
   );
 }
