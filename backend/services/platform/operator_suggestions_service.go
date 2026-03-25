@@ -357,6 +357,16 @@ func (s *operatorSuggestionsService) HidePost(ctx context.Context, postID int64,
 			return err
 		}
 
+		// Inject tenant so EnsureTenantID can set it on upserted records
+		ctx = tenant.WithTenantID(ctx, post.TenantID)
+
+		// Mark post as viewed when operator hides/unhides (they've interacted with it).
+		if s.postReadRepo != nil {
+			s.bestEffort(ctx, "mark_viewed", func() error {
+				return s.postReadRepo.MarkViewed(ctx, operatorID, postID, suggestions.ReaderTypeOperator)
+			})
+		}
+
 		action := platform.ActionHidePost
 		if !hidden {
 			action = platform.ActionUnhidePost
