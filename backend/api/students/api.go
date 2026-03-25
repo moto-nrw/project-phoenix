@@ -778,7 +778,7 @@ func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
 		return nil
 	}); err != nil {
 		if common.IsForeignKeyViolation(err) {
-			renderError(w, r, common.ErrorConflict(errors.New("cannot delete student: student has active visits, enrollments, or other linked records")))
+			renderError(w, r, common.ErrorConflict(errors.New("Schüler/in kann nicht gelöscht werden: Schüler/in hat aktive Besuche, Einschreibungen oder andere verknüpfte Daten")))
 			return
 		}
 		renderError(w, r, ErrorInternalServer(err))

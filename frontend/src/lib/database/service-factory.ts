@@ -153,7 +153,20 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
 
     if (!response.ok) {
       const errorText = await response.text();
-      logger.error("API error", { status: response.status, error: errorText });
+
+      // 4xx = expected business errors (conflict, not found, etc.) → warn
+      // 5xx = unexpected server errors → error
+      if (response.status >= 500) {
+        logger.error("api_server_error", {
+          status: response.status,
+          error: errorText,
+        });
+      } else {
+        logger.warn("api_request_rejected", {
+          status: response.status,
+          error: errorText,
+        });
+      }
 
       // Try to extract a clean error message from the nested JSON response.
       // The error chain is: backend → route handler → this fetch, each wrapping the previous.
@@ -406,7 +419,7 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
           await config.hooks.afterDelete(id);
         }
       } catch (error) {
-        logger.error("error deleting entity", {
+        logger.warn("entity_delete_rejected", {
           entity: config.name.singular,
           id,
           error: String(error),

@@ -67,8 +67,8 @@ var (
 	ErrInvitationNameRequired = errors.New("first name and last name are required")
 
 	// Deletion constraint errors
-	ErrRoleInUse       = errors.New("cannot delete role: role is currently assigned to accounts")
-	ErrPermissionInUse = errors.New("cannot delete permission: permission is currently assigned to roles or accounts")
+	ErrRoleInUse       = errors.New("Rolle kann nicht gelöscht werden: Rolle ist aktuell Konten zugewiesen")
+	ErrPermissionInUse = errors.New("Berechtigung kann nicht gelöscht werden: Berechtigung ist aktuell Rollen oder Konten zugewiesen")
 )
 
 // AuthError represents an authentication-related error

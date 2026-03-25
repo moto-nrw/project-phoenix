@@ -47,13 +47,13 @@ var (
 	ErrInvalidPIN = errors.New("invalid staff PIN")
 
 	// ErrStaffInUse indicates staff has attendance records or active supervisions
-	ErrStaffInUse = errors.New("cannot delete staff: staff member has attendance records or active supervisions")
+	ErrStaffInUse = errors.New("Personal kann nicht gelöscht werden: Mitarbeiter/in hat aktive Aufsichten oder Anwesenheitseinträge")
 
 	// ErrPersonHasDependents indicates person has linked staff/student/account records
-	ErrPersonHasDependents = errors.New("cannot delete person: person has linked staff, student, or account records")
+	ErrPersonHasDependents = errors.New("Person kann nicht gelöscht werden: Person hat verknüpfte Personal-, Schüler- oder Kontodaten")
 
 	// ErrGuardianHasStudents indicates guardian is still linked to students
-	ErrGuardianHasStudents = errors.New("cannot delete guardian: guardian is still linked to students")
+	ErrGuardianHasStudents = errors.New("Erziehungsberechtigte/r kann nicht gelöscht werden: Noch mit Schüler/innen verknüpft")
 )
 
 // UsersError represents an error in the users service

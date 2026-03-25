@@ -387,7 +387,7 @@ func (rs *Resource) deletePerson(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		if common.IsForeignKeyViolation(err) {
-			common.RenderError(w, r, common.ErrorConflict(errors.New("cannot delete person: person has linked staff, student, or account records")))
+			common.RenderError(w, r, common.ErrorConflict(errors.New("Person kann nicht gelöscht werden: Person hat verknüpfte Personal-, Schüler- oder Kontodaten")))
 			return
 		}
 		common.RenderError(w, r, ErrorRenderer(err))
