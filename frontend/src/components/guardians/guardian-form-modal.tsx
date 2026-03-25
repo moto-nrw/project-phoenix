@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { X, Plus, Star, Trash2 } from "lucide-react";
 import { Modal } from "~/components/ui/modal";
+import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import type {
   GuardianFormData,
   GuardianWithRelationship,
@@ -225,7 +226,7 @@ export default function GuardianFormModal({
   const [entries, setEntries] = useState<GuardianEntry[]>([createEmptyEntry()]);
   const [newEntryId, setNewEntryId] = useState<string | null>(null);
   const entryRefs = useRef<Map<string, HTMLDivElement>>(new Map());
-  const errorRef = useRef<HTMLDivElement>(null);
+  const errorRef = useScrollToError(error);
 
   // Reset entries when modal opens/closes or initialData changes
   useEffect(() => {
@@ -241,13 +242,6 @@ export default function GuardianFormModal({
       entryRefs.current.clear();
     }
   }, [isOpen, initialData]);
-
-  // Scroll to error when it appears
-  useEffect(() => {
-    if (error && errorRef.current) {
-      errorRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  }, [error]);
 
   // Scroll to newly added entry
   useEffect(() => {

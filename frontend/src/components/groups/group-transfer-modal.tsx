@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Modal } from "~/components/ui/modal";
+import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "GroupTransfer" });
@@ -49,6 +50,7 @@ export function GroupTransferModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const errorRef = useScrollToError(error);
 
   // Reset form when modal opens/closes
   useEffect(() => {
@@ -156,7 +158,10 @@ export function GroupTransferModal({
       <div className="space-y-4 md:space-y-5">
         {/* Error Alert */}
         {error && (
-          <div className="rounded-lg border border-red-200 bg-red-50 p-3 md:p-4">
+          <div
+            ref={errorRef}
+            className="rounded-lg border border-red-200 bg-red-50 p-3 md:p-4"
+          >
             <div className="flex items-start gap-3">
               <svg
                 className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-600"

@@ -519,4 +519,61 @@ describe("PasswordChangeModal", () => {
     );
     expect(mockOnClose).toHaveBeenCalled();
   });
+
+  describe("Scroll to error and field highlighting", () => {
+    it("scrolls to error when submitting with all empty fields", async () => {
+      const scrollIntoViewMock = vi.fn();
+      Element.prototype.scrollIntoView = scrollIntoViewMock;
+
+      render(
+        <PasswordChangeModal
+          isOpen={true}
+          onClose={mockOnClose}
+          onSuccess={mockOnSuccess}
+        />,
+      );
+
+      const submitButton = screen.getByRole("button", {
+        name: /Passwort ändern/i,
+      });
+      fireEvent.click(submitButton);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(/Bitte füllen Sie alle Felder aus/i),
+        ).toBeInTheDocument();
+      });
+
+      expect(scrollIntoViewMock).toHaveBeenCalledWith({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+
+    it("highlights the current password label when it is empty", async () => {
+      Element.prototype.scrollIntoView = vi.fn();
+
+      render(
+        <PasswordChangeModal
+          isOpen={true}
+          onClose={mockOnClose}
+          onSuccess={mockOnSuccess}
+        />,
+      );
+
+      const submitButton = screen.getByRole("button", {
+        name: /Passwort ändern/i,
+      });
+      fireEvent.click(submitButton);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(/Bitte füllen Sie alle Felder aus/i),
+        ).toBeInTheDocument();
+      });
+
+      const currentPasswordLabel = screen.getByText(/Aktuelles Passwort/i);
+      expect(currentPasswordLabel.className).toContain("text-red-600");
+    });
+  });
 });

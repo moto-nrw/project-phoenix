@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { Modal } from "~/components/ui/modal";
+import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import type { Invitation } from "~/lib/operator/provisioning-helpers";
 import { createLogger } from "~/lib/logger";
@@ -27,6 +28,8 @@ export function InviteAdminModal({
   const [inviteLastName, setInviteLastName] = useState("");
   const [inviteSaving, setInviteSaving] = useState(false);
   const [inviteError, setInviteError] = useState("");
+  const errorRef = useScrollToError(inviteError);
+
   const [inviteResult, setInviteResult] = useState<Invitation | null>(null);
 
   // Reset form when opening
@@ -185,7 +188,7 @@ export function InviteAdminModal({
               />
             </FormField>
           </div>
-          {inviteError && <FormError message={inviteError} />}
+          {inviteError && <FormError ref={errorRef} message={inviteError} />}
         </form>
       )}
     </Modal>

@@ -353,4 +353,42 @@ describe("TeacherForm", () => {
       ).toBeInTheDocument();
     });
   });
+
+  describe("Scroll to error", () => {
+    it("scrolls to error when submission fails with API error", async () => {
+      const scrollIntoViewMock = vi.fn();
+      Element.prototype.scrollIntoView = scrollIntoViewMock;
+
+      const onSubmitAction = vi.fn().mockRejectedValue(new Error("API Error"));
+
+      render(
+        <TeacherForm
+          {...defaultProps}
+          initialData={{ id: "1", person_id: 10 }}
+          onSubmitAction={onSubmitAction}
+        />,
+      );
+
+      fireEvent.change(screen.getByLabelText(/Vorname/), {
+        target: { value: "John" },
+      });
+      fireEvent.change(screen.getByLabelText(/Nachname/), {
+        target: { value: "Doe" },
+      });
+
+      const submitBtn = screen.getByRole("button", { name: /Speichern/ });
+      fireEvent.click(submitBtn);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(/Es ist ein Fehler aufgetreten/),
+        ).toBeInTheDocument();
+      });
+
+      expect(scrollIntoViewMock).toHaveBeenCalledWith({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+  });
 });

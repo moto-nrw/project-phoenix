@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { Modal } from "~/components/ui/modal";
+import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import { isValidSlug } from "~/lib/operator/provisioning-helpers";
 import type { Organization, School } from "~/lib/operator/provisioning-helpers";
@@ -33,6 +34,7 @@ export function EditSchoolModal({
   const [schoolEmail, setSchoolEmail] = useState("");
   const [schoolSaving, setSchoolSaving] = useState(false);
   const [schoolError, setSchoolError] = useState("");
+  const errorRef = useScrollToError(schoolError);
 
   useEffect(() => {
     if (isOpen && school) {
@@ -293,7 +295,7 @@ export function EditSchoolModal({
             </div>
           </div>
         </div>
-        {schoolError && <FormError message={schoolError} />}
+        {schoolError && <FormError ref={errorRef} message={schoolError} />}
       </form>
     </Modal>
   );

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- redirect targets root login, not tenant route
 import { useRouter } from "next/navigation";
+import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import { signOut } from "next-auth/react";
 import { Input } from "~/components/ui";
 import { getRoleDisplayName } from "~/lib/auth-helpers";
@@ -72,6 +73,8 @@ export function InvitationAcceptForm({
   const [tenantRedirectUrl, setTenantRedirectUrl] = useState<string | null>(
     null,
   );
+  const errorRef = useScrollToError(error);
+  const [errorFieldName, setErrorFieldName] = useState<string | null>(null);
 
   useEffect(() => {
     setFirstName(invitation.firstName ?? "");
@@ -95,9 +98,11 @@ export function InvitationAcceptForm({
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError(null);
+    setErrorFieldName(null);
 
     if (!firstName.trim() || !lastName.trim()) {
       setError("Bitte gib Vor- und Nachname an.");
+      setErrorFieldName(!firstName.trim() ? "firstName" : "lastName");
       return;
     }
 
@@ -105,11 +110,13 @@ export function InvitationAcceptForm({
       setError(
         "Das Passwort erfüllt noch nicht alle Sicherheitsanforderungen.",
       );
+      setErrorFieldName("password");
       return;
     }
 
     if (password !== confirmPassword) {
       setError("Die Passwörter stimmen nicht überein.");
+      setErrorFieldName("confirmPassword");
       return;
     }
 
@@ -270,7 +277,10 @@ export function InvitationAcceptForm({
   return (
     <form onSubmit={handleSubmit} noValidate className="space-y-6">
       {error && (
-        <div className="rounded-xl border border-red-200/50 bg-red-50/50 p-4">
+        <div
+          ref={errorRef}
+          className="rounded-xl border border-red-200/50 bg-red-50/50 p-4"
+        >
           <div className="flex items-start gap-3">
             <svg
               className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-600"
@@ -339,6 +349,7 @@ export function InvitationAcceptForm({
           disabled={isSubmitting}
           autoComplete="given-name"
           required
+          className={errorFieldName === "firstName" ? "ring-red-400" : ""}
         />
         <Input
           id="lastName"
@@ -349,13 +360,14 @@ export function InvitationAcceptForm({
           disabled={isSubmitting}
           autoComplete="family-name"
           required
+          className={errorFieldName === "lastName" ? "ring-red-400" : ""}
         />
       </div>
 
       <div>
         <label
           htmlFor="password"
-          className="mb-1 block text-sm font-medium text-gray-700"
+          className={`mb-1 block text-sm font-medium ${errorFieldName === "password" ? "text-red-600" : "text-gray-700"}`}
         >
           Passwort
         </label>
@@ -368,7 +380,7 @@ export function InvitationAcceptForm({
             onChange={(event) => setPassword(event.target.value)}
             disabled={isSubmitting}
             autoComplete="new-password"
-            className="w-full pr-10"
+            className={`w-full pr-10 ${errorFieldName === "password" ? "ring-red-400" : ""}`}
             required
           />
           <button
@@ -421,7 +433,7 @@ export function InvitationAcceptForm({
       <div>
         <label
           htmlFor="confirmPassword"
-          className="mb-1 block text-sm font-medium text-gray-700"
+          className={`mb-1 block text-sm font-medium ${errorFieldName === "confirmPassword" ? "text-red-600" : "text-gray-700"}`}
         >
           Passwort bestätigen
         </label>
@@ -434,7 +446,7 @@ export function InvitationAcceptForm({
             onChange={(event) => setConfirmPassword(event.target.value)}
             disabled={isSubmitting}
             autoComplete="new-password"
-            className="w-full pr-10"
+            className={`w-full pr-10 ${errorFieldName === "confirmPassword" ? "ring-red-400" : ""}`}
             required
           />
           <button

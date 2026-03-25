@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { Modal } from "~/components/ui/modal";
+import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import type {
   School,
@@ -31,6 +32,8 @@ export function CreateDeviceModal({
   const [customApiKey, setCustomApiKey] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
+  const errorRef = useScrollToError(error);
+
   const [createdDevice, setCreatedDevice] = useState<OperatorDevice | null>(
     null,
   );
@@ -294,7 +297,7 @@ export function CreateDeviceModal({
           </div>
         </div>
 
-        {error && <FormError message={error} />}
+        {error && <FormError ref={errorRef} message={error} />}
       </form>
     </Modal>
   );

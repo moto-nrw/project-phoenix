@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Loader2 } from "lucide-react";
+import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import { FormModal } from "~/components/ui/form-modal";
 import type {
   BulkPickupScheduleFormData,
@@ -29,6 +30,7 @@ export function PickupScheduleFormModal({
     useState<PickupScheduleFormData[]>(initialSchedules);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const errorRef = useScrollToError(error);
 
   // Reset form when modal opens
   useEffect(() => {
@@ -129,7 +131,10 @@ export function PickupScheduleFormModal({
           Wochentag.
         </p>
         {error && (
-          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div
+            ref={errorRef}
+            className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+          >
             {error}
           </div>
         )}

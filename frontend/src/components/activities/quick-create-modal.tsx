@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { getDbOperationMessage } from "~/lib/use-notification";
+import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import { useScrollLock } from "~/hooks/useScrollLock";
 import { useModalAnimation } from "~/hooks/useModalAnimation";
 import { useModalBlurEffect } from "~/hooks/useModalBlurEffect";
@@ -64,6 +65,9 @@ export function QuickCreateActivityModal({
     validateForm,
   } = useActivityForm(defaultFormValues, isOpen);
 
+  const errorRef = useScrollToError(error);
+  const [errorFieldName, setErrorFieldName] = useState<string | null>(null);
+
   // Use scroll lock hook
   useScrollLock(isOpen);
 
@@ -81,6 +85,7 @@ export function QuickCreateActivityModal({
     if (isOpen) {
       setForm(defaultFormValues);
       setError(null);
+      setErrorFieldName(null);
     }
   }, [isOpen, setForm, setError]);
 
@@ -93,9 +98,16 @@ export function QuickCreateActivityModal({
     }
     setIsSubmitting(true);
 
+    setErrorFieldName(null);
     const validationError = validateForm();
     if (validationError) {
       setError(validationError);
+      // Map validation error to field name
+      if (validationError.includes("name")) setErrorFieldName("name");
+      else if (validationError.includes("category"))
+        setErrorFieldName("category_id");
+      else if (validationError.includes("participants"))
+        setErrorFieldName("max_participants");
       if (isMountedRef.current) {
         setIsSubmitting(false);
       }
@@ -205,7 +217,11 @@ export function QuickCreateActivityModal({
               onSubmit={handleSubmit}
               className="space-y-6"
             >
-              {error && renderModalErrorAlert({ message: error })}
+              {error && (
+                <div ref={errorRef}>
+                  {renderModalErrorAlert({ message: error })}
+                </div>
+              )}
 
               {/* Activity Name Card */}
               <div className="relative overflow-hidden rounded-2xl border border-gray-200/50 bg-gradient-to-br from-gray-50/50 to-slate-50/50 p-5">
@@ -214,7 +230,7 @@ export function QuickCreateActivityModal({
                 <div className="relative">
                   <label
                     htmlFor="name"
-                    className="mb-3 block flex items-center gap-2 text-sm font-semibold text-gray-700"
+                    className={`mb-3 block flex items-center gap-2 text-sm font-semibold ${errorFieldName === "name" ? "text-red-600" : "text-gray-700"}`}
                   >
                     <div className="flex h-5 w-5 items-center justify-center rounded bg-gradient-to-br from-gray-600 to-gray-700">
                       <span className="text-xs font-bold text-white">1</span>
@@ -227,7 +243,7 @@ export function QuickCreateActivityModal({
                     value={form.name}
                     onChange={handleInputChange}
                     placeholder="z.B. Hausaufgaben, Malen, Basteln..."
-                    className="block w-full rounded-xl border-0 bg-white/80 px-4 py-3.5 text-base text-gray-900 shadow-sm ring-1 ring-gray-200/50 backdrop-blur-sm transition-all duration-200 ring-inset placeholder:text-gray-400 focus:bg-white focus:ring-2 focus:ring-gray-700 focus:ring-inset"
+                    className={`block w-full rounded-xl border-0 bg-white/80 px-4 py-3.5 text-base text-gray-900 shadow-sm ring-1 ${errorFieldName === "name" ? "ring-red-400" : "ring-gray-200/50"} backdrop-blur-sm transition-all duration-200 ring-inset placeholder:text-gray-400 focus:bg-white focus:ring-2 focus:ring-gray-700 focus:ring-inset`}
                     required
                   />
                 </div>
@@ -239,7 +255,7 @@ export function QuickCreateActivityModal({
                 <div className="relative">
                   <label
                     htmlFor="category_id"
-                    className="mb-3 block flex items-center gap-2 text-sm font-semibold text-gray-700"
+                    className={`mb-3 block flex items-center gap-2 text-sm font-semibold ${errorFieldName === "category_id" ? "text-red-600" : "text-gray-700"}`}
                   >
                     <div className="flex h-5 w-5 items-center justify-center rounded bg-gradient-to-br from-gray-600 to-gray-700">
                       <span className="text-xs font-bold text-white">2</span>
@@ -252,7 +268,7 @@ export function QuickCreateActivityModal({
                       name="category_id"
                       value={form.category_id}
                       onChange={handleInputChange}
-                      className="block w-full cursor-pointer appearance-none rounded-xl border-0 bg-white/80 px-4 py-3.5 pr-10 text-base text-gray-900 shadow-sm ring-1 ring-gray-200/50 backdrop-blur-sm transition-all duration-200 ring-inset focus:bg-white focus:ring-2 focus:ring-gray-700 focus:ring-inset"
+                      className={`block w-full cursor-pointer appearance-none rounded-xl border-0 bg-white/80 px-4 py-3.5 pr-10 text-base text-gray-900 shadow-sm ring-1 ${errorFieldName === "category_id" ? "ring-red-400" : "ring-gray-200/50"} backdrop-blur-sm transition-all duration-200 ring-inset focus:bg-white focus:ring-2 focus:ring-gray-700 focus:ring-inset`}
                       required
                     >
                       <option value="">Kategorie wählen...</option>
@@ -296,7 +312,7 @@ export function QuickCreateActivityModal({
                 <div className="relative">
                   <label
                     htmlFor="max_participants"
-                    className="mb-3 block flex items-center gap-2 text-sm font-semibold text-gray-700"
+                    className={`mb-3 block flex items-center gap-2 text-sm font-semibold ${errorFieldName === "max_participants" ? "text-red-600" : "text-gray-700"}`}
                   >
                     <div className="flex h-5 w-5 items-center justify-center rounded bg-gradient-to-br from-gray-600 to-gray-700">
                       <span className="text-xs font-bold text-white">3</span>

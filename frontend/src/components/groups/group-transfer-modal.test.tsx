@@ -280,4 +280,41 @@ describe("GroupTransferModal", () => {
 
     expect(mockOnClose).toHaveBeenCalledTimes(1);
   });
+
+  describe("Scroll to error", () => {
+    it("scrolls to error when transfer fails", async () => {
+      const scrollIntoViewMock = vi.fn();
+      Element.prototype.scrollIntoView = scrollIntoViewMock;
+
+      mockOnTransfer.mockRejectedValue(new Error("Transfer failed"));
+
+      render(
+        <GroupTransferModal
+          isOpen={true}
+          onClose={mockOnClose}
+          group={mockGroup}
+          availableUsers={mockAvailableUsers}
+          onTransfer={mockOnTransfer}
+        />,
+      );
+
+      // Select a user
+      await waitFor(() => {
+        const select = screen.getByRole("combobox");
+        fireEvent.change(select, { target: { value: "p1" } });
+      });
+
+      const transferButton = screen.getByText("Übergeben");
+      fireEvent.click(transferButton);
+
+      await waitFor(() => {
+        expect(screen.getByText("Transfer failed")).toBeInTheDocument();
+      });
+
+      expect(scrollIntoViewMock).toHaveBeenCalledWith({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+  });
 });

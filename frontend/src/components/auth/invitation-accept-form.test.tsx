@@ -672,4 +672,66 @@ describe("InvitationAcceptForm", () => {
       configurable: true,
     });
   });
+
+  describe("Scroll to error and field highlighting", () => {
+    it("scrolls to error when validation fails on missing names", async () => {
+      const scrollIntoViewMock = vi.fn();
+      Element.prototype.scrollIntoView = scrollIntoViewMock;
+
+      const invitationNoName: InvitationValidation = {
+        ...mockInvitation,
+        firstName: undefined,
+        lastName: undefined,
+      };
+
+      render(
+        <InvitationAcceptForm
+          token="test-token"
+          invitation={invitationNoName}
+        />,
+      );
+
+      const submitButton = await screen.findByRole("button", {
+        name: /Einladung akzeptieren/i,
+      });
+      fireEvent.click(submitButton);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(/Bitte gib Vor- und Nachname an/i),
+        ).toBeInTheDocument();
+      });
+
+      expect(scrollIntoViewMock).toHaveBeenCalledWith({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+
+    it("highlights the password label when password is weak", async () => {
+      Element.prototype.scrollIntoView = vi.fn();
+
+      render(
+        <InvitationAcceptForm token="test-token" invitation={mockInvitation} />,
+      );
+
+      const passwordInput = await screen.findByLabelText(/^Passwort$/);
+      const confirmInput = await screen.findByLabelText(/Passwort bestätigen/);
+      fireEvent.change(passwordInput, { target: { value: "weak" } });
+      fireEvent.change(confirmInput, { target: { value: "weak" } });
+
+      fireEvent.click(
+        screen.getByRole("button", { name: /Einladung akzeptieren/i }),
+      );
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(/Sicherheitsanforderungen/i),
+        ).toBeInTheDocument();
+      });
+
+      const passwordLabel = screen.getByText("Passwort");
+      expect(passwordLabel.className).toContain("text-red-600");
+    });
+  });
 });

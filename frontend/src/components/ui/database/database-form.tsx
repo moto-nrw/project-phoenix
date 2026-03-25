@@ -5,6 +5,7 @@ import type { DatabaseTheme } from "./themes";
 import { getThemeClassNames } from "./themes";
 import { getAccentRing, getAccentText } from "./accents";
 import { Alert } from "~/components/ui/alert";
+import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "DatabaseForm" });
@@ -171,15 +172,15 @@ export function validateField(field: FormField, value: unknown): string | null {
   return null;
 }
 
-/** Validates all form fields and returns first error or null */
+/** Validates all form fields and returns first error with field name, or null */
 export function validateFormFields(
   sections: FormSection[],
   formData: Record<string, unknown>,
-): string | null {
+): { message: string; fieldName: string } | null {
   for (const section of sections) {
     for (const field of section.fields) {
       const error = validateField(field, formData[field.name]);
-      if (error) return error;
+      if (error) return { message: error, fieldName: field.name };
     }
   }
   return null;
@@ -256,6 +257,8 @@ export function DatabaseForm<T = Record<string, unknown>>({
 }: DatabaseFormProps<T>) {
   const [formData, setFormData] = useState<Record<string, unknown>>({});
   const [error, setError] = useState<string | null>(null);
+  const [errorFieldName, setErrorFieldName] = useState<string | null>(null);
+  const errorRef = useScrollToError(error);
   // Local submitting state to prevent double-clicks (set synchronously before async onSubmit)
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [asyncOptions, setAsyncOptions] = useState<
@@ -275,6 +278,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
       isMountedRef.current = false;
     };
   }, []);
+
   const themeClasses = getThemeClassNames(theme);
   const accentTextClass = getAccentText(theme.accent);
 
@@ -385,11 +389,13 @@ export function DatabaseForm<T = Record<string, unknown>>({
     }
     setIsSubmitting(true);
     setError(null);
+    setErrorFieldName(null);
 
     // Validate all form fields
-    const validationError = validateFormFields(sections, formData);
-    if (validationError) {
-      setError(validationError);
+    const validationResult = validateFormFields(sections, formData);
+    if (validationResult) {
+      setError(validationResult.message);
+      setErrorFieldName(validationResult.fieldName);
       if (isMountedRef.current) {
         setIsSubmitting(false);
       }
@@ -429,8 +435,10 @@ export function DatabaseForm<T = Record<string, unknown>>({
   const renderField = (field: FormField, _sectionBackground: string) => {
     // Determine focus ring color based on theme accent for consistency across neutral backgrounds
     const focusRingColor = getAccentRing(theme.accent);
+    const hasError = field.name === errorFieldName;
 
-    const baseInputClasses = `w-full rounded-lg border border-gray-300 px-3 py-2 md:px-4 md:py-2 text-sm transition-all duration-200 focus:ring-2 ${focusRingColor} focus:outline-none`;
+    const baseInputClasses = `w-full rounded-lg border ${hasError ? "border-red-400" : "border-gray-300"} px-3 py-2 md:px-4 md:py-2 text-sm transition-all duration-200 focus:ring-2 ${focusRingColor} focus:outline-none`;
+    const labelClasses = `mb-1.5 block text-xs font-medium ${hasError ? "text-red-600" : "text-gray-700"}`;
 
     switch (field.type) {
       case "custom": {
@@ -466,7 +474,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
             />
             <label
               htmlFor={field.name}
-              className="ml-2 block text-xs text-gray-700 md:text-sm"
+              className={`ml-2 block text-xs md:text-sm ${hasError ? "text-red-600" : "text-gray-700"}`}
             >
               {field.label}
             </label>
@@ -481,10 +489,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
       case "textarea":
         return (
           <div>
-            <label
-              htmlFor={field.name}
-              className="mb-1.5 block text-xs font-medium text-gray-700"
-            >
+            <label htmlFor={field.name} className={labelClasses}>
               {field.label}
               {field.required && "*"}
             </label>
@@ -511,10 +516,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
 
         return (
           <div>
-            <label
-              htmlFor={field.name}
-              className="mb-1.5 block text-xs font-medium text-gray-700"
-            >
+            <label htmlFor={field.name} className={labelClasses}>
               {field.label}
               {field.required && "*"}
             </label>
@@ -571,10 +573,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
 
         return (
           <div>
-            <label
-              htmlFor={field.name}
-              className="mb-1.5 block text-xs font-medium text-gray-700"
-            >
+            <label htmlFor={field.name} className={labelClasses}>
               {field.label}
               {field.required && "*"}
             </label>
@@ -682,10 +681,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
 
         return (
           <div>
-            <label
-              htmlFor={field.name}
-              className="mb-1.5 block text-xs font-medium text-gray-700"
-            >
+            <label htmlFor={field.name} className={labelClasses}>
               {field.label}
               {field.required && "*"}
             </label>
@@ -711,10 +707,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
       default:
         return (
           <div>
-            <label
-              htmlFor={field.name}
-              className="mb-1.5 block text-xs font-medium text-gray-700"
-            >
+            <label htmlFor={field.name} className={labelClasses}>
               {field.label}
               {field.required && "*"}
             </label>
@@ -747,7 +740,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
   return (
     <>
       {(error ?? externalError) && (
-        <div className="mb-4 md:mb-6">
+        <div ref={errorRef} className="mb-4 md:mb-6">
           <Alert type="error" message={error ?? externalError ?? ""} />
         </div>
       )}

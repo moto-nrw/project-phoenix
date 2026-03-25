@@ -392,4 +392,59 @@ describe("InvitationForm", () => {
       expect(screen.getByLabelText("Rolle")).toBeDisabled();
     });
   });
+
+  describe("Scroll to error and field highlighting", () => {
+    it("scrolls to error when submitting with empty email", async () => {
+      const scrollIntoViewMock = vi.fn();
+      Element.prototype.scrollIntoView = scrollIntoViewMock;
+
+      render(<InvitationForm />);
+
+      // Wait for roles to load
+      await waitFor(() => {
+        expect(screen.getByText("Lehrkraft")).toBeInTheDocument();
+      });
+
+      const submitButton = screen.getByText("Einladung senden");
+      fireEvent.click(submitButton);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(/Bitte gib eine gültige E-Mail-Adresse ein/),
+        ).toBeInTheDocument();
+      });
+
+      expect(scrollIntoViewMock).toHaveBeenCalledWith({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+
+    it("highlights the role label when role is not selected", async () => {
+      Element.prototype.scrollIntoView = vi.fn();
+
+      render(<InvitationForm />);
+
+      // Wait for roles to load
+      await waitFor(() => {
+        expect(screen.getByText("Lehrkraft")).toBeInTheDocument();
+      });
+
+      // Fill email but leave role empty
+      const emailInput = screen.getByTestId("invitation-email");
+      fireEvent.change(emailInput, { target: { value: "test@example.com" } });
+
+      const submitButton = screen.getByText("Einladung senden");
+      fireEvent.click(submitButton);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(/Bitte wähle eine Rolle aus/),
+        ).toBeInTheDocument();
+      });
+
+      const roleLabel = screen.getByText("Rolle");
+      expect(roleLabel.className).toContain("text-red-600");
+    });
+  });
 });
