@@ -130,6 +130,17 @@ vi.mock("~/components/ui/skeleton", () => ({
     <div data-testid="skeleton" className={className} />
   ),
 }));
+/* eslint-disable @typescript-eslint/no-explicit-any */
+vi.mock("./create-account-modal", () => ({
+  CreateAccountModal: ({ isOpen, schoolId, schoolName }: any) =>
+    isOpen ? (
+      <div data-testid="create-account-modal">
+        <span>{schoolName}</span>
+        <span>{schoolId}</span>
+      </div>
+    ) : null,
+}));
+/* eslint-enable @typescript-eslint/no-explicit-any */
 /* eslint-enable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-return */
 
 import OperatorProvisioningPage from "./page";
@@ -2389,6 +2400,49 @@ describe("OperatorProvisioningPage", () => {
 
       const orgSelect = screen.getByLabelText("Träger");
       expect(orgSelect).toHaveTextContent("Alle Träger");
+    });
+  });
+
+  // --- Create Account Modal ---
+
+  it("shows Konto erstellen button on school card", () => {
+    setupSWR();
+
+    render(<OperatorProvisioningPage />);
+
+    fireEvent.click(screen.getByTestId("tab-schools"));
+
+    expect(screen.getByText("Konto erstellen")).toBeInTheDocument();
+  });
+
+  it("opens create account modal when Konto erstellen is clicked", async () => {
+    setupSWR();
+
+    render(<OperatorProvisioningPage />);
+
+    fireEvent.click(screen.getByTestId("tab-schools"));
+    fireEvent.click(screen.getByText("Konto erstellen"));
+
+    await waitFor(() => {
+      const modal = screen.getByTestId("create-account-modal");
+      expect(modal).toBeInTheDocument();
+      expect(modal).toHaveTextContent("Test School");
+    });
+  });
+
+  it("renders CreateAccountModal with correct school info", async () => {
+    setupSWR();
+
+    render(<OperatorProvisioningPage />);
+
+    fireEvent.click(screen.getByTestId("tab-schools"));
+    fireEvent.click(screen.getByText("Konto erstellen"));
+
+    await waitFor(() => {
+      const modal = screen.getByTestId("create-account-modal");
+      expect(modal).toBeInTheDocument();
+      expect(modal).toHaveTextContent("Test School");
+      expect(modal).toHaveTextContent("10");
     });
   });
 });

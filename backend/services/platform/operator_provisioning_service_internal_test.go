@@ -1997,3 +1997,58 @@ func TestSetDeviceAPIKey_ManualKeyConflict(t *testing.T) {
 	require.ErrorAs(t, err, &conflictErr)
 	assert.Contains(t, err.Error(), "api_key already in use")
 }
+
+// ---------------------------------------------------------------------------
+// shouldCreateTeacher
+// ---------------------------------------------------------------------------
+
+func TestShouldCreateTeacher(t *testing.T) {
+	tests := []struct {
+		name     string
+		roleName string
+		want     bool
+	}{
+		{"user role", "user", true},
+		{"teacher role", "teacher", true},
+		{"admin role", "admin", false},
+		{"uppercase Teacher", "Teacher", true},
+		{"whitespace user", " user ", true},
+		{"mixed case USER", "USER", true},
+		{"empty string", "", false},
+		{"unknown role", "moderator", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, shouldCreateTeacher(tt.roleName))
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// generateRandomSuffix
+// ---------------------------------------------------------------------------
+
+func TestGenerateRandomSuffix(t *testing.T) {
+	const validChars = "abcdefghijklmnopqrstuvwxyz0123456789"
+
+	t.Run("correct length", func(t *testing.T) {
+		for _, length := range []int{0, 1, 6, 20} {
+			result := generateRandomSuffix(length)
+			assert.Len(t, result, length, "length=%d", length)
+		}
+	})
+
+	t.Run("valid characters", func(t *testing.T) {
+		result := generateRandomSuffix(100)
+		for i, ch := range result {
+			assert.Contains(t, validChars, string(ch), "invalid char at index %d: %c", i, ch)
+		}
+	})
+
+	t.Run("two calls produce different results", func(t *testing.T) {
+		a := generateRandomSuffix(12)
+		b := generateRandomSuffix(12)
+		// With 36^12 possible values, collision probability is negligible.
+		assert.NotEqual(t, a, b, "two random suffixes should differ")
+	})
+}

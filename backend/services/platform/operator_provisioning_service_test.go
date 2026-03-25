@@ -3,16 +3,19 @@ package platform_test
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"net"
 	"testing"
 	"time"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	"github.com/stretchr/testify/assert"
@@ -166,8 +169,9 @@ func (m *mockDeviceRepo) CountDevicesByType(context.Context) (map[string]int, er
 }
 
 type mockRoleRepo struct {
-	role  *authModels.Role
-	roles []*authModels.Role
+	role       *authModels.Role
+	roles      []*authModels.Role
+	findByIDFn func(context.Context, interface{}) (*authModels.Role, error)
 }
 
 type mockCategoryRepo struct {
@@ -200,7 +204,10 @@ func (m *mockCategoryRepo) ListAll(context.Context) ([]*activityModels.Category,
 }
 
 func (m *mockRoleRepo) Create(context.Context, *authModels.Role) error { return nil }
-func (m *mockRoleRepo) FindByID(context.Context, interface{}) (*authModels.Role, error) {
+func (m *mockRoleRepo) FindByID(ctx context.Context, id interface{}) (*authModels.Role, error) {
+	if m.findByIDFn != nil {
+		return m.findByIDFn(ctx, id)
+	}
 	return nil, nil
 }
 func (m *mockRoleRepo) Update(context.Context, *authModels.Role) error { return nil }
@@ -259,6 +266,278 @@ func (m *mockInvitationService) ListPendingInvitations(context.Context) ([]*auth
 func (m *mockInvitationService) RevokeInvitation(context.Context, int64, int64) error { return nil }
 func (m *mockInvitationService) CleanupExpiredInvitations(context.Context) (int, error) {
 	return 0, nil
+}
+
+// ---------------------------------------------------------------------------
+// mockAuthService
+// ---------------------------------------------------------------------------
+
+type mockAuthService struct {
+	registerFn func(ctx context.Context, email, username, password string, roleID *int64, tenantID int64) (*authModels.Account, error)
+}
+
+func (m *mockAuthService) WithTx(_ bun.Tx) interface{} { return m }
+func (m *mockAuthService) Login(context.Context, string, string) (string, string, error) {
+	return "", "", nil
+}
+func (m *mockAuthService) LoginWithAudit(context.Context, string, string, string, string, string) (string, string, error) {
+	return "", "", nil
+}
+func (m *mockAuthService) Register(ctx context.Context, email, username, password string, roleID *int64, tenantID int64) (*authModels.Account, error) {
+	if m.registerFn != nil {
+		return m.registerFn(ctx, email, username, password, roleID, tenantID)
+	}
+	return nil, nil
+}
+func (m *mockAuthService) ValidateToken(context.Context, string) (*authModels.Account, *jwt.AppClaims, error) {
+	return nil, nil, nil
+}
+func (m *mockAuthService) RefreshToken(context.Context, string) (string, string, error) {
+	return "", "", nil
+}
+func (m *mockAuthService) RefreshTokenWithAudit(context.Context, string, string, string) (string, string, error) {
+	return "", "", nil
+}
+func (m *mockAuthService) Logout(context.Context, string) error                          { return nil }
+func (m *mockAuthService) LogoutWithAudit(context.Context, string, string, string) error { return nil }
+func (m *mockAuthService) ChangePassword(context.Context, int, string, string) error     { return nil }
+func (m *mockAuthService) GetAccountByID(context.Context, int) (*authModels.Account, error) {
+	return nil, nil
+}
+func (m *mockAuthService) GetAccountByEmail(context.Context, string) (*authModels.Account, error) {
+	return nil, nil
+}
+func (m *mockAuthService) CreateRole(context.Context, string, string) (*authModels.Role, error) {
+	return nil, nil
+}
+func (m *mockAuthService) GetRoleByID(context.Context, int) (*authModels.Role, error) {
+	return nil, nil
+}
+func (m *mockAuthService) GetRoleByName(context.Context, string) (*authModels.Role, error) {
+	return nil, nil
+}
+func (m *mockAuthService) UpdateRole(context.Context, *authModels.Role) error { return nil }
+func (m *mockAuthService) DeleteRole(context.Context, int) error              { return nil }
+func (m *mockAuthService) ListRoles(context.Context, map[string]interface{}) ([]*authModels.Role, error) {
+	return nil, nil
+}
+func (m *mockAuthService) AssignRoleToAccount(context.Context, int, int) error   { return nil }
+func (m *mockAuthService) RemoveRoleFromAccount(context.Context, int, int) error { return nil }
+func (m *mockAuthService) GetAccountRoles(context.Context, int) ([]*authModels.Role, error) {
+	return nil, nil
+}
+func (m *mockAuthService) GetAccountRoleNames(context.Context, []int64) (map[int64]string, error) {
+	return nil, nil
+}
+func (m *mockAuthService) CreatePermission(context.Context, string, string, string, string) (*authModels.Permission, error) {
+	return nil, nil
+}
+func (m *mockAuthService) GetPermissionByID(context.Context, int) (*authModels.Permission, error) {
+	return nil, nil
+}
+func (m *mockAuthService) GetPermissionByName(context.Context, string) (*authModels.Permission, error) {
+	return nil, nil
+}
+func (m *mockAuthService) UpdatePermission(context.Context, *authModels.Permission) error { return nil }
+func (m *mockAuthService) DeletePermission(context.Context, int) error                    { return nil }
+func (m *mockAuthService) ListPermissions(context.Context, map[string]interface{}) ([]*authModels.Permission, error) {
+	return nil, nil
+}
+func (m *mockAuthService) GrantPermissionToAccount(context.Context, int, int) error    { return nil }
+func (m *mockAuthService) DenyPermissionToAccount(context.Context, int, int) error     { return nil }
+func (m *mockAuthService) RemovePermissionFromAccount(context.Context, int, int) error { return nil }
+func (m *mockAuthService) GetAccountPermissions(context.Context, int) ([]*authModels.Permission, error) {
+	return nil, nil
+}
+func (m *mockAuthService) GetAccountDirectPermissions(context.Context, int) ([]*authModels.Permission, error) {
+	return nil, nil
+}
+func (m *mockAuthService) AssignPermissionToRole(context.Context, int, int) error   { return nil }
+func (m *mockAuthService) RemovePermissionFromRole(context.Context, int, int) error { return nil }
+func (m *mockAuthService) GetRolePermissions(context.Context, int) ([]*authModels.Permission, error) {
+	return nil, nil
+}
+func (m *mockAuthService) ActivateAccount(context.Context, int) error               { return nil }
+func (m *mockAuthService) DeactivateAccount(context.Context, int) error             { return nil }
+func (m *mockAuthService) UpdateAccount(context.Context, *authModels.Account) error { return nil }
+func (m *mockAuthService) ListAccounts(context.Context, map[string]interface{}) ([]*authModels.Account, error) {
+	return nil, nil
+}
+func (m *mockAuthService) GetAccountsByRole(context.Context, string) ([]*authModels.Account, error) {
+	return nil, nil
+}
+func (m *mockAuthService) GetAccountsWithRolesAndPermissions(context.Context, map[string]interface{}) ([]*authModels.Account, error) {
+	return nil, nil
+}
+func (m *mockAuthService) InitiatePasswordReset(context.Context, string) (*authModels.PasswordResetToken, error) {
+	return nil, nil
+}
+func (m *mockAuthService) ResetPassword(context.Context, string, string) error { return nil }
+func (m *mockAuthService) CleanupExpiredRateLimits(context.Context) (int, error) {
+	return 0, nil
+}
+func (m *mockAuthService) CleanupExpiredTokens(context.Context) (int, error) { return 0, nil }
+func (m *mockAuthService) CleanupExpiredPasswordResetTokens(context.Context) (int, error) {
+	return 0, nil
+}
+func (m *mockAuthService) RevokeAllTokens(context.Context, int) error { return nil }
+func (m *mockAuthService) GetActiveTokens(context.Context, int) ([]*authModels.Token, error) {
+	return nil, nil
+}
+func (m *mockAuthService) SwitchTenant(context.Context, int64, string) (string, string, error) {
+	return "", "", nil
+}
+func (m *mockAuthService) LinkAccountToTenant(context.Context, string, *int64, int64) (*authModels.Account, error) {
+	return nil, nil
+}
+func (m *mockAuthService) CreateParentAccount(context.Context, string, string, string) (*authModels.AccountParent, error) {
+	return nil, nil
+}
+func (m *mockAuthService) GetParentAccountByID(context.Context, int) (*authModels.AccountParent, error) {
+	return nil, nil
+}
+func (m *mockAuthService) GetParentAccountByEmail(context.Context, string) (*authModels.AccountParent, error) {
+	return nil, nil
+}
+func (m *mockAuthService) UpdateParentAccount(context.Context, *authModels.AccountParent) error {
+	return nil
+}
+func (m *mockAuthService) ActivateParentAccount(context.Context, int) error   { return nil }
+func (m *mockAuthService) DeactivateParentAccount(context.Context, int) error { return nil }
+func (m *mockAuthService) ListParentAccounts(context.Context, map[string]interface{}) ([]*authModels.AccountParent, error) {
+	return nil, nil
+}
+
+// ---------------------------------------------------------------------------
+// mockPersonRepo
+// ---------------------------------------------------------------------------
+
+type mockPersonRepo struct {
+	createFn        func(context.Context, *userModels.Person) error
+	linkToAccountFn func(context.Context, int64, int64) error
+}
+
+func (m *mockPersonRepo) Create(ctx context.Context, person *userModels.Person) error {
+	if m.createFn != nil {
+		return m.createFn(ctx, person)
+	}
+	return nil
+}
+func (m *mockPersonRepo) FindByID(context.Context, interface{}) (*userModels.Person, error) {
+	return nil, nil
+}
+func (m *mockPersonRepo) FindByIDs(context.Context, []int64) (map[int64]*userModels.Person, error) {
+	return nil, nil
+}
+func (m *mockPersonRepo) FindByTagID(context.Context, string) (*userModels.Person, error) {
+	return nil, nil
+}
+func (m *mockPersonRepo) FindByAccountID(context.Context, int64) (*userModels.Person, error) {
+	return nil, nil
+}
+func (m *mockPersonRepo) Update(context.Context, *userModels.Person) error { return nil }
+func (m *mockPersonRepo) Delete(context.Context, interface{}) error        { return nil }
+func (m *mockPersonRepo) List(context.Context, map[string]interface{}) ([]*userModels.Person, error) {
+	return nil, nil
+}
+func (m *mockPersonRepo) ListWithOptions(context.Context, *base.QueryOptions) ([]*userModels.Person, error) {
+	return nil, nil
+}
+func (m *mockPersonRepo) LinkToAccount(ctx context.Context, personID int64, accountID int64) error {
+	if m.linkToAccountFn != nil {
+		return m.linkToAccountFn(ctx, personID, accountID)
+	}
+	return nil
+}
+func (m *mockPersonRepo) UnlinkFromAccount(context.Context, int64) error      { return nil }
+func (m *mockPersonRepo) LinkToRFIDCard(context.Context, int64, string) error { return nil }
+func (m *mockPersonRepo) UnlinkFromRFIDCard(context.Context, int64) error     { return nil }
+func (m *mockPersonRepo) FindWithAccount(context.Context, int64) (*userModels.Person, error) {
+	return nil, nil
+}
+
+// ---------------------------------------------------------------------------
+// mockStaffRepo
+// ---------------------------------------------------------------------------
+
+type mockStaffRepo struct {
+	createFn func(context.Context, *userModels.Staff) error
+}
+
+func (m *mockStaffRepo) Create(ctx context.Context, staff *userModels.Staff) error {
+	if m.createFn != nil {
+		return m.createFn(ctx, staff)
+	}
+	return nil
+}
+func (m *mockStaffRepo) FindByID(context.Context, interface{}) (*userModels.Staff, error) {
+	return nil, nil
+}
+func (m *mockStaffRepo) FindByPersonID(context.Context, int64) (*userModels.Staff, error) {
+	return nil, nil
+}
+func (m *mockStaffRepo) Update(context.Context, *userModels.Staff) error { return nil }
+func (m *mockStaffRepo) Delete(context.Context, interface{}) error       { return nil }
+func (m *mockStaffRepo) List(context.Context, map[string]interface{}) ([]*userModels.Staff, error) {
+	return nil, nil
+}
+func (m *mockStaffRepo) ListAllWithPerson(context.Context) ([]*userModels.Staff, error) {
+	return nil, nil
+}
+func (m *mockStaffRepo) UpdateNotes(context.Context, int64, string) error { return nil }
+func (m *mockStaffRepo) FindWithPerson(context.Context, int64) (*userModels.Staff, error) {
+	return nil, nil
+}
+func (m *mockStaffRepo) ListStaffByRoles(context.Context, []string) ([]*userModels.StaffWithRoleInfo, error) {
+	return nil, nil
+}
+
+// ---------------------------------------------------------------------------
+// mockTeacherRepo
+// ---------------------------------------------------------------------------
+
+type mockTeacherRepo struct {
+	createFn func(context.Context, *userModels.Teacher) error
+}
+
+func (m *mockTeacherRepo) Create(ctx context.Context, teacher *userModels.Teacher) error {
+	if m.createFn != nil {
+		return m.createFn(ctx, teacher)
+	}
+	return nil
+}
+func (m *mockTeacherRepo) FindByID(context.Context, interface{}) (*userModels.Teacher, error) {
+	return nil, nil
+}
+func (m *mockTeacherRepo) FindByStaffID(context.Context, int64) (*userModels.Teacher, error) {
+	return nil, nil
+}
+func (m *mockTeacherRepo) FindByStaffIDs(context.Context, []int64) (map[int64]*userModels.Teacher, error) {
+	return nil, nil
+}
+func (m *mockTeacherRepo) FindBySpecialization(context.Context, string) ([]*userModels.Teacher, error) {
+	return nil, nil
+}
+func (m *mockTeacherRepo) Update(context.Context, *userModels.Teacher) error { return nil }
+func (m *mockTeacherRepo) Delete(context.Context, interface{}) error         { return nil }
+func (m *mockTeacherRepo) List(context.Context, map[string]interface{}) ([]*userModels.Teacher, error) {
+	return nil, nil
+}
+func (m *mockTeacherRepo) ListWithOptions(context.Context, *base.QueryOptions) ([]*userModels.Teacher, error) {
+	return nil, nil
+}
+func (m *mockTeacherRepo) FindByGroupID(context.Context, int64) ([]*userModels.Teacher, error) {
+	return nil, nil
+}
+func (m *mockTeacherRepo) UpdateQualifications(context.Context, int64, string) error { return nil }
+func (m *mockTeacherRepo) FindWithStaffAndPerson(context.Context, int64) (*userModels.Teacher, error) {
+	return nil, nil
+}
+func (m *mockTeacherRepo) ListAllWithStaffAndPerson(context.Context) ([]*userModels.Teacher, error) {
+	return nil, nil
+}
+func (m *mockTeacherRepo) FindWithStaffAndPersonByIDs(context.Context, []int64) ([]*userModels.Teacher, error) {
+	return nil, nil
 }
 
 func TestOperatorProvisioningService_CreateSchool_AllowsDuplicateSlugAcrossOrganizations(t *testing.T) {
@@ -1533,4 +1812,776 @@ func TestOperatorProvisioningService_UpdateSchool_UpdateError(t *testing.T) {
 	}, 7, net.IPv4(127, 0, 0, 1))
 	require.Nil(t, school)
 	require.ErrorIs(t, err, assert.AnError)
+}
+
+// ---------------------------------------------------------------------------
+// CreateSchoolAccount tests
+// ---------------------------------------------------------------------------
+
+func TestCreateSchoolAccount_Success(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectCommit()
+
+	roleID := int64(5)
+	var createdStaff *userModels.Staff
+	var createdTeacher *userModels.Teacher
+
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SchoolRepo: &mockSchoolRepo{
+			findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+				return &platformModels.School{
+					Model:          base.Model{ID: 9},
+					OrganizationID: 3,
+					Name:           "School",
+					Slug:           "school",
+					Subdomain:      "school",
+					Active:         true,
+				}, nil
+			},
+		},
+		RoleRepo: &mockRoleRepo{
+			findByIDFn: func(_ context.Context, id interface{}) (*authModels.Role, error) {
+				return &authModels.Role{
+					Model:    base.Model{ID: roleID},
+					Name:     "teacher",
+					IsSystem: true,
+				}, nil
+			},
+		},
+		AuthService: &mockAuthService{
+			registerFn: func(_ context.Context, email, username, password string, rID *int64, tenantID int64) (*authModels.Account, error) {
+				return &authModels.Account{
+					Model: base.Model{ID: 100},
+					Email: email,
+				}, nil
+			},
+		},
+		PersonRepo: &mockPersonRepo{
+			createFn: func(_ context.Context, person *userModels.Person) error {
+				person.ID = 200
+				return nil
+			},
+		},
+		StaffRepo: &mockStaffRepo{
+			createFn: func(_ context.Context, staff *userModels.Staff) error {
+				staff.ID = 300
+				createdStaff = staff
+				return nil
+			},
+		},
+		TeacherRepo: &mockTeacherRepo{
+			createFn: func(_ context.Context, teacher *userModels.Teacher) error {
+				teacher.ID = 400
+				createdTeacher = teacher
+				return nil
+			},
+		},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+		DB:           bunDB,
+	})
+
+	account, err := service.CreateSchoolAccount(context.Background(), 9, 7, net.IPv4(127, 0, 0, 1), platformSvc.CreateSchoolAccountRequest{
+		Email:     "teacher@example.com",
+		Password:  "SecureP@ss1",
+		FirstName: "Jane",
+		LastName:  "Doe",
+		RoleID:    &roleID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, account)
+	assert.Equal(t, int64(100), account.ID)
+	require.NotNil(t, createdStaff)
+	assert.Equal(t, int64(200), createdStaff.PersonID)
+	require.NotNil(t, createdTeacher)
+	assert.Equal(t, int64(300), createdTeacher.StaffID)
+}
+
+func TestCreateSchoolAccount_DefaultsToAdminRole(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectCommit()
+
+	var registeredRoleID *int64
+
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SchoolRepo: &mockSchoolRepo{
+			findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+				return &platformModels.School{
+					Model:          base.Model{ID: 9},
+					OrganizationID: 3,
+					Name:           "School",
+					Slug:           "school",
+					Subdomain:      "school",
+					Active:         true,
+				}, nil
+			},
+		},
+		RoleRepo: &mockRoleRepo{
+			roles: []*authModels.Role{
+				{Model: base.Model{ID: 4}, Name: "admin", IsSystem: true},
+			},
+			findByIDFn: func(_ context.Context, id interface{}) (*authModels.Role, error) {
+				return &authModels.Role{
+					Model:    base.Model{ID: 4},
+					Name:     "admin",
+					IsSystem: true,
+				}, nil
+			},
+		},
+		AuthService: &mockAuthService{
+			registerFn: func(_ context.Context, email, username, password string, rID *int64, tenantID int64) (*authModels.Account, error) {
+				registeredRoleID = rID
+				return &authModels.Account{
+					Model: base.Model{ID: 100},
+					Email: email,
+				}, nil
+			},
+		},
+		PersonRepo: &mockPersonRepo{
+			createFn: func(_ context.Context, person *userModels.Person) error {
+				person.ID = 200
+				return nil
+			},
+		},
+		StaffRepo:    &mockStaffRepo{},
+		TeacherRepo:  &mockTeacherRepo{},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+		DB:           bunDB,
+	})
+
+	account, err := service.CreateSchoolAccount(context.Background(), 9, 7, net.IPv4(127, 0, 0, 1), platformSvc.CreateSchoolAccountRequest{
+		Email:     "admin@example.com",
+		Password:  "SecureP@ss1",
+		FirstName: "Admin",
+		LastName:  "User",
+		RoleID:    nil, // should default to admin
+	})
+	require.NoError(t, err)
+	require.NotNil(t, account)
+	require.NotNil(t, registeredRoleID)
+	assert.Equal(t, int64(4), *registeredRoleID)
+}
+
+func TestCreateSchoolAccount_SchoolNotFound(t *testing.T) {
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SchoolRepo: &mockSchoolRepo{},
+	})
+
+	account, err := service.CreateSchoolAccount(context.Background(), 999, 7, net.IPv4(127, 0, 0, 1), platformSvc.CreateSchoolAccountRequest{
+		Email:     "test@example.com",
+		Password:  "SecureP@ss1",
+		FirstName: "Test",
+		LastName:  "User",
+	})
+	require.Nil(t, account)
+	require.Error(t, err)
+	var notFoundErr *platformSvc.SchoolNotFoundError
+	require.ErrorAs(t, err, &notFoundErr)
+}
+
+func TestCreateSchoolAccount_InactiveSchool(t *testing.T) {
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SchoolRepo: &mockSchoolRepo{
+			findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+				return &platformModels.School{
+					Model:          base.Model{ID: 9},
+					OrganizationID: 3,
+					Name:           "School",
+					Slug:           "school",
+					Subdomain:      "school",
+					Active:         false,
+				}, nil
+			},
+		},
+	})
+
+	account, err := service.CreateSchoolAccount(context.Background(), 9, 7, net.IPv4(127, 0, 0, 1), platformSvc.CreateSchoolAccountRequest{
+		Email:     "test@example.com",
+		Password:  "SecureP@ss1",
+		FirstName: "Test",
+		LastName:  "User",
+	})
+	require.Nil(t, account)
+	require.Error(t, err)
+	var invalidErr *platformSvc.InvalidDataError
+	require.ErrorAs(t, err, &invalidErr)
+	assert.Contains(t, err.Error(), "school is inactive")
+}
+
+func TestCreateSchoolAccount_RegisterFails(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectRollback()
+
+	registerErr := errors.New("email already exists")
+	roleID := int64(5)
+
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SchoolRepo: &mockSchoolRepo{
+			findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+				return &platformModels.School{
+					Model: base.Model{ID: 9}, OrganizationID: 3, Name: "School", Slug: "school", Subdomain: "school", Active: true,
+				}, nil
+			},
+		},
+		RoleRepo: &mockRoleRepo{},
+		AuthService: &mockAuthService{
+			registerFn: func(context.Context, string, string, string, *int64, int64) (*authModels.Account, error) {
+				return nil, registerErr
+			},
+		},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+		DB:           bunDB,
+	})
+
+	account, err := service.CreateSchoolAccount(context.Background(), 9, 7, net.IPv4(127, 0, 0, 1), platformSvc.CreateSchoolAccountRequest{
+		Email:     "test@example.com",
+		Password:  "SecureP@ss1",
+		FirstName: "Test",
+		LastName:  "User",
+		RoleID:    &roleID,
+	})
+	require.Nil(t, account)
+	require.ErrorIs(t, err, registerErr)
+}
+
+func TestCreateSchoolAccount_PersonCreateFails(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectRollback()
+
+	roleID := int64(5)
+
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SchoolRepo: &mockSchoolRepo{
+			findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+				return &platformModels.School{
+					Model: base.Model{ID: 9}, OrganizationID: 3, Name: "School", Slug: "school", Subdomain: "school", Active: true,
+				}, nil
+			},
+		},
+		RoleRepo: &mockRoleRepo{},
+		AuthService: &mockAuthService{
+			registerFn: func(_ context.Context, email, username, password string, rID *int64, tenantID int64) (*authModels.Account, error) {
+				return &authModels.Account{Model: base.Model{ID: 100}, Email: email}, nil
+			},
+		},
+		PersonRepo: &mockPersonRepo{
+			createFn: func(context.Context, *userModels.Person) error {
+				return assert.AnError
+			},
+		},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+		DB:           bunDB,
+	})
+
+	account, err := service.CreateSchoolAccount(context.Background(), 9, 7, net.IPv4(127, 0, 0, 1), platformSvc.CreateSchoolAccountRequest{
+		Email:     "test@example.com",
+		Password:  "SecureP@ss1",
+		FirstName: "Test",
+		LastName:  "User",
+		RoleID:    &roleID,
+	})
+	require.Nil(t, account)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "create person")
+}
+
+func TestCreateSchoolAccount_LinkPersonFails(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectRollback()
+
+	roleID := int64(5)
+
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SchoolRepo: &mockSchoolRepo{
+			findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+				return &platformModels.School{
+					Model: base.Model{ID: 9}, OrganizationID: 3, Name: "School", Slug: "school", Subdomain: "school", Active: true,
+				}, nil
+			},
+		},
+		RoleRepo: &mockRoleRepo{},
+		AuthService: &mockAuthService{
+			registerFn: func(_ context.Context, email, username, password string, rID *int64, tenantID int64) (*authModels.Account, error) {
+				return &authModels.Account{Model: base.Model{ID: 100}, Email: email}, nil
+			},
+		},
+		PersonRepo: &mockPersonRepo{
+			createFn: func(_ context.Context, person *userModels.Person) error {
+				person.ID = 200
+				return nil
+			},
+			linkToAccountFn: func(context.Context, int64, int64) error {
+				return assert.AnError
+			},
+		},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+		DB:           bunDB,
+	})
+
+	account, err := service.CreateSchoolAccount(context.Background(), 9, 7, net.IPv4(127, 0, 0, 1), platformSvc.CreateSchoolAccountRequest{
+		Email:     "test@example.com",
+		Password:  "SecureP@ss1",
+		FirstName: "Test",
+		LastName:  "User",
+		RoleID:    &roleID,
+	})
+	require.Nil(t, account)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "link person to account")
+}
+
+func TestCreateSchoolAccount_StaffCreateFails(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectRollback()
+
+	roleID := int64(5)
+
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SchoolRepo: &mockSchoolRepo{
+			findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+				return &platformModels.School{
+					Model: base.Model{ID: 9}, OrganizationID: 3, Name: "School", Slug: "school", Subdomain: "school", Active: true,
+				}, nil
+			},
+		},
+		RoleRepo: &mockRoleRepo{
+			findByIDFn: func(_ context.Context, id interface{}) (*authModels.Role, error) {
+				return &authModels.Role{
+					Model:    base.Model{ID: roleID},
+					Name:     "teacher",
+					IsSystem: true,
+				}, nil
+			},
+		},
+		AuthService: &mockAuthService{
+			registerFn: func(_ context.Context, email, username, password string, rID *int64, tenantID int64) (*authModels.Account, error) {
+				return &authModels.Account{Model: base.Model{ID: 100}, Email: email}, nil
+			},
+		},
+		PersonRepo: &mockPersonRepo{
+			createFn: func(_ context.Context, person *userModels.Person) error {
+				person.ID = 200
+				return nil
+			},
+		},
+		StaffRepo: &mockStaffRepo{
+			createFn: func(context.Context, *userModels.Staff) error {
+				return assert.AnError
+			},
+		},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+		DB:           bunDB,
+	})
+
+	account, err := service.CreateSchoolAccount(context.Background(), 9, 7, net.IPv4(127, 0, 0, 1), platformSvc.CreateSchoolAccountRequest{
+		Email:     "test@example.com",
+		Password:  "SecureP@ss1",
+		FirstName: "Test",
+		LastName:  "User",
+		RoleID:    &roleID,
+	})
+	require.Nil(t, account)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "create staff")
+}
+
+func TestCreateSchoolAccount_TeacherCreateFails(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectRollback()
+
+	roleID := int64(5)
+
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SchoolRepo: &mockSchoolRepo{
+			findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+				return &platformModels.School{
+					Model: base.Model{ID: 9}, OrganizationID: 3, Name: "School", Slug: "school", Subdomain: "school", Active: true,
+				}, nil
+			},
+		},
+		RoleRepo: &mockRoleRepo{
+			findByIDFn: func(_ context.Context, id interface{}) (*authModels.Role, error) {
+				return &authModels.Role{
+					Model:    base.Model{ID: roleID},
+					Name:     "teacher",
+					IsSystem: true,
+				}, nil
+			},
+		},
+		AuthService: &mockAuthService{
+			registerFn: func(_ context.Context, email, username, password string, rID *int64, tenantID int64) (*authModels.Account, error) {
+				return &authModels.Account{Model: base.Model{ID: 100}, Email: email}, nil
+			},
+		},
+		PersonRepo: &mockPersonRepo{
+			createFn: func(_ context.Context, person *userModels.Person) error {
+				person.ID = 200
+				return nil
+			},
+		},
+		StaffRepo: &mockStaffRepo{
+			createFn: func(_ context.Context, staff *userModels.Staff) error {
+				staff.ID = 300
+				return nil
+			},
+		},
+		TeacherRepo: &mockTeacherRepo{
+			createFn: func(context.Context, *userModels.Teacher) error {
+				return assert.AnError
+			},
+		},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+		DB:           bunDB,
+	})
+
+	account, err := service.CreateSchoolAccount(context.Background(), 9, 7, net.IPv4(127, 0, 0, 1), platformSvc.CreateSchoolAccountRequest{
+		Email:     "test@example.com",
+		Password:  "SecureP@ss1",
+		FirstName: "Test",
+		LastName:  "User",
+		RoleID:    &roleID,
+	})
+	require.Nil(t, account)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "create teacher")
+}
+
+func TestCreateSchoolAccount_NonSystemRole_NoStaff(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectCommit()
+
+	roleID := int64(5)
+	staffCreated := false
+
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SchoolRepo: &mockSchoolRepo{
+			findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+				return &platformModels.School{
+					Model: base.Model{ID: 9}, OrganizationID: 3, Name: "School", Slug: "school", Subdomain: "school", Active: true,
+				}, nil
+			},
+		},
+		RoleRepo: &mockRoleRepo{
+			findByIDFn: func(_ context.Context, id interface{}) (*authModels.Role, error) {
+				return &authModels.Role{
+					Model:    base.Model{ID: roleID},
+					Name:     "custom-role",
+					IsSystem: false,
+				}, nil
+			},
+		},
+		AuthService: &mockAuthService{
+			registerFn: func(_ context.Context, email, username, password string, rID *int64, tenantID int64) (*authModels.Account, error) {
+				return &authModels.Account{Model: base.Model{ID: 100}, Email: email}, nil
+			},
+		},
+		PersonRepo: &mockPersonRepo{
+			createFn: func(_ context.Context, person *userModels.Person) error {
+				person.ID = 200
+				return nil
+			},
+		},
+		StaffRepo: &mockStaffRepo{
+			createFn: func(context.Context, *userModels.Staff) error {
+				staffCreated = true
+				return nil
+			},
+		},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+		DB:           bunDB,
+	})
+
+	account, err := service.CreateSchoolAccount(context.Background(), 9, 7, net.IPv4(127, 0, 0, 1), platformSvc.CreateSchoolAccountRequest{
+		Email:     "test@example.com",
+		Password:  "SecureP@ss1",
+		FirstName: "Test",
+		LastName:  "User",
+		RoleID:    &roleID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, account)
+	assert.False(t, staffCreated, "staff should not be created for non-system role")
+}
+
+func TestCreateSchoolAccount_AdminRole_NoTeacher(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectCommit()
+
+	roleID := int64(4)
+	teacherCreated := false
+
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SchoolRepo: &mockSchoolRepo{
+			findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+				return &platformModels.School{
+					Model: base.Model{ID: 9}, OrganizationID: 3, Name: "School", Slug: "school", Subdomain: "school", Active: true,
+				}, nil
+			},
+		},
+		RoleRepo: &mockRoleRepo{
+			findByIDFn: func(_ context.Context, id interface{}) (*authModels.Role, error) {
+				return &authModels.Role{
+					Model:    base.Model{ID: roleID},
+					Name:     "admin",
+					IsSystem: true,
+				}, nil
+			},
+		},
+		AuthService: &mockAuthService{
+			registerFn: func(_ context.Context, email, username, password string, rID *int64, tenantID int64) (*authModels.Account, error) {
+				return &authModels.Account{Model: base.Model{ID: 100}, Email: email}, nil
+			},
+		},
+		PersonRepo: &mockPersonRepo{
+			createFn: func(_ context.Context, person *userModels.Person) error {
+				person.ID = 200
+				return nil
+			},
+		},
+		StaffRepo: &mockStaffRepo{
+			createFn: func(_ context.Context, staff *userModels.Staff) error {
+				staff.ID = 300
+				return nil
+			},
+		},
+		TeacherRepo: &mockTeacherRepo{
+			createFn: func(context.Context, *userModels.Teacher) error {
+				teacherCreated = true
+				return nil
+			},
+		},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+		DB:           bunDB,
+	})
+
+	account, err := service.CreateSchoolAccount(context.Background(), 9, 7, net.IPv4(127, 0, 0, 1), platformSvc.CreateSchoolAccountRequest{
+		Email:     "admin@example.com",
+		Password:  "SecureP@ss1",
+		FirstName: "Admin",
+		LastName:  "User",
+		RoleID:    &roleID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, account)
+	assert.False(t, teacherCreated, "teacher should not be created for admin role")
+}
+
+func TestCreateSchoolAccount_WithPosition(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectCommit()
+
+	roleID := int64(5)
+	var createdTeacher *userModels.Teacher
+
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SchoolRepo: &mockSchoolRepo{
+			findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+				return &platformModels.School{
+					Model: base.Model{ID: 9}, OrganizationID: 3, Name: "School", Slug: "school", Subdomain: "school", Active: true,
+				}, nil
+			},
+		},
+		RoleRepo: &mockRoleRepo{
+			findByIDFn: func(_ context.Context, id interface{}) (*authModels.Role, error) {
+				return &authModels.Role{
+					Model:    base.Model{ID: roleID},
+					Name:     "user",
+					IsSystem: true,
+				}, nil
+			},
+		},
+		AuthService: &mockAuthService{
+			registerFn: func(_ context.Context, email, username, password string, rID *int64, tenantID int64) (*authModels.Account, error) {
+				return &authModels.Account{Model: base.Model{ID: 100}, Email: email}, nil
+			},
+		},
+		PersonRepo: &mockPersonRepo{
+			createFn: func(_ context.Context, person *userModels.Person) error {
+				person.ID = 200
+				return nil
+			},
+		},
+		StaffRepo: &mockStaffRepo{
+			createFn: func(_ context.Context, staff *userModels.Staff) error {
+				staff.ID = 300
+				return nil
+			},
+		},
+		TeacherRepo: &mockTeacherRepo{
+			createFn: func(_ context.Context, teacher *userModels.Teacher) error {
+				createdTeacher = teacher
+				return nil
+			},
+		},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+		DB:           bunDB,
+	})
+
+	account, err := service.CreateSchoolAccount(context.Background(), 9, 7, net.IPv4(127, 0, 0, 1), platformSvc.CreateSchoolAccountRequest{
+		Email:     "teacher@example.com",
+		Password:  "SecureP@ss1",
+		FirstName: "Jane",
+		LastName:  "Doe",
+		RoleID:    &roleID,
+		Position:  "Klassenlehrerin",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, account)
+	require.NotNil(t, createdTeacher)
+	assert.Equal(t, "Klassenlehrerin", createdTeacher.Role)
+}
+
+// ---------------------------------------------------------------------------
+// ListSystemRoles tests
+// ---------------------------------------------------------------------------
+
+func TestListSystemRoles_Success(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectCommit()
+
+	expected := []*authModels.Role{
+		{Model: base.Model{ID: 1}, Name: "admin", IsSystem: true},
+		{Model: base.Model{ID: 2}, Name: "user", IsSystem: true},
+	}
+
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		RoleRepo: &mockRoleRepo{roles: expected},
+		DB:       bunDB,
+	})
+
+	roles, err := service.ListSystemRoles(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, expected, roles)
+}
+
+func TestListSystemRoles_Error(t *testing.T) {
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		RoleRepo: &mockRoleRepo{},
+	})
+
+	// With no txHandler (nil DB), withAdminTx runs callback directly.
+	// Default mockRoleRepo returns nil, nil when both role and roles are nil.
+	roles, err := service.ListSystemRoles(context.Background())
+	require.NoError(t, err)
+	require.Nil(t, roles)
 }
