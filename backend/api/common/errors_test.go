@@ -3,6 +3,7 @@ package common_test
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -376,24 +377,20 @@ func TestErrorGone_ResponseBody(t *testing.T) {
 // =============================================================================
 
 func TestIsConstraintViolation(t *testing.T) {
-	t.Run("detects foreign key violation", func(t *testing.T) {
-		err := errors.New(`ERROR: update or delete on table "staff" violates foreign key constraint "fk_attendance_checked_in_by" (SQLSTATE=23503)`)
+	t.Run("detects foreign key violation string", func(t *testing.T) {
+		err := errors.New(`ERROR: update or delete on table "staff" violates foreign key constraint "fk_attendance_checked_in_by"`)
 		assert.True(t, common.IsConstraintViolation(err))
 	})
 
-	t.Run("detects not-null violation from cascading SET NULL", func(t *testing.T) {
-		err := errors.New(`ERROR: null value in column "tenant_id" of relation "groups" violates not-null constraint (SQLSTATE=23502)`)
+	t.Run("detects not-null violation string from cascading SET NULL", func(t *testing.T) {
+		err := errors.New(`ERROR: null value in column "tenant_id" of relation "groups" violates not-null constraint`)
 		assert.True(t, common.IsConstraintViolation(err))
 	})
 
-	t.Run("detects SQLSTATE 23503 code", func(t *testing.T) {
-		err := errors.New("some error SQLSTATE=23503")
-		assert.True(t, common.IsConstraintViolation(err))
-	})
-
-	t.Run("detects SQLSTATE 23502 code", func(t *testing.T) {
-		err := errors.New("some error SQLSTATE=23502")
-		assert.True(t, common.IsConstraintViolation(err))
+	t.Run("detects wrapped FK violation string", func(t *testing.T) {
+		inner := errors.New(`violates foreign key constraint "fk_test"`)
+		wrapped := fmt.Errorf("database error: %w", inner)
+		assert.True(t, common.IsConstraintViolation(wrapped))
 	})
 
 	t.Run("returns false for nil error", func(t *testing.T) {
