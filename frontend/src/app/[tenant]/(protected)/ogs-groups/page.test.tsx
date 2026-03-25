@@ -44,6 +44,7 @@ const mockSearchParamsGet = vi.fn((_key?: string): string | null => null);
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockPush }),
   useSearchParams: () => ({ get: mockSearchParamsGet }),
+  redirect: vi.fn(),
 }));
 
 // Mock ToastContext
@@ -5102,5 +5103,35 @@ describe("OGSGroupPage ID-based selection: currentGroup useMemo", () => {
 
     // currentGroup useMemo should return null (lines 351-355)
     expect(screen.queryByTestId("student-card")).not.toBeInTheDocument();
+  });
+});
+
+describe("RoleGuard integration", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("shows ForbiddenPage for admin users", async () => {
+    const { useSession } = await import("next-auth/react");
+    vi.mocked(useSession).mockReturnValue({
+      data: { user: { token: "test-token", isAdmin: true } },
+      status: "authenticated",
+    } as never);
+
+    render(<OGSGroupPage />);
+
+    expect(screen.getByText("Kein Zugriff")).toBeInTheDocument();
+  });
+
+  it("renders content for non-admin users", async () => {
+    const { useSession } = await import("next-auth/react");
+    vi.mocked(useSession).mockReturnValue({
+      data: { user: { token: "test-token", isAdmin: false } },
+      status: "authenticated",
+    } as never);
+
+    render(<OGSGroupPage />);
+
+    expect(screen.queryByText("Kein Zugriff")).not.toBeInTheDocument();
   });
 });

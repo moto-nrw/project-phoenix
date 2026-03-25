@@ -7271,3 +7271,33 @@ describe("Schulhof tab onTabChange callback", () => {
     });
   });
 });
+
+describe("RoleGuard integration", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("shows ForbiddenPage for admin users", async () => {
+    const { useSession } = await import("next-auth/react");
+    vi.mocked(useSession).mockReturnValue({
+      data: { user: { token: "test-token", isAdmin: true } },
+      status: "authenticated",
+    } as never);
+
+    render(<MeinRaumPage />);
+
+    expect(screen.getByText("Kein Zugriff")).toBeInTheDocument();
+  });
+
+  it("renders content for non-admin users", async () => {
+    const { useSession } = await import("next-auth/react");
+    vi.mocked(useSession).mockReturnValue({
+      data: { user: { token: "test-token", isAdmin: false } },
+      status: "authenticated",
+    } as never);
+
+    render(<MeinRaumPage />);
+
+    expect(screen.queryByText("Kein Zugriff")).not.toBeInTheDocument();
+  });
+});

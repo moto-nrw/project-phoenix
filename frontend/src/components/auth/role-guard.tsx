@@ -24,6 +24,10 @@ export function RoleGuard({ variant, children, message }: RoleGuardProps) {
     return <Loading fullPage={false} />;
   }
 
+  // The tenant shell only has admin and user (Betreuer) accounts today.
+  // Guardians use a separate account table and cannot log in here.
+  // staffOnly therefore means !isAdmin — if a third role enters the
+  // tenant shell, this check needs revisiting.
   const isAllowed =
     variant === "adminOnly" ? isAdmin(session) : !isAdmin(session);
 
