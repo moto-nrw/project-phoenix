@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/go-chi/render"
+	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 // RenderError renders an error response and logs any render failures.
@@ -158,17 +159,24 @@ func ErrorTooManyRequests(err error) render.Renderer {
 
 // IsConstraintViolation checks if an error is a PostgreSQL constraint violation
 // that indicates the entity cannot be deleted due to dependencies.
-// Catches FK violations (23503), NOT NULL violations from cascading SET NULL (23502),
-// and other constraint errors that surface during delete operations.
+// Primary check uses typed pgdriver.Error with SQLSTATE codes (23503 = FK, 23502 = NOT NULL).
+// Fallback string matching covers errors that have been wrapped and lost the original type.
 func IsConstraintViolation(err error) bool {
 	if err == nil {
 		return false
 	}
+
+	// Primary: typed pgdriver.Error with structured SQLSTATE code
+	var pgErr pgdriver.Error
+	if errors.As(err, &pgErr) {
+		code := pgErr.Field('C') // SQLSTATE code
+		return code == "23503" || code == "23502"
+	}
+
+	// Fallback: string matching for wrapped errors that lost the pgdriver.Error type
 	msg := err.Error()
 	return strings.Contains(msg, "violates foreign key constraint") ||
-		strings.Contains(msg, "violates not-null constraint") ||
-		strings.Contains(msg, "SQLSTATE=23503") ||
-		strings.Contains(msg, "SQLSTATE=23502")
+		strings.Contains(msg, "violates not-null constraint")
 }
 
 // ErrorGone returns a 410 Gone error response

@@ -5,7 +5,9 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 
+	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -39,13 +41,14 @@ const (
 // PersonServiceDependencies contains all dependencies required by the person service
 type PersonServiceDependencies struct {
 	// Repository dependencies
-	PersonRepo         userModels.PersonRepository
-	RFIDRepo           userModels.RFIDCardRepository
-	AccountRepo        auth.AccountRepository
-	PersonGuardianRepo userModels.PersonGuardianRepository
-	StudentRepo        userModels.StudentRepository
-	StaffRepo          userModels.StaffRepository
-	TeacherRepo        userModels.TeacherRepository
+	PersonRepo          userModels.PersonRepository
+	RFIDRepo            userModels.RFIDCardRepository
+	AccountRepo         auth.AccountRepository
+	PersonGuardianRepo  userModels.PersonGuardianRepository
+	StudentRepo         userModels.StudentRepository
+	StaffRepo           userModels.StaffRepository
+	TeacherRepo         userModels.TeacherRepository
+	GroupSupervisorRepo active.GroupSupervisorRepository
 
 	// Infrastructure
 	DB *bun.DB
@@ -53,27 +56,29 @@ type PersonServiceDependencies struct {
 
 // personService implements the PersonService interface
 type personService struct {
-	personRepo         userModels.PersonRepository
-	rfidRepo           userModels.RFIDCardRepository
-	accountRepo        auth.AccountRepository
-	personGuardianRepo userModels.PersonGuardianRepository
-	studentRepo        userModels.StudentRepository
-	staffRepo          userModels.StaffRepository
-	teacherRepo        userModels.TeacherRepository
-	db                 *bun.DB
+	personRepo          userModels.PersonRepository
+	rfidRepo            userModels.RFIDCardRepository
+	accountRepo         auth.AccountRepository
+	personGuardianRepo  userModels.PersonGuardianRepository
+	studentRepo         userModels.StudentRepository
+	staffRepo           userModels.StaffRepository
+	teacherRepo         userModels.TeacherRepository
+	groupSupervisorRepo active.GroupSupervisorRepository
+	db                  *bun.DB
 }
 
 // NewPersonService creates a new person service
 func NewPersonService(deps PersonServiceDependencies) PersonService {
 	return &personService{
-		personRepo:         deps.PersonRepo,
-		rfidRepo:           deps.RFIDRepo,
-		accountRepo:        deps.AccountRepo,
-		personGuardianRepo: deps.PersonGuardianRepo,
-		studentRepo:        deps.StudentRepo,
-		staffRepo:          deps.StaffRepo,
-		teacherRepo:        deps.TeacherRepo,
-		db:                 deps.DB,
+		personRepo:          deps.PersonRepo,
+		rfidRepo:            deps.RFIDRepo,
+		accountRepo:         deps.AccountRepo,
+		personGuardianRepo:  deps.PersonGuardianRepo,
+		studentRepo:         deps.StudentRepo,
+		staffRepo:           deps.StaffRepo,
+		teacherRepo:         deps.TeacherRepo,
+		groupSupervisorRepo: deps.GroupSupervisorRepo,
+		db:                  deps.DB,
 	}
 }
 
@@ -234,6 +239,38 @@ func (s *personService) validateRFIDCardIfChanged(ctx context.Context, person, e
 	}
 	if card == nil {
 		return &UsersError{Op: opUpdatePerson, Err: ErrRFIDCardNotFound}
+	}
+
+	return nil
+}
+
+// DeleteStaff removes a staff member after checking for active supervisions.
+// Also removes the teacher record if the staff member is a teacher.
+// Pre-check is best-effort; the real protection is the DB constraint (ON DELETE RESTRICT).
+func (s *personService) DeleteStaff(ctx context.Context, staffID int64) error {
+	const op = "delete staff"
+
+	// Pre-check: active supervisions would block deletion via FK RESTRICT
+	if s.groupSupervisorRepo != nil {
+		supervisors, err := s.groupSupervisorRepo.FindActiveByStaffID(ctx, staffID)
+		if err != nil {
+			slog.Warn("staff_delete_precheck_failed", "staff_id", staffID, "error", err.Error())
+		} else if len(supervisors) > 0 {
+			return &UsersError{Op: op, Err: ErrStaffInUse}
+		}
+	}
+
+	// Delete teacher record first if staff is also a teacher
+	teacher, err := s.teacherRepo.FindByStaffID(ctx, staffID)
+	if err == nil && teacher != nil {
+		if delErr := s.teacherRepo.Delete(ctx, teacher.ID); delErr != nil {
+			return &UsersError{Op: op, Err: fmt.Errorf("failed to delete teacher record: %w", delErr)}
+		}
+	}
+
+	// Delete staff member
+	if err := s.staffRepo.Delete(ctx, staffID); err != nil {
+		return &UsersError{Op: op, Err: err}
 	}
 
 	return nil

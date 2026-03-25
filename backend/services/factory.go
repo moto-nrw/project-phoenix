@@ -152,14 +152,15 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 
 	// Initialize users service first (needed for active service)
 	usersService := users.NewPersonService(users.PersonServiceDependencies{
-		PersonRepo:         repos.Person,
-		RFIDRepo:           repos.RFIDCard,
-		AccountRepo:        repos.Account,
-		PersonGuardianRepo: repos.PersonGuardian,
-		StudentRepo:        repos.Student,
-		StaffRepo:          repos.Staff,
-		TeacherRepo:        repos.Teacher,
-		DB:                 db,
+		PersonRepo:          repos.Person,
+		RFIDRepo:            repos.RFIDCard,
+		AccountRepo:         repos.Account,
+		PersonGuardianRepo:  repos.PersonGuardian,
+		StudentRepo:         repos.Student,
+		StaffRepo:           repos.Staff,
+		TeacherRepo:         repos.Teacher,
+		GroupSupervisorRepo: repos.GroupSupervisor,
+		DB:                  db,
 	})
 
 	// Initialize guardian service

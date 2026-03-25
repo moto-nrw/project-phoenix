@@ -30,6 +30,9 @@ type PersonService interface {
 	// Delete removes a person
 	Delete(ctx context.Context, id interface{}) error
 
+	// DeleteStaff removes a staff member after checking for active supervisions
+	DeleteStaff(ctx context.Context, staffID int64) error
+
 	// List retrieves persons matching the provided query options
 	List(ctx context.Context, options *base.QueryOptions) ([]*userModels.Person, error)
 

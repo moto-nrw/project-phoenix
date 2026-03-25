@@ -430,10 +430,24 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
         }
         return null;
       } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        const is5xx = /API error: 5\d\d/.test(errorMsg);
+
+        if (is5xx) {
+          // 5xx = unexpected server error → log at error level, show generic message
+          logger.error("entity_delete_server_error", {
+            entity: config.name.singular,
+            id,
+            error: errorMsg,
+          });
+          return "Ein unerwarteter Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.";
+        }
+
+        // 4xx = expected business error → warn level, show backend message
         logger.warn("entity_delete_rejected", {
           entity: config.name.singular,
           id,
-          error: String(error),
+          error: errorMsg,
         });
         return getDeleteErrorMessage(error);
       }
