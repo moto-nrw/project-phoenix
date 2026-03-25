@@ -231,9 +231,7 @@ func (s *operatorSuggestionsService) UpdatePostStatus(ctx context.Context, postI
 		}
 
 		oldStatus := post.Status
-		post.Status = status
-
-		if err := s.postRepo.Update(ctx, post); err != nil {
+		if err := s.postRepo.UpdateStatus(ctx, postID, status); err != nil {
 			return err
 		}
 
@@ -355,8 +353,7 @@ func (s *operatorSuggestionsService) HidePost(ctx context.Context, postID int64,
 			return nil
 		}
 
-		post.IsHidden = hidden
-		if err := s.postRepo.Update(ctx, post); err != nil {
+		if err := s.postRepo.UpdateHidden(ctx, postID, hidden); err != nil {
 			return err
 		}
 

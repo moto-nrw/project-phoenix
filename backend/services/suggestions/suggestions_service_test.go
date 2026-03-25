@@ -23,6 +23,8 @@ type mockPostRepo struct {
 	findByIDFn         func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error)
 	findByIDWithVoteFn func(ctx context.Context, id int64, accountID int64, readerType string) (*suggestions.Post, error)
 	updateFn           func(ctx context.Context, post *suggestions.Post) error
+	updateStatusFn     func(ctx context.Context, postID int64, status string) error
+	updateHiddenFn     func(ctx context.Context, postID int64, hidden bool) error
 	deleteFn           func(ctx context.Context, id int64) error
 	listFn             func(ctx context.Context, accountID int64, readerType string, sortBy string, status string) ([]*suggestions.Post, error)
 	recalculateScoreFn func(ctx context.Context, postID int64) error
@@ -45,6 +47,20 @@ func (m *mockPostRepo) FindByID(ctx context.Context, id int64, readerType string
 func (m *mockPostRepo) Update(ctx context.Context, post *suggestions.Post) error {
 	if m.updateFn != nil {
 		return m.updateFn(ctx, post)
+	}
+	return nil
+}
+
+func (m *mockPostRepo) UpdateStatus(ctx context.Context, postID int64, status string) error {
+	if m.updateStatusFn != nil {
+		return m.updateStatusFn(ctx, postID, status)
+	}
+	return nil
+}
+
+func (m *mockPostRepo) UpdateHidden(ctx context.Context, postID int64, hidden bool) error {
+	if m.updateHiddenFn != nil {
+		return m.updateHiddenFn(ctx, postID, hidden)
 	}
 	return nil
 }

@@ -89,7 +89,7 @@ func (r *PostRepository) Update(ctx context.Context, post *suggestions.Post) err
 	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model(post).
 		ModelTableExpr(tablePostsAlias).
-		Column("title", "description", "status", "is_hidden", "updated_at").
+		Column("title", "description", "updated_at").
 		WherePK().
 		Returning("*")
 
@@ -100,6 +100,53 @@ func (r *PostRepository) Update(ctx context.Context, post *suggestions.Post) err
 	_, err := query.Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{Op: "update post", Err: err}
+	}
+	return nil
+}
+
+// UpdateStatus updates only the status of an existing post.
+func (r *PostRepository) UpdateStatus(ctx context.Context, postID int64, status string) error {
+	post := &suggestions.Post{Model: modelBase.Model{ID: postID}, Status: status}
+
+	query := base.GetDB(ctx, r.db).NewUpdate().
+		Model(post).
+		ModelTableExpr(tablePostsAlias).
+		Column("status", "updated_at").
+		WherePK().
+		Returning("*")
+
+	if where, val, ok := base.TenantWhere(ctx, "post"); ok {
+		query = query.Where(where, val)
+	}
+
+	_, err := query.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "update post status", Err: err}
+	}
+	return nil
+}
+
+// UpdateHidden updates only the hidden state of an existing post.
+func (r *PostRepository) UpdateHidden(ctx context.Context, postID int64, hidden bool) error {
+	post := &suggestions.Post{
+		Model:    modelBase.Model{ID: postID},
+		IsHidden: hidden,
+	}
+
+	query := base.GetDB(ctx, r.db).NewUpdate().
+		Model(post).
+		ModelTableExpr(tablePostsAlias).
+		Column("is_hidden", "updated_at").
+		WherePK().
+		Returning("*")
+
+	if where, val, ok := base.TenantWhere(ctx, "post"); ok {
+		query = query.Where(where, val)
+	}
+
+	_, err := query.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "update post hidden", Err: err}
 	}
 	return nil
 }

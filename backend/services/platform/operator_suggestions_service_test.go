@@ -22,6 +22,8 @@ type mockPostRepo struct {
 	findByIDWithVoteFn func(ctx context.Context, id int64, accountID int64, readerType string) (*suggestions.Post, error)
 	findByIDFn         func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error)
 	updateFn           func(ctx context.Context, post *suggestions.Post) error
+	updateStatusFn     func(ctx context.Context, postID int64, status string) error
+	updateHiddenFn     func(ctx context.Context, postID int64, hidden bool) error
 	deleteFn           func(ctx context.Context, id int64) error
 }
 
@@ -39,6 +41,20 @@ func (m *mockPostRepo) FindByID(ctx context.Context, id int64, readerType string
 func (m *mockPostRepo) Update(ctx context.Context, post *suggestions.Post) error {
 	if m.updateFn != nil {
 		return m.updateFn(ctx, post)
+	}
+	return nil
+}
+
+func (m *mockPostRepo) UpdateStatus(ctx context.Context, postID int64, status string) error {
+	if m.updateStatusFn != nil {
+		return m.updateStatusFn(ctx, postID, status)
+	}
+	return nil
+}
+
+func (m *mockPostRepo) UpdateHidden(ctx context.Context, postID int64, hidden bool) error {
+	if m.updateHiddenFn != nil {
+		return m.updateHiddenFn(ctx, postID, hidden)
 	}
 	return nil
 }
@@ -662,8 +678,9 @@ func TestUpdatePostStatus_Success(t *testing.T) {
 		findByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
 			return &suggestions.Post{Status: suggestions.StatusOpen}, nil
 		},
-		updateFn: func(ctx context.Context, post *suggestions.Post) error {
-			assert.Equal(t, suggestions.StatusDone, post.Status)
+		updateStatusFn: func(ctx context.Context, postID int64, status string) error {
+			assert.Equal(t, int64(456), postID)
+			assert.Equal(t, suggestions.StatusDone, status)
 			return nil
 		},
 	}
@@ -748,7 +765,7 @@ func TestUpdatePostStatus_RepoErrorOnUpdate(t *testing.T) {
 		findByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
 			return &suggestions.Post{Status: suggestions.StatusOpen}, nil
 		},
-		updateFn: func(ctx context.Context, post *suggestions.Post) error {
+		updateStatusFn: func(ctx context.Context, postID int64, status string) error {
 			return expectedErr
 		},
 	}
@@ -1381,13 +1398,14 @@ func TestHidePost_Success(t *testing.T) {
 	ctx := context.Background()
 	clientIP := net.ParseIP("192.168.1.1")
 
-	var updatedPost *suggestions.Post
+	updatedHidden := false
 	postRepo := &mockPostRepo{
 		findByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
 			return &suggestions.Post{IsHidden: false}, nil
 		},
-		updateFn: func(ctx context.Context, post *suggestions.Post) error {
-			updatedPost = post
+		updateHiddenFn: func(ctx context.Context, postID int64, hidden bool) error {
+			assert.Equal(t, int64(456), postID)
+			updatedHidden = hidden
 			return nil
 		},
 	}
@@ -1412,8 +1430,7 @@ func TestHidePost_Success(t *testing.T) {
 
 	err := svc.HidePost(ctx, 456, true, 123, clientIP)
 	require.NoError(t, err)
-	require.NotNil(t, updatedPost)
-	assert.True(t, updatedPost.IsHidden)
+	assert.True(t, updatedHidden)
 }
 
 func TestHidePost_Unhide(t *testing.T) {
@@ -1457,7 +1474,7 @@ func TestHidePost_Idempotent_AlreadyHidden(t *testing.T) {
 			findByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
 				return &suggestions.Post{IsHidden: true}, nil
 			},
-			updateFn: func(ctx context.Context, post *suggestions.Post) error {
+			updateHiddenFn: func(ctx context.Context, postID int64, hidden bool) error {
 				updateCalled = true
 				return nil
 			},

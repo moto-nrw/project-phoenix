@@ -475,6 +475,43 @@ describe("OperatorSuggestionDetailPage", () => {
     });
   });
 
+  it("refreshes badge counters after delete even when local counts look clear", async () => {
+    mockDeletePost.mockResolvedValue(undefined);
+    const dispatchEventSpy = vi.spyOn(window, "dispatchEvent");
+    mockUseSWR.mockReturnValue({
+      data: {
+        ...mockSuggestion,
+        unreadCount: 0,
+        isNew: false,
+      },
+      isLoading: false,
+      mutate: mockMutate,
+    });
+
+    render(<OperatorSuggestionDetailPage />);
+
+    fireEvent.click(screen.getByLabelText("Beitrag löschen"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Beitrag löschen?")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("confirm-button"));
+
+    await waitFor(() => {
+      expect(dispatchEventSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "operator-suggestions-unread-refresh",
+        }),
+      );
+      expect(dispatchEventSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "operator-suggestions-unviewed-refresh",
+        }),
+      );
+    });
+  });
+
   it("closes delete post modal on cancel", async () => {
     render(<OperatorSuggestionDetailPage />);
 

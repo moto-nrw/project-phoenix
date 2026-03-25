@@ -194,6 +194,77 @@ func TestPostRepository_Update(t *testing.T) {
 		err := repo.Update(ctx, nil)
 		require.Error(t, err)
 	})
+
+	t.Run("does not overwrite status or hidden state", func(t *testing.T) {
+		post.Status = suggestions.StatusDone
+		post.IsHidden = true
+		_, err := db.NewUpdate().
+			Model(post).
+			ModelTableExpr("suggestions.posts").
+			Column("status", "is_hidden").
+			WherePK().
+			Exec(ctx)
+		require.NoError(t, err)
+
+		post.Title = "Title only update"
+		post.Description = "Description only update"
+		post.Status = suggestions.StatusOpen
+		post.IsHidden = false
+
+		err = repo.Update(ctx, post)
+		require.NoError(t, err)
+
+		found, err := repo.FindByID(ctx, post.ID, suggestions.ReaderTypeOperator)
+		require.NoError(t, err)
+		assert.Equal(t, "Title only update", found.Title)
+		assert.Equal(t, "Description only update", found.Description)
+		assert.Equal(t, suggestions.StatusDone, found.Status)
+		assert.True(t, found.IsHidden)
+	})
+}
+
+func TestPostRepository_UpdateStatus(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repoSuggestions.NewPostRepository(db)
+	ctx := testpkg.TenantContext(1)
+
+	account := testpkg.CreateTestAccount(t, db, "suggestions-update-status")
+	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
+
+	post := createTestPost(t, db, account.ID, fmt.Sprintf("UpdateStatus %d", time.Now().UnixNano()), "Original desc")
+	defer cleanupPosts(t, db, post.ID)
+
+	err := repo.UpdateStatus(ctx, post.ID, suggestions.StatusDone)
+	require.NoError(t, err)
+
+	found, err := repo.FindByID(ctx, post.ID, suggestions.ReaderTypeOperator)
+	require.NoError(t, err)
+	assert.Equal(t, suggestions.StatusDone, found.Status)
+	assert.False(t, found.IsHidden)
+}
+
+func TestPostRepository_UpdateHidden(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repoSuggestions.NewPostRepository(db)
+	ctx := testpkg.TenantContext(1)
+
+	account := testpkg.CreateTestAccount(t, db, "suggestions-update-hidden")
+	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
+
+	post := createTestPost(t, db, account.ID, fmt.Sprintf("UpdateHidden %d", time.Now().UnixNano()), "Original desc")
+	defer cleanupPosts(t, db, post.ID)
+
+	err := repo.UpdateHidden(ctx, post.ID, true)
+	require.NoError(t, err)
+
+	found, err := repo.FindByID(ctx, post.ID, suggestions.ReaderTypeOperator)
+	require.NoError(t, err)
+	assert.True(t, found.IsHidden)
+	assert.Equal(t, suggestions.StatusOpen, found.Status)
 }
 
 func TestPostRepository_Delete(t *testing.T) {
