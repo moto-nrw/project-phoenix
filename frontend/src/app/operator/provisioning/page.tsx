@@ -33,6 +33,7 @@ import { EditOrganizationModal } from "./edit-organization-modal";
 import { CreateSchoolModal } from "./create-school-modal";
 import { EditSchoolModal } from "./edit-school-modal";
 import { InviteAdminModal } from "./invite-admin-modal";
+import { CreateAccountModal } from "./create-account-modal";
 import { CreateDeviceModal } from "./create-device-modal";
 import { SetApiKeyModal } from "./set-api-key-modal";
 
@@ -55,6 +56,11 @@ export default function OperatorProvisioningPage() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteSchoolId, setInviteSchoolId] = useState<string | null>(null);
   const [inviteSchoolName, setInviteSchoolName] = useState("");
+  const [createAccountOpen, setCreateAccountOpen] = useState(false);
+  const [createAccountSchoolId, setCreateAccountSchoolId] = useState<
+    string | null
+  >(null);
+  const [createAccountSchoolName, setCreateAccountSchoolName] = useState("");
   const [selectedSchool, setSelectedSchool] = useState<School | null>(null);
   const [filterOrgId, setFilterOrgId] = useState<string>("");
   const [createDeviceOpen, setCreateDeviceOpen] = useState(false);
@@ -210,6 +216,23 @@ export default function OperatorProvisioningPage() {
     );
   }, [globalMutate, DEVICE_SWR_PREFIXES]);
 
+  const ACCOUNT_SWR_PREFIXES = useMemo(
+    () => [
+      "operator-all-accounts",
+      "operator-school-accounts-",
+      "operator-org-accounts-",
+    ],
+    [],
+  );
+
+  const refreshAccounts = useCallback(() => {
+    return globalMutate(
+      (key: unknown) =>
+        typeof key === "string" &&
+        ACCOUNT_SWR_PREFIXES.some((p) => key.startsWith(p)),
+    );
+  }, [globalMutate, ACCOUNT_SWR_PREFIXES]);
+
   // Schools filtered by selected organization (for accounts tab filter)
   const filteredSchools = useMemo(() => {
     if (!schools) return [];
@@ -286,6 +309,12 @@ export default function OperatorProvisioningPage() {
     setInviteSchoolId(school.id);
     setInviteSchoolName(school.name);
     setInviteOpen(true);
+  }, []);
+
+  const openCreateAccount = useCallback((school: School) => {
+    setCreateAccountSchoolId(school.id);
+    setCreateAccountSchoolName(school.name);
+    setCreateAccountOpen(true);
   }, []);
 
   const handleOrgFilterChange = useCallback(
@@ -500,6 +529,7 @@ export default function OperatorProvisioningPage() {
                   onEdit={openEditSchool}
                   onToggleActive={handleToggleSchoolActive}
                   onInviteAdmin={openInviteAdmin}
+                  onCreateAccount={openCreateAccount}
                   onViewAccounts={openSchoolAccounts}
                 />
               ))}
@@ -728,6 +758,15 @@ export default function OperatorProvisioningPage() {
         schoolId={inviteSchoolId}
         schoolName={inviteSchoolName}
       />
+      <CreateAccountModal
+        isOpen={createAccountOpen}
+        onClose={() => setCreateAccountOpen(false)}
+        schoolId={createAccountSchoolId}
+        schoolName={createAccountSchoolName}
+        onCreated={() => {
+          void refreshAccounts();
+        }}
+      />
       <CreateDeviceModal
         isOpen={createDeviceOpen}
         onClose={() => setCreateDeviceOpen(false)}
@@ -801,12 +840,14 @@ function SchoolCard({
   onEdit,
   onToggleActive,
   onInviteAdmin,
+  onCreateAccount,
   onViewAccounts,
 }: {
   readonly school: School;
   readonly onEdit: (school: School) => void;
   readonly onToggleActive: (school: School) => Promise<void>;
   readonly onInviteAdmin: (school: School) => void;
+  readonly onCreateAccount: (school: School) => void;
   readonly onViewAccounts: (school: School) => void;
 }) {
   return (
@@ -861,6 +902,13 @@ function SchoolCard({
             className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200"
           >
             Bearbeiten
+          </button>
+          <button
+            type="button"
+            onClick={() => onCreateAccount(school)}
+            className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200"
+          >
+            Konto erstellen
           </button>
           <button
             type="button"

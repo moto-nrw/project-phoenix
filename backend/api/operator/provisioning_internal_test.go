@@ -32,6 +32,7 @@ type mockProvisioningService struct {
 	listSchoolsFn             func(context.Context) ([]*platformModels.School, error)
 	updateSchoolFn            func(context.Context, int64, platformSvc.UpdateSchoolRequest, int64, net.IP) (*platformModels.School, error)
 	inviteSchoolAdminFn       func(context.Context, int64, int64, net.IP, authSvc.InvitationRequest) (*authModels.InvitationToken, error)
+	createSchoolAccountFn     func(context.Context, int64, int64, net.IP, platformSvc.CreateSchoolAccountRequest) (*authModels.Account, error)
 	listSchoolAccountsFn      func(context.Context, int64) ([]authModels.TenantAccountInfo, error)
 	listOrgAccountsFn         func(context.Context, int64) ([]authModels.OrgAccountInfo, error)
 	listAllAccountsFn         func(context.Context) ([]authModels.OrgAccountInfo, error)
@@ -68,6 +69,12 @@ func (m *mockProvisioningService) UpdateSchool(ctx context.Context, id int64, re
 }
 func (m *mockProvisioningService) InviteSchoolAdmin(ctx context.Context, schoolID, operatorID int64, clientIP net.IP, req authSvc.InvitationRequest) (*authModels.InvitationToken, error) {
 	return m.inviteSchoolAdminFn(ctx, schoolID, operatorID, clientIP, req)
+}
+func (m *mockProvisioningService) CreateSchoolAccount(ctx context.Context, schoolID, operatorID int64, clientIP net.IP, req platformSvc.CreateSchoolAccountRequest) (*authModels.Account, error) {
+	if m.createSchoolAccountFn != nil {
+		return m.createSchoolAccountFn(ctx, schoolID, operatorID, clientIP, req)
+	}
+	return nil, errors.New("not implemented")
 }
 func (m *mockProvisioningService) ListSchoolAccounts(ctx context.Context, schoolID int64) ([]authModels.TenantAccountInfo, error) {
 	if m.listSchoolAccountsFn != nil {

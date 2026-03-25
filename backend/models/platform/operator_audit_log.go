@@ -37,6 +37,7 @@ const (
 	ResourceSchool       = "school"
 	ResourceInvitation   = "invitation"
 	ResourceDevice       = "device"
+	ResourceAccount      = "account"
 )
 
 // OperatorAuditLog tracks operator actions for auditing

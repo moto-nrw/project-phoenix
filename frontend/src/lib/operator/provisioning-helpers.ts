@@ -173,6 +173,14 @@ export interface InviteAdminRequest {
   position?: string;
 }
 
+export interface CreateAccountRequest {
+  email: string;
+  username: string;
+  password: string;
+  confirm_password: string;
+  role_id?: number;
+}
+
 // Mapping functions
 
 export function mapOrganization(data: BackendOrganization): Organization {

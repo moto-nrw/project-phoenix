@@ -24,6 +24,14 @@ import (
 	"github.com/uptrace/bun/driver/pgdriver"
 )
 
+// CreateSchoolAccountRequest holds fields for operator-created school accounts.
+type CreateSchoolAccountRequest struct {
+	Email    string
+	Username string
+	Password string
+	RoleID   *int64
+}
+
 // UpdateOrganizationRequest holds fields for updating an organization.
 type UpdateOrganizationRequest struct {
 	Name   string
@@ -54,6 +62,7 @@ type OperatorProvisioningService interface {
 	ListSchools(ctx context.Context) ([]*platform.School, error)
 	UpdateSchool(ctx context.Context, id int64, req UpdateSchoolRequest, operatorID int64, clientIP net.IP) (*platform.School, error)
 	InviteSchoolAdmin(ctx context.Context, schoolID, operatorID int64, clientIP net.IP, req authSvc.InvitationRequest) (*authModels.InvitationToken, error)
+	CreateSchoolAccount(ctx context.Context, schoolID, operatorID int64, clientIP net.IP, req CreateSchoolAccountRequest) (*authModels.Account, error)
 	ListSchoolAccounts(ctx context.Context, schoolID int64) ([]authModels.TenantAccountInfo, error)
 	ListOrganizationAccounts(ctx context.Context, organizationID int64) ([]authModels.OrgAccountInfo, error)
 	ListAllAccounts(ctx context.Context) ([]authModels.OrgAccountInfo, error)
@@ -114,6 +123,7 @@ type operatorProvisioningService struct {
 	roleRepo          authModels.RoleRepository
 	accountTenantRepo authModels.AccountTenantRepository
 	invitationService authSvc.InvitationService
+	authService       authSvc.AuthService
 	auditLogRepo      platform.OperatorAuditLogRepository
 	txHandler         *modelBase.TxHandler
 	logger            *slog.Logger
@@ -128,6 +138,7 @@ type OperatorProvisioningServiceConfig struct {
 	RoleRepo          authModels.RoleRepository
 	AccountTenantRepo authModels.AccountTenantRepository
 	InvitationService authSvc.InvitationService
+	AuthService       authSvc.AuthService
 	AuditLogRepo      platform.OperatorAuditLogRepository
 	DB                *bun.DB
 	Logger            *slog.Logger
@@ -143,6 +154,7 @@ func NewOperatorProvisioningService(cfg OperatorProvisioningServiceConfig) Opera
 		roleRepo:          cfg.RoleRepo,
 		accountTenantRepo: cfg.AccountTenantRepo,
 		invitationService: cfg.InvitationService,
+		authService:       cfg.AuthService,
 		auditLogRepo:      cfg.AuditLogRepo,
 		txHandler:         modelBase.NewTxHandler(cfg.DB),
 		logger:            cfg.Logger,
@@ -405,6 +417,44 @@ func (s *operatorProvisioningService) InviteSchoolAdmin(ctx context.Context, sch
 		return nil, err
 	}
 	return invitation, nil
+}
+
+func (s *operatorProvisioningService) CreateSchoolAccount(ctx context.Context, schoolID, operatorID int64, clientIP net.IP, req CreateSchoolAccountRequest) (*authModels.Account, error) {
+	var account *authModels.Account
+	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
+		school, err := s.loadActiveSchool(adminCtx, schoolID)
+		if err != nil {
+			return err
+		}
+
+		roleID := req.RoleID
+		if roleID == nil {
+			adminRole, roleErr := s.resolveSystemRoleByName(adminCtx, "admin")
+			if roleErr != nil {
+				return roleErr
+			}
+			if adminRole == nil {
+				return &InvalidDataError{Err: fmt.Errorf("admin role not found")}
+			}
+			roleID = &adminRole.ID
+		}
+
+		tenantCtx := tenant.WithTenantID(adminCtx, school.ID)
+		created, createErr := s.authService.Register(tenantCtx, req.Email, req.Username, req.Password, roleID, school.ID)
+		if createErr != nil {
+			return createErr
+		}
+		account = created
+		s.logAction(adminCtx, operatorID, platform.ActionCreate, platform.ResourceAccount, &account.ID, clientIP, map[string]any{
+			"schoolID": school.ID,
+			"email":    account.Email,
+		})
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return account, nil
 }
 
 func (s *operatorProvisioningService) ListSchoolAccounts(ctx context.Context, schoolID int64) ([]authModels.TenantAccountInfo, error) {

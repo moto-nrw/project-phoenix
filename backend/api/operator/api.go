@@ -98,6 +98,7 @@ func (rs *Resource) Router() chi.Router {
 			r.Post("/", rs.provisioningResource.CreateSchool)
 			r.Put("/{id}", rs.provisioningResource.UpdateSchool)
 			r.Post("/{id}/invite-admin", rs.provisioningResource.InviteSchoolAdmin)
+			r.Post("/{id}/create-account", rs.provisioningResource.CreateSchoolAccount)
 			r.Get("/{id}/accounts", rs.provisioningResource.ListSchoolAccounts)
 			r.Get("/{id}/devices", rs.provisioningResource.ListSchoolDevices)
 		})
