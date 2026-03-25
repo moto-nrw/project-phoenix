@@ -1117,6 +1117,10 @@ func (rs *Resource) deleteRole(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := rs.AuthService.DeleteRole(r.Context(), id); err != nil {
+		if common.IsForeignKeyViolation(err) {
+			common.RenderError(w, r, common.ErrorConflict(errors.New("cannot delete role: role is currently assigned to accounts")))
+			return
+		}
 		common.RenderError(w, r, renderRoleMutationError(err))
 		return
 	}
@@ -1337,6 +1341,10 @@ func (rs *Resource) deletePermission(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := rs.AuthService.DeletePermission(r.Context(), id); err != nil {
+		if common.IsForeignKeyViolation(err) {
+			common.RenderError(w, r, common.ErrorConflict(errors.New("cannot delete permission: permission is currently assigned to roles or accounts")))
+			return
+		}
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}

@@ -673,6 +673,12 @@ func (rs *Resource) deleteStaff(w http.ResponseWriter, r *http.Request) {
 
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		// Check for active supervisions
+		activeSupervisors, findErr := rs.GroupSupervisorRepo.FindActiveByStaffID(ctx, id)
+		if findErr == nil && len(activeSupervisors) > 0 {
+			return usersSvc.ErrStaffInUse
+		}
+
 		// Check if this staff member is also a teacher
 		teacher, err := rs.TeacherRepo.FindByStaffID(ctx, id)
 		if err == nil && teacher != nil {
@@ -685,6 +691,10 @@ func (rs *Resource) deleteStaff(w http.ResponseWriter, r *http.Request) {
 		// Delete staff member
 		return rs.StaffRepo.Delete(ctx, id)
 	}); err != nil {
+		if errors.Is(err, usersSvc.ErrStaffInUse) {
+			common.RenderError(w, r, ErrorConflict(err))
+			return
+		}
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}

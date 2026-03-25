@@ -51,7 +51,7 @@ export default function DevicesPage() {
     confirmDelete,
   } = useDeleteConfirmation(setShowDetailModal);
 
-  const { success: toastSuccess } = useToast();
+  const { success: toastSuccess, error: toastError } = useToast();
 
   const { status } = useSession({
     required: true,
@@ -216,6 +216,10 @@ export default function DevicesPage() {
       setShowDetailModal(false);
       setSelectedDevice(null);
       await fetchDevices();
+    } catch (err) {
+      toastError(
+        err instanceof Error ? err.message : "Fehler beim Löschen des Geräts",
+      );
     } finally {
       setDetailLoading(false);
     }

@@ -44,7 +44,7 @@ export default function GroupsPage() {
     confirmDelete,
   } = useDeleteConfirmation(setShowDetailModal);
 
-  const { success: toastSuccess } = useToast();
+  const { success: toastSuccess, error: toastError } = useToast();
 
   const { status } = useSession({
     required: true,
@@ -203,6 +203,10 @@ export default function GroupsPage() {
       setShowDetailModal(false);
       setSelectedGroup(null);
       await tenantMutate("database-groups-list");
+    } catch (err) {
+      toastError(
+        err instanceof Error ? err.message : "Fehler beim Löschen der Gruppe",
+      );
     } finally {
       setDetailLoading(false);
     }

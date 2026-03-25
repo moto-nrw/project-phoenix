@@ -49,7 +49,7 @@ export default function RoomsPage() {
     confirmDelete,
   } = useDeleteConfirmation(setShowDetailModal);
 
-  const { success: toastSuccess } = useToast();
+  const { success: toastSuccess, error: toastError } = useToast();
 
   const { status } = useSession({
     required: true,
@@ -224,6 +224,10 @@ export default function RoomsPage() {
       setShowDetailModal(false);
       setSelectedRoom(null);
       await tenantMutate("database-rooms-list");
+    } catch (err) {
+      toastError(
+        err instanceof Error ? err.message : "Fehler beim Löschen des Raums",
+      );
     } finally {
       setDetailLoading(false);
     }

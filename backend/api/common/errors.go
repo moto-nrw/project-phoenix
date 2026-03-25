@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/render"
 )
@@ -142,6 +143,14 @@ func ErrorTooManyRequests(err error) render.Renderer {
 		Status:         "error",
 		ErrorText:      err.Error(),
 	}
+}
+
+// IsForeignKeyViolation checks if an error is a PostgreSQL foreign key constraint violation.
+func IsForeignKeyViolation(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "violates foreign key constraint")
 }
 
 // ErrorGone returns a 410 Gone error response

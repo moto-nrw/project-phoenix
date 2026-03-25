@@ -52,7 +52,7 @@ export default function ActivitiesPage() {
 
   // Secondary management modals (disabled for now)
 
-  const { success: toastSuccess } = useToast();
+  const { success: toastSuccess, error: toastError } = useToast();
 
   const { status } = useSession({
     required: true,
@@ -225,6 +225,12 @@ export default function ActivitiesPage() {
       setShowDetailModal(false);
       setSelectedActivity(null);
       await tenantMutate("database-activities-list");
+    } catch (err) {
+      toastError(
+        err instanceof Error
+          ? err.message
+          : "Fehler beim Löschen der Aktivität",
+      );
     } finally {
       setDetailLoading(false);
     }

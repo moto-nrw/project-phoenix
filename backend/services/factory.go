@@ -138,6 +138,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.Room,
 		repos.Teacher,
 		repos.Staff,
+		repos.Student,
 		db,
 	)
 

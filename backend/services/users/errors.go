@@ -45,6 +45,15 @@ var (
 
 	// ErrInvalidPIN indicates an invalid staff PIN
 	ErrInvalidPIN = errors.New("invalid staff PIN")
+
+	// ErrStaffInUse indicates staff has attendance records or active supervisions
+	ErrStaffInUse = errors.New("cannot delete staff: staff member has attendance records or active supervisions")
+
+	// ErrPersonHasDependents indicates person has linked staff/student/account records
+	ErrPersonHasDependents = errors.New("cannot delete person: person has linked staff, student, or account records")
+
+	// ErrGuardianHasStudents indicates guardian is still linked to students
+	ErrGuardianHasStudents = errors.New("cannot delete guardian: guardian is still linked to students")
 )
 
 // UsersError represents an error in the users service

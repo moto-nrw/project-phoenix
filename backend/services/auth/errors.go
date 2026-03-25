@@ -65,6 +65,10 @@ var (
 	ErrInvitationExpired      = errors.New("invitation has expired")
 	ErrInvitationUsed         = errors.New("invitation has already been used")
 	ErrInvitationNameRequired = errors.New("first name and last name are required")
+
+	// Deletion constraint errors
+	ErrRoleInUse       = errors.New("cannot delete role: role is currently assigned to accounts")
+	ErrPermissionInUse = errors.New("cannot delete permission: permission is currently assigned to roles or accounts")
 )
 
 // AuthError represents an authentication-related error

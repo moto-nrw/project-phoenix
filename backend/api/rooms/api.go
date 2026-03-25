@@ -304,7 +304,7 @@ func (rs *Resource) deleteRoom(w http.ResponseWriter, r *http.Request) {
 		return rs.FacilityService.DeleteRoom(ctx, id)
 	})
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 

@@ -14,6 +14,7 @@ var (
 	ErrDeviceOffline     = errors.New("device is offline")
 	ErrNetworkScanFailed = errors.New("network scan failed")
 	ErrDatabaseOperation = errors.New("database operation failed")
+	ErrDeviceInUse       = errors.New("cannot delete device: device is currently in use by an active group")
 )
 
 // IoTError wraps IoT service errors with operation context

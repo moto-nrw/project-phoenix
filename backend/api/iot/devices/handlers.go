@@ -190,6 +190,10 @@ func (rs *Resource) deleteDevice(w http.ResponseWriter, r *http.Request) {
 
 	// Delete device
 	if err := rs.IoTService.DeleteDevice(r.Context(), id); err != nil {
+		if common.IsForeignKeyViolation(err) {
+			iotCommon.RenderError(w, r, common.ErrorConflict(errors.New("cannot delete device: device is currently in use by an active group")))
+			return
+		}
 		iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
 		return
 	}

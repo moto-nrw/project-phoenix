@@ -606,6 +606,10 @@ func (rs *Resource) deleteGuardian(w http.ResponseWriter, r *http.Request) {
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return rs.GuardianService.DeleteGuardian(ctx, id)
 	}); err != nil {
+		if common.IsForeignKeyViolation(err) {
+			common.RenderError(w, r, common.ErrorConflict(errors.New("cannot delete guardian: guardian is still linked to students")))
+			return
+		}
 		// Check for "not found" errors and return 404
 		if strings.Contains(err.Error(), "not found") {
 			common.RenderError(w, r, common.ErrorNotFound(err))

@@ -614,6 +614,23 @@ func (r *VisitRepository) CountActiveByGroupID(ctx context.Context, activeGroupI
 	return count, nil
 }
 
+// CountActiveByStudentID counts active visits (exit_time IS NULL) for a student.
+func (r *VisitRepository) CountActiveByStudentID(ctx context.Context, studentID int64) (int, error) {
+	count, err := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(`active.visits AS "visit"`).
+		Where(`"visit".student_id = ?`, studentID).
+		Where(`"visit".exit_time IS NULL`).
+		Count(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "count active by student ID",
+			Err: err,
+		}
+	}
+
+	return count, nil
+}
+
 // EndVisitsByActiveGroupIDs ends all active visits for multiple group IDs in a single query.
 // Returns the number of visits ended.
 func (r *VisitRepository) EndVisitsByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) (int64, error) {

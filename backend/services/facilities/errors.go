@@ -14,6 +14,7 @@ var (
 	ErrRoomCapacityExceeded = errors.New("room capacity exceeded")
 	ErrBuildingNotFound     = errors.New("building not found")
 	ErrCategoryNotFound     = errors.New("category not found")
+	ErrRoomInUse            = errors.New("cannot delete room: room is currently in use by an active group")
 )
 
 // FacilitiesError represents a facilities-related error

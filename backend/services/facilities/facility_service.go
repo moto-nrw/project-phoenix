@@ -192,6 +192,12 @@ func (s *service) DeleteRoom(ctx context.Context, id int64) error {
 		return &FacilitiesError{Op: "delete room", Err: ErrRoomNotFound}
 	}
 
+	// Check for active groups using this room
+	activeGroups, err := s.activeGroupRepo.FindActiveByRoomID(ctx, id)
+	if err == nil && len(activeGroups) > 0 {
+		return &FacilitiesError{Op: "delete room", Err: ErrRoomInUse}
+	}
+
 	// Delete the room
 	if err := s.roomRepo.Delete(ctx, id); err != nil {
 		return &FacilitiesError{Op: "delete room", Err: err}
