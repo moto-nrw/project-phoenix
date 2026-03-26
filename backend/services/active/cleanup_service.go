@@ -395,9 +395,12 @@ func (s *cleanupService) CleanupStaleAttendance(ctx context.Context) (*Attendanc
 		// Calculate appropriate check-out time:
 		// - Normally use 23:59:59 of the record's date
 		// - But if check_in_time is after that (data integrity issue), use check_in_time + 1 second
+		// record.Date is a DATE column — pgx returns it as UTC midnight regardless
+		// of what timezone was used when storing. Use Berlin explicitly.
+		berlinDate := record.Date.In(timezone.Berlin)
 		endOfDay := time.Date(
-			record.Date.Year(), record.Date.Month(), record.Date.Day(),
-			23, 59, 59, 0, record.Date.Location(),
+			berlinDate.Year(), berlinDate.Month(), berlinDate.Day(),
+			23, 59, 59, 0, timezone.Berlin,
 		)
 		checkOutTime := endOfDay
 		if record.CheckInTime.After(endOfDay) {
