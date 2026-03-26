@@ -171,6 +171,78 @@ func TestDateOfUTC(t *testing.T) {
 	}
 }
 
+func TestEndOfDay(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   time.Time
+		wantDay int
+		wantUTC time.Time // expected instant in UTC
+	}{
+		{
+			name:    "UTC midnight in winter (CET) returns 23:59:59 Berlin same day",
+			input:   time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC), // pgx DATE value
+			wantDay: 15,
+			// 23:59:59 CET = 22:59:59 UTC
+			wantUTC: time.Date(2026, 1, 15, 22, 59, 59, 0, time.UTC),
+		},
+		{
+			name:    "UTC midnight in summer (CEST) returns 23:59:59 Berlin same day",
+			input:   time.Date(2026, 7, 10, 0, 0, 0, 0, time.UTC), // pgx DATE value
+			wantDay: 10,
+			// 23:59:59 CEST = 21:59:59 UTC
+			wantUTC: time.Date(2026, 7, 10, 21, 59, 59, 0, time.UTC),
+		},
+		{
+			name:    "Berlin input preserves calendar date",
+			input:   time.Date(2026, 3, 20, 14, 30, 0, 0, Berlin),
+			wantDay: 20,
+			wantUTC: time.Date(2026, 3, 20, 22, 59, 59, 0, time.UTC), // March 20 is CET
+		},
+		{
+			name:    "DST transition day — spring forward (March 29 2026)",
+			input:   time.Date(2026, 3, 29, 0, 0, 0, 0, time.UTC),
+			wantDay: 29,
+			// March 29 2026 clocks spring forward, end of day is CEST
+			wantUTC: time.Date(2026, 3, 29, 21, 59, 59, 0, time.UTC),
+		},
+		{
+			name:    "DST transition day — fall back (October 25 2026)",
+			input:   time.Date(2026, 10, 25, 0, 0, 0, 0, time.UTC),
+			wantDay: 25,
+			// October 25 2026 clocks fall back, end of day is CET
+			wantUTC: time.Date(2026, 10, 25, 22, 59, 59, 0, time.UTC),
+		},
+		{
+			name:    "New Year's Eve",
+			input:   time.Date(2026, 12, 31, 0, 0, 0, 0, time.UTC),
+			wantDay: 31,
+			wantUTC: time.Date(2026, 12, 31, 22, 59, 59, 0, time.UTC), // CET
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := EndOfDay(tt.input)
+
+			// Must be in Berlin timezone
+			assert.Equal(t, Berlin, result.Location())
+
+			// Must be 23:59:59 Berlin time
+			assert.Equal(t, 23, result.Hour())
+			assert.Equal(t, 59, result.Minute())
+			assert.Equal(t, 59, result.Second())
+			assert.Equal(t, 0, result.Nanosecond())
+
+			// Calendar date must match input
+			assert.Equal(t, tt.wantDay, result.Day())
+
+			// UTC instant must be correct (verifies CET vs CEST offset)
+			assert.True(t, tt.wantUTC.Equal(result),
+				"expected UTC %v but got %v", tt.wantUTC, result.UTC())
+		})
+	}
+}
+
 func TestDateOfUTC_DifferentFromDateOf(t *testing.T) {
 	// Create a time that would have the same date in both UTC and Berlin
 	testTime := time.Date(2026, 1, 18, 12, 0, 0, 0, time.UTC)
