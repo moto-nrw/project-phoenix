@@ -246,12 +246,21 @@ try {
 
 ## Oxlint Configuration
 
-Linting is handled by [oxlint](https://oxc.rs/docs/guide/usage/linter.html) (config: `.oxlintrc.json`), which replaced ESLint for ~11x faster linting. Oxlint respects existing `eslint-disable` comments natively.
+Linting is handled by [oxlint](https://oxc.rs/docs/guide/usage/linter.html) (config: `.oxlintrc.json`), which replaced ESLint. Oxlint respects existing `eslint-disable` comments natively.
 
-**Key rules:**
-- `@typescript-eslint/consistent-type-imports` - Use `import type`
-- `@typescript-eslint/prefer-nullish-coalescing` - Use `??` not `||` for nullish checks
-- `no-unused-vars` - Prefix unused vars with `_`
+**Plugins:** react, nextjs, jsx-a11y, import, promise
+
+**Categories:** correctness (error), perf (error), suspicious (warn)
+
+**Disabled rules** (with rationale in `.oxlintrc.json`):
+- `react/react-in-jsx-scope` — not needed with React 17+ automatic JSX transform
+- `no-unsafe-type-assertion` — too strict for codebase with many `as` casts
+- `no-shadow` — benign in React hook/closure patterns
+- `no-await-in-loop` — all instances are sequential-by-necessity (rollback, retry)
+- `no-array-index-key` — mostly test files or data+index patterns
+- `promise/always-return` — React `void` side-effect pattern
+- `jsx-a11y/autocomplete-valid` — false positive for valid HTML5 values
+- `jsx-a11y/no-autofocus` — intentional UX in modals/forms
 
 ## Common Patterns
 
