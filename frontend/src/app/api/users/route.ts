@@ -119,6 +119,7 @@ export const POST = createPostHandler<
       });
       throw new Error(
         "Permission denied: You need the 'users:create' permission to create persons.",
+        { cause: error },
       );
     }
 
@@ -131,10 +132,10 @@ export const POST = createPostHandler<
 
       // Extract specific error message if possible
       if (errorMessage.includes("first name is required")) {
-        throw new Error("First name is required");
+        throw new Error("First name is required", { cause: error });
       }
       if (errorMessage.includes("last name is required")) {
-        throw new Error("Last name is required");
+        throw new Error("Last name is required", { cause: error });
       }
     }
 

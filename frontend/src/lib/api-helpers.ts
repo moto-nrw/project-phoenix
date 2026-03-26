@@ -144,7 +144,7 @@ async function clientAxiosRequest<T>(
       const errorText = error.response?.data
         ? JSON.stringify(error.response.data)
         : error.message;
-      throw new Error(`API error (${status}): ${errorText}`);
+      throw new Error(`API error (${status}): ${errorText}`, { cause: error });
     }
     throw error;
   }

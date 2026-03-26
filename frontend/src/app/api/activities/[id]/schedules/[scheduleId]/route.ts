@@ -55,6 +55,7 @@ export const GET = createGetHandler(
           message: `Failed to fetch schedule ${scheduleId} for activity ${id}: ${error instanceof Error ? error.message : "Unknown error"}`,
           code: "ACTIVITY_SCHEDULE_ERROR",
         }),
+        { cause: error },
       );
     }
   },
@@ -116,6 +117,7 @@ export const PUT = createPutHandler(
           message: `Failed to update schedule ${scheduleId} for activity ${id}: ${error instanceof Error ? error.message : "Unknown error"}`,
           code: "ACTIVITY_SCHEDULE_UPDATE_ERROR",
         }),
+        { cause: error },
       );
     }
   },
@@ -152,6 +154,7 @@ export const DELETE = createDeleteHandler(
           message: `Failed to delete schedule ${scheduleId} for activity ${id}: ${error instanceof Error ? error.message : "Unknown error"}`,
           code: "ACTIVITY_SCHEDULE_DELETE_ERROR",
         }),
+        { cause: error },
       );
     }
   },

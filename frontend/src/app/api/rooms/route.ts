@@ -150,6 +150,7 @@ export const POST = createPostHandler<BackendRoom, RoomCreateRequest>(
         });
         throw new Error(
           "Permission denied: You need the 'rooms:create' permission to create rooms.",
+          { cause: error },
         );
       }
 
@@ -162,7 +163,7 @@ export const POST = createPostHandler<BackendRoom, RoomCreateRequest>(
 
         // Extract specific error message if possible
         if (errorMessage.includes("name: cannot be blank")) {
-          throw new Error("Room name cannot be blank");
+          throw new Error("Room name cannot be blank", { cause: error });
         }
       }
 
