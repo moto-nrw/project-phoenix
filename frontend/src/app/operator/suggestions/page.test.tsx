@@ -41,6 +41,11 @@ vi.mock("~/lib/operator/suggestions-api", () => ({
   },
 }));
 
+// Mock operator-url to avoid NEXT_PUBLIC_OPERATOR_HOSTNAME requirement
+vi.mock("~/lib/operator-url", () => ({
+  operatorPath: (path: string) => path,
+}));
+
 // Mock UI components
 
 vi.mock("~/components/ui/page-header", () => ({
