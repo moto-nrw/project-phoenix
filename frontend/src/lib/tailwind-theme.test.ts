@@ -93,10 +93,12 @@ describe("getThemeColorsTailwind", () => {
 describe("tailwindTheme default export", () => {
   it("exports an object with getThemeColorsTailwind function", () => {
     expect(tailwindTheme).toHaveProperty("getThemeColorsTailwind");
+    // oxlint-disable-next-line import/no-named-as-default-member -- intentionally testing default export
     expect(typeof tailwindTheme.getThemeColorsTailwind).toBe("function");
   });
 
   it("exported function returns same result as named export", () => {
+    // oxlint-disable-next-line import/no-named-as-default-member -- intentionally testing default export
     const result1 = tailwindTheme.getThemeColorsTailwind();
     const result2 = getThemeColorsTailwind();
 
