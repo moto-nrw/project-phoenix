@@ -24,6 +24,9 @@ const {
   mockListSchoolDevices,
   mockListOrganizationDevices,
   mockListAllDevices,
+  mockSoftDeleteSchool,
+  mockRestoreSchool,
+  mockPurgeSchool,
 } = vi.hoisted(() => ({
   mockUseSession: vi.fn(),
   mockUseSWR: vi.fn(),
@@ -42,6 +45,9 @@ const {
   mockListSchoolDevices: vi.fn(),
   mockListOrganizationDevices: vi.fn(),
   mockListAllDevices: vi.fn(),
+  mockSoftDeleteSchool: vi.fn(),
+  mockRestoreSchool: vi.fn(),
+  mockPurgeSchool: vi.fn(),
 }));
 
 vi.mock("next-auth/react", () => ({
@@ -72,6 +78,9 @@ vi.mock("~/lib/operator/provisioning-api", () => ({
     listSchoolDevices: mockListSchoolDevices,
     listOrganizationDevices: mockListOrganizationDevices,
     listAllDevices: mockListAllDevices,
+    softDeleteSchool: mockSoftDeleteSchool,
+    restoreSchool: mockRestoreSchool,
+    purgeSchool: mockPurgeSchool,
   },
 }));
 
@@ -2501,5 +2510,323 @@ describe("OperatorProvisioningPage", () => {
 
     const badges = screen.getAllByText("Verborgen");
     expect(badges).toHaveLength(1);
+  });
+
+  // --- Trash View & Soft-Delete / Restore / Purge ---
+
+  const deletedSchool = {
+    ...mockSchool,
+    id: "20",
+    name: "Deleted School",
+    slug: "deleted-school",
+    subdomain: "deleted-school",
+    deletedAt: "2026-01-15T14:30:00Z",
+  };
+
+  it("shows Papierkorb button when deleted schools exist", () => {
+    setupSWR([mockOrg], [mockSchool, deletedSchool]);
+
+    render(<OperatorProvisioningPage />);
+    fireEvent.click(screen.getByTestId("tab-schools"));
+
+    expect(screen.getByText("Papierkorb (1)")).toBeInTheDocument();
+  });
+
+  it("does not show Papierkorb button when no deleted schools", () => {
+    setupSWR([mockOrg], [mockSchool]);
+
+    render(<OperatorProvisioningPage />);
+    fireEvent.click(screen.getByTestId("tab-schools"));
+
+    expect(screen.queryByText(/Papierkorb/)).not.toBeInTheDocument();
+  });
+
+  it("filters active schools — excludes deleted ones from main list", () => {
+    setupSWR([mockOrg], [mockSchool, deletedSchool]);
+
+    render(<OperatorProvisioningPage />);
+    fireEvent.click(screen.getByTestId("tab-schools"));
+
+    expect(screen.getByText("Test School")).toBeInTheDocument();
+    expect(screen.queryByText("Deleted School")).not.toBeInTheDocument();
+  });
+
+  it("toggles to trash view and shows deleted schools", () => {
+    setupSWR([mockOrg], [mockSchool, deletedSchool]);
+
+    render(<OperatorProvisioningPage />);
+    fireEvent.click(screen.getByTestId("tab-schools"));
+    fireEvent.click(screen.getByText("Papierkorb (1)"));
+
+    expect(screen.getByText("Deleted School")).toBeInTheDocument();
+    expect(screen.queryByText("Test School")).not.toBeInTheDocument();
+  });
+
+  it("shows deletion time on deleted school card", () => {
+    setupSWR([mockOrg], [deletedSchool]);
+
+    render(<OperatorProvisioningPage />);
+    fireEvent.click(screen.getByTestId("tab-schools"));
+    fireEvent.click(screen.getByText("Papierkorb (1)"));
+
+    expect(
+      screen.getByText(/relative\(2026-01-15T14:30:00Z\)/),
+    ).toBeInTheDocument();
+  });
+
+  it("shows restore and purge buttons on deleted school card", () => {
+    setupSWR([mockOrg], [deletedSchool]);
+
+    render(<OperatorProvisioningPage />);
+    fireEvent.click(screen.getByTestId("tab-schools"));
+    fireEvent.click(screen.getByText("Papierkorb (1)"));
+
+    expect(screen.getByText("Wiederherstellen")).toBeInTheDocument();
+    expect(screen.getByText("Endgültig löschen")).toBeInTheDocument();
+  });
+
+  it("toggles back from trash to active view", () => {
+    setupSWR([mockOrg], [mockSchool, deletedSchool]);
+
+    render(<OperatorProvisioningPage />);
+    fireEvent.click(screen.getByTestId("tab-schools"));
+    fireEvent.click(screen.getByText("Papierkorb (1)"));
+
+    expect(screen.getByText("Deleted School")).toBeInTheDocument();
+
+    // Click again to toggle back
+    fireEvent.click(screen.getByText("Papierkorb (1)"));
+
+    expect(screen.getByText("Test School")).toBeInTheDocument();
+    expect(screen.queryByText("Deleted School")).not.toBeInTheDocument();
+  });
+
+  it("shows Löschen button on active school cards", () => {
+    setupSWR([mockOrg], [mockSchool]);
+
+    render(<OperatorProvisioningPage />);
+    fireEvent.click(screen.getByTestId("tab-schools"));
+
+    expect(screen.getByText("Löschen")).toBeInTheDocument();
+  });
+
+  it("opens soft-delete confirmation modal when Löschen is clicked", () => {
+    setupSWR([mockOrg], [mockSchool]);
+
+    render(<OperatorProvisioningPage />);
+    fireEvent.click(screen.getByTestId("tab-schools"));
+
+    // The "Löschen" button is on the school card
+    const deleteButtons = screen.getAllByText("Löschen");
+    fireEvent.click(deleteButtons[0]!);
+
+    expect(screen.getByText("Schule löschen")).toBeInTheDocument();
+    expect(screen.getByText(/Alle Daten bleiben erhalten/)).toBeInTheDocument();
+  });
+
+  it("calls softDeleteSchool on confirmation and refreshes", async () => {
+    mockSoftDeleteSchool.mockResolvedValue(undefined);
+    mockMutateSchools.mockResolvedValue(undefined);
+    setupSWR([mockOrg], [mockSchool]);
+
+    render(<OperatorProvisioningPage />);
+    fireEvent.click(screen.getByTestId("tab-schools"));
+
+    const deleteButtons = screen.getAllByText("Löschen");
+    fireEvent.click(deleteButtons[0]!);
+
+    // The confirmation modal button
+    const modal = screen.getByTestId("confirmation-modal");
+    const confirmBtn = modal.querySelector("button");
+    fireEvent.click(confirmBtn!);
+
+    await waitFor(() => {
+      expect(mockSoftDeleteSchool).toHaveBeenCalledWith("10");
+    });
+    await waitFor(() => {
+      expect(mockMutateSchools).toHaveBeenCalled();
+    });
+  });
+
+  it("shows error message when soft-delete fails", async () => {
+    mockSoftDeleteSchool.mockRejectedValue(new Error("server error"));
+    setupSWR([mockOrg], [mockSchool]);
+
+    render(<OperatorProvisioningPage />);
+    fireEvent.click(screen.getByTestId("tab-schools"));
+
+    const deleteButtons = screen.getAllByText("Löschen");
+    fireEvent.click(deleteButtons[0]!);
+
+    const modal = screen.getByTestId("confirmation-modal");
+    const confirmBtn = modal.querySelector("button");
+    fireEvent.click(confirmBtn!);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Fehler beim Löschen der Schule/),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("opens restore confirmation modal from trash view", () => {
+    setupSWR([mockOrg], [deletedSchool]);
+
+    render(<OperatorProvisioningPage />);
+    fireEvent.click(screen.getByTestId("tab-schools"));
+    fireEvent.click(screen.getByText("Papierkorb (1)"));
+
+    // Click restore on the deleted school card
+    const restoreButtons = screen.getAllByText("Wiederherstellen");
+    fireEvent.click(restoreButtons[0]!);
+
+    expect(screen.getByText("Schule wiederherstellen")).toBeInTheDocument();
+    expect(screen.getByText(/reaktiviert/)).toBeInTheDocument();
+  });
+
+  it("calls restoreSchool on confirmation and exits trash view", async () => {
+    mockRestoreSchool.mockResolvedValue(undefined);
+    mockMutateSchools.mockResolvedValue(undefined);
+    setupSWR([mockOrg], [deletedSchool]);
+
+    render(<OperatorProvisioningPage />);
+    fireEvent.click(screen.getByTestId("tab-schools"));
+    fireEvent.click(screen.getByText("Papierkorb (1)"));
+    fireEvent.click(screen.getByText("Wiederherstellen"));
+
+    // Click the confirm button inside the modal
+    const modal = screen.getByTestId("confirmation-modal");
+    const confirmBtn = modal.querySelector("button");
+    fireEvent.click(confirmBtn!);
+
+    await waitFor(() => {
+      expect(mockRestoreSchool).toHaveBeenCalledWith("20");
+    });
+    await waitFor(() => {
+      expect(mockMutateSchools).toHaveBeenCalled();
+    });
+  });
+
+  it("shows error message when restore fails", async () => {
+    mockRestoreSchool.mockRejectedValue(new Error("server error"));
+    setupSWR([mockOrg], [deletedSchool]);
+
+    render(<OperatorProvisioningPage />);
+    fireEvent.click(screen.getByTestId("tab-schools"));
+    fireEvent.click(screen.getByText("Papierkorb (1)"));
+    fireEvent.click(screen.getByText("Wiederherstellen"));
+
+    const modal = screen.getByTestId("confirmation-modal");
+    const confirmBtn = modal.querySelector("button");
+    fireEvent.click(confirmBtn!);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Fehler beim Wiederherstellen/),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("opens purge confirmation modal from trash view", () => {
+    setupSWR([mockOrg], [deletedSchool]);
+
+    render(<OperatorProvisioningPage />);
+    fireEvent.click(screen.getByTestId("tab-schools"));
+    fireEvent.click(screen.getByText("Papierkorb (1)"));
+    fireEvent.click(screen.getByText("Endgültig löschen"));
+
+    expect(screen.getByText("Schule endgültig löschen")).toBeInTheDocument();
+    expect(
+      screen.getByText(/kann nicht rückgängig gemacht werden/),
+    ).toBeInTheDocument();
+  });
+
+  it("calls purgeSchool on confirmation", async () => {
+    mockPurgeSchool.mockResolvedValue({ tables_purged: 5 });
+    mockMutateSchools.mockResolvedValue(undefined);
+    setupSWR([mockOrg], [deletedSchool]);
+
+    render(<OperatorProvisioningPage />);
+    fireEvent.click(screen.getByTestId("tab-schools"));
+    fireEvent.click(screen.getByText("Papierkorb (1)"));
+    fireEvent.click(screen.getByText("Endgültig löschen"));
+
+    const modal = screen.getByTestId("confirmation-modal");
+    const confirmBtn = modal.querySelector("button");
+    fireEvent.click(confirmBtn!);
+
+    await waitFor(() => {
+      expect(mockPurgeSchool).toHaveBeenCalledWith("20");
+    });
+    await waitFor(() => {
+      expect(mockMutateSchools).toHaveBeenCalled();
+    });
+  });
+
+  it("shows error message when purge fails", async () => {
+    mockPurgeSchool.mockRejectedValue(new Error("purge failed"));
+    setupSWR([mockOrg], [deletedSchool]);
+
+    render(<OperatorProvisioningPage />);
+    fireEvent.click(screen.getByTestId("tab-schools"));
+    fireEvent.click(screen.getByText("Papierkorb (1)"));
+    fireEvent.click(screen.getByText("Endgültig löschen"));
+
+    const modal = screen.getByTestId("confirmation-modal");
+    const confirmBtn = modal.querySelector("button");
+    fireEvent.click(confirmBtn!);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Fehler beim endgültigen Löschen/),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("shows empty state in trash view when all deleted schools are purged", () => {
+    // No deleted schools, but force trash view by having had deleted schools
+    setupSWR([mockOrg], [mockSchool]);
+
+    render(<OperatorProvisioningPage />);
+    fireEvent.click(screen.getByTestId("tab-schools"));
+
+    // Trash button should not appear since no deleted schools
+    expect(screen.queryByText(/Papierkorb/)).not.toBeInTheDocument();
+  });
+
+  it("shows multiple deleted schools in trash view", () => {
+    const deleted1 = {
+      ...deletedSchool,
+      id: "21",
+      name: "Deleted One",
+      subdomain: "deleted-one",
+    };
+    const deleted2 = {
+      ...deletedSchool,
+      id: "22",
+      name: "Deleted Two",
+      subdomain: "deleted-two",
+    };
+    setupSWR([mockOrg], [mockSchool, deleted1, deleted2]);
+
+    render(<OperatorProvisioningPage />);
+    fireEvent.click(screen.getByTestId("tab-schools"));
+    expect(screen.getByText("Papierkorb (2)")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Papierkorb (2)"));
+
+    expect(screen.getByText("Deleted One")).toBeInTheDocument();
+    expect(screen.getByText("Deleted Two")).toBeInTheDocument();
+  });
+
+  it("shows subdomain and org name on deleted school card", () => {
+    setupSWR([mockOrg], [deletedSchool]);
+
+    render(<OperatorProvisioningPage />);
+    fireEvent.click(screen.getByTestId("tab-schools"));
+    fireEvent.click(screen.getByText("Papierkorb (1)"));
+
+    expect(screen.getByText("deleted-school")).toBeInTheDocument();
+    expect(screen.getByText("Test Org")).toBeInTheDocument();
   });
 });
