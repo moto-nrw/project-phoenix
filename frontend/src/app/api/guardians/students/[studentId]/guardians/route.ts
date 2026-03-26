@@ -10,7 +10,7 @@ export const GET = createGetHandler(async (request, token, params) => {
     token,
   );
   // @ts-expect-error - API helper returns unknown type
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+
   return response.data;
 });
 
@@ -24,6 +24,6 @@ export const POST = createPostHandler(async (request, body, token, params) => {
     body,
   );
   // @ts-expect-error - API helper returns unknown type
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+
   return response.data;
 });

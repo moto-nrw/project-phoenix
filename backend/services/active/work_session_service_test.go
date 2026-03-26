@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -1038,6 +1039,45 @@ func TestWSCleanupOpenSessions_NoOpenSessions(t *testing.T) {
 	count, err := svc.CleanupOpenSessions(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, 0, count)
+}
+
+func TestWSCleanupOpenSessions_CheckOutTimeIsBerlinEndOfDay(t *testing.T) {
+	svc, sessionRepo, _, _, _ := wsCreateTestService()
+
+	// Simulate a session date stored as UTC midnight (how TodayUTC works)
+	sessionDate := time.Date(2026, 3, 26, 0, 0, 0, 0, time.UTC)
+
+	sessionRepo.getOpenSessionsFunc = func(_ context.Context, _ time.Time) ([]*activeModels.WorkSession, error) {
+		return []*activeModels.WorkSession{
+			{Model: base.Model{ID: 100}, Date: sessionDate},
+		}, nil
+	}
+
+	var capturedCheckOutTime time.Time
+	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, checkOutTime time.Time, _ bool) error {
+		capturedCheckOutTime = checkOutTime
+		return nil
+	}
+
+	count, err := svc.CleanupOpenSessions(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 1, count)
+
+	// The check-out time must be 23:59:59 Europe/Berlin, NOT 23:59:59 UTC.
+	// In CET (UTC+1), 23:59:59 Berlin = 22:59:59 UTC.
+	// In CEST (UTC+2), 23:59:59 Berlin = 21:59:59 UTC.
+	checkOutInBerlin := capturedCheckOutTime.In(timezone.Berlin)
+
+	assert.Equal(t, 23, checkOutInBerlin.Hour(), "hour should be 23 in Berlin time")
+	assert.Equal(t, 59, checkOutInBerlin.Minute(), "minute should be 59")
+	assert.Equal(t, 59, checkOutInBerlin.Second(), "second should be 59")
+	assert.Equal(t, 2026, checkOutInBerlin.Year())
+	assert.Equal(t, time.March, checkOutInBerlin.Month())
+	assert.Equal(t, 26, checkOutInBerlin.Day(), "date should still be March 26, not March 27")
+
+	// Verify it is NOT 23:59:59 UTC (the old buggy behavior)
+	assert.NotEqual(t, 23, capturedCheckOutTime.UTC().Hour(),
+		"check-out should NOT be 23:59:59 UTC — that would be 00:59:59 CET the next day")
 }
 
 // ============================================================================

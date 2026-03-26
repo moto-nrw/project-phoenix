@@ -1,7 +1,6 @@
 // activity-api.test.ts
 // Comprehensive tests for activity API service
 
-/* eslint-disable @typescript-eslint/unbound-method */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type {
   BackendActivitySchedule,

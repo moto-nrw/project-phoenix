@@ -111,7 +111,6 @@ describe("profile-api", () => {
   });
 
   afterEach(() => {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     consoleErrorSpy.mockRestore();
   });
 
@@ -344,7 +343,6 @@ describe("profile-api", () => {
       // Verify FormData was created with the file
       const callArgs = mockFetch.mock.calls[0];
       expect(callArgs).toBeDefined();
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       const body = callArgs?.[1]?.body as FormData;
       expect(body).toBeInstanceOf(FormData);
       expect(body.get("avatar")).toBe(mockFile);

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-return */
 /**
  * Tests for Active Supervisions Page
  * Tests the rendering states and user interactions of the active supervisions dashboard

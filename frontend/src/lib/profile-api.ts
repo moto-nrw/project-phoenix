@@ -46,7 +46,7 @@ export async function fetchProfile(): Promise<Profile> {
       throw error;
     }
     logger.error("failed to fetch profile", { error: String(error) });
-    throw new Error("Failed to fetch profile");
+    throw new Error("Failed to fetch profile", { cause: error });
   }
 }
 
@@ -82,7 +82,7 @@ export async function updateProfile(
       throw error;
     }
     logger.error("failed to update profile", { error: String(error) });
-    throw new Error("Failed to update profile");
+    throw new Error("Failed to update profile", { cause: error });
   }
 }
 
@@ -149,6 +149,7 @@ export async function uploadAvatar(file: File): Promise<Profile> {
     logger.error("failed to upload avatar", { error: String(error) });
     throw new Error(
       error instanceof Error ? error.message : "Failed to upload avatar",
+      { cause: error },
     );
   }
 }
@@ -181,6 +182,6 @@ export async function deleteAvatar(): Promise<Profile> {
       throw error;
     }
     logger.error("failed to delete avatar", { error: String(error) });
-    throw new Error("Failed to delete avatar");
+    throw new Error("Failed to delete avatar", { cause: error });
   }
 }

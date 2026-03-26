@@ -18,6 +18,7 @@ type AccountRepository interface {
 	UpdatePassword(ctx context.Context, id int64, passwordHash string) error
 	FindByRole(ctx context.Context, role string) ([]*Account, error)
 	FindAccountsWithRolesAndPermissions(ctx context.Context, filters map[string]interface{}) ([]*Account, error)
+	FindEmailsByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64]string, error)
 }
 
 // RoleRepository defines operations for managing roles

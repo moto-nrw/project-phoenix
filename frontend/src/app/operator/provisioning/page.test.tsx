@@ -89,7 +89,6 @@ vi.mock("~/lib/iot-helpers", () => ({
   },
 }));
 
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-return */
 vi.mock("~/components/ui/page-header", () => ({
   PageHeaderWithSearch: ({ title, tabs, actionButton }: any) => (
     <div data-testid="page-header">
@@ -130,7 +129,6 @@ vi.mock("~/components/ui/skeleton", () => ({
     <div data-testid="skeleton" className={className} />
   ),
 }));
-/* eslint-disable @typescript-eslint/no-explicit-any */
 vi.mock("./create-account-modal", () => ({
   CreateAccountModal: ({ isOpen, schoolId, schoolName }: any) =>
     isOpen ? (
@@ -140,8 +138,6 @@ vi.mock("./create-account-modal", () => ({
       </div>
     ) : null,
 }));
-/* eslint-enable @typescript-eslint/no-explicit-any */
-/* eslint-enable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-return */
 
 import OperatorProvisioningPage from "./page";
 
@@ -192,7 +188,6 @@ describe("OperatorProvisioningPage", () => {
     orgsLoading = false,
     schoolsLoading = false,
   ) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockUseSWR.mockImplementation((key: any) => {
       if (key === "operator-organizations") {
         return {
@@ -1571,7 +1566,6 @@ describe("OperatorProvisioningPage", () => {
       accounts: unknown[] | undefined,
       accountsLoading = false,
     ) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       mockUseSWR.mockImplementation((key: any) => {
         if (key === "operator-organizations") {
           return {
@@ -1894,7 +1888,6 @@ describe("OperatorProvisioningPage", () => {
         name: "Other Org",
         slug: "other-org",
       };
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       mockUseSWR.mockImplementation((key: any) => {
         if (key === "operator-organizations") {
           return {
@@ -1964,7 +1957,6 @@ describe("OperatorProvisioningPage", () => {
       devices: unknown[] | undefined,
       devicesLoading = false,
     ) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       mockUseSWR.mockImplementation((key: any) => {
         if (key === "operator-organizations") {
           return {

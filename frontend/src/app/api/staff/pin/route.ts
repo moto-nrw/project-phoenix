@@ -187,6 +187,7 @@ export const PUT = createPutHandler<
       error instanceof Error
         ? mapPinUpdateError(error)
         : "Fehler beim Aktualisieren der PIN. Bitte versuchen Sie es erneut.",
+      { cause: error },
     );
   }
 });

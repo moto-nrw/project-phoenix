@@ -9,6 +9,6 @@ export const POST = createPostHandler(async (_request, body, token) => {
     body,
   );
   // @ts-expect-error - API helper returns unknown type
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+
   return response.data;
 });

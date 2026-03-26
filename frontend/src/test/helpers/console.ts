@@ -2,7 +2,6 @@ import { afterEach, beforeEach, type MockInstance, vi } from "vitest";
 
 type ConsoleMethod = "log" | "warn" | "error";
 
-// eslint-disable-next-line @typescript-eslint/no-empty-function
 const noop = () => {};
 
 /**

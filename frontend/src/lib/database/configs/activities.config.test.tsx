@@ -128,8 +128,9 @@ describe("activitiesConfig", () => {
 
     const badges = activitiesConfig.detail.header?.badges ?? [];
     const countBadge = badges.find((b) => typeof b.label === "function");
+    expect(countBadge).toBeDefined();
     expect(
-      (countBadge?.label as (item: Activity) => string)(mockActivity),
+      (countBadge!.label as (item: Activity) => string)(mockActivity),
     ).toBe("15/20");
   });
 

@@ -103,7 +103,7 @@ describe("RoleDetailModal", () => {
       <RoleDetailModal
         isOpen={true}
         onClose={mockOnClose}
-        role={null}
+        role={null} // eslint-disable-line jsx-a11y/aria-role -- component prop, not ARIA role
         onEdit={mockOnEdit}
         onDelete={mockOnDelete}
       />,

@@ -49,7 +49,9 @@ export const GET = createGetHandler(
     } catch (error) {
       // If the error contains a 404 status, return the appropriate error
       if (error instanceof Error && error.message.includes("API error (404)")) {
-        throw new Error(`API error (404): Activity with ID ${id} not found`);
+        throw new Error(`API error (404): Activity with ID ${id} not found`, {
+          cause: error,
+        });
       }
 
       // No more mock data fallback - throw the error to show proper errors

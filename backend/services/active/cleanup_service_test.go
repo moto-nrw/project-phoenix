@@ -692,6 +692,70 @@ func TestCleanupStaleAttendance_CheckInAfterEndOfDay(t *testing.T) {
 		checkOutTime, expectedCheckOut)
 }
 
+func TestCleanupStaleAttendance_CheckOutTimeIsBerlinEndOfDay(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	cleanupService := setupCleanupService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	// ARRANGE: Create fixtures
+	student := testpkg.CreateTestStudent(t, db, "TZ", "Test", "5d")
+	staff := testpkg.CreateTestStaff(t, db, "TZ", "Staff")
+	device := testpkg.CreateTestDevice(t, db, "tz-device-001")
+
+	// Create a stale attendance record (yesterday, no checkout).
+	// Use TodayUTC for the date column — pgdriver converts time.Time to UTC before
+	// PostgreSQL extracts the DATE, so Berlin midnight (23:00 UTC previous day) would
+	// store the wrong calendar date. TodayUTC avoids this by using UTC midnight.
+	yesterday := timezone.TodayUTC().AddDate(0, 0, -1)
+	checkInTime := yesterday.Add(8 * time.Hour) // 8:00 UTC yesterday
+
+	var attendanceID int64
+	err := db.NewRaw(`
+		INSERT INTO active.attendance (student_id, date, check_in_time, checked_in_by, device_id, tenant_id)
+		VALUES (?, ?, ?, ?, ?, 1)
+		RETURNING id
+	`, student.ID, yesterday, checkInTime, staff.ID, device.ID).Scan(ctx, &attendanceID)
+	require.NoError(t, err, "Failed to create stale attendance record")
+
+	defer func() {
+		testpkg.CleanupTableRecords(t, db, "active.attendance", attendanceID)
+		testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, device.ID)
+	}()
+
+	// ACT: Run cleanup
+	result, err := cleanupService.CleanupStaleAttendance(ctx)
+
+	// ASSERT
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.True(t, result.Success)
+	assert.GreaterOrEqual(t, result.RecordsClosed, 1)
+
+	// Verify check_out_time is 23:59:59 in Berlin timezone, not UTC
+	var checkOutTime time.Time
+	err = db.NewRaw(`
+		SELECT check_out_time
+		FROM active.attendance
+		WHERE id = ?
+	`, attendanceID).Scan(ctx, &checkOutTime)
+	require.NoError(t, err)
+	assert.False(t, checkOutTime.IsZero(), "check_out_time should be set")
+
+	// record.Date comes back as UTC midnight from the DATE column.
+	// The fix converts to Berlin before building 23:59:59, so the checkout
+	// must be 23:59:59 Berlin on the correct calendar date.
+	checkOutInBerlin := checkOutTime.In(timezone.Berlin)
+	yesterdayInBerlin := yesterday.In(timezone.Berlin)
+
+	assert.Equal(t, 23, checkOutInBerlin.Hour(), "hour should be 23 in Berlin time")
+	assert.Equal(t, 59, checkOutInBerlin.Minute(), "minute should be 59")
+	assert.Equal(t, 59, checkOutInBerlin.Second(), "second should be 59")
+	assert.Equal(t, yesterdayInBerlin.Day(), checkOutInBerlin.Day(),
+		"date should be the same day as the attendance record, not the next day")
+}
+
 // =============================================================================
 // PreviewSupervisorCleanup Tests
 // =============================================================================

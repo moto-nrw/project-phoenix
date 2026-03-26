@@ -83,6 +83,7 @@ function mapBackendStaff(staff: BackendStaffResponse) {
       : "",
     firstName: staff.person?.first_name ?? "",
     lastName: staff.person?.last_name ?? "",
+    email: staff.person?.email ?? null,
     specialization: staff.specialization ?? null,
     role: staff.role ?? null,
     qualifications: staff.qualifications ?? null,
@@ -220,6 +221,7 @@ export const POST = createPostHandler<TeacherResponse, StaffCreateRequest>(
         });
         throw new Error(
           "Permission denied: You need the 'users:create' permission to create staff members.",
+          { cause: error },
         );
       }
 
@@ -232,7 +234,9 @@ export const POST = createPostHandler<TeacherResponse, StaffCreateRequest>(
 
         // Extract specific error message if possible
         if (errorMessage.includes("person not found")) {
-          throw new Error("Person not found with the specified ID");
+          throw new Error("Person not found with the specified ID", {
+            cause: error,
+          });
         }
         // No additional specialization validation anymore
       }

@@ -262,7 +262,8 @@ describe("AnnouncementViewsAccordion", () => {
     const parentClick = vi.fn();
 
     render(
-      <div onClick={parentClick}>
+      // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
+      <div onClick={parentClick} role="presentation">
         <AnnouncementViewsAccordion announcementId="42" dismissedCount={1} />
       </div>,
     );

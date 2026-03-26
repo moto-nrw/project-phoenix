@@ -10,7 +10,6 @@ on:
         type: choice
         options:
           - staging
-          - demo
           - production
       target_sha:
         description: "Image SHA tag (7-char, e.g. abc1234). Leave empty to use previous deploy."
@@ -46,16 +45,15 @@ jobs:
         run: |
           case "$ENVIRONMENT" in
             staging)    echo "dir=staging" >> $GITHUB_OUTPUT ;;
-            demo)       echo "dir=demo" >> $GITHUB_OUTPUT ;;
             production) echo "dir=production" >> $GITHUB_OUTPUT ;;
           esac
 
       - name: Setup SSH
         id: ssh
         env:
-          SSH_KEY: ${{ inputs.environment == 'staging' && secrets.STAGING_SSH_KEY || inputs.environment == 'demo' && secrets.DEMO_SSH_KEY || secrets.PRODUCTION_SSH_KEY }}
-          SSH_HOST: ${{ inputs.environment == 'staging' && secrets.STAGING_HOST || inputs.environment == 'demo' && secrets.DEMO_HOST || secrets.PRODUCTION_HOST }}
-          SSH_KNOWN_HOSTS: ${{ inputs.environment == 'staging' && secrets.STAGING_SSH_KNOWN_HOSTS || inputs.environment == 'demo' && secrets.DEMO_SSH_KNOWN_HOSTS || secrets.PRODUCTION_SSH_KNOWN_HOSTS }}
+          SSH_KEY: ${{ inputs.environment == 'staging' && secrets.STAGING_SSH_KEY || secrets.PRODUCTION_SSH_KEY }}
+          SSH_HOST: ${{ inputs.environment == 'staging' && secrets.STAGING_HOST || secrets.PRODUCTION_HOST }}
+          SSH_KNOWN_HOSTS: ${{ inputs.environment == 'staging' && secrets.STAGING_SSH_KNOWN_HOSTS || secrets.PRODUCTION_SSH_KNOWN_HOSTS }}
         run: |
           mkdir -p ~/.ssh
           echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts

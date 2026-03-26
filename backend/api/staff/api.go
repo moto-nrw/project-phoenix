@@ -209,7 +209,7 @@ func (req *PINUpdateRequest) Bind(_ *http.Request) error {
 }
 
 // newPersonResponse creates a simplified person response
-func newPersonResponse(person *users.Person) *PersonResponse {
+func newPersonResponse(person *users.Person, email string) *PersonResponse {
 	if person == nil {
 		return nil
 	}
@@ -218,6 +218,7 @@ func newPersonResponse(person *users.Person) *PersonResponse {
 		ID:        person.ID,
 		FirstName: person.FirstName,
 		LastName:  person.LastName,
+		Email:     email,
 		AccountID: person.AccountID,
 		CreatedAt: person.CreatedAt,
 		UpdatedAt: person.UpdatedAt,
@@ -225,10 +226,6 @@ func newPersonResponse(person *users.Person) *PersonResponse {
 
 	if person.TagID != nil {
 		response.TagID = *person.TagID
-	}
-
-	if person.Account != nil {
-		response.Email = person.Account.Email
 	}
 
 	return response
@@ -261,7 +258,7 @@ func (rs *Resource) parseAndGetStaff(w http.ResponseWriter, r *http.Request) (*u
 // =============================================================================
 
 // newStaffResponse creates a staff response
-func newStaffResponse(staff *users.Staff, isTeacher bool, wasPresentToday bool, workStatus string, absenceType string, accountRole string) StaffResponse {
+func newStaffResponse(staff *users.Staff, isTeacher bool, wasPresentToday bool, workStatus string, absenceType string, accountRole string, email string) StaffResponse {
 	response := StaffResponse{
 		ID:              staff.ID,
 		PersonID:        staff.PersonID,
@@ -276,15 +273,15 @@ func newStaffResponse(staff *users.Staff, isTeacher bool, wasPresentToday bool, 
 	}
 
 	if staff.Person != nil {
-		response.Person = newPersonResponse(staff.Person)
+		response.Person = newPersonResponse(staff.Person, email)
 	}
 
 	return response
 }
 
 // newTeacherResponse creates a teacher response
-func newTeacherResponse(staff *users.Staff, teacher *users.Teacher, wasPresentToday bool, workStatus string, absenceType string, accountRole string) TeacherResponse {
-	staffResponse := newStaffResponse(staff, true, wasPresentToday, workStatus, absenceType, accountRole)
+func newTeacherResponse(staff *users.Staff, teacher *users.Teacher, wasPresentToday bool, workStatus string, absenceType string, accountRole string, email string) TeacherResponse {
+	staffResponse := newStaffResponse(staff, true, wasPresentToday, workStatus, absenceType, accountRole, email)
 
 	response := TeacherResponse{
 		StaffResponse:  staffResponse,
@@ -349,6 +346,32 @@ func (rs *Resource) loadAccountRoleMap(ctx context.Context, staffMembers []*user
 	return roleMap
 }
 
+// loadAccountEmailMap batch-loads email addresses for all staff members (non-critical, returns empty map on error)
+func (rs *Resource) loadAccountEmailMap(ctx context.Context, staffMembers []*users.Staff) map[int64]string {
+	if rs.AuthService == nil {
+		return make(map[int64]string)
+	}
+
+	// Collect account IDs from staff members
+	accountIDs := make([]int64, 0, len(staffMembers))
+	for _, s := range staffMembers {
+		if s.Person != nil && s.Person.AccountID != nil {
+			accountIDs = append(accountIDs, *s.Person.AccountID)
+		}
+	}
+
+	if len(accountIDs) == 0 {
+		return make(map[int64]string)
+	}
+
+	emailMap, err := rs.AuthService.GetAccountEmailsByIDs(ctx, accountIDs)
+	if err != nil {
+		rs.getLogger().Warn("failed to fetch account email map", slog.String("error", err.Error()))
+		return make(map[int64]string)
+	}
+	return emailMap
+}
+
 // listStaff handles listing all staff members with optional filtering
 // Optimized to avoid N+1 queries by batch-loading Person and Teacher data
 func (rs *Resource) listStaff(w http.ResponseWriter, r *http.Request) {
@@ -393,13 +416,14 @@ func (rs *Resource) listStaff(w http.ResponseWriter, r *http.Request) {
 	workStatusMap := rs.loadWorkStatusMap(ctx)
 	absenceMap := rs.loadAbsenceMap(ctx)
 
-	// Batch-load account roles for all staff members (non-critical)
+	// Batch-load account roles and emails for all staff members (non-critical)
 	accountRoleMap := rs.loadAccountRoleMap(ctx, staffMembers)
+	accountEmailMap := rs.loadAccountEmailMap(ctx, staffMembers)
 
 	// Build response objects using pre-loaded data
 	responses := make([]interface{}, 0, len(staffMembers))
 	for _, staff := range staffMembers {
-		if response, include := rs.processStaffForListOptimized(ctx, staff, teacherMap, presentMap, workStatusMap, absenceMap, accountRoleMap, filters); include {
+		if response, include := rs.processStaffForListOptimized(ctx, staff, teacherMap, presentMap, workStatusMap, absenceMap, accountRoleMap, accountEmailMap, filters); include {
 			responses = append(responses, response)
 		}
 	}
@@ -434,12 +458,18 @@ func (rs *Resource) getStaff(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Load account role with tenant scoping (non-critical)
+	// Load account role and email with tenant scoping (non-critical)
 	var accountRole string
+	var accountEmail string
 	if staff.Person != nil && staff.Person.AccountID != nil && rs.AuthService != nil {
-		roleMap, roleErr := rs.AuthService.GetAccountRoleNames(r.Context(), []int64{*staff.Person.AccountID})
+		accountID := *staff.Person.AccountID
+		roleMap, roleErr := rs.AuthService.GetAccountRoleNames(r.Context(), []int64{accountID})
 		if roleErr == nil {
-			accountRole = roleMap[*staff.Person.AccountID]
+			accountRole = roleMap[accountID]
+		}
+		emailMap, emailErr := rs.AuthService.GetAccountEmailsByIDs(r.Context(), []int64{accountID})
+		if emailErr == nil {
+			accountEmail = emailMap[accountID]
 		}
 	}
 
@@ -449,12 +479,12 @@ func (rs *Resource) getStaff(w http.ResponseWriter, r *http.Request) {
 
 	teacher, err = rs.TeacherRepo.FindByStaffID(r.Context(), staff.ID)
 	if err == nil && teacher != nil {
-		response := newTeacherResponse(staff, teacher, false, "", "", accountRole)
+		response := newTeacherResponse(staff, teacher, false, "", "", accountRole, accountEmail)
 		common.Respond(w, r, http.StatusOK, response, "Teacher retrieved successfully")
 		return
 	}
 
-	response := newStaffResponse(staff, isTeacher, false, "", "", accountRole)
+	response := newStaffResponse(staff, isTeacher, false, "", "", accountRole, accountEmail)
 	common.Respond(w, r, http.StatusOK, response, "Staff member retrieved successfully")
 }
 
@@ -545,20 +575,20 @@ func (rs *Resource) createStaff(w http.ResponseWriter, r *http.Request) {
 	staff.Person = person
 
 	if teacherCreationFailed {
-		response := newStaffResponse(staff, false, false, "", "", "")
+		response := newStaffResponse(staff, false, false, "", "", "", "")
 		common.Respond(w, r, http.StatusCreated, response, "Staff member created successfully, but failed to create teacher record")
 		return
 	}
 
 	if isTeacher {
 		// Return teacher response
-		response := newTeacherResponse(staff, teacher, false, "", "", "")
+		response := newTeacherResponse(staff, teacher, false, "", "", "", "")
 		common.Respond(w, r, http.StatusCreated, response, "Teacher created successfully")
 		return
 	}
 
 	// Return staff response
-	response := newStaffResponse(staff, isTeacher, false, "", "", "")
+	response := newStaffResponse(staff, isTeacher, false, "", "", "", "")
 	common.Respond(w, r, http.StatusCreated, response, "Staff member created successfully")
 }
 
@@ -658,10 +688,10 @@ func (rs *Resource) buildUpdateStaffResponse(
 
 	// Return existing teacher response if they have a teacher record
 	if existingTeacher != nil {
-		return newTeacherResponse(staff, existingTeacher, false, "", "", ""), "Teacher updated successfully"
+		return newTeacherResponse(staff, existingTeacher, false, "", "", "", ""), "Teacher updated successfully"
 	}
 
-	return newStaffResponse(staff, false, false, "", "", ""), "Staff member updated successfully"
+	return newStaffResponse(staff, false, false, "", "", "", ""), "Staff member updated successfully"
 }
 
 // deleteStaff handles deleting a staff member
@@ -754,7 +784,7 @@ func (rs *Resource) getAvailableStaff(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Create teacher response using pre-loaded data (false for wasPresentToday - not needed here)
-		responses = append(responses, newTeacherResponse(teacher.Staff, teacher, false, "", "", ""))
+		responses = append(responses, newTeacherResponse(teacher.Staff, teacher, false, "", "", "", ""))
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Available staff members retrieved successfully")
@@ -837,7 +867,7 @@ func (rs *Resource) buildStaffSubstitutionStatus(
 	teacher *users.Teacher,
 	subs []*education.GroupSubstitution,
 ) StaffWithSubstitutionStatus {
-	staffResp := newStaffResponse(staff, false, false, "", "", "")
+	staffResp := newStaffResponse(staff, false, false, "", "", "", "")
 	result := StaffWithSubstitutionStatus{
 		StaffResponse:     &staffResp,
 		IsSubstituting:    len(subs) > 0,

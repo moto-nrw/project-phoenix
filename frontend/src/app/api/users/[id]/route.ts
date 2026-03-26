@@ -124,6 +124,7 @@ export const PUT = createPutHandler<BackendPersonResponse, PersonUpdateRequest>(
         });
         throw new Error(
           "Permission denied: You need the 'users:update' permission to update persons.",
+          { cause: error },
         );
       }
 
@@ -137,7 +138,7 @@ export const PUT = createPutHandler<BackendPersonResponse, PersonUpdateRequest>(
 
         // Extract specific error message if possible
         if (errorMessage.includes("person not found")) {
-          throw new Error("Person not found");
+          throw new Error("Person not found", { cause: error });
         }
       }
 
@@ -178,12 +179,13 @@ export const DELETE = createDeleteHandler(
         });
         throw new Error(
           "Permission denied: You need the 'users:delete' permission to delete persons.",
+          { cause: error },
         );
       }
 
       // Check for not found errors
       if (error instanceof Error && error.message.includes("404")) {
-        throw new Error("Person not found");
+        throw new Error("Person not found", { cause: error });
       }
 
       // Re-throw other errors

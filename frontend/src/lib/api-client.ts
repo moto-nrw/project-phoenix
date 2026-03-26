@@ -1,5 +1,5 @@
 import api from "./api";
-import axios from "axios";
+import { isAxiosError } from "axios";
 import type { AxiosResponse, AxiosRequestConfig } from "axios";
 
 /**
@@ -21,9 +21,9 @@ export async function apiGet<T = unknown>(
     return await api.get<T>(url, { ...config, headers });
   } catch (error) {
     // Re-throw the error to let the route handler deal with it
-    if (axios.isAxiosError(error) && error.response?.status === 401) {
+    if (isAxiosError(error) && error.response?.status === 401) {
       // Throw a specific error for 401s so route handlers can identify it
-      throw new Error(`API error (401): Unauthorized`);
+      throw new Error(`API error (401): Unauthorized`, { cause: error });
     }
     throw error;
   }
@@ -49,9 +49,9 @@ export async function apiPost<T = unknown>(
     return await api.post<T>(url, data, { ...config, headers });
   } catch (error) {
     // Re-throw the error to let the route handler deal with it
-    if (axios.isAxiosError(error) && error.response?.status === 401) {
+    if (isAxiosError(error) && error.response?.status === 401) {
       // Throw a specific error for 401s so route handlers can identify it
-      throw new Error(`API error (401): Unauthorized`);
+      throw new Error(`API error (401): Unauthorized`, { cause: error });
     }
     throw error;
   }
@@ -77,9 +77,9 @@ export async function apiPut<T = unknown>(
     return await api.put<T>(url, data, { ...config, headers });
   } catch (error) {
     // Re-throw the error to let the route handler deal with it
-    if (axios.isAxiosError(error) && error.response?.status === 401) {
+    if (isAxiosError(error) && error.response?.status === 401) {
       // Throw a specific error for 401s so route handlers can identify it
-      throw new Error(`API error (401): Unauthorized`);
+      throw new Error(`API error (401): Unauthorized`, { cause: error });
     }
     throw error;
   }
@@ -104,9 +104,9 @@ export async function apiDelete<T = unknown>(
     return await api.delete<T>(url, { ...config, headers });
   } catch (error) {
     // Re-throw the error to let the route handler deal with it
-    if (axios.isAxiosError(error) && error.response?.status === 401) {
+    if (isAxiosError(error) && error.response?.status === 401) {
       // Throw a specific error for 401s so route handlers can identify it
-      throw new Error(`API error (401): Unauthorized`);
+      throw new Error(`API error (401): Unauthorized`, { cause: error });
     }
     throw error;
   }

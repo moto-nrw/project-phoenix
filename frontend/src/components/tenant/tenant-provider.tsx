@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext } from "react";
+import { createContext, useContext, useMemo } from "react";
 import type { TenantInfo } from "~/lib/tenant-api";
 
 interface TenantContextValue {
@@ -25,10 +25,10 @@ export function TenantProvider({
   tenant: TenantInfo | null;
   children: React.ReactNode;
 }) {
+  const value = useMemo(() => ({ tenantSlug, tenant }), [tenantSlug, tenant]);
+
   return (
-    <TenantContext.Provider value={{ tenantSlug, tenant }}>
-      {children}
-    </TenantContext.Provider>
+    <TenantContext.Provider value={value}>{children}</TenantContext.Provider>
   );
 }
 

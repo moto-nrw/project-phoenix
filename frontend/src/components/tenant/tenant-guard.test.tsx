@@ -278,7 +278,6 @@ describe("TenantGuard", () => {
     });
     expect(mockMutate).toHaveBeenCalled();
     expect(mockClearSessionCache).toHaveBeenCalled();
-    // eslint-disable-next-line @typescript-eslint/unbound-method
     expect(window.location.assign).toHaveBeenCalledWith("/");
 
     // Should NOT attempt tenant switching
@@ -308,7 +307,6 @@ describe("TenantGuard", () => {
 
     // Even though signOut fails, redirect must still fire (finally block)
     await waitFor(() => {
-      // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(window.location.assign).toHaveBeenCalledWith("/");
     });
   });
@@ -337,7 +335,6 @@ describe("TenantGuard", () => {
     });
 
     // Redirect must fire regardless
-    // eslint-disable-next-line @typescript-eslint/unbound-method
     expect(window.location.assign).toHaveBeenCalledWith("/");
   });
 

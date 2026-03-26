@@ -152,7 +152,6 @@ describe("RoomDetailPage", () => {
 
   it("renders loading state initially", () => {
     vi.mocked(global.fetch).mockImplementation(
-      // eslint-disable-next-line @typescript-eslint/no-empty-function
       () => new Promise(() => {}), // Never resolves
     );
 
@@ -374,7 +373,6 @@ describe("RoomDetailPage", () => {
   });
 
   it("handles history fetch failure gracefully", async () => {
-    // eslint-disable-next-line @typescript-eslint/no-empty-function
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     vi.mocked(global.fetch)

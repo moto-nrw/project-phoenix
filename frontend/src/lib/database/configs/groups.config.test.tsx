@@ -96,7 +96,8 @@ describe("groupsConfig", () => {
 
     const badges = groupsConfig.detail.header?.badges ?? [];
     const countBadge = badges[0];
-    expect((countBadge?.label as (entity: Group) => string)(mockGroup)).toBe(
+    expect(countBadge).toBeDefined();
+    expect((countBadge!.label as (entity: Group) => string)(mockGroup)).toBe(
       "15 Schüler",
     );
   });
@@ -127,8 +128,9 @@ describe("groupsConfig", () => {
 
     const badges = groupsConfig.detail.header?.badges ?? [];
     const supervisorBadge = badges[2];
+    expect(supervisorBadge).toBeDefined();
     expect(
-      (supervisorBadge?.label as (entity: Group) => string)(mockGroup),
+      (supervisorBadge!.label as (entity: Group) => string)(mockGroup),
     ).toBe("2 Gruppenleiter/innen");
   });
 
