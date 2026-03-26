@@ -234,6 +234,10 @@ func (noopAccountRepository) FindAccountsWithRolesAndPermissions(context.Context
 	panic("FindAccountsWithRolesAndPermissions not implemented")
 }
 
+func (noopAccountRepository) FindEmailsByAccountIDs(context.Context, []int64) (map[int64]string, error) {
+	panic("FindEmailsByAccountIDs not implemented")
+}
+
 // stubAccountRepository implements a minimal in-memory account store.
 type stubAccountRepository struct {
 	noopAccountRepository

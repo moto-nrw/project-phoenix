@@ -36,6 +36,7 @@ type AuthService interface {
 	RemoveRoleFromAccount(ctx context.Context, accountID, roleID int) error
 	GetAccountRoles(ctx context.Context, accountID int) ([]*auth.Role, error)
 	GetAccountRoleNames(ctx context.Context, accountIDs []int64) (map[int64]string, error)
+	GetAccountEmailsByIDs(ctx context.Context, accountIDs []int64) (map[int64]string, error)
 
 	// Permission Management
 	CreatePermission(ctx context.Context, name, description, resource, action string) (*auth.Permission, error)

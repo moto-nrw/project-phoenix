@@ -163,3 +163,13 @@ func (s *Service) GetAccountRoleNames(ctx context.Context, accountIDs []int64) (
 	}
 	return roleNames, nil
 }
+
+// GetAccountEmailsByIDs batch-loads email addresses for multiple accounts.
+// Returns a map of accountID → email.
+func (s *Service) GetAccountEmailsByIDs(ctx context.Context, accountIDs []int64) (map[int64]string, error) {
+	emails, err := s.repos.Account.FindEmailsByAccountIDs(ctx, accountIDs)
+	if err != nil {
+		return nil, &AuthError{Op: "get account emails by IDs", Err: err}
+	}
+	return emails, nil
+}

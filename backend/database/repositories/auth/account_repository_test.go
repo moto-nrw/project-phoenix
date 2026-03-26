@@ -507,6 +507,47 @@ func TestAccountRepository_ListWithFilters(t *testing.T) {
 }
 
 // ============================================================================
+// Batch Query Tests
+// ============================================================================
+
+func TestAccountRepository_FindEmailsByAccountIDs(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).Account
+	ctx := testpkg.TenantContext(1)
+
+	t.Run("returns emails for valid IDs", func(t *testing.T) {
+		account1 := testpkg.CreateTestAccount(t, db, "emails1")
+		account2 := testpkg.CreateTestAccount(t, db, "emails2")
+		defer cleanupAccountRecords(t, db, account1.ID, account2.ID)
+
+		result, err := repo.FindEmailsByAccountIDs(ctx, []int64{account1.ID, account2.ID})
+		require.NoError(t, err)
+		assert.Len(t, result, 2)
+		assert.Equal(t, account1.Email, result[account1.ID])
+		assert.Equal(t, account2.Email, result[account2.ID])
+	})
+
+	t.Run("returns partial results for mixed valid and invalid IDs", func(t *testing.T) {
+		account := testpkg.CreateTestAccount(t, db, "emailspartial")
+		defer cleanupAccountRecords(t, db, account.ID)
+
+		result, err := repo.FindEmailsByAccountIDs(ctx, []int64{account.ID, int64(999999)})
+		require.NoError(t, err)
+		assert.Len(t, result, 1)
+		assert.Equal(t, account.Email, result[account.ID])
+	})
+
+	t.Run("returns empty map for empty slice", func(t *testing.T) {
+		result, err := repo.FindEmailsByAccountIDs(ctx, []int64{})
+		require.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Empty(t, result)
+	})
+}
+
+// ============================================================================
 // Validation Tests
 // ============================================================================
 

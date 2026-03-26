@@ -103,9 +103,63 @@ func TestListStaff_WithNameFilter(t *testing.T) {
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
 
+func TestListStaff_WithAccountEmail(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	// Create staff with an account so the email-loading path is exercised
+	staff, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "EmailList", "Staff")
+	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
+	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
+
+	router := chi.NewRouter()
+	router.Get("/staff", ctx.resource.ListStaffHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff", nil,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithPermissions("users:read"),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+}
+
 // =============================================================================
 // GET STAFF TESTS
 // =============================================================================
+
+func TestGetStaff_WithAccountEmail(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	// Create staff with an account so the email-loading path is exercised
+	staff, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "EmailGet", "Staff")
+	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
+	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
+
+	router := chi.NewRouter()
+	router.Get("/staff/{id}", ctx.resource.GetStaffHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/staff/%d", staff.ID), nil,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithPermissions("users:read"),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	// Verify the email is present in the response
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data, ok := response["data"].(map[string]interface{})
+	require.True(t, ok, "response should contain data")
+	person, ok := data["person"].(map[string]interface{})
+	require.True(t, ok, "data should contain person")
+	email, ok := person["email"].(string)
+	require.True(t, ok, "person should contain email string")
+	assert.NotEmpty(t, email)
+}
 
 func TestGetStaff_Success(t *testing.T) {
 	ctx := setupTestContext(t)
