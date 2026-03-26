@@ -80,7 +80,8 @@ func (rs *Resource) loadRoomsMap(r *http.Request, groups []*active.Group) map[in
 
 	if len(roomIDs) > 0 {
 		var rooms []*facilities.Room
-		err := rs.db.NewSelect().
+		db := rs.getDB(r.Context())
+		err := db.NewSelect().
 			Model(&rooms).
 			ModelTableExpr(`facilities.rooms AS "room"`).
 			Where(`"room".id IN (?)`, bun.List(roomIDs)).
@@ -329,7 +330,8 @@ type visitWithStudent struct {
 // fetchVisitsWithDisplayData fetches visits with student display data
 func (rs *Resource) fetchVisitsWithDisplayData(r *http.Request, activeGroupID int64) ([]visitWithStudent, error) {
 	var results []visitWithStudent
-	err := rs.db.NewSelect().
+	db := rs.getDB(r.Context())
+	err := db.NewSelect().
 		ColumnExpr("v.id AS visit_id").
 		ColumnExpr("v.student_id").
 		ColumnExpr("v.active_group_id").
