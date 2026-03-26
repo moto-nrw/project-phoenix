@@ -46,7 +46,11 @@ func initConfig() {
 	if cfgFile != "" {
 		// Use config file from the flag.
 		viper.SetConfigFile(cfgFile)
-	} else {
+	} else if !isDocker() {
+		// Only load dev.env for local development (go run main.go serve).
+		// In Docker, all config comes from the docker-compose environment block.
+		// Loading dev.env inside Docker causes conflicts (e.g., DB_DSN pointing
+		// to localhost instead of the Docker network hostname).
 		viper.AddConfigPath(".")
 		viper.SetConfigName("dev")
 		viper.SetConfigType("env")
@@ -58,4 +62,10 @@ func initConfig() {
 	if viper.ReadInConfig() == nil {
 		fmt.Println("Using config file:", viper.ConfigFileUsed())
 	}
+}
+
+// isDocker reports whether the process is running inside a Docker container.
+func isDocker() bool {
+	_, err := os.Stat("/.dockerenv")
+	return err == nil
 }
