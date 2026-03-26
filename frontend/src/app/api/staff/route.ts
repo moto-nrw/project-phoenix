@@ -83,6 +83,7 @@ function mapBackendStaff(staff: BackendStaffResponse) {
       : "",
     firstName: staff.person?.first_name ?? "",
     lastName: staff.person?.last_name ?? "",
+    email: staff.person?.email ?? null,
     specialization: staff.specialization ?? null,
     role: staff.role ?? null,
     qualifications: staff.qualifications ?? null,
