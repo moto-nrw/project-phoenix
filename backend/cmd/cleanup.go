@@ -35,7 +35,7 @@ var cleanupCmd = &cobra.Command{
 	Long: `Clean up expired data based on retention policies configured in privacy consents.
 This command will delete visit records that are older than the configured retention period for each student.
 
-Available subcommands: visits, preview, stats, tokens, invitations, rate-limits, attendance, sessions, supervisors.`,
+Available subcommands: visits, preview, stats, tokens, invitations, rate-limits, attendance, sessions, supervisors, tenants.`,
 }
 
 // cleanupVisitsCmd represents the visits subcommand

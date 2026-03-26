@@ -200,6 +200,56 @@ describe("mapSchool", () => {
     expect(result.id).toBe("20");
   });
 
+  it("maps deletedAt when school is soft-deleted", () => {
+    const backend: BackendSchool = {
+      id: 30,
+      organization_id: 42,
+      name: "Deleted School",
+      slug: "deleted-school",
+      subdomain: "deleted",
+      address: "",
+      city: "",
+      zip: "",
+      phone: "",
+      email: "",
+      active: true,
+      hidden: false,
+      deleted_at: "2026-01-15T14:30:00Z",
+      settings: null,
+      created_at: "2025-01-01T00:00:00Z",
+      updated_at: "2025-01-02T00:00:00Z",
+    };
+
+    const result = mapSchool(backend);
+
+    expect(result.deletedAt).toBe("2026-01-15T14:30:00Z");
+    expect(result.id).toBe("30");
+  });
+
+  it("maps deletedAt as null when school is not deleted", () => {
+    const backend: BackendSchool = {
+      id: 31,
+      organization_id: 42,
+      name: "Active School",
+      slug: "active-school",
+      subdomain: "active",
+      address: "",
+      city: "",
+      zip: "",
+      phone: "",
+      email: "",
+      active: true,
+      hidden: false,
+      settings: null,
+      created_at: "2025-01-01T00:00:00Z",
+      updated_at: "2025-01-02T00:00:00Z",
+    };
+
+    const result = mapSchool(backend);
+
+    expect(result.deletedAt).toBeNull();
+  });
+
   it("maps nested organization when present", () => {
     const backend: BackendSchool = {
       id: 10,

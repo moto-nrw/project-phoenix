@@ -670,6 +670,121 @@ describe("OperatorProvisioningService", () => {
     });
   });
 
+  describe("softDeleteSchool", () => {
+    it("calls correct endpoint with DELETE method", async () => {
+      mockOperatorFetch.mockResolvedValue(null);
+
+      await operatorProvisioningService.softDeleteSchool("10");
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/schools/10",
+        { method: "DELETE" },
+      );
+    });
+
+    it("encodes school id in URL", async () => {
+      mockOperatorFetch.mockResolvedValue(null);
+
+      await operatorProvisioningService.softDeleteSchool("10/evil");
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/schools/10%2Fevil",
+        { method: "DELETE" },
+      );
+    });
+
+    it("propagates errors from operatorFetch", async () => {
+      mockOperatorFetch.mockRejectedValue(new Error("conflict"));
+
+      await expect(
+        operatorProvisioningService.softDeleteSchool("10"),
+      ).rejects.toThrow("conflict");
+    });
+  });
+
+  describe("restoreSchool", () => {
+    it("calls correct endpoint with POST method", async () => {
+      mockOperatorFetch.mockResolvedValue(null);
+
+      await operatorProvisioningService.restoreSchool("10");
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/schools/10/restore",
+        { method: "POST" },
+      );
+    });
+
+    it("encodes school id in URL", async () => {
+      mockOperatorFetch.mockResolvedValue(null);
+
+      await operatorProvisioningService.restoreSchool("10/evil");
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/schools/10%2Fevil/restore",
+        { method: "POST" },
+      );
+    });
+
+    it("propagates errors from operatorFetch", async () => {
+      mockOperatorFetch.mockRejectedValue(new Error("not found"));
+
+      await expect(
+        operatorProvisioningService.restoreSchool("10"),
+      ).rejects.toThrow("not found");
+    });
+  });
+
+  describe("purgeSchool", () => {
+    it("calls correct endpoint with POST method and PURGE confirmation", async () => {
+      const purgeResult = { tables_purged: 5, rows_deleted: 120 };
+      mockOperatorFetch.mockResolvedValue(purgeResult);
+
+      const result = await operatorProvisioningService.purgeSchool("10");
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/schools/10/purge",
+        { method: "POST", body: { confirm: "PURGE" } },
+      );
+      expect(result).toEqual(purgeResult);
+    });
+
+    it("encodes school id in URL", async () => {
+      mockOperatorFetch.mockResolvedValue({});
+
+      await operatorProvisioningService.purgeSchool("10/evil");
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/schools/10%2Fevil/purge",
+        { method: "POST", body: { confirm: "PURGE" } },
+      );
+    });
+
+    it("returns purge summary from backend", async () => {
+      const summary = {
+        tenant_id: 10,
+        tables_processed: 8,
+        total_rows_deleted: 350,
+        details: [
+          { table: "users.students", rows_deleted: 120 },
+          { table: "education.groups", rows_deleted: 15 },
+        ],
+      };
+      mockOperatorFetch.mockResolvedValue(summary);
+
+      const result = await operatorProvisioningService.purgeSchool("10");
+
+      expect(result).toEqual(summary);
+    });
+
+    it("propagates errors from operatorFetch", async () => {
+      mockOperatorFetch.mockRejectedValue(new Error("school not deleted"));
+
+      await expect(
+        operatorProvisioningService.purgeSchool("10"),
+      ).rejects.toThrow("school not deleted");
+    });
+  });
+
   describe("listSystemRoles", () => {
     it("calls correct endpoint", async () => {
       mockOperatorFetch.mockResolvedValue([

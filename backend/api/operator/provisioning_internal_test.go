@@ -1672,6 +1672,180 @@ func TestProvisioningResource_PurgeSchool_NotDeleted(t *testing.T) {
 	assert.Equal(t, http.StatusConflict, rr.Code)
 }
 
+func TestProvisioningResource_RestoreSchool_InvalidID(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{})
+	req := httptest.NewRequest(http.MethodPost, "/operator/schools/abc/restore", nil)
+	req = withOperatorClaims(req, 42)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "abc")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.RestoreSchool(rr, req)
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestProvisioningResource_RestoreSchool_NotFound(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{
+		restoreSchoolFn: func(context.Context, int64, int64, net.IP) error {
+			return &platformSvc.SchoolNotFoundError{SchoolID: 10}
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/operator/schools/10/restore", nil)
+	req.RemoteAddr = "203.0.113.10:1234"
+	req = withOperatorClaims(req, 42)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "10")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.RestoreSchool(rr, req)
+	assert.Equal(t, http.StatusNotFound, rr.Code)
+}
+
+func TestProvisioningResource_PurgeSchool_InvalidID(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{})
+	req := httptest.NewRequest(http.MethodPost, "/operator/schools/xyz/purge", bytes.NewBufferString(`{"confirm":"PURGE"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req = withOperatorClaims(req, 42)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "xyz")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.PurgeSchool(rr, req)
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestProvisioningResource_PurgeSchool_NotFound(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{
+		purgeSchoolFn: func(context.Context, int64, int64, net.IP) ([]byte, error) {
+			return nil, &platformSvc.SchoolNotFoundError{SchoolID: 10}
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/operator/schools/10/purge", bytes.NewBufferString(`{"confirm":"PURGE"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = "203.0.113.10:1234"
+	req = withOperatorClaims(req, 42)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "10")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.PurgeSchool(rr, req)
+	assert.Equal(t, http.StatusNotFound, rr.Code)
+}
+
+func TestProvisioningResource_PurgeSchool_TenantPurgeError(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{
+		purgeSchoolFn: func(context.Context, int64, int64, net.IP) ([]byte, error) {
+			return nil, &platformSvc.TenantPurgeError{SchoolID: 10, Err: errors.New("stored procedure failed")}
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/operator/schools/10/purge", bytes.NewBufferString(`{"confirm":"PURGE"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = "203.0.113.10:1234"
+	req = withOperatorClaims(req, 42)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "10")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.PurgeSchool(rr, req)
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+}
+
+func TestProvisioningResource_SoftDeleteSchool_GenericError(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{
+		softDeleteSchoolFn: func(context.Context, int64, int64, net.IP) error {
+			return errors.New("unexpected db error")
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodDelete, "/operator/schools/10", nil)
+	req.RemoteAddr = "203.0.113.10:1234"
+	req = withOperatorClaims(req, 42)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "10")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.SoftDeleteSchool(rr, req)
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+}
+
+func TestProvisioningResource_RestoreSchool_GenericError(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{
+		restoreSchoolFn: func(context.Context, int64, int64, net.IP) error {
+			return errors.New("unexpected db error")
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/operator/schools/10/restore", nil)
+	req.RemoteAddr = "203.0.113.10:1234"
+	req = withOperatorClaims(req, 42)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "10")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.RestoreSchool(rr, req)
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+}
+
+// --- ProvisioningErrorRenderer tests for tenant lifecycle error types ---
+
+func TestProvisioningErrorRenderer_SchoolAlreadyDeleted(t *testing.T) {
+	renderer := ProvisioningErrorRenderer(&platformSvc.SchoolAlreadyDeletedError{SchoolID: 10})
+	resp, ok := renderer.(*ErrResponse)
+	require.True(t, ok)
+	assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
+	assert.Contains(t, resp.ErrorText, "already deleted")
+}
+
+func TestProvisioningErrorRenderer_SchoolNotDeleted(t *testing.T) {
+	renderer := ProvisioningErrorRenderer(&platformSvc.SchoolNotDeletedError{SchoolID: 10})
+	resp, ok := renderer.(*ErrResponse)
+	require.True(t, ok)
+	assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
+	assert.Contains(t, resp.ErrorText, "not deleted")
+}
+
+func TestProvisioningErrorRenderer_TenantPurgeError(t *testing.T) {
+	renderer := ProvisioningErrorRenderer(&platformSvc.TenantPurgeError{SchoolID: 10, Err: errors.New("boom")})
+	resp, ok := renderer.(*ErrResponse)
+	require.True(t, ok)
+	assert.Equal(t, http.StatusInternalServerError, resp.HTTPStatusCode)
+}
+
+func TestPurgeSchoolRequest_Bind_ExactMatch(t *testing.T) {
+	tests := []struct {
+		name    string
+		confirm string
+		wantErr bool
+	}{
+		{"correct", "PURGE", false},
+		{"lowercase", "purge", true},
+		{"empty", "", true},
+		{"partial", "PUR", true},
+		{"delete", "DELETE", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := &purgeSchoolRequest{Confirm: tt.confirm}
+			err := req.Bind(nil)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
 func ptrInt64(v int64) *int64    { return &v }
 func ptrString(v string) *string { return &v }
 

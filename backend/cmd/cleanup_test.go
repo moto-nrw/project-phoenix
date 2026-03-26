@@ -925,10 +925,11 @@ func TestCleanupCmd_HasSubcommands(t *testing.T) {
 	assert.Contains(t, names, "attendance")
 	assert.Contains(t, names, "sessions")
 	assert.Contains(t, names, "supervisors")
+	assert.Contains(t, names, "tenants")
 }
 
 func TestCleanupCmd_SubcommandCount(t *testing.T) {
-	assert.Len(t, cleanupCmd.Commands(), 9, "cleanupCmd should have exactly 9 subcommands")
+	assert.Len(t, cleanupCmd.Commands(), 10, "cleanupCmd should have exactly 10 subcommands")
 }
 
 func TestCleanupVisitsCmd_Metadata(t *testing.T) {
@@ -986,6 +987,13 @@ func TestCleanupSupervisorsCmd_Metadata(t *testing.T) {
 	assert.NotNil(t, cleanupSupervisorsCmd.RunE)
 }
 
+func TestCleanupTenantsCmd_Metadata(t *testing.T) {
+	assert.Equal(t, "tenants", cleanupTenantsCmd.Use)
+	assert.Contains(t, cleanupTenantsCmd.Short, "soft-deleted schools")
+	assert.Contains(t, cleanupTenantsCmd.Long, "irreversible")
+	assert.NotNil(t, cleanupTenantsCmd.RunE)
+}
+
 // =============================================================================
 // Category F: Flag Registration Tests (from test/improve-coverage)
 // =============================================================================
@@ -1028,6 +1036,18 @@ func TestCleanupSupervisorsCmd_Flags(t *testing.T) {
 	assert.NotNil(t, f.Lookup("verbose"))
 }
 
+func TestCleanupTenantsCmd_Flags(t *testing.T) {
+	f := cleanupTenantsCmd.Flags()
+	assert.NotNil(t, f.Lookup("dry-run"))
+	assert.NotNil(t, f.Lookup("older-than"))
+}
+
+func TestCleanupTenantsCmd_OlderThanDefault(t *testing.T) {
+	val, err := cleanupTenantsCmd.Flags().GetDuration("older-than")
+	require.NoError(t, err)
+	assert.Equal(t, 90*24*time.Hour, val, "default older-than should be 90 days")
+}
+
 // =============================================================================
 // Category G: Parent-Child and Usage Tests (from test/improve-coverage)
 // =============================================================================
@@ -1042,6 +1062,7 @@ func TestCleanupSubcommands_ParentRelationship(t *testing.T) {
 	assert.Equal(t, cleanupCmd, cleanupAttendanceCmd.Parent())
 	assert.Equal(t, cleanupCmd, cleanupSessionsCmd.Parent())
 	assert.Equal(t, cleanupCmd, cleanupSupervisorsCmd.Parent())
+	assert.Equal(t, cleanupCmd, cleanupTenantsCmd.Parent())
 }
 
 func TestCleanupCmd_UsageOutput(t *testing.T) {

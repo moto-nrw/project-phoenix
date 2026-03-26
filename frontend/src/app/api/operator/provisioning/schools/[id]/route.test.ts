@@ -23,7 +23,7 @@ vi.mock("~/lib/server-api-url", () => ({
 
 global.fetch = mockFetch as unknown as typeof fetch;
 
-import { PUT } from "./route";
+import { PUT, DELETE } from "./route";
 
 describe("PUT /api/operator/provisioning/schools/[id]", () => {
   beforeEach(() => {
@@ -159,5 +159,96 @@ describe("PUT /api/operator/provisioning/schools/[id]", () => {
     const response = await PUT(request, context);
 
     expect(response.status).toBe(409);
+  });
+});
+
+describe("DELETE /api/operator/provisioning/schools/[id] (soft-delete)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("soft-deletes a school successfully", async () => {
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 204,
+    });
+
+    const request = new NextRequest(
+      "http://localhost:3000/api/operator/provisioning/schools/10",
+      { method: "DELETE" },
+    );
+    const context: RouteContext = { params: Promise.resolve({ id: "10" }) };
+    const response = await DELETE(request, context);
+
+    expect(response.status).toBe(204);
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://localhost:8080/operator/schools/10",
+      expect.objectContaining({ method: "DELETE" }),
+    );
+  });
+
+  it("returns 401 when not authenticated", async () => {
+    mockAuth.mockResolvedValue(null);
+
+    const request = new NextRequest(
+      "http://localhost:3000/api/operator/provisioning/schools/10",
+      { method: "DELETE" },
+    );
+    const context: RouteContext = { params: Promise.resolve({ id: "10" }) };
+    const response = await DELETE(request, context);
+
+    expect(response.status).toBe(401);
+  });
+
+  it("handles invalid id parameter", async () => {
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
+
+    const request = new NextRequest(
+      "http://localhost:3000/api/operator/provisioning/schools/10",
+      { method: "DELETE" },
+    );
+    const context: RouteContext = {
+      params: Promise.resolve({ id: 123 as unknown as string }),
+    };
+    const response = await DELETE(request, context);
+
+    expect(response.status).toBe(500);
+  });
+
+  it("returns 409 when school is already deleted", async () => {
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 409,
+      text: async () => JSON.stringify({ error: "School is already deleted" }),
+    });
+
+    const request = new NextRequest(
+      "http://localhost:3000/api/operator/provisioning/schools/10",
+      { method: "DELETE" },
+    );
+    const context: RouteContext = { params: Promise.resolve({ id: "10" }) };
+    const response = await DELETE(request, context);
+
+    expect(response.status).toBe(409);
+  });
+
+  it("returns 404 when school not found", async () => {
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 404,
+      text: async () => JSON.stringify({ error: "School not found" }),
+    });
+
+    const request = new NextRequest(
+      "http://localhost:3000/api/operator/provisioning/schools/999",
+      { method: "DELETE" },
+    );
+    const context: RouteContext = { params: Promise.resolve({ id: "999" }) };
+    const response = await DELETE(request, context);
+
+    expect(response.status).toBe(404);
   });
 });
