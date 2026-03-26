@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	sentryhttp "github.com/getsentry/sentry-go/http"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
@@ -145,6 +146,8 @@ func setupBasicMiddleware(router chi.Router, logger *slog.Logger) {
 			slogchi.IgnorePath("/health"),
 		},
 	}))
+	sentryMiddleware := sentryhttp.New(sentryhttp.Options{Repanic: true})
+	router.Use(sentryMiddleware.Handle)
 	router.Use(middleware.Recoverer)
 	router.Use(customMiddleware.SecurityHeaders)
 }

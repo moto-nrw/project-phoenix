@@ -2,7 +2,10 @@ package cmd
 
 import (
 	"log"
+	"os"
+	"time"
 
+	"github.com/getsentry/sentry-go"
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/applog"
 
@@ -21,6 +24,20 @@ var serveCmd = &cobra.Command{
 			Format: viper.GetString("log_format"),
 			Env:    viper.GetString("app_env"),
 		})
+
+		if dsn := os.Getenv("SENTRY_DSN"); dsn != "" {
+			err := sentry.Init(sentry.ClientOptions{
+				Dsn:              dsn,
+				Environment:      viper.GetString("app_env"),
+				TracesSampleRate: 0,
+				EnableTracing:    false,
+			})
+			if err != nil {
+				log.Fatalf("sentry init failed: %s", err)
+			}
+			defer sentry.Flush(2 * time.Second)
+			logger.Info("sentry error tracking initialized")
+		}
 
 		server, err := api.NewServer(logger)
 		if err != nil {
