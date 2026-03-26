@@ -121,6 +121,16 @@ All cleanup actions are logged in the audit.data_deletions table for compliance.
 	RunE: runCleanupSupervisors,
 }
 
+// cleanupTenantsCmd purges soft-deleted schools older than a retention period.
+var cleanupTenantsCmd = &cobra.Command{
+	Use:   "tenants",
+	Short: "Purge soft-deleted schools older than retention period",
+	Long: `Permanently delete all data for schools that have been soft-deleted
+for longer than the specified retention period. This includes all tenant-scoped
+data across all tables. This action is irreversible.`,
+	RunE: runCleanupTenants,
+}
+
 func init() {
 	RootCmd.AddCommand(cleanupCmd)
 	cleanupCmd.AddCommand(cleanupVisitsCmd)
@@ -132,6 +142,11 @@ func init() {
 	cleanupCmd.AddCommand(cleanupAttendanceCmd)
 	cleanupCmd.AddCommand(cleanupSessionsCmd)
 	cleanupCmd.AddCommand(cleanupSupervisorsCmd)
+	cleanupCmd.AddCommand(cleanupTenantsCmd)
+
+	// Flags for cleanup tenants command
+	cleanupTenantsCmd.Flags().BoolVar(&dryRun, flagDryRun, false, flagDescDryRun)
+	cleanupTenantsCmd.Flags().Duration("older-than", 90*24*time.Hour, "Only purge schools deleted more than this duration ago")
 
 	// Flags for cleanup visits command
 	cleanupVisitsCmd.Flags().BoolVar(&dryRun, flagDryRun, false, "Show what would be deleted without deleting")
@@ -634,6 +649,45 @@ func printSupervisorCleanupSummary(result *active.SupervisorCleanupResult) {
 
 	fmt.Printf(fmtStatus, getStatusString(result.Success))
 	printErrorList(result.Errors)
+}
+
+func runCleanupTenants(cmd *cobra.Command, _ []string) error {
+	olderThan, _ := cmd.Flags().GetDuration("older-than")
+
+	ctx, err := newCleanupContextWithServices()
+	if err != nil {
+		return err
+	}
+	defer ctx.Close()
+
+	if dryRun {
+		schools, findErr := ctx.RepoFactory.School.FindDeletedOlderThan(
+			context.Background(), olderThan,
+		)
+		if findErr != nil {
+			return fmt.Errorf("failed to find deleted schools: %w", findErr)
+		}
+		fmt.Printf("DRY RUN: Found %d schools deleted more than %v ago:\n", len(schools), olderThan)
+		for _, s := range schools {
+			deletedAt := "unknown"
+			if s.DeletedAt != nil {
+				deletedAt = s.DeletedAt.Format(time.RFC3339)
+			}
+			fmt.Printf("  - ID=%d Name=%q Slug=%q DeletedAt=%s\n",
+				s.ID, s.Name, s.Slug, deletedAt)
+		}
+		return nil
+	}
+
+	count, purgeErr := ctx.ServiceFactory.OperatorProvisioning.PurgeDeletedSchools(
+		context.Background(), olderThan,
+	)
+	if purgeErr != nil {
+		return fmt.Errorf("tenant purge failed: %w", purgeErr)
+	}
+
+	fmt.Printf("Successfully purged %d schools\n", count)
+	return nil
 }
 
 // printStaffBreakdown prints a table of staff IDs and their counts.

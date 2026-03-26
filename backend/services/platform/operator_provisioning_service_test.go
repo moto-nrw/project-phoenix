@@ -64,12 +64,16 @@ func (m *mockOrganizationRepo) Update(ctx context.Context, org *platformModels.O
 }
 
 type mockSchoolRepo struct {
-	findByIDFn         func(context.Context, int64) (*platformModels.School, error)
-	findByOrgAndSlugFn func(context.Context, int64, string) (*platformModels.School, error)
-	findBySubdomainFn  func(context.Context, string) (*platformModels.School, error)
-	createFn           func(context.Context, *platformModels.School) error
-	updateFn           func(context.Context, *platformModels.School) error
-	listFn             func(context.Context) ([]*platformModels.School, error)
+	findByIDFn             func(context.Context, int64) (*platformModels.School, error)
+	findByOrgAndSlugFn     func(context.Context, int64, string) (*platformModels.School, error)
+	findBySubdomainFn      func(context.Context, string) (*platformModels.School, error)
+	createFn               func(context.Context, *platformModels.School) error
+	updateFn               func(context.Context, *platformModels.School) error
+	listFn                 func(context.Context) ([]*platformModels.School, error)
+	softDeleteFn           func(context.Context, int64) error
+	restoreFn              func(context.Context, int64) error
+	findDeletedOlderThanFn func(context.Context, time.Duration) ([]*platformModels.School, error)
+	purgeTenantFn          func(context.Context, int64) ([]byte, error)
 }
 
 func (m *mockSchoolRepo) Create(ctx context.Context, school *platformModels.School) error {
@@ -116,6 +120,30 @@ func (m *mockSchoolRepo) Update(ctx context.Context, school *platformModels.Scho
 		return m.updateFn(ctx, school)
 	}
 	return nil
+}
+func (m *mockSchoolRepo) SoftDelete(ctx context.Context, id int64) error {
+	if m.softDeleteFn != nil {
+		return m.softDeleteFn(ctx, id)
+	}
+	return nil
+}
+func (m *mockSchoolRepo) Restore(ctx context.Context, id int64) error {
+	if m.restoreFn != nil {
+		return m.restoreFn(ctx, id)
+	}
+	return nil
+}
+func (m *mockSchoolRepo) FindDeletedOlderThan(ctx context.Context, olderThan time.Duration) ([]*platformModels.School, error) {
+	if m.findDeletedOlderThanFn != nil {
+		return m.findDeletedOlderThanFn(ctx, olderThan)
+	}
+	return nil, nil
+}
+func (m *mockSchoolRepo) PurgeTenant(ctx context.Context, tenantID int64) ([]byte, error) {
+	if m.purgeTenantFn != nil {
+		return m.purgeTenantFn(ctx, tenantID)
+	}
+	return nil, nil
 }
 
 type mockDeviceRepo struct {
@@ -2781,4 +2809,513 @@ func TestListSystemRoles_Error(t *testing.T) {
 	roles, err := service.ListSystemRoles(context.Background())
 	require.NoError(t, err)
 	require.Nil(t, roles)
+}
+
+// ---------------------------------------------------------------------------
+// SoftDeleteSchool tests
+// ---------------------------------------------------------------------------
+
+func TestOperatorProvisioningService_SoftDeleteSchool_Success(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectCommit()
+
+	softDeleteCalled := false
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SchoolRepo: &mockSchoolRepo{
+			findByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
+				return &platformModels.School{
+					Model:     base.Model{ID: 42},
+					Name:      "Test School",
+					Slug:      "test-school",
+					Subdomain: "test-school",
+					Active:    true,
+				}, nil
+			},
+			softDeleteFn: func(_ context.Context, id int64) error {
+				assert.Equal(t, int64(42), id)
+				softDeleteCalled = true
+				return nil
+			},
+		},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+		DB:           bunDB,
+	})
+
+	err = service.SoftDeleteSchool(context.Background(), 42, 7, net.IPv4(127, 0, 0, 1))
+	require.NoError(t, err)
+	assert.True(t, softDeleteCalled)
+}
+
+func TestOperatorProvisioningService_SoftDeleteSchool_NotFound(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectRollback()
+
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SchoolRepo: &mockSchoolRepo{
+			findByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
+				return nil, nil
+			},
+		},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+		DB:           bunDB,
+	})
+
+	err = service.SoftDeleteSchool(context.Background(), 42, 7, net.IPv4(127, 0, 0, 1))
+	require.Error(t, err)
+	var notFound *platformSvc.SchoolNotFoundError
+	require.True(t, errors.As(err, &notFound))
+	assert.Equal(t, int64(42), notFound.SchoolID)
+}
+
+func TestOperatorProvisioningService_SoftDeleteSchool_AlreadyDeleted(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectRollback()
+
+	now := time.Now()
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SchoolRepo: &mockSchoolRepo{
+			findByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
+				return &platformModels.School{
+					Model:     base.Model{ID: 42},
+					Name:      "Deleted School",
+					Slug:      "deleted-school",
+					Subdomain: "deleted-school",
+					DeletedAt: &now,
+				}, nil
+			},
+		},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+		DB:           bunDB,
+	})
+
+	err = service.SoftDeleteSchool(context.Background(), 42, 7, net.IPv4(127, 0, 0, 1))
+	require.Error(t, err)
+	var alreadyDeleted *platformSvc.SchoolAlreadyDeletedError
+	require.True(t, errors.As(err, &alreadyDeleted))
+	assert.Equal(t, int64(42), alreadyDeleted.SchoolID)
+}
+
+// ---------------------------------------------------------------------------
+// RestoreSchool tests
+// ---------------------------------------------------------------------------
+
+func TestOperatorProvisioningService_RestoreSchool_Success(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectCommit()
+
+	restoreCalled := false
+	now := time.Now()
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SchoolRepo: &mockSchoolRepo{
+			findByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
+				return &platformModels.School{
+					Model:     base.Model{ID: 42},
+					Name:      "Deleted School",
+					Slug:      "deleted-school",
+					Subdomain: "deleted-school",
+					DeletedAt: &now,
+				}, nil
+			},
+			restoreFn: func(_ context.Context, id int64) error {
+				assert.Equal(t, int64(42), id)
+				restoreCalled = true
+				return nil
+			},
+		},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+		DB:           bunDB,
+	})
+
+	err = service.RestoreSchool(context.Background(), 42, 7, net.IPv4(127, 0, 0, 1))
+	require.NoError(t, err)
+	assert.True(t, restoreCalled)
+}
+
+func TestOperatorProvisioningService_RestoreSchool_NotFound(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectRollback()
+
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SchoolRepo: &mockSchoolRepo{
+			findByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
+				return nil, nil
+			},
+		},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+		DB:           bunDB,
+	})
+
+	err = service.RestoreSchool(context.Background(), 42, 7, net.IPv4(127, 0, 0, 1))
+	require.Error(t, err)
+	var notFound *platformSvc.SchoolNotFoundError
+	require.True(t, errors.As(err, &notFound))
+	assert.Equal(t, int64(42), notFound.SchoolID)
+}
+
+func TestOperatorProvisioningService_RestoreSchool_NotDeleted(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectRollback()
+
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SchoolRepo: &mockSchoolRepo{
+			findByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
+				return &platformModels.School{
+					Model:     base.Model{ID: 42},
+					Name:      "Active School",
+					Slug:      "active-school",
+					Subdomain: "active-school",
+					Active:    true,
+				}, nil
+			},
+		},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+		DB:           bunDB,
+	})
+
+	err = service.RestoreSchool(context.Background(), 42, 7, net.IPv4(127, 0, 0, 1))
+	require.Error(t, err)
+	var notDeleted *platformSvc.SchoolNotDeletedError
+	require.True(t, errors.As(err, &notDeleted))
+	assert.Equal(t, int64(42), notDeleted.SchoolID)
+}
+
+// ---------------------------------------------------------------------------
+// PurgeSchool tests
+// ---------------------------------------------------------------------------
+
+func TestOperatorProvisioningService_PurgeSchool_Success(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectCommit()
+
+	now := time.Now()
+	expectedResult := []byte(`{"tables_purged": 58}`)
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SchoolRepo: &mockSchoolRepo{
+			findByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
+				return &platformModels.School{
+					Model:     base.Model{ID: 42},
+					Name:      "Deleted School",
+					Slug:      "deleted-school",
+					Subdomain: "deleted-school",
+					DeletedAt: &now,
+				}, nil
+			},
+			purgeTenantFn: func(_ context.Context, id int64) ([]byte, error) {
+				assert.Equal(t, int64(42), id)
+				return expectedResult, nil
+			},
+		},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+		DB:           bunDB,
+	})
+
+	result, err := service.PurgeSchool(context.Background(), 42, 7, net.IPv4(127, 0, 0, 1))
+	require.NoError(t, err)
+	assert.Equal(t, expectedResult, result)
+}
+
+func TestOperatorProvisioningService_PurgeSchool_NotFound(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectRollback()
+
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SchoolRepo: &mockSchoolRepo{
+			findByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
+				return nil, nil
+			},
+		},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+		DB:           bunDB,
+	})
+
+	result, err := service.PurgeSchool(context.Background(), 42, 7, net.IPv4(127, 0, 0, 1))
+	require.Error(t, err)
+	require.Nil(t, result)
+	var notFound *platformSvc.SchoolNotFoundError
+	require.True(t, errors.As(err, &notFound))
+}
+
+func TestOperatorProvisioningService_PurgeSchool_NotDeleted(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectRollback()
+
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SchoolRepo: &mockSchoolRepo{
+			findByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
+				return &platformModels.School{
+					Model:     base.Model{ID: 42},
+					Name:      "Active School",
+					Slug:      "active-school",
+					Subdomain: "active-school",
+					Active:    true,
+				}, nil
+			},
+		},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+		DB:           bunDB,
+	})
+
+	result, err := service.PurgeSchool(context.Background(), 42, 7, net.IPv4(127, 0, 0, 1))
+	require.Error(t, err)
+	require.Nil(t, result)
+	var notDeleted *platformSvc.SchoolNotDeletedError
+	require.True(t, errors.As(err, &notDeleted))
+}
+
+func TestOperatorProvisioningService_PurgeSchool_PurgeError(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectRollback()
+
+	now := time.Now()
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SchoolRepo: &mockSchoolRepo{
+			findByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
+				return &platformModels.School{
+					Model:     base.Model{ID: 42},
+					Name:      "Deleted School",
+					Slug:      "deleted-school",
+					Subdomain: "deleted-school",
+					DeletedAt: &now,
+				}, nil
+			},
+			purgeTenantFn: func(_ context.Context, id int64) ([]byte, error) {
+				return nil, errors.New("stored procedure failed")
+			},
+		},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+		DB:           bunDB,
+	})
+
+	result, err := service.PurgeSchool(context.Background(), 42, 7, net.IPv4(127, 0, 0, 1))
+	require.Error(t, err)
+	require.Nil(t, result)
+	var purgeErr *platformSvc.TenantPurgeError
+	require.True(t, errors.As(err, &purgeErr))
+	assert.Equal(t, int64(42), purgeErr.SchoolID)
+}
+
+// ---------------------------------------------------------------------------
+// PurgeDeletedSchools tests
+// ---------------------------------------------------------------------------
+
+func TestOperatorProvisioningService_PurgeDeletedSchools_Success(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	// Two schools, two transactions
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectCommit()
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectCommit()
+
+	now := time.Now()
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SchoolRepo: &mockSchoolRepo{
+			findDeletedOlderThanFn: func(_ context.Context, olderThan time.Duration) ([]*platformModels.School, error) {
+				assert.Equal(t, 30*24*time.Hour, olderThan)
+				return []*platformModels.School{
+					{Model: base.Model{ID: 42}, Name: "School A", DeletedAt: &now},
+					{Model: base.Model{ID: 99}, Name: "School B", DeletedAt: &now},
+				}, nil
+			},
+			purgeTenantFn: func(_ context.Context, id int64) ([]byte, error) {
+				return []byte(`{"ok": true}`), nil
+			},
+		},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+		DB:           bunDB,
+	})
+
+	purged, err := service.PurgeDeletedSchools(context.Background(), 30*24*time.Hour)
+	require.NoError(t, err)
+	assert.Equal(t, 2, purged)
+}
+
+func TestOperatorProvisioningService_PurgeDeletedSchools_Empty(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SchoolRepo: &mockSchoolRepo{
+			findDeletedOlderThanFn: func(_ context.Context, olderThan time.Duration) ([]*platformModels.School, error) {
+				return []*platformModels.School{}, nil
+			},
+		},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+		DB:           bunDB,
+	})
+
+	purged, err := service.PurgeDeletedSchools(context.Background(), 30*24*time.Hour)
+	require.NoError(t, err)
+	assert.Equal(t, 0, purged)
+}
+
+func TestOperatorProvisioningService_PurgeDeletedSchools_PartialFailure(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	// First school succeeds (commit), second fails (rollback)
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectCommit()
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectRollback()
+
+	now := time.Now()
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SchoolRepo: &mockSchoolRepo{
+			findDeletedOlderThanFn: func(_ context.Context, olderThan time.Duration) ([]*platformModels.School, error) {
+				return []*platformModels.School{
+					{Model: base.Model{ID: 42}, Name: "School A", DeletedAt: &now},
+					{Model: base.Model{ID: 99}, Name: "School B", DeletedAt: &now},
+				}, nil
+			},
+			purgeTenantFn: func(_ context.Context, id int64) ([]byte, error) {
+				if id == 99 {
+					return nil, errors.New("db error")
+				}
+				return []byte(`{"ok": true}`), nil
+			},
+		},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+		DB:           bunDB,
+	})
+
+	purged, err := service.PurgeDeletedSchools(context.Background(), 30*24*time.Hour)
+	require.NoError(t, err)
+	assert.Equal(t, 1, purged)
 }

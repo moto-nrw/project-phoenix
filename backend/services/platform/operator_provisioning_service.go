@@ -77,6 +77,10 @@ type OperatorProvisioningService interface {
 	ListOrganizationDevices(ctx context.Context, organizationID int64) ([]OperatorDeviceInfo, error)
 	CreateDevice(ctx context.Context, schoolID int64, deviceID, deviceType string, name, apiKey *string, operatorID int64, clientIP net.IP) (*OperatorDeviceInfo, error)
 	SetDeviceAPIKey(ctx context.Context, id int64, apiKey *string, operatorID int64, clientIP net.IP) (*OperatorDeviceInfo, error)
+	SoftDeleteSchool(ctx context.Context, schoolID, operatorID int64, clientIP net.IP) error
+	RestoreSchool(ctx context.Context, schoolID, operatorID int64, clientIP net.IP) error
+	PurgeSchool(ctx context.Context, schoolID, operatorID int64, clientIP net.IP) ([]byte, error)
+	PurgeDeletedSchools(ctx context.Context, olderThan time.Duration) (int, error)
 }
 
 // OperatorDeviceInfo holds device information with school/org context for operator views.
@@ -1179,6 +1183,112 @@ func isUniqueViolation(err error) bool {
 		return pgErr.IntegrityViolation() && pgErr.Field('C') == "23505"
 	}
 	return false
+}
+
+func (s *operatorProvisioningService) SoftDeleteSchool(ctx context.Context, schoolID, operatorID int64, clientIP net.IP) error {
+	return s.withAdminTx(ctx, func(adminCtx context.Context) error {
+		school, err := s.schoolRepo.FindByID(adminCtx, schoolID)
+		if err != nil || school == nil {
+			return &SchoolNotFoundError{SchoolID: schoolID}
+		}
+		if school.IsDeleted() {
+			return &SchoolAlreadyDeletedError{SchoolID: schoolID}
+		}
+
+		if err := s.schoolRepo.SoftDelete(adminCtx, schoolID); err != nil {
+			return err
+		}
+
+		s.logAction(adminCtx, operatorID, platform.ActionSoftDelete, platform.ResourceSchool, &schoolID, clientIP, map[string]any{
+			"name":      school.Name,
+			"slug":      school.Slug,
+			"subdomain": school.Subdomain,
+		})
+		return nil
+	})
+}
+
+func (s *operatorProvisioningService) RestoreSchool(ctx context.Context, schoolID, operatorID int64, clientIP net.IP) error {
+	return s.withAdminTx(ctx, func(adminCtx context.Context) error {
+		school, err := s.schoolRepo.FindByID(adminCtx, schoolID)
+		if err != nil || school == nil {
+			return &SchoolNotFoundError{SchoolID: schoolID}
+		}
+		if !school.IsDeleted() {
+			return &SchoolNotDeletedError{SchoolID: schoolID}
+		}
+
+		if err := s.schoolRepo.Restore(adminCtx, schoolID); err != nil {
+			return err
+		}
+
+		s.logAction(adminCtx, operatorID, platform.ActionRestore, platform.ResourceSchool, &schoolID, clientIP, map[string]any{
+			"name":      school.Name,
+			"slug":      school.Slug,
+			"subdomain": school.Subdomain,
+		})
+		return nil
+	})
+}
+
+func (s *operatorProvisioningService) PurgeSchool(ctx context.Context, schoolID, operatorID int64, clientIP net.IP) ([]byte, error) {
+	var purgeResult []byte
+	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
+		school, err := s.schoolRepo.FindByID(adminCtx, schoolID)
+		if err != nil || school == nil {
+			return &SchoolNotFoundError{SchoolID: schoolID}
+		}
+		if !school.IsDeleted() {
+			return &SchoolNotDeletedError{SchoolID: schoolID}
+		}
+
+		// Audit log BEFORE purge — the school row will be deleted by the procedure
+		s.logAction(adminCtx, operatorID, platform.ActionPurge, platform.ResourceSchool, &schoolID, clientIP, map[string]any{
+			"name":       school.Name,
+			"slug":       school.Slug,
+			"subdomain":  school.Subdomain,
+			"deleted_at": school.DeletedAt,
+		})
+
+		result, purgeErr := s.schoolRepo.PurgeTenant(adminCtx, schoolID)
+		if purgeErr != nil {
+			return &TenantPurgeError{SchoolID: schoolID, Err: purgeErr}
+		}
+		purgeResult = result
+		return nil
+	})
+	return purgeResult, err
+}
+
+func (s *operatorProvisioningService) PurgeDeletedSchools(ctx context.Context, olderThan time.Duration) (int, error) {
+	schools, err := s.schoolRepo.FindDeletedOlderThan(ctx, olderThan)
+	if err != nil {
+		return 0, fmt.Errorf("find deleted schools: %w", err)
+	}
+
+	purged := 0
+	for _, school := range schools {
+		schoolID := school.ID
+		schoolName := school.Name
+		err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
+			_, purgeErr := s.schoolRepo.PurgeTenant(adminCtx, schoolID)
+			return purgeErr
+		})
+		if err != nil {
+			s.getLogger().Error("failed to purge tenant",
+				slog.Int64("school_id", schoolID),
+				slog.String("school_name", schoolName),
+				slog.Any("error", err),
+			)
+			continue
+		}
+		s.getLogger().Info("purged tenant",
+			slog.Int64("school_id", schoolID),
+			slog.String("school_name", schoolName),
+		)
+		purged++
+	}
+	return purged, nil
 }
 
 func mapSchoolCreateConflict(ctx context.Context, schoolRepo platform.SchoolRepository, school *platform.School) error {

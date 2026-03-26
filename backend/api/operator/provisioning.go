@@ -1,6 +1,7 @@
 package operator
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
@@ -433,6 +434,9 @@ func ProvisioningErrorRenderer(err error) render.Renderer {
 	var schoolNotFound *platformSvc.SchoolNotFoundError
 	var schoolInactive *platformSvc.SchoolInactiveError
 	var operatorDeviceNotFound *platformSvc.OperatorDeviceNotFoundError
+	var schoolAlreadyDeleted *platformSvc.SchoolAlreadyDeletedError
+	var schoolNotDeleted *platformSvc.SchoolNotDeletedError
+	var tenantPurge *platformSvc.TenantPurgeError
 	var authErr *authSvc.AuthError
 
 	if errors.As(err, &authErr) && authErr.Err != nil {
@@ -465,6 +469,12 @@ func ProvisioningErrorRenderer(err error) render.Renderer {
 		return ErrForbidden("School is inactive")
 	case errors.As(err, &operatorDeviceNotFound):
 		return ErrNotFound("Device not found")
+	case errors.As(err, &schoolAlreadyDeleted):
+		return ErrConflict("School is already deleted")
+	case errors.As(err, &schoolNotDeleted):
+		return ErrConflict("School is not deleted")
+	case errors.As(err, &tenantPurge):
+		return ErrInternal("Failed to purge tenant data")
 	default:
 		return ErrInternal("An error occurred")
 	}
@@ -607,4 +617,63 @@ func shouldExposeSeedInvitationToken(r *http.Request) bool {
 		return false
 	}
 	return strings.ToLower(strings.TrimSpace(viper.GetString("app_env"))) != "production"
+}
+
+func (rs *ProvisioningResource) SoftDeleteSchool(w http.ResponseWriter, r *http.Request) {
+	schoolID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid school ID")
+	if !ok {
+		return
+	}
+	operatorID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+
+	if err := rs.service.SoftDeleteSchool(r.Context(), schoolID, operatorID, getClientIP(r)); err != nil {
+		common.RenderError(w, r, ProvisioningErrorRenderer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, nil, "School soft-deleted successfully")
+}
+
+func (rs *ProvisioningResource) RestoreSchool(w http.ResponseWriter, r *http.Request) {
+	schoolID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid school ID")
+	if !ok {
+		return
+	}
+	operatorID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+
+	if err := rs.service.RestoreSchool(r.Context(), schoolID, operatorID, getClientIP(r)); err != nil {
+		common.RenderError(w, r, ProvisioningErrorRenderer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, nil, "School restored successfully")
+}
+
+type purgeSchoolRequest struct {
+	Confirm string `json:"confirm"`
+}
+
+func (req *purgeSchoolRequest) Bind(_ *http.Request) error {
+	if req.Confirm != "PURGE" {
+		return errors.New("confirmation required: set confirm to \"PURGE\"")
+	}
+	return nil
+}
+
+func (rs *ProvisioningResource) PurgeSchool(w http.ResponseWriter, r *http.Request) {
+	schoolID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid school ID")
+	if !ok {
+		return
+	}
+	req := &purgeSchoolRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, ErrInvalidRequest(err))
+		return
+	}
+	operatorID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+
+	result, err := rs.service.PurgeSchool(r.Context(), schoolID, operatorID, getClientIP(r))
+	if err != nil {
+		common.RenderError(w, r, ProvisioningErrorRenderer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, json.RawMessage(result), "School purged successfully")
 }

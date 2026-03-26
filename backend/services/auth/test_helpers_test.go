@@ -1242,6 +1242,14 @@ func (r *stubSchoolRepository) FindActiveByAccountID(context.Context, int64) ([]
 func (r *stubSchoolRepository) Update(context.Context, *platformModel.School) error {
 	return fmt.Errorf("not implemented")
 }
+func (r *stubSchoolRepository) SoftDelete(ctx context.Context, id int64) error { return nil }
+func (r *stubSchoolRepository) Restore(ctx context.Context, id int64) error    { return nil }
+func (r *stubSchoolRepository) FindDeletedOlderThan(ctx context.Context, olderThan time.Duration) ([]*platformModel.School, error) {
+	return nil, nil
+}
+func (r *stubSchoolRepository) PurgeTenant(ctx context.Context, tenantID int64) ([]byte, error) {
+	return nil, nil
+}
 
 // helper to build default email used in tests.
 func newDefaultFromEmail() email.Email {

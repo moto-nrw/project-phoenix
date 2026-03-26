@@ -124,3 +124,35 @@ type OperatorDeviceNotFoundError struct {
 func (e *OperatorDeviceNotFoundError) Error() string {
 	return fmt.Sprintf("device with ID %d not found", e.DeviceID)
 }
+
+// SchoolAlreadyDeletedError is returned when trying to soft-delete an already deleted school.
+type SchoolAlreadyDeletedError struct {
+	SchoolID int64
+}
+
+func (e *SchoolAlreadyDeletedError) Error() string {
+	return fmt.Sprintf("school with ID %d is already soft-deleted", e.SchoolID)
+}
+
+// SchoolNotDeletedError is returned when trying to purge or restore a school that is not soft-deleted.
+type SchoolNotDeletedError struct {
+	SchoolID int64
+}
+
+func (e *SchoolNotDeletedError) Error() string {
+	return fmt.Sprintf("school with ID %d is not soft-deleted", e.SchoolID)
+}
+
+// TenantPurgeError is returned when the stored procedure fails during tenant purge.
+type TenantPurgeError struct {
+	SchoolID int64
+	Err      error
+}
+
+func (e *TenantPurgeError) Error() string {
+	return fmt.Sprintf("failed to purge tenant %d: %v", e.SchoolID, e.Err)
+}
+
+func (e *TenantPurgeError) Unwrap() error {
+	return e.Err
+}

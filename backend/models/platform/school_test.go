@@ -2,6 +2,7 @@ package platform
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -94,4 +95,21 @@ func TestSchool_Validate_TrimsAndLowercases(t *testing.T) {
 	assert.Equal(t, "Trimmed School", s.Name)
 	assert.Equal(t, "my-slug", s.Slug)
 	assert.Equal(t, "my-sub", s.Subdomain)
+}
+
+func TestSchool_IsDeleted_WhenDeletedAtIsSet(t *testing.T) {
+	now := time.Now()
+	school := &School{
+		DeletedAt: &now,
+	}
+
+	assert.True(t, school.IsDeleted(), "IsDeleted should return true when DeletedAt is non-nil")
+}
+
+func TestSchool_IsDeleted_WhenDeletedAtIsNil(t *testing.T) {
+	school := &School{
+		DeletedAt: nil,
+	}
+
+	assert.False(t, school.IsDeleted(), "IsDeleted should return false when DeletedAt is nil")
 }

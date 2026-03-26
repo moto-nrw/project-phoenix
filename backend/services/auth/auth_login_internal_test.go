@@ -49,6 +49,14 @@ func (s stubAuthLoginSchoolRepo) FindActiveByAccountID(context.Context, int64) (
 func (s stubAuthLoginSchoolRepo) Update(context.Context, *platformModels.School) error {
 	panic("unexpected Update")
 }
+func (s stubAuthLoginSchoolRepo) SoftDelete(ctx context.Context, id int64) error { return nil }
+func (s stubAuthLoginSchoolRepo) Restore(ctx context.Context, id int64) error    { return nil }
+func (s stubAuthLoginSchoolRepo) FindDeletedOlderThan(ctx context.Context, olderThan time.Duration) ([]*platformModels.School, error) {
+	return nil, nil
+}
+func (s stubAuthLoginSchoolRepo) PurgeTenant(ctx context.Context, tenantID int64) ([]byte, error) {
+	return nil, nil
+}
 
 type stubAuthLoginAccountTenantRepo struct {
 	findActiveFn func(context.Context, int64) ([]authModels.AccountTenant, error)
@@ -156,4 +164,74 @@ func TestPersistAccountWithRole_CreatesTenantMappingWhenTenantIDProvided(t *test
 	exists, err := service.repos.AccountTenant.ExistsByAccountAndTenant(ctx, account.ID, 1)
 	require.NoError(t, err)
 	assert.True(t, exists)
+}
+
+func TestResolveAccountTenantDefault_ReturnsZeroWhenDefaultTenantIsDeleted(t *testing.T) {
+	service := &Service{
+		repos: &repositories.Factory{
+			AccountTenant: stubAuthLoginAccountTenantRepo{
+				findActiveFn: func(context.Context, int64) ([]authModels.AccountTenant, error) {
+					return []authModels.AccountTenant{{TenantID: 99, Status: authModels.AccountTenantStatusActive}}, nil
+				},
+			},
+			School: stubAuthLoginSchoolRepo{
+				findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+					now := time.Now()
+					return &platformModels.School{DeletedAt: &now, Active: true}, nil
+				},
+			},
+		},
+		logger: slog.Default(),
+	}
+
+	tenantID, orgID, err := service.resolveAccountTenantDefault(context.Background(), 5)
+	require.NoError(t, err)
+	assert.Zero(t, tenantID)
+	assert.Zero(t, orgID)
+}
+
+func TestResolveAccountTenantDefault_ReturnsZeroWhenDefaultTenantIsInactive(t *testing.T) {
+	service := &Service{
+		repos: &repositories.Factory{
+			AccountTenant: stubAuthLoginAccountTenantRepo{
+				findActiveFn: func(context.Context, int64) ([]authModels.AccountTenant, error) {
+					return []authModels.AccountTenant{{TenantID: 99, Status: authModels.AccountTenantStatusActive}}, nil
+				},
+			},
+			School: stubAuthLoginSchoolRepo{
+				findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+					return &platformModels.School{Active: false, DeletedAt: nil}, nil
+				},
+			},
+		},
+		logger: slog.Default(),
+	}
+
+	tenantID, orgID, err := service.resolveAccountTenantDefault(context.Background(), 5)
+	require.NoError(t, err)
+	assert.Zero(t, tenantID)
+	assert.Zero(t, orgID)
+}
+
+func TestResolveAccountTenantDefault_ReturnsTenantWhenActiveAndNotDeleted(t *testing.T) {
+	service := &Service{
+		repos: &repositories.Factory{
+			AccountTenant: stubAuthLoginAccountTenantRepo{
+				findActiveFn: func(context.Context, int64) ([]authModels.AccountTenant, error) {
+					return []authModels.AccountTenant{{TenantID: 99, Status: authModels.AccountTenantStatusActive}}, nil
+				},
+			},
+			School: stubAuthLoginSchoolRepo{
+				findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+					return &platformModels.School{Active: true, DeletedAt: nil, OrganizationID: 10}, nil
+				},
+			},
+		},
+		logger: slog.Default(),
+	}
+
+	tenantID, orgID, err := service.resolveAccountTenantDefault(context.Background(), 5)
+	require.NoError(t, err)
+	assert.Equal(t, int64(99), tenantID)
+	assert.Equal(t, int64(10), orgID)
 }

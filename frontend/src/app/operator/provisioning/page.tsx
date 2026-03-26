@@ -5,6 +5,7 @@ import { useState, useMemo, useCallback } from "react";
 import useSWR, { useSWRConfig } from "swr";
 import { useSession } from "next-auth/react";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
+import { ConfirmationModal } from "~/components/ui/modal";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import type {
@@ -65,6 +66,13 @@ export default function OperatorProvisioningPage() {
   const [filterOrgId, setFilterOrgId] = useState<string>("");
   const [createDeviceOpen, setCreateDeviceOpen] = useState(false);
   const [setKeyDevice, setSetKeyDevice] = useState<OperatorDevice | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<School | null>(null);
+  const [restoreTarget, setRestoreTarget] = useState<School | null>(null);
+  const [purgeTarget, setPurgeTarget] = useState<School | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
+  const [isPurging, setIsPurging] = useState(false);
+  const [showTrash, setShowTrash] = useState(false);
 
   const { mutate: globalMutate } = useSWRConfig();
 
@@ -232,6 +240,16 @@ export default function OperatorProvisioningPage() {
         ACCOUNT_SWR_PREFIXES.some((p) => key.startsWith(p)),
     );
   }, [globalMutate, ACCOUNT_SWR_PREFIXES]);
+
+  const activeSchools = useMemo(
+    () => schools?.filter((s) => s.deletedAt === null) ?? [],
+    [schools],
+  );
+
+  const deletedSchools = useMemo(
+    () => schools?.filter((s) => s.deletedAt !== null) ?? [],
+    [schools],
+  );
 
   // Schools filtered by selected organization (for accounts tab filter)
   const filteredSchools = useMemo(() => {
@@ -423,6 +441,82 @@ export default function OperatorProvisioningPage() {
     [mutateSchools],
   );
 
+  const revalidateTenantCache = useCallback(async (subdomain: string) => {
+    try {
+      await fetch("/api/operator/provisioning/revalidate-tenant", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slugs: [subdomain] }),
+      });
+    } catch {
+      /* Cache self-heals in ≤5 min */
+    }
+  }, []);
+
+  const handleSoftDelete = useCallback(async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
+    setSchoolToggleError("");
+    try {
+      await operatorProvisioningService.softDeleteSchool(deleteTarget.id);
+      await mutateSchools();
+      await revalidateTenantCache(deleteTarget.subdomain);
+      setDeleteTarget(null);
+    } catch (error) {
+      setSchoolToggleError(
+        "Fehler beim Löschen der Schule. Bitte versuchen Sie es erneut.",
+      );
+      logger.error("school_soft_delete_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [deleteTarget, mutateSchools, revalidateTenantCache]);
+
+  const handleRestore = useCallback(async () => {
+    if (!restoreTarget) return;
+    setIsRestoring(true);
+    setSchoolToggleError("");
+    try {
+      await operatorProvisioningService.restoreSchool(restoreTarget.id);
+      await mutateSchools();
+      await revalidateTenantCache(restoreTarget.subdomain);
+      setRestoreTarget(null);
+      setShowTrash(false);
+    } catch (error) {
+      setSchoolToggleError(
+        "Fehler beim Wiederherstellen der Schule. Bitte versuchen Sie es erneut.",
+      );
+      logger.error("school_restore_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setIsRestoring(false);
+    }
+  }, [restoreTarget, mutateSchools, revalidateTenantCache]);
+
+  const handlePurge = useCallback(async () => {
+    if (!purgeTarget) return;
+    setIsPurging(true);
+    setSchoolToggleError("");
+    try {
+      await operatorProvisioningService.purgeSchool(purgeTarget.id);
+      await mutateSchools();
+      setPurgeTarget(null);
+      setShowTrash(false);
+    } catch (error) {
+      setSchoolToggleError(
+        "Fehler beim endgültigen Löschen. Bitte versuchen Sie es erneut.",
+      );
+      logger.error("school_purge_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setIsPurging(false);
+    }
+  }, [purgeTarget, mutateSchools]);
+
   const isLoading =
     activeTab === "organizations"
       ? orgsLoading
@@ -440,13 +534,40 @@ export default function OperatorProvisioningPage() {
         Neuer Träger
       </button>
     ) : activeTab === "schools" ? (
-      <button
-        type="button"
-        onClick={() => setCreateSchoolOpen(true)}
-        className="rounded-full bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700"
-      >
-        Neue Schule
-      </button>
+      <div className="flex items-center gap-2">
+        {deletedSchools.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setShowTrash((prev) => !prev)}
+            className={`inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+              showTrash
+                ? "bg-red-100 text-red-700 hover:bg-red-200"
+                : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+            }`}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              className="h-4 w-4"
+            >
+              <path
+                fillRule="evenodd"
+                d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.149-.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.52.149.023a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193V3.75A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 0-1.5.06l.3 7.5a.75.75 0 1 0 1.5-.06l-.3-7.5Zm4.34.06a.75.75 0 1 0-1.5-.06l-.3 7.5a.75.75 0 1 0 1.5.06l.3-7.5Z"
+                clipRule="evenodd"
+              />
+            </svg>
+            Papierkorb ({deletedSchools.length})
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => setCreateSchoolOpen(true)}
+          className="rounded-full bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700"
+        >
+          Neue Schule
+        </button>
+      </div>
     ) : null;
 
   const mobileActionButton =
@@ -513,29 +634,60 @@ export default function OperatorProvisioningPage() {
       {/* Schools Tab */}
       {activeTab === "schools" && !schoolsLoading && (
         <>
-          {schools?.length === 0 && (
-            <EmptyState
-              title="Keine Schulen"
-              description="Erstellen Sie eine neue Schule unter einem Träger."
-              buttonLabel="Neue Schule"
-              onAction={() => setCreateSchoolOpen(true)}
-            />
-          )}
-          {schools && schools.length > 0 && (
-            <div className="mt-4 space-y-4">
-              {schools.map((school) => (
-                <SchoolCard
-                  key={school.id}
-                  school={school}
-                  onEdit={openEditSchool}
-                  onToggleActive={handleToggleSchoolActive}
-                  onInviteAdmin={openInviteAdmin}
-                  onCreateAccount={openCreateAccount}
-                  onViewAccounts={openSchoolAccounts}
+          {/* Active schools list */}
+          {!showTrash && (
+            <>
+              {activeSchools.length === 0 && (
+                <EmptyState
+                  title="Keine Schulen"
+                  description="Erstellen Sie eine neue Schule unter einem Träger."
+                  buttonLabel="Neue Schule"
+                  onAction={() => setCreateSchoolOpen(true)}
                 />
-              ))}
-            </div>
+              )}
+              {activeSchools.length > 0 && (
+                <div className="mt-4 space-y-4">
+                  {activeSchools.map((school) => (
+                    <SchoolCard
+                      key={school.id}
+                      school={school}
+                      onEdit={openEditSchool}
+                      onToggleActive={handleToggleSchoolActive}
+                      onInviteAdmin={openInviteAdmin}
+                      onCreateAccount={openCreateAccount}
+                      onViewAccounts={openSchoolAccounts}
+                      onDelete={setDeleteTarget}
+                    />
+                  ))}
+                </div>
+              )}
+            </>
           )}
+
+          {/* Trash view */}
+          {showTrash && (
+            <>
+              {deletedSchools.length === 0 && (
+                <SimpleEmptyState
+                  title="Papierkorb leer"
+                  description="Keine gelöschten Schulen vorhanden."
+                />
+              )}
+              {deletedSchools.length > 0 && (
+                <div className="mt-4 space-y-4">
+                  {deletedSchools.map((school) => (
+                    <DeletedSchoolCard
+                      key={school.id}
+                      school={school}
+                      onRestore={setRestoreTarget}
+                      onPurge={setPurgeTarget}
+                    />
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
           {schoolToggleError && (
             <p className="mt-2 text-sm text-red-600">{schoolToggleError}</p>
           )}
@@ -784,6 +936,57 @@ export default function OperatorProvisioningPage() {
           void refreshDevices();
         }}
       />
+      <ConfirmationModal
+        isOpen={deleteTarget !== null}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => void handleSoftDelete()}
+        title="Schule löschen"
+        confirmText="Löschen"
+        isConfirmLoading={isDeleting}
+        confirmButtonClass="bg-red-500 hover:bg-red-600"
+      >
+        <p className="text-sm text-gray-600">
+          Möchten Sie die Schule <strong>{deleteTarget?.name}</strong> wirklich
+          löschen? Die Schule wird deaktiviert und ist nicht mehr erreichbar.
+          Alle Daten bleiben erhalten und können wiederhergestellt werden.
+        </p>
+      </ConfirmationModal>
+      <ConfirmationModal
+        isOpen={restoreTarget !== null}
+        onClose={() => setRestoreTarget(null)}
+        onConfirm={() => void handleRestore()}
+        title="Schule wiederherstellen"
+        confirmText="Wiederherstellen"
+        isConfirmLoading={isRestoring}
+        confirmButtonClass="bg-blue-500 hover:bg-blue-600"
+      >
+        <p className="text-sm text-gray-600">
+          Möchten Sie die Schule <strong>{restoreTarget?.name}</strong> wirklich
+          wiederherstellen? Die Schule wird reaktiviert und ist wieder
+          erreichbar.
+        </p>
+      </ConfirmationModal>
+      <ConfirmationModal
+        isOpen={purgeTarget !== null}
+        onClose={() => setPurgeTarget(null)}
+        onConfirm={() => void handlePurge()}
+        title="Schule endgültig löschen"
+        confirmText="Endgültig löschen"
+        isConfirmLoading={isPurging}
+        confirmButtonClass="bg-red-700 hover:bg-red-800"
+      >
+        <div className="space-y-3">
+          <p className="text-sm font-semibold text-red-700">
+            Diese Aktion kann nicht rückgängig gemacht werden!
+          </p>
+          <p className="text-sm text-gray-600">
+            Möchten Sie die Schule <strong>{purgeTarget?.name}</strong> wirklich
+            endgültig löschen? Alle Daten werden unwiderruflich entfernt:
+            Schüler, Personal, Gruppen, Besuche, Geräte und alle weiteren
+            Tenant-Daten.
+          </p>
+        </div>
+      </ConfirmationModal>
     </div>
   );
 }
@@ -843,6 +1046,7 @@ function SchoolCard({
   onInviteAdmin,
   onCreateAccount,
   onViewAccounts,
+  onDelete,
 }: {
   readonly school: School;
   readonly onEdit: (school: School) => void;
@@ -850,6 +1054,7 @@ function SchoolCard({
   readonly onInviteAdmin: (school: School) => void;
   readonly onCreateAccount: (school: School) => void;
   readonly onViewAccounts: (school: School) => void;
+  readonly onDelete: (school: School) => void;
 }) {
   return (
     <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150">
@@ -924,6 +1129,66 @@ function SchoolCard({
             className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200"
           >
             Admin einladen
+          </button>
+          <button
+            type="button"
+            onClick={() => onDelete(school)}
+            className="rounded-lg bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-100"
+          >
+            Löschen
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DeletedSchoolCard({
+  school,
+  onRestore,
+  onPurge,
+}: {
+  readonly school: School;
+  readonly onRestore: (school: School) => void;
+  readonly onPurge: (school: School) => void;
+}) {
+  return (
+    <div className="rounded-3xl border border-red-200/50 bg-red-50/60 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.06)] backdrop-blur-md transition-all duration-150">
+      <div className="flex items-start justify-between">
+        <div className="min-w-0 flex-1">
+          <h3 className="text-base font-semibold text-gray-400 line-through">
+            {school.name}
+          </h3>
+          <div className="mt-0.5 flex items-center gap-2 text-sm text-gray-400">
+            <span className="font-mono">{school.subdomain}</span>
+            {school.organization && (
+              <>
+                <span className="text-gray-300">·</span>
+                <span>{school.organization.name}</span>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-3 flex items-center justify-between">
+        <p className="text-xs text-gray-400">
+          Gelöscht {getRelativeTime(school.deletedAt!)}
+        </p>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => onRestore(school)}
+            className="rounded-lg bg-blue-100 px-3 py-1.5 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-200"
+          >
+            Wiederherstellen
+          </button>
+          <button
+            type="button"
+            onClick={() => onPurge(school)}
+            className="rounded-lg bg-red-100 px-3 py-1.5 text-xs font-medium text-red-700 transition-colors hover:bg-red-200"
+          >
+            Endgültig löschen
           </button>
         </div>
       </div>

@@ -42,6 +42,9 @@ type mockProvisioningService struct {
 	listOrganizationDevicesFn func(context.Context, int64) ([]platformSvc.OperatorDeviceInfo, error)
 	createDeviceFn            func(context.Context, int64, string, string, *string, *string, int64, net.IP) (*platformSvc.OperatorDeviceInfo, error)
 	setDeviceAPIKeyFn         func(context.Context, int64, *string, int64, net.IP) (*platformSvc.OperatorDeviceInfo, error)
+	softDeleteSchoolFn        func(context.Context, int64, int64, net.IP) error
+	restoreSchoolFn           func(context.Context, int64, int64, net.IP) error
+	purgeSchoolFn             func(context.Context, int64, int64, net.IP) ([]byte, error)
 }
 
 func (m *mockProvisioningService) CreateOrganization(ctx context.Context, org *platformModels.Organization, operatorID int64, clientIP net.IP) (*platformModels.Organization, error) {
@@ -130,6 +133,27 @@ func (m *mockProvisioningService) SetDeviceAPIKey(ctx context.Context, deviceID 
 		return m.setDeviceAPIKeyFn(ctx, deviceID, apiKey, operatorID, clientIP)
 	}
 	return nil, nil
+}
+func (m *mockProvisioningService) SoftDeleteSchool(ctx context.Context, schoolID, operatorID int64, clientIP net.IP) error {
+	if m.softDeleteSchoolFn != nil {
+		return m.softDeleteSchoolFn(ctx, schoolID, operatorID, clientIP)
+	}
+	return nil
+}
+func (m *mockProvisioningService) RestoreSchool(ctx context.Context, schoolID, operatorID int64, clientIP net.IP) error {
+	if m.restoreSchoolFn != nil {
+		return m.restoreSchoolFn(ctx, schoolID, operatorID, clientIP)
+	}
+	return nil
+}
+func (m *mockProvisioningService) PurgeSchool(ctx context.Context, schoolID, operatorID int64, clientIP net.IP) ([]byte, error) {
+	if m.purgeSchoolFn != nil {
+		return m.purgeSchoolFn(ctx, schoolID, operatorID, clientIP)
+	}
+	return nil, nil
+}
+func (m *mockProvisioningService) PurgeDeletedSchools(ctx context.Context, olderThan time.Duration) (int, error) {
+	return 0, nil
 }
 
 func withOperatorClaims(req *http.Request, operatorID int) *http.Request {
@@ -1449,6 +1473,203 @@ func TestProvisioningErrorRenderer_AuthDefaultError(t *testing.T) {
 	resp, ok := renderer.(*ErrResponse)
 	require.True(t, ok)
 	assert.Equal(t, http.StatusInternalServerError, resp.HTTPStatusCode)
+}
+
+// --- SoftDeleteSchool handler tests ---
+
+func TestProvisioningResource_SoftDeleteSchool(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{
+		softDeleteSchoolFn: func(_ context.Context, schoolID, operatorID int64, clientIP net.IP) error {
+			assert.Equal(t, int64(10), schoolID)
+			assert.Equal(t, int64(42), operatorID)
+			assert.Equal(t, "203.0.113.10", clientIP.String())
+			return nil
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodDelete, "/operator/schools/10", nil)
+	req.RemoteAddr = "203.0.113.10:1234"
+	req = withOperatorClaims(req, 42)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "10")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.SoftDeleteSchool(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+}
+
+func TestProvisioningResource_SoftDeleteSchool_InvalidID(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{})
+	req := httptest.NewRequest(http.MethodDelete, "/operator/schools/nope", nil)
+	req = withOperatorClaims(req, 42)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "nope")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.SoftDeleteSchool(rr, req)
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestProvisioningResource_SoftDeleteSchool_NotFound(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{
+		softDeleteSchoolFn: func(context.Context, int64, int64, net.IP) error {
+			return &platformSvc.SchoolNotFoundError{SchoolID: 10}
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodDelete, "/operator/schools/10", nil)
+	req.RemoteAddr = "203.0.113.10:1234"
+	req = withOperatorClaims(req, 42)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "10")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.SoftDeleteSchool(rr, req)
+	assert.Equal(t, http.StatusNotFound, rr.Code)
+}
+
+func TestProvisioningResource_SoftDeleteSchool_AlreadyDeleted(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{
+		softDeleteSchoolFn: func(context.Context, int64, int64, net.IP) error {
+			return &platformSvc.SchoolAlreadyDeletedError{SchoolID: 10}
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodDelete, "/operator/schools/10", nil)
+	req.RemoteAddr = "203.0.113.10:1234"
+	req = withOperatorClaims(req, 42)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "10")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.SoftDeleteSchool(rr, req)
+	assert.Equal(t, http.StatusConflict, rr.Code)
+}
+
+// --- RestoreSchool handler tests ---
+
+func TestProvisioningResource_RestoreSchool(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{
+		restoreSchoolFn: func(_ context.Context, schoolID, operatorID int64, clientIP net.IP) error {
+			assert.Equal(t, int64(10), schoolID)
+			assert.Equal(t, int64(42), operatorID)
+			assert.Equal(t, "203.0.113.10", clientIP.String())
+			return nil
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/operator/schools/10/restore", nil)
+	req.RemoteAddr = "203.0.113.10:1234"
+	req = withOperatorClaims(req, 42)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "10")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.RestoreSchool(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+}
+
+func TestProvisioningResource_RestoreSchool_NotDeleted(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{
+		restoreSchoolFn: func(context.Context, int64, int64, net.IP) error {
+			return &platformSvc.SchoolNotDeletedError{SchoolID: 10}
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/operator/schools/10/restore", nil)
+	req.RemoteAddr = "203.0.113.10:1234"
+	req = withOperatorClaims(req, 42)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "10")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.RestoreSchool(rr, req)
+	assert.Equal(t, http.StatusConflict, rr.Code)
+}
+
+// --- PurgeSchool handler tests ---
+
+func TestProvisioningResource_PurgeSchool(t *testing.T) {
+	purgeResult := []byte(`{"tables_purged":5,"rows_deleted":120}`)
+	resource := NewProvisioningResource(&mockProvisioningService{
+		purgeSchoolFn: func(_ context.Context, schoolID, operatorID int64, clientIP net.IP) ([]byte, error) {
+			assert.Equal(t, int64(10), schoolID)
+			assert.Equal(t, int64(42), operatorID)
+			assert.Equal(t, "203.0.113.10", clientIP.String())
+			return purgeResult, nil
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/operator/schools/10/purge", bytes.NewBufferString(`{"confirm":"PURGE"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = "203.0.113.10:1234"
+	req = withOperatorClaims(req, 42)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "10")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.PurgeSchool(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+
+	body := decodeBody(t, rr)
+	data := body["data"].(map[string]any)
+	assert.Equal(t, float64(5), data["tables_purged"])
+	assert.Equal(t, float64(120), data["rows_deleted"])
+}
+
+func TestProvisioningResource_PurgeSchool_MissingConfirm(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{})
+	req := httptest.NewRequest(http.MethodPost, "/operator/schools/10/purge", bytes.NewBufferString(`{}`))
+	req.Header.Set("Content-Type", "application/json")
+	req = withOperatorClaims(req, 42)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "10")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.PurgeSchool(rr, req)
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestProvisioningResource_PurgeSchool_WrongConfirm(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{})
+	req := httptest.NewRequest(http.MethodPost, "/operator/schools/10/purge", bytes.NewBufferString(`{"confirm":"DELETE"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req = withOperatorClaims(req, 42)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "10")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.PurgeSchool(rr, req)
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestProvisioningResource_PurgeSchool_NotDeleted(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{
+		purgeSchoolFn: func(context.Context, int64, int64, net.IP) ([]byte, error) {
+			return nil, &platformSvc.SchoolNotDeletedError{SchoolID: 10}
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/operator/schools/10/purge", bytes.NewBufferString(`{"confirm":"PURGE"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = "203.0.113.10:1234"
+	req = withOperatorClaims(req, 42)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "10")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.PurgeSchool(rr, req)
+	assert.Equal(t, http.StatusConflict, rr.Code)
 }
 
 func ptrInt64(v int64) *int64    { return &v }

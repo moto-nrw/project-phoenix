@@ -480,6 +480,16 @@ func (s *Service) resolveAccountTenantDefault(ctx context.Context, accountID int
 		return tenantID, 0, nil
 	}
 
+	if school.IsDeleted() || !school.Active {
+		s.getLogger().Warn("account's default tenant is inactive or deleted",
+			slog.Int64("account_id", accountID),
+			slog.Int64("tenant_id", tenantID),
+			slog.Bool("deleted", school.IsDeleted()),
+			slog.Bool("active", school.Active),
+		)
+		return 0, 0, nil
+	}
+
 	return tenantID, school.OrganizationID, nil
 }
 

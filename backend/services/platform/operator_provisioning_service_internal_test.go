@@ -75,6 +75,14 @@ func (s *internalSchoolRepoStub) FindActiveByAccountID(context.Context, int64) (
 func (s *internalSchoolRepoStub) Update(context.Context, *platformModels.School) error {
 	return nil
 }
+func (s *internalSchoolRepoStub) SoftDelete(ctx context.Context, id int64) error { return nil }
+func (s *internalSchoolRepoStub) Restore(ctx context.Context, id int64) error    { return nil }
+func (s *internalSchoolRepoStub) FindDeletedOlderThan(ctx context.Context, olderThan time.Duration) ([]*platformModels.School, error) {
+	return nil, nil
+}
+func (s *internalSchoolRepoStub) PurgeTenant(ctx context.Context, tenantID int64) ([]byte, error) {
+	return nil, nil
+}
 
 type internalOrgRepoStub struct {
 	findByIDFn   func(context.Context, int64) (*platformModels.Organization, error)

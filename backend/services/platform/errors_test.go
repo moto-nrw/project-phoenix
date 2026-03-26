@@ -2,6 +2,7 @@ package platform_test
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/services/platform"
@@ -105,4 +106,65 @@ func TestOperatorDeviceNotFoundError(t *testing.T) {
 	err := &platform.OperatorDeviceNotFoundError{DeviceID: 555}
 	assert.Contains(t, err.Error(), "555")
 	assert.Contains(t, err.Error(), "not found")
+}
+
+func TestSchoolAlreadyDeletedError_Error(t *testing.T) {
+	err := &platform.SchoolAlreadyDeletedError{SchoolID: 42}
+	assert.Equal(t, "school with ID 42 is already soft-deleted", err.Error())
+}
+
+func TestSchoolNotDeletedError_Error(t *testing.T) {
+	err := &platform.SchoolNotDeletedError{SchoolID: 99}
+	assert.Equal(t, "school with ID 99 is not soft-deleted", err.Error())
+}
+
+func TestTenantPurgeError_Error(t *testing.T) {
+	inner := fmt.Errorf("connection refused")
+	err := &platform.TenantPurgeError{SchoolID: 7, Err: inner}
+	assert.Equal(t, "failed to purge tenant 7: connection refused", err.Error())
+}
+
+func TestTenantPurgeError_Unwrap(t *testing.T) {
+	inner := fmt.Errorf("connection refused")
+	err := &platform.TenantPurgeError{SchoolID: 7, Err: inner}
+	assert.Equal(t, inner, err.Unwrap())
+}
+
+func TestErrorTypes_CanBeMatchedWithErrorsAs(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+	}{
+		{
+			name: "SchoolAlreadyDeletedError",
+			err:  fmt.Errorf("wrapped: %w", &platform.SchoolAlreadyDeletedError{SchoolID: 10}),
+		},
+		{
+			name: "SchoolNotDeletedError",
+			err:  fmt.Errorf("wrapped: %w", &platform.SchoolNotDeletedError{SchoolID: 20}),
+		},
+		{
+			name: "TenantPurgeError",
+			err:  fmt.Errorf("wrapped: %w", &platform.TenantPurgeError{SchoolID: 30, Err: errors.New("db down")}),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			switch tt.name {
+			case "SchoolAlreadyDeletedError":
+				var target *platform.SchoolAlreadyDeletedError
+				assert.True(t, errors.As(tt.err, &target), "errors.As should match %s", tt.name)
+				assert.Equal(t, int64(10), target.SchoolID)
+			case "SchoolNotDeletedError":
+				var target *platform.SchoolNotDeletedError
+				assert.True(t, errors.As(tt.err, &target), "errors.As should match %s", tt.name)
+				assert.Equal(t, int64(20), target.SchoolID)
+			case "TenantPurgeError":
+				var target *platform.TenantPurgeError
+				assert.True(t, errors.As(tt.err, &target), "errors.As should match %s", tt.name)
+				assert.Equal(t, int64(30), target.SchoolID)
+			}
+		})
+	}
 }

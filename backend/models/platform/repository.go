@@ -78,6 +78,10 @@ type SchoolRepository interface {
 	ListActive(ctx context.Context) ([]School, error)
 	FindActiveByAccountID(ctx context.Context, accountID int64) ([]School, error)
 	Update(ctx context.Context, school *School) error
+	SoftDelete(ctx context.Context, id int64) error
+	Restore(ctx context.Context, id int64) error
+	FindDeletedOlderThan(ctx context.Context, olderThan time.Duration) ([]*School, error)
+	PurgeTenant(ctx context.Context, tenantID int64) ([]byte, error)
 }
 
 // OperatorAuditLogRepository defines operations for the audit log

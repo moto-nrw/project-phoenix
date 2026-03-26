@@ -81,6 +81,27 @@ class OperatorProvisioningService {
     return mapSchool(result);
   }
 
+  async softDeleteSchool(id: string): Promise<void> {
+    await operatorFetch<null>(
+      `/api/operator/provisioning/schools/${encodeURIComponent(id)}`,
+      { method: "DELETE" },
+    );
+  }
+
+  async restoreSchool(id: string): Promise<void> {
+    await operatorFetch<null>(
+      `/api/operator/provisioning/schools/${encodeURIComponent(id)}/restore`,
+      { method: "POST" },
+    );
+  }
+
+  async purgeSchool(id: string): Promise<Record<string, unknown>> {
+    return operatorFetch<Record<string, unknown>>(
+      `/api/operator/provisioning/schools/${encodeURIComponent(id)}/purge`,
+      { method: "POST", body: { confirm: "PURGE" } },
+    );
+  }
+
   async listSchoolAccounts(schoolId: string): Promise<SchoolAccount[]> {
     const data = await operatorFetch<BackendSchoolAccount[]>(
       `/api/operator/provisioning/schools/${encodeURIComponent(schoolId)}/accounts`,

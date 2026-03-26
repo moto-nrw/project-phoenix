@@ -25,6 +25,9 @@ const (
 	ActionHidePost      = "hide_post"
 	ActionUnhidePost    = "unhide_post"
 	ActionDeletePost    = "delete_post"
+	ActionSoftDelete    = "soft_delete"
+	ActionRestore       = "restore"
+	ActionPurge         = "purge"
 )
 
 // Common resource type constants

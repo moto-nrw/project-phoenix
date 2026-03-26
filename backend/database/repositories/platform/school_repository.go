@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -79,13 +80,14 @@ func (r *SchoolRepository) FindByID(ctx context.Context, id int64) (*platform.Sc
 	return school, nil
 }
 
-// FindBySlug returns a school by its slug.
+// FindBySlug returns a school by its slug. Excludes soft-deleted schools.
 func (r *SchoolRepository) FindBySlug(ctx context.Context, slug string) (*platform.School, error) {
 	school := new(platform.School)
 	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(school).
 		ModelTableExpr(schoolTableAlias).
 		Where(`"school".slug = ?`, slug).
+		Where(`"school".deleted_at IS NULL`).
 		Scan(ctx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -97,6 +99,7 @@ func (r *SchoolRepository) FindBySlug(ctx context.Context, slug string) (*platfo
 }
 
 // FindByOrganizationAndSlug returns a school by its organization-scoped slug.
+// Intentionally includes soft-deleted schools to prevent slug reuse while a school is in the trash.
 func (r *SchoolRepository) FindByOrganizationAndSlug(ctx context.Context, organizationID int64, slug string) (*platform.School, error) {
 	school := new(platform.School)
 	err := base.GetDB(ctx, r.db).NewSelect().
@@ -115,6 +118,7 @@ func (r *SchoolRepository) FindByOrganizationAndSlug(ctx context.Context, organi
 }
 
 // FindBySubdomain returns a school by its subdomain, preloading the Organization relation.
+// Excludes soft-deleted schools.
 func (r *SchoolRepository) FindBySubdomain(ctx context.Context, subdomain string) (*platform.School, error) {
 	school := new(platform.School)
 	err := base.GetDB(ctx, r.db).NewSelect().
@@ -122,6 +126,7 @@ func (r *SchoolRepository) FindBySubdomain(ctx context.Context, subdomain string
 		ModelTableExpr(schoolTableAlias).
 		Relation("Organization").
 		Where(`"school".subdomain = ?`, subdomain).
+		Where(`"school".deleted_at IS NULL`).
 		Scan(ctx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -156,6 +161,7 @@ func (r *SchoolRepository) ListActive(ctx context.Context) ([]platform.School, e
 		Relation("Organization").
 		Where(`"school".active = true`).
 		Where(`"school".hidden = false`).
+		Where(`"school".deleted_at IS NULL`).
 		OrderExpr(`"school".name ASC`).
 		Scan(ctx)
 	if err != nil {
@@ -176,10 +182,71 @@ func (r *SchoolRepository) FindActiveByAccountID(ctx context.Context, accountID 
 		Where(`"at".account_id = ?`, accountID).
 		Where(`"at".status = ?`, "active").
 		Where(`"school".active = true`).
+		Where(`"school".deleted_at IS NULL`).
 		OrderExpr(`"school".name ASC`).
 		Scan(ctx)
 	if err != nil {
 		return nil, err
 	}
 	return schools, nil
+}
+
+// SoftDelete sets deleted_at on a school. The active field is preserved so that
+// Restore can return the school to its pre-deletion state.
+func (r *SchoolRepository) SoftDelete(ctx context.Context, id int64) error {
+	result, err := base.GetDB(ctx, r.db).NewUpdate().
+		ModelTableExpr(schoolTableAlias).
+		Set(`deleted_at = NOW()`).
+		Where(`"school".id = ?`, id).
+		Where(`"school".deleted_at IS NULL`).
+		Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "soft delete school", Err: err}
+	}
+	return base.AssertRowsAffected(result, 1, "soft delete school")
+}
+
+// Restore clears deleted_at, returning the school to its pre-deletion state.
+// The active field is untouched — it retains whatever value it had before soft-delete.
+func (r *SchoolRepository) Restore(ctx context.Context, id int64) error {
+	result, err := base.GetDB(ctx, r.db).NewUpdate().
+		ModelTableExpr(schoolTableAlias).
+		Set(`deleted_at = NULL`).
+		Where(`"school".id = ?`, id).
+		Where(`"school".deleted_at IS NOT NULL`).
+		Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "restore school", Err: err}
+	}
+	return base.AssertRowsAffected(result, 1, "restore school")
+}
+
+// FindDeletedOlderThan returns soft-deleted schools older than the given duration.
+func (r *SchoolRepository) FindDeletedOlderThan(ctx context.Context, olderThan time.Duration) ([]*platform.School, error) {
+	cutoff := time.Now().Add(-olderThan)
+	var schools []*platform.School
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(&schools).
+		ModelTableExpr(schoolTableAlias).
+		Where(`"school".deleted_at IS NOT NULL`).
+		Where(`"school".deleted_at < ?`, cutoff).
+		OrderExpr(`"school".deleted_at ASC`).
+		Scan(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return schools, nil
+}
+
+// PurgeTenant calls the platform.purge_tenant() stored procedure to permanently
+// delete all data for a soft-deleted tenant. Returns a JSONB summary.
+func (r *SchoolRepository) PurgeTenant(ctx context.Context, tenantID int64) ([]byte, error) {
+	var result []byte
+	err := base.GetDB(ctx, r.db).NewRaw(
+		"SELECT platform.purge_tenant(?)", tenantID,
+	).Scan(ctx, &result)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{Op: "purge tenant", Err: err}
+	}
+	return result, nil
 }
