@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 
-const { mockAuth, mockRevalidatePath } = vi.hoisted(() => ({
+const { mockAuth, mockRevalidatePath, mockRevalidateTag } = vi.hoisted(() => ({
   mockAuth: vi.fn(),
   mockRevalidatePath: vi.fn(),
+  mockRevalidateTag: vi.fn(),
 }));
 
 vi.mock("~/server/auth/operator", () => ({
@@ -17,6 +18,7 @@ vi.mock("~/server/auth", () => ({
 
 vi.mock("next/cache", () => ({
   revalidatePath: mockRevalidatePath,
+  revalidateTag: mockRevalidateTag,
 }));
 
 import { POST } from "./route";
@@ -50,6 +52,13 @@ describe("POST /api/operator/provisioning/revalidate-tenant", () => {
     expect(json.success).toBe(true);
     expect(json.data.status).toBe("ok");
     expect(json.data.revalidated).toEqual(["old-sub", "new-sub"]);
+    expect(mockRevalidateTag).toHaveBeenCalledTimes(2);
+    expect(mockRevalidateTag).toHaveBeenCalledWith("tenant-old-sub", {
+      expire: 0,
+    });
+    expect(mockRevalidateTag).toHaveBeenCalledWith("tenant-new-sub", {
+      expire: 0,
+    });
     expect(mockRevalidatePath).toHaveBeenCalledTimes(2);
     expect(mockRevalidatePath).toHaveBeenCalledWith("/old-sub", "layout");
     expect(mockRevalidatePath).toHaveBeenCalledWith("/new-sub", "layout");
@@ -117,6 +126,13 @@ describe("POST /api/operator/provisioning/revalidate-tenant", () => {
 
     const response = await POST(request, emptyContext);
     expect(response.status).toBe(200);
+    expect(mockRevalidateTag).toHaveBeenCalledTimes(2);
+    expect(mockRevalidateTag).toHaveBeenCalledWith("tenant-valid", {
+      expire: 0,
+    });
+    expect(mockRevalidateTag).toHaveBeenCalledWith("tenant-also-valid", {
+      expire: 0,
+    });
     expect(mockRevalidatePath).toHaveBeenCalledTimes(2);
     expect(mockRevalidatePath).toHaveBeenCalledWith("/valid", "layout");
     expect(mockRevalidatePath).toHaveBeenCalledWith("/also-valid", "layout");

@@ -1286,13 +1286,19 @@ func (s *operatorProvisioningService) PurgeDeletedSchools(ctx context.Context, o
 		if err != nil {
 			s.getLogger().Error("failed to purge tenant",
 				slog.Int64("school_id", schoolID),
-				slog.String("school_name", schoolName),
 				slog.Any("error", err),
+			)
+			s.getLogger().Debug("failed purge tenant details",
+				slog.Int64("school_id", schoolID),
+				slog.String("school_name", schoolName),
 			)
 			failed++
 			continue
 		}
 		s.getLogger().Info("purged tenant",
+			slog.Int64("school_id", schoolID),
+		)
+		s.getLogger().Debug("purged tenant details",
 			slog.Int64("school_id", schoolID),
 			slog.String("school_name", schoolName),
 		)
