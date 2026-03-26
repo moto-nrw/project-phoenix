@@ -146,6 +146,16 @@ services:
       timeout: 1s
       retries: 2
 
+  # Local email testing — catches all SMTP emails and shows them in a web UI
+  # Web UI: http://localhost:8025 — API: http://localhost:8025/api/v1/messages
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "8025:8025"   # Web UI
+      - "1025:1025"   # SMTP
+    environment:
+      MP_MAX_MESSAGES: 500
+
   # Test database for integration tests
   # Start with: docker compose --profile test up -d postgres-test
   # Or run all tests: docker compose --profile test up -d

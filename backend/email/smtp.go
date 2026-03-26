@@ -38,9 +38,16 @@ func NewMailer() (Mailer, error) {
 
 	defaultFrom := NewEmail(viper.GetString("email_from_name"), viper.GetString("email_from_address"))
 
-	// Configure TLS based on port
+	// Configure TLS and auth based on port and credentials
 	var clientOpts []mail.Option
-	if smtp.Port == 465 {
+	switch {
+	case smtp.User == "" && smtp.Password == "":
+		// No credentials: plain SMTP without TLS (e.g., Mailpit on port 1025)
+		clientOpts = []mail.Option{
+			mail.WithPort(smtp.Port),
+			mail.WithTLSPolicy(mail.NoTLS),
+		}
+	case smtp.Port == 465:
 		// Port 465: Implicit SSL/TLS (SSL from connection start)
 		clientOpts = []mail.Option{
 			mail.WithSSLPort(false), // Use implicit SSL
@@ -48,7 +55,7 @@ func NewMailer() (Mailer, error) {
 			mail.WithUsername(smtp.User),
 			mail.WithPassword(smtp.Password),
 		}
-	} else {
+	default:
 		// Port 587: STARTTLS (upgrade to TLS after connect)
 		clientOpts = []mail.Option{
 			mail.WithPort(smtp.Port),
