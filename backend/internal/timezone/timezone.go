@@ -76,3 +76,14 @@ func DateOfUTC(t time.Time) time.Time {
 func TodayUTC() time.Time {
 	return DateOfUTC(time.Now())
 }
+
+// EndOfDay returns 23:59:59 in Berlin timezone for the calendar date of t.
+// Use this when converting a PostgreSQL DATE column (returned as UTC midnight
+// by pgx) into a TIMESTAMPTZ end-of-day value.
+func EndOfDay(t time.Time) time.Time {
+	inBerlin := t.In(Berlin)
+	return time.Date(
+		inBerlin.Year(), inBerlin.Month(), inBerlin.Day(),
+		23, 59, 59, 0, Berlin,
+	)
+}
