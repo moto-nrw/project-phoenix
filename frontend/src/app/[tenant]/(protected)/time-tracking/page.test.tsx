@@ -3553,4 +3553,161 @@ describe("TimeTrackingPage", () => {
       expect(urlaubBadges.length).toBeGreaterThan(0);
     });
   });
+
+  // ── Check-in with manually edited session (confirmation modal) ──────────
+
+  describe("check-in with manually edited session", () => {
+    const todayEditedHistory: WorkSessionHistory = {
+      ...mockHistorySession,
+      date: todayISO,
+      checkInTime: `${todayISO}T08:00:00Z`,
+      checkOutTime: `${todayISO}T16:30:00Z`,
+      editCount: 1,
+    };
+
+    it("shows confirmation modal when checking in after manual edit", async () => {
+      setupDefaultMocks({
+        currentSession: null,
+        history: [todayEditedHistory],
+      });
+      render(<TimeTrackingPage />);
+
+      await act(async () => {
+        fireEvent.click(screen.getByLabelText("Einstempeln"));
+      });
+
+      await waitFor(() => {
+        expect(
+          screen.getByText("Session manuell bearbeitet"),
+        ).toBeInTheDocument();
+        expect(screen.getByText("Trotzdem einstempeln")).toBeInTheDocument();
+      });
+    });
+
+    it("does not show modal when session has no edits", async () => {
+      const uneditedHistory: WorkSessionHistory = {
+        ...mockHistorySession,
+        date: todayISO,
+        checkInTime: `${todayISO}T08:00:00Z`,
+        checkOutTime: `${todayISO}T16:30:00Z`,
+        editCount: 0,
+      };
+      setupDefaultMocks({
+        currentSession: null,
+        history: [uneditedHistory],
+      });
+      vi.mocked(timeTrackingService.checkIn).mockResolvedValue(
+        mockActiveSession,
+      );
+      render(<TimeTrackingPage />);
+
+      await act(async () => {
+        fireEvent.click(screen.getByLabelText("Einstempeln"));
+      });
+
+      await waitFor(() => {
+        expect(timeTrackingService.checkIn).toHaveBeenCalledWith("present");
+      });
+      expect(
+        screen.queryByText("Session manuell bearbeitet"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("cancels check-in when Abbrechen clicked", async () => {
+      setupDefaultMocks({
+        currentSession: null,
+        history: [todayEditedHistory],
+      });
+      render(<TimeTrackingPage />);
+
+      await act(async () => {
+        fireEvent.click(screen.getByLabelText("Einstempeln"));
+      });
+
+      await waitFor(() => {
+        expect(
+          screen.getByText("Session manuell bearbeitet"),
+        ).toBeInTheDocument();
+      });
+
+      const cancelButtons = screen.getAllByText("Abbrechen");
+      fireEvent.click(cancelButtons[cancelButtons.length - 1]!);
+
+      await waitFor(() => {
+        expect(timeTrackingService.checkIn).not.toHaveBeenCalled();
+      });
+    });
+
+    it("proceeds with check-in when confirmed", async () => {
+      setupDefaultMocks({
+        currentSession: null,
+        history: [todayEditedHistory],
+      });
+      vi.mocked(timeTrackingService.checkIn).mockResolvedValue(
+        mockActiveSession,
+      );
+      render(<TimeTrackingPage />);
+
+      await act(async () => {
+        fireEvent.click(screen.getByLabelText("Einstempeln"));
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText("Trotzdem einstempeln")).toBeInTheDocument();
+      });
+
+      await act(async () => {
+        fireEvent.click(screen.getByText("Trotzdem einstempeln"));
+      });
+
+      await waitFor(() => {
+        expect(timeTrackingService.checkIn).toHaveBeenCalledWith("present");
+      });
+    });
+
+    it("chains to absence modal when both edited session and absence exist", async () => {
+      setupDefaultMocks({
+        currentSession: null,
+        history: [todayEditedHistory],
+        absences: [mockAbsence],
+      });
+      render(<TimeTrackingPage />);
+
+      // Step 1: Click check-in → manual edit warning appears first
+      await act(async () => {
+        fireEvent.click(screen.getByLabelText("Einstempeln"));
+      });
+
+      await waitFor(() => {
+        expect(
+          screen.getByText("Session manuell bearbeitet"),
+        ).toBeInTheDocument();
+      });
+
+      // Step 2: Confirm manual edit warning → absence modal appears
+      await act(async () => {
+        fireEvent.click(screen.getByText("Trotzdem einstempeln"));
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText("Abwesenheit eingetragen")).toBeInTheDocument();
+      });
+
+      // Check-in should NOT have been called yet
+      expect(timeTrackingService.checkIn).not.toHaveBeenCalled();
+    });
+
+    it("does not show modal when session is still active", async () => {
+      // Active session (no checkOutTime) with edits — should not trigger warning
+      // because currentSession is set, hasTodayEditedSession requires !currentSession
+      setupDefaultMocks({
+        currentSession: mockActiveSession,
+        history: [{ ...todayEditedHistory, checkOutTime: null }],
+      });
+      render(<TimeTrackingPage />);
+
+      // Should not show check-in button at all when session is active
+      expect(screen.queryByLabelText("Einstempeln")).not.toBeInTheDocument();
+    });
+  });
 });

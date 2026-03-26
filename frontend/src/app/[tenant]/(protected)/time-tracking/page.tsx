@@ -3807,7 +3807,7 @@ function TimeTrackingContent() {
       <Modal
         isOpen={pendingManualEditCheckIn !== null}
         onClose={handleClosePendingManualEditCheckIn}
-        title=""
+        title="Session manuell bearbeitet"
         footer={
           <div className="flex w-full gap-3">
             <button
