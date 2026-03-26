@@ -27,10 +27,8 @@ var serveCmd = &cobra.Command{
 
 		if dsn := os.Getenv("SENTRY_DSN"); dsn != "" {
 			err := sentry.Init(sentry.ClientOptions{
-				Dsn:              dsn,
-				Environment:      viper.GetString("app_env"),
-				TracesSampleRate: 0,
-				EnableTracing:    false,
+				Dsn:         dsn,
+				Environment: viper.GetString("app_env"),
 			})
 			if err != nil {
 				log.Fatalf("sentry init failed: %s", err)
