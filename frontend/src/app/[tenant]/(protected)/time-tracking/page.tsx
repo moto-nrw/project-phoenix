@@ -3390,10 +3390,16 @@ function TimeTrackingContent() {
     () => setPendingCheckIn(null),
     [],
   );
+  const handleClosePendingManualEditCheckIn = useCallback(
+    () => setPendingManualEditCheckIn(null),
+    [],
+  );
 
   const [pendingCheckIn, setPendingCheckIn] = useState<SessionStatus | null>(
     null,
   );
+  const [pendingManualEditCheckIn, setPendingManualEditCheckIn] =
+    useState<SessionStatus | null>(null);
 
   // Calculate date range for data fetching
   // - Chart shows trailing 10 workdays ending at reference date
@@ -3489,6 +3495,18 @@ function TimeTrackingContent() {
       return sum;
     }, 0);
 
+  // Check if today has a checked-out session that was manually edited.
+  // After checkout, currentSession is null (backend only returns active sessions),
+  // so we look in history for today's session and its editCount.
+  const hasTodayEditedSession = useMemo(
+    () =>
+      !currentSession &&
+      (historyData ?? []).some(
+        (s) => s.date === todayISO && s.checkOutTime && s.editCount > 0,
+      ),
+    [currentSession, historyData, todayISO],
+  );
+
   const executeCheckIn = useCallback(
     async (status: SessionStatus) => {
       try {
@@ -3507,13 +3525,17 @@ function TimeTrackingContent() {
 
   const handleCheckIn = useCallback(
     async (status: SessionStatus) => {
+      if (hasTodayEditedSession) {
+        setPendingManualEditCheckIn(status);
+        return;
+      }
       if (todayAbsence) {
         setPendingCheckIn(status);
         return;
       }
       await executeCheckIn(status);
     },
-    [todayAbsence, executeCheckIn],
+    [hasTodayEditedSession, todayAbsence, executeCheckIn],
   );
 
   const handleCheckOut = useCallback(async () => {
@@ -3780,6 +3802,64 @@ function TimeTrackingContent() {
         onClose={handleCloseAbsenceModal}
         onSave={handleCreateAbsence}
       />
+
+      {/* Check-in confirmation when session was manually edited */}
+      <Modal
+        isOpen={pendingManualEditCheckIn !== null}
+        onClose={handleClosePendingManualEditCheckIn}
+        title=""
+        footer={
+          <div className="flex w-full gap-3">
+            <button
+              onClick={() => setPendingManualEditCheckIn(null)}
+              className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50"
+            >
+              Abbrechen
+            </button>
+            <button
+              onClick={async () => {
+                const status = pendingManualEditCheckIn;
+                setPendingManualEditCheckIn(null);
+                if (status) {
+                  if (todayAbsence) {
+                    setPendingCheckIn(status);
+                  } else {
+                    await executeCheckIn(status);
+                  }
+                }
+              }}
+              className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-gray-700"
+            >
+              Trotzdem einstempeln
+            </button>
+          </div>
+        }
+      >
+        <div className="py-4 text-center">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-amber-100">
+            <svg
+              className="h-6 w-6 text-amber-600"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10"
+              />
+            </svg>
+          </div>
+          <h2 className="text-xl font-bold text-gray-800">
+            Session manuell bearbeitet
+          </h2>
+          <p className="mt-2 text-gray-600">
+            Du hast diese Session manuell bearbeitet. Beim erneuten Einstempeln
+            wird die Ausstempelzeit zurückgesetzt. Trotzdem einstempeln?
+          </p>
+        </div>
+      </Modal>
 
       {/* Check-in confirmation when absence exists */}
       <Modal
