@@ -204,7 +204,6 @@ describe("TeacherShellProvider", () => {
 
     expect(mockFetch).toHaveBeenCalledWith("/api/auth/logout", {
       method: "POST",
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- vitest asymmetric matcher
       signal: expect.any(AbortSignal) as AbortSignal,
     });
     expect(mockClearSessionCache).toHaveBeenCalled();

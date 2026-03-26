@@ -370,7 +370,6 @@ describe("UserContextProvider", () => {
         expect(consoleErrorSpy).toHaveBeenCalledWith(
           "failed to refresh supervision context",
           {
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
             error: expect.any(String),
           },
         );

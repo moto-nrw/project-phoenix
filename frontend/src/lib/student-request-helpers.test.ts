@@ -478,7 +478,6 @@ describe("handlePrivacyConsentCreation", () => {
       "error creating privacy consent for student",
       {
         student_id: 1,
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         error: expect.any(String),
       },
     );
