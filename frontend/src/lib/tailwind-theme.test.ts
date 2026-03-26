@@ -93,11 +93,11 @@ describe("getThemeColorsTailwind", () => {
 describe("tailwindTheme default export", () => {
   it("exports an object with getThemeColorsTailwind function", () => {
     expect(tailwindTheme).toHaveProperty("getThemeColorsTailwind");
-    expect(typeof getThemeColorsTailwind).toBe("function");
+    expect(typeof tailwindTheme.getThemeColorsTailwind).toBe("function");
   });
 
   it("exported function returns same result as named export", () => {
-    const result1 = getThemeColorsTailwind();
+    const result1 = tailwindTheme.getThemeColorsTailwind();
     const result2 = getThemeColorsTailwind();
 
     expect(result1).toEqual(result2);
