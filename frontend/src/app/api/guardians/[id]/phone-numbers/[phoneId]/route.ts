@@ -13,7 +13,7 @@ export const PUT = createPutHandler(async (request, body, token, params) => {
     body,
   );
   // @ts-expect-error - API helper returns unknown type
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+
   return response.data;
 });
 

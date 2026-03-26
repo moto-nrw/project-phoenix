@@ -5145,7 +5145,7 @@ describe("OGSGroupPage ID-based selection: currentGroup useMemo", () => {
     });
 
     // Staff list includes the current user (personId "p1")
-    // eslint-disable-next-line @typescript-eslint/unbound-method
+
     vi.mocked(groupTransferService.getAllAvailableStaff).mockResolvedValue([
       {
         id: "s1",
@@ -5201,7 +5201,6 @@ describe("OGSGroupPage ID-based selection: currentGroup useMemo", () => {
 
     // Wait for staff to load and modal to re-render with availableUsers
     await waitFor(() => {
-      // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(groupTransferService.getAllAvailableStaff).toHaveBeenCalled();
     });
 

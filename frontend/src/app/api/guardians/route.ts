@@ -18,6 +18,6 @@ export const GET = createGetHandler(async (request, token, _params) => {
 export const POST = createPostHandler(async (request, body, token, _params) => {
   const response = await apiPost("/api/guardians", token, body);
   // @ts-expect-error - API helper returns unknown type
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+
   return response.data;
 });

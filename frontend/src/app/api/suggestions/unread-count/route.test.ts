@@ -4,7 +4,6 @@ import type { NextRequest } from "next/server";
 // Use vi.hoisted for mock values referenced in vi.mock
 const { mockApiGet, mockCreateGetHandler } = vi.hoisted(() => ({
   mockApiGet: vi.fn(),
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-return -- Mock factory requires any for generic handler
   mockCreateGetHandler: vi.fn((handler: any) => handler),
 }));
 
