@@ -1173,7 +1173,9 @@ function DeletedSchoolCard({
 
       <div className="mt-3 flex items-center justify-between">
         <p className="text-xs text-gray-400">
-          Gelöscht {getRelativeTime(school.deletedAt!)}
+          {school.deletedAt && (
+            <>Gelöscht {getRelativeTime(school.deletedAt)}</>
+          )}
         </p>
         <div className="flex gap-2">
           <button

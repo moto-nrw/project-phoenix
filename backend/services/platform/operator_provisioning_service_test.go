@@ -3060,6 +3060,11 @@ func TestOperatorProvisioningService_PurgeSchool_Success(t *testing.T) {
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
+	// TX1: validate + audit log
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectCommit()
+	// TX2: purge
 	mock.ExpectBegin()
 	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectCommit()
@@ -3172,6 +3177,11 @@ func TestOperatorProvisioningService_PurgeSchool_PurgeError(t *testing.T) {
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
+	// TX1: validate + audit log commits (audit trail survives purge failure)
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectCommit()
+	// TX2: purge fails and rolls back
 	mock.ExpectBegin()
 	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectRollback()
@@ -3316,6 +3326,7 @@ func TestOperatorProvisioningService_PurgeDeletedSchools_PartialFailure(t *testi
 	})
 
 	purged, err := service.PurgeDeletedSchools(context.Background(), 30*24*time.Hour)
-	require.NoError(t, err)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "1 failed")
 	assert.Equal(t, 1, purged)
 }

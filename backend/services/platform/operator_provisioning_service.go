@@ -1232,24 +1232,32 @@ func (s *operatorProvisioningService) RestoreSchool(ctx context.Context, schoolI
 }
 
 func (s *operatorProvisioningService) PurgeSchool(ctx context.Context, schoolID, operatorID int64, clientIP net.IP) ([]byte, error) {
-	var purgeResult []byte
+	// 1. Validate and write audit log in its own transaction.
+	//    This commits independently so the audit trail survives even if the purge fails.
 	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
-		school, err := s.schoolRepo.FindByID(adminCtx, schoolID)
-		if err != nil || school == nil {
+		school, findErr := s.schoolRepo.FindByID(adminCtx, schoolID)
+		if findErr != nil || school == nil {
 			return &SchoolNotFoundError{SchoolID: schoolID}
 		}
 		if !school.IsDeleted() {
 			return &SchoolNotDeletedError{SchoolID: schoolID}
 		}
 
-		// Audit log BEFORE purge — the school row will be deleted by the procedure
 		s.logAction(adminCtx, operatorID, platform.ActionPurge, platform.ResourceSchool, &schoolID, clientIP, map[string]any{
 			"name":       school.Name,
 			"slug":       school.Slug,
 			"subdomain":  school.Subdomain,
 			"deleted_at": school.DeletedAt,
 		})
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
 
+	// 2. Purge in a separate transaction — the stored procedure deletes the school row.
+	var purgeResult []byte
+	err = s.withAdminTx(ctx, func(adminCtx context.Context) error {
 		result, purgeErr := s.schoolRepo.PurgeTenant(adminCtx, schoolID)
 		if purgeErr != nil {
 			return &TenantPurgeError{SchoolID: schoolID, Err: purgeErr}
@@ -1267,6 +1275,7 @@ func (s *operatorProvisioningService) PurgeDeletedSchools(ctx context.Context, o
 	}
 
 	purged := 0
+	failed := 0
 	for _, school := range schools {
 		schoolID := school.ID
 		schoolName := school.Name
@@ -1280,6 +1289,7 @@ func (s *operatorProvisioningService) PurgeDeletedSchools(ctx context.Context, o
 				slog.String("school_name", schoolName),
 				slog.Any("error", err),
 			)
+			failed++
 			continue
 		}
 		s.getLogger().Info("purged tenant",
@@ -1287,6 +1297,9 @@ func (s *operatorProvisioningService) PurgeDeletedSchools(ctx context.Context, o
 			slog.String("school_name", schoolName),
 		)
 		purged++
+	}
+	if failed > 0 {
+		return purged, fmt.Errorf("purged %d schools, %d failed (see logs for details)", purged, failed)
 	}
 	return purged, nil
 }

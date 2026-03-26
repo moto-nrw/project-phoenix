@@ -683,6 +683,11 @@ func runCleanupTenants(cmd *cobra.Command, _ []string) error {
 		context.Background(), olderThan,
 	)
 	if purgeErr != nil {
+		// Partial failure: some schools purged, some failed. Print count and propagate error.
+		if count > 0 {
+			fmt.Printf("Purged %d schools (with errors: %v)\n", count, purgeErr)
+			return purgeErr
+		}
 		return fmt.Errorf("tenant purge failed: %w", purgeErr)
 	}
 

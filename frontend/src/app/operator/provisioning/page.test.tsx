@@ -122,6 +122,22 @@ vi.mock("~/components/ui/modal", () => ({
         <div data-testid="modal-footer">{footer}</div>
       </div>
     ) : null,
+  ConfirmationModal: ({
+    isOpen,
+    children,
+    title,
+    onConfirm,
+    confirmText,
+  }: any) =>
+    isOpen ? (
+      <div data-testid="confirmation-modal">
+        <h2>{title}</h2>
+        {children}
+        <button type="button" onClick={onConfirm}>
+          {confirmText}
+        </button>
+      </div>
+    ) : null,
 }));
 
 vi.mock("~/components/ui/skeleton", () => ({

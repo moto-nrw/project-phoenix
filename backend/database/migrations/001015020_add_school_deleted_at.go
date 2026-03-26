@@ -22,14 +22,20 @@ func init() {
 		func(ctx context.Context, db *bun.DB) error {
 			_, err := db.ExecContext(ctx, `
 				ALTER TABLE platform.schools
-				ADD COLUMN deleted_at TIMESTAMPTZ
+				ADD COLUMN deleted_at TIMESTAMPTZ;
+
+				CREATE INDEX idx_schools_not_deleted
+				ON platform.schools (id)
+				WHERE deleted_at IS NULL;
 			`)
 			return err
 		},
 		func(ctx context.Context, db *bun.DB) error {
 			_, err := db.ExecContext(ctx, `
+				DROP INDEX IF EXISTS platform.idx_schools_not_deleted;
+
 				ALTER TABLE platform.schools
-				DROP COLUMN IF EXISTS deleted_at
+				DROP COLUMN IF EXISTS deleted_at;
 			`)
 			return err
 		},

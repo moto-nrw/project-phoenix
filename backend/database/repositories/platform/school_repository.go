@@ -137,7 +137,9 @@ func (r *SchoolRepository) FindBySubdomain(ctx context.Context, subdomain string
 	return school, nil
 }
 
-// List returns all schools.
+// List returns all schools including soft-deleted ones.
+// The operator dashboard needs both active and deleted schools (for the trash view).
+// Use ListActive for the public-facing tenant selector.
 func (r *SchoolRepository) List(ctx context.Context) ([]*platform.School, error) {
 	var schools []*platform.School
 	err := base.GetDB(ctx, r.db).NewSelect().
