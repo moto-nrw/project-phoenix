@@ -17,12 +17,6 @@ on:
       - '!docs/**'
       - '!.vscode/**'
 
-  # Demo: Build and deploy when PR with 'deploy-demo' label is merged
-  pull_request:
-    types: [closed]
-    branches:
-      - development
-
   # Manual trigger for emergencies
   workflow_dispatch:
     inputs:
@@ -33,7 +27,6 @@ on:
         type: choice
         options:
           - staging
-          - demo
           - production
 
   # Build on release for version tags
@@ -54,7 +47,6 @@ jobs:
     outputs:
       should_deploy: ${{ steps.check.outputs.should_deploy }}
       is_staging: ${{ steps.check.outputs.is_staging }}
-      is_demo: ${{ steps.check.outputs.is_demo }}
     steps:
       - name: Determine environment
         id: check
@@ -63,49 +55,21 @@ jobs:
           if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]]; then
             echo "should_deploy=true" >> $GITHUB_OUTPUT
             echo "is_staging=false" >> $GITHUB_OUTPUT
-            echo "is_demo=false" >> $GITHUB_OUTPUT
             echo "✅ Push to main - will build and deploy to production"
 
           # Staging: Push to development
           elif [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/development" ]]; then
             echo "should_deploy=true" >> $GITHUB_OUTPUT
             echo "is_staging=true" >> $GITHUB_OUTPUT
-            echo "is_demo=false" >> $GITHUB_OUTPUT
             echo "✅ Push to development - will build and deploy to staging"
-
-          # Demo: PR merged with 'deploy-demo' label
-          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            if [[ "${{ github.event.pull_request.merged }}" == "true" ]]; then
-              if [[ "${{ contains(github.event.pull_request.labels.*.name, 'deploy-demo') }}" == "true" ]]; then
-                echo "should_deploy=true" >> $GITHUB_OUTPUT
-                echo "is_staging=false" >> $GITHUB_OUTPUT
-                echo "is_demo=true" >> $GITHUB_OUTPUT
-                echo "✅ PR #${{ github.event.pull_request.number }} merged with 'deploy-demo' label - will build and deploy to demo"
-              else
-                echo "should_deploy=false" >> $GITHUB_OUTPUT
-                echo "is_staging=false" >> $GITHUB_OUTPUT
-                echo "is_demo=false" >> $GITHUB_OUTPUT
-                echo "⏭️ PR #${{ github.event.pull_request.number }} merged without deploy label - skipping deployment"
-              fi
-            else
-              echo "should_deploy=false" >> $GITHUB_OUTPUT
-              echo "is_staging=false" >> $GITHUB_OUTPUT
-              echo "is_demo=false" >> $GITHUB_OUTPUT
-              echo "⏭️ PR #${{ github.event.pull_request.number }} closed without merge - skipping"
-            fi
 
           # Manual dispatch
           elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             echo "should_deploy=true" >> $GITHUB_OUTPUT
             if [[ "${{ github.event.inputs.environment }}" == "staging" ]]; then
               echo "is_staging=true" >> $GITHUB_OUTPUT
-              echo "is_demo=false" >> $GITHUB_OUTPUT
-            elif [[ "${{ github.event.inputs.environment }}" == "demo" ]]; then
-              echo "is_staging=false" >> $GITHUB_OUTPUT
-              echo "is_demo=true" >> $GITHUB_OUTPUT
             else
               echo "is_staging=false" >> $GITHUB_OUTPUT
-              echo "is_demo=false" >> $GITHUB_OUTPUT
             fi
             echo "✅ Manual trigger for ${{ github.event.inputs.environment }}"
 
@@ -113,7 +77,6 @@ jobs:
           elif [[ "${{ github.event_name }}" == "release" ]]; then
             echo "should_deploy=true" >> $GITHUB_OUTPUT
             echo "is_staging=false" >> $GITHUB_OUTPUT
-            echo "is_demo=false" >> $GITHUB_OUTPUT
             echo "✅ Release - will build and deploy to production"
           fi
 
@@ -129,9 +92,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          # For merged PRs, checkout the merge commit on development
-          ref: ${{ github.event_name == 'pull_request' && 'development' || github.ref }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
@@ -153,10 +113,8 @@ jobs:
             type=ref,event=branch
             # Short SHA for traceability
             type=sha,prefix=,format=short
-            # 'staging' tag for staging deployments (merged PRs with label)
+            # 'staging' tag for staging deployments
             type=raw,value=staging,enable=${{ needs.check-environment.outputs.is_staging == 'true' }}
-            # 'demo' tag for demo deployments (merged PRs with label)
-            type=raw,value=demo,enable=${{ needs.check-environment.outputs.is_demo == 'true' }}
             # 'latest' tag for production (main branch)
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
             # Semantic version from release tags
@@ -192,9 +150,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          # For merged PRs, checkout the merge commit on development
-          ref: ${{ github.event_name == 'pull_request' && 'development' || github.ref }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
@@ -216,10 +171,8 @@ jobs:
             type=ref,event=branch
             # Short SHA for traceability
             type=sha,prefix=,format=short
-            # 'staging' tag for staging deployments (merged PRs with label)
+            # 'staging' tag for staging deployments
             type=raw,value=staging,enable=${{ needs.check-environment.outputs.is_staging == 'true' }}
-            # 'demo' tag for demo deployments (merged PRs with label)
-            type=raw,value=demo,enable=${{ needs.check-environment.outputs.is_demo == 'true' }}
             # 'latest' tag for production (main branch)
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
             # Semantic version from release tags
@@ -231,8 +184,6 @@ jobs:
         run: |
           if [[ "${{ needs.check-environment.outputs.is_staging }}" == "true" ]]; then
             echo "url=https://api-staging.moto-app.de" >> $GITHUB_OUTPUT
-          elif [[ "${{ needs.check-environment.outputs.is_demo }}" == "true" ]]; then
-            echo "url=https://api-demo.moto-app.de" >> $GITHUB_OUTPUT
           else
             echo "url=https://api.moto-app.de" >> $GITHUB_OUTPUT
           fi
@@ -242,8 +193,6 @@ jobs:
         run: |
           if [[ "${{ needs.check-environment.outputs.is_staging }}" == "true" ]]; then
             echo "hostname=operator.staging.moto-app.de" >> $GITHUB_OUTPUT
-          elif [[ "${{ needs.check-environment.outputs.is_demo }}" == "true" ]]; then
-            echo "hostname=operator.demo.moto-app.de" >> $GITHUB_OUTPUT
           else
             echo "hostname=operator.moto-app.de" >> $GITHUB_OUTPUT
           fi
@@ -253,8 +202,6 @@ jobs:
         run: |
           if [[ "${{ needs.check-environment.outputs.is_staging }}" == "true" ]]; then
             echo "domain=staging.moto-app.de" >> $GITHUB_OUTPUT
-          elif [[ "${{ needs.check-environment.outputs.is_demo }}" == "true" ]]; then
-            echo "domain=demo.moto-app.de" >> $GITHUB_OUTPUT
           else
             echo "domain=moto-app.de" >> $GITHUB_OUTPUT
           fi
@@ -359,87 +306,11 @@ jobs:
           sha: ${{ github.sha }}
           actor: ${{ github.actor }}
 
-  # Deploy to demo with automatic rollback on failure
-  # Exit codes from deploy-remote.sh: 0=success, 1=pre-deploy abort, 10=rollback ok, 11=rollback failed
-  deploy-demo:
-    needs: [check-environment, build-backend, build-frontend]
-    if: needs.check-environment.outputs.should_deploy == 'true' && needs.check-environment.outputs.is_demo == 'true'
-    concurrency:
-      group: deploy-demo
-      cancel-in-progress: false
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          ref: ${{ github.sha }}
-
-      - name: Install SOPS
-        run: |
-          curl -LsS https://github.com/getsops/sops/releases/download/v3.12.1/sops-v3.12.1.linux.amd64 -o /usr/local/bin/sops
-          chmod +x /usr/local/bin/sops
-
-      - name: Decrypt demo environment
-        env:
-          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
-        run: sops decrypt environments/demo.sops.env > /tmp/demo.env
-
-      - name: Deploy to demo
-        id: deploy
-        env:
-          SSH_KEY: ${{ secrets.DEMO_SSH_KEY }}
-          SSH_HOST: ${{ secrets.DEMO_HOST }}
-          SSH_KNOWN_HOSTS: ${{ secrets.DEMO_SSH_KNOWN_HOSTS }}
-        run: |
-          mkdir -p ~/.ssh
-          echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
-          chmod 644 ~/.ssh/known_hosts
-          echo "$SSH_KEY" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-
-          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
-
-          scp -i ~/.ssh/deploy_key /tmp/demo.env root@$SSH_HOST:~/demo/.env.new
-          scp -i ~/.ssh/deploy_key environments/demo.compose.yml root@$SSH_HOST:~/demo/docker-compose.yml.new
-          scp -i ~/.ssh/deploy_key scripts/deploy-remote.sh root@$SSH_HOST:~/deploy-remote.sh
-          scp -i ~/.ssh/deploy_key scripts/restore-db.sh root@$SSH_HOST:~/restore-db.sh
-
-          set +e
-          ssh -i ~/.ssh/deploy_key root@$SSH_HOST \
-            "DEPLOY_DIR=demo DEPLOY_SHA=$SHORT_SHA BACKUP_RETENTION=3 bash ~/deploy-remote.sh"
-          DEPLOY_EXIT=$?
-          set -e
-
-          echo "deploy_exit=$DEPLOY_EXIT" >> $GITHUB_OUTPUT
-
-          if [ "$DEPLOY_EXIT" -ne 0 ]; then
-            exit 1
-          fi
-
-      - name: Cleanup secrets
-        if: always()
-        run: rm -f ~/.ssh/deploy_key /tmp/demo.env
-
-      - name: Notify on deploy failure
-        if: always() && steps.deploy.outputs.deploy_exit != '' && steps.deploy.outputs.deploy_exit != '0'
-        uses: ./.github/actions/notify-deploy-failure
-        with:
-          exit_code: ${{ steps.deploy.outputs.deploy_exit }}
-          environment: demo
-          resend_api_key: ${{ secrets.RESEND_API_KEY }}
-          notify_emails: ${{ vars.DEPLOY_NOTIFY_EMAILS }}
-          run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          commit_url: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
-          sha: ${{ github.sha }}
-          actor: ${{ github.actor }}
-
   # Deploy to production with automatic rollback on failure
   # Exit codes from deploy-remote.sh: 0=success, 1=pre-deploy abort, 10=rollback ok, 11=rollback failed
   deploy-production:
     needs: [check-environment, build-backend, build-frontend]
-    if: needs.check-environment.outputs.should_deploy == 'true' && needs.check-environment.outputs.is_staging == 'false' && needs.check-environment.outputs.is_demo == 'false'
+    if: needs.check-environment.outputs.should_deploy == 'true' && needs.check-environment.outputs.is_staging == 'false'
     concurrency:
       group: deploy-production
       cancel-in-progress: false

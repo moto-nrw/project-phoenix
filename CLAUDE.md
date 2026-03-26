@@ -206,7 +206,7 @@ NEXT_PUBLIC_OPERATOR_HOSTNAME: z.string().min(1)
 
 ## Environment Management (SOPS)
 
-Deployed environments (staging, demo, production) use **SOPS-encrypted env files** tracked in git. No more manual `.env` management via SSH.
+Deployed environments (staging, production) use **SOPS-encrypted env files** tracked in git. No more manual `.env` management via SSH.
 
 ### How It Works
 
@@ -223,10 +223,8 @@ Deployed environments (staging, demo, production) use **SOPS-encrypted env files
 | File | Purpose |
 |------|---------|
 | `environments/staging.sops.env` | Encrypted env vars for staging |
-| `environments/demo.sops.env` | Encrypted env vars for demo |
 | `environments/production.sops.env` | Encrypted env vars for production |
 | `environments/staging.compose.yml` | Docker Compose for staging (images from GHCR) |
-| `environments/demo.compose.yml` | Docker Compose for demo |
 | `environments/production.compose.yml` | Docker Compose for production |
 | `.sops.yaml` | SOPS config with age public key |
 | `scripts/sops-setup.sh` | One-time setup: generate age key, encrypt files |
@@ -267,14 +265,14 @@ sops decrypt environments/staging.sops.env | grep AUTH_JWT_REFRESH_EXPIRY
 ### Key Rules
 
 1. **Keys are plaintext, values are encrypted** — SOPS encrypts only values, so CI can validate key consistency without decryption
-2. **All three `.sops.env` files must have identical keys** — `env-check.sh` enforces this in CI
+2. **Both `.sops.env` files must have identical keys** — `env-check.sh` enforces this in CI
 3. **`.env.example` must stay in sync** with `.sops.env` keys (minus whitelisted dev-only/deploy-only vars)
 4. **Shared `.env` on server** — all services (postgres, server, frontend) load the same `.env` via `env_file:`. Use the compose `environment:` block to override per-service (e.g., `PORT: 3000` for frontend to override backend's `PORT=8080`)
 5. **Edit with SOPS CLI** — `sops environments/staging.sops.env` opens decrypted in `$EDITOR`, re-encrypts on save. Never manually edit encrypted values.
 
 ### Adding a New Env Var (Deployed Environments)
 
-- [ ] Add to all three `environments/*.sops.env` files via `sops` CLI
+- [ ] Add to both `environments/*.sops.env` files via `sops` CLI
 - [ ] Add to `.env.example` (for local dev parity)
 - [ ] If frontend-only or needs override: add to `environment:` block in `environments/*.compose.yml`
 - [ ] Run `./scripts/env-check.sh` to verify sync
@@ -284,7 +282,6 @@ sops decrypt environments/staging.sops.env | grep AUTH_JWT_REFRESH_EXPIRY
 | Environment | Trigger | Branch | SOPS File |
 |-------------|---------|--------|-----------|
 | Staging | Push to `development` | `development` | `staging.sops.env` |
-| Demo | Merged PR + `deploy-demo` label | `development` | `demo.sops.env` |
 | Production | Push to `main` | `main` | `production.sops.env` |
 
 ### Deploy Flow (CI → Server)
@@ -311,7 +308,6 @@ CI (`build.yml`) runs on push/merge:
   .env              ← decrypted from staging.sops.env (by CI)
   docker-compose.yml ← from staging.compose.yml (images pinned to SHA)
   .deploy-state     ← CURRENT_SHA, PREVIOUS_SHA, DEPLOYED_AT, BACKUP_FILE
-~/demo/             ← demo deployment (same structure)
 ~/production/       ← production deployment (same structure)
 ~/backups/{env}/    ← pg_dump backups (retention: 3 staging, 7 production)
 ```
@@ -324,7 +320,6 @@ CI (`build.yml`) runs on push/merge:
 | `STAGING_SSH_KEY` | SSH deploy key for staging server |
 | `STAGING_SSH_HOST` | Staging server hostname/IP |
 | `STAGING_SSH_KNOWN_HOSTS` | SSH host verification |
-| `DEMO_SSH_KEY` / `DEMO_SSH_HOST` / `DEMO_SSH_KNOWN_HOSTS` | Same for demo |
 | `PRODUCTION_SSH_KEY` / `PRODUCTION_SSH_HOST` / `PRODUCTION_SSH_KNOWN_HOSTS` | Same for production |
 | `DEPLOY_NOTIFY_*` | Email notification recipients for deploy failures |
 

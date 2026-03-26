@@ -6,7 +6,7 @@ inputs:
     description: "Exit code from deploy or rollback script"
     required: true
   environment:
-    description: "Target environment (staging, demo, production)"
+    description: "Target environment (staging, production)"
     required: true
   resend_api_key:
     description: "Resend API key"

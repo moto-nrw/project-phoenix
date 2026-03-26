@@ -10,7 +10,7 @@
 
 ## Optional
 
-**Deploy:** `deploy-staging`, `deploy-demo`
+**Deploy:** `deploy-staging`
 
 ## Rules
 
