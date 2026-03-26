@@ -146,9 +146,9 @@ func setupBasicMiddleware(router chi.Router, logger *slog.Logger) {
 			slogchi.IgnorePath("/health"),
 		},
 	}))
+	router.Use(middleware.Recoverer)
 	sentryMiddleware := sentryhttp.New(sentryhttp.Options{Repanic: true})
 	router.Use(sentryMiddleware.Handle)
-	router.Use(middleware.Recoverer)
 	router.Use(customMiddleware.SecurityHeaders)
 }
 

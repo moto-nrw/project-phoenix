@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"log"
-	"os"
 	"time"
 
 	"github.com/getsentry/sentry-go"
@@ -25,7 +24,7 @@ var serveCmd = &cobra.Command{
 			Env:    viper.GetString("app_env"),
 		})
 
-		if dsn := os.Getenv("SENTRY_DSN"); dsn != "" {
+		if dsn := viper.GetString("sentry_dsn"); dsn != "" {
 			err := sentry.Init(sentry.ClientOptions{
 				Dsn:         dsn,
 				Environment: viper.GetString("app_env"),
