@@ -687,11 +687,7 @@ func (s *workSessionService) CleanupOpenSessions(ctx context.Context) (int, erro
 		// Set check-out time to 23:59:59 of the session date in Berlin timezone.
 		// session.Date is stored as UTC midnight (via TodayUTC), so we must convert
 		// to Berlin to get the correct calendar date before constructing end-of-day.
-		berlinDate := session.Date.In(timezone.Berlin)
-		endOfDay := time.Date(
-			berlinDate.Year(), berlinDate.Month(), berlinDate.Day(),
-			23, 59, 59, 0, timezone.Berlin,
-		)
+		endOfDay := timezone.EndOfDay(session.Date)
 
 		if err := s.repo.CloseSession(ctx, session.ID, endOfDay, true); err != nil {
 			return count, fmt.Errorf("failed to close session %d: %w", session.ID, err)

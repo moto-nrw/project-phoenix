@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -1065,8 +1066,7 @@ func TestWSCleanupOpenSessions_CheckOutTimeIsBerlinEndOfDay(t *testing.T) {
 	// The check-out time must be 23:59:59 Europe/Berlin, NOT 23:59:59 UTC.
 	// In CET (UTC+1), 23:59:59 Berlin = 22:59:59 UTC.
 	// In CEST (UTC+2), 23:59:59 Berlin = 21:59:59 UTC.
-	berlin, _ := time.LoadLocation("Europe/Berlin")
-	checkOutInBerlin := capturedCheckOutTime.In(berlin)
+	checkOutInBerlin := capturedCheckOutTime.In(timezone.Berlin)
 
 	assert.Equal(t, 23, checkOutInBerlin.Hour(), "hour should be 23 in Berlin time")
 	assert.Equal(t, 59, checkOutInBerlin.Minute(), "minute should be 59")
