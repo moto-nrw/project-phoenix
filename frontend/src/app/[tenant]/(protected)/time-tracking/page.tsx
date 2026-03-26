@@ -3851,9 +3851,6 @@ function TimeTrackingContent() {
               />
             </svg>
           </div>
-          <h2 className="text-xl font-bold text-gray-800">
-            Session manuell bearbeitet
-          </h2>
           <p className="mt-2 text-gray-600">
             Du hast diese Session manuell bearbeitet. Beim erneuten Einstempeln
             wird die Ausstempelzeit zurückgesetzt. Trotzdem einstempeln?
@@ -3865,7 +3862,7 @@ function TimeTrackingContent() {
       <Modal
         isOpen={pendingCheckIn !== null}
         onClose={handleClosePendingCheckIn}
-        title=""
+        title="Abwesenheit eingetragen"
         footer={
           <div className="flex w-full gap-3">
             <button
@@ -3903,9 +3900,6 @@ function TimeTrackingContent() {
               />
             </svg>
           </div>
-          <h2 className="text-xl font-bold text-gray-800">
-            Abwesenheit eingetragen
-          </h2>
           <p className="mt-2 text-gray-600">
             Für heute ist eine Abwesenheit eingetragen
             {todayAbsence
