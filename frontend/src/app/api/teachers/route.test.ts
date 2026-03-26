@@ -391,7 +391,6 @@ describe("POST /api/teachers", () => {
   });
 
   it("handles non-Error thrown during creation", async () => {
-    // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
     mockFetch.mockImplementationOnce(() => Promise.reject("network failure"));
 
     const request = createMockRequest("/api/teachers", {

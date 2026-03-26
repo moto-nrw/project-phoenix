@@ -225,13 +225,14 @@ export const PUT = createPutHandler<TeacherResponse, StaffUpdateRequest>(
       if (error.message.includes("403")) {
         throw new Error(
           "Permission denied: You need the 'users:update' permission to update staff members.",
+          { cause: error },
         );
       }
       if (
         error.message.includes("400") &&
         error.message.includes("staff member not found")
       ) {
-        throw new Error("Staff member not found");
+        throw new Error("Staff member not found", { cause: error });
       }
       throw error;
     }
@@ -269,12 +270,13 @@ export const DELETE = createDeleteHandler(
         });
         throw new Error(
           "Permission denied: You need the 'users:delete' permission to delete staff members.",
+          { cause: error },
         );
       }
 
       // Check for not found errors
       if (error instanceof Error && error.message.includes("404")) {
-        throw new Error("Staff member not found");
+        throw new Error("Staff member not found", { cause: error });
       }
 
       // Re-throw other errors

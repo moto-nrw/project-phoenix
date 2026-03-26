@@ -165,7 +165,6 @@ describe("teachersConfig", () => {
   describe("service.create handler", () => {
     it("returns teacher data on successful creation", async () => {
       const { teacherService } = await import("@/lib/teacher-api");
-      // eslint-disable-next-line @typescript-eslint/unbound-method
       const createFn = teacherService.createTeacher;
       const mockedCreate = vi.mocked(createFn);
 
@@ -199,7 +198,6 @@ describe("teachersConfig", () => {
 
     it("returns account_exists result as Teacher-shaped object", async () => {
       const { teacherService } = await import("@/lib/teacher-api");
-      // eslint-disable-next-line @typescript-eslint/unbound-method
       const createFn = teacherService.createTeacher;
       const mockedCreate = vi.mocked(createFn);
 

@@ -15,7 +15,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 const mockSignIn = vi.fn();
 vi.mock("next-auth/react", () => ({
   signIn: (provider: string, options?: Record<string, unknown>) =>
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     mockSignIn(provider, options),
   useSession: vi.fn(() => ({
     data: null,

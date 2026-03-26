@@ -34,7 +34,6 @@ describe("useBreadcrumb", () => {
 
   it("throws when used outside provider", () => {
     // Suppress console.error for expected error
-    // eslint-disable-next-line @typescript-eslint/no-empty-function -- intentionally silencing expected error
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     expect(() => {

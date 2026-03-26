@@ -213,6 +213,7 @@ export const PUT = createPutHandler<
           });
           throw new Error(
             "Datenschutzeinstellungen konnten nicht aktualisiert werden.",
+            { cause: consentError },
           );
         }
       }

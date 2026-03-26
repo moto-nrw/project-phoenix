@@ -33,7 +33,6 @@ describe("RootPage", () => {
   });
 
   it("shows loading skeleton initially", () => {
-    // eslint-disable-next-line @typescript-eslint/no-empty-function
     mockListAllTenants.mockReturnValue(new Promise(() => {})); // never resolves
 
     render(<RootPage />);

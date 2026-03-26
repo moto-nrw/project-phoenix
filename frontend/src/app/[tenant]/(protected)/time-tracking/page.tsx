@@ -461,7 +461,7 @@ function ClockInCard({
   }, [isCheckedIn, isOnBreak]);
 
   // Use `tick` to make `now` reactive (tick triggers re-render)
-  // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+  // eslint-disable-next-line no-unused-expressions
   tick;
   const now = new Date();
 

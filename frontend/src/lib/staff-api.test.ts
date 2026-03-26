@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-misused-promises */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { BackendStaffResponse, StaffFilters } from "./staff-api";
 import { suppressConsole } from "~/test/helpers/console";

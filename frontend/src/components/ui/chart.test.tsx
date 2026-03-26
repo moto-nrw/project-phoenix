@@ -96,7 +96,6 @@ function renderLegendContent(
 describe("useChart", () => {
   it("throws when used outside ChartContainer", () => {
     // Suppress React error boundary noise
-    // eslint-disable-next-line @typescript-eslint/no-empty-function
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     expect(() => render(<ChartTooltipContent active payload={[]} />)).toThrow(

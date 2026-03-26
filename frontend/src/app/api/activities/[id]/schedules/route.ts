@@ -47,6 +47,7 @@ export const GET = createGetHandler(
       // Properly propagate the error for handling in the service layer
       throw new Error(
         `Failed to fetch schedules for activity ${id}: ${error instanceof Error ? error.message : "Unknown error"}`,
+        { cause: error },
       );
     }
   },

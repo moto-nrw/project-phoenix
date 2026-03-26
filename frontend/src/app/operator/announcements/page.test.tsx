@@ -54,7 +54,7 @@ vi.mock("~/lib/operator/announcements-api", () => ({
 }));
 
 // Mock UI components
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-return, @typescript-eslint/prefer-optional-chain */
+
 vi.mock("~/components/ui/page-header", () => ({
   PageHeaderWithSearch: ({ title, badge, filters, actionButton }: any) => (
     <div data-testid="page-header">
@@ -132,16 +132,13 @@ vi.mock("framer-motion", () => ({
     div: ({ children, ...props }: any) => <div {...props}>{children}</div>,
   },
 }));
-/* eslint-enable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-return, @typescript-eslint/prefer-optional-chain */ vi.mock(
-  "lucide-react",
-  () => ({
-    MoreVertical: () => <span>MoreVertical</span>,
-    Pencil: () => <span>Pencil</span>,
-    Trash2: () => <span>Trash2</span>,
-    Send: () => <span>Send</span>,
-    Check: () => <span>Check</span>,
-  }),
-);
+vi.mock("lucide-react", () => ({
+  MoreVertical: () => <span>MoreVertical</span>,
+  Pencil: () => <span>Pencil</span>,
+  Trash2: () => <span>Trash2</span>,
+  Send: () => <span>Send</span>,
+  Check: () => <span>Check</span>,
+}));
 
 import OperatorAnnouncementsPage from "./page";
 
@@ -539,7 +536,6 @@ describe("OperatorAnnouncementsPage", () => {
       expiresAt: new Date("2025-02-01").toISOString(),
     };
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockUseSWR.mockImplementation((key: any) => {
       if (key === "operator-announcements") {
         return {
@@ -642,7 +638,6 @@ describe("OperatorAnnouncementsPage", () => {
 
     // Mock stats SWR call
     const originalMockUseSWR = mockUseSWR.getMockImplementation();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockUseSWR.mockImplementation((key: any, fetcher: any, options: any) => {
       if (key === "operator-announcements") {
         return {
@@ -658,7 +653,6 @@ describe("OperatorAnnouncementsPage", () => {
           mutate: mockMutate,
         };
       }
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-return
       return originalMockUseSWR?.(key, fetcher, options);
     });
 

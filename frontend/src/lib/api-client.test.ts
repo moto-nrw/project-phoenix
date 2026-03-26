@@ -19,13 +19,9 @@ vi.mock("axios", () => ({
 
 vi.mock("./api", () => ({
   default: {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     get: (...args: unknown[]) => mockGet(...args),
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     post: (...args: unknown[]) => mockPost(...args),
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     put: (...args: unknown[]) => mockPut(...args),
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     delete: (...args: unknown[]) => mockDelete(...args),
   },
 }));

@@ -12,7 +12,7 @@ export const GET = createGetHandler(async (request, token, params) => {
 
   const response = await apiGet(`/api/guardians/${guardianId}`, token);
   // @ts-expect-error - API helper returns unknown type
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+
   return response.data;
 });
 
@@ -23,7 +23,7 @@ export const PUT = createPutHandler(async (request, body, token, params) => {
 
   const response = await apiPut(`/api/guardians/${guardianId}`, token, body);
   // @ts-expect-error - API helper returns unknown type
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+
   return response.data;
 });
 

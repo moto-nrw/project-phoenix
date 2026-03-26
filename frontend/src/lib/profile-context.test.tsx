@@ -130,7 +130,6 @@ describe("ProfileContext", () => {
 
       expect(result.current.profile).toBe(null);
       expect(consoleErrorSpy).toHaveBeenCalledWith("failed to load profile", {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         error: expect.any(String),
       });
 

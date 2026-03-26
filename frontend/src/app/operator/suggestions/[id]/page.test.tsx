@@ -73,7 +73,7 @@ vi.mock("~/lib/operator/suggestions-api", () => ({
 }));
 
 // Mock UI components
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call */
+
 vi.mock("~/components/operator/status-dropdown", () => ({
   StatusDropdown: ({ value, onChange }: any) => (
     <select
@@ -107,16 +107,13 @@ vi.mock("~/components/ui/skeleton", () => ({
     <div data-testid="skeleton" className={className} />
   ),
 }));
-/* eslint-enable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment */ vi.mock(
-  "lucide-react",
-  () => ({
-    ThumbsUp: () => <span>ThumbsUp</span>,
-    ThumbsDown: () => <span>ThumbsDown</span>,
-    EyeOff: () => <span>EyeOff</span>,
-    Eye: () => <span>Eye</span>,
-    Trash2: () => <span>Trash2</span>,
-  }),
-);
+vi.mock("lucide-react", () => ({
+  ThumbsUp: () => <span>ThumbsUp</span>,
+  ThumbsDown: () => <span>ThumbsDown</span>,
+  EyeOff: () => <span>EyeOff</span>,
+  Eye: () => <span>Eye</span>,
+  Trash2: () => <span>Trash2</span>,
+}));
 
 vi.mock("~/lib/format-utils", () => ({
   getRelativeTime: (_date: Date) => "2 hours ago",
@@ -334,7 +331,6 @@ describe("OperatorSuggestionDetailPage", () => {
 
     render(<OperatorSuggestionDetailPage />);
 
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
     const textarea = screen.getByPlaceholderText(
       "Kommentar schreiben...",
     ) as HTMLTextAreaElement;

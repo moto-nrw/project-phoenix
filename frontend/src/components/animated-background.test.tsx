@@ -77,7 +77,6 @@ describe("AnimatedBackground", () => {
 
   it("initializes canvas context", () => {
     render(<AnimatedBackground />);
-    // eslint-disable-next-line @typescript-eslint/unbound-method
     expect(HTMLCanvasElement.prototype.getContext).toHaveBeenCalledWith("2d");
   });
 

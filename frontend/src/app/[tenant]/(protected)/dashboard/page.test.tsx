@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-return */
 import { render, screen, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import DashboardPage from "./page";
@@ -35,7 +34,6 @@ vi.mock("next-auth/react", () => ({
 }));
 
 vi.mock("~/lib/auth-utils", () => ({
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-member-access
   isAdmin: vi.fn((session) => session?.user?.isAdmin ?? false),
 }));
 

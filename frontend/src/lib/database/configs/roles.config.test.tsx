@@ -85,7 +85,8 @@ describe("rolesConfig", () => {
 
     const badges = rolesConfig.detail.header?.badges ?? [];
     const permBadge = badges[0];
-    expect((permBadge?.label as (entity: Role) => string)(mockRole)).toBe(
+    expect(permBadge).toBeDefined();
+    expect((permBadge!.label as (entity: Role) => string)(mockRole)).toBe(
       "2 Berechtigungen",
     );
   });
