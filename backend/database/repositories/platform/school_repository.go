@@ -53,7 +53,7 @@ func (r *SchoolRepository) Update(ctx context.Context, school *platform.School) 
 	result, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model(school).
 		ModelTableExpr(schoolTableAlias).
-		Column("organization_id", "name", "slug", "subdomain", "address", "city", "zip", "phone", "email", "active", "settings").
+		Column("organization_id", "name", "slug", "subdomain", "address", "city", "zip", "phone", "email", "active", "hidden", "settings").
 		Where(`"school".id = ?`, school.ID).
 		Exec(ctx)
 	if err != nil {
@@ -155,6 +155,7 @@ func (r *SchoolRepository) ListActive(ctx context.Context) ([]platform.School, e
 		ModelTableExpr(schoolTableAlias).
 		Relation("Organization").
 		Where(`"school".active = true`).
+		Where(`"school".hidden = false`).
 		OrderExpr(`"school".name ASC`).
 		Scan(ctx)
 	if err != nil {
@@ -164,6 +165,7 @@ func (r *SchoolRepository) ListActive(ctx context.Context) ([]platform.School, e
 }
 
 // FindActiveByAccountID returns all active schools the given account has access to.
+// Hidden schools are intentionally included — hidden only affects the public landing page.
 func (r *SchoolRepository) FindActiveByAccountID(ctx context.Context, accountID int64) ([]platform.School, error) {
 	var schools []platform.School
 	err := base.GetDB(ctx, r.db).NewSelect().

@@ -593,6 +593,69 @@ func TestProvisioningResource_UpdateSchool_Conflict(t *testing.T) {
 	assert.Equal(t, http.StatusConflict, rr.Code)
 }
 
+func TestProvisioningResource_UpdateSchool_HiddenField(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{
+		updateSchoolFn: func(_ context.Context, id int64, req platformSvc.UpdateSchoolRequest, operatorID int64, _ net.IP) (*platformModels.School, error) {
+			assert.Equal(t, int64(10), id)
+			assert.True(t, req.Hidden, "hidden field should be true")
+			assert.True(t, req.Active, "active field should be true")
+			return &platformModels.School{
+				Model:     modelBase.Model{ID: 10},
+				Name:      req.Name,
+				Slug:      req.Slug,
+				Subdomain: req.Subdomain,
+				Active:    req.Active,
+				Hidden:    req.Hidden,
+			}, nil
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPut, "/operator/schools/10", bytes.NewBufferString(
+		`{"organization_id":7,"name":"School","slug":"school","subdomain":"sub","email":"a@b.com","active":true,"hidden":true}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = "198.51.100.20:4444"
+	req = withOperatorClaims(req, 42)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "10")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.UpdateSchool(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+
+	body := decodeBody(t, rr)
+	data := body["data"].(map[string]any)
+	assert.Equal(t, true, data["hidden"])
+}
+
+func TestProvisioningResource_UpdateSchool_HiddenDefaultsFalse(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{
+		updateSchoolFn: func(_ context.Context, _ int64, req platformSvc.UpdateSchoolRequest, _ int64, _ net.IP) (*platformModels.School, error) {
+			assert.False(t, req.Hidden, "hidden should default to false when omitted from JSON")
+			return &platformModels.School{
+				Model:  modelBase.Model{ID: 10},
+				Name:   req.Name,
+				Slug:   req.Slug,
+				Hidden: req.Hidden,
+			}, nil
+		},
+	})
+
+	// JSON body without hidden field — Go zero-value should be false
+	req := httptest.NewRequest(http.MethodPut, "/operator/schools/10", bytes.NewBufferString(
+		`{"organization_id":7,"name":"School","slug":"school","subdomain":"sub","email":"a@b.com","active":true}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = "198.51.100.20:4444"
+	req = withOperatorClaims(req, 42)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "10")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.UpdateSchool(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+}
+
 // --- Bind method tests ---
 
 func TestUpdateOrganizationRequest_Bind_MissingName(t *testing.T) {

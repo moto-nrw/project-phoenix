@@ -92,6 +92,7 @@ type updateSchoolRequest struct {
 	Phone          string `json:"phone"`
 	Email          string `json:"email"`
 	Active         bool   `json:"active"`
+	Hidden         bool   `json:"hidden"`
 }
 
 func (req *updateSchoolRequest) Bind(_ *http.Request) error {
@@ -288,6 +289,7 @@ func (rs *ProvisioningResource) UpdateSchool(w http.ResponseWriter, r *http.Requ
 		Phone:          req.Phone,
 		Email:          req.Email,
 		Active:         req.Active,
+		Hidden:         req.Hidden,
 	}
 	updated, err := rs.service.UpdateSchool(r.Context(), schoolID, svcReq, operatorID, getClientIP(r))
 	if err != nil {

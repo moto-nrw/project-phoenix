@@ -32,6 +32,7 @@ export function EditSchoolModal({
   const [schoolZip, setSchoolZip] = useState("");
   const [schoolPhone, setSchoolPhone] = useState("");
   const [schoolEmail, setSchoolEmail] = useState("");
+  const [schoolHidden, setSchoolHidden] = useState(false);
   const [schoolSaving, setSchoolSaving] = useState(false);
   const [schoolError, setSchoolError] = useState("");
   const errorRef = useScrollToError(schoolError);
@@ -47,6 +48,7 @@ export function EditSchoolModal({
       setSchoolZip(school.zip ?? "");
       setSchoolPhone(school.phone ?? "");
       setSchoolEmail(school.email ?? "");
+      setSchoolHidden(school.hidden);
       setSchoolError("");
     }
   }, [isOpen, school]);
@@ -90,6 +92,7 @@ export function EditSchoolModal({
           phone: schoolPhone?.trim() ?? "",
           email: schoolEmail?.trim() ?? "",
           active: school.active,
+          hidden: schoolHidden,
         });
         // Purge ISR cache for old subdomain so it stops serving stale pages
         if (oldSubdomain !== newSubdomain) {
@@ -140,6 +143,7 @@ export function EditSchoolModal({
       schoolZip,
       schoolPhone,
       schoolEmail,
+      schoolHidden,
       onClose,
       onUpdated,
     ],
@@ -240,6 +244,33 @@ export function EditSchoolModal({
               <FieldWarning message="Subdomain-Änderungen erfordern, dass alle Benutzer die neue Adresse verwenden. Die alte Adresse wird nach kurzer Zeit nicht mehr erreichbar sein." />
             )}
           </FormField>
+        </div>
+
+        <div className="border-t border-gray-100 pt-4">
+          <p className="mb-3 text-xs font-medium text-gray-500 uppercase">
+            Sichtbarkeit
+          </p>
+          <label
+            aria-label="Sichtbarkeit auf der Startseite"
+            className={`flex w-full cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 text-sm transition-colors ${schoolHidden ? "border-yellow-200 bg-yellow-50 text-yellow-800" : "border-blue-200 bg-blue-50 text-blue-800"}`}
+          >
+            <input
+              type="checkbox"
+              checked={!schoolHidden}
+              onChange={() => setSchoolHidden(!schoolHidden)}
+              className="h-4 w-4 shrink-0 rounded border-gray-300 text-blue-500 focus:ring-blue-500"
+            />
+            <div className="flex-1 text-center">
+              <span className="font-medium">
+                {schoolHidden ? "Verborgen" : "Sichtbar"}
+              </span>
+              <p className="mt-0.5 text-xs opacity-70">
+                {schoolHidden
+                  ? "Schule wird nicht auf der Startseite angezeigt, ist aber per Direktlink erreichbar."
+                  : "Schule wird auf der Startseite im Tenant-Selector angezeigt."}
+              </p>
+            </div>
+          </label>
         </div>
 
         <div className="border-t border-gray-100 pt-4">

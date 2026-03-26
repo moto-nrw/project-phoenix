@@ -188,6 +188,67 @@ func TestSchoolRepository_QueryMethods(t *testing.T) {
 		assert.False(t, foundB)
 	})
 
+	t.Run("list active filters hidden schools", func(t *testing.T) {
+		// Create a hidden but active school
+		hiddenSchool := &platformModels.School{
+			Model:          modelBase.Model{ID: now + 10},
+			OrganizationID: orgA.ID,
+			Name:           fmt.Sprintf("Hidden School %d", now),
+			Slug:           fmt.Sprintf("hidden-school-%d", now),
+			Subdomain:      fmt.Sprintf("hidden-school-%d", now),
+			Active:         true,
+			Hidden:         true,
+		}
+		require.NoError(t, repo.Create(ctx, hiddenSchool))
+		t.Cleanup(func() {
+			_, _ = db.ExecContext(ctx, `DELETE FROM platform.schools WHERE id = ?`, hiddenSchool.ID)
+		})
+
+		items, err := repo.ListActive(ctx)
+		require.NoError(t, err)
+		foundA := false
+		foundHidden := false
+		for _, item := range items {
+			if item.ID == schoolA.ID {
+				foundA = true
+			}
+			if item.ID == hiddenSchool.ID {
+				foundHidden = true
+			}
+		}
+		assert.True(t, foundA, "active non-hidden school should be listed")
+		assert.False(t, foundHidden, "active but hidden school should not be listed")
+	})
+
+	t.Run("list returns hidden schools", func(t *testing.T) {
+		// Create own hidden school to avoid depending on prior subtests
+		listHiddenSchool := &platformModels.School{
+			Model:          modelBase.Model{ID: now + 11},
+			OrganizationID: orgA.ID,
+			Name:           fmt.Sprintf("ListHidden School %d", now),
+			Slug:           fmt.Sprintf("list-hidden-%d", now),
+			Subdomain:      fmt.Sprintf("list-hidden-%d", now),
+			Active:         true,
+			Hidden:         true,
+		}
+		require.NoError(t, repo.Create(ctx, listHiddenSchool))
+		t.Cleanup(func() {
+			_, _ = db.ExecContext(ctx, `DELETE FROM platform.schools WHERE id = ?`, listHiddenSchool.ID)
+		})
+
+		// List (used by operator dashboard) should return all schools including hidden
+		items, err := repo.List(ctx)
+		require.NoError(t, err)
+		foundHidden := false
+		for _, item := range items {
+			if item.ID == listHiddenSchool.ID {
+				foundHidden = true
+				break
+			}
+		}
+		assert.True(t, foundHidden, "List should include hidden schools for operator management")
+	})
+
 	t.Run("find active by account id returns active school memberships only", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "school-query")
 		t.Cleanup(func() {

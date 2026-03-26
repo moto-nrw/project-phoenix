@@ -1463,6 +1463,125 @@ func TestOperatorProvisioningService_UpdateSchool_Success(t *testing.T) {
 	assert.Equal(t, updatedSchool, school)
 }
 
+func TestOperatorProvisioningService_UpdateSchool_Hidden(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectCommit()
+
+	var updatedSchool *platformModels.School
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		OrganizationRepo: &mockOrganizationRepo{},
+		SchoolRepo: &mockSchoolRepo{
+			findByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
+				return &platformModels.School{
+					Model:          base.Model{ID: 50},
+					OrganizationID: 2,
+					Name:           "Test School",
+					Slug:           "test-school",
+					Subdomain:      "test-school",
+					Active:         true,
+					Hidden:         false,
+				}, nil
+			},
+			findByOrgAndSlugFn: func(_ context.Context, orgID int64, slug string) (*platformModels.School, error) {
+				return nil, nil
+			},
+			findBySubdomainFn: func(_ context.Context, subdomain string) (*platformModels.School, error) {
+				return nil, nil
+			},
+			updateFn: func(_ context.Context, school *platformModels.School) error {
+				updatedSchool = school
+				return nil
+			},
+		},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+		DB:           bunDB,
+	})
+
+	school, err := service.UpdateSchool(context.Background(), 50, platformSvc.UpdateSchoolRequest{
+		OrganizationID: 2,
+		Name:           "Test School",
+		Slug:           "test-school",
+		Subdomain:      "test-school",
+		Active:         true,
+		Hidden:         true,
+	}, 7, net.IPv4(127, 0, 0, 1))
+	require.NoError(t, err)
+	require.NotNil(t, school)
+	assert.True(t, school.Hidden, "hidden field should be set to true")
+	assert.True(t, school.Active, "active field should remain true")
+	assert.Equal(t, updatedSchool, school)
+}
+
+func TestOperatorProvisioningService_UpdateSchool_UnhideSchool(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectCommit()
+
+	var updatedSchool *platformModels.School
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		OrganizationRepo: &mockOrganizationRepo{},
+		SchoolRepo: &mockSchoolRepo{
+			findByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
+				return &platformModels.School{
+					Model:          base.Model{ID: 50},
+					OrganizationID: 2,
+					Name:           "Hidden School",
+					Slug:           "hidden-school",
+					Subdomain:      "hidden-school",
+					Active:         true,
+					Hidden:         true,
+				}, nil
+			},
+			findByOrgAndSlugFn: func(_ context.Context, orgID int64, slug string) (*platformModels.School, error) {
+				return nil, nil
+			},
+			findBySubdomainFn: func(_ context.Context, subdomain string) (*platformModels.School, error) {
+				return nil, nil
+			},
+			updateFn: func(_ context.Context, school *platformModels.School) error {
+				updatedSchool = school
+				return nil
+			},
+		},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+		DB:           bunDB,
+	})
+
+	school, err := service.UpdateSchool(context.Background(), 50, platformSvc.UpdateSchoolRequest{
+		OrganizationID: 2,
+		Name:           "Hidden School",
+		Slug:           "hidden-school",
+		Subdomain:      "hidden-school",
+		Active:         true,
+		Hidden:         false,
+	}, 7, net.IPv4(127, 0, 0, 1))
+	require.NoError(t, err)
+	require.NotNil(t, school)
+	assert.False(t, school.Hidden, "hidden field should be set to false (unhidden)")
+	assert.Equal(t, updatedSchool, school)
+}
+
 func TestOperatorProvisioningService_UpdateSchool_NotFound(t *testing.T) {
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)

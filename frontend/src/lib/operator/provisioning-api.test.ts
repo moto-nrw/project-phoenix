@@ -42,6 +42,7 @@ const mockBackendSchool: BackendSchool = {
   phone: "0221123456",
   email: "info@ggs-europa.de",
   active: true,
+  hidden: false,
   settings: null,
   created_at: NOW,
   updated_at: NOW,
@@ -148,6 +149,7 @@ describe("OperatorProvisioningService", () => {
         phone: "030123456",
         email: "school@example.com",
         active: true,
+        hidden: false,
       };
       await operatorProvisioningService.updateSchool("10", updateData);
 
@@ -171,6 +173,7 @@ describe("OperatorProvisioningService", () => {
         phone: "0221123456",
         email: "info@ggs-europa.de",
         active: true,
+        hidden: false,
       });
 
       expect(result).toEqual({
@@ -185,10 +188,41 @@ describe("OperatorProvisioningService", () => {
         phone: "0221123456",
         email: "info@ggs-europa.de",
         active: true,
+        hidden: false,
         createdAt: NOW,
         updatedAt: NOW,
         organization: undefined,
       });
+    });
+
+    it("sends hidden=true when hiding a school", async () => {
+      mockOperatorFetch.mockResolvedValue({
+        ...mockBackendSchool,
+        hidden: true,
+      });
+
+      const result = await operatorProvisioningService.updateSchool("10", {
+        organization_id: 5,
+        name: "GGS Europaschule",
+        slug: "ggs-europa",
+        subdomain: "ggs-europa",
+        address: "Hauptstr. 1",
+        city: "Köln",
+        zip: "50667",
+        phone: "0221123456",
+        email: "info@ggs-europa.de",
+        active: true,
+        hidden: true,
+      });
+
+      expect(result.hidden).toBe(true);
+      expect(result.active).toBe(true);
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/schools/10",
+        expect.objectContaining({
+          body: expect.objectContaining({ hidden: true }),
+        }),
+      );
     });
   });
 

@@ -399,6 +399,7 @@ export default function OperatorProvisioningPage() {
           phone: school.phone ?? "",
           email: school.email ?? "",
           active: !school.active,
+          hidden: school.hidden,
         });
         await mutateSchools();
         try {
@@ -867,15 +868,22 @@ function SchoolCard({
             )}
           </div>
         </div>
-        <button
-          type="button"
-          onClick={() => void onToggleActive(school)}
-          className="cursor-pointer"
-          title={school.active ? "Deaktivieren" : "Aktivieren"}
-          aria-label={school.active ? "Deaktivieren" : "Aktivieren"}
-        >
-          <StatusBadge active={school.active} />
-        </button>
+        <div className="flex items-center gap-2">
+          {school.hidden && (
+            <span className="inline-flex items-center rounded-full bg-yellow-100 px-1.5 py-0.5 text-xs font-medium text-yellow-700">
+              Verborgen
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={() => void onToggleActive(school)}
+            className="cursor-pointer"
+            title={school.active ? "Deaktivieren" : "Aktivieren"}
+            aria-label={school.active ? "Deaktivieren" : "Aktivieren"}
+          >
+            <StatusBadge active={school.active} />
+          </button>
+        </div>
       </div>
 
       {(school.address || school.city) && (

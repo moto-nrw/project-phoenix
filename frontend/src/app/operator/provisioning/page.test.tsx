@@ -162,6 +162,7 @@ const mockSchool = {
   phone: "",
   email: "",
   active: true,
+  hidden: false,
   createdAt: "2025-01-01T00:00:00Z",
   updatedAt: "2025-01-01T00:00:00Z",
   organization: { ...mockOrg },
@@ -624,6 +625,7 @@ describe("OperatorProvisioningPage", () => {
         phone: "",
         email: "",
         active: false,
+        hidden: false,
       });
       expect(mockMutateSchools).toHaveBeenCalled();
     });
@@ -2436,5 +2438,51 @@ describe("OperatorProvisioningPage", () => {
       expect(modal).toHaveTextContent("Test School");
       expect(modal).toHaveTextContent("10");
     });
+  });
+
+  // --- Hidden Badge on SchoolCard ---
+
+  it("does not show Verborgen badge for non-hidden school", () => {
+    setupSWR([mockOrg], [mockSchool]);
+
+    render(<OperatorProvisioningPage />);
+    fireEvent.click(screen.getByTestId("tab-schools"));
+
+    expect(screen.queryByText("Verborgen")).not.toBeInTheDocument();
+  });
+
+  it("shows Verborgen badge for hidden school", () => {
+    const hiddenSchool = { ...mockSchool, hidden: true };
+    setupSWR([mockOrg], [hiddenSchool]);
+
+    render(<OperatorProvisioningPage />);
+    fireEvent.click(screen.getByTestId("tab-schools"));
+
+    expect(screen.getByText("Verborgen")).toBeInTheDocument();
+  });
+
+  it("shows Verborgen badge only on hidden schools when mixed", () => {
+    const visibleSchool = {
+      ...mockSchool,
+      id: "11",
+      name: "Visible School",
+      slug: "visible",
+      subdomain: "visible",
+    };
+    const hiddenSchool = {
+      ...mockSchool,
+      id: "12",
+      name: "Hidden School",
+      slug: "hidden",
+      subdomain: "hidden",
+      hidden: true,
+    };
+    setupSWR([mockOrg], [visibleSchool, hiddenSchool]);
+
+    render(<OperatorProvisioningPage />);
+    fireEvent.click(screen.getByTestId("tab-schools"));
+
+    const badges = screen.getAllByText("Verborgen");
+    expect(badges).toHaveLength(1);
   });
 });

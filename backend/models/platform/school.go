@@ -21,6 +21,7 @@ type School struct {
 	Slug           string `bun:"slug,notnull" json:"slug"`
 	Subdomain      string `bun:"subdomain,notnull,unique" json:"subdomain"`
 	Active         bool   `bun:"active,notnull,default:true" json:"active"`
+	Hidden         bool   `bun:"hidden,notnull,default:false" json:"hidden"`
 	Settings       string `bun:"settings,default:'{}'" json:"settings,omitempty"`
 	Address        string `bun:"address" json:"address,omitempty"`
 	City           string `bun:"city" json:"city,omitempty"`

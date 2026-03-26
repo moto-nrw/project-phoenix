@@ -157,6 +157,7 @@ describe("mapSchool", () => {
       phone: "+49123456",
       email: "info@test.de",
       active: true,
+      hidden: false,
       settings: null,
       created_at: "2025-01-01T00:00:00Z",
       updated_at: "2025-01-02T00:00:00Z",
@@ -169,7 +170,34 @@ describe("mapSchool", () => {
     expect(result.name).toBe("Test School");
     expect(result.subdomain).toBe("test");
     expect(result.address).toBe("Main St 1");
+    expect(result.hidden).toBe(false);
     expect(result.organization).toBeUndefined();
+  });
+
+  it("maps hidden school correctly", () => {
+    const backend: BackendSchool = {
+      id: 20,
+      organization_id: 42,
+      name: "Hidden School",
+      slug: "hidden-school",
+      subdomain: "hidden",
+      address: "",
+      city: "",
+      zip: "",
+      phone: "",
+      email: "",
+      active: true,
+      hidden: true,
+      settings: null,
+      created_at: "2025-01-01T00:00:00Z",
+      updated_at: "2025-01-02T00:00:00Z",
+    };
+
+    const result = mapSchool(backend);
+
+    expect(result.hidden).toBe(true);
+    expect(result.active).toBe(true);
+    expect(result.id).toBe("20");
   });
 
   it("maps nested organization when present", () => {
@@ -185,6 +213,7 @@ describe("mapSchool", () => {
       phone: "",
       email: "",
       active: true,
+      hidden: false,
       settings: null,
       created_at: "2025-01-01T00:00:00Z",
       updated_at: "2025-01-02T00:00:00Z",
