@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import Link from "next/link";
 import { AnimatePresence, LayoutGroup, motion } from "framer-motion";
 import { ThumbsUp, ThumbsDown } from "lucide-react";
 // eslint-disable-next-line no-restricted-imports -- operator pages use useOperatorAuth, not NextAuth
@@ -22,6 +23,7 @@ import type {
 } from "~/lib/operator/suggestions-helpers";
 import { getRelativeTime, getInitials } from "~/lib/format-utils";
 import { createLogger } from "~/lib/logger";
+import { operatorPath } from "~/lib/operator-url";
 
 const logger = createLogger({ component: "OperatorSuggestionsPage" });
 
@@ -290,7 +292,12 @@ function OperatorSuggestionCard({
       <div className="p-5">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <h3 className="flex min-w-0 items-center gap-2 text-base font-semibold wrap-anywhere text-gray-900">
-            {suggestion.title}
+            <Link
+              href={operatorPath(`/operator/suggestions/${suggestion.id}`)}
+              className="hover:underline"
+            >
+              {suggestion.title}
+            </Link>
             {suggestion.isNew && (
               <span className="shrink-0 rounded-full bg-blue-500 px-2 py-0.5 text-[10px] font-semibold text-white">
                 Neu
