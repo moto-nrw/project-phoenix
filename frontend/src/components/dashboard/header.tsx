@@ -4,8 +4,6 @@
 
 import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { HelpButton } from "@/components/ui/help_button";
-import { getHelpContent } from "@/lib/help-content";
 import { LogoutModal } from "~/components/ui/logout-modal";
 import { TenantSwitcher } from "~/components/tenant/tenant-switcher";
 import { useShellAuth } from "~/lib/shell-auth-context";
@@ -50,7 +48,6 @@ export function Header() {
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const pathname = usePathname();
-  const helpContent = getHelpContent(pathname);
   const pageTitle = customPageTitle ?? getPageTitle(pathname);
   const {
     user,
@@ -136,11 +133,6 @@ export function Header() {
             <div className="hidden items-center space-x-2 lg:flex">
               <SessionWarning isExpired={isSessionExpired} variant="desktop" />
               <RefreshButton />
-              <HelpButton
-                title={helpContent.title}
-                content={helpContent.content}
-                buttonClassName="!w-[40px] !h-[40px] !min-w-[40px] !min-h-[40px] p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 !bg-transparent rounded-lg transition-colors duration-200"
-              />
             </div>
 
             {/* Mobile actions */}

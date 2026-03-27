@@ -5,11 +5,10 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { signIn, useSession } from "next-auth/react";
-import { Input, Alert, HelpButton } from "~/components/ui";
+import { Input, Alert } from "~/components/ui";
 import { Loading } from "~/components/ui/loading";
 import { launchConfetti, clearConfetti } from "~/lib/confetti";
 import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
-import { LoginHelpContent } from "~/components/shared/login-help-content";
 import { operatorPath } from "~/lib/operator-url";
 
 export default function OperatorLoginPage() {
@@ -84,20 +83,6 @@ export default function OperatorLoginPage() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-4">
       <div className="relative mx-auto w-full max-w-2xl rounded-2xl bg-white/80 p-6 text-center shadow-xl backdrop-blur-md transition-all duration-300 hover:bg-white/90 hover:shadow-2xl sm:p-10">
-        {/* Help Button */}
-        <div className="absolute top-4 right-4">
-          <HelpButton
-            title="Hilfe"
-            content={
-              <LoginHelpContent
-                accountType="Operator-Account"
-                emailLabel="Ihre Operator E-Mail-Adresse"
-                passwordLabel="Ihr Operator-Passwort"
-              />
-            }
-          />
-        </div>
-
         {/* Logo Section */}
         <div className="mb-8 flex justify-center">
           <Image
