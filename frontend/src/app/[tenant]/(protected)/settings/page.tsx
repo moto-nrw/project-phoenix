@@ -12,6 +12,7 @@ import { Loading } from "~/components/ui/loading";
 import { useProfile } from "~/lib/profile-context";
 import { compressAvatar } from "~/lib/image-utils";
 import { SettingsLayout } from "~/components/shared/settings-layout";
+import { useSettingsTabs } from "~/components/settings/settings-page";
 
 const logger = createLogger({ component: "SettingsPage" });
 
@@ -38,6 +39,8 @@ function SettingsContent() {
     lastName: "",
     email: "",
   });
+
+  const settingsTabs = useSettingsTabs();
 
   const handleAlertClose = useCallback(() => {
     setShowAlert(false);
@@ -333,6 +336,8 @@ function SettingsContent() {
     <SettingsLayout
       profileTab={profileTab}
       mobileProfileCard={mobileProfileCard}
+      extraTabs={settingsTabs?.tabs}
+      renderExtraTab={settingsTabs?.renderTab}
       onPasswordSuccess={() => {
         toastSuccess("Passwort erfolgreich geändert");
       }}

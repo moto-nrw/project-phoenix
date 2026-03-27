@@ -161,6 +161,7 @@ interface SettingsLayoutProps {
   readonly profileTab: ReactNode;
   readonly mobileProfileCard: ReactNode;
   readonly extraTabs?: Tab[];
+  readonly renderExtraTab?: (tabId: string) => ReactNode;
   readonly passwordApiEndpoint?: string;
   readonly onPasswordSuccess?: () => void;
   readonly alert?: {
@@ -175,6 +176,7 @@ export function SettingsLayout({
   profileTab,
   mobileProfileCard,
   extraTabs,
+  renderExtraTab,
   passwordApiEndpoint,
   onPasswordSuccess,
   alert,
@@ -225,6 +227,10 @@ export function SettingsLayout({
           />
         );
       default:
+        // Delegate to renderExtraTab for dynamic settings tabs
+        if (activeTab && renderExtraTab) {
+          return renderExtraTab(activeTab);
+        }
         return null;
     }
   };
