@@ -158,17 +158,21 @@ func (r *AnnouncementViewRepository) GetStats(ctx context.Context, announcementI
 		AnnouncementID: announcementID,
 	}
 
-	// Get the targeting criteria for this announcement
-	var targetRoles []string
-	var targetOrgIDs []int64
-	var targetTenantIDs []int64
+	// Get the targeting criteria for this announcement.
+	// Use a typed struct so bun/pgdriver correctly deserializes bigint[] columns
+	// (positional Scan with []int64 fails because database/sql sees them as text).
+	var targeting struct {
+		TargetRoles     []string `bun:"target_roles,array"`
+		TargetOrgIDs    []int64  `bun:"target_org_ids,array"`
+		TargetTenantIDs []int64  `bun:"target_tenant_ids,array"`
+	}
 	err := base.GetDB(ctx, r.db).NewRaw(`
 		SELECT
-			COALESCE(target_roles, '{}'::text[]),
-			COALESCE(target_org_ids, '{}'::bigint[]),
-			COALESCE(target_tenant_ids, '{}'::bigint[])
+			COALESCE(target_roles, '{}'::text[]) AS target_roles,
+			COALESCE(target_org_ids, '{}'::bigint[]) AS target_org_ids,
+			COALESCE(target_tenant_ids, '{}'::bigint[]) AS target_tenant_ids
 		FROM platform.announcements WHERE id = ?
-	`, announcementID).Scan(ctx, &targetRoles, &targetOrgIDs, &targetTenantIDs)
+	`, announcementID).Scan(ctx, &targeting)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get announcement targeting criteria",
@@ -176,6 +180,9 @@ func (r *AnnouncementViewRepository) GetStats(ctx context.Context, announcementI
 		}
 	}
 
+	targetRoles := targeting.TargetRoles
+	targetOrgIDs := targeting.TargetOrgIDs
+	targetTenantIDs := targeting.TargetTenantIDs
 	hasRoleFilter := len(targetRoles) > 0
 	hasOrgFilter := len(targetOrgIDs) > 0
 	hasTenantFilter := len(targetTenantIDs) > 0
