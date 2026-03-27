@@ -2561,8 +2561,11 @@ func TestDeviceCheckin_ResponseIncludesPickupTime(t *testing.T) {
 	activeGroup := testpkg.CreateTestActiveGroup(t, ctx.db, activity.ID, room.ID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, activeGroup.ID)
 
-	// Create pickup schedule for today's weekday
-	todayWeekday := int(time.Now().Weekday())
+	// Create pickup schedule for today's weekday.
+	// Use timezone.DateOf (Europe/Berlin) to match the production lookup in
+	// GetEffectivePickupTimeForDate, avoiding flaky results on non-Berlin CI runners.
+	berlinToday := timezone.DateOf(time.Now())
+	todayWeekday := int(berlinToday.Weekday())
 	if todayWeekday == 0 {
 		todayWeekday = 7 // ISO: Sunday = 7
 	}
