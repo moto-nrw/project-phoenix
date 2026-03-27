@@ -38,7 +38,7 @@ func (rs *AnnouncementsResource) GetUnread(w http.ResponseWriter, r *http.Reques
 	claims := jwt.ClaimsFromCtx(r.Context())
 	userID := int64(claims.ID)
 
-	announcements, err := rs.announcementService.GetUnreadForUser(r.Context(), userID, claims.Roles, claims.OrgID, claims.TenantID)
+	announcements, err := rs.announcementService.GetUnreadForUser(r.Context(), userID, claims.Roles)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("failed to retrieve announcements")))
 		return
@@ -69,7 +69,7 @@ func (rs *AnnouncementsResource) GetUnreadCount(w http.ResponseWriter, r *http.R
 	claims := jwt.ClaimsFromCtx(r.Context())
 	userID := int64(claims.ID)
 
-	count, err := rs.announcementService.CountUnread(r.Context(), userID, claims.Roles, claims.OrgID, claims.TenantID)
+	count, err := rs.announcementService.CountUnread(r.Context(), userID, claims.Roles)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("failed to count announcements")))
 		return

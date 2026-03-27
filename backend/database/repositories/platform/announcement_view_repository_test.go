@@ -496,12 +496,19 @@ func TestAnnouncementViewRepository_GetUnreadForUser(t *testing.T) {
 	assignTestRole(t, db, accountID, roleID, schoolID)
 	defer cleanupTestAccountRole(t, db, accountID, roleID)
 
+	// Create account_tenants membership so the subquery finds this user's org/tenant
+	createTestAccountTenant(t, db, accountID, schoolID)
+	defer func() {
+		cleanupCtx := testpkg.TenantContext(1)
+		_, _ = db.NewRaw(`DELETE FROM auth.account_tenants WHERE account_id = ? AND tenant_id = ?`, accountID, schoolID).Exec(cleanupCtx)
+	}()
+
 	t.Run("global announcement visible to all", func(t *testing.T) {
 		annoID := createTestAnnouncementWithTargeting(t, db, "global-all", operator.ID, []string{}, []int64{}, []int64{})
 		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 
-		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"}, orgID, schoolID)
+		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"})
 		require.NoError(t, err)
 
 		found := false
@@ -518,7 +525,7 @@ func TestAnnouncementViewRepository_GetUnreadForUser(t *testing.T) {
 		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 
-		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"}, orgID, schoolID)
+		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"})
 		require.NoError(t, err)
 
 		found := false
@@ -535,7 +542,7 @@ func TestAnnouncementViewRepository_GetUnreadForUser(t *testing.T) {
 		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 
-		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"}, orgID, schoolID)
+		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"})
 		require.NoError(t, err)
 
 		for _, a := range results {
@@ -548,7 +555,7 @@ func TestAnnouncementViewRepository_GetUnreadForUser(t *testing.T) {
 		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 
-		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"}, orgID, schoolID)
+		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"})
 		require.NoError(t, err)
 
 		found := false
@@ -565,7 +572,7 @@ func TestAnnouncementViewRepository_GetUnreadForUser(t *testing.T) {
 		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 
-		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"}, orgID, schoolID)
+		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"})
 		require.NoError(t, err)
 
 		for _, a := range results {
@@ -578,7 +585,7 @@ func TestAnnouncementViewRepository_GetUnreadForUser(t *testing.T) {
 		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 
-		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"}, orgID, schoolID)
+		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"})
 		require.NoError(t, err)
 
 		found := false
@@ -595,7 +602,7 @@ func TestAnnouncementViewRepository_GetUnreadForUser(t *testing.T) {
 		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 
-		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"}, orgID, schoolID)
+		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"})
 		require.NoError(t, err)
 
 		for _, a := range results {
@@ -609,7 +616,7 @@ func TestAnnouncementViewRepository_GetUnreadForUser(t *testing.T) {
 		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 
-		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"}, orgID, schoolID)
+		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"})
 		require.NoError(t, err)
 
 		found := false
@@ -631,7 +638,7 @@ func TestAnnouncementViewRepository_GetUnreadForUser(t *testing.T) {
 		require.NoError(t, err)
 		defer cleanupTestAnnouncementView(t, db, accountID, annoID)
 
-		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"}, orgID, schoolID)
+		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"})
 		require.NoError(t, err)
 
 		for _, a := range results {
@@ -644,7 +651,7 @@ func TestAnnouncementViewRepository_GetUnreadForUser(t *testing.T) {
 		annoID := createTestAnnouncementWithTargeting(t, db, "unpublished", operator.ID, []string{}, []int64{}, []int64{})
 		defer cleanupTestAnnouncement(t, db, annoID)
 
-		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"}, orgID, schoolID)
+		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"})
 		require.NoError(t, err)
 
 		for _, a := range results {
@@ -658,7 +665,7 @@ func TestAnnouncementViewRepository_GetUnreadForUser(t *testing.T) {
 		publishTestAnnouncement(t, db, annoID)
 		expireTestAnnouncement(t, db, annoID)
 
-		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"}, orgID, schoolID)
+		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"})
 		require.NoError(t, err)
 
 		for _, a := range results {
@@ -700,8 +707,15 @@ func TestAnnouncementViewRepository_CountUnread(t *testing.T) {
 	assignTestRole(t, db, accountID, roleID, schoolID)
 	defer cleanupTestAccountRole(t, db, accountID, roleID)
 
+	// Create account_tenants membership so the subquery finds this user's org/tenant
+	createTestAccountTenant(t, db, accountID, schoolID)
+	defer func() {
+		cleanupCtx := testpkg.TenantContext(1)
+		_, _ = db.NewRaw(`DELETE FROM auth.account_tenants WHERE account_id = ? AND tenant_id = ?`, accountID, schoolID).Exec(cleanupCtx)
+	}()
+
 	// Get baseline count before creating any test announcements
-	baselineCount, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"}, orgID, schoolID)
+	baselineCount, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"})
 	require.NoError(t, err)
 
 	t.Run("global announcement counted", func(t *testing.T) {
@@ -709,7 +723,7 @@ func TestAnnouncementViewRepository_CountUnread(t *testing.T) {
 		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 
-		count, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"}, orgID, schoolID)
+		count, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"})
 		require.NoError(t, err)
 		assert.Equal(t, baselineCount+1, count, "count should increase by 1 for a global announcement")
 	})
@@ -719,7 +733,7 @@ func TestAnnouncementViewRepository_CountUnread(t *testing.T) {
 		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 
-		count, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"}, orgID, schoolID)
+		count, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"})
 		require.NoError(t, err)
 		assert.Equal(t, baselineCount+1, count)
 	})
@@ -729,7 +743,7 @@ func TestAnnouncementViewRepository_CountUnread(t *testing.T) {
 		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 
-		count, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"}, orgID, schoolID)
+		count, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"})
 		require.NoError(t, err)
 		assert.Equal(t, baselineCount, count)
 	})
@@ -739,7 +753,7 @@ func TestAnnouncementViewRepository_CountUnread(t *testing.T) {
 		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 
-		count, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"}, orgID, schoolID)
+		count, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"})
 		require.NoError(t, err)
 		assert.Equal(t, baselineCount+1, count)
 	})
@@ -749,7 +763,7 @@ func TestAnnouncementViewRepository_CountUnread(t *testing.T) {
 		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 
-		count, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"}, orgID, schoolID)
+		count, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"})
 		require.NoError(t, err)
 		assert.Equal(t, baselineCount, count)
 	})
@@ -759,7 +773,7 @@ func TestAnnouncementViewRepository_CountUnread(t *testing.T) {
 		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 
-		count, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"}, orgID, schoolID)
+		count, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"})
 		require.NoError(t, err)
 		assert.Equal(t, baselineCount+1, count)
 	})
@@ -769,7 +783,7 @@ func TestAnnouncementViewRepository_CountUnread(t *testing.T) {
 		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 
-		count, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"}, orgID, schoolID)
+		count, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"})
 		require.NoError(t, err)
 		assert.Equal(t, baselineCount, count)
 	})
@@ -783,7 +797,7 @@ func TestAnnouncementViewRepository_CountUnread(t *testing.T) {
 		require.NoError(t, err)
 		defer cleanupTestAnnouncementView(t, db, accountID, annoID)
 
-		count, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"}, orgID, schoolID)
+		count, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"})
 		require.NoError(t, err)
 		assert.Equal(t, baselineCount, count)
 	})
@@ -794,7 +808,7 @@ func TestAnnouncementViewRepository_CountUnread(t *testing.T) {
 		publishTestAnnouncement(t, db, annoID)
 		expireTestAnnouncement(t, db, annoID)
 
-		count, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"}, orgID, schoolID)
+		count, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"})
 		require.NoError(t, err)
 		assert.Equal(t, baselineCount, count)
 	})

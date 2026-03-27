@@ -81,13 +81,14 @@ func (r *AnnouncementViewRepository) MarkDismissed(ctx context.Context, userID, 
 	return nil
 }
 
-// GetUnreadForUser retrieves all unread active announcements for a user filtered by roles, org, and tenant
-func (r *AnnouncementViewRepository) GetUnreadForUser(ctx context.Context, userID int64, userRoles []string, orgID int64, tenantID int64) ([]*platform.Announcement, error) {
+// GetUnreadForUser retrieves all unread active announcements for a user filtered by roles and full account_tenants membership
+func (r *AnnouncementViewRepository) GetUnreadForUser(ctx context.Context, userID int64, userRoles []string) ([]*platform.Announcement, error) {
 	var announcements []*platform.Announcement
 	now := time.Now()
 
 	// target_roles = '{}' means all roles can see it, otherwise check overlap with user's roles
-	// target_org_ids/target_tenant_ids: both empty = global, otherwise OR-union of org/tenant match
+	// target_org_ids/target_tenant_ids: both empty = global, otherwise OR-union matched
+	// against ALL orgs/tenants the user belongs to (not just the current JWT session scope)
 	err := base.GetDB(ctx, r.db).NewRaw(`
 		SELECT a.*
 		FROM platform.announcements a
@@ -102,11 +103,20 @@ func (r *AnnouncementViewRepository) GetUnreadForUser(ctx context.Context, userI
 				SELECT 1 FROM unnest(a.target_roles) AS r WHERE r IN (?)))
 			AND (
 				(a.target_org_ids = '{}' AND a.target_tenant_ids = '{}')
-				OR (a.target_org_ids != '{}' AND ? = ANY(a.target_org_ids))
-				OR (a.target_tenant_ids != '{}' AND ? = ANY(a.target_tenant_ids))
+				OR (a.target_org_ids != '{}' AND EXISTS (
+					SELECT 1 FROM auth.account_tenants at2
+					JOIN platform.schools s2 ON s2.id = at2.tenant_id
+					WHERE at2.account_id = ? AND at2.status = 'active'
+					AND s2.organization_id = ANY(a.target_org_ids)
+				))
+				OR (a.target_tenant_ids != '{}' AND EXISTS (
+					SELECT 1 FROM auth.account_tenants at2
+					WHERE at2.account_id = ? AND at2.status = 'active'
+					AND at2.tenant_id = ANY(a.target_tenant_ids)
+				))
 			)
 		ORDER BY a.published_at DESC
-	`, userID, now, now, bun.List(userRoles), orgID, tenantID).Scan(ctx, &announcements)
+	`, userID, now, now, bun.List(userRoles), userID, userID).Scan(ctx, &announcements)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -118,8 +128,8 @@ func (r *AnnouncementViewRepository) GetUnreadForUser(ctx context.Context, userI
 	return announcements, nil
 }
 
-// CountUnread counts unread announcements for a user filtered by roles, org, and tenant
-func (r *AnnouncementViewRepository) CountUnread(ctx context.Context, userID int64, userRoles []string, orgID int64, tenantID int64) (int, error) {
+// CountUnread counts unread announcements for a user filtered by roles and full account_tenants membership
+func (r *AnnouncementViewRepository) CountUnread(ctx context.Context, userID int64, userRoles []string) (int, error) {
 	now := time.Now()
 
 	var count int
@@ -137,10 +147,19 @@ func (r *AnnouncementViewRepository) CountUnread(ctx context.Context, userID int
 				SELECT 1 FROM unnest(a.target_roles) AS r WHERE r IN (?)))
 			AND (
 				(a.target_org_ids = '{}' AND a.target_tenant_ids = '{}')
-				OR (a.target_org_ids != '{}' AND ? = ANY(a.target_org_ids))
-				OR (a.target_tenant_ids != '{}' AND ? = ANY(a.target_tenant_ids))
+				OR (a.target_org_ids != '{}' AND EXISTS (
+					SELECT 1 FROM auth.account_tenants at2
+					JOIN platform.schools s2 ON s2.id = at2.tenant_id
+					WHERE at2.account_id = ? AND at2.status = 'active'
+					AND s2.organization_id = ANY(a.target_org_ids)
+				))
+				OR (a.target_tenant_ids != '{}' AND EXISTS (
+					SELECT 1 FROM auth.account_tenants at2
+					WHERE at2.account_id = ? AND at2.status = 'active'
+					AND at2.tenant_id = ANY(a.target_tenant_ids)
+				))
 			)
-	`, userID, now, now, bun.List(userRoles), orgID, tenantID).Scan(ctx, &count)
+	`, userID, now, now, bun.List(userRoles), userID, userID).Scan(ctx, &count)
 
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
