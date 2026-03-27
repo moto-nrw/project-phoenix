@@ -44,8 +44,8 @@ type Announcement struct {
 	PublishedAt     *time.Time `bun:"published_at" json:"published_at,omitempty"`
 	ExpiresAt       *time.Time `bun:"expires_at" json:"expires_at,omitempty"`
 	TargetRoles     []string   `bun:"target_roles,array" json:"target_roles,omitempty"`
-	TargetOrgIDs    []int64    `bun:"target_org_ids,array" json:"target_org_ids,omitempty"`
-	TargetTenantIDs []int64    `bun:"target_tenant_ids,array" json:"target_tenant_ids,omitempty"`
+	TargetOrgIDs    []int64    `bun:"target_org_ids,array,nullzero,default:'{}'" json:"target_org_ids,omitempty"`
+	TargetTenantIDs []int64    `bun:"target_tenant_ids,array,nullzero,default:'{}'" json:"target_tenant_ids,omitempty"`
 	CreatedBy       int64      `bun:"created_by,notnull" json:"created_by"`
 
 	// Relations
@@ -88,6 +88,15 @@ func (a *Announcement) Validate() error {
 	if a.Version != nil && len(*a.Version) > 50 {
 		return errors.New("version must not exceed 50 characters")
 	}
+
+	// Normalize nil slices to empty arrays so BUN sends '{}' instead of NULL
+	if a.TargetOrgIDs == nil {
+		a.TargetOrgIDs = []int64{}
+	}
+	if a.TargetTenantIDs == nil {
+		a.TargetTenantIDs = []int64{}
+	}
+
 	return nil
 }
 
