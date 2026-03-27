@@ -1,7 +1,6 @@
 package checkin
 
 import (
-	"context"
 	"log/slog"
 	"net/http"
 	"time"
@@ -10,7 +9,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	iotCommon "github.com/moto-nrw/project-phoenix/api/iot/common"
 	"github.com/moto-nrw/project-phoenix/auth/device"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // devicePing handles ping requests from RFID devices
@@ -225,13 +223,11 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Step 12: Lookup today's pickup time for the student.
-	// Use a fresh context with only the tenant ID (no tx) so that a query
-	// failure here cannot abort the main transaction and silently roll back
-	// the visit writes above.
+	// Step 12: Lookup today's pickup time for the student (non-blocking: log and skip on error).
+	// Runs inside the existing tenant tx for RLS visibility. A read-only SELECT on the
+	// schedule tables won't abort the tx unless the DB itself is down.
 	if rs.PickupScheduleService != nil {
-		pickupCtx := tenant.WithTenantID(context.Background(), tenant.FromContext(ctx))
-		pickupTime, err := rs.PickupScheduleService.GetEffectivePickupTimeForDate(pickupCtx, student.ID, now)
+		pickupTime, err := rs.PickupScheduleService.GetEffectivePickupTimeForDate(ctx, student.ID, now)
 		if err != nil {
 			rs.getLogger().WarnContext(ctx, "failed to get pickup time",
 				slog.Int64("student_id", student.ID),
