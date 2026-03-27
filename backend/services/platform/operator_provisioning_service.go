@@ -979,8 +979,17 @@ func (s *operatorProvisioningService) DeleteDevice(ctx context.Context, id int64
 			return &OperatorDeviceNotFoundError{DeviceID: id}
 		}
 
+		// Prevent deletion of system-managed virtual devices (e.g. WEB-MANUAL-001).
+		if device.DeviceID == webManualDeviceID {
+			return &DeviceProtectedError{DeviceID: id, Reason: "system device required for manual web check-ins"}
+		}
+
 		deleteErr := s.deviceRepo.Delete(adminCtx, id)
 		if deleteErr != nil {
+			// ON DELETE RESTRICT on active.attendance / active.groups → FK violation.
+			if isForeignKeyViolation(deleteErr) {
+				return &DeviceInUseError{DeviceID: id}
+			}
 			return fmt.Errorf("DeleteDevice: %w", deleteErr)
 		}
 
@@ -1214,6 +1223,21 @@ func isUniqueViolation(err error) bool {
 	var pgErr pgdriver.Error
 	if errors.As(err, &pgErr) {
 		return pgErr.IntegrityViolation() && pgErr.Field('C') == "23505"
+	}
+	return false
+}
+
+func isForeignKeyViolation(err error) bool {
+	if err == nil {
+		return false
+	}
+	var dbErr *modelBase.DatabaseError
+	if errors.As(err, &dbErr) {
+		err = dbErr.Err
+	}
+	var pgErr pgdriver.Error
+	if errors.As(err, &pgErr) {
+		return pgErr.IntegrityViolation() && pgErr.Field('C') == "23503"
 	}
 	return false
 }

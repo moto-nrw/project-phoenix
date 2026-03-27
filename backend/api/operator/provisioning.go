@@ -435,6 +435,8 @@ func ProvisioningErrorRenderer(err error) render.Renderer {
 	var schoolNotFound *platformSvc.SchoolNotFoundError
 	var schoolInactive *platformSvc.SchoolInactiveError
 	var operatorDeviceNotFound *platformSvc.OperatorDeviceNotFoundError
+	var deviceInUse *platformSvc.DeviceInUseError
+	var deviceProtected *platformSvc.DeviceProtectedError
 	var authErr *authSvc.AuthError
 
 	if errors.As(err, &authErr) && authErr.Err != nil {
@@ -467,6 +469,10 @@ func ProvisioningErrorRenderer(err error) render.Renderer {
 		return ErrForbidden("School is inactive")
 	case errors.As(err, &operatorDeviceNotFound):
 		return ErrNotFound("Device not found")
+	case errors.As(err, &deviceInUse):
+		return ErrConflict("Device is still referenced by attendance or session records and cannot be deleted")
+	case errors.As(err, &deviceProtected):
+		return ErrForbidden("This system device cannot be deleted")
 	default:
 		return ErrInternal("An error occurred")
 	}
