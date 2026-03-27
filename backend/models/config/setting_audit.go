@@ -5,15 +5,18 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/uptrace/bun"
 )
 
 const tableSettingAudit = "config.setting_audit"
 
 // SettingAuditEntry records a change to a setting value. Append-only.
+// Does NOT embed base.Model because the table has no created_at/updated_at columns.
 type SettingAuditEntry struct {
-	base.Model `bun:"schema:config,table:setting_audit"`
-	base.TenantModel
+	bun.BaseModel `bun:"schema:config,table:setting_audit"`
+
+	ID       int64 `bun:"id,pk,autoincrement" json:"id"`
+	TenantID int64 `bun:"tenant_id,notnull" json:"tenant_id"`
 
 	SettingKey string          `bun:"setting_key,notnull" json:"setting_key"`
 	OldValue   json.RawMessage `bun:"old_value,type:jsonb" json:"old_value,omitempty"`
@@ -56,7 +59,8 @@ func NewAuditEntry(
 	newValue json.RawMessage,
 	changedBy *int64,
 ) *SettingAuditEntry {
-	entry := &SettingAuditEntry{
+	return &SettingAuditEntry{
+		TenantID:   tenantID,
 		SettingKey: key,
 		Action:     action,
 		OldValue:   oldValue,
@@ -64,6 +68,4 @@ func NewAuditEntry(
 		ChangedBy:  changedBy,
 		ChangedAt:  time.Now(),
 	}
-	entry.TenantID = tenantID
-	return entry
 }
