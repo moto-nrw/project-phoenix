@@ -22,6 +22,7 @@ import (
 	facilitiesSvc "github.com/moto-nrw/project-phoenix/services/facilities"
 	feedbackSvc "github.com/moto-nrw/project-phoenix/services/feedback"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -37,45 +38,48 @@ func delegateHandler(router chi.Router) http.HandlerFunc {
 
 // ServiceDependencies groups all service dependencies for the IoT resource
 type ServiceDependencies struct {
-	IoTService        iotSvc.Service
-	UsersService      usersSvc.PersonService
-	ActiveService     activeSvc.Service
-	ActivitiesService activitiesSvc.ActivityService
-	ConfigService     configSvc.Service
-	FacilityService   facilitiesSvc.Service
-	EducationService  educationSvc.Service
-	FeedbackService   feedbackSvc.Service
-	Logger            *slog.Logger
-	DB                *bun.DB
+	IoTService            iotSvc.Service
+	UsersService          usersSvc.PersonService
+	ActiveService         activeSvc.Service
+	ActivitiesService     activitiesSvc.ActivityService
+	ConfigService         configSvc.Service
+	FacilityService       facilitiesSvc.Service
+	EducationService      educationSvc.Service
+	FeedbackService       feedbackSvc.Service
+	PickupScheduleService scheduleSvc.PickupScheduleService
+	Logger                *slog.Logger
+	DB                    *bun.DB
 }
 
 // Resource defines the IoT API resource
 type Resource struct {
-	IoTService        iotSvc.Service
-	UsersService      usersSvc.PersonService
-	ActiveService     activeSvc.Service
-	ActivitiesService activitiesSvc.ActivityService
-	ConfigService     configSvc.Service
-	FacilityService   facilitiesSvc.Service
-	EducationService  educationSvc.Service
-	FeedbackService   feedbackSvc.Service
-	logger            *slog.Logger
-	db                *bun.DB
+	IoTService            iotSvc.Service
+	UsersService          usersSvc.PersonService
+	ActiveService         activeSvc.Service
+	ActivitiesService     activitiesSvc.ActivityService
+	ConfigService         configSvc.Service
+	FacilityService       facilitiesSvc.Service
+	EducationService      educationSvc.Service
+	FeedbackService       feedbackSvc.Service
+	PickupScheduleService scheduleSvc.PickupScheduleService
+	logger                *slog.Logger
+	db                    *bun.DB
 }
 
 // NewResource creates a new IoT resource
 func NewResource(deps ServiceDependencies) *Resource {
 	return &Resource{
-		IoTService:        deps.IoTService,
-		UsersService:      deps.UsersService,
-		ActiveService:     deps.ActiveService,
-		ActivitiesService: deps.ActivitiesService,
-		ConfigService:     deps.ConfigService,
-		FacilityService:   deps.FacilityService,
-		EducationService:  deps.EducationService,
-		FeedbackService:   deps.FeedbackService,
-		logger:            deps.Logger,
-		db:                deps.DB,
+		IoTService:            deps.IoTService,
+		UsersService:          deps.UsersService,
+		ActiveService:         deps.ActiveService,
+		ActivitiesService:     deps.ActivitiesService,
+		ConfigService:         deps.ConfigService,
+		FacilityService:       deps.FacilityService,
+		EducationService:      deps.EducationService,
+		FeedbackService:       deps.FeedbackService,
+		PickupScheduleService: deps.PickupScheduleService,
+		logger:                deps.Logger,
+		db:                    deps.DB,
 	}
 }
 
@@ -143,6 +147,7 @@ func (rs *Resource) Router() chi.Router {
 			rs.FacilityService,
 			rs.ActivitiesService,
 			rs.EducationService,
+			rs.PickupScheduleService,
 			rs.getLogger().With(slog.String("sub", "checkin")),
 		)
 		// Register routes directly instead of mounting at "/" to avoid Chi conflict
