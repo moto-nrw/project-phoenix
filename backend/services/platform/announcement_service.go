@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"slices"
 
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/uptrace/bun"
@@ -129,10 +130,13 @@ func (s *announcementService) UpdateAnnouncement(ctx context.Context, announceme
 
 	// Audit log
 	changes := map[string]any{
-		"title_changed":    existing.Title != announcement.Title,
-		"content_changed":  existing.Content != announcement.Content,
-		"type_changed":     existing.Type != announcement.Type,
-		"severity_changed": existing.Severity != announcement.Severity,
+		"title_changed":             existing.Title != announcement.Title,
+		"content_changed":           existing.Content != announcement.Content,
+		"type_changed":              existing.Type != announcement.Type,
+		"severity_changed":          existing.Severity != announcement.Severity,
+		"target_org_ids_changed":    !slices.Equal(existing.TargetOrgIDs, announcement.TargetOrgIDs),
+		"target_tenant_ids_changed": !slices.Equal(existing.TargetTenantIDs, announcement.TargetTenantIDs),
+		"target_roles_changed":      !slices.Equal(existing.TargetRoles, announcement.TargetRoles),
 	}
 	s.logAction(ctx, operatorID, platform.ActionUpdate, platform.ResourceAnnouncement, &announcement.ID, clientIP, changes)
 

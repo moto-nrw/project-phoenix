@@ -207,21 +207,37 @@ func (r *AnnouncementViewRepository) GetStats(ctx context.Context, announcementI
 			WHERE r.name IN (?)
 		`, bun.List(targetRoles)).Scan(ctx, &stats.TargetCount)
 
-	case !hasRoleFilter && (hasOrgFilter || hasTenantFilter):
-		// Org/tenant filter only (no role filter)
+	case !hasRoleFilter && hasOrgFilter && hasTenantFilter:
+		// Org + tenant filter (OR-union, no role filter)
 		err = base.GetDB(ctx, r.db).NewRaw(`
 			SELECT COUNT(DISTINCT at.account_id)
 			FROM auth.account_tenants at
 			JOIN platform.schools s ON s.id = at.tenant_id
 			WHERE at.status = 'active'
-				AND (
-					(? AND s.organization_id IN (?))
-					OR (? AND at.tenant_id IN (?))
-				)
-		`, hasOrgFilter, bun.List(targetOrgIDs), hasTenantFilter, bun.List(targetTenantIDs)).Scan(ctx, &stats.TargetCount)
+				AND (s.organization_id IN (?) OR at.tenant_id IN (?))
+		`, bun.List(targetOrgIDs), bun.List(targetTenantIDs)).Scan(ctx, &stats.TargetCount)
 
-	default:
-		// Both role and org/tenant filters (intersection)
+	case !hasRoleFilter && hasOrgFilter:
+		// Org filter only (no role, no tenant filter)
+		err = base.GetDB(ctx, r.db).NewRaw(`
+			SELECT COUNT(DISTINCT at.account_id)
+			FROM auth.account_tenants at
+			JOIN platform.schools s ON s.id = at.tenant_id
+			WHERE at.status = 'active'
+				AND s.organization_id IN (?)
+		`, bun.List(targetOrgIDs)).Scan(ctx, &stats.TargetCount)
+
+	case !hasRoleFilter && hasTenantFilter:
+		// Tenant filter only (no role, no org filter)
+		err = base.GetDB(ctx, r.db).NewRaw(`
+			SELECT COUNT(DISTINCT at.account_id)
+			FROM auth.account_tenants at
+			WHERE at.status = 'active'
+				AND at.tenant_id IN (?)
+		`, bun.List(targetTenantIDs)).Scan(ctx, &stats.TargetCount)
+
+	case hasRoleFilter && hasOrgFilter && hasTenantFilter:
+		// Role + org + tenant filters (intersection of role with OR-union of org/tenant)
 		err = base.GetDB(ctx, r.db).NewRaw(`
 			SELECT COUNT(DISTINCT acc.id)
 			FROM auth.accounts acc
@@ -231,11 +247,35 @@ func (r *AnnouncementViewRepository) GetStats(ctx context.Context, announcementI
 			JOIN platform.schools s ON s.id = at.tenant_id
 			WHERE r.name IN (?)
 				AND at.status = 'active'
-				AND (
-					(? AND s.organization_id IN (?))
-					OR (? AND at.tenant_id IN (?))
-				)
-		`, bun.List(targetRoles), hasOrgFilter, bun.List(targetOrgIDs), hasTenantFilter, bun.List(targetTenantIDs)).Scan(ctx, &stats.TargetCount)
+				AND (s.organization_id IN (?) OR at.tenant_id IN (?))
+		`, bun.List(targetRoles), bun.List(targetOrgIDs), bun.List(targetTenantIDs)).Scan(ctx, &stats.TargetCount)
+
+	case hasRoleFilter && hasOrgFilter:
+		// Role + org filter (no tenant filter)
+		err = base.GetDB(ctx, r.db).NewRaw(`
+			SELECT COUNT(DISTINCT acc.id)
+			FROM auth.accounts acc
+			JOIN auth.account_roles ar ON ar.account_id = acc.id
+			JOIN auth.roles r ON r.id = ar.role_id
+			JOIN auth.account_tenants at ON at.account_id = acc.id
+			JOIN platform.schools s ON s.id = at.tenant_id
+			WHERE r.name IN (?)
+				AND at.status = 'active'
+				AND s.organization_id IN (?)
+		`, bun.List(targetRoles), bun.List(targetOrgIDs)).Scan(ctx, &stats.TargetCount)
+
+	default:
+		// Role + tenant filter (no org filter)
+		err = base.GetDB(ctx, r.db).NewRaw(`
+			SELECT COUNT(DISTINCT acc.id)
+			FROM auth.accounts acc
+			JOIN auth.account_roles ar ON ar.account_id = acc.id
+			JOIN auth.roles r ON r.id = ar.role_id
+			JOIN auth.account_tenants at ON at.account_id = acc.id
+			WHERE r.name IN (?)
+				AND at.status = 'active'
+				AND at.tenant_id IN (?)
+		`, bun.List(targetRoles), bun.List(targetTenantIDs)).Scan(ctx, &stats.TargetCount)
 	}
 	if err != nil {
 		return nil, &modelBase.DatabaseError{

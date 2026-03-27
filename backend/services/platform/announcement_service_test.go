@@ -1083,6 +1083,127 @@ func TestAnnouncementService_UpdateAnnouncement_WithTargeting(t *testing.T) {
 	assert.Equal(t, []int64{7}, capturedAnnouncement.TargetTenantIDs)
 }
 
+func TestAnnouncementService_UpdateAnnouncement_AuditLogTracksTargetingChanges(t *testing.T) {
+	ctx := context.Background()
+	var capturedAuditEntry *platform.OperatorAuditLog
+	announcementRepo := &mockAnnouncementRepoShared{
+		findByIDFn: func(ctx context.Context, id int64) (*platform.Announcement, error) {
+			return &platform.Announcement{
+				Model:           base.Model{ID: 1},
+				Title:           "Title",
+				Content:         "Content",
+				Type:            platform.TypeAnnouncement,
+				Severity:        platform.SeverityInfo,
+				TargetRoles:     []string{"admin"},
+				TargetOrgIDs:    []int64{1},
+				TargetTenantIDs: []int64{10},
+				CreatedBy:       1,
+			}, nil
+		},
+		updateFn: func(ctx context.Context, announcement *platform.Announcement) error {
+			return nil
+		},
+	}
+	auditLogRepo := &mockAuditLogRepoShared{
+		createFn: func(ctx context.Context, entry *platform.OperatorAuditLog) error {
+			capturedAuditEntry = entry
+			return nil
+		},
+	}
+
+	service := platformSvc.NewAnnouncementService(platformSvc.AnnouncementServiceConfig{
+		AnnouncementRepo:     announcementRepo,
+		AnnouncementViewRepo: &mockAnnouncementViewRepoShared{},
+		AuditLogRepo:         auditLogRepo,
+		DB:                   &bun.DB{},
+		Logger:               slog.Default(),
+	})
+
+	// Change all targeting fields
+	announcement := &platform.Announcement{
+		Title:           "Title",
+		Content:         "Content",
+		Type:            platform.TypeAnnouncement,
+		Severity:        platform.SeverityInfo,
+		TargetRoles:     []string{"admin", "user"},
+		TargetOrgIDs:    []int64{1, 2},
+		TargetTenantIDs: []int64{20},
+		CreatedBy:       1,
+	}
+
+	err := service.UpdateAnnouncement(ctx, announcement, 1, net.ParseIP("127.0.0.1"))
+	require.NoError(t, err)
+	require.NotNil(t, capturedAuditEntry, "audit log entry should be created")
+
+	changes, err := capturedAuditEntry.GetChanges()
+	require.NoError(t, err)
+
+	assert.Equal(t, true, changes["target_org_ids_changed"], "org IDs changed from [1] to [1,2]")
+	assert.Equal(t, true, changes["target_tenant_ids_changed"], "tenant IDs changed from [10] to [20]")
+	assert.Equal(t, true, changes["target_roles_changed"], "roles changed from [admin] to [admin,user]")
+	assert.Equal(t, false, changes["title_changed"], "title unchanged")
+}
+
+func TestAnnouncementService_UpdateAnnouncement_AuditLogTracksNoTargetingChanges(t *testing.T) {
+	ctx := context.Background()
+	var capturedAuditEntry *platform.OperatorAuditLog
+	announcementRepo := &mockAnnouncementRepoShared{
+		findByIDFn: func(ctx context.Context, id int64) (*platform.Announcement, error) {
+			return &platform.Announcement{
+				Model:           base.Model{ID: 1},
+				Title:           "Title",
+				Content:         "Content",
+				Type:            platform.TypeAnnouncement,
+				Severity:        platform.SeverityInfo,
+				TargetRoles:     []string{"admin"},
+				TargetOrgIDs:    []int64{5},
+				TargetTenantIDs: []int64{},
+				CreatedBy:       1,
+			}, nil
+		},
+		updateFn: func(ctx context.Context, announcement *platform.Announcement) error {
+			return nil
+		},
+	}
+	auditLogRepo := &mockAuditLogRepoShared{
+		createFn: func(ctx context.Context, entry *platform.OperatorAuditLog) error {
+			capturedAuditEntry = entry
+			return nil
+		},
+	}
+
+	service := platformSvc.NewAnnouncementService(platformSvc.AnnouncementServiceConfig{
+		AnnouncementRepo:     announcementRepo,
+		AnnouncementViewRepo: &mockAnnouncementViewRepoShared{},
+		AuditLogRepo:         auditLogRepo,
+		DB:                   &bun.DB{},
+		Logger:               slog.Default(),
+	})
+
+	// Same targeting as existing
+	announcement := &platform.Announcement{
+		Title:           "Title",
+		Content:         "Content",
+		Type:            platform.TypeAnnouncement,
+		Severity:        platform.SeverityInfo,
+		TargetRoles:     []string{"admin"},
+		TargetOrgIDs:    []int64{5},
+		TargetTenantIDs: []int64{},
+		CreatedBy:       1,
+	}
+
+	err := service.UpdateAnnouncement(ctx, announcement, 1, net.ParseIP("127.0.0.1"))
+	require.NoError(t, err)
+	require.NotNil(t, capturedAuditEntry)
+
+	changes, err := capturedAuditEntry.GetChanges()
+	require.NoError(t, err)
+
+	assert.Equal(t, false, changes["target_org_ids_changed"], "org IDs unchanged")
+	assert.Equal(t, false, changes["target_tenant_ids_changed"], "tenant IDs unchanged")
+	assert.Equal(t, false, changes["target_roles_changed"], "roles unchanged")
+}
+
 func TestAnnouncementService_DeleteAnnouncement_FindByIDError(t *testing.T) {
 	ctx := context.Background()
 	announcementRepo := &mockAnnouncementRepoShared{

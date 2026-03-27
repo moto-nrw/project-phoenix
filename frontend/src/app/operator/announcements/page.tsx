@@ -684,14 +684,16 @@ export default function OperatorAnnouncementsPage() {
                             (id) => id !== orgId,
                           ),
                           // Remove tenant selections that belonged to this org
-                          targetTenantIds: prev.targetTenantIds.filter(
-                            (tid) =>
-                              !schools?.some(
-                                (s) =>
-                                  Number(s.id) === tid &&
-                                  Number(s.organizationId) === orgId,
-                              ),
-                          ),
+                          targetTenantIds: schools
+                            ? prev.targetTenantIds.filter(
+                                (tid) =>
+                                  !schools.some(
+                                    (s) =>
+                                      Number(s.id) === tid &&
+                                      Number(s.organizationId) === orgId,
+                                  ),
+                              )
+                            : prev.targetTenantIds,
                         }));
                       } else {
                         setFormData((prev) => ({
@@ -823,8 +825,11 @@ export default function OperatorAnnouncementsPage() {
         isConfirmLoading={isPublishing}
       >
         <p className="text-sm text-gray-600">
-          Die Ankündigung &quot;{publishTarget?.title}&quot; wird für alle
-          Nutzer sichtbar.
+          {publishTarget &&
+          ((publishTarget.targetOrgIds?.length ?? 0) > 0 ||
+            (publishTarget.targetTenantIds?.length ?? 0) > 0)
+            ? `Die Ankündigung "${publishTarget.title}" wird für die ausgewählten Organisationen/Schulen sichtbar.`
+            : `Die Ankündigung "${publishTarget?.title}" wird für alle Nutzer sichtbar.`}
         </p>
       </ConfirmationModal>
     </div>

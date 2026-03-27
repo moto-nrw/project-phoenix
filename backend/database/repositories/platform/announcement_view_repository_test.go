@@ -938,6 +938,123 @@ func TestAnnouncementViewRepository_GetStats(t *testing.T) {
 		assert.GreaterOrEqual(t, stats.TargetCount, 1, "intersection should include at least the account with both role and tenant")
 	})
 
+	t.Run("org+tenant filter counts OR-union without role", func(t *testing.T) {
+		orgID := createTestOrganization(t, db, "stats-orgtenant-org")
+		defer cleanupTestOrganization(t, db, orgID)
+
+		schoolInOrg := createTestSchool(t, db, "stats-orgtenant-school1", orgID)
+		defer cleanupTestSchool(t, db, schoolInOrg)
+
+		otherOrgID := createTestOrganization(t, db, "stats-orgtenant-other-org")
+		defer cleanupTestOrganization(t, db, otherOrgID)
+
+		schoolInOtherOrg := createTestSchool(t, db, "stats-orgtenant-school2", otherOrgID)
+		defer cleanupTestSchool(t, db, schoolInOtherOrg)
+
+		// Account in org (should match org filter)
+		accInOrg := createTestAccount(t, db, "stats-orgtenant-inorg@test.com")
+		defer cleanupTestAccount(t, db, accInOrg)
+		createTestAccountTenant(t, db, accInOrg, schoolInOrg)
+		defer cleanupTestAccountTenant(t, db, accInOrg, schoolInOrg)
+
+		// Account in specific tenant in other org (should match tenant filter)
+		accInTenant := createTestAccount(t, db, "stats-orgtenant-intenant@test.com")
+		defer cleanupTestAccount(t, db, accInTenant)
+		createTestAccountTenant(t, db, accInTenant, schoolInOtherOrg)
+		defer cleanupTestAccountTenant(t, db, accInTenant, schoolInOtherOrg)
+
+		// Announcement targets org AND a specific tenant in other org (OR-union)
+		annoID := createTestAnnouncementWithTargeting(t, db, "stats-orgtenant", operator.ID, []string{}, []int64{orgID}, []int64{schoolInOtherOrg})
+		defer cleanupTestAnnouncement(t, db, annoID)
+
+		stats, err := viewRepo.GetStats(ctx, annoID)
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, stats.TargetCount, 2, "OR-union should count accounts in org OR in target tenant")
+	})
+
+	t.Run("role+org+tenant filter counts intersection of role with OR-union", func(t *testing.T) {
+		orgID := createTestOrganization(t, db, "stats-roleorgtenant-org")
+		defer cleanupTestOrganization(t, db, orgID)
+
+		schoolInOrg := createTestSchool(t, db, "stats-roleorgtenant-school1", orgID)
+		defer cleanupTestSchool(t, db, schoolInOrg)
+
+		otherOrgID := createTestOrganization(t, db, "stats-roleorgtenant-other-org")
+		defer cleanupTestOrganization(t, db, otherOrgID)
+
+		schoolInOtherOrg := createTestSchool(t, db, "stats-roleorgtenant-school2", otherOrgID)
+		defer cleanupTestSchool(t, db, schoolInOtherOrg)
+
+		roleID := createTestRole(t, db, "stats-roleorgtenant-role")
+		defer cleanupTestRole(t, db, roleID)
+
+		// Account with role + in target org (should match: role AND org)
+		accRoleInOrg := createTestAccount(t, db, "stats-rot-roleinorg@test.com")
+		defer cleanupTestAccount(t, db, accRoleInOrg)
+		assignTestRole(t, db, accRoleInOrg, roleID, schoolInOrg)
+		defer cleanupTestAccountRole(t, db, accRoleInOrg, roleID)
+		createTestAccountTenant(t, db, accRoleInOrg, schoolInOrg)
+		defer cleanupTestAccountTenant(t, db, accRoleInOrg, schoolInOrg)
+
+		// Account with role + in target tenant (should match: role AND tenant)
+		accRoleInTenant := createTestAccount(t, db, "stats-rot-roleintenant@test.com")
+		defer cleanupTestAccount(t, db, accRoleInTenant)
+		assignTestRole(t, db, accRoleInTenant, roleID, schoolInOtherOrg)
+		defer cleanupTestAccountRole(t, db, accRoleInTenant, roleID)
+		createTestAccountTenant(t, db, accRoleInTenant, schoolInOtherOrg)
+		defer cleanupTestAccountTenant(t, db, accRoleInTenant, schoolInOtherOrg)
+
+		// Account without role but in target org (should NOT match: missing role)
+		accNoRole := createTestAccount(t, db, "stats-rot-norole@test.com")
+		defer cleanupTestAccount(t, db, accNoRole)
+		createTestAccountTenant(t, db, accNoRole, schoolInOrg)
+		defer cleanupTestAccountTenant(t, db, accNoRole, schoolInOrg)
+
+		annoID := createTestAnnouncementWithTargeting(t, db, "stats-roleorgtenant", operator.ID, []string{"stats-roleorgtenant-role"}, []int64{orgID}, []int64{schoolInOtherOrg})
+		defer cleanupTestAnnouncement(t, db, annoID)
+
+		stats, err := viewRepo.GetStats(ctx, annoID)
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, stats.TargetCount, 2, "should count role+org account AND role+tenant account")
+	})
+
+	t.Run("role+tenant filter counts intersection without org", func(t *testing.T) {
+		orgID := createTestOrganization(t, db, "stats-roletenant-org")
+		defer cleanupTestOrganization(t, db, orgID)
+
+		schoolID := createTestSchool(t, db, "stats-roletenant-school", orgID)
+		defer cleanupTestSchool(t, db, schoolID)
+
+		roleID := createTestRole(t, db, "stats-roletenant-role")
+		defer cleanupTestRole(t, db, roleID)
+
+		// Account with role + in target tenant (should match)
+		accMatch := createTestAccount(t, db, "stats-roletenant-match@test.com")
+		defer cleanupTestAccount(t, db, accMatch)
+		assignTestRole(t, db, accMatch, roleID, schoolID)
+		defer cleanupTestAccountRole(t, db, accMatch, roleID)
+		createTestAccountTenant(t, db, accMatch, schoolID)
+		defer cleanupTestAccountTenant(t, db, accMatch, schoolID)
+
+		// Account with role only, wrong tenant (should NOT match)
+		otherSchoolID := createTestSchool(t, db, "stats-roletenant-other", orgID)
+		defer cleanupTestSchool(t, db, otherSchoolID)
+		accWrongTenant := createTestAccount(t, db, "stats-roletenant-wrong@test.com")
+		defer cleanupTestAccount(t, db, accWrongTenant)
+		assignTestRole(t, db, accWrongTenant, roleID, otherSchoolID)
+		defer cleanupTestAccountRole(t, db, accWrongTenant, roleID)
+		createTestAccountTenant(t, db, accWrongTenant, otherSchoolID)
+		defer cleanupTestAccountTenant(t, db, accWrongTenant, otherSchoolID)
+
+		// Target: role + specific tenant, no org filter
+		annoID := createTestAnnouncementWithTargeting(t, db, "stats-roletenant", operator.ID, []string{"stats-roletenant-role"}, []int64{}, []int64{schoolID})
+		defer cleanupTestAnnouncement(t, db, annoID)
+
+		stats, err := viewRepo.GetStats(ctx, annoID)
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, stats.TargetCount, 1, "should count only account with matching role AND tenant")
+	})
+
 	t.Run("seen and dismissed counts", func(t *testing.T) {
 		annoID := createTestAnnouncementWithTargeting(t, db, "stats-views", operator.ID, []string{}, []int64{}, []int64{})
 		defer cleanupTestAnnouncement(t, db, annoID)

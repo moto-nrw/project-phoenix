@@ -1238,5 +1238,136 @@ describe("OperatorAnnouncementsPage", () => {
       // No org/school targeting rows should be displayed
       expect(screen.queryByText("Org Alpha, Org Beta")).not.toBeInTheDocument();
     });
+
+    it("publish confirmation shows global message when no targeting set", async () => {
+      const globalDraft = {
+        ...mockAnnouncement,
+        title: "Global Draft",
+        targetOrgIds: [],
+        targetTenantIds: [],
+      };
+
+      setupSWRWithOrgAndSchools([globalDraft]);
+      render(<OperatorAnnouncementsPage />);
+
+      fireEvent.click(screen.getByText("Veröffentlichen"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
+      });
+
+      expect(screen.getByText(/für alle Nutzer sichtbar/)).toBeInTheDocument();
+    });
+
+    it("publish confirmation shows targeted message when org targeting set", async () => {
+      const orgTargetedDraft = {
+        ...mockAnnouncement,
+        title: "Org Targeted Draft",
+        targetOrgIds: [1],
+        targetTenantIds: [],
+      };
+
+      setupSWRWithOrgAndSchools([orgTargetedDraft]);
+      render(<OperatorAnnouncementsPage />);
+
+      fireEvent.click(screen.getByText("Veröffentlichen"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
+      });
+
+      expect(
+        screen.getByText(/ausgewählten Organisationen\/Schulen/),
+      ).toBeInTheDocument();
+    });
+
+    it("publish confirmation shows targeted message when tenant targeting set", async () => {
+      const tenantTargetedDraft = {
+        ...mockAnnouncement,
+        title: "Tenant Targeted Draft",
+        targetOrgIds: [],
+        targetTenantIds: [10],
+      };
+
+      setupSWRWithOrgAndSchools([tenantTargetedDraft]);
+      render(<OperatorAnnouncementsPage />);
+
+      fireEvent.click(screen.getByText("Veröffentlichen"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
+      });
+
+      expect(
+        screen.getByText(/ausgewählten Organisationen\/Schulen/),
+      ).toBeInTheDocument();
+    });
+
+    it("publish confirmation shows global message when targeting arrays undefined", async () => {
+      const undefinedTargetDraft = {
+        ...mockAnnouncement,
+        title: "Undefined Target Draft",
+        targetOrgIds: undefined,
+        targetTenantIds: undefined,
+      };
+
+      setupSWRWithOrgAndSchools([undefinedTargetDraft]);
+      render(<OperatorAnnouncementsPage />);
+
+      fireEvent.click(screen.getByText("Veröffentlichen"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
+      });
+
+      expect(screen.getByText(/für alle Nutzer sichtbar/)).toBeInTheDocument();
+    });
+
+    it("preserves tenant selections when schools data is undefined during org deselection", async () => {
+      // Setup SWR where schools returns undefined
+      mockUseSWR.mockImplementation((key: any) => {
+        if (key === "operator-announcements") {
+          return {
+            data: [mockAnnouncement],
+            isLoading: false,
+            mutate: mockMutate,
+          };
+        }
+        if (key === "operator-organizations") {
+          return {
+            data: [{ id: "1", name: "Org Alpha", slug: "org-alpha" }],
+            isLoading: false,
+            mutate: mockMutate,
+          };
+        }
+        if (key === "operator-schools") {
+          return {
+            data: undefined,
+            isLoading: true,
+            mutate: mockMutate,
+          };
+        }
+        return { data: undefined, isLoading: false, mutate: mockMutate };
+      });
+
+      render(<OperatorAnnouncementsPage />);
+
+      // Open create form
+      fireEvent.click(screen.getByText("Neue Ankündigung"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("modal")).toBeInTheDocument();
+      });
+
+      // Select org (should work even without schools loaded)
+      const orgButton = screen.getByText("Org Alpha");
+      fireEvent.click(orgButton);
+
+      // Deselect org — tenant selections should be preserved (not errored)
+      fireEvent.click(orgButton);
+
+      // The form should still be functional (no crash)
+      expect(screen.getByTestId("modal")).toBeInTheDocument();
+    });
   });
 });

@@ -43,7 +43,7 @@ type Announcement struct {
 	Active          bool       `bun:"active,notnull,default:true" json:"active"`
 	PublishedAt     *time.Time `bun:"published_at" json:"published_at,omitempty"`
 	ExpiresAt       *time.Time `bun:"expires_at" json:"expires_at,omitempty"`
-	TargetRoles     []string   `bun:"target_roles,array" json:"target_roles,omitempty"`
+	TargetRoles     []string   `bun:"target_roles,array,nullzero,default:'{}'" json:"target_roles,omitempty"`
 	TargetOrgIDs    []int64    `bun:"target_org_ids,array,nullzero,default:'{}'" json:"target_org_ids,omitempty"`
 	TargetTenantIDs []int64    `bun:"target_tenant_ids,array,nullzero,default:'{}'" json:"target_tenant_ids,omitempty"`
 	CreatedBy       int64      `bun:"created_by,notnull" json:"created_by"`
@@ -90,6 +90,9 @@ func (a *Announcement) Validate() error {
 	}
 
 	// Normalize nil slices to empty arrays so BUN sends '{}' instead of NULL
+	if a.TargetRoles == nil {
+		a.TargetRoles = []string{}
+	}
 	if a.TargetOrgIDs == nil {
 		a.TargetOrgIDs = []int64{}
 	}

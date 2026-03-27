@@ -345,3 +345,53 @@ func TestAnnouncement_Validate_PreservesEmptyNonNilSlices(t *testing.T) {
 	assert.Empty(t, a.TargetOrgIDs)
 	assert.Empty(t, a.TargetTenantIDs)
 }
+
+func TestAnnouncement_Validate_NormalizesNilTargetRoles(t *testing.T) {
+	a := &Announcement{
+		Title:       "Title",
+		Content:     "Content",
+		Type:        TypeAnnouncement,
+		Severity:    SeverityInfo,
+		CreatedBy:   1,
+		TargetRoles: nil,
+	}
+	err := a.Validate()
+	assert.NoError(t, err)
+	assert.NotNil(t, a.TargetRoles, "nil TargetRoles should be normalized to empty slice")
+	assert.Empty(t, a.TargetRoles)
+}
+
+func TestAnnouncement_Validate_PreservesNonNilTargetRoles(t *testing.T) {
+	a := &Announcement{
+		Title:       "Title",
+		Content:     "Content",
+		Type:        TypeAnnouncement,
+		Severity:    SeverityInfo,
+		CreatedBy:   1,
+		TargetRoles: []string{"admin", "user"},
+	}
+	err := a.Validate()
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"admin", "user"}, a.TargetRoles)
+}
+
+func TestAnnouncement_Validate_NormalizesAllNilSlices(t *testing.T) {
+	a := &Announcement{
+		Title:           "Title",
+		Content:         "Content",
+		Type:            TypeAnnouncement,
+		Severity:        SeverityInfo,
+		CreatedBy:       1,
+		TargetRoles:     nil,
+		TargetOrgIDs:    nil,
+		TargetTenantIDs: nil,
+	}
+	err := a.Validate()
+	assert.NoError(t, err)
+	assert.NotNil(t, a.TargetRoles)
+	assert.NotNil(t, a.TargetOrgIDs)
+	assert.NotNil(t, a.TargetTenantIDs)
+	assert.Empty(t, a.TargetRoles)
+	assert.Empty(t, a.TargetOrgIDs)
+	assert.Empty(t, a.TargetTenantIDs)
+}
