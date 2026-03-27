@@ -935,3 +935,553 @@ func TestAnnouncementService_CreateAnnouncement_NilTargetingNormalized(t *testin
 	assert.Empty(t, capturedAnnouncement.TargetOrgIDs)
 	assert.Empty(t, capturedAnnouncement.TargetTenantIDs)
 }
+
+func TestAnnouncementService_UpdateAnnouncement_RepositoryError(t *testing.T) {
+	ctx := context.Background()
+	announcementRepo := &mockAnnouncementRepoShared{
+		findByIDFn: func(ctx context.Context, id int64) (*platform.Announcement, error) {
+			return &platform.Announcement{
+				Model:    base.Model{ID: 1},
+				Title:    "Test",
+				Content:  "Content",
+				Type:     platform.TypeAnnouncement,
+				Severity: platform.SeverityInfo,
+			}, nil
+		},
+		updateFn: func(ctx context.Context, announcement *platform.Announcement) error {
+			return fmt.Errorf("update failed")
+		},
+	}
+
+	service := platformSvc.NewAnnouncementService(platformSvc.AnnouncementServiceConfig{
+		AnnouncementRepo:     announcementRepo,
+		AnnouncementViewRepo: &mockAnnouncementViewRepoShared{},
+		AuditLogRepo:         &mockAuditLogRepoShared{},
+		DB:                   &bun.DB{},
+		Logger:               slog.Default(),
+	})
+
+	announcement := &platform.Announcement{
+		Title:    "Updated",
+		Content:  "Content",
+		Type:     platform.TypeAnnouncement,
+		Severity: platform.SeverityInfo,
+	}
+	announcement.CreatedBy = 1
+
+	err := service.UpdateAnnouncement(ctx, announcement, 1, net.ParseIP("127.0.0.1"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "update failed")
+}
+
+func TestAnnouncementService_UpdateAnnouncement_FindByIDError(t *testing.T) {
+	ctx := context.Background()
+	announcementRepo := &mockAnnouncementRepoShared{
+		findByIDFn: func(ctx context.Context, id int64) (*platform.Announcement, error) {
+			return nil, fmt.Errorf("db connection lost")
+		},
+	}
+
+	service := platformSvc.NewAnnouncementService(platformSvc.AnnouncementServiceConfig{
+		AnnouncementRepo:     announcementRepo,
+		AnnouncementViewRepo: &mockAnnouncementViewRepoShared{},
+		AuditLogRepo:         &mockAuditLogRepoShared{},
+		DB:                   &bun.DB{},
+		Logger:               slog.Default(),
+	})
+
+	announcement := &platform.Announcement{
+		Model:    base.Model{ID: 99},
+		Title:    "Test",
+		Content:  "Content",
+		Type:     platform.TypeAnnouncement,
+		Severity: platform.SeverityInfo,
+	}
+	announcement.CreatedBy = 1
+
+	err := service.UpdateAnnouncement(ctx, announcement, 1, net.ParseIP("127.0.0.1"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "db connection lost")
+}
+
+func TestAnnouncementService_UpdateAnnouncement_ValidationError(t *testing.T) {
+	ctx := context.Background()
+	announcementRepo := &mockAnnouncementRepoShared{
+		findByIDFn: func(ctx context.Context, id int64) (*platform.Announcement, error) {
+			return &platform.Announcement{
+				Model:    base.Model{ID: 1},
+				Title:    "Old",
+				Content:  "Content",
+				Type:     platform.TypeAnnouncement,
+				Severity: platform.SeverityInfo,
+			}, nil
+		},
+	}
+
+	service := platformSvc.NewAnnouncementService(platformSvc.AnnouncementServiceConfig{
+		AnnouncementRepo:     announcementRepo,
+		AnnouncementViewRepo: &mockAnnouncementViewRepoShared{},
+		AuditLogRepo:         &mockAuditLogRepoShared{},
+		DB:                   &bun.DB{},
+		Logger:               slog.Default(),
+	})
+
+	// Empty title should fail validation
+	announcement := &platform.Announcement{
+		Title:    "",
+		Content:  "Content",
+		Type:     platform.TypeAnnouncement,
+		Severity: platform.SeverityInfo,
+	}
+	announcement.CreatedBy = 1
+
+	err := service.UpdateAnnouncement(ctx, announcement, 1, net.ParseIP("127.0.0.1"))
+	require.Error(t, err)
+	assert.IsType(t, &platformSvc.InvalidDataError{}, err)
+}
+
+func TestAnnouncementService_UpdateAnnouncement_WithTargeting(t *testing.T) {
+	ctx := context.Background()
+	var capturedAnnouncement *platform.Announcement
+	announcementRepo := &mockAnnouncementRepoShared{
+		findByIDFn: func(ctx context.Context, id int64) (*platform.Announcement, error) {
+			return &platform.Announcement{
+				Model:    base.Model{ID: 1},
+				Title:    "Old",
+				Content:  "Content",
+				Type:     platform.TypeAnnouncement,
+				Severity: platform.SeverityInfo,
+			}, nil
+		},
+		updateFn: func(ctx context.Context, announcement *platform.Announcement) error {
+			capturedAnnouncement = announcement
+			return nil
+		},
+	}
+
+	service := platformSvc.NewAnnouncementService(platformSvc.AnnouncementServiceConfig{
+		AnnouncementRepo:     announcementRepo,
+		AnnouncementViewRepo: &mockAnnouncementViewRepoShared{},
+		AuditLogRepo:         &mockAuditLogRepoShared{},
+		DB:                   &bun.DB{},
+		Logger:               slog.Default(),
+	})
+
+	announcement := &platform.Announcement{
+		Title:           "Updated",
+		Content:         "Content",
+		Type:            platform.TypeAnnouncement,
+		Severity:        platform.SeverityInfo,
+		TargetOrgIDs:    []int64{3, 4},
+		TargetTenantIDs: []int64{7},
+	}
+	announcement.CreatedBy = 1
+
+	err := service.UpdateAnnouncement(ctx, announcement, 1, net.ParseIP("127.0.0.1"))
+	require.NoError(t, err)
+	assert.Equal(t, []int64{3, 4}, capturedAnnouncement.TargetOrgIDs)
+	assert.Equal(t, []int64{7}, capturedAnnouncement.TargetTenantIDs)
+}
+
+func TestAnnouncementService_DeleteAnnouncement_FindByIDError(t *testing.T) {
+	ctx := context.Background()
+	announcementRepo := &mockAnnouncementRepoShared{
+		findByIDFn: func(ctx context.Context, id int64) (*platform.Announcement, error) {
+			return nil, fmt.Errorf("db error")
+		},
+	}
+
+	service := platformSvc.NewAnnouncementService(platformSvc.AnnouncementServiceConfig{
+		AnnouncementRepo:     announcementRepo,
+		AnnouncementViewRepo: &mockAnnouncementViewRepoShared{},
+		AuditLogRepo:         &mockAuditLogRepoShared{},
+		DB:                   &bun.DB{},
+		Logger:               slog.Default(),
+	})
+
+	err := service.DeleteAnnouncement(ctx, 1, 1, net.ParseIP("127.0.0.1"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "db error")
+}
+
+func TestAnnouncementService_DeleteAnnouncement_RepositoryError(t *testing.T) {
+	ctx := context.Background()
+	announcementRepo := &mockAnnouncementRepoShared{
+		findByIDFn: func(ctx context.Context, id int64) (*platform.Announcement, error) {
+			return &platform.Announcement{
+				Model:    base.Model{ID: 1},
+				Title:    "Test",
+				Content:  "Content",
+				Type:     platform.TypeAnnouncement,
+				Severity: platform.SeverityInfo,
+			}, nil
+		},
+		deleteFn: func(ctx context.Context, id int64) error {
+			return fmt.Errorf("delete failed")
+		},
+	}
+
+	service := platformSvc.NewAnnouncementService(platformSvc.AnnouncementServiceConfig{
+		AnnouncementRepo:     announcementRepo,
+		AnnouncementViewRepo: &mockAnnouncementViewRepoShared{},
+		AuditLogRepo:         &mockAuditLogRepoShared{},
+		DB:                   &bun.DB{},
+		Logger:               slog.Default(),
+	})
+
+	err := service.DeleteAnnouncement(ctx, 1, 1, net.ParseIP("127.0.0.1"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "delete failed")
+}
+
+func TestAnnouncementService_PublishAnnouncement_FindByIDError(t *testing.T) {
+	ctx := context.Background()
+	announcementRepo := &mockAnnouncementRepoShared{
+		findByIDFn: func(ctx context.Context, id int64) (*platform.Announcement, error) {
+			return nil, fmt.Errorf("db error")
+		},
+	}
+
+	service := platformSvc.NewAnnouncementService(platformSvc.AnnouncementServiceConfig{
+		AnnouncementRepo:     announcementRepo,
+		AnnouncementViewRepo: &mockAnnouncementViewRepoShared{},
+		AuditLogRepo:         &mockAuditLogRepoShared{},
+		DB:                   &bun.DB{},
+		Logger:               slog.Default(),
+	})
+
+	err := service.PublishAnnouncement(ctx, 1, 1, net.ParseIP("127.0.0.1"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "db error")
+}
+
+func TestAnnouncementService_PublishAnnouncement_RepositoryError(t *testing.T) {
+	ctx := context.Background()
+	announcementRepo := &mockAnnouncementRepoShared{
+		findByIDFn: func(ctx context.Context, id int64) (*platform.Announcement, error) {
+			return &platform.Announcement{
+				Model:    base.Model{ID: 1},
+				Title:    "Test",
+				Content:  "Content",
+				Type:     platform.TypeAnnouncement,
+				Severity: platform.SeverityInfo,
+			}, nil
+		},
+		publishFn: func(ctx context.Context, id int64) error {
+			return fmt.Errorf("publish failed")
+		},
+	}
+
+	service := platformSvc.NewAnnouncementService(platformSvc.AnnouncementServiceConfig{
+		AnnouncementRepo:     announcementRepo,
+		AnnouncementViewRepo: &mockAnnouncementViewRepoShared{},
+		AuditLogRepo:         &mockAuditLogRepoShared{},
+		DB:                   &bun.DB{},
+		Logger:               slog.Default(),
+	})
+
+	err := service.PublishAnnouncement(ctx, 1, 1, net.ParseIP("127.0.0.1"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "publish failed")
+}
+
+func TestAnnouncementService_UnpublishAnnouncement_NotFound(t *testing.T) {
+	ctx := context.Background()
+	announcementRepo := &mockAnnouncementRepoShared{
+		findByIDFn: func(ctx context.Context, id int64) (*platform.Announcement, error) {
+			return nil, nil
+		},
+	}
+
+	service := platformSvc.NewAnnouncementService(platformSvc.AnnouncementServiceConfig{
+		AnnouncementRepo:     announcementRepo,
+		AnnouncementViewRepo: &mockAnnouncementViewRepoShared{},
+		AuditLogRepo:         &mockAuditLogRepoShared{},
+		DB:                   &bun.DB{},
+		Logger:               slog.Default(),
+	})
+
+	err := service.UnpublishAnnouncement(ctx, 999, 1, net.ParseIP("127.0.0.1"))
+	require.Error(t, err)
+	assert.IsType(t, &platformSvc.AnnouncementNotFoundError{}, err)
+}
+
+func TestAnnouncementService_UnpublishAnnouncement_FindByIDError(t *testing.T) {
+	ctx := context.Background()
+	announcementRepo := &mockAnnouncementRepoShared{
+		findByIDFn: func(ctx context.Context, id int64) (*platform.Announcement, error) {
+			return nil, fmt.Errorf("db error")
+		},
+	}
+
+	service := platformSvc.NewAnnouncementService(platformSvc.AnnouncementServiceConfig{
+		AnnouncementRepo:     announcementRepo,
+		AnnouncementViewRepo: &mockAnnouncementViewRepoShared{},
+		AuditLogRepo:         &mockAuditLogRepoShared{},
+		DB:                   &bun.DB{},
+		Logger:               slog.Default(),
+	})
+
+	err := service.UnpublishAnnouncement(ctx, 1, 1, net.ParseIP("127.0.0.1"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "db error")
+}
+
+func TestAnnouncementService_UnpublishAnnouncement_RepositoryError(t *testing.T) {
+	ctx := context.Background()
+	now := time.Now()
+	announcementRepo := &mockAnnouncementRepoShared{
+		findByIDFn: func(ctx context.Context, id int64) (*platform.Announcement, error) {
+			return &platform.Announcement{
+				Model:       base.Model{ID: 1},
+				Title:       "Test",
+				Content:     "Content",
+				Type:        platform.TypeAnnouncement,
+				Severity:    platform.SeverityInfo,
+				PublishedAt: &now,
+			}, nil
+		},
+		unpublishFn: func(ctx context.Context, id int64) error {
+			return fmt.Errorf("unpublish failed")
+		},
+	}
+
+	service := platformSvc.NewAnnouncementService(platformSvc.AnnouncementServiceConfig{
+		AnnouncementRepo:     announcementRepo,
+		AnnouncementViewRepo: &mockAnnouncementViewRepoShared{},
+		AuditLogRepo:         &mockAuditLogRepoShared{},
+		DB:                   &bun.DB{},
+		Logger:               slog.Default(),
+	})
+
+	err := service.UnpublishAnnouncement(ctx, 1, 1, net.ParseIP("127.0.0.1"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unpublish failed")
+}
+
+func TestAnnouncementService_ListAnnouncements_RepositoryError(t *testing.T) {
+	ctx := context.Background()
+	announcementRepo := &mockAnnouncementRepoShared{
+		listFn: func(ctx context.Context, includeInactive bool) ([]*platform.Announcement, error) {
+			return nil, fmt.Errorf("list failed")
+		},
+	}
+
+	service := platformSvc.NewAnnouncementService(platformSvc.AnnouncementServiceConfig{
+		AnnouncementRepo:     announcementRepo,
+		AnnouncementViewRepo: &mockAnnouncementViewRepoShared{},
+		AuditLogRepo:         &mockAuditLogRepoShared{},
+		DB:                   &bun.DB{},
+		Logger:               slog.Default(),
+	})
+
+	_, err := service.ListAnnouncements(ctx, false)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "list failed")
+}
+
+func TestAnnouncementService_MarkSeen_RepositoryError(t *testing.T) {
+	ctx := context.Background()
+	viewRepo := &mockAnnouncementViewRepoShared{
+		markSeenFn: func(ctx context.Context, userID, announcementID int64) error {
+			return fmt.Errorf("mark seen failed")
+		},
+	}
+
+	service := platformSvc.NewAnnouncementService(platformSvc.AnnouncementServiceConfig{
+		AnnouncementRepo:     &mockAnnouncementRepoShared{},
+		AnnouncementViewRepo: viewRepo,
+		AuditLogRepo:         &mockAuditLogRepoShared{},
+		DB:                   &bun.DB{},
+		Logger:               slog.Default(),
+	})
+
+	err := service.MarkSeen(ctx, 1, 1)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "mark seen failed")
+}
+
+func TestAnnouncementService_MarkDismissed_RepositoryError(t *testing.T) {
+	ctx := context.Background()
+	viewRepo := &mockAnnouncementViewRepoShared{
+		markDismissedFn: func(ctx context.Context, userID, announcementID int64) error {
+			return fmt.Errorf("mark dismissed failed")
+		},
+	}
+
+	service := platformSvc.NewAnnouncementService(platformSvc.AnnouncementServiceConfig{
+		AnnouncementRepo:     &mockAnnouncementRepoShared{},
+		AnnouncementViewRepo: viewRepo,
+		AuditLogRepo:         &mockAuditLogRepoShared{},
+		DB:                   &bun.DB{},
+		Logger:               slog.Default(),
+	})
+
+	err := service.MarkDismissed(ctx, 1, 1)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "mark dismissed failed")
+}
+
+func TestAnnouncementService_GetStats_FindByIDError(t *testing.T) {
+	ctx := context.Background()
+	announcementRepo := &mockAnnouncementRepoShared{
+		findByIDFn: func(ctx context.Context, id int64) (*platform.Announcement, error) {
+			return nil, fmt.Errorf("db error")
+		},
+	}
+
+	service := platformSvc.NewAnnouncementService(platformSvc.AnnouncementServiceConfig{
+		AnnouncementRepo:     announcementRepo,
+		AnnouncementViewRepo: &mockAnnouncementViewRepoShared{},
+		AuditLogRepo:         &mockAuditLogRepoShared{},
+		DB:                   &bun.DB{},
+		Logger:               slog.Default(),
+	})
+
+	_, err := service.GetStats(ctx, 42)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "db error")
+}
+
+func TestAnnouncementService_GetViewDetails_FindByIDError(t *testing.T) {
+	ctx := context.Background()
+	announcementRepo := &mockAnnouncementRepoShared{
+		findByIDFn: func(ctx context.Context, id int64) (*platform.Announcement, error) {
+			return nil, fmt.Errorf("db error")
+		},
+	}
+
+	service := platformSvc.NewAnnouncementService(platformSvc.AnnouncementServiceConfig{
+		AnnouncementRepo:     announcementRepo,
+		AnnouncementViewRepo: &mockAnnouncementViewRepoShared{},
+		AuditLogRepo:         &mockAuditLogRepoShared{},
+		DB:                   &bun.DB{},
+		Logger:               slog.Default(),
+	})
+
+	_, err := service.GetViewDetails(ctx, 42)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "db error")
+}
+
+func TestAnnouncementService_GetAnnouncement_FindByIDError(t *testing.T) {
+	ctx := context.Background()
+	announcementRepo := &mockAnnouncementRepoShared{
+		findByIDFn: func(ctx context.Context, id int64) (*platform.Announcement, error) {
+			return nil, fmt.Errorf("db connection error")
+		},
+	}
+
+	service := platformSvc.NewAnnouncementService(platformSvc.AnnouncementServiceConfig{
+		AnnouncementRepo:     announcementRepo,
+		AnnouncementViewRepo: &mockAnnouncementViewRepoShared{},
+		AuditLogRepo:         &mockAuditLogRepoShared{},
+		DB:                   &bun.DB{},
+		Logger:               slog.Default(),
+	})
+
+	_, err := service.GetAnnouncement(ctx, 42)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "db connection error")
+}
+
+func TestAnnouncementService_GetLogger_NilLogger(t *testing.T) {
+	ctx := context.Background()
+	// Test with nil logger - service should fallback to slog.Default()
+	announcementRepo := &mockAnnouncementRepoShared{
+		createFn: func(ctx context.Context, announcement *platform.Announcement) error {
+			announcement.ID = 1
+			return nil
+		},
+	}
+	auditLogRepo := &mockAuditLogRepoShared{
+		createFn: func(ctx context.Context, entry *platform.OperatorAuditLog) error {
+			return fmt.Errorf("audit log error")
+		},
+	}
+
+	service := platformSvc.NewAnnouncementService(platformSvc.AnnouncementServiceConfig{
+		AnnouncementRepo:     announcementRepo,
+		AnnouncementViewRepo: &mockAnnouncementViewRepoShared{},
+		AuditLogRepo:         auditLogRepo,
+		DB:                   &bun.DB{},
+		Logger:               nil, // nil logger
+	})
+
+	announcement := &platform.Announcement{
+		Title:    "Test",
+		Content:  "Content",
+		Type:     platform.TypeAnnouncement,
+		Severity: platform.SeverityInfo,
+	}
+
+	// Should not panic even with nil logger and audit log error
+	err := service.CreateAnnouncement(ctx, announcement, 42, net.ParseIP("127.0.0.1"))
+	require.NoError(t, err)
+}
+
+func TestAnnouncementService_LogAction_AuditLogSetChangesError(t *testing.T) {
+	ctx := context.Background()
+	announcementRepo := &mockAnnouncementRepoShared{
+		findByIDFn: func(ctx context.Context, id int64) (*platform.Announcement, error) {
+			return &platform.Announcement{
+				Model:    base.Model{ID: 1},
+				Title:    "Old",
+				Content:  "Old Content",
+				Type:     platform.TypeAnnouncement,
+				Severity: platform.SeverityInfo,
+			}, nil
+		},
+		updateFn: func(ctx context.Context, announcement *platform.Announcement) error {
+			return nil
+		},
+	}
+	auditLogRepo := &mockAuditLogRepoShared{
+		createFn: func(ctx context.Context, entry *platform.OperatorAuditLog) error {
+			return fmt.Errorf("audit create failed")
+		},
+	}
+
+	service := platformSvc.NewAnnouncementService(platformSvc.AnnouncementServiceConfig{
+		AnnouncementRepo:     announcementRepo,
+		AnnouncementViewRepo: &mockAnnouncementViewRepoShared{},
+		AuditLogRepo:         auditLogRepo,
+		DB:                   &bun.DB{},
+		Logger:               slog.Default(),
+	})
+
+	announcement := &platform.Announcement{
+		Title:    "New Title",
+		Content:  "New Content",
+		Type:     platform.TypeAnnouncement,
+		Severity: platform.SeverityInfo,
+	}
+	announcement.CreatedBy = 1
+
+	// Should succeed even if audit logging fails
+	err := service.UpdateAnnouncement(ctx, announcement, 1, net.ParseIP("127.0.0.1"))
+	require.NoError(t, err)
+}
+
+func TestAnnouncementService_ListAnnouncements_IncludeInactive(t *testing.T) {
+	ctx := context.Background()
+	var capturedIncludeInactive bool
+	announcementRepo := &mockAnnouncementRepoShared{
+		listFn: func(ctx context.Context, includeInactive bool) ([]*platform.Announcement, error) {
+			capturedIncludeInactive = includeInactive
+			return []*platform.Announcement{}, nil
+		},
+	}
+
+	service := platformSvc.NewAnnouncementService(platformSvc.AnnouncementServiceConfig{
+		AnnouncementRepo:     announcementRepo,
+		AnnouncementViewRepo: &mockAnnouncementViewRepoShared{},
+		AuditLogRepo:         &mockAuditLogRepoShared{},
+		DB:                   &bun.DB{},
+		Logger:               slog.Default(),
+	})
+
+	_, err := service.ListAnnouncements(ctx, true)
+	require.NoError(t, err)
+	assert.True(t, capturedIncludeInactive)
+}
