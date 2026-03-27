@@ -1240,7 +1240,7 @@ func (s *operatorProvisioningService) SoftDeleteSchool(ctx context.Context, scho
 	})
 }
 
-// RestoreSchool clears the deleted_at timestamp, returning the school to its pre-deletion state.
+// RestoreSchool returns a soft-deleted school to its pre-deletion state.
 // The active field is preserved — a school that was inactive before deletion remains inactive after restore.
 func (s *operatorProvisioningService) RestoreSchool(ctx context.Context, schoolID, operatorID int64, clientIP net.IP) error {
 	return s.withAdminTx(ctx, func(adminCtx context.Context) error {

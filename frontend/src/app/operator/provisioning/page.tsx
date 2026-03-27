@@ -72,8 +72,7 @@ export default function OperatorProvisioningPage() {
   // Soft-delete / restore state
   const [deleteTarget, setDeleteTarget] = useState<School | null>(null);
   const [restoreTarget, setRestoreTarget] = useState<School | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [isRestoring, setIsRestoring] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [showTrash, setShowTrash] = useState(false);
   const [deleteError, setDeleteError] = useState("");
 
@@ -448,64 +447,68 @@ export default function OperatorProvisioningPage() {
     [schools],
   );
 
-  const handleSoftDelete = useCallback(async () => {
-    if (!deleteTarget) return;
-    setIsDeleting(true);
-    setDeleteError("");
-    try {
-      await operatorProvisioningService.softDeleteSchool(deleteTarget.id);
-      await mutateSchools();
+  const executeSchoolAction = useCallback(
+    async (
+      target: School | null,
+      action: (id: string) => Promise<unknown>,
+      errorMsg: string,
+      logEvent: string,
+      onSuccess: () => void,
+    ) => {
+      if (!target) return;
+      setIsProcessing(true);
+      setDeleteError("");
       try {
-        await fetch("/api/operator/provisioning/revalidate-tenant", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ slugs: [deleteTarget.subdomain] }),
+        await action(target.id);
+        await mutateSchools();
+        try {
+          await fetch("/api/operator/provisioning/revalidate-tenant", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ slugs: [target.subdomain] }),
+          });
+        } catch {
+          /* Cache self-heals in ≤5 min */
+        }
+        onSuccess();
+      } catch (error) {
+        setDeleteError(errorMsg);
+        logger.error(logEvent, {
+          error: error instanceof Error ? error.message : String(error),
         });
-      } catch {
-        /* Cache self-heals in ≤5 min */
+      } finally {
+        setIsProcessing(false);
       }
-      setDeleteTarget(null);
-    } catch (error) {
-      setDeleteError(
-        "Fehler beim Löschen der Schule. Bitte versuchen Sie es erneut.",
-      );
-      logger.error("school_soft_delete_failed", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-    } finally {
-      setIsDeleting(false);
-    }
-  }, [deleteTarget, mutateSchools]);
+    },
+    [mutateSchools],
+  );
 
-  const handleRestore = useCallback(async () => {
-    if (!restoreTarget) return;
-    setIsRestoring(true);
-    setDeleteError("");
-    try {
-      await operatorProvisioningService.restoreSchool(restoreTarget.id);
-      await mutateSchools();
-      try {
-        await fetch("/api/operator/provisioning/revalidate-tenant", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ slugs: [restoreTarget.subdomain] }),
-        });
-      } catch {
-        /* Cache self-heals in ≤5 min */
-      }
-      setRestoreTarget(null);
-      setShowTrash(false);
-    } catch (error) {
-      setDeleteError(
+  const handleSoftDelete = useCallback(
+    () =>
+      executeSchoolAction(
+        deleteTarget,
+        operatorProvisioningService.softDeleteSchool,
+        "Fehler beim Löschen der Schule. Bitte versuchen Sie es erneut.",
+        "school_soft_delete_failed",
+        () => setDeleteTarget(null),
+      ),
+    [deleteTarget, executeSchoolAction],
+  );
+
+  const handleRestore = useCallback(
+    () =>
+      executeSchoolAction(
+        restoreTarget,
+        operatorProvisioningService.restoreSchool,
         "Fehler beim Wiederherstellen der Schule. Bitte versuchen Sie es erneut.",
-      );
-      logger.error("school_restore_failed", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-    } finally {
-      setIsRestoring(false);
-    }
-  }, [restoreTarget, mutateSchools]);
+        "school_restore_failed",
+        () => {
+          setRestoreTarget(null);
+          setShowTrash(false);
+        },
+      ),
+    [restoreTarget, executeSchoolAction],
+  );
 
   const isLoading =
     activeTab === "organizations"
@@ -665,7 +668,7 @@ export default function OperatorProvisioningPage() {
             title="Schule löschen"
             confirmText="Löschen"
             confirmButtonClass="bg-red-500 hover:bg-red-600"
-            isConfirmLoading={isDeleting}
+            isConfirmLoading={isProcessing}
           >
             <p className="text-sm text-gray-600">
               Möchten Sie die Schule &quot;{deleteTarget?.name}&quot; wirklich
@@ -681,7 +684,7 @@ export default function OperatorProvisioningPage() {
             onConfirm={() => void handleRestore()}
             title="Schule wiederherstellen"
             confirmText="Wiederherstellen"
-            isConfirmLoading={isRestoring}
+            isConfirmLoading={isProcessing}
           >
             <p className="text-sm text-gray-600">
               Möchten Sie die Schule &quot;{restoreTarget?.name}&quot;
