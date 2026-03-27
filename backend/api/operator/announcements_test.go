@@ -683,618 +683,503 @@ func TestUpdateAnnouncementRequest_Bind(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestCreateAnnouncement_WithOrgAndTenantTargeting(t *testing.T) {
-	mockService := &mockAnnouncementService{
-		createFn: func(ctx context.Context, announcement *platform.Announcement, operatorID int64, clientIP net.IP) error {
-			assert.Equal(t, []int64{1, 2}, announcement.TargetOrgIDs)
-			assert.Equal(t, []int64{5}, announcement.TargetTenantIDs)
-			assert.Equal(t, testOperatorID, operatorID)
-			announcement.ID = testAnnouncementID
-			return nil
-		},
-	}
+// --- Shared helpers for ID-based handler tests ---
 
-	resource := operator.NewAnnouncementsResource(mockService)
+// idHandlerFunc is a handler method that takes (http.ResponseWriter, *http.Request) with an "id" URL param.
+type idHandlerFunc func(http.ResponseWriter, *http.Request)
 
-	body := map[string]any{
-		"title":             "Targeted Announcement",
-		"content":           "Content for specific orgs and tenants",
-		"target_org_ids":    []int64{1, 2},
-		"target_tenant_ids": []int64{5},
-	}
-	jsonBody, _ := json.Marshal(body)
-	req := httptest.NewRequest(http.MethodPost, "/announcements", bytes.NewReader(jsonBody))
-	req.Header.Set("Content-Type", "application/json")
-	claims := jwt.AppClaims{ID: 1}
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
-	req = req.WithContext(ctx)
-	rr := httptest.NewRecorder()
-
-	resource.CreateAnnouncement(rr, req)
-
-	assert.Equal(t, http.StatusCreated, rr.Code)
-}
-
-func TestCreateAnnouncement_EmptyOrgAndTenantTargeting(t *testing.T) {
-	mockService := &mockAnnouncementService{
-		createFn: func(ctx context.Context, announcement *platform.Announcement, operatorID int64, clientIP net.IP) error {
-			assert.NotNil(t, announcement.TargetOrgIDs, "TargetOrgIDs should not be nil")
-			assert.NotNil(t, announcement.TargetTenantIDs, "TargetTenantIDs should not be nil")
-			assert.Empty(t, announcement.TargetOrgIDs)
-			assert.Empty(t, announcement.TargetTenantIDs)
-			announcement.ID = testAnnouncementID
-			return nil
-		},
-	}
-
-	resource := operator.NewAnnouncementsResource(mockService)
-
-	body := map[string]any{
-		"title":             "Global Announcement",
-		"content":           "Content for everyone",
-		"target_org_ids":    []int64{},
-		"target_tenant_ids": []int64{},
-	}
-	jsonBody, _ := json.Marshal(body)
-	req := httptest.NewRequest(http.MethodPost, "/announcements", bytes.NewReader(jsonBody))
-	req.Header.Set("Content-Type", "application/json")
-	claims := jwt.AppClaims{ID: 1}
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
-	req = req.WithContext(ctx)
-	rr := httptest.NewRecorder()
-
-	resource.CreateAnnouncement(rr, req)
-
-	assert.Equal(t, http.StatusCreated, rr.Code)
-}
-
-func TestUpdateAnnouncement_WithOrgAndTenantTargeting(t *testing.T) {
-	now := time.Now()
-	mockService := &mockAnnouncementService{
-		getAnnouncementFn: func(ctx context.Context, id int64) (*platform.Announcement, error) {
-			announcement := &platform.Announcement{
-				Title:       "Old Title",
-				Content:     "Old Content",
-				Type:        platform.TypeAnnouncement,
-				Severity:    platform.SeverityInfo,
-				Active:      true,
-				TargetRoles: []string{},
-				CreatedBy:   testOperatorID,
-			}
-			announcement.ID = testAnnouncementID
-			announcement.CreatedAt = now
-			announcement.UpdatedAt = now
-			return announcement, nil
-		},
-		updateFn: func(ctx context.Context, announcement *platform.Announcement, operatorID int64, clientIP net.IP) error {
-			assert.Equal(t, []int64{3, 4}, announcement.TargetOrgIDs)
-			assert.Equal(t, []int64{7, 8, 9}, announcement.TargetTenantIDs)
-			return nil
-		},
-	}
-
-	resource := operator.NewAnnouncementsResource(mockService)
-
-	body := map[string]any{
-		"title":             "Updated Title",
-		"content":           "Updated Content",
-		"type":              platform.TypeAnnouncement,
-		"severity":          platform.SeverityInfo,
-		"target_org_ids":    []int64{3, 4},
-		"target_tenant_ids": []int64{7, 8, 9},
-	}
-	jsonBody, _ := json.Marshal(body)
-	req := httptest.NewRequest(http.MethodPut, "/announcements/1", bytes.NewReader(jsonBody))
-	req.Header.Set("Content-Type", "application/json")
+// callIDHandler invokes a handler that reads chi URL param "id", with JWT claims in context.
+func callIDHandler(handler idHandlerFunc, method, path, id string) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(method, path, nil)
 	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("id", "1")
+	rctx.URLParams.Add("id", id)
 	claims := jwt.AppClaims{ID: 1}
 	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
 	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
-
-	resource.UpdateAnnouncement(rr, req)
-
-	assert.Equal(t, http.StatusOK, rr.Code)
+	handler(rr, req)
+	return rr
 }
 
-func TestListAnnouncements_IncludesOrgAndTenantIDs(t *testing.T) {
+// existingAnnouncement returns a mock getAnnouncementFn that always returns a valid announcement.
+func existingAnnouncement() func(ctx context.Context, id int64) (*platform.Announcement, error) {
 	now := time.Now()
-	mockService := &mockAnnouncementService{
-		listFn: func(ctx context.Context, includeInactive bool) ([]*platform.Announcement, error) {
-			announcement := &platform.Announcement{
-				Title:           "Targeted Announcement",
-				Content:         "Content",
-				Type:            platform.TypeAnnouncement,
-				Severity:        platform.SeverityInfo,
-				Active:          true,
-				TargetRoles:     []string{"teacher"},
-				TargetOrgIDs:    []int64{1},
-				TargetTenantIDs: []int64{5, 10},
-				CreatedBy:       testOperatorID,
+	return func(ctx context.Context, id int64) (*platform.Announcement, error) {
+		a := &platform.Announcement{
+			Title: "Title", Content: "Content",
+			Type: platform.TypeAnnouncement, Severity: platform.SeverityInfo,
+		}
+		a.ID = testAnnouncementID
+		a.CreatedAt = now
+		a.UpdatedAt = now
+		return a, nil
+	}
+}
+
+// --- Table-driven: InvalidID returns 400 ---
+
+func TestHandlers_InvalidID(t *testing.T) {
+	resource := operator.NewAnnouncementsResource(&mockAnnouncementService{})
+
+	tests := []struct {
+		name    string
+		handler idHandlerFunc
+		method  string
+		path    string
+	}{
+		{"Get", resource.GetAnnouncement, http.MethodGet, "/announcements/abc"},
+		{"Delete", resource.DeleteAnnouncement, http.MethodDelete, "/announcements/abc"},
+		{"Publish", resource.PublishAnnouncement, http.MethodPost, "/announcements/abc/publish"},
+		{"Stats", resource.GetStats, http.MethodGet, "/announcements/abc/stats"},
+		{"ViewDetails", resource.GetViewDetails, http.MethodGet, "/announcements/abc/views"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			rr := callIDHandler(tc.handler, tc.method, tc.path, "abc")
+			assert.Equal(t, http.StatusBadRequest, rr.Code)
+		})
+	}
+
+	// Update requires a JSON body to reach the ID parse
+	t.Run("Update", func(t *testing.T) {
+		body, _ := json.Marshal(map[string]any{"title": "T", "content": "C"})
+		req := httptest.NewRequest(http.MethodPut, "/announcements/abc", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		rctx := chi.NewRouteContext()
+		rctx.URLParams.Add("id", "abc")
+		claims := jwt.AppClaims{ID: 1}
+		ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
+		ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
+		req = req.WithContext(ctx)
+		rr := httptest.NewRecorder()
+		resource.UpdateAnnouncement(rr, req)
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+	})
+}
+
+// --- Table-driven: ServiceError returns 500 ---
+
+func TestHandlers_ServiceError(t *testing.T) {
+	dbErr := errors.New("database error")
+
+	tests := []struct {
+		name    string
+		mock    *mockAnnouncementService
+		handler func(*operator.AnnouncementsResource) idHandlerFunc
+		method  string
+		path    string
+	}{
+		{
+			"Get", &mockAnnouncementService{
+				getAnnouncementFn: func(_ context.Context, _ int64) (*platform.Announcement, error) { return nil, dbErr },
+			}, func(r *operator.AnnouncementsResource) idHandlerFunc { return r.GetAnnouncement },
+			http.MethodGet, "/announcements/1",
+		},
+		{
+			"Delete", &mockAnnouncementService{
+				deleteFn: func(_ context.Context, _ int64, _ int64, _ net.IP) error { return dbErr },
+			}, func(r *operator.AnnouncementsResource) idHandlerFunc { return r.DeleteAnnouncement },
+			http.MethodDelete, "/announcements/1",
+		},
+		{
+			"Publish", &mockAnnouncementService{
+				publishFn: func(_ context.Context, _ int64, _ int64, _ net.IP) error { return dbErr },
+			}, func(r *operator.AnnouncementsResource) idHandlerFunc { return r.PublishAnnouncement },
+			http.MethodPost, "/announcements/1/publish",
+		},
+		{
+			"Stats", &mockAnnouncementService{
+				getStatsFn: func(_ context.Context, _ int64) (*platform.AnnouncementStats, error) { return nil, dbErr },
+			}, func(r *operator.AnnouncementsResource) idHandlerFunc { return r.GetStats },
+			http.MethodGet, "/announcements/1/stats",
+		},
+		{
+			"ViewDetails", &mockAnnouncementService{
+				getViewDetailsFn: func(_ context.Context, _ int64) ([]*platform.AnnouncementViewDetail, error) { return nil, dbErr },
+			}, func(r *operator.AnnouncementsResource) idHandlerFunc { return r.GetViewDetails },
+			http.MethodGet, "/announcements/1/views",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			resource := operator.NewAnnouncementsResource(tc.mock)
+			rr := callIDHandler(tc.handler(resource), tc.method, tc.path, "1")
+			assert.Equal(t, http.StatusInternalServerError, rr.Code)
+		})
+	}
+
+	// Create and Update service errors
+	t.Run("Create", func(t *testing.T) {
+		mock := &mockAnnouncementService{
+			createFn: func(_ context.Context, _ *platform.Announcement, _ int64, _ net.IP) error { return dbErr },
+		}
+		resource := operator.NewAnnouncementsResource(mock)
+		body, _ := json.Marshal(map[string]any{"title": "T", "content": "C"})
+		req := httptest.NewRequest(http.MethodPost, "/announcements", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		ctx := context.WithValue(req.Context(), jwt.CtxClaims, jwt.AppClaims{ID: 1})
+		rr := httptest.NewRecorder()
+		resource.CreateAnnouncement(rr, req.WithContext(ctx))
+		assert.Equal(t, http.StatusInternalServerError, rr.Code)
+	})
+
+	t.Run("Update", func(t *testing.T) {
+		mock := &mockAnnouncementService{
+			getAnnouncementFn: existingAnnouncement(),
+			updateFn:          func(_ context.Context, _ *platform.Announcement, _ int64, _ net.IP) error { return dbErr },
+		}
+		resource := operator.NewAnnouncementsResource(mock)
+		body, _ := json.Marshal(map[string]any{
+			"title": "T", "content": "C",
+			"type": platform.TypeAnnouncement, "severity": platform.SeverityInfo,
+		})
+		req := httptest.NewRequest(http.MethodPut, "/announcements/1", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		rctx := chi.NewRouteContext()
+		rctx.URLParams.Add("id", "1")
+		ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
+		ctx = context.WithValue(ctx, jwt.CtxClaims, jwt.AppClaims{ID: 1})
+		rr := httptest.NewRecorder()
+		resource.UpdateAnnouncement(rr, req.WithContext(ctx))
+		assert.Equal(t, http.StatusInternalServerError, rr.Code)
+	})
+}
+
+// --- Table-driven: NotFound returns 404 ---
+
+func TestHandlers_NotFound(t *testing.T) {
+	notFound := &platformSvc.AnnouncementNotFoundError{}
+
+	tests := []struct {
+		name    string
+		mock    *mockAnnouncementService
+		handler func(*operator.AnnouncementsResource) idHandlerFunc
+		method  string
+		path    string
+	}{
+		{
+			"Get", &mockAnnouncementService{
+				getAnnouncementFn: func(_ context.Context, _ int64) (*platform.Announcement, error) { return nil, notFound },
+			}, func(r *operator.AnnouncementsResource) idHandlerFunc { return r.GetAnnouncement },
+			http.MethodGet, "/announcements/999",
+		},
+		{
+			"Delete", &mockAnnouncementService{
+				deleteFn: func(_ context.Context, _ int64, _ int64, _ net.IP) error { return notFound },
+			}, func(r *operator.AnnouncementsResource) idHandlerFunc { return r.DeleteAnnouncement },
+			http.MethodDelete, "/announcements/999",
+		},
+		{
+			"Publish", &mockAnnouncementService{
+				publishFn: func(_ context.Context, _ int64, _ int64, _ net.IP) error { return notFound },
+			}, func(r *operator.AnnouncementsResource) idHandlerFunc { return r.PublishAnnouncement },
+			http.MethodPost, "/announcements/999/publish",
+		},
+		{
+			"Stats", &mockAnnouncementService{
+				getStatsFn: func(_ context.Context, _ int64) (*platform.AnnouncementStats, error) { return nil, notFound },
+			}, func(r *operator.AnnouncementsResource) idHandlerFunc { return r.GetStats },
+			http.MethodGet, "/announcements/999/stats",
+		},
+		{
+			"ViewDetails", &mockAnnouncementService{
+				getViewDetailsFn: func(_ context.Context, _ int64) ([]*platform.AnnouncementViewDetail, error) { return nil, notFound },
+			}, func(r *operator.AnnouncementsResource) idHandlerFunc { return r.GetViewDetails },
+			http.MethodGet, "/announcements/999/views",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			resource := operator.NewAnnouncementsResource(tc.mock)
+			rr := callIDHandler(tc.handler(resource), tc.method, tc.path, "999")
+			assert.Equal(t, http.StatusNotFound, rr.Code)
+		})
+	}
+}
+
+// --- Table-driven: Create with org/tenant targeting ---
+
+func TestCreateAnnouncement_Targeting(t *testing.T) {
+	tests := []struct {
+		name            string
+		orgIDs          []int64
+		tenantIDs       []int64
+		wantOrgIDs      []int64
+		wantTenantIDs   []int64
+		wantOrgEmpty    bool
+		wantTenantEmpty bool
+	}{
+		{"BothOrgAndTenant", []int64{1, 2}, []int64{5}, []int64{1, 2}, []int64{5}, false, false},
+		{"OrgOnly", []int64{5}, []int64{}, []int64{5}, nil, false, true},
+		{"TenantOnly", []int64{}, []int64{12, 13}, nil, []int64{12, 13}, true, false},
+		{"Empty", []int64{}, []int64{}, nil, nil, true, true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mock := &mockAnnouncementService{
+				createFn: func(_ context.Context, a *platform.Announcement, _ int64, _ net.IP) error {
+					if tc.wantOrgEmpty {
+						assert.Empty(t, a.TargetOrgIDs)
+					} else {
+						assert.Equal(t, tc.wantOrgIDs, a.TargetOrgIDs)
+					}
+					if tc.wantTenantEmpty {
+						assert.Empty(t, a.TargetTenantIDs)
+					} else {
+						assert.Equal(t, tc.wantTenantIDs, a.TargetTenantIDs)
+					}
+					a.ID = testAnnouncementID
+					return nil
+				},
 			}
-			announcement.ID = testAnnouncementID
-			announcement.CreatedAt = now
-			announcement.UpdatedAt = now
-			return []*platform.Announcement{announcement}, nil
+			resource := operator.NewAnnouncementsResource(mock)
+
+			body, _ := json.Marshal(map[string]any{
+				"title": "T", "content": "C",
+				"target_org_ids": tc.orgIDs, "target_tenant_ids": tc.tenantIDs,
+			})
+			req := httptest.NewRequest(http.MethodPost, "/announcements", bytes.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+			ctx := context.WithValue(req.Context(), jwt.CtxClaims, jwt.AppClaims{ID: 1})
+			rr := httptest.NewRecorder()
+			resource.CreateAnnouncement(rr, req.WithContext(ctx))
+			assert.Equal(t, http.StatusCreated, rr.Code)
+		})
+	}
+}
+
+// --- Update with org/tenant targeting ---
+
+func TestUpdateAnnouncement_WithOrgAndTenantTargeting(t *testing.T) {
+	mock := &mockAnnouncementService{
+		getAnnouncementFn: existingAnnouncement(),
+		updateFn: func(_ context.Context, a *platform.Announcement, _ int64, _ net.IP) error {
+			assert.Equal(t, []int64{3, 4}, a.TargetOrgIDs)
+			assert.Equal(t, []int64{7, 8, 9}, a.TargetTenantIDs)
+			return nil
 		},
 	}
+	resource := operator.NewAnnouncementsResource(mock)
 
-	resource := operator.NewAnnouncementsResource(mockService)
-
-	req := httptest.NewRequest(http.MethodGet, "/announcements", nil)
-	claims := jwt.AppClaims{ID: 1}
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
-	req = req.WithContext(ctx)
+	body, _ := json.Marshal(map[string]any{
+		"title": "Updated", "content": "Updated",
+		"type": platform.TypeAnnouncement, "severity": platform.SeverityInfo,
+		"target_org_ids": []int64{3, 4}, "target_tenant_ids": []int64{7, 8, 9},
+	})
+	req := httptest.NewRequest(http.MethodPut, "/announcements/1", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "1")
+	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
+	ctx = context.WithValue(ctx, jwt.CtxClaims, jwt.AppClaims{ID: 1})
 	rr := httptest.NewRecorder()
-
-	resource.ListAnnouncements(rr, req)
-
+	resource.UpdateAnnouncement(rr, req.WithContext(ctx))
 	assert.Equal(t, http.StatusOK, rr.Code)
-
-	var response map[string]any
-	err := json.Unmarshal(rr.Body.Bytes(), &response)
-	require.NoError(t, err)
-
-	data := response["data"].([]any)
-	require.Len(t, data, 1)
-	announcement := data[0].(map[string]any)
-
-	// Verify target_org_ids is present as an array
-	orgIDs, ok := announcement["target_org_ids"].([]any)
-	require.True(t, ok, "target_org_ids should be a JSON array")
-	assert.Len(t, orgIDs, 1)
-	assert.Equal(t, float64(1), orgIDs[0])
-
-	// Verify target_tenant_ids is present as an array
-	tenantIDs, ok := announcement["target_tenant_ids"].([]any)
-	require.True(t, ok, "target_tenant_ids should be a JSON array")
-	assert.Len(t, tenantIDs, 2)
-	assert.Equal(t, float64(5), tenantIDs[0])
-	assert.Equal(t, float64(10), tenantIDs[1])
 }
 
-func TestCreateAnnouncement_OrgOnlyTargeting(t *testing.T) {
-	mockService := &mockAnnouncementService{
-		createFn: func(ctx context.Context, announcement *platform.Announcement, operatorID int64, clientIP net.IP) error {
-			assert.Equal(t, []int64{5}, announcement.TargetOrgIDs)
-			assert.Empty(t, announcement.TargetTenantIDs)
-			announcement.ID = testAnnouncementID
-			return nil
-		},
-	}
-
-	resource := operator.NewAnnouncementsResource(mockService)
-
-	body := map[string]any{
-		"title":             "Org Only",
-		"content":           "Only for org 5",
-		"target_org_ids":    []int64{5},
-		"target_tenant_ids": []int64{},
-	}
-	jsonBody, _ := json.Marshal(body)
-	req := httptest.NewRequest(http.MethodPost, "/announcements", bytes.NewReader(jsonBody))
-	req.Header.Set("Content-Type", "application/json")
-	claims := jwt.AppClaims{ID: 1}
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
-	req = req.WithContext(ctx)
-	rr := httptest.NewRecorder()
-
-	resource.CreateAnnouncement(rr, req)
-
-	assert.Equal(t, http.StatusCreated, rr.Code)
-}
-
-func TestCreateAnnouncement_TenantOnlyTargeting(t *testing.T) {
-	mockService := &mockAnnouncementService{
-		createFn: func(ctx context.Context, announcement *platform.Announcement, operatorID int64, clientIP net.IP) error {
-			assert.Empty(t, announcement.TargetOrgIDs)
-			assert.Equal(t, []int64{12, 13}, announcement.TargetTenantIDs)
-			announcement.ID = testAnnouncementID
-			return nil
-		},
-	}
-
-	resource := operator.NewAnnouncementsResource(mockService)
-
-	body := map[string]any{
-		"title":             "Tenant Only",
-		"content":           "Only for tenants 12 and 13",
-		"target_org_ids":    []int64{},
-		"target_tenant_ids": []int64{12, 13},
-	}
-	jsonBody, _ := json.Marshal(body)
-	req := httptest.NewRequest(http.MethodPost, "/announcements", bytes.NewReader(jsonBody))
-	req.Header.Set("Content-Type", "application/json")
-	claims := jwt.AppClaims{ID: 1}
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
-	req = req.WithContext(ctx)
-	rr := httptest.NewRecorder()
-
-	resource.CreateAnnouncement(rr, req)
-
-	assert.Equal(t, http.StatusCreated, rr.Code)
-}
+// --- Create response includes targeting fields ---
 
 func TestCreateAnnouncement_ResponseIncludesTargetingFields(t *testing.T) {
 	now := time.Now()
-	mockService := &mockAnnouncementService{
-		createFn: func(ctx context.Context, announcement *platform.Announcement, operatorID int64, clientIP net.IP) error {
-			announcement.ID = testAnnouncementID
-			announcement.CreatedAt = now
-			announcement.UpdatedAt = now
+	mock := &mockAnnouncementService{
+		createFn: func(_ context.Context, a *platform.Announcement, _ int64, _ net.IP) error {
+			a.ID = testAnnouncementID
+			a.CreatedAt = now
+			a.UpdatedAt = now
 			return nil
 		},
 	}
+	resource := operator.NewAnnouncementsResource(mock)
 
-	resource := operator.NewAnnouncementsResource(mockService)
-
-	body := map[string]any{
-		"title":             "Targeted",
-		"content":           "Content",
-		"target_org_ids":    []int64{1, 2},
-		"target_tenant_ids": []int64{5},
-		"target_roles":      []string{"admin"},
-	}
-	jsonBody, _ := json.Marshal(body)
-	req := httptest.NewRequest(http.MethodPost, "/announcements", bytes.NewReader(jsonBody))
+	body, _ := json.Marshal(map[string]any{
+		"title": "T", "content": "C",
+		"target_org_ids": []int64{1, 2}, "target_tenant_ids": []int64{5},
+		"target_roles": []string{"admin"},
+	})
+	req := httptest.NewRequest(http.MethodPost, "/announcements", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	claims := jwt.AppClaims{ID: 1}
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
-	req = req.WithContext(ctx)
+	ctx := context.WithValue(req.Context(), jwt.CtxClaims, jwt.AppClaims{ID: 1})
 	rr := httptest.NewRecorder()
-
-	resource.CreateAnnouncement(rr, req)
-
+	resource.CreateAnnouncement(rr, req.WithContext(ctx))
 	assert.Equal(t, http.StatusCreated, rr.Code)
 
 	var response map[string]any
-	err := json.Unmarshal(rr.Body.Bytes(), &response)
-	require.NoError(t, err)
-
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
 	data := response["data"].(map[string]any)
-	orgIDs, ok := data["target_org_ids"].([]any)
-	require.True(t, ok, "response should include target_org_ids array")
-	assert.Len(t, orgIDs, 2)
-
-	tenantIDs, ok := data["target_tenant_ids"].([]any)
-	require.True(t, ok, "response should include target_tenant_ids array")
-	assert.Len(t, tenantIDs, 1)
-
-	roles, ok := data["target_roles"].([]any)
-	require.True(t, ok, "response should include target_roles array")
-	assert.Len(t, roles, 1)
+	assert.Len(t, data["target_org_ids"].([]any), 2)
+	assert.Len(t, data["target_tenant_ids"].([]any), 1)
+	assert.Len(t, data["target_roles"].([]any), 1)
 }
 
-func TestCreateAnnouncement_ServiceError(t *testing.T) {
-	mockService := &mockAnnouncementService{
-		createFn: func(ctx context.Context, announcement *platform.Announcement, operatorID int64, clientIP net.IP) error {
-			return errors.New("database error")
-		},
-	}
-
-	resource := operator.NewAnnouncementsResource(mockService)
-
-	body := map[string]any{
-		"title":   "Test",
-		"content": "Content",
-	}
-	jsonBody, _ := json.Marshal(body)
-	req := httptest.NewRequest(http.MethodPost, "/announcements", bytes.NewReader(jsonBody))
-	req.Header.Set("Content-Type", "application/json")
-	claims := jwt.AppClaims{ID: 1}
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
-	req = req.WithContext(ctx)
-	rr := httptest.NewRecorder()
-
-	resource.CreateAnnouncement(rr, req)
-
-	assert.Equal(t, http.StatusInternalServerError, rr.Code)
-}
+// --- Get response includes targeting fields ---
 
 func TestGetAnnouncement_ResponseIncludesTargetingFields(t *testing.T) {
 	now := time.Now()
-	mockService := &mockAnnouncementService{
-		getAnnouncementFn: func(ctx context.Context, id int64) (*platform.Announcement, error) {
-			announcement := &platform.Announcement{
-				Title:           "Targeted",
-				Content:         "Content",
-				Type:            platform.TypeAnnouncement,
-				Severity:        platform.SeverityInfo,
-				Active:          true,
-				TargetRoles:     []string{"admin"},
-				TargetOrgIDs:    []int64{3},
-				TargetTenantIDs: []int64{7, 8},
-				CreatedBy:       testOperatorID,
+	mock := &mockAnnouncementService{
+		getAnnouncementFn: func(_ context.Context, _ int64) (*platform.Announcement, error) {
+			a := &platform.Announcement{
+				Title: "T", Content: "C",
+				Type: platform.TypeAnnouncement, Severity: platform.SeverityInfo, Active: true,
+				TargetRoles: []string{"admin"}, TargetOrgIDs: []int64{3}, TargetTenantIDs: []int64{7, 8},
+				CreatedBy: testOperatorID,
 			}
-			announcement.ID = testAnnouncementID
-			announcement.CreatedAt = now
-			announcement.UpdatedAt = now
-			return announcement, nil
+			a.ID = testAnnouncementID
+			a.CreatedAt = now
+			a.UpdatedAt = now
+			return a, nil
 		},
 	}
-
-	resource := operator.NewAnnouncementsResource(mockService)
-
-	req := httptest.NewRequest(http.MethodGet, "/announcements/1", nil)
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("id", "1")
-	claims := jwt.AppClaims{ID: 1}
-	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
-	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
-	req = req.WithContext(ctx)
-	rr := httptest.NewRecorder()
-
-	resource.GetAnnouncement(rr, req)
-
+	resource := operator.NewAnnouncementsResource(mock)
+	rr := callIDHandler(resource.GetAnnouncement, http.MethodGet, "/announcements/1", "1")
 	assert.Equal(t, http.StatusOK, rr.Code)
 
 	var response map[string]any
-	err := json.Unmarshal(rr.Body.Bytes(), &response)
-	require.NoError(t, err)
-
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
 	data := response["data"].(map[string]any)
-	orgIDs := data["target_org_ids"].([]any)
-	assert.Equal(t, float64(3), orgIDs[0])
-
+	assert.Equal(t, float64(3), data["target_org_ids"].([]any)[0])
 	tenantIDs := data["target_tenant_ids"].([]any)
 	assert.Len(t, tenantIDs, 2)
 	assert.Equal(t, float64(7), tenantIDs[0])
 	assert.Equal(t, float64(8), tenantIDs[1])
 }
 
-func TestAnnouncementResponse_NilOrgAndTenantIDsDefaultToEmptyArrays(t *testing.T) {
+// --- List includes org/tenant IDs ---
+
+func TestListAnnouncements_IncludesOrgAndTenantIDs(t *testing.T) {
 	now := time.Now()
-	mockService := &mockAnnouncementService{
-		listFn: func(ctx context.Context, includeInactive bool) ([]*platform.Announcement, error) {
-			announcement := &platform.Announcement{
-				Title:           "Global Announcement",
-				Content:         "Content for everyone",
-				Type:            platform.TypeAnnouncement,
-				Severity:        platform.SeverityInfo,
-				Active:          true,
-				TargetRoles:     nil,
-				TargetOrgIDs:    nil,
-				TargetTenantIDs: nil,
-				CreatedBy:       testOperatorID,
+	mock := &mockAnnouncementService{
+		listFn: func(_ context.Context, _ bool) ([]*platform.Announcement, error) {
+			a := &platform.Announcement{
+				Title: "T", Content: "C",
+				Type: platform.TypeAnnouncement, Severity: platform.SeverityInfo, Active: true,
+				TargetRoles: []string{"teacher"}, TargetOrgIDs: []int64{1}, TargetTenantIDs: []int64{5, 10},
+				CreatedBy: testOperatorID,
 			}
-			announcement.ID = testAnnouncementID
-			announcement.CreatedAt = now
-			announcement.UpdatedAt = now
-			return []*platform.Announcement{announcement}, nil
+			a.ID = testAnnouncementID
+			a.CreatedAt = now
+			a.UpdatedAt = now
+			return []*platform.Announcement{a}, nil
 		},
 	}
-
-	resource := operator.NewAnnouncementsResource(mockService)
+	resource := operator.NewAnnouncementsResource(mock)
 
 	req := httptest.NewRequest(http.MethodGet, "/announcements", nil)
-	claims := jwt.AppClaims{ID: 1}
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
-	req = req.WithContext(ctx)
+	ctx := context.WithValue(req.Context(), jwt.CtxClaims, jwt.AppClaims{ID: 1})
 	rr := httptest.NewRecorder()
-
-	resource.ListAnnouncements(rr, req)
-
+	resource.ListAnnouncements(rr, req.WithContext(ctx))
 	assert.Equal(t, http.StatusOK, rr.Code)
 
 	var response map[string]any
-	err := json.Unmarshal(rr.Body.Bytes(), &response)
-	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
+	item := response["data"].([]any)[0].(map[string]any)
+	orgIDs := item["target_org_ids"].([]any)
+	assert.Equal(t, float64(1), orgIDs[0])
+	tenantIDs := item["target_tenant_ids"].([]any)
+	assert.Len(t, tenantIDs, 2)
+}
 
-	data := response["data"].([]any)
-	require.Len(t, data, 1)
-	announcement := data[0].(map[string]any)
+// --- Nil org/tenant IDs default to empty arrays ---
 
-	// Verify nil slices are serialized as empty arrays, not null or omitted
-	orgIDs, ok := announcement["target_org_ids"].([]any)
-	require.True(t, ok, "target_org_ids should be an empty JSON array, not null or omitted")
+func TestAnnouncementResponse_NilOrgAndTenantIDsDefaultToEmptyArrays(t *testing.T) {
+	now := time.Now()
+	mock := &mockAnnouncementService{
+		listFn: func(_ context.Context, _ bool) ([]*platform.Announcement, error) {
+			a := &platform.Announcement{
+				Title: "Global", Content: "C",
+				Type: platform.TypeAnnouncement, Severity: platform.SeverityInfo, Active: true,
+				TargetRoles: nil, TargetOrgIDs: nil, TargetTenantIDs: nil,
+				CreatedBy: testOperatorID,
+			}
+			a.ID = testAnnouncementID
+			a.CreatedAt = now
+			a.UpdatedAt = now
+			return []*platform.Announcement{a}, nil
+		},
+	}
+	resource := operator.NewAnnouncementsResource(mock)
+
+	req := httptest.NewRequest(http.MethodGet, "/announcements", nil)
+	ctx := context.WithValue(req.Context(), jwt.CtxClaims, jwt.AppClaims{ID: 1})
+	rr := httptest.NewRecorder()
+	resource.ListAnnouncements(rr, req.WithContext(ctx))
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	var response map[string]any
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
+	item := response["data"].([]any)[0].(map[string]any)
+	orgIDs, ok := item["target_org_ids"].([]any)
+	require.True(t, ok, "target_org_ids should be an empty JSON array, not null")
 	assert.Empty(t, orgIDs)
-
-	tenantIDs, ok := announcement["target_tenant_ids"].([]any)
-	require.True(t, ok, "target_tenant_ids should be an empty JSON array, not null or omitted")
+	tenantIDs, ok := item["target_tenant_ids"].([]any)
+	require.True(t, ok, "target_tenant_ids should be an empty JSON array, not null")
 	assert.Empty(t, tenantIDs)
 }
 
-func TestGetStats_InvalidID(t *testing.T) {
-	mockService := &mockAnnouncementService{}
-	resource := operator.NewAnnouncementsResource(mockService)
+// --- Empty list ---
 
-	req := httptest.NewRequest(http.MethodGet, "/announcements/abc/stats", nil)
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("id", "abc")
-	claims := jwt.AppClaims{ID: 1}
-	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
-	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
-	req = req.WithContext(ctx)
-	rr := httptest.NewRecorder()
-
-	resource.GetStats(rr, req)
-
-	assert.Equal(t, http.StatusBadRequest, rr.Code)
-}
-
-func TestGetStats_NotFound(t *testing.T) {
-	mockService := &mockAnnouncementService{
-		getStatsFn: func(ctx context.Context, id int64) (*platform.AnnouncementStats, error) {
-			return nil, &platformSvc.AnnouncementNotFoundError{}
+func TestListAnnouncements_EmptyList(t *testing.T) {
+	mock := &mockAnnouncementService{
+		listFn: func(_ context.Context, _ bool) ([]*platform.Announcement, error) {
+			return []*platform.Announcement{}, nil
 		},
 	}
+	resource := operator.NewAnnouncementsResource(mock)
 
-	resource := operator.NewAnnouncementsResource(mockService)
-
-	req := httptest.NewRequest(http.MethodGet, "/announcements/999/stats", nil)
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("id", "999")
-	claims := jwt.AppClaims{ID: 1}
-	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
-	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
-	req = req.WithContext(ctx)
+	req := httptest.NewRequest(http.MethodGet, "/announcements", nil)
+	ctx := context.WithValue(req.Context(), jwt.CtxClaims, jwt.AppClaims{ID: 1})
 	rr := httptest.NewRecorder()
-
-	resource.GetStats(rr, req)
-
-	assert.Equal(t, http.StatusNotFound, rr.Code)
-}
-
-func TestGetStats_ServiceError(t *testing.T) {
-	mockService := &mockAnnouncementService{
-		getStatsFn: func(ctx context.Context, id int64) (*platform.AnnouncementStats, error) {
-			return nil, errors.New("database error")
-		},
-	}
-
-	resource := operator.NewAnnouncementsResource(mockService)
-
-	req := httptest.NewRequest(http.MethodGet, "/announcements/1/stats", nil)
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("id", "1")
-	claims := jwt.AppClaims{ID: 1}
-	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
-	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
-	req = req.WithContext(ctx)
-	rr := httptest.NewRecorder()
-
-	resource.GetStats(rr, req)
-
-	assert.Equal(t, http.StatusInternalServerError, rr.Code)
-}
-
-func TestGetStats_ResponseFields(t *testing.T) {
-	mockService := &mockAnnouncementService{
-		getStatsFn: func(ctx context.Context, id int64) (*platform.AnnouncementStats, error) {
-			return &platform.AnnouncementStats{
-				AnnouncementID: id,
-				TargetCount:    200,
-				SeenCount:      150,
-				DismissedCount: 30,
-			}, nil
-		},
-	}
-
-	resource := operator.NewAnnouncementsResource(mockService)
-
-	req := httptest.NewRequest(http.MethodGet, "/announcements/1/stats", nil)
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("id", "1")
-	claims := jwt.AppClaims{ID: 1}
-	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
-	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
-	req = req.WithContext(ctx)
-	rr := httptest.NewRecorder()
-
-	resource.GetStats(rr, req)
-
+	resource.ListAnnouncements(rr, req.WithContext(ctx))
 	assert.Equal(t, http.StatusOK, rr.Code)
 
 	var response map[string]any
-	err := json.Unmarshal(rr.Body.Bytes(), &response)
-	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
+	assert.Empty(t, response["data"].([]any))
+}
 
+// --- Stats response fields ---
+
+func TestGetStats_ResponseFields(t *testing.T) {
+	mock := &mockAnnouncementService{
+		getStatsFn: func(_ context.Context, id int64) (*platform.AnnouncementStats, error) {
+			return &platform.AnnouncementStats{
+				AnnouncementID: id, TargetCount: 200, SeenCount: 150, DismissedCount: 30,
+			}, nil
+		},
+	}
+	resource := operator.NewAnnouncementsResource(mock)
+	rr := callIDHandler(resource.GetStats, http.MethodGet, "/announcements/1/stats", "1")
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	var response map[string]any
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
 	data := response["data"].(map[string]any)
 	assert.Equal(t, float64(200), data["target_count"])
 	assert.Equal(t, float64(150), data["seen_count"])
 	assert.Equal(t, float64(30), data["dismissed_count"])
 }
 
-func TestGetViewDetails_InvalidID(t *testing.T) {
-	mockService := &mockAnnouncementService{}
-	resource := operator.NewAnnouncementsResource(mockService)
-
-	req := httptest.NewRequest(http.MethodGet, "/announcements/abc/views", nil)
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("id", "abc")
-	claims := jwt.AppClaims{ID: 1}
-	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
-	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
-	req = req.WithContext(ctx)
-	rr := httptest.NewRecorder()
-
-	resource.GetViewDetails(rr, req)
-
-	assert.Equal(t, http.StatusBadRequest, rr.Code)
-}
-
-func TestGetViewDetails_NotFound(t *testing.T) {
-	mockService := &mockAnnouncementService{
-		getViewDetailsFn: func(ctx context.Context, id int64) ([]*platform.AnnouncementViewDetail, error) {
-			return nil, &platformSvc.AnnouncementNotFoundError{}
-		},
-	}
-
-	resource := operator.NewAnnouncementsResource(mockService)
-
-	req := httptest.NewRequest(http.MethodGet, "/announcements/999/views", nil)
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("id", "999")
-	claims := jwt.AppClaims{ID: 1}
-	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
-	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
-	req = req.WithContext(ctx)
-	rr := httptest.NewRecorder()
-
-	resource.GetViewDetails(rr, req)
-
-	assert.Equal(t, http.StatusNotFound, rr.Code)
-}
-
-func TestGetViewDetails_ServiceError(t *testing.T) {
-	mockService := &mockAnnouncementService{
-		getViewDetailsFn: func(ctx context.Context, id int64) ([]*platform.AnnouncementViewDetail, error) {
-			return nil, errors.New("database error")
-		},
-	}
-
-	resource := operator.NewAnnouncementsResource(mockService)
-
-	req := httptest.NewRequest(http.MethodGet, "/announcements/1/views", nil)
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("id", "1")
-	claims := jwt.AppClaims{ID: 1}
-	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
-	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
-	req = req.WithContext(ctx)
-	rr := httptest.NewRecorder()
-
-	resource.GetViewDetails(rr, req)
-
-	assert.Equal(t, http.StatusInternalServerError, rr.Code)
-}
+// --- ViewDetails: empty and multiple ---
 
 func TestGetViewDetails_EmptyList(t *testing.T) {
-	mockService := &mockAnnouncementService{
-		getViewDetailsFn: func(ctx context.Context, id int64) ([]*platform.AnnouncementViewDetail, error) {
+	mock := &mockAnnouncementService{
+		getViewDetailsFn: func(_ context.Context, _ int64) ([]*platform.AnnouncementViewDetail, error) {
 			return []*platform.AnnouncementViewDetail{}, nil
 		},
 	}
-
-	resource := operator.NewAnnouncementsResource(mockService)
-
-	req := httptest.NewRequest(http.MethodGet, "/announcements/1/views", nil)
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("id", "1")
-	claims := jwt.AppClaims{ID: 1}
-	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
-	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
-	req = req.WithContext(ctx)
-	rr := httptest.NewRecorder()
-
-	resource.GetViewDetails(rr, req)
-
+	resource := operator.NewAnnouncementsResource(mock)
+	rr := callIDHandler(resource.GetViewDetails, http.MethodGet, "/announcements/1/views", "1")
 	assert.Equal(t, http.StatusOK, rr.Code)
 
 	var response map[string]any
-	err := json.Unmarshal(rr.Body.Bytes(), &response)
-	require.NoError(t, err)
-
-	data := response["data"].([]any)
-	assert.Empty(t, data)
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
+	assert.Empty(t, response["data"].([]any))
 }
 
 func TestGetViewDetails_MultipleDetails(t *testing.T) {
 	now := time.Now()
-	mockService := &mockAnnouncementService{
-		getViewDetailsFn: func(ctx context.Context, id int64) ([]*platform.AnnouncementViewDetail, error) {
+	mock := &mockAnnouncementService{
+		getViewDetailsFn: func(_ context.Context, _ int64) ([]*platform.AnnouncementViewDetail, error) {
 			return []*platform.AnnouncementViewDetail{
 				{UserID: 10, UserName: "Alice", SeenAt: now, Dismissed: false},
 				{UserID: 20, UserName: "Bob", SeenAt: now, Dismissed: true},
@@ -1302,711 +1187,272 @@ func TestGetViewDetails_MultipleDetails(t *testing.T) {
 			}, nil
 		},
 	}
-
-	resource := operator.NewAnnouncementsResource(mockService)
-
-	req := httptest.NewRequest(http.MethodGet, "/announcements/1/views", nil)
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("id", "1")
-	claims := jwt.AppClaims{ID: 1}
-	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
-	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
-	req = req.WithContext(ctx)
-	rr := httptest.NewRecorder()
-
-	resource.GetViewDetails(rr, req)
-
+	resource := operator.NewAnnouncementsResource(mock)
+	rr := callIDHandler(resource.GetViewDetails, http.MethodGet, "/announcements/1/views", "1")
 	assert.Equal(t, http.StatusOK, rr.Code)
 
 	var response map[string]any
-	err := json.Unmarshal(rr.Body.Bytes(), &response)
-	require.NoError(t, err)
-
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
 	data := response["data"].([]any)
 	assert.Len(t, data, 3)
-	firstDetail := data[0].(map[string]any)
-	assert.Equal(t, "Alice", firstDetail["user_name"])
-	secondDetail := data[1].(map[string]any)
-	assert.Equal(t, true, secondDetail["dismissed"])
+	assert.Equal(t, "Alice", data[0].(map[string]any)["user_name"])
+	assert.Equal(t, true, data[1].(map[string]any)["dismissed"])
 }
 
-func TestDeleteAnnouncement_InvalidID(t *testing.T) {
-	mockService := &mockAnnouncementService{}
-	resource := operator.NewAnnouncementsResource(mockService)
+// --- Table-driven: Response status (published, expired, draft) ---
 
-	req := httptest.NewRequest(http.MethodDelete, "/announcements/abc", nil)
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("id", "abc")
-	claims := jwt.AppClaims{ID: 1}
-	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
-	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
-	req = req.WithContext(ctx)
-	rr := httptest.NewRecorder()
-
-	resource.DeleteAnnouncement(rr, req)
-
-	assert.Equal(t, http.StatusBadRequest, rr.Code)
-}
-
-func TestDeleteAnnouncement_ServiceError(t *testing.T) {
-	mockService := &mockAnnouncementService{
-		deleteFn: func(ctx context.Context, id int64, operatorID int64, clientIP net.IP) error {
-			return errors.New("database error")
-		},
-	}
-
-	resource := operator.NewAnnouncementsResource(mockService)
-
-	req := httptest.NewRequest(http.MethodDelete, "/announcements/1", nil)
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("id", "1")
-	claims := jwt.AppClaims{ID: 1}
-	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
-	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
-	req = req.WithContext(ctx)
-	rr := httptest.NewRecorder()
-
-	resource.DeleteAnnouncement(rr, req)
-
-	assert.Equal(t, http.StatusInternalServerError, rr.Code)
-}
-
-func TestPublishAnnouncement_InvalidID(t *testing.T) {
-	mockService := &mockAnnouncementService{}
-	resource := operator.NewAnnouncementsResource(mockService)
-
-	req := httptest.NewRequest(http.MethodPost, "/announcements/abc/publish", nil)
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("id", "abc")
-	claims := jwt.AppClaims{ID: 1}
-	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
-	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
-	req = req.WithContext(ctx)
-	rr := httptest.NewRecorder()
-
-	resource.PublishAnnouncement(rr, req)
-
-	assert.Equal(t, http.StatusBadRequest, rr.Code)
-}
-
-func TestPublishAnnouncement_NotFound(t *testing.T) {
-	mockService := &mockAnnouncementService{
-		publishFn: func(ctx context.Context, id int64, operatorID int64, clientIP net.IP) error {
-			return &platformSvc.AnnouncementNotFoundError{}
-		},
-	}
-
-	resource := operator.NewAnnouncementsResource(mockService)
-
-	req := httptest.NewRequest(http.MethodPost, "/announcements/999/publish", nil)
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("id", "999")
-	claims := jwt.AppClaims{ID: 1}
-	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
-	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
-	req = req.WithContext(ctx)
-	rr := httptest.NewRecorder()
-
-	resource.PublishAnnouncement(rr, req)
-
-	assert.Equal(t, http.StatusNotFound, rr.Code)
-}
-
-func TestPublishAnnouncement_ServiceError(t *testing.T) {
-	mockService := &mockAnnouncementService{
-		publishFn: func(ctx context.Context, id int64, operatorID int64, clientIP net.IP) error {
-			return errors.New("database error")
-		},
-	}
-
-	resource := operator.NewAnnouncementsResource(mockService)
-
-	req := httptest.NewRequest(http.MethodPost, "/announcements/1/publish", nil)
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("id", "1")
-	claims := jwt.AppClaims{ID: 1}
-	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
-	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
-	req = req.WithContext(ctx)
-	rr := httptest.NewRecorder()
-
-	resource.PublishAnnouncement(rr, req)
-
-	assert.Equal(t, http.StatusInternalServerError, rr.Code)
-}
-
-func TestUpdateAnnouncement_InvalidID(t *testing.T) {
-	mockService := &mockAnnouncementService{}
-	resource := operator.NewAnnouncementsResource(mockService)
-
-	body := map[string]any{"title": "Test", "content": "Content"}
-	jsonBody, _ := json.Marshal(body)
-	req := httptest.NewRequest(http.MethodPut, "/announcements/abc", bytes.NewReader(jsonBody))
-	req.Header.Set("Content-Type", "application/json")
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("id", "abc")
-	claims := jwt.AppClaims{ID: 1}
-	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
-	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
-	req = req.WithContext(ctx)
-	rr := httptest.NewRecorder()
-
-	resource.UpdateAnnouncement(rr, req)
-
-	assert.Equal(t, http.StatusBadRequest, rr.Code)
-}
-
-func TestUpdateAnnouncement_ServiceError(t *testing.T) {
-	now := time.Now()
-	mockService := &mockAnnouncementService{
-		getAnnouncementFn: func(ctx context.Context, id int64) (*platform.Announcement, error) {
-			announcement := &platform.Announcement{
-				Title:    "Title",
-				Content:  "Content",
-				Type:     platform.TypeAnnouncement,
-				Severity: platform.SeverityInfo,
-			}
-			announcement.ID = testAnnouncementID
-			announcement.CreatedAt = now
-			announcement.UpdatedAt = now
-			return announcement, nil
-		},
-		updateFn: func(ctx context.Context, announcement *platform.Announcement, operatorID int64, clientIP net.IP) error {
-			return errors.New("update failed")
-		},
-	}
-
-	resource := operator.NewAnnouncementsResource(mockService)
-
-	body := map[string]any{
-		"title":    "New Title",
-		"content":  "New Content",
-		"type":     platform.TypeAnnouncement,
-		"severity": platform.SeverityInfo,
-	}
-	jsonBody, _ := json.Marshal(body)
-	req := httptest.NewRequest(http.MethodPut, "/announcements/1", bytes.NewReader(jsonBody))
-	req.Header.Set("Content-Type", "application/json")
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("id", "1")
-	claims := jwt.AppClaims{ID: 1}
-	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
-	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
-	req = req.WithContext(ctx)
-	rr := httptest.NewRecorder()
-
-	resource.UpdateAnnouncement(rr, req)
-
-	assert.Equal(t, http.StatusInternalServerError, rr.Code)
-}
-
-func TestUpdateAnnouncement_ClearExpiresAt(t *testing.T) {
-	now := time.Now()
-	expiresAt := now.Add(24 * time.Hour)
-	mockService := &mockAnnouncementService{
-		getAnnouncementFn: func(ctx context.Context, id int64) (*platform.Announcement, error) {
-			announcement := &platform.Announcement{
-				Title:     "Title",
-				Content:   "Content",
-				Type:      platform.TypeAnnouncement,
-				Severity:  platform.SeverityInfo,
-				ExpiresAt: &expiresAt,
-			}
-			announcement.ID = testAnnouncementID
-			announcement.CreatedAt = now
-			announcement.UpdatedAt = now
-			return announcement, nil
-		},
-		updateFn: func(ctx context.Context, announcement *platform.Announcement, operatorID int64, clientIP net.IP) error {
-			assert.Nil(t, announcement.ExpiresAt, "expires_at should be cleared when empty string is sent")
-			return nil
-		},
-	}
-
-	resource := operator.NewAnnouncementsResource(mockService)
-
-	emptyStr := ""
-	body := map[string]any{
-		"title":      "Title",
-		"content":    "Content",
-		"type":       platform.TypeAnnouncement,
-		"severity":   platform.SeverityInfo,
-		"expires_at": &emptyStr,
-	}
-	jsonBody, _ := json.Marshal(body)
-	req := httptest.NewRequest(http.MethodPut, "/announcements/1", bytes.NewReader(jsonBody))
-	req.Header.Set("Content-Type", "application/json")
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("id", "1")
-	claims := jwt.AppClaims{ID: 1}
-	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
-	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
-	req = req.WithContext(ctx)
-	rr := httptest.NewRecorder()
-
-	resource.UpdateAnnouncement(rr, req)
-
-	assert.Equal(t, http.StatusOK, rr.Code)
-}
-
-func TestUpdateAnnouncement_SetValidExpiresAt(t *testing.T) {
-	now := time.Now()
-	mockService := &mockAnnouncementService{
-		getAnnouncementFn: func(ctx context.Context, id int64) (*platform.Announcement, error) {
-			announcement := &platform.Announcement{
-				Title:    "Title",
-				Content:  "Content",
-				Type:     platform.TypeAnnouncement,
-				Severity: platform.SeverityInfo,
-			}
-			announcement.ID = testAnnouncementID
-			announcement.CreatedAt = now
-			announcement.UpdatedAt = now
-			return announcement, nil
-		},
-		updateFn: func(ctx context.Context, announcement *platform.Announcement, operatorID int64, clientIP net.IP) error {
-			assert.NotNil(t, announcement.ExpiresAt)
-			return nil
-		},
-	}
-
-	resource := operator.NewAnnouncementsResource(mockService)
-
-	futureTime := now.Add(72 * time.Hour).Format(time.RFC3339)
-	body := map[string]any{
-		"title":      "Title",
-		"content":    "Content",
-		"type":       platform.TypeAnnouncement,
-		"severity":   platform.SeverityInfo,
-		"expires_at": &futureTime,
-	}
-	jsonBody, _ := json.Marshal(body)
-	req := httptest.NewRequest(http.MethodPut, "/announcements/1", bytes.NewReader(jsonBody))
-	req.Header.Set("Content-Type", "application/json")
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("id", "1")
-	claims := jwt.AppClaims{ID: 1}
-	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
-	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
-	req = req.WithContext(ctx)
-	rr := httptest.NewRecorder()
-
-	resource.UpdateAnnouncement(rr, req)
-
-	assert.Equal(t, http.StatusOK, rr.Code)
-}
-
-func TestUpdateAnnouncement_SetActiveFlag(t *testing.T) {
-	now := time.Now()
-	mockService := &mockAnnouncementService{
-		getAnnouncementFn: func(ctx context.Context, id int64) (*platform.Announcement, error) {
-			announcement := &platform.Announcement{
-				Title:    "Title",
-				Content:  "Content",
-				Type:     platform.TypeAnnouncement,
-				Severity: platform.SeverityInfo,
-				Active:   true,
-			}
-			announcement.ID = testAnnouncementID
-			announcement.CreatedAt = now
-			announcement.UpdatedAt = now
-			return announcement, nil
-		},
-		updateFn: func(ctx context.Context, announcement *platform.Announcement, operatorID int64, clientIP net.IP) error {
-			assert.False(t, announcement.Active, "active flag should be set to false")
-			return nil
-		},
-	}
-
-	resource := operator.NewAnnouncementsResource(mockService)
-
-	activeVal := false
-	body := map[string]any{
-		"title":    "Title",
-		"content":  "Content",
-		"type":     platform.TypeAnnouncement,
-		"severity": platform.SeverityInfo,
-		"active":   &activeVal,
-	}
-	jsonBody, _ := json.Marshal(body)
-	req := httptest.NewRequest(http.MethodPut, "/announcements/1", bytes.NewReader(jsonBody))
-	req.Header.Set("Content-Type", "application/json")
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("id", "1")
-	claims := jwt.AppClaims{ID: 1}
-	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
-	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
-	req = req.WithContext(ctx)
-	rr := httptest.NewRecorder()
-
-	resource.UpdateAnnouncement(rr, req)
-
-	assert.Equal(t, http.StatusOK, rr.Code)
-}
-
-func TestNewAnnouncementResponse_PublishedStatus(t *testing.T) {
+func TestAnnouncementResponse_Status(t *testing.T) {
 	now := time.Now()
 	publishedAt := now.Add(-1 * time.Hour)
-	mockService := &mockAnnouncementService{
-		getAnnouncementFn: func(ctx context.Context, id int64) (*platform.Announcement, error) {
-			announcement := &platform.Announcement{
-				Title:       "Published",
-				Content:     "Content",
-				Type:        platform.TypeAnnouncement,
-				Severity:    platform.SeverityInfo,
-				Active:      true,
-				PublishedAt: &publishedAt,
-				TargetRoles: []string{},
-				CreatedBy:   testOperatorID,
-			}
-			announcement.ID = testAnnouncementID
-			announcement.CreatedAt = now
-			announcement.UpdatedAt = now
-			return announcement, nil
-		},
+	publishedAtOld := now.Add(-48 * time.Hour)
+	expiredAt := now.Add(-1 * time.Hour)
+
+	tests := []struct {
+		name       string
+		published  *time.Time
+		expires    *time.Time
+		wantStatus string
+	}{
+		{"Published", &publishedAt, nil, "published"},
+		{"Expired", &publishedAtOld, &expiredAt, "expired"},
+		{"Draft", nil, nil, "draft"},
 	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mock := &mockAnnouncementService{
+				getAnnouncementFn: func(_ context.Context, _ int64) (*platform.Announcement, error) {
+					a := &platform.Announcement{
+						Title: tc.name, Content: "C",
+						Type: platform.TypeAnnouncement, Severity: platform.SeverityInfo, Active: true,
+						PublishedAt: tc.published, ExpiresAt: tc.expires,
+						TargetRoles: []string{}, CreatedBy: testOperatorID,
+					}
+					a.ID = testAnnouncementID
+					a.CreatedAt = now
+					a.UpdatedAt = now
+					return a, nil
+				},
+			}
+			resource := operator.NewAnnouncementsResource(mock)
+			rr := callIDHandler(resource.GetAnnouncement, http.MethodGet, "/announcements/1", "1")
+			assert.Equal(t, http.StatusOK, rr.Code)
 
-	resource := operator.NewAnnouncementsResource(mockService)
-
-	req := httptest.NewRequest(http.MethodGet, "/announcements/1", nil)
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("id", "1")
-	claims := jwt.AppClaims{ID: 1}
-	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
-	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
-	req = req.WithContext(ctx)
-	rr := httptest.NewRecorder()
-
-	resource.GetAnnouncement(rr, req)
-
-	assert.Equal(t, http.StatusOK, rr.Code)
-
-	var response map[string]any
-	err := json.Unmarshal(rr.Body.Bytes(), &response)
-	require.NoError(t, err)
-
-	data := response["data"].(map[string]any)
-	assert.Equal(t, "published", data["status"])
-	assert.NotEmpty(t, data["published_at"])
+			var response map[string]any
+			require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
+			assert.Equal(t, tc.wantStatus, response["data"].(map[string]any)["status"])
+		})
+	}
 }
 
-func TestNewAnnouncementResponse_ExpiredStatus(t *testing.T) {
-	now := time.Now()
-	publishedAt := now.Add(-48 * time.Hour)
-	expiresAt := now.Add(-1 * time.Hour)
-	mockService := &mockAnnouncementService{
-		getAnnouncementFn: func(ctx context.Context, id int64) (*platform.Announcement, error) {
-			announcement := &platform.Announcement{
-				Title:       "Expired",
-				Content:     "Content",
-				Type:        platform.TypeAnnouncement,
-				Severity:    platform.SeverityInfo,
-				Active:      true,
-				PublishedAt: &publishedAt,
-				ExpiresAt:   &expiresAt,
-				TargetRoles: []string{},
-				CreatedBy:   testOperatorID,
-			}
-			announcement.ID = testAnnouncementID
-			announcement.CreatedAt = now
-			announcement.UpdatedAt = now
-			return announcement, nil
-		},
-	}
-
-	resource := operator.NewAnnouncementsResource(mockService)
-
-	req := httptest.NewRequest(http.MethodGet, "/announcements/1", nil)
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("id", "1")
-	claims := jwt.AppClaims{ID: 1}
-	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
-	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
-	req = req.WithContext(ctx)
-	rr := httptest.NewRecorder()
-
-	resource.GetAnnouncement(rr, req)
-
-	assert.Equal(t, http.StatusOK, rr.Code)
-
-	var response map[string]any
-	err := json.Unmarshal(rr.Body.Bytes(), &response)
-	require.NoError(t, err)
-
-	data := response["data"].(map[string]any)
-	assert.Equal(t, "expired", data["status"])
-	assert.NotEmpty(t, data["expires_at"])
-}
-
-func TestNewAnnouncementResponse_DraftStatus(t *testing.T) {
-	now := time.Now()
-	mockService := &mockAnnouncementService{
-		getAnnouncementFn: func(ctx context.Context, id int64) (*platform.Announcement, error) {
-			announcement := &platform.Announcement{
-				Title:       "Draft",
-				Content:     "Content",
-				Type:        platform.TypeAnnouncement,
-				Severity:    platform.SeverityInfo,
-				Active:      true,
-				PublishedAt: nil,
-				TargetRoles: []string{},
-				CreatedBy:   testOperatorID,
-			}
-			announcement.ID = testAnnouncementID
-			announcement.CreatedAt = now
-			announcement.UpdatedAt = now
-			return announcement, nil
-		},
-	}
-
-	resource := operator.NewAnnouncementsResource(mockService)
-
-	req := httptest.NewRequest(http.MethodGet, "/announcements/1", nil)
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("id", "1")
-	claims := jwt.AppClaims{ID: 1}
-	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
-	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
-	req = req.WithContext(ctx)
-	rr := httptest.NewRecorder()
-
-	resource.GetAnnouncement(rr, req)
-
-	assert.Equal(t, http.StatusOK, rr.Code)
-
-	var response map[string]any
-	err := json.Unmarshal(rr.Body.Bytes(), &response)
-	require.NoError(t, err)
-
-	data := response["data"].(map[string]any)
-	assert.Equal(t, "draft", data["status"])
-}
+// --- Create: default type/severity, version, invalid JSON, InvalidDataError ---
 
 func TestCreateAnnouncement_DefaultTypeAndSeverity(t *testing.T) {
-	mockService := &mockAnnouncementService{
-		createFn: func(ctx context.Context, announcement *platform.Announcement, operatorID int64, clientIP net.IP) error {
-			assert.Equal(t, platform.TypeAnnouncement, announcement.Type, "type should default to announcement")
-			assert.Equal(t, platform.SeverityInfo, announcement.Severity, "severity should default to info")
-			announcement.ID = testAnnouncementID
+	mock := &mockAnnouncementService{
+		createFn: func(_ context.Context, a *platform.Announcement, _ int64, _ net.IP) error {
+			assert.Equal(t, platform.TypeAnnouncement, a.Type)
+			assert.Equal(t, platform.SeverityInfo, a.Severity)
+			a.ID = testAnnouncementID
 			return nil
 		},
 	}
-
-	resource := operator.NewAnnouncementsResource(mockService)
-
-	body := map[string]any{
-		"title":   "Test Title",
-		"content": "Test Content",
-		// No type or severity specified
-	}
-	jsonBody, _ := json.Marshal(body)
-	req := httptest.NewRequest(http.MethodPost, "/announcements", bytes.NewReader(jsonBody))
+	resource := operator.NewAnnouncementsResource(mock)
+	body, _ := json.Marshal(map[string]any{"title": "T", "content": "C"})
+	req := httptest.NewRequest(http.MethodPost, "/announcements", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	claims := jwt.AppClaims{ID: 1}
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
-	req = req.WithContext(ctx)
+	ctx := context.WithValue(req.Context(), jwt.CtxClaims, jwt.AppClaims{ID: 1})
 	rr := httptest.NewRecorder()
-
-	resource.CreateAnnouncement(rr, req)
-
+	resource.CreateAnnouncement(rr, req.WithContext(ctx))
 	assert.Equal(t, http.StatusCreated, rr.Code)
 }
 
-func TestListAnnouncements_EmptyList(t *testing.T) {
-	mockService := &mockAnnouncementService{
-		listFn: func(ctx context.Context, includeInactive bool) ([]*platform.Announcement, error) {
-			return []*platform.Announcement{}, nil
+func TestCreateAnnouncement_WithVersion(t *testing.T) {
+	mock := &mockAnnouncementService{
+		createFn: func(_ context.Context, a *platform.Announcement, _ int64, _ net.IP) error {
+			require.NotNil(t, a.Version)
+			assert.Equal(t, "2.0.0", *a.Version)
+			a.ID = testAnnouncementID
+			return nil
 		},
 	}
-
-	resource := operator.NewAnnouncementsResource(mockService)
-
-	req := httptest.NewRequest(http.MethodGet, "/announcements", nil)
-	claims := jwt.AppClaims{ID: 1}
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
-	req = req.WithContext(ctx)
+	resource := operator.NewAnnouncementsResource(mock)
+	version := "2.0.0"
+	body, _ := json.Marshal(map[string]any{
+		"title": "Release", "content": "Notes", "type": platform.TypeRelease, "version": &version,
+	})
+	req := httptest.NewRequest(http.MethodPost, "/announcements", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	ctx := context.WithValue(req.Context(), jwt.CtxClaims, jwt.AppClaims{ID: 1})
 	rr := httptest.NewRecorder()
-
-	resource.ListAnnouncements(rr, req)
-
-	assert.Equal(t, http.StatusOK, rr.Code)
-
-	var response map[string]any
-	err := json.Unmarshal(rr.Body.Bytes(), &response)
-	require.NoError(t, err)
-
-	data := response["data"].([]any)
-	assert.Empty(t, data)
+	resource.CreateAnnouncement(rr, req.WithContext(ctx))
+	assert.Equal(t, http.StatusCreated, rr.Code)
 }
 
 func TestCreateAnnouncement_InvalidJSONBody(t *testing.T) {
-	mockService := &mockAnnouncementService{}
-	resource := operator.NewAnnouncementsResource(mockService)
-
+	resource := operator.NewAnnouncementsResource(&mockAnnouncementService{})
 	req := httptest.NewRequest(http.MethodPost, "/announcements", bytes.NewReader([]byte("not-json")))
 	req.Header.Set("Content-Type", "application/json")
-	claims := jwt.AppClaims{ID: 1}
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
-	req = req.WithContext(ctx)
+	ctx := context.WithValue(req.Context(), jwt.CtxClaims, jwt.AppClaims{ID: 1})
 	rr := httptest.NewRecorder()
-
-	resource.CreateAnnouncement(rr, req)
-
+	resource.CreateAnnouncement(rr, req.WithContext(ctx))
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 }
 
 func TestUpdateAnnouncement_InvalidJSONBody(t *testing.T) {
-	mockService := &mockAnnouncementService{}
-	resource := operator.NewAnnouncementsResource(mockService)
-
+	resource := operator.NewAnnouncementsResource(&mockAnnouncementService{})
 	req := httptest.NewRequest(http.MethodPut, "/announcements/1", bytes.NewReader([]byte("not-json")))
 	req.Header.Set("Content-Type", "application/json")
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("id", "1")
-	claims := jwt.AppClaims{ID: 1}
 	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
-	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
-	req = req.WithContext(ctx)
+	ctx = context.WithValue(ctx, jwt.CtxClaims, jwt.AppClaims{ID: 1})
 	rr := httptest.NewRecorder()
-
-	resource.UpdateAnnouncement(rr, req)
-
+	resource.UpdateAnnouncement(rr, req.WithContext(ctx))
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 }
 
-func TestGetAnnouncement_ServiceError(t *testing.T) {
-	mockService := &mockAnnouncementService{
-		getAnnouncementFn: func(ctx context.Context, id int64) (*platform.Announcement, error) {
-			return nil, errors.New("database error")
-		},
-	}
-
-	resource := operator.NewAnnouncementsResource(mockService)
-
-	req := httptest.NewRequest(http.MethodGet, "/announcements/1", nil)
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("id", "1")
-	claims := jwt.AppClaims{ID: 1}
-	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
-	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
-	req = req.WithContext(ctx)
-	rr := httptest.NewRecorder()
-
-	resource.GetAnnouncement(rr, req)
-
-	assert.Equal(t, http.StatusInternalServerError, rr.Code)
-}
-
-func TestCreateAnnouncement_WithVersion(t *testing.T) {
-	mockService := &mockAnnouncementService{
-		createFn: func(ctx context.Context, announcement *platform.Announcement, operatorID int64, clientIP net.IP) error {
-			assert.NotNil(t, announcement.Version)
-			assert.Equal(t, "2.0.0", *announcement.Version)
-			announcement.ID = testAnnouncementID
-			return nil
-		},
-	}
-
-	resource := operator.NewAnnouncementsResource(mockService)
-
-	version := "2.0.0"
-	body := map[string]any{
-		"title":   "Release",
-		"content": "Release notes",
-		"type":    platform.TypeRelease,
-		"version": &version,
-	}
-	jsonBody, _ := json.Marshal(body)
-	req := httptest.NewRequest(http.MethodPost, "/announcements", bytes.NewReader(jsonBody))
-	req.Header.Set("Content-Type", "application/json")
-	claims := jwt.AppClaims{ID: 1}
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
-	req = req.WithContext(ctx)
-	rr := httptest.NewRecorder()
-
-	resource.CreateAnnouncement(rr, req)
-
-	assert.Equal(t, http.StatusCreated, rr.Code)
-}
+// --- InvalidDataError for Create and Update ---
 
 func TestCreateAnnouncement_InvalidDataError(t *testing.T) {
-	mockService := &mockAnnouncementService{
-		createFn: func(ctx context.Context, announcement *platform.Announcement, operatorID int64, clientIP net.IP) error {
+	mock := &mockAnnouncementService{
+		createFn: func(_ context.Context, _ *platform.Announcement, _ int64, _ net.IP) error {
 			return &platformSvc.InvalidDataError{Err: errors.New("severity must be one of: info, warning, critical")}
 		},
 	}
-
-	resource := operator.NewAnnouncementsResource(mockService)
-
-	body := map[string]any{
-		"title":    "Test",
-		"content":  "Test content",
-		"severity": "invalid_severity",
-	}
-	jsonBody, _ := json.Marshal(body)
-	req := httptest.NewRequest(http.MethodPost, "/announcements", bytes.NewReader(jsonBody))
+	resource := operator.NewAnnouncementsResource(mock)
+	body, _ := json.Marshal(map[string]any{"title": "T", "content": "C", "severity": "bad"})
+	req := httptest.NewRequest(http.MethodPost, "/announcements", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	claims := jwt.AppClaims{ID: 1}
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
-	req = req.WithContext(ctx)
+	ctx := context.WithValue(req.Context(), jwt.CtxClaims, jwt.AppClaims{ID: 1})
 	rr := httptest.NewRecorder()
-
-	resource.CreateAnnouncement(rr, req)
-
+	resource.CreateAnnouncement(rr, req.WithContext(ctx))
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 
 	var response map[string]any
-	err := json.Unmarshal(rr.Body.Bytes(), &response)
-	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
 	assert.Contains(t, response["message"], "severity must be one of")
 }
 
 func TestUpdateAnnouncement_InvalidDataError(t *testing.T) {
-	now := time.Now()
-	mockService := &mockAnnouncementService{
-		getAnnouncementFn: func(ctx context.Context, id int64) (*platform.Announcement, error) {
-			announcement := &platform.Announcement{
-				Title:    "Existing",
-				Content:  "Existing content",
-				Type:     platform.TypeAnnouncement,
-				Severity: platform.SeverityInfo,
-				Active:   true,
-			}
-			announcement.ID = testAnnouncementID
-			announcement.CreatedAt = now
-			announcement.UpdatedAt = now
-			return announcement, nil
-		},
-		updateFn: func(ctx context.Context, announcement *platform.Announcement, operatorID int64, clientIP net.IP) error {
+	mock := &mockAnnouncementService{
+		getAnnouncementFn: existingAnnouncement(),
+		updateFn: func(_ context.Context, _ *platform.Announcement, _ int64, _ net.IP) error {
 			return &platformSvc.InvalidDataError{Err: errors.New("title exceeds maximum length")}
 		},
 	}
-
-	resource := operator.NewAnnouncementsResource(mockService)
-
-	body := map[string]any{
-		"title":    "Updated Title",
-		"content":  "Updated Content",
-		"type":     platform.TypeAnnouncement,
-		"severity": platform.SeverityInfo,
-	}
-	jsonBody, _ := json.Marshal(body)
-	req := httptest.NewRequest(http.MethodPut, "/announcements/1", bytes.NewReader(jsonBody))
+	resource := operator.NewAnnouncementsResource(mock)
+	body, _ := json.Marshal(map[string]any{
+		"title": "T", "content": "C",
+		"type": platform.TypeAnnouncement, "severity": platform.SeverityInfo,
+	})
+	req := httptest.NewRequest(http.MethodPut, "/announcements/1", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("id", "1")
-	claims := jwt.AppClaims{ID: 1}
 	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
-	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
-	req = req.WithContext(ctx)
+	ctx = context.WithValue(ctx, jwt.CtxClaims, jwt.AppClaims{ID: 1})
 	rr := httptest.NewRecorder()
-
-	resource.UpdateAnnouncement(rr, req)
-
+	resource.UpdateAnnouncement(rr, req.WithContext(ctx))
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 
 	var response map[string]any
-	err := json.Unmarshal(rr.Body.Bytes(), &response)
-	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
 	assert.Contains(t, response["message"], "title exceeds maximum length")
+}
+
+// --- Update: clear/set expires_at, set active flag ---
+
+func TestUpdateAnnouncement_ClearExpiresAt(t *testing.T) {
+	expiresAt := time.Now().Add(24 * time.Hour)
+	now := time.Now()
+	mock := &mockAnnouncementService{
+		getAnnouncementFn: func(_ context.Context, _ int64) (*platform.Announcement, error) {
+			a := &platform.Announcement{
+				Title: "T", Content: "C",
+				Type: platform.TypeAnnouncement, Severity: platform.SeverityInfo, ExpiresAt: &expiresAt,
+			}
+			a.ID = testAnnouncementID
+			a.CreatedAt = now
+			a.UpdatedAt = now
+			return a, nil
+		},
+		updateFn: func(_ context.Context, a *platform.Announcement, _ int64, _ net.IP) error {
+			assert.Nil(t, a.ExpiresAt, "expires_at should be cleared")
+			return nil
+		},
+	}
+	resource := operator.NewAnnouncementsResource(mock)
+	empty := ""
+	body, _ := json.Marshal(map[string]any{
+		"title": "T", "content": "C",
+		"type": platform.TypeAnnouncement, "severity": platform.SeverityInfo, "expires_at": &empty,
+	})
+	req := httptest.NewRequest(http.MethodPut, "/announcements/1", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "1")
+	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
+	ctx = context.WithValue(ctx, jwt.CtxClaims, jwt.AppClaims{ID: 1})
+	rr := httptest.NewRecorder()
+	resource.UpdateAnnouncement(rr, req.WithContext(ctx))
+	assert.Equal(t, http.StatusOK, rr.Code)
+}
+
+func TestUpdateAnnouncement_SetValidExpiresAt(t *testing.T) {
+	mock := &mockAnnouncementService{
+		getAnnouncementFn: existingAnnouncement(),
+		updateFn: func(_ context.Context, a *platform.Announcement, _ int64, _ net.IP) error {
+			assert.NotNil(t, a.ExpiresAt)
+			return nil
+		},
+	}
+	resource := operator.NewAnnouncementsResource(mock)
+	future := time.Now().Add(72 * time.Hour).Format(time.RFC3339)
+	body, _ := json.Marshal(map[string]any{
+		"title": "T", "content": "C",
+		"type": platform.TypeAnnouncement, "severity": platform.SeverityInfo, "expires_at": &future,
+	})
+	req := httptest.NewRequest(http.MethodPut, "/announcements/1", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "1")
+	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
+	ctx = context.WithValue(ctx, jwt.CtxClaims, jwt.AppClaims{ID: 1})
+	rr := httptest.NewRecorder()
+	resource.UpdateAnnouncement(rr, req.WithContext(ctx))
+	assert.Equal(t, http.StatusOK, rr.Code)
+}
+
+func TestUpdateAnnouncement_SetActiveFlag(t *testing.T) {
+	mock := &mockAnnouncementService{
+		getAnnouncementFn: func(_ context.Context, _ int64) (*platform.Announcement, error) {
+			now := time.Now()
+			a := &platform.Announcement{
+				Title: "T", Content: "C",
+				Type: platform.TypeAnnouncement, Severity: platform.SeverityInfo, Active: true,
+			}
+			a.ID = testAnnouncementID
+			a.CreatedAt = now
+			a.UpdatedAt = now
+			return a, nil
+		},
+		updateFn: func(_ context.Context, a *platform.Announcement, _ int64, _ net.IP) error {
+			assert.False(t, a.Active, "active flag should be false")
+			return nil
+		},
+	}
+	resource := operator.NewAnnouncementsResource(mock)
+	active := false
+	body, _ := json.Marshal(map[string]any{
+		"title": "T", "content": "C",
+		"type": platform.TypeAnnouncement, "severity": platform.SeverityInfo, "active": &active,
+	})
+	req := httptest.NewRequest(http.MethodPut, "/announcements/1", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "1")
+	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
+	ctx = context.WithValue(ctx, jwt.CtxClaims, jwt.AppClaims{ID: 1})
+	rr := httptest.NewRecorder()
+	resource.UpdateAnnouncement(rr, req.WithContext(ctx))
+	assert.Equal(t, http.StatusOK, rr.Code)
 }

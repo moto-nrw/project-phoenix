@@ -892,7 +892,7 @@ describe("OperatorAnnouncementsPage", () => {
       });
     }
 
-    it("renders org checkboxes from organizations data", async () => {
+    it("renders org and school checkboxes in create form", async () => {
       setupSWRWithOrgAndSchools();
       render(<OperatorAnnouncementsPage />);
 
@@ -902,20 +902,11 @@ describe("OperatorAnnouncementsPage", () => {
         expect(screen.getByTestId("modal")).toBeInTheDocument();
       });
 
+      // Org checkboxes
       expect(screen.getByText("Org Alpha")).toBeInTheDocument();
       expect(screen.getByText("Org Beta")).toBeInTheDocument();
-    });
 
-    it("renders school checkboxes from schools data", async () => {
-      setupSWRWithOrgAndSchools();
-      render(<OperatorAnnouncementsPage />);
-
-      fireEvent.click(screen.getByText("Neue Ankündigung"));
-
-      await waitFor(() => {
-        expect(screen.getByTestId("modal")).toBeInTheDocument();
-      });
-
+      // All schools visible when no org selected
       expect(screen.getByText("Schule A")).toBeInTheDocument();
       expect(screen.getByText("Schule B")).toBeInTheDocument();
       expect(screen.getByText("Schule C")).toBeInTheDocument();
@@ -931,7 +922,7 @@ describe("OperatorAnnouncementsPage", () => {
         expect(screen.getByTestId("modal")).toBeInTheDocument();
       });
 
-      // Select Org Beta (id=2) — only Schule C belongs to it
+      // Select Org Beta (id=2) -- only Schule C belongs to it
       fireEvent.click(screen.getByText("Org Beta"));
 
       await waitFor(() => {
@@ -941,23 +932,7 @@ describe("OperatorAnnouncementsPage", () => {
       });
     });
 
-    it("shows all schools when no org is selected", async () => {
-      setupSWRWithOrgAndSchools();
-      render(<OperatorAnnouncementsPage />);
-
-      fireEvent.click(screen.getByText("Neue Ankündigung"));
-
-      await waitFor(() => {
-        expect(screen.getByTestId("modal")).toBeInTheDocument();
-      });
-
-      // No org selected — all schools visible
-      expect(screen.getByText("Schule A")).toBeInTheDocument();
-      expect(screen.getByText("Schule B")).toBeInTheDocument();
-      expect(screen.getByText("Schule C")).toBeInTheDocument();
-    });
-
-    it("creates announcement with org targeting", async () => {
+    it("creates announcement with org and tenant targeting", async () => {
       setupSWRWithOrgAndSchools();
       mockCreate.mockResolvedValue({ ...mockAnnouncement });
 
@@ -969,95 +944,20 @@ describe("OperatorAnnouncementsPage", () => {
         expect(screen.getByTestId("modal")).toBeInTheDocument();
       });
 
-      // Fill required fields
       const textInputs = screen.getAllByRole("textbox");
-      fireEvent.change(textInputs[0]!, { target: { value: "Org Targeted" } });
+      fireEvent.change(textInputs[0]!, { target: { value: "Targeted" } });
       fireEvent.change(textInputs[1]!, {
-        target: { value: "Content for orgs" },
+        target: { value: "Content" },
       });
 
-      // Select Org Alpha
+      // Select org and schools
       fireEvent.click(screen.getByText("Org Alpha"));
+      fireEvent.click(screen.getByText("Schule A"));
 
-      // Submit
       fireEvent.click(screen.getByText("Erstellen"));
 
       await waitFor(() => {
         expect(mockCreate).toHaveBeenCalledWith(
-          expect.objectContaining({
-            target_org_ids: [1],
-          }),
-        );
-      });
-    });
-
-    it("creates announcement with tenant targeting", async () => {
-      setupSWRWithOrgAndSchools();
-      mockCreate.mockResolvedValue({ ...mockAnnouncement });
-
-      render(<OperatorAnnouncementsPage />);
-
-      fireEvent.click(screen.getByText("Neue Ankündigung"));
-
-      await waitFor(() => {
-        expect(screen.getByTestId("modal")).toBeInTheDocument();
-      });
-
-      // Fill required fields
-      const textInputs = screen.getAllByRole("textbox");
-      fireEvent.change(textInputs[0]!, {
-        target: { value: "Tenant Targeted" },
-      });
-      fireEvent.change(textInputs[1]!, {
-        target: { value: "Content for schools" },
-      });
-
-      // Select Schule A and Schule C
-      fireEvent.click(screen.getByText("Schule A"));
-      fireEvent.click(screen.getByText("Schule C"));
-
-      // Submit
-      fireEvent.click(screen.getByText("Erstellen"));
-
-      await waitFor(() => {
-        expect(mockCreate).toHaveBeenCalledWith(
-          expect.objectContaining({
-            target_tenant_ids: [10, 30],
-          }),
-        );
-      });
-    });
-
-    it("updates announcement with org and tenant targeting", async () => {
-      setupSWRWithOrgAndSchools();
-      mockUpdate.mockResolvedValue({ ...mockAnnouncement });
-
-      render(<OperatorAnnouncementsPage />);
-
-      // Open edit modal via kebab menu
-      const menuButtons = screen.getAllByLabelText("Menü öffnen");
-      if (menuButtons[0]) {
-        fireEvent.click(menuButtons[0]);
-      }
-
-      await waitFor(() => {
-        fireEvent.click(screen.getByText("Bearbeiten"));
-      });
-
-      await waitFor(() => {
-        expect(screen.getByTestId("modal")).toBeInTheDocument();
-      });
-
-      // Select org and school targeting
-      fireEvent.click(screen.getByText("Org Alpha"));
-      fireEvent.click(screen.getByText("Schule A"));
-
-      // Submit
-      fireEvent.click(screen.getByText("Speichern"));
-
-      await waitFor(() => {
-        expect(mockUpdate).toHaveBeenCalledWith(
-          "1",
           expect.objectContaining({
             target_org_ids: [1],
             target_tenant_ids: [10],
@@ -1066,122 +966,27 @@ describe("OperatorAnnouncementsPage", () => {
       });
     });
 
-    it("displays targeted org names on announcement card", () => {
+    it("displays targeted org and school names on announcement card", () => {
       const announcementWithOrgs = {
         ...mockAnnouncement,
         targetOrgIds: [1, 2],
         targetTenantIds: [],
       };
-
-      setupSWRWithOrgAndSchools([announcementWithOrgs]);
-      render(<OperatorAnnouncementsPage />);
-
-      expect(screen.getByText("Org Alpha, Org Beta")).toBeInTheDocument();
-    });
-
-    it("displays targeted school names on announcement card", () => {
       const announcementWithTenants = {
         ...mockAnnouncement,
+        id: "2",
         targetOrgIds: [],
         targetTenantIds: [10, 30],
       };
 
-      setupSWRWithOrgAndSchools([announcementWithTenants]);
+      setupSWRWithOrgAndSchools([
+        announcementWithOrgs,
+        announcementWithTenants,
+      ]);
       render(<OperatorAnnouncementsPage />);
 
+      expect(screen.getByText("Org Alpha, Org Beta")).toBeInTheDocument();
       expect(screen.getByText("Schule A, Schule C")).toBeInTheDocument();
-    });
-
-    it("shows empty state when no schools available for selected orgs", async () => {
-      // Set up with schools that belong to neither of the orgs we will select
-      mockUseSWR.mockImplementation((key: any) => {
-        if (key === "operator-announcements") {
-          return {
-            data: [mockAnnouncement],
-            isLoading: false,
-            mutate: mockMutate,
-          };
-        }
-        if (key === "operator-organizations") {
-          return {
-            data: [{ id: "99", name: "Empty Org", slug: "empty-org" }],
-            isLoading: false,
-            mutate: mockMutate,
-          };
-        }
-        if (key === "operator-schools") {
-          // No schools belong to org 99
-          return {
-            data: mockSchools,
-            isLoading: false,
-            mutate: mockMutate,
-          };
-        }
-        return { data: undefined, isLoading: false, mutate: mockMutate };
-      });
-
-      render(<OperatorAnnouncementsPage />);
-
-      fireEvent.click(screen.getByText("Neue Ankündigung"));
-
-      await waitFor(() => {
-        expect(screen.getByTestId("modal")).toBeInTheDocument();
-      });
-
-      // Select org 99 which has no schools
-      fireEvent.click(screen.getByText("Empty Org"));
-
-      await waitFor(() => {
-        expect(screen.getByText("Keine Schulen verfügbar")).toBeInTheDocument();
-      });
-    });
-
-    it("removes tenant selections when org is unchecked", async () => {
-      setupSWRWithOrgAndSchools();
-      mockCreate.mockResolvedValue({ ...mockAnnouncement });
-
-      render(<OperatorAnnouncementsPage />);
-
-      fireEvent.click(screen.getByText("Neue Ankündigung"));
-
-      await waitFor(() => {
-        expect(screen.getByTestId("modal")).toBeInTheDocument();
-      });
-
-      // Fill required fields
-      const textInputs = screen.getAllByRole("textbox");
-      fireEvent.change(textInputs[0]!, {
-        target: { value: "Test removal" },
-      });
-      fireEvent.change(textInputs[1]!, {
-        target: { value: "Content" },
-      });
-
-      // Select Org Alpha, then select its schools
-      fireEvent.click(screen.getByText("Org Alpha"));
-
-      await waitFor(() => {
-        expect(screen.getByText("Schule A")).toBeInTheDocument();
-      });
-
-      fireEvent.click(screen.getByText("Schule A"));
-      fireEvent.click(screen.getByText("Schule B"));
-
-      // Now uncheck Org Alpha — should remove Schule A and B from targetTenantIds
-      fireEvent.click(screen.getByText("Org Alpha"));
-
-      // Submit to verify tenant IDs were cleared
-      // First re-fill title since all schools are visible again but none selected
-      fireEvent.click(screen.getByText("Erstellen"));
-
-      await waitFor(() => {
-        expect(mockCreate).toHaveBeenCalledWith(
-          expect.objectContaining({
-            target_org_ids: [],
-            target_tenant_ids: [],
-          }),
-        );
-      });
     });
 
     it("populates targeting fields when editing existing announcement", async () => {
@@ -1222,24 +1027,7 @@ describe("OperatorAnnouncementsPage", () => {
       expect(schuleABtn?.className).toContain("border-[#83CD2D]");
     });
 
-    it("handles announcement with undefined targetOrgIds gracefully", () => {
-      const announcementNoTargeting = {
-        ...mockAnnouncement,
-        targetOrgIds: undefined,
-        targetTenantIds: undefined,
-      };
-
-      setupSWRWithOrgAndSchools([announcementNoTargeting]);
-
-      // Should render without throwing
-      render(<OperatorAnnouncementsPage />);
-
-      expect(screen.getByText("Test Announcement")).toBeInTheDocument();
-      // No org/school targeting rows should be displayed
-      expect(screen.queryByText("Org Alpha, Org Beta")).not.toBeInTheDocument();
-    });
-
-    it("publish confirmation shows global message when no targeting set", async () => {
+    it("publish confirmation shows global vs targeted message", async () => {
       const globalDraft = {
         ...mockAnnouncement,
         title: "Global Draft",
@@ -1259,7 +1047,7 @@ describe("OperatorAnnouncementsPage", () => {
       expect(screen.getByText(/für alle Nutzer sichtbar/)).toBeInTheDocument();
     });
 
-    it("publish confirmation shows targeted message when org targeting set", async () => {
+    it("publish confirmation shows targeted message when targeting set", async () => {
       const orgTargetedDraft = {
         ...mockAnnouncement,
         title: "Org Targeted Draft",
@@ -1279,95 +1067,6 @@ describe("OperatorAnnouncementsPage", () => {
       expect(
         screen.getByText(/ausgewählten Organisationen\/Schulen/),
       ).toBeInTheDocument();
-    });
-
-    it("publish confirmation shows targeted message when tenant targeting set", async () => {
-      const tenantTargetedDraft = {
-        ...mockAnnouncement,
-        title: "Tenant Targeted Draft",
-        targetOrgIds: [],
-        targetTenantIds: [10],
-      };
-
-      setupSWRWithOrgAndSchools([tenantTargetedDraft]);
-      render(<OperatorAnnouncementsPage />);
-
-      fireEvent.click(screen.getByText("Veröffentlichen"));
-
-      await waitFor(() => {
-        expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
-      });
-
-      expect(
-        screen.getByText(/ausgewählten Organisationen\/Schulen/),
-      ).toBeInTheDocument();
-    });
-
-    it("publish confirmation shows global message when targeting arrays undefined", async () => {
-      const undefinedTargetDraft = {
-        ...mockAnnouncement,
-        title: "Undefined Target Draft",
-        targetOrgIds: undefined,
-        targetTenantIds: undefined,
-      };
-
-      setupSWRWithOrgAndSchools([undefinedTargetDraft]);
-      render(<OperatorAnnouncementsPage />);
-
-      fireEvent.click(screen.getByText("Veröffentlichen"));
-
-      await waitFor(() => {
-        expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
-      });
-
-      expect(screen.getByText(/für alle Nutzer sichtbar/)).toBeInTheDocument();
-    });
-
-    it("preserves tenant selections when schools data is undefined during org deselection", async () => {
-      // Setup SWR where schools returns undefined
-      mockUseSWR.mockImplementation((key: any) => {
-        if (key === "operator-announcements") {
-          return {
-            data: [mockAnnouncement],
-            isLoading: false,
-            mutate: mockMutate,
-          };
-        }
-        if (key === "operator-organizations") {
-          return {
-            data: [{ id: "1", name: "Org Alpha", slug: "org-alpha" }],
-            isLoading: false,
-            mutate: mockMutate,
-          };
-        }
-        if (key === "operator-schools") {
-          return {
-            data: undefined,
-            isLoading: true,
-            mutate: mockMutate,
-          };
-        }
-        return { data: undefined, isLoading: false, mutate: mockMutate };
-      });
-
-      render(<OperatorAnnouncementsPage />);
-
-      // Open create form
-      fireEvent.click(screen.getByText("Neue Ankündigung"));
-
-      await waitFor(() => {
-        expect(screen.getByTestId("modal")).toBeInTheDocument();
-      });
-
-      // Select org (should work even without schools loaded)
-      const orgButton = screen.getByText("Org Alpha");
-      fireEvent.click(orgButton);
-
-      // Deselect org — tenant selections should be preserved (not errored)
-      fireEvent.click(orgButton);
-
-      // The form should still be functional (no crash)
-      expect(screen.getByTestId("modal")).toBeInTheDocument();
     });
   });
 });

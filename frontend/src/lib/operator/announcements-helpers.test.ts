@@ -117,38 +117,36 @@ describe("mapAnnouncement", () => {
     expect(result.status).toBe("draft");
   });
 
-  it("maps announcement with non-empty org and tenant targeting", () => {
-    const backendAnnouncement: BackendAnnouncement = {
+  it("maps org and tenant targeting across all variations", () => {
+    // Non-empty targeting
+    const withTargeting = mapAnnouncement({
       id: 200,
-      title: "Org-Scoped Notice",
-      content: "Only for specific orgs and tenants.",
+      title: "Org-Scoped",
+      content: "Content",
       type: "announcement",
-      severity: "info",
+      severity: "critical",
       version: null,
       active: true,
       published_at: "2024-06-01T00:00:00Z",
       expires_at: null,
-      target_roles: ["admin"],
-      target_org_ids: [1, 2],
-      target_tenant_ids: [5, 10, 15],
+      target_roles: ["admin", "guardian"],
+      target_org_ids: [1, 2, 3],
+      target_tenant_ids: [10, 20],
       created_by: 1,
       created_at: "2024-05-30T00:00:00Z",
       updated_at: "2024-06-01T00:00:00Z",
       status: "published",
-    };
+    });
+    expect(withTargeting.targetOrgIds).toEqual([1, 2, 3]);
+    expect(withTargeting.targetTenantIds).toEqual([10, 20]);
+    expect(withTargeting.targetRoles).toEqual(["admin", "guardian"]);
+    expect(withTargeting.severity).toBe("critical");
 
-    const result = mapAnnouncement(backendAnnouncement);
-
-    expect(result.targetOrgIds).toEqual([1, 2]);
-    expect(result.targetTenantIds).toEqual([5, 10, 15]);
-    expect(result.targetRoles).toEqual(["admin"]);
-  });
-
-  it("maps announcement with empty org and tenant arrays", () => {
-    const backendAnnouncement: BackendAnnouncement = {
+    // Empty arrays preserved
+    const emptyArrays = mapAnnouncement({
       id: 201,
-      title: "Global Notice",
-      content: "Visible to all.",
+      title: "Global",
+      content: "Content",
       type: "announcement",
       severity: "info",
       version: null,
@@ -162,12 +160,33 @@ describe("mapAnnouncement", () => {
       created_at: "2024-05-30T00:00:00Z",
       updated_at: "2024-06-01T00:00:00Z",
       status: "published",
-    };
+    });
+    expect(emptyArrays.targetOrgIds).toEqual([]);
+    expect(emptyArrays.targetTenantIds).toEqual([]);
 
-    const result = mapAnnouncement(backendAnnouncement);
-
-    expect(result.targetOrgIds).toEqual([]);
-    expect(result.targetTenantIds).toEqual([]);
+    // Undefined fields default to empty arrays
+    const raw = {
+      id: 300,
+      title: "No Targeting",
+      content: "Content",
+      type: "announcement" as const,
+      severity: "info" as const,
+      version: null,
+      active: true,
+      published_at: null,
+      expires_at: null,
+      target_roles: [],
+      created_by: 1,
+      created_at: "2024-01-01T00:00:00Z",
+      updated_at: "2024-01-01T00:00:00Z",
+      status: "draft" as const,
+    } as unknown as BackendAnnouncement;
+    const rawRecord = raw as unknown as Record<string, unknown>;
+    delete rawRecord["target_org_ids"];
+    delete rawRecord["target_tenant_ids"];
+    const undefinedFields = mapAnnouncement(raw);
+    expect(undefinedFields.targetOrgIds).toEqual([]);
+    expect(undefinedFields.targetTenantIds).toEqual([]);
   });
 
   it("maps release announcement correctly", () => {
@@ -251,117 +270,5 @@ describe("ANNOUNCEMENT_STATUS_STYLES", () => {
     expect(ANNOUNCEMENT_STATUS_STYLES.draft).toContain("bg-gray-100");
     expect(ANNOUNCEMENT_STATUS_STYLES.published).toContain("bg-green-100");
     expect(ANNOUNCEMENT_STATUS_STYLES.expired).toContain("bg-red-100");
-  });
-});
-
-describe("mapAnnouncement edge cases", () => {
-  it("defaults undefined target_org_ids to empty array", () => {
-    const data = {
-      id: 300,
-      title: "No Targeting",
-      content: "Content",
-      type: "announcement" as const,
-      severity: "info" as const,
-      version: null,
-      active: true,
-      published_at: null,
-      expires_at: null,
-      target_roles: [],
-      created_by: 1,
-      created_at: "2024-01-01T00:00:00Z",
-      updated_at: "2024-01-01T00:00:00Z",
-      status: "draft" as const,
-    } as unknown as BackendAnnouncement;
-
-    // Simulate missing fields (as if backend didn't include them)
-    const raw = data as unknown as Record<string, unknown>;
-    delete raw["target_org_ids"];
-    delete raw["target_tenant_ids"];
-
-    const result = mapAnnouncement(data);
-
-    expect(result.targetOrgIds).toEqual([]);
-    expect(result.targetTenantIds).toEqual([]);
-  });
-
-  it("handles single org targeting correctly", () => {
-    const data: BackendAnnouncement = {
-      id: 301,
-      title: "Single Org",
-      content: "Content",
-      type: "announcement",
-      severity: "info",
-      version: null,
-      active: true,
-      published_at: "2024-06-01T00:00:00Z",
-      expires_at: null,
-      target_roles: [],
-      target_org_ids: [42],
-      target_tenant_ids: [],
-      created_by: 1,
-      created_at: "2024-01-01T00:00:00Z",
-      updated_at: "2024-01-01T00:00:00Z",
-      status: "published",
-    };
-
-    const result = mapAnnouncement(data);
-
-    expect(result.targetOrgIds).toEqual([42]);
-    expect(result.targetTenantIds).toEqual([]);
-  });
-
-  it("handles single tenant targeting correctly", () => {
-    const data: BackendAnnouncement = {
-      id: 302,
-      title: "Single Tenant",
-      content: "Content",
-      type: "announcement",
-      severity: "info",
-      version: null,
-      active: true,
-      published_at: "2024-06-01T00:00:00Z",
-      expires_at: null,
-      target_roles: ["user"],
-      target_org_ids: [],
-      target_tenant_ids: [99],
-      created_by: 1,
-      created_at: "2024-01-01T00:00:00Z",
-      updated_at: "2024-01-01T00:00:00Z",
-      status: "published",
-    };
-
-    const result = mapAnnouncement(data);
-
-    expect(result.targetOrgIds).toEqual([]);
-    expect(result.targetTenantIds).toEqual([99]);
-    expect(result.targetRoles).toEqual(["user"]);
-  });
-
-  it("maps OR-union targeting (both org and tenant)", () => {
-    const data: BackendAnnouncement = {
-      id: 303,
-      title: "OR Union",
-      content: "Content",
-      type: "announcement",
-      severity: "critical",
-      version: null,
-      active: true,
-      published_at: "2024-06-01T00:00:00Z",
-      expires_at: null,
-      target_roles: ["admin", "guardian"],
-      target_org_ids: [1, 2, 3],
-      target_tenant_ids: [10, 20],
-      created_by: 1,
-      created_at: "2024-01-01T00:00:00Z",
-      updated_at: "2024-01-01T00:00:00Z",
-      status: "published",
-    };
-
-    const result = mapAnnouncement(data);
-
-    expect(result.targetOrgIds).toEqual([1, 2, 3]);
-    expect(result.targetTenantIds).toEqual([10, 20]);
-    expect(result.targetRoles).toEqual(["admin", "guardian"]);
-    expect(result.severity).toBe("critical");
   });
 });

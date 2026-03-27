@@ -260,138 +260,92 @@ func TestAnnouncement_GetUpdatedAt(t *testing.T) {
 	assert.Equal(t, now, a.GetUpdatedAt())
 }
 
-func TestAnnouncement_Validate_NormalizesNilTargetOrgIDs(t *testing.T) {
-	a := &Announcement{
-		Title:           "Title",
-		Content:         "Content",
-		Type:            TypeAnnouncement,
-		Severity:        SeverityInfo,
-		CreatedBy:       1,
-		TargetOrgIDs:    nil,
-		TargetTenantIDs: []int64{5},
+func TestAnnouncement_Validate_NilSliceNormalization(t *testing.T) {
+	tests := []struct {
+		name            string
+		targetOrgIDs    []int64
+		targetTenantIDs []int64
+		targetRoles     []string
+		wantOrgIDs      []int64
+		wantTenantIDs   []int64
+		wantRoles       []string
+	}{
+		{
+			name:            "nil TargetOrgIDs normalized to empty",
+			targetOrgIDs:    nil,
+			targetTenantIDs: []int64{5},
+			targetRoles:     []string{"admin"},
+			wantOrgIDs:      []int64{},
+			wantTenantIDs:   []int64{5},
+			wantRoles:       []string{"admin"},
+		},
+		{
+			name:            "nil TargetTenantIDs normalized to empty",
+			targetOrgIDs:    []int64{1, 2},
+			targetTenantIDs: nil,
+			targetRoles:     []string{"user"},
+			wantOrgIDs:      []int64{1, 2},
+			wantTenantIDs:   []int64{},
+			wantRoles:       []string{"user"},
+		},
+		{
+			name:            "nil TargetRoles normalized to empty",
+			targetOrgIDs:    []int64{1},
+			targetTenantIDs: []int64{10},
+			targetRoles:     nil,
+			wantOrgIDs:      []int64{1},
+			wantTenantIDs:   []int64{10},
+			wantRoles:       []string{},
+		},
+		{
+			name:            "all three nil normalized to empty",
+			targetOrgIDs:    nil,
+			targetTenantIDs: nil,
+			targetRoles:     nil,
+			wantOrgIDs:      []int64{},
+			wantTenantIDs:   []int64{},
+			wantRoles:       []string{},
+		},
+		{
+			name:            "non-nil slices preserved",
+			targetOrgIDs:    []int64{1, 2, 3},
+			targetTenantIDs: []int64{10, 20},
+			targetRoles:     []string{"admin", "user"},
+			wantOrgIDs:      []int64{1, 2, 3},
+			wantTenantIDs:   []int64{10, 20},
+			wantRoles:       []string{"admin", "user"},
+		},
+		{
+			name:            "empty non-nil slices preserved",
+			targetOrgIDs:    []int64{},
+			targetTenantIDs: []int64{},
+			targetRoles:     []string{},
+			wantOrgIDs:      []int64{},
+			wantTenantIDs:   []int64{},
+			wantRoles:       []string{},
+		},
 	}
-	err := a.Validate()
-	assert.NoError(t, err)
-	assert.NotNil(t, a.TargetOrgIDs)
-	assert.Empty(t, a.TargetOrgIDs)
-	assert.Equal(t, []int64{5}, a.TargetTenantIDs)
-}
 
-func TestAnnouncement_Validate_NormalizesNilTargetTenantIDs(t *testing.T) {
-	a := &Announcement{
-		Title:           "Title",
-		Content:         "Content",
-		Type:            TypeAnnouncement,
-		Severity:        SeverityInfo,
-		CreatedBy:       1,
-		TargetOrgIDs:    []int64{1, 2},
-		TargetTenantIDs: nil,
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := &Announcement{
+				Title:           "Title",
+				Content:         "Content",
+				Type:            TypeAnnouncement,
+				Severity:        SeverityInfo,
+				CreatedBy:       1,
+				TargetOrgIDs:    tt.targetOrgIDs,
+				TargetTenantIDs: tt.targetTenantIDs,
+				TargetRoles:     tt.targetRoles,
+			}
+			err := a.Validate()
+			assert.NoError(t, err)
+			assert.NotNil(t, a.TargetOrgIDs)
+			assert.NotNil(t, a.TargetTenantIDs)
+			assert.NotNil(t, a.TargetRoles)
+			assert.Equal(t, tt.wantOrgIDs, a.TargetOrgIDs)
+			assert.Equal(t, tt.wantTenantIDs, a.TargetTenantIDs)
+			assert.Equal(t, tt.wantRoles, a.TargetRoles)
+		})
 	}
-	err := a.Validate()
-	assert.NoError(t, err)
-	assert.NotNil(t, a.TargetTenantIDs)
-	assert.Empty(t, a.TargetTenantIDs)
-	assert.Equal(t, []int64{1, 2}, a.TargetOrgIDs)
-}
-
-func TestAnnouncement_Validate_NormalizesBothNilSlices(t *testing.T) {
-	a := &Announcement{
-		Title:           "Title",
-		Content:         "Content",
-		Type:            TypeAnnouncement,
-		Severity:        SeverityInfo,
-		CreatedBy:       1,
-		TargetOrgIDs:    nil,
-		TargetTenantIDs: nil,
-	}
-	err := a.Validate()
-	assert.NoError(t, err)
-	assert.NotNil(t, a.TargetOrgIDs)
-	assert.NotNil(t, a.TargetTenantIDs)
-	assert.Empty(t, a.TargetOrgIDs)
-	assert.Empty(t, a.TargetTenantIDs)
-}
-
-func TestAnnouncement_Validate_PreservesNonNilSlices(t *testing.T) {
-	a := &Announcement{
-		Title:           "Title",
-		Content:         "Content",
-		Type:            TypeAnnouncement,
-		Severity:        SeverityInfo,
-		CreatedBy:       1,
-		TargetOrgIDs:    []int64{1, 2, 3},
-		TargetTenantIDs: []int64{10, 20},
-	}
-	err := a.Validate()
-	assert.NoError(t, err)
-	assert.Equal(t, []int64{1, 2, 3}, a.TargetOrgIDs)
-	assert.Equal(t, []int64{10, 20}, a.TargetTenantIDs)
-}
-
-func TestAnnouncement_Validate_PreservesEmptyNonNilSlices(t *testing.T) {
-	a := &Announcement{
-		Title:           "Title",
-		Content:         "Content",
-		Type:            TypeAnnouncement,
-		Severity:        SeverityInfo,
-		CreatedBy:       1,
-		TargetOrgIDs:    []int64{},
-		TargetTenantIDs: []int64{},
-	}
-	err := a.Validate()
-	assert.NoError(t, err)
-	assert.NotNil(t, a.TargetOrgIDs)
-	assert.NotNil(t, a.TargetTenantIDs)
-	assert.Empty(t, a.TargetOrgIDs)
-	assert.Empty(t, a.TargetTenantIDs)
-}
-
-func TestAnnouncement_Validate_NormalizesNilTargetRoles(t *testing.T) {
-	a := &Announcement{
-		Title:       "Title",
-		Content:     "Content",
-		Type:        TypeAnnouncement,
-		Severity:    SeverityInfo,
-		CreatedBy:   1,
-		TargetRoles: nil,
-	}
-	err := a.Validate()
-	assert.NoError(t, err)
-	assert.NotNil(t, a.TargetRoles, "nil TargetRoles should be normalized to empty slice")
-	assert.Empty(t, a.TargetRoles)
-}
-
-func TestAnnouncement_Validate_PreservesNonNilTargetRoles(t *testing.T) {
-	a := &Announcement{
-		Title:       "Title",
-		Content:     "Content",
-		Type:        TypeAnnouncement,
-		Severity:    SeverityInfo,
-		CreatedBy:   1,
-		TargetRoles: []string{"admin", "user"},
-	}
-	err := a.Validate()
-	assert.NoError(t, err)
-	assert.Equal(t, []string{"admin", "user"}, a.TargetRoles)
-}
-
-func TestAnnouncement_Validate_NormalizesAllNilSlices(t *testing.T) {
-	a := &Announcement{
-		Title:           "Title",
-		Content:         "Content",
-		Type:            TypeAnnouncement,
-		Severity:        SeverityInfo,
-		CreatedBy:       1,
-		TargetRoles:     nil,
-		TargetOrgIDs:    nil,
-		TargetTenantIDs: nil,
-	}
-	err := a.Validate()
-	assert.NoError(t, err)
-	assert.NotNil(t, a.TargetRoles)
-	assert.NotNil(t, a.TargetOrgIDs)
-	assert.NotNil(t, a.TargetTenantIDs)
-	assert.Empty(t, a.TargetRoles)
-	assert.Empty(t, a.TargetOrgIDs)
-	assert.Empty(t, a.TargetTenantIDs)
 }
