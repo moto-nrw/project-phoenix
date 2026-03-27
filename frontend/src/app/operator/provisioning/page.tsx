@@ -397,25 +397,31 @@ export default function OperatorProvisioningPage() {
     async (school: School) => {
       setSchoolToggleError("");
       try {
-        await operatorProvisioningService.updateSchool(school.id, {
-          organization_id: parseInt(school.organizationId, 10),
-          name: school.name,
-          slug: school.slug,
-          subdomain: school.subdomain,
-          address: school.address ?? "",
-          city: school.city ?? "",
-          zip: school.zip ?? "",
-          phone: school.phone ?? "",
-          email: school.email ?? "",
-          active: !school.active,
-          hidden: school.hidden,
+        // Refetch to get the latest state — prevents silently reverting fields
+        // (e.g. hidden) changed by another operator between page load and click.
+        const freshSchools = await mutateSchools();
+        const fresh = freshSchools?.find((s) => s.id === school.id);
+        if (!fresh) return;
+
+        await operatorProvisioningService.updateSchool(fresh.id, {
+          organization_id: parseInt(fresh.organizationId, 10),
+          name: fresh.name,
+          slug: fresh.slug,
+          subdomain: fresh.subdomain,
+          address: fresh.address ?? "",
+          city: fresh.city ?? "",
+          zip: fresh.zip ?? "",
+          phone: fresh.phone ?? "",
+          email: fresh.email ?? "",
+          active: !fresh.active,
+          hidden: fresh.hidden,
         });
         await mutateSchools();
         try {
           await fetch("/api/operator/provisioning/revalidate-tenant", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ slugs: [school.subdomain] }),
+            body: JSON.stringify({ slugs: [fresh.subdomain] }),
           });
         } catch {
           /* Cache self-heals in ≤5 min */

@@ -386,13 +386,21 @@ func (s *Service) resolveAccountTenant(ctx context.Context, accountID int64, ten
 //   - Org scope ("org"): check school.organization_id matches the caller's org_id
 //     (Träger-Büro auto-access to all schools in their organization)
 func (s *Service) resolveAccountTenantBySlug(ctx context.Context, accountID int64, tenantSlug string) (int64, int64, error) {
-	// Look up the school by subdomain
+	// Look up the school by subdomain (includes soft-deleted schools so we can
+	// distinguish "deleted" from "not found" and return appropriate errors).
 	school, err := s.repos.School.FindBySubdomain(ctx, tenantSlug)
-	if err != nil || school == nil {
-		s.getLogger().Warn("tenant slug not found",
+	if err != nil {
+		s.getLogger().Warn("tenant slug lookup failed",
 			slog.Int64("account_id", accountID),
 			slog.String("tenant_slug", tenantSlug),
 			slog.Any("error", err),
+		)
+		return 0, 0, &AuthError{Op: "resolve tenant", Err: err}
+	}
+	if school == nil {
+		s.getLogger().Warn("tenant slug not found",
+			slog.Int64("account_id", accountID),
+			slog.String("tenant_slug", tenantSlug),
 		)
 		return 0, 0, &AuthError{Op: "resolve tenant", Err: ErrTenantNotFound}
 	}

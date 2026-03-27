@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"testing"
 	"time"
@@ -109,6 +110,31 @@ func TestResolveAccountTenantBySlug_ReturnsTenantNotFoundWhenSchoolLookupReturns
 	var authErr *AuthError
 	require.ErrorAs(t, err, &authErr)
 	assert.ErrorIs(t, authErr.Err, ErrTenantNotFound)
+}
+
+// DB errors from FindBySubdomain must propagate as-is, not collapse into ErrTenantNotFound.
+// A connection timeout is not "tenant not found" — hiding it makes debugging impossible.
+func TestResolveAccountTenantBySlug_PropagatesDBErrors(t *testing.T) {
+	dbErr := errors.New("connection timed out")
+	service := &Service{
+		repos: &repositories.Factory{
+			School: stubAuthLoginSchoolRepo{
+				findBySubdomainFn: func(context.Context, string) (*platformModels.School, error) { return nil, dbErr },
+			},
+		},
+		logger: slog.Default(),
+	}
+
+	tenantID, orgID, err := service.resolveAccountTenantBySlug(context.Background(), 5, "some-school")
+	require.Error(t, err)
+	assert.Zero(t, tenantID)
+	assert.Zero(t, orgID)
+
+	var authErr *AuthError
+	require.ErrorAs(t, err, &authErr)
+	// The wrapped error must be the original DB error, NOT ErrTenantNotFound.
+	assert.ErrorIs(t, authErr.Err, dbErr)
+	assert.NotErrorIs(t, authErr.Err, ErrTenantNotFound)
 }
 
 // Updated: resolveAccountTenantDefault now iterates all mappings and skips schools

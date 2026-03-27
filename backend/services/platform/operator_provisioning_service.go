@@ -1199,8 +1199,18 @@ func isUniqueViolation(err error) bool {
 }
 
 // SoftDeleteSchool marks a school as deleted. The school remains in the database but is excluded
-// from login, tenant resolution, and all tenant-scoped operations. Existing JWT sessions (15-min TTL)
-// will drain naturally — no active session invalidation is performed.
+// from login, tenant resolution, and all tenant-scoped operations.
+//
+// Session handling after soft-delete:
+//   - New logins: blocked immediately (resolveAccountTenantBySlug + resolveAccountTenantDefault
+//     both reject deleted schools)
+//   - IoT devices: blocked immediately (rejectDeletedSchool checks deleted_at on every request,
+//     since devices use long-lived API keys that don't expire)
+//   - Existing JWT sessions: drain naturally within the 15-min access token TTL. The JWT
+//     middleware trusts token claims without a DB lookup per request. This is an intentional
+//     trade-off — adding a per-request DB check would double query load on every authenticated
+//     request for a scenario that affects at most a handful of active sessions during the
+//     rare event of a tenant deletion.
 func (s *operatorProvisioningService) SoftDeleteSchool(ctx context.Context, schoolID, operatorID int64, clientIP net.IP) error {
 	return s.withAdminTx(ctx, func(adminCtx context.Context) error {
 		school, err := s.schoolRepo.FindByID(adminCtx, schoolID)

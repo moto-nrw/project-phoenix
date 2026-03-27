@@ -203,7 +203,7 @@ describe("OperatorProvisioningPage", () => {
       status: "authenticated",
     });
     mockMutateOrgs.mockResolvedValue(undefined);
-    mockMutateSchools.mockResolvedValue(undefined);
+    mockMutateSchools.mockResolvedValue([mockSchool]);
     // Suppress fetch calls for revalidation endpoint
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ status: "ok" })),
