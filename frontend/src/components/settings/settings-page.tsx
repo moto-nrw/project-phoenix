@@ -59,6 +59,9 @@ export function SettingsContent({ tabKey }: SettingsContentProps) {
     }
   }, []);
 
+  // If schema is null (403/no permission), show nothing
+  const hasAccess = schema !== null;
+
   useEffect(() => {
     void loadSchema();
   }, [loadSchema]);
@@ -111,6 +114,11 @@ export function SettingsContent({ tabKey }: SettingsContentProps) {
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-gray-900" />
       </div>
     );
+  }
+
+  // No access (403) — render nothing, tabs won't show
+  if (!hasAccess) {
+    return null;
   }
 
   if (error && !schema) {
@@ -166,7 +174,9 @@ export function useSettingsTabs(): {
 
   useEffect(() => {
     fetchSettingsSchema()
-      .then(setSchema)
+      .then((data) => {
+        if (data) setSchema(data);
+      })
       .catch((err) => {
         logger.error("load_settings_tabs_failed", {
           error: err instanceof Error ? err.message : String(err),

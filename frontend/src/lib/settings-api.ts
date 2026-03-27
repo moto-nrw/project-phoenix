@@ -55,11 +55,16 @@ interface ApiResponse<T> {
 
 // --- API Functions ---
 
-export async function fetchSettingsSchema(): Promise<SettingsSchema> {
+export async function fetchSettingsSchema(): Promise<SettingsSchema | null> {
   try {
     const response = await sessionFetch("/api/settings/schema", {
       method: "GET",
     });
+
+    // 403 = user lacks config:read permission — expected, not an error
+    if (response.status === 403) {
+      return null;
+    }
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
