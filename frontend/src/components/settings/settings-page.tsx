@@ -184,7 +184,7 @@ export function useSettingsTabs(): {
       });
   }, []);
 
-  if (!schema || schema.tabs.length === 0) {
+  if (!schema?.tabs || schema.tabs.length === 0) {
     return null;
   }
 
