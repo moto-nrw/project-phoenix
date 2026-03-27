@@ -1603,6 +1603,218 @@ func TestAnnouncementService_LogAction_AuditLogSetChangesError(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestAnnouncementService_CreateAnnouncement_OrgNotFound(t *testing.T) {
+	ctx := context.Background()
+	orgRepo := &mockOrgRepoShared{
+		findByIDFn: func(ctx context.Context, id int64) (*platform.Organization, error) {
+			return nil, nil // org does not exist
+		},
+	}
+
+	service := platformSvc.NewAnnouncementService(platformSvc.AnnouncementServiceConfig{
+		AnnouncementRepo:     &mockAnnouncementRepoShared{},
+		AnnouncementViewRepo: &mockAnnouncementViewRepoShared{},
+		AuditLogRepo:         &mockAuditLogRepoShared{},
+		OrgRepo:              orgRepo,
+		SchoolRepo:           &mockSchoolRepoShared{},
+		DB:                   &bun.DB{},
+		Logger:               slog.Default(),
+	})
+
+	announcement := &platform.Announcement{
+		Title:        "Test",
+		Content:      "Content",
+		Type:         platform.TypeAnnouncement,
+		Severity:     platform.SeverityInfo,
+		TargetOrgIDs: []int64{999},
+	}
+
+	err := service.CreateAnnouncement(ctx, announcement, 42, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "organization with ID 999 does not exist")
+	assert.IsType(t, &platformSvc.InvalidDataError{}, err)
+}
+
+func TestAnnouncementService_CreateAnnouncement_OrgLookupError(t *testing.T) {
+	ctx := context.Background()
+	orgRepo := &mockOrgRepoShared{
+		findByIDFn: func(ctx context.Context, id int64) (*platform.Organization, error) {
+			return nil, fmt.Errorf("db timeout")
+		},
+	}
+
+	service := platformSvc.NewAnnouncementService(platformSvc.AnnouncementServiceConfig{
+		AnnouncementRepo:     &mockAnnouncementRepoShared{},
+		AnnouncementViewRepo: &mockAnnouncementViewRepoShared{},
+		AuditLogRepo:         &mockAuditLogRepoShared{},
+		OrgRepo:              orgRepo,
+		SchoolRepo:           &mockSchoolRepoShared{},
+		DB:                   &bun.DB{},
+		Logger:               slog.Default(),
+	})
+
+	announcement := &platform.Announcement{
+		Title:        "Test",
+		Content:      "Content",
+		Type:         platform.TypeAnnouncement,
+		Severity:     platform.SeverityInfo,
+		TargetOrgIDs: []int64{10},
+	}
+
+	err := service.CreateAnnouncement(ctx, announcement, 42, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "db timeout")
+}
+
+func TestAnnouncementService_CreateAnnouncement_SchoolNotFound(t *testing.T) {
+	ctx := context.Background()
+	schoolRepo := &mockSchoolRepoShared{
+		findByIDFn: func(ctx context.Context, id int64) (*platform.School, error) {
+			return nil, nil // school does not exist
+		},
+	}
+
+	service := platformSvc.NewAnnouncementService(platformSvc.AnnouncementServiceConfig{
+		AnnouncementRepo:     &mockAnnouncementRepoShared{},
+		AnnouncementViewRepo: &mockAnnouncementViewRepoShared{},
+		AuditLogRepo:         &mockAuditLogRepoShared{},
+		OrgRepo:              &mockOrgRepoShared{},
+		SchoolRepo:           schoolRepo,
+		DB:                   &bun.DB{},
+		Logger:               slog.Default(),
+	})
+
+	announcement := &platform.Announcement{
+		Title:           "Test",
+		Content:         "Content",
+		Type:            platform.TypeAnnouncement,
+		Severity:        platform.SeverityInfo,
+		TargetTenantIDs: []int64{888},
+	}
+
+	err := service.CreateAnnouncement(ctx, announcement, 42, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "school (tenant) with ID 888 does not exist")
+	assert.IsType(t, &platformSvc.InvalidDataError{}, err)
+}
+
+func TestAnnouncementService_CreateAnnouncement_SchoolLookupError(t *testing.T) {
+	ctx := context.Background()
+	schoolRepo := &mockSchoolRepoShared{
+		findByIDFn: func(ctx context.Context, id int64) (*platform.School, error) {
+			return nil, fmt.Errorf("school db error")
+		},
+	}
+
+	service := platformSvc.NewAnnouncementService(platformSvc.AnnouncementServiceConfig{
+		AnnouncementRepo:     &mockAnnouncementRepoShared{},
+		AnnouncementViewRepo: &mockAnnouncementViewRepoShared{},
+		AuditLogRepo:         &mockAuditLogRepoShared{},
+		OrgRepo:              &mockOrgRepoShared{},
+		SchoolRepo:           schoolRepo,
+		DB:                   &bun.DB{},
+		Logger:               slog.Default(),
+	})
+
+	announcement := &platform.Announcement{
+		Title:           "Test",
+		Content:         "Content",
+		Type:            platform.TypeAnnouncement,
+		Severity:        platform.SeverityInfo,
+		TargetTenantIDs: []int64{10},
+	}
+
+	err := service.CreateAnnouncement(ctx, announcement, 42, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "school db error")
+}
+
+func TestAnnouncementService_UpdateAnnouncement_OrgNotFound(t *testing.T) {
+	ctx := context.Background()
+	announcementRepo := &mockAnnouncementRepoShared{
+		findByIDFn: func(ctx context.Context, id int64) (*platform.Announcement, error) {
+			return &platform.Announcement{
+				Model:    base.Model{ID: 1},
+				Title:    "Old",
+				Content:  "Content",
+				Type:     platform.TypeAnnouncement,
+				Severity: platform.SeverityInfo,
+			}, nil
+		},
+	}
+	orgRepo := &mockOrgRepoShared{
+		findByIDFn: func(ctx context.Context, id int64) (*platform.Organization, error) {
+			return nil, nil
+		},
+	}
+
+	service := platformSvc.NewAnnouncementService(platformSvc.AnnouncementServiceConfig{
+		AnnouncementRepo:     announcementRepo,
+		AnnouncementViewRepo: &mockAnnouncementViewRepoShared{},
+		AuditLogRepo:         &mockAuditLogRepoShared{},
+		OrgRepo:              orgRepo,
+		SchoolRepo:           &mockSchoolRepoShared{},
+		DB:                   &bun.DB{},
+		Logger:               slog.Default(),
+	})
+
+	announcement := &platform.Announcement{
+		Title:        "Updated",
+		Content:      "Content",
+		Type:         platform.TypeAnnouncement,
+		Severity:     platform.SeverityInfo,
+		TargetOrgIDs: []int64{999},
+		CreatedBy:    1,
+	}
+
+	err := service.UpdateAnnouncement(ctx, announcement, 1, net.ParseIP("127.0.0.1"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "organization with ID 999 does not exist")
+}
+
+func TestAnnouncementService_UpdateAnnouncement_SchoolNotFound(t *testing.T) {
+	ctx := context.Background()
+	announcementRepo := &mockAnnouncementRepoShared{
+		findByIDFn: func(ctx context.Context, id int64) (*platform.Announcement, error) {
+			return &platform.Announcement{
+				Model:    base.Model{ID: 1},
+				Title:    "Old",
+				Content:  "Content",
+				Type:     platform.TypeAnnouncement,
+				Severity: platform.SeverityInfo,
+			}, nil
+		},
+	}
+	schoolRepo := &mockSchoolRepoShared{
+		findByIDFn: func(ctx context.Context, id int64) (*platform.School, error) {
+			return nil, nil
+		},
+	}
+
+	service := platformSvc.NewAnnouncementService(platformSvc.AnnouncementServiceConfig{
+		AnnouncementRepo:     announcementRepo,
+		AnnouncementViewRepo: &mockAnnouncementViewRepoShared{},
+		AuditLogRepo:         &mockAuditLogRepoShared{},
+		OrgRepo:              &mockOrgRepoShared{},
+		SchoolRepo:           schoolRepo,
+		DB:                   &bun.DB{},
+		Logger:               slog.Default(),
+	})
+
+	announcement := &platform.Announcement{
+		Title:           "Updated",
+		Content:         "Content",
+		Type:            platform.TypeAnnouncement,
+		Severity:        platform.SeverityInfo,
+		TargetTenantIDs: []int64{888},
+		CreatedBy:       1,
+	}
+
+	err := service.UpdateAnnouncement(ctx, announcement, 1, net.ParseIP("127.0.0.1"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "school (tenant) with ID 888 does not exist")
+}
+
 func TestAnnouncementService_ListAnnouncements_IncludeInactive(t *testing.T) {
 	ctx := context.Background()
 	var capturedIncludeInactive bool

@@ -839,11 +839,17 @@ func TestAnnouncementViewRepository_GetStats(t *testing.T) {
 		defer cleanupTestAccount(t, db, acc1)
 		assignTestRole(t, db, acc1, roleID, sSchoolID)
 		defer cleanupTestAccountRole(t, db, acc1, roleID)
+		// GetStats role-only query requires active account_tenants membership
+		createTestAccountTenant(t, db, acc1, sSchoolID)
+		defer cleanupTestAccountTenant(t, db, acc1, sSchoolID)
 
 		acc2 := createTestAccount(t, db, "stats-role-acc2@test.com")
 		defer cleanupTestAccount(t, db, acc2)
 		assignTestRole(t, db, acc2, roleID, sSchoolID)
 		defer cleanupTestAccountRole(t, db, acc2, roleID)
+		// GetStats role-only query requires active account_tenants membership
+		createTestAccountTenant(t, db, acc2, sSchoolID)
+		defer cleanupTestAccountTenant(t, db, acc2, sSchoolID)
 
 		annoID := createTestAnnouncementWithTargeting(t, db, "stats-role", operator.ID, []string{"stats-role-filter"}, []int64{}, []int64{})
 		defer cleanupTestAnnouncement(t, db, annoID)
@@ -917,11 +923,13 @@ func TestAnnouncementViewRepository_GetStats(t *testing.T) {
 		createTestAccountTenant(t, db, accBoth, schoolID)
 		defer cleanupTestAccountTenant(t, db, accBoth, schoolID)
 
-		// Account with role only (tenant in a different org)
+		// Account with role only (tenant in a different org — not in target org)
 		accRoleOnly := createTestAccount(t, db, "stats-combo-roleonly@test.com")
 		defer cleanupTestAccount(t, db, accRoleOnly)
 		assignTestRole(t, db, accRoleOnly, roleID, otherSchoolID)
 		defer cleanupTestAccountRole(t, db, accRoleOnly, roleID)
+		createTestAccountTenant(t, db, accRoleOnly, otherSchoolID)
+		defer cleanupTestAccountTenant(t, db, accRoleOnly, otherSchoolID)
 
 		// Account with tenant only (no role)
 		accTenantOnly := createTestAccount(t, db, "stats-combo-tenantonly@test.com")
