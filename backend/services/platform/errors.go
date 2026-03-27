@@ -124,3 +124,24 @@ type OperatorDeviceNotFoundError struct {
 func (e *OperatorDeviceNotFoundError) Error() string {
 	return fmt.Sprintf("device with ID %d not found", e.DeviceID)
 }
+
+// DeviceInUseError is returned when a device cannot be deleted because it is
+// still referenced by attendance or active-group records.
+type DeviceInUseError struct {
+	DeviceID int64
+}
+
+func (e *DeviceInUseError) Error() string {
+	return fmt.Sprintf("device with ID %d is still in use and cannot be deleted", e.DeviceID)
+}
+
+// DeviceProtectedError is returned when attempting to delete a system-managed
+// device that must not be removed (e.g. the web-manual virtual device).
+type DeviceProtectedError struct {
+	DeviceID int64
+	Reason   string
+}
+
+func (e *DeviceProtectedError) Error() string {
+	return fmt.Sprintf("device with ID %d is protected: %s", e.DeviceID, e.Reason)
+}
