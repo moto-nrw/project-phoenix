@@ -1,8 +1,8 @@
 // [tenant]/page.tsx — Login page (tenant-scoped)
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
-import { signIn, useSession } from "next-auth/react";
+import { useState, useEffect, useRef, Suspense } from "react";
+import { signIn, signOut, useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { Input, Alert } from "~/components/ui";
@@ -33,9 +33,34 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const { data: session, status } = useSession();
 
+  // Guard against calling signOut multiple times during stale session cleanup
+  const isCleaningSessionRef = useRef(false);
+
   // Check for valid session
   useEffect(() => {
     const checkAndRedirect = async () => {
+      // If the session has an irrecoverable error (refresh token was rejected
+      // by the backend), clear the stale session cookie so the user can log in
+      // fresh. Without this, the JWT callback keeps retrying the failed refresh
+      // in the background, and the stale session competes with new login attempts.
+      if (
+        status === "authenticated" &&
+        session?.error &&
+        !isCleaningSessionRef.current
+      ) {
+        isCleaningSessionRef.current = true;
+        logger.debug("clearing_stale_session", { error: session.error });
+        try {
+          await signOut({ redirect: false });
+        } catch (err) {
+          logger.warn("signout_during_cleanup_failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+        setCheckingAuth(false);
+        return;
+      }
+
       // If we have a valid session with access token, set up for redirect
       if (status === "authenticated" && session?.user?.token) {
         logger.debug("valid session found, preparing smart redirect");

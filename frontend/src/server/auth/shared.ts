@@ -493,6 +493,15 @@ export const sharedJwtCallback: NonNullable<
     return token;
   }
 
+  // If a previous refresh attempt failed (e.g., backend rejected the token
+  // with 401 because it was rotated or deleted), stop retrying. Without this
+  // guard the callback retries every ~4 minutes indefinitely, spamming the
+  // backend with requests that will never succeed. The client-side session
+  // error handler will prompt the user to re-authenticate.
+  if (token.error === "RefreshTokenError") {
+    return token;
+  }
+
   // Proactive token refresh
   const REFRESH_BUFFER_MS = 5 * 60 * 1000;
   const REFRESH_TIMEOUT_MS = 5_000;
