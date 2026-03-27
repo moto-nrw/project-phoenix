@@ -855,6 +855,195 @@ func TestListAnnouncements_IncludesOrgAndTenantIDs(t *testing.T) {
 	assert.Equal(t, float64(10), tenantIDs[1])
 }
 
+func TestCreateAnnouncement_OrgOnlyTargeting(t *testing.T) {
+	mockService := &mockAnnouncementService{
+		createFn: func(ctx context.Context, announcement *platform.Announcement, operatorID int64, clientIP net.IP) error {
+			assert.Equal(t, []int64{5}, announcement.TargetOrgIDs)
+			assert.Empty(t, announcement.TargetTenantIDs)
+			announcement.ID = testAnnouncementID
+			return nil
+		},
+	}
+
+	resource := operator.NewAnnouncementsResource(mockService)
+
+	body := map[string]any{
+		"title":             "Org Only",
+		"content":           "Only for org 5",
+		"target_org_ids":    []int64{5},
+		"target_tenant_ids": []int64{},
+	}
+	jsonBody, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPost, "/announcements", bytes.NewReader(jsonBody))
+	req.Header.Set("Content-Type", "application/json")
+	claims := jwt.AppClaims{ID: 1}
+	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+
+	resource.CreateAnnouncement(rr, req)
+
+	assert.Equal(t, http.StatusCreated, rr.Code)
+}
+
+func TestCreateAnnouncement_TenantOnlyTargeting(t *testing.T) {
+	mockService := &mockAnnouncementService{
+		createFn: func(ctx context.Context, announcement *platform.Announcement, operatorID int64, clientIP net.IP) error {
+			assert.Empty(t, announcement.TargetOrgIDs)
+			assert.Equal(t, []int64{12, 13}, announcement.TargetTenantIDs)
+			announcement.ID = testAnnouncementID
+			return nil
+		},
+	}
+
+	resource := operator.NewAnnouncementsResource(mockService)
+
+	body := map[string]any{
+		"title":             "Tenant Only",
+		"content":           "Only for tenants 12 and 13",
+		"target_org_ids":    []int64{},
+		"target_tenant_ids": []int64{12, 13},
+	}
+	jsonBody, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPost, "/announcements", bytes.NewReader(jsonBody))
+	req.Header.Set("Content-Type", "application/json")
+	claims := jwt.AppClaims{ID: 1}
+	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+
+	resource.CreateAnnouncement(rr, req)
+
+	assert.Equal(t, http.StatusCreated, rr.Code)
+}
+
+func TestCreateAnnouncement_ResponseIncludesTargetingFields(t *testing.T) {
+	now := time.Now()
+	mockService := &mockAnnouncementService{
+		createFn: func(ctx context.Context, announcement *platform.Announcement, operatorID int64, clientIP net.IP) error {
+			announcement.ID = testAnnouncementID
+			announcement.CreatedAt = now
+			announcement.UpdatedAt = now
+			return nil
+		},
+	}
+
+	resource := operator.NewAnnouncementsResource(mockService)
+
+	body := map[string]any{
+		"title":             "Targeted",
+		"content":           "Content",
+		"target_org_ids":    []int64{1, 2},
+		"target_tenant_ids": []int64{5},
+		"target_roles":      []string{"admin"},
+	}
+	jsonBody, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPost, "/announcements", bytes.NewReader(jsonBody))
+	req.Header.Set("Content-Type", "application/json")
+	claims := jwt.AppClaims{ID: 1}
+	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+
+	resource.CreateAnnouncement(rr, req)
+
+	assert.Equal(t, http.StatusCreated, rr.Code)
+
+	var response map[string]any
+	err := json.Unmarshal(rr.Body.Bytes(), &response)
+	require.NoError(t, err)
+
+	data := response["data"].(map[string]any)
+	orgIDs, ok := data["target_org_ids"].([]any)
+	require.True(t, ok, "response should include target_org_ids array")
+	assert.Len(t, orgIDs, 2)
+
+	tenantIDs, ok := data["target_tenant_ids"].([]any)
+	require.True(t, ok, "response should include target_tenant_ids array")
+	assert.Len(t, tenantIDs, 1)
+
+	roles, ok := data["target_roles"].([]any)
+	require.True(t, ok, "response should include target_roles array")
+	assert.Len(t, roles, 1)
+}
+
+func TestCreateAnnouncement_ServiceError(t *testing.T) {
+	mockService := &mockAnnouncementService{
+		createFn: func(ctx context.Context, announcement *platform.Announcement, operatorID int64, clientIP net.IP) error {
+			return errors.New("database error")
+		},
+	}
+
+	resource := operator.NewAnnouncementsResource(mockService)
+
+	body := map[string]any{
+		"title":   "Test",
+		"content": "Content",
+	}
+	jsonBody, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPost, "/announcements", bytes.NewReader(jsonBody))
+	req.Header.Set("Content-Type", "application/json")
+	claims := jwt.AppClaims{ID: 1}
+	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+
+	resource.CreateAnnouncement(rr, req)
+
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+}
+
+func TestGetAnnouncement_ResponseIncludesTargetingFields(t *testing.T) {
+	now := time.Now()
+	mockService := &mockAnnouncementService{
+		getAnnouncementFn: func(ctx context.Context, id int64) (*platform.Announcement, error) {
+			announcement := &platform.Announcement{
+				Title:           "Targeted",
+				Content:         "Content",
+				Type:            platform.TypeAnnouncement,
+				Severity:        platform.SeverityInfo,
+				Active:          true,
+				TargetRoles:     []string{"admin"},
+				TargetOrgIDs:    []int64{3},
+				TargetTenantIDs: []int64{7, 8},
+				CreatedBy:       testOperatorID,
+			}
+			announcement.ID = testAnnouncementID
+			announcement.CreatedAt = now
+			announcement.UpdatedAt = now
+			return announcement, nil
+		},
+	}
+
+	resource := operator.NewAnnouncementsResource(mockService)
+
+	req := httptest.NewRequest(http.MethodGet, "/announcements/1", nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "1")
+	claims := jwt.AppClaims{ID: 1}
+	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
+	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+
+	resource.GetAnnouncement(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	var response map[string]any
+	err := json.Unmarshal(rr.Body.Bytes(), &response)
+	require.NoError(t, err)
+
+	data := response["data"].(map[string]any)
+	orgIDs := data["target_org_ids"].([]any)
+	assert.Equal(t, float64(3), orgIDs[0])
+
+	tenantIDs := data["target_tenant_ids"].([]any)
+	assert.Len(t, tenantIDs, 2)
+	assert.Equal(t, float64(7), tenantIDs[0])
+	assert.Equal(t, float64(8), tenantIDs[1])
+}
+
 func TestAnnouncementResponse_NilOrgAndTenantIDsDefaultToEmptyArrays(t *testing.T) {
 	now := time.Now()
 	mockService := &mockAnnouncementService{

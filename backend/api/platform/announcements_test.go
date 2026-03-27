@@ -439,3 +439,144 @@ func TestGetUnreadCount_PassesOrgAndTenantFromClaims(t *testing.T) {
 	assert.Equal(t, int64(5), capturedOrgID, "orgID from claims should be passed to service")
 	assert.Equal(t, int64(10), capturedTenantID, "tenantID from claims should be passed to service")
 }
+
+func TestGetUnread_ZeroOrgAndTenantFromClaims(t *testing.T) {
+	var capturedOrgID, capturedTenantID int64
+	mockService := &mockPlatformAnnouncementService{
+		getUnreadForUserFn: func(ctx context.Context, userID int64, userRoles []string, orgID int64, tenantID int64) ([]*platformModel.Announcement, error) {
+			capturedOrgID = orgID
+			capturedTenantID = tenantID
+			return []*platformModel.Announcement{}, nil
+		},
+	}
+
+	resource := platform.NewAnnouncementsResource(mockService)
+
+	req := httptest.NewRequest(http.MethodGet, "/announcements/unread", nil)
+	claims := jwt.AppClaims{
+		ID:    123,
+		Roles: []string{"teacher"},
+		// OrgID and TenantID default to 0
+	}
+	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+
+	resource.GetUnread(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, int64(0), capturedOrgID, "zero orgID should be passed when not in claims")
+	assert.Equal(t, int64(0), capturedTenantID, "zero tenantID should be passed when not in claims")
+}
+
+func TestGetUnreadCount_ZeroOrgAndTenantFromClaims(t *testing.T) {
+	var capturedOrgID, capturedTenantID int64
+	mockService := &mockPlatformAnnouncementService{
+		countUnreadFn: func(ctx context.Context, userID int64, userRoles []string, orgID int64, tenantID int64) (int, error) {
+			capturedOrgID = orgID
+			capturedTenantID = tenantID
+			return 0, nil
+		},
+	}
+
+	resource := platform.NewAnnouncementsResource(mockService)
+
+	req := httptest.NewRequest(http.MethodGet, "/announcements/unread-count", nil)
+	claims := jwt.AppClaims{
+		ID:    123,
+		Roles: []string{"admin"},
+	}
+	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+
+	resource.GetUnreadCount(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, int64(0), capturedOrgID)
+	assert.Equal(t, int64(0), capturedTenantID)
+}
+
+func TestGetUnread_ResponseIncludesPublishedAt(t *testing.T) {
+	now := time.Now()
+	mockService := &mockPlatformAnnouncementService{
+		getUnreadForUserFn: func(ctx context.Context, userID int64, userRoles []string, orgID int64, tenantID int64) ([]*platformModel.Announcement, error) {
+			announcement := &platformModel.Announcement{
+				Title:       "Test",
+				Content:     "Content",
+				Type:        platformModel.TypeRelease,
+				Severity:    platformModel.SeverityWarning,
+				PublishedAt: &now,
+				Active:      true,
+			}
+			announcement.ID = testAnnouncementID
+			return []*platformModel.Announcement{announcement}, nil
+		},
+	}
+
+	resource := platform.NewAnnouncementsResource(mockService)
+
+	req := httptest.NewRequest(http.MethodGet, "/announcements/unread", nil)
+	claims := jwt.AppClaims{
+		ID:       123,
+		Roles:    []string{"teacher"},
+		OrgID:    5,
+		TenantID: 10,
+	}
+	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+
+	resource.GetUnread(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	var response map[string]any
+	err := json.Unmarshal(rr.Body.Bytes(), &response)
+	require.NoError(t, err)
+
+	data := response["data"].([]any)
+	require.Len(t, data, 1)
+	announcement := data[0].(map[string]any)
+	assert.NotEmpty(t, announcement["published_at"])
+	assert.Equal(t, "release", announcement["type"])
+	assert.Equal(t, "warning", announcement["severity"])
+}
+
+func TestGetUnread_NilPublishedAtRendersEmpty(t *testing.T) {
+	mockService := &mockPlatformAnnouncementService{
+		getUnreadForUserFn: func(ctx context.Context, userID int64, userRoles []string, orgID int64, tenantID int64) ([]*platformModel.Announcement, error) {
+			announcement := &platformModel.Announcement{
+				Title:       "Draft",
+				Content:     "Content",
+				Type:        platformModel.TypeAnnouncement,
+				Severity:    platformModel.SeverityInfo,
+				PublishedAt: nil,
+				Active:      true,
+			}
+			announcement.ID = testAnnouncementID
+			return []*platformModel.Announcement{announcement}, nil
+		},
+	}
+
+	resource := platform.NewAnnouncementsResource(mockService)
+
+	req := httptest.NewRequest(http.MethodGet, "/announcements/unread", nil)
+	claims := jwt.AppClaims{ID: 123, Roles: []string{"teacher"}}
+	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+
+	resource.GetUnread(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	var response map[string]any
+	err := json.Unmarshal(rr.Body.Bytes(), &response)
+	require.NoError(t, err)
+
+	data := response["data"].([]any)
+	require.Len(t, data, 1)
+	announcement := data[0].(map[string]any)
+	assert.Equal(t, "", announcement["published_at"])
+}

@@ -259,3 +259,89 @@ func TestAnnouncement_GetUpdatedAt(t *testing.T) {
 	a.UpdatedAt = now
 	assert.Equal(t, now, a.GetUpdatedAt())
 }
+
+func TestAnnouncement_Validate_NormalizesNilTargetOrgIDs(t *testing.T) {
+	a := &Announcement{
+		Title:           "Title",
+		Content:         "Content",
+		Type:            TypeAnnouncement,
+		Severity:        SeverityInfo,
+		CreatedBy:       1,
+		TargetOrgIDs:    nil,
+		TargetTenantIDs: []int64{5},
+	}
+	err := a.Validate()
+	assert.NoError(t, err)
+	assert.NotNil(t, a.TargetOrgIDs)
+	assert.Empty(t, a.TargetOrgIDs)
+	assert.Equal(t, []int64{5}, a.TargetTenantIDs)
+}
+
+func TestAnnouncement_Validate_NormalizesNilTargetTenantIDs(t *testing.T) {
+	a := &Announcement{
+		Title:           "Title",
+		Content:         "Content",
+		Type:            TypeAnnouncement,
+		Severity:        SeverityInfo,
+		CreatedBy:       1,
+		TargetOrgIDs:    []int64{1, 2},
+		TargetTenantIDs: nil,
+	}
+	err := a.Validate()
+	assert.NoError(t, err)
+	assert.NotNil(t, a.TargetTenantIDs)
+	assert.Empty(t, a.TargetTenantIDs)
+	assert.Equal(t, []int64{1, 2}, a.TargetOrgIDs)
+}
+
+func TestAnnouncement_Validate_NormalizesBothNilSlices(t *testing.T) {
+	a := &Announcement{
+		Title:           "Title",
+		Content:         "Content",
+		Type:            TypeAnnouncement,
+		Severity:        SeverityInfo,
+		CreatedBy:       1,
+		TargetOrgIDs:    nil,
+		TargetTenantIDs: nil,
+	}
+	err := a.Validate()
+	assert.NoError(t, err)
+	assert.NotNil(t, a.TargetOrgIDs)
+	assert.NotNil(t, a.TargetTenantIDs)
+	assert.Empty(t, a.TargetOrgIDs)
+	assert.Empty(t, a.TargetTenantIDs)
+}
+
+func TestAnnouncement_Validate_PreservesNonNilSlices(t *testing.T) {
+	a := &Announcement{
+		Title:           "Title",
+		Content:         "Content",
+		Type:            TypeAnnouncement,
+		Severity:        SeverityInfo,
+		CreatedBy:       1,
+		TargetOrgIDs:    []int64{1, 2, 3},
+		TargetTenantIDs: []int64{10, 20},
+	}
+	err := a.Validate()
+	assert.NoError(t, err)
+	assert.Equal(t, []int64{1, 2, 3}, a.TargetOrgIDs)
+	assert.Equal(t, []int64{10, 20}, a.TargetTenantIDs)
+}
+
+func TestAnnouncement_Validate_PreservesEmptyNonNilSlices(t *testing.T) {
+	a := &Announcement{
+		Title:           "Title",
+		Content:         "Content",
+		Type:            TypeAnnouncement,
+		Severity:        SeverityInfo,
+		CreatedBy:       1,
+		TargetOrgIDs:    []int64{},
+		TargetTenantIDs: []int64{},
+	}
+	err := a.Validate()
+	assert.NoError(t, err)
+	assert.NotNil(t, a.TargetOrgIDs)
+	assert.NotNil(t, a.TargetTenantIDs)
+	assert.Empty(t, a.TargetOrgIDs)
+	assert.Empty(t, a.TargetTenantIDs)
+}

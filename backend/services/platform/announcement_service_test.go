@@ -735,3 +735,203 @@ func TestAnnouncementService_CountUnread_PassesOrgAndTenantToRepo(t *testing.T) 
 	assert.Equal(t, int64(5), capturedOrgID, "orgID should be passed through to the repository")
 	assert.Equal(t, int64(10), capturedTenantID, "tenantID should be passed through to the repository")
 }
+
+func TestAnnouncementService_GetUnreadForUser_RepositoryError(t *testing.T) {
+	ctx := context.Background()
+	viewRepo := &mockAnnouncementViewRepoShared{
+		getUnreadForUserFn: func(ctx context.Context, userID int64, userRoles []string, orgID int64, tenantID int64) ([]*platform.Announcement, error) {
+			return nil, fmt.Errorf("database connection lost")
+		},
+	}
+
+	service := platformSvc.NewAnnouncementService(platformSvc.AnnouncementServiceConfig{
+		AnnouncementRepo:     &mockAnnouncementRepoShared{},
+		AnnouncementViewRepo: viewRepo,
+		AuditLogRepo:         &mockAuditLogRepoShared{},
+		DB:                   &bun.DB{},
+		Logger:               slog.Default(),
+	})
+
+	_, err := service.GetUnreadForUser(ctx, 42, []string{"teacher"}, 5, 10)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "database connection lost")
+}
+
+func TestAnnouncementService_CountUnread_RepositoryError(t *testing.T) {
+	ctx := context.Background()
+	viewRepo := &mockAnnouncementViewRepoShared{
+		countUnreadFn: func(ctx context.Context, userID int64, userRoles []string, orgID int64, tenantID int64) (int, error) {
+			return 0, fmt.Errorf("database timeout")
+		},
+	}
+
+	service := platformSvc.NewAnnouncementService(platformSvc.AnnouncementServiceConfig{
+		AnnouncementRepo:     &mockAnnouncementRepoShared{},
+		AnnouncementViewRepo: viewRepo,
+		AuditLogRepo:         &mockAuditLogRepoShared{},
+		DB:                   &bun.DB{},
+		Logger:               slog.Default(),
+	})
+
+	_, err := service.CountUnread(ctx, 42, []string{"teacher"}, 5, 10)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "database timeout")
+}
+
+func TestAnnouncementService_GetUnreadForUser_ZeroOrgAndTenant(t *testing.T) {
+	ctx := context.Background()
+	var capturedOrgID, capturedTenantID int64
+	viewRepo := &mockAnnouncementViewRepoShared{
+		getUnreadForUserFn: func(ctx context.Context, userID int64, userRoles []string, orgID int64, tenantID int64) ([]*platform.Announcement, error) {
+			capturedOrgID = orgID
+			capturedTenantID = tenantID
+			return []*platform.Announcement{}, nil
+		},
+	}
+
+	service := platformSvc.NewAnnouncementService(platformSvc.AnnouncementServiceConfig{
+		AnnouncementRepo:     &mockAnnouncementRepoShared{},
+		AnnouncementViewRepo: viewRepo,
+		AuditLogRepo:         &mockAuditLogRepoShared{},
+		DB:                   &bun.DB{},
+		Logger:               slog.Default(),
+	})
+
+	announcements, err := service.GetUnreadForUser(ctx, 42, []string{"admin"}, 0, 0)
+	require.NoError(t, err)
+	assert.Empty(t, announcements)
+	assert.Equal(t, int64(0), capturedOrgID)
+	assert.Equal(t, int64(0), capturedTenantID)
+}
+
+func TestAnnouncementService_GetStats_RepositoryError(t *testing.T) {
+	ctx := context.Background()
+	announcementRepo := &mockAnnouncementRepoShared{
+		findByIDFn: func(ctx context.Context, id int64) (*platform.Announcement, error) {
+			return &platform.Announcement{
+				Title:    "Test",
+				Content:  "Content",
+				Type:     platform.TypeAnnouncement,
+				Severity: platform.SeverityInfo,
+			}, nil
+		},
+	}
+	viewRepo := &mockAnnouncementViewRepoShared{
+		getStatsFn: func(ctx context.Context, announcementID int64) (*platform.AnnouncementStats, error) {
+			return nil, fmt.Errorf("stats query failed")
+		},
+	}
+
+	service := platformSvc.NewAnnouncementService(platformSvc.AnnouncementServiceConfig{
+		AnnouncementRepo:     announcementRepo,
+		AnnouncementViewRepo: viewRepo,
+		AuditLogRepo:         &mockAuditLogRepoShared{},
+		DB:                   &bun.DB{},
+		Logger:               slog.Default(),
+	})
+
+	_, err := service.GetStats(ctx, 42)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "stats query failed")
+}
+
+func TestAnnouncementService_GetViewDetails_RepositoryError(t *testing.T) {
+	ctx := context.Background()
+	announcementRepo := &mockAnnouncementRepoShared{
+		findByIDFn: func(ctx context.Context, id int64) (*platform.Announcement, error) {
+			return &platform.Announcement{
+				Title:    "Test",
+				Content:  "Content",
+				Type:     platform.TypeAnnouncement,
+				Severity: platform.SeverityInfo,
+			}, nil
+		},
+	}
+	viewRepo := &mockAnnouncementViewRepoShared{
+		getViewDetailsFn: func(ctx context.Context, announcementID int64) ([]*platform.AnnouncementViewDetail, error) {
+			return nil, fmt.Errorf("view details query failed")
+		},
+	}
+
+	service := platformSvc.NewAnnouncementService(platformSvc.AnnouncementServiceConfig{
+		AnnouncementRepo:     announcementRepo,
+		AnnouncementViewRepo: viewRepo,
+		AuditLogRepo:         &mockAuditLogRepoShared{},
+		DB:                   &bun.DB{},
+		Logger:               slog.Default(),
+	})
+
+	_, err := service.GetViewDetails(ctx, 42)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "view details query failed")
+}
+
+func TestAnnouncementService_CreateAnnouncement_WithTargeting(t *testing.T) {
+	ctx := context.Background()
+	var capturedAnnouncement *platform.Announcement
+	announcementRepo := &mockAnnouncementRepoShared{
+		createFn: func(ctx context.Context, announcement *platform.Announcement) error {
+			capturedAnnouncement = announcement
+			announcement.ID = 99
+			return nil
+		},
+	}
+
+	service := platformSvc.NewAnnouncementService(platformSvc.AnnouncementServiceConfig{
+		AnnouncementRepo:     announcementRepo,
+		AnnouncementViewRepo: &mockAnnouncementViewRepoShared{},
+		AuditLogRepo:         &mockAuditLogRepoShared{},
+		DB:                   &bun.DB{},
+		Logger:               slog.Default(),
+	})
+
+	announcement := &platform.Announcement{
+		Title:           "Targeted",
+		Content:         "Content",
+		Type:            platform.TypeAnnouncement,
+		Severity:        platform.SeverityInfo,
+		TargetOrgIDs:    []int64{5, 10},
+		TargetTenantIDs: []int64{12},
+	}
+
+	err := service.CreateAnnouncement(ctx, announcement, 42, nil)
+	require.NoError(t, err)
+	assert.Equal(t, []int64{5, 10}, capturedAnnouncement.TargetOrgIDs)
+	assert.Equal(t, []int64{12}, capturedAnnouncement.TargetTenantIDs)
+}
+
+func TestAnnouncementService_CreateAnnouncement_NilTargetingNormalized(t *testing.T) {
+	ctx := context.Background()
+	var capturedAnnouncement *platform.Announcement
+	announcementRepo := &mockAnnouncementRepoShared{
+		createFn: func(ctx context.Context, announcement *platform.Announcement) error {
+			capturedAnnouncement = announcement
+			announcement.ID = 100
+			return nil
+		},
+	}
+
+	service := platformSvc.NewAnnouncementService(platformSvc.AnnouncementServiceConfig{
+		AnnouncementRepo:     announcementRepo,
+		AnnouncementViewRepo: &mockAnnouncementViewRepoShared{},
+		AuditLogRepo:         &mockAuditLogRepoShared{},
+		DB:                   &bun.DB{},
+		Logger:               slog.Default(),
+	})
+
+	announcement := &platform.Announcement{
+		Title:           "Global",
+		Content:         "Content",
+		Type:            platform.TypeAnnouncement,
+		Severity:        platform.SeverityInfo,
+		TargetOrgIDs:    nil,
+		TargetTenantIDs: nil,
+	}
+
+	err := service.CreateAnnouncement(ctx, announcement, 42, nil)
+	require.NoError(t, err)
+	assert.NotNil(t, capturedAnnouncement.TargetOrgIDs, "nil TargetOrgIDs should be normalized to empty slice by Validate")
+	assert.NotNil(t, capturedAnnouncement.TargetTenantIDs, "nil TargetTenantIDs should be normalized to empty slice by Validate")
+	assert.Empty(t, capturedAnnouncement.TargetOrgIDs)
+	assert.Empty(t, capturedAnnouncement.TargetTenantIDs)
+}

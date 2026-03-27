@@ -253,3 +253,115 @@ describe("ANNOUNCEMENT_STATUS_STYLES", () => {
     expect(ANNOUNCEMENT_STATUS_STYLES.expired).toContain("bg-red-100");
   });
 });
+
+describe("mapAnnouncement edge cases", () => {
+  it("defaults undefined target_org_ids to empty array", () => {
+    const data = {
+      id: 300,
+      title: "No Targeting",
+      content: "Content",
+      type: "announcement" as const,
+      severity: "info" as const,
+      version: null,
+      active: true,
+      published_at: null,
+      expires_at: null,
+      target_roles: [],
+      created_by: 1,
+      created_at: "2024-01-01T00:00:00Z",
+      updated_at: "2024-01-01T00:00:00Z",
+      status: "draft" as const,
+    } as unknown as BackendAnnouncement;
+
+    // Simulate missing fields (as if backend didn't include them)
+    const raw = data as unknown as Record<string, unknown>;
+    delete raw["target_org_ids"];
+    delete raw["target_tenant_ids"];
+
+    const result = mapAnnouncement(data);
+
+    expect(result.targetOrgIds).toEqual([]);
+    expect(result.targetTenantIds).toEqual([]);
+  });
+
+  it("handles single org targeting correctly", () => {
+    const data: BackendAnnouncement = {
+      id: 301,
+      title: "Single Org",
+      content: "Content",
+      type: "announcement",
+      severity: "info",
+      version: null,
+      active: true,
+      published_at: "2024-06-01T00:00:00Z",
+      expires_at: null,
+      target_roles: [],
+      target_org_ids: [42],
+      target_tenant_ids: [],
+      created_by: 1,
+      created_at: "2024-01-01T00:00:00Z",
+      updated_at: "2024-01-01T00:00:00Z",
+      status: "published",
+    };
+
+    const result = mapAnnouncement(data);
+
+    expect(result.targetOrgIds).toEqual([42]);
+    expect(result.targetTenantIds).toEqual([]);
+  });
+
+  it("handles single tenant targeting correctly", () => {
+    const data: BackendAnnouncement = {
+      id: 302,
+      title: "Single Tenant",
+      content: "Content",
+      type: "announcement",
+      severity: "info",
+      version: null,
+      active: true,
+      published_at: "2024-06-01T00:00:00Z",
+      expires_at: null,
+      target_roles: ["user"],
+      target_org_ids: [],
+      target_tenant_ids: [99],
+      created_by: 1,
+      created_at: "2024-01-01T00:00:00Z",
+      updated_at: "2024-01-01T00:00:00Z",
+      status: "published",
+    };
+
+    const result = mapAnnouncement(data);
+
+    expect(result.targetOrgIds).toEqual([]);
+    expect(result.targetTenantIds).toEqual([99]);
+    expect(result.targetRoles).toEqual(["user"]);
+  });
+
+  it("maps OR-union targeting (both org and tenant)", () => {
+    const data: BackendAnnouncement = {
+      id: 303,
+      title: "OR Union",
+      content: "Content",
+      type: "announcement",
+      severity: "critical",
+      version: null,
+      active: true,
+      published_at: "2024-06-01T00:00:00Z",
+      expires_at: null,
+      target_roles: ["admin", "guardian"],
+      target_org_ids: [1, 2, 3],
+      target_tenant_ids: [10, 20],
+      created_by: 1,
+      created_at: "2024-01-01T00:00:00Z",
+      updated_at: "2024-01-01T00:00:00Z",
+      status: "published",
+    };
+
+    const result = mapAnnouncement(data);
+
+    expect(result.targetOrgIds).toEqual([1, 2, 3]);
+    expect(result.targetTenantIds).toEqual([10, 20]);
+    expect(result.targetRoles).toEqual(["admin", "guardian"]);
+    expect(result.severity).toBe("critical");
+  });
+});
