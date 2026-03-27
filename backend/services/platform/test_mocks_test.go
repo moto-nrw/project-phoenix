@@ -136,6 +136,82 @@ func (m *mockAccountTenantRepo) ListAllAccounts(ctx context.Context) ([]auth.Org
 	return nil, nil
 }
 
+// Shared mock for organization repository (used by announcement targeting validation)
+type mockOrgRepoShared struct {
+	findByIDFn func(ctx context.Context, id int64) (*platform.Organization, error)
+}
+
+func (m *mockOrgRepoShared) Create(ctx context.Context, organization *platform.Organization) error {
+	return nil
+}
+
+func (m *mockOrgRepoShared) FindByID(ctx context.Context, id int64) (*platform.Organization, error) {
+	if m.findByIDFn != nil {
+		return m.findByIDFn(ctx, id)
+	}
+	return &platform.Organization{}, nil
+}
+
+func (m *mockOrgRepoShared) FindBySlug(ctx context.Context, slug string) (*platform.Organization, error) {
+	return nil, nil
+}
+
+func (m *mockOrgRepoShared) List(ctx context.Context) ([]*platform.Organization, error) {
+	return nil, nil
+}
+
+func (m *mockOrgRepoShared) Update(ctx context.Context, organization *platform.Organization) error {
+	return nil
+}
+
+// Shared mock for school repository (used by announcement targeting validation)
+type mockSchoolRepoShared struct {
+	findByIDFn func(ctx context.Context, id int64) (*platform.School, error)
+}
+
+func (m *mockSchoolRepoShared) Create(ctx context.Context, school *platform.School) error {
+	return nil
+}
+
+func (m *mockSchoolRepoShared) FindByID(ctx context.Context, id int64) (*platform.School, error) {
+	if m.findByIDFn != nil {
+		return m.findByIDFn(ctx, id)
+	}
+	return &platform.School{}, nil
+}
+
+func (m *mockSchoolRepoShared) FindBySlug(ctx context.Context, slug string) (*platform.School, error) {
+	return nil, nil
+}
+
+func (m *mockSchoolRepoShared) FindByOrganizationAndSlug(ctx context.Context, organizationID int64, slug string) (*platform.School, error) {
+	return nil, nil
+}
+
+func (m *mockSchoolRepoShared) FindBySubdomain(ctx context.Context, subdomain string) (*platform.School, error) {
+	return nil, nil
+}
+
+func (m *mockSchoolRepoShared) List(ctx context.Context) ([]*platform.School, error) {
+	return nil, nil
+}
+
+func (m *mockSchoolRepoShared) ListActive(ctx context.Context) ([]platform.School, error) {
+	return nil, nil
+}
+
+func (m *mockSchoolRepoShared) ListPublic(ctx context.Context) ([]platform.School, error) {
+	return nil, nil
+}
+
+func (m *mockSchoolRepoShared) FindActiveByAccountID(ctx context.Context, accountID int64) ([]platform.School, error) {
+	return nil, nil
+}
+
+func (m *mockSchoolRepoShared) Update(ctx context.Context, school *platform.School) error {
+	return nil
+}
+
 // Shared mock for announcement repository
 type mockAnnouncementRepoShared struct {
 	createFn    func(ctx context.Context, announcement *platform.Announcement) error

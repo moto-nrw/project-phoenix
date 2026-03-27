@@ -877,10 +877,23 @@ func TestAnnouncementService_CreateAnnouncement_WithTargeting(t *testing.T) {
 		},
 	}
 
+	orgRepo := &mockOrgRepoShared{
+		findByIDFn: func(ctx context.Context, id int64) (*platform.Organization, error) {
+			return &platform.Organization{}, nil
+		},
+	}
+	schoolRepo := &mockSchoolRepoShared{
+		findByIDFn: func(ctx context.Context, id int64) (*platform.School, error) {
+			return &platform.School{}, nil
+		},
+	}
+
 	service := platformSvc.NewAnnouncementService(platformSvc.AnnouncementServiceConfig{
 		AnnouncementRepo:     announcementRepo,
 		AnnouncementViewRepo: &mockAnnouncementViewRepoShared{},
 		AuditLogRepo:         &mockAuditLogRepoShared{},
+		OrgRepo:              orgRepo,
+		SchoolRepo:           schoolRepo,
 		DB:                   &bun.DB{},
 		Logger:               slog.Default(),
 	})
@@ -1063,6 +1076,8 @@ func TestAnnouncementService_UpdateAnnouncement_WithTargeting(t *testing.T) {
 		AnnouncementRepo:     announcementRepo,
 		AnnouncementViewRepo: &mockAnnouncementViewRepoShared{},
 		AuditLogRepo:         &mockAuditLogRepoShared{},
+		OrgRepo:              &mockOrgRepoShared{},
+		SchoolRepo:           &mockSchoolRepoShared{},
 		DB:                   &bun.DB{},
 		Logger:               slog.Default(),
 	})
@@ -1115,6 +1130,8 @@ func TestAnnouncementService_UpdateAnnouncement_AuditLogTracksTargetingChanges(t
 		AnnouncementRepo:     announcementRepo,
 		AnnouncementViewRepo: &mockAnnouncementViewRepoShared{},
 		AuditLogRepo:         auditLogRepo,
+		OrgRepo:              &mockOrgRepoShared{},
+		SchoolRepo:           &mockSchoolRepoShared{},
 		DB:                   &bun.DB{},
 		Logger:               slog.Default(),
 	})
@@ -1176,6 +1193,8 @@ func TestAnnouncementService_UpdateAnnouncement_AuditLogTracksNoTargetingChanges
 		AnnouncementRepo:     announcementRepo,
 		AnnouncementViewRepo: &mockAnnouncementViewRepoShared{},
 		AuditLogRepo:         auditLogRepo,
+		OrgRepo:              &mockOrgRepoShared{},
+		SchoolRepo:           &mockSchoolRepoShared{},
 		DB:                   &bun.DB{},
 		Logger:               slog.Default(),
 	})

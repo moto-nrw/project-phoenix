@@ -190,21 +190,23 @@ func (r *AnnouncementViewRepository) GetStats(ctx context.Context, announcementI
 	// Count target users scoped by roles, org, and tenant
 	switch {
 	case !hasRoleFilter && !hasOrgFilter && !hasTenantFilter:
-		// Global: count all accounts
+		// Global: count all accounts with at least one active tenant membership
 		err = base.GetDB(ctx, r.db).NewRaw(`
-			SELECT COUNT(DISTINCT acc.id)
-			FROM auth.accounts acc
-			WHERE acc.id IS NOT NULL
+			SELECT COUNT(DISTINCT at.account_id)
+			FROM auth.account_tenants at
+			WHERE at.status = 'active'
 		`).Scan(ctx, &stats.TargetCount)
 
 	case hasRoleFilter && !hasOrgFilter && !hasTenantFilter:
-		// Role filter only
+		// Role filter only — still require active tenant membership for consistency
 		err = base.GetDB(ctx, r.db).NewRaw(`
 			SELECT COUNT(DISTINCT acc.id)
 			FROM auth.accounts acc
 			JOIN auth.account_roles ar ON ar.account_id = acc.id
 			JOIN auth.roles r ON r.id = ar.role_id
+			JOIN auth.account_tenants at ON at.account_id = acc.id
 			WHERE r.name IN (?)
+				AND at.status = 'active'
 		`, bun.List(targetRoles)).Scan(ctx, &stats.TargetCount)
 
 	case !hasRoleFilter && hasOrgFilter && hasTenantFilter:

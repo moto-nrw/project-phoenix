@@ -404,6 +404,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		AnnouncementRepo:     repos.Announcement,
 		AnnouncementViewRepo: repos.AnnouncementView,
 		AuditLogRepo:         repos.OperatorAuditLog,
+		OrgRepo:              repos.Organization,
+		SchoolRepo:           repos.School,
 		DB:                   db,
 		Logger:               platformLogger,
 	})

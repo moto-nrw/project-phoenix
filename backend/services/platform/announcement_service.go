@@ -41,6 +41,8 @@ type announcementService struct {
 	announcementRepo     platform.AnnouncementRepository
 	announcementViewRepo platform.AnnouncementViewRepository
 	auditLogRepo         platform.OperatorAuditLogRepository
+	orgRepo              platform.OrganizationRepository
+	schoolRepo           platform.SchoolRepository
 	db                   *bun.DB
 	logger               *slog.Logger
 }
@@ -50,6 +52,8 @@ type AnnouncementServiceConfig struct {
 	AnnouncementRepo     platform.AnnouncementRepository
 	AnnouncementViewRepo platform.AnnouncementViewRepository
 	AuditLogRepo         platform.OperatorAuditLogRepository
+	OrgRepo              platform.OrganizationRepository
+	SchoolRepo           platform.SchoolRepository
 	DB                   *bun.DB
 	Logger               *slog.Logger
 }
@@ -60,6 +64,8 @@ func NewAnnouncementService(cfg AnnouncementServiceConfig) AnnouncementService {
 		announcementRepo:     cfg.AnnouncementRepo,
 		announcementViewRepo: cfg.AnnouncementViewRepo,
 		auditLogRepo:         cfg.AuditLogRepo,
+		orgRepo:              cfg.OrgRepo,
+		schoolRepo:           cfg.SchoolRepo,
 		db:                   cfg.DB,
 		logger:               cfg.Logger,
 	}
@@ -72,6 +78,29 @@ func (s *announcementService) getLogger() *slog.Logger {
 	return slog.Default()
 }
 
+// validateTargetingIDs checks that all referenced org and tenant IDs exist in the database.
+func (s *announcementService) validateTargetingIDs(ctx context.Context, orgIDs, tenantIDs []int64) error {
+	for _, id := range orgIDs {
+		org, err := s.orgRepo.FindByID(ctx, id)
+		if err != nil {
+			return fmt.Errorf("failed to verify organization %d: %w", id, err)
+		}
+		if org == nil {
+			return &InvalidDataError{Err: fmt.Errorf("organization with ID %d does not exist", id)}
+		}
+	}
+	for _, id := range tenantIDs {
+		school, err := s.schoolRepo.FindByID(ctx, id)
+		if err != nil {
+			return fmt.Errorf("failed to verify school %d: %w", id, err)
+		}
+		if school == nil {
+			return &InvalidDataError{Err: fmt.Errorf("school (tenant) with ID %d does not exist", id)}
+		}
+	}
+	return nil
+}
+
 // CreateAnnouncement creates a new announcement
 func (s *announcementService) CreateAnnouncement(ctx context.Context, announcement *platform.Announcement, operatorID int64, clientIP net.IP) error {
 	if announcement == nil {
@@ -82,6 +111,10 @@ func (s *announcementService) CreateAnnouncement(ctx context.Context, announceme
 
 	if err := announcement.Validate(); err != nil {
 		return &InvalidDataError{Err: err}
+	}
+
+	if err := s.validateTargetingIDs(ctx, announcement.TargetOrgIDs, announcement.TargetTenantIDs); err != nil {
+		return err
 	}
 
 	if err := s.announcementRepo.Create(ctx, announcement); err != nil {
@@ -122,6 +155,10 @@ func (s *announcementService) UpdateAnnouncement(ctx context.Context, announceme
 
 	if err := announcement.Validate(); err != nil {
 		return &InvalidDataError{Err: err}
+	}
+
+	if err := s.validateTargetingIDs(ctx, announcement.TargetOrgIDs, announcement.TargetTenantIDs); err != nil {
+		return err
 	}
 
 	if err := s.announcementRepo.Update(ctx, announcement); err != nil {

@@ -59,6 +59,15 @@ type CreateAnnouncementRequest struct {
 
 // Bind validates the create announcement request
 func (req *CreateAnnouncementRequest) Bind(r *http.Request) error {
+	if req.TargetRoles == nil {
+		req.TargetRoles = []string{}
+	}
+	if req.TargetOrgIDs == nil {
+		req.TargetOrgIDs = []int64{}
+	}
+	if req.TargetTenantIDs == nil {
+		req.TargetTenantIDs = []int64{}
+	}
 	return nil
 }
 
@@ -78,6 +87,15 @@ type UpdateAnnouncementRequest struct {
 
 // Bind validates the update announcement request
 func (req *UpdateAnnouncementRequest) Bind(r *http.Request) error {
+	if req.TargetRoles == nil {
+		req.TargetRoles = []string{}
+	}
+	if req.TargetOrgIDs == nil {
+		req.TargetOrgIDs = []int64{}
+	}
+	if req.TargetTenantIDs == nil {
+		req.TargetTenantIDs = []int64{}
+	}
 	return nil
 }
 
