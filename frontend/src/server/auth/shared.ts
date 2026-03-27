@@ -80,6 +80,7 @@ declare module "next-auth" {
     refreshTokenExpiry?: number;
     error?: "RefreshTokenExpired" | "RefreshTokenError";
     needsRefresh?: boolean;
+    refreshFailCount?: number;
   }
 }
 
@@ -459,6 +460,7 @@ export const sharedJwtCallback: NonNullable<
     token.refreshTokenExpiry = Date.now() + refreshTokenExpiry;
     token.error = undefined;
     token.needsRefresh = undefined;
+    token.refreshFailCount = 0;
 
     if (isDev) {
       logger.debug("authentication token configuration", {
@@ -493,12 +495,17 @@ export const sharedJwtCallback: NonNullable<
     return token;
   }
 
-  // If a previous refresh attempt failed (e.g., backend rejected the token
-  // with 401 because it was rotated or deleted), stop retrying. Without this
-  // guard the callback retries every ~4 minutes indefinitely, spamming the
-  // backend with requests that will never succeed. The client-side session
-  // error handler will prompt the user to re-authenticate.
-  if (token.error === "RefreshTokenError") {
+  // After multiple consecutive refresh failures, stop retrying. A single
+  // failure could be a transient network/timeout blip, so we allow a few
+  // retries before giving up. But once the threshold is reached (e.g., the
+  // backend consistently returns 401 because the token was rotated/deleted),
+  // stop spamming the server and let the client-side error handler prompt
+  // the user to re-authenticate.
+  const REFRESH_MAX_FAILURES = 3;
+  if (
+    token.error === "RefreshTokenError" &&
+    ((token.refreshFailCount as number) ?? 0) >= REFRESH_MAX_FAILURES
+  ) {
     return token;
   }
 
@@ -561,10 +568,17 @@ export const sharedJwtCallback: NonNullable<
           token.scope = inflightPayload.scope;
         }
         logger.info("proactive_token_refresh_succeeded");
+        token.refreshFailCount = 0;
       } else if (now > tokenExpiry) {
-        token.error = "RefreshTokenError";
-        token.needsRefresh = true;
-        logger.warn("token_refresh_failed_post_expiry");
+        const failCount = ((token.refreshFailCount as number) ?? 0) + 1;
+        token.refreshFailCount = failCount;
+        if (failCount >= REFRESH_MAX_FAILURES) {
+          token.error = "RefreshTokenError";
+          token.needsRefresh = true;
+        }
+        logger.warn("token_refresh_failed_post_expiry", {
+          fail_count: failCount,
+        });
       }
       return token;
     }
@@ -637,10 +651,17 @@ export const sharedJwtCallback: NonNullable<
         token.scope = refreshedPayload.scope;
       }
       logger.info("proactive_token_refresh_succeeded");
+      token.refreshFailCount = 0;
     } else if (now > tokenExpiry) {
-      token.error = "RefreshTokenError";
-      token.needsRefresh = true;
-      logger.warn("token_refresh_failed_post_expiry");
+      const failCount = ((token.refreshFailCount as number) ?? 0) + 1;
+      token.refreshFailCount = failCount;
+      if (failCount >= REFRESH_MAX_FAILURES) {
+        token.error = "RefreshTokenError";
+        token.needsRefresh = true;
+      }
+      logger.warn("token_refresh_failed_post_expiry", {
+        fail_count: failCount,
+      });
     }
   }
 

@@ -1408,6 +1408,7 @@ describe("authConfig", () => {
         refreshToken: "fail-concurrent-token",
         tokenExpiry: Date.now() - 60 * 1000, // Already expired
         refreshTokenExpiry: Date.now() + 7 * 24 * 60 * 60 * 1000,
+        refreshFailCount: 2, // 2 prior failures — this 3rd triggers the error
       });
 
       const callJwt = (token: Record<string, unknown>) =>

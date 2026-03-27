@@ -326,12 +326,14 @@ describe("JWT callback — refresh scenarios", () => {
       status: 401,
     });
 
+    // After 3 consecutive failures (threshold), error is set
     const token = {
       id: "13",
       token: "expired-access",
       refreshToken: "valid-refresh",
       tokenExpiry: Date.now() - 30 * 1000, // expired 30s ago
       refreshTokenExpiry: Date.now() + 60 * 60 * 1000,
+      refreshFailCount: 2, // 2 prior failures — this 3rd triggers the error
     };
 
     const result = await callJwt(token);
@@ -340,6 +342,7 @@ describe("JWT callback — refresh scenarios", () => {
     expect(result?.token).toBe("expired-access"); // unchanged
     expect(result?.error).toBe("RefreshTokenError");
     expect(result?.needsRefresh).toBe(true);
+    expect(result?.refreshFailCount).toBe(3);
   });
 
   // ── Scenario 14: Post-expiry refresh failure (network timeout) ─────
@@ -350,12 +353,14 @@ describe("JWT callback — refresh scenarios", () => {
     );
     mockFetch.mockRejectedValueOnce(abortError);
 
+    // After 3 consecutive failures (threshold), error is set
     const token = {
       id: "14",
       token: "expired-access",
       refreshToken: "valid-refresh",
       tokenExpiry: Date.now() - 30 * 1000, // expired 30s ago
       refreshTokenExpiry: Date.now() + 60 * 60 * 1000,
+      refreshFailCount: 2, // 2 prior failures — this 3rd triggers the error
     };
 
     const result = await callJwt(token);
@@ -364,5 +369,6 @@ describe("JWT callback — refresh scenarios", () => {
     expect(result?.token).toBe("expired-access"); // unchanged
     expect(result?.error).toBe("RefreshTokenError");
     expect(result?.needsRefresh).toBe(true);
+    expect(result?.refreshFailCount).toBe(3);
   });
 });

@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator routes are not tenant-scoped
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { signIn, useSession } from "next-auth/react";
+import { signIn, signOut, useSession } from "next-auth/react";
 import { Input, Alert } from "~/components/ui";
 import { Loading } from "~/components/ui/loading";
 import { launchConfetti, clearConfetti } from "~/lib/confetti";
@@ -20,17 +20,39 @@ export default function OperatorLoginPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
 
+  // Guard against calling signOut multiple times during stale session cleanup
+  const isCleaningSessionRef = useRef(false);
+
   // Redirect if already authenticated as operator (scope === "platform")
   useEffect(() => {
-    if (status === "authenticated" && session?.user?.scope === "platform") {
+    // Clear stale sessions with errors before checking redirect
+    if (
+      status === "authenticated" &&
+      session?.error &&
+      !isCleaningSessionRef.current
+    ) {
+      isCleaningSessionRef.current = true;
+      signOut({ redirect: false }).catch(() => {
+        isCleaningSessionRef.current = false;
+      });
+      return;
+    }
+
+    if (
+      status === "authenticated" &&
+      session?.user?.scope === "platform" &&
+      !session?.error
+    ) {
       router.push(operatorPath("/operator/suggestions"));
     }
   }, [status, session, router]);
 
-  // Show loading while checking auth (only for operator sessions)
+  // Show loading while checking auth (only for valid operator sessions)
   if (
     status === "loading" ||
-    (status === "authenticated" && session?.user?.scope === "platform")
+    (status === "authenticated" &&
+      session?.user?.scope === "platform" &&
+      !session?.error)
   ) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center p-4">

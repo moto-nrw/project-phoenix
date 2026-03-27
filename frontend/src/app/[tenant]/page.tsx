@@ -53,6 +53,7 @@ function LoginForm() {
         try {
           await signOut({ redirect: false });
         } catch (err) {
+          isCleaningSessionRef.current = false;
           logger.warn("signout_during_cleanup_failed", {
             error: err instanceof Error ? err.message : String(err),
           });
