@@ -16,6 +16,8 @@ const {
   mockDelete,
   mockPublish,
   mockFetchStats,
+  mockListOrganizations,
+  mockListSchools,
 } = vi.hoisted(() => ({
   mockUseSession: vi.fn(),
   mockUseSWR: vi.fn(),
@@ -26,6 +28,8 @@ const {
   mockDelete: vi.fn(),
   mockPublish: vi.fn(),
   mockFetchStats: vi.fn(),
+  mockListOrganizations: vi.fn(),
+  mockListSchools: vi.fn(),
 }));
 
 // Mock hooks and contexts
@@ -50,6 +54,14 @@ vi.mock("~/lib/operator/announcements-api", () => ({
     delete: mockDelete,
     publish: mockPublish,
     fetchStats: mockFetchStats,
+  },
+}));
+
+// Mock provisioning API
+vi.mock("~/lib/operator/provisioning-api", () => ({
+  operatorProvisioningService: {
+    listOrganizations: mockListOrganizations,
+    listSchools: mockListSchools,
   },
 }));
 
@@ -837,5 +849,394 @@ describe("OperatorAnnouncementsPage", () => {
     });
 
     consoleError.mockRestore();
+  });
+
+  describe("org/tenant targeting", () => {
+    const mockOrganizations = [
+      { id: "1", name: "Org Alpha", slug: "org-alpha" },
+      { id: "2", name: "Org Beta", slug: "org-beta" },
+    ];
+
+    const mockSchools = [
+      { id: "10", name: "Schule A", organizationId: "1", slug: "schule-a" },
+      { id: "20", name: "Schule B", organizationId: "1", slug: "schule-b" },
+      { id: "30", name: "Schule C", organizationId: "2", slug: "schule-c" },
+    ];
+
+    function setupSWRWithOrgAndSchools(
+      announcementsData: any[] = [mockAnnouncement],
+    ) {
+      mockUseSWR.mockImplementation((key: any) => {
+        if (key === "operator-announcements") {
+          return {
+            data: announcementsData,
+            isLoading: false,
+            mutate: mockMutate,
+          };
+        }
+        if (key === "operator-organizations") {
+          return {
+            data: mockOrganizations,
+            isLoading: false,
+            mutate: mockMutate,
+          };
+        }
+        if (key === "operator-schools") {
+          return {
+            data: mockSchools,
+            isLoading: false,
+            mutate: mockMutate,
+          };
+        }
+        return { data: undefined, isLoading: false, mutate: mockMutate };
+      });
+    }
+
+    it("renders org checkboxes from organizations data", async () => {
+      setupSWRWithOrgAndSchools();
+      render(<OperatorAnnouncementsPage />);
+
+      fireEvent.click(screen.getByText("Neue Ankündigung"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("modal")).toBeInTheDocument();
+      });
+
+      expect(screen.getByText("Org Alpha")).toBeInTheDocument();
+      expect(screen.getByText("Org Beta")).toBeInTheDocument();
+    });
+
+    it("renders school checkboxes from schools data", async () => {
+      setupSWRWithOrgAndSchools();
+      render(<OperatorAnnouncementsPage />);
+
+      fireEvent.click(screen.getByText("Neue Ankündigung"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("modal")).toBeInTheDocument();
+      });
+
+      expect(screen.getByText("Schule A")).toBeInTheDocument();
+      expect(screen.getByText("Schule B")).toBeInTheDocument();
+      expect(screen.getByText("Schule C")).toBeInTheDocument();
+    });
+
+    it("filters schools by selected org", async () => {
+      setupSWRWithOrgAndSchools();
+      render(<OperatorAnnouncementsPage />);
+
+      fireEvent.click(screen.getByText("Neue Ankündigung"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("modal")).toBeInTheDocument();
+      });
+
+      // Select Org Beta (id=2) — only Schule C belongs to it
+      fireEvent.click(screen.getByText("Org Beta"));
+
+      await waitFor(() => {
+        expect(screen.getByText("Schule C")).toBeInTheDocument();
+        expect(screen.queryByText("Schule A")).not.toBeInTheDocument();
+        expect(screen.queryByText("Schule B")).not.toBeInTheDocument();
+      });
+    });
+
+    it("shows all schools when no org is selected", async () => {
+      setupSWRWithOrgAndSchools();
+      render(<OperatorAnnouncementsPage />);
+
+      fireEvent.click(screen.getByText("Neue Ankündigung"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("modal")).toBeInTheDocument();
+      });
+
+      // No org selected — all schools visible
+      expect(screen.getByText("Schule A")).toBeInTheDocument();
+      expect(screen.getByText("Schule B")).toBeInTheDocument();
+      expect(screen.getByText("Schule C")).toBeInTheDocument();
+    });
+
+    it("creates announcement with org targeting", async () => {
+      setupSWRWithOrgAndSchools();
+      mockCreate.mockResolvedValue({ ...mockAnnouncement });
+
+      render(<OperatorAnnouncementsPage />);
+
+      fireEvent.click(screen.getByText("Neue Ankündigung"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("modal")).toBeInTheDocument();
+      });
+
+      // Fill required fields
+      const textInputs = screen.getAllByRole("textbox");
+      fireEvent.change(textInputs[0]!, { target: { value: "Org Targeted" } });
+      fireEvent.change(textInputs[1]!, {
+        target: { value: "Content for orgs" },
+      });
+
+      // Select Org Alpha
+      fireEvent.click(screen.getByText("Org Alpha"));
+
+      // Submit
+      fireEvent.click(screen.getByText("Erstellen"));
+
+      await waitFor(() => {
+        expect(mockCreate).toHaveBeenCalledWith(
+          expect.objectContaining({
+            target_org_ids: [1],
+          }),
+        );
+      });
+    });
+
+    it("creates announcement with tenant targeting", async () => {
+      setupSWRWithOrgAndSchools();
+      mockCreate.mockResolvedValue({ ...mockAnnouncement });
+
+      render(<OperatorAnnouncementsPage />);
+
+      fireEvent.click(screen.getByText("Neue Ankündigung"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("modal")).toBeInTheDocument();
+      });
+
+      // Fill required fields
+      const textInputs = screen.getAllByRole("textbox");
+      fireEvent.change(textInputs[0]!, {
+        target: { value: "Tenant Targeted" },
+      });
+      fireEvent.change(textInputs[1]!, {
+        target: { value: "Content for schools" },
+      });
+
+      // Select Schule A and Schule C
+      fireEvent.click(screen.getByText("Schule A"));
+      fireEvent.click(screen.getByText("Schule C"));
+
+      // Submit
+      fireEvent.click(screen.getByText("Erstellen"));
+
+      await waitFor(() => {
+        expect(mockCreate).toHaveBeenCalledWith(
+          expect.objectContaining({
+            target_tenant_ids: [10, 30],
+          }),
+        );
+      });
+    });
+
+    it("updates announcement with org and tenant targeting", async () => {
+      setupSWRWithOrgAndSchools();
+      mockUpdate.mockResolvedValue({ ...mockAnnouncement });
+
+      render(<OperatorAnnouncementsPage />);
+
+      // Open edit modal via kebab menu
+      const menuButtons = screen.getAllByLabelText("Menü öffnen");
+      if (menuButtons[0]) {
+        fireEvent.click(menuButtons[0]);
+      }
+
+      await waitFor(() => {
+        fireEvent.click(screen.getByText("Bearbeiten"));
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("modal")).toBeInTheDocument();
+      });
+
+      // Select org and school targeting
+      fireEvent.click(screen.getByText("Org Alpha"));
+      fireEvent.click(screen.getByText("Schule A"));
+
+      // Submit
+      fireEvent.click(screen.getByText("Speichern"));
+
+      await waitFor(() => {
+        expect(mockUpdate).toHaveBeenCalledWith(
+          "1",
+          expect.objectContaining({
+            target_org_ids: [1],
+            target_tenant_ids: [10],
+          }),
+        );
+      });
+    });
+
+    it("displays targeted org names on announcement card", () => {
+      const announcementWithOrgs = {
+        ...mockAnnouncement,
+        targetOrgIds: [1, 2],
+        targetTenantIds: [],
+      };
+
+      setupSWRWithOrgAndSchools([announcementWithOrgs]);
+      render(<OperatorAnnouncementsPage />);
+
+      expect(screen.getByText("Org Alpha, Org Beta")).toBeInTheDocument();
+    });
+
+    it("displays targeted school names on announcement card", () => {
+      const announcementWithTenants = {
+        ...mockAnnouncement,
+        targetOrgIds: [],
+        targetTenantIds: [10, 30],
+      };
+
+      setupSWRWithOrgAndSchools([announcementWithTenants]);
+      render(<OperatorAnnouncementsPage />);
+
+      expect(screen.getByText("Schule A, Schule C")).toBeInTheDocument();
+    });
+
+    it("shows empty state when no schools available for selected orgs", async () => {
+      // Set up with schools that belong to neither of the orgs we will select
+      mockUseSWR.mockImplementation((key: any) => {
+        if (key === "operator-announcements") {
+          return {
+            data: [mockAnnouncement],
+            isLoading: false,
+            mutate: mockMutate,
+          };
+        }
+        if (key === "operator-organizations") {
+          return {
+            data: [{ id: "99", name: "Empty Org", slug: "empty-org" }],
+            isLoading: false,
+            mutate: mockMutate,
+          };
+        }
+        if (key === "operator-schools") {
+          // No schools belong to org 99
+          return {
+            data: mockSchools,
+            isLoading: false,
+            mutate: mockMutate,
+          };
+        }
+        return { data: undefined, isLoading: false, mutate: mockMutate };
+      });
+
+      render(<OperatorAnnouncementsPage />);
+
+      fireEvent.click(screen.getByText("Neue Ankündigung"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("modal")).toBeInTheDocument();
+      });
+
+      // Select org 99 which has no schools
+      fireEvent.click(screen.getByText("Empty Org"));
+
+      await waitFor(() => {
+        expect(screen.getByText("Keine Schulen verfügbar")).toBeInTheDocument();
+      });
+    });
+
+    it("removes tenant selections when org is unchecked", async () => {
+      setupSWRWithOrgAndSchools();
+      mockCreate.mockResolvedValue({ ...mockAnnouncement });
+
+      render(<OperatorAnnouncementsPage />);
+
+      fireEvent.click(screen.getByText("Neue Ankündigung"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("modal")).toBeInTheDocument();
+      });
+
+      // Fill required fields
+      const textInputs = screen.getAllByRole("textbox");
+      fireEvent.change(textInputs[0]!, {
+        target: { value: "Test removal" },
+      });
+      fireEvent.change(textInputs[1]!, {
+        target: { value: "Content" },
+      });
+
+      // Select Org Alpha, then select its schools
+      fireEvent.click(screen.getByText("Org Alpha"));
+
+      await waitFor(() => {
+        expect(screen.getByText("Schule A")).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText("Schule A"));
+      fireEvent.click(screen.getByText("Schule B"));
+
+      // Now uncheck Org Alpha — should remove Schule A and B from targetTenantIds
+      fireEvent.click(screen.getByText("Org Alpha"));
+
+      // Submit to verify tenant IDs were cleared
+      // First re-fill title since all schools are visible again but none selected
+      fireEvent.click(screen.getByText("Erstellen"));
+
+      await waitFor(() => {
+        expect(mockCreate).toHaveBeenCalledWith(
+          expect.objectContaining({
+            target_org_ids: [],
+            target_tenant_ids: [],
+          }),
+        );
+      });
+    });
+
+    it("populates targeting fields when editing existing announcement", async () => {
+      const announcementWithTargeting = {
+        ...mockAnnouncement,
+        targetOrgIds: [1],
+        targetTenantIds: [10],
+      };
+
+      setupSWRWithOrgAndSchools([announcementWithTargeting]);
+      render(<OperatorAnnouncementsPage />);
+
+      // Open edit modal
+      const menuButtons = screen.getAllByLabelText("Menü öffnen");
+      if (menuButtons[0]) {
+        fireEvent.click(menuButtons[0]);
+      }
+
+      await waitFor(() => {
+        fireEvent.click(screen.getByText("Bearbeiten"));
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("modal")).toBeInTheDocument();
+      });
+
+      // Org Alpha should be checked (green border)
+      const modal = screen.getByTestId("modal");
+      const orgAlphaBtn = Array.from(modal.querySelectorAll("button")).find(
+        (b) => b.textContent?.includes("Org Alpha"),
+      );
+      expect(orgAlphaBtn?.className).toContain("border-[#83CD2D]");
+
+      // Schule A should be checked
+      const schuleABtn = Array.from(modal.querySelectorAll("button")).find(
+        (b) => b.textContent?.includes("Schule A"),
+      );
+      expect(schuleABtn?.className).toContain("border-[#83CD2D]");
+    });
+
+    it("handles announcement with undefined targetOrgIds gracefully", () => {
+      const announcementNoTargeting = {
+        ...mockAnnouncement,
+        targetOrgIds: undefined,
+        targetTenantIds: undefined,
+      };
+
+      setupSWRWithOrgAndSchools([announcementNoTargeting]);
+
+      // Should render without throwing
+      render(<OperatorAnnouncementsPage />);
+
+      expect(screen.getByText("Test Announcement")).toBeInTheDocument();
+      // No org/school targeting rows should be displayed
+      expect(screen.queryByText("Org Alpha, Org Beta")).not.toBeInTheDocument();
+    });
   });
 });

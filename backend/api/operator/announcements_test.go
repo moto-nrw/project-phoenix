@@ -1839,6 +1839,64 @@ func TestListAnnouncements_EmptyList(t *testing.T) {
 	assert.Empty(t, data)
 }
 
+func TestCreateAnnouncement_InvalidJSONBody(t *testing.T) {
+	mockService := &mockAnnouncementService{}
+	resource := operator.NewAnnouncementsResource(mockService)
+
+	req := httptest.NewRequest(http.MethodPost, "/announcements", bytes.NewReader([]byte("not-json")))
+	req.Header.Set("Content-Type", "application/json")
+	claims := jwt.AppClaims{ID: 1}
+	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+
+	resource.CreateAnnouncement(rr, req)
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestUpdateAnnouncement_InvalidJSONBody(t *testing.T) {
+	mockService := &mockAnnouncementService{}
+	resource := operator.NewAnnouncementsResource(mockService)
+
+	req := httptest.NewRequest(http.MethodPut, "/announcements/1", bytes.NewReader([]byte("not-json")))
+	req.Header.Set("Content-Type", "application/json")
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "1")
+	claims := jwt.AppClaims{ID: 1}
+	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
+	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+
+	resource.UpdateAnnouncement(rr, req)
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestGetAnnouncement_ServiceError(t *testing.T) {
+	mockService := &mockAnnouncementService{
+		getAnnouncementFn: func(ctx context.Context, id int64) (*platform.Announcement, error) {
+			return nil, errors.New("database error")
+		},
+	}
+
+	resource := operator.NewAnnouncementsResource(mockService)
+
+	req := httptest.NewRequest(http.MethodGet, "/announcements/1", nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "1")
+	claims := jwt.AppClaims{ID: 1}
+	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
+	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+
+	resource.GetAnnouncement(rr, req)
+
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+}
+
 func TestCreateAnnouncement_WithVersion(t *testing.T) {
 	mockService := &mockAnnouncementService{
 		createFn: func(ctx context.Context, announcement *platform.Announcement, operatorID int64, clientIP net.IP) error {
