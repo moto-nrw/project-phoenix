@@ -77,6 +77,7 @@ type OperatorProvisioningService interface {
 	ListOrganizationDevices(ctx context.Context, organizationID int64) ([]OperatorDeviceInfo, error)
 	CreateDevice(ctx context.Context, schoolID int64, deviceID, deviceType string, name, apiKey *string, operatorID int64, clientIP net.IP) (*OperatorDeviceInfo, error)
 	SetDeviceAPIKey(ctx context.Context, id int64, apiKey *string, operatorID int64, clientIP net.IP) (*OperatorDeviceInfo, error)
+	DeleteDevice(ctx context.Context, id int64, operatorID int64, clientIP net.IP) error
 }
 
 // OperatorDeviceInfo holds device information with school/org context for operator views.
@@ -955,6 +956,42 @@ func (s *operatorProvisioningService) SetDeviceAPIKey(ctx context.Context, id in
 		return nil, err
 	}
 	return result, nil
+}
+
+func (s *operatorProvisioningService) DeleteDevice(ctx context.Context, id int64, operatorID int64, clientIP net.IP) error {
+	if id <= 0 {
+		return &InvalidDataError{Err: fmt.Errorf("device id is required")}
+	}
+
+	return s.withAdminTx(ctx, func(adminCtx context.Context) error {
+		device, findErr := s.deviceRepo.FindByID(adminCtx, id)
+		if findErr != nil {
+			if errors.Is(findErr, sql.ErrNoRows) {
+				return &OperatorDeviceNotFoundError{DeviceID: id}
+			}
+			var dbErr *modelBase.DatabaseError
+			if errors.As(findErr, &dbErr) && errors.Is(dbErr.Err, sql.ErrNoRows) {
+				return &OperatorDeviceNotFoundError{DeviceID: id}
+			}
+			return findErr
+		}
+		if device == nil {
+			return &OperatorDeviceNotFoundError{DeviceID: id}
+		}
+
+		deleteErr := s.deviceRepo.Delete(adminCtx, id)
+		if deleteErr != nil {
+			return fmt.Errorf("DeleteDevice: %w", deleteErr)
+		}
+
+		s.logAction(adminCtx, operatorID, platform.ActionDelete, platform.ResourceDevice, &id, clientIP, map[string]any{
+			"device_id":   device.DeviceID,
+			"device_type": device.DeviceType,
+			"school_id":   device.TenantID,
+		})
+
+		return nil
+	})
 }
 
 func (s *operatorProvisioningService) validateSchoolCreate(ctx context.Context, school *platform.School) error {

@@ -604,6 +604,20 @@ func (rs *ProvisioningResource) SetDeviceAPIKey(w http.ResponseWriter, r *http.R
 	common.Respond(w, r, http.StatusOK, device, "Device API key updated successfully")
 }
 
+func (rs *ProvisioningResource) DeleteDevice(w http.ResponseWriter, r *http.Request) {
+	deviceID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid device ID")
+	if !ok {
+		return
+	}
+	operatorID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	err := rs.service.DeleteDevice(r.Context(), deviceID, operatorID, getClientIP(r))
+	if err != nil {
+		common.RenderError(w, r, ProvisioningErrorRenderer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, nil, "Device deleted successfully")
+}
+
 func shouldExposeSeedInvitationToken(r *http.Request) bool {
 	if !strings.EqualFold(strings.TrimSpace(r.Header.Get(seedTokenHeader)), "true") {
 		return false

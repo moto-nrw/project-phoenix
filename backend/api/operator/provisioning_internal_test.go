@@ -42,6 +42,7 @@ type mockProvisioningService struct {
 	listOrganizationDevicesFn func(context.Context, int64) ([]platformSvc.OperatorDeviceInfo, error)
 	createDeviceFn            func(context.Context, int64, string, string, *string, *string, int64, net.IP) (*platformSvc.OperatorDeviceInfo, error)
 	setDeviceAPIKeyFn         func(context.Context, int64, *string, int64, net.IP) (*platformSvc.OperatorDeviceInfo, error)
+	deleteDeviceFn            func(context.Context, int64, int64, net.IP) error
 }
 
 func (m *mockProvisioningService) CreateOrganization(ctx context.Context, org *platformModels.Organization, operatorID int64, clientIP net.IP) (*platformModels.Organization, error) {
@@ -130,6 +131,12 @@ func (m *mockProvisioningService) SetDeviceAPIKey(ctx context.Context, deviceID 
 		return m.setDeviceAPIKeyFn(ctx, deviceID, apiKey, operatorID, clientIP)
 	}
 	return nil, nil
+}
+func (m *mockProvisioningService) DeleteDevice(ctx context.Context, id int64, operatorID int64, clientIP net.IP) error {
+	if m.deleteDeviceFn != nil {
+		return m.deleteDeviceFn(ctx, id, operatorID, clientIP)
+	}
+	return nil
 }
 
 func withOperatorClaims(req *http.Request, operatorID int) *http.Request {
