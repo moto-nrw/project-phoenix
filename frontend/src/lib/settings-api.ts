@@ -61,8 +61,8 @@ export async function fetchSettingsSchema(): Promise<SettingsSchema | null> {
       method: "GET",
     });
 
-    // 403 = user lacks config:read permission — expected, not an error
-    if (response.status === 403) {
+    // 401/403 = not authenticated or user lacks permission — expected, not an error
+    if (response.status === 401 || response.status === 403) {
       return null;
     }
 
@@ -73,6 +73,13 @@ export async function fetchSettingsSchema(): Promise<SettingsSchema | null> {
     const result = (await response.json()) as ApiResponse<SettingsSchema>;
     return result.data;
   } catch (error) {
+    // No token = session not ready yet or user not logged in — not an error
+    if (
+      error instanceof Error &&
+      error.message === "No authentication token available"
+    ) {
+      return null;
+    }
     logger.error("fetch_settings_schema_failed", {
       error: error instanceof Error ? error.message : String(error),
     });
