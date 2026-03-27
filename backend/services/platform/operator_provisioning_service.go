@@ -55,6 +55,7 @@ type UpdateSchoolRequest struct {
 	Phone          string
 	Email          string
 	Active         bool
+	Hidden         bool
 }
 
 // OperatorProvisioningService handles operator-led tenant provisioning.
@@ -375,6 +376,9 @@ func (s *operatorProvisioningService) UpdateSchool(ctx context.Context, id int64
 		if req.Active != existing.Active {
 			changes["active"] = map[string]bool{"old": existing.Active, "new": req.Active}
 		}
+		if req.Hidden != existing.Hidden {
+			changes["hidden"] = map[string]bool{"old": existing.Hidden, "new": req.Hidden}
+		}
 
 		existing.OrganizationID = req.OrganizationID
 		existing.Name = req.Name
@@ -386,6 +390,7 @@ func (s *operatorProvisioningService) UpdateSchool(ctx context.Context, id int64
 		existing.Phone = req.Phone
 		existing.Email = req.Email
 		existing.Active = req.Active
+		existing.Hidden = req.Hidden
 
 		if updateErr := s.schoolRepo.Update(adminCtx, existing); updateErr != nil {
 			if isUniqueViolation(updateErr) {

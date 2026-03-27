@@ -49,6 +49,7 @@ type createSchoolRequest struct {
 	Zip            string `json:"zip,omitempty"`
 	Phone          string `json:"phone,omitempty"`
 	Email          string `json:"email,omitempty"`
+	Hidden         bool   `json:"hidden,omitempty"`
 }
 
 func (req *createSchoolRequest) Bind(_ *http.Request) error {
@@ -92,6 +93,7 @@ type updateSchoolRequest struct {
 	Phone          string `json:"phone"`
 	Email          string `json:"email"`
 	Active         bool   `json:"active"`
+	Hidden         bool   `json:"hidden"`
 }
 
 func (req *updateSchoolRequest) Bind(_ *http.Request) error {
@@ -224,6 +226,7 @@ func (rs *ProvisioningResource) CreateSchool(w http.ResponseWriter, r *http.Requ
 		Phone:          req.Phone,
 		Email:          req.Email,
 		Active:         true,
+		Hidden:         req.Hidden,
 	}
 	created, err := rs.service.CreateSchool(r.Context(), school, operatorID, getClientIP(r))
 	if err != nil {
@@ -288,6 +291,7 @@ func (rs *ProvisioningResource) UpdateSchool(w http.ResponseWriter, r *http.Requ
 		Phone:          req.Phone,
 		Email:          req.Email,
 		Active:         req.Active,
+		Hidden:         req.Hidden,
 	}
 	updated, err := rs.service.UpdateSchool(r.Context(), schoolID, svcReq, operatorID, getClientIP(r))
 	if err != nil {

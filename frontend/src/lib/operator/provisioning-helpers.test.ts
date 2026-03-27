@@ -157,6 +157,7 @@ describe("mapSchool", () => {
       phone: "+49123456",
       email: "info@test.de",
       active: true,
+      hidden: false,
       settings: null,
       created_at: "2025-01-01T00:00:00Z",
       updated_at: "2025-01-02T00:00:00Z",
@@ -169,6 +170,7 @@ describe("mapSchool", () => {
     expect(result.name).toBe("Test School");
     expect(result.subdomain).toBe("test");
     expect(result.address).toBe("Main St 1");
+    expect(result.hidden).toBe(false);
     expect(result.organization).toBeUndefined();
   });
 
@@ -185,6 +187,7 @@ describe("mapSchool", () => {
       phone: "",
       email: "",
       active: true,
+      hidden: false,
       settings: null,
       created_at: "2025-01-01T00:00:00Z",
       updated_at: "2025-01-02T00:00:00Z",
