@@ -43,6 +43,9 @@ func (s stubAuthLoginSchoolRepo) List(context.Context) ([]*platformModels.School
 func (s stubAuthLoginSchoolRepo) ListActive(context.Context) ([]platformModels.School, error) {
 	panic("unexpected ListActive")
 }
+func (s stubAuthLoginSchoolRepo) ListPublic(context.Context) ([]platformModels.School, error) {
+	return nil, nil
+}
 func (s stubAuthLoginSchoolRepo) FindActiveByAccountID(context.Context, int64) ([]platformModels.School, error) {
 	panic("unexpected FindActiveByAccountID")
 }

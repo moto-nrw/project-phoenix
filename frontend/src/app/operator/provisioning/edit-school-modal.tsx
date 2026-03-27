@@ -6,7 +6,12 @@ import { isValidSlug } from "~/lib/operator/provisioning-helpers";
 import type { Organization, School } from "~/lib/operator/provisioning-helpers";
 import { isOperatorApiError } from "~/lib/operator/api-helpers";
 import { createLogger } from "~/lib/logger";
-import { FormField, FormError, FieldWarning } from "./provisioning-shared";
+import {
+  FormField,
+  FormError,
+  FieldWarning,
+  VisibilityToggle,
+} from "./provisioning-shared";
 
 const logger = createLogger({ component: "EditSchoolModal" });
 
@@ -32,6 +37,7 @@ export function EditSchoolModal({
   const [schoolZip, setSchoolZip] = useState("");
   const [schoolPhone, setSchoolPhone] = useState("");
   const [schoolEmail, setSchoolEmail] = useState("");
+  const [schoolHidden, setSchoolHidden] = useState(false);
   const [schoolSaving, setSchoolSaving] = useState(false);
   const [schoolError, setSchoolError] = useState("");
   const errorRef = useScrollToError(schoolError);
@@ -47,6 +53,7 @@ export function EditSchoolModal({
       setSchoolZip(school.zip ?? "");
       setSchoolPhone(school.phone ?? "");
       setSchoolEmail(school.email ?? "");
+      setSchoolHidden(school.hidden);
       setSchoolError("");
     }
   }, [isOpen, school]);
@@ -90,6 +97,7 @@ export function EditSchoolModal({
           phone: schoolPhone?.trim() ?? "",
           email: schoolEmail?.trim() ?? "",
           active: school.active,
+          hidden: schoolHidden,
         });
         // Purge ISR cache for old subdomain so it stops serving stale pages
         if (oldSubdomain !== newSubdomain) {
@@ -140,6 +148,7 @@ export function EditSchoolModal({
       schoolZip,
       schoolPhone,
       schoolEmail,
+      schoolHidden,
       onClose,
       onUpdated,
     ],
@@ -303,6 +312,11 @@ export function EditSchoolModal({
             </div>
           </div>
         </div>
+        <VisibilityToggle
+          hidden={schoolHidden}
+          onToggle={() => setSchoolHidden(!schoolHidden)}
+        />
+
         {schoolError && <FormError ref={errorRef} message={schoolError} />}
       </form>
     </Modal>

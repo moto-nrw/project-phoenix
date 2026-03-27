@@ -108,6 +108,9 @@ func (m *mockSchoolRepo) List(context.Context) ([]*platformModels.School, error)
 func (m *mockSchoolRepo) ListActive(context.Context) ([]platformModels.School, error) {
 	return nil, nil
 }
+func (m *mockSchoolRepo) ListPublic(context.Context) ([]platformModels.School, error) {
+	return nil, nil
+}
 func (m *mockSchoolRepo) FindActiveByAccountID(context.Context, int64) ([]platformModels.School, error) {
 	return nil, nil
 }

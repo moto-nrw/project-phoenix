@@ -76,6 +76,7 @@ type SchoolRepository interface {
 	FindBySubdomain(ctx context.Context, subdomain string) (*School, error)
 	List(ctx context.Context) ([]*School, error)
 	ListActive(ctx context.Context) ([]School, error)
+	ListPublic(ctx context.Context) ([]School, error)
 	FindActiveByAccountID(ctx context.Context, accountID int64) ([]School, error)
 	Update(ctx context.Context, school *School) error
 }

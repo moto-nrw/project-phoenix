@@ -380,9 +380,11 @@ type PublicTenantResponse struct {
 	OrganizationName string `json:"organization_name"`
 }
 
-// listTenants handles GET /auth/tenants (public, no auth required)
+// listTenants handles GET /auth/tenants (public, no auth required).
+// Uses ListPublic to exclude hidden schools from the public landing page.
+// Hidden schools remain accessible via direct subdomain link.
 func (rs *Resource) listTenants(w http.ResponseWriter, r *http.Request) {
-	schools, err := rs.SchoolRepo.ListActive(r.Context())
+	schools, err := rs.SchoolRepo.ListPublic(r.Context())
 	if err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
