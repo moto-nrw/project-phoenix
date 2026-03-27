@@ -18,6 +18,13 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
+// PINResolver resolves the OGS device PIN for a tenant. Implemented by the
+// settings service. If nil is passed to DeviceAuthenticator, the middleware
+// falls back to the OGS_DEVICE_PIN environment variable (legacy mode).
+type PINResolver interface {
+	ResolveString(ctx context.Context, key string) (string, error)
+}
+
 type CtxKey int
 
 const (
@@ -27,6 +34,37 @@ const (
 )
 
 const lastSeenDebounceWindow = 60 * time.Second
+
+// pinCache caches resolved PINs per tenant to avoid a DB hit on every device request.
+type pinCache struct {
+	mu      sync.RWMutex
+	entries map[int64]pinCacheEntry
+}
+
+type pinCacheEntry struct {
+	pin       string
+	expiresAt time.Time
+}
+
+const pinCacheTTL = 30 * time.Second
+
+var devicePINCache = &pinCache{entries: make(map[int64]pinCacheEntry)}
+
+func (c *pinCache) get(tenantID int64) (string, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	entry, ok := c.entries[tenantID]
+	if !ok || time.Now().After(entry.expiresAt) {
+		return "", false
+	}
+	return entry.pin, true
+}
+
+func (c *pinCache) set(tenantID int64, pin string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.entries[tenantID] = pinCacheEntry{pin: pin, expiresAt: time.Now().Add(pinCacheTTL)}
+}
 
 type lastSeenDebounceState struct {
 	mu            sync.Mutex
@@ -202,7 +240,7 @@ func scheduleDeferredFlushLocked(iotService iotSvc.Service, id int64, state *las
 	})
 }
 
-func deviceAuthenticator(iotService iotSvc.Service) func(http.Handler) http.Handler {
+func deviceAuthenticator(iotService iotSvc.Service, pinResolver PINResolver) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Validate API key and get device
@@ -220,10 +258,10 @@ func deviceAuthenticator(iotService iotSvc.Service) func(http.Handler) http.Hand
 				return
 			}
 
-			// Get global OGS PIN from environment
-			ogsPin := os.Getenv("OGS_DEVICE_PIN")
+			// Resolve OGS PIN: try tenant-specific setting first, fall back to env var
+			ogsPin := resolveDevicePIN(r.Context(), device.TenantID, pinResolver)
 			if ogsPin == "" {
-				slog.Error("OGS_DEVICE_PIN not configured in environment")
+				slog.Error("device PIN not configured (neither settings nor OGS_DEVICE_PIN env var)")
 				_ = render.Render(w, r, ErrDeviceUnauthorized(ErrInvalidPIN))
 				return
 			}
@@ -256,11 +294,42 @@ func deviceAuthenticator(iotService iotSvc.Service) func(http.Handler) http.Hand
 	}
 }
 
-// DeviceAuthenticator is a middleware that validates device API keys and the global OGS PIN.
+// resolveDevicePIN resolves the PIN for a tenant using settings (with cache),
+// falling back to the OGS_DEVICE_PIN env var for backward compatibility.
+func resolveDevicePIN(ctx context.Context, tenantID int64, resolver PINResolver) string {
+	// Try tenant-specific setting via resolver (with cache)
+	if resolver != nil && tenantID > 0 {
+		// Check cache first
+		if cached, ok := devicePINCache.get(tenantID); ok {
+			if cached != "" {
+				return cached
+			}
+			// cached empty string means no tenant override — fall through to env var
+		} else {
+			// Cache miss — resolve from settings
+			tenantCtx := tenant.WithTenantID(ctx, tenantID)
+			pin, err := resolver.ResolveString(tenantCtx, "security.ogs_device_pin")
+			if err == nil && pin != "" {
+				devicePINCache.set(tenantID, pin)
+				return pin
+			}
+			// Cache the empty result too to avoid repeated DB lookups
+			devicePINCache.set(tenantID, "")
+		}
+	}
+
+	// Fallback to global env var (legacy mode)
+	return os.Getenv("OGS_DEVICE_PIN")
+}
+
+// DeviceAuthenticator is a middleware that validates device API keys and the OGS PIN.
 // It requires both Authorization: Bearer <api_key> and X-Staff-PIN: <pin> headers.
 // The middleware sets device context for downstream handlers.
-func DeviceAuthenticator(iotService iotSvc.Service, _ usersSvc.PersonService) func(http.Handler) http.Handler {
-	return deviceAuthenticator(iotService)
+//
+// pinResolver resolves the per-tenant PIN from the settings system. If nil,
+// falls back to the OGS_DEVICE_PIN environment variable (legacy mode).
+func DeviceAuthenticator(iotService iotSvc.Service, _ usersSvc.PersonService, pinResolver PINResolver) func(http.Handler) http.Handler {
+	return deviceAuthenticator(iotService, pinResolver)
 }
 
 // DeviceOnlyAuthenticator is a middleware that validates only device API keys.

@@ -42,6 +42,7 @@ type ServiceDependencies struct {
 	ActiveService     activeSvc.Service
 	ActivitiesService activitiesSvc.ActivityService
 	ConfigService     configSvc.Service
+	SettingsService   configSvc.SettingsService
 	FacilityService   facilitiesSvc.Service
 	EducationService  educationSvc.Service
 	FeedbackService   feedbackSvc.Service
@@ -56,6 +57,7 @@ type Resource struct {
 	ActiveService     activeSvc.Service
 	ActivitiesService activitiesSvc.ActivityService
 	ConfigService     configSvc.Service
+	SettingsService   configSvc.SettingsService
 	FacilityService   facilitiesSvc.Service
 	EducationService  educationSvc.Service
 	FeedbackService   feedbackSvc.Service
@@ -71,6 +73,7 @@ func NewResource(deps ServiceDependencies) *Resource {
 		ActiveService:     deps.ActiveService,
 		ActivitiesService: deps.ActivitiesService,
 		ConfigService:     deps.ConfigService,
+		SettingsService:   deps.SettingsService,
 		FacilityService:   deps.FacilityService,
 		EducationService:  deps.EducationService,
 		FeedbackService:   deps.FeedbackService,
@@ -132,7 +135,7 @@ func (rs *Resource) Router() chi.Router {
 	// then TenantTxMiddleware wraps each handler in a tenant-scoped transaction
 	// (SET LOCAL ROLE phoenix_tenant + set_config) so RLS is enforced.
 	r.Group(func(r chi.Router) {
-		r.Use(device.DeviceAuthenticator(rs.IoTService, rs.UsersService))
+		r.Use(device.DeviceAuthenticator(rs.IoTService, rs.UsersService, rs.SettingsService))
 		r.Use(tenant.TenantTxMiddleware(rs.db))
 
 		// Check-in endpoints (student RFID check-in/checkout workflow)
@@ -143,6 +146,7 @@ func (rs *Resource) Router() chi.Router {
 			rs.FacilityService,
 			rs.ActivitiesService,
 			rs.EducationService,
+			rs.SettingsService,
 			rs.getLogger().With(slog.String("sub", "checkin")),
 		)
 		// Register routes directly instead of mounting at "/" to avoid Chi conflict

@@ -293,6 +293,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		ActiveService:     api.Services.Active,
 		ActivitiesService: api.Services.Activities,
 		ConfigService:     api.Services.Config,
+		SettingsService:   api.Services.Settings,
 		FacilityService:   api.Services.Facilities,
 		EducationService:  api.Services.Education,
 		FeedbackService:   api.Services.Feedback,

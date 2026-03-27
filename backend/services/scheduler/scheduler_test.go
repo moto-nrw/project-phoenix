@@ -1840,7 +1840,8 @@ func TestScheduleCleanupTask_CustomTime(t *testing.T) {
 		task, hasTask := s.tasks["visit-cleanup"]
 		s.mu.RUnlock()
 		assert.True(t, hasTask)
-		assert.Equal(t, "03:30", task.Schedule)
+		// With per-tenant minute-polling, the schedule is now descriptive (not HH:MM)
+		assert.Equal(t, "1m-poll", task.Schedule)
 
 		// Stop scheduler
 		close(s.done)
@@ -1873,7 +1874,8 @@ func TestScheduleSessionEndTask_CustomTime(t *testing.T) {
 		task, hasTask := s.tasks["session-end"]
 		s.mu.RUnlock()
 		assert.True(t, hasTask)
-		assert.Equal(t, "17:00", task.Schedule)
+		// With per-tenant minute-polling, the schedule is now descriptive (not HH:MM)
+		assert.Equal(t, "1m-poll", task.Schedule)
 
 		// Stop scheduler
 		close(s.done)
@@ -1986,7 +1988,8 @@ func TestRunCleanupTask_DefaultScheduleTime(t *testing.T) {
 		task, hasTask := s.tasks["visit-cleanup"]
 		s.mu.RUnlock()
 		assert.True(t, hasTask)
-		assert.Equal(t, "02:00", task.Schedule, "Should use default schedule when env var is not set")
+		// With per-tenant minute-polling, the schedule is now descriptive (not HH:MM)
+		assert.Equal(t, "1m-poll", task.Schedule, "Should use polling schedule for per-tenant support")
 
 		// Stop scheduler
 		close(s.done)

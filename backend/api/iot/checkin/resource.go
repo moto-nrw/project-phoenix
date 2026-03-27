@@ -1,6 +1,7 @@
 package checkin
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 
@@ -14,6 +15,12 @@ import (
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
 
+// SettingsResolver resolves setting values. Implemented by config.SettingsService.
+// Defined here as a minimal interface to avoid import cycles.
+type SettingsResolver interface {
+	ResolveString(ctx context.Context, key string) (string, error)
+}
+
 // Resource defines the Check-in API resource for student RFID check-in/checkout
 type Resource struct {
 	IoTService        iotSvc.Service
@@ -22,6 +29,7 @@ type Resource struct {
 	FacilityService   facilitiesSvc.Service
 	ActivitiesService activitiesSvc.ActivityService
 	EducationService  educationSvc.Service
+	Settings          SettingsResolver
 	logger            *slog.Logger
 }
 
@@ -41,6 +49,7 @@ func NewResource(
 	facilityService facilitiesSvc.Service,
 	activitiesService activitiesSvc.ActivityService,
 	educationService educationSvc.Service,
+	settings SettingsResolver,
 	logger *slog.Logger,
 ) *Resource {
 	return &Resource{
@@ -50,6 +59,7 @@ func NewResource(
 		FacilityService:   facilityService,
 		ActivitiesService: activitiesService,
 		EducationService:  educationService,
+		Settings:          settings,
 		logger:            logger,
 	}
 }
