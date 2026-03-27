@@ -6,7 +6,7 @@ import { generateSlug, isValidSlug } from "~/lib/operator/provisioning-helpers";
 import type { Organization } from "~/lib/operator/provisioning-helpers";
 import { isOperatorApiError } from "~/lib/operator/api-helpers";
 import { createLogger } from "~/lib/logger";
-import { FormField, FormError } from "./provisioning-shared";
+import { FormField, FormError, VisibilityToggle } from "./provisioning-shared";
 
 const logger = createLogger({ component: "CreateSchoolModal" });
 
@@ -313,39 +313,10 @@ export function CreateSchoolModal({
             </div>
           </div>
         </div>
-        <div className="border-t border-gray-100 pt-4">
-          <p className="mb-3 text-xs font-medium text-gray-500 uppercase">
-            Sichtbarkeit
-          </p>
-          <div className="flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2">
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-gray-900">
-                {schoolHidden ? "Verborgen" : "Sichtbar"}
-              </p>
-              <p className="text-xs text-gray-500">
-                {schoolHidden
-                  ? "Schule wird nicht auf der Startseite angezeigt, ist aber über den Direktlink erreichbar."
-                  : "Schule wird auf der Startseite im Schulwähler angezeigt."}
-              </p>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={!schoolHidden}
-              aria-label="Sichtbarkeit umschalten"
-              onClick={() => setSchoolHidden(!schoolHidden)}
-              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none ${
-                schoolHidden ? "bg-gray-300" : "bg-blue-600"
-              }`}
-            >
-              <span
-                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                  schoolHidden ? "translate-x-0" : "translate-x-5"
-                }`}
-              />
-            </button>
-          </div>
-        </div>
+        <VisibilityToggle
+          hidden={schoolHidden}
+          onToggle={() => setSchoolHidden(!schoolHidden)}
+        />
 
         {schoolError && <FormError ref={errorRef} message={schoolError} />}
       </form>
