@@ -681,4 +681,68 @@ describe("OperatorProvisioningService", () => {
       });
     });
   });
+
+  describe("softDeleteSchool", () => {
+    it("calls correct endpoint with DELETE method", async () => {
+      mockOperatorFetch.mockResolvedValue(undefined);
+
+      await operatorProvisioningService.softDeleteSchool("10");
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/schools/10",
+        { method: "DELETE" },
+      );
+    });
+
+    it("encodes school id in URL", async () => {
+      mockOperatorFetch.mockResolvedValue(undefined);
+
+      await operatorProvisioningService.softDeleteSchool("10/evil");
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/schools/10%2Fevil",
+        { method: "DELETE" },
+      );
+    });
+
+    it("resolves without returning data", async () => {
+      mockOperatorFetch.mockResolvedValue(undefined);
+
+      const result = await operatorProvisioningService.softDeleteSchool("10");
+
+      expect(result).toBeUndefined();
+    });
+  });
+
+  describe("restoreSchool", () => {
+    it("calls correct endpoint with POST method", async () => {
+      mockOperatorFetch.mockResolvedValue(undefined);
+
+      await operatorProvisioningService.restoreSchool("10");
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/schools/10/restore",
+        { method: "POST" },
+      );
+    });
+
+    it("encodes school id in URL", async () => {
+      mockOperatorFetch.mockResolvedValue(undefined);
+
+      await operatorProvisioningService.restoreSchool("10/evil");
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/schools/10%2Fevil/restore",
+        { method: "POST" },
+      );
+    });
+
+    it("resolves without returning data", async () => {
+      mockOperatorFetch.mockResolvedValue(undefined);
+
+      const result = await operatorProvisioningService.restoreSchool("10");
+
+      expect(result).toBeUndefined();
+    });
+  });
 });

@@ -248,3 +248,64 @@ func TestPersistAccountWithRole_CreatesTenantMappingWhenTenantIDProvided(t *test
 	require.NoError(t, err)
 	assert.True(t, exists)
 }
+
+// resolveAccountTenantBySlug must treat a soft-deleted school the same as "not found".
+// A school with a non-nil DeletedAt must never be resolved as a valid tenant — even if
+// the account has an active mapping to it. This prevents login into decommissioned tenants.
+func TestResolveAccountTenantBySlug_DeletedSchool_ReturnsTenantNotFound(t *testing.T) {
+	now := time.Now()
+	service := &Service{
+		repos: &repositories.Factory{
+			School: stubAuthLoginSchoolRepo{
+				findBySubdomainFn: func(context.Context, string) (*platformModels.School, error) {
+					return &platformModels.School{
+						DeletedAt:      &now,
+						Active:         true,
+						OrganizationID: 10,
+					}, nil
+				},
+			},
+			AccountTenant: stubAuthLoginAccountTenantRepo{
+				existsFn: func(context.Context, int64, int64) (bool, error) { return true, nil },
+			},
+		},
+		logger: slog.Default(),
+	}
+
+	tenantID, orgID, err := service.resolveAccountTenantBySlug(context.Background(), 500, "deleted-school")
+	require.Error(t, err)
+	assert.Zero(t, tenantID)
+	assert.Zero(t, orgID)
+	var authErr *AuthError
+	require.ErrorAs(t, err, &authErr)
+	assert.ErrorIs(t, authErr.Err, ErrTenantNotFound)
+}
+
+// resolveAccountTenantBySlug must reject inactive schools (Active == false) even when
+// the school is not soft-deleted and the account has a valid tenant mapping.
+func TestResolveAccountTenantBySlug_InactiveSchool_ReturnsTenantNotFound(t *testing.T) {
+	service := &Service{
+		repos: &repositories.Factory{
+			School: stubAuthLoginSchoolRepo{
+				findBySubdomainFn: func(context.Context, string) (*platformModels.School, error) {
+					return &platformModels.School{
+						Active:         false,
+						OrganizationID: 10,
+					}, nil
+				},
+			},
+			AccountTenant: stubAuthLoginAccountTenantRepo{
+				existsFn: func(context.Context, int64, int64) (bool, error) { return true, nil },
+			},
+		},
+		logger: slog.Default(),
+	}
+
+	tenantID, orgID, err := service.resolveAccountTenantBySlug(context.Background(), 501, "inactive-school")
+	require.Error(t, err)
+	assert.Zero(t, tenantID)
+	assert.Zero(t, orgID)
+	var authErr *AuthError
+	require.ErrorAs(t, err, &authErr)
+	assert.ErrorIs(t, authErr.Err, ErrTenantNotFound)
+}
