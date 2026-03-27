@@ -116,6 +116,8 @@ func (r *SchoolRepository) FindByOrganizationAndSlug(ctx context.Context, organi
 }
 
 // FindBySubdomain returns a school by its subdomain, preloading the Organization relation.
+// Intentionally includes soft-deleted schools so callers (login, tenant resolution) can
+// distinguish "deleted" from "not found" and return appropriate error messages.
 func (r *SchoolRepository) FindBySubdomain(ctx context.Context, subdomain string) (*platform.School, error) {
 	school := new(platform.School)
 	err := base.GetDB(ctx, r.db).NewSelect().
