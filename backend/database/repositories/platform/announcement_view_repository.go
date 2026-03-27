@@ -164,9 +164,9 @@ func (r *AnnouncementViewRepository) GetStats(ctx context.Context, announcementI
 	var targetTenantIDs []int64
 	err := base.GetDB(ctx, r.db).NewRaw(`
 		SELECT
-			COALESCE(target_roles, '{}'),
-			COALESCE(target_org_ids, '{}'),
-			COALESCE(target_tenant_ids, '{}')
+			COALESCE(target_roles, '{}'::text[]),
+			COALESCE(target_org_ids, '{}'::bigint[]),
+			COALESCE(target_tenant_ids, '{}'::bigint[])
 		FROM platform.announcements WHERE id = ?
 	`, announcementID).Scan(ctx, &targetRoles, &targetOrgIDs, &targetTenantIDs)
 	if err != nil {

@@ -1928,3 +1928,85 @@ func TestCreateAnnouncement_WithVersion(t *testing.T) {
 
 	assert.Equal(t, http.StatusCreated, rr.Code)
 }
+
+func TestCreateAnnouncement_InvalidDataError(t *testing.T) {
+	mockService := &mockAnnouncementService{
+		createFn: func(ctx context.Context, announcement *platform.Announcement, operatorID int64, clientIP net.IP) error {
+			return &platformSvc.InvalidDataError{Err: errors.New("severity must be one of: info, warning, critical")}
+		},
+	}
+
+	resource := operator.NewAnnouncementsResource(mockService)
+
+	body := map[string]any{
+		"title":    "Test",
+		"content":  "Test content",
+		"severity": "invalid_severity",
+	}
+	jsonBody, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPost, "/announcements", bytes.NewReader(jsonBody))
+	req.Header.Set("Content-Type", "application/json")
+	claims := jwt.AppClaims{ID: 1}
+	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+
+	resource.CreateAnnouncement(rr, req)
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+
+	var response map[string]any
+	err := json.Unmarshal(rr.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Contains(t, response["message"], "severity must be one of")
+}
+
+func TestUpdateAnnouncement_InvalidDataError(t *testing.T) {
+	now := time.Now()
+	mockService := &mockAnnouncementService{
+		getAnnouncementFn: func(ctx context.Context, id int64) (*platform.Announcement, error) {
+			announcement := &platform.Announcement{
+				Title:    "Existing",
+				Content:  "Existing content",
+				Type:     platform.TypeAnnouncement,
+				Severity: platform.SeverityInfo,
+				Active:   true,
+			}
+			announcement.ID = testAnnouncementID
+			announcement.CreatedAt = now
+			announcement.UpdatedAt = now
+			return announcement, nil
+		},
+		updateFn: func(ctx context.Context, announcement *platform.Announcement, operatorID int64, clientIP net.IP) error {
+			return &platformSvc.InvalidDataError{Err: errors.New("title exceeds maximum length")}
+		},
+	}
+
+	resource := operator.NewAnnouncementsResource(mockService)
+
+	body := map[string]any{
+		"title":    "Updated Title",
+		"content":  "Updated Content",
+		"type":     platform.TypeAnnouncement,
+		"severity": platform.SeverityInfo,
+	}
+	jsonBody, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPut, "/announcements/1", bytes.NewReader(jsonBody))
+	req.Header.Set("Content-Type", "application/json")
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "1")
+	claims := jwt.AppClaims{ID: 1}
+	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
+	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+
+	resource.UpdateAnnouncement(rr, req)
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+
+	var response map[string]any
+	err := json.Unmarshal(rr.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Contains(t, response["message"], "title exceeds maximum length")
+}
