@@ -405,11 +405,12 @@ export const operatorRedirectCallback: NonNullable<
     return url;
   }
 
-  const getParentDomain = (hostname: string) => {
-    const parts = hostname.split(".");
-    return parts.length > 2 ? parts.slice(-2).join(".") : hostname;
-  };
-  if (getParentDomain(urlObj.hostname) === getParentDomain(baseObj.hostname)) {
+  // Allow when one hostname is a subdomain of the other
+  // (e.g. operator.staging.moto-app.de is a child of staging.moto-app.de)
+  if (
+    urlObj.hostname.endsWith(`.${baseObj.hostname}`) ||
+    baseObj.hostname.endsWith(`.${urlObj.hostname}`)
+  ) {
     return url;
   }
 
