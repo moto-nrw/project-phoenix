@@ -26,31 +26,35 @@ func NewAnnouncementsResource(announcementService platformSvc.AnnouncementServic
 
 // AnnouncementResponse represents an announcement in the response
 type AnnouncementResponse struct {
-	ID          int64    `json:"id"`
-	Title       string   `json:"title"`
-	Content     string   `json:"content"`
-	Type        string   `json:"type"`
-	Severity    string   `json:"severity"`
-	Version     *string  `json:"version,omitempty"`
-	Active      bool     `json:"active"`
-	PublishedAt *string  `json:"published_at,omitempty"`
-	ExpiresAt   *string  `json:"expires_at,omitempty"`
-	TargetRoles []string `json:"target_roles"`
-	CreatedBy   int64    `json:"created_by"`
-	CreatedAt   string   `json:"created_at"`
-	UpdatedAt   string   `json:"updated_at"`
-	Status      string   `json:"status"` // draft, published, expired
+	ID              int64    `json:"id"`
+	Title           string   `json:"title"`
+	Content         string   `json:"content"`
+	Type            string   `json:"type"`
+	Severity        string   `json:"severity"`
+	Version         *string  `json:"version,omitempty"`
+	Active          bool     `json:"active"`
+	PublishedAt     *string  `json:"published_at,omitempty"`
+	ExpiresAt       *string  `json:"expires_at,omitempty"`
+	TargetRoles     []string `json:"target_roles"`
+	TargetOrgIDs    []int64  `json:"target_org_ids"`
+	TargetTenantIDs []int64  `json:"target_tenant_ids"`
+	CreatedBy       int64    `json:"created_by"`
+	CreatedAt       string   `json:"created_at"`
+	UpdatedAt       string   `json:"updated_at"`
+	Status          string   `json:"status"` // draft, published, expired
 }
 
 // CreateAnnouncementRequest represents the create announcement request body
 type CreateAnnouncementRequest struct {
-	Title       string   `json:"title"`
-	Content     string   `json:"content"`
-	Type        string   `json:"type"`
-	Severity    string   `json:"severity"`
-	Version     *string  `json:"version,omitempty"`
-	ExpiresAt   *string  `json:"expires_at,omitempty"`
-	TargetRoles []string `json:"target_roles,omitempty"`
+	Title           string   `json:"title"`
+	Content         string   `json:"content"`
+	Type            string   `json:"type"`
+	Severity        string   `json:"severity"`
+	Version         *string  `json:"version,omitempty"`
+	ExpiresAt       *string  `json:"expires_at,omitempty"`
+	TargetRoles     []string `json:"target_roles,omitempty"`
+	TargetOrgIDs    []int64  `json:"target_org_ids,omitempty"`
+	TargetTenantIDs []int64  `json:"target_tenant_ids,omitempty"`
 }
 
 // Bind validates the create announcement request
@@ -60,14 +64,16 @@ func (req *CreateAnnouncementRequest) Bind(r *http.Request) error {
 
 // UpdateAnnouncementRequest represents the update announcement request body
 type UpdateAnnouncementRequest struct {
-	Title       string   `json:"title"`
-	Content     string   `json:"content"`
-	Type        string   `json:"type"`
-	Severity    string   `json:"severity"`
-	Version     *string  `json:"version,omitempty"`
-	Active      *bool    `json:"active,omitempty"`
-	ExpiresAt   *string  `json:"expires_at,omitempty"`
-	TargetRoles []string `json:"target_roles,omitempty"`
+	Title           string   `json:"title"`
+	Content         string   `json:"content"`
+	Type            string   `json:"type"`
+	Severity        string   `json:"severity"`
+	Version         *string  `json:"version,omitempty"`
+	Active          *bool    `json:"active,omitempty"`
+	ExpiresAt       *string  `json:"expires_at,omitempty"`
+	TargetRoles     []string `json:"target_roles,omitempty"`
+	TargetOrgIDs    []int64  `json:"target_org_ids,omitempty"`
+	TargetTenantIDs []int64  `json:"target_tenant_ids,omitempty"`
 }
 
 // Bind validates the update announcement request
@@ -130,13 +136,15 @@ func (rs *AnnouncementsResource) CreateAnnouncement(w http.ResponseWriter, r *ht
 	}
 
 	announcement := &platform.Announcement{
-		Title:       req.Title,
-		Content:     req.Content,
-		Type:        req.Type,
-		Severity:    req.Severity,
-		Version:     req.Version,
-		TargetRoles: req.TargetRoles,
-		Active:      true,
+		Title:           req.Title,
+		Content:         req.Content,
+		Type:            req.Type,
+		Severity:        req.Severity,
+		Version:         req.Version,
+		TargetRoles:     req.TargetRoles,
+		TargetOrgIDs:    req.TargetOrgIDs,
+		TargetTenantIDs: req.TargetTenantIDs,
+		Active:          true,
 	}
 
 	// Set defaults if not provided
@@ -197,6 +205,8 @@ func (rs *AnnouncementsResource) UpdateAnnouncement(w http.ResponseWriter, r *ht
 	existing.Severity = req.Severity
 	existing.Version = req.Version
 	existing.TargetRoles = req.TargetRoles
+	existing.TargetOrgIDs = req.TargetOrgIDs
+	existing.TargetTenantIDs = req.TargetTenantIDs
 	if req.Active != nil {
 		existing.Active = *req.Active
 	}
@@ -321,19 +331,29 @@ func newAnnouncementResponse(a *platform.Announcement) AnnouncementResponse {
 	if targetRoles == nil {
 		targetRoles = []string{}
 	}
+	targetOrgIDs := a.TargetOrgIDs
+	if targetOrgIDs == nil {
+		targetOrgIDs = []int64{}
+	}
+	targetTenantIDs := a.TargetTenantIDs
+	if targetTenantIDs == nil {
+		targetTenantIDs = []int64{}
+	}
 
 	response := AnnouncementResponse{
-		ID:          a.ID,
-		Title:       a.Title,
-		Content:     a.Content,
-		Type:        a.Type,
-		Severity:    a.Severity,
-		Version:     a.Version,
-		Active:      a.Active,
-		TargetRoles: targetRoles,
-		CreatedBy:   a.CreatedBy,
-		CreatedAt:   a.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:   a.UpdatedAt.Format(time.RFC3339),
+		ID:              a.ID,
+		Title:           a.Title,
+		Content:         a.Content,
+		Type:            a.Type,
+		Severity:        a.Severity,
+		Version:         a.Version,
+		Active:          a.Active,
+		TargetRoles:     targetRoles,
+		TargetOrgIDs:    targetOrgIDs,
+		TargetTenantIDs: targetTenantIDs,
+		CreatedBy:       a.CreatedBy,
+		CreatedAt:       a.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:       a.UpdatedAt.Format(time.RFC3339),
 	}
 
 	if a.PublishedAt != nil {

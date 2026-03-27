@@ -81,13 +81,13 @@ func (r *AnnouncementViewRepository) MarkDismissed(ctx context.Context, userID, 
 	return nil
 }
 
-// GetUnreadForUser retrieves all unread active announcements for a user filtered by roles
-func (r *AnnouncementViewRepository) GetUnreadForUser(ctx context.Context, userID int64, userRoles []string) ([]*platform.Announcement, error) {
+// GetUnreadForUser retrieves all unread active announcements for a user filtered by roles, org, and tenant
+func (r *AnnouncementViewRepository) GetUnreadForUser(ctx context.Context, userID int64, userRoles []string, orgID int64, tenantID int64) ([]*platform.Announcement, error) {
 	var announcements []*platform.Announcement
 	now := time.Now()
 
-	// Use raw SQL for complex query with aliases to avoid BUN's quote escaping issues
 	// target_roles = '{}' means all roles can see it, otherwise check overlap with user's roles
+	// target_org_ids/target_tenant_ids: both empty = global, otherwise OR-union of org/tenant match
 	err := base.GetDB(ctx, r.db).NewRaw(`
 		SELECT a.*
 		FROM platform.announcements a
@@ -100,8 +100,13 @@ func (r *AnnouncementViewRepository) GetUnreadForUser(ctx context.Context, userI
 			AND v.seen_at IS NULL
 			AND (a.target_roles = '{}' OR EXISTS (
 				SELECT 1 FROM unnest(a.target_roles) AS r WHERE r IN (?)))
+			AND (
+				(a.target_org_ids = '{}' AND a.target_tenant_ids = '{}')
+				OR (a.target_org_ids != '{}' AND ? = ANY(a.target_org_ids))
+				OR (a.target_tenant_ids != '{}' AND ? = ANY(a.target_tenant_ids))
+			)
 		ORDER BY a.published_at DESC
-	`, userID, now, now, bun.List(userRoles)).Scan(ctx, &announcements)
+	`, userID, now, now, bun.List(userRoles), orgID, tenantID).Scan(ctx, &announcements)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -113,8 +118,8 @@ func (r *AnnouncementViewRepository) GetUnreadForUser(ctx context.Context, userI
 	return announcements, nil
 }
 
-// CountUnread counts unread announcements for a user filtered by roles
-func (r *AnnouncementViewRepository) CountUnread(ctx context.Context, userID int64, userRoles []string) (int, error) {
+// CountUnread counts unread announcements for a user filtered by roles, org, and tenant
+func (r *AnnouncementViewRepository) CountUnread(ctx context.Context, userID int64, userRoles []string, orgID int64, tenantID int64) (int, error) {
 	now := time.Now()
 
 	var count int
@@ -130,7 +135,12 @@ func (r *AnnouncementViewRepository) CountUnread(ctx context.Context, userID int
 			AND v.seen_at IS NULL
 			AND (a.target_roles = '{}' OR EXISTS (
 				SELECT 1 FROM unnest(a.target_roles) AS r WHERE r IN (?)))
-	`, userID, now, now, bun.List(userRoles)).Scan(ctx, &count)
+			AND (
+				(a.target_org_ids = '{}' AND a.target_tenant_ids = '{}')
+				OR (a.target_org_ids != '{}' AND ? = ANY(a.target_org_ids))
+				OR (a.target_tenant_ids != '{}' AND ? = ANY(a.target_tenant_ids))
+			)
+	`, userID, now, now, bun.List(userRoles), orgID, tenantID).Scan(ctx, &count)
 
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
@@ -148,28 +158,40 @@ func (r *AnnouncementViewRepository) GetStats(ctx context.Context, announcementI
 		AnnouncementID: announcementID,
 	}
 
-	// Get the target_roles for this announcement
+	// Get the targeting criteria for this announcement
 	var targetRoles []string
+	var targetOrgIDs []int64
+	var targetTenantIDs []int64
 	err := base.GetDB(ctx, r.db).NewRaw(`
-		SELECT COALESCE(target_roles, '{}') FROM platform.announcements WHERE id = ?
-	`, announcementID).Scan(ctx, &targetRoles)
+		SELECT
+			COALESCE(target_roles, '{}'),
+			COALESCE(target_org_ids, '{}'),
+			COALESCE(target_tenant_ids, '{}')
+		FROM platform.announcements WHERE id = ?
+	`, announcementID).Scan(ctx, &targetRoles, &targetOrgIDs, &targetTenantIDs)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
-			Op:  "get announcement target_roles",
+			Op:  "get announcement targeting criteria",
 			Err: err,
 		}
 	}
 
-	// Count target users (users with matching roles)
-	if len(targetRoles) == 0 {
-		// All users can see it - count all accounts with roles
+	hasRoleFilter := len(targetRoles) > 0
+	hasOrgFilter := len(targetOrgIDs) > 0
+	hasTenantFilter := len(targetTenantIDs) > 0
+
+	// Count target users scoped by roles, org, and tenant
+	switch {
+	case !hasRoleFilter && !hasOrgFilter && !hasTenantFilter:
+		// Global: count all accounts
 		err = base.GetDB(ctx, r.db).NewRaw(`
 			SELECT COUNT(DISTINCT acc.id)
 			FROM auth.accounts acc
 			WHERE acc.id IS NOT NULL
 		`).Scan(ctx, &stats.TargetCount)
-	} else {
-		// Only users with matching roles
+
+	case hasRoleFilter && !hasOrgFilter && !hasTenantFilter:
+		// Role filter only
 		err = base.GetDB(ctx, r.db).NewRaw(`
 			SELECT COUNT(DISTINCT acc.id)
 			FROM auth.accounts acc
@@ -177,6 +199,36 @@ func (r *AnnouncementViewRepository) GetStats(ctx context.Context, announcementI
 			JOIN auth.roles r ON r.id = ar.role_id
 			WHERE r.name IN (?)
 		`, bun.List(targetRoles)).Scan(ctx, &stats.TargetCount)
+
+	case !hasRoleFilter && (hasOrgFilter || hasTenantFilter):
+		// Org/tenant filter only (no role filter)
+		err = base.GetDB(ctx, r.db).NewRaw(`
+			SELECT COUNT(DISTINCT at.account_id)
+			FROM auth.account_tenants at
+			JOIN platform.schools s ON s.id = at.tenant_id
+			WHERE at.status = 'active'
+				AND (
+					(? AND s.organization_id IN (?))
+					OR (? AND at.tenant_id IN (?))
+				)
+		`, hasOrgFilter, bun.List(targetOrgIDs), hasTenantFilter, bun.List(targetTenantIDs)).Scan(ctx, &stats.TargetCount)
+
+	default:
+		// Both role and org/tenant filters (intersection)
+		err = base.GetDB(ctx, r.db).NewRaw(`
+			SELECT COUNT(DISTINCT acc.id)
+			FROM auth.accounts acc
+			JOIN auth.account_roles ar ON ar.account_id = acc.id
+			JOIN auth.roles r ON r.id = ar.role_id
+			JOIN auth.account_tenants at ON at.account_id = acc.id
+			JOIN platform.schools s ON s.id = at.tenant_id
+			WHERE r.name IN (?)
+				AND at.status = 'active'
+				AND (
+					(? AND s.organization_id IN (?))
+					OR (? AND at.tenant_id IN (?))
+				)
+		`, bun.List(targetRoles), hasOrgFilter, bun.List(targetOrgIDs), hasTenantFilter, bun.List(targetTenantIDs)).Scan(ctx, &stats.TargetCount)
 	}
 	if err != nil {
 		return nil, &modelBase.DatabaseError{

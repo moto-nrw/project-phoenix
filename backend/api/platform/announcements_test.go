@@ -27,8 +27,8 @@ const (
 
 // Mock AnnouncementService for platform API
 type mockPlatformAnnouncementService struct {
-	getUnreadForUserFn func(ctx context.Context, userID int64, userRoles []string) ([]*platformModel.Announcement, error)
-	countUnreadFn      func(ctx context.Context, userID int64, userRoles []string) (int, error)
+	getUnreadForUserFn func(ctx context.Context, userID int64, userRoles []string, orgID int64, tenantID int64) ([]*platformModel.Announcement, error)
+	countUnreadFn      func(ctx context.Context, userID int64, userRoles []string, orgID int64, tenantID int64) (int, error)
 	markSeenFn         func(ctx context.Context, userID, announcementID int64) error
 	markDismissedFn    func(ctx context.Context, userID, announcementID int64) error
 }
@@ -61,16 +61,16 @@ func (m *mockPlatformAnnouncementService) UnpublishAnnouncement(ctx context.Cont
 	return nil
 }
 
-func (m *mockPlatformAnnouncementService) GetUnreadForUser(ctx context.Context, userID int64, userRoles []string) ([]*platformModel.Announcement, error) {
+func (m *mockPlatformAnnouncementService) GetUnreadForUser(ctx context.Context, userID int64, userRoles []string, orgID int64, tenantID int64) ([]*platformModel.Announcement, error) {
 	if m.getUnreadForUserFn != nil {
-		return m.getUnreadForUserFn(ctx, userID, userRoles)
+		return m.getUnreadForUserFn(ctx, userID, userRoles, orgID, tenantID)
 	}
 	return nil, nil
 }
 
-func (m *mockPlatformAnnouncementService) CountUnread(ctx context.Context, userID int64, userRoles []string) (int, error) {
+func (m *mockPlatformAnnouncementService) CountUnread(ctx context.Context, userID int64, userRoles []string, orgID int64, tenantID int64) (int, error) {
 	if m.countUnreadFn != nil {
-		return m.countUnreadFn(ctx, userID, userRoles)
+		return m.countUnreadFn(ctx, userID, userRoles, orgID, tenantID)
 	}
 	return 0, nil
 }
@@ -101,7 +101,7 @@ func TestGetUnread_Success(t *testing.T) {
 	now := time.Now()
 	version := "1.0.0"
 	mockService := &mockPlatformAnnouncementService{
-		getUnreadForUserFn: func(ctx context.Context, userID int64, userRoles []string) ([]*platformModel.Announcement, error) {
+		getUnreadForUserFn: func(ctx context.Context, userID int64, userRoles []string, orgID int64, tenantID int64) ([]*platformModel.Announcement, error) {
 			assert.Equal(t, testUserID, userID)
 			assert.Equal(t, []string{"teacher"}, userRoles)
 			announcement := &platformModel.Announcement{
@@ -146,7 +146,7 @@ func TestGetUnread_Success(t *testing.T) {
 
 func TestGetUnread_NoRoles(t *testing.T) {
 	mockService := &mockPlatformAnnouncementService{
-		getUnreadForUserFn: func(ctx context.Context, userID int64, userRoles []string) ([]*platformModel.Announcement, error) {
+		getUnreadForUserFn: func(ctx context.Context, userID int64, userRoles []string, orgID int64, tenantID int64) ([]*platformModel.Announcement, error) {
 			assert.Equal(t, []string{}, userRoles)
 			return []*platformModel.Announcement{}, nil
 		},
@@ -170,7 +170,7 @@ func TestGetUnread_NoRoles(t *testing.T) {
 
 func TestGetUnread_ServiceError(t *testing.T) {
 	mockService := &mockPlatformAnnouncementService{
-		getUnreadForUserFn: func(ctx context.Context, userID int64, userRoles []string) ([]*platformModel.Announcement, error) {
+		getUnreadForUserFn: func(ctx context.Context, userID int64, userRoles []string, orgID int64, tenantID int64) ([]*platformModel.Announcement, error) {
 			return nil, errors.New("database error")
 		},
 	}
@@ -191,7 +191,7 @@ func TestGetUnread_ServiceError(t *testing.T) {
 
 func TestGetUnreadCount_Success(t *testing.T) {
 	mockService := &mockPlatformAnnouncementService{
-		countUnreadFn: func(ctx context.Context, userID int64, userRoles []string) (int, error) {
+		countUnreadFn: func(ctx context.Context, userID int64, userRoles []string, orgID int64, tenantID int64) (int, error) {
 			assert.Equal(t, testUserID, userID)
 			assert.Equal(t, []string{"student", "other"}, userRoles)
 			return 5, nil
@@ -223,7 +223,7 @@ func TestGetUnreadCount_Success(t *testing.T) {
 
 func TestGetUnreadCount_ServiceError(t *testing.T) {
 	mockService := &mockPlatformAnnouncementService{
-		countUnreadFn: func(ctx context.Context, userID int64, userRoles []string) (int, error) {
+		countUnreadFn: func(ctx context.Context, userID int64, userRoles []string, orgID int64, tenantID int64) (int, error) {
 			return 0, errors.New("database error")
 		},
 	}

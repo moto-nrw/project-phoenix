@@ -34,17 +34,19 @@ const tablePlatformAnnouncements = "platform.announcements"
 
 // Announcement represents a platform announcement or release note
 type Announcement struct {
-	base.Model  `bun:"schema:platform,table:announcements"`
-	Title       string     `bun:"title,notnull" json:"title"`
-	Content     string     `bun:"content,notnull" json:"content"`
-	Type        string     `bun:"type,notnull,default:'announcement'" json:"type"`
-	Severity    string     `bun:"severity,notnull,default:'info'" json:"severity"`
-	Version     *string    `bun:"version" json:"version,omitempty"`
-	Active      bool       `bun:"active,notnull,default:true" json:"active"`
-	PublishedAt *time.Time `bun:"published_at" json:"published_at,omitempty"`
-	ExpiresAt   *time.Time `bun:"expires_at" json:"expires_at,omitempty"`
-	TargetRoles []string   `bun:"target_roles,array" json:"target_roles,omitempty"`
-	CreatedBy   int64      `bun:"created_by,notnull" json:"created_by"`
+	base.Model      `bun:"schema:platform,table:announcements"`
+	Title           string     `bun:"title,notnull" json:"title"`
+	Content         string     `bun:"content,notnull" json:"content"`
+	Type            string     `bun:"type,notnull,default:'announcement'" json:"type"`
+	Severity        string     `bun:"severity,notnull,default:'info'" json:"severity"`
+	Version         *string    `bun:"version" json:"version,omitempty"`
+	Active          bool       `bun:"active,notnull,default:true" json:"active"`
+	PublishedAt     *time.Time `bun:"published_at" json:"published_at,omitempty"`
+	ExpiresAt       *time.Time `bun:"expires_at" json:"expires_at,omitempty"`
+	TargetRoles     []string   `bun:"target_roles,array" json:"target_roles,omitempty"`
+	TargetOrgIDs    []int64    `bun:"target_org_ids,array" json:"target_org_ids,omitempty"`
+	TargetTenantIDs []int64    `bun:"target_tenant_ids,array" json:"target_tenant_ids,omitempty"`
+	CreatedBy       int64      `bun:"created_by,notnull" json:"created_by"`
 
 	// Relations
 	Creator *Operator `bun:"rel:belongs-to,join:created_by=id" json:"creator,omitempty"`

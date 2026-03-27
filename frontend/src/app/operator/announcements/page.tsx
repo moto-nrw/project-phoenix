@@ -15,6 +15,7 @@ import { DatePicker } from "~/components/ui/date-picker";
 import { useSession } from "next-auth/react";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { operatorAnnouncementsService } from "~/lib/operator/announcements-api";
+import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import {
   TYPE_LABELS,
   TYPE_TEXT_COLORS,
@@ -31,6 +32,7 @@ import type {
   CreateAnnouncementRequest,
   UpdateAnnouncementRequest,
 } from "~/lib/operator/announcements-helpers";
+import type { Organization, School } from "~/lib/operator/provisioning-helpers";
 import { AnnouncementViewsAccordion } from "~/components/operator/announcement-views-accordion";
 import { getRelativeTime } from "~/lib/format-utils";
 import { createLogger } from "~/lib/logger";
@@ -45,6 +47,8 @@ interface FormData {
   version: string;
   expiresAt: string;
   targetRoles: SystemRole[];
+  targetOrgIds: number[];
+  targetTenantIds: number[];
 }
 
 const EMPTY_FORM: FormData = {
@@ -55,6 +59,8 @@ const EMPTY_FORM: FormData = {
   version: "",
   expiresAt: "",
   targetRoles: [],
+  targetOrgIds: [],
+  targetTenantIds: [],
 };
 
 export default function OperatorAnnouncementsPage() {
@@ -85,6 +91,35 @@ export default function OperatorAnnouncementsPage() {
       dedupingInterval: 5000,
     },
   );
+
+  const { data: organizations } = useSWR(
+    status === "authenticated" ? "operator-organizations" : null,
+    () => operatorProvisioningService.listOrganizations(),
+    {
+      keepPreviousData: true,
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
+    },
+  );
+
+  const { data: schools } = useSWR(
+    status === "authenticated" ? "operator-schools" : null,
+    () => operatorProvisioningService.listSchools(),
+    {
+      keepPreviousData: true,
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
+    },
+  );
+
+  // Filter schools by selected orgs (if any orgs selected, show only their schools)
+  const availableSchools = useMemo(() => {
+    if (!schools) return [];
+    if (formData.targetOrgIds.length === 0) return schools;
+    return schools.filter((s) =>
+      formData.targetOrgIds.includes(Number(s.organizationId)),
+    );
+  }, [schools, formData.targetOrgIds]);
 
   const filteredAnnouncements = useMemo(() => {
     if (!announcements) return [];
@@ -122,6 +157,8 @@ export default function OperatorAnnouncementsPage() {
       version: announcement.version ?? "",
       expiresAt: announcement.expiresAt ?? "",
       targetRoles: announcement.targetRoles,
+      targetOrgIds: announcement.targetOrgIds,
+      targetTenantIds: announcement.targetTenantIds,
     });
     setFormOpen(true);
   }, []);
@@ -141,6 +178,8 @@ export default function OperatorAnnouncementsPage() {
             version: formData.version || null,
             expires_at: formData.expiresAt || null,
             target_roles: formData.targetRoles,
+            target_org_ids: formData.targetOrgIds,
+            target_tenant_ids: formData.targetTenantIds,
           };
           await operatorAnnouncementsService.update(editTarget.id, updateData);
         } else {
@@ -150,6 +189,8 @@ export default function OperatorAnnouncementsPage() {
             type: formData.type,
             severity: formData.severity,
             target_roles: formData.targetRoles,
+            target_org_ids: formData.targetOrgIds,
+            target_tenant_ids: formData.targetTenantIds,
             ...(formData.version && { version: formData.version }),
             ...(formData.expiresAt && { expires_at: formData.expiresAt }),
           };
@@ -309,6 +350,8 @@ export default function OperatorAnnouncementsPage() {
                 >
                   <AnnouncementCard
                     announcement={announcement}
+                    organizations={organizations}
+                    schools={schools}
                     onEdit={openEditForm}
                     onDelete={setDeleteTarget}
                     onPublish={setPublishTarget}
@@ -609,6 +652,147 @@ export default function OperatorAnnouncementsPage() {
               })}
             </div>
           </div>
+
+          {/* Target Organizations */}
+          <div>
+            <span
+              id="announcement-orgs-label"
+              className="mb-1 block text-sm font-medium text-gray-700"
+            >
+              Organisationen
+            </span>
+            <p className="mb-2 text-xs text-gray-500">
+              Leer = Alle Organisationen
+            </p>
+            <div
+              className="flex flex-wrap gap-3"
+              role="group"
+              aria-labelledby="announcement-orgs-label"
+            >
+              {organizations?.map((org) => {
+                const orgId = Number(org.id);
+                const isChecked = formData.targetOrgIds.includes(orgId);
+                return (
+                  <button
+                    key={org.id}
+                    type="button"
+                    onClick={() => {
+                      if (isChecked) {
+                        setFormData((prev) => ({
+                          ...prev,
+                          targetOrgIds: prev.targetOrgIds.filter(
+                            (id) => id !== orgId,
+                          ),
+                          // Remove tenant selections that belonged to this org
+                          targetTenantIds: prev.targetTenantIds.filter(
+                            (tid) =>
+                              !schools?.some(
+                                (s) =>
+                                  Number(s.id) === tid &&
+                                  Number(s.organizationId) === orgId,
+                              ),
+                          ),
+                        }));
+                      } else {
+                        setFormData((prev) => ({
+                          ...prev,
+                          targetOrgIds: [...prev.targetOrgIds, orgId],
+                        }));
+                      }
+                    }}
+                    className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-all ${
+                      isChecked
+                        ? "border-[#83CD2D] bg-[#83CD2D]/10 text-gray-900"
+                        : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50"
+                    }`}
+                  >
+                    <span
+                      className={`flex h-4 w-4 items-center justify-center rounded border transition-all ${
+                        isChecked
+                          ? "border-[#83CD2D] bg-[#83CD2D]"
+                          : "border-gray-300 bg-white"
+                      }`}
+                    >
+                      {isChecked && (
+                        <Check className="h-3 w-3 text-white" strokeWidth={3} />
+                      )}
+                    </span>
+                    {org.name}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Target Schools/Tenants */}
+          <div>
+            <span
+              id="announcement-tenants-label"
+              className="mb-1 block text-sm font-medium text-gray-700"
+            >
+              Schulen
+            </span>
+            <p className="mb-2 text-xs text-gray-500">
+              Leer = Alle Schulen
+              {formData.targetOrgIds.length > 0
+                ? " der ausgewählten Organisationen"
+                : ""}
+            </p>
+            <div
+              className="flex flex-wrap gap-3"
+              role="group"
+              aria-labelledby="announcement-tenants-label"
+            >
+              {availableSchools.map((school) => {
+                const schoolId = Number(school.id);
+                const isChecked = formData.targetTenantIds.includes(schoolId);
+                return (
+                  <button
+                    key={school.id}
+                    type="button"
+                    onClick={() => {
+                      if (isChecked) {
+                        setFormData((prev) => ({
+                          ...prev,
+                          targetTenantIds: prev.targetTenantIds.filter(
+                            (id) => id !== schoolId,
+                          ),
+                        }));
+                      } else {
+                        setFormData((prev) => ({
+                          ...prev,
+                          targetTenantIds: [...prev.targetTenantIds, schoolId],
+                        }));
+                      }
+                    }}
+                    className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-all ${
+                      isChecked
+                        ? "border-[#83CD2D] bg-[#83CD2D]/10 text-gray-900"
+                        : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50"
+                    }`}
+                  >
+                    <span
+                      className={`flex h-4 w-4 items-center justify-center rounded border transition-all ${
+                        isChecked
+                          ? "border-[#83CD2D] bg-[#83CD2D]"
+                          : "border-gray-300 bg-white"
+                      }`}
+                    >
+                      {isChecked && (
+                        <Check className="h-3 w-3 text-white" strokeWidth={3} />
+                      )}
+                    </span>
+                    {school.name}
+                  </button>
+                );
+              })}
+              {availableSchools.length === 0 && (
+                <p className="text-xs text-gray-400 italic">
+                  Keine Schulen verfügbar
+                </p>
+              )}
+            </div>
+          </div>
         </form>
       </Modal>
 
@@ -649,11 +833,15 @@ export default function OperatorAnnouncementsPage() {
 
 function AnnouncementCard({
   announcement,
+  organizations,
+  schools,
   onEdit,
   onDelete,
   onPublish,
 }: {
   readonly announcement: Announcement;
+  readonly organizations?: Organization[];
+  readonly schools?: School[];
   readonly onEdit: (a: Announcement) => void;
   readonly onDelete: (a: Announcement) => void;
   readonly onPublish: (a: Announcement) => void;
@@ -775,6 +963,62 @@ function AnnouncementCard({
           <span>
             {announcement.targetRoles
               .map((r) => SYSTEM_ROLE_LABELS[r])
+              .join(", ")}
+          </span>
+        </div>
+      )}
+
+      {/* Target organizations display */}
+      {announcement.targetOrgIds.length > 0 && organizations && (
+        <div className="mt-1 flex items-center gap-1.5 text-xs text-gray-400">
+          <svg
+            className="h-3.5 w-3.5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+            />
+          </svg>
+          <span>
+            {announcement.targetOrgIds
+              .map(
+                (id) =>
+                  organizations.find((o) => Number(o.id) === id)?.name ??
+                  `Org ${id}`,
+              )
+              .join(", ")}
+          </span>
+        </div>
+      )}
+
+      {/* Target tenants/schools display */}
+      {announcement.targetTenantIds.length > 0 && schools && (
+        <div className="mt-1 flex items-center gap-1.5 text-xs text-gray-400">
+          <svg
+            className="h-3.5 w-3.5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14zm-4 6v-7.5l4-2.222"
+            />
+          </svg>
+          <span>
+            {announcement.targetTenantIds
+              .map(
+                (id) =>
+                  schools.find((s) => Number(s.id) === id)?.name ??
+                  `Schule ${id}`,
+              )
               .join(", ")}
           </span>
         </div>

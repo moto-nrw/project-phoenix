@@ -451,7 +451,7 @@ func TestAnnouncementService_GetUnreadForUser_Success(t *testing.T) {
 	ctx := context.Background()
 	announcementRepo := &mockAnnouncementRepoShared{}
 	viewRepo := &mockAnnouncementViewRepoShared{
-		getUnreadForUserFn: func(ctx context.Context, userID int64, userRoles []string) ([]*platform.Announcement, error) {
+		getUnreadForUserFn: func(ctx context.Context, userID int64, userRoles []string, orgID int64, tenantID int64) ([]*platform.Announcement, error) {
 			return []*platform.Announcement{
 				{
 					Model: base.Model{ID: 1},
@@ -474,7 +474,7 @@ func TestAnnouncementService_GetUnreadForUser_Success(t *testing.T) {
 		Logger:               slog.Default(),
 	})
 
-	announcements, err := service.GetUnreadForUser(ctx, 1, []string{"admin"})
+	announcements, err := service.GetUnreadForUser(ctx, 1, []string{"admin"}, 0, 0)
 	require.NoError(t, err)
 	assert.Len(t, announcements, 2)
 }
@@ -483,7 +483,7 @@ func TestAnnouncementService_CountUnread_Success(t *testing.T) {
 	ctx := context.Background()
 	announcementRepo := &mockAnnouncementRepoShared{}
 	viewRepo := &mockAnnouncementViewRepoShared{
-		countUnreadFn: func(ctx context.Context, userID int64, userRoles []string) (int, error) {
+		countUnreadFn: func(ctx context.Context, userID int64, userRoles []string, orgID int64, tenantID int64) (int, error) {
 			return 5, nil
 		},
 	}
@@ -497,7 +497,7 @@ func TestAnnouncementService_CountUnread_Success(t *testing.T) {
 		Logger:               slog.Default(),
 	})
 
-	count, err := service.CountUnread(ctx, 1, []string{"admin"})
+	count, err := service.CountUnread(ctx, 1, []string{"admin"}, 0, 0)
 	require.NoError(t, err)
 	assert.Equal(t, 5, count)
 }
