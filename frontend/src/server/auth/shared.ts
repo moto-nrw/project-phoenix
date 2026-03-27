@@ -398,6 +398,21 @@ export const operatorRedirectCallback: NonNullable<
 
   if (urlObj.origin === baseObj.origin) return url;
 
+  if (
+    urlObj.hostname.endsWith("localhost") &&
+    baseObj.hostname.endsWith("localhost")
+  ) {
+    return url;
+  }
+
+  const getParentDomain = (hostname: string) => {
+    const parts = hostname.split(".");
+    return parts.length > 2 ? parts.slice(-2).join(".") : hostname;
+  };
+  if (getParentDomain(urlObj.hostname) === getParentDomain(baseObj.hostname)) {
+    return url;
+  }
+
   logger.warn("operator_redirect_blocked", {
     url,
     baseUrl,
