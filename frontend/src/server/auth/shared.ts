@@ -398,6 +398,22 @@ export const operatorRedirectCallback: NonNullable<
 
   if (urlObj.origin === baseObj.origin) return url;
 
+  if (
+    urlObj.hostname.endsWith("localhost") &&
+    baseObj.hostname.endsWith("localhost")
+  ) {
+    return url;
+  }
+
+  // Allow when one hostname is a subdomain of the other
+  // (e.g. operator.staging.moto-app.de is a child of staging.moto-app.de)
+  if (
+    urlObj.hostname.endsWith(`.${baseObj.hostname}`) ||
+    baseObj.hostname.endsWith(`.${urlObj.hostname}`)
+  ) {
+    return url;
+  }
+
   logger.warn("operator_redirect_blocked", {
     url,
     baseUrl,
