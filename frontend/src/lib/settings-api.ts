@@ -55,42 +55,54 @@ interface ApiResponse<T> {
 
 // --- API Functions ---
 
+/**
+ * Fetch the settings schema. Returns null if user has no access or session
+ * is not ready (expected cases — no error logged).
+ * Throws only on unexpected server errors.
+ */
 export async function fetchSettingsSchema(): Promise<SettingsSchema | null> {
+  let response: Response;
   try {
-    const response = await sessionFetch("/api/settings/schema", {
-      method: "GET",
-    });
-
-    // 401/403 = not authenticated or user lacks permission — expected, not an error
-    if (response.status === 401 || response.status === 403) {
-      return null;
-    }
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const result = (await response.json()) as ApiResponse<SettingsSchema>;
-    return result.data;
+    response = await sessionFetch("/api/settings/schema", { method: "GET" });
   } catch (error) {
-    // No token = session not ready yet or user not logged in — not an error
+    // No token / session not ready — expected during initial page load
     if (
       error instanceof Error &&
       error.message === "No authentication token available"
     ) {
       return null;
     }
-    logger.error("fetch_settings_schema_failed", {
+    // Network error — unexpected
+    logger.error("fetch_settings_schema_network_error", {
       error: error instanceof Error ? error.message : String(error),
     });
-    throw new Error("Failed to fetch settings schema");
+    return null;
   }
+
+  // 401/403 = not authenticated or no permission — expected, not an error
+  if (response.status === 401 || response.status === 403) {
+    return null;
+  }
+
+  if (!response.ok) {
+    logger.error("fetch_settings_schema_failed", {
+      status: response.status,
+    });
+    return null;
+  }
+
+  const result = (await response.json()) as ApiResponse<SettingsSchema>;
+  return result.data;
 }
 
+/**
+ * Set a setting value. Returns a user-facing error message on failure,
+ * or null on success.
+ */
 export async function setSettingValue(
   key: string,
   value: unknown,
-): Promise<void> {
+): Promise<string | null> {
   try {
     const response = await sessionFetch(`/api/settings/values/${key}`, {
       method: "PUT",
@@ -100,31 +112,49 @@ export async function setSettingValue(
 
     if (!response.ok) {
       const result = (await response.json()) as { error?: string };
-      throw new Error(result.error ?? `HTTP error! status: ${response.status}`);
+      const msg = result.error ?? "Unbekannter Fehler";
+      logger.warn("set_setting_value_rejected", {
+        key,
+        status: response.status,
+        error: msg,
+      });
+      return msg;
     }
+
+    return null;
   } catch (error) {
-    logger.error("set_setting_value_failed", {
+    logger.warn("set_setting_value_failed", {
       key,
       error: error instanceof Error ? error.message : String(error),
     });
-    throw error;
+    return "Netzwerkfehler beim Speichern der Einstellung.";
   }
 }
 
-export async function resetSettingValue(key: string): Promise<void> {
+/**
+ * Reset a setting value. Returns a user-facing error message on failure,
+ * or null on success.
+ */
+export async function resetSettingValue(key: string): Promise<string | null> {
   try {
     const response = await sessionFetch(`/api/settings/values/${key}`, {
       method: "DELETE",
     });
 
     if (!response.ok && response.status !== 204) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      logger.warn("reset_setting_value_rejected", {
+        key,
+        status: response.status,
+      });
+      return "Einstellung konnte nicht zurückgesetzt werden.";
     }
+
+    return null;
   } catch (error) {
-    logger.error("reset_setting_value_failed", {
+    logger.warn("reset_setting_value_failed", {
       key,
       error: error instanceof Error ? error.message : String(error),
     });
-    throw error;
+    return "Netzwerkfehler beim Zurücksetzen der Einstellung.";
   }
 }

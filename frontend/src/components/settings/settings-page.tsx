@@ -44,23 +44,12 @@ export function SettingsContent({ tabKey }: SettingsContentProps) {
   const [saving, setSaving] = useState<string | null>(null);
 
   const loadSchema = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await fetchSettingsSchema();
-      setSchema(data);
-    } catch (err) {
-      logger.error("load_settings_schema_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      setError("Einstellungen konnten nicht geladen werden.");
-    } finally {
-      setLoading(false);
-    }
+    setLoading(true);
+    setError(null);
+    const data = await fetchSettingsSchema();
+    setSchema(data);
+    setLoading(false);
   }, []);
-
-  // If schema is null (403/no permission), show nothing
-  const hasAccess = schema !== null;
 
   useEffect(() => {
     void loadSchema();
@@ -68,42 +57,34 @@ export function SettingsContent({ tabKey }: SettingsContentProps) {
 
   const handleSave = useCallback(
     async (key: string, value: unknown) => {
-      try {
-        setSaving(key);
-        await setSettingValue(key, value);
+      setSaving(key);
+      const errorMsg = await setSettingValue(key, value);
+      if (errorMsg) {
+        setError(errorMsg);
+      } else {
+        setError(null);
         // Re-fetch schema to get updated values + re-evaluate dependencies
         await loadSchema();
         logger.info("setting_value_saved", { key });
-      } catch (err) {
-        logger.error("save_setting_value_failed", {
-          key,
-          error: err instanceof Error ? err.message : String(err),
-        });
-        setError("Einstellung konnte nicht gespeichert werden.");
-      } finally {
-        setSaving(null);
       }
+      setSaving(null);
     },
     [loadSchema],
   );
 
   const handleReset = useCallback(
     async (key: string) => {
-      try {
-        setSaving(key);
-        await resetSettingValue(key);
-        // Re-fetch schema after reset (review fix #6: dependencies may change)
+      setSaving(key);
+      const errorMsg = await resetSettingValue(key);
+      if (errorMsg) {
+        setError(errorMsg);
+      } else {
+        setError(null);
+        // Re-fetch schema after reset (dependencies may change)
         await loadSchema();
         logger.info("setting_value_reset", { key });
-      } catch (err) {
-        logger.error("reset_setting_value_failed", {
-          key,
-          error: err instanceof Error ? err.message : String(err),
-        });
-        setError("Einstellung konnte nicht zurückgesetzt werden.");
-      } finally {
-        setSaving(null);
       }
+      setSaving(null);
     },
     [loadSchema],
   );
@@ -116,20 +97,12 @@ export function SettingsContent({ tabKey }: SettingsContentProps) {
     );
   }
 
-  // No access (403) — render nothing, tabs won't show
-  if (!hasAccess) {
+  // No access (null from 401/403) — render nothing, tabs won't show
+  if (!schema) {
     return null;
   }
 
-  if (error && !schema) {
-    return (
-      <div className="rounded-2xl border border-red-100 bg-red-50 p-6 text-sm text-red-600">
-        {error}
-      </div>
-    );
-  }
-
-  const tab = schema?.tabs.find((t) => t.key === tabKey);
+  const tab = schema.tabs?.find((t) => t.key === tabKey);
 
   if (!tab) {
     return (
@@ -142,13 +115,13 @@ export function SettingsContent({ tabKey }: SettingsContentProps) {
   return (
     <>
       {error && (
-        <div className="mb-4 rounded-lg border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">
-          {error}
+        <div className="mb-4 flex items-center justify-between rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <span>{error}</span>
           <button
             onClick={() => setError(null)}
-            className="ml-2 font-medium underline"
+            className="ml-3 font-medium text-red-500 hover:text-red-700"
           >
-            Schließen
+            &times;
           </button>
         </div>
       )}
@@ -165,6 +138,7 @@ export function SettingsContent({ tabKey }: SettingsContentProps) {
 /**
  * Returns the tab definitions for injecting into SettingsLayout's extraTabs.
  * Each tab renders a SettingsContent component for its key.
+ * Returns null silently if user has no access or schema is empty.
  */
 export function useSettingsTabs(): {
   tabs: { id: string; label: string; icon: string }[];
@@ -173,15 +147,9 @@ export function useSettingsTabs(): {
   const [schema, setSchema] = useState<SettingsSchema | null>(null);
 
   useEffect(() => {
-    fetchSettingsSchema()
-      .then((data) => {
-        if (data) setSchema(data);
-      })
-      .catch((err) => {
-        logger.error("load_settings_tabs_failed", {
-          error: err instanceof Error ? err.message : String(err),
-        });
-      });
+    void fetchSettingsSchema().then((data) => {
+      if (data) setSchema(data);
+    });
   }, []);
 
   if (!schema?.tabs || schema.tabs.length === 0) {
