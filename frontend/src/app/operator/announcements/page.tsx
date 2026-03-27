@@ -157,8 +157,8 @@ export default function OperatorAnnouncementsPage() {
       version: announcement.version ?? "",
       expiresAt: announcement.expiresAt ?? "",
       targetRoles: announcement.targetRoles,
-      targetOrgIds: announcement.targetOrgIds,
-      targetTenantIds: announcement.targetTenantIds,
+      targetOrgIds: announcement.targetOrgIds ?? [],
+      targetTenantIds: announcement.targetTenantIds ?? [],
     });
     setFormOpen(true);
   }, []);
@@ -969,7 +969,7 @@ function AnnouncementCard({
       )}
 
       {/* Target organizations display */}
-      {announcement.targetOrgIds.length > 0 && organizations && (
+      {(announcement.targetOrgIds?.length ?? 0) > 0 && organizations && (
         <div className="mt-1 flex items-center gap-1.5 text-xs text-gray-400">
           <svg
             className="h-3.5 w-3.5"
@@ -997,7 +997,7 @@ function AnnouncementCard({
       )}
 
       {/* Target tenants/schools display */}
-      {announcement.targetTenantIds.length > 0 && schools && (
+      {(announcement.targetTenantIds?.length ?? 0) > 0 && schools && (
         <div className="mt-1 flex items-center gap-1.5 text-xs text-gray-400">
           <svg
             className="h-3.5 w-3.5"
