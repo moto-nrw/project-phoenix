@@ -43,6 +43,7 @@ const mockBackendSchool: BackendSchool = {
   email: "info@ggs-europa.de",
   active: true,
   hidden: false,
+  deleted_at: null,
   settings: null,
   created_at: NOW,
   updated_at: NOW,

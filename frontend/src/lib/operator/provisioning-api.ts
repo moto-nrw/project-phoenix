@@ -164,6 +164,20 @@ class OperatorProvisioningService {
     return { id: result.id.toString(), email: result.email };
   }
 
+  async softDeleteSchool(id: string): Promise<void> {
+    await operatorFetch(
+      `/api/operator/provisioning/schools/${encodeURIComponent(id)}`,
+      { method: "DELETE" },
+    );
+  }
+
+  async restoreSchool(id: string): Promise<void> {
+    await operatorFetch(
+      `/api/operator/provisioning/schools/${encodeURIComponent(id)}/restore`,
+      { method: "POST" },
+    );
+  }
+
   async listSystemRoles(): Promise<
     { id: string; name: string; isSystem: boolean }[]
   > {

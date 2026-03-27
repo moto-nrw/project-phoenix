@@ -15,6 +15,7 @@ import (
 	sessionsAPI "github.com/moto-nrw/project-phoenix/api/iot/sessions"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/models/platform"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
@@ -45,6 +46,7 @@ type ServiceDependencies struct {
 	FacilityService   facilitiesSvc.Service
 	EducationService  educationSvc.Service
 	FeedbackService   feedbackSvc.Service
+	SchoolRepo        platform.SchoolRepository
 	Logger            *slog.Logger
 	DB                *bun.DB
 }
@@ -59,6 +61,7 @@ type Resource struct {
 	FacilityService   facilitiesSvc.Service
 	EducationService  educationSvc.Service
 	FeedbackService   feedbackSvc.Service
+	SchoolRepo        platform.SchoolRepository
 	logger            *slog.Logger
 	db                *bun.DB
 }
@@ -74,6 +77,7 @@ func NewResource(deps ServiceDependencies) *Resource {
 		FacilityService:   deps.FacilityService,
 		EducationService:  deps.EducationService,
 		FeedbackService:   deps.FeedbackService,
+		SchoolRepo:        deps.SchoolRepo,
 		logger:            deps.Logger,
 		db:                deps.DB,
 	}
@@ -119,7 +123,7 @@ func (rs *Resource) Router() chi.Router {
 	// then TenantTxMiddleware wraps the handler in a tenant-scoped transaction
 	// so downstream queries run as phoenix_tenant with RLS enforced.
 	r.Group(func(r chi.Router) {
-		r.Use(device.DeviceOnlyAuthenticator(rs.IoTService))
+		r.Use(device.DeviceOnlyAuthenticator(rs.IoTService, rs.SchoolRepo))
 		r.Use(tenant.TenantTxMiddleware(rs.db))
 
 		// Mount data sub-router for teachers endpoint (device-only auth)
@@ -132,7 +136,7 @@ func (rs *Resource) Router() chi.Router {
 	// then TenantTxMiddleware wraps each handler in a tenant-scoped transaction
 	// (SET LOCAL ROLE phoenix_tenant + set_config) so RLS is enforced.
 	r.Group(func(r chi.Router) {
-		r.Use(device.DeviceAuthenticator(rs.IoTService, rs.UsersService))
+		r.Use(device.DeviceAuthenticator(rs.IoTService, rs.UsersService, rs.SchoolRepo))
 		r.Use(tenant.TenantTxMiddleware(rs.db))
 
 		// Check-in endpoints (student RFID check-in/checkout workflow)

@@ -52,6 +52,8 @@ func (s stubAuthLoginSchoolRepo) FindActiveByAccountID(context.Context, int64) (
 func (s stubAuthLoginSchoolRepo) Update(context.Context, *platformModels.School) error {
 	panic("unexpected Update")
 }
+func (r stubAuthLoginSchoolRepo) SoftDelete(context.Context, int64) error { return nil }
+func (r stubAuthLoginSchoolRepo) Restore(context.Context, int64) error    { return nil }
 
 type stubAuthLoginAccountTenantRepo struct {
 	findActiveFn func(context.Context, int64) ([]authModels.AccountTenant, error)
@@ -109,7 +111,11 @@ func TestResolveAccountTenantBySlug_ReturnsTenantNotFoundWhenSchoolLookupReturns
 	assert.ErrorIs(t, authErr.Err, ErrTenantNotFound)
 }
 
-func TestResolveAccountTenantDefault_ReturnsTenantWithoutOrgWhenSchoolLookupReturnsNil(t *testing.T) {
+// Updated: resolveAccountTenantDefault now iterates all mappings and skips schools
+// that can't be looked up (nil). Previously it returned (99, 0, nil) for a nil school;
+// now it returns (0, 0, nil) to force explicit tenant selection.
+// This fixes reviewer P1 #2: multi-tenant accounts no longer fall back to an invalid tenant.
+func TestResolveAccountTenantDefault_ReturnsZeroWhenSchoolLookupReturnsNil(t *testing.T) {
 	service := &Service{
 		repos: &repositories.Factory{
 			AccountTenant: stubAuthLoginAccountTenantRepo{
@@ -126,7 +132,63 @@ func TestResolveAccountTenantDefault_ReturnsTenantWithoutOrgWhenSchoolLookupRetu
 
 	tenantID, orgID, err := service.resolveAccountTenantDefault(context.Background(), 5)
 	require.NoError(t, err)
-	assert.Equal(t, int64(99), tenantID)
+	assert.Zero(t, tenantID, "should not return tenant ID when school lookup returns nil")
+	assert.Zero(t, orgID)
+}
+
+func TestResolveAccountTenantDefault_SkipsDeletedSchoolAndFallsThrough(t *testing.T) {
+	now := time.Now()
+	service := &Service{
+		repos: &repositories.Factory{
+			AccountTenant: stubAuthLoginAccountTenantRepo{
+				findActiveFn: func(context.Context, int64) ([]authModels.AccountTenant, error) {
+					return []authModels.AccountTenant{
+						{TenantID: 900, Status: authModels.AccountTenantStatusActive},
+						{TenantID: 901, Status: authModels.AccountTenantStatusActive},
+					}, nil
+				},
+			},
+			School: stubAuthLoginSchoolRepo{
+				findByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
+					if id == 900 {
+						return &platformModels.School{DeletedAt: &now, Active: true, OrganizationID: 10}, nil
+					}
+					return &platformModels.School{Active: true, OrganizationID: 20}, nil
+				},
+			},
+		},
+		logger: slog.Default(),
+	}
+
+	tenantID, orgID, err := service.resolveAccountTenantDefault(context.Background(), 5)
+	require.NoError(t, err)
+	assert.Equal(t, int64(901), tenantID, "should skip deleted school 900 and resolve to school 901")
+	assert.Equal(t, int64(20), orgID)
+}
+
+func TestResolveAccountTenantDefault_ReturnsZeroWhenAllSchoolsDeleted(t *testing.T) {
+	now := time.Now()
+	service := &Service{
+		repos: &repositories.Factory{
+			AccountTenant: stubAuthLoginAccountTenantRepo{
+				findActiveFn: func(context.Context, int64) ([]authModels.AccountTenant, error) {
+					return []authModels.AccountTenant{
+						{TenantID: 900, Status: authModels.AccountTenantStatusActive},
+					}, nil
+				},
+			},
+			School: stubAuthLoginSchoolRepo{
+				findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+					return &platformModels.School{DeletedAt: &now, Active: true, OrganizationID: 10}, nil
+				},
+			},
+		},
+		logger: slog.Default(),
+	}
+
+	tenantID, orgID, err := service.resolveAccountTenantDefault(context.Background(), 5)
+	require.NoError(t, err)
+	assert.Zero(t, tenantID, "should return zero when all schools are deleted")
 	assert.Zero(t, orgID)
 }
 

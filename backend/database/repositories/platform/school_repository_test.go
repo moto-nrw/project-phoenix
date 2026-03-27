@@ -239,6 +239,123 @@ func TestSchoolRepository_QueryMethods(t *testing.T) {
 		assert.True(t, found, "ListActive must still return hidden schools (scheduler dependency)")
 	})
 
+	t.Run("soft delete sets deleted_at", func(t *testing.T) {
+		err := repo.SoftDelete(ctx, schoolA.ID)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			_, _ = db.ExecContext(ctx, `UPDATE platform.schools SET deleted_at = NULL WHERE id = ?`, schoolA.ID)
+		})
+
+		found, err := repo.FindByID(ctx, schoolA.ID)
+		require.NoError(t, err)
+		assert.True(t, found.IsDeleted(), "school should be marked as deleted")
+	})
+
+	t.Run("soft delete prevents double-delete", func(t *testing.T) {
+		_, _ = db.ExecContext(ctx, `UPDATE platform.schools SET deleted_at = NOW() WHERE id = ?`, schoolA.ID)
+		t.Cleanup(func() {
+			_, _ = db.ExecContext(ctx, `UPDATE platform.schools SET deleted_at = NULL WHERE id = ?`, schoolA.ID)
+		})
+
+		err := repo.SoftDelete(ctx, schoolA.ID)
+		require.Error(t, err, "double soft-delete should fail via AssertRowsAffected")
+	})
+
+	t.Run("restore clears deleted_at", func(t *testing.T) {
+		_, _ = db.ExecContext(ctx, `UPDATE platform.schools SET deleted_at = NOW() WHERE id = ?`, schoolA.ID)
+		t.Cleanup(func() {
+			_, _ = db.ExecContext(ctx, `UPDATE platform.schools SET deleted_at = NULL WHERE id = ?`, schoolA.ID)
+		})
+
+		err := repo.Restore(ctx, schoolA.ID)
+		require.NoError(t, err)
+
+		found, err := repo.FindByID(ctx, schoolA.ID)
+		require.NoError(t, err)
+		assert.False(t, found.IsDeleted(), "school should no longer be deleted after restore")
+	})
+
+	t.Run("restore prevents double-restore", func(t *testing.T) {
+		err := repo.Restore(ctx, schoolA.ID)
+		require.Error(t, err, "restoring a non-deleted school should fail via AssertRowsAffected")
+	})
+
+	t.Run("find by slug excludes deleted schools", func(t *testing.T) {
+		_, _ = db.ExecContext(ctx, `UPDATE platform.schools SET deleted_at = NOW() WHERE id = ?`, schoolA.ID)
+		t.Cleanup(func() {
+			_, _ = db.ExecContext(ctx, `UPDATE platform.schools SET deleted_at = NULL WHERE id = ?`, schoolA.ID)
+		})
+
+		found, err := repo.FindBySlug(ctx, schoolA.Slug)
+		require.NoError(t, err)
+		assert.Nil(t, found, "FindBySlug should not return soft-deleted schools")
+	})
+
+	t.Run("find by subdomain includes deleted schools", func(t *testing.T) {
+		_, _ = db.ExecContext(ctx, `UPDATE platform.schools SET deleted_at = NOW() WHERE id = ?`, schoolA.ID)
+		t.Cleanup(func() {
+			_, _ = db.ExecContext(ctx, `UPDATE platform.schools SET deleted_at = NULL WHERE id = ?`, schoolA.ID)
+		})
+
+		found, err := repo.FindBySubdomain(ctx, schoolA.Subdomain)
+		require.NoError(t, err)
+		require.NotNil(t, found, "FindBySubdomain should still return soft-deleted schools")
+		assert.True(t, found.IsDeleted())
+	})
+
+	t.Run("list active excludes deleted schools", func(t *testing.T) {
+		_, _ = db.ExecContext(ctx, `UPDATE platform.schools SET deleted_at = NOW() WHERE id = ?`, schoolA.ID)
+		t.Cleanup(func() {
+			_, _ = db.ExecContext(ctx, `UPDATE platform.schools SET deleted_at = NULL WHERE id = ?`, schoolA.ID)
+		})
+
+		items, err := repo.ListActive(ctx)
+		require.NoError(t, err)
+		for _, item := range items {
+			assert.NotEqual(t, schoolA.ID, item.ID, "ListActive must not return soft-deleted schools")
+		}
+	})
+
+	t.Run("list includes deleted schools", func(t *testing.T) {
+		_, _ = db.ExecContext(ctx, `UPDATE platform.schools SET deleted_at = NOW() WHERE id = ?`, schoolA.ID)
+		t.Cleanup(func() {
+			_, _ = db.ExecContext(ctx, `UPDATE platform.schools SET deleted_at = NULL WHERE id = ?`, schoolA.ID)
+		})
+
+		items, err := repo.List(ctx)
+		require.NoError(t, err)
+		found := false
+		for _, item := range items {
+			if item.ID == schoolA.ID {
+				found = true
+			}
+		}
+		assert.True(t, found, "List should include soft-deleted schools (operator trash view)")
+	})
+
+	t.Run("find active by account id excludes deleted schools", func(t *testing.T) {
+		_, _ = db.ExecContext(ctx, `UPDATE platform.schools SET deleted_at = NOW() WHERE id = ?`, schoolA.ID)
+		t.Cleanup(func() {
+			_, _ = db.ExecContext(ctx, `UPDATE platform.schools SET deleted_at = NULL WHERE id = ?`, schoolA.ID)
+		})
+
+		account := testpkg.CreateTestAccount(t, db, "deleted-school-test")
+		t.Cleanup(func() {
+			_, _ = db.ExecContext(ctx, `DELETE FROM auth.account_tenants WHERE account_id = ?`, account.ID)
+			_, _ = db.ExecContext(ctx, `DELETE FROM auth.accounts WHERE id = ?`, account.ID)
+		})
+		_, err := db.ExecContext(ctx,
+			`INSERT INTO auth.account_tenants (account_id, tenant_id, status, created_at, updated_at) VALUES (?, ?, ?, NOW(), NOW())`,
+			account.ID, schoolA.ID, authModels.AccountTenantStatusActive)
+		require.NoError(t, err)
+
+		items, err := repo.FindActiveByAccountID(ctx, account.ID)
+		require.NoError(t, err)
+		for _, item := range items {
+			assert.NotEqual(t, schoolA.ID, item.ID, "FindActiveByAccountID must not return soft-deleted schools")
+		}
+	})
+
 	t.Run("find active by account id returns active school memberships only", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "school-query")
 		t.Cleanup(func() {

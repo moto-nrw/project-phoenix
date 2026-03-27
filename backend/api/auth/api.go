@@ -248,6 +248,11 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if school.IsDeleted() {
+		common.RenderError(w, r, ErrorNotFound(errors.New("tenant not found")))
+		return
+	}
+
 	if !school.Active {
 		common.RenderError(w, r, ErrorNotFound(errors.New("tenant not found")))
 		return

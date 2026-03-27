@@ -131,6 +131,12 @@ func (m *mockProvisioningService) SetDeviceAPIKey(ctx context.Context, deviceID 
 	}
 	return nil, nil
 }
+func (m *mockProvisioningService) SoftDeleteSchool(context.Context, int64, int64, net.IP) error {
+	return nil
+}
+func (m *mockProvisioningService) RestoreSchool(context.Context, int64, int64, net.IP) error {
+	return nil
+}
 
 func withOperatorClaims(req *http.Request, operatorID int) *http.Request {
 	claims := jwtPkg.AppClaims{ID: operatorID, Scope: "platform"}

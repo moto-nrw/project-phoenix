@@ -78,6 +78,8 @@ func (s *internalSchoolRepoStub) FindActiveByAccountID(context.Context, int64) (
 func (s *internalSchoolRepoStub) Update(context.Context, *platformModels.School) error {
 	return nil
 }
+func (s *internalSchoolRepoStub) SoftDelete(context.Context, int64) error { return nil }
+func (s *internalSchoolRepoStub) Restore(context.Context, int64) error    { return nil }
 
 type internalOrgRepoStub struct {
 	findByIDFn   func(context.Context, int64) (*platformModels.Organization, error)

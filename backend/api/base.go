@@ -276,6 +276,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		IoTService:            api.Services.IoT,
 		PrivacyConsentRepo:    repoFactory.PrivacyConsent,
 		PickupScheduleService: api.Services.PickupSchedule,
+		SchoolRepo:            repoFactory.School,
 		DB:                    db,
 	})
 	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, repoFactory.Student, repoFactory.GroupSubstitution, db)
@@ -297,6 +298,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		FacilityService:   api.Services.Facilities,
 		EducationService:  api.Services.Education,
 		FeedbackService:   api.Services.Feedback,
+		SchoolRepo:        repoFactory.School,
 		Logger:            logger.With("handler", "iot"),
 		DB:                db,
 	})

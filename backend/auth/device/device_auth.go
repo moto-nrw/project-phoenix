@@ -12,6 +12,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/models/iot"
+	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
@@ -202,12 +203,20 @@ func scheduleDeferredFlushLocked(iotService iotSvc.Service, id int64, state *las
 	})
 }
 
-func deviceAuthenticator(iotService iotSvc.Service) func(http.Handler) http.Handler {
+func deviceAuthenticator(iotService iotSvc.Service, schoolRepo platform.SchoolRepository) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Validate API key and get device
 			device, errResp := extractAndValidateAPIKey(r, iotService)
 			if errResp != nil {
+				_ = render.Render(w, r, errResp)
+				return
+			}
+
+			// Reject requests for devices belonging to soft-deleted schools.
+			// Devices use long-lived API keys (not 15-min JWTs), so deleted schools
+			// must be blocked immediately rather than waiting for token expiry.
+			if errResp := rejectDeletedSchool(r.Context(), schoolRepo, device); errResp != nil {
 				_ = render.Render(w, r, errResp)
 				return
 			}
@@ -259,8 +268,9 @@ func deviceAuthenticator(iotService iotSvc.Service) func(http.Handler) http.Hand
 // DeviceAuthenticator is a middleware that validates device API keys and the global OGS PIN.
 // It requires both Authorization: Bearer <api_key> and X-Staff-PIN: <pin> headers.
 // The middleware sets device context for downstream handlers.
-func DeviceAuthenticator(iotService iotSvc.Service, _ usersSvc.PersonService) func(http.Handler) http.Handler {
-	return deviceAuthenticator(iotService)
+// Rejects requests for devices belonging to soft-deleted schools.
+func DeviceAuthenticator(iotService iotSvc.Service, _ usersSvc.PersonService, schoolRepo platform.SchoolRepository) func(http.Handler) http.Handler {
+	return deviceAuthenticator(iotService, schoolRepo)
 }
 
 // DeviceOnlyAuthenticator is a middleware that validates only device API keys.
@@ -268,12 +278,19 @@ func DeviceAuthenticator(iotService iotSvc.Service, _ usersSvc.PersonService) fu
 // The middleware sets device context for downstream handlers.
 // This is used for endpoints that need device authentication but not staff authentication,
 // such as getting the list of available teachers for login selection.
-func DeviceOnlyAuthenticator(iotService iotSvc.Service) func(http.Handler) http.Handler {
+// Rejects requests for devices belonging to soft-deleted schools.
+func DeviceOnlyAuthenticator(iotService iotSvc.Service, schoolRepo platform.SchoolRepository) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Validate API key and get device
 			device, errResp := extractAndValidateAPIKey(r, iotService)
 			if errResp != nil {
+				_ = render.Render(w, r, errResp)
+				return
+			}
+
+			// Reject requests for devices belonging to soft-deleted schools.
+			if errResp := rejectDeletedSchool(r.Context(), schoolRepo, device); errResp != nil {
 				_ = render.Render(w, r, errResp)
 				return
 			}
@@ -294,6 +311,30 @@ func DeviceOnlyAuthenticator(iotService iotSvc.Service) func(http.Handler) http.
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+// rejectDeletedSchool checks if the device's school has been soft-deleted.
+// Returns an error renderer if the school is deleted, nil otherwise.
+// Runs before TenantTxMiddleware, so there is no tenant transaction in context;
+// FindByID falls back to the raw *bun.DB connection which is fine because
+// platform.schools is not behind RLS. Fails open on DB errors to avoid
+// breaking all IoT devices during transient DB issues.
+func rejectDeletedSchool(ctx context.Context, schoolRepo platform.SchoolRepository, device *iot.Device) render.Renderer {
+	if schoolRepo == nil || device.TenantID <= 0 {
+		return nil
+	}
+	school, err := schoolRepo.FindByID(ctx, device.TenantID)
+	if err != nil || school == nil {
+		return nil
+	}
+	if school.IsDeleted() {
+		slog.Warn("device authentication rejected: school is soft-deleted",
+			slog.String("device_id", device.DeviceID),
+			slog.Int64("tenant_id", device.TenantID),
+		)
+		return ErrDeviceForbidden(ErrDeviceInactive)
+	}
+	return nil
 }
 
 // SecureCompareStrings performs a constant-time comparison of two strings to prevent timing attacks

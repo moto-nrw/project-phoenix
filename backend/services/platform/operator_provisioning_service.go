@@ -77,6 +77,8 @@ type OperatorProvisioningService interface {
 	ListOrganizationDevices(ctx context.Context, organizationID int64) ([]OperatorDeviceInfo, error)
 	CreateDevice(ctx context.Context, schoolID int64, deviceID, deviceType string, name, apiKey *string, operatorID int64, clientIP net.IP) (*OperatorDeviceInfo, error)
 	SetDeviceAPIKey(ctx context.Context, id int64, apiKey *string, operatorID int64, clientIP net.IP) (*OperatorDeviceInfo, error)
+	SoftDeleteSchool(ctx context.Context, schoolID, operatorID int64, clientIP net.IP) error
+	RestoreSchool(ctx context.Context, schoolID, operatorID int64, clientIP net.IP) error
 }
 
 // OperatorDeviceInfo holds device information with school/org context for operator views.
@@ -1019,6 +1021,9 @@ func (s *operatorProvisioningService) loadActiveSchool(ctx context.Context, scho
 	if school == nil {
 		return nil, &SchoolNotFoundError{SchoolID: schoolID}
 	}
+	if school.IsDeleted() {
+		return nil, &SchoolNotFoundError{SchoolID: schoolID}
+	}
 	if !school.Active {
 		return nil, &InvalidDataError{Err: fmt.Errorf("school is inactive")}
 	}
@@ -1179,6 +1184,69 @@ func isUniqueViolation(err error) bool {
 		return pgErr.IntegrityViolation() && pgErr.Field('C') == "23505"
 	}
 	return false
+}
+
+// SoftDeleteSchool marks a school as deleted. The school remains in the database but is excluded
+// from login, tenant resolution, and all tenant-scoped operations. Existing JWT sessions (15-min TTL)
+// will drain naturally — no active session invalidation is performed.
+func (s *operatorProvisioningService) SoftDeleteSchool(ctx context.Context, schoolID, operatorID int64, clientIP net.IP) error {
+	return s.withAdminTx(ctx, func(adminCtx context.Context) error {
+		school, err := s.schoolRepo.FindByID(adminCtx, schoolID)
+		if err != nil {
+			if isSchoolLookupNotFound(err) {
+				return &SchoolNotFoundError{SchoolID: schoolID}
+			}
+			return err
+		}
+		if school == nil {
+			return &SchoolNotFoundError{SchoolID: schoolID}
+		}
+		if school.IsDeleted() {
+			return &SchoolAlreadyDeletedError{SchoolID: schoolID}
+		}
+
+		if err := s.schoolRepo.SoftDelete(adminCtx, schoolID); err != nil {
+			return err
+		}
+
+		s.logAction(adminCtx, operatorID, platform.ActionSoftDelete, platform.ResourceSchool, &schoolID, clientIP, map[string]any{
+			"name":      school.Name,
+			"slug":      school.Slug,
+			"subdomain": school.Subdomain,
+		})
+		return nil
+	})
+}
+
+// RestoreSchool clears the deleted_at timestamp, returning the school to its pre-deletion state.
+// The active field is preserved — a school that was inactive before deletion remains inactive after restore.
+func (s *operatorProvisioningService) RestoreSchool(ctx context.Context, schoolID, operatorID int64, clientIP net.IP) error {
+	return s.withAdminTx(ctx, func(adminCtx context.Context) error {
+		school, err := s.schoolRepo.FindByID(adminCtx, schoolID)
+		if err != nil {
+			if isSchoolLookupNotFound(err) {
+				return &SchoolNotFoundError{SchoolID: schoolID}
+			}
+			return err
+		}
+		if school == nil {
+			return &SchoolNotFoundError{SchoolID: schoolID}
+		}
+		if !school.IsDeleted() {
+			return &SchoolNotDeletedError{SchoolID: schoolID}
+		}
+
+		if err := s.schoolRepo.Restore(adminCtx, schoolID); err != nil {
+			return err
+		}
+
+		s.logAction(adminCtx, operatorID, platform.ActionRestore, platform.ResourceSchool, &schoolID, clientIP, map[string]any{
+			"name":      school.Name,
+			"slug":      school.Slug,
+			"subdomain": school.Subdomain,
+		})
+		return nil
+	})
 }
 
 func mapSchoolCreateConflict(ctx context.Context, schoolRepo platform.SchoolRepository, school *platform.School) error {

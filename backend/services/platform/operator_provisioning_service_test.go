@@ -70,6 +70,8 @@ type mockSchoolRepo struct {
 	createFn           func(context.Context, *platformModels.School) error
 	updateFn           func(context.Context, *platformModels.School) error
 	listFn             func(context.Context) ([]*platformModels.School, error)
+	softDeleteFn       func(context.Context, int64) error
+	restoreFn          func(context.Context, int64) error
 }
 
 func (m *mockSchoolRepo) Create(ctx context.Context, school *platformModels.School) error {
@@ -117,6 +119,18 @@ func (m *mockSchoolRepo) FindActiveByAccountID(context.Context, int64) ([]platfo
 func (m *mockSchoolRepo) Update(ctx context.Context, school *platformModels.School) error {
 	if m.updateFn != nil {
 		return m.updateFn(ctx, school)
+	}
+	return nil
+}
+func (m *mockSchoolRepo) SoftDelete(ctx context.Context, id int64) error {
+	if m.softDeleteFn != nil {
+		return m.softDeleteFn(ctx, id)
+	}
+	return nil
+}
+func (m *mockSchoolRepo) Restore(ctx context.Context, id int64) error {
+	if m.restoreFn != nil {
+		return m.restoreFn(ctx, id)
 	}
 	return nil
 }
@@ -2668,4 +2682,102 @@ func TestListSystemRoles_Error(t *testing.T) {
 	roles, err := service.ListSystemRoles(context.Background())
 	require.NoError(t, err)
 	require.Nil(t, roles)
+}
+
+func TestOperatorProvisioningService_SoftDeleteSchool_Success(t *testing.T) {
+	softDeleteCalled := false
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SchoolRepo: &mockSchoolRepo{
+			findByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
+				return &platformModels.School{
+					Model: base.Model{ID: id}, Name: "Test School",
+					Slug: "test", Subdomain: "test", Active: true,
+				}, nil
+			},
+			softDeleteFn: func(_ context.Context, _ int64) error {
+				softDeleteCalled = true
+				return nil
+			},
+		},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+	})
+
+	err := service.SoftDeleteSchool(context.Background(), 900, 10, nil)
+	require.NoError(t, err)
+	assert.True(t, softDeleteCalled, "should call SoftDelete on repo")
+}
+
+func TestOperatorProvisioningService_SoftDeleteSchool_NotFound(t *testing.T) {
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SchoolRepo:   &mockSchoolRepo{},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+	})
+
+	err := service.SoftDeleteSchool(context.Background(), 999999, 10, nil)
+	require.Error(t, err)
+	var notFound *platformSvc.SchoolNotFoundError
+	assert.ErrorAs(t, err, &notFound)
+}
+
+func TestOperatorProvisioningService_SoftDeleteSchool_AlreadyDeleted(t *testing.T) {
+	now := time.Now()
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SchoolRepo: &mockSchoolRepo{
+			findByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
+				return &platformModels.School{
+					Model: base.Model{ID: id}, DeletedAt: &now,
+					Name: "Test", Slug: "test", Subdomain: "test",
+				}, nil
+			},
+		},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+	})
+
+	err := service.SoftDeleteSchool(context.Background(), 900, 10, nil)
+	require.Error(t, err)
+	var alreadyDeleted *platformSvc.SchoolAlreadyDeletedError
+	assert.ErrorAs(t, err, &alreadyDeleted)
+}
+
+func TestOperatorProvisioningService_RestoreSchool_Success(t *testing.T) {
+	restoreCalled := false
+	now := time.Now()
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SchoolRepo: &mockSchoolRepo{
+			findByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
+				return &platformModels.School{
+					Model: base.Model{ID: id}, DeletedAt: &now,
+					Name: "Test", Slug: "test", Subdomain: "test",
+				}, nil
+			},
+			restoreFn: func(_ context.Context, _ int64) error {
+				restoreCalled = true
+				return nil
+			},
+		},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+	})
+
+	err := service.RestoreSchool(context.Background(), 900, 10, nil)
+	require.NoError(t, err)
+	assert.True(t, restoreCalled, "should call Restore on repo")
+}
+
+func TestOperatorProvisioningService_RestoreSchool_NotDeleted(t *testing.T) {
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SchoolRepo: &mockSchoolRepo{
+			findByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
+				return &platformModels.School{
+					Model: base.Model{ID: id}, Name: "Test",
+					Slug: "test", Subdomain: "test", Active: true,
+				}, nil
+			},
+		},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+	})
+
+	err := service.RestoreSchool(context.Background(), 900, 10, nil)
+	require.Error(t, err)
+	var notDeleted *platformSvc.SchoolNotDeletedError
+	assert.ErrorAs(t, err, &notDeleted)
 }

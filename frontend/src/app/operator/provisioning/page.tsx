@@ -36,6 +36,7 @@ import { InviteAdminModal } from "./invite-admin-modal";
 import { CreateAccountModal } from "./create-account-modal";
 import { CreateDeviceModal } from "./create-device-modal";
 import { SetApiKeyModal } from "./set-api-key-modal";
+import { ConfirmationModal } from "~/components/ui/modal";
 
 const logger = createLogger({ component: "OperatorProvisioningPage" });
 
@@ -67,6 +68,14 @@ export default function OperatorProvisioningPage() {
   const [setKeyDevice, setSetKeyDevice] = useState<OperatorDevice | null>(null);
 
   const { mutate: globalMutate } = useSWRConfig();
+
+  // Soft-delete / restore state
+  const [deleteTarget, setDeleteTarget] = useState<School | null>(null);
+  const [restoreTarget, setRestoreTarget] = useState<School | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
+  const [showTrash, setShowTrash] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
   // Toggle error state
   const [orgToggleError, setOrgToggleError] = useState("");
@@ -423,6 +432,75 @@ export default function OperatorProvisioningPage() {
     [mutateSchools],
   );
 
+  const activeSchools = useMemo(
+    () => schools?.filter((s) => s.deletedAt == null) ?? [],
+    [schools],
+  );
+
+  const deletedSchools = useMemo(
+    () => schools?.filter((s) => s.deletedAt != null) ?? [],
+    [schools],
+  );
+
+  const handleSoftDelete = useCallback(async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
+    setDeleteError("");
+    try {
+      await operatorProvisioningService.softDeleteSchool(deleteTarget.id);
+      await mutateSchools();
+      try {
+        await fetch("/api/operator/provisioning/revalidate-tenant", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ slugs: [deleteTarget.subdomain] }),
+        });
+      } catch {
+        /* Cache self-heals in ≤5 min */
+      }
+      setDeleteTarget(null);
+    } catch (error) {
+      setDeleteError(
+        "Fehler beim Löschen der Schule. Bitte versuchen Sie es erneut.",
+      );
+      logger.error("school_soft_delete_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [deleteTarget, mutateSchools]);
+
+  const handleRestore = useCallback(async () => {
+    if (!restoreTarget) return;
+    setIsRestoring(true);
+    setDeleteError("");
+    try {
+      await operatorProvisioningService.restoreSchool(restoreTarget.id);
+      await mutateSchools();
+      try {
+        await fetch("/api/operator/provisioning/revalidate-tenant", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ slugs: [restoreTarget.subdomain] }),
+        });
+      } catch {
+        /* Cache self-heals in ≤5 min */
+      }
+      setRestoreTarget(null);
+      setShowTrash(false);
+    } catch (error) {
+      setDeleteError(
+        "Fehler beim Wiederherstellen der Schule. Bitte versuchen Sie es erneut.",
+      );
+      logger.error("school_restore_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setIsRestoring(false);
+    }
+  }, [restoreTarget, mutateSchools]);
+
   const isLoading =
     activeTab === "organizations"
       ? orgsLoading
@@ -513,32 +591,98 @@ export default function OperatorProvisioningPage() {
       {/* Schools Tab */}
       {activeTab === "schools" && !schoolsLoading && (
         <>
-          {schools?.length === 0 && (
-            <EmptyState
-              title="Keine Schulen"
-              description="Erstellen Sie eine neue Schule unter einem Träger."
-              buttonLabel="Neue Schule"
-              onAction={() => setCreateSchoolOpen(true)}
-            />
+          {deletedSchools.length > 0 && (
+            <div className="mb-4 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowTrash(!showTrash)}
+                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                  showTrash
+                    ? "bg-red-100 text-red-700 hover:bg-red-200"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                }`}
+              >
+                Papierkorb ({deletedSchools.length})
+              </button>
+            </div>
           )}
-          {schools && schools.length > 0 && (
+
+          {showTrash ? (
             <div className="mt-4 space-y-4">
-              {schools.map((school) => (
-                <SchoolCard
+              {deletedSchools.map((school) => (
+                <DeletedSchoolCard
                   key={school.id}
                   school={school}
-                  onEdit={openEditSchool}
-                  onToggleActive={handleToggleSchoolActive}
-                  onInviteAdmin={openInviteAdmin}
-                  onCreateAccount={openCreateAccount}
-                  onViewAccounts={openSchoolAccounts}
+                  onRestore={setRestoreTarget}
                 />
               ))}
             </div>
+          ) : (
+            <>
+              {activeSchools.length === 0 && (
+                <EmptyState
+                  title="Keine Schulen"
+                  description="Erstellen Sie eine neue Schule unter einem Träger."
+                  buttonLabel="Neue Schule"
+                  onAction={() => setCreateSchoolOpen(true)}
+                />
+              )}
+              {activeSchools.length > 0 && (
+                <div className="mt-4 space-y-4">
+                  {activeSchools.map((school) => (
+                    <SchoolCard
+                      key={school.id}
+                      school={school}
+                      onEdit={openEditSchool}
+                      onToggleActive={handleToggleSchoolActive}
+                      onInviteAdmin={openInviteAdmin}
+                      onCreateAccount={openCreateAccount}
+                      onViewAccounts={openSchoolAccounts}
+                      onDelete={setDeleteTarget}
+                    />
+                  ))}
+                </div>
+              )}
+            </>
           )}
-          {schoolToggleError && (
-            <p className="mt-2 text-sm text-red-600">{schoolToggleError}</p>
+          {(schoolToggleError || deleteError) && (
+            <p className="mt-2 text-sm text-red-600">
+              {schoolToggleError || deleteError}
+            </p>
           )}
+
+          {/* Soft-delete confirmation modal */}
+          <ConfirmationModal
+            isOpen={deleteTarget !== null}
+            onClose={() => setDeleteTarget(null)}
+            onConfirm={() => void handleSoftDelete()}
+            title="Schule löschen"
+            confirmText="Löschen"
+            confirmButtonClass="bg-red-500 hover:bg-red-600"
+            isConfirmLoading={isDeleting}
+          >
+            <p className="text-sm text-gray-600">
+              Möchten Sie die Schule &quot;{deleteTarget?.name}&quot; wirklich
+              löschen? Die Schule wird deaktiviert und kann später
+              wiederhergestellt oder endgültig gelöscht werden.
+            </p>
+          </ConfirmationModal>
+
+          {/* Restore confirmation modal */}
+          <ConfirmationModal
+            isOpen={restoreTarget !== null}
+            onClose={() => setRestoreTarget(null)}
+            onConfirm={() => void handleRestore()}
+            title="Schule wiederherstellen"
+            confirmText="Wiederherstellen"
+            isConfirmLoading={isRestoring}
+          >
+            <p className="text-sm text-gray-600">
+              Möchten Sie die Schule &quot;{restoreTarget?.name}&quot;
+              wiederherstellen? Die Schule wird in ihren vorherigen Zustand
+              zurückversetzt.
+            </p>
+          </ConfirmationModal>
         </>
       )}
 
@@ -836,6 +980,50 @@ function OrganizationCard({
   );
 }
 
+function DeletedSchoolCard({
+  school,
+  onRestore,
+}: {
+  readonly school: School;
+  readonly onRestore: (school: School) => void;
+}) {
+  return (
+    <div className="rounded-3xl border border-red-100/50 bg-red-50/50 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.08)]">
+      <div className="flex items-start justify-between">
+        <div className="min-w-0 flex-1">
+          <h3 className="text-base font-semibold text-gray-900">
+            {school.name}
+          </h3>
+          <div className="mt-0.5 flex items-center gap-2 text-sm text-gray-500">
+            <span className="font-mono">{school.subdomain}</span>
+            {school.organization && (
+              <>
+                <span className="text-gray-300">·</span>
+                <span>{school.organization.name}</span>
+              </>
+            )}
+          </div>
+        </div>
+        <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
+          Gelöscht
+        </span>
+      </div>
+      <div className="mt-3 flex items-center justify-between">
+        <p className="text-xs text-gray-400">
+          Gelöscht {school.deletedAt ? getRelativeTime(school.deletedAt) : ""}
+        </p>
+        <button
+          type="button"
+          onClick={() => onRestore(school)}
+          className="rounded-lg bg-green-100 px-3 py-1.5 text-xs font-medium text-green-700 transition-colors hover:bg-green-200"
+        >
+          Wiederherstellen
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function SchoolCard({
   school,
   onEdit,
@@ -843,6 +1031,7 @@ function SchoolCard({
   onInviteAdmin,
   onCreateAccount,
   onViewAccounts,
+  onDelete,
 }: {
   readonly school: School;
   readonly onEdit: (school: School) => void;
@@ -850,6 +1039,7 @@ function SchoolCard({
   readonly onInviteAdmin: (school: School) => void;
   readonly onCreateAccount: (school: School) => void;
   readonly onViewAccounts: (school: School) => void;
+  readonly onDelete: (school: School) => void;
 }) {
   return (
     <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150">
@@ -924,6 +1114,13 @@ function SchoolCard({
             className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200"
           >
             Admin einladen
+          </button>
+          <button
+            type="button"
+            onClick={() => onDelete(school)}
+            className="rounded-lg bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-100"
+          >
+            Löschen
           </button>
         </div>
       </div>

@@ -397,6 +397,15 @@ func (s *Service) resolveAccountTenantBySlug(ctx context.Context, accountID int6
 		return 0, 0, &AuthError{Op: "resolve tenant", Err: ErrTenantNotFound}
 	}
 
+	if school.IsDeleted() {
+		s.getLogger().Warn("tenant is soft-deleted",
+			slog.Int64("account_id", accountID),
+			slog.String("tenant_slug", tenantSlug),
+			slog.Int64("tenant_id", school.ID),
+		)
+		return 0, 0, &AuthError{Op: "resolve tenant", Err: ErrTenantNotFound}
+	}
+
 	if !school.Active {
 		s.getLogger().Warn("tenant is inactive",
 			slog.Int64("account_id", accountID),
@@ -447,8 +456,9 @@ func (s *Service) resolveAccountTenantBySlug(ctx context.Context, accountID int6
 	return school.ID, school.OrganizationID, nil
 }
 
-// resolveAccountTenantDefault resolves the tenant using the first active mapping
-// (Phase 3 fallback). Returns (0, 0, nil) if no mapping is found (non-fatal).
+// resolveAccountTenantDefault resolves the tenant using the first active, non-deleted mapping
+// (Phase 3 fallback). Iterates through all tenant mappings to handle cases where some schools
+// are deleted or inactive. Returns (0, 0, nil) if no valid mapping is found (non-fatal).
 func (s *Service) resolveAccountTenantDefault(ctx context.Context, accountID int64) (int64, int64, error) {
 	tenants, err := s.repos.AccountTenant.FindActiveByAccountID(ctx, accountID)
 	if err != nil || len(tenants) == 0 {
@@ -461,26 +471,33 @@ func (s *Service) resolveAccountTenantDefault(ctx context.Context, accountID int
 		return 0, 0, nil
 	}
 
-	// Phase 3 fallback: take the first active tenant mapping
-	tenantID := tenants[0].TenantID
-
-	// Look up the school to get the organization ID
-	school, err := s.repos.School.FindByID(ctx, tenantID)
-	if err != nil {
-		s.getLogger().Warn("failed to resolve school for tenant",
-			slog.Int64("tenant_id", tenantID),
-			slog.Any("error", err),
-		)
-		return tenantID, 0, nil
+	// Iterate all mappings — skip deleted or inactive schools, use the first valid one.
+	for _, t := range tenants {
+		school, err := s.repos.School.FindByID(ctx, t.TenantID)
+		if err != nil {
+			s.getLogger().Warn("failed to resolve school for tenant",
+				slog.Int64("tenant_id", t.TenantID),
+				slog.Any("error", err),
+			)
+			continue
+		}
+		if school == nil {
+			continue
+		}
+		if school.IsDeleted() || !school.Active {
+			s.getLogger().Debug("skipping deleted or inactive tenant during default resolution",
+				slog.Int64("account_id", accountID),
+				slog.Int64("tenant_id", t.TenantID),
+				slog.Bool("deleted", school.IsDeleted()),
+				slog.Bool("active", school.Active),
+			)
+			continue
+		}
+		return t.TenantID, school.OrganizationID, nil
 	}
-	if school == nil {
-		s.getLogger().Warn("school lookup returned no result for tenant",
-			slog.Int64("tenant_id", tenantID),
-		)
-		return tenantID, 0, nil
-	}
 
-	return tenantID, school.OrganizationID, nil
+	// All mappings point to deleted/inactive schools — force explicit tenant selection.
+	return 0, 0, nil
 }
 
 // buildJWTClaims constructs JWT claims from account and metadata

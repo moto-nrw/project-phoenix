@@ -245,7 +245,7 @@ func TestDeviceOnlyAuthenticator_ValidAPIKey(t *testing.T) {
 	mockService.addDevice(apiKey, device)
 
 	r := chi.NewRouter()
-	r.Use(DeviceOnlyAuthenticator(mockService))
+	r.Use(DeviceOnlyAuthenticator(mockService, nil))
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
 		// Verify device is in context
 		ctxDevice := DeviceFromCtx(r.Context())
@@ -271,7 +271,7 @@ func TestDeviceOnlyAuthenticator_MissingAuthHeader(t *testing.T) {
 	mockService := newMockIoTService()
 
 	r := chi.NewRouter()
-	r.Use(DeviceOnlyAuthenticator(mockService))
+	r.Use(DeviceOnlyAuthenticator(mockService, nil))
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -300,7 +300,7 @@ func TestDeviceOnlyAuthenticator_InvalidAuthFormat(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			r := chi.NewRouter()
-			r.Use(DeviceOnlyAuthenticator(mockService))
+			r.Use(DeviceOnlyAuthenticator(mockService, nil))
 			r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusOK)
 			})
@@ -320,7 +320,7 @@ func TestDeviceOnlyAuthenticator_InvalidAPIKey(t *testing.T) {
 	// No devices added
 
 	r := chi.NewRouter()
-	r.Use(DeviceOnlyAuthenticator(mockService))
+	r.Use(DeviceOnlyAuthenticator(mockService, nil))
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -344,7 +344,7 @@ func TestDeviceOnlyAuthenticator_InactiveDevice(t *testing.T) {
 	mockService.addDevice(apiKey, device)
 
 	r := chi.NewRouter()
-	r.Use(DeviceOnlyAuthenticator(mockService))
+	r.Use(DeviceOnlyAuthenticator(mockService, nil))
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -368,7 +368,7 @@ func TestDeviceOnlyAuthenticator_OfflineDevice(t *testing.T) {
 	mockService.addDevice(apiKey, device)
 
 	r := chi.NewRouter()
-	r.Use(DeviceOnlyAuthenticator(mockService))
+	r.Use(DeviceOnlyAuthenticator(mockService, nil))
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -392,7 +392,7 @@ func TestDeviceOnlyAuthenticator_MaintenanceDevice(t *testing.T) {
 	mockService.addDevice(apiKey, device)
 
 	r := chi.NewRouter()
-	r.Use(DeviceOnlyAuthenticator(mockService))
+	r.Use(DeviceOnlyAuthenticator(mockService, nil))
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -427,7 +427,7 @@ func TestDeviceAuthenticator_ValidAPIKeyAndPIN(t *testing.T) {
 	mockIoT.addDevice(apiKey, device)
 
 	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockIoT, nil)) // PersonService not used
+	r.Use(DeviceAuthenticator(mockIoT, nil, nil)) // PersonService not used
 	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
 		// Verify device is in context
 		ctxDevice := DeviceFromCtx(r.Context())
@@ -464,7 +464,7 @@ func TestDeviceAuthenticator_MissingPIN(t *testing.T) {
 	mockIoT.addDevice(apiKey, device)
 
 	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockIoT, nil))
+	r.Use(DeviceAuthenticator(mockIoT, nil, nil))
 	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -492,7 +492,7 @@ func TestDeviceAuthenticator_InvalidPIN(t *testing.T) {
 	mockIoT.addDevice(apiKey, device)
 
 	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockIoT, nil))
+	r.Use(DeviceAuthenticator(mockIoT, nil, nil))
 	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -520,7 +520,7 @@ func TestDeviceAuthenticator_MissingOGSPINConfig(t *testing.T) {
 	mockIoT.addDevice(apiKey, device)
 
 	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockIoT, nil))
+	r.Use(DeviceAuthenticator(mockIoT, nil, nil))
 	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -541,7 +541,7 @@ func TestDeviceAuthenticator_MissingAPIKey(t *testing.T) {
 	mockIoT := newMockIoTService()
 
 	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockIoT, nil))
+	r.Use(DeviceAuthenticator(mockIoT, nil, nil))
 	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -563,7 +563,7 @@ func TestDeviceAuthenticator_InvalidAPIKey(t *testing.T) {
 	// No devices added
 
 	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockIoT, nil))
+	r.Use(DeviceAuthenticator(mockIoT, nil, nil))
 	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -591,7 +591,7 @@ func TestDeviceAuthenticator_InactiveDevice(t *testing.T) {
 	mockIoT.addDevice(apiKey, device)
 
 	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockIoT, nil))
+	r.Use(DeviceAuthenticator(mockIoT, nil, nil))
 	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -704,7 +704,7 @@ func TestDeviceOnlyAuthenticator_UpdateLastSeenError(t *testing.T) {
 	mockService.addDevice(apiKey, device)
 
 	r := chi.NewRouter()
-	r.Use(DeviceOnlyAuthenticator(mockService))
+	r.Use(DeviceOnlyAuthenticator(mockService, nil))
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
 		// Request should still succeed even if update fails
 		w.WriteHeader(http.StatusOK)
@@ -732,7 +732,7 @@ func TestDeviceOnlyAuthenticator_DebouncesLastSeenWrites(t *testing.T) {
 	mockService.addDevice(apiKey, device)
 
 	r := chi.NewRouter()
-	r.Use(DeviceOnlyAuthenticator(mockService))
+	r.Use(DeviceOnlyAuthenticator(mockService, nil))
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -788,7 +788,7 @@ func TestDeviceAuthenticator_NilDeviceReturn(t *testing.T) {
 	mockService := &mockIoTServiceNilDevice{mockIoTService: *newMockIoTService()}
 
 	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockService, nil))
+	r.Use(DeviceAuthenticator(mockService, nil, nil))
 	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -806,7 +806,7 @@ func TestDeviceOnlyAuthenticator_NilDeviceReturn(t *testing.T) {
 	mockService := &mockIoTServiceNilDevice{mockIoTService: *newMockIoTService()}
 
 	r := chi.NewRouter()
-	r.Use(DeviceOnlyAuthenticator(mockService))
+	r.Use(DeviceOnlyAuthenticator(mockService, nil))
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
