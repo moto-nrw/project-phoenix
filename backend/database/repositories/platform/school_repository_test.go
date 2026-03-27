@@ -294,12 +294,13 @@ func TestSchoolRepository_QueryMethods(t *testing.T) {
 	})
 
 	t.Run("find by slug excludes deleted schools", func(t *testing.T) {
-		_, _ = db.ExecContext(ctx, `UPDATE platform.schools SET deleted_at = NOW() WHERE id = ?`, schoolA.ID)
+		uniqueSlug := fmt.Sprintf("deleted-only-%d", time.Now().UnixNano())
+		_, _ = db.ExecContext(ctx, `UPDATE platform.schools SET slug = ?, deleted_at = NOW() WHERE id = ?`, uniqueSlug, schoolA.ID)
 		t.Cleanup(func() {
-			_, _ = db.ExecContext(ctx, `UPDATE platform.schools SET deleted_at = NULL WHERE id = ?`, schoolA.ID)
+			_, _ = db.ExecContext(ctx, `UPDATE platform.schools SET slug = ?, deleted_at = NULL WHERE id = ?`, schoolA.Slug, schoolA.ID)
 		})
 
-		found, err := repo.FindBySlug(ctx, schoolA.Slug)
+		found, err := repo.FindBySlug(ctx, uniqueSlug)
 		require.NoError(t, err)
 		assert.Nil(t, found, "FindBySlug should not return soft-deleted schools")
 	})

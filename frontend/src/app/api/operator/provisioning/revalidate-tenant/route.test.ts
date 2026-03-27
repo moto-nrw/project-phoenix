@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 
-const { mockAuth, mockRevalidatePath } = vi.hoisted(() => ({
+const { mockAuth, mockRevalidatePath, mockRevalidateTag } = vi.hoisted(() => ({
   mockAuth: vi.fn(),
   mockRevalidatePath: vi.fn(),
+  mockRevalidateTag: vi.fn(),
 }));
 
 vi.mock("~/server/auth/operator", () => ({
@@ -17,6 +18,7 @@ vi.mock("~/server/auth", () => ({
 
 vi.mock("next/cache", () => ({
   revalidatePath: mockRevalidatePath,
+  revalidateTag: mockRevalidateTag,
 }));
 
 import { POST } from "./route";

@@ -190,6 +190,7 @@ describe("OperatorProvisioningService", () => {
         email: "info@ggs-europa.de",
         active: true,
         hidden: false,
+        deletedAt: null,
         createdAt: NOW,
         updatedAt: NOW,
         organization: undefined,
