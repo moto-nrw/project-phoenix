@@ -116,27 +116,6 @@ function SettingsIcon() {
 }
 
 /**
- * Help icon
- */
-function HelpIcon() {
-  return (
-    <svg
-      className="mr-3 h-4 w-4 text-gray-400 transition-colors group-hover:text-gray-600 group-active:text-white"
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2}
-        d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-      />
-    </svg>
-  );
-}
-
-/**
  * Profile dropdown trigger button
  */
 interface ProfileTriggerProps {
@@ -193,20 +172,6 @@ export function ProfileDropdownMenu({
   onLogout,
   settingsUrl,
 }: ProfileDropdownMenuProps) {
-  const handleHelpClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    onClose();
-    // Trigger help button click after a small delay to ensure menu closes first
-    setTimeout(() => {
-      const helpButton = document.querySelector(
-        '[aria-label="Hilfe anzeigen"]',
-      );
-      if (helpButton) {
-        (helpButton as HTMLButtonElement).click();
-      }
-    }, 100);
-  };
-
   const handleLogoutClick = (e: React.MouseEvent) => {
     e.preventDefault();
     onClose();
@@ -264,14 +229,6 @@ export function ProfileDropdownMenu({
               Einstellungen
             </Link>
           )}
-
-          <button
-            onClick={handleHelpClick}
-            className="group flex w-full items-center rounded-xl px-3 py-2.5 text-left text-sm font-medium text-gray-700 transition-all duration-200 ease-out hover:bg-gray-100 hover:text-gray-900 active:bg-gray-900 active:text-white"
-          >
-            <HelpIcon />
-            Hilfe & Support
-          </button>
 
           {/* Divider */}
           <div className="my-2 h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent" />

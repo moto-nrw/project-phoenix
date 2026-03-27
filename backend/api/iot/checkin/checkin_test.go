@@ -20,6 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/iot"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -49,6 +50,7 @@ func setupTestContext(t *testing.T) *testContext {
 		svc.Facilities,
 		svc.Activities,
 		svc.Education,
+		svc.PickupSchedule,
 		slog.Default(),
 	)
 
@@ -2525,4 +2527,139 @@ func TestDeviceCheckin_SchulhofGroupHasNoDeviceID(t *testing.T) {
 	require.NoError(t, err, "Schulhof group should exist after auto-creation")
 	assert.Nil(t, schulhofGroup.DeviceID,
 		"REGRESSION: Schulhof group must NOT have DeviceID — shared rooms are not device sessions")
+}
+
+// =============================================================================
+// PICKUP TIME IN CHECKIN RESPONSE TESTS
+// =============================================================================
+
+func TestDeviceCheckin_ResponseIncludesPickupTime(t *testing.T) {
+	// Checkin for a student with a weekly pickup schedule should return pickup_time in response.
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-time-checkin")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
+
+	staff := testpkg.CreateTestStaff(t, ctx.db, "Pickup", "Staff")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
+
+	student := testpkg.CreateTestStudent(t, ctx.db, "Pickup", "Student", "2a")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
+
+	tagID := fmt.Sprintf("PICKUP%d", time.Now().UnixNano())
+	card := testpkg.CreateTestRFIDCard(t, ctx.db, tagID)
+	defer testpkg.CleanupRFIDCards(t, ctx.db, card.ID)
+	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
+
+	room := testpkg.CreateTestRoom(t, ctx.db, "Pickup Room")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, room.ID)
+
+	activity := testpkg.CreateTestActivityGroup(t, ctx.db, "Pickup Activity")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, activity.ID)
+
+	activeGroup := testpkg.CreateTestActiveGroup(t, ctx.db, activity.ID, room.ID)
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, activeGroup.ID)
+
+	// Create pickup schedule for today's weekday.
+	// Use timezone.DateOf (Europe/Berlin) to match the production lookup in
+	// GetEffectivePickupTimeForDate, avoiding flaky results on non-Berlin CI runners.
+	berlinToday := timezone.DateOf(time.Now())
+	todayWeekday := int(berlinToday.Weekday())
+	if todayWeekday == 0 {
+		todayWeekday = 7 // ISO: Sunday = 7
+	}
+	// Skip test on weekends — schedule service returns nil pickup time for Sat/Sun
+	if todayWeekday > 5 {
+		t.Skip("Skipping pickup time test on weekend — no pickup schedule applies")
+	}
+
+	tenantCtx := testpkg.TenantContext(1)
+	pickupTime := time.Date(2024, 1, 1, 15, 30, 0, 0, time.UTC)
+	sched := &scheduleModels.StudentPickupSchedule{
+		StudentID:  student.ID,
+		Weekday:    todayWeekday,
+		PickupTime: pickupTime,
+		CreatedBy:  staff.ID,
+	}
+	err := ctx.services.PickupSchedule.UpsertStudentPickupSchedule(tenantCtx, sched)
+	require.NoError(t, err, "Failed to create pickup schedule")
+
+	router := testutil.NewTenantRouter(ctx.db)
+	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+
+	body := map[string]interface{}{
+		"student_rfid": card.ID,
+		"action":       "checkin",
+		"room_id":      room.ID,
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+		testutil.WithDeviceContext(createTestDeviceContext(device)),
+		testutil.WithStaffContext(staff),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data, ok := response["data"].(map[string]interface{})
+	assert.True(t, ok, "Response should have data field")
+	assert.Equal(t, "checked_in", data["action"])
+	assert.Equal(t, "15:30", data["pickup_time"], "Response should include formatted pickup time")
+}
+
+func TestDeviceCheckin_ResponseOmitsPickupTimeWhenNoSchedule(t *testing.T) {
+	// Checkin for a student without any pickup schedule should NOT include pickup_time.
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	device := testpkg.CreateTestDevice(t, ctx.db, "no-pickup-checkin")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
+
+	staff := testpkg.CreateTestStaff(t, ctx.db, "NoPickup", "Staff")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
+
+	student := testpkg.CreateTestStudent(t, ctx.db, "NoPickup", "Student", "3b")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
+
+	tagID := fmt.Sprintf("NOPICKUP%d", time.Now().UnixNano())
+	card := testpkg.CreateTestRFIDCard(t, ctx.db, tagID)
+	defer testpkg.CleanupRFIDCards(t, ctx.db, card.ID)
+	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
+
+	room := testpkg.CreateTestRoom(t, ctx.db, "NoPickup Room")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, room.ID)
+
+	activity := testpkg.CreateTestActivityGroup(t, ctx.db, "NoPickup Activity")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, activity.ID)
+
+	activeGroup := testpkg.CreateTestActiveGroup(t, ctx.db, activity.ID, room.ID)
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, activeGroup.ID)
+
+	router := testutil.NewTenantRouter(ctx.db)
+	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+
+	body := map[string]interface{}{
+		"student_rfid": card.ID,
+		"action":       "checkin",
+		"room_id":      room.ID,
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+		testutil.WithDeviceContext(createTestDeviceContext(device)),
+		testutil.WithStaffContext(staff),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data, ok := response["data"].(map[string]interface{})
+	assert.True(t, ok, "Response should have data field")
+	assert.Equal(t, "checked_in", data["action"])
+	_, hasPickupTime := data["pickup_time"]
+	assert.False(t, hasPickupTime, "Response should NOT include pickup_time when student has no schedule")
 }
