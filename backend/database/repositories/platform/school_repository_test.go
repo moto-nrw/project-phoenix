@@ -220,6 +220,19 @@ func TestSchoolRepository_QueryMethods(t *testing.T) {
 		assert.False(t, foundB, "ListPublic should not return inactive schools")
 	})
 
+	t.Run("list public excludes deleted schools", func(t *testing.T) {
+		_, _ = db.ExecContext(ctx, `UPDATE platform.schools SET deleted_at = NOW() WHERE id = ?`, schoolA.ID)
+		t.Cleanup(func() {
+			_, _ = db.ExecContext(ctx, `UPDATE platform.schools SET deleted_at = NULL WHERE id = ?`, schoolA.ID)
+		})
+
+		items, err := repo.ListPublic(ctx)
+		require.NoError(t, err)
+		for _, item := range items {
+			assert.NotEqual(t, schoolA.ID, item.ID, "ListPublic must not return soft-deleted schools")
+		}
+	})
+
 	t.Run("list active still includes hidden schools", func(t *testing.T) {
 		// Make schoolA hidden — ListActive must still return it (scheduler depends on this)
 		_, err := db.ExecContext(ctx, `UPDATE platform.schools SET hidden = true WHERE id = ?`, schoolA.ID)

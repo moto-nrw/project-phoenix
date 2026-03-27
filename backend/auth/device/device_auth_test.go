@@ -11,7 +11,9 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/iot"
+	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -817,6 +819,101 @@ func TestDeviceOnlyAuthenticator_NilDeviceReturn(t *testing.T) {
 
 	r.ServeHTTP(rr, req)
 	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+}
+
+// =============================================================================
+// rejectDeletedSchool Tests
+// =============================================================================
+
+// mockSchoolRepo implements the subset of platform.SchoolRepository used by rejectDeletedSchool.
+type mockSchoolRepo struct {
+	school *platform.School
+	err    error
+}
+
+func (m *mockSchoolRepo) FindByID(_ context.Context, _ int64) (*platform.School, error) {
+	return m.school, m.err
+}
+func (m *mockSchoolRepo) Create(_ context.Context, _ *platform.School) error { return nil }
+func (m *mockSchoolRepo) FindBySlug(_ context.Context, _ string) (*platform.School, error) {
+	return nil, nil
+}
+func (m *mockSchoolRepo) FindByOrganizationAndSlug(_ context.Context, _ int64, _ string) (*platform.School, error) {
+	return nil, nil
+}
+func (m *mockSchoolRepo) FindBySubdomain(_ context.Context, _ string) (*platform.School, error) {
+	return nil, nil
+}
+func (m *mockSchoolRepo) List(_ context.Context) ([]*platform.School, error)      { return nil, nil }
+func (m *mockSchoolRepo) ListActive(_ context.Context) ([]platform.School, error) { return nil, nil }
+func (m *mockSchoolRepo) ListPublic(_ context.Context) ([]platform.School, error) { return nil, nil }
+func (m *mockSchoolRepo) FindActiveByAccountID(_ context.Context, _ int64) ([]platform.School, error) {
+	return nil, nil
+}
+func (m *mockSchoolRepo) Update(_ context.Context, _ *platform.School) error { return nil }
+func (m *mockSchoolRepo) SoftDelete(_ context.Context, _ int64) error        { return nil }
+func (m *mockSchoolRepo) Restore(_ context.Context, _ int64) error           { return nil }
+
+func TestRejectDeletedSchool_ActiveSchool_ReturnsNil(t *testing.T) {
+	repo := &mockSchoolRepo{school: &platform.School{Active: true}}
+	device := &iot.Device{DeviceID: "device-001", TenantModel: modelBase.TenantModel{TenantID: 100}}
+
+	result := rejectDeletedSchool(context.Background(), repo, device)
+	assert.Nil(t, result, "active school should not be rejected")
+}
+
+func TestRejectDeletedSchool_DeletedSchool_ReturnsForbidden(t *testing.T) {
+	now := time.Now()
+	repo := &mockSchoolRepo{school: &platform.School{DeletedAt: &now, Active: true}}
+	device := &iot.Device{DeviceID: "device-001", TenantModel: modelBase.TenantModel{TenantID: 100}}
+
+	result := rejectDeletedSchool(context.Background(), repo, device)
+	assert.NotNil(t, result, "deleted school should be rejected")
+}
+
+func TestRejectDeletedSchool_NilRepo_ReturnsNil(t *testing.T) {
+	device := &iot.Device{DeviceID: "device-001", TenantModel: modelBase.TenantModel{TenantID: 100}}
+
+	result := rejectDeletedSchool(context.Background(), nil, device)
+	assert.Nil(t, result, "nil repo should fail open")
+}
+
+func TestRejectDeletedSchool_DBError_ReturnsNil(t *testing.T) {
+	repo := &mockSchoolRepo{err: errors.New("connection refused")}
+	device := &iot.Device{DeviceID: "device-001", TenantModel: modelBase.TenantModel{TenantID: 100}}
+
+	result := rejectDeletedSchool(context.Background(), repo, device)
+	assert.Nil(t, result, "DB errors should fail open")
+}
+
+func TestDeviceOnlyAuthenticator_DeletedSchool_Forbidden(t *testing.T) {
+	lastSeenWriteCache = sync.Map{}
+
+	mockService := newMockIoTService()
+	apiKey := "valid-api-key-deleted"
+	device := &iot.Device{
+		TenantModel: modelBase.TenantModel{TenantID: 100},
+		DeviceID:    "device-deleted-school",
+		DeviceType:  "terminal",
+		Status:      iot.DeviceStatusActive,
+	}
+	mockService.addDevice(apiKey, device)
+
+	now := time.Now()
+	repo := &mockSchoolRepo{school: &platform.School{DeletedAt: &now}}
+
+	r := chi.NewRouter()
+	r.Use(DeviceOnlyAuthenticator(mockService, repo))
+	r.Get("/test", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+	rr := httptest.NewRecorder()
+
+	r.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusForbidden, rr.Code, "devices belonging to deleted schools must be rejected")
 }
 
 func TestSecureCompareStrings_TimingResistance(t *testing.T) {
