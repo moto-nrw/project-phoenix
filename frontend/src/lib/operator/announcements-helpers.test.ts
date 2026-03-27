@@ -117,6 +117,59 @@ describe("mapAnnouncement", () => {
     expect(result.status).toBe("draft");
   });
 
+  it("maps announcement with non-empty org and tenant targeting", () => {
+    const backendAnnouncement: BackendAnnouncement = {
+      id: 200,
+      title: "Org-Scoped Notice",
+      content: "Only for specific orgs and tenants.",
+      type: "announcement",
+      severity: "info",
+      version: null,
+      active: true,
+      published_at: "2024-06-01T00:00:00Z",
+      expires_at: null,
+      target_roles: ["admin"],
+      target_org_ids: [1, 2],
+      target_tenant_ids: [5, 10, 15],
+      created_by: 1,
+      created_at: "2024-05-30T00:00:00Z",
+      updated_at: "2024-06-01T00:00:00Z",
+      status: "published",
+    };
+
+    const result = mapAnnouncement(backendAnnouncement);
+
+    expect(result.targetOrgIds).toEqual([1, 2]);
+    expect(result.targetTenantIds).toEqual([5, 10, 15]);
+    expect(result.targetRoles).toEqual(["admin"]);
+  });
+
+  it("maps announcement with empty org and tenant arrays", () => {
+    const backendAnnouncement: BackendAnnouncement = {
+      id: 201,
+      title: "Global Notice",
+      content: "Visible to all.",
+      type: "announcement",
+      severity: "info",
+      version: null,
+      active: true,
+      published_at: "2024-06-01T00:00:00Z",
+      expires_at: null,
+      target_roles: [],
+      target_org_ids: [],
+      target_tenant_ids: [],
+      created_by: 1,
+      created_at: "2024-05-30T00:00:00Z",
+      updated_at: "2024-06-01T00:00:00Z",
+      status: "published",
+    };
+
+    const result = mapAnnouncement(backendAnnouncement);
+
+    expect(result.targetOrgIds).toEqual([]);
+    expect(result.targetTenantIds).toEqual([]);
+  });
+
   it("maps release announcement correctly", () => {
     const backendAnnouncement: BackendAnnouncement = {
       id: 101,

@@ -184,6 +184,47 @@ describe("OperatorAnnouncementsService", () => {
       expect(result.id).toBe("100");
       expect(result.title).toBe("New Announcement");
     });
+
+    it("sends org and tenant targeting in create request", async () => {
+      const createData: CreateAnnouncementRequest = {
+        title: "Targeted Announcement",
+        content: "Only for org 1 and tenant 5",
+        type: "announcement",
+        severity: "info",
+        target_roles: ["admin"],
+        target_org_ids: [1, 2],
+        target_tenant_ids: [5],
+      };
+
+      const mockResponse: BackendAnnouncement = {
+        id: 200,
+        title: "Targeted Announcement",
+        content: "Only for org 1 and tenant 5",
+        type: "announcement",
+        severity: "info",
+        version: null,
+        active: false,
+        published_at: null,
+        expires_at: null,
+        target_roles: ["admin"],
+        target_org_ids: [1, 2],
+        target_tenant_ids: [5],
+        created_by: 1,
+        created_at: "2024-06-01T00:00:00Z",
+        updated_at: "2024-06-01T00:00:00Z",
+        status: "draft",
+      };
+      mockOperatorFetch.mockResolvedValue(mockResponse);
+
+      const result = await operatorAnnouncementsService.create(createData);
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/announcements",
+        { method: "POST", body: createData },
+      );
+      expect(result.targetOrgIds).toEqual([1, 2]);
+      expect(result.targetTenantIds).toEqual([5]);
+    });
   });
 
   describe("update", () => {
@@ -229,6 +270,50 @@ describe("OperatorAnnouncementsService", () => {
       );
       expect(result.id).toBe("42");
       expect(result.title).toBe("Updated Title");
+    });
+
+    it("sends org and tenant targeting in update request", async () => {
+      const updateData: UpdateAnnouncementRequest = {
+        title: "Updated Targeting",
+        content: "Now scoped to org 3",
+        type: "announcement",
+        severity: "info",
+        target_roles: [],
+        target_org_ids: [3],
+        target_tenant_ids: [7, 8],
+      };
+
+      const mockResponse: BackendAnnouncement = {
+        id: 42,
+        title: "Updated Targeting",
+        content: "Now scoped to org 3",
+        type: "announcement",
+        severity: "info",
+        version: null,
+        active: true,
+        published_at: "2024-01-01T00:00:00Z",
+        expires_at: null,
+        target_roles: [],
+        target_org_ids: [3],
+        target_tenant_ids: [7, 8],
+        created_by: 1,
+        created_at: "2024-01-01T00:00:00Z",
+        updated_at: "2024-06-01T00:00:00Z",
+        status: "published",
+      };
+      mockOperatorFetch.mockResolvedValue(mockResponse);
+
+      const result = await operatorAnnouncementsService.update(
+        "42",
+        updateData,
+      );
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/announcements/42",
+        { method: "PUT", body: updateData },
+      );
+      expect(result.targetOrgIds).toEqual([3]);
+      expect(result.targetTenantIds).toEqual([7, 8]);
     });
   });
 

@@ -682,3 +682,227 @@ func TestUpdateAnnouncementRequest_Bind(t *testing.T) {
 	err := updateReq.Bind(req)
 	assert.NoError(t, err)
 }
+
+func TestCreateAnnouncement_WithOrgAndTenantTargeting(t *testing.T) {
+	mockService := &mockAnnouncementService{
+		createFn: func(ctx context.Context, announcement *platform.Announcement, operatorID int64, clientIP net.IP) error {
+			assert.Equal(t, []int64{1, 2}, announcement.TargetOrgIDs)
+			assert.Equal(t, []int64{5}, announcement.TargetTenantIDs)
+			assert.Equal(t, testOperatorID, operatorID)
+			announcement.ID = testAnnouncementID
+			return nil
+		},
+	}
+
+	resource := operator.NewAnnouncementsResource(mockService)
+
+	body := map[string]any{
+		"title":             "Targeted Announcement",
+		"content":           "Content for specific orgs and tenants",
+		"target_org_ids":    []int64{1, 2},
+		"target_tenant_ids": []int64{5},
+	}
+	jsonBody, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPost, "/announcements", bytes.NewReader(jsonBody))
+	req.Header.Set("Content-Type", "application/json")
+	claims := jwt.AppClaims{ID: 1}
+	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+
+	resource.CreateAnnouncement(rr, req)
+
+	assert.Equal(t, http.StatusCreated, rr.Code)
+}
+
+func TestCreateAnnouncement_EmptyOrgAndTenantTargeting(t *testing.T) {
+	mockService := &mockAnnouncementService{
+		createFn: func(ctx context.Context, announcement *platform.Announcement, operatorID int64, clientIP net.IP) error {
+			assert.NotNil(t, announcement.TargetOrgIDs, "TargetOrgIDs should not be nil")
+			assert.NotNil(t, announcement.TargetTenantIDs, "TargetTenantIDs should not be nil")
+			assert.Empty(t, announcement.TargetOrgIDs)
+			assert.Empty(t, announcement.TargetTenantIDs)
+			announcement.ID = testAnnouncementID
+			return nil
+		},
+	}
+
+	resource := operator.NewAnnouncementsResource(mockService)
+
+	body := map[string]any{
+		"title":             "Global Announcement",
+		"content":           "Content for everyone",
+		"target_org_ids":    []int64{},
+		"target_tenant_ids": []int64{},
+	}
+	jsonBody, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPost, "/announcements", bytes.NewReader(jsonBody))
+	req.Header.Set("Content-Type", "application/json")
+	claims := jwt.AppClaims{ID: 1}
+	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+
+	resource.CreateAnnouncement(rr, req)
+
+	assert.Equal(t, http.StatusCreated, rr.Code)
+}
+
+func TestUpdateAnnouncement_WithOrgAndTenantTargeting(t *testing.T) {
+	now := time.Now()
+	mockService := &mockAnnouncementService{
+		getAnnouncementFn: func(ctx context.Context, id int64) (*platform.Announcement, error) {
+			announcement := &platform.Announcement{
+				Title:       "Old Title",
+				Content:     "Old Content",
+				Type:        platform.TypeAnnouncement,
+				Severity:    platform.SeverityInfo,
+				Active:      true,
+				TargetRoles: []string{},
+				CreatedBy:   testOperatorID,
+			}
+			announcement.ID = testAnnouncementID
+			announcement.CreatedAt = now
+			announcement.UpdatedAt = now
+			return announcement, nil
+		},
+		updateFn: func(ctx context.Context, announcement *platform.Announcement, operatorID int64, clientIP net.IP) error {
+			assert.Equal(t, []int64{3, 4}, announcement.TargetOrgIDs)
+			assert.Equal(t, []int64{7, 8, 9}, announcement.TargetTenantIDs)
+			return nil
+		},
+	}
+
+	resource := operator.NewAnnouncementsResource(mockService)
+
+	body := map[string]any{
+		"title":             "Updated Title",
+		"content":           "Updated Content",
+		"type":              platform.TypeAnnouncement,
+		"severity":          platform.SeverityInfo,
+		"target_org_ids":    []int64{3, 4},
+		"target_tenant_ids": []int64{7, 8, 9},
+	}
+	jsonBody, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPut, "/announcements/1", bytes.NewReader(jsonBody))
+	req.Header.Set("Content-Type", "application/json")
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "1")
+	claims := jwt.AppClaims{ID: 1}
+	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
+	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+
+	resource.UpdateAnnouncement(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+}
+
+func TestListAnnouncements_IncludesOrgAndTenantIDs(t *testing.T) {
+	now := time.Now()
+	mockService := &mockAnnouncementService{
+		listFn: func(ctx context.Context, includeInactive bool) ([]*platform.Announcement, error) {
+			announcement := &platform.Announcement{
+				Title:           "Targeted Announcement",
+				Content:         "Content",
+				Type:            platform.TypeAnnouncement,
+				Severity:        platform.SeverityInfo,
+				Active:          true,
+				TargetRoles:     []string{"teacher"},
+				TargetOrgIDs:    []int64{1},
+				TargetTenantIDs: []int64{5, 10},
+				CreatedBy:       testOperatorID,
+			}
+			announcement.ID = testAnnouncementID
+			announcement.CreatedAt = now
+			announcement.UpdatedAt = now
+			return []*platform.Announcement{announcement}, nil
+		},
+	}
+
+	resource := operator.NewAnnouncementsResource(mockService)
+
+	req := httptest.NewRequest(http.MethodGet, "/announcements", nil)
+	claims := jwt.AppClaims{ID: 1}
+	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+
+	resource.ListAnnouncements(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	var response map[string]any
+	err := json.Unmarshal(rr.Body.Bytes(), &response)
+	require.NoError(t, err)
+
+	data := response["data"].([]any)
+	require.Len(t, data, 1)
+	announcement := data[0].(map[string]any)
+
+	// Verify target_org_ids is present as an array
+	orgIDs, ok := announcement["target_org_ids"].([]any)
+	require.True(t, ok, "target_org_ids should be a JSON array")
+	assert.Len(t, orgIDs, 1)
+	assert.Equal(t, float64(1), orgIDs[0])
+
+	// Verify target_tenant_ids is present as an array
+	tenantIDs, ok := announcement["target_tenant_ids"].([]any)
+	require.True(t, ok, "target_tenant_ids should be a JSON array")
+	assert.Len(t, tenantIDs, 2)
+	assert.Equal(t, float64(5), tenantIDs[0])
+	assert.Equal(t, float64(10), tenantIDs[1])
+}
+
+func TestAnnouncementResponse_NilOrgAndTenantIDsDefaultToEmptyArrays(t *testing.T) {
+	now := time.Now()
+	mockService := &mockAnnouncementService{
+		listFn: func(ctx context.Context, includeInactive bool) ([]*platform.Announcement, error) {
+			announcement := &platform.Announcement{
+				Title:           "Global Announcement",
+				Content:         "Content for everyone",
+				Type:            platform.TypeAnnouncement,
+				Severity:        platform.SeverityInfo,
+				Active:          true,
+				TargetRoles:     nil,
+				TargetOrgIDs:    nil,
+				TargetTenantIDs: nil,
+				CreatedBy:       testOperatorID,
+			}
+			announcement.ID = testAnnouncementID
+			announcement.CreatedAt = now
+			announcement.UpdatedAt = now
+			return []*platform.Announcement{announcement}, nil
+		},
+	}
+
+	resource := operator.NewAnnouncementsResource(mockService)
+
+	req := httptest.NewRequest(http.MethodGet, "/announcements", nil)
+	claims := jwt.AppClaims{ID: 1}
+	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+
+	resource.ListAnnouncements(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	var response map[string]any
+	err := json.Unmarshal(rr.Body.Bytes(), &response)
+	require.NoError(t, err)
+
+	data := response["data"].([]any)
+	require.Len(t, data, 1)
+	announcement := data[0].(map[string]any)
+
+	// Verify nil slices are serialized as empty arrays, not null or omitted
+	orgIDs, ok := announcement["target_org_ids"].([]any)
+	require.True(t, ok, "target_org_ids should be an empty JSON array, not null or omitted")
+	assert.Empty(t, orgIDs)
+
+	tenantIDs, ok := announcement["target_tenant_ids"].([]any)
+	require.True(t, ok, "target_tenant_ids should be an empty JSON array, not null or omitted")
+	assert.Empty(t, tenantIDs)
+}

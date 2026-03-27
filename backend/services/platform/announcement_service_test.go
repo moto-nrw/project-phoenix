@@ -674,3 +674,64 @@ func TestAnnouncementService_GetViewDetails_AnnouncementNotFound(t *testing.T) {
 	require.Error(t, err)
 	assert.IsType(t, &platformSvc.AnnouncementNotFoundError{}, err)
 }
+
+func TestAnnouncementService_GetUnreadForUser_PassesOrgAndTenantToRepo(t *testing.T) {
+	ctx := context.Background()
+	var capturedOrgID, capturedTenantID int64
+	announcementRepo := &mockAnnouncementRepoShared{}
+	viewRepo := &mockAnnouncementViewRepoShared{
+		getUnreadForUserFn: func(ctx context.Context, userID int64, userRoles []string, orgID int64, tenantID int64) ([]*platform.Announcement, error) {
+			capturedOrgID = orgID
+			capturedTenantID = tenantID
+			return []*platform.Announcement{
+				{
+					Model: base.Model{ID: 10},
+					Title: "Targeted Announcement",
+				},
+			}, nil
+		},
+	}
+	auditLogRepo := &mockAuditLogRepoShared{}
+
+	service := platformSvc.NewAnnouncementService(platformSvc.AnnouncementServiceConfig{
+		AnnouncementRepo:     announcementRepo,
+		AnnouncementViewRepo: viewRepo,
+		AuditLogRepo:         auditLogRepo,
+		DB:                   &bun.DB{},
+		Logger:               slog.Default(),
+	})
+
+	announcements, err := service.GetUnreadForUser(ctx, 42, []string{"teacher"}, 5, 10)
+	require.NoError(t, err)
+	assert.Len(t, announcements, 1)
+	assert.Equal(t, int64(5), capturedOrgID, "orgID should be passed through to the repository")
+	assert.Equal(t, int64(10), capturedTenantID, "tenantID should be passed through to the repository")
+}
+
+func TestAnnouncementService_CountUnread_PassesOrgAndTenantToRepo(t *testing.T) {
+	ctx := context.Background()
+	var capturedOrgID, capturedTenantID int64
+	announcementRepo := &mockAnnouncementRepoShared{}
+	viewRepo := &mockAnnouncementViewRepoShared{
+		countUnreadFn: func(ctx context.Context, userID int64, userRoles []string, orgID int64, tenantID int64) (int, error) {
+			capturedOrgID = orgID
+			capturedTenantID = tenantID
+			return 3, nil
+		},
+	}
+	auditLogRepo := &mockAuditLogRepoShared{}
+
+	service := platformSvc.NewAnnouncementService(platformSvc.AnnouncementServiceConfig{
+		AnnouncementRepo:     announcementRepo,
+		AnnouncementViewRepo: viewRepo,
+		AuditLogRepo:         auditLogRepo,
+		DB:                   &bun.DB{},
+		Logger:               slog.Default(),
+	})
+
+	count, err := service.CountUnread(ctx, 42, []string{"teacher"}, 5, 10)
+	require.NoError(t, err)
+	assert.Equal(t, 3, count)
+	assert.Equal(t, int64(5), capturedOrgID, "orgID should be passed through to the repository")
+	assert.Equal(t, int64(10), capturedTenantID, "tenantID should be passed through to the repository")
+}

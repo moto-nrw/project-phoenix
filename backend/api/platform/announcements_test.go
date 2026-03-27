@@ -377,3 +377,65 @@ func TestMarkDismissed_ServiceError(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
 	assert.Contains(t, rr.Body.String(), "failed to mark announcement as dismissed")
 }
+
+func TestGetUnread_PassesOrgAndTenantFromClaims(t *testing.T) {
+	var capturedOrgID, capturedTenantID int64
+	mockService := &mockPlatformAnnouncementService{
+		getUnreadForUserFn: func(ctx context.Context, userID int64, userRoles []string, orgID int64, tenantID int64) ([]*platformModel.Announcement, error) {
+			capturedOrgID = orgID
+			capturedTenantID = tenantID
+			assert.Equal(t, testUserID, userID)
+			return []*platformModel.Announcement{}, nil
+		},
+	}
+
+	resource := platform.NewAnnouncementsResource(mockService)
+
+	req := httptest.NewRequest(http.MethodGet, "/announcements/unread", nil)
+	claims := jwt.AppClaims{
+		ID:       123,
+		Roles:    []string{"teacher"},
+		OrgID:    5,
+		TenantID: 10,
+	}
+	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+
+	resource.GetUnread(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, int64(5), capturedOrgID, "orgID from claims should be passed to service")
+	assert.Equal(t, int64(10), capturedTenantID, "tenantID from claims should be passed to service")
+}
+
+func TestGetUnreadCount_PassesOrgAndTenantFromClaims(t *testing.T) {
+	var capturedOrgID, capturedTenantID int64
+	mockService := &mockPlatformAnnouncementService{
+		countUnreadFn: func(ctx context.Context, userID int64, userRoles []string, orgID int64, tenantID int64) (int, error) {
+			capturedOrgID = orgID
+			capturedTenantID = tenantID
+			assert.Equal(t, testUserID, userID)
+			return 3, nil
+		},
+	}
+
+	resource := platform.NewAnnouncementsResource(mockService)
+
+	req := httptest.NewRequest(http.MethodGet, "/announcements/unread-count", nil)
+	claims := jwt.AppClaims{
+		ID:       123,
+		Roles:    []string{"teacher"},
+		OrgID:    5,
+		TenantID: 10,
+	}
+	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+
+	resource.GetUnreadCount(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, int64(5), capturedOrgID, "orgID from claims should be passed to service")
+	assert.Equal(t, int64(10), capturedTenantID, "tenantID from claims should be passed to service")
+}
