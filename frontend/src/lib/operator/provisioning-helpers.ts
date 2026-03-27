@@ -22,6 +22,7 @@ export interface BackendSchool {
   phone: string;
   email: string;
   active: boolean;
+  hidden: boolean;
   settings: string | null;
   created_at: string;
   updated_at: string;
@@ -68,6 +69,7 @@ export interface School {
   phone: string;
   email: string;
   active: boolean;
+  hidden: boolean;
   createdAt: string;
   updatedAt: string;
   organization?: Organization;
@@ -164,6 +166,7 @@ export interface CreateSchoolRequest {
   zip?: string;
   phone?: string;
   email?: string;
+  hidden?: boolean;
 }
 
 export interface InviteAdminRequest {
@@ -209,6 +212,7 @@ export function mapSchool(data: BackendSchool): School {
     phone: data.phone,
     email: data.email,
     active: data.active,
+    hidden: data.hidden,
     createdAt: data.created_at,
     updatedAt: data.updated_at,
     organization: data.organization
@@ -253,6 +257,7 @@ export interface UpdateSchoolRequest {
   phone: string;
   email: string;
   active: boolean;
+  hidden: boolean;
 }
 
 // Device creation / API key management

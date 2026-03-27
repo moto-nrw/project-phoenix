@@ -289,16 +289,17 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Config = configAPI.NewResource(api.Services.Config, api.Services.ActiveCleanup, db)
 	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, api.Services.Schulhof, api.Services.UserContext, db, logger.With("handler", "active"))
 	api.IoT = iotAPI.NewResource(iotAPI.ServiceDependencies{
-		IoTService:        api.Services.IoT,
-		UsersService:      api.Services.Users,
-		ActiveService:     api.Services.Active,
-		ActivitiesService: api.Services.Activities,
-		ConfigService:     api.Services.Config,
-		FacilityService:   api.Services.Facilities,
-		EducationService:  api.Services.Education,
-		FeedbackService:   api.Services.Feedback,
-		Logger:            logger.With("handler", "iot"),
-		DB:                db,
+		IoTService:            api.Services.IoT,
+		UsersService:          api.Services.Users,
+		ActiveService:         api.Services.Active,
+		ActivitiesService:     api.Services.Activities,
+		ConfigService:         api.Services.Config,
+		FacilityService:       api.Services.Facilities,
+		EducationService:      api.Services.Education,
+		FeedbackService:       api.Services.Feedback,
+		PickupScheduleService: api.Services.PickupSchedule,
+		Logger:                logger.With("handler", "iot"),
+		DB:                    db,
 	})
 	api.SSE = sseAPI.NewResource(api.Services.RealtimeHub, api.Services.Active, api.Services.Users, api.Services.UserContext, db, logger.With("handler", "sse"))
 	api.Users = usersAPI.NewResource(api.Services.Users, db)

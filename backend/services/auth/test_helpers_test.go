@@ -1239,6 +1239,10 @@ func (r *stubSchoolRepository) ListActive(context.Context) ([]platformModel.Scho
 	return nil, nil
 }
 
+func (r *stubSchoolRepository) ListPublic(context.Context) ([]platformModel.School, error) {
+	return nil, nil
+}
+
 func (r *stubSchoolRepository) FindActiveByAccountID(context.Context, int64) ([]platformModel.School, error) {
 	return nil, nil
 }

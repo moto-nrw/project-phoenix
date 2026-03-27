@@ -5,13 +5,12 @@ import { useState, useEffect, Suspense } from "react";
 import { signIn, useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import Image from "next/image";
-import { Input, Alert, HelpButton } from "~/components/ui";
+import { Input, Alert } from "~/components/ui";
 import { refreshToken } from "~/lib/auth-api";
 import { SmartRedirect } from "~/components/auth/smart-redirect";
 import { PasswordResetModal } from "~/components/ui/password-reset-modal";
 import { launchConfetti, clearConfetti } from "~/lib/confetti";
 import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
-import { LoginHelpContent } from "~/components/shared/login-help-content";
 import { useTenant } from "~/components/tenant/tenant-provider";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { env } from "~/env";
@@ -185,16 +184,6 @@ function LoginForm() {
             </svg>
             Einrichtung wechseln
           </button>
-          <HelpButton
-            title="Hilfe"
-            content={
-              <LoginHelpContent
-                accountType="moto-Account"
-                emailLabel="Ihre registrierte E-Mail-Adresse"
-                passwordLabel="Ihr persönliches Passwort"
-              />
-            }
-          />
         </div>
 
         {/* Logo Section */}

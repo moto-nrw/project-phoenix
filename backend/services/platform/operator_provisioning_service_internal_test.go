@@ -69,6 +69,9 @@ func (s *internalSchoolRepoStub) List(context.Context) ([]*platformModels.School
 func (s *internalSchoolRepoStub) ListActive(context.Context) ([]platformModels.School, error) {
 	return nil, nil
 }
+func (s *internalSchoolRepoStub) ListPublic(context.Context) ([]platformModels.School, error) {
+	return nil, nil
+}
 func (s *internalSchoolRepoStub) FindActiveByAccountID(context.Context, int64) ([]platformModels.School, error) {
 	return nil, nil
 }

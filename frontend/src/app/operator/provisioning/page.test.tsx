@@ -162,6 +162,7 @@ const mockSchool = {
   phone: "",
   email: "",
   active: true,
+  hidden: false,
   createdAt: "2025-01-01T00:00:00Z",
   updatedAt: "2025-01-01T00:00:00Z",
   organization: { ...mockOrg },
@@ -624,9 +625,37 @@ describe("OperatorProvisioningPage", () => {
         phone: "",
         email: "",
         active: false,
+        hidden: false,
       });
       expect(mockMutateSchools).toHaveBeenCalled();
     });
+  });
+
+  it("shows Verborgen badge for hidden schools", async () => {
+    const hiddenSchool = { ...mockSchool, hidden: true };
+    setupSWR([mockOrg], [hiddenSchool]);
+
+    render(<OperatorProvisioningPage />);
+
+    fireEvent.click(screen.getByTestId("tab-schools"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Verborgen")).toBeInTheDocument();
+    });
+  });
+
+  it("does not show Verborgen badge for visible schools", async () => {
+    setupSWR();
+
+    render(<OperatorProvisioningPage />);
+
+    fireEvent.click(screen.getByTestId("tab-schools"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Test School")).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText("Verborgen")).not.toBeInTheDocument();
   });
 
   // --- Edit School ---

@@ -42,6 +42,7 @@ type mockProvisioningService struct {
 	listOrganizationDevicesFn func(context.Context, int64) ([]platformSvc.OperatorDeviceInfo, error)
 	createDeviceFn            func(context.Context, int64, string, string, *string, *string, int64, net.IP) (*platformSvc.OperatorDeviceInfo, error)
 	setDeviceAPIKeyFn         func(context.Context, int64, *string, int64, net.IP) (*platformSvc.OperatorDeviceInfo, error)
+	deleteDeviceFn            func(context.Context, int64, int64, net.IP) error
 }
 
 func (m *mockProvisioningService) CreateOrganization(ctx context.Context, org *platformModels.Organization, operatorID int64, clientIP net.IP) (*platformModels.Organization, error) {
@@ -130,6 +131,12 @@ func (m *mockProvisioningService) SetDeviceAPIKey(ctx context.Context, deviceID 
 		return m.setDeviceAPIKeyFn(ctx, deviceID, apiKey, operatorID, clientIP)
 	}
 	return nil, nil
+}
+func (m *mockProvisioningService) DeleteDevice(ctx context.Context, id int64, operatorID int64, clientIP net.IP) error {
+	if m.deleteDeviceFn != nil {
+		return m.deleteDeviceFn(ctx, id, operatorID, clientIP)
+	}
+	return nil
 }
 
 func withOperatorClaims(req *http.Request, operatorID int) *http.Request {
@@ -523,6 +530,55 @@ func TestProvisioningResource_UpdateSchool(t *testing.T) {
 	body := decodeBody(t, rr)
 	data := body["data"].(map[string]any)
 	assert.Equal(t, float64(10), data["id"])
+}
+
+func TestProvisioningResource_UpdateSchool_Hidden(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{
+		updateSchoolFn: func(_ context.Context, id int64, req platformSvc.UpdateSchoolRequest, operatorID int64, _ net.IP) (*platformModels.School, error) {
+			assert.Equal(t, int64(10), id)
+			assert.True(t, req.Hidden, "Hidden field must be passed through from handler")
+			assert.Equal(t, "Hidden School", req.Name)
+			return &platformModels.School{Model: modelBase.Model{ID: 10}, Name: "Hidden School", Slug: "hidden", Subdomain: "hidden", Hidden: true}, nil
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPut, "/operator/schools/10", bytes.NewBufferString(`{"organization_id":7,"name":"Hidden School","slug":"hidden","subdomain":"hidden","active":true,"hidden":true}`))
+	req.Header.Set("Content-Type", "application/json")
+	req = withOperatorClaims(req, 42)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "10")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.UpdateSchool(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+
+	body := decodeBody(t, rr)
+	data := body["data"].(map[string]any)
+	assert.Equal(t, true, data["hidden"])
+}
+
+func TestProvisioningResource_CreateSchool_Hidden(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{
+		createSchoolFn: func(_ context.Context, school *platformModels.School, operatorID int64, _ net.IP) (*platformModels.School, error) {
+			assert.True(t, school.Hidden, "Hidden field must be passed through from create handler")
+			assert.Equal(t, "Demo School", school.Name)
+			school.ID = 99
+			return school, nil
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/operator/schools", bytes.NewBufferString(`{"organization_id":7,"name":"Demo School","slug":"demo","subdomain":"demo","hidden":true}`))
+	req.Header.Set("Content-Type", "application/json")
+	req = withOperatorClaims(req, 42)
+	rr := httptest.NewRecorder()
+
+	resource.CreateSchool(rr, req)
+	require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
+
+	body := decodeBody(t, rr)
+	data := body["data"].(map[string]any)
+	assert.Equal(t, true, data["hidden"])
 }
 
 func TestProvisioningResource_UpdateSchool_InvalidRequest(t *testing.T) {

@@ -516,6 +516,53 @@ func TestBuildCheckinResponse_DailyCheckoutNotAvailable(t *testing.T) {
 }
 
 // =============================================================================
+// buildCheckinResponse PickupTime TESTS
+// =============================================================================
+
+func TestBuildCheckinResponse_WithPickupTime(t *testing.T) {
+	now := time.Now()
+	visitID := int64(300)
+	pickupTime := "15:30"
+	student := &users.Student{
+		Model:  base.Model{ID: 3},
+		Person: &users.Person{FirstName: "Lisa", LastName: "Test"},
+	}
+	result := &checkinResult{
+		Action:      "checked_in",
+		VisitID:     &visitID,
+		RoomName:    "Klassenraum 2b",
+		GreetingMsg: "Hallo Lisa!",
+		PickupTime:  &pickupTime,
+	}
+
+	response := buildCheckinResponse(student, result, now)
+
+	assert.Equal(t, "15:30", response["pickup_time"])
+	assert.Equal(t, "checked_in", response["action"])
+}
+
+func TestBuildCheckinResponse_WithoutPickupTime(t *testing.T) {
+	now := time.Now()
+	visitID := int64(400)
+	student := &users.Student{
+		Model:  base.Model{ID: 4},
+		Person: &users.Person{FirstName: "Tom", LastName: "Test"},
+	}
+	result := &checkinResult{
+		Action:      "checked_in",
+		VisitID:     &visitID,
+		RoomName:    "Library",
+		GreetingMsg: "Hallo Tom!",
+		// PickupTime is nil
+	}
+
+	response := buildCheckinResponse(student, result, now)
+
+	_, hasPickupTime := response["pickup_time"]
+	assert.False(t, hasPickupTime, "pickup_time should be omitted when nil")
+}
+
+// =============================================================================
 // roomNameByID TESTS (additional edge cases)
 // =============================================================================
 
@@ -901,13 +948,14 @@ func setupInternalTestResource(t *testing.T) *internalTestContext {
 	testpkg.EnsureTestTenant(t, db, 1)
 
 	rs := &Resource{
-		IoTService:        svc.IoT,
-		UsersService:      svc.Users,
-		ActiveService:     svc.Active,
-		FacilityService:   svc.Facilities,
-		ActivitiesService: svc.Activities,
-		EducationService:  svc.Education,
-		logger:            slog.Default(),
+		IoTService:            svc.IoT,
+		UsersService:          svc.Users,
+		ActiveService:         svc.Active,
+		FacilityService:       svc.Facilities,
+		ActivitiesService:     svc.Activities,
+		EducationService:      svc.Education,
+		PickupScheduleService: svc.PickupSchedule,
+		logger:                slog.Default(),
 	}
 
 	return &internalTestContext{rs: rs, db: db}

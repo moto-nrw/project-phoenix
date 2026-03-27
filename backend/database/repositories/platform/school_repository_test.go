@@ -188,6 +188,57 @@ func TestSchoolRepository_QueryMethods(t *testing.T) {
 		assert.False(t, foundB)
 	})
 
+	t.Run("list public excludes hidden schools", func(t *testing.T) {
+		// Make schoolA hidden
+		_, err := db.ExecContext(ctx, `UPDATE platform.schools SET hidden = true WHERE id = ?`, schoolA.ID)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			_, _ = db.ExecContext(ctx, `UPDATE platform.schools SET hidden = false WHERE id = ?`, schoolA.ID)
+		})
+
+		items, err := repo.ListPublic(ctx)
+		require.NoError(t, err)
+		for _, item := range items {
+			assert.NotEqual(t, schoolA.ID, item.ID, "ListPublic must not return hidden schools")
+		}
+	})
+
+	t.Run("list public returns active non-hidden schools", func(t *testing.T) {
+		items, err := repo.ListPublic(ctx)
+		require.NoError(t, err)
+		foundA := false
+		foundB := false
+		for _, item := range items {
+			if item.ID == schoolA.ID {
+				foundA = true
+			}
+			if item.ID == schoolB.ID {
+				foundB = true
+			}
+		}
+		assert.True(t, foundA, "ListPublic should return active non-hidden schools")
+		assert.False(t, foundB, "ListPublic should not return inactive schools")
+	})
+
+	t.Run("list active still includes hidden schools", func(t *testing.T) {
+		// Make schoolA hidden — ListActive must still return it (scheduler depends on this)
+		_, err := db.ExecContext(ctx, `UPDATE platform.schools SET hidden = true WHERE id = ?`, schoolA.ID)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			_, _ = db.ExecContext(ctx, `UPDATE platform.schools SET hidden = false WHERE id = ?`, schoolA.ID)
+		})
+
+		items, err := repo.ListActive(ctx)
+		require.NoError(t, err)
+		found := false
+		for _, item := range items {
+			if item.ID == schoolA.ID {
+				found = true
+			}
+		}
+		assert.True(t, found, "ListActive must still return hidden schools (scheduler dependency)")
+	})
+
 	t.Run("find active by account id returns active school memberships only", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "school-query")
 		t.Cleanup(func() {
