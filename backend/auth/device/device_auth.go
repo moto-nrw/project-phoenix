@@ -324,8 +324,13 @@ func rejectDeletedSchool(ctx context.Context, schoolRepo platform.SchoolReposito
 		return nil
 	}
 	school, err := schoolRepo.FindByID(ctx, device.TenantID)
-	if err != nil || school == nil {
+	if err != nil {
+		// Fail open on transient DB errors to avoid breaking all IoT devices.
 		return nil
+	}
+	if school == nil {
+		// School genuinely doesn't exist — reject the device.
+		return ErrDeviceForbidden(ErrDeviceInactive)
 	}
 	if school.IsDeleted() {
 		slog.Warn("device authentication rejected: school is soft-deleted",

@@ -171,12 +171,7 @@ describe("DELETE /api/operator/provisioning/schools/[id]", () => {
     mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
     mockFetch.mockResolvedValue({
       ok: true,
-      status: 200,
-      json: async () => ({
-        status: "success",
-        data: null,
-        message: "School soft-deleted successfully",
-      }),
+      status: 204,
     });
 
     const request = new NextRequest(

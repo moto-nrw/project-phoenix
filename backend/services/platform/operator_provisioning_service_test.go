@@ -2830,8 +2830,8 @@ func TestOperatorProvisioningService_UpdateSchool_RejectsDeletedSchool(t *testin
 	}, 10, net.IPv4(127, 0, 0, 1))
 	require.Nil(t, updated)
 	require.Error(t, err)
-	var notFoundErr *platformSvc.SchoolNotFoundError
-	require.ErrorAs(t, err, &notFoundErr)
+	var deletedErr *platformSvc.SchoolAlreadyDeletedError
+	require.ErrorAs(t, err, &deletedErr)
 }
 
 func TestOperatorProvisioningService_ListSchoolAccounts_RejectsDeletedSchool(t *testing.T) {
@@ -2856,8 +2856,8 @@ func TestOperatorProvisioningService_ListSchoolAccounts_RejectsDeletedSchool(t *
 	accounts, err := service.ListSchoolAccounts(context.Background(), 500)
 	require.Nil(t, accounts)
 	require.Error(t, err)
-	var notFoundErr *platformSvc.SchoolNotFoundError
-	require.ErrorAs(t, err, &notFoundErr)
+	var deletedErr *platformSvc.SchoolAlreadyDeletedError
+	require.ErrorAs(t, err, &deletedErr)
 }
 
 func TestOperatorProvisioningService_ListSchoolDevices_RejectsDeletedSchool(t *testing.T) {
@@ -2882,8 +2882,8 @@ func TestOperatorProvisioningService_ListSchoolDevices_RejectsDeletedSchool(t *t
 	devices, err := service.ListSchoolDevices(context.Background(), 500)
 	require.Nil(t, devices)
 	require.Error(t, err)
-	var notFoundErr *platformSvc.SchoolNotFoundError
-	require.ErrorAs(t, err, &notFoundErr)
+	var deletedErr *platformSvc.SchoolAlreadyDeletedError
+	require.ErrorAs(t, err, &deletedErr)
 }
 
 func TestOperatorProvisioningService_CreateDevice_RejectsDeletedSchool(t *testing.T) {
@@ -2909,8 +2909,8 @@ func TestOperatorProvisioningService_CreateDevice_RejectsDeletedSchool(t *testin
 	device, err := service.CreateDevice(context.Background(), 500, "device-100", "rfid", nil, nil, 10, net.IPv4(127, 0, 0, 1))
 	require.Nil(t, device)
 	require.Error(t, err)
-	var notFoundErr *platformSvc.SchoolNotFoundError
-	require.ErrorAs(t, err, &notFoundErr)
+	var deletedErr *platformSvc.SchoolAlreadyDeletedError
+	require.ErrorAs(t, err, &deletedErr)
 }
 
 func TestOperatorProvisioningService_SetDeviceAPIKey_RejectsDeletedSchool(t *testing.T) {
@@ -2942,6 +2942,79 @@ func TestOperatorProvisioningService_SetDeviceAPIKey_RejectsDeletedSchool(t *tes
 					Subdomain:      "deleted-school",
 					Active:         true,
 					DeletedAt:      &now,
+				}, nil
+			},
+		},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+	})
+
+	result, err := service.SetDeviceAPIKey(context.Background(), 200, nil, 10, net.IPv4(127, 0, 0, 1))
+	require.Nil(t, result)
+	require.Error(t, err)
+	var deletedErr *platformSvc.SchoolAlreadyDeletedError
+	require.ErrorAs(t, err, &deletedErr)
+}
+
+func TestOperatorProvisioningService_SetDeviceAPIKey_RejectsNilSchool(t *testing.T) {
+	schoolID := int64(500)
+	apiKey := "dev_testkey1234567890abcdef1234567890abcdef1234567890abcdef12345678"
+
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		DeviceRepo: &mockDeviceRepoWithFind{
+			findByIDFn: func(_ context.Context, _ interface{}) (*iotModels.Device, error) {
+				d := &iotModels.Device{
+					Model:      base.Model{ID: 200},
+					DeviceID:   "device-200",
+					DeviceType: "rfid",
+					Status:     iotModels.DeviceStatusActive,
+					APIKey:     &apiKey,
+				}
+				d.SetTenantID(schoolID)
+				return d, nil
+			},
+		},
+		SchoolRepo: &mockSchoolRepo{
+			findByIDFn: func(_ context.Context, _ int64) (*platformModels.School, error) {
+				return nil, nil
+			},
+		},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+	})
+
+	result, err := service.SetDeviceAPIKey(context.Background(), 200, nil, 10, net.IPv4(127, 0, 0, 1))
+	require.Nil(t, result)
+	require.Error(t, err)
+	var notFoundErr *platformSvc.SchoolNotFoundError
+	require.ErrorAs(t, err, &notFoundErr)
+}
+
+func TestOperatorProvisioningService_SetDeviceAPIKey_RejectsInactiveSchool(t *testing.T) {
+	schoolID := int64(500)
+	apiKey := "dev_testkey1234567890abcdef1234567890abcdef1234567890abcdef12345678"
+
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		DeviceRepo: &mockDeviceRepoWithFind{
+			findByIDFn: func(_ context.Context, _ interface{}) (*iotModels.Device, error) {
+				d := &iotModels.Device{
+					Model:      base.Model{ID: 200},
+					DeviceID:   "device-200",
+					DeviceType: "rfid",
+					Status:     iotModels.DeviceStatusActive,
+					APIKey:     &apiKey,
+				}
+				d.SetTenantID(schoolID)
+				return d, nil
+			},
+		},
+		SchoolRepo: &mockSchoolRepo{
+			findByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
+				return &platformModels.School{
+					Model:          base.Model{ID: id},
+					OrganizationID: 100,
+					Name:           "Inactive School",
+					Slug:           "inactive-school",
+					Subdomain:      "inactive-school",
+					Active:         false,
 				}, nil
 			},
 		},
@@ -2986,6 +3059,6 @@ func TestOperatorProvisioningService_LoadActiveSchool_RejectsDeletedSchool(t *te
 	})
 	require.Nil(t, account)
 	require.Error(t, err)
-	var notFoundErr *platformSvc.SchoolNotFoundError
-	require.ErrorAs(t, err, &notFoundErr)
+	var deletedErr *platformSvc.SchoolAlreadyDeletedError
+	require.ErrorAs(t, err, &deletedErr)
 }

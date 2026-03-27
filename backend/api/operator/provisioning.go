@@ -311,7 +311,7 @@ func (rs *ProvisioningResource) SoftDeleteSchool(w http.ResponseWriter, r *http.
 		common.RenderError(w, r, ProvisioningErrorRenderer(err))
 		return
 	}
-	common.Respond(w, r, http.StatusOK, nil, "School soft-deleted successfully")
+	common.RespondNoContent(w, r)
 }
 
 func (rs *ProvisioningResource) RestoreSchool(w http.ResponseWriter, r *http.Request) {

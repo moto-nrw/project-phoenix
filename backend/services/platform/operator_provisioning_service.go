@@ -334,7 +334,7 @@ func (s *operatorProvisioningService) UpdateSchool(ctx context.Context, id int64
 			return &SchoolNotFoundError{SchoolID: id}
 		}
 		if existing.IsDeleted() {
-			return &SchoolNotFoundError{SchoolID: id}
+			return &SchoolAlreadyDeletedError{SchoolID: id}
 		}
 
 		changes := map[string]any{}
@@ -578,7 +578,7 @@ func (s *operatorProvisioningService) ListSchoolAccounts(ctx context.Context, sc
 			return &SchoolNotFoundError{SchoolID: schoolID}
 		}
 		if school.IsDeleted() {
-			return &SchoolNotFoundError{SchoolID: schoolID}
+			return &SchoolAlreadyDeletedError{SchoolID: schoolID}
 		}
 		accounts, listErr := s.accountTenantRepo.ListAccountsByTenantID(adminCtx, schoolID)
 		if listErr != nil {
@@ -699,7 +699,7 @@ func (s *operatorProvisioningService) ListSchoolDevices(ctx context.Context, sch
 			return &SchoolNotFoundError{SchoolID: schoolID}
 		}
 		if school.IsDeleted() {
-			return &SchoolNotFoundError{SchoolID: schoolID}
+			return &SchoolAlreadyDeletedError{SchoolID: schoolID}
 		}
 		var queryErr error
 		result, queryErr = s.queryDevices(adminCtx, `"d".tenant_id = ?`, schoolID)
@@ -824,7 +824,7 @@ func (s *operatorProvisioningService) CreateDevice(ctx context.Context, schoolID
 			return &SchoolNotFoundError{SchoolID: schoolID}
 		}
 		if school.IsDeleted() {
-			return &SchoolNotFoundError{SchoolID: schoolID}
+			return &SchoolAlreadyDeletedError{SchoolID: schoolID}
 		}
 		if !school.Active {
 			return &SchoolInactiveError{SchoolID: schoolID}
@@ -921,7 +921,13 @@ func (s *operatorProvisioningService) SetDeviceAPIKey(ctx context.Context, id in
 		if schoolErr != nil {
 			return fmt.Errorf("SetDeviceAPIKey: lookup school: %w", schoolErr)
 		}
-		if school == nil || school.IsDeleted() || !school.Active {
+		if school == nil {
+			return &SchoolNotFoundError{SchoolID: device.TenantID}
+		}
+		if school.IsDeleted() {
+			return &SchoolAlreadyDeletedError{SchoolID: device.TenantID}
+		}
+		if !school.Active {
 			return &SchoolInactiveError{SchoolID: device.TenantID}
 		}
 
@@ -1034,7 +1040,7 @@ func (s *operatorProvisioningService) loadActiveSchool(ctx context.Context, scho
 		return nil, &SchoolNotFoundError{SchoolID: schoolID}
 	}
 	if school.IsDeleted() {
-		return nil, &SchoolNotFoundError{SchoolID: schoolID}
+		return nil, &SchoolAlreadyDeletedError{SchoolID: schoolID}
 	}
 	if !school.Active {
 		return nil, &InvalidDataError{Err: fmt.Errorf("school is inactive")}

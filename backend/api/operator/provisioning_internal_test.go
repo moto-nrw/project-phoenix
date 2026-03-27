@@ -1479,7 +1479,7 @@ func TestProvisioningResource_SoftDeleteSchool(t *testing.T) {
 	rr := httptest.NewRecorder()
 
 	resource.SoftDeleteSchool(rr, req)
-	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, http.StatusNoContent, rr.Code)
 	assert.Equal(t, int64(55), deletedID)
 }
 

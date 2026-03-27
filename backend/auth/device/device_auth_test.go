@@ -878,6 +878,14 @@ func TestRejectDeletedSchool_NilRepo_ReturnsNil(t *testing.T) {
 	assert.Nil(t, result, "nil repo should fail open")
 }
 
+func TestRejectDeletedSchool_NilSchool_ReturnsForbidden(t *testing.T) {
+	repo := &mockSchoolRepo{school: nil, err: nil}
+	device := &iot.Device{DeviceID: "device-001", TenantModel: modelBase.TenantModel{TenantID: 100}}
+
+	result := rejectDeletedSchool(context.Background(), repo, device)
+	assert.NotNil(t, result, "non-existent school should be rejected")
+}
+
 func TestRejectDeletedSchool_DBError_ReturnsNil(t *testing.T) {
 	repo := &mockSchoolRepo{err: errors.New("connection refused")}
 	device := &iot.Device{DeviceID: "device-001", TenantModel: modelBase.TenantModel{TenantID: 100}}
