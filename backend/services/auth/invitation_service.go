@@ -782,6 +782,9 @@ func (s *invitationService) lookupSchoolName(ctx context.Context, tenantID int64
 			slog.String("error", err.Error()))
 		return ""
 	}
+	if school == nil || school.IsDeleted() {
+		return ""
+	}
 	return school.Name
 }
 

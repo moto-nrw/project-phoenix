@@ -333,6 +333,9 @@ func (s *operatorProvisioningService) UpdateSchool(ctx context.Context, id int64
 		if existing == nil {
 			return &SchoolNotFoundError{SchoolID: id}
 		}
+		if existing.IsDeleted() {
+			return &SchoolNotFoundError{SchoolID: id}
+		}
 
 		changes := map[string]any{}
 
@@ -574,6 +577,9 @@ func (s *operatorProvisioningService) ListSchoolAccounts(ctx context.Context, sc
 		if school == nil {
 			return &SchoolNotFoundError{SchoolID: schoolID}
 		}
+		if school.IsDeleted() {
+			return &SchoolNotFoundError{SchoolID: schoolID}
+		}
 		accounts, listErr := s.accountTenantRepo.ListAccountsByTenantID(adminCtx, schoolID)
 		if listErr != nil {
 			return listErr
@@ -690,6 +696,9 @@ func (s *operatorProvisioningService) ListSchoolDevices(ctx context.Context, sch
 			return findErr
 		}
 		if school == nil {
+			return &SchoolNotFoundError{SchoolID: schoolID}
+		}
+		if school.IsDeleted() {
 			return &SchoolNotFoundError{SchoolID: schoolID}
 		}
 		var queryErr error
@@ -814,6 +823,9 @@ func (s *operatorProvisioningService) CreateDevice(ctx context.Context, schoolID
 		if school == nil {
 			return &SchoolNotFoundError{SchoolID: schoolID}
 		}
+		if school.IsDeleted() {
+			return &SchoolNotFoundError{SchoolID: schoolID}
+		}
 		if !school.Active {
 			return &SchoolInactiveError{SchoolID: schoolID}
 		}
@@ -909,7 +921,7 @@ func (s *operatorProvisioningService) SetDeviceAPIKey(ctx context.Context, id in
 		if schoolErr != nil {
 			return fmt.Errorf("SetDeviceAPIKey: lookup school: %w", schoolErr)
 		}
-		if school == nil || !school.Active {
+		if school == nil || school.IsDeleted() || !school.Active {
 			return &SchoolInactiveError{SchoolID: device.TenantID}
 		}
 

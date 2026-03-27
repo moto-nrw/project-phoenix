@@ -90,7 +90,7 @@ func (rs *Resource) createInvitation(w http.ResponseWriter, r *http.Request) {
 	// Resolve tenant display name for the invitation email.
 	if rs.SchoolRepo != nil {
 		tenantID := tenant.FromContext(r.Context())
-		if school, err := rs.SchoolRepo.FindByID(r.Context(), tenantID); err == nil {
+		if school, err := rs.SchoolRepo.FindByID(r.Context(), tenantID); err == nil && school != nil && !school.IsDeleted() {
 			invitationReq.SchoolName = school.Name
 		}
 	}
@@ -313,6 +313,9 @@ func (rs *Resource) lookupTenantSlugForInvitation(ctx context.Context, token str
 		school, err := rs.SchoolRepo.FindByID(txCtx, invitation.TenantID)
 		if err != nil {
 			return err
+		}
+		if school == nil || school.IsDeleted() {
+			return nil
 		}
 		slug = school.Slug
 		return nil
