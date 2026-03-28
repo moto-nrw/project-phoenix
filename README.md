@@ -2,7 +2,7 @@
 
 # Project Phoenix
 
-![moto Logo](frontend/public/images/moto_transparent.png)
+![Ganztagshelden Logo](frontend/public/images/moto_transparent.png)
 
 **A modern RFID-based student attendance and room management system for educational institutions**
 
@@ -73,7 +73,7 @@ Project Phoenix supports multiple after-school care providers (Träger) and thei
 ### Tenant Hierarchy
 
 ```
-Platform Operator (moto)
+Platform Operator (Ganztagshelden)
  └── Träger (Organization)          e.g. "AWO Köln"
       ├── OGS Sonnenschule (School)  → sonnenschule.moto-app.de
       ├── OGS Waldschule (School)    → waldschule.moto-app.de
@@ -84,7 +84,7 @@ Platform Operator (moto)
 |---------|-------|------|
 | **Organization** (Träger) | `platform.organizations` | Groups schools under one administrative body |
 | **School** (OGS) | `platform.schools` | The tenant boundary — all data is scoped to `tenant_id` (= school ID) |
-| **Operator** | Platform scope | moto team — provisions organizations and schools |
+| **Operator** | Platform scope | Ganztagshelden team — provisions organizations and schools |
 
 ### How It Works
 
@@ -389,7 +389,7 @@ Distributed under a Source-Available License. See [LICENSE](LICENSE) for more in
 
 <div align="center">
 
-Made with ❤️ by [moto](https://moto.nrw)
+Made with ❤️ by [Ganztagshelden](https://moto.nrw)
 
 [⬆ Back to top](#project-phoenix)
 

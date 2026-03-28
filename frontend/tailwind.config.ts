@@ -11,10 +11,6 @@ const config: Config = {
       animation: {
         "spin-slow": "spin 2s linear infinite",
       },
-      colors: {
-        "moto-blue": "#5080d8",
-        "moto-green": "#83cd2d",
-      },
     },
   },
   plugins: [],
