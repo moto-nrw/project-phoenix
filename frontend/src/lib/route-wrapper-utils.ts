@@ -63,3 +63,7 @@ export function createUnauthorizedResponse(): NextResponse<ApiErrorResponse> {
 export function isStringParam(param: unknown): param is string {
   return typeof param === "string";
 }
+
+export function encodePathSegment(param: string): string {
+  return encodeURIComponent(param);
+}
