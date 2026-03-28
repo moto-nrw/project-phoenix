@@ -653,3 +653,49 @@ func TestTokenRepository_CreateValidation(t *testing.T) {
 		assert.Contains(t, err.Error(), "cannot be nil")
 	})
 }
+
+// ============================================================================
+// DeleteByTenantID Tests
+// ============================================================================
+
+func TestTokenRepository_DeleteByTenantID(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).Token
+
+	t.Run("deletes tokens for tenant and returns count", func(t *testing.T) {
+		// ARRANGE — create account + token scoped to a dedicated test tenant
+		tenantID := int64(42)
+		testpkg.EnsureTestTenant(t, db, tenantID)
+
+		account := testpkg.CreateTestAccount(t, db, "deleteByTenant")
+		defer cleanupAccountRecords(t, db, account.ID)
+
+		token := testpkg.CreateTestTokenForTenant(t, db, tenantID, account.ID)
+		// No defer cleanup needed — DeleteByTenantID is expected to remove it
+
+		// ACT
+		ctx := testpkg.TenantContext(tenantID)
+		count, err := repo.DeleteByTenantID(ctx, tenantID)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.Equal(t, 1, count)
+
+		// Verify the token is actually gone
+		_, findErr := repo.FindByID(ctx, token.ID)
+		assert.Error(t, findErr, "token should no longer exist after DeleteByTenantID")
+	})
+
+	t.Run("returns zero when tenant has no tokens", func(t *testing.T) {
+		// Use a tenant that exists but has no tokens
+		tenantID := int64(43)
+		testpkg.EnsureTestTenant(t, db, tenantID)
+		ctx := testpkg.TenantContext(tenantID)
+
+		count, err := repo.DeleteByTenantID(ctx, tenantID)
+		require.NoError(t, err)
+		assert.Equal(t, 0, count)
+	})
+}

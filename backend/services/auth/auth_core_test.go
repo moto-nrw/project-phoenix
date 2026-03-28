@@ -2810,3 +2810,80 @@ func TestAuthService_LinkAccountToTenant(t *testing.T) {
 		assert.Equal(t, 1, tenantCount, "should still have exactly one mapping")
 	})
 }
+
+// =============================================================================
+// RevokeTokensByTenantID Tests
+// =============================================================================
+
+func TestAuthService_RevokeTokensByTenantID_Success(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+
+	// ARRANGE — create a dedicated tenant, account, and token
+	tenantID := int64(42)
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	ctx := testpkg.TenantContext(tenantID)
+
+	account := testpkg.CreateTestAccount(t, db, "revokeByTenant")
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+	testpkg.CreateTestTokenForTenant(t, db, tenantID, account.ID)
+
+	// ACT
+	count, err := service.RevokeTokensByTenantID(ctx, tenantID)
+
+	// ASSERT
+	require.NoError(t, err)
+	assert.Equal(t, 1, count, "should have revoked one token")
+}
+
+func TestAuthService_RevokeTokensByTenantID_NoTokens(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+
+	// ARRANGE — use a tenant with no tokens
+	tenantID := int64(43)
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	ctx := testpkg.TenantContext(tenantID)
+
+	// ACT
+	count, err := service.RevokeTokensByTenantID(ctx, tenantID)
+
+	// ASSERT
+	require.NoError(t, err)
+	assert.Equal(t, 0, count, "should have revoked zero tokens")
+}
+
+// =============================================================================
+// InvalidatePendingInvitationsByTenantID Tests
+// =============================================================================
+
+func TestInvitationService_InvalidatePendingInvitationsByTenantID_Success(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupInvitationService(t, db)
+
+	// ARRANGE — use tenant 1 because CreateTestInvitationToken is hardcoded to tenant 1
+	ctx := testpkg.TenantContext(1)
+
+	role := testpkg.CreateTestRole(t, db, "inv-svc-invalidate-role")
+	creator := testpkg.CreateTestAccount(t, db, "inv-svc-invalidate-creator")
+	defer testpkg.CleanupTableRecords(t, db, "auth.roles", role.ID)
+	defer testpkg.CleanupAuthFixtures(t, db, creator.ID)
+
+	// Create a pending invitation (scoped to tenant 1 by fixture)
+	invitation := testpkg.CreateTestInvitationToken(t, db, "svc-invalidate@example.com", role.ID, creator.ID, time.Now().Add(48*time.Hour))
+	defer testpkg.CleanupTableRecords(t, db, "auth.invitation_tokens", invitation.ID)
+
+	// ACT
+	count, err := service.InvalidatePendingInvitationsByTenantID(ctx, 1)
+
+	// ASSERT
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, count, 1, "should have invalidated at least one invitation")
+}

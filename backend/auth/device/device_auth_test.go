@@ -2,6 +2,7 @@ package device
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"net"
 	"net/http"
@@ -966,4 +967,169 @@ func TestSecureCompareStrings_TimingResistance(t *testing.T) {
 	assert.False(t, SecureCompareStrings(correctPIN, partialMatchPIN))
 	assert.False(t, SecureCompareStrings(correctPIN, ""))
 	assert.False(t, SecureCompareStrings("", correctPIN))
+}
+
+// =============================================================================
+// isNotFoundErr Tests
+// =============================================================================
+
+func TestIsNotFoundErr(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{
+			name: "nil error",
+			err:  nil,
+			want: false,
+		},
+		{
+			name: "sql.ErrNoRows directly",
+			err:  sql.ErrNoRows,
+			want: true,
+		},
+		{
+			name: "DatabaseError wrapping sql.ErrNoRows",
+			err:  &modelBase.DatabaseError{Op: "find", Err: sql.ErrNoRows},
+			want: true,
+		},
+		{
+			name: "DatabaseError wrapping a different error",
+			err:  &modelBase.DatabaseError{Op: "find", Err: errors.New("permission denied")},
+			want: false,
+		},
+		{
+			name: "random error",
+			err:  errors.New("something went wrong"),
+			want: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := isNotFoundErr(tc.err)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+// =============================================================================
+// isTransientDBErr Tests
+// =============================================================================
+
+// stubNetError implements net.Error for testing transient error detection.
+type stubNetError struct{}
+
+func (stubNetError) Error() string   { return "network error" }
+func (stubNetError) Timeout() bool   { return true }
+func (stubNetError) Temporary() bool { return true }
+
+func TestIsTransientDBErr(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{
+			name: "nil error",
+			err:  nil,
+			want: false,
+		},
+		{
+			name: "context.DeadlineExceeded",
+			err:  context.DeadlineExceeded,
+			want: true,
+		},
+		{
+			name: "context.Canceled",
+			err:  context.Canceled,
+			want: true,
+		},
+		{
+			name: "net.Error stub",
+			err:  stubNetError{},
+			want: true,
+		},
+		{
+			name: "DatabaseError wrapping context.DeadlineExceeded (recursive unwrap)",
+			err:  &modelBase.DatabaseError{Op: "find", Err: context.DeadlineExceeded},
+			want: true,
+		},
+		{
+			name: "random error",
+			err:  errors.New("some random error"),
+			want: false,
+		},
+		{
+			name: "sql.ErrNoRows is not transient",
+			err:  sql.ErrNoRows,
+			want: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := isTransientDBErr(tc.err)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+// =============================================================================
+// rejectDeletedSchool error-path Tests
+// =============================================================================
+
+func TestRejectDeletedSchool_SchoolNotFound(t *testing.T) {
+	// FindByID returns sql.ErrNoRows wrapped in DatabaseError — should reject.
+	repo := &mockSchoolRepo{
+		err: &modelBase.DatabaseError{Op: "find", Err: sql.ErrNoRows},
+	}
+	device := &iot.Device{
+		DeviceID:    "device-notfound",
+		TenantModel: modelBase.TenantModel{TenantID: 100},
+	}
+
+	result := rejectDeletedSchool(context.Background(), repo, device)
+	assert.NotNil(t, result, "school not found (DatabaseError wrapping sql.ErrNoRows) should reject device")
+}
+
+func TestRejectDeletedSchool_TransientError_FailsOpen(t *testing.T) {
+	// FindByID returns context.DeadlineExceeded wrapped in DatabaseError — fail open.
+	repo := &mockSchoolRepo{
+		err: &modelBase.DatabaseError{Op: "find", Err: context.DeadlineExceeded},
+	}
+	device := &iot.Device{
+		DeviceID:    "device-timeout",
+		TenantModel: modelBase.TenantModel{TenantID: 100},
+	}
+
+	result := rejectDeletedSchool(context.Background(), repo, device)
+	assert.Nil(t, result, "transient DB error (wrapped DeadlineExceeded) should fail open")
+}
+
+func TestRejectDeletedSchool_NonTransientError_FailsClosed(t *testing.T) {
+	// FindByID returns a permission error wrapped in DatabaseError — fail closed.
+	repo := &mockSchoolRepo{
+		err: &modelBase.DatabaseError{Op: "find", Err: errors.New("permission denied")},
+	}
+	device := &iot.Device{
+		DeviceID:    "device-permission",
+		TenantModel: modelBase.TenantModel{TenantID: 100},
+	}
+
+	result := rejectDeletedSchool(context.Background(), repo, device)
+	assert.NotNil(t, result, "non-transient DB error should reject device (fail closed)")
+}
+
+func TestRejectDeletedSchool_NilSchool(t *testing.T) {
+	// FindByID returns (nil, nil) — school doesn't exist, reject.
+	repo := &mockSchoolRepo{school: nil, err: nil}
+	device := &iot.Device{
+		DeviceID:    "device-nil-school",
+		TenantModel: modelBase.TenantModel{TenantID: 100},
+	}
+
+	result := rejectDeletedSchool(context.Background(), repo, device)
+	assert.NotNil(t, result, "nil school (no error) should reject device")
 }
