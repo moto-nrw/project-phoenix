@@ -111,14 +111,27 @@ export async function setSettingValue(
     });
 
     if (!response.ok) {
-      const result = (await response.json()) as { error?: string };
-      const msg = result.error ?? "Unbekannter Fehler";
+      // Log the raw API error for debugging, show clean German message to user
+      let apiError = "";
+      try {
+        const result = (await response.json()) as { error?: string };
+        apiError = result.error ?? "";
+      } catch {
+        // ignore parse errors
+      }
       logger.warn("set_setting_value_rejected", {
         key,
         status: response.status,
-        error: msg,
+        api_error: apiError,
       });
-      return msg;
+
+      if (response.status === 404) {
+        return "Einstellung nicht gefunden.";
+      }
+      if (response.status === 400) {
+        return "Ungültiger Wert für diese Einstellung.";
+      }
+      return "Einstellung konnte nicht gespeichert werden.";
     }
 
     return null;

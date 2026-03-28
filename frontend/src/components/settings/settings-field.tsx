@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import type { ResolvedSetting } from "~/lib/settings-api";
 import { BooleanField } from "./fields/boolean-field";
 import { NumberField } from "./fields/number-field";
@@ -27,12 +27,37 @@ export function SettingsField({
   onSave,
   onReset,
 }: SettingsFieldProps) {
-  const handleChange = useCallback(
+  // Local state for text-like fields (save on blur, not on every keystroke)
+  const [localValue, setLocalValue] = useState<unknown>(setting.value);
+  const [isDirty, setIsDirty] = useState(false);
+
+  // Sync local state when setting value changes from server (e.g., after save/reset)
+  useEffect(() => {
+    setLocalValue(setting.value);
+    setIsDirty(false);
+  }, [setting.value]);
+
+  // Immediate save — for booleans and selects (one action = one save)
+  const handleImmediateSave = useCallback(
     (value: unknown) => {
       onSave(setting.key, value);
     },
     [setting.key, onSave],
   );
+
+  // Local change — for text/number/time (update local state, save on blur)
+  const handleLocalChange = useCallback((value: unknown) => {
+    setLocalValue(value);
+    setIsDirty(true);
+  }, []);
+
+  // Save on blur — only if value actually changed
+  const handleBlur = useCallback(() => {
+    if (isDirty) {
+      onSave(setting.key, localValue);
+      setIsDirty(false);
+    }
+  }, [isDirty, setting.key, localValue, onSave]);
 
   if (!setting.visible) {
     return null;
@@ -60,7 +85,13 @@ export function SettingsField({
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
-        {renderField(setting, handleChange)}
+        {renderField(
+          setting,
+          localValue,
+          handleImmediateSave,
+          handleLocalChange,
+          handleBlur,
+        )}
 
         {!setting.is_default && setting.writable && (
           <button
@@ -91,58 +122,70 @@ export function SettingsField({
 
 function renderField(
   setting: ResolvedSetting,
-  onChange: (value: unknown) => void,
+  localValue: unknown,
+  onImmediateSave: (value: unknown) => void,
+  onLocalChange: (value: unknown) => void,
+  onBlur: () => void,
 ) {
   const disabled = !setting.writable;
 
   switch (setting.type) {
     case "boolean":
+      // Boolean saves immediately (toggle = one action)
       return (
         <BooleanField
-          value={Boolean(setting.value)}
-          onChange={onChange}
+          value={Boolean(localValue)}
+          onChange={onImmediateSave}
           disabled={disabled}
         />
       );
     case "number":
+      // Number saves on blur
       return (
         <NumberField
-          value={Number(setting.value ?? 0)}
-          onChange={onChange}
+          value={Number(localValue ?? 0)}
+          onChange={onLocalChange}
+          onBlur={onBlur}
           disabled={disabled}
           min={setting.validation?.min}
           max={setting.validation?.max}
         />
       );
     case "time":
+      // Time saves on blur
       return (
         <TimeField
-          value={toStr(setting.value)}
-          onChange={onChange}
+          value={toStr(localValue)}
+          onChange={onLocalChange}
+          onBlur={onBlur}
           disabled={disabled}
         />
       );
     case "text":
+      // Text saves on blur
       return (
         <TextField
-          value={toStr(setting.value)}
-          onChange={onChange}
+          value={toStr(localValue)}
+          onChange={onLocalChange}
+          onBlur={onBlur}
           disabled={disabled}
         />
       );
     case "password":
+      // Password has its own save button
       return (
         <PasswordField
-          hasValue={setting.value !== "" && setting.value !== null}
-          onChange={onChange}
+          hasValue={localValue !== "" && localValue !== null}
+          onChange={onImmediateSave}
           disabled={disabled}
         />
       );
     case "select":
+      // Select saves immediately (pick = one action)
       return (
         <SelectField
-          value={setting.value}
-          onChange={onChange}
+          value={localValue}
+          onChange={onImmediateSave}
           options={setting.options?.static ?? []}
           disabled={disabled}
         />
@@ -150,8 +193,9 @@ function renderField(
     default:
       return (
         <TextField
-          value={toStr(setting.value)}
-          onChange={onChange}
+          value={toStr(localValue)}
+          onChange={onLocalChange}
+          onBlur={onBlur}
           disabled={disabled}
         />
       );
