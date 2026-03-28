@@ -255,11 +255,18 @@ func (s *Service) loadAccountMetadataForTenant(ctx context.Context, account *aut
 		if tenantID > 0 {
 			school, err := txService.repos.School.FindByID(ctx, tenantID)
 			if err != nil {
+				// Distinguish "not found" from transient DB errors so the caller
+				// returns 401 (re-login) instead of 500 (retry) when the school
+				// was hard-deleted between token issuance and this refresh.
+				if errors.Is(err, sql.ErrNoRows) {
+					return &AuthError{Op: "load metadata for tenant", Err: ErrTenantNotFound}
+				}
 				return fmt.Errorf("lookup school for tenant %d: %w", tenantID, err)
 			}
-			if school != nil {
-				orgID = school.OrganizationID
+			if school == nil || school.IsDeleted() {
+				return &AuthError{Op: "load metadata for tenant", Err: ErrTenantNotFound}
 			}
+			orgID = school.OrganizationID
 		}
 
 		// Load roles and permissions scoped to the preserved tenant.

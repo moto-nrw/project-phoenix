@@ -100,6 +100,9 @@ func (r *SchoolRepository) FindByIDForShare(ctx context.Context, id int64) (*pla
 }
 
 // FindBySlug returns a non-deleted school by its slug.
+// Soft-deleted schools are filtered out (returns nil, nil). Callers that need to
+// distinguish "doesn't exist" from "exists but deleted" should use FindBySubdomain,
+// which intentionally includes soft-deleted schools.
 func (r *SchoolRepository) FindBySlug(ctx context.Context, slug string) (*platform.School, error) {
 	school := new(platform.School)
 	err := base.GetDB(ctx, r.db).NewSelect().

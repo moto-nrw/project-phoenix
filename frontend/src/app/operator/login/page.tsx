@@ -39,7 +39,9 @@ export default function OperatorLoginPage() {
         try {
           await signOut({ redirect: false });
         } catch {
-          cleanupStartedRef.current = false;
+          // Don't reset cleanupStartedRef — a failed signOut is terminal.
+          // Resetting would let the effect re-trigger on every render,
+          // causing an infinite retry loop if signOut keeps failing.
         }
         setIsCleaningUp(false);
         return;
