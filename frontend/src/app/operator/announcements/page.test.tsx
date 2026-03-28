@@ -931,6 +931,61 @@ describe("OperatorAnnouncementsPage", () => {
       ).toBeInTheDocument();
     });
 
+    it("preserves unknown tenant IDs (soft-deleted schools) during pruning", async () => {
+      // Announcement references tenant id "99" which is not in the schools picker
+      const announcementWithUnknownTenant = {
+        ...mockAnnouncement,
+        targetOrgIds: ["1"],
+        targetTenantIds: ["10", "99"],
+      };
+
+      setupSWRWithOrgAndSchools([announcementWithUnknownTenant]);
+      render(<OperatorAnnouncementsPage />);
+
+      // Open edit modal
+      const menuButtons = screen.getAllByLabelText("Menü öffnen");
+      fireEvent.click(menuButtons[0]!);
+
+      await waitFor(() => {
+        fireEvent.click(screen.getByText("Bearbeiten"));
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("modal")).toBeInTheDocument();
+      });
+
+      const modal = screen.getByTestId("modal");
+
+      // Schule A (id=10) should be selected (it's in Org Alpha which is selected)
+      const schuleABtn = Array.from(modal.querySelectorAll("button")).find(
+        (b) => b.textContent?.includes("Schule A"),
+      );
+      expect(schuleABtn?.className).toContain("border-[#83CD2D]");
+
+      // Now deselect Org Alpha — Schule A (id=10) should be pruned,
+      // but unknown id "99" must be preserved since it's not in the picker
+      const orgAlphaBtn = Array.from(modal.querySelectorAll("button")).find(
+        (b) => b.textContent?.includes("Org Alpha"),
+      );
+      fireEvent.click(orgAlphaBtn!);
+
+      // Re-select Org Alpha to see that Schule A is no longer selected
+      const updatedModal = screen.getByTestId("modal");
+      const orgAlphaBtnAgain = Array.from(
+        updatedModal.querySelectorAll("button"),
+      ).find((b) => b.textContent?.includes("Org Alpha"));
+      fireEvent.click(orgAlphaBtnAgain!);
+
+      await waitFor(() => {
+        const finalModal = screen.getByTestId("modal");
+        const updatedSchuleABtn = Array.from(
+          finalModal.querySelectorAll("button"),
+        ).find((b) => b.textContent?.includes("Schule A"));
+        // Schule A was pruned because its parent org was deselected
+        expect(updatedSchuleABtn?.className).not.toContain("border-[#83CD2D]");
+      });
+    });
+
     it("prunes orphaned tenant selections when org is deselected", async () => {
       setupSWRWithOrgAndSchools();
       render(<OperatorAnnouncementsPage />);
@@ -1209,6 +1264,134 @@ describe("OperatorAnnouncementsPage", () => {
       });
 
       consoleError.mockRestore();
+    });
+
+    it("handleSave shows success toast even when revalidation fails", async () => {
+      mockCreate.mockResolvedValue({});
+      mockMutate.mockRejectedValue(new Error("Revalidation failed"));
+      const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => {
+        // noop
+      });
+
+      mockUseSWR.mockReturnValue({
+        data: [],
+        isLoading: false,
+        mutate: mockMutate,
+      });
+
+      render(<OperatorAnnouncementsPage />);
+      fireEvent.click(screen.getByText("Neue Ankündigung"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("modal")).toBeInTheDocument();
+      });
+
+      const textInputs = screen.getAllByRole("textbox");
+      fireEvent.change(textInputs[0]!, { target: { value: "Title" } });
+      fireEvent.change(textInputs[1]!, { target: { value: "Content" } });
+
+      fireEvent.click(screen.getByText("Erstellen"));
+
+      await waitFor(() => {
+        expect(mockCreate).toHaveBeenCalled();
+        expect(mockToastSuccess).toHaveBeenCalledWith("Ankündigung erstellt");
+      });
+
+      // Error toast must NOT have been called — revalidation failure is silent
+      expect(mockToastError).not.toHaveBeenCalled();
+
+      await waitFor(() => {
+        expect(consoleWarn).toHaveBeenCalledWith("revalidation_failed", {
+          error: "Revalidation failed",
+        });
+      });
+
+      consoleWarn.mockRestore();
+    });
+
+    it("handleDelete shows success toast even when revalidation fails", async () => {
+      mockDelete.mockResolvedValue({});
+      mockMutate.mockRejectedValue(new Error("Revalidation failed"));
+      const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => {
+        // noop
+      });
+
+      mockUseSWR.mockReturnValue({
+        data: [mockAnnouncement],
+        isLoading: false,
+        mutate: mockMutate,
+      });
+
+      render(<OperatorAnnouncementsPage />);
+
+      const menuButtons = screen.getAllByLabelText("Menü öffnen");
+      fireEvent.click(menuButtons[0]!);
+
+      await waitFor(() => {
+        fireEvent.click(screen.getByText("Löschen"));
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId("confirm-button"));
+
+      await waitFor(() => {
+        expect(mockDelete).toHaveBeenCalledWith("1");
+        expect(mockToastSuccess).toHaveBeenCalledWith("Ankündigung gelöscht");
+      });
+
+      expect(mockToastError).not.toHaveBeenCalled();
+
+      await waitFor(() => {
+        expect(consoleWarn).toHaveBeenCalledWith("revalidation_failed", {
+          error: "Revalidation failed",
+        });
+      });
+
+      consoleWarn.mockRestore();
+    });
+
+    it("handlePublish shows success toast even when revalidation fails", async () => {
+      mockPublish.mockResolvedValue({});
+      mockMutate.mockRejectedValue(new Error("Revalidation failed"));
+      const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => {
+        // noop
+      });
+
+      mockUseSWR.mockReturnValue({
+        data: [mockAnnouncement],
+        isLoading: false,
+        mutate: mockMutate,
+      });
+
+      render(<OperatorAnnouncementsPage />);
+
+      fireEvent.click(screen.getByText("Veröffentlichen"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId("confirm-button"));
+
+      await waitFor(() => {
+        expect(mockPublish).toHaveBeenCalledWith("1");
+        expect(mockToastSuccess).toHaveBeenCalledWith(
+          "Ankündigung veröffentlicht",
+        );
+      });
+
+      expect(mockToastError).not.toHaveBeenCalled();
+
+      await waitFor(() => {
+        expect(consoleWarn).toHaveBeenCalledWith("revalidation_failed", {
+          error: "Revalidation failed",
+        });
+      });
+
+      consoleWarn.mockRestore();
     });
 
     it("handleSave updates existing announcement and shows save toast", async () => {
