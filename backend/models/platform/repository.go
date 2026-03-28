@@ -71,6 +71,7 @@ type AnnouncementViewRepository interface {
 type SchoolRepository interface {
 	Create(ctx context.Context, school *School) error
 	FindByID(ctx context.Context, id int64) (*School, error)
+	FindByIDForShare(ctx context.Context, id int64) (*School, error)
 	FindBySlug(ctx context.Context, slug string) (*School, error)
 	FindByOrganizationAndSlug(ctx context.Context, organizationID int64, slug string) (*School, error)
 	FindBySubdomain(ctx context.Context, subdomain string) (*School, error)
@@ -79,6 +80,8 @@ type SchoolRepository interface {
 	ListPublic(ctx context.Context) ([]School, error)
 	FindActiveByAccountID(ctx context.Context, accountID int64) ([]School, error)
 	Update(ctx context.Context, school *School) error
+	SoftDelete(ctx context.Context, id int64) error
+	Restore(ctx context.Context, id int64) error
 }
 
 // OperatorAuditLogRepository defines operations for the audit log

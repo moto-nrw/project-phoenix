@@ -196,6 +196,7 @@ func TestLogoutInvalidatesRefreshToken(t *testing.T) {
 	email, username := uniqueTestCredentials("logout-invalidate")
 	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 	require.NoError(t, err)
+	testpkg.EnsureAccountTenant(t, db, account.ID, 1)
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	_, refreshToken, err := service.Login(ctx, email, testPassword)

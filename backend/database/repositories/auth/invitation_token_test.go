@@ -630,3 +630,77 @@ func TestInvitationTokenRepository_Update_NilReturnsError(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "nil")
 }
+
+// ============================================================================
+// InvalidateByTenantID Tests
+// ============================================================================
+
+func TestInvitationTokenRepository_InvalidateByTenantID(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).InvitationToken
+
+	t.Run("marks pending invitations as used and returns count", func(t *testing.T) {
+		// ARRANGE
+		tenantID := int64(42)
+		testpkg.EnsureTestTenant(t, db, tenantID)
+		ctx := testpkg.TenantContext(tenantID)
+
+		role := testpkg.CreateTestRoleForTenant(t, db, "inv-invalidate-role", tenantID)
+		creator := testpkg.CreateTestAccount(t, db, "inv-invalidate-creator")
+		defer testpkg.CleanupTableRecords(t, db, "auth.roles", role.ID)
+		defer testpkg.CleanupAuthFixtures(t, db, creator.ID)
+
+		// Create a pending invitation for this tenant
+		invitation := createTestInvitationTokenForTenant(t, db, tenantID, "invalidate-test@example.com", role.ID, creator.ID, time.Now().Add(48*time.Hour))
+		defer cleanupInvitationTokens(t, db, invitation.ID)
+
+		// ACT
+		count, err := repo.InvalidateByTenantID(ctx, tenantID)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, count, 1, "should have invalidated at least one invitation")
+
+		// Verify the invitation now has used_at set
+		found, err := repo.FindByID(ctx, invitation.ID)
+		require.NoError(t, err)
+		assert.NotNil(t, found.UsedAt, "invitation should have used_at set after invalidation")
+	})
+
+	t.Run("returns zero when tenant has no pending invitations", func(t *testing.T) {
+		tenantID := int64(43)
+		testpkg.EnsureTestTenant(t, db, tenantID)
+		ctx := testpkg.TenantContext(tenantID)
+
+		count, err := repo.InvalidateByTenantID(ctx, tenantID)
+		require.NoError(t, err)
+		assert.Equal(t, 0, count)
+	})
+}
+
+// createTestInvitationTokenForTenant creates an invitation token scoped to a specific tenant.
+func createTestInvitationTokenForTenant(t *testing.T, db *bun.DB, tenantID int64, email string, roleID, createdBy int64, expiresAt time.Time) *auth.InvitationToken {
+	t.Helper()
+
+	ctx := testpkg.TenantContext(tenantID)
+	token := &auth.InvitationToken{
+		Email:     email,
+		Token:     uuid.Must(uuid.NewV4()).String(),
+		RoleID:    roleID,
+		ExpiresAt: expiresAt,
+	}
+	if createdBy > 0 {
+		token.CreatedBy = &createdBy
+	}
+	token.SetTenantID(tenantID)
+
+	_, err := db.NewInsert().
+		Model(token).
+		ModelTableExpr(`auth.invitation_tokens`).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	return token
+}

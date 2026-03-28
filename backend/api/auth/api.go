@@ -248,6 +248,11 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if school.IsDeleted() {
+		common.RenderError(w, r, ErrorNotFound(errors.New("tenant not found")))
+		return
+	}
+
 	if !school.Active {
 		common.RenderError(w, r, ErrorNotFound(errors.New("tenant not found")))
 		return
@@ -692,6 +697,8 @@ func (rs *Resource) refreshToken(w http.ResponseWriter, r *http.Request) {
 				common.RenderError(w, r, ErrorUnauthorized(authService.ErrAccountNotFound))
 			case errors.Is(authErr.Err, authService.ErrAccountInactive):
 				common.RenderError(w, r, ErrorUnauthorized(authService.ErrAccountInactive))
+			case errors.Is(authErr.Err, authService.ErrTenantNotFound):
+				common.RenderError(w, r, ErrorUnauthorized(authService.ErrTenantNotFound))
 			default:
 				common.RenderError(w, r, ErrorInternalServer(err))
 			}

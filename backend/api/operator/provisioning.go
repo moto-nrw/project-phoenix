@@ -301,6 +301,32 @@ func (rs *ProvisioningResource) UpdateSchool(w http.ResponseWriter, r *http.Requ
 	common.Respond(w, r, http.StatusOK, updated, "School updated successfully")
 }
 
+func (rs *ProvisioningResource) SoftDeleteSchool(w http.ResponseWriter, r *http.Request) {
+	schoolID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid school ID")
+	if !ok {
+		return
+	}
+	operatorID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	if err := rs.service.SoftDeleteSchool(r.Context(), schoolID, operatorID, getClientIP(r)); err != nil {
+		common.RenderError(w, r, ProvisioningErrorRenderer(err))
+		return
+	}
+	common.RespondNoContent(w, r)
+}
+
+func (rs *ProvisioningResource) RestoreSchool(w http.ResponseWriter, r *http.Request) {
+	schoolID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid school ID")
+	if !ok {
+		return
+	}
+	operatorID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	if err := rs.service.RestoreSchool(r.Context(), schoolID, operatorID, getClientIP(r)); err != nil {
+		common.RenderError(w, r, ProvisioningErrorRenderer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, nil, "School restored successfully")
+}
+
 func (rs *ProvisioningResource) InviteSchoolAdmin(w http.ResponseWriter, r *http.Request) {
 	req := &inviteSchoolAdminRequest{}
 	if err := render.Bind(r, req); err != nil {
@@ -434,6 +460,8 @@ func ProvisioningErrorRenderer(err error) render.Renderer {
 	var organizationNotFound *platformSvc.OrganizationNotFoundError
 	var schoolNotFound *platformSvc.SchoolNotFoundError
 	var schoolInactive *platformSvc.SchoolInactiveError
+	var schoolAlreadyDeleted *platformSvc.SchoolAlreadyDeletedError
+	var schoolNotDeleted *platformSvc.SchoolNotDeletedError
 	var operatorDeviceNotFound *platformSvc.OperatorDeviceNotFoundError
 	var deviceInUse *platformSvc.DeviceInUseError
 	var deviceProtected *platformSvc.DeviceProtectedError
@@ -469,6 +497,10 @@ func ProvisioningErrorRenderer(err error) render.Renderer {
 		return ErrNotFound("School not found")
 	case errors.As(err, &schoolInactive):
 		return ErrForbidden("School is inactive")
+	case errors.As(err, &schoolAlreadyDeleted):
+		return ErrConflict("School is already deleted")
+	case errors.As(err, &schoolNotDeleted):
+		return ErrConflict("School is not deleted")
 	case errors.As(err, &operatorDeviceNotFound):
 		return ErrNotFound("Device not found")
 	case errors.As(err, &deviceInUse):

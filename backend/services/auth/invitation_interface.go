@@ -48,5 +48,6 @@ type InvitationService interface {
 	ResendInvitation(ctx context.Context, invitationID int64, actorAccountID int64) error
 	ListPendingInvitations(ctx context.Context) ([]*authModels.InvitationToken, error)
 	RevokeInvitation(ctx context.Context, invitationID int64, actorAccountID int64) error
+	InvalidatePendingInvitationsByTenantID(ctx context.Context, tenantID int64) (int, error)
 	CleanupExpiredInvitations(ctx context.Context) (int, error)
 }
