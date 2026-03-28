@@ -1067,6 +1067,91 @@ func TestIoTService_GetDeviceByAPIKey(t *testing.T) {
 	})
 }
 
+// =============================================================================
+// Virtual Device Protection Tests
+// =============================================================================
+
+func TestIoTService_VirtualDeviceProtection(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupIoTService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	// Create a virtual device (like WEB-MANUAL-001)
+	virtualDevice := testpkg.EnsureWebManualDevice(t, db)
+
+	t.Run("DeleteDevice rejects virtual device", func(t *testing.T) {
+		err := service.DeleteDevice(ctx, virtualDevice.ID)
+
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, iot.ErrDeviceProtected))
+	})
+
+	t.Run("UpdateDevice rejects virtual device", func(t *testing.T) {
+		virtualDevice.Name = stringPtr("Hacked Name")
+
+		err := service.UpdateDevice(ctx, virtualDevice)
+
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, iot.ErrDeviceProtected))
+	})
+
+	t.Run("UpdateDeviceStatus rejects virtual device", func(t *testing.T) {
+		err := service.UpdateDeviceStatus(ctx, virtualDevice.DeviceID, iotModels.DeviceStatusInactive)
+
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, iot.ErrDeviceProtected))
+	})
+
+	t.Run("ListDevices excludes virtual devices by default", func(t *testing.T) {
+		// Create a normal device to ensure list isn't empty
+		normalDevice := testpkg.CreateTestDevice(t, db, "normal-visible")
+		defer testpkg.CleanupActivityFixtures(t, db, normalDevice.ID)
+
+		devices, err := service.ListDevices(ctx, map[string]interface{}{})
+
+		require.NoError(t, err)
+		for _, d := range devices {
+			assert.NotEqual(t, iotModels.DeviceTypeVirtual, d.DeviceType,
+				"virtual device %s should not appear in default listing", d.DeviceID)
+		}
+		// Verify at least the normal device is present
+		found := false
+		for _, d := range devices {
+			if d.ID == normalDevice.ID {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "normal device should appear in listing")
+	})
+
+	t.Run("ListDevices includes virtual devices when explicitly filtered", func(t *testing.T) {
+		filters := map[string]interface{}{
+			"device_type": iotModels.DeviceTypeVirtual,
+		}
+		devices, err := service.ListDevices(ctx, filters)
+
+		require.NoError(t, err)
+		assert.NotEmpty(t, devices)
+		for _, d := range devices {
+			assert.Equal(t, iotModels.DeviceTypeVirtual, d.DeviceType)
+		}
+	})
+
+	t.Run("ListDevices does not mutate caller filter map", func(t *testing.T) {
+		filters := map[string]interface{}{
+			"status": string(iotModels.DeviceStatusActive),
+		}
+		_, err := service.ListDevices(ctx, filters)
+		require.NoError(t, err)
+
+		_, hasExclude := filters["exclude_device_type"]
+		assert.False(t, hasExclude, "caller's filter map should not be mutated")
+	})
+}
+
 // Helper function for string pointers
 func stringPtr(s string) *string {
 	return &s

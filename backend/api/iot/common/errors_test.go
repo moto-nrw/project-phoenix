@@ -116,6 +116,7 @@ func TestErrorRenderer_IoTErrors(t *testing.T) {
 		{"ErrDeviceOffline", &iotSvc.IoTError{Err: iotSvc.ErrDeviceOffline}, http.StatusConflict},
 		{"ErrNetworkScanFailed", &iotSvc.IoTError{Err: iotSvc.ErrNetworkScanFailed}, http.StatusInternalServerError},
 		{"ErrDatabaseOperation", &iotSvc.IoTError{Err: iotSvc.ErrDatabaseOperation}, http.StatusInternalServerError},
+		{"ErrDeviceProtected", &iotSvc.IoTError{Err: iotSvc.ErrDeviceProtected}, http.StatusForbidden},
 	}
 
 	for _, tt := range tests {

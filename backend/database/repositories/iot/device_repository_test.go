@@ -839,4 +839,39 @@ func TestDeviceRepository_List_WithFilters(t *testing.T) {
 		}
 		assert.True(t, found)
 	})
+
+	t.Run("filters by exclude_device_type", func(t *testing.T) {
+		// Ensure a virtual device exists
+		testpkg.EnsureWebManualDevice(t, db)
+
+		// Create a normal device
+		normalDevice := &iot.Device{
+			DeviceID:   fmt.Sprintf("exclude-type-%d", time.Now().UnixNano()),
+			DeviceType: "terminal",
+			Status:     iot.DeviceStatusActive,
+		}
+		err := repo.Create(ctx, normalDevice)
+		require.NoError(t, err)
+		defer testpkg.CleanupTableRecords(t, db, "iot.devices", normalDevice.ID)
+
+		devices, err := repo.List(ctx, map[string]interface{}{
+			"exclude_device_type": iot.DeviceTypeVirtual,
+		})
+		require.NoError(t, err)
+
+		for _, d := range devices {
+			assert.NotEqual(t, iot.DeviceTypeVirtual, d.DeviceType,
+				"virtual device %s should be excluded", d.DeviceID)
+		}
+
+		// Normal device should still be present
+		var foundNormal bool
+		for _, d := range devices {
+			if d.ID == normalDevice.ID {
+				foundNormal = true
+				break
+			}
+		}
+		assert.True(t, foundNormal, "normal device should not be excluded")
+	})
 }
