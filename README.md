@@ -2,7 +2,7 @@
 
 # Project Phoenix
 
-![Ganztagshelden Logo](frontend/public/images/ganztagshelden-logo.svg)
+![Ganztagshelden Logo](frontend/public/images/ganztagshelden-logo.png)
 
 **A modern RFID-based student attendance and room management system for educational institutions**
 
