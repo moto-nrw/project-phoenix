@@ -246,7 +246,10 @@ func (r *SchoolRepository) SoftDelete(ctx context.Context, id int64) error {
 	return base.AssertRowsAffected(result, 1, "soft delete school")
 }
 
-// CountByIDs counts how many schools exist for the given IDs (excludes soft-deleted).
+// CountByIDs counts how many of the given IDs exist in the schools table.
+// This intentionally includes soft-deleted schools so that validation accepts
+// whatever the UI picker offers and existing announcements that reference
+// previously-deleted schools can still be re-saved without error.
 func (r *SchoolRepository) CountByIDs(ctx context.Context, ids []int64) (int, error) {
 	if len(ids) == 0 {
 		return 0, nil
@@ -255,7 +258,6 @@ func (r *SchoolRepository) CountByIDs(ctx context.Context, ids []int64) (int, er
 		Model((*platform.School)(nil)).
 		ModelTableExpr(schoolTableAlias).
 		Where(`"school".id IN (?)`, bun.List(ids)).
-		Where(`"school".deleted_at IS NULL`).
 		Count(ctx)
 	if err != nil {
 		return 0, &modelBase.DatabaseError{Op: "count schools by ids", Err: err}

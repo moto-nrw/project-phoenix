@@ -203,7 +203,6 @@ export default function OperatorAnnouncementsPage() {
             target_tenant_ids: targetTenantIdsNum,
           };
           await operatorAnnouncementsService.update(editTarget.id, updateData);
-          toastSuccess("Ankündigung gespeichert");
         } else {
           const createData: CreateAnnouncementRequest = {
             title: formData.title,
@@ -217,11 +216,13 @@ export default function OperatorAnnouncementsPage() {
             ...(formData.expiresAt && { expires_at: formData.expiresAt }),
           };
           await operatorAnnouncementsService.create(createData);
-          toastSuccess("Ankündigung erstellt");
         }
+        await mutate();
+        toastSuccess(
+          editTarget ? "Ankündigung gespeichert" : "Ankündigung erstellt",
+        );
         setFormOpen(false);
         setEditTarget(null);
-        await mutate();
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error);
         logger.error("announcement_save_failed", { error: msg });
@@ -238,9 +239,9 @@ export default function OperatorAnnouncementsPage() {
     setIsDeleting(true);
     try {
       await operatorAnnouncementsService.delete(deleteTarget.id);
+      await mutate();
       setDeleteTarget(null);
       toastSuccess("Ankündigung gelöscht");
-      await mutate();
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       logger.error("announcement_delete_failed", { error: msg });
@@ -255,9 +256,9 @@ export default function OperatorAnnouncementsPage() {
     setIsPublishing(true);
     try {
       await operatorAnnouncementsService.publish(publishTarget.id);
+      await mutate();
       setPublishTarget(null);
       toastSuccess("Ankündigung veröffentlicht");
-      await mutate();
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       logger.error("announcement_publish_failed", { error: msg });
