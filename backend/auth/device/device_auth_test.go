@@ -858,6 +858,9 @@ func (m *mockSchoolRepo) FindActiveByAccountID(_ context.Context, _ int64) ([]pl
 func (m *mockSchoolRepo) Update(_ context.Context, _ *platform.School) error { return nil }
 func (m *mockSchoolRepo) SoftDelete(_ context.Context, _ int64) error        { return nil }
 func (m *mockSchoolRepo) Restore(_ context.Context, _ int64) error           { return nil }
+func (m *mockSchoolRepo) CountByIDs(_ context.Context, ids []int64) (int, error) {
+	return len(ids), nil
+}
 
 func TestRejectDeletedSchool_ActiveSchool_ReturnsNil(t *testing.T) {
 	repo := &mockSchoolRepo{school: &platform.School{Active: true}}

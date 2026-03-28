@@ -56,6 +56,9 @@ func (s stubAuthLoginSchoolRepo) FindActiveByAccountID(context.Context, int64) (
 func (s stubAuthLoginSchoolRepo) Update(context.Context, *platformModels.School) error {
 	panic("unexpected Update")
 }
+func (s stubAuthLoginSchoolRepo) CountByIDs(context.Context, []int64) (int, error) {
+	panic("unexpected CountByIDs")
+}
 func (s stubAuthLoginSchoolRepo) FindByIDForShare(ctx context.Context, id int64) (*platformModels.School, error) {
 	return s.FindByID(ctx, id)
 }

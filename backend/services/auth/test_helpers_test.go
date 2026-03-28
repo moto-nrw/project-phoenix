@@ -1287,6 +1287,10 @@ func (r *stubSchoolRepository) Update(context.Context, *platformModel.School) er
 func (r *stubSchoolRepository) SoftDelete(context.Context, int64) error { return nil }
 func (r *stubSchoolRepository) Restore(context.Context, int64) error    { return nil }
 
+func (r *stubSchoolRepository) CountByIDs(context.Context, []int64) (int, error) {
+	return 0, fmt.Errorf("not implemented")
+}
+
 // helper to build default email used in tests.
 func newDefaultFromEmail() email.Email {
 	return email.NewEmail("moto", "no-reply@moto.example")

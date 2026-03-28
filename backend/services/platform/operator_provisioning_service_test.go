@@ -62,6 +62,9 @@ func (m *mockOrganizationRepo) Update(ctx context.Context, org *platformModels.O
 	}
 	return nil
 }
+func (m *mockOrganizationRepo) CountByIDs(ctx context.Context, ids []int64) (int, error) {
+	return len(ids), nil
+}
 
 type mockSchoolRepo struct {
 	findByIDFn         func(context.Context, int64) (*platformModels.School, error)
@@ -124,6 +127,9 @@ func (m *mockSchoolRepo) Update(ctx context.Context, school *platformModels.Scho
 		return m.updateFn(ctx, school)
 	}
 	return nil
+}
+func (m *mockSchoolRepo) CountByIDs(ctx context.Context, ids []int64) (int, error) {
+	return len(ids), nil
 }
 func (m *mockSchoolRepo) SoftDelete(ctx context.Context, id int64) error {
 	if m.softDeleteFn != nil {

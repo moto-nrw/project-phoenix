@@ -81,6 +81,9 @@ func (s *internalSchoolRepoStub) FindActiveByAccountID(context.Context, int64) (
 func (s *internalSchoolRepoStub) Update(context.Context, *platformModels.School) error {
 	return nil
 }
+func (s *internalSchoolRepoStub) CountByIDs(context.Context, []int64) (int, error) {
+	return 0, nil
+}
 func (s *internalSchoolRepoStub) SoftDelete(context.Context, int64) error { return nil }
 func (s *internalSchoolRepoStub) Restore(context.Context, int64) error    { return nil }
 
@@ -117,6 +120,9 @@ func (s *internalOrgRepoStub) List(ctx context.Context) ([]*platformModels.Organ
 }
 func (s *internalOrgRepoStub) Update(context.Context, *platformModels.Organization) error {
 	return nil
+}
+func (s *internalOrgRepoStub) CountByIDs(context.Context, []int64) (int, error) {
+	return 0, nil
 }
 
 type internalDeviceRepoStub struct {

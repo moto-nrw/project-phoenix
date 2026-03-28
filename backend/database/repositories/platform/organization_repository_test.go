@@ -121,4 +121,28 @@ func TestOrganizationRepository_FindByIDAndSlugAndList(t *testing.T) {
 		assert.True(t, foundA)
 		assert.True(t, foundB)
 	})
+
+	t.Run("CountByIDs returns correct count for existing IDs", func(t *testing.T) {
+		count, err := repo.CountByIDs(ctx, []int64{orgA.ID, orgB.ID})
+		require.NoError(t, err)
+		assert.Equal(t, 2, count)
+	})
+
+	t.Run("CountByIDs returns partial count when some IDs missing", func(t *testing.T) {
+		count, err := repo.CountByIDs(ctx, []int64{orgA.ID, 999999999})
+		require.NoError(t, err)
+		assert.Equal(t, 1, count)
+	})
+
+	t.Run("CountByIDs returns zero for nonexistent IDs", func(t *testing.T) {
+		count, err := repo.CountByIDs(ctx, []int64{999999999})
+		require.NoError(t, err)
+		assert.Equal(t, 0, count)
+	})
+
+	t.Run("CountByIDs returns zero for empty slice", func(t *testing.T) {
+		count, err := repo.CountByIDs(ctx, []int64{})
+		require.NoError(t, err)
+		assert.Equal(t, 0, count)
+	})
 }

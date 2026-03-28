@@ -26,6 +26,7 @@ type OrganizationRepository interface {
 	FindBySlug(ctx context.Context, slug string) (*Organization, error)
 	List(ctx context.Context) ([]*Organization, error)
 	Update(ctx context.Context, organization *Organization) error
+	CountByIDs(ctx context.Context, ids []int64) (int, error)
 }
 
 // AnnouncementRepository defines operations for managing announcements
@@ -51,11 +52,11 @@ type AnnouncementViewRepository interface {
 	MarkSeen(ctx context.Context, userID, announcementID int64) error
 	MarkDismissed(ctx context.Context, userID, announcementID int64) error
 
-	// Query unread announcements for a user (filtered by roles)
-	GetUnreadForUser(ctx context.Context, userID int64, userRoles []string) ([]*Announcement, error)
+	// Query unread announcements for a user scoped to the current session tenant/org
+	GetUnreadForUser(ctx context.Context, userID int64, userRoles []string, tenantID int64, orgID int64) ([]*Announcement, error)
 
-	// Count unread announcements for a user (filtered by roles)
-	CountUnread(ctx context.Context, userID int64, userRoles []string) (int, error)
+	// Count unread announcements for a user scoped to the current session tenant/org
+	CountUnread(ctx context.Context, userID int64, userRoles []string, tenantID int64, orgID int64) (int, error)
 
 	// Check if user has seen announcement
 	HasSeen(ctx context.Context, userID, announcementID int64) (bool, error)
@@ -80,6 +81,7 @@ type SchoolRepository interface {
 	ListPublic(ctx context.Context) ([]School, error)
 	FindActiveByAccountID(ctx context.Context, accountID int64) ([]School, error)
 	Update(ctx context.Context, school *School) error
+	CountByIDs(ctx context.Context, ids []int64) (int, error)
 	SoftDelete(ctx context.Context, id int64) error
 	Restore(ctx context.Context, id int64) error
 }

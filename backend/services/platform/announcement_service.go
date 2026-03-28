@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"slices"
 
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/uptrace/bun"
@@ -25,9 +26,9 @@ type AnnouncementService interface {
 	PublishAnnouncement(ctx context.Context, id int64, operatorID int64, clientIP net.IP) error
 	UnpublishAnnouncement(ctx context.Context, id int64, operatorID int64, clientIP net.IP) error
 
-	// User-facing operations
-	GetUnreadForUser(ctx context.Context, userID int64, userRoles []string) ([]*platform.Announcement, error)
-	CountUnread(ctx context.Context, userID int64, userRoles []string) (int, error)
+	// User-facing operations (scoped to the current session tenant/org)
+	GetUnreadForUser(ctx context.Context, userID int64, userRoles []string, tenantID int64, orgID int64) ([]*platform.Announcement, error)
+	CountUnread(ctx context.Context, userID int64, userRoles []string, tenantID int64, orgID int64) (int, error)
 	MarkSeen(ctx context.Context, userID, announcementID int64) error
 	MarkDismissed(ctx context.Context, userID, announcementID int64) error
 
@@ -40,6 +41,8 @@ type announcementService struct {
 	announcementRepo     platform.AnnouncementRepository
 	announcementViewRepo platform.AnnouncementViewRepository
 	auditLogRepo         platform.OperatorAuditLogRepository
+	orgRepo              platform.OrganizationRepository
+	schoolRepo           platform.SchoolRepository
 	db                   *bun.DB
 	logger               *slog.Logger
 }
@@ -49,6 +52,8 @@ type AnnouncementServiceConfig struct {
 	AnnouncementRepo     platform.AnnouncementRepository
 	AnnouncementViewRepo platform.AnnouncementViewRepository
 	AuditLogRepo         platform.OperatorAuditLogRepository
+	OrgRepo              platform.OrganizationRepository
+	SchoolRepo           platform.SchoolRepository
 	DB                   *bun.DB
 	Logger               *slog.Logger
 }
@@ -59,6 +64,8 @@ func NewAnnouncementService(cfg AnnouncementServiceConfig) AnnouncementService {
 		announcementRepo:     cfg.AnnouncementRepo,
 		announcementViewRepo: cfg.AnnouncementViewRepo,
 		auditLogRepo:         cfg.AuditLogRepo,
+		orgRepo:              cfg.OrgRepo,
+		schoolRepo:           cfg.SchoolRepo,
 		db:                   cfg.DB,
 		logger:               cfg.Logger,
 	}
@@ -71,6 +78,30 @@ func (s *announcementService) getLogger() *slog.Logger {
 	return slog.Default()
 }
 
+// validateTargetingIDs checks that all referenced org and tenant IDs exist in the database
+// using batch queries (WHERE id IN (?)) instead of N+1 individual lookups.
+func (s *announcementService) validateTargetingIDs(ctx context.Context, orgIDs, tenantIDs []int64) error {
+	if len(orgIDs) > 0 {
+		count, err := s.orgRepo.CountByIDs(ctx, orgIDs)
+		if err != nil {
+			return fmt.Errorf("failed to verify organizations: %w", err)
+		}
+		if count != len(orgIDs) {
+			return &InvalidDataError{Err: fmt.Errorf("one or more organization IDs do not exist (requested %d, found %d)", len(orgIDs), count)}
+		}
+	}
+	if len(tenantIDs) > 0 {
+		count, err := s.schoolRepo.CountByIDs(ctx, tenantIDs)
+		if err != nil {
+			return fmt.Errorf("failed to verify schools: %w", err)
+		}
+		if count != len(tenantIDs) {
+			return &InvalidDataError{Err: fmt.Errorf("one or more school (tenant) IDs do not exist (requested %d, found %d)", len(tenantIDs), count)}
+		}
+	}
+	return nil
+}
+
 // CreateAnnouncement creates a new announcement
 func (s *announcementService) CreateAnnouncement(ctx context.Context, announcement *platform.Announcement, operatorID int64, clientIP net.IP) error {
 	if announcement == nil {
@@ -81,6 +112,10 @@ func (s *announcementService) CreateAnnouncement(ctx context.Context, announceme
 
 	if err := announcement.Validate(); err != nil {
 		return &InvalidDataError{Err: err}
+	}
+
+	if err := s.validateTargetingIDs(ctx, announcement.TargetOrgIDs, announcement.TargetTenantIDs); err != nil {
+		return err
 	}
 
 	if err := s.announcementRepo.Create(ctx, announcement); err != nil {
@@ -123,16 +158,23 @@ func (s *announcementService) UpdateAnnouncement(ctx context.Context, announceme
 		return &InvalidDataError{Err: err}
 	}
 
+	if err := s.validateTargetingIDs(ctx, announcement.TargetOrgIDs, announcement.TargetTenantIDs); err != nil {
+		return err
+	}
+
 	if err := s.announcementRepo.Update(ctx, announcement); err != nil {
 		return err
 	}
 
 	// Audit log
 	changes := map[string]any{
-		"title_changed":    existing.Title != announcement.Title,
-		"content_changed":  existing.Content != announcement.Content,
-		"type_changed":     existing.Type != announcement.Type,
-		"severity_changed": existing.Severity != announcement.Severity,
+		"title_changed":             existing.Title != announcement.Title,
+		"content_changed":           existing.Content != announcement.Content,
+		"type_changed":              existing.Type != announcement.Type,
+		"severity_changed":          existing.Severity != announcement.Severity,
+		"target_org_ids_changed":    !slices.Equal(existing.TargetOrgIDs, announcement.TargetOrgIDs),
+		"target_tenant_ids_changed": !slices.Equal(existing.TargetTenantIDs, announcement.TargetTenantIDs),
+		"target_roles_changed":      !slices.Equal(existing.TargetRoles, announcement.TargetRoles),
 	}
 	s.logAction(ctx, operatorID, platform.ActionUpdate, platform.ResourceAnnouncement, &announcement.ID, clientIP, changes)
 
@@ -205,14 +247,14 @@ func (s *announcementService) UnpublishAnnouncement(ctx context.Context, id int6
 	return nil
 }
 
-// GetUnreadForUser retrieves unread announcements for a user filtered by roles
-func (s *announcementService) GetUnreadForUser(ctx context.Context, userID int64, userRoles []string) ([]*platform.Announcement, error) {
-	return s.announcementViewRepo.GetUnreadForUser(ctx, userID, userRoles)
+// GetUnreadForUser retrieves unread announcements for a user scoped to the current session tenant/org
+func (s *announcementService) GetUnreadForUser(ctx context.Context, userID int64, userRoles []string, tenantID int64, orgID int64) ([]*platform.Announcement, error) {
+	return s.announcementViewRepo.GetUnreadForUser(ctx, userID, userRoles, tenantID, orgID)
 }
 
-// CountUnread counts unread announcements for a user filtered by roles
-func (s *announcementService) CountUnread(ctx context.Context, userID int64, userRoles []string) (int, error) {
-	return s.announcementViewRepo.CountUnread(ctx, userID, userRoles)
+// CountUnread counts unread announcements for a user scoped to the current session tenant/org
+func (s *announcementService) CountUnread(ctx context.Context, userID int64, userRoles []string, tenantID int64, orgID int64) (int, error) {
+	return s.announcementViewRepo.CountUnread(ctx, userID, userRoles, tenantID, orgID)
 }
 
 // GetStats retrieves view statistics for an announcement
