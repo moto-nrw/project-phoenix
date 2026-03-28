@@ -119,6 +119,21 @@ export default function OperatorAnnouncementsPage() {
     );
   }, [schools, formData.targetOrgIds]);
 
+  // Prune orphaned tenant selections when schools data loads or org selection changes.
+  // This covers the race condition where org toggles happen before schools are fetched.
+  useEffect(() => {
+    if (!schools || formData.targetOrgIds.length === 0) return;
+    setFormData((prev) => {
+      const pruned = prev.targetTenantIds.filter((tid) =>
+        schools.some(
+          (s) => s.id === tid && prev.targetOrgIds.includes(s.organizationId),
+        ),
+      );
+      if (pruned.length === prev.targetTenantIds.length) return prev;
+      return { ...prev, targetTenantIds: pruned };
+    });
+  }, [schools, formData.targetOrgIds]);
+
   const filteredAnnouncements = useMemo(() => {
     if (!announcements) return [];
     if (statusFilter === "all") return announcements;

@@ -2,6 +2,7 @@ package platform
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -89,7 +90,7 @@ func (a *Announcement) Validate() error {
 		return errors.New("version must not exceed 50 characters")
 	}
 
-	// Normalize nil slices to empty arrays so BUN sends '{}' instead of NULL
+	// Normalize nil slices to empty arrays so BUN sends '{}' instead of NULL.
 	if a.TargetRoles == nil {
 		a.TargetRoles = []string{}
 	}
@@ -98,6 +99,15 @@ func (a *Announcement) Validate() error {
 	}
 	if a.TargetTenantIDs == nil {
 		a.TargetTenantIDs = []int64{}
+	}
+
+	// Cap targeting array sizes to prevent bloated IN clauses and GIN index overhead.
+	const maxTargetIDs = 100
+	if len(a.TargetOrgIDs) > maxTargetIDs {
+		return fmt.Errorf("target_org_ids exceeds maximum of %d entries", maxTargetIDs)
+	}
+	if len(a.TargetTenantIDs) > maxTargetIDs {
+		return fmt.Errorf("target_tenant_ids exceeds maximum of %d entries", maxTargetIDs)
 	}
 
 	return nil

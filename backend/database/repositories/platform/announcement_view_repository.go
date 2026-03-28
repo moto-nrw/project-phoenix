@@ -92,6 +92,16 @@ func (r *AnnouncementViewRepository) GetUnreadForUser(ctx context.Context, userI
 	var announcements []*platform.Announcement
 	now := time.Now()
 
+	// Build role filter: empty userRoles means only global announcements (target_roles = '{}')
+	// are visible. We cannot use IN () which is invalid SQL in PostgreSQL.
+	roleFilter := `a.target_roles = '{}'`
+	args := []any{userID, now, now}
+	if len(userRoles) > 0 {
+		roleFilter = `(a.target_roles = '{}' OR EXISTS (SELECT 1 FROM unnest(a.target_roles) AS r WHERE r IN (?)))`
+		args = append(args, bun.List(userRoles))
+	}
+	args = append(args, orgID, tenantID)
+
 	err := base.GetDB(ctx, r.db).NewRaw(`
 		SELECT a.*
 		FROM platform.announcements a
@@ -102,15 +112,14 @@ func (r *AnnouncementViewRepository) GetUnreadForUser(ctx context.Context, userI
 			AND a.published_at <= ?
 			AND (a.expires_at IS NULL OR a.expires_at > ?)
 			AND v.seen_at IS NULL
-			AND (a.target_roles = '{}' OR EXISTS (
-				SELECT 1 FROM unnest(a.target_roles) AS r WHERE r IN (?)))
+			AND `+roleFilter+`
 			AND (
 				(a.target_org_ids = '{}' AND a.target_tenant_ids = '{}')
 				OR (a.target_org_ids != '{}' AND ? = ANY(a.target_org_ids))
 				OR (a.target_tenant_ids != '{}' AND ? = ANY(a.target_tenant_ids))
 			)
 		ORDER BY a.published_at DESC
-	`, userID, now, now, bun.List(userRoles), orgID, tenantID).Scan(ctx, &announcements)
+	`, args...).Scan(ctx, &announcements)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -126,6 +135,15 @@ func (r *AnnouncementViewRepository) GetUnreadForUser(ctx context.Context, userI
 func (r *AnnouncementViewRepository) CountUnread(ctx context.Context, userID int64, userRoles []string, tenantID int64, orgID int64) (int, error) {
 	now := time.Now()
 
+	// Build role filter: same guard as GetUnreadForUser to avoid invalid IN () SQL.
+	roleFilter := `a.target_roles = '{}'`
+	args := []any{userID, now, now}
+	if len(userRoles) > 0 {
+		roleFilter = `(a.target_roles = '{}' OR EXISTS (SELECT 1 FROM unnest(a.target_roles) AS r WHERE r IN (?)))`
+		args = append(args, bun.List(userRoles))
+	}
+	args = append(args, orgID, tenantID)
+
 	var count int
 	err := base.GetDB(ctx, r.db).NewRaw(`
 		SELECT COUNT(*)
@@ -137,14 +155,13 @@ func (r *AnnouncementViewRepository) CountUnread(ctx context.Context, userID int
 			AND a.published_at <= ?
 			AND (a.expires_at IS NULL OR a.expires_at > ?)
 			AND v.seen_at IS NULL
-			AND (a.target_roles = '{}' OR EXISTS (
-				SELECT 1 FROM unnest(a.target_roles) AS r WHERE r IN (?)))
+			AND `+roleFilter+`
 			AND (
 				(a.target_org_ids = '{}' AND a.target_tenant_ids = '{}')
 				OR (a.target_org_ids != '{}' AND ? = ANY(a.target_org_ids))
 				OR (a.target_tenant_ids != '{}' AND ? = ANY(a.target_tenant_ids))
 			)
-	`, userID, now, now, bun.List(userRoles), orgID, tenantID).Scan(ctx, &count)
+	`, args...).Scan(ctx, &count)
 
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
@@ -202,9 +219,9 @@ func (r *AnnouncementViewRepository) GetStats(ctx context.Context, announcementI
 
 	queryParts = append(queryParts, `SELECT COUNT(DISTINCT at.account_id) FROM auth.account_tenants at`)
 
-	// Always need schools join when org filter is active
-	if hasOrgFilter {
-		queryParts = append(queryParts, `JOIN platform.schools s ON s.id = at.tenant_id`)
+	// Need schools join when org or tenant filter is active; exclude soft-deleted schools
+	if hasOrgFilter || hasTenantFilter {
+		queryParts = append(queryParts, `JOIN platform.schools s ON s.id = at.tenant_id AND s.deleted_at IS NULL`)
 	}
 
 	// Role filter: correlate role assignment with the same tenant
@@ -227,7 +244,7 @@ func (r *AnnouncementViewRepository) GetStats(ctx context.Context, announcementI
 		queryParts = append(queryParts, `AND s.organization_id IN (?)`)
 		queryArgs = append(queryArgs, bun.List(targetOrgIDs))
 	} else if hasTenantFilter {
-		queryParts = append(queryParts, `AND at.tenant_id IN (?)`)
+		queryParts = append(queryParts, `AND s.id IN (?)`)
 		queryArgs = append(queryArgs, bun.List(targetTenantIDs))
 	}
 

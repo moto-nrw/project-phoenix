@@ -78,25 +78,38 @@ func (s *announcementService) getLogger() *slog.Logger {
 	return slog.Default()
 }
 
+// deduplicateInt64 returns a sorted copy of the slice with duplicates removed.
+// The input slice is not modified.
+func deduplicateInt64(ids []int64) []int64 {
+	if len(ids) <= 1 {
+		return ids
+	}
+	cp := slices.Clone(ids)
+	slices.Sort(cp)
+	return slices.Compact(cp)
+}
+
 // validateTargetingIDs checks that all referenced org and tenant IDs exist in the database
 // using batch queries (WHERE id IN (?)) instead of N+1 individual lookups.
 func (s *announcementService) validateTargetingIDs(ctx context.Context, orgIDs, tenantIDs []int64) error {
 	if len(orgIDs) > 0 {
-		count, err := s.orgRepo.CountByIDs(ctx, orgIDs)
+		unique := deduplicateInt64(orgIDs)
+		count, err := s.orgRepo.CountByIDs(ctx, unique)
 		if err != nil {
 			return fmt.Errorf("failed to verify organizations: %w", err)
 		}
-		if count != len(orgIDs) {
-			return &InvalidDataError{Err: fmt.Errorf("one or more organization IDs do not exist (requested %d, found %d)", len(orgIDs), count)}
+		if count != len(unique) {
+			return &InvalidDataError{Err: fmt.Errorf("one or more organization IDs do not exist (requested %d, found %d)", len(unique), count)}
 		}
 	}
 	if len(tenantIDs) > 0 {
-		count, err := s.schoolRepo.CountByIDs(ctx, tenantIDs)
+		unique := deduplicateInt64(tenantIDs)
+		count, err := s.schoolRepo.CountByIDs(ctx, unique)
 		if err != nil {
 			return fmt.Errorf("failed to verify schools: %w", err)
 		}
-		if count != len(tenantIDs) {
-			return &InvalidDataError{Err: fmt.Errorf("one or more school (tenant) IDs do not exist (requested %d, found %d)", len(tenantIDs), count)}
+		if count != len(unique) {
+			return &InvalidDataError{Err: fmt.Errorf("one or more school (tenant) IDs do not exist (requested %d, found %d)", len(unique), count)}
 		}
 	}
 	return nil
