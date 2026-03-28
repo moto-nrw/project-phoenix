@@ -48,6 +48,9 @@ func (s *internalSchoolRepoStub) FindByID(ctx context.Context, id int64) (*platf
 	}
 	return nil, nil
 }
+func (s *internalSchoolRepoStub) FindByIDForShare(ctx context.Context, id int64) (*platformModels.School, error) {
+	return s.FindByID(ctx, id)
+}
 func (s *internalSchoolRepoStub) FindBySlug(context.Context, string) (*platformModels.School, error) {
 	return nil, nil
 }
@@ -1079,6 +1082,9 @@ func (f *failingInvitationServiceStub) ListPendingInvitations(context.Context) (
 }
 func (f *failingInvitationServiceStub) RevokeInvitation(context.Context, int64, int64) error {
 	return nil
+}
+func (f *failingInvitationServiceStub) InvalidatePendingInvitationsByTenantID(context.Context, int64) (int, error) {
+	return 0, nil
 }
 func (f *failingInvitationServiceStub) CleanupExpiredInvitations(context.Context) (int, error) {
 	return 0, nil

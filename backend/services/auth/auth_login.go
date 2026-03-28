@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -215,6 +216,54 @@ func (s *Service) loadAccountMetadata(ctx context.Context, account *auth.Account
 		txService.ensureAccountRolesLoadedForTenant(ctx, account, tenantID)
 
 		// Step 3: Load permissions scoped to the resolved tenant (D13 §6.1 step 7).
+		permissions := txService.loadAccountPermissionsForTenant(ctx, account.ID, tenantID)
+		roleNames := txService.extractRoleNames(account.Roles)
+		permissionStrs := txService.extractPermissionNames(permissions)
+
+		username := txService.extractUsername(account)
+		firstName, lastName := txService.loadPersonNames(ctx, account.ID)
+		isAdmin := txService.checkRoleFlags(roleNames)
+
+		result = &accountMetadata{
+			roleNames:      roleNames,
+			permissionStrs: permissionStrs,
+			username:       username,
+			firstName:      firstName,
+			lastName:       lastName,
+			isAdmin:        isAdmin,
+			tenantID:       tenantID,
+			orgID:          orgID,
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// loadAccountMetadataForTenant loads roles, permissions, and person information for a known tenant ID.
+// Used by the refresh flow where the tenant is already validated and must be preserved exactly —
+// re-resolving via slug or default fallback could silently switch to a different tenant.
+func (s *Service) loadAccountMetadataForTenant(ctx context.Context, account *auth.Account, tenantID int64) (*accountMetadata, error) {
+	var result *accountMetadata
+	err := tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
+		txService := s.WithTx(tx).(*Service)
+
+		// Look up the school's organization ID for the JWT org_id claim.
+		var orgID int64
+		if tenantID > 0 {
+			school, err := txService.repos.School.FindByID(ctx, tenantID)
+			if err != nil {
+				return fmt.Errorf("lookup school for tenant %d: %w", tenantID, err)
+			}
+			if school != nil {
+				orgID = school.OrganizationID
+			}
+		}
+
+		// Load roles and permissions scoped to the preserved tenant.
+		txService.ensureAccountRolesLoadedForTenant(ctx, account, tenantID)
 		permissions := txService.loadAccountPermissionsForTenant(ctx, account.ID, tenantID)
 		roleNames := txService.extractRoleNames(account.Roles)
 		permissionStrs := txService.extractPermissionNames(permissions)
@@ -466,20 +515,23 @@ func (s *Service) resolveAccountTenantBySlug(ctx context.Context, accountID int6
 
 // resolveAccountTenantDefault resolves the tenant using the first active, non-deleted mapping
 // (Phase 3 fallback). Iterates through all tenant mappings to handle cases where some schools
-// are deleted or inactive. Returns (0, 0, nil) if no valid mapping is found (non-fatal).
+// are deleted or inactive. Returns ErrTenantNotFound if no valid mapping is found.
 func (s *Service) resolveAccountTenantDefault(ctx context.Context, accountID int64) (int64, int64, error) {
 	tenants, err := s.repos.AccountTenant.FindActiveByAccountID(ctx, accountID)
-	if err != nil || len(tenants) == 0 {
-		if err != nil {
-			s.getLogger().Warn("failed to resolve account tenant",
-				slog.Int64("account_id", accountID),
-				slog.Any("error", err),
-			)
-		}
-		return 0, 0, nil
+	if err != nil {
+		s.getLogger().Warn("failed to resolve account tenant",
+			slog.Int64("account_id", accountID),
+			slog.Any("error", err),
+		)
+		return 0, 0, fmt.Errorf("resolve account tenants: %w", err)
+	}
+	if len(tenants) == 0 {
+		return 0, 0, &AuthError{Op: "resolve tenant", Err: ErrTenantNotFound}
 	}
 
 	// Iterate all mappings — skip deleted or inactive schools, use the first valid one.
+	// Track lookup errors separately so we don't mask DB failures as "not found".
+	var lastLookupErr error
 	for _, t := range tenants {
 		school, err := s.repos.School.FindByID(ctx, t.TenantID)
 		if err != nil {
@@ -487,6 +539,7 @@ func (s *Service) resolveAccountTenantDefault(ctx context.Context, accountID int
 				slog.Int64("tenant_id", t.TenantID),
 				slog.Any("error", err),
 			)
+			lastLookupErr = err
 			continue
 		}
 		if school == nil {
@@ -504,8 +557,13 @@ func (s *Service) resolveAccountTenantDefault(ctx context.Context, accountID int
 		return t.TenantID, school.OrganizationID, nil
 	}
 
-	// All mappings point to deleted/inactive schools — force explicit tenant selection.
-	return 0, 0, nil
+	// If every lookup failed with a DB error, propagate it instead of masking as not-found.
+	if lastLookupErr != nil {
+		return 0, 0, fmt.Errorf("resolve school for tenant: %w", lastLookupErr)
+	}
+
+	// All mappings point to deleted/inactive schools — no valid tenant available.
+	return 0, 0, &AuthError{Op: "resolve tenant", Err: ErrTenantNotFound}
 }
 
 // buildJWTClaims constructs JWT claims from account and metadata
@@ -889,7 +947,11 @@ func (s *Service) refreshTokenInTransaction(ctx context.Context, refreshClaims *
 		// Resolve from account_tenants so the rotated token gets the correct value.
 		effectiveTenantID := tenantID
 		if effectiveTenantID == 0 {
-			effectiveTenantID, _, _ = s.resolveAccountTenant(ctx, account.ID, "")
+			resolved, _, resolveErr := s.resolveAccountTenant(ctx, account.ID, "")
+			if resolveErr != nil {
+				return resolveErr
+			}
+			effectiveTenantID = resolved
 		}
 
 		// Create and persist new token with resolved tenant
@@ -1044,8 +1106,9 @@ func (s *Service) doRefreshTokenWithAudit(ctx context.Context, refreshTokenStr, 
 	}
 
 	// Load account metadata (roles, permissions, person info)
-	// Refresh flow uses no tenant slug — tenant is carried over from the existing token.
-	metadata, err := s.loadAccountMetadata(ctx, account, "")
+	// Refresh flow preserves the tenant from the existing refresh token — never re-resolve
+	// via default fallback, which could silently switch to a different tenant for multi-tenant users.
+	metadata, err := s.loadAccountMetadataForTenant(ctx, account, refreshClaims.TenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -1061,7 +1124,13 @@ func (s *Service) doRefreshTokenWithAudit(ctx context.Context, refreshTokenStr, 
 	return &refreshResult{accessToken: accessToken, refreshToken: refreshToken}, nil
 }
 
-// validateTenantAccess ensures the account still has active access to the tenant from the refresh token.
+// validateTenantAccess ensures the account still has active access to the tenant from the refresh token
+// and that the tenant (school) has not been soft-deleted.
+//
+// The school.deleted_at check is critical: SoftDeleteSchool bulk-deletes auth.tokens by tenant_id,
+// but a concurrent refreshTokenInTransaction can insert a new token after the DELETE runs
+// (the DELETE only sees rows visible in its statement snapshot). This check catches that race —
+// even if a new token slips through, the next refresh is rejected because the school is deleted.
 func (s *Service) validateTenantAccess(ctx context.Context, claims *jwt.RefreshClaims) error {
 	exists, err := s.repos.AccountTenant.ExistsByAccountAndTenant(ctx, int64(claims.ID), claims.TenantID)
 	if err != nil {
@@ -1079,6 +1148,36 @@ func (s *Service) validateTenantAccess(ctx context.Context, claims *jwt.RefreshC
 		)
 		return &AuthError{Op: "validate tenant access", Err: fmt.Errorf("tenant access revoked")}
 	}
+
+	// Check that the school itself has not been soft-deleted.
+	school, err := s.repos.School.FindByID(ctx, claims.TenantID)
+	if err != nil {
+		// Distinguish "not found" from transient DB errors.
+		// Not-found → tenant genuinely gone → terminal 401/404.
+		// Anything else (timeout, connection reset, etc.) → 500 so the
+		// frontend can retry instead of force-logging out the user.
+		if errors.Is(err, sql.ErrNoRows) {
+			s.getLogger().Warn("school not found during refresh validation",
+				slog.Int("account_id", claims.ID),
+				slog.Int64("tenant_id", claims.TenantID),
+			)
+			return &AuthError{Op: "validate tenant access", Err: ErrTenantNotFound}
+		}
+		s.getLogger().Error("failed to look up school during refresh validation",
+			slog.Int("account_id", claims.ID),
+			slog.Int64("tenant_id", claims.TenantID),
+			slog.Any("error", err),
+		)
+		return &AuthError{Op: "validate tenant access", Err: fmt.Errorf("school lookup failed: %w", err)}
+	}
+	if school == nil || school.IsDeleted() {
+		s.getLogger().Warn("school is deleted, rejecting refresh",
+			slog.Int("account_id", claims.ID),
+			slog.Int64("tenant_id", claims.TenantID),
+		)
+		return &AuthError{Op: "validate tenant access", Err: ErrTenantNotFound}
+	}
+
 	return nil
 }
 

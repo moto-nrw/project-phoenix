@@ -231,6 +231,8 @@ func renderAcceptError(w http.ResponseWriter, r *http.Request, err error) bool {
 		common.RenderError(w, r, common.ErrorConflict(authService.ErrEmailAlreadyExists))
 	case errors.Is(err, authService.ErrInvitationNameRequired):
 		common.RenderError(w, r, ErrorInvalidRequest(authService.ErrInvitationNameRequired))
+	case errors.Is(err, authService.ErrInvitationTenantDeleted):
+		common.RenderError(w, r, ErrorNotFound(authService.ErrInvitationTenantDeleted))
 	case renderInvitationError(w, r, err):
 		// handled by renderInvitationError
 	default:

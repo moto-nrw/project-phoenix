@@ -79,6 +79,26 @@ func (r *SchoolRepository) FindByID(ctx context.Context, id int64) (*platform.Sc
 	return school, nil
 }
 
+// FindByIDForShare returns a school by ID while acquiring a FOR SHARE lock on the row.
+// This prevents concurrent UPDATE (e.g., SoftDelete) from committing until the calling
+// transaction completes. Must be called within a transaction.
+func (r *SchoolRepository) FindByIDForShare(ctx context.Context, id int64) (*platform.School, error) {
+	school := new(platform.School)
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(school).
+		ModelTableExpr(schoolTableAlias).
+		Where(`"school".id = ?`, id).
+		For("SHARE").
+		Scan(ctx)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, &modelBase.DatabaseError{Op: "find school by id for share", Err: err}
+		}
+		return nil, err
+	}
+	return school, nil
+}
+
 // FindBySlug returns a non-deleted school by its slug.
 func (r *SchoolRepository) FindBySlug(ctx context.Context, slug string) (*platform.School, error) {
 	school := new(platform.School)

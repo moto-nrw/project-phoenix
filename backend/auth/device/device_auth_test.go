@@ -3,6 +3,7 @@ package device
 import (
 	"context"
 	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -834,6 +835,9 @@ type mockSchoolRepo struct {
 func (m *mockSchoolRepo) FindByID(_ context.Context, _ int64) (*platform.School, error) {
 	return m.school, m.err
 }
+func (m *mockSchoolRepo) FindByIDForShare(_ context.Context, _ int64) (*platform.School, error) {
+	return m.school, m.err
+}
 func (m *mockSchoolRepo) Create(_ context.Context, _ *platform.School) error { return nil }
 func (m *mockSchoolRepo) FindBySlug(_ context.Context, _ string) (*platform.School, error) {
 	return nil, nil
@@ -886,12 +890,36 @@ func TestRejectDeletedSchool_NilSchool_ReturnsForbidden(t *testing.T) {
 	assert.NotNil(t, result, "non-existent school should be rejected")
 }
 
-func TestRejectDeletedSchool_DBError_ReturnsNil(t *testing.T) {
+func TestRejectDeletedSchool_NonTransientDBError_RejectsDevice(t *testing.T) {
+	// Non-transient errors (bad query, permission issue, etc.) must fail closed
+	// to prevent bypassing the soft-delete guard.
 	repo := &mockSchoolRepo{err: errors.New("connection refused")}
 	device := &iot.Device{DeviceID: "device-001", TenantModel: modelBase.TenantModel{TenantID: 100}}
 
 	result := rejectDeletedSchool(context.Background(), repo, device)
-	assert.Nil(t, result, "DB errors should fail open")
+	assert.NotNil(t, result, "non-transient DB errors should reject device")
+}
+
+func TestRejectDeletedSchool_TransientDBError_FailsOpen(t *testing.T) {
+	// Genuine transient connectivity errors should fail open so IoT devices
+	// keep working during brief outages.
+	repo := &mockSchoolRepo{err: &net.OpError{
+		Op:  "dial",
+		Net: "tcp",
+		Err: errors.New("connection refused"),
+	}}
+	device := &iot.Device{DeviceID: "device-001", TenantModel: modelBase.TenantModel{TenantID: 100}}
+
+	result := rejectDeletedSchool(context.Background(), repo, device)
+	assert.Nil(t, result, "transient DB errors should fail open")
+}
+
+func TestRejectDeletedSchool_ContextTimeout_FailsOpen(t *testing.T) {
+	repo := &mockSchoolRepo{err: context.DeadlineExceeded}
+	device := &iot.Device{DeviceID: "device-001", TenantModel: modelBase.TenantModel{TenantID: 100}}
+
+	result := rejectDeletedSchool(context.Background(), repo, device)
+	assert.Nil(t, result, "context deadline errors should fail open")
 }
 
 func TestDeviceOnlyAuthenticator_DeletedSchool_Forbidden(t *testing.T) {

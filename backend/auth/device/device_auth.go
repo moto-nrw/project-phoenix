@@ -3,7 +3,10 @@ package device
 import (
 	"context"
 	"crypto/subtle"
+	"database/sql"
+	"errors"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -11,12 +14,14 @@ import (
 	"time"
 
 	"github.com/go-chi/render"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 type CtxKey int
@@ -317,16 +322,44 @@ func DeviceOnlyAuthenticator(iotService iotSvc.Service, schoolRepo platform.Scho
 // Returns an error renderer if the school is deleted, nil otherwise.
 // Runs before TenantTxMiddleware, so there is no tenant transaction in context;
 // FindByID falls back to the raw *bun.DB connection which is fine because
-// platform.schools is not behind RLS. Fails open on DB errors to avoid
-// breaking all IoT devices during transient DB issues.
+// platform.schools is not behind RLS. Fails open only on transient DB errors
+// (connection failures) to avoid breaking all IoT devices during outages.
+// "Not found" errors (school row deleted/missing) are treated as rejection.
 func rejectDeletedSchool(ctx context.Context, schoolRepo platform.SchoolRepository, device *iot.Device) render.Renderer {
 	if schoolRepo == nil || device.TenantID <= 0 {
 		return nil
 	}
 	school, err := schoolRepo.FindByID(ctx, device.TenantID)
 	if err != nil {
-		// Fail open on transient DB errors to avoid breaking all IoT devices.
-		return nil
+		// Distinguish "not found" from transient connectivity errors.
+		// FindByID wraps sql.ErrNoRows in a DatabaseError — unwrap and check.
+		if isNotFoundErr(err) {
+			slog.Warn("device authentication rejected: school not found",
+				slog.String("device_id", device.DeviceID),
+				slog.Int64("tenant_id", device.TenantID),
+			)
+			return ErrDeviceForbidden(ErrDeviceInactive)
+		}
+		// Fail open ONLY on transient connectivity errors (net timeouts,
+		// connection resets, driver-level connection failures) to avoid
+		// breaking all IoT devices during brief outages. All other errors
+		// (permission issues, serialization failures, bad queries) fail
+		// closed to prevent bypassing the soft-delete guard.
+		if isTransientDBErr(err) {
+			slog.Warn("school lookup failed during device auth, failing open (transient)",
+				slog.String("device_id", device.DeviceID),
+				slog.Int64("tenant_id", device.TenantID),
+				slog.String("error", err.Error()),
+			)
+			return nil
+		}
+		// Non-transient, non-not-found error — fail closed.
+		slog.Error("school lookup failed during device auth, rejecting device",
+			slog.String("device_id", device.DeviceID),
+			slog.Int64("tenant_id", device.TenantID),
+			slog.String("error", err.Error()),
+		)
+		return ErrDeviceForbidden(ErrDeviceInactive)
 	}
 	if school == nil {
 		// School genuinely doesn't exist — reject the device.
@@ -340,6 +373,58 @@ func rejectDeletedSchool(ctx context.Context, schoolRepo platform.SchoolReposito
 		return ErrDeviceForbidden(ErrDeviceInactive)
 	}
 	return nil
+}
+
+// isTransientDBErr returns true for errors that indicate a temporary
+// connectivity problem (net timeouts, connection resets, context
+// cancellation, PostgreSQL connection-class SQLSTATE 08xxx).
+// Everything else (bad queries, permission errors, serialization
+// failures) returns false so the caller can fail closed.
+func isTransientDBErr(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	// Context-level timeouts / cancellations.
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		return true
+	}
+
+	// Net-level errors (timeouts, connection resets).
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		return true
+	}
+
+	// pgdriver connection-class errors (SQLSTATE 08xxx).
+	var pgErr pgdriver.Error
+	if errors.As(err, &pgErr) {
+		code := pgErr.Field('C')
+		if len(code) >= 2 && code[:2] == "08" {
+			return true
+		}
+	}
+
+	// Unwrap DatabaseError and check the inner error.
+	var dbErr *modelBase.DatabaseError
+	if errors.As(err, &dbErr) {
+		return isTransientDBErr(dbErr.Err)
+	}
+
+	return false
+}
+
+// isNotFoundErr checks if an error represents a "not found" condition,
+// unwrapping DatabaseError if necessary.
+func isNotFoundErr(err error) bool {
+	if errors.Is(err, sql.ErrNoRows) {
+		return true
+	}
+	var dbErr *modelBase.DatabaseError
+	if errors.As(err, &dbErr) {
+		return errors.Is(dbErr.Err, sql.ErrNoRows)
+	}
+	return false
 }
 
 // SecureCompareStrings performs a constant-time comparison of two strings to prevent timing attacks

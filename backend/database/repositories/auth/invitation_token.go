@@ -202,6 +202,29 @@ func (r *InvitationTokenRepository) InvalidateByEmail(ctx context.Context, email
 	return int(count), nil
 }
 
+// InvalidateByTenantID marks all pending invitations for a tenant as used.
+// Used during soft-delete to prevent redemption of invitations for deleted schools.
+func (r *InvitationTokenRepository) InvalidateByTenantID(ctx context.Context, tenantID int64) (int, error) {
+	res, err := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*modelAuth.InvitationToken)(nil)).
+		ModelTableExpr(invitationTable).
+		Set(`used_at = NOW()`).
+		Where(`tenant_id = ?`, tenantID).
+		Where(`used_at IS NULL`).
+		Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "invalidate invitations by tenant ID",
+			Err: err,
+		}
+	}
+	count, err := res.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("failed to retrieve affected rows for invalidate invitations by tenant: %w", err)
+	}
+	return int(count), nil
+}
+
 // DeleteExpired removes invitations that can no longer be used.
 func (r *InvitationTokenRepository) DeleteExpired(ctx context.Context, now time.Time) (int, error) {
 	query := base.GetDB(ctx, r.db).NewDelete().

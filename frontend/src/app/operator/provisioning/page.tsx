@@ -460,7 +460,8 @@ export default function OperatorProvisioningPage() {
       setDeleteError("");
       try {
         await action(target.id);
-        await mutateSchools();
+        // Backend action succeeded — invalidate tenant cache immediately
+        // so stale routing data doesn't persist for up to 5 minutes.
         try {
           await fetch("/api/operator/provisioning/revalidate-tenant", {
             method: "POST",
@@ -471,6 +472,8 @@ export default function OperatorProvisioningPage() {
           /* Cache self-heals in ≤5 min */
         }
         onSuccess();
+        // SWR list refresh is best-effort — failure is cosmetic (stale list until next load)
+        await mutateSchools().catch(() => {});
       } catch (error) {
         setDeleteError(errorMsg);
         logger.error(logEvent, {
@@ -490,9 +493,14 @@ export default function OperatorProvisioningPage() {
         operatorProvisioningService.softDeleteSchool,
         "Fehler beim Löschen der Schule. Bitte versuchen Sie es erneut.",
         "school_soft_delete_failed",
-        () => setDeleteTarget(null),
+        () => {
+          setDeleteTarget(null);
+          if (selectedSchool?.id === deleteTarget?.id) {
+            setSelectedSchool(null);
+          }
+        },
       ),
-    [deleteTarget, executeSchoolAction],
+    [deleteTarget, executeSchoolAction, selectedSchool],
   );
 
   const handleRestore = useCallback(

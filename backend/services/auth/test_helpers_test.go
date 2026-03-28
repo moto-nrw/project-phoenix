@@ -650,6 +650,20 @@ func (r *stubInvitationTokenRepository) UpdateDeliveryResult(_ context.Context, 
 	return nil
 }
 
+func (r *stubInvitationTokenRepository) InvalidateByTenantID(_ context.Context, tenantID int64) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	count := 0
+	now := r.now()
+	for _, token := range r.tokens {
+		if token.TenantID == tenantID && token.UsedAt == nil {
+			token.UsedAt = &now
+			count++
+		}
+	}
+	return count, nil
+}
+
 // noopRoleRepository provides default panic implementations.
 type noopRoleRepository struct{}
 
@@ -989,6 +1003,10 @@ func (noopTokenRepository) GetLatestTokenInFamily(context.Context, string) (*aut
 	panic("GetLatestTokenInFamily not implemented")
 }
 
+func (noopTokenRepository) DeleteByTenantID(context.Context, int64) (int, error) {
+	panic("DeleteByTenantID not implemented")
+}
+
 // stubTokenRepository tracks delete operations for verification.
 type stubTokenRepository struct {
 	noopTokenRepository
@@ -1215,8 +1233,17 @@ func (r *stubSchoolRepository) Create(context.Context, *platformModel.School) er
 	return fmt.Errorf("not implemented")
 }
 
-func (r *stubSchoolRepository) FindByID(context.Context, int64) (*platformModel.School, error) {
-	return nil, fmt.Errorf("not found")
+func (r *stubSchoolRepository) FindByID(_ context.Context, id int64) (*platformModel.School, error) {
+	// Return a valid, active school so that AcceptInvitation's deleted-school guard passes.
+	return &platformModel.School{
+		Model:          base.Model{ID: id},
+		Active:         true,
+		OrganizationID: 1,
+	}, nil
+}
+
+func (r *stubSchoolRepository) FindByIDForShare(ctx context.Context, id int64) (*platformModel.School, error) {
+	return r.FindByID(ctx, id)
 }
 
 func (r *stubSchoolRepository) FindBySlug(context.Context, string) (*platformModel.School, error) {

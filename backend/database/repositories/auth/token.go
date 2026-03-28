@@ -205,6 +205,24 @@ func (r *TokenRepository) DeleteByAccountIDAndIdentifier(ctx context.Context, ac
 	return nil
 }
 
+// DeleteByTenantID removes all tokens for a given tenant (school).
+// Used during soft-delete to immediately revoke all refresh tokens.
+func (r *TokenRepository) DeleteByTenantID(ctx context.Context, tenantID int64) (int, error) {
+	res, err := base.GetDB(ctx, r.db).NewDelete().
+		Model((*auth.Token)(nil)).
+		ModelTableExpr(`auth.tokens AS "token"`).
+		Where(`"token".tenant_id = ?`, tenantID).
+		Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "delete tokens by tenant ID",
+			Err: err,
+		}
+	}
+	n, _ := res.RowsAffected()
+	return int(n), nil
+}
+
 // Create overrides the base Create method to handle validation
 func (r *TokenRepository) Create(ctx context.Context, token *auth.Token) error {
 	if token == nil {

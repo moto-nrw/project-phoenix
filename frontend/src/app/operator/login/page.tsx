@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator routes are not tenant-scoped
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { signIn, useSession } from "next-auth/react";
+import { signIn, signOut, useSession } from "next-auth/react";
 import { Input, Alert } from "~/components/ui";
 import { Loading } from "~/components/ui/loading";
 import { launchConfetti, clearConfetti } from "~/lib/confetti";
@@ -19,18 +19,50 @@ export default function OperatorLoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
   const { data: session, status } = useSession();
+  // Ref prevents re-triggering signOut (not in effect deps → no loop).
+  // Separate state controls the loading spinner for the UI.
+  const cleanupStartedRef = useRef(false);
+  const [isCleaningUp, setIsCleaningUp] = useState(false);
 
-  // Redirect if already authenticated as operator (scope === "platform")
+  // Redirect if already authenticated as operator, or clear stale sessions
   useEffect(() => {
-    if (status === "authenticated" && session?.user?.scope === "platform") {
-      router.push(operatorPath("/operator/suggestions"));
-    }
+    const check = async () => {
+      // Clear stale sessions with errors before checking redirect.
+      // Uses a ref guard so a failed signOut doesn't re-trigger the effect.
+      if (
+        status === "authenticated" &&
+        session?.error &&
+        !cleanupStartedRef.current
+      ) {
+        cleanupStartedRef.current = true;
+        setIsCleaningUp(true);
+        try {
+          await signOut({ redirect: false });
+        } catch {
+          cleanupStartedRef.current = false;
+        }
+        setIsCleaningUp(false);
+        return;
+      }
+
+      if (
+        status === "authenticated" &&
+        session?.user?.scope === "platform" &&
+        session?.user?.token
+      ) {
+        router.push(operatorPath("/operator/suggestions"));
+      }
+    };
+    void check();
   }, [status, session, router]);
 
-  // Show loading while checking auth (only for operator sessions)
+  // Show loading while checking auth or cleaning stale session
   if (
     status === "loading" ||
-    (status === "authenticated" && session?.user?.scope === "platform")
+    isCleaningUp ||
+    (status === "authenticated" &&
+      session?.user?.scope === "platform" &&
+      session?.user?.token)
   ) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center p-4">

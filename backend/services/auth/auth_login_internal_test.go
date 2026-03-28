@@ -53,6 +53,9 @@ func (s stubAuthLoginSchoolRepo) FindActiveByAccountID(context.Context, int64) (
 func (s stubAuthLoginSchoolRepo) Update(context.Context, *platformModels.School) error {
 	panic("unexpected Update")
 }
+func (s stubAuthLoginSchoolRepo) FindByIDForShare(ctx context.Context, id int64) (*platformModels.School, error) {
+	return s.FindByID(ctx, id)
+}
 func (r stubAuthLoginSchoolRepo) SoftDelete(context.Context, int64) error { return nil }
 func (r stubAuthLoginSchoolRepo) Restore(context.Context, int64) error    { return nil }
 
@@ -138,10 +141,10 @@ func TestResolveAccountTenantBySlug_PropagatesDBErrors(t *testing.T) {
 }
 
 // Updated: resolveAccountTenantDefault now iterates all mappings and skips schools
-// that can't be looked up (nil). Previously it returned (99, 0, nil) for a nil school;
-// now it returns (0, 0, nil) to force explicit tenant selection.
-// This fixes reviewer P1 #2: multi-tenant accounts no longer fall back to an invalid tenant.
-func TestResolveAccountTenantDefault_ReturnsZeroWhenSchoolLookupReturnsNil(t *testing.T) {
+// that can't be looked up (nil). When no valid school is found, returns ErrTenantNotFound
+// so the caller gets a clean error instead of proceeding with tenant_id=0 (which would
+// hit an FK constraint on auth.tokens).
+func TestResolveAccountTenantDefault_ReturnsErrWhenSchoolLookupReturnsNil(t *testing.T) {
 	service := &Service{
 		repos: &repositories.Factory{
 			AccountTenant: stubAuthLoginAccountTenantRepo{
@@ -156,10 +159,11 @@ func TestResolveAccountTenantDefault_ReturnsZeroWhenSchoolLookupReturnsNil(t *te
 		logger: slog.Default(),
 	}
 
-	tenantID, orgID, err := service.resolveAccountTenantDefault(context.Background(), 5)
-	require.NoError(t, err)
-	assert.Zero(t, tenantID, "should not return tenant ID when school lookup returns nil")
-	assert.Zero(t, orgID)
+	_, _, err := service.resolveAccountTenantDefault(context.Background(), 5)
+	require.Error(t, err)
+	var authErr *AuthError
+	require.ErrorAs(t, err, &authErr)
+	assert.ErrorIs(t, authErr.Err, ErrTenantNotFound)
 }
 
 func TestResolveAccountTenantDefault_SkipsDeletedSchoolAndFallsThrough(t *testing.T) {
@@ -192,7 +196,7 @@ func TestResolveAccountTenantDefault_SkipsDeletedSchoolAndFallsThrough(t *testin
 	assert.Equal(t, int64(20), orgID)
 }
 
-func TestResolveAccountTenantDefault_ReturnsZeroWhenAllSchoolsDeleted(t *testing.T) {
+func TestResolveAccountTenantDefault_ReturnsErrWhenAllSchoolsDeleted(t *testing.T) {
 	now := time.Now()
 	service := &Service{
 		repos: &repositories.Factory{
@@ -212,10 +216,11 @@ func TestResolveAccountTenantDefault_ReturnsZeroWhenAllSchoolsDeleted(t *testing
 		logger: slog.Default(),
 	}
 
-	tenantID, orgID, err := service.resolveAccountTenantDefault(context.Background(), 5)
-	require.NoError(t, err)
-	assert.Zero(t, tenantID, "should return zero when all schools are deleted")
-	assert.Zero(t, orgID)
+	_, _, err := service.resolveAccountTenantDefault(context.Background(), 5)
+	require.Error(t, err)
+	var authErr *AuthError
+	require.ErrorAs(t, err, &authErr)
+	assert.ErrorIs(t, authErr.Err, ErrTenantNotFound)
 }
 
 func TestPersistAccountWithRole_CreatesTenantMappingWhenTenantIDProvided(t *testing.T) {

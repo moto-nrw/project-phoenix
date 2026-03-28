@@ -86,6 +86,9 @@ func (m *mockSchoolRepo) FindByID(ctx context.Context, id int64) (*platformModel
 	}
 	return nil, nil
 }
+func (m *mockSchoolRepo) FindByIDForShare(ctx context.Context, id int64) (*platformModels.School, error) {
+	return m.FindByID(ctx, id)
+}
 func (m *mockSchoolRepo) FindBySlug(context.Context, string) (*platformModels.School, error) {
 	return nil, nil
 }
@@ -281,6 +284,9 @@ func (m *mockInvitationService) ListPendingInvitations(context.Context) ([]*auth
 	return nil, nil
 }
 func (m *mockInvitationService) RevokeInvitation(context.Context, int64, int64) error { return nil }
+func (m *mockInvitationService) InvalidatePendingInvitationsByTenantID(context.Context, int64) (int, error) {
+	return 0, nil
+}
 func (m *mockInvitationService) CleanupExpiredInvitations(context.Context) (int, error) {
 	return 0, nil
 }
@@ -400,7 +406,8 @@ func (m *mockAuthService) CleanupExpiredTokens(context.Context) (int, error) { r
 func (m *mockAuthService) CleanupExpiredPasswordResetTokens(context.Context) (int, error) {
 	return 0, nil
 }
-func (m *mockAuthService) RevokeAllTokens(context.Context, int) error { return nil }
+func (m *mockAuthService) RevokeAllTokens(context.Context, int) error                 { return nil }
+func (m *mockAuthService) RevokeTokensByTenantID(context.Context, int64) (int, error) { return 0, nil }
 func (m *mockAuthService) GetActiveTokens(context.Context, int) ([]*authModels.Token, error) {
 	return nil, nil
 }
