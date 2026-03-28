@@ -30,6 +30,9 @@ const (
 	RoleGuardian = "guardian"
 )
 
+// MaxTargetIDs is the upper bound for target_org_ids and target_tenant_ids arrays.
+const MaxTargetIDs = 100
+
 // tablePlatformAnnouncements is the schema-qualified table name
 const tablePlatformAnnouncements = "platform.announcements"
 
@@ -102,12 +105,11 @@ func (a *Announcement) Validate() error {
 	}
 
 	// Cap targeting array sizes to prevent bloated IN clauses and GIN index overhead.
-	const maxTargetIDs = 100
-	if len(a.TargetOrgIDs) > maxTargetIDs {
-		return fmt.Errorf("target_org_ids exceeds maximum of %d entries", maxTargetIDs)
+	if len(a.TargetOrgIDs) > MaxTargetIDs {
+		return fmt.Errorf("target_org_ids exceeds maximum of %d entries", MaxTargetIDs)
 	}
-	if len(a.TargetTenantIDs) > maxTargetIDs {
-		return fmt.Errorf("target_tenant_ids exceeds maximum of %d entries", maxTargetIDs)
+	if len(a.TargetTenantIDs) > MaxTargetIDs {
+		return fmt.Errorf("target_tenant_ids exceeds maximum of %d entries", MaxTargetIDs)
 	}
 
 	return nil

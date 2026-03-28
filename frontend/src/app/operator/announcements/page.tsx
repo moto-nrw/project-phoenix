@@ -121,8 +121,9 @@ export default function OperatorAnnouncementsPage() {
 
   // Prune orphaned tenant selections when schools data loads or org selection changes.
   // This covers the race condition where org toggles happen before schools are fetched.
+  const orgIdKey = formData.targetOrgIds.join(",");
   useEffect(() => {
-    if (!schools || formData.targetOrgIds.length === 0) return;
+    if (!schools || orgIdKey === "") return;
     setFormData((prev) => {
       const pruned = prev.targetTenantIds.filter((tid) =>
         schools.some(
@@ -132,7 +133,7 @@ export default function OperatorAnnouncementsPage() {
       if (pruned.length === prev.targetTenantIds.length) return prev;
       return { ...prev, targetTenantIds: pruned };
     });
-  }, [schools, formData.targetOrgIds]);
+  }, [schools, orgIdKey]);
 
   const filteredAnnouncements = useMemo(() => {
     if (!announcements) return [];

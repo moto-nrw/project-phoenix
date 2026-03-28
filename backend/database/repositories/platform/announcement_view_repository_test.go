@@ -1217,7 +1217,8 @@ func TestAnnouncementViewRepository_GetStats(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 1, statsOrg.TargetCount, "org-scoped should also exclude accounts in soft-deleted school")
 
-		_ = stats // used above for the global assertion setup
+		assert.GreaterOrEqual(t, stats.TargetCount, 1,
+			"global stats should include at least the active-school account")
 	})
 
 	t.Run("seen and dismissed counts", func(t *testing.T) {
