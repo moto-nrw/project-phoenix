@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
@@ -12,6 +11,7 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
 // Table and query constants
@@ -83,34 +83,28 @@ func (r *AnnouncementViewRepository) MarkDismissed(ctx context.Context, userID, 
 	return nil
 }
 
-// buildUnreadFilter constructs the shared WHERE clause and args for
-// GetUnreadForUser and CountUnread. The returned SQL fragment starts after
-// the FROM/JOIN and includes all WHERE conditions. Args are positional:
-// userID, now, now, [userRoles if non-empty], tenantID, orgID.
-func buildUnreadFilter(userID int64, userRoles []string, tenantID int64, orgID int64) (roleFilter string, args []any) {
+// buildUnreadArgs returns the fixed-size positional args for unreadWhereClause.
+// Arg order is always: userID, now, now, pgArray(userRoles), tenantID, orgID (6 args).
+func buildUnreadArgs(userID int64, userRoles []string, tenantID int64, orgID int64) []any {
 	now := time.Now()
-
-	// Empty userRoles → only global announcements (target_roles = '{}').
-	// We cannot use IN () which is invalid SQL in PostgreSQL.
-	roleFilter = `a.target_roles = '{}'`
-	args = []any{userID, now, now}
-	if len(userRoles) > 0 {
-		roleFilter = `(a.target_roles = '{}' OR EXISTS (SELECT 1 FROM unnest(a.target_roles) AS r WHERE r IN (?)))`
-		args = append(args, bun.List(userRoles))
+	if userRoles == nil {
+		userRoles = []string{}
 	}
-	args = append(args, tenantID, orgID)
-	return roleFilter, args
+	return []any{userID, now, now, pgdialect.Array(userRoles), tenantID, orgID}
 }
 
-// unreadWhereClause is the shared SQL fragment used by both GetUnreadForUser and CountUnread.
-// Arg positions after the roleFilter placeholder: tenantID, orgID.
+// unreadWhereClause is the shared SQL fragment used by both GetUnreadForUser
+// and CountUnread. Arg positions are fixed (always 6 — see buildUnreadArgs).
+// Role matching uses the && (overlap) operator: when userRoles is empty the
+// overlap with '{}' is false, so only global announcements (target_roles = '{}')
+// pass the filter — no branching or fmt.Sprintf needed.
 const unreadWhereClause = `
 	WHERE a.active = true
 		AND a.published_at IS NOT NULL
 		AND a.published_at <= ?
 		AND (a.expires_at IS NULL OR a.expires_at > ?)
 		AND v.seen_at IS NULL
-		AND %s
+		AND (a.target_roles = '{}' OR a.target_roles && ?::text[])
 		AND (
 			(a.target_org_ids = '{}' AND a.target_tenant_ids = '{}')
 			OR (a.target_tenant_ids != '{}' AND ? = ANY(a.target_tenant_ids))
@@ -121,13 +115,13 @@ const unreadWhereClause = `
 // Targeting logic uses OR-union: global / org match / tenant match.
 func (r *AnnouncementViewRepository) GetUnreadForUser(ctx context.Context, userID int64, userRoles []string, tenantID int64, orgID int64) ([]*platform.Announcement, error) {
 	var announcements []*platform.Announcement
-	roleFilter, args := buildUnreadFilter(userID, userRoles, tenantID, orgID)
+	args := buildUnreadArgs(userID, userRoles, tenantID, orgID)
 
 	query := `SELECT a.*
 		FROM platform.announcements a
 		LEFT JOIN platform.announcement_views v
 			ON v.announcement_id = a.id AND v.user_id = ?` +
-		fmt.Sprintf(unreadWhereClause, roleFilter) +
+		unreadWhereClause +
 		` ORDER BY a.published_at DESC`
 
 	err := base.GetDB(ctx, r.db).NewRaw(query, args...).Scan(ctx, &announcements)
@@ -143,13 +137,13 @@ func (r *AnnouncementViewRepository) GetUnreadForUser(ctx context.Context, userI
 
 // CountUnread counts unread announcements for a user scoped to the current session tenant/org.
 func (r *AnnouncementViewRepository) CountUnread(ctx context.Context, userID int64, userRoles []string, tenantID int64, orgID int64) (int, error) {
-	roleFilter, args := buildUnreadFilter(userID, userRoles, tenantID, orgID)
+	args := buildUnreadArgs(userID, userRoles, tenantID, orgID)
 
 	query := `SELECT COUNT(*)
 		FROM platform.announcements a
 		LEFT JOIN platform.announcement_views v
 			ON v.announcement_id = a.id AND v.user_id = ?` +
-		fmt.Sprintf(unreadWhereClause, roleFilter)
+		unreadWhereClause
 
 	var count int
 	err := base.GetDB(ctx, r.db).NewRaw(query, args...).Scan(ctx, &count)
