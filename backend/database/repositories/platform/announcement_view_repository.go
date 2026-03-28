@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -82,45 +83,54 @@ func (r *AnnouncementViewRepository) MarkDismissed(ctx context.Context, userID, 
 	return nil
 }
 
-// GetUnreadForUser retrieves all unread active announcements for a user scoped to the current session tenant/org.
-// Only announcements that are global OR target the user's current tenant/org are returned.
-// Targeting logic uses 3 branches (OR-union):
-//   - Global: both target_org_ids and target_tenant_ids are empty
-//   - Org match: user's org ID is in target_org_ids
-//   - Tenant match: user's tenant ID is in target_tenant_ids
-func (r *AnnouncementViewRepository) GetUnreadForUser(ctx context.Context, userID int64, userRoles []string, tenantID int64, orgID int64) ([]*platform.Announcement, error) {
-	var announcements []*platform.Announcement
+// buildUnreadFilter constructs the shared WHERE clause and args for
+// GetUnreadForUser and CountUnread. The returned SQL fragment starts after
+// the FROM/JOIN and includes all WHERE conditions. Args are positional:
+// userID, now, now, [userRoles if non-empty], tenantID, orgID.
+func buildUnreadFilter(userID int64, userRoles []string, tenantID int64, orgID int64) (roleFilter string, args []any) {
 	now := time.Now()
 
-	// Build role filter: empty userRoles means only global announcements (target_roles = '{}')
-	// are visible. We cannot use IN () which is invalid SQL in PostgreSQL.
-	roleFilter := `a.target_roles = '{}'`
-	args := []any{userID, now, now}
+	// Empty userRoles → only global announcements (target_roles = '{}').
+	// We cannot use IN () which is invalid SQL in PostgreSQL.
+	roleFilter = `a.target_roles = '{}'`
+	args = []any{userID, now, now}
 	if len(userRoles) > 0 {
 		roleFilter = `(a.target_roles = '{}' OR EXISTS (SELECT 1 FROM unnest(a.target_roles) AS r WHERE r IN (?)))`
 		args = append(args, bun.List(userRoles))
 	}
-	args = append(args, orgID, tenantID)
+	args = append(args, tenantID, orgID)
+	return roleFilter, args
+}
 
-	err := base.GetDB(ctx, r.db).NewRaw(`
-		SELECT a.*
+// unreadWhereClause is the shared SQL fragment used by both GetUnreadForUser and CountUnread.
+// Arg positions after the roleFilter placeholder: tenantID, orgID.
+const unreadWhereClause = `
+	WHERE a.active = true
+		AND a.published_at IS NOT NULL
+		AND a.published_at <= ?
+		AND (a.expires_at IS NULL OR a.expires_at > ?)
+		AND v.seen_at IS NULL
+		AND %s
+		AND (
+			(a.target_org_ids = '{}' AND a.target_tenant_ids = '{}')
+			OR (a.target_tenant_ids != '{}' AND ? = ANY(a.target_tenant_ids))
+			OR (a.target_org_ids != '{}' AND ? = ANY(a.target_org_ids))
+		)`
+
+// GetUnreadForUser retrieves all unread active announcements for a user scoped to the current session tenant/org.
+// Targeting logic uses OR-union: global / org match / tenant match.
+func (r *AnnouncementViewRepository) GetUnreadForUser(ctx context.Context, userID int64, userRoles []string, tenantID int64, orgID int64) ([]*platform.Announcement, error) {
+	var announcements []*platform.Announcement
+	roleFilter, args := buildUnreadFilter(userID, userRoles, tenantID, orgID)
+
+	query := `SELECT a.*
 		FROM platform.announcements a
 		LEFT JOIN platform.announcement_views v
-			ON v.announcement_id = a.id AND v.user_id = ?
-		WHERE a.active = true
-			AND a.published_at IS NOT NULL
-			AND a.published_at <= ?
-			AND (a.expires_at IS NULL OR a.expires_at > ?)
-			AND v.seen_at IS NULL
-			AND `+roleFilter+`
-			AND (
-				(a.target_org_ids = '{}' AND a.target_tenant_ids = '{}')
-				OR (a.target_org_ids != '{}' AND ? = ANY(a.target_org_ids))
-				OR (a.target_tenant_ids != '{}' AND ? = ANY(a.target_tenant_ids))
-			)
-		ORDER BY a.published_at DESC
-	`, args...).Scan(ctx, &announcements)
+			ON v.announcement_id = a.id AND v.user_id = ?` +
+		fmt.Sprintf(unreadWhereClause, roleFilter) +
+		` ORDER BY a.published_at DESC`
 
+	err := base.GetDB(ctx, r.db).NewRaw(query, args...).Scan(ctx, &announcements)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get unread announcements for user",
@@ -133,36 +143,16 @@ func (r *AnnouncementViewRepository) GetUnreadForUser(ctx context.Context, userI
 
 // CountUnread counts unread announcements for a user scoped to the current session tenant/org.
 func (r *AnnouncementViewRepository) CountUnread(ctx context.Context, userID int64, userRoles []string, tenantID int64, orgID int64) (int, error) {
-	now := time.Now()
+	roleFilter, args := buildUnreadFilter(userID, userRoles, tenantID, orgID)
 
-	// Build role filter: same guard as GetUnreadForUser to avoid invalid IN () SQL.
-	roleFilter := `a.target_roles = '{}'`
-	args := []any{userID, now, now}
-	if len(userRoles) > 0 {
-		roleFilter = `(a.target_roles = '{}' OR EXISTS (SELECT 1 FROM unnest(a.target_roles) AS r WHERE r IN (?)))`
-		args = append(args, bun.List(userRoles))
-	}
-	args = append(args, orgID, tenantID)
-
-	var count int
-	err := base.GetDB(ctx, r.db).NewRaw(`
-		SELECT COUNT(*)
+	query := `SELECT COUNT(*)
 		FROM platform.announcements a
 		LEFT JOIN platform.announcement_views v
-			ON v.announcement_id = a.id AND v.user_id = ?
-		WHERE a.active = true
-			AND a.published_at IS NOT NULL
-			AND a.published_at <= ?
-			AND (a.expires_at IS NULL OR a.expires_at > ?)
-			AND v.seen_at IS NULL
-			AND `+roleFilter+`
-			AND (
-				(a.target_org_ids = '{}' AND a.target_tenant_ids = '{}')
-				OR (a.target_org_ids != '{}' AND ? = ANY(a.target_org_ids))
-				OR (a.target_tenant_ids != '{}' AND ? = ANY(a.target_tenant_ids))
-			)
-	`, args...).Scan(ctx, &count)
+			ON v.announcement_id = a.id AND v.user_id = ?` +
+		fmt.Sprintf(unreadWhereClause, roleFilter)
 
+	var count int
+	err := base.GetDB(ctx, r.db).NewRaw(query, args...).Scan(ctx, &count)
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "count unread announcements",
@@ -219,10 +209,9 @@ func (r *AnnouncementViewRepository) GetStats(ctx context.Context, announcementI
 
 	queryParts = append(queryParts, `SELECT COUNT(DISTINCT at.account_id) FROM auth.account_tenants at`)
 
-	// Need schools join when org or tenant filter is active; exclude soft-deleted schools
-	if hasOrgFilter || hasTenantFilter {
-		queryParts = append(queryParts, `JOIN platform.schools s ON s.id = at.tenant_id AND s.deleted_at IS NULL`)
-	}
+	// Always join schools to exclude accounts linked to soft-deleted tenants,
+	// even for global announcements (consistent with targeted path).
+	queryParts = append(queryParts, `JOIN platform.schools s ON s.id = at.tenant_id AND s.deleted_at IS NULL`)
 
 	// Role filter: correlate role assignment with the same tenant
 	if hasRoleFilter {

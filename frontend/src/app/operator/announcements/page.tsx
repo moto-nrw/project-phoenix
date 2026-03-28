@@ -379,8 +379,6 @@ export default function OperatorAnnouncementsPage() {
                     onEdit={openEditForm}
                     onDelete={setDeleteTarget}
                     onPublish={setPublishTarget}
-                    organizations={organizations}
-                    schools={schools}
                   />
                 </motion.div>
               ))}
@@ -882,8 +880,6 @@ function AnnouncementCard({
   onEdit,
   onDelete,
   onPublish,
-  organizations,
-  schools,
 }: {
   readonly announcement: Announcement;
   readonly organizations?: Organization[];
@@ -891,8 +887,6 @@ function AnnouncementCard({
   readonly onEdit: (a: Announcement) => void;
   readonly onDelete: (a: Announcement) => void;
   readonly onPublish: (a: Announcement) => void;
-  readonly organizations?: Organization[];
-  readonly schools?: School[];
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);

@@ -81,10 +81,13 @@ func (s *announcementService) getLogger() *slog.Logger {
 // deduplicateInt64 returns a sorted copy of the slice with duplicates removed.
 // The input slice is not modified.
 func deduplicateInt64(ids []int64) []int64 {
-	if len(ids) <= 1 {
+	if len(ids) == 0 {
 		return ids
 	}
 	cp := slices.Clone(ids)
+	if len(cp) == 1 {
+		return cp
+	}
 	slices.Sort(cp)
 	return slices.Compact(cp)
 }
