@@ -62,7 +62,8 @@ vi.mock("~/lib/shell-auth-context", () => ({
     logout: vi.fn(),
     mode: "teacher",
     homeUrl: "/dashboard",
-    settingsUrl: "/settings",
+
+    profileUrl: "/profile",
   })),
 }));
 
@@ -136,7 +137,8 @@ describe("MobileBottomNav", () => {
       logout: vi.fn(),
       mode: "teacher",
       homeUrl: "/dashboard",
-      settingsUrl: "/settings",
+
+      profileUrl: "/profile",
     });
     mockUsePathname.mockReturnValue("/dashboard");
     mockUseSearchParams.mockReturnValue(createMockSearchParams());
@@ -565,7 +567,8 @@ describe("MobileBottomNav", () => {
         logout: vi.fn(),
         mode: "operator",
         homeUrl: "/operator/suggestions",
-        settingsUrl: "/operator/settings",
+
+        profileUrl: null,
       });
       mockUsePathname.mockReturnValue("/operator/suggestions");
     });

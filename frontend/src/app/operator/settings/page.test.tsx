@@ -17,10 +17,18 @@ vi.mock("~/components/ui/loading", () => ({
   Loading: () => <div>Loading...</div>,
 }));
 
-vi.mock("~/components/shared/settings-layout", () => ({
-  SettingsLayout: ({ profileTab }: { profileTab: React.ReactNode }) => (
-    <div>{profileTab}</div>
+vi.mock("~/components/ui/page-header", () => ({
+  PageHeaderWithSearch: ({ title }: { title: string }) => (
+    <div data-testid="page-header">{title}</div>
   ),
+}));
+
+vi.mock("~/components/simple/SimpleAlert", () => ({
+  SimpleAlert: () => null,
+}));
+
+vi.mock("~/components/ui", () => ({
+  PasswordChangeModal: () => null,
 }));
 
 import OperatorSettingsPage from "./page";

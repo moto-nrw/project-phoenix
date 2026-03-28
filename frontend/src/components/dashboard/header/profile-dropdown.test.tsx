@@ -178,7 +178,7 @@ describe("ProfileDropdownMenu", () => {
     expect(screen.getByText("max@example.com")).toBeInTheDocument();
   });
 
-  it("renders settings link when settingsUrl is provided", () => {
+  it("renders profile link when profileUrl is provided", () => {
     const onClose = vi.fn();
     const onLogout = vi.fn();
     render(
@@ -188,15 +188,15 @@ describe("ProfileDropdownMenu", () => {
         userEmail="max@example.com"
         onClose={onClose}
         onLogout={onLogout}
-        settingsUrl="/settings"
+        profileUrl="/profile"
       />,
     );
 
-    const settingsLink = screen.getByRole("link", { name: /einstellungen/i });
-    expect(settingsLink).toHaveAttribute("href", "/settings");
+    const profileLink = screen.getByRole("link", { name: /profil/i });
+    expect(profileLink).toHaveAttribute("href", "/profile");
   });
 
-  it("does not render settings link when settingsUrl is not provided", () => {
+  it("does not render profile link when profileUrl is not provided", () => {
     const onClose = vi.fn();
     const onLogout = vi.fn();
     render(
@@ -210,7 +210,7 @@ describe("ProfileDropdownMenu", () => {
     );
 
     expect(
-      screen.queryByRole("link", { name: /einstellungen/i }),
+      screen.queryByRole("link", { name: /profil/i }),
     ).not.toBeInTheDocument();
   });
 
@@ -268,7 +268,7 @@ describe("ProfileDropdownMenu", () => {
     expect(onLogout).toHaveBeenCalled();
   });
 
-  it("calls onClose when settings clicked", () => {
+  it("calls onClose when profile clicked", () => {
     const onClose = vi.fn();
     const onLogout = vi.fn();
     render(
@@ -278,11 +278,11 @@ describe("ProfileDropdownMenu", () => {
         userEmail="max@example.com"
         onClose={onClose}
         onLogout={onLogout}
-        settingsUrl="/settings"
+        profileUrl="/profile"
       />,
     );
 
-    fireEvent.click(screen.getByRole("link", { name: /einstellungen/i }));
+    fireEvent.click(screen.getByRole("link", { name: /profil/i }));
     expect(onClose).toHaveBeenCalled();
   });
 
