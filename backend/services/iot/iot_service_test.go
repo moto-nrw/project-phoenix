@@ -1067,6 +1067,160 @@ func TestIoTService_GetDeviceByAPIKey(t *testing.T) {
 	})
 }
 
+// =============================================================================
+// Web Manual Device Protection Tests
+// =============================================================================
+
+func TestIoTService_WebManualDeviceProtection(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupIoTService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	webManualDevice := testpkg.EnsureWebManualDevice(t, db)
+
+	createTenantVirtualDevice := func(tb testing.TB, suffix string) *iotModels.Device {
+		tb.Helper()
+
+		device := &iotModels.Device{
+			DeviceID:   fmt.Sprintf("tenant-virtual-%s-%d", suffix, time.Now().UnixNano()),
+			DeviceType: iotModels.DeviceTypeVirtual,
+			Name:       stringPtr("Tenant Virtual Device"),
+		}
+
+		err := service.CreateDevice(ctx, device)
+		require.NoError(tb, err)
+		tb.Cleanup(func() {
+			testpkg.CleanupActivityFixtures(tb, db, device.ID)
+		})
+
+		return device
+	}
+
+	t.Run("DeleteDevice rejects reserved web manual device", func(t *testing.T) {
+		err := service.DeleteDevice(ctx, webManualDevice.ID)
+
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, iot.ErrDeviceProtected))
+	})
+
+	t.Run("UpdateDevice rejects reserved web manual device", func(t *testing.T) {
+		webManualDevice.Name = stringPtr("Hacked Name")
+
+		err := service.UpdateDevice(ctx, webManualDevice)
+
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, iot.ErrDeviceProtected))
+	})
+
+	t.Run("UpdateDeviceStatus rejects reserved web manual device", func(t *testing.T) {
+		err := service.UpdateDeviceStatus(ctx, webManualDevice.DeviceID, iotModels.DeviceStatusInactive)
+
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, iot.ErrDeviceProtected))
+	})
+
+	t.Run("UpdateDevice allows tenant-managed virtual devices", func(t *testing.T) {
+		virtualDevice := createTenantVirtualDevice(t, "update")
+		virtualDevice.Name = stringPtr("Updated Tenant Virtual Device")
+
+		err := service.UpdateDevice(ctx, virtualDevice)
+		require.NoError(t, err)
+
+		updatedDevice, err := service.GetDeviceByID(ctx, virtualDevice.ID)
+		require.NoError(t, err)
+		require.NotNil(t, updatedDevice.Name)
+		assert.Equal(t, "Updated Tenant Virtual Device", *updatedDevice.Name)
+	})
+
+	t.Run("UpdateDeviceStatus allows tenant-managed virtual devices", func(t *testing.T) {
+		virtualDevice := createTenantVirtualDevice(t, "status")
+
+		err := service.UpdateDeviceStatus(ctx, virtualDevice.DeviceID, iotModels.DeviceStatusInactive)
+		require.NoError(t, err)
+
+		updatedDevice, err := service.GetDeviceByID(ctx, virtualDevice.ID)
+		require.NoError(t, err)
+		assert.Equal(t, iotModels.DeviceStatusInactive, updatedDevice.Status)
+	})
+
+	t.Run("DeleteDevice allows tenant-managed virtual devices", func(t *testing.T) {
+		virtualDevice := createTenantVirtualDevice(t, "delete")
+
+		err := service.DeleteDevice(ctx, virtualDevice.ID)
+		require.NoError(t, err)
+
+		_, err = service.GetDeviceByID(ctx, virtualDevice.ID)
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, iot.ErrDeviceNotFound))
+	})
+
+	t.Run("ListDevices excludes only the reserved web manual device by default", func(t *testing.T) {
+		virtualDevice := createTenantVirtualDevice(t, "list-default")
+		normalDevice := testpkg.CreateTestDevice(t, db, "normal-visible")
+		t.Cleanup(func() {
+			testpkg.CleanupActivityFixtures(t, db, normalDevice.ID)
+		})
+
+		devices, err := service.ListDevices(ctx, map[string]interface{}{})
+
+		require.NoError(t, err)
+		foundWebManual := false
+		foundTenantVirtual := false
+		foundNormal := false
+		for _, d := range devices {
+			if d.DeviceID == iotModels.WebManualDeviceID {
+				foundWebManual = true
+			}
+			if d.ID == virtualDevice.ID {
+				foundTenantVirtual = true
+			}
+			if d.ID == normalDevice.ID {
+				foundNormal = true
+			}
+		}
+		assert.False(t, foundWebManual, "reserved web manual device should not appear in default listing")
+		assert.True(t, foundTenantVirtual, "tenant-managed virtual device should appear in default listing")
+		assert.True(t, foundNormal, "normal device should appear in listing")
+	})
+
+	t.Run("ListDevices includes the reserved web manual device when explicitly filtered", func(t *testing.T) {
+		virtualDevice := createTenantVirtualDevice(t, "list-virtual")
+		filters := map[string]interface{}{
+			"device_type": iotModels.DeviceTypeVirtual,
+		}
+		devices, err := service.ListDevices(ctx, filters)
+
+		require.NoError(t, err)
+		assert.NotEmpty(t, devices)
+		foundWebManual := false
+		foundTenantVirtual := false
+		for _, d := range devices {
+			assert.Equal(t, iotModels.DeviceTypeVirtual, d.DeviceType)
+			if d.DeviceID == iotModels.WebManualDeviceID {
+				foundWebManual = true
+			}
+			if d.ID == virtualDevice.ID {
+				foundTenantVirtual = true
+			}
+		}
+		assert.True(t, foundWebManual, "explicit virtual filter should include reserved web manual device")
+		assert.True(t, foundTenantVirtual, "explicit virtual filter should include tenant-managed virtual device")
+	})
+
+	t.Run("ListDevices does not mutate caller filter map", func(t *testing.T) {
+		filters := map[string]interface{}{
+			"status": string(iotModels.DeviceStatusActive),
+		}
+		_, err := service.ListDevices(ctx, filters)
+		require.NoError(t, err)
+
+		_, hasExclude := filters["exclude_device_id"]
+		assert.False(t, hasExclude, "caller's filter map should not be mutated")
+	})
+}
+
 // Helper function for string pointers
 func stringPtr(s string) *string {
 	return &s

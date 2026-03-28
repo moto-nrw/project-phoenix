@@ -1023,7 +1023,7 @@ func (s *operatorProvisioningService) DeleteDevice(ctx context.Context, id int64
 		}
 
 		// Prevent deletion of system-managed virtual devices (e.g. WEB-MANUAL-001).
-		if device.DeviceID == webManualDeviceID {
+		if device.DeviceID == iotModels.WebManualDeviceID {
 			return &DeviceProtectedError{DeviceID: id, Reason: "system device required for manual web check-ins"}
 		}
 
@@ -1335,10 +1335,6 @@ func (s *operatorProvisioningService) seedDefaultActivityCategories(ctx context.
 	return nil
 }
 
-// webManualDeviceID is the device_id for the virtual web check-in device.
-// Each tenant gets its own instance so RLS keeps it visible only to that school.
-const webManualDeviceID = "WEB-MANUAL-001"
-
 func (s *operatorProvisioningService) createWebManualDevice(ctx context.Context, tenantID int64) error {
 	if s.deviceRepo == nil || tenantID <= 0 {
 		return nil
@@ -1346,8 +1342,8 @@ func (s *operatorProvisioningService) createWebManualDevice(ctx context.Context,
 
 	deviceName := "Web-Portal (Manuell)"
 	device := &iotModels.Device{
-		DeviceID:   webManualDeviceID,
-		DeviceType: "virtual",
+		DeviceID:   iotModels.WebManualDeviceID,
+		DeviceType: iotModels.DeviceTypeVirtual,
 		Name:       &deviceName,
 		Status:     iotModels.DeviceStatusActive,
 	}
@@ -1363,7 +1359,7 @@ func (s *operatorProvisioningService) createWebManualDevice(ctx context.Context,
 
 	s.getLogger().Info("created web manual device for tenant",
 		slog.Int64("tenant_id", tenantID),
-		slog.String("device_id", webManualDeviceID),
+		slog.String("device_id", iotModels.WebManualDeviceID),
 	)
 	return nil
 }

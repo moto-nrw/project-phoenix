@@ -8,6 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
+	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -16,7 +17,7 @@ import (
 // WebManualDeviceCode is the device_id for manual web check-ins.
 // This virtual device is created during seeding and represents check-ins
 // performed through the web portal rather than physical RFID scanners.
-const WebManualDeviceCode = "WEB-MANUAL-001"
+const WebManualDeviceCode = iotModels.WebManualDeviceID
 
 // ensureStudentHasNoActiveVisit checks that the student doesn't already have an active visit
 func (s *service) ensureStudentHasNoActiveVisit(ctx context.Context, studentID int64) error {
