@@ -158,22 +158,6 @@ func (r *SchoolRepository) FindBySubdomain(ctx context.Context, subdomain string
 	return school, nil
 }
 
-// CountByIDs counts how many of the given IDs exist in the schools table.
-func (r *SchoolRepository) CountByIDs(ctx context.Context, ids []int64) (int, error) {
-	if len(ids) == 0 {
-		return 0, nil
-	}
-	count, err := base.GetDB(ctx, r.db).NewSelect().
-		Model((*platform.School)(nil)).
-		ModelTableExpr(schoolTableAlias).
-		Where(`"school".id IN (?)`, bun.List(ids)).
-		Count(ctx)
-	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "count schools by ids", Err: err}
-	}
-	return count, nil
-}
-
 // List returns all schools.
 func (r *SchoolRepository) List(ctx context.Context) ([]*platform.School, error) {
 	var schools []*platform.School
@@ -260,6 +244,25 @@ func (r *SchoolRepository) SoftDelete(ctx context.Context, id int64) error {
 		return &modelBase.DatabaseError{Op: "soft delete school", Err: err}
 	}
 	return base.AssertRowsAffected(result, 1, "soft delete school")
+}
+
+// CountByIDs counts how many of the given IDs exist in the schools table.
+// This intentionally includes soft-deleted schools so that validation accepts
+// whatever the UI picker offers and existing announcements that reference
+// previously-deleted schools can still be re-saved without error.
+func (r *SchoolRepository) CountByIDs(ctx context.Context, ids []int64) (int, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	count, err := base.GetDB(ctx, r.db).NewSelect().
+		Model((*platform.School)(nil)).
+		ModelTableExpr(schoolTableAlias).
+		Where(`"school".id IN (?)`, bun.List(ids)).
+		Count(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "count schools by ids", Err: err}
+	}
+	return count, nil
 }
 
 // Restore clears deleted_at on a soft-deleted school. Fails if the school is not deleted.

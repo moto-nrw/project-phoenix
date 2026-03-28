@@ -319,6 +319,15 @@ func expireTestAnnouncement(t *testing.T, db *bun.DB, announcementID int64) {
 	require.NoError(t, err)
 }
 
+// softDeleteTestSchool sets deleted_at on a school to simulate soft-deletion.
+func softDeleteTestSchool(t *testing.T, db *bun.DB, schoolID int64) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, err := db.NewRaw(`UPDATE platform.schools SET deleted_at = NOW() WHERE id = ?`, schoolID).Exec(ctx)
+	require.NoError(t, err)
+}
+
 // pgTextArray returns a Postgres text array literal like '{foo,bar}' or '{}' for empty.
 func pgTextArray(vals []string) string {
 	if len(vals) == 0 {
@@ -1156,6 +1165,60 @@ func TestAnnouncementViewRepository_GetStats(t *testing.T) {
 		require.NoError(t, err)
 		// accMatch has role + correct tenant. accWrongTenant has role but different tenant — must NOT be counted.
 		assert.Equal(t, 1, stats.TargetCount, "should count only the account with matching role AND tenant, not the wrong-tenant account")
+	})
+
+	t.Run("soft-deleted school excludes accounts from target count", func(t *testing.T) {
+		orgID := createTestOrganization(t, db, "stats-softdel-org")
+		defer cleanupTestOrganization(t, db, orgID)
+
+		activeSchoolID := createTestSchool(t, db, "stats-softdel-active", orgID)
+		defer cleanupTestSchool(t, db, activeSchoolID)
+
+		deletedSchoolID := createTestSchool(t, db, "stats-softdel-deleted", orgID)
+		defer cleanupTestSchool(t, db, deletedSchoolID)
+
+		// Account in active school
+		accActive := createTestAccount(t, db, "stats-softdel-active@test.com")
+		defer cleanupTestAccount(t, db, accActive)
+		createTestAccountTenant(t, db, accActive, activeSchoolID)
+		defer cleanupTestAccountTenant(t, db, accActive, activeSchoolID)
+
+		// Account in soft-deleted school
+		accDeleted := createTestAccount(t, db, "stats-softdel-deleted@test.com")
+		defer cleanupTestAccount(t, db, accDeleted)
+		createTestAccountTenant(t, db, accDeleted, deletedSchoolID)
+		defer cleanupTestAccountTenant(t, db, accDeleted, deletedSchoolID)
+
+		// Soft-delete the school
+		softDeleteTestSchool(t, db, deletedSchoolID)
+
+		// Global announcement — should exclude accounts linked to soft-deleted school
+		annoID := createTestAnnouncementWithTargeting(t, db, "stats-softdel", operator.ID, []string{}, []int64{}, []int64{})
+		defer cleanupTestAnnouncement(t, db, annoID)
+
+		stats, err := viewRepo.GetStats(ctx, annoID)
+		require.NoError(t, err)
+
+		// Verify: accDeleted should NOT be counted because their school is soft-deleted.
+		// We can't assert an exact total (other accounts may exist in test DB),
+		// so we create a tenant-scoped announcement to get an exact count.
+		annoTenantID := createTestAnnouncementWithTargeting(t, db, "stats-softdel-tenant", operator.ID, []string{}, []int64{}, []int64{activeSchoolID, deletedSchoolID})
+		defer cleanupTestAnnouncement(t, db, annoTenantID)
+
+		statsTenant, err := viewRepo.GetStats(ctx, annoTenantID)
+		require.NoError(t, err)
+		assert.Equal(t, 1, statsTenant.TargetCount, "should count only the account in the active school, not the soft-deleted one")
+
+		// Also verify org-scoped: both schools are in the same org
+		annoOrgID := createTestAnnouncementWithTargeting(t, db, "stats-softdel-org-target", operator.ID, []string{}, []int64{orgID}, []int64{})
+		defer cleanupTestAnnouncement(t, db, annoOrgID)
+
+		statsOrg, err := viewRepo.GetStats(ctx, annoOrgID)
+		require.NoError(t, err)
+		assert.Equal(t, 1, statsOrg.TargetCount, "org-scoped should also exclude accounts in soft-deleted school")
+
+		assert.GreaterOrEqual(t, stats.TargetCount, 1,
+			"global stats should include at least the active-school account")
 	})
 
 	t.Run("seen and dismissed counts", func(t *testing.T) {

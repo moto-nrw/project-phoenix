@@ -12,7 +12,6 @@ import {
 import { Modal, ConfirmationModal } from "~/components/ui/modal";
 import { Skeleton } from "~/components/ui/skeleton";
 import { DatePicker } from "~/components/ui/date-picker";
-import { useSession } from "next-auth/react";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { operatorAnnouncementsService } from "~/lib/operator/announcements-api";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
@@ -35,6 +34,7 @@ import type {
 import type { Organization, School } from "~/lib/operator/provisioning-helpers";
 import { AnnouncementViewsAccordion } from "~/components/operator/announcement-views-accordion";
 import { getRelativeTime } from "~/lib/format-utils";
+import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "OperatorAnnouncementsPage" });
@@ -64,8 +64,8 @@ const EMPTY_FORM: FormData = {
 };
 
 export default function OperatorAnnouncementsPage() {
-  const { status } = useSession();
   useSetBreadcrumb({ pageTitle: "Ankündigungen" });
+  const { success: toastSuccess, error: toastError } = useToast();
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [formOpen, setFormOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Announcement | null>(null);
@@ -78,22 +78,20 @@ export default function OperatorAnnouncementsPage() {
   const [severityDropdownOpen, setSeverityDropdownOpen] = useState(false);
   const severityDropdownRef = useRef<HTMLDivElement>(null);
 
+  // SWR key is unconditional — OperatorAuthGuard already ensures
+  // this page only renders when the session is authenticated.
+  // Using useSession().status here caused data loss during token refresh
+  // (status briefly becomes "loading" → SWR key becomes null → data cleared).
   const {
     data: announcements,
     isLoading,
     mutate,
-  } = useSWR(
-    status === "authenticated" ? "operator-announcements" : null,
-    () => operatorAnnouncementsService.fetchAll(),
-    {
-      keepPreviousData: true,
-      revalidateOnFocus: false,
-      dedupingInterval: 5000,
-    },
+  } = useSWR("operator-announcements", () =>
+    operatorAnnouncementsService.fetchAll(),
   );
 
   const { data: organizations } = useSWR(
-    status === "authenticated" ? "operator-organizations" : null,
+    "operator-organizations",
     () => operatorProvisioningService.listOrganizations(),
     {
       keepPreviousData: true,
@@ -103,7 +101,7 @@ export default function OperatorAnnouncementsPage() {
   );
 
   const { data: schools } = useSWR(
-    status === "authenticated" ? "operator-schools" : null,
+    "operator-schools",
     () => operatorProvisioningService.listSchools(),
     {
       keepPreviousData: true,
@@ -120,6 +118,27 @@ export default function OperatorAnnouncementsPage() {
       formData.targetOrgIds.includes(s.organizationId),
     );
   }, [schools, formData.targetOrgIds]);
+
+  // Prune orphaned tenant selections when schools data loads or org selection changes.
+  // This covers the race condition where org toggles happen before schools are fetched.
+  const orgIdKey = formData.targetOrgIds.join(",");
+  useEffect(() => {
+    if (!schools || orgIdKey === "") return;
+    setFormData((prev) => {
+      const schoolsInSelectedOrgs = new Set(
+        schools
+          .filter((s) => prev.targetOrgIds.includes(s.organizationId))
+          .map((s) => s.id),
+      );
+      // Keep IDs that are either in a selected org OR not in the picker at all (e.g. soft-deleted)
+      const pruned = prev.targetTenantIds.filter(
+        (tid) =>
+          schoolsInSelectedOrgs.has(tid) || !schools.some((s) => s.id === tid),
+      );
+      if (pruned.length === prev.targetTenantIds.length) return prev;
+      return { ...prev, targetTenantIds: pruned };
+    });
+  }, [schools, orgIdKey]);
 
   const filteredAnnouncements = useMemo(() => {
     if (!announcements) return [];
@@ -169,6 +188,13 @@ export default function OperatorAnnouncementsPage() {
       if (!formData.title.trim() || !formData.content.trim()) return;
       setIsSaving(true);
       try {
+        const targetOrgIdsNum = formData.targetOrgIds
+          .map((id) => parseInt(id, 10))
+          .filter((id) => !isNaN(id));
+        const targetTenantIdsNum = formData.targetTenantIds
+          .map((id) => parseInt(id, 10))
+          .filter((id) => !isNaN(id));
+
         if (editTarget) {
           const updateData: UpdateAnnouncementRequest = {
             title: formData.title,
@@ -178,8 +204,8 @@ export default function OperatorAnnouncementsPage() {
             version: formData.version || null,
             expires_at: formData.expiresAt || null,
             target_roles: formData.targetRoles,
-            target_org_ids: formData.targetOrgIds.map(Number),
-            target_tenant_ids: formData.targetTenantIds.map(Number),
+            target_org_ids: targetOrgIdsNum,
+            target_tenant_ids: targetTenantIdsNum,
           };
           await operatorAnnouncementsService.update(editTarget.id, updateData);
         } else {
@@ -189,25 +215,33 @@ export default function OperatorAnnouncementsPage() {
             type: formData.type,
             severity: formData.severity,
             target_roles: formData.targetRoles,
-            target_org_ids: formData.targetOrgIds.map(Number),
-            target_tenant_ids: formData.targetTenantIds.map(Number),
+            target_org_ids: targetOrgIdsNum,
+            target_tenant_ids: targetTenantIdsNum,
             ...(formData.version && { version: formData.version }),
             ...(formData.expiresAt && { expires_at: formData.expiresAt }),
           };
           await operatorAnnouncementsService.create(createData);
         }
+        toastSuccess(
+          editTarget ? "Ankündigung gespeichert" : "Ankündigung erstellt",
+        );
         setFormOpen(false);
         setEditTarget(null);
-        await mutate();
-      } catch (error) {
-        logger.error("announcement_save_failed", {
-          error: error instanceof Error ? error.message : String(error),
+        // Revalidation is best-effort — don't let it mask the successful save
+        mutate().catch((err) => {
+          logger.warn("revalidation_failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
         });
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        logger.error("announcement_save_failed", { error: msg });
+        toastError(`Fehler: ${msg}`);
       } finally {
         setIsSaving(false);
       }
     },
-    [formData, editTarget, mutate],
+    [formData, editTarget, mutate, toastSuccess, toastError],
   );
 
   const handleDelete = useCallback(async () => {
@@ -215,32 +249,44 @@ export default function OperatorAnnouncementsPage() {
     setIsDeleting(true);
     try {
       await operatorAnnouncementsService.delete(deleteTarget.id);
+      toastSuccess("Ankündigung gelöscht");
       setDeleteTarget(null);
-      await mutate();
-    } catch (error) {
-      logger.error("announcement_delete_failed", {
-        error: error instanceof Error ? error.message : String(error),
+      // Revalidation is best-effort — don't let it mask the successful delete
+      mutate().catch((err) => {
+        logger.warn("revalidation_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
       });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      logger.error("announcement_delete_failed", { error: msg });
+      toastError(`Fehler beim Löschen: ${msg}`);
     } finally {
       setIsDeleting(false);
     }
-  }, [deleteTarget, mutate]);
+  }, [deleteTarget, mutate, toastSuccess, toastError]);
 
   const handlePublish = useCallback(async () => {
     if (!publishTarget) return;
     setIsPublishing(true);
     try {
       await operatorAnnouncementsService.publish(publishTarget.id);
+      toastSuccess("Ankündigung veröffentlicht");
       setPublishTarget(null);
-      await mutate();
-    } catch (error) {
-      logger.error("announcement_publish_failed", {
-        error: error instanceof Error ? error.message : String(error),
+      // Revalidation is best-effort — don't let it mask the successful publish
+      mutate().catch((err) => {
+        logger.warn("revalidation_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
       });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      logger.error("announcement_publish_failed", { error: msg });
+      toastError(`Fehler beim Veröffentlichen: ${msg}`);
     } finally {
       setIsPublishing(false);
     }
-  }, [publishTarget, mutate]);
+  }, [publishTarget, mutate, toastSuccess, toastError]);
 
   const filterConfigs: FilterConfig[] = [
     {

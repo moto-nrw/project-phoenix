@@ -62,10 +62,13 @@ func createAnnouncementOrgTenantTargeting(ctx context.Context, db *bun.DB) error
 		return fmt.Errorf("error adding target_tenant_ids column: %w", err)
 	}
 
-	// Create GIN indexes for efficient array queries
+	// Create partial GIN indexes — only index rows with non-empty arrays.
+	// Global announcements (empty arrays) are matched by the equality check
+	// in the query filter, so they don't need to be in the GIN index.
 	_, err = tx.ExecContext(ctx, `
 		CREATE INDEX IF NOT EXISTS idx_announcements_target_org_ids
-		ON platform.announcements USING GIN(target_org_ids);
+		ON platform.announcements USING GIN(target_org_ids)
+		WHERE target_org_ids != '{}';
 	`)
 	if err != nil {
 		return fmt.Errorf("error creating GIN index for target_org_ids: %w", err)
@@ -73,7 +76,8 @@ func createAnnouncementOrgTenantTargeting(ctx context.Context, db *bun.DB) error
 
 	_, err = tx.ExecContext(ctx, `
 		CREATE INDEX IF NOT EXISTS idx_announcements_target_tenant_ids
-		ON platform.announcements USING GIN(target_tenant_ids);
+		ON platform.announcements USING GIN(target_tenant_ids)
+		WHERE target_tenant_ids != '{}';
 	`)
 	if err != nil {
 		return fmt.Errorf("error creating GIN index for target_tenant_ids: %w", err)
@@ -101,7 +105,7 @@ func createAnnouncementOrgTenantTargeting(ctx context.Context, db *bun.DB) error
 }
 
 func rollbackAnnouncementOrgTenantTargeting(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.20: Removing target_org_ids and target_tenant_ids columns...")
+	fmt.Println("Rolling back migration 1.15.22: Removing target_org_ids and target_tenant_ids columns...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {

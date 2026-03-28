@@ -2,6 +2,7 @@ package platform
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -28,6 +29,9 @@ const (
 	RoleUser     = "user"
 	RoleGuardian = "guardian"
 )
+
+// MaxTargetIDs is the upper bound for target_org_ids and target_tenant_ids arrays.
+const MaxTargetIDs = 100
 
 // tablePlatformAnnouncements is the schema-qualified table name
 const tablePlatformAnnouncements = "platform.announcements"
@@ -89,7 +93,7 @@ func (a *Announcement) Validate() error {
 		return errors.New("version must not exceed 50 characters")
 	}
 
-	// Normalize nil slices to empty arrays so BUN sends '{}' instead of NULL
+	// Normalize nil slices to empty arrays so BUN sends '{}' instead of NULL.
 	if a.TargetRoles == nil {
 		a.TargetRoles = []string{}
 	}
@@ -98,6 +102,14 @@ func (a *Announcement) Validate() error {
 	}
 	if a.TargetTenantIDs == nil {
 		a.TargetTenantIDs = []int64{}
+	}
+
+	// Cap targeting array sizes to prevent bloated IN clauses and GIN index overhead.
+	if len(a.TargetOrgIDs) > MaxTargetIDs {
+		return fmt.Errorf("target_org_ids exceeds maximum of %d entries", MaxTargetIDs)
+	}
+	if len(a.TargetTenantIDs) > MaxTargetIDs {
+		return fmt.Errorf("target_tenant_ids exceeds maximum of %d entries", MaxTargetIDs)
 	}
 
 	return nil
