@@ -18,6 +18,8 @@ const {
   mockFetchStats,
   mockListOrganizations,
   mockListSchools,
+  mockToastSuccess,
+  mockToastError,
 } = vi.hoisted(() => ({
   mockUseSession: vi.fn(),
   mockUseSWR: vi.fn(),
@@ -30,6 +32,8 @@ const {
   mockFetchStats: vi.fn(),
   mockListOrganizations: vi.fn(),
   mockListSchools: vi.fn(),
+  mockToastSuccess: vi.fn(),
+  mockToastError: vi.fn(),
 }));
 
 // Mock hooks and contexts
@@ -154,18 +158,11 @@ vi.mock("lucide-react", () => ({
 
 vi.mock("~/contexts/ToastContext", () => ({
   useToast: () => ({
-    success: vi.fn(),
-    error: vi.fn(),
+    success: mockToastSuccess,
+    error: mockToastError,
     info: vi.fn(),
     warning: vi.fn(),
   }),
-}));
-
-vi.mock("~/lib/operator/provisioning-api", () => ({
-  operatorProvisioningService: {
-    listOrganizations: vi.fn().mockResolvedValue([]),
-    listSchools: vi.fn().mockResolvedValue([]),
-  },
 }));
 
 import OperatorAnnouncementsPage from "./page";
@@ -932,6 +929,335 @@ describe("OperatorAnnouncementsPage", () => {
       expect(
         screen.getByText(/ausgewählten Organisationen\/Schulen/),
       ).toBeInTheDocument();
+    });
+
+    it("prunes orphaned tenant selections when org is deselected", async () => {
+      setupSWRWithOrgAndSchools();
+      render(<OperatorAnnouncementsPage />);
+
+      fireEvent.click(screen.getByText("Neue Ankündigung"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("modal")).toBeInTheDocument();
+      });
+
+      // Select Org Alpha (id=1) — shows Schule A and Schule B
+      fireEvent.click(screen.getByText("Org Alpha"));
+
+      await waitFor(() => {
+        expect(screen.getByText("Schule A")).toBeInTheDocument();
+        expect(screen.getByText("Schule B")).toBeInTheDocument();
+      });
+
+      // Select Schule A (tenant id=10)
+      fireEvent.click(screen.getByText("Schule A"));
+
+      await waitFor(() => {
+        const modal = screen.getByTestId("modal");
+        const schuleABtn = Array.from(modal.querySelectorAll("button")).find(
+          (b) => b.textContent?.includes("Schule A"),
+        );
+        expect(schuleABtn?.className).toContain("border-[#83CD2D]");
+      });
+
+      // Deselect Org Alpha — Schule A should be pruned from tenant selection
+      fireEvent.click(screen.getByText("Org Alpha"));
+
+      await waitFor(() => {
+        // When no orgs selected, all schools are shown but none should be selected
+        const modal = screen.getByTestId("modal");
+        const schuleABtn = Array.from(modal.querySelectorAll("button")).find(
+          (b) => b.textContent?.includes("Schule A"),
+        );
+        // After pruning, the button should no longer have the selected border
+        expect(schuleABtn?.className).not.toContain("border-[#83CD2D]");
+      });
+    });
+  });
+
+  describe("save, delete, and publish with toast feedback", () => {
+    beforeEach(() => {
+      mockToastSuccess.mockClear();
+      mockToastError.mockClear();
+    });
+
+    it("handleSave creates announcement with parsed int IDs and shows success toast", async () => {
+      mockCreate.mockResolvedValue({});
+      mockMutate.mockResolvedValue(undefined);
+
+      mockUseSWR.mockImplementation((key: any) => {
+        if (key === "operator-announcements") {
+          return { data: [], isLoading: false, mutate: mockMutate };
+        }
+        if (key === "operator-organizations") {
+          return {
+            data: [{ id: "1", name: "Org A", slug: "org-a" }],
+            isLoading: false,
+            mutate: mockMutate,
+          };
+        }
+        if (key === "operator-schools") {
+          return {
+            data: [
+              {
+                id: "10",
+                name: "Schule A",
+                organizationId: "1",
+                slug: "schule-a",
+              },
+            ],
+            isLoading: false,
+            mutate: mockMutate,
+          };
+        }
+        return { data: undefined, isLoading: false, mutate: mockMutate };
+      });
+
+      render(<OperatorAnnouncementsPage />);
+      fireEvent.click(screen.getByText("Neue Ankündigung"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("modal")).toBeInTheDocument();
+      });
+
+      // Fill title and content
+      const textInputs = screen.getAllByRole("textbox");
+      fireEvent.change(textInputs[0]!, { target: { value: "Test Title" } });
+      fireEvent.change(textInputs[1]!, {
+        target: { value: "Test Content" },
+      });
+
+      // Select org and school targeting
+      fireEvent.click(screen.getByText("Org A"));
+      fireEvent.click(screen.getByText("Schule A"));
+
+      // Submit
+      const createButton = screen.getByText("Erstellen");
+      fireEvent.click(createButton);
+
+      await waitFor(() => {
+        expect(mockCreate).toHaveBeenCalledWith(
+          expect.objectContaining({
+            title: "Test Title",
+            content: "Test Content",
+            target_org_ids: [1],
+            target_tenant_ids: [10],
+          }),
+        );
+      });
+
+      await waitFor(() => {
+        expect(mockToastSuccess).toHaveBeenCalledWith("Ankündigung erstellt");
+      });
+    });
+
+    it("handleSave shows error toast on API failure", async () => {
+      mockCreate.mockRejectedValue(new Error("Server Error"));
+      const consoleError = vi.spyOn(console, "error").mockImplementation(() => {
+        // noop
+      });
+
+      mockUseSWR.mockReturnValue({
+        data: [],
+        isLoading: false,
+        mutate: mockMutate,
+      });
+
+      render(<OperatorAnnouncementsPage />);
+      fireEvent.click(screen.getByText("Neue Ankündigung"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("modal")).toBeInTheDocument();
+      });
+
+      const textInputs = screen.getAllByRole("textbox");
+      fireEvent.change(textInputs[0]!, { target: { value: "Fail" } });
+      fireEvent.change(textInputs[1]!, { target: { value: "Content" } });
+
+      fireEvent.click(screen.getByText("Erstellen"));
+
+      await waitFor(() => {
+        expect(mockToastError).toHaveBeenCalledWith("Fehler: Server Error");
+      });
+
+      consoleError.mockRestore();
+    });
+
+    it("handleDelete shows success toast after deletion", async () => {
+      mockDelete.mockResolvedValue({});
+      mockMutate.mockResolvedValue(undefined);
+
+      mockUseSWR.mockReturnValue({
+        data: [mockAnnouncement],
+        isLoading: false,
+        mutate: mockMutate,
+      });
+
+      render(<OperatorAnnouncementsPage />);
+
+      // Open menu → click Löschen
+      const menuButtons = screen.getAllByLabelText("Menü öffnen");
+      fireEvent.click(menuButtons[0]!);
+
+      await waitFor(() => {
+        fireEvent.click(screen.getByText("Löschen"));
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId("confirm-button"));
+
+      await waitFor(() => {
+        expect(mockDelete).toHaveBeenCalledWith("1");
+        expect(mockToastSuccess).toHaveBeenCalledWith("Ankündigung gelöscht");
+      });
+    });
+
+    it("handleDelete shows error toast on failure", async () => {
+      mockDelete.mockRejectedValue(new Error("Delete failed"));
+      const consoleError = vi.spyOn(console, "error").mockImplementation(() => {
+        // noop
+      });
+
+      mockUseSWR.mockReturnValue({
+        data: [mockAnnouncement],
+        isLoading: false,
+        mutate: mockMutate,
+      });
+
+      render(<OperatorAnnouncementsPage />);
+
+      const menuButtons = screen.getAllByLabelText("Menü öffnen");
+      fireEvent.click(menuButtons[0]!);
+
+      await waitFor(() => {
+        fireEvent.click(screen.getByText("Löschen"));
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId("confirm-button"));
+
+      await waitFor(() => {
+        expect(mockToastError).toHaveBeenCalledWith(
+          "Fehler beim Löschen: Delete failed",
+        );
+      });
+
+      consoleError.mockRestore();
+    });
+
+    it("handlePublish shows success toast after publishing", async () => {
+      mockPublish.mockResolvedValue({});
+      mockMutate.mockResolvedValue(undefined);
+
+      mockUseSWR.mockReturnValue({
+        data: [mockAnnouncement],
+        isLoading: false,
+        mutate: mockMutate,
+      });
+
+      render(<OperatorAnnouncementsPage />);
+
+      // Click "Veröffentlichen" button on draft card
+      fireEvent.click(screen.getByText("Veröffentlichen"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId("confirm-button"));
+
+      await waitFor(() => {
+        expect(mockPublish).toHaveBeenCalledWith("1");
+        expect(mockToastSuccess).toHaveBeenCalledWith(
+          "Ankündigung veröffentlicht",
+        );
+      });
+    });
+
+    it("handlePublish shows error toast on failure", async () => {
+      mockPublish.mockRejectedValue(new Error("Publish failed"));
+      const consoleError = vi.spyOn(console, "error").mockImplementation(() => {
+        // noop
+      });
+
+      mockUseSWR.mockReturnValue({
+        data: [mockAnnouncement],
+        isLoading: false,
+        mutate: mockMutate,
+      });
+
+      render(<OperatorAnnouncementsPage />);
+
+      fireEvent.click(screen.getByText("Veröffentlichen"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId("confirm-button"));
+
+      await waitFor(() => {
+        expect(mockToastError).toHaveBeenCalledWith(
+          "Fehler beim Veröffentlichen: Publish failed",
+        );
+      });
+
+      consoleError.mockRestore();
+    });
+
+    it("handleSave updates existing announcement and shows save toast", async () => {
+      mockUpdate.mockResolvedValue({});
+      mockMutate.mockResolvedValue(undefined);
+
+      mockUseSWR.mockReturnValue({
+        data: [mockAnnouncement],
+        isLoading: false,
+        mutate: mockMutate,
+      });
+
+      render(<OperatorAnnouncementsPage />);
+
+      // Open edit modal
+      const menuButtons = screen.getAllByLabelText("Menü öffnen");
+      fireEvent.click(menuButtons[0]!);
+
+      await waitFor(() => {
+        fireEvent.click(screen.getByText("Bearbeiten"));
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("modal")).toBeInTheDocument();
+      });
+
+      // Modify title
+      const textInputs = screen.getAllByRole("textbox");
+      fireEvent.change(textInputs[0]!, {
+        target: { value: "Updated Title" },
+      });
+
+      // Submit
+      const saveButton = screen.getByText("Speichern");
+      fireEvent.click(saveButton);
+
+      await waitFor(() => {
+        expect(mockUpdate).toHaveBeenCalledWith(
+          "1",
+          expect.objectContaining({
+            title: "Updated Title",
+            target_org_ids: [],
+            target_tenant_ids: [],
+          }),
+        );
+        expect(mockToastSuccess).toHaveBeenCalledWith(
+          "Ankündigung gespeichert",
+        );
+      });
     });
   });
 });
