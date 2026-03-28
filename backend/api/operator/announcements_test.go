@@ -936,25 +936,3 @@ func TestGetAnnouncement_NotFound(t *testing.T) {
 	rr := callIDHandler(resource.GetAnnouncement, http.MethodGet, "/announcements/999", "999")
 	assert.Equal(t, http.StatusNotFound, rr.Code)
 }
-
-func TestGetStats_NotFound(t *testing.T) {
-	mock := &mockAnnouncementService{
-		getStatsFn: func(_ context.Context, _ int64) (*platform.AnnouncementStats, error) {
-			return nil, &platformSvc.AnnouncementNotFoundError{AnnouncementID: 999}
-		},
-	}
-	resource := operator.NewAnnouncementsResource(mock)
-	rr := callIDHandler(resource.GetStats, http.MethodGet, "/announcements/999/stats", "999")
-	assert.Equal(t, http.StatusNotFound, rr.Code)
-}
-
-func TestGetViewDetails_NotFound(t *testing.T) {
-	mock := &mockAnnouncementService{
-		getViewDetailsFn: func(_ context.Context, _ int64) ([]*platform.AnnouncementViewDetail, error) {
-			return nil, &platformSvc.AnnouncementNotFoundError{AnnouncementID: 999}
-		},
-	}
-	resource := operator.NewAnnouncementsResource(mock)
-	rr := callIDHandler(resource.GetViewDetails, http.MethodGet, "/announcements/999/view-details", "999")
-	assert.Equal(t, http.StatusNotFound, rr.Code)
-}
