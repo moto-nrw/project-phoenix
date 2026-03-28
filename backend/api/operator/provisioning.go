@@ -463,6 +463,8 @@ func ProvisioningErrorRenderer(err error) render.Renderer {
 	var schoolAlreadyDeleted *platformSvc.SchoolAlreadyDeletedError
 	var schoolNotDeleted *platformSvc.SchoolNotDeletedError
 	var operatorDeviceNotFound *platformSvc.OperatorDeviceNotFoundError
+	var deviceInUse *platformSvc.DeviceInUseError
+	var deviceProtected *platformSvc.DeviceProtectedError
 	var authErr *authSvc.AuthError
 
 	if errors.As(err, &authErr) && authErr.Err != nil {
@@ -499,6 +501,10 @@ func ProvisioningErrorRenderer(err error) render.Renderer {
 		return ErrConflict("School is not deleted")
 	case errors.As(err, &operatorDeviceNotFound):
 		return ErrNotFound("Device not found")
+	case errors.As(err, &deviceInUse):
+		return ErrConflict("Device is still referenced by attendance or session records and cannot be deleted")
+	case errors.As(err, &deviceProtected):
+		return ErrForbidden("This system device cannot be deleted")
 	default:
 		return ErrInternal("An error occurred")
 	}
@@ -634,6 +640,20 @@ func (rs *ProvisioningResource) SetDeviceAPIKey(w http.ResponseWriter, r *http.R
 		return
 	}
 	common.Respond(w, r, http.StatusOK, device, "Device API key updated successfully")
+}
+
+func (rs *ProvisioningResource) DeleteDevice(w http.ResponseWriter, r *http.Request) {
+	deviceID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid device ID")
+	if !ok {
+		return
+	}
+	operatorID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	err := rs.service.DeleteDevice(r.Context(), deviceID, operatorID, getClientIP(r))
+	if err != nil {
+		common.RenderError(w, r, ProvisioningErrorRenderer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, nil, "Device deleted successfully")
 }
 
 func shouldExposeSeedInvitationToken(r *http.Request) bool {

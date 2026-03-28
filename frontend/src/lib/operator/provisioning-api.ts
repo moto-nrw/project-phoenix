@@ -131,6 +131,13 @@ class OperatorProvisioningService {
     return mapOperatorDevice(result);
   }
 
+  async deleteDevice(deviceId: string): Promise<void> {
+    await operatorFetch<null>(
+      `/api/operator/provisioning/devices/${encodeURIComponent(deviceId)}`,
+      { method: "DELETE" },
+    );
+  }
+
   async setDeviceAPIKey(
     deviceId: string,
     apiKey?: string,

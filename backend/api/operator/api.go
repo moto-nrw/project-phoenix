@@ -84,6 +84,7 @@ func (rs *Resource) Router() chi.Router {
 			r.Get("/", rs.provisioningResource.ListAllDevices)
 			r.Post("/", rs.provisioningResource.CreateDevice)
 			r.Post("/{id}/set-api-key", rs.provisioningResource.SetDeviceAPIKey)
+			r.Delete("/{id}", rs.provisioningResource.DeleteDevice)
 		})
 
 		r.Route("/organizations", func(r chi.Router) {

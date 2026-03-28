@@ -1,7 +1,7 @@
 /**
  * Tenant-specific NextAuth configuration.
  *
- * Cookie: "next-auth.session-token" on .${TENANT_DOMAIN} (shared across tenant subdomains)
+ * Cookie: "${TENANT_DOMAIN-derived}.session-token" on .${TENANT_DOMAIN} (shared across tenant subdomains)
  * Providers: Teacher credentials + Discord
  * SignIn page: "/" (tenant login, resolved by subdomain proxy)
  */
@@ -113,42 +113,47 @@ export const tenantAuthConfig = {
     // Cross-subdomain cookie sharing for tenant-to-tenant switching.
     // On production: .moto-app.de so school-a and school-b share sessions.
     // On localhost: omit domain (host-only) — tenant switching requires re-login.
+    //
+    // Cookie names are derived from TENANT_DOMAIN to prevent collisions when
+    // environments share a parent domain (e.g., staging.moto-app.de under
+    // moto-app.de). Without unique names, the browser sends both cookies and
+    // Auth.js picks the wrong one → MissingCSRF errors.
     ...(() => {
-      const cookieDomain =
-        env.TENANT_DOMAIN === "localhost" ? undefined : `.${env.TENANT_DOMAIN}`;
-      return cookieDomain !== undefined
-        ? {
-            sessionToken: {
-              name: "next-auth.session-token",
-              options: {
-                httpOnly: true,
-                sameSite: "lax" as const,
-                path: "/",
-                domain: cookieDomain,
-                secure: process.env.NODE_ENV === "production",
-              },
-            },
-            callbackUrl: {
-              name: "next-auth.callback-url",
-              options: {
-                sameSite: "lax" as const,
-                path: "/",
-                domain: cookieDomain,
-                secure: process.env.NODE_ENV === "production",
-              },
-            },
-            csrfToken: {
-              name: "next-auth.csrf-token",
-              options: {
-                httpOnly: true,
-                sameSite: "lax" as const,
-                path: "/",
-                domain: cookieDomain,
-                secure: process.env.NODE_ENV === "production",
-              },
-            },
-          }
-        : {};
+      if (!env.TENANT_DOMAIN || env.TENANT_DOMAIN === "localhost") return {};
+
+      const cookieDomain = `.${env.TENANT_DOMAIN}`;
+      const cookiePrefix = env.TENANT_DOMAIN.replace(/\./g, "-");
+      return {
+        sessionToken: {
+          name: `${cookiePrefix}.session-token`,
+          options: {
+            httpOnly: true,
+            sameSite: "lax" as const,
+            path: "/",
+            domain: cookieDomain,
+            secure: process.env.NODE_ENV === "production",
+          },
+        },
+        callbackUrl: {
+          name: `${cookiePrefix}.callback-url`,
+          options: {
+            sameSite: "lax" as const,
+            path: "/",
+            domain: cookieDomain,
+            secure: process.env.NODE_ENV === "production",
+          },
+        },
+        csrfToken: {
+          name: `${cookiePrefix}.csrf-token`,
+          options: {
+            httpOnly: true,
+            sameSite: "lax" as const,
+            path: "/",
+            domain: cookieDomain,
+            secure: process.env.NODE_ENV === "production",
+          },
+        },
+      };
     })(),
   },
   session: {

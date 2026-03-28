@@ -66,6 +66,19 @@ export default function OperatorProvisioningPage() {
   const [filterOrgId, setFilterOrgId] = useState<string>("");
   const [createDeviceOpen, setCreateDeviceOpen] = useState(false);
   const [setKeyDevice, setSetKeyDevice] = useState<OperatorDevice | null>(null);
+  const [deleteDevice, setDeleteDeviceRaw] = useState<OperatorDevice | null>(
+    null,
+  );
+  const [deleteConfirmed, setDeleteConfirmed] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+
+  // Reset confirmation state when opening/closing the delete dialog
+  const setDeleteDevice = useCallback((device: OperatorDevice | null) => {
+    setDeleteDeviceRaw(device);
+    setDeleteConfirmed(false);
+    setDeleteError("");
+  }, []);
 
   const { mutate: globalMutate } = useSWRConfig();
 
@@ -74,7 +87,7 @@ export default function OperatorProvisioningPage() {
   const [restoreTarget, setRestoreTarget] = useState<School | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showTrash, setShowTrash] = useState(false);
-  const [deleteError, setDeleteError] = useState("");
+  const [softDeleteError, setSoftDeleteError] = useState("");
 
   // Toggle error state
   const [orgToggleError, setOrgToggleError] = useState("");
@@ -240,6 +253,27 @@ export default function OperatorProvisioningPage() {
         ACCOUNT_SWR_PREFIXES.some((p) => key.startsWith(p)),
     );
   }, [globalMutate, ACCOUNT_SWR_PREFIXES]);
+
+  const handleDeleteDevice = useCallback(async () => {
+    if (!deleteDevice) return;
+    setDeleteLoading(true);
+    setDeleteError("");
+    try {
+      await operatorProvisioningService.deleteDevice(deleteDevice.id);
+      setDeleteDevice(null);
+      setDeleteConfirmed(false);
+      void refreshDevices();
+    } catch (err) {
+      logger.error("device_delete_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      setDeleteError(
+        err instanceof Error ? err.message : "Fehler beim Löschen des Geräts",
+      );
+    } finally {
+      setDeleteLoading(false);
+    }
+  }, [deleteDevice, refreshDevices, setDeleteDevice]);
 
   // Schools filtered by selected organization (for accounts tab filter)
   const filteredSchools = useMemo(() => {
@@ -457,7 +491,7 @@ export default function OperatorProvisioningPage() {
     ) => {
       if (!target) return;
       setIsProcessing(true);
-      setDeleteError("");
+      setSoftDeleteError("");
       try {
         await action(target.id);
         // Backend action succeeded — invalidate tenant cache immediately
@@ -475,7 +509,7 @@ export default function OperatorProvisioningPage() {
         // SWR list refresh is best-effort — failure is cosmetic (stale list until next load)
         await mutateSchools().catch(() => {});
       } catch (error) {
-        setDeleteError(errorMsg);
+        setSoftDeleteError(errorMsg);
         logger.error(logEvent, {
           error: error instanceof Error ? error.message : String(error),
         });
@@ -662,9 +696,9 @@ export default function OperatorProvisioningPage() {
               )}
             </>
           )}
-          {(schoolToggleError || deleteError) && (
+          {(schoolToggleError || softDeleteError) && (
             <p className="mt-2 text-sm text-red-600">
-              {schoolToggleError || deleteError}
+              {schoolToggleError || softDeleteError}
             </p>
           )}
 
@@ -823,6 +857,7 @@ export default function OperatorProvisioningPage() {
                   devices={orgDevices}
                   showSchool
                   onSetKey={setSetKeyDevice}
+                  onDelete={setDeleteDevice}
                 />
               )}
             </>
@@ -842,6 +877,7 @@ export default function OperatorProvisioningPage() {
                   devices={allDevices}
                   showSchool
                   onSetKey={setSetKeyDevice}
+                  onDelete={setDeleteDevice}
                 />
               )}
             </>
@@ -876,6 +912,7 @@ export default function OperatorProvisioningPage() {
                 <DevicesTable
                   devices={schoolDevices}
                   onSetKey={setSetKeyDevice}
+                  onDelete={setDeleteDevice}
                 />
               )}
             </>
@@ -945,6 +982,73 @@ export default function OperatorProvisioningPage() {
           void refreshDevices();
         }}
       />
+
+      {/* Delete Device Confirmation Dialog */}
+      {deleteDevice && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="mx-4 w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-semibold text-gray-900">
+              Gerät löschen
+            </h3>
+            <p className="mt-2 text-sm text-gray-600">
+              Möchten Sie das Gerät{" "}
+              <span className="font-mono font-medium">
+                {deleteDevice.deviceId}
+              </span>
+              {deleteDevice.name && ` (${deleteDevice.name})`} von{" "}
+              <span className="font-medium">{deleteDevice.schoolName}</span>{" "}
+              wirklich löschen?
+            </p>
+            <p className="mt-2 text-sm font-medium text-red-600">
+              Diese Aktion kann nicht rückgängig gemacht werden.
+            </p>
+
+            {deleteError && (
+              <div className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
+                {deleteError}
+              </div>
+            )}
+
+            {!deleteConfirmed ? (
+              <div className="mt-5 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setDeleteDevice(null)}
+                  className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50"
+                >
+                  Abbrechen
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDeleteConfirmed(true)}
+                  className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700"
+                >
+                  Ja, löschen
+                </button>
+              </div>
+            ) : (
+              <div className="mt-5 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setDeleteDevice(null)}
+                  disabled={deleteLoading}
+                  className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Abbrechen
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleDeleteDevice()}
+                  disabled={deleteLoading}
+                  className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:opacity-50"
+                >
+                  {deleteLoading ? "Wird gelöscht..." : "Endgültig löschen"}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1519,10 +1623,12 @@ function DevicesTable({
   devices,
   showSchool = false,
   onSetKey,
+  onDelete,
 }: {
   readonly devices: OperatorDevice[];
   readonly showSchool?: boolean;
   readonly onSetKey?: (device: OperatorDevice) => void;
+  readonly onDelete?: (device: OperatorDevice) => void;
 }) {
   const { sort, toggle } = useSort<DeviceSortKey>(
     showSchool ? "schoolName" : "deviceId",
@@ -1592,7 +1698,7 @@ function DevicesTable({
               sort={sort}
               onToggle={toggle}
             />
-            {onSetKey && (
+            {(onSetKey || onDelete) && (
               <th className="px-5 py-3 text-xs font-medium text-gray-500">
                 Aktionen
               </th>
@@ -1649,16 +1755,30 @@ function DevicesTable({
                   <span className="text-gray-400">—</span>
                 )}
               </td>
-              {onSetKey && (
+              {(onSetKey || onDelete) && (
                 <td className="px-5 py-3">
-                  <button
-                    type="button"
-                    onClick={() => onSetKey(device)}
-                    className="rounded-lg border border-gray-200 px-2 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900"
-                    title="API-Key ändern"
-                  >
-                    Key ändern
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {onSetKey && (
+                      <button
+                        type="button"
+                        onClick={() => onSetKey(device)}
+                        className="rounded-lg border border-gray-200 px-2 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900"
+                        title="API-Key ändern"
+                      >
+                        Key ändern
+                      </button>
+                    )}
+                    {onDelete && (
+                      <button
+                        type="button"
+                        onClick={() => onDelete(device)}
+                        className="rounded-lg border border-red-200 px-2 py-1 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 hover:text-red-700"
+                        title="Gerät löschen"
+                      >
+                        Löschen
+                      </button>
+                    )}
+                  </div>
                 </td>
               )}
             </tr>

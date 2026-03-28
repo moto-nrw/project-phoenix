@@ -79,6 +79,7 @@ type OperatorProvisioningService interface {
 	SetDeviceAPIKey(ctx context.Context, id int64, apiKey *string, operatorID int64, clientIP net.IP) (*OperatorDeviceInfo, error)
 	SoftDeleteSchool(ctx context.Context, schoolID, operatorID int64, clientIP net.IP) error
 	RestoreSchool(ctx context.Context, schoolID, operatorID int64, clientIP net.IP) error
+	DeleteDevice(ctx context.Context, id int64, operatorID int64, clientIP net.IP) error
 }
 
 // OperatorDeviceInfo holds device information with school/org context for operator views.
@@ -977,6 +978,51 @@ func (s *operatorProvisioningService) SetDeviceAPIKey(ctx context.Context, id in
 	return result, nil
 }
 
+func (s *operatorProvisioningService) DeleteDevice(ctx context.Context, id int64, operatorID int64, clientIP net.IP) error {
+	if id <= 0 {
+		return &InvalidDataError{Err: fmt.Errorf("device id is required")}
+	}
+
+	return s.withAdminTx(ctx, func(adminCtx context.Context) error {
+		device, findErr := s.deviceRepo.FindByID(adminCtx, id)
+		if findErr != nil {
+			if errors.Is(findErr, sql.ErrNoRows) {
+				return &OperatorDeviceNotFoundError{DeviceID: id}
+			}
+			var dbErr *modelBase.DatabaseError
+			if errors.As(findErr, &dbErr) && errors.Is(dbErr.Err, sql.ErrNoRows) {
+				return &OperatorDeviceNotFoundError{DeviceID: id}
+			}
+			return findErr
+		}
+		if device == nil {
+			return &OperatorDeviceNotFoundError{DeviceID: id}
+		}
+
+		// Prevent deletion of system-managed virtual devices (e.g. WEB-MANUAL-001).
+		if device.DeviceID == webManualDeviceID {
+			return &DeviceProtectedError{DeviceID: id, Reason: "system device required for manual web check-ins"}
+		}
+
+		deleteErr := s.deviceRepo.Delete(adminCtx, id)
+		if deleteErr != nil {
+			// ON DELETE RESTRICT on active.attendance / active.groups → FK violation.
+			if isForeignKeyViolation(deleteErr) {
+				return &DeviceInUseError{DeviceID: id}
+			}
+			return fmt.Errorf("DeleteDevice: %w", deleteErr)
+		}
+
+		s.logAction(adminCtx, operatorID, platform.ActionDelete, platform.ResourceDevice, &id, clientIP, map[string]any{
+			"device_id":   device.DeviceID,
+			"device_type": device.DeviceType,
+			"school_id":   device.TenantID,
+		})
+
+		return nil
+	})
+}
+
 func (s *operatorProvisioningService) validateSchoolCreate(ctx context.Context, school *platform.School) error {
 	org, err := s.organizationRepo.FindByID(ctx, school.OrganizationID)
 	if err != nil {
@@ -1214,6 +1260,21 @@ func isRowsAffectedMismatch(err error) bool {
 	var dbErr *modelBase.DatabaseError
 	if errors.As(err, &dbErr) {
 		return dbErr.Err != nil && strings.Contains(dbErr.Err.Error(), "rows affected")
+	}
+	return false
+}
+
+func isForeignKeyViolation(err error) bool {
+	if err == nil {
+		return false
+	}
+	var dbErr *modelBase.DatabaseError
+	if errors.As(err, &dbErr) {
+		err = dbErr.Err
+	}
+	var pgErr pgdriver.Error
+	if errors.As(err, &pgErr) {
+		return pgErr.IntegrityViolation() && pgErr.Field('C') == "23503"
 	}
 	return false
 }

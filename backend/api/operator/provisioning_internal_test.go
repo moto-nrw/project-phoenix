@@ -44,6 +44,7 @@ type mockProvisioningService struct {
 	setDeviceAPIKeyFn         func(context.Context, int64, *string, int64, net.IP) (*platformSvc.OperatorDeviceInfo, error)
 	softDeleteSchoolFn        func(int64) error
 	restoreSchoolFn           func(int64) error
+	deleteDeviceFn            func(context.Context, int64, int64, net.IP) error
 }
 
 func (m *mockProvisioningService) CreateOrganization(ctx context.Context, org *platformModels.Organization, operatorID int64, clientIP net.IP) (*platformModels.Organization, error) {
@@ -142,6 +143,12 @@ func (m *mockProvisioningService) SoftDeleteSchool(_ context.Context, schoolID, 
 func (m *mockProvisioningService) RestoreSchool(_ context.Context, schoolID, _ int64, _ net.IP) error {
 	if m.restoreSchoolFn != nil {
 		return m.restoreSchoolFn(schoolID)
+	}
+	return nil
+}
+func (m *mockProvisioningService) DeleteDevice(ctx context.Context, id int64, operatorID int64, clientIP net.IP) error {
+	if m.deleteDeviceFn != nil {
+		return m.deleteDeviceFn(ctx, id, operatorID, clientIP)
 	}
 	return nil
 }
