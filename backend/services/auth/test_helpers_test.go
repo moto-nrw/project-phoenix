@@ -1227,19 +1227,26 @@ func (r *stubTeacherRepository) FindWithStaffAndPersonByIDs(context.Context, []i
 }
 
 // stubSchoolRepository is a minimal stub for SchoolRepository in tests.
-type stubSchoolRepository struct{}
+// Set deletedTenantIDs to simulate soft-deleted schools.
+type stubSchoolRepository struct {
+	deletedTenantIDs map[int64]bool
+}
 
 func (r *stubSchoolRepository) Create(context.Context, *platformModel.School) error {
 	return fmt.Errorf("not implemented")
 }
 
 func (r *stubSchoolRepository) FindByID(_ context.Context, id int64) (*platformModel.School, error) {
-	// Return a valid, active school so that AcceptInvitation's deleted-school guard passes.
-	return &platformModel.School{
+	school := &platformModel.School{
 		Model:          base.Model{ID: id},
 		Active:         true,
 		OrganizationID: 1,
-	}, nil
+	}
+	if r.deletedTenantIDs[id] {
+		now := time.Now()
+		school.DeletedAt = &now
+	}
+	return school, nil
 }
 
 func (r *stubSchoolRepository) FindByIDForShare(ctx context.Context, id int64) (*platformModel.School, error) {

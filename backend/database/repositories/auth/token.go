@@ -219,7 +219,13 @@ func (r *TokenRepository) DeleteByTenantID(ctx context.Context, tenantID int64) 
 			Err: err,
 		}
 	}
-	n, _ := res.RowsAffected()
+	n, err := res.RowsAffected()
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "count affected rows",
+			Err: err,
+		}
+	}
 	return int(n), nil
 }
 
