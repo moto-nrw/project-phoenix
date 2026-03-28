@@ -138,6 +138,12 @@ func (m *mockProvisioningService) DeleteDevice(ctx context.Context, id int64, op
 	}
 	return nil
 }
+func (m *mockProvisioningService) ListSchoolPersons(_ context.Context, _ int64) ([]platformSvc.OperatorPersonInfo, error) {
+	return nil, nil
+}
+func (m *mockProvisioningService) SoftDeletePerson(_ context.Context, _ int64, _ int64, _ net.IP) error {
+	return nil
+}
 
 func withOperatorClaims(req *http.Request, operatorID int) *http.Request {
 	claims := jwtPkg.AppClaims{ID: operatorID, Scope: "platform"}
