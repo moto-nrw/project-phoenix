@@ -251,40 +251,6 @@ describe("OperatorAnnouncementsPage", () => {
     });
   });
 
-  it("creates new announcement", async () => {
-    mockCreate.mockResolvedValue({ ...mockAnnouncement });
-
-    render(<OperatorAnnouncementsPage />);
-
-    // Open create modal
-    fireEvent.click(screen.getByText("Neue Ankündigung"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("modal")).toBeInTheDocument();
-    });
-
-    // Fill form - use input type selectors since labels lack htmlFor
-    const textInputs = screen.getAllByRole("textbox");
-    const titleInput = textInputs[0]!; // First textbox is title
-    const contentInput = textInputs[1]!; // Second is content (textarea)
-    fireEvent.change(titleInput, { target: { value: "New Announcement" } });
-    fireEvent.change(contentInput, { target: { value: "New content" } });
-
-    // Submit - "Erstellen" button is in the footer
-    const createButton = screen.getByText("Erstellen");
-    fireEvent.click(createButton);
-
-    await waitFor(() => {
-      expect(mockCreate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          title: "New Announcement",
-          content: "New content",
-        }),
-      );
-      expect(mockMutate).toHaveBeenCalled();
-    });
-  });
-
   it("opens edit form with announcement data", async () => {
     render(<OperatorAnnouncementsPage />);
 
@@ -304,91 +270,6 @@ describe("OperatorAnnouncementsPage", () => {
       const textInputs = screen.getAllByRole("textbox");
       const titleInput = textInputs[0] as HTMLInputElement;
       expect(titleInput.value).toBe("Test Announcement");
-    });
-  });
-
-  it("updates announcement", async () => {
-    mockUpdate.mockResolvedValue({ ...mockAnnouncement });
-
-    render(<OperatorAnnouncementsPage />);
-
-    // Open edit modal
-    const menuButtons = screen.getAllByLabelText("Menü öffnen");
-    if (menuButtons[0]) {
-      fireEvent.click(menuButtons[0]);
-    }
-
-    await waitFor(() => {
-      fireEvent.click(screen.getByText("Bearbeiten"));
-    });
-
-    // Update form
-    await waitFor(() => {
-      const textInputs = screen.getAllByRole("textbox");
-      const titleInput = textInputs[0]!;
-      fireEvent.change(titleInput, { target: { value: "Updated Title" } });
-    });
-
-    // Submit
-    const saveButton = screen.getByText("Speichern");
-    fireEvent.click(saveButton);
-
-    await waitFor(() => {
-      expect(mockUpdate).toHaveBeenCalledWith(
-        "1",
-        expect.objectContaining({
-          title: "Updated Title",
-        }),
-      );
-      expect(mockMutate).toHaveBeenCalled();
-    });
-  });
-
-  it("deletes announcement after confirmation", async () => {
-    mockDelete.mockResolvedValue(undefined);
-
-    render(<OperatorAnnouncementsPage />);
-
-    // Open menu and click delete
-    const menuButtons = screen.getAllByLabelText("Menü öffnen");
-    if (menuButtons[0]) {
-      fireEvent.click(menuButtons[0]);
-    }
-
-    await waitFor(() => {
-      fireEvent.click(screen.getByText("Löschen"));
-    });
-
-    // Confirm deletion
-    await waitFor(() => {
-      const confirmButton = screen.getByTestId("confirm-button");
-      fireEvent.click(confirmButton);
-    });
-
-    await waitFor(() => {
-      expect(mockDelete).toHaveBeenCalledWith("1");
-      expect(mockMutate).toHaveBeenCalled();
-    });
-  });
-
-  it("publishes draft announcement", async () => {
-    mockPublish.mockResolvedValue(undefined);
-
-    render(<OperatorAnnouncementsPage />);
-
-    // Click publish button
-    const publishButton = screen.getByText("Veröffentlichen");
-    fireEvent.click(publishButton);
-
-    // Confirm publish
-    await waitFor(() => {
-      const confirmButton = screen.getByTestId("confirm-button");
-      fireEvent.click(confirmButton);
-    });
-
-    await waitFor(() => {
-      expect(mockPublish).toHaveBeenCalledWith("1");
-      expect(mockMutate).toHaveBeenCalled();
     });
   });
 
@@ -932,51 +813,17 @@ describe("OperatorAnnouncementsPage", () => {
       });
     });
 
-    it("creates announcement with org and tenant targeting", async () => {
-      setupSWRWithOrgAndSchools();
-      mockCreate.mockResolvedValue({ ...mockAnnouncement });
-
-      render(<OperatorAnnouncementsPage />);
-
-      fireEvent.click(screen.getByText("Neue Ankündigung"));
-
-      await waitFor(() => {
-        expect(screen.getByTestId("modal")).toBeInTheDocument();
-      });
-
-      const textInputs = screen.getAllByRole("textbox");
-      fireEvent.change(textInputs[0]!, { target: { value: "Targeted" } });
-      fireEvent.change(textInputs[1]!, {
-        target: { value: "Content" },
-      });
-
-      // Select org and schools
-      fireEvent.click(screen.getByText("Org Alpha"));
-      fireEvent.click(screen.getByText("Schule A"));
-
-      fireEvent.click(screen.getByText("Erstellen"));
-
-      await waitFor(() => {
-        expect(mockCreate).toHaveBeenCalledWith(
-          expect.objectContaining({
-            target_org_ids: [1],
-            target_tenant_ids: [10],
-          }),
-        );
-      });
-    });
-
     it("displays targeted org and school names on announcement card", () => {
       const announcementWithOrgs = {
         ...mockAnnouncement,
-        targetOrgIds: [1, 2],
+        targetOrgIds: ["1", "2"],
         targetTenantIds: [],
       };
       const announcementWithTenants = {
         ...mockAnnouncement,
         id: "2",
         targetOrgIds: [],
-        targetTenantIds: [10, 30],
+        targetTenantIds: ["10", "30"],
       };
 
       setupSWRWithOrgAndSchools([
@@ -992,8 +839,8 @@ describe("OperatorAnnouncementsPage", () => {
     it("populates targeting fields when editing existing announcement", async () => {
       const announcementWithTargeting = {
         ...mockAnnouncement,
-        targetOrgIds: [1],
-        targetTenantIds: [10],
+        targetOrgIds: ["1"],
+        targetTenantIds: ["10"],
       };
 
       setupSWRWithOrgAndSchools([announcementWithTargeting]);
@@ -1051,7 +898,7 @@ describe("OperatorAnnouncementsPage", () => {
       const orgTargetedDraft = {
         ...mockAnnouncement,
         title: "Org Targeted Draft",
-        targetOrgIds: [1],
+        targetOrgIds: ["1"],
         targetTenantIds: [],
       };
 

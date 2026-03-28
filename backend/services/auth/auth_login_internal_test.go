@@ -52,6 +52,9 @@ func (s stubAuthLoginSchoolRepo) FindActiveByAccountID(context.Context, int64) (
 func (s stubAuthLoginSchoolRepo) Update(context.Context, *platformModels.School) error {
 	panic("unexpected Update")
 }
+func (s stubAuthLoginSchoolRepo) CountByIDs(context.Context, []int64) (int, error) {
+	panic("unexpected CountByIDs")
+}
 
 type stubAuthLoginAccountTenantRepo struct {
 	findActiveFn func(context.Context, int64) ([]authModels.AccountTenant, error)

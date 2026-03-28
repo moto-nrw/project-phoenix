@@ -47,8 +47,8 @@ interface FormData {
   version: string;
   expiresAt: string;
   targetRoles: SystemRole[];
-  targetOrgIds: number[];
-  targetTenantIds: number[];
+  targetOrgIds: string[];
+  targetTenantIds: string[];
 }
 
 const EMPTY_FORM: FormData = {
@@ -117,7 +117,7 @@ export default function OperatorAnnouncementsPage() {
     if (!schools) return [];
     if (formData.targetOrgIds.length === 0) return schools;
     return schools.filter((s) =>
-      formData.targetOrgIds.includes(Number(s.organizationId)),
+      formData.targetOrgIds.includes(s.organizationId),
     );
   }, [schools, formData.targetOrgIds]);
 
@@ -178,8 +178,8 @@ export default function OperatorAnnouncementsPage() {
             version: formData.version || null,
             expires_at: formData.expiresAt || null,
             target_roles: formData.targetRoles,
-            target_org_ids: formData.targetOrgIds,
-            target_tenant_ids: formData.targetTenantIds,
+            target_org_ids: formData.targetOrgIds.map(Number),
+            target_tenant_ids: formData.targetTenantIds.map(Number),
           };
           await operatorAnnouncementsService.update(editTarget.id, updateData);
         } else {
@@ -189,8 +189,8 @@ export default function OperatorAnnouncementsPage() {
             type: formData.type,
             severity: formData.severity,
             target_roles: formData.targetRoles,
-            target_org_ids: formData.targetOrgIds,
-            target_tenant_ids: formData.targetTenantIds,
+            target_org_ids: formData.targetOrgIds.map(Number),
+            target_tenant_ids: formData.targetTenantIds.map(Number),
             ...(formData.version && { version: formData.version }),
             ...(formData.expiresAt && { expires_at: formData.expiresAt }),
           };
@@ -670,7 +670,7 @@ export default function OperatorAnnouncementsPage() {
               aria-labelledby="announcement-orgs-label"
             >
               {organizations?.map((org) => {
-                const orgId = Number(org.id);
+                const orgId = org.id;
                 const isChecked = formData.targetOrgIds.includes(orgId);
                 return (
                   <button
@@ -689,17 +689,30 @@ export default function OperatorAnnouncementsPage() {
                                 (tid) =>
                                   !schools.some(
                                     (s) =>
-                                      Number(s.id) === tid &&
-                                      Number(s.organizationId) === orgId,
+                                      s.id === tid &&
+                                      s.organizationId === orgId,
                                   ),
                               )
                             : prev.targetTenantIds,
                         }));
                       } else {
-                        setFormData((prev) => ({
-                          ...prev,
-                          targetOrgIds: [...prev.targetOrgIds, orgId],
-                        }));
+                        setFormData((prev) => {
+                          const newOrgIds = [...prev.targetOrgIds, orgId];
+                          return {
+                            ...prev,
+                            targetOrgIds: newOrgIds,
+                            // Prune tenant selections to only schools belonging to selected orgs
+                            targetTenantIds: schools
+                              ? prev.targetTenantIds.filter((tid) =>
+                                  schools.some(
+                                    (s) =>
+                                      s.id === tid &&
+                                      newOrgIds.includes(s.organizationId),
+                                  ),
+                                )
+                              : prev.targetTenantIds,
+                          };
+                        });
                       }
                     }}
                     className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-all ${
@@ -746,7 +759,7 @@ export default function OperatorAnnouncementsPage() {
               aria-labelledby="announcement-tenants-label"
             >
               {availableSchools.map((school) => {
-                const schoolId = Number(school.id);
+                const schoolId = school.id;
                 const isChecked = formData.targetTenantIds.includes(schoolId);
                 return (
                   <button
@@ -993,8 +1006,7 @@ function AnnouncementCard({
             {announcement.targetOrgIds
               .map(
                 (id) =>
-                  organizations.find((o) => Number(o.id) === id)?.name ??
-                  `Org ${id}`,
+                  organizations.find((o) => o.id === id)?.name ?? `Org ${id}`,
               )
               .join(", ")}
           </span>
@@ -1021,8 +1033,7 @@ function AnnouncementCard({
             {announcement.targetTenantIds
               .map(
                 (id) =>
-                  schools.find((s) => Number(s.id) === id)?.name ??
-                  `Schule ${id}`,
+                  schools.find((s) => s.id === id)?.name ?? `Schule ${id}`,
               )
               .join(", ")}
           </span>

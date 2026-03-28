@@ -508,7 +508,7 @@ func TestAnnouncementViewRepository_GetUnreadForUser(t *testing.T) {
 		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 
-		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"})
+		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"}, schoolID, orgID)
 		require.NoError(t, err)
 
 		found := false
@@ -525,7 +525,7 @@ func TestAnnouncementViewRepository_GetUnreadForUser(t *testing.T) {
 		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 
-		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"})
+		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"}, schoolID, orgID)
 		require.NoError(t, err)
 
 		found := false
@@ -542,7 +542,7 @@ func TestAnnouncementViewRepository_GetUnreadForUser(t *testing.T) {
 		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 
-		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"})
+		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"}, schoolID, orgID)
 		require.NoError(t, err)
 
 		for _, a := range results {
@@ -555,7 +555,7 @@ func TestAnnouncementViewRepository_GetUnreadForUser(t *testing.T) {
 		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 
-		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"})
+		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"}, schoolID, orgID)
 		require.NoError(t, err)
 
 		found := false
@@ -572,7 +572,7 @@ func TestAnnouncementViewRepository_GetUnreadForUser(t *testing.T) {
 		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 
-		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"})
+		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"}, schoolID, orgID)
 		require.NoError(t, err)
 
 		for _, a := range results {
@@ -585,7 +585,7 @@ func TestAnnouncementViewRepository_GetUnreadForUser(t *testing.T) {
 		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 
-		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"})
+		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"}, schoolID, orgID)
 		require.NoError(t, err)
 
 		found := false
@@ -602,7 +602,7 @@ func TestAnnouncementViewRepository_GetUnreadForUser(t *testing.T) {
 		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 
-		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"})
+		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"}, schoolID, orgID)
 		require.NoError(t, err)
 
 		for _, a := range results {
@@ -616,7 +616,7 @@ func TestAnnouncementViewRepository_GetUnreadForUser(t *testing.T) {
 		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 
-		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"})
+		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"}, schoolID, orgID)
 		require.NoError(t, err)
 
 		found := false
@@ -626,6 +626,53 @@ func TestAnnouncementViewRepository_GetUnreadForUser(t *testing.T) {
 			}
 		}
 		assert.True(t, found, "OR-union: org match should make announcement visible even if tenant doesn't match")
+	})
+
+	t.Run("multi-membership user does not see other tenant announcements", func(t *testing.T) {
+		// Regression test for P1 cross-tenant leak: a user with active memberships
+		// in schools A and B, querying as school A, must NOT see an announcement
+		// targeted only at school B (or B's org).
+		secondSchoolID := createTestSchool(t, db, "unread-second-school", otherOrgID)
+		defer cleanupTestSchool(t, db, secondSchoolID)
+
+		// Give the user an active membership in the second school too
+		createTestAccountTenant(t, db, accountID, secondSchoolID)
+		defer cleanupTestAccountTenant(t, db, accountID, secondSchoolID)
+
+		// Announcement targets only the second school's org
+		annoOrgB := createTestAnnouncementWithTargeting(t, db, "cross-tenant-org", operator.ID, []string{}, []int64{otherOrgID}, []int64{})
+		defer cleanupTestAnnouncement(t, db, annoOrgB)
+		publishTestAnnouncement(t, db, annoOrgB)
+
+		// Announcement targets only the second school directly
+		annoTenantB := createTestAnnouncementWithTargeting(t, db, "cross-tenant-school", operator.ID, []string{}, []int64{}, []int64{secondSchoolID})
+		defer cleanupTestAnnouncement(t, db, annoTenantB)
+		publishTestAnnouncement(t, db, annoTenantB)
+
+		// Query as school A (schoolID / orgID) — neither announcement should be visible
+		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"}, schoolID, orgID)
+		require.NoError(t, err)
+
+		for _, a := range results {
+			assert.NotEqual(t, annoOrgB, a.ID, "announcement targeting other org must not leak to current session tenant")
+			assert.NotEqual(t, annoTenantB, a.ID, "announcement targeting other school must not leak to current session tenant")
+		}
+
+		// But when querying as school B, both should be visible
+		resultsB, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"}, secondSchoolID, otherOrgID)
+		require.NoError(t, err)
+
+		foundOrg, foundTenant := false, false
+		for _, a := range resultsB {
+			if a.ID == annoOrgB {
+				foundOrg = true
+			}
+			if a.ID == annoTenantB {
+				foundTenant = true
+			}
+		}
+		assert.True(t, foundOrg, "org-targeted announcement should be visible when querying as the target org")
+		assert.True(t, foundTenant, "tenant-targeted announcement should be visible when querying as the target tenant")
 	})
 
 	t.Run("seen announcements are excluded", func(t *testing.T) {
@@ -638,7 +685,7 @@ func TestAnnouncementViewRepository_GetUnreadForUser(t *testing.T) {
 		require.NoError(t, err)
 		defer cleanupTestAnnouncementView(t, db, accountID, annoID)
 
-		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"})
+		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"}, schoolID, orgID)
 		require.NoError(t, err)
 
 		for _, a := range results {
@@ -651,7 +698,7 @@ func TestAnnouncementViewRepository_GetUnreadForUser(t *testing.T) {
 		annoID := createTestAnnouncementWithTargeting(t, db, "unpublished", operator.ID, []string{}, []int64{}, []int64{})
 		defer cleanupTestAnnouncement(t, db, annoID)
 
-		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"})
+		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"}, schoolID, orgID)
 		require.NoError(t, err)
 
 		for _, a := range results {
@@ -665,7 +712,7 @@ func TestAnnouncementViewRepository_GetUnreadForUser(t *testing.T) {
 		publishTestAnnouncement(t, db, annoID)
 		expireTestAnnouncement(t, db, annoID)
 
-		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"})
+		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"unread-test-teacher"}, schoolID, orgID)
 		require.NoError(t, err)
 
 		for _, a := range results {
@@ -715,7 +762,7 @@ func TestAnnouncementViewRepository_CountUnread(t *testing.T) {
 	}()
 
 	// Get baseline count before creating any test announcements
-	baselineCount, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"})
+	baselineCount, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"}, schoolID, orgID)
 	require.NoError(t, err)
 
 	t.Run("global announcement counted", func(t *testing.T) {
@@ -723,7 +770,7 @@ func TestAnnouncementViewRepository_CountUnread(t *testing.T) {
 		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 
-		count, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"})
+		count, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"}, schoolID, orgID)
 		require.NoError(t, err)
 		assert.Equal(t, baselineCount+1, count, "count should increase by 1 for a global announcement")
 	})
@@ -733,7 +780,7 @@ func TestAnnouncementViewRepository_CountUnread(t *testing.T) {
 		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 
-		count, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"})
+		count, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"}, schoolID, orgID)
 		require.NoError(t, err)
 		assert.Equal(t, baselineCount+1, count)
 	})
@@ -743,7 +790,7 @@ func TestAnnouncementViewRepository_CountUnread(t *testing.T) {
 		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 
-		count, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"})
+		count, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"}, schoolID, orgID)
 		require.NoError(t, err)
 		assert.Equal(t, baselineCount, count)
 	})
@@ -753,7 +800,7 @@ func TestAnnouncementViewRepository_CountUnread(t *testing.T) {
 		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 
-		count, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"})
+		count, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"}, schoolID, orgID)
 		require.NoError(t, err)
 		assert.Equal(t, baselineCount+1, count)
 	})
@@ -763,7 +810,7 @@ func TestAnnouncementViewRepository_CountUnread(t *testing.T) {
 		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 
-		count, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"})
+		count, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"}, schoolID, orgID)
 		require.NoError(t, err)
 		assert.Equal(t, baselineCount, count)
 	})
@@ -773,7 +820,7 @@ func TestAnnouncementViewRepository_CountUnread(t *testing.T) {
 		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 
-		count, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"})
+		count, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"}, schoolID, orgID)
 		require.NoError(t, err)
 		assert.Equal(t, baselineCount+1, count)
 	})
@@ -783,9 +830,38 @@ func TestAnnouncementViewRepository_CountUnread(t *testing.T) {
 		defer cleanupTestAnnouncement(t, db, annoID)
 		publishTestAnnouncement(t, db, annoID)
 
-		count, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"})
+		count, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"}, schoolID, orgID)
 		require.NoError(t, err)
 		assert.Equal(t, baselineCount, count)
+	})
+
+	t.Run("OR-union: org match counted even if tenant doesn't match", func(t *testing.T) {
+		// Both org and tenant targeting set, but only org matches the session
+		annoID := createTestAnnouncementWithTargeting(t, db, "count-or-union", operator.ID, []string{}, []int64{orgID}, []int64{otherSchoolID})
+		defer cleanupTestAnnouncement(t, db, annoID)
+		publishTestAnnouncement(t, db, annoID)
+
+		count, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"}, schoolID, orgID)
+		require.NoError(t, err)
+		assert.Equal(t, baselineCount+1, count, "OR-union: org match should make announcement counted")
+	})
+
+	t.Run("multi-membership user does not count other tenant announcements", func(t *testing.T) {
+		// Regression: user in schools A+B, announcement targets B only, count as A should be 0
+		secondSchoolID := createTestSchool(t, db, "count-second-school", otherOrgID)
+		defer cleanupTestSchool(t, db, secondSchoolID)
+
+		createTestAccountTenant(t, db, accountID, secondSchoolID)
+		defer cleanupTestAccountTenant(t, db, accountID, secondSchoolID)
+
+		annoID := createTestAnnouncementWithTargeting(t, db, "count-cross-tenant", operator.ID, []string{}, []int64{}, []int64{secondSchoolID})
+		defer cleanupTestAnnouncement(t, db, annoID)
+		publishTestAnnouncement(t, db, annoID)
+
+		// Count as school A — should not include the school-B-only announcement
+		count, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"}, schoolID, orgID)
+		require.NoError(t, err)
+		assert.Equal(t, baselineCount, count, "announcement targeting other tenant must not be counted in current session")
 	})
 
 	t.Run("seen announcement not counted", func(t *testing.T) {
@@ -797,7 +873,7 @@ func TestAnnouncementViewRepository_CountUnread(t *testing.T) {
 		require.NoError(t, err)
 		defer cleanupTestAnnouncementView(t, db, accountID, annoID)
 
-		count, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"})
+		count, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"}, schoolID, orgID)
 		require.NoError(t, err)
 		assert.Equal(t, baselineCount, count)
 	})
@@ -808,7 +884,7 @@ func TestAnnouncementViewRepository_CountUnread(t *testing.T) {
 		publishTestAnnouncement(t, db, annoID)
 		expireTestAnnouncement(t, db, annoID)
 
-		count, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"})
+		count, err := viewRepo.CountUnread(ctx, accountID, []string{"count-test-teacher"}, schoolID, orgID)
 		require.NoError(t, err)
 		assert.Equal(t, baselineCount, count)
 	})
@@ -870,7 +946,7 @@ func TestAnnouncementViewRepository_GetStats(t *testing.T) {
 
 		stats, err := viewRepo.GetStats(ctx, annoID)
 		require.NoError(t, err)
-		assert.GreaterOrEqual(t, stats.TargetCount, 2, "should count at least the 2 accounts with this role")
+		assert.Equal(t, 2, stats.TargetCount, "should count exactly the 2 accounts with this role")
 	})
 
 	t.Run("org-filtered announcement counts org-matching accounts", func(t *testing.T) {
@@ -890,7 +966,7 @@ func TestAnnouncementViewRepository_GetStats(t *testing.T) {
 
 		stats, err := viewRepo.GetStats(ctx, annoID)
 		require.NoError(t, err)
-		assert.GreaterOrEqual(t, stats.TargetCount, 1, "should count at least 1 account in the org")
+		assert.Equal(t, 1, stats.TargetCount, "should count exactly 1 account in the org")
 	})
 
 	t.Run("tenant-filtered announcement counts tenant-matching accounts", func(t *testing.T) {
@@ -910,7 +986,7 @@ func TestAnnouncementViewRepository_GetStats(t *testing.T) {
 
 		stats, err := viewRepo.GetStats(ctx, annoID)
 		require.NoError(t, err)
-		assert.GreaterOrEqual(t, stats.TargetCount, 1, "should count at least 1 account in the tenant")
+		assert.Equal(t, 1, stats.TargetCount, "should count exactly 1 account in the tenant")
 	})
 
 	t.Run("combined role+org filter counts intersection", func(t *testing.T) {
@@ -956,8 +1032,10 @@ func TestAnnouncementViewRepository_GetStats(t *testing.T) {
 
 		stats, err := viewRepo.GetStats(ctx, annoID)
 		require.NoError(t, err)
-		// Only accBoth should be counted (intersection of role AND org)
-		assert.GreaterOrEqual(t, stats.TargetCount, 1, "intersection should include at least the account with both role and tenant")
+		// Only accBoth should be counted (intersection of role AND org).
+		// accRoleOnly has the role but in a different org — must NOT be counted.
+		// accTenantOnly is in the org but without the role — must NOT be counted.
+		assert.Equal(t, 1, stats.TargetCount, "only the account with both matching role AND org should be counted")
 	})
 
 	t.Run("org+tenant filter counts OR-union without role", func(t *testing.T) {
@@ -991,7 +1069,7 @@ func TestAnnouncementViewRepository_GetStats(t *testing.T) {
 
 		stats, err := viewRepo.GetStats(ctx, annoID)
 		require.NoError(t, err)
-		assert.GreaterOrEqual(t, stats.TargetCount, 2, "OR-union should count accounts in org OR in target tenant")
+		assert.Equal(t, 2, stats.TargetCount, "OR-union should count exactly the 2 accounts: one in org, one in target tenant")
 	})
 
 	t.Run("role+org+tenant filter counts intersection of role with OR-union", func(t *testing.T) {
@@ -1037,7 +1115,9 @@ func TestAnnouncementViewRepository_GetStats(t *testing.T) {
 
 		stats, err := viewRepo.GetStats(ctx, annoID)
 		require.NoError(t, err)
-		assert.GreaterOrEqual(t, stats.TargetCount, 2, "should count role+org account AND role+tenant account")
+		// accRoleInOrg matches (role AND org), accRoleInTenant matches (role AND tenant).
+		// accNoRole has no role — must NOT be counted despite being in the target org.
+		assert.Equal(t, 2, stats.TargetCount, "should count exactly role+org account AND role+tenant account, not the no-role account")
 	})
 
 	t.Run("role+tenant filter counts intersection without org", func(t *testing.T) {
@@ -1074,7 +1154,8 @@ func TestAnnouncementViewRepository_GetStats(t *testing.T) {
 
 		stats, err := viewRepo.GetStats(ctx, annoID)
 		require.NoError(t, err)
-		assert.GreaterOrEqual(t, stats.TargetCount, 1, "should count only account with matching role AND tenant")
+		// accMatch has role + correct tenant. accWrongTenant has role but different tenant — must NOT be counted.
+		assert.Equal(t, 1, stats.TargetCount, "should count only the account with matching role AND tenant, not the wrong-tenant account")
 	})
 
 	t.Run("seen and dismissed counts", func(t *testing.T) {

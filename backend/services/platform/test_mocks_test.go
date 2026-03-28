@@ -138,7 +138,8 @@ func (m *mockAccountTenantRepo) ListAllAccounts(ctx context.Context) ([]auth.Org
 
 // Shared mock for organization repository (used by announcement targeting validation)
 type mockOrgRepoShared struct {
-	findByIDFn func(ctx context.Context, id int64) (*platform.Organization, error)
+	findByIDFn   func(ctx context.Context, id int64) (*platform.Organization, error)
+	countByIDsFn func(ctx context.Context, ids []int64) (int, error)
 }
 
 func (m *mockOrgRepoShared) Create(ctx context.Context, organization *platform.Organization) error {
@@ -164,9 +165,17 @@ func (m *mockOrgRepoShared) Update(ctx context.Context, organization *platform.O
 	return nil
 }
 
+func (m *mockOrgRepoShared) CountByIDs(ctx context.Context, ids []int64) (int, error) {
+	if m.countByIDsFn != nil {
+		return m.countByIDsFn(ctx, ids)
+	}
+	return len(ids), nil
+}
+
 // Shared mock for school repository (used by announcement targeting validation)
 type mockSchoolRepoShared struct {
-	findByIDFn func(ctx context.Context, id int64) (*platform.School, error)
+	findByIDFn   func(ctx context.Context, id int64) (*platform.School, error)
+	countByIDsFn func(ctx context.Context, ids []int64) (int, error)
 }
 
 func (m *mockSchoolRepoShared) Create(ctx context.Context, school *platform.School) error {
@@ -210,6 +219,13 @@ func (m *mockSchoolRepoShared) FindActiveByAccountID(ctx context.Context, accoun
 
 func (m *mockSchoolRepoShared) Update(ctx context.Context, school *platform.School) error {
 	return nil
+}
+
+func (m *mockSchoolRepoShared) CountByIDs(ctx context.Context, ids []int64) (int, error) {
+	if m.countByIDsFn != nil {
+		return m.countByIDsFn(ctx, ids)
+	}
+	return len(ids), nil
 }
 
 // Shared mock for announcement repository
@@ -300,14 +316,14 @@ func (m *mockAnnouncementViewRepoShared) MarkDismissed(ctx context.Context, user
 	return nil
 }
 
-func (m *mockAnnouncementViewRepoShared) GetUnreadForUser(ctx context.Context, userID int64, userRoles []string) ([]*platform.Announcement, error) {
+func (m *mockAnnouncementViewRepoShared) GetUnreadForUser(ctx context.Context, userID int64, userRoles []string, tenantID int64, orgID int64) ([]*platform.Announcement, error) {
 	if m.getUnreadForUserFn != nil {
 		return m.getUnreadForUserFn(ctx, userID, userRoles)
 	}
 	return []*platform.Announcement{}, nil
 }
 
-func (m *mockAnnouncementViewRepoShared) CountUnread(ctx context.Context, userID int64, userRoles []string) (int, error) {
+func (m *mockAnnouncementViewRepoShared) CountUnread(ctx context.Context, userID int64, userRoles []string, tenantID int64, orgID int64) (int, error) {
 	if m.countUnreadFn != nil {
 		return m.countUnreadFn(ctx, userID, userRoles)
 	}

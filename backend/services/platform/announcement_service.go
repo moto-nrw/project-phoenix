@@ -26,9 +26,9 @@ type AnnouncementService interface {
 	PublishAnnouncement(ctx context.Context, id int64, operatorID int64, clientIP net.IP) error
 	UnpublishAnnouncement(ctx context.Context, id int64, operatorID int64, clientIP net.IP) error
 
-	// User-facing operations
-	GetUnreadForUser(ctx context.Context, userID int64, userRoles []string) ([]*platform.Announcement, error)
-	CountUnread(ctx context.Context, userID int64, userRoles []string) (int, error)
+	// User-facing operations (scoped to the current session tenant/org)
+	GetUnreadForUser(ctx context.Context, userID int64, userRoles []string, tenantID int64, orgID int64) ([]*platform.Announcement, error)
+	CountUnread(ctx context.Context, userID int64, userRoles []string, tenantID int64, orgID int64) (int, error)
 	MarkSeen(ctx context.Context, userID, announcementID int64) error
 	MarkDismissed(ctx context.Context, userID, announcementID int64) error
 
@@ -78,24 +78,25 @@ func (s *announcementService) getLogger() *slog.Logger {
 	return slog.Default()
 }
 
-// validateTargetingIDs checks that all referenced org and tenant IDs exist in the database.
+// validateTargetingIDs checks that all referenced org and tenant IDs exist in the database
+// using batch queries (WHERE id IN (?)) instead of N+1 individual lookups.
 func (s *announcementService) validateTargetingIDs(ctx context.Context, orgIDs, tenantIDs []int64) error {
-	for _, id := range orgIDs {
-		org, err := s.orgRepo.FindByID(ctx, id)
+	if len(orgIDs) > 0 {
+		count, err := s.orgRepo.CountByIDs(ctx, orgIDs)
 		if err != nil {
-			return fmt.Errorf("failed to verify organization %d: %w", id, err)
+			return fmt.Errorf("failed to verify organizations: %w", err)
 		}
-		if org == nil {
-			return &InvalidDataError{Err: fmt.Errorf("organization with ID %d does not exist", id)}
+		if count != len(orgIDs) {
+			return &InvalidDataError{Err: fmt.Errorf("one or more organization IDs do not exist (requested %d, found %d)", len(orgIDs), count)}
 		}
 	}
-	for _, id := range tenantIDs {
-		school, err := s.schoolRepo.FindByID(ctx, id)
+	if len(tenantIDs) > 0 {
+		count, err := s.schoolRepo.CountByIDs(ctx, tenantIDs)
 		if err != nil {
-			return fmt.Errorf("failed to verify school %d: %w", id, err)
+			return fmt.Errorf("failed to verify schools: %w", err)
 		}
-		if school == nil {
-			return &InvalidDataError{Err: fmt.Errorf("school (tenant) with ID %d does not exist", id)}
+		if count != len(tenantIDs) {
+			return &InvalidDataError{Err: fmt.Errorf("one or more school (tenant) IDs do not exist (requested %d, found %d)", len(tenantIDs), count)}
 		}
 	}
 	return nil
@@ -246,14 +247,14 @@ func (s *announcementService) UnpublishAnnouncement(ctx context.Context, id int6
 	return nil
 }
 
-// GetUnreadForUser retrieves unread announcements for a user filtered by roles and full account_tenants membership
-func (s *announcementService) GetUnreadForUser(ctx context.Context, userID int64, userRoles []string) ([]*platform.Announcement, error) {
-	return s.announcementViewRepo.GetUnreadForUser(ctx, userID, userRoles)
+// GetUnreadForUser retrieves unread announcements for a user scoped to the current session tenant/org
+func (s *announcementService) GetUnreadForUser(ctx context.Context, userID int64, userRoles []string, tenantID int64, orgID int64) ([]*platform.Announcement, error) {
+	return s.announcementViewRepo.GetUnreadForUser(ctx, userID, userRoles, tenantID, orgID)
 }
 
-// CountUnread counts unread announcements for a user filtered by roles and full account_tenants membership
-func (s *announcementService) CountUnread(ctx context.Context, userID int64, userRoles []string) (int, error) {
-	return s.announcementViewRepo.CountUnread(ctx, userID, userRoles)
+// CountUnread counts unread announcements for a user scoped to the current session tenant/org
+func (s *announcementService) CountUnread(ctx context.Context, userID int64, userRoles []string, tenantID int64, orgID int64) (int, error) {
+	return s.announcementViewRepo.CountUnread(ctx, userID, userRoles, tenantID, orgID)
 }
 
 // GetStats retrieves view statistics for an announcement
