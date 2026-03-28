@@ -167,6 +167,172 @@ func TestGetUnread_ResponseIncludesPublishedAt(t *testing.T) {
 	assert.Equal(t, "warning", announcement["severity"])
 }
 
+func TestGetUnreadCount_Success(t *testing.T) {
+	mockService := &mockPlatformAnnouncementService{
+		countUnreadFn: func(_ context.Context, _ int64, _ []string) (int, error) {
+			return 5, nil
+		},
+	}
+
+	resource := platform.NewAnnouncementsResource(mockService)
+
+	req := httptest.NewRequest(http.MethodGet, "/announcements/unread/count", nil)
+	claims := jwt.AppClaims{ID: 123, Roles: []string{"teacher"}, TenantID: 10, OrgID: 5}
+	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+
+	resource.GetUnreadCount(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	var response map[string]any
+	err := json.Unmarshal(rr.Body.Bytes(), &response)
+	require.NoError(t, err)
+	data := response["data"].(map[string]any)
+	assert.Equal(t, float64(5), data["count"])
+}
+
+func TestGetUnreadCount_ServiceError(t *testing.T) {
+	mockService := &mockPlatformAnnouncementService{
+		countUnreadFn: func(_ context.Context, _ int64, _ []string) (int, error) {
+			return 0, errors.New("database error")
+		},
+	}
+
+	resource := platform.NewAnnouncementsResource(mockService)
+
+	req := httptest.NewRequest(http.MethodGet, "/announcements/unread/count", nil)
+	claims := jwt.AppClaims{ID: 123, Roles: []string{"teacher"}}
+	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+
+	resource.GetUnreadCount(rr, req)
+
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+	assert.Contains(t, rr.Body.String(), "failed to count announcements")
+}
+
+func TestMarkSeen_Success(t *testing.T) {
+	mockService := &mockPlatformAnnouncementService{}
+
+	resource := platform.NewAnnouncementsResource(mockService)
+
+	req := httptest.NewRequest(http.MethodPost, "/announcements/1/seen", nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "1")
+	claims := jwt.AppClaims{ID: 123}
+	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
+	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+
+	resource.MarkSeen(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Contains(t, rr.Body.String(), "Announcement marked as seen")
+}
+
+func TestMarkSeen_InvalidID(t *testing.T) {
+	resource := platform.NewAnnouncementsResource(&mockPlatformAnnouncementService{})
+
+	req := httptest.NewRequest(http.MethodPost, "/announcements/abc/seen", nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "abc")
+	claims := jwt.AppClaims{ID: 123}
+	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
+	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+
+	resource.MarkSeen(rr, req)
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestMarkSeen_ServiceError(t *testing.T) {
+	mockService := &mockPlatformAnnouncementService{
+		markSeenFn: func(_ context.Context, _, _ int64) error {
+			return errors.New("database error")
+		},
+	}
+
+	resource := platform.NewAnnouncementsResource(mockService)
+
+	req := httptest.NewRequest(http.MethodPost, "/announcements/1/seen", nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "1")
+	claims := jwt.AppClaims{ID: 123}
+	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
+	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+
+	resource.MarkSeen(rr, req)
+
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+	assert.Contains(t, rr.Body.String(), "failed to mark announcement as seen")
+}
+
+func TestGetUnread_ServiceError(t *testing.T) {
+	mockService := &mockPlatformAnnouncementService{
+		getUnreadForUserFn: func(_ context.Context, _ int64, _ []string) ([]*platformModel.Announcement, error) {
+			return nil, errors.New("database error")
+		},
+	}
+
+	resource := platform.NewAnnouncementsResource(mockService)
+
+	req := httptest.NewRequest(http.MethodGet, "/announcements/unread", nil)
+	claims := jwt.AppClaims{ID: 123, Roles: []string{"teacher"}}
+	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+
+	resource.GetUnread(rr, req)
+
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+	assert.Contains(t, rr.Body.String(), "failed to retrieve announcements")
+}
+
+func TestMarkDismissed_Success(t *testing.T) {
+	mockService := &mockPlatformAnnouncementService{}
+
+	resource := platform.NewAnnouncementsResource(mockService)
+
+	req := httptest.NewRequest(http.MethodPost, "/announcements/1/dismiss", nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "1")
+	claims := jwt.AppClaims{ID: 123}
+	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
+	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+
+	resource.MarkDismissed(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Contains(t, rr.Body.String(), "Announcement dismissed")
+}
+
+func TestMarkDismissed_InvalidID(t *testing.T) {
+	resource := platform.NewAnnouncementsResource(&mockPlatformAnnouncementService{})
+
+	req := httptest.NewRequest(http.MethodPost, "/announcements/abc/dismiss", nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "abc")
+	claims := jwt.AppClaims{ID: 123}
+	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
+	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+
+	resource.MarkDismissed(rr, req)
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
 func TestGetUnread_NilPublishedAtRendersEmpty(t *testing.T) {
 	mockService := &mockPlatformAnnouncementService{
 		getUnreadForUserFn: func(ctx context.Context, userID int64, userRoles []string) ([]*platformModel.Announcement, error) {

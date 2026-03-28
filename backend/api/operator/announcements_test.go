@@ -736,3 +736,243 @@ func TestUpdateAnnouncement_SetActiveFlag(t *testing.T) {
 	resource.UpdateAnnouncement(rr, req.WithContext(ctx))
 	assert.Equal(t, http.StatusOK, rr.Code)
 }
+
+// --- Delete ---
+
+func TestDeleteAnnouncement_Success(t *testing.T) {
+	mock := &mockAnnouncementService{}
+	resource := operator.NewAnnouncementsResource(mock)
+	rr := callIDHandler(resource.DeleteAnnouncement, http.MethodDelete, "/announcements/1", "1")
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Contains(t, rr.Body.String(), "Announcement deleted successfully")
+}
+
+func TestDeleteAnnouncement_InvalidID(t *testing.T) {
+	resource := operator.NewAnnouncementsResource(&mockAnnouncementService{})
+	rr := callIDHandler(resource.DeleteAnnouncement, http.MethodDelete, "/announcements/abc", "abc")
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestDeleteAnnouncement_NotFound(t *testing.T) {
+	mock := &mockAnnouncementService{
+		deleteFn: func(_ context.Context, _ int64, _ int64, _ net.IP) error {
+			return &platformSvc.AnnouncementNotFoundError{AnnouncementID: 999}
+		},
+	}
+	resource := operator.NewAnnouncementsResource(mock)
+	rr := callIDHandler(resource.DeleteAnnouncement, http.MethodDelete, "/announcements/999", "999")
+	assert.Equal(t, http.StatusNotFound, rr.Code)
+}
+
+func TestDeleteAnnouncement_ServiceError(t *testing.T) {
+	mock := &mockAnnouncementService{
+		deleteFn: func(_ context.Context, _ int64, _ int64, _ net.IP) error {
+			return errors.New("database error")
+		},
+	}
+	resource := operator.NewAnnouncementsResource(mock)
+	rr := callIDHandler(resource.DeleteAnnouncement, http.MethodDelete, "/announcements/1", "1")
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+}
+
+// --- Publish ---
+
+func TestPublishAnnouncement_Success(t *testing.T) {
+	mock := &mockAnnouncementService{}
+	resource := operator.NewAnnouncementsResource(mock)
+	rr := callIDHandler(resource.PublishAnnouncement, http.MethodPost, "/announcements/1/publish", "1")
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Contains(t, rr.Body.String(), "Announcement published successfully")
+}
+
+func TestPublishAnnouncement_InvalidID(t *testing.T) {
+	resource := operator.NewAnnouncementsResource(&mockAnnouncementService{})
+	rr := callIDHandler(resource.PublishAnnouncement, http.MethodPost, "/announcements/abc/publish", "abc")
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestPublishAnnouncement_NotFound(t *testing.T) {
+	mock := &mockAnnouncementService{
+		publishFn: func(_ context.Context, _ int64, _ int64, _ net.IP) error {
+			return &platformSvc.AnnouncementNotFoundError{AnnouncementID: 999}
+		},
+	}
+	resource := operator.NewAnnouncementsResource(mock)
+	rr := callIDHandler(resource.PublishAnnouncement, http.MethodPost, "/announcements/999/publish", "999")
+	assert.Equal(t, http.StatusNotFound, rr.Code)
+}
+
+func TestPublishAnnouncement_ServiceError(t *testing.T) {
+	mock := &mockAnnouncementService{
+		publishFn: func(_ context.Context, _ int64, _ int64, _ net.IP) error {
+			return errors.New("database error")
+		},
+	}
+	resource := operator.NewAnnouncementsResource(mock)
+	rr := callIDHandler(resource.PublishAnnouncement, http.MethodPost, "/announcements/1/publish", "1")
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+}
+
+// --- GetStats ---
+
+func TestGetStats_Success(t *testing.T) {
+	mock := &mockAnnouncementService{
+		getStatsFn: func(_ context.Context, id int64) (*platform.AnnouncementStats, error) {
+			return &platform.AnnouncementStats{
+				AnnouncementID: id,
+				TargetCount:    42,
+				SeenCount:      10,
+				DismissedCount: 3,
+			}, nil
+		},
+	}
+	resource := operator.NewAnnouncementsResource(mock)
+	rr := callIDHandler(resource.GetStats, http.MethodGet, "/announcements/1/stats", "1")
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	var response map[string]any
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
+	data := response["data"].(map[string]any)
+	assert.Equal(t, float64(42), data["target_count"])
+	assert.Equal(t, float64(10), data["seen_count"])
+	assert.Equal(t, float64(3), data["dismissed_count"])
+}
+
+func TestGetStats_InvalidID(t *testing.T) {
+	resource := operator.NewAnnouncementsResource(&mockAnnouncementService{})
+	rr := callIDHandler(resource.GetStats, http.MethodGet, "/announcements/abc/stats", "abc")
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestGetStats_NotFound(t *testing.T) {
+	mock := &mockAnnouncementService{
+		getStatsFn: func(_ context.Context, _ int64) (*platform.AnnouncementStats, error) {
+			return nil, &platformSvc.AnnouncementNotFoundError{AnnouncementID: 999}
+		},
+	}
+	resource := operator.NewAnnouncementsResource(mock)
+	rr := callIDHandler(resource.GetStats, http.MethodGet, "/announcements/999/stats", "999")
+	assert.Equal(t, http.StatusNotFound, rr.Code)
+}
+
+func TestGetStats_ServiceError(t *testing.T) {
+	mock := &mockAnnouncementService{
+		getStatsFn: func(_ context.Context, _ int64) (*platform.AnnouncementStats, error) {
+			return nil, errors.New("database error")
+		},
+	}
+	resource := operator.NewAnnouncementsResource(mock)
+	rr := callIDHandler(resource.GetStats, http.MethodGet, "/announcements/1/stats", "1")
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+}
+
+// --- GetViewDetails ---
+
+func TestGetViewDetails_Success(t *testing.T) {
+	now := time.Now()
+	mock := &mockAnnouncementService{
+		getViewDetailsFn: func(_ context.Context, _ int64) ([]*platform.AnnouncementViewDetail, error) {
+			return []*platform.AnnouncementViewDetail{
+				{UserID: 10, UserName: "Max Mustermann", SeenAt: now, Dismissed: false},
+				{UserID: 20, UserName: "Erika Muster", SeenAt: now, Dismissed: true},
+			}, nil
+		},
+	}
+	resource := operator.NewAnnouncementsResource(mock)
+	rr := callIDHandler(resource.GetViewDetails, http.MethodGet, "/announcements/1/view-details", "1")
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	var response map[string]any
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
+	data := response["data"].([]any)
+	require.Len(t, data, 2)
+
+	first := data[0].(map[string]any)
+	assert.Equal(t, float64(10), first["user_id"])
+	assert.Equal(t, "Max Mustermann", first["user_name"])
+	assert.NotEmpty(t, first["seen_at"])
+	assert.Equal(t, false, first["dismissed"])
+
+	second := data[1].(map[string]any)
+	assert.Equal(t, true, second["dismissed"])
+}
+
+func TestGetViewDetails_Empty(t *testing.T) {
+	mock := &mockAnnouncementService{
+		getViewDetailsFn: func(_ context.Context, _ int64) ([]*platform.AnnouncementViewDetail, error) {
+			return []*platform.AnnouncementViewDetail{}, nil
+		},
+	}
+	resource := operator.NewAnnouncementsResource(mock)
+	rr := callIDHandler(resource.GetViewDetails, http.MethodGet, "/announcements/1/view-details", "1")
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	var response map[string]any
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
+	data := response["data"].([]any)
+	assert.Empty(t, data)
+}
+
+func TestGetViewDetails_InvalidID(t *testing.T) {
+	resource := operator.NewAnnouncementsResource(&mockAnnouncementService{})
+	rr := callIDHandler(resource.GetViewDetails, http.MethodGet, "/announcements/abc/view-details", "abc")
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestGetViewDetails_NotFound(t *testing.T) {
+	mock := &mockAnnouncementService{
+		getViewDetailsFn: func(_ context.Context, _ int64) ([]*platform.AnnouncementViewDetail, error) {
+			return nil, &platformSvc.AnnouncementNotFoundError{AnnouncementID: 999}
+		},
+	}
+	resource := operator.NewAnnouncementsResource(mock)
+	rr := callIDHandler(resource.GetViewDetails, http.MethodGet, "/announcements/999/view-details", "999")
+	assert.Equal(t, http.StatusNotFound, rr.Code)
+}
+
+func TestGetViewDetails_ServiceError(t *testing.T) {
+	mock := &mockAnnouncementService{
+		getViewDetailsFn: func(_ context.Context, _ int64) ([]*platform.AnnouncementViewDetail, error) {
+			return nil, errors.New("database error")
+		},
+	}
+	resource := operator.NewAnnouncementsResource(mock)
+	rr := callIDHandler(resource.GetViewDetails, http.MethodGet, "/announcements/1/view-details", "1")
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+}
+
+// --- ListAnnouncements error path ---
+
+func TestListAnnouncements_ServiceError(t *testing.T) {
+	mock := &mockAnnouncementService{
+		listFn: func(_ context.Context, _ bool) ([]*platform.Announcement, error) {
+			return nil, errors.New("database error")
+		},
+	}
+	resource := operator.NewAnnouncementsResource(mock)
+
+	req := httptest.NewRequest(http.MethodGet, "/announcements", nil)
+	ctx := context.WithValue(req.Context(), jwt.CtxClaims, jwt.AppClaims{ID: 1})
+	rr := httptest.NewRecorder()
+	resource.ListAnnouncements(rr, req.WithContext(ctx))
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+}
+
+// --- GetAnnouncement error paths ---
+
+func TestGetAnnouncement_InvalidID(t *testing.T) {
+	resource := operator.NewAnnouncementsResource(&mockAnnouncementService{})
+	rr := callIDHandler(resource.GetAnnouncement, http.MethodGet, "/announcements/abc", "abc")
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestGetAnnouncement_NotFound(t *testing.T) {
+	mock := &mockAnnouncementService{
+		getAnnouncementFn: func(_ context.Context, _ int64) (*platform.Announcement, error) {
+			return nil, &platformSvc.AnnouncementNotFoundError{AnnouncementID: 999}
+		},
+	}
+	resource := operator.NewAnnouncementsResource(mock)
+	rr := callIDHandler(resource.GetAnnouncement, http.MethodGet, "/announcements/999", "999")
+	assert.Equal(t, http.StatusNotFound, rr.Code)
+}
