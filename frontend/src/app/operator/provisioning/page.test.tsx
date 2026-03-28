@@ -3035,7 +3035,7 @@ describe("OperatorProvisioningPage", () => {
     });
   });
 
-  it("opens soft-delete confirmation modal when Löschen clicked", async () => {
+  it("opens triple-confirm dialog when Löschen clicked", async () => {
     setupSWR();
     render(<OperatorProvisioningPage />);
     fireEvent.click(screen.getByTestId("tab-schools"));
@@ -3047,14 +3047,45 @@ describe("OperatorProvisioningPage", () => {
     fireEvent.click(screen.getByText("Löschen"));
 
     await waitFor(() => {
-      const modal = screen.getByTestId("confirmation-modal");
-      expect(modal).toBeInTheDocument();
-      expect(modal).toHaveTextContent("Schule löschen");
-      expect(modal).toHaveTextContent("Test School");
+      expect(screen.getByText("Schule löschen")).toBeInTheDocument();
+      expect(
+        screen.getByText("Geben Sie den Schulnamen ein:"),
+      ).toBeInTheDocument();
+      expect(screen.getByPlaceholderText("Test School")).toBeInTheDocument();
     });
   });
 
-  it("calls softDeleteSchool and mutates on confirm", async () => {
+  it("keeps delete button disabled until school name is typed", async () => {
+    setupSWR();
+    render(<OperatorProvisioningPage />);
+    fireEvent.click(screen.getByTestId("tab-schools"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Löschen")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("Löschen"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Schule löschen")).toBeInTheDocument();
+    });
+
+    // Button should be disabled before typing
+    const confirmButtons = screen.getAllByRole("button", { name: "Löschen" });
+    const deleteBtn = confirmButtons[confirmButtons.length - 1]!;
+    expect(deleteBtn).toBeDisabled();
+
+    // Type partial name — still disabled
+    const input = screen.getByPlaceholderText("Test School");
+    fireEvent.change(input, { target: { value: "Test" } });
+    expect(deleteBtn).toBeDisabled();
+
+    // Type full name — enabled
+    fireEvent.change(input, { target: { value: "Test School" } });
+    expect(deleteBtn).not.toBeDisabled();
+  });
+
+  it("calls softDeleteSchool after typing name and confirming", async () => {
     mockSoftDeleteSchool.mockResolvedValue(undefined);
     setupSWR();
     render(<OperatorProvisioningPage />);
@@ -3067,14 +3098,54 @@ describe("OperatorProvisioningPage", () => {
     fireEvent.click(screen.getByText("Löschen"));
 
     await waitFor(() => {
-      expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
+      expect(screen.getByText("Schule löschen")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByTestId("confirm-btn"));
+    // Type the school name to enable confirm
+    fireEvent.change(screen.getByPlaceholderText("Test School"), {
+      target: { value: "Test School" },
+    });
+
+    // Click the confirm button (last "Löschen" button in the dialog)
+    const confirmButtons = screen.getAllByRole("button", { name: "Löschen" });
+    fireEvent.click(confirmButtons[confirmButtons.length - 1]!);
 
     await waitFor(() => {
       expect(mockSoftDeleteSchool).toHaveBeenCalledWith("10");
       expect(mockMutateSchools).toHaveBeenCalled();
+    });
+  });
+
+  it("resets confirm input when dialog is closed and reopened", async () => {
+    setupSWR();
+    render(<OperatorProvisioningPage />);
+    fireEvent.click(screen.getByTestId("tab-schools"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Löschen")).toBeInTheDocument();
+    });
+
+    // Open dialog and type something
+    fireEvent.click(screen.getByText("Löschen"));
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("Test School")).toBeInTheDocument();
+    });
+    fireEvent.change(screen.getByPlaceholderText("Test School"), {
+      target: { value: "Test" },
+    });
+
+    // Close dialog
+    fireEvent.click(screen.getByText("Abbrechen"));
+
+    // Reopen dialog — input should be reset
+    await waitFor(() => {
+      expect(screen.getByText("Löschen")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("Löschen"));
+
+    await waitFor(() => {
+      const input = screen.getByPlaceholderText("Test School");
+      expect(input).toHaveValue("");
     });
   });
 
