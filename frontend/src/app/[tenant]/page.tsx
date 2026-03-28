@@ -4,13 +4,19 @@
 import { useState, useEffect, useRef, Suspense } from "react";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
-import Image from "next/image";
-import { Input, Alert } from "~/components/ui";
+import {
+  Alert,
+  Button,
+  Card,
+  Input,
+  Logo,
+  Spinner,
+} from "@moto-nrw/design-system";
+import "@moto-nrw/design-system/tokens";
 import { refreshToken } from "~/lib/auth-api";
 import { SmartRedirect } from "~/components/auth/smart-redirect";
 import { PasswordResetModal } from "~/components/ui/password-reset-modal";
 import { launchConfetti, clearConfetti } from "~/lib/confetti";
-import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import { useTenant } from "~/components/tenant/tenant-provider";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { env } from "~/env";
@@ -25,7 +31,6 @@ function LoginForm() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
-  const [showPassword, setShowPassword] = useState(false);
   const [awaitingRedirect, setAwaitingRedirect] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const router = useTenantRouter();
@@ -181,8 +186,12 @@ function LoginForm() {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-4">
-      <div className="mx-auto w-full max-w-2xl rounded-2xl bg-white/80 p-10 text-center shadow-xl backdrop-blur-md transition-all duration-300 hover:bg-white/90 hover:shadow-2xl">
-        {/* Top Bar: Tenant Selector (left) + Help (right) */}
+      <Card
+        variant="glass"
+        padding="lg"
+        className="mx-auto w-full max-w-2xl text-center"
+      >
+        {/* Top Bar: Tenant Selector */}
         <div className="absolute top-4 right-4 left-4 flex items-center justify-between">
           <button
             type="button"
@@ -193,7 +202,7 @@ function LoginForm() {
                 : "";
               window.location.href = `${window.location.protocol}//${tenantDomain}${portSuffix}/`;
             }}
-            className="flex items-center gap-1.5 text-sm text-gray-500 transition-colors hover:text-gray-800"
+            className="text-steel-500 hover:text-steel-800 flex items-center gap-1.5 text-sm transition-colors"
           >
             <svg
               className="h-4 w-4"
@@ -212,24 +221,18 @@ function LoginForm() {
           </button>
         </div>
 
-        {/* Logo Section */}
+        {/* Logo */}
         <div className="mb-8 flex justify-center">
-          <Image
-            src="/images/moto_transparent.png"
-            alt="MOTO Logo"
-            width={200}
-            height={80}
-            priority
-          />
+          <Logo size={96} />
         </div>
 
         {/* Welcome Text */}
-        <h1 className="mb-2 bg-gradient-to-r from-[#5080d8] to-[#83cd2d] bg-clip-text text-4xl font-bold text-transparent md:text-5xl">
+        <h1 className="text-steel-800 mb-2 text-4xl font-bold md:text-5xl">
           Willkommen bei moto!
         </h1>
-        <p className="text-xl text-gray-700">Ganztag. Digital.</p>
+        <p className="text-steel-600 text-xl">Ganztag. Digital.</p>
         {tenant?.name && (
-          <p className="mt-4 mb-10 text-2xl font-semibold text-gray-800">
+          <p className="text-steel-800 mt-4 mb-10 text-2xl font-semibold">
             {tenant.name}
           </p>
         )}
@@ -238,14 +241,14 @@ function LoginForm() {
         {/* Loading spinner while checking auth or awaiting redirect */}
         {isCheckingAuth && (
           <div className="flex items-center justify-center py-12">
-            <div className="flex flex-col items-center gap-4">
-              <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-200 border-t-[#5080D8]" />
-              <p className="text-sm text-gray-500">
-                {awaitingRedirect
+            <Spinner
+              size="lg"
+              label={
+                awaitingRedirect
                   ? "Sie werden weitergeleitet…"
-                  : "Sitzung wird überprüft…"}
-              </p>
-            </div>
+                  : "Sitzung wird überprüft…"
+              }
+            />
           </div>
         )}
 
@@ -267,58 +270,34 @@ function LoginForm() {
             {error && <Alert type="error" message={error} />}
 
             <div className="space-y-4">
-              <div className="text-left">
-                <label
-                  htmlFor="email"
-                  className="mb-1 block text-sm font-medium text-gray-700"
-                >
-                  E-Mail-Adresse
-                </label>
-                <Input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="username"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full"
-                  label={""}
-                />
-              </div>
+              <Input
+                label="E-Mail-Adresse"
+                id="email"
+                name="email"
+                type="email"
+                autoComplete="username"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
 
-              <div className="text-left">
-                <label
-                  htmlFor="password"
-                  className="mb-1 block text-sm font-medium text-gray-700"
-                >
-                  Passwort
-                </label>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    name="password"
-                    type={showPassword ? "text" : "password"}
-                    autoComplete="current-password"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pr-10"
-                    label={""}
-                  />
-                  <PasswordToggleButton
-                    showPassword={showPassword}
-                    onToggle={() => setShowPassword(!showPassword)}
-                  />
-                </div>
-              </div>
+              <Input
+                label="Passwort"
+                id="password"
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
 
               {/* Forgot Password Link */}
               <div className="text-center">
                 <button
                   type="button"
                   onClick={() => setIsResetModalOpen(true)}
-                  className="text-sm text-gray-600 transition-colors hover:text-gray-800 hover:underline focus:underline focus:outline-none"
+                  className="text-steel-600 hover:text-steel-800 text-sm transition-colors hover:underline focus:underline focus:outline-none"
                 >
                   Passwort vergessen?
                 </button>
@@ -326,15 +305,14 @@ function LoginForm() {
             </div>
 
             <div className="mt-2 flex justify-center">
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="group relative overflow-hidden rounded-xl bg-gray-900 px-8 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:bg-gray-800 focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 focus:outline-none active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+              <Button
+                variant="primary"
+                size="lg"
+                isLoading={isLoading}
+                loadingText="Anmeldung läuft..."
               >
-                <span className="relative z-10">
-                  {isLoading ? "Anmeldung läuft..." : "Anmelden"}
-                </span>
-              </button>
+                Anmelden
+              </Button>
             </div>
           </form>
         </div>
@@ -350,7 +328,7 @@ function LoginForm() {
               }}
             />
           )}
-      </div>
+      </Card>
 
       {/* Password Reset Modal */}
       <PasswordResetModal
@@ -366,10 +344,7 @@ export default function HomePage() {
     <Suspense
       fallback={
         <div className="flex min-h-screen flex-col items-center justify-center p-4">
-          <div className="flex flex-col items-center gap-4">
-            <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-200 border-t-[#5080D8]" />
-            <p className="text-sm text-gray-500">Laden…</p>
-          </div>
+          <Spinner size="lg" label="Laden…" />
         </div>
       }
     >
