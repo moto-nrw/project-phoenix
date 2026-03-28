@@ -183,6 +183,7 @@ func TestAuthService_Login(t *testing.T) {
 		password := testPassword
 		account, err := service.Register(ctx, email, username, password, nil, 0)
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, 1)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		// ACT
@@ -267,6 +268,7 @@ func TestAuthService_ValidateToken(t *testing.T) {
 		email, username := uniqueTestCredentials("validate")
 		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, 1)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		accessToken, _, err := service.Login(ctx, email, testPassword)
@@ -317,6 +319,7 @@ func TestAuthService_RefreshToken(t *testing.T) {
 		email, username := uniqueTestCredentials("refresh")
 		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, 1)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		_, refreshToken, err := service.Login(ctx, email, testPassword)
@@ -367,6 +370,7 @@ func TestAuthService_RefreshToken_ConcurrentSingleflight(t *testing.T) {
 	email, username := uniqueTestCredentials("singleflight")
 	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 	require.NoError(t, err)
+	testpkg.EnsureAccountTenant(t, db, account.ID, 1)
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	_, refreshToken, err := service.Login(ctx, email, testPassword)
@@ -429,6 +433,7 @@ func TestAuthService_Logout(t *testing.T) {
 		email, username := uniqueTestCredentials("logout")
 		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, 1)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		_, refreshToken, err := service.Login(ctx, email, testPassword)
@@ -472,6 +477,7 @@ func TestAuthService_ChangePassword(t *testing.T) {
 		newPassword := "NewPassword1%"
 		account, err := service.Register(ctx, email, username, oldPassword, nil, 0)
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, 1)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		// ACT
@@ -751,6 +757,7 @@ func TestAuthService_RevokeAllTokens(t *testing.T) {
 		email, username := uniqueTestCredentials("revoke")
 		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, 1)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		// Login to create tokens
@@ -781,6 +788,7 @@ func TestAuthService_GetActiveTokens(t *testing.T) {
 		email, username := uniqueTestCredentials("activetokens")
 		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, 1)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		// Login to create token
@@ -2079,6 +2087,7 @@ func TestAuthService_ResetPassword(t *testing.T) {
 		email := fmt.Sprintf("resetpw-%d@test.local", time.Now().UnixNano())
 		account, err := service.Register(ctx, email, fmt.Sprintf("resetpw%d", time.Now().UnixNano()), testPassword, nil, 0)
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, 1)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		token, err := service.InitiatePasswordReset(ctx, email)
