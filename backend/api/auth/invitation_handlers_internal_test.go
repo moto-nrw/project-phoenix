@@ -42,6 +42,9 @@ func (m *mockInvitationService) ListPendingInvitations(ctx context.Context) ([]*
 	return m.listFn(ctx)
 }
 func (m *mockInvitationService) RevokeInvitation(context.Context, int64, int64) error { return nil }
+func (m *mockInvitationService) InvalidatePendingInvitationsByTenantID(context.Context, int64) (int, error) {
+	return 0, nil
+}
 func (m *mockInvitationService) CleanupExpiredInvitations(context.Context) (int, error) {
 	return 0, nil
 }

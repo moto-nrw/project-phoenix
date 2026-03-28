@@ -336,6 +336,22 @@ func (s *invitationService) AcceptInvitation(ctx context.Context, token string, 
 			return fetchErr
 		}
 
+		// Reject invitations for soft-deleted schools. Uses FindByIDForShare to
+		// acquire a shared lock on the school row, which serializes with the
+		// exclusive lock taken by SoftDeleteSchool's UPDATE. This prevents the
+		// race where AcceptInvitation reads the school as active, then
+		// SoftDeleteSchool commits the deletion before the account is created.
+		// The lock is held until this admin transaction commits.
+		if invitation.TenantID > 0 && s.schoolRepo != nil {
+			school, schoolErr := s.schoolRepo.FindByIDForShare(adminCtx, invitation.TenantID)
+			if schoolErr != nil {
+				return &AuthError{Op: opAcceptInvitation, Err: schoolErr}
+			}
+			if school == nil || school.IsDeleted() {
+				return &AuthError{Op: opAcceptInvitation, Err: ErrInvitationTenantDeleted}
+			}
+		}
+
 		passwordHash, hashErr := s.validateAndHashPassword(userData)
 		if hashErr != nil {
 			return hashErr
@@ -713,6 +729,21 @@ func (s *invitationService) RevokeInvitation(ctx context.Context, invitationID i
 	return nil
 }
 
+// InvalidatePendingInvitationsByTenantID marks all pending invitations for a tenant as used.
+// Used during soft-delete to prevent redemption of invitations for deleted schools.
+func (s *invitationService) InvalidatePendingInvitationsByTenantID(ctx context.Context, tenantID int64) (int, error) {
+	count, err := s.invitationRepo.InvalidateByTenantID(ctx, tenantID)
+	if err != nil {
+		return 0, &AuthError{Op: "invalidate invitations by tenant", Err: err}
+	}
+	if count > 0 {
+		s.getLogger().Info("pending invitations invalidated for deleted tenant",
+			slog.Int64("tenant_id", tenantID),
+			slog.Int("count", count))
+	}
+	return count, nil
+}
+
 // CleanupExpiredInvitations removes invitations that are no longer useful.
 func (s *invitationService) CleanupExpiredInvitations(ctx context.Context) (int, error) {
 	count, err := s.invitationRepo.DeleteExpired(ctx, time.Now())
@@ -780,6 +811,9 @@ func (s *invitationService) lookupSchoolName(ctx context.Context, tenantID int64
 		s.getLogger().Warn("failed to lookup school name for invitation email",
 			slog.Int64("tenant_id", tenantID),
 			slog.String("error", err.Error()))
+		return ""
+	}
+	if school == nil || school.IsDeleted() {
 		return ""
 	}
 	return school.Name

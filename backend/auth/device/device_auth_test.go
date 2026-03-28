@@ -2,7 +2,9 @@ package device
 
 import (
 	"context"
+	"database/sql"
 	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -11,7 +13,9 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/iot"
+	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -245,7 +249,7 @@ func TestDeviceOnlyAuthenticator_ValidAPIKey(t *testing.T) {
 	mockService.addDevice(apiKey, device)
 
 	r := chi.NewRouter()
-	r.Use(DeviceOnlyAuthenticator(mockService))
+	r.Use(DeviceOnlyAuthenticator(mockService, nil))
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
 		// Verify device is in context
 		ctxDevice := DeviceFromCtx(r.Context())
@@ -271,7 +275,7 @@ func TestDeviceOnlyAuthenticator_MissingAuthHeader(t *testing.T) {
 	mockService := newMockIoTService()
 
 	r := chi.NewRouter()
-	r.Use(DeviceOnlyAuthenticator(mockService))
+	r.Use(DeviceOnlyAuthenticator(mockService, nil))
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -300,7 +304,7 @@ func TestDeviceOnlyAuthenticator_InvalidAuthFormat(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			r := chi.NewRouter()
-			r.Use(DeviceOnlyAuthenticator(mockService))
+			r.Use(DeviceOnlyAuthenticator(mockService, nil))
 			r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusOK)
 			})
@@ -320,7 +324,7 @@ func TestDeviceOnlyAuthenticator_InvalidAPIKey(t *testing.T) {
 	// No devices added
 
 	r := chi.NewRouter()
-	r.Use(DeviceOnlyAuthenticator(mockService))
+	r.Use(DeviceOnlyAuthenticator(mockService, nil))
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -344,7 +348,7 @@ func TestDeviceOnlyAuthenticator_InactiveDevice(t *testing.T) {
 	mockService.addDevice(apiKey, device)
 
 	r := chi.NewRouter()
-	r.Use(DeviceOnlyAuthenticator(mockService))
+	r.Use(DeviceOnlyAuthenticator(mockService, nil))
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -368,7 +372,7 @@ func TestDeviceOnlyAuthenticator_OfflineDevice(t *testing.T) {
 	mockService.addDevice(apiKey, device)
 
 	r := chi.NewRouter()
-	r.Use(DeviceOnlyAuthenticator(mockService))
+	r.Use(DeviceOnlyAuthenticator(mockService, nil))
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -392,7 +396,7 @@ func TestDeviceOnlyAuthenticator_MaintenanceDevice(t *testing.T) {
 	mockService.addDevice(apiKey, device)
 
 	r := chi.NewRouter()
-	r.Use(DeviceOnlyAuthenticator(mockService))
+	r.Use(DeviceOnlyAuthenticator(mockService, nil))
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -427,7 +431,7 @@ func TestDeviceAuthenticator_ValidAPIKeyAndPIN(t *testing.T) {
 	mockIoT.addDevice(apiKey, device)
 
 	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockIoT, nil)) // PersonService not used
+	r.Use(DeviceAuthenticator(mockIoT, nil, nil)) // PersonService not used
 	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
 		// Verify device is in context
 		ctxDevice := DeviceFromCtx(r.Context())
@@ -464,7 +468,7 @@ func TestDeviceAuthenticator_MissingPIN(t *testing.T) {
 	mockIoT.addDevice(apiKey, device)
 
 	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockIoT, nil))
+	r.Use(DeviceAuthenticator(mockIoT, nil, nil))
 	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -492,7 +496,7 @@ func TestDeviceAuthenticator_InvalidPIN(t *testing.T) {
 	mockIoT.addDevice(apiKey, device)
 
 	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockIoT, nil))
+	r.Use(DeviceAuthenticator(mockIoT, nil, nil))
 	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -520,7 +524,7 @@ func TestDeviceAuthenticator_MissingOGSPINConfig(t *testing.T) {
 	mockIoT.addDevice(apiKey, device)
 
 	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockIoT, nil))
+	r.Use(DeviceAuthenticator(mockIoT, nil, nil))
 	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -541,7 +545,7 @@ func TestDeviceAuthenticator_MissingAPIKey(t *testing.T) {
 	mockIoT := newMockIoTService()
 
 	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockIoT, nil))
+	r.Use(DeviceAuthenticator(mockIoT, nil, nil))
 	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -563,7 +567,7 @@ func TestDeviceAuthenticator_InvalidAPIKey(t *testing.T) {
 	// No devices added
 
 	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockIoT, nil))
+	r.Use(DeviceAuthenticator(mockIoT, nil, nil))
 	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -591,7 +595,7 @@ func TestDeviceAuthenticator_InactiveDevice(t *testing.T) {
 	mockIoT.addDevice(apiKey, device)
 
 	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockIoT, nil))
+	r.Use(DeviceAuthenticator(mockIoT, nil, nil))
 	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -704,7 +708,7 @@ func TestDeviceOnlyAuthenticator_UpdateLastSeenError(t *testing.T) {
 	mockService.addDevice(apiKey, device)
 
 	r := chi.NewRouter()
-	r.Use(DeviceOnlyAuthenticator(mockService))
+	r.Use(DeviceOnlyAuthenticator(mockService, nil))
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
 		// Request should still succeed even if update fails
 		w.WriteHeader(http.StatusOK)
@@ -732,7 +736,7 @@ func TestDeviceOnlyAuthenticator_DebouncesLastSeenWrites(t *testing.T) {
 	mockService.addDevice(apiKey, device)
 
 	r := chi.NewRouter()
-	r.Use(DeviceOnlyAuthenticator(mockService))
+	r.Use(DeviceOnlyAuthenticator(mockService, nil))
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -788,7 +792,7 @@ func TestDeviceAuthenticator_NilDeviceReturn(t *testing.T) {
 	mockService := &mockIoTServiceNilDevice{mockIoTService: *newMockIoTService()}
 
 	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockService, nil))
+	r.Use(DeviceAuthenticator(mockService, nil, nil))
 	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -806,7 +810,7 @@ func TestDeviceOnlyAuthenticator_NilDeviceReturn(t *testing.T) {
 	mockService := &mockIoTServiceNilDevice{mockIoTService: *newMockIoTService()}
 
 	r := chi.NewRouter()
-	r.Use(DeviceOnlyAuthenticator(mockService))
+	r.Use(DeviceOnlyAuthenticator(mockService, nil))
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -817,6 +821,136 @@ func TestDeviceOnlyAuthenticator_NilDeviceReturn(t *testing.T) {
 
 	r.ServeHTTP(rr, req)
 	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+}
+
+// =============================================================================
+// rejectDeletedSchool Tests
+// =============================================================================
+
+// mockSchoolRepo implements the subset of platform.SchoolRepository used by rejectDeletedSchool.
+type mockSchoolRepo struct {
+	school *platform.School
+	err    error
+}
+
+func (m *mockSchoolRepo) FindByID(_ context.Context, _ int64) (*platform.School, error) {
+	return m.school, m.err
+}
+func (m *mockSchoolRepo) FindByIDForShare(_ context.Context, _ int64) (*platform.School, error) {
+	return m.school, m.err
+}
+func (m *mockSchoolRepo) Create(_ context.Context, _ *platform.School) error { return nil }
+func (m *mockSchoolRepo) FindBySlug(_ context.Context, _ string) (*platform.School, error) {
+	return nil, nil
+}
+func (m *mockSchoolRepo) FindByOrganizationAndSlug(_ context.Context, _ int64, _ string) (*platform.School, error) {
+	return nil, nil
+}
+func (m *mockSchoolRepo) FindBySubdomain(_ context.Context, _ string) (*platform.School, error) {
+	return nil, nil
+}
+func (m *mockSchoolRepo) List(_ context.Context) ([]*platform.School, error)      { return nil, nil }
+func (m *mockSchoolRepo) ListActive(_ context.Context) ([]platform.School, error) { return nil, nil }
+func (m *mockSchoolRepo) ListPublic(_ context.Context) ([]platform.School, error) { return nil, nil }
+func (m *mockSchoolRepo) FindActiveByAccountID(_ context.Context, _ int64) ([]platform.School, error) {
+	return nil, nil
+}
+func (m *mockSchoolRepo) Update(_ context.Context, _ *platform.School) error { return nil }
+func (m *mockSchoolRepo) SoftDelete(_ context.Context, _ int64) error        { return nil }
+func (m *mockSchoolRepo) Restore(_ context.Context, _ int64) error           { return nil }
+
+func TestRejectDeletedSchool_ActiveSchool_ReturnsNil(t *testing.T) {
+	repo := &mockSchoolRepo{school: &platform.School{Active: true}}
+	device := &iot.Device{DeviceID: "device-001", TenantModel: modelBase.TenantModel{TenantID: 100}}
+
+	result := rejectDeletedSchool(context.Background(), repo, device)
+	assert.Nil(t, result, "active school should not be rejected")
+}
+
+func TestRejectDeletedSchool_DeletedSchool_ReturnsForbidden(t *testing.T) {
+	now := time.Now()
+	repo := &mockSchoolRepo{school: &platform.School{DeletedAt: &now, Active: true}}
+	device := &iot.Device{DeviceID: "device-001", TenantModel: modelBase.TenantModel{TenantID: 100}}
+
+	result := rejectDeletedSchool(context.Background(), repo, device)
+	assert.NotNil(t, result, "deleted school should be rejected")
+}
+
+func TestRejectDeletedSchool_NilRepo_ReturnsNil(t *testing.T) {
+	device := &iot.Device{DeviceID: "device-001", TenantModel: modelBase.TenantModel{TenantID: 100}}
+
+	result := rejectDeletedSchool(context.Background(), nil, device)
+	assert.Nil(t, result, "nil repo should fail open")
+}
+
+func TestRejectDeletedSchool_NilSchool_ReturnsForbidden(t *testing.T) {
+	repo := &mockSchoolRepo{school: nil, err: nil}
+	device := &iot.Device{DeviceID: "device-001", TenantModel: modelBase.TenantModel{TenantID: 100}}
+
+	result := rejectDeletedSchool(context.Background(), repo, device)
+	assert.NotNil(t, result, "non-existent school should be rejected")
+}
+
+func TestRejectDeletedSchool_NonTransientDBError_RejectsDevice(t *testing.T) {
+	// Non-transient errors (bad query, permission issue, etc.) must fail closed
+	// to prevent bypassing the soft-delete guard.
+	repo := &mockSchoolRepo{err: errors.New("connection refused")}
+	device := &iot.Device{DeviceID: "device-001", TenantModel: modelBase.TenantModel{TenantID: 100}}
+
+	result := rejectDeletedSchool(context.Background(), repo, device)
+	assert.NotNil(t, result, "non-transient DB errors should reject device")
+}
+
+func TestRejectDeletedSchool_TransientDBError_FailsOpen(t *testing.T) {
+	// Genuine transient connectivity errors should fail open so IoT devices
+	// keep working during brief outages.
+	repo := &mockSchoolRepo{err: &net.OpError{
+		Op:  "dial",
+		Net: "tcp",
+		Err: errors.New("connection refused"),
+	}}
+	device := &iot.Device{DeviceID: "device-001", TenantModel: modelBase.TenantModel{TenantID: 100}}
+
+	result := rejectDeletedSchool(context.Background(), repo, device)
+	assert.Nil(t, result, "transient DB errors should fail open")
+}
+
+func TestRejectDeletedSchool_ContextTimeout_FailsOpen(t *testing.T) {
+	repo := &mockSchoolRepo{err: context.DeadlineExceeded}
+	device := &iot.Device{DeviceID: "device-001", TenantModel: modelBase.TenantModel{TenantID: 100}}
+
+	result := rejectDeletedSchool(context.Background(), repo, device)
+	assert.Nil(t, result, "context deadline errors should fail open")
+}
+
+func TestDeviceOnlyAuthenticator_DeletedSchool_Forbidden(t *testing.T) {
+	lastSeenWriteCache = sync.Map{}
+
+	mockService := newMockIoTService()
+	apiKey := "valid-api-key-deleted"
+	device := &iot.Device{
+		TenantModel: modelBase.TenantModel{TenantID: 100},
+		DeviceID:    "device-deleted-school",
+		DeviceType:  "terminal",
+		Status:      iot.DeviceStatusActive,
+	}
+	mockService.addDevice(apiKey, device)
+
+	now := time.Now()
+	repo := &mockSchoolRepo{school: &platform.School{DeletedAt: &now}}
+
+	r := chi.NewRouter()
+	r.Use(DeviceOnlyAuthenticator(mockService, repo))
+	r.Get("/test", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+	rr := httptest.NewRecorder()
+
+	r.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusForbidden, rr.Code, "devices belonging to deleted schools must be rejected")
 }
 
 func TestSecureCompareStrings_TimingResistance(t *testing.T) {
@@ -833,4 +967,169 @@ func TestSecureCompareStrings_TimingResistance(t *testing.T) {
 	assert.False(t, SecureCompareStrings(correctPIN, partialMatchPIN))
 	assert.False(t, SecureCompareStrings(correctPIN, ""))
 	assert.False(t, SecureCompareStrings("", correctPIN))
+}
+
+// =============================================================================
+// isNotFoundErr Tests
+// =============================================================================
+
+func TestIsNotFoundErr(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{
+			name: "nil error",
+			err:  nil,
+			want: false,
+		},
+		{
+			name: "sql.ErrNoRows directly",
+			err:  sql.ErrNoRows,
+			want: true,
+		},
+		{
+			name: "DatabaseError wrapping sql.ErrNoRows",
+			err:  &modelBase.DatabaseError{Op: "find", Err: sql.ErrNoRows},
+			want: true,
+		},
+		{
+			name: "DatabaseError wrapping a different error",
+			err:  &modelBase.DatabaseError{Op: "find", Err: errors.New("permission denied")},
+			want: false,
+		},
+		{
+			name: "random error",
+			err:  errors.New("something went wrong"),
+			want: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := isNotFoundErr(tc.err)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+// =============================================================================
+// isTransientDBErr Tests
+// =============================================================================
+
+// stubNetError implements net.Error for testing transient error detection.
+type stubNetError struct{}
+
+func (stubNetError) Error() string   { return "network error" }
+func (stubNetError) Timeout() bool   { return true }
+func (stubNetError) Temporary() bool { return true }
+
+func TestIsTransientDBErr(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{
+			name: "nil error",
+			err:  nil,
+			want: false,
+		},
+		{
+			name: "context.DeadlineExceeded",
+			err:  context.DeadlineExceeded,
+			want: true,
+		},
+		{
+			name: "context.Canceled",
+			err:  context.Canceled,
+			want: true,
+		},
+		{
+			name: "net.Error stub",
+			err:  stubNetError{},
+			want: true,
+		},
+		{
+			name: "DatabaseError wrapping context.DeadlineExceeded (recursive unwrap)",
+			err:  &modelBase.DatabaseError{Op: "find", Err: context.DeadlineExceeded},
+			want: true,
+		},
+		{
+			name: "random error",
+			err:  errors.New("some random error"),
+			want: false,
+		},
+		{
+			name: "sql.ErrNoRows is not transient",
+			err:  sql.ErrNoRows,
+			want: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := isTransientDBErr(tc.err)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+// =============================================================================
+// rejectDeletedSchool error-path Tests
+// =============================================================================
+
+func TestRejectDeletedSchool_SchoolNotFound(t *testing.T) {
+	// FindByID returns sql.ErrNoRows wrapped in DatabaseError — should reject.
+	repo := &mockSchoolRepo{
+		err: &modelBase.DatabaseError{Op: "find", Err: sql.ErrNoRows},
+	}
+	device := &iot.Device{
+		DeviceID:    "device-notfound",
+		TenantModel: modelBase.TenantModel{TenantID: 100},
+	}
+
+	result := rejectDeletedSchool(context.Background(), repo, device)
+	assert.NotNil(t, result, "school not found (DatabaseError wrapping sql.ErrNoRows) should reject device")
+}
+
+func TestRejectDeletedSchool_TransientError_FailsOpen(t *testing.T) {
+	// FindByID returns context.DeadlineExceeded wrapped in DatabaseError — fail open.
+	repo := &mockSchoolRepo{
+		err: &modelBase.DatabaseError{Op: "find", Err: context.DeadlineExceeded},
+	}
+	device := &iot.Device{
+		DeviceID:    "device-timeout",
+		TenantModel: modelBase.TenantModel{TenantID: 100},
+	}
+
+	result := rejectDeletedSchool(context.Background(), repo, device)
+	assert.Nil(t, result, "transient DB error (wrapped DeadlineExceeded) should fail open")
+}
+
+func TestRejectDeletedSchool_NonTransientError_FailsClosed(t *testing.T) {
+	// FindByID returns a permission error wrapped in DatabaseError — fail closed.
+	repo := &mockSchoolRepo{
+		err: &modelBase.DatabaseError{Op: "find", Err: errors.New("permission denied")},
+	}
+	device := &iot.Device{
+		DeviceID:    "device-permission",
+		TenantModel: modelBase.TenantModel{TenantID: 100},
+	}
+
+	result := rejectDeletedSchool(context.Background(), repo, device)
+	assert.NotNil(t, result, "non-transient DB error should reject device (fail closed)")
+}
+
+func TestRejectDeletedSchool_NilSchool(t *testing.T) {
+	// FindByID returns (nil, nil) — school doesn't exist, reject.
+	repo := &mockSchoolRepo{school: nil, err: nil}
+	device := &iot.Device{
+		DeviceID:    "device-nil-school",
+		TenantModel: modelBase.TenantModel{TenantID: 100},
+	}
+
+	result := rejectDeletedSchool(context.Background(), repo, device)
+	assert.NotNil(t, result, "nil school (no error) should reject device")
 }

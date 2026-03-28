@@ -158,6 +158,7 @@ describe("mapSchool", () => {
       email: "info@test.de",
       active: true,
       hidden: false,
+      deleted_at: null,
       settings: null,
       created_at: "2025-01-01T00:00:00Z",
       updated_at: "2025-01-02T00:00:00Z",
@@ -174,6 +175,81 @@ describe("mapSchool", () => {
     expect(result.organization).toBeUndefined();
   });
 
+  it("maps hidden: true correctly", () => {
+    const backend: BackendSchool = {
+      id: 10,
+      organization_id: 42,
+      name: "Hidden School",
+      slug: "hidden-school",
+      subdomain: "hidden",
+      address: "",
+      city: "",
+      zip: "",
+      phone: "",
+      email: "",
+      active: true,
+      hidden: true,
+      deleted_at: null,
+      settings: null,
+      created_at: "2025-01-01T00:00:00Z",
+      updated_at: "2025-01-02T00:00:00Z",
+    };
+
+    const result = mapSchool(backend);
+
+    expect(result.hidden).toBe(true);
+  });
+
+  it("maps deleted_at timestamp correctly", () => {
+    const backend: BackendSchool = {
+      id: 10,
+      organization_id: 42,
+      name: "Deleted School",
+      slug: "deleted-school",
+      subdomain: "deleted",
+      address: "",
+      city: "",
+      zip: "",
+      phone: "",
+      email: "",
+      active: false,
+      hidden: false,
+      deleted_at: "2026-03-15T10:00:00Z",
+      settings: null,
+      created_at: "2025-01-01T00:00:00Z",
+      updated_at: "2025-01-02T00:00:00Z",
+    };
+
+    const result = mapSchool(backend);
+
+    expect(result.deletedAt).toBe("2026-03-15T10:00:00Z");
+  });
+
+  it("maps deleted_at: null correctly", () => {
+    const backend: BackendSchool = {
+      id: 10,
+      organization_id: 42,
+      name: "Active School",
+      slug: "active-school",
+      subdomain: "active",
+      address: "",
+      city: "",
+      zip: "",
+      phone: "",
+      email: "",
+      active: true,
+      hidden: false,
+      deleted_at: null,
+      settings: null,
+      created_at: "2025-01-01T00:00:00Z",
+      updated_at: "2025-01-02T00:00:00Z",
+    };
+
+    const result = mapSchool(backend);
+
+    expect(result.deletedAt).toBeNull();
+  });
+
   it("maps nested organization when present", () => {
     const backend: BackendSchool = {
       id: 10,
@@ -188,6 +264,7 @@ describe("mapSchool", () => {
       email: "",
       active: true,
       hidden: false,
+      deleted_at: null,
       settings: null,
       created_at: "2025-01-01T00:00:00Z",
       updated_at: "2025-01-02T00:00:00Z",

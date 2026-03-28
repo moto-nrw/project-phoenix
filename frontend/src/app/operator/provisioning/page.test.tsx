@@ -24,6 +24,8 @@ const {
   mockListSchoolDevices,
   mockListOrganizationDevices,
   mockListAllDevices,
+  mockSoftDeleteSchool,
+  mockRestoreSchool,
 } = vi.hoisted(() => ({
   mockUseSession: vi.fn(),
   mockUseSWR: vi.fn(),
@@ -42,6 +44,8 @@ const {
   mockListSchoolDevices: vi.fn(),
   mockListOrganizationDevices: vi.fn(),
   mockListAllDevices: vi.fn(),
+  mockSoftDeleteSchool: vi.fn(),
+  mockRestoreSchool: vi.fn(),
 }));
 
 vi.mock("next-auth/react", () => ({
@@ -72,6 +76,8 @@ vi.mock("~/lib/operator/provisioning-api", () => ({
     listSchoolDevices: mockListSchoolDevices,
     listOrganizationDevices: mockListOrganizationDevices,
     listAllDevices: mockListAllDevices,
+    softDeleteSchool: mockSoftDeleteSchool,
+    restoreSchool: mockRestoreSchool,
   },
 }));
 
@@ -122,6 +128,26 @@ vi.mock("~/components/ui/modal", () => ({
         <div data-testid="modal-footer">{footer}</div>
       </div>
     ) : null,
+  ConfirmationModal: ({
+    isOpen,
+    children,
+    title,
+    onConfirm,
+    onClose,
+    confirmText,
+  }: any) =>
+    isOpen ? (
+      <div data-testid="confirmation-modal">
+        <h2>{title}</h2>
+        {children}
+        <button data-testid="confirm-btn" onClick={onConfirm}>
+          {confirmText}
+        </button>
+        <button data-testid="cancel-btn" onClick={onClose}>
+          Abbrechen
+        </button>
+      </div>
+    ) : null,
 }));
 
 vi.mock("~/components/ui/skeleton", () => ({
@@ -163,6 +189,7 @@ const mockSchool = {
   email: "",
   active: true,
   hidden: false,
+  deletedAt: null,
   createdAt: "2025-01-01T00:00:00Z",
   updatedAt: "2025-01-01T00:00:00Z",
   organization: { ...mockOrg },
@@ -176,7 +203,7 @@ describe("OperatorProvisioningPage", () => {
       status: "authenticated",
     });
     mockMutateOrgs.mockResolvedValue(undefined);
-    mockMutateSchools.mockResolvedValue(undefined);
+    mockMutateSchools.mockResolvedValue([mockSchool]);
     // Suppress fetch calls for revalidation endpoint
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ status: "ok" })),
@@ -2464,6 +2491,139 @@ describe("OperatorProvisioningPage", () => {
       expect(modal).toBeInTheDocument();
       expect(modal).toHaveTextContent("Test School");
       expect(modal).toHaveTextContent("10");
+    });
+  });
+
+  // Soft-delete & restore tests
+
+  it("shows Löschen button on school cards", async () => {
+    setupSWR();
+    render(<OperatorProvisioningPage />);
+    fireEvent.click(screen.getByTestId("tab-schools"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Löschen")).toBeInTheDocument();
+    });
+  });
+
+  it("shows Papierkorb toggle when deleted schools exist", async () => {
+    const deletedSchool = {
+      ...mockSchool,
+      id: "20",
+      name: "Deleted School",
+      deletedAt: "2025-06-01T00:00:00Z",
+    };
+    setupSWR([mockOrg], [mockSchool, deletedSchool]);
+    render(<OperatorProvisioningPage />);
+    fireEvent.click(screen.getByTestId("tab-schools"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Papierkorb (1)")).toBeInTheDocument();
+    });
+  });
+
+  it("shows trash view with deleted schools when Papierkorb clicked", async () => {
+    const deletedSchool = {
+      ...mockSchool,
+      id: "20",
+      name: "Deleted School",
+      subdomain: "deleted-school",
+      deletedAt: "2025-06-01T00:00:00Z",
+    };
+    setupSWR([mockOrg], [mockSchool, deletedSchool]);
+    render(<OperatorProvisioningPage />);
+    fireEvent.click(screen.getByTestId("tab-schools"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Papierkorb (1)")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("Papierkorb (1)"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Deleted School")).toBeInTheDocument();
+      expect(screen.getByText("Wiederherstellen")).toBeInTheDocument();
+      expect(screen.getByText("Gelöscht")).toBeInTheDocument();
+    });
+  });
+
+  it("opens soft-delete confirmation modal when Löschen clicked", async () => {
+    setupSWR();
+    render(<OperatorProvisioningPage />);
+    fireEvent.click(screen.getByTestId("tab-schools"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Löschen")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("Löschen"));
+
+    await waitFor(() => {
+      const modal = screen.getByTestId("confirmation-modal");
+      expect(modal).toBeInTheDocument();
+      expect(modal).toHaveTextContent("Schule löschen");
+      expect(modal).toHaveTextContent("Test School");
+    });
+  });
+
+  it("calls softDeleteSchool and mutates on confirm", async () => {
+    mockSoftDeleteSchool.mockResolvedValue(undefined);
+    setupSWR();
+    render(<OperatorProvisioningPage />);
+    fireEvent.click(screen.getByTestId("tab-schools"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Löschen")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("Löschen"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("confirm-btn"));
+
+    await waitFor(() => {
+      expect(mockSoftDeleteSchool).toHaveBeenCalledWith("10");
+      expect(mockMutateSchools).toHaveBeenCalled();
+    });
+  });
+
+  it("calls restoreSchool and mutates on confirm", async () => {
+    mockRestoreSchool.mockResolvedValue(undefined);
+    const deletedSchool = {
+      ...mockSchool,
+      id: "20",
+      name: "Deleted School",
+      subdomain: "deleted-school",
+      deletedAt: "2025-06-01T00:00:00Z",
+    };
+    setupSWR([mockOrg], [mockSchool, deletedSchool]);
+    render(<OperatorProvisioningPage />);
+    fireEvent.click(screen.getByTestId("tab-schools"));
+
+    // Open trash
+    await waitFor(() => {
+      expect(screen.getByText("Papierkorb (1)")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("Papierkorb (1)"));
+
+    // Click restore
+    await waitFor(() => {
+      expect(screen.getByText("Wiederherstellen")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("Wiederherstellen"));
+
+    // Confirm
+    await waitFor(() => {
+      expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId("confirm-btn"));
+
+    await waitFor(() => {
+      expect(mockRestoreSchool).toHaveBeenCalledWith("20");
+      expect(mockMutateSchools).toHaveBeenCalled();
     });
   });
 });

@@ -125,6 +125,24 @@ func (e *OperatorDeviceNotFoundError) Error() string {
 	return fmt.Sprintf("device with ID %d not found", e.DeviceID)
 }
 
+// SchoolAlreadyDeletedError is returned when trying to soft-delete an already deleted school.
+type SchoolAlreadyDeletedError struct {
+	SchoolID int64
+}
+
+func (e *SchoolAlreadyDeletedError) Error() string {
+	return fmt.Sprintf("school with ID %d is already soft-deleted", e.SchoolID)
+}
+
+// SchoolNotDeletedError is returned when trying to restore a school that is not soft-deleted.
+type SchoolNotDeletedError struct {
+	SchoolID int64
+}
+
+func (e *SchoolNotDeletedError) Error() string {
+	return fmt.Sprintf("school with ID %d is not soft-deleted", e.SchoolID)
+}
+
 // DeviceInUseError is returned when a device cannot be deleted because it is
 // still referenced by attendance or active-group records.
 type DeviceInUseError struct {

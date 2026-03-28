@@ -77,6 +77,8 @@ type OperatorProvisioningService interface {
 	ListOrganizationDevices(ctx context.Context, organizationID int64) ([]OperatorDeviceInfo, error)
 	CreateDevice(ctx context.Context, schoolID int64, deviceID, deviceType string, name, apiKey *string, operatorID int64, clientIP net.IP) (*OperatorDeviceInfo, error)
 	SetDeviceAPIKey(ctx context.Context, id int64, apiKey *string, operatorID int64, clientIP net.IP) (*OperatorDeviceInfo, error)
+	SoftDeleteSchool(ctx context.Context, schoolID, operatorID int64, clientIP net.IP) error
+	RestoreSchool(ctx context.Context, schoolID, operatorID int64, clientIP net.IP) error
 	DeleteDevice(ctx context.Context, id int64, operatorID int64, clientIP net.IP) error
 }
 
@@ -332,6 +334,9 @@ func (s *operatorProvisioningService) UpdateSchool(ctx context.Context, id int64
 		if existing == nil {
 			return &SchoolNotFoundError{SchoolID: id}
 		}
+		if existing.IsDeleted() {
+			return &SchoolAlreadyDeletedError{SchoolID: id}
+		}
 
 		changes := map[string]any{}
 
@@ -573,6 +578,9 @@ func (s *operatorProvisioningService) ListSchoolAccounts(ctx context.Context, sc
 		if school == nil {
 			return &SchoolNotFoundError{SchoolID: schoolID}
 		}
+		if school.IsDeleted() {
+			return &SchoolAlreadyDeletedError{SchoolID: schoolID}
+		}
 		accounts, listErr := s.accountTenantRepo.ListAccountsByTenantID(adminCtx, schoolID)
 		if listErr != nil {
 			return listErr
@@ -690,6 +698,9 @@ func (s *operatorProvisioningService) ListSchoolDevices(ctx context.Context, sch
 		}
 		if school == nil {
 			return &SchoolNotFoundError{SchoolID: schoolID}
+		}
+		if school.IsDeleted() {
+			return &SchoolAlreadyDeletedError{SchoolID: schoolID}
 		}
 		var queryErr error
 		result, queryErr = s.queryDevices(adminCtx, `"d".tenant_id = ?`, schoolID)
@@ -813,6 +824,9 @@ func (s *operatorProvisioningService) CreateDevice(ctx context.Context, schoolID
 		if school == nil {
 			return &SchoolNotFoundError{SchoolID: schoolID}
 		}
+		if school.IsDeleted() {
+			return &SchoolAlreadyDeletedError{SchoolID: schoolID}
+		}
 		if !school.Active {
 			return &SchoolInactiveError{SchoolID: schoolID}
 		}
@@ -908,7 +922,13 @@ func (s *operatorProvisioningService) SetDeviceAPIKey(ctx context.Context, id in
 		if schoolErr != nil {
 			return fmt.Errorf("SetDeviceAPIKey: lookup school: %w", schoolErr)
 		}
-		if school == nil || !school.Active {
+		if school == nil {
+			return &SchoolNotFoundError{SchoolID: device.TenantID}
+		}
+		if school.IsDeleted() {
+			return &SchoolAlreadyDeletedError{SchoolID: device.TenantID}
+		}
+		if !school.Active {
 			return &SchoolInactiveError{SchoolID: device.TenantID}
 		}
 
@@ -1064,6 +1084,9 @@ func (s *operatorProvisioningService) loadActiveSchool(ctx context.Context, scho
 	}
 	if school == nil {
 		return nil, &SchoolNotFoundError{SchoolID: schoolID}
+	}
+	if school.IsDeleted() {
+		return nil, &SchoolAlreadyDeletedError{SchoolID: schoolID}
 	}
 	if !school.Active {
 		return nil, &InvalidDataError{Err: fmt.Errorf("school is inactive")}
@@ -1227,6 +1250,20 @@ func isUniqueViolation(err error) bool {
 	return false
 }
 
+// isRowsAffectedMismatch returns true when a DatabaseError wraps a "expected N rows affected, got M"
+// failure from AssertRowsAffected. This happens when a concurrent operation changed the row between
+// our read and our conditional UPDATE (e.g. soft-delete WHERE deleted_at IS NULL).
+func isRowsAffectedMismatch(err error) bool {
+	if err == nil {
+		return false
+	}
+	var dbErr *modelBase.DatabaseError
+	if errors.As(err, &dbErr) {
+		return dbErr.Err != nil && strings.Contains(dbErr.Err.Error(), "rows affected")
+	}
+	return false
+}
+
 func isForeignKeyViolation(err error) bool {
 	if err == nil {
 		return false
@@ -1240,6 +1277,116 @@ func isForeignKeyViolation(err error) bool {
 		return pgErr.IntegrityViolation() && pgErr.Field('C') == "23503"
 	}
 	return false
+}
+
+// SoftDeleteSchool marks a school as deleted. The school remains in the database but is excluded
+// from login, tenant resolution, and all tenant-scoped operations.
+//
+// Session handling after soft-delete:
+//   - New logins: blocked immediately (resolveAccountTenantBySlug + resolveAccountTenantDefault
+//     both reject deleted schools)
+//   - IoT devices: blocked immediately (rejectDeletedSchool checks deleted_at on every request,
+//     since devices use long-lived API keys that don't expire)
+//   - Refresh tokens: revoked immediately via bulk DELETE from auth.tokens. As a second
+//     layer, validateTenantAccess checks school.deleted_at on every refresh attempt,
+//     catching tokens that a concurrent refresh may have inserted after the bulk DELETE.
+//   - Existing JWT sessions: drain naturally within the 15-min access token TTL. The JWT
+//     middleware trusts token claims without a DB lookup per request.
+//   - Pending invitations: invalidated immediately (marked as used, so invite links can no
+//     longer be redeemed for the deleted school)
+func (s *operatorProvisioningService) SoftDeleteSchool(ctx context.Context, schoolID, operatorID int64, clientIP net.IP) error {
+	return s.withAdminTx(ctx, func(adminCtx context.Context) error {
+		school, err := s.schoolRepo.FindByID(adminCtx, schoolID)
+		if err != nil {
+			if isSchoolLookupNotFound(err) {
+				return &SchoolNotFoundError{SchoolID: schoolID}
+			}
+			return err
+		}
+		if school == nil {
+			return &SchoolNotFoundError{SchoolID: schoolID}
+		}
+		if school.IsDeleted() {
+			return &SchoolAlreadyDeletedError{SchoolID: schoolID}
+		}
+
+		if err := s.schoolRepo.SoftDelete(adminCtx, schoolID); err != nil {
+			// If another operator concurrently deleted this school between our read and
+			// update, the WHERE deleted_at IS NULL clause matches zero rows. Map that
+			// race to the same conflict error the pre-check would have returned.
+			if isRowsAffectedMismatch(err) {
+				return &SchoolAlreadyDeletedError{SchoolID: schoolID}
+			}
+			return err
+		}
+
+		// Revoke all refresh tokens for the deleted school so users cannot
+		// obtain new access tokens via /auth/refresh after the 15-min drain.
+		// These steps are fatal: if they fail the transaction rolls back so we
+		// never commit a soft-delete without actually revoking access.
+		var revokedTokens int
+		if s.authService != nil {
+			revokedTokens, err = s.authService.RevokeTokensByTenantID(adminCtx, schoolID)
+			if err != nil {
+				return fmt.Errorf("revoke tokens for school %d: %w", schoolID, err)
+			}
+		}
+
+		// Invalidate all pending invitations so they cannot be redeemed after deletion.
+		var invalidatedInvitations int
+		if s.invitationService != nil {
+			invalidatedInvitations, err = s.invitationService.InvalidatePendingInvitationsByTenantID(adminCtx, schoolID)
+			if err != nil {
+				return fmt.Errorf("invalidate invitations for school %d: %w", schoolID, err)
+			}
+		}
+
+		s.logAction(adminCtx, operatorID, platform.ActionSoftDelete, platform.ResourceSchool, &schoolID, clientIP, map[string]any{
+			"name":                school.Name,
+			"slug":                school.Slug,
+			"subdomain":           school.Subdomain,
+			"revoked_tokens":      revokedTokens,
+			"invalidated_invites": invalidatedInvitations,
+		})
+		return nil
+	})
+}
+
+// RestoreSchool returns a soft-deleted school to its pre-deletion state.
+// The active field is preserved — a school that was inactive before deletion remains inactive after restore.
+func (s *operatorProvisioningService) RestoreSchool(ctx context.Context, schoolID, operatorID int64, clientIP net.IP) error {
+	return s.withAdminTx(ctx, func(adminCtx context.Context) error {
+		school, err := s.schoolRepo.FindByID(adminCtx, schoolID)
+		if err != nil {
+			if isSchoolLookupNotFound(err) {
+				return &SchoolNotFoundError{SchoolID: schoolID}
+			}
+			return err
+		}
+		if school == nil {
+			return &SchoolNotFoundError{SchoolID: schoolID}
+		}
+		if !school.IsDeleted() {
+			return &SchoolNotDeletedError{SchoolID: schoolID}
+		}
+
+		if err := s.schoolRepo.Restore(adminCtx, schoolID); err != nil {
+			// If another operator concurrently restored this school between our read and
+			// update, the WHERE deleted_at IS NOT NULL clause matches zero rows. Map that
+			// race to the same conflict error the pre-check would have returned.
+			if isRowsAffectedMismatch(err) {
+				return &SchoolNotDeletedError{SchoolID: schoolID}
+			}
+			return err
+		}
+
+		s.logAction(adminCtx, operatorID, platform.ActionRestore, platform.ResourceSchool, &schoolID, clientIP, map[string]any{
+			"name":      school.Name,
+			"slug":      school.Slug,
+			"subdomain": school.Subdomain,
+		})
+		return nil
+	})
 }
 
 func mapSchoolCreateConflict(ctx context.Context, schoolRepo platform.SchoolRepository, school *platform.School) error {

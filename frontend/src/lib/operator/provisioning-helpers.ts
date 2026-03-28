@@ -23,6 +23,7 @@ export interface BackendSchool {
   email: string;
   active: boolean;
   hidden: boolean;
+  deleted_at: string | null;
   settings: string | null;
   created_at: string;
   updated_at: string;
@@ -70,6 +71,7 @@ export interface School {
   email: string;
   active: boolean;
   hidden: boolean;
+  deletedAt: string | null;
   createdAt: string;
   updatedAt: string;
   organization?: Organization;
@@ -213,6 +215,7 @@ export function mapSchool(data: BackendSchool): School {
     email: data.email,
     active: data.active,
     hidden: data.hidden,
+    deletedAt: data.deleted_at ?? null,
     createdAt: data.created_at,
     updatedAt: data.updated_at,
     organization: data.organization

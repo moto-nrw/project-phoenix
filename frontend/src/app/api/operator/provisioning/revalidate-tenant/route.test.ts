@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 
-const { mockAuth, mockRevalidatePath } = vi.hoisted(() => ({
+const { mockAuth, mockRevalidatePath, mockRevalidateTag } = vi.hoisted(() => ({
   mockAuth: vi.fn(),
   mockRevalidatePath: vi.fn(),
+  mockRevalidateTag: vi.fn(),
 }));
 
 vi.mock("~/server/auth/operator", () => ({
@@ -17,6 +18,7 @@ vi.mock("~/server/auth", () => ({
 
 vi.mock("next/cache", () => ({
   revalidatePath: mockRevalidatePath,
+  revalidateTag: mockRevalidateTag,
 }));
 
 import { POST } from "./route";
@@ -120,6 +122,30 @@ describe("POST /api/operator/provisioning/revalidate-tenant", () => {
     expect(mockRevalidatePath).toHaveBeenCalledTimes(2);
     expect(mockRevalidatePath).toHaveBeenCalledWith("/valid", "layout");
     expect(mockRevalidatePath).toHaveBeenCalledWith("/also-valid", "layout");
+  });
+
+  it("revalidates tags for given slugs", async () => {
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
+
+    const request = new NextRequest(
+      "http://localhost:3000/api/operator/provisioning/revalidate-tenant",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slugs: ["old-sub", "new-sub"] }),
+      },
+    );
+
+    const response = await POST(request, emptyContext);
+
+    expect(response.status).toBe(200);
+    expect(mockRevalidateTag).toHaveBeenCalledTimes(2);
+    expect(mockRevalidateTag).toHaveBeenCalledWith("tenant-old-sub", {
+      expire: 0,
+    });
+    expect(mockRevalidateTag).toHaveBeenCalledWith("tenant-new-sub", {
+      expire: 0,
+    });
   });
 
   it("returns 500 when request body is invalid JSON", async () => {
