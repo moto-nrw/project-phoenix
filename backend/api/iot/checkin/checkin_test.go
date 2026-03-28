@@ -49,6 +49,7 @@ func setupTestContext(t *testing.T) *testContext {
 		svc.Facilities,
 		svc.Activities,
 		svc.Education,
+		nil, // SettingsResolver — not needed for these tests
 		slog.Default(),
 	)
 

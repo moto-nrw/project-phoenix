@@ -32,11 +32,17 @@ import (
 // getStudentDailyCheckoutTime TESTS
 // =============================================================================
 
+// newTestResource creates a minimal Resource with nil Settings (env var fallback).
+func newTestResource() *Resource {
+	return &Resource{}
+}
+
 func TestGetStudentDailyCheckoutTime_Default(t *testing.T) {
 	// Clear any existing env var
 	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
 
-	checkoutTime, err := getStudentDailyCheckoutTime()
+	rs := newTestResource()
+	checkoutTime, err := rs.getStudentDailyCheckoutTime(context.Background())
 	require.NoError(t, err)
 
 	// Default should be 15:00
@@ -48,7 +54,8 @@ func TestGetStudentDailyCheckoutTime_CustomValid(t *testing.T) {
 	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "14:30"))
 	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
 
-	checkoutTime, err := getStudentDailyCheckoutTime()
+	rs := newTestResource()
+	checkoutTime, err := rs.getStudentDailyCheckoutTime(context.Background())
 	require.NoError(t, err)
 
 	assert.Equal(t, 14, checkoutTime.Hour())
@@ -59,7 +66,8 @@ func TestGetStudentDailyCheckoutTime_InvalidFormat(t *testing.T) {
 	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "invalid"))
 	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
 
-	_, err := getStudentDailyCheckoutTime()
+	rs := newTestResource()
+	_, err := rs.getStudentDailyCheckoutTime(context.Background())
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid checkout time format")
 }
@@ -68,7 +76,8 @@ func TestGetStudentDailyCheckoutTime_InvalidHour(t *testing.T) {
 	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "25:00"))
 	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
 
-	_, err := getStudentDailyCheckoutTime()
+	rs := newTestResource()
+	_, err := rs.getStudentDailyCheckoutTime(context.Background())
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid hour")
 }
@@ -77,7 +86,8 @@ func TestGetStudentDailyCheckoutTime_InvalidMinute(t *testing.T) {
 	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "12:99"))
 	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
 
-	_, err := getStudentDailyCheckoutTime()
+	rs := newTestResource()
+	_, err := rs.getStudentDailyCheckoutTime(context.Background())
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid minute")
 }
@@ -86,7 +96,8 @@ func TestGetStudentDailyCheckoutTime_NegativeHour(t *testing.T) {
 	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "-1:00"))
 	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
 
-	_, err := getStudentDailyCheckoutTime()
+	rs := newTestResource()
+	_, err := rs.getStudentDailyCheckoutTime(context.Background())
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid hour")
 }
@@ -95,7 +106,8 @@ func TestGetStudentDailyCheckoutTime_NegativeMinute(t *testing.T) {
 	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "12:-5"))
 	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
 
-	_, err := getStudentDailyCheckoutTime()
+	rs := newTestResource()
+	_, err := rs.getStudentDailyCheckoutTime(context.Background())
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid minute")
 }
@@ -113,12 +125,13 @@ func TestGetStudentDailyCheckoutTime_EdgeCases(t *testing.T) {
 		{"noon", "12:00", 12, 0, false},
 	}
 
+	rs := newTestResource()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", tt.envVar))
 			defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
 
-			checkoutTime, err := getStudentDailyCheckoutTime()
+			checkoutTime, err := rs.getStudentDailyCheckoutTime(context.Background())
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
