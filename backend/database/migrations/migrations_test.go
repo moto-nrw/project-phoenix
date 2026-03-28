@@ -4,7 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strings"
 	"testing"
 )
@@ -74,12 +73,6 @@ func TestNoDuplicateMigrationVersions(t *testing.T) {
 
 	for bunName, files := range bunNameFiles {
 		if len(files) <= 1 {
-			continue
-		}
-
-		sort.Strings(files)
-		allowedFiles, allowed := allowedLegacyBunNameCollisions[bunName]
-		if allowed && slicesEqual(files, allowedFiles) {
 			continue
 		}
 
