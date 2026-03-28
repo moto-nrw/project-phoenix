@@ -15,14 +15,14 @@ const (
 )
 
 func init() {
-	MigrationRegistry[AuthEmailDeliveryColumnsVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     AuthEmailDeliveryColumnsVersion,
 		Description: AuthEmailDeliveryColumnsDescription,
 		DependsOn: []string{
 			AuthInvitationTokensVersion,
 			AuthPasswordResetTokensVersion,
 		},
-	}
+	})
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {

@@ -12,11 +12,11 @@ const (
 )
 
 func init() {
-	MigrationRegistry[addPersonsSoftDeleteVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     addPersonsSoftDeleteVersion,
 		Description: addPersonsSoftDeleteDescription,
 		DependsOn:   []string{"1.15.19"},
-	}
+	})
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {

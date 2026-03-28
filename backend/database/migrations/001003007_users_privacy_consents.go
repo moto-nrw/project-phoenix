@@ -16,11 +16,11 @@ const (
 
 func init() {
 	// Register migration with explicit version
-	MigrationRegistry[PrivacyConsentsVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     PrivacyConsentsVersion,
 		Description: PrivacyConsentsDescription,
 		DependsOn:   []string{"1.3.5"}, // Depends on students table
-	}
+	})
 
 	// Migration 1.3.7: Users privacy consents table
 	Migrations.MustRegister(

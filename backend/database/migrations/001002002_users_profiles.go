@@ -16,11 +16,11 @@ const (
 
 func init() {
 	// Register migration with explicit version
-	MigrationRegistry[UsersProfilesVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     UsersProfilesVersion,
 		Description: UsersProfilesDescription,
 		DependsOn:   []string{"1.0.9"}, // FK targets auth.accounts only — no dependency on users.persons needed
-	}
+	})
 
 	// Migration 1.2.2: Users profiles table
 	Migrations.MustRegister(

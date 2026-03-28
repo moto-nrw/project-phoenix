@@ -13,13 +13,13 @@ const (
 )
 
 func init() {
-	MigrationRegistry[addBirthdayToPersonsVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     addBirthdayToPersonsVersion,
 		Description: addBirthdayToPersonsDescription,
 		DependsOn: []string{
 			UsersPersonsVersion,
 		},
-	}
+	})
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {

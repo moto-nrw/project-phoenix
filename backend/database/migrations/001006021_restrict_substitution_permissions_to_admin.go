@@ -10,18 +10,18 @@ import (
 )
 
 const (
-	RestrictSubstitutionPermissionsVersion     = "1.7.1"
+	RestrictSubstitutionPermissionsVersion     = "1.7.1.1"
 	RestrictSubstitutionPermissionsDescription = "Restrict substitution write permissions to admin role only"
 )
 
 func init() {
-	MigrationRegistry[RestrictSubstitutionPermissionsVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     RestrictSubstitutionPermissionsVersion,
 		Description: RestrictSubstitutionPermissionsDescription,
 		DependsOn: []string{
 			"1.6.8", // Depends on migration that added substitution permissions to teachers
 		},
-	}
+	})
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {

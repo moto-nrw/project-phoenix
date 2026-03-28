@@ -13,11 +13,11 @@ const (
 )
 
 func init() {
-	MigrationRegistry[AddWebManualDeviceVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     AddWebManualDeviceVersion,
 		Description: AddWebManualDeviceDescription,
 		DependsOn:   []string{"1.3.9"}, // Depends on iot.devices table
-	}
+	})
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {

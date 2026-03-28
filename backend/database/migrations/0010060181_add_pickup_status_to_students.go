@@ -8,18 +8,18 @@ import (
 )
 
 const (
-	addPickupStatusToStudentsVersion     = "1.6.18"
+	addPickupStatusToStudentsVersion     = "1.6.18.1"
 	addPickupStatusToStudentsDescription = "Add pickup_status column to users.students"
 )
 
 func init() {
-	MigrationRegistry[addPickupStatusToStudentsVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     addPickupStatusToStudentsVersion,
 		Description: addPickupStatusToStudentsDescription,
 		DependsOn: []string{
 			UsersStudentsVersion, // Depends on students table (1.3.5)
 		},
-	}
+	})
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {

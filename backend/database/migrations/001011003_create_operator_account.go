@@ -25,11 +25,11 @@ func generateDevDefaultPassword() string {
 }
 
 func init() {
-	MigrationRegistry[operatorAccountVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     operatorAccountVersion,
 		Description: operatorAccountDescription,
 		DependsOn:   []string{"1.11.1"}, // platform.operators table
-	}
+	})
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {

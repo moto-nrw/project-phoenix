@@ -15,11 +15,11 @@ const (
 )
 
 func init() {
-	MigrationRegistry[announcementTargetRolesVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     announcementTargetRolesVersion,
 		Description: announcementTargetRolesDescription,
 		DependsOn:   []string{"1.12.3"}, // Depends on post_reads
-	}
+	})
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {

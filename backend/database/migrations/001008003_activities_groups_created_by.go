@@ -8,11 +8,11 @@ import (
 )
 
 func init() {
-	MigrationRegistry[ActivitiesGroupsCreatedByVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     ActivitiesGroupsCreatedByVersion,
 		Description: ActivitiesGroupsCreatedByDescription,
 		DependsOn:   ActivitiesGroupsCreatedByDependencies,
-	}
+	})
 
 	Migrations.MustRegister(func(ctx context.Context, db *bun.DB) error {
 		return migrateActivitiesGroupsCreatedBy(ctx, db)

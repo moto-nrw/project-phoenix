@@ -16,11 +16,11 @@ const (
 
 func init() {
 	// Register migration with explicit version
-	MigrationRegistry[ConfigSettingsVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     ConfigSettingsVersion,
 		Description: ConfigSettingsDescription,
 		DependsOn:   []string{"1.0.3"}, // Depends on auth tables
-	}
+	})
 
 	// Migration 1.6.1: Create config.settings table
 	Migrations.MustRegister(

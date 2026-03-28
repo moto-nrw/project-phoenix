@@ -16,11 +16,11 @@ const (
 
 func init() {
 	// Register migration with explicit version
-	MigrationRegistry[ScheduleRecurrenceRulesVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     ScheduleRecurrenceRulesVersion,
 		Description: ScheduleRecurrenceRulesDescription,
 		DependsOn:   []string{"1.0.9"}, // Depends on auth tables
-	}
+	})
 
 	// Migration 1.1.4: Create schedule.recurrence_rules table
 	Migrations.MustRegister(

@@ -15,11 +15,11 @@ const (
 
 func init() {
 	// Register migration with explicit version
-	MigrationRegistry[RemoveGuardianContactConstraintVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     RemoveGuardianContactConstraintVersion,
 		Description: RemoveGuardianContactConstraintDescription,
 		DependsOn:   []string{"1.7.6"}, // Depends on guardian_phone_numbers table
-	}
+	})
 
 	// Migration 1.7.7: Remove check_contact_method constraint
 	Migrations.MustRegister(

@@ -16,11 +16,11 @@ const (
 
 func init() {
 	// Register migration with explicit version
-	MigrationRegistry[GuestPermissionsVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     GuestPermissionsVersion,
 		Description: GuestPermissionsDescription,
 		DependsOn:   []string{"1.0.4", "1.0.5", "1.0.6", "1.5.3"}, // Depends on auth.roles, auth.permissions, auth.role_permissions, and rooms:read permission
-	}
+	})
 
 	// Migration 1.7.0: Assign guest permissions
 	Migrations.MustRegister(

@@ -12,11 +12,11 @@ const (
 )
 
 func init() {
-	MigrationRegistry[FixGroupSupervisorUniqueConstraintVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     FixGroupSupervisorUniqueConstraintVersion,
 		Description: FixGroupSupervisorUniqueConstraintDescription,
 		DependsOn:   []string{"1.7.2"},
-	}
+	})
 
 	Migrations.MustRegister(func(ctx context.Context, db *bun.DB) error {
 		// Drop the old unique constraint that prevents re-claiming after ending supervision

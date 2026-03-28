@@ -18,11 +18,11 @@ var makeTeacherSpecializationNullableDependencies = []string{
 }
 
 func init() {
-	MigrationRegistry[makeTeacherSpecializationNullableVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     makeTeacherSpecializationNullableVersion,
 		Description: makeTeacherSpecializationNullableDescription,
 		DependsOn:   makeTeacherSpecializationNullableDependencies,
-	}
+	})
 
 	Migrations.MustRegister(
 		makeTeacherSpecializationNullableUp,

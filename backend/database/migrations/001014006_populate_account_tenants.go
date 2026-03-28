@@ -15,11 +15,11 @@ const (
 )
 
 func init() {
-	MigrationRegistry[populateAccountTenantsVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     populateAccountTenantsVersion,
 		Description: populateAccountTenantsDescription,
 		DependsOn:   []string{"1.14.2", "1.13.2"}, // tenant_id on all tables + account_tenants table
-	}
+	})
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {

@@ -16,11 +16,11 @@ const (
 
 func init() {
 	// Register migration with explicit version
-	MigrationRegistry[FacilitiesRoomsOptionalFieldsVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     FacilitiesRoomsOptionalFieldsVersion,
 		Description: FacilitiesRoomsOptionalFieldsDescription,
 		DependsOn:   []string{"1.1.4"}, // Depends on schedule.recurrence_rules (last 1.1.x migration)
-	}
+	})
 
 	// Migration 1.1.5: Make floor, capacity, category, and color optional
 	Migrations.MustRegister(

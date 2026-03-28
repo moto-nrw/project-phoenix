@@ -16,11 +16,11 @@ const (
 
 func init() {
 	// Register migration with explicit version
-	MigrationRegistry[AuditAuthEventsVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     AuditAuthEventsVersion,
 		Description: AuditAuthEventsDescription,
 		DependsOn:   []string{"1.0.1"}, // Depends on auth.accounts
-	}
+	})
 
 	// Register the migration
 	Migrations.MustRegister(

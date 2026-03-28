@@ -16,11 +16,11 @@ const (
 
 func init() {
 	// Register migration with explicit version
-	MigrationRegistry[AddSubstitutionPermissionsVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     AddSubstitutionPermissionsVersion,
 		Description: AddSubstitutionPermissionsDescription,
 		DependsOn:   []string{"1.2.1", "1.2.2", "1.2.4", "1.5.3"}, // Depends on roles, permissions, role_permissions, and fix_permission_names
-	}
+	})
 
 	// Register the actual migration functions
 	Migrations.MustRegister(

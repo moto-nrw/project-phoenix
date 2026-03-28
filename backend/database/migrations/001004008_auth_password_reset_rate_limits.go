@@ -15,13 +15,13 @@ const (
 )
 
 func init() {
-	MigrationRegistry[AuthPasswordResetRateLimitsVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     AuthPasswordResetRateLimitsVersion,
 		Description: AuthPasswordResetRateLimitsDescription,
 		DependsOn: []string{
 			AuthPasswordResetTokensVersion,
 		},
-	}
+	})
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {

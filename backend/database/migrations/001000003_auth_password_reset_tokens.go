@@ -16,11 +16,11 @@ const (
 
 func init() {
 	// Register migration with explicit version
-	MigrationRegistry[AuthPasswordResetTokensVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     AuthPasswordResetTokensVersion,
 		Description: AuthPasswordResetTokensDescription,
 		DependsOn:   []string{"1.0.1"}, // Depends on auth.accounts
-	}
+	})
 
 	// Migration 1.0.3: Create auth.password_reset_tokens table
 	Migrations.MustRegister(

@@ -15,11 +15,11 @@ const (
 )
 
 func init() {
-	MigrationRegistry[addSuggestionStatusesVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     addSuggestionStatusesVersion,
 		Description: addSuggestionStatusesDescription,
 		DependsOn:   []string{"1.11.1"}, // Depends on platform schema (suggestions at 1.9.1 runs before by file order)
-	}
+	})
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
