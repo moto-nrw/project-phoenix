@@ -101,7 +101,7 @@ function MobileTabCard({ tab, onSelect }: MobileTabCardProps) {
   );
 }
 
-export interface SettingsLayoutProps {
+interface SettingsLayoutProps {
   readonly tabs: Tab[];
   readonly renderTab: (tabId: string) => ReactNode;
 }
