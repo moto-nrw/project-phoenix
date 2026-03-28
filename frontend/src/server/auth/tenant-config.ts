@@ -119,7 +119,7 @@ export const tenantAuthConfig = {
     // moto-app.de). Without unique names, the browser sends both cookies and
     // Auth.js picks the wrong one → MissingCSRF errors.
     ...(() => {
-      if (env.TENANT_DOMAIN === "localhost") return {};
+      if (!env.TENANT_DOMAIN || env.TENANT_DOMAIN === "localhost") return {};
 
       const cookieDomain = `.${env.TENANT_DOMAIN}`;
       const cookiePrefix = env.TENANT_DOMAIN.replace(/\./g, "-");
