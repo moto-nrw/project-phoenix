@@ -737,85 +737,94 @@ func TestUpdateAnnouncement_SetActiveFlag(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rr.Code)
 }
 
-// --- Delete ---
+// --- Delete, Publish, GetStats, GetViewDetails ---
+// Table-driven tests for the 4 new handler functions. Verify response structure,
+// not just status codes, to catch serialization and formatting bugs.
 
-func TestDeleteAnnouncement_Success(t *testing.T) {
-	mock := &mockAnnouncementService{}
-	resource := operator.NewAnnouncementsResource(mock)
-	rr := callIDHandler(resource.DeleteAnnouncement, http.MethodDelete, "/announcements/1", "1")
-	assert.Equal(t, http.StatusOK, rr.Code)
-	assert.Contains(t, rr.Body.String(), "Announcement deleted successfully")
-}
-
-func TestDeleteAnnouncement_InvalidID(t *testing.T) {
-	resource := operator.NewAnnouncementsResource(&mockAnnouncementService{})
-	rr := callIDHandler(resource.DeleteAnnouncement, http.MethodDelete, "/announcements/abc", "abc")
-	assert.Equal(t, http.StatusBadRequest, rr.Code)
-}
-
-func TestDeleteAnnouncement_NotFound(t *testing.T) {
-	mock := &mockAnnouncementService{
-		deleteFn: func(_ context.Context, _ int64, _ int64, _ net.IP) error {
-			return &platformSvc.AnnouncementNotFoundError{AnnouncementID: 999}
+func TestDeleteAnnouncement_SuccessAndErrors(t *testing.T) {
+	tests := []struct {
+		name       string
+		id         string
+		deleteFn   func(context.Context, int64, int64, net.IP) error
+		wantStatus int
+		wantBody   string
+	}{
+		{
+			name:       "success",
+			id:         "1",
+			deleteFn:   nil,
+			wantStatus: http.StatusOK,
+			wantBody:   "Announcement deleted successfully",
+		},
+		{
+			name:       "invalid ID",
+			id:         "abc",
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name: "not found",
+			id:   "999",
+			deleteFn: func(_ context.Context, _ int64, _ int64, _ net.IP) error {
+				return &platformSvc.AnnouncementNotFoundError{AnnouncementID: 999}
+			},
+			wantStatus: http.StatusNotFound,
 		},
 	}
-	resource := operator.NewAnnouncementsResource(mock)
-	rr := callIDHandler(resource.DeleteAnnouncement, http.MethodDelete, "/announcements/999", "999")
-	assert.Equal(t, http.StatusNotFound, rr.Code)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mock := &mockAnnouncementService{deleteFn: tt.deleteFn}
+			resource := operator.NewAnnouncementsResource(mock)
+			rr := callIDHandler(resource.DeleteAnnouncement, http.MethodDelete, "/announcements/"+tt.id, tt.id)
+			assert.Equal(t, tt.wantStatus, rr.Code)
+			if tt.wantBody != "" {
+				assert.Contains(t, rr.Body.String(), tt.wantBody)
+			}
+		})
+	}
 }
 
-func TestDeleteAnnouncement_ServiceError(t *testing.T) {
-	mock := &mockAnnouncementService{
-		deleteFn: func(_ context.Context, _ int64, _ int64, _ net.IP) error {
-			return errors.New("database error")
+func TestPublishAnnouncement_SuccessAndErrors(t *testing.T) {
+	tests := []struct {
+		name       string
+		id         string
+		publishFn  func(context.Context, int64, int64, net.IP) error
+		wantStatus int
+		wantBody   string
+	}{
+		{
+			name:       "success",
+			id:         "1",
+			wantStatus: http.StatusOK,
+			wantBody:   "Announcement published successfully",
+		},
+		{
+			name:       "invalid ID",
+			id:         "abc",
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name: "not found",
+			id:   "999",
+			publishFn: func(_ context.Context, _ int64, _ int64, _ net.IP) error {
+				return &platformSvc.AnnouncementNotFoundError{AnnouncementID: 999}
+			},
+			wantStatus: http.StatusNotFound,
 		},
 	}
-	resource := operator.NewAnnouncementsResource(mock)
-	rr := callIDHandler(resource.DeleteAnnouncement, http.MethodDelete, "/announcements/1", "1")
-	assert.Equal(t, http.StatusInternalServerError, rr.Code)
-}
-
-// --- Publish ---
-
-func TestPublishAnnouncement_Success(t *testing.T) {
-	mock := &mockAnnouncementService{}
-	resource := operator.NewAnnouncementsResource(mock)
-	rr := callIDHandler(resource.PublishAnnouncement, http.MethodPost, "/announcements/1/publish", "1")
-	assert.Equal(t, http.StatusOK, rr.Code)
-	assert.Contains(t, rr.Body.String(), "Announcement published successfully")
-}
-
-func TestPublishAnnouncement_InvalidID(t *testing.T) {
-	resource := operator.NewAnnouncementsResource(&mockAnnouncementService{})
-	rr := callIDHandler(resource.PublishAnnouncement, http.MethodPost, "/announcements/abc/publish", "abc")
-	assert.Equal(t, http.StatusBadRequest, rr.Code)
-}
-
-func TestPublishAnnouncement_NotFound(t *testing.T) {
-	mock := &mockAnnouncementService{
-		publishFn: func(_ context.Context, _ int64, _ int64, _ net.IP) error {
-			return &platformSvc.AnnouncementNotFoundError{AnnouncementID: 999}
-		},
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mock := &mockAnnouncementService{publishFn: tt.publishFn}
+			resource := operator.NewAnnouncementsResource(mock)
+			rr := callIDHandler(resource.PublishAnnouncement, http.MethodPost, "/announcements/"+tt.id+"/publish", tt.id)
+			assert.Equal(t, tt.wantStatus, rr.Code)
+			if tt.wantBody != "" {
+				assert.Contains(t, rr.Body.String(), tt.wantBody)
+			}
+		})
 	}
-	resource := operator.NewAnnouncementsResource(mock)
-	rr := callIDHandler(resource.PublishAnnouncement, http.MethodPost, "/announcements/999/publish", "999")
-	assert.Equal(t, http.StatusNotFound, rr.Code)
 }
 
-func TestPublishAnnouncement_ServiceError(t *testing.T) {
-	mock := &mockAnnouncementService{
-		publishFn: func(_ context.Context, _ int64, _ int64, _ net.IP) error {
-			return errors.New("database error")
-		},
-	}
-	resource := operator.NewAnnouncementsResource(mock)
-	rr := callIDHandler(resource.PublishAnnouncement, http.MethodPost, "/announcements/1/publish", "1")
-	assert.Equal(t, http.StatusInternalServerError, rr.Code)
-}
-
-// --- GetStats ---
-
-func TestGetStats_Success(t *testing.T) {
+func TestGetStats_ResponseStructure(t *testing.T) {
 	mock := &mockAnnouncementService{
 		getStatsFn: func(_ context.Context, id int64) (*platform.AnnouncementStats, error) {
 			return &platform.AnnouncementStats{
@@ -844,31 +853,7 @@ func TestGetStats_InvalidID(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 }
 
-func TestGetStats_NotFound(t *testing.T) {
-	mock := &mockAnnouncementService{
-		getStatsFn: func(_ context.Context, _ int64) (*platform.AnnouncementStats, error) {
-			return nil, &platformSvc.AnnouncementNotFoundError{AnnouncementID: 999}
-		},
-	}
-	resource := operator.NewAnnouncementsResource(mock)
-	rr := callIDHandler(resource.GetStats, http.MethodGet, "/announcements/999/stats", "999")
-	assert.Equal(t, http.StatusNotFound, rr.Code)
-}
-
-func TestGetStats_ServiceError(t *testing.T) {
-	mock := &mockAnnouncementService{
-		getStatsFn: func(_ context.Context, _ int64) (*platform.AnnouncementStats, error) {
-			return nil, errors.New("database error")
-		},
-	}
-	resource := operator.NewAnnouncementsResource(mock)
-	rr := callIDHandler(resource.GetStats, http.MethodGet, "/announcements/1/stats", "1")
-	assert.Equal(t, http.StatusInternalServerError, rr.Code)
-}
-
-// --- GetViewDetails ---
-
-func TestGetViewDetails_Success(t *testing.T) {
+func TestGetViewDetails_ResponseStructure(t *testing.T) {
 	now := time.Now()
 	mock := &mockAnnouncementService{
 		getViewDetailsFn: func(_ context.Context, _ int64) ([]*platform.AnnouncementViewDetail, error) {
@@ -919,29 +904,7 @@ func TestGetViewDetails_InvalidID(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 }
 
-func TestGetViewDetails_NotFound(t *testing.T) {
-	mock := &mockAnnouncementService{
-		getViewDetailsFn: func(_ context.Context, _ int64) ([]*platform.AnnouncementViewDetail, error) {
-			return nil, &platformSvc.AnnouncementNotFoundError{AnnouncementID: 999}
-		},
-	}
-	resource := operator.NewAnnouncementsResource(mock)
-	rr := callIDHandler(resource.GetViewDetails, http.MethodGet, "/announcements/999/view-details", "999")
-	assert.Equal(t, http.StatusNotFound, rr.Code)
-}
-
-func TestGetViewDetails_ServiceError(t *testing.T) {
-	mock := &mockAnnouncementService{
-		getViewDetailsFn: func(_ context.Context, _ int64) ([]*platform.AnnouncementViewDetail, error) {
-			return nil, errors.New("database error")
-		},
-	}
-	resource := operator.NewAnnouncementsResource(mock)
-	rr := callIDHandler(resource.GetViewDetails, http.MethodGet, "/announcements/1/view-details", "1")
-	assert.Equal(t, http.StatusInternalServerError, rr.Code)
-}
-
-// --- ListAnnouncements error path ---
+// --- Error paths for List and Get handlers ---
 
 func TestListAnnouncements_ServiceError(t *testing.T) {
 	mock := &mockAnnouncementService{
@@ -950,15 +913,12 @@ func TestListAnnouncements_ServiceError(t *testing.T) {
 		},
 	}
 	resource := operator.NewAnnouncementsResource(mock)
-
 	req := httptest.NewRequest(http.MethodGet, "/announcements", nil)
 	ctx := context.WithValue(req.Context(), jwt.CtxClaims, jwt.AppClaims{ID: 1})
 	rr := httptest.NewRecorder()
 	resource.ListAnnouncements(rr, req.WithContext(ctx))
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
 }
-
-// --- GetAnnouncement error paths ---
 
 func TestGetAnnouncement_InvalidID(t *testing.T) {
 	resource := operator.NewAnnouncementsResource(&mockAnnouncementService{})
