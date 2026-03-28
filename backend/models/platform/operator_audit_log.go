@@ -25,6 +25,7 @@ const (
 	ActionHidePost      = "hide_post"
 	ActionUnhidePost    = "unhide_post"
 	ActionDeletePost    = "delete_post"
+	ActionSoftDelete    = "soft_delete"
 )
 
 // Common resource type constants
@@ -38,6 +39,7 @@ const (
 	ResourceInvitation   = "invitation"
 	ResourceDevice       = "device"
 	ResourceAccount      = "account"
+	ResourcePerson       = "person"
 )
 
 // OperatorAuditLog tracks operator actions for auditing

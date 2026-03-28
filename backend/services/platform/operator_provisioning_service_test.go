@@ -2669,3 +2669,53 @@ func TestListSystemRoles_Error(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, roles)
 }
+
+// --- SoftDeletePerson tests ---
+
+func TestOperatorProvisioningService_SoftDeletePerson_InvalidID(t *testing.T) {
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{})
+
+	err := service.SoftDeletePerson(context.Background(), 0, 1, net.IPv4(127, 0, 0, 1))
+	require.Error(t, err)
+	var invalidErr *platformSvc.InvalidDataError
+	require.ErrorAs(t, err, &invalidErr)
+}
+
+func TestOperatorProvisioningService_SoftDeletePerson_NegativeID(t *testing.T) {
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{})
+
+	err := service.SoftDeletePerson(context.Background(), -5, 1, net.IPv4(127, 0, 0, 1))
+	require.Error(t, err)
+	var invalidErr *platformSvc.InvalidDataError
+	require.ErrorAs(t, err, &invalidErr)
+}
+
+// --- ListSchoolPersons tests ---
+
+func TestOperatorProvisioningService_ListSchoolPersons_SchoolNotFound_NilReturn(t *testing.T) {
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SchoolRepo: &mockSchoolRepo{},
+	})
+
+	persons, err := service.ListSchoolPersons(context.Background(), 999)
+	require.Nil(t, persons)
+	require.Error(t, err)
+	var notFoundErr *platformSvc.SchoolNotFoundError
+	require.ErrorAs(t, err, &notFoundErr)
+}
+
+func TestOperatorProvisioningService_ListSchoolPersons_SchoolNotFound_SqlErrNoRows(t *testing.T) {
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SchoolRepo: &mockSchoolRepo{
+			findByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
+				return nil, sql.ErrNoRows
+			},
+		},
+	})
+
+	persons, err := service.ListSchoolPersons(context.Background(), 999)
+	require.Nil(t, persons)
+	require.Error(t, err)
+	var notFoundErr *platformSvc.SchoolNotFoundError
+	require.ErrorAs(t, err, &notFoundErr)
+}

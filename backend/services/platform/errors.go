@@ -145,3 +145,23 @@ type DeviceProtectedError struct {
 func (e *DeviceProtectedError) Error() string {
 	return fmt.Sprintf("device with ID %d is protected: %s", e.DeviceID, e.Reason)
 }
+
+// PersonNotFoundError is returned when a person does not exist or was already soft-deleted.
+type PersonNotFoundError struct {
+	PersonID int64
+}
+
+func (e *PersonNotFoundError) Error() string {
+	return fmt.Sprintf("person with ID %d not found", e.PersonID)
+}
+
+// PersonHasActiveSupervisionsError is returned when a person cannot be deleted
+// because the associated staff member has active group supervisions.
+type PersonHasActiveSupervisionsError struct {
+	PersonID int64
+	Count    int
+}
+
+func (e *PersonHasActiveSupervisionsError) Error() string {
+	return fmt.Sprintf("person with ID %d has %d active supervision(s) and cannot be deleted", e.PersonID, e.Count)
+}

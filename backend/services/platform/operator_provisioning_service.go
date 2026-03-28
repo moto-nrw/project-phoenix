@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -78,6 +79,25 @@ type OperatorProvisioningService interface {
 	CreateDevice(ctx context.Context, schoolID int64, deviceID, deviceType string, name, apiKey *string, operatorID int64, clientIP net.IP) (*OperatorDeviceInfo, error)
 	SetDeviceAPIKey(ctx context.Context, id int64, apiKey *string, operatorID int64, clientIP net.IP) (*OperatorDeviceInfo, error)
 	DeleteDevice(ctx context.Context, id int64, operatorID int64, clientIP net.IP) error
+	ListSchoolPersons(ctx context.Context, schoolID int64) ([]OperatorPersonInfo, error)
+	SoftDeletePerson(ctx context.Context, personID int64, operatorID int64, clientIP net.IP) error
+}
+
+// OperatorPersonInfo holds person information with school/org context for operator views.
+type OperatorPersonInfo struct {
+	ID               int64     `bun:"id" json:"id"`
+	FirstName        string    `bun:"first_name" json:"first_name"`
+	LastName         string    `bun:"last_name" json:"last_name"`
+	HasAccount       bool      `bun:"has_account" json:"has_account"`
+	AccountEmail     *string   `bun:"account_email" json:"account_email,omitempty"`
+	HasRFIDCard      bool      `bun:"has_rfid_card" json:"has_rfid_card"`
+	IsStaff          bool      `bun:"is_staff" json:"is_staff"`
+	IsStudent        bool      `bun:"is_student" json:"is_student"`
+	SchoolID         int64     `bun:"school_id" json:"school_id"`
+	SchoolName       string    `bun:"school_name" json:"school_name"`
+	OrganizationID   int64     `bun:"organization_id" json:"organization_id"`
+	OrganizationName string    `bun:"organization_name" json:"organization_name"`
+	CreatedAt        time.Time `bun:"created_at" json:"created_at"`
 }
 
 // OperatorDeviceInfo holds device information with school/org context for operator views.
@@ -123,57 +143,60 @@ func enrichDeviceInfo(devices []OperatorDeviceInfo) []OperatorDeviceInfo {
 }
 
 type operatorProvisioningService struct {
-	organizationRepo  platform.OrganizationRepository
-	schoolRepo        platform.SchoolRepository
-	categoryRepo      activityModels.CategoryRepository
-	deviceRepo        iotModels.DeviceRepository
-	roleRepo          authModels.RoleRepository
-	accountTenantRepo authModels.AccountTenantRepository
-	personRepo        userModels.PersonRepository
-	staffRepo         userModels.StaffRepository
-	teacherRepo       userModels.TeacherRepository
-	invitationService authSvc.InvitationService
-	authService       authSvc.AuthService
-	auditLogRepo      platform.OperatorAuditLogRepository
-	txHandler         *modelBase.TxHandler
-	logger            *slog.Logger
+	organizationRepo    platform.OrganizationRepository
+	schoolRepo          platform.SchoolRepository
+	categoryRepo        activityModels.CategoryRepository
+	deviceRepo          iotModels.DeviceRepository
+	roleRepo            authModels.RoleRepository
+	accountTenantRepo   authModels.AccountTenantRepository
+	personRepo          userModels.PersonRepository
+	staffRepo           userModels.StaffRepository
+	teacherRepo         userModels.TeacherRepository
+	groupSupervisorRepo activeModels.GroupSupervisorRepository
+	invitationService   authSvc.InvitationService
+	authService         authSvc.AuthService
+	auditLogRepo        platform.OperatorAuditLogRepository
+	txHandler           *modelBase.TxHandler
+	logger              *slog.Logger
 }
 
 // OperatorProvisioningServiceConfig holds dependencies for operator provisioning.
 type OperatorProvisioningServiceConfig struct {
-	OrganizationRepo  platform.OrganizationRepository
-	SchoolRepo        platform.SchoolRepository
-	CategoryRepo      activityModels.CategoryRepository
-	DeviceRepo        iotModels.DeviceRepository
-	RoleRepo          authModels.RoleRepository
-	AccountTenantRepo authModels.AccountTenantRepository
-	PersonRepo        userModels.PersonRepository
-	StaffRepo         userModels.StaffRepository
-	TeacherRepo       userModels.TeacherRepository
-	InvitationService authSvc.InvitationService
-	AuthService       authSvc.AuthService
-	AuditLogRepo      platform.OperatorAuditLogRepository
-	DB                *bun.DB
-	Logger            *slog.Logger
+	OrganizationRepo    platform.OrganizationRepository
+	SchoolRepo          platform.SchoolRepository
+	CategoryRepo        activityModels.CategoryRepository
+	DeviceRepo          iotModels.DeviceRepository
+	RoleRepo            authModels.RoleRepository
+	AccountTenantRepo   authModels.AccountTenantRepository
+	PersonRepo          userModels.PersonRepository
+	StaffRepo           userModels.StaffRepository
+	TeacherRepo         userModels.TeacherRepository
+	GroupSupervisorRepo activeModels.GroupSupervisorRepository
+	InvitationService   authSvc.InvitationService
+	AuthService         authSvc.AuthService
+	AuditLogRepo        platform.OperatorAuditLogRepository
+	DB                  *bun.DB
+	Logger              *slog.Logger
 }
 
 // NewOperatorProvisioningService creates a provisioning service.
 func NewOperatorProvisioningService(cfg OperatorProvisioningServiceConfig) OperatorProvisioningService {
 	return &operatorProvisioningService{
-		organizationRepo:  cfg.OrganizationRepo,
-		schoolRepo:        cfg.SchoolRepo,
-		categoryRepo:      cfg.CategoryRepo,
-		deviceRepo:        cfg.DeviceRepo,
-		roleRepo:          cfg.RoleRepo,
-		accountTenantRepo: cfg.AccountTenantRepo,
-		personRepo:        cfg.PersonRepo,
-		staffRepo:         cfg.StaffRepo,
-		teacherRepo:       cfg.TeacherRepo,
-		invitationService: cfg.InvitationService,
-		authService:       cfg.AuthService,
-		auditLogRepo:      cfg.AuditLogRepo,
-		txHandler:         modelBase.NewTxHandler(cfg.DB),
-		logger:            cfg.Logger,
+		organizationRepo:    cfg.OrganizationRepo,
+		schoolRepo:          cfg.SchoolRepo,
+		categoryRepo:        cfg.CategoryRepo,
+		deviceRepo:          cfg.DeviceRepo,
+		roleRepo:            cfg.RoleRepo,
+		accountTenantRepo:   cfg.AccountTenantRepo,
+		personRepo:          cfg.PersonRepo,
+		staffRepo:           cfg.StaffRepo,
+		teacherRepo:         cfg.TeacherRepo,
+		groupSupervisorRepo: cfg.GroupSupervisorRepo,
+		invitationService:   cfg.InvitationService,
+		authService:         cfg.AuthService,
+		auditLogRepo:        cfg.AuditLogRepo,
+		txHandler:           modelBase.NewTxHandler(cfg.DB),
+		logger:              cfg.Logger,
 	}
 }
 
@@ -998,6 +1021,186 @@ func (s *operatorProvisioningService) DeleteDevice(ctx context.Context, id int64
 			"device_type": device.DeviceType,
 			"school_id":   device.TenantID,
 		})
+
+		return nil
+	})
+}
+
+// operatorPersonQuery is the shared query for listing persons with school/org context.
+const operatorPersonQuery = `
+SELECT
+	"p".id,
+	"p".first_name,
+	"p".last_name,
+	("p".account_id IS NOT NULL) AS has_account,
+	"a".email AS account_email,
+	(EXISTS (SELECT 1 FROM users.staff WHERE person_id = "p".id)) AS is_staff,
+	(EXISTS (SELECT 1 FROM users.students WHERE person_id = "p".id)) AS is_student,
+	("p".tag_id IS NOT NULL) AS has_rfid_card,
+	"s".id AS school_id,
+	"s".name AS school_name,
+	"o".id AS organization_id,
+	"o".name AS organization_name,
+	"p".created_at
+FROM users.persons AS "p"
+INNER JOIN platform.schools AS "s" ON "s".id = "p".tenant_id
+INNER JOIN platform.organizations AS "o" ON "o".id = "s".organization_id
+LEFT JOIN auth.accounts AS "a" ON "a".id = "p".account_id
+WHERE "p".deleted_at IS NULL
+`
+
+func (s *operatorProvisioningService) ListSchoolPersons(ctx context.Context, schoolID int64) ([]OperatorPersonInfo, error) {
+	var result []OperatorPersonInfo
+	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
+		school, findErr := s.schoolRepo.FindByID(adminCtx, schoolID)
+		if findErr != nil {
+			if isSchoolLookupNotFound(findErr) {
+				return &SchoolNotFoundError{SchoolID: schoolID}
+			}
+			return findErr
+		}
+		if school == nil {
+			return &SchoolNotFoundError{SchoolID: schoolID}
+		}
+
+		var db bun.IDB = s.txHandler.DB
+		if tx, ok := modelBase.TxFromContext(adminCtx); ok && tx != nil {
+			db = tx
+		}
+
+		q := operatorPersonQuery + ` AND "p".tenant_id = ? ORDER BY "p".last_name, "p".first_name`
+		if scanErr := db.NewRaw(q, schoolID).Scan(adminCtx, &result); scanErr != nil {
+			return scanErr
+		}
+		if result == nil {
+			result = []OperatorPersonInfo{}
+		}
+		return nil
+	})
+	return result, err
+}
+
+func (s *operatorProvisioningService) SoftDeletePerson(ctx context.Context, personID int64, operatorID int64, clientIP net.IP) error {
+	if personID <= 0 {
+		return &InvalidDataError{Err: fmt.Errorf("person id is required")}
+	}
+
+	return s.withAdminTx(ctx, func(adminCtx context.Context) error {
+		var db bun.IDB = s.txHandler.DB
+		if tx, ok := modelBase.TxFromContext(adminCtx); ok && tx != nil {
+			db = tx
+		}
+
+		// Find person (cross-tenant, raw query bypasses tenant filter).
+		// WhereAllWithDeleted is not needed here — BUN auto-excludes soft-deleted rows.
+		var person userModels.Person
+		err := db.NewSelect().
+			ModelTableExpr(`users.persons AS "person"`).
+			ColumnExpr(`"person".*`).
+			Where(`"person".id = ?`, personID).
+			Where(`"person".deleted_at IS NULL`).
+			Scan(adminCtx, &person)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return &PersonNotFoundError{PersonID: personID}
+			}
+			return fmt.Errorf("SoftDeletePerson: find person: %w", err)
+		}
+
+		// If person is staff, check for active supervisions
+		var staff userModels.Staff
+		staffErr := db.NewSelect().
+			ModelTableExpr(`users.staff AS "staff"`).
+			ColumnExpr(`"staff".*`).
+			Where(`"staff".person_id = ?`, personID).
+			Scan(adminCtx, &staff)
+		if staffErr == nil {
+			// Staff exists — check active supervisions
+			if s.groupSupervisorRepo != nil {
+				supervisors, supErr := s.groupSupervisorRepo.FindActiveByStaffID(adminCtx, staff.ID)
+				if supErr != nil {
+					s.getLogger().Warn("soft_delete_supervision_check_failed",
+						slog.Int64("person_id", personID),
+						slog.Int64("staff_id", staff.ID),
+						slog.Any("error", supErr),
+					)
+				} else if len(supervisors) > 0 {
+					return &PersonHasActiveSupervisionsError{PersonID: personID, Count: len(supervisors)}
+				}
+			}
+		}
+
+		// Unlink RFID card
+		if person.TagID != nil {
+			_, err = db.NewUpdate().
+				ModelTableExpr(`users.persons AS "person"`).
+				Set(`tag_id = NULL`).
+				Where(`"person".id = ?`, personID).
+				Exec(adminCtx)
+			if err != nil {
+				return fmt.Errorf("SoftDeletePerson: unlink rfid: %w", err)
+			}
+		}
+
+		// Deactivate account + anonymize email
+		if person.AccountID != nil {
+			accountID := *person.AccountID
+
+			// Deactivate account and delete tokens
+			if deactivateErr := s.authService.DeactivateAccount(adminCtx, int(accountID)); deactivateErr != nil {
+				s.getLogger().Warn("soft_delete_account_deactivation_failed",
+					slog.Int64("person_id", personID),
+					slog.Int64("account_id", accountID),
+					slog.Any("error", deactivateErr),
+				)
+			}
+
+			// Anonymize email
+			anonymizedEmail := fmt.Sprintf("deleted-%d@anonymized.local", personID)
+			_, err = db.NewUpdate().
+				ModelTableExpr(`auth.accounts AS "account"`).
+				Set(`email = ?`, anonymizedEmail).
+				Set(`username = NULL`).
+				Where(`"account".id = ?`, accountID).
+				Exec(adminCtx)
+			if err != nil {
+				return fmt.Errorf("SoftDeletePerson: anonymize account: %w", err)
+			}
+
+			// Unlink account from person
+			_, err = db.NewUpdate().
+				ModelTableExpr(`users.persons AS "person"`).
+				Set(`account_id = NULL`).
+				Where(`"person".id = ?`, personID).
+				Exec(adminCtx)
+			if err != nil {
+				return fmt.Errorf("SoftDeletePerson: unlink account: %w", err)
+			}
+		}
+
+		// Anonymize PII and soft delete
+		_, err = db.NewUpdate().
+			ModelTableExpr(`users.persons AS "person"`).
+			Set(`first_name = ?`, "Gelöscht").
+			Set(`last_name = ?`, "Benutzer").
+			Set(`birthday = NULL`).
+			Set(`deleted_at = NOW()`).
+			Where(`"person".id = ?`, personID).
+			Exec(adminCtx)
+		if err != nil {
+			return fmt.Errorf("SoftDeletePerson: anonymize and soft delete: %w", err)
+		}
+
+		s.logAction(adminCtx, operatorID, platform.ActionSoftDelete, platform.ResourcePerson, &personID, clientIP, map[string]any{
+			"person_id": personID,
+			"school_id": person.TenantID,
+		})
+
+		s.getLogger().Info("person_soft_deleted",
+			slog.Int64("person_id", personID),
+			slog.Int64("school_id", person.TenantID),
+			slog.Int64("operator_id", operatorID),
+		)
 
 		return nil
 	})
