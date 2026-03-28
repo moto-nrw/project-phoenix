@@ -381,7 +381,7 @@ func TestMarkDismissed_ServiceError(t *testing.T) {
 func TestGetUnread_ResponseIncludesPublishedAt(t *testing.T) {
 	now := time.Now()
 	mockService := &mockPlatformAnnouncementService{
-		getUnreadForUserFn: func(ctx context.Context, userID int64, userRoles []string) ([]*platformModel.Announcement, error) {
+		getUnreadForUserFn: func(ctx context.Context, userID int64, userRoles []string, tenantID int64, orgID int64) ([]*platformModel.Announcement, error) {
 			announcement := &platformModel.Announcement{
 				Title:       "Test",
 				Content:     "Content",
@@ -426,7 +426,7 @@ func TestGetUnread_ResponseIncludesPublishedAt(t *testing.T) {
 
 func TestGetUnread_NilPublishedAtRendersEmpty(t *testing.T) {
 	mockService := &mockPlatformAnnouncementService{
-		getUnreadForUserFn: func(ctx context.Context, userID int64, userRoles []string) ([]*platformModel.Announcement, error) {
+		getUnreadForUserFn: func(ctx context.Context, userID int64, userRoles []string, tenantID int64, orgID int64) ([]*platformModel.Announcement, error) {
 			announcement := &platformModel.Announcement{
 				Title:       "Draft",
 				Content:     "Content",
@@ -467,7 +467,7 @@ func TestGetUnread_NilPublishedAtRendersEmpty(t *testing.T) {
 
 func TestGetUnreadCount_Success(t *testing.T) {
 	mockService := &mockPlatformAnnouncementService{
-		countUnreadFn: func(_ context.Context, _ int64, _ []string) (int, error) {
+		countUnreadFn: func(_ context.Context, _ int64, _ []string, _ int64, _ int64) (int, error) {
 			return 5, nil
 		},
 	}
@@ -584,7 +584,7 @@ func TestMarkDismissed_InvalidID(t *testing.T) {
 
 func TestGetUnread_ServiceError(t *testing.T) {
 	mockService := &mockPlatformAnnouncementService{
-		getUnreadForUserFn: func(_ context.Context, _ int64, _ []string) ([]*platformModel.Announcement, error) {
+		getUnreadForUserFn: func(_ context.Context, _ int64, _ []string, _ int64, _ int64) ([]*platformModel.Announcement, error) {
 			return nil, errors.New("database error")
 		},
 	}
@@ -599,7 +599,7 @@ func TestGetUnread_ServiceError(t *testing.T) {
 
 func TestGetUnreadCount_ServiceError(t *testing.T) {
 	mockService := &mockPlatformAnnouncementService{
-		countUnreadFn: func(_ context.Context, _ int64, _ []string) (int, error) {
+		countUnreadFn: func(_ context.Context, _ int64, _ []string, _ int64, _ int64) (int, error) {
 			return 0, errors.New("database error")
 		},
 	}

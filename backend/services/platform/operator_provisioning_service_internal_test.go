@@ -86,9 +86,6 @@ func (s *internalSchoolRepoStub) CountByIDs(context.Context, []int64) (int, erro
 }
 func (s *internalSchoolRepoStub) SoftDelete(context.Context, int64) error { return nil }
 func (s *internalSchoolRepoStub) Restore(context.Context, int64) error    { return nil }
-func (s *internalSchoolRepoStub) CountByIDs(context.Context, []int64) (int, error) {
-	return 0, nil
-}
 
 type internalOrgRepoStub struct {
 	findByIDFn   func(context.Context, int64) (*platformModels.Organization, error)

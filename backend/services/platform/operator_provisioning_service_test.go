@@ -143,7 +143,6 @@ func (m *mockSchoolRepo) Restore(ctx context.Context, id int64) error {
 	}
 	return nil
 }
-func (m *mockSchoolRepo) CountByIDs(context.Context, []int64) (int, error) { return 0, nil }
 
 type mockDeviceRepo struct {
 	createFn func(context.Context, *iotModels.Device) error
