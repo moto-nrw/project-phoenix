@@ -16,6 +16,7 @@ import type {
   BackendOrgAccount,
   BackendOperatorDevice,
   BackendInvitation,
+  BackendOperatorPerson,
 } from "./provisioning-helpers";
 
 const NOW = "2026-03-15T10:00:00Z";
@@ -636,6 +637,108 @@ describe("OperatorProvisioningService", () => {
         id: "99",
         email: "new@school.de",
       });
+    });
+  });
+
+  describe("listSchoolPersons", () => {
+    const mockBackendPerson: BackendOperatorPerson = {
+      id: 42,
+      first_name: "Max",
+      last_name: "Mustermann",
+      has_account: true,
+      account_email: "max@test.de",
+      has_rfid_card: true,
+      is_staff: true,
+      is_student: false,
+      school_id: 10,
+      school_name: "GGS Europaschule",
+      organization_id: 5,
+      organization_name: "Stadt Köln",
+      created_at: NOW,
+    };
+
+    it("calls correct endpoint with school id", async () => {
+      mockOperatorFetch.mockResolvedValue([mockBackendPerson]);
+
+      await operatorProvisioningService.listSchoolPersons("10");
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/schools/10/persons",
+      );
+    });
+
+    it("encodes school id in URL", async () => {
+      mockOperatorFetch.mockResolvedValue([]);
+
+      await operatorProvisioningService.listSchoolPersons("10/evil");
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/schools/10%2Fevil/persons",
+      );
+    });
+
+    it("maps response data correctly", async () => {
+      mockOperatorFetch.mockResolvedValue([mockBackendPerson]);
+
+      const result = await operatorProvisioningService.listSchoolPersons("10");
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual({
+        id: "42",
+        firstName: "Max",
+        lastName: "Mustermann",
+        fullName: "Max Mustermann",
+        hasAccount: true,
+        accountEmail: "max@test.de",
+        hasRfidCard: true,
+        isStaff: true,
+        isStudent: false,
+        schoolId: "10",
+        schoolName: "GGS Europaschule",
+        organizationId: "5",
+        organizationName: "Stadt Köln",
+        createdAt: NOW,
+      });
+    });
+
+    it("returns empty array when no persons", async () => {
+      mockOperatorFetch.mockResolvedValue([]);
+
+      const result = await operatorProvisioningService.listSchoolPersons("10");
+
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe("softDeletePerson", () => {
+    it("calls correct endpoint with DELETE method", async () => {
+      mockOperatorFetch.mockResolvedValue(null);
+
+      await operatorProvisioningService.softDeletePerson("42");
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/persons/42",
+        { method: "DELETE" },
+      );
+    });
+
+    it("encodes person id in URL", async () => {
+      mockOperatorFetch.mockResolvedValue(null);
+
+      await operatorProvisioningService.softDeletePerson("42/evil");
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/persons/42%2Fevil",
+        { method: "DELETE" },
+      );
+    });
+
+    it("returns void on success", async () => {
+      mockOperatorFetch.mockResolvedValue(null);
+
+      const result = await operatorProvisioningService.softDeletePerson("42");
+
+      expect(result).toBeUndefined();
     });
   });
 

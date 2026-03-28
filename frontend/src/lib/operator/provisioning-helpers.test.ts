@@ -8,6 +8,7 @@ import {
   mapSchoolAccount,
   mapOrgAccount,
   mapOperatorDevice,
+  mapOperatorPerson,
 } from "./provisioning-helpers";
 import type {
   BackendOrganization,
@@ -16,6 +17,7 @@ import type {
   BackendSchoolAccount,
   BackendOrgAccount,
   BackendOperatorDevice,
+  BackendOperatorPerson,
 } from "./provisioning-helpers";
 
 describe("generateSlug", () => {
@@ -511,5 +513,108 @@ describe("mapOperatorDevice", () => {
     expect(result.id).toBe("200");
     expect(result.schoolId).toBe("10");
     expect(result.organizationId).toBe("5");
+  });
+});
+
+describe("mapOperatorPerson", () => {
+  const fullBackendPerson: BackendOperatorPerson = {
+    id: 42,
+    first_name: "Max",
+    last_name: "Mustermann",
+    has_account: true,
+    account_email: "max@test.de",
+    has_rfid_card: true,
+    is_staff: true,
+    is_student: false,
+    school_id: 10,
+    school_name: "Testschule",
+    organization_id: 5,
+    organization_name: "Testträger",
+    created_at: "2026-01-01T00:00:00Z",
+  };
+
+  it("maps all fields from backend to frontend format", () => {
+    const result = mapOperatorPerson(fullBackendPerson);
+
+    expect(result).toEqual({
+      id: "42",
+      firstName: "Max",
+      lastName: "Mustermann",
+      fullName: "Max Mustermann",
+      hasAccount: true,
+      accountEmail: "max@test.de",
+      hasRfidCard: true,
+      isStaff: true,
+      isStudent: false,
+      schoolId: "10",
+      schoolName: "Testschule",
+      organizationId: "5",
+      organizationName: "Testträger",
+      createdAt: "2026-01-01T00:00:00Z",
+    });
+  });
+
+  it("converts all numeric ids to strings", () => {
+    const result = mapOperatorPerson(fullBackendPerson);
+    expect(result.id).toBe("42");
+    expect(result.schoolId).toBe("10");
+    expect(result.organizationId).toBe("5");
+  });
+
+  it("constructs fullName from first and last name", () => {
+    const result = mapOperatorPerson(fullBackendPerson);
+    expect(result.fullName).toBe("Max Mustermann");
+  });
+
+  it("handles null account_email", () => {
+    const backend: BackendOperatorPerson = {
+      ...fullBackendPerson,
+      account_email: null,
+    };
+
+    expect(mapOperatorPerson(backend).accountEmail).toBeNull();
+  });
+
+  it("handles undefined account_email", () => {
+    const backend: BackendOperatorPerson = {
+      ...fullBackendPerson,
+      account_email: undefined,
+    };
+
+    expect(mapOperatorPerson(backend).accountEmail).toBeNull();
+  });
+
+  it("maps student-only person correctly", () => {
+    const backend: BackendOperatorPerson = {
+      ...fullBackendPerson,
+      is_staff: false,
+      is_student: true,
+      has_account: false,
+      account_email: null,
+      has_rfid_card: false,
+    };
+
+    const result = mapOperatorPerson(backend);
+    expect(result.isStaff).toBe(false);
+    expect(result.isStudent).toBe(true);
+    expect(result.hasAccount).toBe(false);
+    expect(result.accountEmail).toBeNull();
+    expect(result.hasRfidCard).toBe(false);
+  });
+
+  it("preserves boolean fields accurately", () => {
+    const backend: BackendOperatorPerson = {
+      ...fullBackendPerson,
+      has_account: false,
+      has_rfid_card: false,
+      is_staff: false,
+      is_student: false,
+    };
+
+    const result = mapOperatorPerson(backend);
+    expect(result.hasAccount).toBe(false);
+    expect(result.hasRfidCard).toBe(false);
+    expect(result.isStaff).toBe(false);
+    expect(result.isStudent).toBe(false);
   });
 });

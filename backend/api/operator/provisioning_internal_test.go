@@ -43,6 +43,8 @@ type mockProvisioningService struct {
 	createDeviceFn            func(context.Context, int64, string, string, *string, *string, int64, net.IP) (*platformSvc.OperatorDeviceInfo, error)
 	setDeviceAPIKeyFn         func(context.Context, int64, *string, int64, net.IP) (*platformSvc.OperatorDeviceInfo, error)
 	deleteDeviceFn            func(context.Context, int64, int64, net.IP) error
+	listSchoolPersonsFn       func(context.Context, int64) ([]platformSvc.OperatorPersonInfo, error)
+	softDeletePersonFn        func(context.Context, int64, int64, net.IP) error
 }
 
 func (m *mockProvisioningService) CreateOrganization(ctx context.Context, org *platformModels.Organization, operatorID int64, clientIP net.IP) (*platformModels.Organization, error) {
@@ -138,10 +140,16 @@ func (m *mockProvisioningService) DeleteDevice(ctx context.Context, id int64, op
 	}
 	return nil
 }
-func (m *mockProvisioningService) ListSchoolPersons(_ context.Context, _ int64) ([]platformSvc.OperatorPersonInfo, error) {
+func (m *mockProvisioningService) ListSchoolPersons(ctx context.Context, schoolID int64) ([]platformSvc.OperatorPersonInfo, error) {
+	if m.listSchoolPersonsFn != nil {
+		return m.listSchoolPersonsFn(ctx, schoolID)
+	}
 	return nil, nil
 }
-func (m *mockProvisioningService) SoftDeletePerson(_ context.Context, _ int64, _ int64, _ net.IP) error {
+func (m *mockProvisioningService) SoftDeletePerson(ctx context.Context, personID int64, operatorID int64, clientIP net.IP) error {
+	if m.softDeletePersonFn != nil {
+		return m.softDeletePersonFn(ctx, personID, operatorID, clientIP)
+	}
 	return nil
 }
 
@@ -1448,6 +1456,158 @@ func TestProvisioningErrorRenderer_AuthDefaultError(t *testing.T) {
 	resp, ok := renderer.(*ErrResponse)
 	require.True(t, ok)
 	assert.Equal(t, http.StatusInternalServerError, resp.HTTPStatusCode)
+}
+
+// --- Person handler tests ---
+
+func TestProvisioningResource_ListSchoolPersons_Success(t *testing.T) {
+	expected := []platformSvc.OperatorPersonInfo{
+		{ID: 10, FirstName: "Ada", LastName: "Lovelace", SchoolID: 7, SchoolName: "Test School"},
+		{ID: 11, FirstName: "Grace", LastName: "Hopper", SchoolID: 7, SchoolName: "Test School"},
+	}
+	resource := NewProvisioningResource(&mockProvisioningService{
+		listSchoolPersonsFn: func(_ context.Context, schoolID int64) ([]platformSvc.OperatorPersonInfo, error) {
+			assert.Equal(t, int64(7), schoolID)
+			return expected, nil
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/operator/schools/7/persons", nil)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "7")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.ListSchoolPersons(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+
+	body := decodeBody(t, rr)
+	data := body["data"].([]any)
+	assert.Len(t, data, 2)
+	first := data[0].(map[string]any)
+	assert.Equal(t, float64(10), first["id"])
+	assert.Equal(t, "Ada", first["first_name"])
+}
+
+func TestProvisioningResource_ListSchoolPersons_SchoolNotFound(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{
+		listSchoolPersonsFn: func(_ context.Context, _ int64) ([]platformSvc.OperatorPersonInfo, error) {
+			return nil, &platformSvc.SchoolNotFoundError{SchoolID: 7}
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/operator/schools/7/persons", nil)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "7")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.ListSchoolPersons(rr, req)
+	assert.Equal(t, http.StatusNotFound, rr.Code)
+}
+
+func TestProvisioningResource_ListSchoolPersons_InvalidID(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{})
+	req := httptest.NewRequest(http.MethodGet, "/operator/schools/nope/persons", nil)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "nope")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.ListSchoolPersons(rr, req)
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestProvisioningResource_SoftDeletePerson_Success(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{
+		softDeletePersonFn: func(_ context.Context, personID int64, operatorID int64, clientIP net.IP) error {
+			assert.Equal(t, int64(15), personID)
+			assert.Equal(t, int64(42), operatorID)
+			assert.Equal(t, "203.0.113.10", clientIP.String())
+			return nil
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodDelete, "/operator/persons/15", nil)
+	req.RemoteAddr = "203.0.113.10:1234"
+	req = withOperatorClaims(req, 42)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "15")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.SoftDeletePerson(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+
+	body := decodeBody(t, rr)
+	assert.Equal(t, "Person deleted successfully", body["message"])
+}
+
+func TestProvisioningResource_SoftDeletePerson_NotFound(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{
+		softDeletePersonFn: func(_ context.Context, _ int64, _ int64, _ net.IP) error {
+			return &platformSvc.PersonNotFoundError{PersonID: 15}
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodDelete, "/operator/persons/15", nil)
+	req.RemoteAddr = "203.0.113.10:1234"
+	req = withOperatorClaims(req, 42)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "15")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.SoftDeletePerson(rr, req)
+	assert.Equal(t, http.StatusNotFound, rr.Code)
+}
+
+func TestProvisioningResource_SoftDeletePerson_ActiveSupervisions(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{
+		softDeletePersonFn: func(_ context.Context, _ int64, _ int64, _ net.IP) error {
+			return &platformSvc.PersonHasActiveSupervisionsError{PersonID: 15, Count: 2}
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodDelete, "/operator/persons/15", nil)
+	req.RemoteAddr = "203.0.113.10:1234"
+	req = withOperatorClaims(req, 42)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "15")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.SoftDeletePerson(rr, req)
+	assert.Equal(t, http.StatusConflict, rr.Code)
+}
+
+func TestProvisioningResource_SoftDeletePerson_InvalidID(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{})
+	req := httptest.NewRequest(http.MethodDelete, "/operator/persons/abc", nil)
+	req = withOperatorClaims(req, 42)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "abc")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.SoftDeletePerson(rr, req)
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestProvisioningErrorRenderer_PersonNotFound(t *testing.T) {
+	renderer := ProvisioningErrorRenderer(&platformSvc.PersonNotFoundError{PersonID: 42})
+	resp, ok := renderer.(*ErrResponse)
+	require.True(t, ok)
+	assert.Equal(t, http.StatusNotFound, resp.HTTPStatusCode)
+	assert.Equal(t, "Person not found", resp.ErrorText)
+}
+
+func TestProvisioningErrorRenderer_PersonActiveSupervisors(t *testing.T) {
+	renderer := ProvisioningErrorRenderer(&platformSvc.PersonHasActiveSupervisionsError{PersonID: 42, Count: 3})
+	resp, ok := renderer.(*ErrResponse)
+	require.True(t, ok)
+	assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
+	assert.Equal(t, "Person has active supervisions and cannot be deleted", resp.ErrorText)
 }
 
 func ptrInt64(v int64) *int64    { return &v }
