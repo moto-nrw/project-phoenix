@@ -48,6 +48,9 @@ func (s *internalSchoolRepoStub) FindByID(ctx context.Context, id int64) (*platf
 	}
 	return nil, nil
 }
+func (s *internalSchoolRepoStub) FindByIDForShare(ctx context.Context, id int64) (*platformModels.School, error) {
+	return s.FindByID(ctx, id)
+}
 func (s *internalSchoolRepoStub) FindBySlug(context.Context, string) (*platformModels.School, error) {
 	return nil, nil
 }
@@ -69,12 +72,20 @@ func (s *internalSchoolRepoStub) List(context.Context) ([]*platformModels.School
 func (s *internalSchoolRepoStub) ListActive(context.Context) ([]platformModels.School, error) {
 	return nil, nil
 }
+func (s *internalSchoolRepoStub) ListPublic(context.Context) ([]platformModels.School, error) {
+	return nil, nil
+}
 func (s *internalSchoolRepoStub) FindActiveByAccountID(context.Context, int64) ([]platformModels.School, error) {
 	return nil, nil
 }
 func (s *internalSchoolRepoStub) Update(context.Context, *platformModels.School) error {
 	return nil
 }
+func (s *internalSchoolRepoStub) CountByIDs(context.Context, []int64) (int, error) {
+	return 0, nil
+}
+func (s *internalSchoolRepoStub) SoftDelete(context.Context, int64) error { return nil }
+func (s *internalSchoolRepoStub) Restore(context.Context, int64) error    { return nil }
 
 type internalOrgRepoStub struct {
 	findByIDFn   func(context.Context, int64) (*platformModels.Organization, error)
@@ -109,6 +120,9 @@ func (s *internalOrgRepoStub) List(ctx context.Context) ([]*platformModels.Organ
 }
 func (s *internalOrgRepoStub) Update(context.Context, *platformModels.Organization) error {
 	return nil
+}
+func (s *internalOrgRepoStub) CountByIDs(context.Context, []int64) (int, error) {
+	return 0, nil
 }
 
 type internalDeviceRepoStub struct {
@@ -1074,6 +1088,9 @@ func (f *failingInvitationServiceStub) ListPendingInvitations(context.Context) (
 }
 func (f *failingInvitationServiceStub) RevokeInvitation(context.Context, int64, int64) error {
 	return nil
+}
+func (f *failingInvitationServiceStub) InvalidatePendingInvitationsByTenantID(context.Context, int64) (int, error) {
+	return 0, nil
 }
 func (f *failingInvitationServiceStub) CleanupExpiredInvitations(context.Context) (int, error) {
 	return 0, nil

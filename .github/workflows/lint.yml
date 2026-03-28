@@ -160,6 +160,9 @@ jobs:
       - name: Validate migration dependencies
         working-directory: backend
         run: go run main.go migrate validate
+      - name: Check for migration version collisions
+        working-directory: backend
+        run: go test ./database/migrations/ -run TestNoDuplicateMigrationVersions -v
 
   backend-licenses:
     if: ${{ inputs.run-backend }}

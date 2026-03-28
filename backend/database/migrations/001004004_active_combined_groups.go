@@ -16,11 +16,11 @@ const (
 
 func init() {
 	// Register migration with explicit version
-	MigrationRegistry[ActiveCombinedGroupsVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     ActiveCombinedGroupsVersion,
 		Description: ActiveCombinedGroupsDescription,
 		DependsOn:   []string{"1.4.1"}, // Depends on active.groups table
-	}
+	})
 
 	// Migration 1.4.4: Create active.combined_groups table
 	Migrations.MustRegister(

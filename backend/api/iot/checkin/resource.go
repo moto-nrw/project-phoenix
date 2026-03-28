@@ -1,7 +1,6 @@
 package checkin
 
 import (
-	"context"
 	"log/slog"
 	"net/http"
 
@@ -12,25 +11,20 @@ import (
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	facilitiesSvc "github.com/moto-nrw/project-phoenix/services/facilities"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
 
-// SettingsResolver resolves setting values. Implemented by config.SettingsService.
-// Defined here as a minimal interface to avoid import cycles.
-type SettingsResolver interface {
-	ResolveString(ctx context.Context, key string) (string, error)
-}
-
 // Resource defines the Check-in API resource for student RFID check-in/checkout
 type Resource struct {
-	IoTService        iotSvc.Service
-	UsersService      usersSvc.PersonService
-	ActiveService     activeSvc.Service
-	FacilityService   facilitiesSvc.Service
-	ActivitiesService activitiesSvc.ActivityService
-	EducationService  educationSvc.Service
-	Settings          SettingsResolver
-	logger            *slog.Logger
+	IoTService            iotSvc.Service
+	UsersService          usersSvc.PersonService
+	ActiveService         activeSvc.Service
+	FacilityService       facilitiesSvc.Service
+	ActivitiesService     activitiesSvc.ActivityService
+	EducationService      educationSvc.Service
+	PickupScheduleService scheduleSvc.PickupScheduleService
+	logger                *slog.Logger
 }
 
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
@@ -49,18 +43,18 @@ func NewResource(
 	facilityService facilitiesSvc.Service,
 	activitiesService activitiesSvc.ActivityService,
 	educationService educationSvc.Service,
-	settings SettingsResolver,
+	pickupScheduleService scheduleSvc.PickupScheduleService,
 	logger *slog.Logger,
 ) *Resource {
 	return &Resource{
-		IoTService:        iotService,
-		UsersService:      usersService,
-		ActiveService:     activeService,
-		FacilityService:   facilityService,
-		ActivitiesService: activitiesService,
-		EducationService:  educationService,
-		Settings:          settings,
-		logger:            logger,
+		IoTService:            iotService,
+		UsersService:          usersService,
+		ActiveService:         activeService,
+		FacilityService:       facilityService,
+		ActivitiesService:     activitiesService,
+		EducationService:      educationService,
+		PickupScheduleService: pickupScheduleService,
+		logger:                logger,
 	}
 }
 

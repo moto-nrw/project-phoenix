@@ -64,7 +64,6 @@ describe("InvitePage", () => {
 
   it("should render with Suspense boundary", () => {
     mockSearchParams.set("token", "test-token");
-    // eslint-disable-next-line @typescript-eslint/no-empty-function
     mockValidateInvitation.mockImplementation(() => new Promise(() => {})); // Never resolves
 
     render(<InvitePage />);

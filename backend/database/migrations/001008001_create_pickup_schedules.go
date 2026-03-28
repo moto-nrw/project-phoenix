@@ -19,11 +19,11 @@ var PickupSchedulesDependsOn = []string{
 }
 
 func init() {
-	MigrationRegistry[createPickupSchedulesVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     createPickupSchedulesVersion,
 		Description: createPickupSchedulesDescription,
 		DependsOn:   PickupSchedulesDependsOn,
-	}
+	})
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {

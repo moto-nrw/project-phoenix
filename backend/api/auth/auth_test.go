@@ -2205,3 +2205,59 @@ func TestLinkToTenant(t *testing.T) {
 		testutil.AssertUnauthorized(t, rr)
 	})
 }
+
+// ============================================================================
+// RESOLVE TENANT — SOFT-DELETE COVERAGE
+// ============================================================================
+
+// TestResolveTenant_DeletedSchool_ReturnsNotFound verifies that GET /auth/tenant/resolve
+// returns 404 when the matching school has been soft-deleted (deleted_at IS NOT NULL).
+// This ensures the frontend cannot resolve a decommissioned tenant via subdomain lookup.
+func TestResolveTenant_DeletedSchool_ReturnsNotFound(t *testing.T) {
+	db, svc := testutil.SetupAPITest(t)
+	defer func() {
+		if err := db.Close(); err != nil {
+			t.Logf("Failed to close database: %v", err)
+		}
+	}()
+
+	// Create a dedicated tenant for this test using a high ID to avoid collisions.
+	tenantID := int64(9900)
+	testpkg.EnsureTestTenant(t, db, tenantID)
+
+	// Soft-delete the school by setting deleted_at.
+	_, err := db.ExecContext(context.Background(),
+		`UPDATE platform.schools SET deleted_at = NOW() WHERE id = ?`, tenantID)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		// Restore the school so it doesn't leak into other tests.
+		_, _ = db.ExecContext(context.Background(),
+			`UPDATE platform.schools SET deleted_at = NULL WHERE id = ?`, tenantID)
+		_, _ = db.ExecContext(context.Background(),
+			`DELETE FROM platform.schools WHERE id = ?`, tenantID)
+		_, _ = db.ExecContext(context.Background(),
+			`DELETE FROM platform.organizations WHERE id = ?`, tenantID)
+	})
+
+	schoolRepo := platformRepo.NewSchoolRepository(db)
+	resource := authAPI.NewResource(svc.Auth, svc.Invitation, schoolRepo, db)
+
+	router := chi.NewRouter()
+	router.Mount("/auth", resource.Router())
+
+	// The subdomain for tenant 9900 is "t9900" (set by EnsureTestTenant).
+	req := httptest.NewRequest("GET", "/auth/tenant/resolve?slug=t9900", nil)
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusNotFound, rr.Code, "Soft-deleted tenant must return 404, body: %s", rr.Body.String())
+
+	var response struct {
+		Status  string `json:"status"`
+		Message string `json:"message"`
+	}
+	err = json.Unmarshal(rr.Body.Bytes(), &response)
+	require.NoError(t, err, "Failed to parse error response: %s", rr.Body.String())
+	assert.Equal(t, "error", response.Status)
+}

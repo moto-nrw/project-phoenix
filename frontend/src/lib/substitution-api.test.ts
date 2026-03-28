@@ -738,7 +738,6 @@ describe("SubstitutionService", () => {
       expect(consoleErrorSpy).toHaveBeenCalledWith(
         "error fetching substitutions",
         {
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
           error: expect.any(String),
         },
       );

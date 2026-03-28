@@ -6,7 +6,7 @@ import { generateSlug, isValidSlug } from "~/lib/operator/provisioning-helpers";
 import type { Organization } from "~/lib/operator/provisioning-helpers";
 import { isOperatorApiError } from "~/lib/operator/api-helpers";
 import { createLogger } from "~/lib/logger";
-import { FormField, FormError } from "./provisioning-shared";
+import { FormField, FormError, VisibilityToggle } from "./provisioning-shared";
 
 const logger = createLogger({ component: "CreateSchoolModal" });
 
@@ -32,6 +32,7 @@ export function CreateSchoolModal({
   const [schoolZip, setSchoolZip] = useState("");
   const [schoolPhone, setSchoolPhone] = useState("");
   const [schoolEmail, setSchoolEmail] = useState("");
+  const [schoolHidden, setSchoolHidden] = useState(false);
   const [schoolSaving, setSchoolSaving] = useState(false);
   const [schoolError, setSchoolError] = useState("");
   const errorRef = useScrollToError(schoolError);
@@ -50,6 +51,7 @@ export function CreateSchoolModal({
       setSchoolZip("");
       setSchoolPhone("");
       setSchoolEmail("");
+      setSchoolHidden(false);
       setSchoolError("");
     }
   }, [isOpen, organizations]);
@@ -103,6 +105,7 @@ export function CreateSchoolModal({
           ...(schoolZip && { zip: schoolZip.trim() }),
           ...(schoolPhone && { phone: schoolPhone.trim() }),
           ...(schoolEmail && { email: schoolEmail.trim() }),
+          ...(schoolHidden && { hidden: true }),
         });
         onClose();
         await onCreated();
@@ -149,6 +152,7 @@ export function CreateSchoolModal({
       schoolZip,
       schoolPhone,
       schoolEmail,
+      schoolHidden,
       onClose,
       onCreated,
     ],
@@ -309,6 +313,11 @@ export function CreateSchoolModal({
             </div>
           </div>
         </div>
+        <VisibilityToggle
+          hidden={schoolHidden}
+          onToggle={() => setSchoolHidden(!schoolHidden)}
+        />
+
         {schoolError && <FormError ref={errorRef} message={schoolError} />}
       </form>
     </Modal>

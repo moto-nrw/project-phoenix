@@ -13,11 +13,11 @@ const (
 )
 
 func init() {
-	MigrationRegistry[activitiesGroupsCreatedByNullableVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     activitiesGroupsCreatedByNullableVersion,
 		Description: activitiesGroupsCreatedByNullableDescription,
 		DependsOn:   []string{"1.8.3"}, // migration that added the created_by NOT NULL column
-	}
+	})
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {

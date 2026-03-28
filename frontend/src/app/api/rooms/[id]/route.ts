@@ -155,7 +155,10 @@ export const GET = createGetHandler(
           error.message.includes('relation "rooms" does not exist'))
       ) {
         // Preserve the status code in the error message
-        throw new Error(`API error (404): Room with ID ${params.id} not found`);
+        throw new Error(
+          `API error (404): Room with ID ${params.id} not found`,
+          { cause: error },
+        );
       }
       // Re-throw other errors
       throw error;
@@ -221,7 +224,9 @@ export const PUT = createPutHandler<BackendRoom, RoomUpdateRequest>(
         (error.message.includes("404") ||
           error.message.includes('relation "rooms" does not exist'))
       ) {
-        throw new Error(`Room with ID ${params.id} not found`);
+        throw new Error(`Room with ID ${params.id} not found`, {
+          cause: error,
+        });
       }
       // Re-throw other errors
       throw error;
@@ -256,7 +261,9 @@ export const DELETE = createDeleteHandler(
         (error.message.includes("404") ||
           error.message.includes('relation "rooms" does not exist'))
       ) {
-        throw new Error(`Room with ID ${params.id} not found`);
+        throw new Error(`Room with ID ${params.id} not found`, {
+          cause: error,
+        });
       }
       // Re-throw other errors
       throw error;

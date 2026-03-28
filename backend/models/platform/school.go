@@ -16,18 +16,20 @@ const tablePlatformSchools = "platform.schools"
 // The school ID is used as the tenant_id throughout the system.
 type School struct {
 	base.Model     `bun:"schema:platform,table:schools"`
-	OrganizationID int64  `bun:"organization_id,notnull" json:"organization_id"`
-	Name           string `bun:"name,notnull" json:"name"`
-	Slug           string `bun:"slug,notnull" json:"slug"`
-	Subdomain      string `bun:"subdomain,notnull,unique" json:"subdomain"`
-	Active         bool   `bun:"active,notnull,default:true" json:"active"`
-	Settings       string `bun:"settings,default:'{}'" json:"settings,omitempty"`
-	Address        string `bun:"address" json:"address,omitempty"`
-	City           string `bun:"city" json:"city,omitempty"`
-	Zip            string `bun:"zip" json:"zip,omitempty"`
-	Phone          string `bun:"phone" json:"phone,omitempty"`
-	Email          string `bun:"email" json:"email,omitempty"`
-	DevicePinHash  string `bun:"device_pin_hash" json:"-"`
+	OrganizationID int64      `bun:"organization_id,notnull" json:"organization_id"`
+	Name           string     `bun:"name,notnull" json:"name"`
+	Slug           string     `bun:"slug,notnull" json:"slug"`
+	Subdomain      string     `bun:"subdomain,notnull,unique" json:"subdomain"`
+	Active         bool       `bun:"active,notnull,default:true" json:"active"`
+	Hidden         bool       `bun:"hidden,notnull,default:false" json:"hidden"`
+	DeletedAt      *time.Time `bun:"deleted_at" json:"deleted_at,omitempty"`
+	Settings       string     `bun:"settings,default:'{}'" json:"settings,omitempty"`
+	Address        string     `bun:"address" json:"address,omitempty"`
+	City           string     `bun:"city" json:"city,omitempty"`
+	Zip            string     `bun:"zip" json:"zip,omitempty"`
+	Phone          string     `bun:"phone" json:"phone,omitempty"`
+	Email          string     `bun:"email" json:"email,omitempty"`
+	DevicePinHash  string     `bun:"device_pin_hash" json:"-"`
 
 	// Relations
 	Organization *Organization `bun:"rel:belongs-to,join:organization_id=id" json:"organization,omitempty"`
@@ -109,4 +111,9 @@ func (s *School) GetCreatedAt() time.Time {
 // GetUpdatedAt returns the last update timestamp
 func (s *School) GetUpdatedAt() time.Time {
 	return s.UpdatedAt
+}
+
+// IsDeleted returns true if the school has been soft-deleted.
+func (s *School) IsDeleted() bool {
+	return s.DeletedAt != nil
 }

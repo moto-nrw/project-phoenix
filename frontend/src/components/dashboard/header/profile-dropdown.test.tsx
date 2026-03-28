@@ -214,24 +214,6 @@ describe("ProfileDropdownMenu", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("renders help button", () => {
-    const onClose = vi.fn();
-    const onLogout = vi.fn();
-    render(
-      <ProfileDropdownMenu
-        isOpen={true}
-        displayName="Max Mustermann"
-        userEmail="max@example.com"
-        onClose={onClose}
-        onLogout={onLogout}
-      />,
-    );
-
-    expect(
-      screen.getByRole("button", { name: /hilfe & support/i }),
-    ).toBeInTheDocument();
-  });
-
   it("renders logout button", () => {
     const onClose = vi.fn();
     const onLogout = vi.fn();
@@ -283,24 +265,6 @@ describe("ProfileDropdownMenu", () => {
     );
 
     fireEvent.click(screen.getByRole("link", { name: /profil/i }));
-    expect(onClose).toHaveBeenCalled();
-  });
-
-  it("calls onClose when help button clicked", () => {
-    const onClose = vi.fn();
-    const onLogout = vi.fn();
-
-    render(
-      <ProfileDropdownMenu
-        isOpen={true}
-        displayName="Max Mustermann"
-        userEmail="max@example.com"
-        onClose={onClose}
-        onLogout={onLogout}
-      />,
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: /hilfe & support/i }));
     expect(onClose).toHaveBeenCalled();
   });
 

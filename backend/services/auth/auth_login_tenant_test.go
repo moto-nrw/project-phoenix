@@ -154,10 +154,9 @@ func TestLoginWithAudit_EmptySlugDefaultResolution(t *testing.T) {
 
 func TestLoginWithAudit_EmptySlugNoTenantMapping(t *testing.T) {
 	// LoginWithAudit with an empty slug when the account has zero account_tenants
-	// entries. resolveAccountTenantDefault returns (0, 0, nil) which means tenantID=0.
-	// The subsequent token persistence fails because auth.tokens.tenant_id has a FK
-	// constraint to platform.schools — tenant_id=0 violates that constraint.
-	// This confirms that accounts without any tenant mapping cannot log in.
+	// entries. resolveAccountTenantDefault returns ErrTenantNotFound because no
+	// active tenant mappings exist. This confirms that accounts without any tenant
+	// mapping cannot log in.
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
@@ -184,8 +183,8 @@ func TestLoginWithAudit_EmptySlugNoTenantMapping(t *testing.T) {
 		context.Background(), email, testPassword, "", "", "",
 	)
 
-	// ASSERT: Should fail — token creation requires a valid tenant_id (FK constraint)
+	// ASSERT: Should fail — resolveAccountTenantDefault rejects accounts with no mappings
 	require.Error(t, err, "LoginWithAudit should fail when account has no tenant mapping")
-	assert.Contains(t, err.Error(), "login transaction",
-		"error should originate from the token persistence layer")
+	assert.ErrorIs(t, err, auth.ErrTenantNotFound,
+		"error should indicate no valid tenant was found")
 }

@@ -16,11 +16,11 @@ const (
 
 func init() {
 	// Register migration with explicit version
-	MigrationRegistry[GroupSupervisorsVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     GroupSupervisorsVersion,
 		Description: GroupSupervisorsDescription,
 		DependsOn:   []string{"1.4.1", "1.2.3"}, // Depends on active_groups and users_staff
-	}
+	})
 
 	// Migration 1.4.3: Create active.group_supervisors table
 	Migrations.MustRegister(

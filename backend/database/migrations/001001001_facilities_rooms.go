@@ -16,11 +16,11 @@ const (
 
 func init() {
 	// Register migration with explicit version
-	MigrationRegistry[FacilitiesRoomsVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     FacilitiesRoomsVersion,
 		Description: FacilitiesRoomsDescription,
 		DependsOn:   []string{"1.0.9"}, // Depends on auth tables
-	}
+	})
 
 	// Migration 1.1.1: Create facilities.rooms table
 	Migrations.MustRegister(

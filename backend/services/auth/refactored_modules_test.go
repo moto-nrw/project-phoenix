@@ -611,6 +611,7 @@ func TestAuthService_DeactivateAccount_Extended(t *testing.T) {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, 1)
 
 		// Login to create tokens
 		_, refreshToken, err := service.Login(ctx, email, "Test1234%")
@@ -886,6 +887,7 @@ func TestAuthService_GetActiveTokens_Extended(t *testing.T) {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, 1)
 
 		// Login multiple times to create tokens
 		_, _, err = service.Login(ctx, email, "Test1234%")
@@ -1127,6 +1129,7 @@ func TestAuthService_Login_Extended(t *testing.T) {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, 1)
 
 		// ACT - Login with uppercase
 		accessToken, refreshToken, err := service.Login(ctx, fmt.Sprintf("LOGIN-CASE-%s@TEST.LOCAL", uniqueID), "Test1234%")
@@ -1211,6 +1214,7 @@ func TestAuthService_ValidateToken_Extended(t *testing.T) {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, 1)
 
 		accessToken, _, err := service.Login(ctx, email, "Test1234%")
 		require.NoError(t, err)
@@ -1242,6 +1246,7 @@ func TestAuthService_RefreshToken_Extended(t *testing.T) {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, 1)
 
 		_, refreshToken, err := service.Login(ctx, email, "Test1234%")
 		require.NoError(t, err)
@@ -1273,6 +1278,7 @@ func TestAuthService_Logout_Extended(t *testing.T) {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, 1)
 
 		_, refreshToken, err := service.Login(ctx, email, "Test1234%")
 		require.NoError(t, err)

@@ -41,8 +41,13 @@ vi.mock("~/lib/operator/suggestions-api", () => ({
   },
 }));
 
+// Mock operator-url to avoid NEXT_PUBLIC_OPERATOR_HOSTNAME requirement
+vi.mock("~/lib/operator-url", () => ({
+  operatorPath: (path: string) => path,
+}));
+
 // Mock UI components
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-return, @typescript-eslint/prefer-optional-chain */
+
 vi.mock("~/components/ui/page-header", () => ({
   PageHeaderWithSearch: ({ title, badge, filters, search }: any) => (
     <div data-testid="page-header">
@@ -119,13 +124,10 @@ vi.mock("framer-motion", () => ({
     div: ({ children, ...props }: any) => <div {...props}>{children}</div>,
   },
 }));
-/* eslint-enable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call */ vi.mock(
-  "lucide-react",
-  () => ({
-    ThumbsUp: () => <span>ThumbsUp</span>,
-    ThumbsDown: () => <span>ThumbsDown</span>,
-  }),
-);
+vi.mock("lucide-react", () => ({
+  ThumbsUp: () => <span>ThumbsUp</span>,
+  ThumbsDown: () => <span>ThumbsDown</span>,
+}));
 
 vi.mock("~/lib/format-utils", () => ({
   getRelativeTime: (_date: Date) => "2 hours ago",

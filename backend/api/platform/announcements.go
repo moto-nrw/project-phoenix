@@ -33,12 +33,12 @@ type AnnouncementResponse struct {
 	PublishedAt string  `json:"published_at"`
 }
 
-// GetUnread handles getting unread announcements for the current user
+// GetUnread handles getting unread announcements for the current user, scoped to the session tenant/org
 func (rs *AnnouncementsResource) GetUnread(w http.ResponseWriter, r *http.Request) {
 	claims := jwt.ClaimsFromCtx(r.Context())
 	userID := int64(claims.ID)
 
-	announcements, err := rs.announcementService.GetUnreadForUser(r.Context(), userID, claims.Roles)
+	announcements, err := rs.announcementService.GetUnreadForUser(r.Context(), userID, claims.Roles, claims.TenantID, claims.OrgID)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("failed to retrieve announcements")))
 		return
@@ -69,7 +69,7 @@ func (rs *AnnouncementsResource) GetUnreadCount(w http.ResponseWriter, r *http.R
 	claims := jwt.ClaimsFromCtx(r.Context())
 	userID := int64(claims.ID)
 
-	count, err := rs.announcementService.CountUnread(r.Context(), userID, claims.Roles)
+	count, err := rs.announcementService.CountUnread(r.Context(), userID, claims.Roles, claims.TenantID, claims.OrgID)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("failed to count announcements")))
 		return

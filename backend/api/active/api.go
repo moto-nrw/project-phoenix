@@ -1,6 +1,7 @@
 package active
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -11,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/policy"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	base "github.com/moto-nrw/project-phoenix/models/base"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/facilities"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
@@ -35,6 +37,15 @@ func (rs *Resource) getLogger() *slog.Logger {
 		return rs.logger
 	}
 	return slog.Default()
+}
+
+// getDB returns the tenant-scoped transaction from context if available, otherwise the base DB.
+// Raw rs.db queries bypass RLS — always use this instead.
+func (rs *Resource) getDB(ctx context.Context) bun.IDB {
+	if tx, ok := base.TxFromContext(ctx); ok && tx != nil {
+		return tx
+	}
+	return rs.db
 }
 
 // NewResource creates a new active resource

@@ -234,6 +234,10 @@ func (noopAccountRepository) FindAccountsWithRolesAndPermissions(context.Context
 	panic("FindAccountsWithRolesAndPermissions not implemented")
 }
 
+func (noopAccountRepository) FindEmailsByAccountIDs(context.Context, []int64) (map[int64]string, error) {
+	panic("FindEmailsByAccountIDs not implemented")
+}
+
 // stubAccountRepository implements a minimal in-memory account store.
 type stubAccountRepository struct {
 	noopAccountRepository
@@ -646,6 +650,20 @@ func (r *stubInvitationTokenRepository) UpdateDeliveryResult(_ context.Context, 
 	return nil
 }
 
+func (r *stubInvitationTokenRepository) InvalidateByTenantID(_ context.Context, tenantID int64) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	count := 0
+	now := r.now()
+	for _, token := range r.tokens {
+		if token.TenantID == tenantID && token.UsedAt == nil {
+			token.UsedAt = &now
+			count++
+		}
+	}
+	return count, nil
+}
+
 // noopRoleRepository provides default panic implementations.
 type noopRoleRepository struct{}
 
@@ -985,6 +1003,10 @@ func (noopTokenRepository) GetLatestTokenInFamily(context.Context, string) (*aut
 	panic("GetLatestTokenInFamily not implemented")
 }
 
+func (noopTokenRepository) DeleteByTenantID(context.Context, int64) (int, error) {
+	panic("DeleteByTenantID not implemented")
+}
+
 // stubTokenRepository tracks delete operations for verification.
 type stubTokenRepository struct {
 	noopTokenRepository
@@ -1205,14 +1227,30 @@ func (r *stubTeacherRepository) FindWithStaffAndPersonByIDs(context.Context, []i
 }
 
 // stubSchoolRepository is a minimal stub for SchoolRepository in tests.
-type stubSchoolRepository struct{}
+// Set deletedTenantIDs to simulate soft-deleted schools.
+type stubSchoolRepository struct {
+	deletedTenantIDs map[int64]bool
+}
 
 func (r *stubSchoolRepository) Create(context.Context, *platformModel.School) error {
 	return fmt.Errorf("not implemented")
 }
 
-func (r *stubSchoolRepository) FindByID(context.Context, int64) (*platformModel.School, error) {
-	return nil, fmt.Errorf("not found")
+func (r *stubSchoolRepository) FindByID(_ context.Context, id int64) (*platformModel.School, error) {
+	school := &platformModel.School{
+		Model:          base.Model{ID: id},
+		Active:         true,
+		OrganizationID: 1,
+	}
+	if r.deletedTenantIDs[id] {
+		now := time.Now()
+		school.DeletedAt = &now
+	}
+	return school, nil
+}
+
+func (r *stubSchoolRepository) FindByIDForShare(ctx context.Context, id int64) (*platformModel.School, error) {
+	return r.FindByID(ctx, id)
 }
 
 func (r *stubSchoolRepository) FindBySlug(context.Context, string) (*platformModel.School, error) {
@@ -1235,12 +1273,22 @@ func (r *stubSchoolRepository) ListActive(context.Context) ([]platformModel.Scho
 	return nil, nil
 }
 
+func (r *stubSchoolRepository) ListPublic(context.Context) ([]platformModel.School, error) {
+	return nil, nil
+}
+
 func (r *stubSchoolRepository) FindActiveByAccountID(context.Context, int64) ([]platformModel.School, error) {
 	return nil, nil
 }
 
 func (r *stubSchoolRepository) Update(context.Context, *platformModel.School) error {
 	return fmt.Errorf("not implemented")
+}
+func (r *stubSchoolRepository) SoftDelete(context.Context, int64) error { return nil }
+func (r *stubSchoolRepository) Restore(context.Context, int64) error    { return nil }
+
+func (r *stubSchoolRepository) CountByIDs(context.Context, []int64) (int, error) {
+	return 0, fmt.Errorf("not implemented")
 }
 
 // helper to build default email used in tests.

@@ -15,11 +15,11 @@ const (
 )
 
 func init() {
-	MigrationRegistry[disableLegacyBootstrapAdminVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     disableLegacyBootstrapAdminVersion,
 		Description: disableLegacyBootstrapAdminDescription,
 		DependsOn:   []string{"1.15.6"},
-	}
+	})
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {

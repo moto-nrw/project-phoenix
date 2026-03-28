@@ -13,11 +13,11 @@ const (
 )
 
 func init() {
-	MigrationRegistry[renameDeviceTypesVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     renameDeviceTypesVersion,
 		Description: renameDeviceTypesDescription,
 		DependsOn:   []string{"1.3.9"},
-	}
+	})
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {

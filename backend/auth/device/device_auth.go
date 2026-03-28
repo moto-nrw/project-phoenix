@@ -3,7 +3,10 @@ package device
 import (
 	"context"
 	"crypto/subtle"
+	"database/sql"
+	"errors"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -11,22 +14,15 @@ import (
 	"time"
 
 	"github.com/go-chi/render"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/iot"
+	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun/driver/pgdriver"
 )
-
-// PINResolver resolves the OGS device PIN for a tenant. Implemented by the
-// settings service. If nil is passed to DeviceAuthenticator, the middleware
-// falls back to the OGS_DEVICE_PIN environment variable (legacy mode).
-//
-// ResolveStringForTenant must handle its own DB context (e.g., tenant transaction)
-// because device auth runs before the tenant middleware sets PostgreSQL-level context.
-type PINResolver interface {
-	ResolveStringForTenant(ctx context.Context, tenantID int64, key string) (string, error)
-}
 
 type CtxKey int
 
@@ -37,37 +33,6 @@ const (
 )
 
 const lastSeenDebounceWindow = 60 * time.Second
-
-// pinCache caches resolved PINs per tenant to avoid a DB hit on every device request.
-type pinCache struct {
-	mu      sync.RWMutex
-	entries map[int64]pinCacheEntry
-}
-
-type pinCacheEntry struct {
-	pin       string
-	expiresAt time.Time
-}
-
-const pinCacheTTL = 30 * time.Second
-
-var devicePINCache = &pinCache{entries: make(map[int64]pinCacheEntry)}
-
-func (c *pinCache) get(tenantID int64) (string, bool) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	entry, ok := c.entries[tenantID]
-	if !ok || time.Now().After(entry.expiresAt) {
-		return "", false
-	}
-	return entry.pin, true
-}
-
-func (c *pinCache) set(tenantID int64, pin string) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.entries[tenantID] = pinCacheEntry{pin: pin, expiresAt: time.Now().Add(pinCacheTTL)}
-}
 
 type lastSeenDebounceState struct {
 	mu            sync.Mutex
@@ -243,12 +208,20 @@ func scheduleDeferredFlushLocked(iotService iotSvc.Service, id int64, state *las
 	})
 }
 
-func deviceAuthenticator(iotService iotSvc.Service, pinResolver PINResolver) func(http.Handler) http.Handler {
+func deviceAuthenticator(iotService iotSvc.Service, schoolRepo platform.SchoolRepository) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Validate API key and get device
 			device, errResp := extractAndValidateAPIKey(r, iotService)
 			if errResp != nil {
+				_ = render.Render(w, r, errResp)
+				return
+			}
+
+			// Reject requests for devices belonging to soft-deleted schools.
+			// Devices use long-lived API keys (not 15-min JWTs), so deleted schools
+			// must be blocked immediately rather than waiting for token expiry.
+			if errResp := rejectDeletedSchool(r.Context(), schoolRepo, device); errResp != nil {
 				_ = render.Render(w, r, errResp)
 				return
 			}
@@ -261,10 +234,10 @@ func deviceAuthenticator(iotService iotSvc.Service, pinResolver PINResolver) fun
 				return
 			}
 
-			// Resolve OGS PIN: try tenant-specific setting first, fall back to env var
-			ogsPin := resolveDevicePIN(r.Context(), device.TenantID, pinResolver)
+			// Get global OGS PIN from environment
+			ogsPin := os.Getenv("OGS_DEVICE_PIN")
 			if ogsPin == "" {
-				slog.Error("device PIN not configured (neither settings nor OGS_DEVICE_PIN env var)")
+				slog.Error("OGS_DEVICE_PIN not configured in environment")
 				_ = render.Render(w, r, ErrDeviceUnauthorized(ErrInvalidPIN))
 				return
 			}
@@ -297,43 +270,12 @@ func deviceAuthenticator(iotService iotSvc.Service, pinResolver PINResolver) fun
 	}
 }
 
-// resolveDevicePIN resolves the PIN for a tenant using settings (with cache),
-// falling back to the OGS_DEVICE_PIN env var for backward compatibility.
-func resolveDevicePIN(ctx context.Context, tenantID int64, resolver PINResolver) string {
-	// Try tenant-specific setting via resolver (with cache)
-	if resolver != nil && tenantID > 0 {
-		// Check cache first
-		if cached, ok := devicePINCache.get(tenantID); ok {
-			if cached != "" {
-				return cached
-			}
-			// cached empty string means no tenant override — fall through to env var
-		} else {
-			// Cache miss — resolve from settings.
-			// Uses ResolveStringForTenant which handles its own DB context
-			// because device auth runs before tenant middleware.
-			pin, err := resolver.ResolveStringForTenant(ctx, tenantID, "security.ogs_device_pin")
-			if err == nil && pin != "" {
-				devicePINCache.set(tenantID, pin)
-				return pin
-			}
-			// Cache the empty result too to avoid repeated DB lookups
-			devicePINCache.set(tenantID, "")
-		}
-	}
-
-	// Fallback to global env var (legacy mode)
-	return os.Getenv("OGS_DEVICE_PIN")
-}
-
-// DeviceAuthenticator is a middleware that validates device API keys and the OGS PIN.
+// DeviceAuthenticator is a middleware that validates device API keys and the global OGS PIN.
 // It requires both Authorization: Bearer <api_key> and X-Staff-PIN: <pin> headers.
 // The middleware sets device context for downstream handlers.
-//
-// pinResolver resolves the per-tenant PIN from the settings system. If nil,
-// falls back to the OGS_DEVICE_PIN environment variable (legacy mode).
-func DeviceAuthenticator(iotService iotSvc.Service, _ usersSvc.PersonService, pinResolver PINResolver) func(http.Handler) http.Handler {
-	return deviceAuthenticator(iotService, pinResolver)
+// Rejects requests for devices belonging to soft-deleted schools.
+func DeviceAuthenticator(iotService iotSvc.Service, _ usersSvc.PersonService, schoolRepo platform.SchoolRepository) func(http.Handler) http.Handler {
+	return deviceAuthenticator(iotService, schoolRepo)
 }
 
 // DeviceOnlyAuthenticator is a middleware that validates only device API keys.
@@ -341,12 +283,19 @@ func DeviceAuthenticator(iotService iotSvc.Service, _ usersSvc.PersonService, pi
 // The middleware sets device context for downstream handlers.
 // This is used for endpoints that need device authentication but not staff authentication,
 // such as getting the list of available teachers for login selection.
-func DeviceOnlyAuthenticator(iotService iotSvc.Service) func(http.Handler) http.Handler {
+// Rejects requests for devices belonging to soft-deleted schools.
+func DeviceOnlyAuthenticator(iotService iotSvc.Service, schoolRepo platform.SchoolRepository) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Validate API key and get device
 			device, errResp := extractAndValidateAPIKey(r, iotService)
 			if errResp != nil {
+				_ = render.Render(w, r, errResp)
+				return
+			}
+
+			// Reject requests for devices belonging to soft-deleted schools.
+			if errResp := rejectDeletedSchool(r.Context(), schoolRepo, device); errResp != nil {
 				_ = render.Render(w, r, errResp)
 				return
 			}
@@ -367,6 +316,115 @@ func DeviceOnlyAuthenticator(iotService iotSvc.Service) func(http.Handler) http.
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+// rejectDeletedSchool checks if the device's school has been soft-deleted.
+// Returns an error renderer if the school is deleted, nil otherwise.
+// Runs before TenantTxMiddleware, so there is no tenant transaction in context;
+// FindByID falls back to the raw *bun.DB connection which is fine because
+// platform.schools is not behind RLS. Fails open only on transient DB errors
+// (connection failures) to avoid breaking all IoT devices during outages.
+// "Not found" errors (school row deleted/missing) are treated as rejection.
+func rejectDeletedSchool(ctx context.Context, schoolRepo platform.SchoolRepository, device *iot.Device) render.Renderer {
+	if schoolRepo == nil || device.TenantID <= 0 {
+		return nil
+	}
+	school, err := schoolRepo.FindByID(ctx, device.TenantID)
+	if err != nil {
+		// Distinguish "not found" from transient connectivity errors.
+		// FindByID wraps sql.ErrNoRows in a DatabaseError — unwrap and check.
+		if isNotFoundErr(err) {
+			slog.Warn("device authentication rejected: school not found",
+				slog.String("device_id", device.DeviceID),
+				slog.Int64("tenant_id", device.TenantID),
+			)
+			return ErrDeviceForbidden(ErrDeviceInactive)
+		}
+		// Fail open ONLY on transient connectivity errors (net timeouts,
+		// connection resets, driver-level connection failures) to avoid
+		// breaking all IoT devices during brief outages. All other errors
+		// (permission issues, serialization failures, bad queries) fail
+		// closed to prevent bypassing the soft-delete guard.
+		if isTransientDBErr(err) {
+			slog.Warn("school lookup failed during device auth, failing open (transient)",
+				slog.String("device_id", device.DeviceID),
+				slog.Int64("tenant_id", device.TenantID),
+				slog.String("error", err.Error()),
+			)
+			return nil
+		}
+		// Non-transient, non-not-found error — fail closed.
+		slog.Error("school lookup failed during device auth, rejecting device",
+			slog.String("device_id", device.DeviceID),
+			slog.Int64("tenant_id", device.TenantID),
+			slog.String("error", err.Error()),
+		)
+		return ErrDeviceForbidden(ErrDeviceInactive)
+	}
+	if school == nil {
+		// School genuinely doesn't exist — reject the device.
+		return ErrDeviceForbidden(ErrDeviceInactive)
+	}
+	if school.IsDeleted() {
+		slog.Warn("device authentication rejected: school is soft-deleted",
+			slog.String("device_id", device.DeviceID),
+			slog.Int64("tenant_id", device.TenantID),
+		)
+		return ErrDeviceForbidden(ErrDeviceInactive)
+	}
+	return nil
+}
+
+// isTransientDBErr returns true for errors that indicate a temporary
+// connectivity problem (net timeouts, connection resets, context
+// cancellation, PostgreSQL connection-class SQLSTATE 08xxx).
+// Everything else (bad queries, permission errors, serialization
+// failures) returns false so the caller can fail closed.
+func isTransientDBErr(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	// Context-level timeouts / cancellations.
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		return true
+	}
+
+	// Net-level errors (timeouts, connection resets).
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		return true
+	}
+
+	// pgdriver connection-class errors (SQLSTATE 08xxx).
+	var pgErr pgdriver.Error
+	if errors.As(err, &pgErr) {
+		code := pgErr.Field('C')
+		if len(code) >= 2 && code[:2] == "08" {
+			return true
+		}
+	}
+
+	// Unwrap DatabaseError and check the inner error.
+	var dbErr *modelBase.DatabaseError
+	if errors.As(err, &dbErr) {
+		return isTransientDBErr(dbErr.Err)
+	}
+
+	return false
+}
+
+// isNotFoundErr checks if an error represents a "not found" condition,
+// unwrapping DatabaseError if necessary.
+func isNotFoundErr(err error) bool {
+	if errors.Is(err, sql.ErrNoRows) {
+		return true
+	}
+	var dbErr *modelBase.DatabaseError
+	if errors.As(err, &dbErr) {
+		return errors.Is(dbErr.Err, sql.ErrNoRows)
+	}
+	return false
 }
 
 // SecureCompareStrings performs a constant-time comparison of two strings to prevent timing attacks

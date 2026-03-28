@@ -248,6 +248,11 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if school.IsDeleted() {
+		common.RenderError(w, r, ErrorNotFound(errors.New("tenant not found")))
+		return
+	}
+
 	if !school.Active {
 		common.RenderError(w, r, ErrorNotFound(errors.New("tenant not found")))
 		return
@@ -380,9 +385,11 @@ type PublicTenantResponse struct {
 	OrganizationName string `json:"organization_name"`
 }
 
-// listTenants handles GET /auth/tenants (public, no auth required)
+// listTenants handles GET /auth/tenants (public, no auth required).
+// Uses ListPublic to exclude hidden schools from the public landing page.
+// Hidden schools remain accessible via direct subdomain link.
 func (rs *Resource) listTenants(w http.ResponseWriter, r *http.Request) {
-	schools, err := rs.SchoolRepo.ListActive(r.Context())
+	schools, err := rs.SchoolRepo.ListPublic(r.Context())
 	if err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
@@ -690,6 +697,8 @@ func (rs *Resource) refreshToken(w http.ResponseWriter, r *http.Request) {
 				common.RenderError(w, r, ErrorUnauthorized(authService.ErrAccountNotFound))
 			case errors.Is(authErr.Err, authService.ErrAccountInactive):
 				common.RenderError(w, r, ErrorUnauthorized(authService.ErrAccountInactive))
+			case errors.Is(authErr.Err, authService.ErrTenantNotFound):
+				common.RenderError(w, r, ErrorUnauthorized(authService.ErrTenantNotFound))
 			default:
 				common.RenderError(w, r, ErrorInternalServer(err))
 			}

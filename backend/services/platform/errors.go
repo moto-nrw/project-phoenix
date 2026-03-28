@@ -124,3 +124,62 @@ type OperatorDeviceNotFoundError struct {
 func (e *OperatorDeviceNotFoundError) Error() string {
 	return fmt.Sprintf("device with ID %d not found", e.DeviceID)
 }
+
+// SchoolAlreadyDeletedError is returned when trying to soft-delete an already deleted school.
+type SchoolAlreadyDeletedError struct {
+	SchoolID int64
+}
+
+func (e *SchoolAlreadyDeletedError) Error() string {
+	return fmt.Sprintf("school with ID %d is already soft-deleted", e.SchoolID)
+}
+
+// SchoolNotDeletedError is returned when trying to restore a school that is not soft-deleted.
+type SchoolNotDeletedError struct {
+	SchoolID int64
+}
+
+func (e *SchoolNotDeletedError) Error() string {
+	return fmt.Sprintf("school with ID %d is not soft-deleted", e.SchoolID)
+}
+
+// DeviceInUseError is returned when a device cannot be deleted because it is
+// still referenced by attendance or active-group records.
+type DeviceInUseError struct {
+	DeviceID int64
+}
+
+func (e *DeviceInUseError) Error() string {
+	return fmt.Sprintf("device with ID %d is still in use and cannot be deleted", e.DeviceID)
+}
+
+// DeviceProtectedError is returned when attempting to delete a system-managed
+// device that must not be removed (e.g. the web-manual virtual device).
+type DeviceProtectedError struct {
+	DeviceID int64
+	Reason   string
+}
+
+func (e *DeviceProtectedError) Error() string {
+	return fmt.Sprintf("device with ID %d is protected: %s", e.DeviceID, e.Reason)
+}
+
+// PersonNotFoundError is returned when a person does not exist or was already soft-deleted.
+type PersonNotFoundError struct {
+	PersonID int64
+}
+
+func (e *PersonNotFoundError) Error() string {
+	return fmt.Sprintf("person with ID %d not found", e.PersonID)
+}
+
+// PersonHasActiveSupervisionsError is returned when a person cannot be deleted
+// because the associated staff member has active group supervisions.
+type PersonHasActiveSupervisionsError struct {
+	PersonID int64
+	Count    int
+}
+
+func (e *PersonHasActiveSupervisionsError) Error() string {
+	return fmt.Sprintf("person with ID %d has %d active supervision(s) and cannot be deleted", e.PersonID, e.Count)
+}

@@ -839,4 +839,49 @@ func TestDeviceRepository_List_WithFilters(t *testing.T) {
 		}
 		assert.True(t, found)
 	})
+
+	t.Run("filters by exclude_device_id", func(t *testing.T) {
+		webManualDevice := testpkg.EnsureWebManualDevice(t, db)
+
+		virtualDevice := &iot.Device{
+			DeviceID:   fmt.Sprintf("virtual-visible-%d", time.Now().UnixNano()),
+			DeviceType: iot.DeviceTypeVirtual,
+			Status:     iot.DeviceStatusActive,
+		}
+		err := repo.Create(ctx, virtualDevice)
+		require.NoError(t, err)
+		defer testpkg.CleanupTableRecords(t, db, "iot.devices", virtualDevice.ID)
+
+		normalDevice := &iot.Device{
+			DeviceID:   fmt.Sprintf("exclude-type-%d", time.Now().UnixNano()),
+			DeviceType: "terminal",
+			Status:     iot.DeviceStatusActive,
+		}
+		err = repo.Create(ctx, normalDevice)
+		require.NoError(t, err)
+		defer testpkg.CleanupTableRecords(t, db, "iot.devices", normalDevice.ID)
+
+		devices, err := repo.List(ctx, map[string]interface{}{
+			"exclude_device_id": iot.WebManualDeviceID,
+		})
+		require.NoError(t, err)
+
+		var foundWebManual bool
+		var foundVirtual bool
+		var foundNormal bool
+		for _, d := range devices {
+			if d.ID == webManualDevice.ID {
+				foundWebManual = true
+			}
+			if d.ID == virtualDevice.ID {
+				foundVirtual = true
+			}
+			if d.ID == normalDevice.ID {
+				foundNormal = true
+			}
+		}
+		assert.False(t, foundWebManual, "reserved web manual device should be excluded")
+		assert.True(t, foundVirtual, "tenant-managed virtual devices should still be listed")
+		assert.True(t, foundNormal, "normal device should not be excluded")
+	})
 }

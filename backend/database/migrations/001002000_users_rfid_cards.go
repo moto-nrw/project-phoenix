@@ -16,11 +16,11 @@ const (
 
 func init() {
 	// Register migration with explicit version
-	MigrationRegistry[UsersRFIDCardsVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     UsersRFIDCardsVersion,
 		Description: UsersRFIDCardsDescription,
 		DependsOn:   []string{"1.0.9"}, // Depends on auth tables //
-	}
+	})
 
 	// Migration 1.2.0: Users RFID cards table
 	Migrations.MustRegister(

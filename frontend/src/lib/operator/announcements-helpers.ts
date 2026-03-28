@@ -20,6 +20,8 @@ export interface BackendAnnouncement {
   published_at?: string | null;
   expires_at?: string | null;
   target_roles: string[];
+  target_org_ids: number[];
+  target_tenant_ids: number[];
   created_by: number;
   created_at: string;
   updated_at: string;
@@ -37,6 +39,8 @@ export interface Announcement {
   publishedAt: string | null;
   expiresAt: string | null;
   targetRoles: SystemRole[];
+  targetOrgIds: string[];
+  targetTenantIds: string[];
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -83,6 +87,8 @@ export interface CreateAnnouncementRequest {
   version?: string;
   expires_at?: string;
   target_roles?: SystemRole[];
+  target_org_ids?: number[];
+  target_tenant_ids?: number[];
 }
 
 export interface UpdateAnnouncementRequest {
@@ -94,6 +100,8 @@ export interface UpdateAnnouncementRequest {
   active?: boolean;
   expires_at?: string | null;
   target_roles?: SystemRole[];
+  target_org_ids?: number[];
+  target_tenant_ids?: number[];
 }
 
 export function mapAnnouncement(data: BackendAnnouncement): Announcement {
@@ -108,6 +116,8 @@ export function mapAnnouncement(data: BackendAnnouncement): Announcement {
     publishedAt: data.published_at ?? null,
     expiresAt: data.expires_at ?? null,
     targetRoles: (data.target_roles ?? []) as SystemRole[],
+    targetOrgIds: (data.target_org_ids ?? []).map(String),
+    targetTenantIds: (data.target_tenant_ids ?? []).map(String),
     createdBy: data.created_by.toString(),
     createdAt: data.created_at,
     updatedAt: data.updated_at,

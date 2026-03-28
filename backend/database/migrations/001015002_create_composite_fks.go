@@ -15,11 +15,11 @@ const (
 )
 
 func init() {
-	MigrationRegistry[compositeFKsVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     compositeFKsVersion,
 		Description: compositeFKsDescription,
 		DependsOn:   []string{"1.15.1", "1.14.4"}, // RLS enabled + UNIQUE(tenant_id, id) indexes exist
-	}
+	})
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {

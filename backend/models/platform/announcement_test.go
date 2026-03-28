@@ -259,3 +259,93 @@ func TestAnnouncement_GetUpdatedAt(t *testing.T) {
 	a.UpdatedAt = now
 	assert.Equal(t, now, a.GetUpdatedAt())
 }
+
+func TestAnnouncement_Validate_NilSliceNormalization(t *testing.T) {
+	tests := []struct {
+		name            string
+		targetOrgIDs    []int64
+		targetTenantIDs []int64
+		targetRoles     []string
+		wantOrgIDs      []int64
+		wantTenantIDs   []int64
+		wantRoles       []string
+	}{
+		{
+			name:            "nil TargetOrgIDs normalized to empty",
+			targetOrgIDs:    nil,
+			targetTenantIDs: []int64{5},
+			targetRoles:     []string{"admin"},
+			wantOrgIDs:      []int64{},
+			wantTenantIDs:   []int64{5},
+			wantRoles:       []string{"admin"},
+		},
+		{
+			name:            "nil TargetTenantIDs normalized to empty",
+			targetOrgIDs:    []int64{1, 2},
+			targetTenantIDs: nil,
+			targetRoles:     []string{"user"},
+			wantOrgIDs:      []int64{1, 2},
+			wantTenantIDs:   []int64{},
+			wantRoles:       []string{"user"},
+		},
+		{
+			name:            "nil TargetRoles normalized to empty",
+			targetOrgIDs:    []int64{1},
+			targetTenantIDs: []int64{10},
+			targetRoles:     nil,
+			wantOrgIDs:      []int64{1},
+			wantTenantIDs:   []int64{10},
+			wantRoles:       []string{},
+		},
+		{
+			name:            "all three nil normalized to empty",
+			targetOrgIDs:    nil,
+			targetTenantIDs: nil,
+			targetRoles:     nil,
+			wantOrgIDs:      []int64{},
+			wantTenantIDs:   []int64{},
+			wantRoles:       []string{},
+		},
+		{
+			name:            "non-nil slices preserved",
+			targetOrgIDs:    []int64{1, 2, 3},
+			targetTenantIDs: []int64{10, 20},
+			targetRoles:     []string{"admin", "user"},
+			wantOrgIDs:      []int64{1, 2, 3},
+			wantTenantIDs:   []int64{10, 20},
+			wantRoles:       []string{"admin", "user"},
+		},
+		{
+			name:            "empty non-nil slices preserved",
+			targetOrgIDs:    []int64{},
+			targetTenantIDs: []int64{},
+			targetRoles:     []string{},
+			wantOrgIDs:      []int64{},
+			wantTenantIDs:   []int64{},
+			wantRoles:       []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := &Announcement{
+				Title:           "Title",
+				Content:         "Content",
+				Type:            TypeAnnouncement,
+				Severity:        SeverityInfo,
+				CreatedBy:       1,
+				TargetOrgIDs:    tt.targetOrgIDs,
+				TargetTenantIDs: tt.targetTenantIDs,
+				TargetRoles:     tt.targetRoles,
+			}
+			err := a.Validate()
+			assert.NoError(t, err)
+			assert.NotNil(t, a.TargetOrgIDs)
+			assert.NotNil(t, a.TargetTenantIDs)
+			assert.NotNil(t, a.TargetRoles)
+			assert.Equal(t, tt.wantOrgIDs, a.TargetOrgIDs)
+			assert.Equal(t, tt.wantTenantIDs, a.TargetTenantIDs)
+			assert.Equal(t, tt.wantRoles, a.TargetRoles)
+		})
+	}
+}

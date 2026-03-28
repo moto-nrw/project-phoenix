@@ -15,11 +15,11 @@ const (
 )
 
 func init() {
-	MigrationRegistry[workSessionsVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     workSessionsVersion,
 		Description: workSessionsDescription,
 		DependsOn:   []string{"1.0.1"}, // Depends on schema creation
-	}
+	})
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {

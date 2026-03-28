@@ -16,11 +16,11 @@ const (
 
 func init() {
 	// Register migration with explicit version
-	MigrationRegistry[AuthPermissionsVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     AuthPermissionsVersion,
 		Description: AuthPermissionsDescription,
 		DependsOn:   []string{"1.0.4"}, // Depends on auth.roles
-	}
+	})
 
 	// Migration 1.0.5: Create auth.permissions table
 	Migrations.MustRegister(

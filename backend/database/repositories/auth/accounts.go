@@ -230,6 +230,40 @@ func (r *AccountRepository) FindAccountsWithRolesAndPermissions(ctx context.Cont
 	return accounts, nil
 }
 
+// FindEmailsByAccountIDs batch-loads email addresses for the given account IDs.
+// Returns a map of accountID → email.
+func (r *AccountRepository) FindEmailsByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64]string, error) {
+	if len(accountIDs) == 0 {
+		return make(map[int64]string), nil
+	}
+
+	type accountEmailRow struct {
+		ID    int64  `bun:"id"`
+		Email string `bun:"email"`
+	}
+
+	var rows []accountEmailRow
+	err := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(accountTable).
+		Column("id", "email").
+		Where("id IN (?)", bun.List(accountIDs)).
+		Scan(ctx, &rows)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find emails by account IDs",
+			Err: err,
+		}
+	}
+
+	result := make(map[int64]string, len(rows))
+	for _, row := range rows {
+		result[row.ID] = row.Email
+	}
+
+	return result, nil
+}
+
 // loadAccountsByFilters loads accounts based on provided filters
 func (r *AccountRepository) loadAccountsByFilters(ctx context.Context, tx bun.Tx, accounts *[]*auth.Account, filters map[string]interface{}) error {
 	query := tx.NewSelect().

@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	sentryhttp "github.com/getsentry/sentry-go/http"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
@@ -147,6 +148,8 @@ func setupBasicMiddleware(router chi.Router, logger *slog.Logger) {
 		},
 	}))
 	router.Use(middleware.Recoverer)
+	sentryMiddleware := sentryhttp.New(sentryhttp.Options{Repanic: true})
+	router.Use(sentryMiddleware.Handle)
 	router.Use(customMiddleware.SecurityHeaders)
 }
 
@@ -274,6 +277,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		IoTService:            api.Services.IoT,
 		PrivacyConsentRepo:    repoFactory.PrivacyConsent,
 		PickupScheduleService: api.Services.PickupSchedule,
+		SchoolRepo:            repoFactory.School,
 		DB:                    db,
 	})
 	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, repoFactory.Student, repoFactory.GroupSubstitution, db)
@@ -288,17 +292,18 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Settings = configAPI.NewSettingsResource(api.Services.Settings, db)
 	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, api.Services.Schulhof, api.Services.UserContext, db, logger.With("handler", "active"))
 	api.IoT = iotAPI.NewResource(iotAPI.ServiceDependencies{
-		IoTService:        api.Services.IoT,
-		UsersService:      api.Services.Users,
-		ActiveService:     api.Services.Active,
-		ActivitiesService: api.Services.Activities,
-		ConfigService:     api.Services.Config,
-		SettingsService:   api.Services.Settings,
-		FacilityService:   api.Services.Facilities,
-		EducationService:  api.Services.Education,
-		FeedbackService:   api.Services.Feedback,
-		Logger:            logger.With("handler", "iot"),
-		DB:                db,
+		IoTService:            api.Services.IoT,
+		UsersService:          api.Services.Users,
+		ActiveService:         api.Services.Active,
+		ActivitiesService:     api.Services.Activities,
+		ConfigService:         api.Services.Config,
+		FacilityService:       api.Services.Facilities,
+		EducationService:      api.Services.Education,
+		FeedbackService:       api.Services.Feedback,
+		PickupScheduleService: api.Services.PickupSchedule,
+		SchoolRepo:            repoFactory.School,
+		Logger:                logger.With("handler", "iot"),
+		DB:                    db,
 	})
 	api.SSE = sseAPI.NewResource(api.Services.RealtimeHub, api.Services.Active, api.Services.Users, api.Services.UserContext, db, logger.With("handler", "sse"))
 	api.Users = usersAPI.NewResource(api.Services.Users, db)

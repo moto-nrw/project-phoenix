@@ -134,7 +134,6 @@ describe("ActivityDetailPage", () => {
 
   it("renders loading state initially", () => {
     vi.mocked(fetchActivity).mockImplementation(
-      // eslint-disable-next-line @typescript-eslint/no-empty-function
       () => new Promise(() => {}), // Never resolves
     );
 
@@ -347,7 +346,6 @@ describe("ActivityDetailPage", () => {
   });
 
   it("handles enrolled students fetch failure gracefully", async () => {
-    // eslint-disable-next-line @typescript-eslint/no-empty-function
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     vi.mocked(getEnrolledStudents).mockRejectedValue(
       new Error("Students fetch failed"),
@@ -369,7 +367,6 @@ describe("ActivityDetailPage", () => {
   });
 
   it("handles timeframes fetch failure gracefully", async () => {
-    // eslint-disable-next-line @typescript-eslint/no-empty-function
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     vi.mocked(getTimeframes).mockRejectedValue(
       new Error("Timeframes fetch failed"),

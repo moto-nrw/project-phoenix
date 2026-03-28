@@ -16,11 +16,11 @@ const (
 
 func init() {
 	// Register migration with explicit version
-	MigrationRegistry[MakeStudentGuardianFieldsOptionalVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     MakeStudentGuardianFieldsOptionalVersion,
 		Description: MakeStudentGuardianFieldsOptionalDescription,
 		DependsOn:   []string{"1.3.6"}, // Depends on students_guardians junction table
-	}
+	})
 
 	// Migration 1.3.6.1: Make guardian fields optional
 	Migrations.MustRegister(

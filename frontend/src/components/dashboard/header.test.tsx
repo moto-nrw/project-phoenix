@@ -34,14 +34,6 @@ vi.mock("next-auth/react", () => ({
   useSession: () => mockUseSession(),
 }));
 
-vi.mock("@/components/ui/help_button", () => ({
-  HelpButton: () => <button data-testid="help-button">Help</button>,
-}));
-
-vi.mock("@/lib/help-content", () => ({
-  getHelpContent: () => ({ title: "Help Title", content: "Help Content" }),
-}));
-
 vi.mock("~/components/tenant/tenant-switcher", () => ({
   TenantSwitcher: () => <div data-testid="tenant-switcher">Tenant</div>,
 }));
@@ -195,11 +187,6 @@ describe("Header", () => {
     render(<Header />);
     expect(screen.getByTestId("brand-link")).toBeInTheDocument();
     expect(screen.getByTestId("divider")).toBeInTheDocument();
-  });
-
-  it("renders help button on desktop", () => {
-    render(<Header />);
-    expect(screen.getByTestId("help-button")).toBeInTheDocument();
   });
 
   it("renders session warnings for both desktop and mobile", () => {

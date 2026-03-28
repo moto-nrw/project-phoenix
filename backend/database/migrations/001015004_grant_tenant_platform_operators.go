@@ -13,11 +13,11 @@ const (
 )
 
 func init() {
-	MigrationRegistry[grantTenantPlatformOperatorsVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     grantTenantPlatformOperatorsVersion,
 		Description: grantTenantPlatformOperatorsDescription,
 		DependsOn:   []string{"1.15.3"}, // after drop defaults
-	}
+	})
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {

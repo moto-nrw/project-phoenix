@@ -16,11 +16,9 @@ import {
 
 // Mock the mapping functions
 vi.mock("./invitation-helpers", async () => {
-  const actual =
-    // eslint-disable-next-line @typescript-eslint/consistent-type-imports
-    await vi.importActual<typeof import("./invitation-helpers")>(
-      "./invitation-helpers",
-    );
+  const actual = await vi.importActual<typeof import("./invitation-helpers")>(
+    "./invitation-helpers",
+  );
   return {
     ...actual,
     mapInvitationValidationResponse: vi.fn(
@@ -315,7 +313,6 @@ describe("invitation-api", () => {
       expect(warnSpy).toHaveBeenCalledWith(
         "failed to parse invitation API error",
         {
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
           error: expect.any(String),
         },
       );

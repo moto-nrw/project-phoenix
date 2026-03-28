@@ -15,7 +15,6 @@ const mockUpdateGuardianPhoneNumber = vi.fn();
 const mockDeleteGuardianPhoneNumber = vi.fn();
 const mockSetGuardianPrimaryPhone = vi.fn();
 
-/* eslint-disable @typescript-eslint/no-unsafe-return */
 vi.mock("@/lib/guardian-api", () => ({
   fetchStudentGuardians: () => mockFetchStudentGuardians(),
   createGuardian: (data: unknown) => mockCreateGuardian(data),
@@ -38,7 +37,6 @@ vi.mock("@/lib/guardian-api", () => ({
   setGuardianPrimaryPhone: (guardianId: string, phoneId: string) =>
     mockSetGuardianPrimaryPhone(guardianId, phoneId),
 }));
-/* eslint-enable @typescript-eslint/no-unsafe-return */
 
 // Mock toast context
 const mockToastSuccess = vi.fn();
@@ -166,7 +164,6 @@ vi.mock("./guardian-delete-modal", () => ({
 
 // Mock helper function - note: we only mock what we need
 vi.mock("@/lib/guardian-helpers", async () => {
-  // eslint-disable-next-line @typescript-eslint/consistent-type-imports
   const actual = await vi.importActual<typeof import("@/lib/guardian-helpers")>(
     "@/lib/guardian-helpers",
   );

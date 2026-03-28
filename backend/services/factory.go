@@ -414,6 +414,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		AnnouncementRepo:     repos.Announcement,
 		AnnouncementViewRepo: repos.AnnouncementView,
 		AuditLogRepo:         repos.OperatorAuditLog,
+		OrgRepo:              repos.Organization,
+		SchoolRepo:           repos.School,
 		DB:                   db,
 		Logger:               platformLogger,
 	})
@@ -429,20 +431,21 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	})
 
 	operatorProvisioningService := platform.NewOperatorProvisioningService(platform.OperatorProvisioningServiceConfig{
-		OrganizationRepo:  repos.Organization,
-		SchoolRepo:        repos.School,
-		CategoryRepo:      repos.ActivityCategory,
-		DeviceRepo:        repos.Device,
-		RoleRepo:          repos.Role,
-		AccountTenantRepo: repos.AccountTenant,
-		PersonRepo:        repos.Person,
-		StaffRepo:         repos.Staff,
-		TeacherRepo:       repos.Teacher,
-		InvitationService: invitationService,
-		AuthService:       authService,
-		AuditLogRepo:      repos.OperatorAuditLog,
-		DB:                db,
-		Logger:            platformLogger,
+		OrganizationRepo:    repos.Organization,
+		SchoolRepo:          repos.School,
+		CategoryRepo:        repos.ActivityCategory,
+		DeviceRepo:          repos.Device,
+		RoleRepo:            repos.Role,
+		AccountTenantRepo:   repos.AccountTenant,
+		PersonRepo:          repos.Person,
+		StaffRepo:           repos.Staff,
+		TeacherRepo:         repos.Teacher,
+		GroupSupervisorRepo: repos.GroupSupervisor,
+		InvitationService:   invitationService,
+		AuthService:         authService,
+		AuditLogRepo:        repos.OperatorAuditLog,
+		DB:                  db,
+		Logger:              platformLogger,
 	})
 
 	return &Factory{

@@ -200,18 +200,13 @@ describe("handleStudentFormSubmit", () => {
   let mockSetErrors: ReturnType<
     typeof vi.fn<(errors: Record<string, string>) => void>
   >;
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
-
   beforeEach(() => {
     mockEvent = { preventDefault: vi.fn() };
     mockValidateForm = vi.fn<() => boolean>();
     mockOnSubmit = vi.fn<(data: Partial<Student>) => Promise<void>>();
     mockSetLoading = vi.fn<(loading: boolean) => void>();
     mockSetErrors = vi.fn<(errors: Record<string, string>) => void>();
-    consoleErrorSpy = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => undefined);
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
   });
 
   it("prevents default form submission", async () => {

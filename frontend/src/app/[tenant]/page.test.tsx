@@ -15,7 +15,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 const mockSignIn = vi.fn();
 vi.mock("next-auth/react", () => ({
   signIn: (provider: string, options?: Record<string, unknown>) =>
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     mockSignIn(provider, options),
   useSession: vi.fn(() => ({
     data: null,
@@ -111,7 +110,6 @@ vi.mock("~/components/ui", () => ({
   Alert: ({ type, message }: { type: string; message: string }) => (
     <div data-testid={`alert-${type}`}>{message}</div>
   ),
-  HelpButton: () => <button data-testid="help-button">Help</button>,
 }));
 
 // Mock next/image
@@ -205,14 +203,6 @@ describe("HomePage (Login)", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Passwort vergessen?")).toBeInTheDocument();
-    });
-  });
-
-  it("renders help button", async () => {
-    render(<HomePage />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("help-button")).toBeInTheDocument();
     });
   });
 

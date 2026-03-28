@@ -45,7 +45,6 @@ vi.mock("~/components/ui", () => ({
   Alert: ({ message }: { message: string }) => (
     <div role="alert">{message}</div>
   ),
-  HelpButton: () => <button>Help</button>,
 }));
 
 vi.mock("~/components/ui/loading", () => ({
@@ -58,10 +57,6 @@ vi.mock("~/components/shared/password-toggle-button", () => ({
       Toggle
     </button>
   ),
-}));
-
-vi.mock("~/components/shared/login-help-content", () => ({
-  LoginHelpContent: () => <div>Help Content</div>,
 }));
 
 import OperatorLoginPage from "./page";
@@ -151,7 +146,7 @@ describe("OperatorLoginPage", () => {
   it("redirects when already authenticated as operator", () => {
     mockUseSession.mockReturnValue({
       status: "authenticated",
-      data: { user: { scope: "platform" } },
+      data: { user: { scope: "platform", token: "valid-token" } },
     });
 
     render(<OperatorLoginPage />);

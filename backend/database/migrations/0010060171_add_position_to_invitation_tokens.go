@@ -10,18 +10,18 @@ import (
 )
 
 const (
-	AddPositionToInvitationTokensVersion     = "1.6.17"
+	AddPositionToInvitationTokensVersion     = "1.6.17.1"
 	AddPositionToInvitationTokensDescription = "Add position column to auth.invitation_tokens"
 )
 
 func init() {
-	MigrationRegistry[AddPositionToInvitationTokensVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     AddPositionToInvitationTokensVersion,
 		Description: AddPositionToInvitationTokensDescription,
 		DependsOn: []string{
 			AuthInvitationTokensVersion, // 1.4.9
 		},
-	}
+	})
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {

@@ -15,11 +15,11 @@ const (
 )
 
 func init() {
-	MigrationRegistry[dropTenantDefaultsVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     dropTenantDefaultsVersion,
 		Description: dropTenantDefaultsDescription,
 		DependsOn:   []string{"1.15.2"}, // composite FKs in place
-	}
+	})
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {

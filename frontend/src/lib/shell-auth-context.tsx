@@ -59,7 +59,6 @@ export function TeacherShellProvider({
   const value = useMemo<ShellAuthContextType>(() => {
     const user: ShellUser | null = session?.user
       ? {
-          // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- intentionally treat empty string as falsy
           name: session.user.name?.trim() || "Benutzer",
           email: session.user.email ?? "",
           roles: session.user.roles ?? [],
@@ -133,7 +132,6 @@ export function OperatorShellProvider({
   const value = useMemo<ShellAuthContextType>(() => {
     const user: ShellUser | null = session?.user
       ? {
-          // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- intentionally treat empty string as falsy
           name: session.user.name?.trim() || "Operator",
           email: session.user.email ?? "",
           roles: session.user.roles ?? ["operator"],

@@ -126,7 +126,7 @@ describe("useActivityForm", () => {
 
     it("should handle null response from getCategories", async () => {
       // Testing defensive code: hook uses ?? [] to handle unexpected null
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument
+
       vi.mocked(getCategories).mockResolvedValue(null as any);
 
       const { result } = renderHook(() => useActivityForm(initialForm, true));
@@ -141,7 +141,7 @@ describe("useActivityForm", () => {
 
     it("should handle undefined response from getCategories", async () => {
       // Testing defensive code: hook uses ?? [] to handle unexpected undefined
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument
+
       vi.mocked(getCategories).mockResolvedValue(undefined as any);
 
       const { result } = renderHook(() => useActivityForm(initialForm, true));

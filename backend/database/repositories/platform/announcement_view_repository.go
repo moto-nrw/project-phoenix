@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -81,13 +82,12 @@ func (r *AnnouncementViewRepository) MarkDismissed(ctx context.Context, userID, 
 	return nil
 }
 
-// GetUnreadForUser retrieves all unread active announcements for a user filtered by roles
-func (r *AnnouncementViewRepository) GetUnreadForUser(ctx context.Context, userID int64, userRoles []string) ([]*platform.Announcement, error) {
+// GetUnreadForUser retrieves all unread active announcements for a user scoped to the current session tenant/org.
+// Only announcements that are global OR target the user's current tenant/org are returned.
+func (r *AnnouncementViewRepository) GetUnreadForUser(ctx context.Context, userID int64, userRoles []string, tenantID int64, orgID int64) ([]*platform.Announcement, error) {
 	var announcements []*platform.Announcement
 	now := time.Now()
 
-	// Use raw SQL for complex query with aliases to avoid BUN's quote escaping issues
-	// target_roles = '{}' means all roles can see it, otherwise check overlap with user's roles
 	err := base.GetDB(ctx, r.db).NewRaw(`
 		SELECT a.*
 		FROM platform.announcements a
@@ -100,8 +100,13 @@ func (r *AnnouncementViewRepository) GetUnreadForUser(ctx context.Context, userI
 			AND v.seen_at IS NULL
 			AND (a.target_roles = '{}' OR EXISTS (
 				SELECT 1 FROM unnest(a.target_roles) AS r WHERE r IN (?)))
+			AND (
+				(a.target_org_ids = '{}' AND a.target_tenant_ids = '{}')
+				OR (a.target_org_ids != '{}' AND ? = ANY(a.target_org_ids))
+				OR (a.target_tenant_ids != '{}' AND ? = ANY(a.target_tenant_ids))
+			)
 		ORDER BY a.published_at DESC
-	`, userID, now, now, bun.List(userRoles)).Scan(ctx, &announcements)
+	`, userID, now, now, bun.List(userRoles), orgID, tenantID).Scan(ctx, &announcements)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -113,8 +118,8 @@ func (r *AnnouncementViewRepository) GetUnreadForUser(ctx context.Context, userI
 	return announcements, nil
 }
 
-// CountUnread counts unread announcements for a user filtered by roles
-func (r *AnnouncementViewRepository) CountUnread(ctx context.Context, userID int64, userRoles []string) (int, error) {
+// CountUnread counts unread announcements for a user scoped to the current session tenant/org.
+func (r *AnnouncementViewRepository) CountUnread(ctx context.Context, userID int64, userRoles []string, tenantID int64, orgID int64) (int, error) {
 	now := time.Now()
 
 	var count int
@@ -130,7 +135,12 @@ func (r *AnnouncementViewRepository) CountUnread(ctx context.Context, userID int
 			AND v.seen_at IS NULL
 			AND (a.target_roles = '{}' OR EXISTS (
 				SELECT 1 FROM unnest(a.target_roles) AS r WHERE r IN (?)))
-	`, userID, now, now, bun.List(userRoles)).Scan(ctx, &count)
+			AND (
+				(a.target_org_ids = '{}' AND a.target_tenant_ids = '{}')
+				OR (a.target_org_ids != '{}' AND ? = ANY(a.target_org_ids))
+				OR (a.target_tenant_ids != '{}' AND ? = ANY(a.target_tenant_ids))
+			)
+	`, userID, now, now, bun.List(userRoles), orgID, tenantID).Scan(ctx, &count)
 
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
@@ -148,36 +158,76 @@ func (r *AnnouncementViewRepository) GetStats(ctx context.Context, announcementI
 		AnnouncementID: announcementID,
 	}
 
-	// Get the target_roles for this announcement
-	var targetRoles []string
+	// Get the targeting criteria for this announcement.
+	// Use a typed struct so bun/pgdriver correctly deserializes bigint[] columns
+	// (positional Scan with []int64 fails because database/sql sees them as text).
+	var targeting struct {
+		TargetRoles     []string `bun:"target_roles,array"`
+		TargetOrgIDs    []int64  `bun:"target_org_ids,array"`
+		TargetTenantIDs []int64  `bun:"target_tenant_ids,array"`
+	}
 	err := base.GetDB(ctx, r.db).NewRaw(`
-		SELECT COALESCE(target_roles, '{}') FROM platform.announcements WHERE id = ?
-	`, announcementID).Scan(ctx, &targetRoles)
+		SELECT
+			COALESCE(target_roles, '{}'::text[]) AS target_roles,
+			COALESCE(target_org_ids, '{}'::bigint[]) AS target_org_ids,
+			COALESCE(target_tenant_ids, '{}'::bigint[]) AS target_tenant_ids
+		FROM platform.announcements WHERE id = ?
+	`, announcementID).Scan(ctx, &targeting)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
-			Op:  "get announcement target_roles",
+			Op:  "get announcement targeting criteria",
 			Err: err,
 		}
 	}
 
-	// Count target users (users with matching roles)
-	if len(targetRoles) == 0 {
-		// All users can see it - count all accounts with roles
-		err = base.GetDB(ctx, r.db).NewRaw(`
-			SELECT COUNT(DISTINCT acc.id)
-			FROM auth.accounts acc
-			WHERE acc.id IS NOT NULL
-		`).Scan(ctx, &stats.TargetCount)
-	} else {
-		// Only users with matching roles
-		err = base.GetDB(ctx, r.db).NewRaw(`
-			SELECT COUNT(DISTINCT acc.id)
-			FROM auth.accounts acc
-			JOIN auth.account_roles ar ON ar.account_id = acc.id
-			JOIN auth.roles r ON r.id = ar.role_id
-			WHERE r.name IN (?)
-		`, bun.List(targetRoles)).Scan(ctx, &stats.TargetCount)
+	targetRoles := targeting.TargetRoles
+	targetOrgIDs := targeting.TargetOrgIDs
+	targetTenantIDs := targeting.TargetTenantIDs
+	hasRoleFilter := len(targetRoles) > 0
+	hasOrgFilter := len(targetOrgIDs) > 0
+	hasTenantFilter := len(targetTenantIDs) > 0
+
+	// Build the target count query dynamically instead of 2^N switch branches.
+	// Base: count distinct accounts with active tenant membership.
+	// Role filter: JOIN account_roles correlated with the SAME tenant row (ar.tenant_id = at.tenant_id)
+	//              so a user who is admin in school A but teacher in school B is not overcounted.
+	// Org/tenant filter: JOIN schools for org lookup, OR-union when both are present.
+	var queryParts []string
+	var queryArgs []any
+
+	queryParts = append(queryParts, `SELECT COUNT(DISTINCT at.account_id) FROM auth.account_tenants at`)
+
+	// Always need schools join when org filter is active
+	if hasOrgFilter {
+		queryParts = append(queryParts, `JOIN platform.schools s ON s.id = at.tenant_id`)
 	}
+
+	// Role filter: correlate role assignment with the same tenant
+	if hasRoleFilter {
+		queryParts = append(queryParts, `JOIN auth.account_roles ar ON ar.account_id = at.account_id AND ar.tenant_id = at.tenant_id`)
+		queryParts = append(queryParts, `JOIN auth.roles r ON r.id = ar.role_id`)
+	}
+
+	queryParts = append(queryParts, `WHERE at.status = 'active'`)
+
+	if hasRoleFilter {
+		queryParts = append(queryParts, `AND r.name IN (?)`)
+		queryArgs = append(queryArgs, bun.List(targetRoles))
+	}
+
+	if hasOrgFilter && hasTenantFilter {
+		queryParts = append(queryParts, `AND (s.organization_id IN (?) OR at.tenant_id IN (?))`)
+		queryArgs = append(queryArgs, bun.List(targetOrgIDs), bun.List(targetTenantIDs))
+	} else if hasOrgFilter {
+		queryParts = append(queryParts, `AND s.organization_id IN (?)`)
+		queryArgs = append(queryArgs, bun.List(targetOrgIDs))
+	} else if hasTenantFilter {
+		queryParts = append(queryParts, `AND at.tenant_id IN (?)`)
+		queryArgs = append(queryArgs, bun.List(targetTenantIDs))
+	}
+
+	rawSQL := strings.Join(queryParts, " ")
+	err = base.GetDB(ctx, r.db).NewRaw(rawSQL, queryArgs...).Scan(ctx, &stats.TargetCount)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "count target users",

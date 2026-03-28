@@ -1,5 +1,6 @@
 /* styles/globals.css */
 @import "tailwindcss";
+@import "@moto-nrw/design-system/tailwind";
 @import '@fontsource/geist-sans';
 @import '@fontsource/geist-sans/800.css'; /* Ensure font-weight 800 is loaded */
 

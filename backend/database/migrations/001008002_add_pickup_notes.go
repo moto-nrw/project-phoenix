@@ -17,11 +17,11 @@ var AddPickupNotesDependsOn = []string{
 }
 
 func init() {
-	MigrationRegistry[addPickupNotesVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     addPickupNotesVersion,
 		Description: addPickupNotesDescription,
 		DependsOn:   AddPickupNotesDependsOn,
-	}
+	})
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {

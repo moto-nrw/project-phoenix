@@ -32,17 +32,11 @@ import (
 // getStudentDailyCheckoutTime TESTS
 // =============================================================================
 
-// newTestResource creates a minimal Resource with nil Settings (env var fallback).
-func newTestResource() *Resource {
-	return &Resource{}
-}
-
 func TestGetStudentDailyCheckoutTime_Default(t *testing.T) {
 	// Clear any existing env var
 	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
 
-	rs := newTestResource()
-	checkoutTime, err := rs.getStudentDailyCheckoutTime(context.Background())
+	checkoutTime, err := getStudentDailyCheckoutTime()
 	require.NoError(t, err)
 
 	// Default should be 15:00
@@ -54,8 +48,7 @@ func TestGetStudentDailyCheckoutTime_CustomValid(t *testing.T) {
 	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "14:30"))
 	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
 
-	rs := newTestResource()
-	checkoutTime, err := rs.getStudentDailyCheckoutTime(context.Background())
+	checkoutTime, err := getStudentDailyCheckoutTime()
 	require.NoError(t, err)
 
 	assert.Equal(t, 14, checkoutTime.Hour())
@@ -66,8 +59,7 @@ func TestGetStudentDailyCheckoutTime_InvalidFormat(t *testing.T) {
 	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "invalid"))
 	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
 
-	rs := newTestResource()
-	_, err := rs.getStudentDailyCheckoutTime(context.Background())
+	_, err := getStudentDailyCheckoutTime()
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid checkout time format")
 }
@@ -76,8 +68,7 @@ func TestGetStudentDailyCheckoutTime_InvalidHour(t *testing.T) {
 	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "25:00"))
 	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
 
-	rs := newTestResource()
-	_, err := rs.getStudentDailyCheckoutTime(context.Background())
+	_, err := getStudentDailyCheckoutTime()
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid hour")
 }
@@ -86,8 +77,7 @@ func TestGetStudentDailyCheckoutTime_InvalidMinute(t *testing.T) {
 	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "12:99"))
 	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
 
-	rs := newTestResource()
-	_, err := rs.getStudentDailyCheckoutTime(context.Background())
+	_, err := getStudentDailyCheckoutTime()
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid minute")
 }
@@ -96,8 +86,7 @@ func TestGetStudentDailyCheckoutTime_NegativeHour(t *testing.T) {
 	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "-1:00"))
 	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
 
-	rs := newTestResource()
-	_, err := rs.getStudentDailyCheckoutTime(context.Background())
+	_, err := getStudentDailyCheckoutTime()
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid hour")
 }
@@ -106,8 +95,7 @@ func TestGetStudentDailyCheckoutTime_NegativeMinute(t *testing.T) {
 	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "12:-5"))
 	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
 
-	rs := newTestResource()
-	_, err := rs.getStudentDailyCheckoutTime(context.Background())
+	_, err := getStudentDailyCheckoutTime()
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid minute")
 }
@@ -125,13 +113,12 @@ func TestGetStudentDailyCheckoutTime_EdgeCases(t *testing.T) {
 		{"noon", "12:00", 12, 0, false},
 	}
 
-	rs := newTestResource()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", tt.envVar))
 			defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
 
-			checkoutTime, err := rs.getStudentDailyCheckoutTime(context.Background())
+			checkoutTime, err := getStudentDailyCheckoutTime()
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
@@ -529,6 +516,53 @@ func TestBuildCheckinResponse_DailyCheckoutNotAvailable(t *testing.T) {
 }
 
 // =============================================================================
+// buildCheckinResponse PickupTime TESTS
+// =============================================================================
+
+func TestBuildCheckinResponse_WithPickupTime(t *testing.T) {
+	now := time.Now()
+	visitID := int64(300)
+	pickupTime := "15:30"
+	student := &users.Student{
+		Model:  base.Model{ID: 3},
+		Person: &users.Person{FirstName: "Lisa", LastName: "Test"},
+	}
+	result := &checkinResult{
+		Action:      "checked_in",
+		VisitID:     &visitID,
+		RoomName:    "Klassenraum 2b",
+		GreetingMsg: "Hallo Lisa!",
+		PickupTime:  &pickupTime,
+	}
+
+	response := buildCheckinResponse(student, result, now)
+
+	assert.Equal(t, "15:30", response["pickup_time"])
+	assert.Equal(t, "checked_in", response["action"])
+}
+
+func TestBuildCheckinResponse_WithoutPickupTime(t *testing.T) {
+	now := time.Now()
+	visitID := int64(400)
+	student := &users.Student{
+		Model:  base.Model{ID: 4},
+		Person: &users.Person{FirstName: "Tom", LastName: "Test"},
+	}
+	result := &checkinResult{
+		Action:      "checked_in",
+		VisitID:     &visitID,
+		RoomName:    "Library",
+		GreetingMsg: "Hallo Tom!",
+		// PickupTime is nil
+	}
+
+	response := buildCheckinResponse(student, result, now)
+
+	_, hasPickupTime := response["pickup_time"]
+	assert.False(t, hasPickupTime, "pickup_time should be omitted when nil")
+}
+
+// =============================================================================
 // roomNameByID TESTS (additional edge cases)
 // =============================================================================
 
@@ -914,13 +948,14 @@ func setupInternalTestResource(t *testing.T) *internalTestContext {
 	testpkg.EnsureTestTenant(t, db, 1)
 
 	rs := &Resource{
-		IoTService:        svc.IoT,
-		UsersService:      svc.Users,
-		ActiveService:     svc.Active,
-		FacilityService:   svc.Facilities,
-		ActivitiesService: svc.Activities,
-		EducationService:  svc.Education,
-		logger:            slog.Default(),
+		IoTService:            svc.IoT,
+		UsersService:          svc.Users,
+		ActiveService:         svc.Active,
+		FacilityService:       svc.Facilities,
+		ActivitiesService:     svc.Activities,
+		EducationService:      svc.Education,
+		PickupScheduleService: svc.PickupSchedule,
+		logger:                slog.Default(),
 	}
 
 	return &internalTestContext{rs: rs, db: db}

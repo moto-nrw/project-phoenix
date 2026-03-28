@@ -37,7 +37,6 @@ describe("createFileUploadHandler", () => {
 
   describe("authentication", () => {
     it("returns 401 when session is missing", async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access -- mock function needs flexible typing
       (auth as any).mockResolvedValue(null);
 
       const handler = vi.fn();
@@ -55,7 +54,6 @@ describe("createFileUploadHandler", () => {
     });
 
     it("returns 401 when session has no token", async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access -- mock function needs flexible typing
       (auth as any).mockResolvedValue({
         user: {},
       });
@@ -75,7 +73,6 @@ describe("createFileUploadHandler", () => {
     });
 
     it("proceeds when session has valid token", async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access -- mock function needs flexible typing
       (auth as any).mockResolvedValue({
         user: { token: "valid-token" },
       });
@@ -103,7 +100,6 @@ describe("createFileUploadHandler", () => {
 
   describe("file validation", () => {
     beforeEach(() => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access -- mock function needs flexible typing
       (auth as any).mockResolvedValue({
         user: { token: "valid-token" },
       });
@@ -472,7 +468,6 @@ describe("createFileUploadHandler", () => {
 
   describe("parameter extraction", () => {
     beforeEach(() => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access -- mock function needs flexible typing
       (auth as any).mockResolvedValue({
         user: { token: "valid-token" },
       });
@@ -548,7 +543,6 @@ describe("createFileUploadHandler", () => {
 
   describe("response formatting", () => {
     beforeEach(() => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access -- mock function needs flexible typing
       (auth as any).mockResolvedValue({
         user: { token: "valid-token" },
       });
@@ -626,7 +620,6 @@ describe("createFileUploadHandler", () => {
 
   describe("error handling", () => {
     beforeEach(() => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access -- mock function needs flexible typing
       (auth as any).mockResolvedValue({
         user: { token: "valid-token" },
       });

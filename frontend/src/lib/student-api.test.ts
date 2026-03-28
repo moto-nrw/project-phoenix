@@ -172,7 +172,6 @@ describe("student-api", () => {
             total_records: 1,
           },
         };
-        // eslint-disable-next-line @typescript-eslint/unbound-method
         const mockGet = vi.mocked(api.get);
         mockGet.mockResolvedValueOnce(createAxiosResponse(paginatedResponse));
 
@@ -185,7 +184,6 @@ describe("student-api", () => {
       });
 
       it("returns empty array when response has no data", async () => {
-        // eslint-disable-next-line @typescript-eslint/unbound-method
         const mockGet = vi.mocked(api.get);
         mockGet.mockResolvedValueOnce(createAxiosResponse({}));
 
@@ -306,7 +304,6 @@ describe("student-api", () => {
       });
 
       it("deletes a student using axios", async () => {
-        // eslint-disable-next-line @typescript-eslint/unbound-method
         const mockDelete = vi.mocked(api.delete);
         mockDelete.mockResolvedValueOnce(createAxiosResponse({}));
 
@@ -355,7 +352,6 @@ describe("student-api", () => {
         expect(consoleSpies.error).toHaveBeenCalledWith(
           "failed to fetch groups",
           {
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
             error: expect.any(String),
           },
         );
@@ -368,7 +364,6 @@ describe("student-api", () => {
       });
 
       it("fetches groups using axios", async () => {
-        // eslint-disable-next-line @typescript-eslint/unbound-method
         const mockGet = vi.mocked(api.get);
         mockGet.mockResolvedValueOnce(
           createAxiosResponse({ data: [sampleBackendGroup] }),
@@ -381,7 +376,6 @@ describe("student-api", () => {
       });
 
       it("returns empty array when data is missing", async () => {
-        // eslint-disable-next-line @typescript-eslint/unbound-method
         const mockGet = vi.mocked(api.get);
         mockGet.mockResolvedValueOnce(createAxiosResponse({}));
 
@@ -453,7 +447,6 @@ describe("student-api", () => {
         "failed to fetch privacy consent",
         {
           student_id: "123",
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
           error: expect.any(String),
         },
       );

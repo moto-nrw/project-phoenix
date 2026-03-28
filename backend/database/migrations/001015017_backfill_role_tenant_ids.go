@@ -15,11 +15,11 @@ const (
 )
 
 func init() {
-	MigrationRegistry[backfillRoleTenantIDsVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     backfillRoleTenantIDsVersion,
 		Description: backfillRoleTenantIDsDescription,
 		DependsOn:   []string{"1.15.15"},
-	}
+	})
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {

@@ -24,7 +24,7 @@ async function fetchTenantInfo(slug: string): Promise<TenantInfo | null> {
     const { getServerApiUrl } = await import("~/lib/server-api-url");
     const res = await fetch(
       `${getServerApiUrl()}/auth/tenant/resolve?slug=${encodeURIComponent(slug)}`,
-      { next: { revalidate: 300 } }, // Cache for 5 minutes
+      { next: { revalidate: 300, tags: [`tenant-${slug}`] } },
     );
 
     if (!res.ok) return null;

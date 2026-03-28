@@ -398,6 +398,22 @@ export const operatorRedirectCallback: NonNullable<
 
   if (urlObj.origin === baseObj.origin) return url;
 
+  if (
+    urlObj.hostname.endsWith("localhost") &&
+    baseObj.hostname.endsWith("localhost")
+  ) {
+    return url;
+  }
+
+  // Allow when one hostname is a subdomain of the other
+  // (e.g. operator.staging.moto-app.de is a child of staging.moto-app.de)
+  if (
+    urlObj.hostname.endsWith(`.${baseObj.hostname}`) ||
+    baseObj.hostname.endsWith(`.${urlObj.hostname}`)
+  ) {
+    return url;
+  }
+
   logger.warn("operator_redirect_blocked", {
     url,
     baseUrl,
@@ -474,6 +490,22 @@ export const sharedJwtCallback: NonNullable<
     });
     token.error = "RefreshTokenExpired";
     token.needsRefresh = true;
+    return token;
+  }
+
+  // Once RefreshTokenError is set (access token expired + refresh failed),
+  // stop retrying. The sharedSessionCallback treats !token.token OR
+  // token.error as a minimal session and strips both tokens from the
+  // client response. This makes any "retrying" intermediate state
+  // impossible — the client loses refreshToken and can't recover, so
+  // the only reliable path is re-authentication via the login page.
+  //
+  // A transient failure (timeout/5xx) while the access token is expired
+  // therefore forces re-login. This is a deliberate trade-off: 5 seconds
+  // of re-entering credentials beats 4-12 minutes of broken UI (401s on
+  // every API call) while waiting for an automatic retry that the session
+  // architecture can't support.
+  if (token.error === "RefreshTokenError") {
     return token;
   }
 

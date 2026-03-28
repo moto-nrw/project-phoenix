@@ -39,7 +39,6 @@ describe("useAnnouncements", () => {
   });
 
   it("returns empty array when no data", () => {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
     vi.mocked(useSWR<UnreadAnnouncement[]>).mockReturnValue({
       data: undefined,
       mutate: vi.fn(),
@@ -67,7 +66,6 @@ describe("useAnnouncements", () => {
       },
     ];
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
     vi.mocked(useSWR<UnreadAnnouncement[]>).mockReturnValue({
       data: mockData,
       mutate: vi.fn(),
@@ -85,7 +83,6 @@ describe("useAnnouncements", () => {
 
   it("calls mutate when pathname changes", async () => {
     const mockMutate = vi.fn();
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
     vi.mocked(useSWR<UnreadAnnouncement[]>).mockReturnValue({
       data: [],
       mutate: mockMutate,
@@ -107,7 +104,6 @@ describe("useAnnouncements", () => {
   it("dismiss sends request to backend", async () => {
     mockAuthFetch.mockResolvedValueOnce({});
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
     vi.mocked(useSWR<UnreadAnnouncement[]>).mockReturnValue({
       data: [],
       mutate: vi.fn(),
@@ -128,7 +124,6 @@ describe("useAnnouncements", () => {
 
   it("refresh calls mutate", () => {
     const mockMutate = vi.fn();
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
     vi.mocked(useSWR<UnreadAnnouncement[]>).mockReturnValue({
       data: [],
       mutate: mockMutate,
@@ -145,7 +140,6 @@ describe("useAnnouncements", () => {
   });
 
   it("passes correct SWR options", () => {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
     vi.mocked(useSWR<UnreadAnnouncement[]>).mockReturnValue({
       data: undefined,
       mutate: vi.fn(),
@@ -189,7 +183,6 @@ describe("useAnnouncements", () => {
       },
     ];
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
     vi.mocked(useSWR<UnreadAnnouncement[]>).mockReturnValue({
       data: mockData,
       mutate: vi.fn(),
@@ -206,7 +199,6 @@ describe("useAnnouncements", () => {
 
   it("does not mutate on first render with same pathname", () => {
     const mockMutate = vi.fn();
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
     vi.mocked(useSWR<UnreadAnnouncement[]>).mockReturnValue({
       data: [],
       mutate: mockMutate,

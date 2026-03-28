@@ -1255,7 +1255,7 @@ export const groupService = {
       } catch (axiosError) {
         const detailedError = extractAxiosError(axiosError);
         if (detailedError) {
-          throw new Error(detailedError);
+          throw new Error(detailedError, { cause: axiosError });
         }
         throw axiosError;
       }

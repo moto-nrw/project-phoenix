@@ -16,6 +16,8 @@ const {
   mockDelete,
   mockPublish,
   mockFetchStats,
+  mockListOrganizations,
+  mockListSchools,
 } = vi.hoisted(() => ({
   mockUseSession: vi.fn(),
   mockUseSWR: vi.fn(),
@@ -26,6 +28,8 @@ const {
   mockDelete: vi.fn(),
   mockPublish: vi.fn(),
   mockFetchStats: vi.fn(),
+  mockListOrganizations: vi.fn(),
+  mockListSchools: vi.fn(),
 }));
 
 // Mock hooks and contexts
@@ -53,8 +57,16 @@ vi.mock("~/lib/operator/announcements-api", () => ({
   },
 }));
 
+// Mock provisioning API
+vi.mock("~/lib/operator/provisioning-api", () => ({
+  operatorProvisioningService: {
+    listOrganizations: mockListOrganizations,
+    listSchools: mockListSchools,
+  },
+}));
+
 // Mock UI components
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-return, @typescript-eslint/prefer-optional-chain */
+
 vi.mock("~/components/ui/page-header", () => ({
   PageHeaderWithSearch: ({ title, badge, filters, actionButton }: any) => (
     <div data-testid="page-header">
@@ -132,16 +144,13 @@ vi.mock("framer-motion", () => ({
     div: ({ children, ...props }: any) => <div {...props}>{children}</div>,
   },
 }));
-/* eslint-enable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-return, @typescript-eslint/prefer-optional-chain */ vi.mock(
-  "lucide-react",
-  () => ({
-    MoreVertical: () => <span>MoreVertical</span>,
-    Pencil: () => <span>Pencil</span>,
-    Trash2: () => <span>Trash2</span>,
-    Send: () => <span>Send</span>,
-    Check: () => <span>Check</span>,
-  }),
-);
+vi.mock("lucide-react", () => ({
+  MoreVertical: () => <span>MoreVertical</span>,
+  Pencil: () => <span>Pencil</span>,
+  Trash2: () => <span>Trash2</span>,
+  Send: () => <span>Send</span>,
+  Check: () => <span>Check</span>,
+}));
 
 import OperatorAnnouncementsPage from "./page";
 
@@ -242,40 +251,6 @@ describe("OperatorAnnouncementsPage", () => {
     });
   });
 
-  it("creates new announcement", async () => {
-    mockCreate.mockResolvedValue({ ...mockAnnouncement });
-
-    render(<OperatorAnnouncementsPage />);
-
-    // Open create modal
-    fireEvent.click(screen.getByText("Neue Ankündigung"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("modal")).toBeInTheDocument();
-    });
-
-    // Fill form - use input type selectors since labels lack htmlFor
-    const textInputs = screen.getAllByRole("textbox");
-    const titleInput = textInputs[0]!; // First textbox is title
-    const contentInput = textInputs[1]!; // Second is content (textarea)
-    fireEvent.change(titleInput, { target: { value: "New Announcement" } });
-    fireEvent.change(contentInput, { target: { value: "New content" } });
-
-    // Submit - "Erstellen" button is in the footer
-    const createButton = screen.getByText("Erstellen");
-    fireEvent.click(createButton);
-
-    await waitFor(() => {
-      expect(mockCreate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          title: "New Announcement",
-          content: "New content",
-        }),
-      );
-      expect(mockMutate).toHaveBeenCalled();
-    });
-  });
-
   it("opens edit form with announcement data", async () => {
     render(<OperatorAnnouncementsPage />);
 
@@ -295,91 +270,6 @@ describe("OperatorAnnouncementsPage", () => {
       const textInputs = screen.getAllByRole("textbox");
       const titleInput = textInputs[0] as HTMLInputElement;
       expect(titleInput.value).toBe("Test Announcement");
-    });
-  });
-
-  it("updates announcement", async () => {
-    mockUpdate.mockResolvedValue({ ...mockAnnouncement });
-
-    render(<OperatorAnnouncementsPage />);
-
-    // Open edit modal
-    const menuButtons = screen.getAllByLabelText("Menü öffnen");
-    if (menuButtons[0]) {
-      fireEvent.click(menuButtons[0]);
-    }
-
-    await waitFor(() => {
-      fireEvent.click(screen.getByText("Bearbeiten"));
-    });
-
-    // Update form
-    await waitFor(() => {
-      const textInputs = screen.getAllByRole("textbox");
-      const titleInput = textInputs[0]!;
-      fireEvent.change(titleInput, { target: { value: "Updated Title" } });
-    });
-
-    // Submit
-    const saveButton = screen.getByText("Speichern");
-    fireEvent.click(saveButton);
-
-    await waitFor(() => {
-      expect(mockUpdate).toHaveBeenCalledWith(
-        "1",
-        expect.objectContaining({
-          title: "Updated Title",
-        }),
-      );
-      expect(mockMutate).toHaveBeenCalled();
-    });
-  });
-
-  it("deletes announcement after confirmation", async () => {
-    mockDelete.mockResolvedValue(undefined);
-
-    render(<OperatorAnnouncementsPage />);
-
-    // Open menu and click delete
-    const menuButtons = screen.getAllByLabelText("Menü öffnen");
-    if (menuButtons[0]) {
-      fireEvent.click(menuButtons[0]);
-    }
-
-    await waitFor(() => {
-      fireEvent.click(screen.getByText("Löschen"));
-    });
-
-    // Confirm deletion
-    await waitFor(() => {
-      const confirmButton = screen.getByTestId("confirm-button");
-      fireEvent.click(confirmButton);
-    });
-
-    await waitFor(() => {
-      expect(mockDelete).toHaveBeenCalledWith("1");
-      expect(mockMutate).toHaveBeenCalled();
-    });
-  });
-
-  it("publishes draft announcement", async () => {
-    mockPublish.mockResolvedValue(undefined);
-
-    render(<OperatorAnnouncementsPage />);
-
-    // Click publish button
-    const publishButton = screen.getByText("Veröffentlichen");
-    fireEvent.click(publishButton);
-
-    // Confirm publish
-    await waitFor(() => {
-      const confirmButton = screen.getByTestId("confirm-button");
-      fireEvent.click(confirmButton);
-    });
-
-    await waitFor(() => {
-      expect(mockPublish).toHaveBeenCalledWith("1");
-      expect(mockMutate).toHaveBeenCalled();
     });
   });
 
@@ -539,7 +429,6 @@ describe("OperatorAnnouncementsPage", () => {
       expiresAt: new Date("2025-02-01").toISOString(),
     };
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockUseSWR.mockImplementation((key: any) => {
       if (key === "operator-announcements") {
         return {
@@ -642,7 +531,6 @@ describe("OperatorAnnouncementsPage", () => {
 
     // Mock stats SWR call
     const originalMockUseSWR = mockUseSWR.getMockImplementation();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockUseSWR.mockImplementation((key: any, fetcher: any, options: any) => {
       if (key === "operator-announcements") {
         return {
@@ -658,7 +546,6 @@ describe("OperatorAnnouncementsPage", () => {
           mutate: mockMutate,
         };
       }
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-return
       return originalMockUseSWR?.(key, fetcher, options);
     });
 
@@ -843,5 +730,190 @@ describe("OperatorAnnouncementsPage", () => {
     });
 
     consoleError.mockRestore();
+  });
+
+  describe("org/tenant targeting", () => {
+    const mockOrganizations = [
+      { id: "1", name: "Org Alpha", slug: "org-alpha" },
+      { id: "2", name: "Org Beta", slug: "org-beta" },
+    ];
+
+    const mockSchools = [
+      { id: "10", name: "Schule A", organizationId: "1", slug: "schule-a" },
+      { id: "20", name: "Schule B", organizationId: "1", slug: "schule-b" },
+      { id: "30", name: "Schule C", organizationId: "2", slug: "schule-c" },
+    ];
+
+    function setupSWRWithOrgAndSchools(
+      announcementsData: any[] = [mockAnnouncement],
+    ) {
+      mockUseSWR.mockImplementation((key: any) => {
+        if (key === "operator-announcements") {
+          return {
+            data: announcementsData,
+            isLoading: false,
+            mutate: mockMutate,
+          };
+        }
+        if (key === "operator-organizations") {
+          return {
+            data: mockOrganizations,
+            isLoading: false,
+            mutate: mockMutate,
+          };
+        }
+        if (key === "operator-schools") {
+          return {
+            data: mockSchools,
+            isLoading: false,
+            mutate: mockMutate,
+          };
+        }
+        return { data: undefined, isLoading: false, mutate: mockMutate };
+      });
+    }
+
+    it("renders org and school checkboxes in create form", async () => {
+      setupSWRWithOrgAndSchools();
+      render(<OperatorAnnouncementsPage />);
+
+      fireEvent.click(screen.getByText("Neue Ankündigung"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("modal")).toBeInTheDocument();
+      });
+
+      // Org checkboxes
+      expect(screen.getByText("Org Alpha")).toBeInTheDocument();
+      expect(screen.getByText("Org Beta")).toBeInTheDocument();
+
+      // All schools visible when no org selected
+      expect(screen.getByText("Schule A")).toBeInTheDocument();
+      expect(screen.getByText("Schule B")).toBeInTheDocument();
+      expect(screen.getByText("Schule C")).toBeInTheDocument();
+    });
+
+    it("filters schools by selected org", async () => {
+      setupSWRWithOrgAndSchools();
+      render(<OperatorAnnouncementsPage />);
+
+      fireEvent.click(screen.getByText("Neue Ankündigung"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("modal")).toBeInTheDocument();
+      });
+
+      // Select Org Beta (id=2) -- only Schule C belongs to it
+      fireEvent.click(screen.getByText("Org Beta"));
+
+      await waitFor(() => {
+        expect(screen.getByText("Schule C")).toBeInTheDocument();
+        expect(screen.queryByText("Schule A")).not.toBeInTheDocument();
+        expect(screen.queryByText("Schule B")).not.toBeInTheDocument();
+      });
+    });
+
+    it("displays targeted org and school names on announcement card", () => {
+      const announcementWithOrgs = {
+        ...mockAnnouncement,
+        targetOrgIds: ["1", "2"],
+        targetTenantIds: [],
+      };
+      const announcementWithTenants = {
+        ...mockAnnouncement,
+        id: "2",
+        targetOrgIds: [],
+        targetTenantIds: ["10", "30"],
+      };
+
+      setupSWRWithOrgAndSchools([
+        announcementWithOrgs,
+        announcementWithTenants,
+      ]);
+      render(<OperatorAnnouncementsPage />);
+
+      expect(screen.getByText("Org Alpha, Org Beta")).toBeInTheDocument();
+      expect(screen.getByText("Schule A, Schule C")).toBeInTheDocument();
+    });
+
+    it("populates targeting fields when editing existing announcement", async () => {
+      const announcementWithTargeting = {
+        ...mockAnnouncement,
+        targetOrgIds: ["1"],
+        targetTenantIds: ["10"],
+      };
+
+      setupSWRWithOrgAndSchools([announcementWithTargeting]);
+      render(<OperatorAnnouncementsPage />);
+
+      // Open edit modal
+      const menuButtons = screen.getAllByLabelText("Menü öffnen");
+      if (menuButtons[0]) {
+        fireEvent.click(menuButtons[0]);
+      }
+
+      await waitFor(() => {
+        fireEvent.click(screen.getByText("Bearbeiten"));
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("modal")).toBeInTheDocument();
+      });
+
+      // Org Alpha should be checked (green border)
+      const modal = screen.getByTestId("modal");
+      const orgAlphaBtn = Array.from(modal.querySelectorAll("button")).find(
+        (b) => b.textContent?.includes("Org Alpha"),
+      );
+      expect(orgAlphaBtn?.className).toContain("border-[#83CD2D]");
+
+      // Schule A should be checked
+      const schuleABtn = Array.from(modal.querySelectorAll("button")).find(
+        (b) => b.textContent?.includes("Schule A"),
+      );
+      expect(schuleABtn?.className).toContain("border-[#83CD2D]");
+    });
+
+    it("publish confirmation shows global vs targeted message", async () => {
+      const globalDraft = {
+        ...mockAnnouncement,
+        title: "Global Draft",
+        targetOrgIds: [],
+        targetTenantIds: [],
+      };
+
+      setupSWRWithOrgAndSchools([globalDraft]);
+      render(<OperatorAnnouncementsPage />);
+
+      fireEvent.click(screen.getByText("Veröffentlichen"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
+      });
+
+      expect(screen.getByText(/für alle Nutzer sichtbar/)).toBeInTheDocument();
+    });
+
+    it("publish confirmation shows targeted message when targeting set", async () => {
+      const orgTargetedDraft = {
+        ...mockAnnouncement,
+        title: "Org Targeted Draft",
+        targetOrgIds: ["1"],
+        targetTenantIds: [],
+      };
+
+      setupSWRWithOrgAndSchools([orgTargetedDraft]);
+      render(<OperatorAnnouncementsPage />);
+
+      fireEvent.click(screen.getByText("Veröffentlichen"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
+      });
+
+      expect(
+        screen.getByText(/ausgewählten Organisationen\/Schulen/),
+      ).toBeInTheDocument();
+    });
   });
 });

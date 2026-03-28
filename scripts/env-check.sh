@@ -30,8 +30,7 @@ exit_code=0
 DEV_ONLY_KEYS="COMPOSE_BAKE COMPOSE_DOCKER_CLI_BUILD DB_DEBUG DOCKER_BUILDKIT TEST_DB_DSN TEST_DB_PORT"
 
 # Keys that only exist in deployed environments, not in local dev
-# PHOENIX_AUTH_PASSWORD: on server .env but not referenced in Go code (dead variable, kept for safety)
-DEPLOY_ONLY_KEYS="AUTH_TRUST_HOST NEXT_PUBLIC_TENANT_DOMAIN PHOENIX_AUTH_PASSWORD TENANT_DOMAIN"
+DEPLOY_ONLY_KEYS=""
 
 is_excluded() {
   local key="$1" list="$2"

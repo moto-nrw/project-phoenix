@@ -272,7 +272,6 @@ describe("QuickCreateActivityModal", () => {
         resolveSubmit = resolve;
       });
       (global.fetch as ReturnType<typeof vi.fn>).mockImplementationOnce(
-        // eslint-disable-next-line @typescript-eslint/no-misused-promises
         () => fetchPromise,
       );
 
@@ -423,7 +422,6 @@ describe("QuickCreateActivityModal", () => {
         resolveSubmit = resolve;
       });
       (global.fetch as ReturnType<typeof vi.fn>).mockImplementation(
-        // eslint-disable-next-line @typescript-eslint/no-misused-promises
         () => fetchPromise,
       );
 

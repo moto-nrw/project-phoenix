@@ -17,11 +17,11 @@ const (
 
 func init() {
 	// Register migration with explicit version
-	MigrationRegistry[SeedActivityCategoriesVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     SeedActivityCategoriesVersion,
 		Description: SeedActivityCategoriesDescription,
 		DependsOn:   []string{"1.3.1"}, // Depends on activities.categories table
-	}
+	})
 
 	// Migration 1.6.4: Seed default activity categories
 	Migrations.MustRegister(

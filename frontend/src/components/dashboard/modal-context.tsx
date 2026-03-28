@@ -44,9 +44,9 @@ export function ModalProvider({
 // Stable fallback object to prevent re-renders when context is unavailable
 const FALLBACK_CONTEXT: ModalContextType = {
   isModalOpen: false,
-  // eslint-disable-next-line @typescript-eslint/no-empty-function
+
   openModal: () => {},
-  // eslint-disable-next-line @typescript-eslint/no-empty-function
+
   closeModal: () => {},
 };
 

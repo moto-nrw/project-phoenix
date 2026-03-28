@@ -16,11 +16,11 @@ const (
 
 func init() {
 	// Register migration with explicit version
-	MigrationRegistry[AddStudentExtendedFieldsVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     AddStudentExtendedFieldsVersion,
 		Description: AddStudentExtendedFieldsDescription,
 		DependsOn:   []string{"1.3.5"}, // Depends on students table
-	}
+	})
 
 	// Migration 1.6.10: Add extended fields to students
 	Migrations.MustRegister(
