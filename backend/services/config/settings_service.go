@@ -62,6 +62,24 @@ func (s *settingsService) Resolve(ctx context.Context, key string) (any, error) 
 	return def.Default, nil
 }
 
+// ResolveStringForTenant resolves a setting as a string for a specific tenant,
+// wrapping the query in a tenant transaction to satisfy RLS.
+func (s *settingsService) ResolveStringForTenant(ctx context.Context, tenantID int64, key string) (string, error) {
+	var result string
+	err := tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		val, resolveErr := s.ResolveString(txCtx, key)
+		if resolveErr != nil {
+			return resolveErr
+		}
+		result = val
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+	return result, nil
+}
+
 // ResolveString resolves a setting as a string.
 func (s *settingsService) ResolveString(ctx context.Context, key string) (string, error) {
 	val, err := s.Resolve(ctx, key)

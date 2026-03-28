@@ -21,8 +21,11 @@ import (
 // PINResolver resolves the OGS device PIN for a tenant. Implemented by the
 // settings service. If nil is passed to DeviceAuthenticator, the middleware
 // falls back to the OGS_DEVICE_PIN environment variable (legacy mode).
+//
+// ResolveStringForTenant must handle its own DB context (e.g., tenant transaction)
+// because device auth runs before the tenant middleware sets PostgreSQL-level context.
 type PINResolver interface {
-	ResolveString(ctx context.Context, key string) (string, error)
+	ResolveStringForTenant(ctx context.Context, tenantID int64, key string) (string, error)
 }
 
 type CtxKey int
@@ -306,9 +309,10 @@ func resolveDevicePIN(ctx context.Context, tenantID int64, resolver PINResolver)
 			}
 			// cached empty string means no tenant override — fall through to env var
 		} else {
-			// Cache miss — resolve from settings
-			tenantCtx := tenant.WithTenantID(ctx, tenantID)
-			pin, err := resolver.ResolveString(tenantCtx, "security.ogs_device_pin")
+			// Cache miss — resolve from settings.
+			// Uses ResolveStringForTenant which handles its own DB context
+			// because device auth runs before tenant middleware.
+			pin, err := resolver.ResolveStringForTenant(ctx, tenantID, "security.ogs_device_pin")
 			if err == nil && pin != "" {
 				devicePINCache.set(tenantID, pin)
 				return pin

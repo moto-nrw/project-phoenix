@@ -19,6 +19,11 @@ type SettingsService interface {
 	// ResolveString resolves a setting as a string.
 	ResolveString(ctx context.Context, key string) (string, error)
 
+	// ResolveStringForTenant resolves a setting as a string for a specific tenant,
+	// handling its own DB transaction context. Used by device auth which runs
+	// before the tenant middleware sets PostgreSQL-level tenant context.
+	ResolveStringForTenant(ctx context.Context, tenantID int64, key string) (string, error)
+
 	// ResolveBool resolves a setting as a bool.
 	ResolveBool(ctx context.Context, key string) (bool, error)
 
