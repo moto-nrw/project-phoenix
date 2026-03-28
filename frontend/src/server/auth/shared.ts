@@ -493,6 +493,22 @@ export const sharedJwtCallback: NonNullable<
     return token;
   }
 
+  // Once RefreshTokenError is set (access token expired + refresh failed),
+  // stop retrying. The sharedSessionCallback treats !token.token OR
+  // token.error as a minimal session and strips both tokens from the
+  // client response. This makes any "retrying" intermediate state
+  // impossible — the client loses refreshToken and can't recover, so
+  // the only reliable path is re-authentication via the login page.
+  //
+  // A transient failure (timeout/5xx) while the access token is expired
+  // therefore forces re-login. This is a deliberate trade-off: 5 seconds
+  // of re-entering credentials beats 4-12 minutes of broken UI (401s on
+  // every API call) while waiting for an automatic retry that the session
+  // architecture can't support.
+  if (token.error === "RefreshTokenError") {
+    return token;
+  }
+
   // Proactive token refresh
   const REFRESH_BUFFER_MS = 5 * 60 * 1000;
   const REFRESH_TIMEOUT_MS = 5_000;

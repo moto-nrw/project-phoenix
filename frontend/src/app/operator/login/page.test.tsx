@@ -146,7 +146,7 @@ describe("OperatorLoginPage", () => {
   it("redirects when already authenticated as operator", () => {
     mockUseSession.mockReturnValue({
       status: "authenticated",
-      data: { user: { scope: "platform" } },
+      data: { user: { scope: "platform", token: "valid-token" } },
     });
 
     render(<OperatorLoginPage />);
