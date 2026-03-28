@@ -229,17 +229,6 @@ func (rs *AnnouncementsResource) UpdateAnnouncement(w http.ResponseWriter, r *ht
 		existing.Active = *req.Active
 	}
 
-	// Ensure nil slices become empty arrays for NOT NULL columns
-	if existing.TargetRoles == nil {
-		existing.TargetRoles = []string{}
-	}
-	if existing.TargetOrgIDs == nil {
-		existing.TargetOrgIDs = []int64{}
-	}
-	if existing.TargetTenantIDs == nil {
-		existing.TargetTenantIDs = []int64{}
-	}
-
 	// Parse expires_at if provided
 	if req.ExpiresAt != nil {
 		if *req.ExpiresAt == "" {

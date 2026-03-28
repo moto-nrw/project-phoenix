@@ -362,6 +362,90 @@ func TestAnnouncementTargeting_CountUnread_RespectsTargeting(t *testing.T) {
 	assert.Equal(t, 1, count, "should only count announcement targeting user's school")
 }
 
+func TestAnnouncementTargeting_GetUnreadForUser_RolesWithOrgTargeting(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	viewRepo := platform.NewAnnouncementViewRepository(db)
+	annoRepo := platform.NewAnnouncementRepository(db)
+
+	orgAID := createTestOrganization(t, db, "Org Roles A")
+	orgBID := createTestOrganization(t, db, "Org Roles B")
+	schoolAID := createTestSchool(t, db, "School Roles A", orgAID)
+	schoolBID := createTestSchool(t, db, "School Roles B", orgBID)
+
+	operator := createTestOperator(t, db, "targeting-roles@example.com", "Roles Targeting Test")
+
+	roleName := "test-targeting-teacher"
+	roleID := createTestRole(t, db, roleName)
+
+	// User with matching role in org A
+	userA := createTestAccount(t, db, "user-roles-a@example.com")
+	createTestAccountTenant(t, db, userA, schoolAID)
+	assignTestRole(t, db, userA, roleID, schoolAID)
+
+	// User with matching role in org B
+	userB := createTestAccount(t, db, "user-roles-b@example.com")
+	createTestAccountTenant(t, db, userB, schoolBID)
+	assignTestRole(t, db, userB, roleID, schoolBID)
+
+	// User without role in org A
+	userNoRole := createTestAccount(t, db, "user-roles-norole@example.com")
+	createTestAccountTenant(t, db, userNoRole, schoolAID)
+
+	// Announcement: role-filtered + org-targeted at org A
+	announcement := &platformModels.Announcement{
+		Title:           "Teachers in Org A",
+		Content:         "Role + org targeted",
+		Type:            platformModels.TypeAnnouncement,
+		Severity:        platformModels.SeverityInfo,
+		Active:          true,
+		CreatedBy:       operator.ID,
+		TargetRoles:     []string{roleName},
+		TargetOrgIDs:    []int64{orgAID},
+		TargetTenantIDs: []int64{},
+	}
+	err := annoRepo.Create(ctx, announcement)
+	require.NoError(t, err)
+	publishTestAnnouncement(t, db, announcement.ID)
+
+	defer cleanupTargetingTestData(t, db,
+		[]int64{announcement.ID},
+		[]int64{userA, userB, userNoRole},
+		[]int64{schoolAID, schoolBID},
+		[]int64{orgAID, orgBID},
+	)
+	defer cleanupTestOperator(t, db, operator.ID)
+	defer cleanupTestRole(t, db, roleID)
+	defer cleanupTestAccountRole(t, db, userA, roleID)
+	defer cleanupTestAccountRole(t, db, userB, roleID)
+
+	// User A has role + is in org A → should see it
+	unreadA, err := viewRepo.GetUnreadForUser(ctx, userA, []string{roleName}, schoolAID, orgAID)
+	require.NoError(t, err)
+	assert.Len(t, unreadA, 1, "user with matching role in org A should see announcement")
+
+	// User B has role but is in org B → should NOT see it (wrong org)
+	unreadB, err := viewRepo.GetUnreadForUser(ctx, userB, []string{roleName}, schoolBID, orgBID)
+	require.NoError(t, err)
+	assert.Len(t, unreadB, 0, "user with matching role in org B should NOT see org-A-targeted announcement")
+
+	// User with no role in org A → should NOT see it (role filter excludes)
+	unreadNoRole, err := viewRepo.GetUnreadForUser(ctx, userNoRole, []string{}, schoolAID, orgAID)
+	require.NoError(t, err)
+	assert.Len(t, unreadNoRole, 0, "user without matching role should NOT see role-filtered announcement")
+
+	// Also verify CountUnread is consistent
+	countA, err := viewRepo.CountUnread(ctx, userA, []string{roleName}, schoolAID, orgAID)
+	require.NoError(t, err)
+	assert.Equal(t, 1, countA)
+
+	countB, err := viewRepo.CountUnread(ctx, userB, []string{roleName}, schoolBID, orgBID)
+	require.NoError(t, err)
+	assert.Equal(t, 0, countB)
+}
+
 func TestOrganizationRepository_CountByIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
