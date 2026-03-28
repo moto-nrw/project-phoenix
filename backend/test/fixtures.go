@@ -181,7 +181,7 @@ func EnsureWebManualDevice(tb testing.TB, db *bun.DB) *iot.Device {
 	// Use upsert pattern to avoid race conditions
 	device := &iot.Device{
 		DeviceID:   webManualDeviceCode,
-		DeviceType: "virtual",
+		DeviceType: iot.DeviceTypeVirtual,
 		Name:       stringPtr("Web-Portal (Manuell)"),
 		Status:     iot.DeviceStatusActive,
 	}

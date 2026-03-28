@@ -1347,7 +1347,7 @@ func (s *operatorProvisioningService) createWebManualDevice(ctx context.Context,
 	deviceName := "Web-Portal (Manuell)"
 	device := &iotModels.Device{
 		DeviceID:   webManualDeviceID,
-		DeviceType: "virtual",
+		DeviceType: iotModels.DeviceTypeVirtual,
 		Name:       &deviceName,
 		Status:     iotModels.DeviceStatusActive,
 	}

@@ -20,6 +20,11 @@ const (
 	DeviceStatusOffline     DeviceStatus = "offline"
 )
 
+// Device type constants
+const (
+	DeviceTypeVirtual = "virtual"
+)
+
 // tableIoTDevices is the schema-qualified table name for IoT devices
 const tableIoTDevices = "iot.devices"
 
