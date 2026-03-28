@@ -40,6 +40,7 @@ const (
 	ResourceInvitation   = "invitation"
 	ResourceDevice       = "device"
 	ResourceAccount      = "account"
+	ResourcePerson       = "person"
 )
 
 // OperatorAuditLog tracks operator actions for auditing

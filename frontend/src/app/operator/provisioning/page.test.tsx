@@ -24,6 +24,8 @@ const {
   mockListSchoolDevices,
   mockListOrganizationDevices,
   mockListAllDevices,
+  mockListSchoolPersons,
+  mockSoftDeletePerson,
   mockSoftDeleteSchool,
   mockRestoreSchool,
 } = vi.hoisted(() => ({
@@ -44,6 +46,8 @@ const {
   mockListSchoolDevices: vi.fn(),
   mockListOrganizationDevices: vi.fn(),
   mockListAllDevices: vi.fn(),
+  mockListSchoolPersons: vi.fn(),
+  mockSoftDeletePerson: vi.fn(),
   mockSoftDeleteSchool: vi.fn(),
   mockRestoreSchool: vi.fn(),
 }));
@@ -76,6 +80,8 @@ vi.mock("~/lib/operator/provisioning-api", () => ({
     listSchoolDevices: mockListSchoolDevices,
     listOrganizationDevices: mockListOrganizationDevices,
     listAllDevices: mockListAllDevices,
+    listSchoolPersons: mockListSchoolPersons,
+    softDeletePerson: mockSoftDeletePerson,
     softDeleteSchool: mockSoftDeleteSchool,
     restoreSchool: mockRestoreSchool,
   },
@@ -2491,6 +2497,488 @@ describe("OperatorProvisioningPage", () => {
       expect(modal).toBeInTheDocument();
       expect(modal).toHaveTextContent("Test School");
       expect(modal).toHaveTextContent("10");
+    });
+  });
+
+  // --- Persons Tab ---
+
+  describe("Persons Tab", () => {
+    const mockPerson = {
+      id: "300",
+      firstName: "Max",
+      lastName: "Mustermann",
+      fullName: "Max Mustermann",
+      hasAccount: true,
+      accountEmail: "max@test.de",
+      hasRfidCard: true,
+      isStaff: true,
+      isStudent: false,
+      schoolId: "10",
+      schoolName: "Test School",
+      organizationId: "1",
+      organizationName: "Test Org",
+      createdAt: "2026-01-01T00:00:00Z",
+    };
+
+    function setupSWRWithPersons(
+      personsKey: string,
+      persons: unknown[] | undefined,
+      personsLoading = false,
+    ) {
+      mockUseSWR.mockImplementation((key: any) => {
+        if (key === "operator-organizations") {
+          return {
+            data: [mockOrg],
+            isLoading: false,
+            mutate: mockMutateOrgs,
+          };
+        }
+        if (key === "operator-schools") {
+          return {
+            data: [mockSchool],
+            isLoading: false,
+            mutate: mockMutateSchools,
+          };
+        }
+        if (key === personsKey) {
+          return {
+            data: personsLoading ? undefined : persons,
+            isLoading: personsLoading,
+            mutate: vi.fn(),
+          };
+        }
+        return { data: undefined, isLoading: false, mutate: vi.fn() };
+      });
+    }
+
+    /**
+     * Helper: navigate to persons tab with a school selected.
+     * Uses the accounts tab OrgSchoolFilter to select org + school,
+     * then switches to the persons tab.
+     */
+    function selectSchoolAndSwitchToPersons() {
+      // Go to accounts tab to use the OrgSchoolFilter
+      fireEvent.click(screen.getByTestId("tab-accounts"));
+
+      // Select org
+      const orgSelect = screen.getByLabelText("Träger");
+      fireEvent.change(orgSelect, { target: { value: "1" } });
+
+      // Select school
+      const schoolSelect = screen.getByLabelText("Schule");
+      fireEvent.change(schoolSelect, { target: { value: "10" } });
+
+      // Switch to persons tab
+      fireEvent.click(screen.getByTestId("tab-persons"));
+    }
+
+    it("shows empty state when no school selected", () => {
+      setupSWRWithPersons("operator-school-persons-10", []);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-persons"));
+
+      expect(screen.getByText("Keine Schule ausgewählt")).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "Wählen Sie eine Schule aus, um deren Personen anzuzeigen.",
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("shows person cards when school has persons", () => {
+      setupSWRWithPersons("operator-school-persons-10", [mockPerson]);
+
+      render(<OperatorProvisioningPage />);
+
+      selectSchoolAndSwitchToPersons();
+
+      expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
+    });
+
+    it("shows role badges for staff person", () => {
+      setupSWRWithPersons("operator-school-persons-10", [mockPerson]);
+
+      render(<OperatorProvisioningPage />);
+
+      selectSchoolAndSwitchToPersons();
+
+      expect(screen.getByText("Mitarbeiter")).toBeInTheDocument();
+      expect(screen.getByText("RFID")).toBeInTheDocument();
+      expect(screen.queryByText("Schüler")).not.toBeInTheDocument();
+    });
+
+    it("shows Schüler badge for student person", () => {
+      const studentPerson = {
+        ...mockPerson,
+        id: "301",
+        isStaff: false,
+        isStudent: true,
+        hasRfidCard: false,
+        hasAccount: false,
+        accountEmail: null,
+      };
+      setupSWRWithPersons("operator-school-persons-10", [studentPerson]);
+
+      render(<OperatorProvisioningPage />);
+
+      selectSchoolAndSwitchToPersons();
+
+      expect(screen.getByText("Schüler")).toBeInTheDocument();
+      expect(screen.queryByText("Mitarbeiter")).not.toBeInTheDocument();
+      expect(screen.queryByText("RFID")).not.toBeInTheDocument();
+    });
+
+    it("shows account email when available", () => {
+      setupSWRWithPersons("operator-school-persons-10", [mockPerson]);
+
+      render(<OperatorProvisioningPage />);
+
+      selectSchoolAndSwitchToPersons();
+
+      expect(screen.getByText("max@test.de")).toBeInTheDocument();
+    });
+
+    it("does not show email when accountEmail is null", () => {
+      const noEmailPerson = {
+        ...mockPerson,
+        id: "302",
+        accountEmail: null,
+      };
+      setupSWRWithPersons("operator-school-persons-10", [noEmailPerson]);
+
+      render(<OperatorProvisioningPage />);
+
+      selectSchoolAndSwitchToPersons();
+
+      expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
+      expect(screen.queryByText("max@test.de")).not.toBeInTheDocument();
+    });
+
+    it("shows empty state for school with no persons", () => {
+      setupSWRWithPersons("operator-school-persons-10", []);
+
+      render(<OperatorProvisioningPage />);
+
+      selectSchoolAndSwitchToPersons();
+
+      expect(screen.getByText("Keine Personen")).toBeInTheDocument();
+      expect(
+        screen.getByText("Keine Personen in Test School vorhanden."),
+      ).toBeInTheDocument();
+    });
+
+    it("shows persons loading state", () => {
+      setupSWRWithPersons("operator-school-persons-10", undefined, true);
+
+      render(<OperatorProvisioningPage />);
+
+      selectSchoolAndSwitchToPersons();
+
+      expect(screen.getAllByTestId("skeleton").length).toBeGreaterThan(0);
+    });
+
+    it("shows person count with singular form", () => {
+      setupSWRWithPersons("operator-school-persons-10", [mockPerson]);
+
+      render(<OperatorProvisioningPage />);
+
+      selectSchoolAndSwitchToPersons();
+
+      expect(screen.getByText(/1 Person in/)).toBeInTheDocument();
+    });
+
+    it("shows person count with plural form", () => {
+      const person2 = { ...mockPerson, id: "301", firstName: "Anna" };
+      setupSWRWithPersons("operator-school-persons-10", [mockPerson, person2]);
+
+      render(<OperatorProvisioningPage />);
+
+      selectSchoolAndSwitchToPersons();
+
+      expect(screen.getByText(/2 Personen in/)).toBeInTheDocument();
+    });
+
+    it("shows school name in person count text", () => {
+      setupSWRWithPersons("operator-school-persons-10", [mockPerson]);
+
+      render(<OperatorProvisioningPage />);
+
+      selectSchoolAndSwitchToPersons();
+
+      expect(screen.getByText("Test School")).toBeInTheDocument();
+    });
+
+    // --- Triple-confirm delete modal ---
+
+    it("opens delete modal when trash button is clicked", async () => {
+      setupSWRWithPersons("operator-school-persons-10", [mockPerson]);
+
+      render(<OperatorProvisioningPage />);
+
+      selectSchoolAndSwitchToPersons();
+
+      const deleteButton = screen.getByTitle("Person löschen");
+      fireEvent.click(deleteButton);
+
+      await waitFor(() => {
+        expect(screen.getByText("Person löschen")).toBeInTheDocument();
+      });
+    });
+
+    it("shows person name and school name in delete modal", async () => {
+      setupSWRWithPersons("operator-school-persons-10", [mockPerson]);
+
+      render(<OperatorProvisioningPage />);
+
+      selectSchoolAndSwitchToPersons();
+
+      fireEvent.click(screen.getByTitle("Person löschen"));
+
+      await waitFor(() => {
+        expect(screen.getByText("Person löschen")).toBeInTheDocument();
+      });
+
+      // Person name appears in the confirmation text
+      const modalText = screen.getByText(/Möchten Sie/);
+      expect(modalText).toBeInTheDocument();
+
+      // School name appears in the modal
+      // "Test School" appears in the "von Test School" text
+      expect(screen.getByText(/wirklich löschen/)).toBeInTheDocument();
+    });
+
+    it("shows warning actions list in delete modal", async () => {
+      setupSWRWithPersons("operator-school-persons-10", [mockPerson]);
+
+      render(<OperatorProvisioningPage />);
+
+      selectSchoolAndSwitchToPersons();
+
+      fireEvent.click(screen.getByTitle("Person löschen"));
+
+      await waitFor(() => {
+        expect(
+          screen.getByText("Account wird deaktiviert und Login gesperrt"),
+        ).toBeInTheDocument();
+        expect(
+          screen.getByText("Persönliche Daten werden anonymisiert"),
+        ).toBeInTheDocument();
+        expect(
+          screen.getByText("RFID-Karte wird freigegeben"),
+        ).toBeInTheDocument();
+        expect(
+          screen.getByText("Diese Aktion kann nicht rückgängig gemacht werden"),
+        ).toBeInTheDocument();
+      });
+    });
+
+    it("disables delete button when input does not match name", async () => {
+      setupSWRWithPersons("operator-school-persons-10", [mockPerson]);
+
+      render(<OperatorProvisioningPage />);
+
+      selectSchoolAndSwitchToPersons();
+
+      fireEvent.click(screen.getByTitle("Person löschen"));
+
+      await waitFor(() => {
+        expect(screen.getByText("Person löschen")).toBeInTheDocument();
+      });
+
+      const deleteButton = screen.getByText("Endgültig löschen");
+      expect(deleteButton).toBeDisabled();
+
+      // Type wrong name
+      const confirmInput = screen.getByPlaceholderText("Max Mustermann");
+      fireEvent.change(confirmInput, { target: { value: "Wrong Name" } });
+
+      expect(deleteButton).toBeDisabled();
+    });
+
+    it("enables delete button when input matches name exactly", async () => {
+      setupSWRWithPersons("operator-school-persons-10", [mockPerson]);
+
+      render(<OperatorProvisioningPage />);
+
+      selectSchoolAndSwitchToPersons();
+
+      fireEvent.click(screen.getByTitle("Person löschen"));
+
+      await waitFor(() => {
+        expect(screen.getByText("Person löschen")).toBeInTheDocument();
+      });
+
+      const confirmInput = screen.getByPlaceholderText("Max Mustermann");
+      fireEvent.change(confirmInput, {
+        target: { value: "Max Mustermann" },
+      });
+
+      const deleteButton = screen.getByText("Endgültig löschen");
+      expect(deleteButton).not.toBeDisabled();
+    });
+
+    it("shows loading state during deletion", async () => {
+      // Make softDeletePerson hang by returning a never-resolving promise
+      mockSoftDeletePerson.mockReturnValue(new Promise(() => {}));
+      setupSWRWithPersons("operator-school-persons-10", [mockPerson]);
+
+      render(<OperatorProvisioningPage />);
+
+      selectSchoolAndSwitchToPersons();
+
+      fireEvent.click(screen.getByTitle("Person löschen"));
+
+      await waitFor(() => {
+        expect(screen.getByText("Person löschen")).toBeInTheDocument();
+      });
+
+      const confirmInput = screen.getByPlaceholderText("Max Mustermann");
+      fireEvent.change(confirmInput, {
+        target: { value: "Max Mustermann" },
+      });
+
+      fireEvent.click(screen.getByText("Endgültig löschen"));
+
+      await waitFor(() => {
+        expect(screen.getByText("Wird gelöscht...")).toBeInTheDocument();
+      });
+    });
+
+    it("shows error message on API failure", async () => {
+      mockSoftDeletePerson.mockRejectedValue(
+        new Error("Person hat aktive Besuche"),
+      );
+      setupSWRWithPersons("operator-school-persons-10", [mockPerson]);
+      const consoleError = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+
+      render(<OperatorProvisioningPage />);
+
+      selectSchoolAndSwitchToPersons();
+
+      fireEvent.click(screen.getByTitle("Person löschen"));
+
+      await waitFor(() => {
+        expect(screen.getByText("Person löschen")).toBeInTheDocument();
+      });
+
+      const confirmInput = screen.getByPlaceholderText("Max Mustermann");
+      fireEvent.change(confirmInput, {
+        target: { value: "Max Mustermann" },
+      });
+
+      fireEvent.click(screen.getByText("Endgültig löschen"));
+
+      await waitFor(() => {
+        expect(
+          screen.getByText("Person hat aktive Besuche"),
+        ).toBeInTheDocument();
+        expect(consoleError).toHaveBeenCalledWith(
+          "person_soft_delete_failed",
+          expect.objectContaining({
+            error: "Person hat aktive Besuche",
+          }),
+        );
+      });
+
+      consoleError.mockRestore();
+    });
+
+    it("closes delete modal on cancel", async () => {
+      setupSWRWithPersons("operator-school-persons-10", [mockPerson]);
+
+      render(<OperatorProvisioningPage />);
+
+      selectSchoolAndSwitchToPersons();
+
+      fireEvent.click(screen.getByTitle("Person löschen"));
+
+      await waitFor(() => {
+        expect(screen.getByText("Person löschen")).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText("Abbrechen"));
+
+      await waitFor(() => {
+        expect(screen.queryByText("Endgültig löschen")).not.toBeInTheDocument();
+      });
+    });
+
+    it("calls softDeletePerson on successful confirmation", async () => {
+      mockSoftDeletePerson.mockResolvedValue(undefined);
+      setupSWRWithPersons("operator-school-persons-10", [mockPerson]);
+
+      render(<OperatorProvisioningPage />);
+
+      selectSchoolAndSwitchToPersons();
+
+      fireEvent.click(screen.getByTitle("Person löschen"));
+
+      await waitFor(() => {
+        expect(screen.getByText("Person löschen")).toBeInTheDocument();
+      });
+
+      const confirmInput = screen.getByPlaceholderText("Max Mustermann");
+      fireEvent.change(confirmInput, {
+        target: { value: "Max Mustermann" },
+      });
+
+      fireEvent.click(screen.getByText("Endgültig löschen"));
+
+      await waitFor(() => {
+        expect(mockSoftDeletePerson).toHaveBeenCalledWith("300");
+      });
+    });
+
+    it("resets confirm input when opening modal for different person", async () => {
+      const person2 = {
+        ...mockPerson,
+        id: "301",
+        firstName: "Anna",
+        lastName: "Schmidt",
+        fullName: "Anna Schmidt",
+      };
+      setupSWRWithPersons("operator-school-persons-10", [mockPerson, person2]);
+
+      render(<OperatorProvisioningPage />);
+
+      selectSchoolAndSwitchToPersons();
+
+      // Open modal for first person
+      const deleteButtons = screen.getAllByTitle("Person löschen");
+      fireEvent.click(deleteButtons[0]!);
+
+      await waitFor(() => {
+        expect(
+          screen.getByPlaceholderText("Max Mustermann"),
+        ).toBeInTheDocument();
+      });
+
+      // Type something in the confirm input
+      fireEvent.change(screen.getByPlaceholderText("Max Mustermann"), {
+        target: { value: "Max" },
+      });
+
+      // Cancel and open for second person
+      fireEvent.click(screen.getByText("Abbrechen"));
+
+      await waitFor(() => {
+        expect(screen.queryByText("Endgültig löschen")).not.toBeInTheDocument();
+      });
+
+      fireEvent.click(deleteButtons[1]!);
+
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText("Anna Schmidt")).toBeInTheDocument();
+        // Confirm input should be empty (reset)
+        expect(
+          (screen.getByPlaceholderText("Anna Schmidt") as HTMLInputElement)
+            .value,
+        ).toBe("");
+      });
     });
   });
 
