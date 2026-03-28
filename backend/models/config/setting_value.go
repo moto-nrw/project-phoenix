@@ -50,7 +50,7 @@ func (sv *SettingValue) Validate() error {
 	if sv.SettingKey == "" {
 		return errors.New("setting_key is required")
 	}
-	if sv.Value == nil || len(sv.Value) == 0 {
+	if len(sv.Value) == 0 {
 		return errors.New("value is required")
 	}
 	return nil
