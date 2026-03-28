@@ -19,6 +19,10 @@ const (
 	errDeviceIDEmpty = "device ID cannot be empty"
 )
 
+func isProtectedSystemDevice(device *iot.Device) bool {
+	return device != nil && device.DeviceID == iot.WebManualDeviceID
+}
+
 // service implements the Service interface
 type service struct {
 	deviceRepo iot.DeviceRepository
@@ -160,7 +164,7 @@ func (s *service) UpdateDevice(ctx context.Context, device *iot.Device) error {
 		return &IoTError{Op: "UpdateDevice", Err: ErrDeviceNotFound}
 	}
 
-	if existingDevice.DeviceType == iot.DeviceTypeVirtual {
+	if isProtectedSystemDevice(existingDevice) {
 		return &IoTError{Op: "UpdateDevice", Err: ErrDeviceProtected}
 	}
 
@@ -200,7 +204,7 @@ func (s *service) DeleteDevice(ctx context.Context, id int64) error {
 		return &IoTError{Op: "DeleteDevice", Err: ErrDeviceNotFound}
 	}
 
-	if device.DeviceType == iot.DeviceTypeVirtual {
+	if isProtectedSystemDevice(device) {
 		return &IoTError{Op: "DeleteDevice", Err: ErrDeviceProtected}
 	}
 
@@ -213,8 +217,8 @@ func (s *service) DeleteDevice(ctx context.Context, id int64) error {
 }
 
 // ListDevices retrieves devices based on filters.
-// Virtual system devices (e.g. WEB-MANUAL-001) are excluded unless
-// the caller explicitly requests device_type=virtual.
+// The reserved web-manual system device is excluded by default.
+// Callers can still fetch it explicitly by requesting device_type=virtual.
 func (s *service) ListDevices(ctx context.Context, filters map[string]interface{}) ([]*iot.Device, error) {
 	if _, hasType := filters["device_type"]; !hasType {
 		// Copy to avoid mutating the caller's map
@@ -222,7 +226,7 @@ func (s *service) ListDevices(ctx context.Context, filters map[string]interface{
 		for k, v := range filters {
 			copied[k] = v
 		}
-		copied["exclude_device_type"] = iot.DeviceTypeVirtual
+		copied["exclude_device_id"] = iot.WebManualDeviceID
 		filters = copied
 	}
 
@@ -255,7 +259,7 @@ func (s *service) UpdateDeviceStatus(ctx context.Context, deviceID string, statu
 		return &IoTError{Op: "UpdateDeviceStatus", Err: &DeviceNotFoundError{DeviceID: deviceID}}
 	}
 
-	if existingDevice.DeviceType == iot.DeviceTypeVirtual {
+	if isProtectedSystemDevice(existingDevice) {
 		return &IoTError{Op: "UpdateDeviceStatus", Err: ErrDeviceProtected}
 	}
 

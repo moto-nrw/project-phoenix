@@ -176,11 +176,9 @@ func EnsureWebManualDevice(tb testing.TB, db *bun.DB) *iot.Device {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	const webManualDeviceCode = "WEB-MANUAL-001"
-
 	// Use upsert pattern to avoid race conditions
 	device := &iot.Device{
-		DeviceID:   webManualDeviceCode,
+		DeviceID:   iot.WebManualDeviceID,
 		DeviceType: iot.DeviceTypeVirtual,
 		Name:       stringPtr("Web-Portal (Manuell)"),
 		Status:     iot.DeviceStatusActive,
@@ -199,7 +197,7 @@ func EnsureWebManualDevice(tb testing.TB, db *bun.DB) *iot.Device {
 	err = db.NewSelect().
 		Model(&existingDevice).
 		ModelTableExpr(`iot.devices AS "device"`).
-		Where(`"device".device_id = ?`, webManualDeviceCode).
+		Where(`"device".device_id = ?`, iot.WebManualDeviceID).
 		Scan(ctx)
 	require.NoError(tb, err, "Failed to fetch web manual device")
 

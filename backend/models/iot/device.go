@@ -23,6 +23,7 @@ const (
 // Device type constants
 const (
 	DeviceTypeVirtual = "virtual"
+	WebManualDeviceID = "WEB-MANUAL-001"
 )
 
 // tableIoTDevices is the schema-qualified table name for IoT devices

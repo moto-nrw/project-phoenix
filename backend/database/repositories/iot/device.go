@@ -384,6 +384,8 @@ func applyDeviceFilter(query *bun.SelectQuery, field string, value interface{}) 
 		return query.Where("device_type = ?", value)
 	case "exclude_device_type":
 		return query.Where("device_type != ?", value)
+	case "exclude_device_id":
+		return query.Where("device_id != ?", value)
 	case "seen_after":
 		return applyDeviceTimeFilter(query, "last_seen", ">", value)
 	case "seen_before":
