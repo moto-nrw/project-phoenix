@@ -15,11 +15,11 @@ const (
 
 func init() {
 	// Register migration with explicit version
-	MigrationRegistry[InfrastructureVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     InfrastructureVersion,
 		Description: InfrastructureDescription,
 		DependsOn:   []string{"0.0.0", "0.1.0"}, // Depends on schemas and core functions
-	}
+	})
 
 	// Migration 1.0.0: Initial infrastructure setup
 	Migrations.MustRegister(

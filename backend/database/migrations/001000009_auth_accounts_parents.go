@@ -16,11 +16,11 @@ const (
 
 func init() {
 	// Register migration with explicit version
-	MigrationRegistry[AuthAccountsParentsVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     AuthAccountsParentsVersion,
 		Description: AuthAccountsParentsDescription,
 		DependsOn:   []string{"1.0.1"}, // Depends on schemas, core functions and infrastructure
-	}
+	})
 
 	// Migration 1.0.9: Create auth.accounts_parents table
 	Migrations.MustRegister(

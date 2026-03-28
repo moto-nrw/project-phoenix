@@ -13,11 +13,11 @@ const (
 )
 
 func init() {
-	MigrationRegistry[removeIsInternalVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     removeIsInternalVersion,
 		Description: removeIsInternalDescription,
 		DependsOn:   []string{"1.12.1"}, // Depends on unified_suggestion_comments
-	}
+	})
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {

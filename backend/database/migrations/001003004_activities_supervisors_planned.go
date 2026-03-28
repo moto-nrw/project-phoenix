@@ -16,11 +16,11 @@ const (
 
 func init() {
 	// Register migration with explicit version
-	MigrationRegistry[ActivitySupervisorsVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     ActivitySupervisorsVersion,
 		Description: ActivitySupervisorsDescription,
 		DependsOn:   []string{"1.3.2", "1.2.3"}, // Depends on activity groups and staff tables
-	}
+	})
 
 	// Migration 1.3.4: Create activities.supervisors table
 	Migrations.MustRegister(

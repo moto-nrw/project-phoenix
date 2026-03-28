@@ -16,11 +16,11 @@ const (
 
 func init() {
 	// Register migration with explicit version
-	MigrationRegistry[UsersGuardianProfilesVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     UsersGuardianProfilesVersion,
 		Description: UsersGuardianProfilesDescription,
 		DependsOn:   []string{"1.0.9"}, // Depends on auth.accounts_parents
-	}
+	})
 
 	// Migration 1.3.5.1: Create guardian_profiles table
 	Migrations.MustRegister(

@@ -15,11 +15,11 @@ const (
 
 func init() {
 	// Register migration with explicit version
-	MigrationRegistry[AddMissingPermissionsVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     AddMissingPermissionsVersion,
 		Description: AddMissingPermissionsDescription,
 		DependsOn:   []string{"1.7.0"}, // Depends on guest_permissions
-	}
+	})
 
 	// Register the migration functions
 	Migrations.MustRegister(

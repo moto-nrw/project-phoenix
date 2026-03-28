@@ -15,8 +15,27 @@ import (
 // Migrations is the shared migrations registry
 var Migrations = migrate.NewMigrations()
 
-// MigrationRegistry keeps track of all registered migrations with their metadata
-var MigrationRegistry = make(map[string]*Migration)
+// SafeMigrationMap wraps a map to panic on duplicate version registration.
+// This prevents migration version collisions from being silently swallowed
+// by Go's map semantics (last write wins). A panic in init() means the
+// binary won't even start if two migrations share a version.
+type SafeMigrationMap map[string]*Migration
+
+// Register adds a migration to the registry, panicking if the version already exists.
+func (m SafeMigrationMap) Register(migration *Migration) {
+	if existing, ok := m[migration.Version]; ok {
+		panic(fmt.Sprintf(
+			"MIGRATION VERSION COLLISION: version %s registered by both %q and %q — "+
+				"each migration must have a unique version number",
+			migration.Version, existing.Description, migration.Description,
+		))
+	}
+	m[migration.Version] = migration
+}
+
+// MigrationRegistry keeps track of all registered migrations with their metadata.
+// Use Register() to add migrations — it panics on duplicate versions.
+var MigrationRegistry = make(SafeMigrationMap)
 
 // compareVersionsSemantic compares two "X.Y.Z" version strings numerically per segment.
 // Returns true if a < b (a should be ordered before b).

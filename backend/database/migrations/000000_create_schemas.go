@@ -15,11 +15,11 @@ const (
 
 func init() {
 	// Register migration with explicit version
-	MigrationRegistry[SchemasVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     SchemasVersion,
 		Description: SchemasDescription,
 		DependsOn:   []string{},
-	}
+	})
 
 	// Migration 0.0: Create database schemas
 	Migrations.MustRegister(

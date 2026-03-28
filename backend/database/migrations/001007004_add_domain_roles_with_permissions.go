@@ -14,11 +14,11 @@ const (
 )
 
 func init() {
-	MigrationRegistry[AddDomainRolesVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     AddDomainRolesVersion,
 		Description: AddDomainRolesDescription,
 		DependsOn:   []string{"1.7.3"}, // Depends on fix_group_supervisor_unique_constraint
-	}
+	})
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {

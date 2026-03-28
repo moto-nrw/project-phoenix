@@ -13,13 +13,13 @@ const (
 )
 
 func init() {
-	MigrationRegistry[UniqueGroupTransfersVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     UniqueGroupTransfersVersion,
 		Description: UniqueGroupTransfersDescription,
 		DependsOn: []string{
 			"1.3.2", // Depends on education.group_substitution table
 		},
-	}
+	})
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {

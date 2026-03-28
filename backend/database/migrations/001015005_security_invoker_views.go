@@ -13,11 +13,11 @@ const (
 )
 
 func init() {
-	MigrationRegistry[securityInvokerViewsVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     securityInvokerViewsVersion,
 		Description: securityInvokerViewsDescription,
 		DependsOn:   []string{"1.15.4"},
-	}
+	})
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {

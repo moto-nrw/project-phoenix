@@ -15,11 +15,11 @@ const (
 )
 
 func init() {
-	MigrationRegistry[GradeTransitionsVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     GradeTransitionsVersion,
 		Description: GradeTransitionsDescription,
 		DependsOn:   []string{"1.0.1", "1.3.5"}, // Depends on auth.accounts and users.students
-	}
+	})
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {

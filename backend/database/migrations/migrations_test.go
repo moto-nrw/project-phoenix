@@ -43,7 +43,7 @@ func TestNoDuplicateMigrationVersions(t *testing.T) {
 		}
 
 		// Only count files that actually register in MigrationRegistry
-		if !strings.Contains(string(content), "MigrationRegistry[") {
+		if !strings.Contains(string(content), "MigrationRegistry.Register(") && !strings.Contains(string(content), "MigrationRegistry[") {
 			continue
 		}
 		migrationFileCount++

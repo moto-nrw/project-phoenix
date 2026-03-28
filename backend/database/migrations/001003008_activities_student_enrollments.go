@@ -16,11 +16,11 @@ const (
 
 func init() {
 	// Register migration with explicit version
-	MigrationRegistry[ActivitiesStudentEnrollmentsVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     ActivitiesStudentEnrollmentsVersion,
 		Description: ActivitiesStudentEnrollmentsDescription,
 		DependsOn:   []string{"1.3.2", "1.3.5"}, // Depends on activities.groups and users.students
-	}
+	})
 
 	// Migration 1.3.8: Create activities.student_enrollments table
 	Migrations.MustRegister(

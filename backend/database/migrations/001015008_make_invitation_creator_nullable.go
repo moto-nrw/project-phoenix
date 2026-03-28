@@ -15,11 +15,11 @@ const (
 )
 
 func init() {
-	MigrationRegistry[makeInvitationCreatorNullableVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     makeInvitationCreatorNullableVersion,
 		Description: makeInvitationCreatorNullableDescription,
 		DependsOn:   []string{"1.15.7"},
-	}
+	})
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {

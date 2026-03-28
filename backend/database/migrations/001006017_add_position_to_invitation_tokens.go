@@ -15,13 +15,13 @@ const (
 )
 
 func init() {
-	MigrationRegistry[AddPositionToInvitationTokensVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     AddPositionToInvitationTokensVersion,
 		Description: AddPositionToInvitationTokensDescription,
 		DependsOn: []string{
 			AuthInvitationTokensVersion, // 1.4.9
 		},
-	}
+	})
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {

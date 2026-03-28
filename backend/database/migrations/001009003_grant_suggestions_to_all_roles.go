@@ -15,11 +15,11 @@ const (
 )
 
 func init() {
-	MigrationRegistry[grantSuggestionsAllRolesVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     grantSuggestionsAllRolesVersion,
 		Description: grantSuggestionsAllRolesDescription,
 		DependsOn:   []string{"1.9.2", "1.7.4"}, // Depends on suggestions permissions + domain roles
-	}
+	})
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {

@@ -15,11 +15,11 @@ const (
 )
 
 func init() {
-	MigrationRegistry[timeTrackingPermissionsVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     timeTrackingPermissionsVersion,
 		Description: timeTrackingPermissionsDescription,
 		DependsOn:   []string{"1.0.5", "1.0.4"}, // Depends on auth.permissions and auth.roles
-	}
+	})
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {

@@ -16,11 +16,11 @@ const (
 )
 
 func init() {
-	MigrationRegistry[enableRLSVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     enableRLSVersion,
 		Description: enableRLSDescription,
 		DependsOn:   []string{"1.14.5", "1.14.6"}, // indexes + account_tenants populated
-	}
+	})
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {

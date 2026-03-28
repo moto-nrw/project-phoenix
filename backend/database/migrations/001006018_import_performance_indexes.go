@@ -16,11 +16,11 @@ const (
 
 func init() {
 	// Register migration with explicit version
-	MigrationRegistry[ImportPerformanceIndexesVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     ImportPerformanceIndexesVersion,
 		Description: ImportPerformanceIndexesDescription,
 		DependsOn:   []string{"1.0.1", "1.1.1", "1.2.1"}, // Depends on users, education tables
-	}
+	})
 
 	// Register the migration
 	Migrations.MustRegister(

@@ -15,11 +15,11 @@ const (
 )
 
 func init() {
-	MigrationRegistry[workSessionBreaksVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     workSessionBreaksVersion,
 		Description: workSessionBreaksDescription,
 		DependsOn:   []string{"1.10.3"}, // Depends on pause_started_at migration
-	}
+	})
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {

@@ -16,11 +16,11 @@ const (
 
 func init() {
 	// Register migration with explicit version
-	MigrationRegistry[AttendanceVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     AttendanceVersion,
 		Description: AttendanceDescription,
 		DependsOn:   []string{"1.3.5", "1.2.3", "1.3.9"}, // Depends on users.students, users.staff, iot.devices
-	}
+	})
 
 	// Migration 1.6.5: Create active.attendance table
 	Migrations.MustRegister(

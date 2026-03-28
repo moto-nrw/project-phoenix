@@ -16,11 +16,11 @@ const (
 
 func init() {
 	// Register migration with explicit version
-	MigrationRegistry[AuthTokensVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     AuthTokensVersion,
 		Description: AuthTokensDescription,
 		DependsOn:   []string{"1.0.1"}, // Depends on auth.accounts
-	}
+	})
 
 	// Migration 1.0.2: Create auth.tokens table
 	Migrations.MustRegister(

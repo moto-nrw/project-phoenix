@@ -14,11 +14,11 @@ const (
 )
 
 func init() {
-	MigrationRegistry[dropLegacyPhoneSyncVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     dropLegacyPhoneSyncVersion,
 		Description: dropLegacyPhoneSyncDescription,
 		DependsOn:   []string{"1.15.11"},
-	}
+	})
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {

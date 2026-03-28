@@ -15,11 +15,11 @@ const (
 )
 
 func init() {
-	MigrationRegistry[staffAbsencesVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     staffAbsencesVersion,
 		Description: staffAbsencesDescription,
 		DependsOn:   []string{"1.10.5"}, // Depends on work_session_edits
-	}
+	})
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {

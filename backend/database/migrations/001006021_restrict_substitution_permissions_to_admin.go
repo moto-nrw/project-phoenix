@@ -15,13 +15,13 @@ const (
 )
 
 func init() {
-	MigrationRegistry[RestrictSubstitutionPermissionsVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     RestrictSubstitutionPermissionsVersion,
 		Description: RestrictSubstitutionPermissionsDescription,
 		DependsOn: []string{
 			"1.6.8", // Depends on migration that added substitution permissions to teachers
 		},
-	}
+	})
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {

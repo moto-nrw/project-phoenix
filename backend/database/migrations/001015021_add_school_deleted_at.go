@@ -12,11 +12,11 @@ const (
 )
 
 func init() {
-	MigrationRegistry[addSchoolDeletedAtVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     addSchoolDeletedAtVersion,
 		Description: addSchoolDeletedAtDescription,
 		DependsOn:   []string{"1.15.20"},
-	}
+	})
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {

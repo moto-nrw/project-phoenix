@@ -15,11 +15,11 @@ const (
 )
 
 func init() {
-	MigrationRegistry[remediateLostCollisionMigrationsVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     remediateLostCollisionMigrationsVersion,
 		Description: remediateLostCollisionMigrationsDescription,
 		DependsOn:   []string{"1.15.22"},
-	}
+	})
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {

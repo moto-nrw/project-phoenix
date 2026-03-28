@@ -16,11 +16,11 @@ const (
 
 func init() {
 	// Register migration with explicit version
-	MigrationRegistry[GuardianPhoneNumbersVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     GuardianPhoneNumbersVersion,
 		Description: GuardianPhoneNumbersDescription,
 		DependsOn:   []string{"1.3.5.1"}, // Depends on guardian_profiles
-	}
+	})
 
 	// Migration 1.7.6: Create guardian_phone_numbers table
 	Migrations.MustRegister(
