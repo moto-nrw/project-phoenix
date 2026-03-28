@@ -262,6 +262,21 @@ func (r *SchoolRepository) SoftDelete(ctx context.Context, id int64) error {
 	return base.AssertRowsAffected(result, 1, "soft delete school")
 }
 
+// CountByIDs counts how many schools exist for the given IDs.
+func (r *SchoolRepository) CountByIDs(ctx context.Context, ids []int64) (int, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	count, err := base.GetDB(ctx, r.db).NewSelect().
+		ModelTableExpr("platform.schools").
+		Where("id IN (?)", bun.List(ids)).
+		Count(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "count schools by ids", Err: err}
+	}
+	return count, nil
+}
+
 // Restore clears deleted_at on a soft-deleted school. Fails if the school is not deleted.
 func (r *SchoolRepository) Restore(ctx context.Context, id int64) error {
 	result, err := base.GetDB(ctx, r.db).NewUpdate().

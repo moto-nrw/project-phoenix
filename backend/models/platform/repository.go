@@ -81,9 +81,9 @@ type SchoolRepository interface {
 	ListPublic(ctx context.Context) ([]School, error)
 	FindActiveByAccountID(ctx context.Context, accountID int64) ([]School, error)
 	Update(ctx context.Context, school *School) error
-	CountByIDs(ctx context.Context, ids []int64) (int, error)
 	SoftDelete(ctx context.Context, id int64) error
 	Restore(ctx context.Context, id int64) error
+	CountByIDs(ctx context.Context, ids []int64) (int, error)
 }
 
 // OperatorAuditLogRepository defines operations for the audit log

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -84,6 +85,10 @@ func (r *AnnouncementViewRepository) MarkDismissed(ctx context.Context, userID, 
 
 // GetUnreadForUser retrieves all unread active announcements for a user scoped to the current session tenant/org.
 // Only announcements that are global OR target the user's current tenant/org are returned.
+// Targeting logic uses 3 branches (OR-union):
+//   - Global: both target_org_ids and target_tenant_ids are empty
+//   - Org match: user's org ID is in target_org_ids
+//   - Tenant match: user's tenant ID is in target_tenant_ids
 func (r *AnnouncementViewRepository) GetUnreadForUser(ctx context.Context, userID int64, userRoles []string, tenantID int64, orgID int64) ([]*platform.Announcement, error) {
 	var announcements []*platform.Announcement
 	now := time.Now()
@@ -152,7 +157,8 @@ func (r *AnnouncementViewRepository) CountUnread(ctx context.Context, userID int
 	return count, nil
 }
 
-// GetStats retrieves view statistics for an announcement
+// GetStats retrieves view statistics for an announcement.
+// Target count is scoped by role, org, and tenant targeting.
 func (r *AnnouncementViewRepository) GetStats(ctx context.Context, announcementID int64) (*platform.AnnouncementStats, error) {
 	stats := &platform.AnnouncementStats{
 		AnnouncementID: announcementID,
@@ -252,6 +258,40 @@ func (r *AnnouncementViewRepository) GetStats(ctx context.Context, announcementI
 	}
 
 	return stats, nil
+}
+
+// buildOrgTenantWhereClause builds a SQL WHERE clause for org/tenant targeting.
+// Uses hardcoded ID lists (safe — these are int64 from the database, not user input).
+func buildOrgTenantWhereClause(orgIDs []int64, tenantIDs []int64) string {
+	parts := make([]string, 0, 2)
+	if len(orgIDs) > 0 {
+		ids := int64SliceToSQL(orgIDs)
+		parts = append(parts, "s.organization_id IN ("+ids+")")
+	}
+	if len(tenantIDs) > 0 {
+		ids := int64SliceToSQL(tenantIDs)
+		parts = append(parts, "at.tenant_id IN ("+ids+")")
+	}
+	if len(parts) == 0 {
+		return "TRUE"
+	}
+	result := parts[0]
+	for i := 1; i < len(parts); i++ {
+		result += " OR " + parts[i]
+	}
+	return result
+}
+
+// int64SliceToSQL converts a slice of int64 to a SQL-safe comma-separated string.
+func int64SliceToSQL(ids []int64) string {
+	s := ""
+	for i, id := range ids {
+		if i > 0 {
+			s += ","
+		}
+		s += fmt.Sprintf("%d", id)
+	}
+	return s
 }
 
 // HasSeen checks if a user has seen a specific announcement

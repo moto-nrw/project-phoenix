@@ -152,6 +152,22 @@ vi.mock("lucide-react", () => ({
   Check: () => <span>Check</span>,
 }));
 
+vi.mock("~/contexts/ToastContext", () => ({
+  useToast: () => ({
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+  }),
+}));
+
+vi.mock("~/lib/operator/provisioning-api", () => ({
+  operatorProvisioningService: {
+    listOrganizations: vi.fn().mockResolvedValue([]),
+    listSchools: vi.fn().mockResolvedValue([]),
+  },
+}));
+
 import OperatorAnnouncementsPage from "./page";
 
 describe("OperatorAnnouncementsPage", () => {
@@ -165,6 +181,8 @@ describe("OperatorAnnouncementsPage", () => {
     version: "1.0.0",
     expiresAt: "2025-12-31",
     targetRoles: ["admin" as const],
+    targetOrgIds: [] as string[],
+    targetTenantIds: [] as string[],
     createdAt: new Date("2025-01-01"),
     publishedAt: null,
   };

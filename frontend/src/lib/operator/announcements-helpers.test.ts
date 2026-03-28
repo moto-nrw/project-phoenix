@@ -46,6 +46,8 @@ describe("mapAnnouncement", () => {
     expect(result.targetOrgIds).toEqual(["5", "10"]);
     expect(result.targetTenantIds).toEqual(["12"]);
     expect(result.createdBy).toBe("1");
+    expect(result.createdAt).toBe("2026-02-28T08:00:00Z");
+    expect(result.updatedAt).toBe("2026-02-28T09:00:00Z");
     expect(result.status).toBe("published");
   });
 

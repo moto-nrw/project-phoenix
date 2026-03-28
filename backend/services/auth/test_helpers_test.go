@@ -1284,8 +1284,9 @@ func (r *stubSchoolRepository) FindActiveByAccountID(context.Context, int64) ([]
 func (r *stubSchoolRepository) Update(context.Context, *platformModel.School) error {
 	return fmt.Errorf("not implemented")
 }
-func (r *stubSchoolRepository) SoftDelete(context.Context, int64) error { return nil }
-func (r *stubSchoolRepository) Restore(context.Context, int64) error    { return nil }
+func (r *stubSchoolRepository) SoftDelete(context.Context, int64) error          { return nil }
+func (r *stubSchoolRepository) Restore(context.Context, int64) error             { return nil }
+func (r *stubSchoolRepository) CountByIDs(context.Context, []int64) (int, error) { return 0, nil }
 
 func (r *stubSchoolRepository) CountByIDs(context.Context, []int64) (int, error) {
 	return 0, fmt.Errorf("not implemented")
