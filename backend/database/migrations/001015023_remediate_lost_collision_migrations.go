@@ -94,53 +94,6 @@ func remediateLostCollisionMigrationsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func remediateLostCollisionMigrationsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.23: Reverting remediated schema changes...")
-
-	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
-	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer func() {
-		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
-		}
-	}()
-
-	// 1. Drop partial indexes and recreate original unique indexes on persons
-	_, err = tx.ExecContext(ctx, `
-		DROP INDEX IF EXISTS users.idx_persons_tenant_tag;
-		DROP INDEX IF EXISTS users.idx_persons_tenant_account;
-
-		CREATE UNIQUE INDEX idx_persons_tenant_tag
-		ON users.persons(tenant_id, tag_id);
-
-		CREATE UNIQUE INDEX idx_persons_tenant_account
-		ON users.persons(tenant_id, account_id);
-	`)
-	if err != nil {
-		return fmt.Errorf("error restoring persons unique indexes: %w", err)
-	}
-
-	// 2. Drop deleted_at column from users.persons
-	_, err = tx.ExecContext(ctx, `
-		ALTER TABLE users.persons DROP COLUMN IF EXISTS deleted_at;
-	`)
-	if err != nil {
-		return fmt.Errorf("error dropping deleted_at from users.persons: %w", err)
-	}
-
-	// 3. Drop announcement targeting indexes and columns
-	_, err = tx.ExecContext(ctx, `
-		DROP INDEX IF EXISTS platform.idx_announcements_target_org_ids;
-		DROP INDEX IF EXISTS platform.idx_announcements_target_tenant_ids;
-
-		ALTER TABLE platform.announcements DROP COLUMN IF EXISTS target_org_ids;
-		ALTER TABLE platform.announcements DROP COLUMN IF EXISTS target_tenant_ids;
-	`)
-	if err != nil {
-		return fmt.Errorf("error dropping announcement targeting columns: %w", err)
-	}
-
-	fmt.Println("Migration 1.15.23: Rollback complete")
-	return tx.Commit()
+	fmt.Println("Rolling back migration 1.15.23: no-op to avoid removing schema owned by 1.15.20/1.15.22")
+	return nil
 }

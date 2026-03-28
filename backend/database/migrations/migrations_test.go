@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -18,6 +19,7 @@ func TestNoDuplicateMigrationVersions(t *testing.T) {
 	// Migration files use named constants (not inline strings), so we match
 	// the const declaration pattern rather than struct field assignment.
 	versionPattern := regexp.MustCompile(`Version\s*=\s*"([^"]+)"`)
+	filePrefixPattern := regexp.MustCompile(`^(\d{1,14})_`)
 
 	entries, err := os.ReadDir(".")
 	if err != nil {
@@ -25,6 +27,7 @@ func TestNoDuplicateMigrationVersions(t *testing.T) {
 	}
 
 	versionFiles := make(map[string][]string)
+	bunNameFiles := make(map[string][]string)
 	migrationFileCount := 0
 
 	for _, entry := range entries {
@@ -35,6 +38,10 @@ func TestNoDuplicateMigrationVersions(t *testing.T) {
 		// Migration files start with 000 or 001 (schema setup + domain migrations)
 		if !strings.HasPrefix(name, "000") && !strings.HasPrefix(name, "001") {
 			continue
+		}
+
+		if match := filePrefixPattern.FindStringSubmatch(name); match != nil {
+			bunNameFiles[match[1]] = append(bunNameFiles[match[1]], name)
 		}
 
 		content, err := os.ReadFile(filepath.Join(".", name))
@@ -63,6 +70,22 @@ func TestNoDuplicateMigrationVersions(t *testing.T) {
 				"Each migration MUST have a unique version number.",
 				version, len(files), strings.Join(files, ", "))
 		}
+	}
+
+	for bunName, files := range bunNameFiles {
+		if len(files) <= 1 {
+			continue
+		}
+
+		sort.Strings(files)
+		allowedFiles, allowed := allowedLegacyBunNameCollisions[bunName]
+		if allowed && slicesEqual(files, allowedFiles) {
+			continue
+		}
+
+		t.Errorf("BUN NAME COLLISION: filename prefix %s is shared by %d files: %s\n"+
+			"Bun identifies Go migrations by this numeric filename prefix, so new collisions are unsafe.",
+			bunName, len(files), strings.Join(files, ", "))
 	}
 
 	// Belt-and-suspenders: verify file count matches registry count

@@ -37,6 +37,29 @@ func (m SafeMigrationMap) Register(migration *Migration) {
 // Use Register() to add migrations — it panics on duplicate versions.
 var MigrationRegistry = make(SafeMigrationMap)
 
+// Some historical Go migrations already shipped with duplicate Bun names derived
+// from their numeric filename prefixes. We cannot safely rename those files now,
+// because already-migrated environments would treat the new filenames as brand-new
+// migrations and rerun them. Keep the list explicit and fail on any new collision.
+var allowedLegacyBunNameCollisions = map[string][]string{
+	"001006017": {
+		"001006017_add_position_to_invitation_tokens.go",
+		"001006017_audit_data_imports.go",
+	},
+	"001006018": {
+		"001006018_add_pickup_status_to_students.go",
+		"001006018_import_performance_indexes.go",
+	},
+	"001007006": {
+		"001007006_grade_transitions.go",
+		"001007006_guardian_phone_numbers.go",
+	},
+	"001007007": {
+		"001007007_grade_transition_permissions.go",
+		"001007007_remove_guardian_contact_constraint.go",
+	},
+}
+
 // compareVersionsSemantic compares two "X.Y.Z" version strings numerically per segment.
 // Returns true if a < b (a should be ordered before b).
 // Lexicographic comparison would incorrectly order "1.12.7" < "1.8.3" because "1" < "8".
@@ -162,10 +185,9 @@ func PrintMigrationPlan() {
 	fmt.Println("===============")
 }
 
-// DetectVersionCollisions scans migration source files for duplicate version registrations.
-// Since MigrationRegistry is a map[string]*Migration, duplicate versions in init() functions
-// silently overwrite each other — the map hides the collision. This function reads the actual
-// source files to detect collisions that the map cannot reveal.
+// DetectVersionCollisions scans migration source files for both semantic version
+// collisions in MigrationRegistry and duplicate Bun migration names derived from
+// numeric filename prefixes.
 //
 // If migrationsDir does not exist (e.g., in Docker where only the compiled binary is present),
 // the check is skipped gracefully and returns nil.
@@ -174,6 +196,7 @@ func DetectVersionCollisions(migrationsDir string) error {
 	// Migration files use named constants (not inline strings in struct fields),
 	// so we match the const declaration pattern.
 	versionPattern := regexp.MustCompile(`Version\s*=\s*"([^"]+)"`)
+	filePrefixPattern := regexp.MustCompile(`^(\d{1,14})_`)
 
 	entries, err := os.ReadDir(migrationsDir)
 	if err != nil {
@@ -186,6 +209,7 @@ func DetectVersionCollisions(migrationsDir string) error {
 	}
 
 	versionFiles := make(map[string][]string)
+	bunNameFiles := make(map[string][]string)
 
 	for _, entry := range entries {
 		name := entry.Name()
@@ -195,6 +219,10 @@ func DetectVersionCollisions(migrationsDir string) error {
 		// Migration files start with 000 or 001
 		if !strings.HasPrefix(name, "000") && !strings.HasPrefix(name, "001") {
 			continue
+		}
+
+		if match := filePrefixPattern.FindStringSubmatch(name); match != nil {
+			bunNameFiles[match[1]] = append(bunNameFiles[match[1]], name)
 		}
 
 		content, err := os.ReadFile(filepath.Join(migrationsDir, name))
@@ -213,19 +241,46 @@ func DetectVersionCollisions(migrationsDir string) error {
 	for version, files := range versionFiles {
 		if len(files) > 1 {
 			collisions = append(collisions, fmt.Sprintf(
-				"  version %s is registered by %d files: %s",
+				"  semantic version %s is registered by %d files: %s",
 				version, len(files), strings.Join(files, ", "),
 			))
 		}
+	}
+	for bunName, files := range bunNameFiles {
+		if len(files) <= 1 {
+			continue
+		}
+
+		sort.Strings(files)
+		allowedFiles, allowed := allowedLegacyBunNameCollisions[bunName]
+		if allowed && slicesEqual(files, allowedFiles) {
+			continue
+		}
+
+		collisions = append(collisions, fmt.Sprintf(
+			"  bun migration name %s is used by %d files: %s",
+			bunName, len(files), strings.Join(files, ", "),
+		))
 	}
 
 	if len(collisions) > 0 {
 		sort.Strings(collisions)
 		return fmt.Errorf("migration version collisions detected:\n%s\n"+
-			"each migration must have a unique version number, "+
-			"duplicate versions cause silent overwrites in MigrationRegistry (a Go map)",
+			"semantic versions must stay unique in MigrationRegistry and Bun filename prefixes must stay unique for new migrations",
 			strings.Join(collisions, "\n"))
 	}
 
 	return nil
+}
+
+func slicesEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }

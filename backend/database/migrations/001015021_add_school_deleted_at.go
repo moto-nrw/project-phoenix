@@ -22,12 +22,12 @@ func init() {
 		func(ctx context.Context, db *bun.DB) error {
 			if _, err := db.ExecContext(ctx, `
 				ALTER TABLE platform.schools
-				ADD COLUMN deleted_at TIMESTAMPTZ
+				ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ
 			`); err != nil {
 				return err
 			}
 			_, err := db.ExecContext(ctx, `
-				CREATE INDEX idx_schools_active_visible
+				CREATE INDEX IF NOT EXISTS idx_schools_active_visible
 				ON platform.schools (id)
 				WHERE active = true AND hidden = false AND deleted_at IS NULL
 			`)
