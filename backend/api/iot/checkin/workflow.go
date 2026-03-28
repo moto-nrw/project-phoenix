@@ -30,6 +30,7 @@ type checkinResult struct {
 	GreetingMsg            string
 	DailyCheckoutAvailable bool
 	ActiveStudents         *int
+	PickupTime             *string
 }
 
 // checkinResultInput holds the input parameters for building a checkin result.
@@ -806,6 +807,10 @@ func buildCheckinResponse(student *users.Student, result *checkinResult, now tim
 
 	if result.ActiveStudents != nil {
 		response["active_students"] = *result.ActiveStudents
+	}
+
+	if result.PickupTime != nil {
+		response["pickup_time"] = *result.PickupTime
 	}
 
 	return response

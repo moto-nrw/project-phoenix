@@ -589,6 +589,62 @@ func TestCreateInvitationAllowsExistingAccountForNewTenant(t *testing.T) {
 	require.Contains(t, invitations.byToken, invitation.Token)
 }
 
+func TestAcceptInvitationDeletedSchoolRejectsAcceptance(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+
+	invitationRepo := newStubInvitationTokenRepository()
+	schoolRepo := &stubSchoolRepository{deletedTenantIDs: map[int64]bool{42: true}}
+
+	service := NewInvitationService(InvitationServiceConfig{
+		InvitationRepo:    invitationRepo,
+		AccountRepo:       newStubAccountRepository(),
+		AccountTenantRepo: newStubAccountTenantRepository(),
+		RoleRepo: newStubRoleRepository(
+			&authModel.Role{Model: baseModel.Model{ID: 2}, Name: "Teacher"},
+		),
+		AccountRoleRepo:  newStubAccountRoleRepository(),
+		PersonRepo:       newStubPersonRepository(),
+		StaffRepo:        newStubStaffRepository(),
+		TeacherRepo:      newStubTeacherRepository(),
+		SchoolRepo:       schoolRepo,
+		FrontendURL:      "http://localhost:3000",
+		DefaultFrom:      newDefaultFromEmail(),
+		InvitationExpiry: 48 * time.Hour,
+		DB:               bunDB,
+	})
+
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	ctx := context.Background()
+	token := &authModel.InvitationToken{
+		Email:     "deleted-school@example.com",
+		Token:     "deleted-school-token",
+		RoleID:    2,
+		ExpiresAt: time.Now().Add(10 * time.Hour),
+	}
+	token.SetTenantID(42)
+	require.NoError(t, invitationRepo.Create(ctx, token))
+
+	expectAdminTxRollback(mock)
+	_, err = service.AcceptInvitation(ctx, "deleted-school-token", UserRegistrationData{
+		FirstName:       "Ghost",
+		LastName:        "User",
+		Password:        testStrongPassword,
+		ConfirmPassword: testStrongPassword,
+	})
+	require.Error(t, err)
+	require.True(t, errors.Is(err, ErrInvitationTenantDeleted),
+		"expected ErrInvitationTenantDeleted, got %v", err)
+	require.False(t, token.IsUsed(), "invitation must remain unused when school is deleted")
+}
+
 func TestAcceptInvitationReusesExistingAccountForNewTenant(t *testing.T) {
 	service, invitations, accounts, _, accountRoles, persons, _, mock, cleanup := newInvitationTestEnv(t)
 	t.Cleanup(cleanup)

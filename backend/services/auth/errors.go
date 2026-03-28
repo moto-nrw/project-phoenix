@@ -61,10 +61,11 @@ var (
 	ErrTenantAccessDenied = errors.New("account does not have access to this tenant")
 
 	// Invitation errors
-	ErrInvitationNotFound     = errors.New("invitation not found")
-	ErrInvitationExpired      = errors.New("invitation has expired")
-	ErrInvitationUsed         = errors.New("invitation has already been used")
-	ErrInvitationNameRequired = errors.New("first name and last name are required")
+	ErrInvitationNotFound      = errors.New("invitation not found")
+	ErrInvitationExpired       = errors.New("invitation has expired")
+	ErrInvitationUsed          = errors.New("invitation has already been used")
+	ErrInvitationTenantDeleted = errors.New("the school for this invitation has been deleted")
+	ErrInvitationNameRequired  = errors.New("first name and last name are required")
 
 	// Deletion constraint errors
 	ErrRoleInUse       = errors.New("Rolle kann nicht gelöscht werden: Rolle ist aktuell Konten zugewiesen")                           //nolint:staticcheck // ST1005: user-facing German message

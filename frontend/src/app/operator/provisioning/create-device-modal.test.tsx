@@ -58,6 +58,7 @@ describe("CreateDeviceModal", () => {
     email: "",
     active: true,
     hidden: false,
+    deletedAt: null,
     createdAt: "2025-01-01T00:00:00Z",
     updatedAt: "2025-01-01T00:00:00Z",
     organization: undefined,

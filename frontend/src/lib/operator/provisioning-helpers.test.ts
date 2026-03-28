@@ -8,6 +8,7 @@ import {
   mapSchoolAccount,
   mapOrgAccount,
   mapOperatorDevice,
+  mapOperatorPerson,
 } from "./provisioning-helpers";
 import type {
   BackendOrganization,
@@ -16,6 +17,7 @@ import type {
   BackendSchoolAccount,
   BackendOrgAccount,
   BackendOperatorDevice,
+  BackendOperatorPerson,
 } from "./provisioning-helpers";
 
 describe("generateSlug", () => {
@@ -158,6 +160,7 @@ describe("mapSchool", () => {
       email: "info@test.de",
       active: true,
       hidden: false,
+      deleted_at: null,
       settings: null,
       created_at: "2025-01-01T00:00:00Z",
       updated_at: "2025-01-02T00:00:00Z",
@@ -174,6 +177,81 @@ describe("mapSchool", () => {
     expect(result.organization).toBeUndefined();
   });
 
+  it("maps hidden: true correctly", () => {
+    const backend: BackendSchool = {
+      id: 10,
+      organization_id: 42,
+      name: "Hidden School",
+      slug: "hidden-school",
+      subdomain: "hidden",
+      address: "",
+      city: "",
+      zip: "",
+      phone: "",
+      email: "",
+      active: true,
+      hidden: true,
+      deleted_at: null,
+      settings: null,
+      created_at: "2025-01-01T00:00:00Z",
+      updated_at: "2025-01-02T00:00:00Z",
+    };
+
+    const result = mapSchool(backend);
+
+    expect(result.hidden).toBe(true);
+  });
+
+  it("maps deleted_at timestamp correctly", () => {
+    const backend: BackendSchool = {
+      id: 10,
+      organization_id: 42,
+      name: "Deleted School",
+      slug: "deleted-school",
+      subdomain: "deleted",
+      address: "",
+      city: "",
+      zip: "",
+      phone: "",
+      email: "",
+      active: false,
+      hidden: false,
+      deleted_at: "2026-03-15T10:00:00Z",
+      settings: null,
+      created_at: "2025-01-01T00:00:00Z",
+      updated_at: "2025-01-02T00:00:00Z",
+    };
+
+    const result = mapSchool(backend);
+
+    expect(result.deletedAt).toBe("2026-03-15T10:00:00Z");
+  });
+
+  it("maps deleted_at: null correctly", () => {
+    const backend: BackendSchool = {
+      id: 10,
+      organization_id: 42,
+      name: "Active School",
+      slug: "active-school",
+      subdomain: "active",
+      address: "",
+      city: "",
+      zip: "",
+      phone: "",
+      email: "",
+      active: true,
+      hidden: false,
+      deleted_at: null,
+      settings: null,
+      created_at: "2025-01-01T00:00:00Z",
+      updated_at: "2025-01-02T00:00:00Z",
+    };
+
+    const result = mapSchool(backend);
+
+    expect(result.deletedAt).toBeNull();
+  });
+
   it("maps nested organization when present", () => {
     const backend: BackendSchool = {
       id: 10,
@@ -188,6 +266,7 @@ describe("mapSchool", () => {
       email: "",
       active: true,
       hidden: false,
+      deleted_at: null,
       settings: null,
       created_at: "2025-01-01T00:00:00Z",
       updated_at: "2025-01-02T00:00:00Z",
@@ -511,5 +590,108 @@ describe("mapOperatorDevice", () => {
     expect(result.id).toBe("200");
     expect(result.schoolId).toBe("10");
     expect(result.organizationId).toBe("5");
+  });
+});
+
+describe("mapOperatorPerson", () => {
+  const fullBackendPerson: BackendOperatorPerson = {
+    id: 42,
+    first_name: "Max",
+    last_name: "Mustermann",
+    has_account: true,
+    account_email: "max@test.de",
+    has_rfid_card: true,
+    is_staff: true,
+    is_student: false,
+    school_id: 10,
+    school_name: "Testschule",
+    organization_id: 5,
+    organization_name: "Testträger",
+    created_at: "2026-01-01T00:00:00Z",
+  };
+
+  it("maps all fields from backend to frontend format", () => {
+    const result = mapOperatorPerson(fullBackendPerson);
+
+    expect(result).toEqual({
+      id: "42",
+      firstName: "Max",
+      lastName: "Mustermann",
+      fullName: "Max Mustermann",
+      hasAccount: true,
+      accountEmail: "max@test.de",
+      hasRfidCard: true,
+      isStaff: true,
+      isStudent: false,
+      schoolId: "10",
+      schoolName: "Testschule",
+      organizationId: "5",
+      organizationName: "Testträger",
+      createdAt: "2026-01-01T00:00:00Z",
+    });
+  });
+
+  it("converts all numeric ids to strings", () => {
+    const result = mapOperatorPerson(fullBackendPerson);
+    expect(result.id).toBe("42");
+    expect(result.schoolId).toBe("10");
+    expect(result.organizationId).toBe("5");
+  });
+
+  it("constructs fullName from first and last name", () => {
+    const result = mapOperatorPerson(fullBackendPerson);
+    expect(result.fullName).toBe("Max Mustermann");
+  });
+
+  it("handles null account_email", () => {
+    const backend: BackendOperatorPerson = {
+      ...fullBackendPerson,
+      account_email: null,
+    };
+
+    expect(mapOperatorPerson(backend).accountEmail).toBeNull();
+  });
+
+  it("handles undefined account_email", () => {
+    const backend: BackendOperatorPerson = {
+      ...fullBackendPerson,
+      account_email: undefined,
+    };
+
+    expect(mapOperatorPerson(backend).accountEmail).toBeNull();
+  });
+
+  it("maps student-only person correctly", () => {
+    const backend: BackendOperatorPerson = {
+      ...fullBackendPerson,
+      is_staff: false,
+      is_student: true,
+      has_account: false,
+      account_email: null,
+      has_rfid_card: false,
+    };
+
+    const result = mapOperatorPerson(backend);
+    expect(result.isStaff).toBe(false);
+    expect(result.isStudent).toBe(true);
+    expect(result.hasAccount).toBe(false);
+    expect(result.accountEmail).toBeNull();
+    expect(result.hasRfidCard).toBe(false);
+  });
+
+  it("preserves boolean fields accurately", () => {
+    const backend: BackendOperatorPerson = {
+      ...fullBackendPerson,
+      has_account: false,
+      has_rfid_card: false,
+      is_staff: false,
+      is_student: false,
+    };
+
+    const result = mapOperatorPerson(backend);
+    expect(result.hasAccount).toBe(false);
+    expect(result.hasRfidCard).toBe(false);
+    expect(result.isStaff).toBe(false);
+    expect(result.isStudent).toBe(false);
   });
 });

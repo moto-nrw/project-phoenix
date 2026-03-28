@@ -221,6 +221,13 @@ func (m *mockSchoolRepoShared) Update(ctx context.Context, school *platform.Scho
 	return nil
 }
 
+func (m *mockSchoolRepoShared) FindByIDForShare(ctx context.Context, id int64) (*platform.School, error) {
+	return m.FindByID(ctx, id)
+}
+
+func (m *mockSchoolRepoShared) SoftDelete(context.Context, int64) error { return nil }
+func (m *mockSchoolRepoShared) Restore(context.Context, int64) error    { return nil }
+
 func (m *mockSchoolRepoShared) CountByIDs(ctx context.Context, ids []int64) (int, error) {
 	if m.countByIDsFn != nil {
 		return m.countByIDsFn(ctx, ids)

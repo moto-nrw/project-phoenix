@@ -596,6 +596,7 @@ func (r *StudentRepository) FindAllWithGroups(ctx context.Context) ([]*users.Stu
 	err := r.newStudentWithGroupQuery(ctx, &results).
 		ColumnExpr(`COALESCE("group".name, '') AS "group_name"`).
 		Join(`LEFT JOIN education.groups AS "group" ON "group".id = "student".group_id`).
+		Distinct().
 		OrderExpr(`"person".last_name, "person".first_name`).
 		Scan(ctx)
 

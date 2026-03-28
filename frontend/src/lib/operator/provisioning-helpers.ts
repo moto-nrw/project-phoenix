@@ -23,6 +23,7 @@ export interface BackendSchool {
   email: string;
   active: boolean;
   hidden: boolean;
+  deleted_at: string | null;
   settings: string | null;
   created_at: string;
   updated_at: string;
@@ -70,6 +71,7 @@ export interface School {
   email: string;
   active: boolean;
   hidden: boolean;
+  deletedAt: string | null;
   createdAt: string;
   updatedAt: string;
   organization?: Organization;
@@ -213,6 +215,7 @@ export function mapSchool(data: BackendSchool): School {
     email: data.email,
     active: data.active,
     hidden: data.hidden,
+    deletedAt: data.deleted_at ?? null,
     createdAt: data.created_at,
     updatedAt: data.updated_at,
     organization: data.organization
@@ -350,4 +353,58 @@ export function generateSlug(name: string): string {
 
 export function isValidSlug(slug: string): boolean {
   return SLUG_REGEX.test(slug);
+}
+
+// Person types for operator person listing + soft delete
+
+export interface BackendOperatorPerson {
+  id: number;
+  first_name: string;
+  last_name: string;
+  has_account: boolean;
+  account_email?: string | null;
+  has_rfid_card: boolean;
+  is_staff: boolean;
+  is_student: boolean;
+  school_id: number;
+  school_name: string;
+  organization_id: number;
+  organization_name: string;
+  created_at: string;
+}
+
+export interface OperatorPerson {
+  id: string;
+  firstName: string;
+  lastName: string;
+  fullName: string;
+  hasAccount: boolean;
+  accountEmail: string | null;
+  hasRfidCard: boolean;
+  isStaff: boolean;
+  isStudent: boolean;
+  schoolId: string;
+  schoolName: string;
+  organizationId: string;
+  organizationName: string;
+  createdAt: string;
+}
+
+export function mapOperatorPerson(data: BackendOperatorPerson): OperatorPerson {
+  return {
+    id: data.id.toString(),
+    firstName: data.first_name,
+    lastName: data.last_name,
+    fullName: `${data.first_name} ${data.last_name}`,
+    hasAccount: data.has_account,
+    accountEmail: data.account_email ?? null,
+    hasRfidCard: data.has_rfid_card,
+    isStaff: data.is_staff,
+    isStudent: data.is_student,
+    schoolId: data.school_id.toString(),
+    schoolName: data.school_name,
+    organizationId: data.organization_id.toString(),
+    organizationName: data.organization_name,
+    createdAt: data.created_at,
+  };
 }

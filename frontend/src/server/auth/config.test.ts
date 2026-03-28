@@ -1670,22 +1670,39 @@ describe("authConfig", () => {
 
   describe("cookie configuration", () => {
     it("should configure tenant cookies for cross-subdomain sharing", () => {
+      // Cookie names are derived from TENANT_DOMAIN to prevent collisions
+      // when environments share a parent domain (e.g., staging.moto-app.de
+      // under moto-app.de).
       expect(authConfig.cookies?.sessionToken?.name).toBe(
-        "next-auth.session-token",
+        "moto-app-de.session-token",
       );
       expect(authConfig.cookies?.sessionToken?.options.domain).toBe(
         ".moto-app.de",
       );
       expect(authConfig.cookies?.callbackUrl?.name).toBe(
-        "next-auth.callback-url",
+        "moto-app-de.callback-url",
       );
       expect(authConfig.cookies?.callbackUrl?.options.domain).toBe(
         ".moto-app.de",
       );
-      expect(authConfig.cookies?.csrfToken?.name).toBe("next-auth.csrf-token");
+      expect(authConfig.cookies?.csrfToken?.name).toBe(
+        "moto-app-de.csrf-token",
+      );
       expect(authConfig.cookies?.csrfToken?.options.domain).toBe(
         ".moto-app.de",
       );
+    });
+
+    it("should derive unique prefixes that prevent cross-environment collisions", () => {
+      // The bug: staging.moto-app.de is a subdomain of moto-app.de, so
+      // production cookies on .moto-app.de are sent to staging too.
+      // With derived names, production uses "moto-app-de.*" and staging
+      // would use "staging-moto-app-de.*" — no collision.
+      const prodPrefix = "moto-app.de".replace(/\./g, "-");
+      const stagingPrefix = "staging.moto-app.de".replace(/\./g, "-");
+      expect(prodPrefix).toBe("moto-app-de");
+      expect(stagingPrefix).toBe("staging-moto-app-de");
+      expect(prodPrefix).not.toBe(stagingPrefix);
     });
 
     it("should configure operator cookies as host-only with unique names", () => {

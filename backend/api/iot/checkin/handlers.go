@@ -223,7 +223,23 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Step 12: Build and send response
+	// Step 12: Lookup today's pickup time for the student (non-blocking: log and skip on error).
+	// Runs inside the existing tenant tx for RLS visibility. A read-only SELECT on the
+	// schedule tables won't abort the tx unless the DB itself is down.
+	if rs.PickupScheduleService != nil {
+		pickupTime, err := rs.PickupScheduleService.GetEffectivePickupTimeForDate(ctx, student.ID, now)
+		if err != nil {
+			rs.getLogger().WarnContext(ctx, "failed to get pickup time",
+				slog.Int64("student_id", student.ID),
+				slog.String("error", err.Error()),
+			)
+		} else if pickupTime != nil && pickupTime.PickupTime != nil {
+			formatted := pickupTime.PickupTime.Format("15:04")
+			result.PickupTime = &formatted
+		}
+	}
+
+	// Step 13: Build and send response
 	response := buildCheckinResponse(student, result, now)
 	rs.getLogger().InfoContext(ctx, "checkin complete",
 		slog.String("action", result.Action),
