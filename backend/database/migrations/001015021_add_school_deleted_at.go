@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	addSchoolDeletedAtVersion     = "1.15.20"
+	addSchoolDeletedAtVersion     = "1.15.21"
 	addSchoolDeletedAtDescription = "Add deleted_at column to platform.schools for soft-delete support"
 )
 
@@ -15,7 +15,7 @@ func init() {
 	MigrationRegistry[addSchoolDeletedAtVersion] = &Migration{
 		Version:     addSchoolDeletedAtVersion,
 		Description: addSchoolDeletedAtDescription,
-		DependsOn:   []string{"1.15.19"},
+		DependsOn:   []string{"1.15.20"},
 	}
 
 	Migrations.MustRegister(

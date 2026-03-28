@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	GradeTransitionPermissionsVersion     = "1.7.7"
+	GradeTransitionPermissionsVersion     = "1.7.7.1"
 	GradeTransitionPermissionsDescription = "Add grade transition permissions to admin role"
 )
 

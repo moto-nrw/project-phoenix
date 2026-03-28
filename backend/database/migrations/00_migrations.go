@@ -2,6 +2,9 @@ package migrations
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -138,4 +141,72 @@ func PrintMigrationPlan() {
 	}
 
 	fmt.Println("===============")
+}
+
+// DetectVersionCollisions scans migration source files for duplicate version registrations.
+// Since MigrationRegistry is a map[string]*Migration, duplicate versions in init() functions
+// silently overwrite each other — the map hides the collision. This function reads the actual
+// source files to detect collisions that the map cannot reveal.
+//
+// If migrationsDir does not exist (e.g., in Docker where only the compiled binary is present),
+// the check is skipped gracefully and returns nil.
+func DetectVersionCollisions(migrationsDir string) error {
+	// Match version constants like: someVersion = "1.15.20"
+	// Migration files use named constants (not inline strings in struct fields),
+	// so we match the const declaration pattern.
+	versionPattern := regexp.MustCompile(`Version\s*=\s*"([^"]+)"`)
+
+	entries, err := os.ReadDir(migrationsDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// In Docker, source files don't exist — only the compiled binary.
+			// Skip the check gracefully.
+			return nil
+		}
+		return fmt.Errorf("failed to read migrations directory %s: %w", migrationsDir, err)
+	}
+
+	versionFiles := make(map[string][]string)
+
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		// Migration files start with 000 or 001
+		if !strings.HasPrefix(name, "000") && !strings.HasPrefix(name, "001") {
+			continue
+		}
+
+		content, err := os.ReadFile(filepath.Join(migrationsDir, name))
+		if err != nil {
+			return fmt.Errorf("failed to read %s: %w", name, err)
+		}
+
+		matches := versionPattern.FindAllSubmatch(content, -1)
+		for _, match := range matches {
+			version := string(match[1])
+			versionFiles[version] = append(versionFiles[version], name)
+		}
+	}
+
+	var collisions []string
+	for version, files := range versionFiles {
+		if len(files) > 1 {
+			collisions = append(collisions, fmt.Sprintf(
+				"  version %s is registered by %d files: %s",
+				version, len(files), strings.Join(files, ", "),
+			))
+		}
+	}
+
+	if len(collisions) > 0 {
+		sort.Strings(collisions)
+		return fmt.Errorf("migration version collisions detected:\n%s\n"+
+			"each migration must have a unique version number, "+
+			"duplicate versions cause silent overwrites in MigrationRegistry (a Go map)",
+			strings.Join(collisions, "\n"))
+	}
+
+	return nil
 }

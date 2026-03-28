@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	announcementOrgTenantTargetingVersion     = "1.15.20"
+	announcementOrgTenantTargetingVersion     = "1.15.22"
 	announcementOrgTenantTargetingDescription = "Add target_org_ids and target_tenant_ids columns to announcements for org/tenant-scoped targeting"
 )
 
@@ -18,7 +18,7 @@ func init() {
 	MigrationRegistry[announcementOrgTenantTargetingVersion] = &Migration{
 		Version:     announcementOrgTenantTargetingVersion,
 		Description: announcementOrgTenantTargetingDescription,
-		DependsOn:   []string{"1.15.19"},
+		DependsOn:   []string{"1.15.21"},
 	}
 
 	Migrations.MustRegister(
@@ -32,7 +32,7 @@ func init() {
 }
 
 func createAnnouncementOrgTenantTargeting(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.20: Adding target_org_ids and target_tenant_ids columns to announcements...")
+	fmt.Println("Migration 1.15.22: Adding target_org_ids and target_tenant_ids columns to announcements...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -96,7 +96,7 @@ func createAnnouncementOrgTenantTargeting(ctx context.Context, db *bun.DB) error
 		return fmt.Errorf("error adding target_tenant_ids column comment: %w", err)
 	}
 
-	fmt.Println("Migration 1.15.20: Successfully added target_org_ids and target_tenant_ids columns")
+	fmt.Println("Migration 1.15.22: Successfully added target_org_ids and target_tenant_ids columns")
 	return tx.Commit()
 }
 
@@ -145,6 +145,6 @@ func rollbackAnnouncementOrgTenantTargeting(ctx context.Context, db *bun.DB) err
 		return fmt.Errorf("error dropping target_tenant_ids column: %w", err)
 	}
 
-	fmt.Println("Migration 1.15.20: Successfully removed target_org_ids and target_tenant_ids columns")
+	fmt.Println("Migration 1.15.22: Successfully removed target_org_ids and target_tenant_ids columns")
 	return tx.Commit()
 }

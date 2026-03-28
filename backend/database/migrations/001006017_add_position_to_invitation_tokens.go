@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	AddPositionToInvitationTokensVersion     = "1.6.17"
+	AddPositionToInvitationTokensVersion     = "1.6.17.1"
 	AddPositionToInvitationTokensDescription = "Add position column to auth.invitation_tokens"
 )
 

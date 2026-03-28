@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	GradeTransitionsVersion     = "1.7.6"
+	GradeTransitionsVersion     = "1.7.6.1"
 	GradeTransitionsDescription = "Create grade transitions tables for school year class changes"
 )
 

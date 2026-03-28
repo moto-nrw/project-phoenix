@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	addPickupStatusToStudentsVersion     = "1.6.18"
+	addPickupStatusToStudentsVersion     = "1.6.18.1"
 	addPickupStatusToStudentsDescription = "Add pickup_status column to users.students"
 )
 
