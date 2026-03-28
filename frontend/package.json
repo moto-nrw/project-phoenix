@@ -117,7 +117,8 @@
     "ignoreDependencies": [
       "sharp",
       "lint-staged",
-      "@fontsource/geist-sans"
+      "@fontsource/geist-sans",
+      "@moto-nrw/design-system"
     ]
   }
 }
