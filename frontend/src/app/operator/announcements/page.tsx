@@ -125,10 +125,15 @@ export default function OperatorAnnouncementsPage() {
   useEffect(() => {
     if (!schools || orgIdKey === "") return;
     setFormData((prev) => {
-      const pruned = prev.targetTenantIds.filter((tid) =>
-        schools.some(
-          (s) => s.id === tid && prev.targetOrgIds.includes(s.organizationId),
-        ),
+      const schoolsInSelectedOrgs = new Set(
+        schools
+          .filter((s) => prev.targetOrgIds.includes(s.organizationId))
+          .map((s) => s.id),
+      );
+      // Keep IDs that are either in a selected org OR not in the picker at all (e.g. soft-deleted)
+      const pruned = prev.targetTenantIds.filter(
+        (tid) =>
+          schoolsInSelectedOrgs.has(tid) || !schools.some((s) => s.id === tid),
       );
       if (pruned.length === prev.targetTenantIds.length) return prev;
       return { ...prev, targetTenantIds: pruned };
@@ -217,12 +222,17 @@ export default function OperatorAnnouncementsPage() {
           };
           await operatorAnnouncementsService.create(createData);
         }
-        await mutate();
         toastSuccess(
           editTarget ? "Ankündigung gespeichert" : "Ankündigung erstellt",
         );
         setFormOpen(false);
         setEditTarget(null);
+        // Revalidation is best-effort — don't let it mask the successful save
+        mutate().catch((err) => {
+          logger.warn("revalidation_failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        });
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error);
         logger.error("announcement_save_failed", { error: msg });
@@ -239,9 +249,14 @@ export default function OperatorAnnouncementsPage() {
     setIsDeleting(true);
     try {
       await operatorAnnouncementsService.delete(deleteTarget.id);
-      await mutate();
-      setDeleteTarget(null);
       toastSuccess("Ankündigung gelöscht");
+      setDeleteTarget(null);
+      // Revalidation is best-effort — don't let it mask the successful delete
+      mutate().catch((err) => {
+        logger.warn("revalidation_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       logger.error("announcement_delete_failed", { error: msg });
@@ -256,9 +271,14 @@ export default function OperatorAnnouncementsPage() {
     setIsPublishing(true);
     try {
       await operatorAnnouncementsService.publish(publishTarget.id);
-      await mutate();
-      setPublishTarget(null);
       toastSuccess("Ankündigung veröffentlicht");
+      setPublishTarget(null);
+      // Revalidation is best-effort — don't let it mask the successful publish
+      mutate().catch((err) => {
+        logger.warn("revalidation_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       logger.error("announcement_publish_failed", { error: msg });
