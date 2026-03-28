@@ -96,6 +96,27 @@ export async function fetchSettingsSchema(): Promise<SettingsSchema | null> {
 }
 
 /**
+ * Extracts the validation reason from a backend error and translates it
+ * to a short German message suitable for inline display below a field.
+ */
+function translateValidationError(apiError: string): string {
+  // Backend format: "invalid value for setting {key}: {reason}"
+  const colonIdx = apiError.lastIndexOf(": ");
+  const reason = colonIdx >= 0 ? apiError.slice(colonIdx + 2) : apiError;
+
+  if (reason === "value is required") return "Dieser Wert ist erforderlich.";
+  if (reason === "expected a number") return "Bitte eine Zahl eingeben.";
+
+  const belowMin = /below minimum (\d+)/.exec(reason);
+  if (belowMin) return `Minimum: ${belowMin[1]}`;
+
+  const aboveMax = /exceeds maximum (\d+)/.exec(reason);
+  if (aboveMax) return `Maximum: ${aboveMax[1]}`;
+
+  return "Ungültiger Wert.";
+}
+
+/**
  * Set a setting value. Returns a user-facing error message on failure,
  * or null on success.
  */
@@ -128,8 +149,8 @@ export async function setSettingValue(
       if (response.status === 404) {
         return "Einstellung nicht gefunden.";
       }
-      if (response.status === 400) {
-        return "Ungültiger Wert für diese Einstellung.";
+      if (response.status === 400 && apiError) {
+        return translateValidationError(apiError);
       }
       return "Einstellung konnte nicht gespeichert werden.";
     }

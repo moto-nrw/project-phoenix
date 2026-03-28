@@ -16,10 +16,27 @@ function toStr(v: unknown): string {
   return JSON.stringify(v);
 }
 
+function validateLocally(
+  setting: ResolvedSetting,
+  value: unknown,
+): string | null {
+  if (setting.type === "number") {
+    const num = Number(value);
+    if (isNaN(num)) return "Bitte eine Zahl eingeben.";
+    if (setting.validation?.min != null && num < setting.validation.min) {
+      return `Minimum: ${setting.validation.min}`;
+    }
+    if (setting.validation?.max != null && num > setting.validation.max) {
+      return `Maximum: ${setting.validation.max}`;
+    }
+  }
+  return null;
+}
+
 interface SettingsFieldProps {
   readonly setting: ResolvedSetting;
-  readonly onSave: (key: string, value: unknown) => void;
-  readonly onReset: (key: string) => void;
+  readonly onSave: (key: string, value: unknown) => Promise<string | null>;
+  readonly onReset: (key: string) => Promise<string | null>;
 }
 
 export function SettingsField({
@@ -30,17 +47,20 @@ export function SettingsField({
   // Local state for text-like fields (save on blur, not on every keystroke)
   const [localValue, setLocalValue] = useState<unknown>(setting.value);
   const [isDirty, setIsDirty] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Sync local state when setting value changes from server (e.g., after save/reset)
   useEffect(() => {
     setLocalValue(setting.value);
     setIsDirty(false);
+    setError(null);
   }, [setting.value]);
 
   // Immediate save — for booleans and selects (one action = one save)
   const handleImmediateSave = useCallback(
-    (value: unknown) => {
-      onSave(setting.key, value);
+    async (value: unknown) => {
+      const errorMsg = await onSave(setting.key, value);
+      setError(errorMsg);
     },
     [setting.key, onSave],
   );
@@ -49,15 +69,29 @@ export function SettingsField({
   const handleLocalChange = useCallback((value: unknown) => {
     setLocalValue(value);
     setIsDirty(true);
+    setError(null);
   }, []);
 
   // Save on blur — only if value actually changed
-  const handleBlur = useCallback(() => {
+  const handleBlur = useCallback(async () => {
     if (isDirty) {
-      onSave(setting.key, localValue);
+      const localError = validateLocally(setting, localValue);
+      if (localError) {
+        setError(localError);
+        return;
+      }
+      const errorMsg = await onSave(setting.key, localValue);
+      setError(errorMsg);
       setIsDirty(false);
     }
-  }, [isDirty, setting.key, localValue, onSave]);
+  }, [isDirty, setting, localValue, onSave]);
+
+  const handleReset = useCallback(async () => {
+    const errorMsg = await onReset(setting.key);
+    if (!errorMsg) {
+      setError(null);
+    }
+  }, [setting.key, onReset]);
 
   if (!setting.visible) {
     return null;
@@ -82,6 +116,7 @@ export function SettingsField({
         {setting.description && (
           <p className="mt-0.5 text-sm text-gray-500">{setting.description}</p>
         )}
+        {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
@@ -96,7 +131,7 @@ export function SettingsField({
         {!setting.is_default && setting.writable && (
           <button
             type="button"
-            onClick={() => onReset(setting.key)}
+            onClick={handleReset}
             className="text-xs text-gray-400 hover:text-gray-600"
             title="Auf Standard zurücksetzen"
           >
@@ -123,9 +158,9 @@ export function SettingsField({
 function renderField(
   setting: ResolvedSetting,
   localValue: unknown,
-  onImmediateSave: (value: unknown) => void,
+  onImmediateSave: (value: unknown) => Promise<void>,
   onLocalChange: (value: unknown) => void,
-  onBlur: () => void,
+  onBlur: () => Promise<void>,
 ) {
   const disabled = !setting.writable;
 

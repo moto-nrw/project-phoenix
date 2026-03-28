@@ -14,8 +14,8 @@ const logger = createLogger({ component: "SettingsPage" });
 
 interface SettingsTabContentProps {
   readonly tab: SchemaTab;
-  readonly onSave: (key: string, value: unknown) => void;
-  readonly onReset: (key: string) => void;
+  readonly onSave: (key: string, value: unknown) => Promise<string | null>;
+  readonly onReset: (key: string) => Promise<string | null>;
 }
 
 function SettingsTabContent({ tab, onSave, onReset }: SettingsTabContentProps) {
@@ -37,7 +37,7 @@ interface SettingsContentProps {
   readonly tabKey: string;
 }
 
-export function SettingsContent({ tabKey }: SettingsContentProps) {
+function SettingsContent({ tabKey }: SettingsContentProps) {
   const [schema, setSchema] = useState<SettingsSchema | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -56,11 +56,18 @@ export function SettingsContent({ tabKey }: SettingsContentProps) {
   }, [loadSchema]);
 
   const handleSave = useCallback(
-    async (key: string, value: unknown) => {
+    async (key: string, value: unknown): Promise<string | null> => {
       setSaving(key);
       const errorMsg = await setSettingValue(key, value);
       if (errorMsg) {
-        setError(errorMsg);
+        // Only show network/server errors in the global banner — field
+        // validation errors are displayed inline by the field component.
+        if (
+          errorMsg.startsWith("Netzwerkfehler") ||
+          errorMsg.startsWith("Einstellung konnte nicht")
+        ) {
+          setError(errorMsg);
+        }
       } else {
         setError(null);
         // Re-fetch schema to get updated values + re-evaluate dependencies
@@ -68,12 +75,13 @@ export function SettingsContent({ tabKey }: SettingsContentProps) {
         logger.info("setting_value_saved", { key });
       }
       setSaving(null);
+      return errorMsg;
     },
     [loadSchema],
   );
 
   const handleReset = useCallback(
-    async (key: string) => {
+    async (key: string): Promise<string | null> => {
       setSaving(key);
       const errorMsg = await resetSettingValue(key);
       if (errorMsg) {
@@ -85,6 +93,7 @@ export function SettingsContent({ tabKey }: SettingsContentProps) {
         logger.info("setting_value_reset", { key });
       }
       setSaving(null);
+      return errorMsg;
     },
     [loadSchema],
   );

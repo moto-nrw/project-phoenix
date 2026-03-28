@@ -5,8 +5,8 @@ import { SettingsField } from "./settings-field";
 
 interface SettingsCategoryProps {
   readonly category: SchemaCategory;
-  readonly onSave: (key: string, value: unknown) => void;
-  readonly onReset: (key: string) => void;
+  readonly onSave: (key: string, value: unknown) => Promise<string | null>;
+  readonly onReset: (key: string) => Promise<string | null>;
 }
 
 export function SettingsCategory({
