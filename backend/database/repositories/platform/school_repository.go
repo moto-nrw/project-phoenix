@@ -270,6 +270,7 @@ func (r *SchoolRepository) CountByIDs(ctx context.Context, ids []int64) (int, er
 	count, err := base.GetDB(ctx, r.db).NewSelect().
 		ModelTableExpr("platform.schools").
 		Where("id IN (?)", bun.List(ids)).
+		Where("deleted_at IS NULL").
 		Count(ctx)
 	if err != nil {
 		return 0, &modelBase.DatabaseError{Op: "count schools by ids", Err: err}

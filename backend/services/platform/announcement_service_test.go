@@ -470,7 +470,7 @@ func TestAnnouncementService_GetUnreadForUser_Success(t *testing.T) {
 	ctx := context.Background()
 	announcementRepo := &mockAnnouncementRepoShared{}
 	viewRepo := &mockAnnouncementViewRepoShared{
-		getUnreadForUserFn: func(ctx context.Context, userID int64, userRoles []string) ([]*platform.Announcement, error) {
+		getUnreadForUserFn: func(ctx context.Context, userID int64, userRoles []string, tenantID int64, orgID int64) ([]*platform.Announcement, error) {
 			return []*platform.Announcement{
 				{
 					Model: base.Model{ID: 1},
@@ -502,7 +502,7 @@ func TestAnnouncementService_CountUnread_Success(t *testing.T) {
 	ctx := context.Background()
 	announcementRepo := &mockAnnouncementRepoShared{}
 	viewRepo := &mockAnnouncementViewRepoShared{
-		countUnreadFn: func(ctx context.Context, userID int64, userRoles []string) (int, error) {
+		countUnreadFn: func(ctx context.Context, userID int64, userRoles []string, tenantID int64, orgID int64) (int, error) {
 			return 5, nil
 		},
 	}

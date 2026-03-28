@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
@@ -258,40 +257,6 @@ func (r *AnnouncementViewRepository) GetStats(ctx context.Context, announcementI
 	}
 
 	return stats, nil
-}
-
-// buildOrgTenantWhereClause builds a SQL WHERE clause for org/tenant targeting.
-// Uses hardcoded ID lists (safe — these are int64 from the database, not user input).
-func buildOrgTenantWhereClause(orgIDs []int64, tenantIDs []int64) string {
-	parts := make([]string, 0, 2)
-	if len(orgIDs) > 0 {
-		ids := int64SliceToSQL(orgIDs)
-		parts = append(parts, "s.organization_id IN ("+ids+")")
-	}
-	if len(tenantIDs) > 0 {
-		ids := int64SliceToSQL(tenantIDs)
-		parts = append(parts, "at.tenant_id IN ("+ids+")")
-	}
-	if len(parts) == 0 {
-		return "TRUE"
-	}
-	result := parts[0]
-	for i := 1; i < len(parts); i++ {
-		result += " OR " + parts[i]
-	}
-	return result
-}
-
-// int64SliceToSQL converts a slice of int64 to a SQL-safe comma-separated string.
-func int64SliceToSQL(ids []int64) string {
-	s := ""
-	for i, id := range ids {
-		if i > 0 {
-			s += ","
-		}
-		s += fmt.Sprintf("%d", id)
-	}
-	return s
 }
 
 // HasSeen checks if a user has seen a specific announcement

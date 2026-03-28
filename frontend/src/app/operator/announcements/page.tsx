@@ -167,8 +167,12 @@ export default function OperatorAnnouncementsPage() {
       if (!formData.title.trim() || !formData.content.trim()) return;
       setIsSaving(true);
       try {
-        const targetOrgIdsNum = formData.targetOrgIds.map(Number);
-        const targetTenantIdsNum = formData.targetTenantIds.map(Number);
+        const targetOrgIdsNum = formData.targetOrgIds
+          .map((id) => parseInt(id, 10))
+          .filter((id) => !isNaN(id));
+        const targetTenantIdsNum = formData.targetTenantIds
+          .map((id) => parseInt(id, 10))
+          .filter((id) => !isNaN(id));
 
         if (editTarget) {
           const updateData: UpdateAnnouncementRequest = {
