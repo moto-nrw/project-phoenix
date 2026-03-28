@@ -8,7 +8,7 @@ import { TenantAuthWrapper } from "~/components/auth/tenant-auth-wrapper";
 /**
  * Tenant-scoped providers.
  *
- * SessionProvider reads the tenant cookie ("next-auth.session-token")
+ * SessionProvider reads the tenant cookie ("{TENANT_DOMAIN-derived}.session-token")
  * via the default basePath "/api/auth". This cookie is shared across
  * tenant subdomains for tenant-to-tenant switching.
  */
