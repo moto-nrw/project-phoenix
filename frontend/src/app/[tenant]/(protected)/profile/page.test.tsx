@@ -77,39 +77,78 @@ vi.mock("~/components/ui", () => ({
   ),
 }));
 
-vi.mock("~/components/ui/loading", () => ({
-  Loading: ({ fullPage }: { fullPage?: boolean }) => (
-    <div data-testid="loading" data-full-page={fullPage}>
-      Loading...
+// Mock Design System components
+vi.mock("@moto-nrw/design-system", () => ({
+  Avatar: ({
+    name,
+    src,
+  }: {
+    name: string;
+    src?: string | null;
+    size?: string;
+  }) => (
+    <div data-testid="avatar" title={name}>
+      {src ? (
+        <img src={src} alt={name} />
+      ) : (
+        <span>
+          {name
+            .split(" ")
+            .map((n) => n[0])
+            .join("")
+            .toUpperCase()}
+        </span>
+      )}
     </div>
   ),
-}));
-
-// Mock Next.js Image component
-vi.mock("next/image", () => ({
-  default: ({
-    src,
-    alt,
-    fill,
-    priority,
-    unoptimized,
+  Button: ({
+    children,
+    isLoading,
+    loadingText,
     ...props
   }: {
-    src: string;
-    alt: string;
-    fill?: boolean;
-    priority?: boolean;
-    unoptimized?: boolean;
+    children: React.ReactNode;
+    isLoading?: boolean;
+    loadingText?: string;
+    variant?: string;
+    size?: string;
     [key: string]: unknown;
   }) => (
-    <img
-      src={src}
-      alt={alt}
-      {...props}
-      data-fill={fill ? "true" : undefined}
-      data-priority={priority ? "true" : undefined}
-      data-unoptimized={unoptimized ? "true" : undefined}
-    />
+    <button {...props} disabled={!!props.disabled || isLoading}>
+      {isLoading ? loadingText : children}
+    </button>
+  ),
+  Card: ({
+    children,
+  }: {
+    children: React.ReactNode;
+    variant?: string;
+    padding?: string;
+  }) => <div data-testid="card">{children}</div>,
+  Input: ({
+    label,
+    error,
+    id,
+    name,
+    ...props
+  }: {
+    label?: string;
+    error?: string;
+    id?: string;
+    name?: string;
+    [key: string]: unknown;
+  }) => {
+    const inputId = id || name;
+    return (
+      <div>
+        {label && <label htmlFor={inputId}>{label}</label>}
+        <input id={inputId} name={name} {...props} />
+        {error && <span>{error}</span>}
+      </div>
+    );
+  },
+  Spinner: ({ label }: { label?: string; size?: string }) => (
+    <div data-testid="spinner">{label}</div>
   ),
 }));
 
@@ -146,7 +185,7 @@ describe("ProfilePage", () => {
   });
 
   describe("Loading State", () => {
-    it("should show loading component when session is loading", () => {
+    it("should show spinner when session is loading", () => {
       mockUseSession.mockReturnValue({
         data: null,
         status: "loading",
@@ -154,7 +193,7 @@ describe("ProfilePage", () => {
 
       render(<ProfilePage />);
 
-      expect(screen.getByTestId("loading")).toBeInTheDocument();
+      expect(screen.getByTestId("spinner")).toBeInTheDocument();
     });
   });
 
@@ -220,7 +259,7 @@ describe("ProfilePage", () => {
       render(<ProfilePage />);
 
       await waitFor(() => {
-        const avatarImage = screen.getByAltText("Profile");
+        const avatarImage = screen.getByAltText("John Doe");
         expect(avatarImage).toHaveAttribute(
           "src",
           "https://example.com/avatar.jpg",
