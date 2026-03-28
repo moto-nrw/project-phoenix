@@ -101,12 +101,19 @@ export default function OperatorProvisioningPage() {
 
   const { mutate: globalMutate } = useSWRConfig();
 
-  // Soft-delete / restore state
-  const [deleteTarget, setDeleteTarget] = useState<School | null>(null);
+  // Soft-delete / restore state (triple-confirm: type name to confirm)
+  const [deleteTarget, setDeleteTargetRaw] = useState<School | null>(null);
+  const [deleteConfirmInput, setDeleteConfirmInput] = useState("");
   const [restoreTarget, setRestoreTarget] = useState<School | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showTrash, setShowTrash] = useState(false);
   const [softDeleteError, setSoftDeleteError] = useState("");
+
+  const setDeleteTarget = useCallback((school: School | null) => {
+    setDeleteTargetRaw(school);
+    setDeleteConfirmInput("");
+    setSoftDeleteError("");
+  }, []);
 
   // Toggle error state
   const [orgToggleError, setOrgToggleError] = useState("");
@@ -599,7 +606,7 @@ export default function OperatorProvisioningPage() {
           }
         },
       ),
-    [deleteTarget, executeSchoolAction, selectedSchool],
+    [deleteTarget, executeSchoolAction, selectedSchool, setDeleteTarget],
   );
 
   const handleRestore = useCallback(
@@ -761,28 +768,83 @@ export default function OperatorProvisioningPage() {
               )}
             </>
           )}
-          {(schoolToggleError || softDeleteError) && (
-            <p className="mt-2 text-sm text-red-600">
-              {schoolToggleError || softDeleteError}
-            </p>
+          {schoolToggleError && (
+            <p className="mt-2 text-sm text-red-600">{schoolToggleError}</p>
           )}
 
-          {/* Soft-delete confirmation modal */}
-          <ConfirmationModal
-            isOpen={deleteTarget !== null}
-            onClose={() => setDeleteTarget(null)}
-            onConfirm={() => void handleSoftDelete()}
-            title="Schule löschen"
-            confirmText="Löschen"
-            confirmButtonClass="bg-red-500 hover:bg-red-600"
-            isConfirmLoading={isProcessing}
-          >
-            <p className="text-sm text-gray-600">
-              Möchten Sie die Schule &quot;{deleteTarget?.name}&quot; wirklich
-              löschen? Die Schule wird deaktiviert und kann später
-              wiederhergestellt oder endgültig gelöscht werden.
-            </p>
-          </ConfirmationModal>
+          {/* School soft-delete triple-confirm dialog */}
+          {deleteTarget && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+              <div className="mx-4 w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Schule löschen
+                </h3>
+                <p className="mt-2 text-sm text-gray-600">
+                  Möchten Sie die Schule{" "}
+                  <span className="font-medium">{deleteTarget.name}</span>{" "}
+                  wirklich löschen?
+                </p>
+                <div className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                  <p className="font-medium">
+                    Folgende Aktionen werden ausgeführt:
+                  </p>
+                  <ul className="mt-1 list-inside list-disc space-y-0.5 text-xs">
+                    <li>Die Schule wird deaktiviert</li>
+                    <li>Alle Zugänge dieser Schule werden gesperrt</li>
+                    <li>Die Schule kann später wiederhergestellt werden</li>
+                  </ul>
+                </div>
+
+                <div className="mt-4">
+                  <label
+                    htmlFor="delete-school-confirm"
+                    className="block text-sm font-medium text-gray-700"
+                  >
+                    Geben Sie den Schulnamen ein:
+                  </label>
+                  <p className="mb-1 text-sm font-medium text-gray-900">
+                    {deleteTarget.name}
+                  </p>
+                  <input
+                    id="delete-school-confirm"
+                    type="text"
+                    value={deleteConfirmInput}
+                    onChange={(e) => setDeleteConfirmInput(e.target.value)}
+                    placeholder={deleteTarget.name}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-red-500 focus:ring-1 focus:ring-red-500 focus:outline-none"
+                    autoComplete="off"
+                  />
+                </div>
+
+                {softDeleteError && (
+                  <div className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
+                    {softDeleteError}
+                  </div>
+                )}
+
+                <div className="mt-5 flex justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setDeleteTarget(null)}
+                    disabled={isProcessing}
+                    className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    Abbrechen
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleSoftDelete()}
+                    disabled={
+                      isProcessing || deleteConfirmInput !== deleteTarget.name
+                    }
+                    className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isProcessing ? "Wird gelöscht..." : "Löschen"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Restore confirmation modal */}
           <ConfirmationModal
