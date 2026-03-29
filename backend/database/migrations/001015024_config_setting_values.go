@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	configSettingValuesVersion     = "1.15.19"
+	configSettingValuesVersion     = "1.15.24"
 	configSettingValuesDescription = "Create config.setting_values and config.setting_audit tables for the settings system"
 )
 
@@ -18,7 +18,7 @@ func init() {
 	MigrationRegistry[configSettingValuesVersion] = &Migration{
 		Version:     configSettingValuesVersion,
 		Description: configSettingValuesDescription,
-		DependsOn:   []string{"1.15.18", "1.6.1"},
+		DependsOn:   []string{"1.15.23", "1.6.1"},
 	}
 
 	Migrations.MustRegister(
