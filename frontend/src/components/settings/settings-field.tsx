@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import type { ResolvedSetting } from "~/lib/settings-api";
 import { BooleanField } from "./fields/boolean-field";
 import { NumberField } from "./fields/number-field";
@@ -33,6 +33,11 @@ function validateLocally(
   return null;
 }
 
+type SaveStatus = "idle" | "saved" | "error";
+
+const AUTO_SAVE_DELAY_MS = 3000;
+const FEEDBACK_DURATION_MS = 2000;
+
 interface SettingsFieldProps {
   readonly setting: ResolvedSetting;
   readonly onSave: (key: string, value: unknown) => Promise<string | null>;
@@ -44,58 +49,120 @@ export function SettingsField({
   onSave,
   onReset,
 }: SettingsFieldProps) {
-  // Local state for text-like fields (save on blur, not on every keystroke)
   const [localValue, setLocalValue] = useState<unknown>(setting.value);
   const [isDirty, setIsDirty] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
 
-  // Sync local state when setting value changes from server (e.g., after save/reset)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const feedbackRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Sync local state when setting value changes from server
   useEffect(() => {
     setLocalValue(setting.value);
     setIsDirty(false);
     setError(null);
   }, [setting.value]);
 
-  // Immediate save — for booleans and selects (one action = one save)
-  const handleImmediateSave = useCallback(
-    async (value: unknown) => {
-      const errorMsg = await onSave(setting.key, value);
-      setError(errorMsg);
-    },
-    [setting.key, onSave],
-  );
-
-  // Local change — for text/number/time (update local state, save on blur)
-  const handleLocalChange = useCallback((value: unknown) => {
-    setLocalValue(value);
-    setIsDirty(true);
-    setError(null);
+  // Cleanup timers on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (feedbackRef.current) clearTimeout(feedbackRef.current);
+    };
   }, []);
 
-  // Save on blur — only if value actually changed
-  const handleBlur = useCallback(async () => {
-    if (isDirty) {
-      const localError = validateLocally(setting, localValue);
+  const showFeedback = useCallback((status: SaveStatus) => {
+    setSaveStatus(status);
+    if (feedbackRef.current) clearTimeout(feedbackRef.current);
+    feedbackRef.current = setTimeout(() => {
+      setSaveStatus("idle");
+    }, FEEDBACK_DURATION_MS);
+  }, []);
+
+  const doSave = useCallback(
+    async (value: unknown) => {
+      const localError = validateLocally(setting, value);
       if (localError) {
         setError(localError);
+        showFeedback("error");
         return;
       }
-      const errorMsg = await onSave(setting.key, localValue);
-      setError(errorMsg);
-      setIsDirty(false);
+      const errorMsg = await onSave(setting.key, value);
+      if (errorMsg) {
+        setError(errorMsg);
+        showFeedback("error");
+      } else {
+        setError(null);
+        setIsDirty(false);
+        showFeedback("saved");
+      }
+    },
+    [setting, onSave, showFeedback],
+  );
+
+  // Immediate save — for booleans and selects
+  const handleImmediateSave = useCallback(
+    async (value: unknown) => {
+      await doSave(value);
+    },
+    [doSave],
+  );
+
+  // Local change — for text/number/time (debounce auto-save)
+  const handleLocalChange = useCallback(
+    (value: unknown) => {
+      setLocalValue(value);
+      setIsDirty(true);
+      setError(null);
+      setSaveStatus("idle");
+
+      // Reset debounce timer
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => {
+        void doSave(value);
+      }, AUTO_SAVE_DELAY_MS);
+    },
+    [doSave],
+  );
+
+  // Save on blur — cancel debounce and save immediately
+  const handleBlur = useCallback(async () => {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
     }
-  }, [isDirty, setting, localValue, onSave]);
+    if (isDirty) {
+      await doSave(localValue);
+    }
+  }, [isDirty, localValue, doSave]);
 
   const handleReset = useCallback(async () => {
-    const errorMsg = await onReset(setting.key);
-    if (!errorMsg) {
-      setError(null);
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
     }
-  }, [setting.key, onReset]);
+    const errorMsg = await onReset(setting.key);
+    if (errorMsg) {
+      setError(errorMsg);
+      showFeedback("error");
+    } else {
+      setError(null);
+      showFeedback("saved");
+    }
+  }, [setting.key, onReset, showFeedback]);
 
   if (!setting.visible) {
     return null;
   }
+
+  // Ring color based on save status
+  const ringClass =
+    saveStatus === "saved"
+      ? "ring-2 ring-green-400"
+      : saveStatus === "error"
+        ? "ring-2 ring-red-400"
+        : "";
 
   return (
     <div className="flex items-start justify-between gap-4 py-4">
@@ -120,13 +187,15 @@ export function SettingsField({
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
-        {renderField(
-          setting,
-          localValue,
-          handleImmediateSave,
-          handleLocalChange,
-          handleBlur,
-        )}
+        <div className={`rounded-lg transition-all duration-300 ${ringClass}`}>
+          {renderField(
+            setting,
+            localValue,
+            handleImmediateSave,
+            handleLocalChange,
+            handleBlur,
+          )}
+        </div>
 
         {!setting.is_default && setting.writable && (
           <button
@@ -166,7 +235,6 @@ function renderField(
 
   switch (setting.type) {
     case "boolean":
-      // Boolean saves immediately (toggle = one action)
       return (
         <BooleanField
           value={Boolean(localValue)}
@@ -175,7 +243,6 @@ function renderField(
         />
       );
     case "number":
-      // Number saves on blur
       return (
         <NumberField
           value={Number(localValue ?? 0)}
@@ -187,7 +254,6 @@ function renderField(
         />
       );
     case "time":
-      // Time saves on blur
       return (
         <TimeField
           value={toStr(localValue)}
@@ -197,7 +263,6 @@ function renderField(
         />
       );
     case "text":
-      // Text saves on blur
       return (
         <TextField
           value={toStr(localValue)}
@@ -207,7 +272,6 @@ function renderField(
         />
       );
     case "password":
-      // Password has its own save button
       return (
         <PasswordField
           hasValue={localValue !== "" && localValue !== null}
@@ -216,7 +280,6 @@ function renderField(
         />
       );
     case "select":
-      // Select saves immediately (pick = one action)
       return (
         <SelectField
           value={localValue}

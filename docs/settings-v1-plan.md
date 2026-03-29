@@ -267,10 +267,10 @@ Injected via `extraTabs` on existing `SettingsLayout`. Tabs: Operations, GDPR, S
 
 - Fetch schema on mount (one API call)
 - Field type → component mapping
-- Save on change (debounced PUT)
-- Reset button → DELETE, **then re-fetch schema** (review fix #6: reset may change DependsOn visibility for child settings — re-fetch ensures consistent state; alternatively, optimistically update local value to known default from schema response)
+- **Save behavior**: Booleans/selects save immediately (one click). Text/number/time fields use local state with auto-save after 3 seconds of idle OR on blur (click away). Green ring on field for 2s after successful save, red ring on error.
+- Reset button → DELETE, **then re-fetch schema** (dependencies may change)
 - "Default" badge when `is_default: true`
-- Password fields: write-only, show "••••••" when set, admin can set new value
+- Password fields: write-only, show "••••••" when set, admin can set new value via explicit save button
 - `DependsOn` evaluation: client-side visibility toggle when parent value changes (no API round-trip)
 
 ---
@@ -279,6 +279,7 @@ Injected via `extraTabs` on existing `SettingsLayout`. Tabs: Operations, GDPR, S
 
 | Feature | Trigger | Effort |
 |---------|---------|--------|
+| Confirm-save button for sensitive settings | v2 — for passwords, PINs, or settings where accidental changes are dangerous. Instead of auto-save, show an explicit "Speichern" button that requires confirmation. Register via `requireConfirmation: true` in the Definition. | ~30 lines frontend, 1 field in Definition |
 | More scopes (user, device, room, org) | When a setting genuinely needs per-room/device values | ~10 lines Go, 0 migrations |
 | Scope cascade + inherited-from UI | When multi-level resolution is needed | Extend resolver + add UI badge |
 | Action buttons | When admin actions are formalized | Add registry + handler dispatch |
