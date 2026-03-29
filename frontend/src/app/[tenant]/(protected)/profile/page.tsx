@@ -3,15 +3,17 @@
 import { Suspense, useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
-import { Avatar, Button, Card, Input, Spinner } from "@moto-nrw/design-system";
+import Image from "next/image";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { updateProfile, uploadAvatar } from "~/lib/profile-api";
 import type { ProfileUpdateRequest } from "~/lib/profile-helpers";
+import { Loading } from "~/components/ui/loading";
 import { useProfile } from "~/lib/profile-context";
 import { compressAvatar } from "~/lib/image-utils";
 import { PasswordChangeModal } from "~/components/ui";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
+import { getInitials } from "~/lib/format-utils";
 
 const logger = createLogger({ component: "ProfilePage" });
 
@@ -104,14 +106,12 @@ function ProfileContent() {
   }, []);
 
   if (status === "loading") {
-    return <Spinner size="lg" label="Laden..." />;
+    return <Loading fullPage={false} />;
   }
 
   if (!session?.user) {
     redirect("/");
   }
-
-  const fullName = `${formData.firstName} ${formData.lastName}`.trim();
 
   return (
     <div className="-mt-1.5 w-full">
@@ -121,7 +121,25 @@ function ProfileContent() {
         {/* Avatar Section */}
         <div className="flex flex-col items-center pt-4">
           <div className="group relative">
-            <Avatar name={fullName} src={profile?.avatar} size="lg" />
+            <div className="relative flex h-28 w-28 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-gray-700 to-gray-900 text-white shadow-xl">
+              {profile?.avatar ? (
+                <Image
+                  src={profile.avatar}
+                  alt="Profile"
+                  fill
+                  className="object-cover"
+                  sizes="112px"
+                  priority
+                  unoptimized
+                />
+              ) : (
+                <span className="text-3xl font-bold">
+                  {getInitials(
+                    `${formData.firstName} ${formData.lastName}`.trim(),
+                  )}
+                </span>
+              )}
+            </div>
             <label
               htmlFor="avatar-upload"
               aria-label="Profilbild ändern"
@@ -168,47 +186,70 @@ function ProfileContent() {
         </div>
 
         {/* Profile Form */}
-        <Card variant="glass" padding="lg">
+        <div className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm md:p-6">
           <div className="space-y-4">
-            <Input
-              label="Vorname"
-              name="firstName"
-              value={formData.firstName}
-              onChange={(e) =>
-                setFormData({ ...formData, firstName: e.target.value })
-              }
-              disabled={!isEditing}
-              maxLength={255}
-            />
-            <Input
-              label="Nachname"
-              name="lastName"
-              value={formData.lastName}
-              onChange={(e) =>
-                setFormData({ ...formData, lastName: e.target.value })
-              }
-              disabled={!isEditing}
-              maxLength={255}
-            />
-            <Input
-              label="E-Mail"
-              name="email"
-              type="email"
-              value={formData.email}
-              disabled
-              maxLength={255}
-            />
+            <div>
+              <label
+                htmlFor="profile-firstname"
+                className="mb-2 block text-sm font-medium text-gray-700"
+              >
+                Vorname
+              </label>
+              <input
+                id="profile-firstname"
+                type="text"
+                value={formData.firstName}
+                onChange={(e) =>
+                  setFormData({ ...formData, firstName: e.target.value })
+                }
+                disabled={!isEditing}
+                maxLength={255}
+                className="w-full rounded-lg border border-gray-200 px-4 py-3 text-base transition-all focus:ring-2 focus:ring-[#5080D8] focus:outline-none disabled:bg-gray-50 disabled:text-gray-500"
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="profile-lastname"
+                className="mb-2 block text-sm font-medium text-gray-700"
+              >
+                Nachname
+              </label>
+              <input
+                id="profile-lastname"
+                type="text"
+                value={formData.lastName}
+                onChange={(e) =>
+                  setFormData({ ...formData, lastName: e.target.value })
+                }
+                disabled={!isEditing}
+                maxLength={255}
+                className="w-full rounded-lg border border-gray-200 px-4 py-3 text-base transition-all focus:ring-2 focus:ring-[#5080D8] focus:outline-none disabled:bg-gray-50 disabled:text-gray-500"
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="profile-email"
+                className="mb-2 block text-sm font-medium text-gray-700"
+              >
+                E-Mail
+              </label>
+              <input
+                id="profile-email"
+                type="email"
+                value={formData.email}
+                disabled
+                maxLength={255}
+                className="w-full rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-base text-gray-500"
+              />
+            </div>
           </div>
-        </Card>
+        </div>
 
         {/* Action Buttons */}
         <div className="flex gap-3">
           {isEditing ? (
             <>
-              <Button
-                variant="outline"
-                size="md"
-                type="button"
+              <button
                 onClick={() => {
                   setIsEditing(false);
                   if (profile) {
@@ -219,34 +260,30 @@ function ProfileContent() {
                     });
                   }
                 }}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:scale-105 hover:border-gray-400 hover:bg-gray-50 hover:shadow-md active:scale-100"
               >
                 Abbrechen
-              </Button>
-              <Button
-                variant="primary"
-                size="md"
-                type="button"
-                isLoading={isSaving}
-                loadingText="Speichern..."
+              </button>
+              <button
                 onClick={() => void handleSaveProfile()}
+                disabled={isSaving}
+                className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:scale-105 hover:bg-gray-700 hover:shadow-lg active:scale-100 disabled:opacity-50 disabled:hover:scale-100"
               >
-                Speichern
-              </Button>
+                {isSaving ? "Speichern..." : "Speichern"}
+              </button>
             </>
           ) : (
-            <Button
-              variant="primary"
-              size="md"
-              type="button"
+            <button
               onClick={() => setIsEditing(true)}
+              className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:scale-105 hover:bg-gray-700 hover:shadow-lg active:scale-100"
             >
               Bearbeiten
-            </Button>
+            </button>
           )}
         </div>
 
         {/* Security Section */}
-        <Card variant="glass" padding="lg">
+        <div className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm md:p-6">
           <h3 className="mb-3 text-base font-semibold text-gray-900">
             Passwort ändern
           </h3>
@@ -254,15 +291,13 @@ function ProfileContent() {
             Aktualisieren Sie Ihr Passwort regelmäßig für zusätzliche
             Sicherheit.
           </p>
-          <Button
-            variant="primary"
-            size="md"
-            type="button"
+          <button
             onClick={() => setShowPasswordModal(true)}
+            className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:scale-105 hover:bg-gray-700 hover:shadow-lg active:scale-100"
           >
             Passwort ändern
-          </Button>
-        </Card>
+          </button>
+        </div>
       </div>
 
       {showPasswordModal && (
@@ -281,7 +316,7 @@ function ProfileContent() {
 
 export default function ProfilePage() {
   return (
-    <Suspense fallback={<Spinner size="lg" label="Laden..." />}>
+    <Suspense fallback={<Loading fullPage={false} />}>
       <ProfileContent />
     </Suspense>
   );
