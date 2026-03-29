@@ -77,34 +77,22 @@ vi.mock("~/components/ui", () => ({
   ),
 }));
 
-// Mock Design System components
-vi.mock("@moto-nrw/design-system", () => ({
-  Avatar: ({
-    name,
-    src,
-  }: {
-    name: string;
-    src?: string | null;
-    size?: string;
-  }) => (
-    <div data-testid="avatar" title={name}>
-      {src ? (
-        <img src={src} alt={name} />
-      ) : (
-        <span>
-          {name
-            .split(" ")
-            .map((n) => n[0])
-            .join("")
-            .toUpperCase()}
-        </span>
-      )}
+vi.mock("~/components/ui/loading", () => ({
+  Loading: ({ fullPage }: { fullPage?: boolean }) => (
+    <div data-testid="loading" data-full-page={fullPage}>
+      Loading...
     </div>
   ),
+}));
+
+// Mock Button component
+vi.mock("~/components/ui/button", () => ({
   Button: ({
     children,
     isLoading,
     loadingText,
+    variant: _variant,
+    size: _size,
     ...props
   }: {
     children: React.ReactNode;
@@ -118,37 +106,61 @@ vi.mock("@moto-nrw/design-system", () => ({
       {isLoading ? loadingText : children}
     </button>
   ),
-  Card: ({
-    children,
-  }: {
-    children: React.ReactNode;
-    variant?: string;
-    padding?: string;
-  }) => <div data-testid="card">{children}</div>,
+}));
+
+// Mock Input component
+vi.mock("~/components/ui/input", () => ({
   Input: ({
     label,
     error,
-    id,
     name,
     ...props
   }: {
     label?: string;
     error?: string;
-    id?: string;
     name?: string;
     [key: string]: unknown;
-  }) => {
-    const inputId = id || name;
-    return (
-      <div>
-        {label && <label htmlFor={inputId}>{label}</label>}
-        <input id={inputId} name={name} {...props} />
-        {error && <span>{error}</span>}
-      </div>
-    );
-  },
-  Spinner: ({ label }: { label?: string; size?: string }) => (
-    <div data-testid="spinner">{label}</div>
+  }) => (
+    <div>
+      {label && <label htmlFor={name}>{label}</label>}
+      <input id={name} name={name} {...props} />
+      {error && <span>{error}</span>}
+    </div>
+  ),
+}));
+
+// Mock lucide-react
+vi.mock("lucide-react", () => ({
+  Camera: (props: Record<string, unknown>) => (
+    <svg data-testid="camera-icon" {...props} />
+  ),
+}));
+
+// Mock Next.js Image component
+vi.mock("next/image", () => ({
+  default: ({
+    src,
+    alt,
+    fill,
+    priority,
+    unoptimized,
+    ...props
+  }: {
+    src: string;
+    alt: string;
+    fill?: boolean;
+    priority?: boolean;
+    unoptimized?: boolean;
+    [key: string]: unknown;
+  }) => (
+    <img
+      src={src}
+      alt={alt}
+      {...props}
+      data-fill={fill ? "true" : undefined}
+      data-priority={priority ? "true" : undefined}
+      data-unoptimized={unoptimized ? "true" : undefined}
+    />
   ),
 }));
 
@@ -185,7 +197,7 @@ describe("ProfilePage", () => {
   });
 
   describe("Loading State", () => {
-    it("should show spinner when session is loading", () => {
+    it("should show loading component when session is loading", () => {
       mockUseSession.mockReturnValue({
         data: null,
         status: "loading",
@@ -193,7 +205,7 @@ describe("ProfilePage", () => {
 
       render(<ProfilePage />);
 
-      expect(screen.getByTestId("spinner")).toBeInTheDocument();
+      expect(screen.getByTestId("loading")).toBeInTheDocument();
     });
   });
 
@@ -259,7 +271,7 @@ describe("ProfilePage", () => {
       render(<ProfilePage />);
 
       await waitFor(() => {
-        const avatarImage = screen.getByAltText("John Doe");
+        const avatarImage = screen.getByAltText("Profile");
         expect(avatarImage).toHaveAttribute(
           "src",
           "https://example.com/avatar.jpg",
