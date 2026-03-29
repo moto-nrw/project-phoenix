@@ -3,6 +3,7 @@ package config_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"testing"
 
@@ -502,4 +503,247 @@ func TestInvalidValueError(t *testing.T) {
 	assert.Contains(t, err.Error(), "test.key")
 	assert.Contains(t, err.Error(), "too small")
 	assert.ErrorIs(t, err, configSvc.ErrInvalidValue)
+}
+
+// --- Additional coverage tests ---
+
+func TestResolve_RepoError_ReturnsError(t *testing.T) {
+	setupTest(t)
+	registerTestSetting("test.val", config.FieldText, "default")
+
+	repo := newMockValueRepo()
+	repo.err = fmt.Errorf("db connection failed")
+	svc := createService(repo, &mockAuditRepo{})
+
+	_, err := svc.Resolve(tenantCtx(1), "test.val")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "db connection failed")
+}
+
+func TestResolveString_FromOverride(t *testing.T) {
+	setupTest(t)
+	registerTestSetting("test.name", config.FieldText, "default")
+
+	repo := newMockValueRepo()
+	repo.values["test.name"] = &config.SettingValue{
+		SettingKey: "test.name",
+		Value:      json.RawMessage(`"custom"`),
+	}
+	repo.values["test.name"].TenantID = 1
+
+	svc := createService(repo, &mockAuditRepo{})
+
+	val, err := svc.ResolveString(tenantCtx(1), "test.name")
+	require.NoError(t, err)
+	assert.Equal(t, "custom", val)
+}
+
+func TestResolveString_NilDefault(t *testing.T) {
+	setupTest(t)
+	registerTestSetting("test.optional", config.FieldText, nil)
+
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+	val, err := svc.ResolveString(tenantCtx(1), "test.optional")
+	require.NoError(t, err)
+	assert.Equal(t, "", val)
+}
+
+func TestResolveBool_FromOverride(t *testing.T) {
+	setupTest(t)
+	registerTestSetting("test.flag", config.FieldBoolean, true)
+
+	repo := newMockValueRepo()
+	repo.values["test.flag"] = &config.SettingValue{
+		SettingKey: "test.flag",
+		Value:      json.RawMessage(`false`),
+	}
+	repo.values["test.flag"].TenantID = 1
+
+	svc := createService(repo, &mockAuditRepo{})
+
+	val, err := svc.ResolveBool(tenantCtx(1), "test.flag")
+	require.NoError(t, err)
+	assert.False(t, val)
+}
+
+func TestResolveBool_NilDefault(t *testing.T) {
+	setupTest(t)
+	registerTestSetting("test.nilbool", config.FieldBoolean, nil)
+
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+	val, err := svc.ResolveBool(tenantCtx(1), "test.nilbool")
+	require.NoError(t, err)
+	assert.False(t, val)
+}
+
+func TestResolveInt_NilDefault(t *testing.T) {
+	setupTest(t)
+	registerTestSetting("test.nilint", config.FieldNumber, nil)
+
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+	val, err := svc.ResolveInt(tenantCtx(1), "test.nilint")
+	require.NoError(t, err)
+	assert.Equal(t, 0, val)
+}
+
+func TestSetValue_WithExistingOverride_RecordsOldValue(t *testing.T) {
+	setupTest(t)
+	registerTestSetting("test.val", config.FieldNumber, 10)
+
+	repo := newMockValueRepo()
+	repo.values["test.val"] = &config.SettingValue{
+		SettingKey: "test.val",
+		Value:      json.RawMessage(`20`),
+	}
+	repo.values["test.val"].TenantID = 1
+
+	auditRepo := &mockAuditRepo{}
+	svc := createService(repo, auditRepo)
+
+	err := svc.SetValue(tenantCtx(1), "test.val", 30, nil)
+	require.NoError(t, err)
+
+	// Audit should have old_value
+	require.Len(t, auditRepo.entries, 1)
+	assert.Equal(t, json.RawMessage(`20`), auditRepo.entries[0].OldValue)
+	assert.Equal(t, json.RawMessage(`30`), auditRepo.entries[0].NewValue)
+}
+
+func TestSetValue_AuditError_DoesNotFail(t *testing.T) {
+	setupTest(t)
+	registerTestSetting("test.val", config.FieldText, "default")
+
+	auditRepo := &mockAuditRepo{err: fmt.Errorf("audit write failed")}
+	svc := createService(newMockValueRepo(), auditRepo)
+
+	// Should succeed even if audit fails (audit is best-effort)
+	err := svc.SetValue(tenantCtx(1), "test.val", "new", nil)
+	require.NoError(t, err)
+}
+
+func TestResetValue_NilChangedBy(t *testing.T) {
+	setupTest(t)
+	registerTestSetting("test.val", config.FieldText, "default")
+
+	repo := newMockValueRepo()
+	repo.values["test.val"] = &config.SettingValue{
+		SettingKey: "test.val",
+		Value:      json.RawMessage(`"custom"`),
+	}
+	repo.values["test.val"].TenantID = 1
+
+	auditRepo := &mockAuditRepo{}
+	svc := createService(repo, auditRepo)
+
+	err := svc.ResetValue(tenantCtx(1), "test.val", nil)
+	require.NoError(t, err)
+	assert.Nil(t, auditRepo.entries[0].ChangedBy)
+}
+
+func TestGetSchema_WritableFlag(t *testing.T) {
+	setupTest(t)
+
+	config.Register(config.Definition{
+		Key:             "test.readonly",
+		Label:           "ReadOnly",
+		Type:            config.FieldText,
+		Default:         "val",
+		Tab:             "test",
+		Category:        "test",
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+	})
+
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+	// User with read but not update
+	schema, err := svc.GetSchema(tenantCtx(1), []string{"config:read"})
+	require.NoError(t, err)
+	require.Len(t, schema.Tabs, 1)
+	item := schema.Tabs[0].Categories[0].Items[0]
+	assert.False(t, item.Writable, "should not be writable without config:update")
+
+	// User with both
+	schema2, err := svc.GetSchema(tenantCtx(1), []string{"config:read", "config:update"})
+	require.NoError(t, err)
+	item2 := schema2.Tabs[0].Categories[0].Items[0]
+	assert.True(t, item2.Writable, "should be writable with config:update")
+}
+
+func TestGetSchema_DependsOn_NeqCondition(t *testing.T) {
+	setupTest(t)
+
+	config.Register(config.Definition{
+		Key:      "p.mode",
+		Label:    "Mode",
+		Type:     config.FieldText,
+		Default:  "auto",
+		Tab:      "test",
+		Category: "deps",
+	})
+	config.Register(config.Definition{
+		Key:      "p.manual_config",
+		Label:    "Manual Config",
+		Type:     config.FieldText,
+		Default:  "",
+		Tab:      "test",
+		Category: "deps",
+		DependsOn: &config.Dependency{
+			Key:       "p.mode",
+			Condition: "neq",
+			Value:     "auto",
+		},
+	})
+
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+	schema, err := svc.GetSchema(tenantCtx(1), []string{})
+	require.NoError(t, err)
+
+	items := schema.Tabs[0].Categories[0].Items
+	for _, item := range items {
+		if item.Key == "p.manual_config" {
+			assert.False(t, item.Visible, "should be hidden when mode=auto (neq auto is false)")
+		}
+	}
+}
+
+func TestSetValue_ValidationRequired(t *testing.T) {
+	setupTest(t)
+	config.Register(config.Definition{
+		Key:        "test.required",
+		Type:       config.FieldText,
+		Default:    "default",
+		Tab:        "test",
+		Category:   "test",
+		Validation: &config.ValidationRules{Required: true},
+	})
+
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+	err := svc.SetValue(tenantCtx(1), "test.required", nil, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "required")
+}
+
+func TestSetValue_NonNumberForNumberField(t *testing.T) {
+	setupTest(t)
+	min := float64(1)
+	config.Register(config.Definition{
+		Key:        "test.num",
+		Type:       config.FieldNumber,
+		Default:    5,
+		Tab:        "test",
+		Category:   "test",
+		Validation: &config.ValidationRules{Min: &min},
+	})
+
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+	err := svc.SetValue(tenantCtx(1), "test.num", "not_a_number", nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "expected a number")
 }
