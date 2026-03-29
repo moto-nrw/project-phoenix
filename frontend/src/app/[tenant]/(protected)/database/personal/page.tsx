@@ -6,6 +6,7 @@ import { useState, useMemo, useCallback } from "react";
 const logger = createLogger({ component: "DatabaseTeachersPage" });
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
+import { isAdmin } from "~/lib/auth-utils";
 
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
@@ -88,7 +89,7 @@ export default function TeachersPage() {
 
   const { success: toastSuccess, error: toastError } = useToast();
 
-  const { status } = useSession({
+  const { data: session, status } = useSession({
     required: true,
     onUnauthenticated() {
       redirect("/");
@@ -271,7 +272,8 @@ export default function TeachersPage() {
             setSearchTerm("");
           }}
           actionButton={
-            !isMobile && (
+            !isMobile &&
+            isAdmin(session) && (
               <button
                 onClick={() => setShowInviteModal(true)}
                 className="group relative flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#F78C10] to-[#e57a00] text-white shadow-lg transition-all duration-150 hover:scale-105 hover:shadow-xl active:scale-95"
@@ -306,34 +308,36 @@ export default function TeachersPage() {
       </div>
 
       {/* Mobile FAB Create Button */}
-      <button
-        onClick={() => setShowInviteModal(true)}
-        className="group pointer-events-auto fixed right-4 bottom-24 z-40 flex h-14 w-14 translate-y-0 items-center justify-center rounded-full bg-gradient-to-br from-[#F78C10] to-[#e57a00] text-white opacity-100 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-300 ease-out hover:shadow-[0_8px_40px_rgb(247,140,16,0.3)] active:scale-95 md:hidden"
-        style={{
-          background:
-            "linear-gradient(135deg, rgb(247, 140, 16) 0%, rgb(229, 122, 0) 100%)",
-          willChange: "transform, opacity",
-          WebkitTransform: "translateZ(0)",
-          transform: "translateZ(0)",
-        }}
-        aria-label="Personal hinzufügen"
-      >
-        <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-150 group-hover:opacity-100"></div>
-        <svg
-          className="pointer-events-none relative h-6 w-6 transition-transform duration-150 group-active:rotate-90"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2.5}
+      {isAdmin(session) && (
+        <button
+          onClick={() => setShowInviteModal(true)}
+          className="group pointer-events-auto fixed right-4 bottom-24 z-40 flex h-14 w-14 translate-y-0 items-center justify-center rounded-full bg-gradient-to-br from-[#F78C10] to-[#e57a00] text-white opacity-100 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-300 ease-out hover:shadow-[0_8px_40px_rgb(247,140,16,0.3)] active:scale-95 md:hidden"
+          style={{
+            background:
+              "linear-gradient(135deg, rgb(247, 140, 16) 0%, rgb(229, 122, 0) 100%)",
+            willChange: "transform, opacity",
+            WebkitTransform: "translateZ(0)",
+            transform: "translateZ(0)",
+          }}
+          aria-label="Personal hinzufügen"
         >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M12 4.5v15m7.5-7.5h-15"
-          />
-        </svg>
-        <div className="pointer-events-none absolute inset-0 scale-0 rounded-full bg-white/20 opacity-0 transition-transform duration-200 group-hover:scale-100 group-hover:opacity-100"></div>
-      </button>
+          <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-150 group-hover:opacity-100"></div>
+          <svg
+            className="pointer-events-none relative h-6 w-6 transition-transform duration-150 group-active:rotate-90"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2.5}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M12 4.5v15m7.5-7.5h-15"
+            />
+          </svg>
+          <div className="pointer-events-none absolute inset-0 scale-0 rounded-full bg-white/20 opacity-0 transition-transform duration-200 group-hover:scale-100 group-hover:opacity-100"></div>
+        </button>
+      )}
 
       {/* Error Display */}
       {error && (
