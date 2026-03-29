@@ -25,9 +25,8 @@ const (
 
 // Target role constants
 const (
-	RoleAdmin    = "admin"
-	RoleUser     = "user"
-	RoleGuardian = "guardian"
+	RoleAdmin = "admin"
+	RoleUser  = "user"
 )
 
 // MaxTargetIDs is the upper bound for target_org_ids and target_tenant_ids arrays.

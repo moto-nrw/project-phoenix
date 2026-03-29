@@ -654,7 +654,7 @@ export default function OperatorAnnouncementsPage() {
               role="group"
               aria-labelledby="announcement-roles-label"
             >
-              {(["admin", "user", "guardian"] as const).map((role) => {
+              {(["admin", "user"] as const).map((role) => {
                 const isChecked = formData.targetRoles.includes(role);
                 return (
                   <button

@@ -1,12 +1,11 @@
 export type AnnouncementType = "announcement" | "release" | "maintenance";
 export type AnnouncementSeverity = "info" | "warning" | "critical";
 export type AnnouncementStatus = "draft" | "published" | "expired";
-export type SystemRole = "admin" | "user" | "guardian";
+export type SystemRole = "admin" | "user";
 
 export const SYSTEM_ROLE_LABELS: Record<SystemRole, string> = {
   admin: "Administratoren",
-  user: "Lehrer/Personal",
-  guardian: "Erziehungsberechtigte",
+  user: "Betreuer",
 };
 
 export interface BackendAnnouncement {
