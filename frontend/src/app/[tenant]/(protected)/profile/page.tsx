@@ -4,6 +4,7 @@ import { Suspense, useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import Image from "next/image";
+import { Camera } from "lucide-react";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { updateProfile, uploadAvatar } from "~/lib/profile-api";
@@ -11,6 +12,8 @@ import type { ProfileUpdateRequest } from "~/lib/profile-helpers";
 import { Loading } from "~/components/ui/loading";
 import { useProfile } from "~/lib/profile-context";
 import { compressAvatar } from "~/lib/image-utils";
+import { Button } from "~/components/ui/button";
+import { Input } from "~/components/ui/input";
 import { PasswordChangeModal } from "~/components/ui";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import { getInitials } from "~/lib/format-utils";
@@ -37,7 +40,7 @@ function ProfileContent() {
     email: "",
   });
 
-  useEffect(() => {
+  const resetFormFromProfile = useCallback(() => {
     if (profile) {
       setFormData({
         firstName: profile.firstName || "",
@@ -46,6 +49,10 @@ function ProfileContent() {
       });
     }
   }, [profile]);
+
+  useEffect(() => {
+    resetFormFromProfile();
+  }, [resetFormFromProfile]);
 
   const handleSaveProfile = async () => {
     if (!session?.user?.token || !profile) return;
@@ -145,25 +152,7 @@ function ProfileContent() {
               aria-label="Profilbild ändern"
               className="absolute inset-0 flex cursor-pointer items-center justify-center rounded-full bg-black/50 opacity-0 transition-opacity group-hover:opacity-100"
             >
-              <svg
-                className="h-7 w-7 text-white"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
-                />
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
-                />
-              </svg>
+              <Camera className="h-7 w-7 text-white" />
             </label>
             <input
               id="avatar-upload"
@@ -179,7 +168,7 @@ function ProfileContent() {
           <button
             type="button"
             onClick={() => document.getElementById("avatar-upload")?.click()}
-            className="mt-3 text-[11px] font-medium text-gray-600 transition-colors hover:text-gray-900"
+            className="mt-3 text-xs font-medium text-gray-500 transition-colors hover:text-gray-900"
           >
             Profilbild ändern
           </button>
@@ -188,60 +177,36 @@ function ProfileContent() {
         {/* Profile Form */}
         <div className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm md:p-6">
           <div className="space-y-4">
-            <div>
-              <label
-                htmlFor="profile-firstname"
-                className="mb-2 block text-sm font-medium text-gray-700"
-              >
-                Vorname
-              </label>
-              <input
-                id="profile-firstname"
-                type="text"
-                value={formData.firstName}
-                onChange={(e) =>
-                  setFormData({ ...formData, firstName: e.target.value })
-                }
-                disabled={!isEditing}
-                maxLength={255}
-                className="w-full rounded-lg border border-gray-200 px-4 py-3 text-base transition-all focus:ring-2 focus:ring-[#5080D8] focus:outline-none disabled:bg-gray-50 disabled:text-gray-500"
-              />
-            </div>
-            <div>
-              <label
-                htmlFor="profile-lastname"
-                className="mb-2 block text-sm font-medium text-gray-700"
-              >
-                Nachname
-              </label>
-              <input
-                id="profile-lastname"
-                type="text"
-                value={formData.lastName}
-                onChange={(e) =>
-                  setFormData({ ...formData, lastName: e.target.value })
-                }
-                disabled={!isEditing}
-                maxLength={255}
-                className="w-full rounded-lg border border-gray-200 px-4 py-3 text-base transition-all focus:ring-2 focus:ring-[#5080D8] focus:outline-none disabled:bg-gray-50 disabled:text-gray-500"
-              />
-            </div>
-            <div>
-              <label
-                htmlFor="profile-email"
-                className="mb-2 block text-sm font-medium text-gray-700"
-              >
-                E-Mail
-              </label>
-              <input
-                id="profile-email"
-                type="email"
-                value={formData.email}
-                disabled
-                maxLength={255}
-                className="w-full rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-base text-gray-500"
-              />
-            </div>
+            <Input
+              label="Vorname"
+              name="profile-firstname"
+              type="text"
+              value={formData.firstName}
+              onChange={(e) =>
+                setFormData({ ...formData, firstName: e.target.value })
+              }
+              disabled={!isEditing}
+              maxLength={255}
+            />
+            <Input
+              label="Nachname"
+              name="profile-lastname"
+              type="text"
+              value={formData.lastName}
+              onChange={(e) =>
+                setFormData({ ...formData, lastName: e.target.value })
+              }
+              disabled={!isEditing}
+              maxLength={255}
+            />
+            <Input
+              label="E-Mail"
+              name="profile-email"
+              type="email"
+              value={formData.email}
+              disabled
+              maxLength={255}
+            />
           </div>
         </div>
 
@@ -249,36 +214,37 @@ function ProfileContent() {
         <div className="flex gap-3">
           {isEditing ? (
             <>
-              <button
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
                 onClick={() => {
                   setIsEditing(false);
-                  if (profile) {
-                    setFormData({
-                      firstName: profile.firstName || "",
-                      lastName: profile.lastName || "",
-                      email: profile.email || "",
-                    });
-                  }
+                  resetFormFromProfile();
                 }}
-                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:scale-105 hover:border-gray-400 hover:bg-gray-50 hover:shadow-md active:scale-100"
               >
                 Abbrechen
-              </button>
-              <button
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                isLoading={isSaving}
+                loadingText="Speichern..."
                 onClick={() => void handleSaveProfile()}
-                disabled={isSaving}
-                className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:scale-105 hover:bg-gray-700 hover:shadow-lg active:scale-100 disabled:opacity-50 disabled:hover:scale-100"
               >
-                {isSaving ? "Speichern..." : "Speichern"}
-              </button>
+                Speichern
+              </Button>
             </>
           ) : (
-            <button
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
               onClick={() => setIsEditing(true)}
-              className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:scale-105 hover:bg-gray-700 hover:shadow-lg active:scale-100"
             >
               Bearbeiten
-            </button>
+            </Button>
           )}
         </div>
 
@@ -291,12 +257,14 @@ function ProfileContent() {
             Aktualisieren Sie Ihr Passwort regelmäßig für zusätzliche
             Sicherheit.
           </p>
-          <button
+          <Button
+            type="button"
+            variant="primary"
+            size="sm"
             onClick={() => setShowPasswordModal(true)}
-            className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:scale-105 hover:bg-gray-700 hover:shadow-lg active:scale-100"
           >
             Passwort ändern
-          </button>
+          </Button>
         </div>
       </div>
 

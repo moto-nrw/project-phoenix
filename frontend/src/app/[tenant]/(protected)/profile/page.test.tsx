@@ -85,6 +85,57 @@ vi.mock("~/components/ui/loading", () => ({
   ),
 }));
 
+// Mock Button component
+vi.mock("~/components/ui/button", () => ({
+  Button: ({
+    children,
+    isLoading,
+    loadingText,
+    variant: _variant,
+    size: _size,
+    ...props
+  }: {
+    children: React.ReactNode;
+    isLoading?: boolean;
+    loadingText?: string;
+    variant?: string;
+    size?: string;
+    [key: string]: unknown;
+  }) => (
+    <button {...props} disabled={!!props.disabled || isLoading}>
+      {isLoading ? loadingText : children}
+    </button>
+  ),
+}));
+
+// Mock Input component
+vi.mock("~/components/ui/input", () => ({
+  Input: ({
+    label,
+    error,
+    name,
+    ...props
+  }: {
+    label?: string;
+    error?: string;
+    name?: string;
+    [key: string]: unknown;
+  }) => (
+    <div>
+      {label && <label htmlFor={name}>{label}</label>}
+      <input id={name} name={name} {...props} />
+      {error && <span>{error}</span>}
+    </div>
+  ),
+}));
+
+// Mock lucide-react
+vi.mock("lucide-react", () => ({
+  Camera: (props: Record<string, unknown>) => (
+    <svg data-testid="camera-icon" {...props} />
+  ),
+}));
+
 // Mock Next.js Image component
 vi.mock("next/image", () => ({
   default: ({
