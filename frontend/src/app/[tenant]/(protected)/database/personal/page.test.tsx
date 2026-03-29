@@ -5,7 +5,10 @@ import TeachersPage from "./page";
 // Mock next-auth/react
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(() => ({
-    data: { user: { id: "1", token: "test-token" }, expires: "2099-01-01" },
+    data: {
+      user: { id: "1", token: "test-token", isAdmin: true },
+      expires: "2099-01-01",
+    },
     status: "authenticated",
   })),
 }));
