@@ -1,0 +1,65 @@
+package config_test
+
+import (
+	"encoding/json"
+	"testing"
+	"time"
+
+	configRepo "github.com/moto-nrw/project-phoenix/database/repositories/config"
+	"github.com/moto-nrw/project-phoenix/models/config"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestSettingAuditRepository_Create(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer db.Close()
+	repo := configRepo.NewSettingAuditRepository(db)
+	ctx := testpkg.TenantContext(1)
+
+	entry := &config.SettingAuditEntry{
+		TenantID:   1,
+		SettingKey: "test.audit_create",
+		Action:     "set",
+		OldValue:   nil,
+		NewValue:   json.RawMessage(`"new_value"`),
+		ChangedAt:  time.Now(),
+	}
+
+	err := repo.Create(ctx, entry)
+	require.NoError(t, err)
+	assert.Greater(t, entry.ID, int64(0), "should have an auto-generated ID")
+}
+
+func TestSettingAuditRepository_Create_ValidatesEntry(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer db.Close()
+	repo := configRepo.NewSettingAuditRepository(db)
+	ctx := testpkg.TenantContext(1)
+
+	// Missing key
+	err := repo.Create(ctx, &config.SettingAuditEntry{
+		TenantID: 1,
+		Action:   "set",
+	})
+	assert.Error(t, err)
+
+	// Invalid action
+	err = repo.Create(ctx, &config.SettingAuditEntry{
+		TenantID:   1,
+		SettingKey: "test.key",
+		Action:     "invalid",
+	})
+	assert.Error(t, err)
+}
+
+func TestSettingAuditRepository_CreateNil(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer db.Close()
+	repo := configRepo.NewSettingAuditRepository(db)
+	ctx := testpkg.TenantContext(1)
+
+	err := repo.Create(ctx, nil)
+	assert.Error(t, err)
+}
