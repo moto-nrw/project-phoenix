@@ -156,13 +156,13 @@ export function SettingsField({
     return null;
   }
 
-  // Ring color based on save status
-  const ringClass =
-    saveStatus === "saved"
-      ? "ring-2 ring-green-400"
-      : saveStatus === "error"
-        ? "ring-2 ring-red-400"
-        : "";
+  // Save feedback: green border on success, red on error.
+  // Uses border instead of ring for better visibility.
+  let feedbackClass = "";
+  if (saveStatus === "saved")
+    feedbackClass = "rounded-lg border-2 border-green-500";
+  if (saveStatus === "error")
+    feedbackClass = "rounded-lg border-2 border-red-500";
 
   return (
     <div className="flex items-start justify-between gap-4 py-4">
@@ -187,7 +187,7 @@ export function SettingsField({
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
-        <div className={`rounded-lg transition-all duration-300 ${ringClass}`}>
+        <div className={`transition-all duration-300 ${feedbackClass}`}>
           {renderField(
             setting,
             localValue,
