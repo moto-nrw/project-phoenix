@@ -114,13 +114,18 @@ function SettingsContent({ tabKey }: SettingsContentProps) {
           };
         });
 
-        // Background sync: silently re-fetch schema after the green border fades
-        // to catch any server-side differences (no loading screen, no remount).
+        // Background sync: silently re-fetch after green border fades (4s + margin).
+        // Only updates state if the server data actually differs from local state.
         setTimeout(() => {
           void fetchSettingsSchema().then((fresh) => {
-            if (fresh) setSchema(fresh);
+            if (!fresh) return;
+            setSchema((prev) => {
+              // Skip update if values are identical (prevents unnecessary re-render)
+              if (JSON.stringify(prev) === JSON.stringify(fresh)) return prev;
+              return fresh;
+            });
           });
-        }, 5000);
+        }, 6000);
       }
       return errorMsg;
     },
