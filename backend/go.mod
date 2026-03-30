@@ -23,7 +23,7 @@ require (
 	github.com/uptrace/bun v1.2.18
 	github.com/uptrace/bun/dialect/pgdialect v1.2.18
 	github.com/uptrace/bun/driver/pgdriver v1.2.18
-	github.com/vanng822/go-premailer v1.32.0
+	github.com/vanng822/go-premailer v1.33.0
 	github.com/wneessen/go-mail v0.7.2
 	github.com/xuri/excelize/v2 v2.10.1
 	golang.org/x/crypto v0.49.0
