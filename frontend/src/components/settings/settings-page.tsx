@@ -67,20 +67,56 @@ function SettingsContent({ tabKey }: SettingsContentProps) {
       } else {
         setError(null);
         logger.info("setting_value_saved", { key });
-        // Only re-fetch schema for boolean/select saves (may affect DependsOn visibility).
-        // Text/number/time fields keep their local state — re-fetching would destroy
-        // the green border feedback by remounting the component.
-        const def = schema?.tabs
-          .flatMap((t) => t.categories)
-          .flatMap((c) => c.items)
-          .find((i) => i.key === key);
-        if (def?.type === "boolean" || def?.type === "select") {
-          await loadSchema();
-        }
+        // Update schema state locally so values persist across tab switches
+        // and field components aren't remounted (preserves green border).
+        setSchema((prev) => {
+          if (!prev) return prev;
+          // Build a value map for DependsOn evaluation
+          const valueMap = new Map<string, unknown>();
+          for (const tab of prev.tabs) {
+            for (const cat of tab.categories) {
+              for (const item of cat.items) {
+                valueMap.set(item.key, item.key === key ? value : item.value);
+              }
+            }
+          }
+          return {
+            ...prev,
+            tabs: prev.tabs.map((tab) => ({
+              ...tab,
+              categories: tab.categories.map((cat) => ({
+                ...cat,
+                items: cat.items.map((item) => {
+                  const updated =
+                    item.key === key
+                      ? { ...item, value, is_default: false }
+                      : item;
+                  // Re-evaluate DependsOn visibility
+                  if (updated.depends_on) {
+                    const parentVal = valueMap.get(updated.depends_on.key);
+                    const cond = updated.depends_on.condition;
+                    const expected = updated.depends_on.value;
+                    let visible = true;
+                    if (cond === "eq")
+                      visible =
+                        JSON.stringify(parentVal) === JSON.stringify(expected);
+                    if (cond === "neq")
+                      visible =
+                        JSON.stringify(parentVal) !== JSON.stringify(expected);
+                    if (cond === "not_empty")
+                      visible = parentVal != null && parentVal !== "";
+                    return { ...updated, visible };
+                  }
+                  return updated;
+                }),
+              })),
+            })),
+          };
+        });
       }
       return errorMsg;
     },
-    [loadSchema, schema],
+    [],
   );
 
   const handleReset = useCallback(
