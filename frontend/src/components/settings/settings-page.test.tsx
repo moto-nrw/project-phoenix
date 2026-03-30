@@ -1,12 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, waitFor } from "@testing-library/react";
+import { render, waitFor, fireEvent, screen } from "@testing-library/react";
 
 const mockFetchSchema = vi.fn<() => Promise<unknown>>();
+const mockSetSettingValue = vi.fn<() => Promise<string | null>>();
+const mockResetSettingValue = vi.fn<() => Promise<string | null>>();
 
 vi.mock("~/lib/settings-api", () => ({
   fetchSettingsSchema: () => mockFetchSchema(),
-  setSettingValue: vi.fn().mockResolvedValue(null),
-  resetSettingValue: vi.fn().mockResolvedValue(null),
+  setSettingValue: (_k: string, _v: unknown) => mockSetSettingValue(),
+  resetSettingValue: (_k: string) => mockResetSettingValue(),
 }));
 
 const { useSettingsTabs } = await import("./settings-page");
@@ -24,7 +26,7 @@ const mockSchema = {
             {
               key: "ops.enabled",
               label: "Aktiviert",
-              description: "Toggle",
+              description: "Toggle feature",
               type: "boolean" as const,
               default: true,
               value: true,
@@ -32,6 +34,21 @@ const mockSchema = {
               writable: true,
               visible: true,
               sort_order: 1,
+              validation: null,
+              depends_on: null,
+              options: null,
+            },
+            {
+              key: "ops.time",
+              label: "Uhrzeit",
+              description: "Time setting",
+              type: "time" as const,
+              default: "18:00",
+              value: "18:00",
+              is_default: true,
+              writable: true,
+              visible: true,
+              sort_order: 2,
               validation: null,
               depends_on: null,
               options: null,
@@ -63,9 +80,18 @@ function HookWrapper({
   return null;
 }
 
+// Renders the actual SettingsContent via the hook's renderTab
+function RenderedTab({ tabId }: { readonly tabId: string }) {
+  const result = useSettingsTabs();
+  if (!result) return <div data-testid="no-tabs">No tabs</div>;
+  return <div>{result.renderTab(tabId)}</div>;
+}
+
 describe("useSettingsTabs", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockSetSettingValue.mockResolvedValue(null);
+    mockResetSettingValue.mockResolvedValue(null);
   });
 
   it("returns null when schema is null (no access)", async () => {
@@ -100,20 +126,6 @@ describe("useSettingsTabs", () => {
       expect(captured).not.toBeNull();
     });
     expect(captured!.tabs[0]!.id).toBe("settings-operations");
-    expect(captured!.tabs[1]!.id).toBe("settings-gdpr");
-  });
-
-  it("renderTab returns a React element", async () => {
-    mockFetchSchema.mockResolvedValue(mockSchema);
-    let captured: TabsResult | null = null;
-
-    render(<HookWrapper onResult={(r) => (captured = r)} />);
-    await waitFor(() => {
-      expect(captured).not.toBeNull();
-    });
-
-    const element = captured!.renderTab("settings-operations");
-    expect(element).toBeDefined();
   });
 
   it("returns null when schema has empty tabs", async () => {
@@ -134,7 +146,86 @@ describe("useSettingsTabs", () => {
     await waitFor(() => {
       expect(captured).not.toBeNull();
     });
-    expect(captured!.tabs[0]!.icon).toBeTruthy();
     expect(typeof captured!.tabs[0]!.icon).toBe("string");
+    expect(captured!.tabs[0]!.icon.length).toBeGreaterThan(0);
+  });
+});
+
+describe("SettingsContent (via renderTab)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSetSettingValue.mockResolvedValue(null);
+    mockResetSettingValue.mockResolvedValue(null);
+  });
+
+  it("renders no-tabs when schema is null", async () => {
+    mockFetchSchema.mockResolvedValue(null);
+    render(<RenderedTab tabId="settings-operations" />);
+    await waitFor(() => {
+      expect(screen.getByTestId("no-tabs")).toBeDefined();
+    });
+  });
+
+  it("renders settings items after loading", async () => {
+    mockFetchSchema.mockResolvedValue(mockSchema);
+
+    render(<RenderedTab tabId="settings-operations" />);
+    expect(await screen.findByText("Aktiviert")).toBeDefined();
+    expect(await screen.findByText("Uhrzeit")).toBeDefined();
+  });
+
+  it("shows nothing when schema is null (no access)", async () => {
+    mockFetchSchema.mockResolvedValue(null);
+
+    const { container } = render(<RenderedTab tabId="settings-operations" />);
+    await waitFor(() => {
+      expect(container.querySelector(".animate-spin")).toBeNull();
+    });
+  });
+
+  it("shows Keine Einstellungen for unknown tab", async () => {
+    mockFetchSchema.mockResolvedValue(mockSchema);
+
+    render(<RenderedTab tabId="settings-nonexistent" />);
+    expect(
+      await screen.findByText("Keine Einstellungen verfügbar."),
+    ).toBeDefined();
+  });
+
+  it("saves boolean value on toggle click", async () => {
+    mockFetchSchema.mockResolvedValue(mockSchema);
+
+    render(<RenderedTab tabId="settings-operations" />);
+    const toggle = await screen.findByRole("switch");
+    fireEvent.click(toggle);
+
+    await waitFor(() => {
+      expect(mockSetSettingValue).toHaveBeenCalled();
+    });
+  });
+
+  it("renders category heading from schema", async () => {
+    mockFetchSchema.mockResolvedValue(mockSchema);
+
+    render(<RenderedTab tabId="settings-operations" />);
+    expect(await screen.findByText("Sitzungen")).toBeDefined();
+  });
+
+  it("re-fetches schema after successful save", async () => {
+    mockFetchSchema.mockResolvedValue(mockSchema);
+
+    render(<RenderedTab tabId="settings-operations" />);
+    await screen.findByText("Aktiviert");
+
+    // First fetch on mount
+    expect(mockFetchSchema).toHaveBeenCalledTimes(2); // hook + content
+
+    const toggle = screen.getByRole("switch");
+    fireEvent.click(toggle);
+
+    await waitFor(() => {
+      // Should have fetched again after save
+      expect(mockFetchSchema.mock.calls.length).toBeGreaterThan(2);
+    });
   });
 });

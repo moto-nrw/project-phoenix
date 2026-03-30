@@ -747,3 +747,132 @@ func TestSetValue_NonNumberForNumberField(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "expected a number")
 }
+
+// --- Additional coverage: typed resolver edge cases ---
+
+func TestResolveString_NonStringValue(t *testing.T) {
+	setupTest(t)
+	registerTestSetting("test.numstr", config.FieldNumber, 42)
+
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+	// Default is int 42, ResolveString should convert it
+	val, err := svc.ResolveString(tenantCtx(1), "test.numstr")
+	require.NoError(t, err)
+	assert.Equal(t, "42", val)
+}
+
+func TestResolveString_ErrorFromResolve(t *testing.T) {
+	setupTest(t)
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+	_, err := svc.ResolveString(tenantCtx(1), "nonexistent")
+	require.Error(t, err)
+}
+
+func TestResolveBool_ErrorFromResolve(t *testing.T) {
+	setupTest(t)
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+	_, err := svc.ResolveBool(tenantCtx(1), "nonexistent")
+	require.Error(t, err)
+}
+
+func TestResolveBool_NonBoolValue(t *testing.T) {
+	setupTest(t)
+	registerTestSetting("test.notbool", config.FieldText, "hello")
+
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+	val, err := svc.ResolveBool(tenantCtx(1), "test.notbool")
+	require.NoError(t, err)
+	assert.False(t, val) // non-bool value returns false
+}
+
+func TestResolveInt_ErrorFromResolve(t *testing.T) {
+	setupTest(t)
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+	_, err := svc.ResolveInt(tenantCtx(1), "nonexistent")
+	require.Error(t, err)
+}
+
+func TestResolveInt_NonNumericValue(t *testing.T) {
+	setupTest(t)
+	registerTestSetting("test.notint", config.FieldText, "hello")
+
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+	val, err := svc.ResolveInt(tenantCtx(1), "test.notint")
+	require.NoError(t, err)
+	assert.Equal(t, 0, val) // non-numeric returns 0
+}
+
+func TestResolveInt_IntValue(t *testing.T) {
+	setupTest(t)
+	registerTestSetting("test.intval", config.FieldNumber, 0)
+
+	repo := newMockValueRepo()
+	repo.values["test.intval"] = &config.SettingValue{
+		SettingKey: "test.intval",
+		Value:      json.RawMessage(`42`),
+	}
+	repo.values["test.intval"].TenantID = 1
+
+	svc := createService(repo, &mockAuditRepo{})
+
+	val, err := svc.ResolveInt(tenantCtx(1), "test.intval")
+	require.NoError(t, err)
+	assert.Equal(t, 42, val)
+}
+
+func TestSetValue_RepoUpsertError(t *testing.T) {
+	setupTest(t)
+	registerTestSetting("test.val", config.FieldText, "default")
+
+	repo := newMockValueRepo()
+	repo.err = fmt.Errorf("upsert failed")
+	svc := createService(repo, &mockAuditRepo{})
+
+	err := svc.SetValue(tenantCtx(1), "test.val", "new", nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "upsert failed")
+}
+
+func TestResetValue_RepoDeleteError(t *testing.T) {
+	setupTest(t)
+	registerTestSetting("test.val", config.FieldText, "default")
+
+	repo := newMockValueRepo()
+	repo.err = fmt.Errorf("delete failed")
+	svc := createService(repo, &mockAuditRepo{})
+
+	err := svc.ResetValue(tenantCtx(1), "test.val", nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "delete failed")
+}
+
+func TestSetValue_NilChangedBy(t *testing.T) {
+	setupTest(t)
+	registerTestSetting("test.val", config.FieldText, "default")
+
+	auditRepo := &mockAuditRepo{}
+	svc := createService(newMockValueRepo(), auditRepo)
+
+	err := svc.SetValue(tenantCtx(1), "test.val", "new", nil)
+	require.NoError(t, err)
+	assert.Len(t, auditRepo.entries, 1)
+	assert.Nil(t, auditRepo.entries[0].ChangedBy)
+}
+
+func TestResetValue_AuditError_DoesNotFail(t *testing.T) {
+	setupTest(t)
+	registerTestSetting("test.val", config.FieldText, "default")
+
+	auditRepo := &mockAuditRepo{err: fmt.Errorf("audit write failed")}
+	svc := createService(newMockValueRepo(), auditRepo)
+
+	// Should succeed even if audit fails
+	err := svc.ResetValue(tenantCtx(1), "test.val", nil)
+	require.NoError(t, err)
+}
