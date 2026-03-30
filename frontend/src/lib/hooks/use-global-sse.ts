@@ -60,6 +60,7 @@ export function useGlobalSSE(): SSEHookState {
   const pendingStudentIds = useRef(new Set<string>());
   const hasPendingActivityEvent = useRef(false);
   const hasPendingDashboardEvent = useRef(false);
+  const hasPendingDailyCheckoutDashboardEvent = useRef(false);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const flushInvalidations = useCallback(() => {
@@ -108,12 +109,16 @@ export function useGlobalSSE(): SSEHookState {
       });
     }
 
-    // Invalidate dashboard (student counts changed) — single broad invalidation
+    // Invalidate dashboard for activity events, explicit dashboard broadcasts,
+    // and student movement fallbacks. BroadcastToAll is best-effort, so a
+    // delivered student_checkin/student_checkout may be the only signal that
+    // counts changed if dashboard_counts_changed gets dropped under backpressure.
     if (
       pendingGroupIds.current.size > 0 ||
       pendingStudentIds.current.size > 0 ||
       hasPendingActivityEvent.current ||
-      hasPendingDashboardEvent.current
+      hasPendingDashboardEvent.current ||
+      hasPendingDailyCheckoutDashboardEvent.current
     ) {
       mutate(
         (key) =>
@@ -149,6 +154,7 @@ export function useGlobalSSE(): SSEHookState {
     pendingStudentIds.current.clear();
     hasPendingActivityEvent.current = false;
     hasPendingDashboardEvent.current = false;
+    hasPendingDailyCheckoutDashboardEvent.current = false;
   }, []);
 
   const scheduleFlush = useCallback(() => {
@@ -169,6 +175,11 @@ export function useGlobalSSE(): SSEHookState {
           // Target the specific student detail cache
           if (event.data.student_id) {
             pendingStudentIds.current.add(event.data.student_id);
+          }
+          // Daily "nach Hause" checkout emits only student_checkout on the
+          // educational group topic without a companion dashboard event.
+          if (event.type === "student_checkout" && !event.active_group_id) {
+            hasPendingDailyCheckoutDashboardEvent.current = true;
           }
           scheduleFlush();
           break;
