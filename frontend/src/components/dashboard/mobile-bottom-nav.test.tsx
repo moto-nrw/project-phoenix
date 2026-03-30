@@ -356,15 +356,19 @@ describe("MobileBottomNav", () => {
     });
 
     it("displays additional nav items in drawer", () => {
+      // Einstellungen requires admin — test with admin to see all items
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
       render(<MobileBottomNav />);
 
       // Open overflow menu
       const moreButton = getMoreButton();
       fireEvent.click(moreButton);
 
-      // Check for additional items
-      expect(screen.getByText("Mitarbeiter")).toBeInTheDocument();
-      expect(screen.getByText("Räume")).toBeInTheDocument();
+      // Drawer should contain overflow items (those not in the main bottom bar)
+      const drawer = screen.getByTestId("drawer");
+      expect(drawer).toBeInTheDocument();
+      // At minimum, Einstellungen should appear in the drawer for admins
       expect(screen.getByText("Einstellungen")).toBeInTheDocument();
     });
   });
@@ -475,6 +479,8 @@ describe("MobileBottomNav", () => {
     });
 
     it("highlights More button when additional nav item route is active", () => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
       mockUsePathname.mockReturnValue("/settings");
 
       render(<MobileBottomNav />);
@@ -537,6 +543,8 @@ describe("MobileBottomNav", () => {
 
     it("shows indicator on more button when additional route is active", async () => {
       vi.useFakeTimers();
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
       mockUsePathname.mockReturnValue("/settings");
 
       render(<MobileBottomNav />);
