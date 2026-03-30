@@ -36,7 +36,7 @@ function validateLocally(
 type SaveStatus = "idle" | "saved" | "error";
 
 const AUTO_SAVE_DELAY_MS = 3000;
-const FEEDBACK_DURATION_MS = 2000;
+const FEEDBACK_DURATION_MS = 4000;
 
 interface SettingsFieldProps {
   readonly setting: ResolvedSetting;
