@@ -17,8 +17,8 @@ importers:
         specifier: ^5.2.5
         version: 5.2.5
       '@moto-nrw/design-system':
-        specifier: ^0.2.3
-        version: 0.2.3(lucide-react@1.7.0(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+        specifier: ^0.3.1
+        version: 0.3.1(lucide-react@1.7.0(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@radix-ui/react-tabs':
         specifier: ^1.1.13
         version: 1.1.13(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -693,8 +693,8 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@moto-nrw/design-system@0.2.3':
-    resolution: {integrity: sha512-iWl6bNdfZeONEtGUIfD1ADz7zzh7GOu9Gy25RxWaqevI8UHFc/5ZL1TUqZnB7c4MyXuB25ShbyHseY+wHmISzg==}
+  '@moto-nrw/design-system@0.3.1':
+    resolution: {integrity: sha512-wBMzCsusn4Y8qNcHyj9O2szz62wpYpGFiUVCiGSHSkbeBofo4NxZDEDhq7GWWp1wwo+IhjUr3Rkpi60oAkGO8w==}
     peerDependencies:
       lucide-react: '>=0.400.0'
       react: '>=18'
@@ -3845,11 +3845,13 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@moto-nrw/design-system@0.2.3(lucide-react@1.7.0(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
+  '@moto-nrw/design-system@0.3.1(lucide-react@1.7.0(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
     dependencies:
+      clsx: 2.1.1
       lucide-react: 1.7.0(react@19.2.4)
       react: 19.2.4
       react-dom: 19.2.4(react@19.2.4)
+      tailwind-merge: 3.5.0
 
   '@mswjs/interceptors@0.40.0':
     dependencies:
