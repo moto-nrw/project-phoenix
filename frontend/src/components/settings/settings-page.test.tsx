@@ -48,6 +48,21 @@ const mockSchema = {
   ],
 };
 
+interface TabsResult {
+  tabs: { id: string; label: string; icon: string }[];
+  renderTab: (tabId: string) => React.ReactNode;
+}
+
+function HookWrapper({
+  onResult,
+}: {
+  readonly onResult: (r: TabsResult | null) => void;
+}) {
+  const result = useSettingsTabs();
+  onResult(result);
+  return null;
+}
+
 describe("useSettingsTabs", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -55,101 +70,71 @@ describe("useSettingsTabs", () => {
 
   it("returns null when schema is null (no access)", async () => {
     mockFetchSchema.mockResolvedValue(null);
+    let captured: TabsResult | null = null;
 
-    let result: ReturnType<typeof useSettingsTabs> = undefined as never;
-    function TestComponent() {
-      result = useSettingsTabs();
-      return null;
-    }
-
-    render(<TestComponent />);
+    render(<HookWrapper onResult={(r) => (captured = r)} />);
     await waitFor(() => {
-      expect(result).toBeNull();
+      expect(captured).toBeNull();
     });
   });
 
   it("returns tabs from schema with German labels", async () => {
     mockFetchSchema.mockResolvedValue(mockSchema);
+    let captured: TabsResult | null = null;
 
-    let result: ReturnType<typeof useSettingsTabs> = undefined as never;
-    function TestComponent() {
-      result = useSettingsTabs();
-      return null;
-    }
-
-    render(<TestComponent />);
+    render(<HookWrapper onResult={(r) => (captured = r)} />);
     await waitFor(() => {
-      expect(result).not.toBeNull();
+      expect(captured).not.toBeNull();
     });
-    expect(result!.tabs).toHaveLength(2);
-    expect(result!.tabs[0]!.label).toBe("Betrieb");
-    expect(result!.tabs[1]!.label).toBe("Datenschutz");
+    expect(captured!.tabs).toHaveLength(2);
+    expect(captured!.tabs[0]!.label).toBe("Betrieb");
+    expect(captured!.tabs[1]!.label).toBe("Datenschutz");
   });
 
-  it("returns tabs with correct IDs (settings- prefix)", async () => {
+  it("returns tabs with settings- prefix IDs", async () => {
     mockFetchSchema.mockResolvedValue(mockSchema);
+    let captured: TabsResult | null = null;
 
-    let result: ReturnType<typeof useSettingsTabs> = undefined as never;
-    function TestComponent() {
-      result = useSettingsTabs();
-      return null;
-    }
-
-    render(<TestComponent />);
+    render(<HookWrapper onResult={(r) => (captured = r)} />);
     await waitFor(() => {
-      expect(result).not.toBeNull();
+      expect(captured).not.toBeNull();
     });
-    expect(result!.tabs[0]!.id).toBe("settings-operations");
-    expect(result!.tabs[1]!.id).toBe("settings-gdpr");
+    expect(captured!.tabs[0]!.id).toBe("settings-operations");
+    expect(captured!.tabs[1]!.id).toBe("settings-gdpr");
   });
 
   it("renderTab returns a React element", async () => {
     mockFetchSchema.mockResolvedValue(mockSchema);
+    let captured: TabsResult | null = null;
 
-    let result: ReturnType<typeof useSettingsTabs> = undefined as never;
-    function TestComponent() {
-      result = useSettingsTabs();
-      return null;
-    }
-
-    render(<TestComponent />);
+    render(<HookWrapper onResult={(r) => (captured = r)} />);
     await waitFor(() => {
-      expect(result).not.toBeNull();
+      expect(captured).not.toBeNull();
     });
 
-    const element = result!.renderTab("settings-operations");
+    const element = captured!.renderTab("settings-operations");
     expect(element).toBeDefined();
   });
 
   it("returns null when schema has empty tabs", async () => {
     mockFetchSchema.mockResolvedValue({ tabs: [] });
+    let captured: TabsResult | null = null;
 
-    let result: ReturnType<typeof useSettingsTabs> = undefined as never;
-    function TestComponent() {
-      result = useSettingsTabs();
-      return null;
-    }
-
-    render(<TestComponent />);
+    render(<HookWrapper onResult={(r) => (captured = r)} />);
     await waitFor(() => {
-      expect(result).toBeNull();
+      expect(captured).toBeNull();
     });
   });
 
   it("tabs have icon paths", async () => {
     mockFetchSchema.mockResolvedValue(mockSchema);
+    let captured: TabsResult | null = null;
 
-    let result: ReturnType<typeof useSettingsTabs> = undefined as never;
-    function TestComponent() {
-      result = useSettingsTabs();
-      return null;
-    }
-
-    render(<TestComponent />);
+    render(<HookWrapper onResult={(r) => (captured = r)} />);
     await waitFor(() => {
-      expect(result).not.toBeNull();
+      expect(captured).not.toBeNull();
     });
-    expect(result!.tabs[0]!.icon).toBeTruthy();
-    expect(typeof result!.tabs[0]!.icon).toBe("string");
+    expect(captured!.tabs[0]!.icon).toBeTruthy();
+    expect(typeof captured!.tabs[0]!.icon).toBe("string");
   });
 });
