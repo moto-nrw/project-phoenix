@@ -56,11 +56,8 @@ function SettingsContent({ tabKey }: SettingsContentProps) {
 
   const handleSave = useCallback(
     async (key: string, value: unknown): Promise<string | null> => {
-      setSaving(key);
       const errorMsg = await setSettingValue(key, value);
       if (errorMsg) {
-        // Only show network/server errors in the global banner — field
-        // validation errors are displayed inline by the field component.
         if (
           errorMsg.startsWith("Netzwerkfehler") ||
           errorMsg.startsWith("Einstellung konnte nicht")
@@ -69,11 +66,9 @@ function SettingsContent({ tabKey }: SettingsContentProps) {
         }
       } else {
         setError(null);
-        // Re-fetch schema to get updated values + re-evaluate dependencies
         await loadSchema();
         logger.info("setting_value_saved", { key });
       }
-      setSaving(null);
       return errorMsg;
     },
     [loadSchema],
@@ -81,17 +76,14 @@ function SettingsContent({ tabKey }: SettingsContentProps) {
 
   const handleReset = useCallback(
     async (key: string): Promise<string | null> => {
-      setSaving(key);
       const errorMsg = await resetSettingValue(key);
       if (errorMsg) {
         setError(errorMsg);
       } else {
         setError(null);
-        // Re-fetch schema after reset (dependencies may change)
         await loadSchema();
         logger.info("setting_value_reset", { key });
       }
-      setSaving(null);
       return errorMsg;
     },
     [loadSchema],
