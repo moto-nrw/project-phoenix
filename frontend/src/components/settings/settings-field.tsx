@@ -110,7 +110,10 @@ export function SettingsField({
       } else {
         setError(null);
         setIsDirty(false);
-        showFeedback("saved");
+        // Delay feedback slightly so it runs after the optimistic schema
+        // update triggers the sync effect. Without this, React batches the
+        // state updates and saveStatus gets overwritten before rendering.
+        setTimeout(() => showFeedback("saved"), 50);
       }
     },
     [setting, onSave, showFeedback],
