@@ -14,7 +14,7 @@ import (
 
 func TestSettingAuditRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	repo := configRepo.NewSettingAuditRepository(db)
 	ctx := testpkg.TenantContext(1)
 
@@ -34,7 +34,7 @@ func TestSettingAuditRepository_Create(t *testing.T) {
 
 func TestSettingAuditRepository_Create_ValidatesEntry(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	repo := configRepo.NewSettingAuditRepository(db)
 	ctx := testpkg.TenantContext(1)
 
@@ -56,7 +56,7 @@ func TestSettingAuditRepository_Create_ValidatesEntry(t *testing.T) {
 
 func TestSettingAuditRepository_CreateNil(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	repo := configRepo.NewSettingAuditRepository(db)
 	ctx := testpkg.TenantContext(1)
 
