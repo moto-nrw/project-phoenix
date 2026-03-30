@@ -113,6 +113,14 @@ function SettingsContent({ tabKey }: SettingsContentProps) {
             })),
           };
         });
+
+        // Background sync: silently re-fetch schema after the green border fades
+        // to catch any server-side differences (no loading screen, no remount).
+        setTimeout(() => {
+          void fetchSettingsSchema().then((fresh) => {
+            if (fresh) setSchema(fresh);
+          });
+        }, 5000);
       }
       return errorMsg;
     },

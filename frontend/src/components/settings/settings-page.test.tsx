@@ -211,21 +211,22 @@ describe("SettingsContent (via renderTab)", () => {
     expect(await screen.findByText("Sitzungen")).toBeDefined();
   });
 
-  it("re-fetches schema after successful save", async () => {
+  it("updates value optimistically after save (no immediate re-fetch)", async () => {
     mockFetchSchema.mockResolvedValue(mockSchema);
 
     render(<RenderedTab tabId="settings-operations" />);
     await screen.findByText("Aktiviert");
 
-    // First fetch on mount
-    expect(mockFetchSchema).toHaveBeenCalledTimes(2); // hook + content
+    const fetchCountBefore = mockFetchSchema.mock.calls.length;
 
     const toggle = screen.getByRole("switch");
     fireEvent.click(toggle);
 
     await waitFor(() => {
-      // Should have fetched again after save
-      expect(mockFetchSchema.mock.calls.length).toBeGreaterThan(2);
+      expect(mockSetSettingValue).toHaveBeenCalled();
     });
+
+    // No immediate re-fetch — uses optimistic update
+    expect(mockFetchSchema.mock.calls.length).toBe(fetchCountBefore);
   });
 });
