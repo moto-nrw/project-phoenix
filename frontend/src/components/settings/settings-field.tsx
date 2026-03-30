@@ -56,21 +56,36 @@ export function SettingsField({
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const feedbackRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isDirtyRef = useRef(false);
+  const localValueRef = useRef<unknown>(setting.value);
 
-  // Sync local state when setting value changes from server
+  // Keep refs in sync with state
+  isDirtyRef.current = isDirty;
+  localValueRef.current = localValue;
+
+  // Sync local state when setting value changes from server.
+  // Does NOT reset saveStatus — the green/red feedback must persist
+  // through the schema re-fetch that follows a successful save.
   useEffect(() => {
     setLocalValue(setting.value);
     setIsDirty(false);
-    setError(null);
   }, [setting.value]);
 
-  // Cleanup timers on unmount
+  // Save dirty values on unmount (e.g., tab change) + cleanup timers
   useEffect(() => {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
       if (feedbackRef.current) clearTimeout(feedbackRef.current);
+      // Fire-and-forget save if user switches tab with unsaved changes
+      if (isDirtyRef.current) {
+        const localErr = validateLocally(setting, localValueRef.current);
+        if (!localErr) {
+          void onSave(setting.key, localValueRef.current);
+        }
+      }
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setting.key]);
 
   const showFeedback = useCallback((status: SaveStatus) => {
     setSaveStatus(status);

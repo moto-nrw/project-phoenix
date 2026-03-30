@@ -41,7 +41,6 @@ function SettingsContent({ tabKey }: SettingsContentProps) {
   const [schema, setSchema] = useState<SettingsSchema | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState<string | null>(null);
 
   const loadSchema = useCallback(async () => {
     setLoading(true);
@@ -132,11 +131,6 @@ function SettingsContent({ tabKey }: SettingsContentProps) {
           >
             &times;
           </button>
-        </div>
-      )}
-      {saving && (
-        <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-600">
-          Speichern...
         </div>
       )}
       <SettingsTabContent tab={tab} onSave={handleSave} onReset={handleReset} />
