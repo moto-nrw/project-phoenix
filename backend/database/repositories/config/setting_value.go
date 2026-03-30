@@ -54,11 +54,11 @@ func (r *SettingValueRepository) FindByTenantAndKey(ctx context.Context, tenantI
 func (r *SettingValueRepository) FindByTenant(ctx context.Context, tenantID int64) ([]*config.SettingValue, error) {
 	var results []*config.SettingValue
 	err := repoBase.GetDB(ctx, r.db).NewSelect().
-		Model(&results).
+		Model((*config.SettingValue)(nil)).
 		ModelTableExpr(tableSettingValuesAlias).
 		Where(`"setting_value".tenant_id = ?`, tenantID).
 		Order(`"setting_value".setting_key ASC`).
-		Scan(ctx)
+		Scan(ctx, &results)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
