@@ -66,12 +66,21 @@ function SettingsContent({ tabKey }: SettingsContentProps) {
         }
       } else {
         setError(null);
-        await loadSchema();
         logger.info("setting_value_saved", { key });
+        // Only re-fetch schema for boolean/select saves (may affect DependsOn visibility).
+        // Text/number/time fields keep their local state — re-fetching would destroy
+        // the green border feedback by remounting the component.
+        const def = schema?.tabs
+          .flatMap((t) => t.categories)
+          .flatMap((c) => c.items)
+          .find((i) => i.key === key);
+        if (def?.type === "boolean" || def?.type === "select") {
+          await loadSchema();
+        }
       }
       return errorMsg;
     },
-    [loadSchema],
+    [loadSchema, schema],
   );
 
   const handleReset = useCallback(
