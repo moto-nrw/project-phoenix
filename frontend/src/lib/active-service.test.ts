@@ -155,6 +155,30 @@ describe("active-service", () => {
         expect(result[0]?.groupId).toBe("10");
       });
 
+      it("does not resolve server URLs in browser context", async () => {
+        const apiUrlModule = await import("./api-url");
+        const resolveApiUrlSpy = vi
+          .spyOn(apiUrlModule, "resolveApiUrl")
+          .mockImplementation(() => {
+            throw new Error("browser calls must stay on the proxy path");
+          });
+
+        try {
+          const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+          mockFetch.mockResolvedValueOnce({
+            ok: true,
+            json: () => Promise.resolve({ data: [sampleBackendActiveGroup] }),
+          } as Response);
+
+          const result = await activeService.getActiveGroups();
+
+          expect(result).toHaveLength(1);
+          expect(resolveApiUrlSpy).not.toHaveBeenCalled();
+        } finally {
+          resolveApiUrlSpy.mockRestore();
+        }
+      });
+
       it("applies active filter when provided", async () => {
         const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
         mockFetch.mockResolvedValueOnce({

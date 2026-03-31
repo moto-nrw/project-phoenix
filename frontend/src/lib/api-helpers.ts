@@ -59,8 +59,8 @@ export async function checkAuth(): Promise<NextResponse<ApiErrorResponse> | null
 }
 
 /**
- * Server-side fetch with automatic 401 retry and token refresh
- * Centralized logic for all HTTP methods to eliminate duplication
+ * Server-side fetch against the backend API.
+ * Route-level 401 retry with a refreshed session happens in route-wrapper.ts.
  */
 async function serverFetchWithRetry<T>(
   endpoint: string,
