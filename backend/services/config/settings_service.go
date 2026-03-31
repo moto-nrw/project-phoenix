@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"regexp"
+	"strconv"
+	"strings"
 
 	"github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -137,14 +140,45 @@ func (s *settingsService) ResolveInt(ctx context.Context, key string) (int, erro
 	}
 }
 
+// HasTenantOverride checks if a tenant has an explicit DB override for a setting.
+func (s *settingsService) HasTenantOverride(ctx context.Context, key string) (bool, error) {
+	tenantID := tenant.FromContext(ctx)
+	if tenantID <= 0 {
+		return false, nil
+	}
+	sv, err := s.valueRepo.FindByTenantAndKey(ctx, tenantID, key)
+	if err != nil {
+		return false, &SettingsError{Op: "has_override", Err: err}
+	}
+	return sv != nil, nil
+}
+
+// checkWritePermission verifies the caller has the required write permission.
+// If userPermissions is nil, the check is skipped (system-level callers).
+func checkWritePermission(def *config.Definition, userPermissions []string) error {
+	if userPermissions == nil || def.WritePermission == "" {
+		return nil
+	}
+	for _, p := range userPermissions {
+		if p == def.WritePermission {
+			return nil
+		}
+	}
+	return &PermissionDeniedError{Key: def.Key, RequiredPermission: def.WritePermission}
+}
+
 // SetValue sets a tenant override for a setting.
-func (s *settingsService) SetValue(ctx context.Context, key string, value any, changedBy *int64) error {
+func (s *settingsService) SetValue(ctx context.Context, key string, value any, changedBy *int64, userPermissions []string) error {
 	def := config.GetDefinition(key)
 	if def == nil {
 		return &SettingsError{
 			Op:  "set_value",
 			Err: &DefinitionNotFoundError{Key: key},
 		}
+	}
+
+	if err := checkWritePermission(def, userPermissions); err != nil {
+		return &SettingsError{Op: "set_value", Err: err}
 	}
 
 	if err := validateValue(def, value); err != nil {
@@ -201,13 +235,17 @@ func (s *settingsService) SetValue(ctx context.Context, key string, value any, c
 }
 
 // ResetValue removes a tenant override, falling back to the registry default.
-func (s *settingsService) ResetValue(ctx context.Context, key string, changedBy *int64) error {
+func (s *settingsService) ResetValue(ctx context.Context, key string, changedBy *int64, userPermissions []string) error {
 	def := config.GetDefinition(key)
 	if def == nil {
 		return &SettingsError{
 			Op:  "reset_value",
 			Err: &DefinitionNotFoundError{Key: key},
 		}
+	}
+
+	if err := checkWritePermission(def, userPermissions); err != nil {
+		return &SettingsError{Op: "reset_value", Err: err}
 	}
 
 	tenantID := tenant.FromContext(ctx)
@@ -250,30 +288,99 @@ func (s *settingsService) GetSchema(ctx context.Context, userPermissions []strin
 
 // --- Validation ---
 
-func validateValue(def *config.Definition, value any) error {
-	if def.Validation == nil {
-		return nil
-	}
-	rules := def.Validation
+// pinPattern matches exactly 4 numeric digits.
+var pinPattern = regexp.MustCompile(`^\d{4}$`)
 
-	if rules.Required && value == nil {
+func validateValue(def *config.Definition, value any) error {
+	// Check required constraint (from validation rules)
+	if def.Validation != nil && def.Validation.Required && value == nil {
 		return fmt.Errorf("value is required")
 	}
 
-	if def.Type == config.FieldNumber {
+	// Type-specific validation
+	switch def.Type {
+	case config.FieldBoolean:
+		if _, ok := value.(bool); !ok {
+			return fmt.Errorf("expected a boolean")
+		}
+
+	case config.FieldNumber:
 		num, ok := toFloat64(value)
 		if !ok {
 			return fmt.Errorf("expected a number")
 		}
-		if rules.Min != nil && num < *rules.Min {
-			return fmt.Errorf("value %v is below minimum %v", num, *rules.Min)
+		if def.Validation != nil {
+			if def.Validation.Min != nil && num < *def.Validation.Min {
+				return fmt.Errorf("value %v is below minimum %v", num, *def.Validation.Min)
+			}
+			if def.Validation.Max != nil && num > *def.Validation.Max {
+				return fmt.Errorf("value %v exceeds maximum %v", num, *def.Validation.Max)
+			}
 		}
-		if rules.Max != nil && num > *rules.Max {
-			return fmt.Errorf("value %v exceeds maximum %v", num, *rules.Max)
+
+	case config.FieldTime:
+		str, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("expected a time string")
+		}
+		if err := validateTimeFormat(str); err != nil {
+			return err
+		}
+
+	case config.FieldText:
+		if _, ok := value.(string); !ok {
+			return fmt.Errorf("expected a string")
+		}
+
+	case config.FieldPassword:
+		str, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("expected a string")
+		}
+		// PIN-specific validation: must be empty or exactly 4 digits
+		if def.Key == "security.ogs_device_pin" && str != "" && !pinPattern.MatchString(str) {
+			return fmt.Errorf("PIN must be exactly 4 digits")
+		}
+
+	case config.FieldSelect:
+		if def.Options == nil || len(def.Options.Static) == 0 {
+			return fmt.Errorf("select field has no options defined")
+		}
+		if !isValidSelectOption(value, def.Options.Static) {
+			return fmt.Errorf("value is not a valid option")
 		}
 	}
 
 	return nil
+}
+
+// validateTimeFormat checks that a string is a valid HH:MM time.
+func validateTimeFormat(s string) error {
+	parts := strings.Split(s, ":")
+	if len(parts) != 2 {
+		return fmt.Errorf("expected time in HH:MM format")
+	}
+	hour, err := strconv.Atoi(parts[0])
+	if err != nil || hour < 0 || hour > 23 {
+		return fmt.Errorf("invalid hour in time value")
+	}
+	minute, err := strconv.Atoi(parts[1])
+	if err != nil || minute < 0 || minute > 59 {
+		return fmt.Errorf("invalid minute in time value")
+	}
+	return nil
+}
+
+// isValidSelectOption checks if a value matches one of the allowed select options.
+func isValidSelectOption(value any, options []config.SelectOption) bool {
+	vJSON, _ := json.Marshal(value)
+	for _, opt := range options {
+		optJSON, _ := json.Marshal(opt.Value)
+		if string(vJSON) == string(optJSON) {
+			return true
+		}
+	}
+	return false
 }
 
 func toFloat64(v any) (float64, bool) {

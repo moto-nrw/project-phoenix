@@ -1,6 +1,7 @@
 package iot
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 
@@ -44,6 +45,7 @@ type ServiceDependencies struct {
 	ActiveService         activeSvc.Service
 	ActivitiesService     activitiesSvc.ActivityService
 	ConfigService         configSvc.Service
+	SettingsService       configSvc.SettingsService
 	FacilityService       facilitiesSvc.Service
 	EducationService      educationSvc.Service
 	FeedbackService       feedbackSvc.Service
@@ -60,6 +62,7 @@ type Resource struct {
 	ActiveService         activeSvc.Service
 	ActivitiesService     activitiesSvc.ActivityService
 	ConfigService         configSvc.Service
+	SettingsService       configSvc.SettingsService
 	FacilityService       facilitiesSvc.Service
 	EducationService      educationSvc.Service
 	FeedbackService       feedbackSvc.Service
@@ -77,6 +80,7 @@ func NewResource(deps ServiceDependencies) *Resource {
 		ActiveService:         deps.ActiveService,
 		ActivitiesService:     deps.ActivitiesService,
 		ConfigService:         deps.ConfigService,
+		SettingsService:       deps.SettingsService,
 		FacilityService:       deps.FacilityService,
 		EducationService:      deps.EducationService,
 		FeedbackService:       deps.FeedbackService,
@@ -84,6 +88,21 @@ func NewResource(deps ServiceDependencies) *Resource {
 		SchoolRepo:            deps.SchoolRepo,
 		logger:                deps.Logger,
 		db:                    deps.DB,
+	}
+}
+
+// pinResolver returns a PINResolver that reads from the settings service.
+// Returns nil if no settings service is available (falls back to env var in device auth).
+func (rs *Resource) pinResolver() device.PINResolver {
+	if rs.SettingsService == nil {
+		return nil
+	}
+	return func(ctx context.Context, tenantID int64) string {
+		pin, err := rs.SettingsService.ResolveStringForTenant(ctx, tenantID, "security.ogs_device_pin")
+		if err != nil {
+			return ""
+		}
+		return pin
 	}
 }
 
@@ -140,7 +159,7 @@ func (rs *Resource) Router() chi.Router {
 	// then TenantTxMiddleware wraps each handler in a tenant-scoped transaction
 	// (SET LOCAL ROLE phoenix_tenant + set_config) so RLS is enforced.
 	r.Group(func(r chi.Router) {
-		r.Use(device.DeviceAuthenticator(rs.IoTService, rs.UsersService, rs.SchoolRepo))
+		r.Use(device.DeviceAuthenticator(rs.IoTService, rs.UsersService, rs.SchoolRepo, rs.pinResolver()))
 		r.Use(tenant.TenantTxMiddleware(rs.db))
 
 		// Check-in endpoints (student RFID check-in/checkout workflow)
@@ -152,6 +171,7 @@ func (rs *Resource) Router() chi.Router {
 			rs.ActivitiesService,
 			rs.EducationService,
 			rs.PickupScheduleService,
+			rs.SettingsService,
 			rs.getLogger().With(slog.String("sub", "checkin")),
 		)
 		// Register routes directly instead of mounting at "/" to avoid Chi conflict

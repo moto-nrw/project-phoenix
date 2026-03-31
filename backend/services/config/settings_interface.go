@@ -30,11 +30,18 @@ type SettingsService interface {
 	// ResolveInt resolves a setting as an int.
 	ResolveInt(ctx context.Context, key string) (int, error)
 
+	// HasTenantOverride checks if a tenant has an explicit DB override for a setting.
+	HasTenantOverride(ctx context.Context, key string) (bool, error)
+
 	// SetValue sets a tenant override for a setting.
-	SetValue(ctx context.Context, key string, value any, changedBy *int64) error
+	// userPermissions is checked against the definition's WritePermission.
+	// Pass nil to skip permission checks (for system-level callers).
+	SetValue(ctx context.Context, key string, value any, changedBy *int64, userPermissions []string) error
 
 	// ResetValue removes a tenant override, falling back to the registry default.
-	ResetValue(ctx context.Context, key string, changedBy *int64) error
+	// userPermissions is checked against the definition's WritePermission.
+	// Pass nil to skip permission checks (for system-level callers).
+	ResetValue(ctx context.Context, key string, changedBy *int64, userPermissions []string) error
 }
 
 // --- Response types ---

@@ -12,11 +12,26 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
-// getStudentDailyCheckoutTime parses the daily checkout time from environment variable
-func getStudentDailyCheckoutTime() (time.Time, error) {
-	checkoutTimeStr := os.Getenv("STUDENT_DAILY_CHECKOUT_TIME")
+// getStudentDailyCheckoutTime resolves the daily checkout time.
+// Fallback chain: settings service → STUDENT_DAILY_CHECKOUT_TIME env var → "15:00".
+func (rs *Resource) getStudentDailyCheckoutTime(ctx context.Context) (time.Time, error) {
+	checkoutTimeStr := ""
+
+	// Try settings service first
+	if rs.SettingsService != nil {
+		if val, err := rs.SettingsService.ResolveString(ctx, "operations.student_daily_checkout_time"); err == nil && val != "" {
+			checkoutTimeStr = val
+		}
+	}
+
+	// Fall back to env var
 	if checkoutTimeStr == "" {
-		checkoutTimeStr = "15:00" // Default to 3:00 PM
+		checkoutTimeStr = os.Getenv("STUDENT_DAILY_CHECKOUT_TIME")
+	}
+
+	// Fall back to default
+	if checkoutTimeStr == "" {
+		checkoutTimeStr = "15:00"
 	}
 
 	// Parse time in HH:MM format
@@ -69,7 +84,7 @@ func (rs *Resource) shouldShowDailyCheckoutWithGroup(ctx context.Context, studen
 		return false
 	}
 
-	checkoutTime, err := getStudentDailyCheckoutTime()
+	checkoutTime, err := rs.getStudentDailyCheckoutTime(ctx)
 	if err != nil || !time.Now().After(checkoutTime) {
 		return false
 	}

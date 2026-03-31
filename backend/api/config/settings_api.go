@@ -85,7 +85,7 @@ func (rs *SettingsResource) setValue(w http.ResponseWriter, r *http.Request) {
 	changedBy := int64(claims.ID)
 
 	err := tenant.WithTenantTx(r.Context(), rs.db, tenant.FromContext(r.Context()), func(ctx context.Context, _ bun.Tx) error {
-		return rs.settingsService.SetValue(ctx, key, req.Value, &changedBy)
+		return rs.settingsService.SetValue(ctx, key, req.Value, &changedBy, claims.Permissions)
 	})
 	if err != nil {
 		renderSettingsError(w, r, err)
@@ -102,7 +102,7 @@ func (rs *SettingsResource) resetValue(w http.ResponseWriter, r *http.Request) {
 	changedBy := int64(claims.ID)
 
 	err := tenant.WithTenantTx(r.Context(), rs.db, tenant.FromContext(r.Context()), func(ctx context.Context, _ bun.Tx) error {
-		return rs.settingsService.ResetValue(ctx, key, &changedBy)
+		return rs.settingsService.ResetValue(ctx, key, &changedBy, claims.Permissions)
 	})
 	if err != nil {
 		renderSettingsError(w, r, err)
@@ -125,12 +125,15 @@ func renderSettingsError(w http.ResponseWriter, r *http.Request, err error) {
 
 	var defNotFound *configSvc.DefinitionNotFoundError
 	var invalidValue *configSvc.InvalidValueError
+	var permDenied *configSvc.PermissionDeniedError
 
 	switch {
 	case errors.As(inner, &defNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
 	case errors.As(inner, &invalidValue):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+	case errors.As(inner, &permDenied):
+		common.RenderError(w, r, common.ErrorForbidden(err))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 	}

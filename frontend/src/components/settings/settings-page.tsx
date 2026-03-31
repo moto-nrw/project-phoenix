@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useSession } from "next-auth/react";
 import { createLogger } from "~/lib/logger";
 import {
   fetchSettingsSchema,
@@ -38,6 +39,7 @@ interface SettingsContentProps {
 }
 
 function SettingsContent({ tabKey }: SettingsContentProps) {
+  const { status: sessionStatus } = useSession();
   const [schema, setSchema] = useState<SettingsSchema | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -51,8 +53,10 @@ function SettingsContent({ tabKey }: SettingsContentProps) {
   }, []);
 
   useEffect(() => {
-    void loadSchema();
-  }, [loadSchema]);
+    if (sessionStatus === "authenticated") {
+      void loadSchema();
+    }
+  }, [loadSchema, sessionStatus]);
 
   const handleSave = useCallback(
     async (key: string, value: unknown): Promise<string | null> => {
@@ -197,13 +201,16 @@ export function useSettingsTabs(): {
   tabs: { id: string; label: string; icon: string }[];
   renderTab: (tabId: string) => React.ReactNode;
 } | null {
+  const { status: sessionStatus } = useSession();
   const [schema, setSchema] = useState<SettingsSchema | null>(null);
 
   useEffect(() => {
-    void fetchSettingsSchema().then((data) => {
-      if (data) setSchema(data);
-    });
-  }, []);
+    if (sessionStatus === "authenticated") {
+      void fetchSettingsSchema().then((data) => {
+        if (data) setSchema(data);
+      });
+    }
+  }, [sessionStatus]);
 
   if (!schema?.tabs || schema.tabs.length === 0) {
     return null;

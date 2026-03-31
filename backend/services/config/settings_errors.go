@@ -9,6 +9,7 @@ import (
 var (
 	ErrDefinitionNotFound = errors.New("setting definition not found in registry")
 	ErrInvalidValue       = errors.New("value does not pass validation")
+	ErrPermissionDenied   = errors.New("insufficient permissions for this setting")
 )
 
 // SettingsError wraps settings service errors with operation context.
@@ -50,4 +51,18 @@ func (e *InvalidValueError) Error() string {
 
 func (e *InvalidValueError) Unwrap() error {
 	return ErrInvalidValue
+}
+
+// PermissionDeniedError indicates the user lacks the required write permission.
+type PermissionDeniedError struct {
+	Key                string
+	RequiredPermission string
+}
+
+func (e *PermissionDeniedError) Error() string {
+	return fmt.Sprintf("permission denied for setting %s: requires %s", e.Key, e.RequiredPermission)
+}
+
+func (e *PermissionDeniedError) Unwrap() error {
+	return ErrPermissionDenied
 }

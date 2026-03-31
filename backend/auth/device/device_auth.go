@@ -208,7 +208,11 @@ func scheduleDeferredFlushLocked(iotService iotSvc.Service, id int64, state *las
 	})
 }
 
-func deviceAuthenticator(iotService iotSvc.Service, schoolRepo platform.SchoolRepository) func(http.Handler) http.Handler {
+// PINResolver resolves the device PIN for a given tenant.
+// Returns the PIN string, or empty if not configured.
+type PINResolver func(ctx context.Context, tenantID int64) string
+
+func deviceAuthenticator(iotService iotSvc.Service, schoolRepo platform.SchoolRepository, pinResolver PINResolver) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Validate API key and get device
@@ -234,10 +238,16 @@ func deviceAuthenticator(iotService iotSvc.Service, schoolRepo platform.SchoolRe
 				return
 			}
 
-			// Get global OGS PIN from environment
-			ogsPin := os.Getenv("OGS_DEVICE_PIN")
+			// Resolve OGS PIN: settings service (per-tenant) → env var fallback
+			var ogsPin string
+			if pinResolver != nil && device.TenantID > 0 {
+				ogsPin = pinResolver(r.Context(), device.TenantID)
+			}
 			if ogsPin == "" {
-				slog.Error("OGS_DEVICE_PIN not configured in environment")
+				ogsPin = os.Getenv("OGS_DEVICE_PIN")
+			}
+			if ogsPin == "" {
+				slog.Error("OGS_DEVICE_PIN not configured")
 				_ = render.Render(w, r, ErrDeviceUnauthorized(ErrInvalidPIN))
 				return
 			}
@@ -274,8 +284,9 @@ func deviceAuthenticator(iotService iotSvc.Service, schoolRepo platform.SchoolRe
 // It requires both Authorization: Bearer <api_key> and X-Staff-PIN: <pin> headers.
 // The middleware sets device context for downstream handlers.
 // Rejects requests for devices belonging to soft-deleted schools.
-func DeviceAuthenticator(iotService iotSvc.Service, _ usersSvc.PersonService, schoolRepo platform.SchoolRepository) func(http.Handler) http.Handler {
-	return deviceAuthenticator(iotService, schoolRepo)
+// pinResolver is optional — if nil, falls back to OGS_DEVICE_PIN env var.
+func DeviceAuthenticator(iotService iotSvc.Service, _ usersSvc.PersonService, schoolRepo platform.SchoolRepository, pinResolver PINResolver) func(http.Handler) http.Handler {
+	return deviceAuthenticator(iotService, schoolRepo, pinResolver)
 }
 
 // DeviceOnlyAuthenticator is a middleware that validates only device API keys.

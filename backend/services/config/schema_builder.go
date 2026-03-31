@@ -41,9 +41,9 @@ func buildSchema(
 		// Determine if this is the default or an override
 		isDefault := isDefaultValue(value, def.Default)
 
-		// Mask password values
+		// Mask password values (only when actually set, not empty defaults)
 		displayValue := value
-		if def.Type == config.FieldPassword && value != nil {
+		if def.Type == config.FieldPassword && value != nil && value != "" {
 			displayValue = "••••••"
 		}
 

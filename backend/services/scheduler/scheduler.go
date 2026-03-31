@@ -49,6 +49,7 @@ type SettingsResolver interface {
 	ResolveString(ctx context.Context, key string) (string, error)
 	ResolveBool(ctx context.Context, key string) (bool, error)
 	ResolveInt(ctx context.Context, key string) (int, error)
+	HasTenantOverride(ctx context.Context, key string) (bool, error)
 }
 
 // Scheduler manages scheduled tasks
@@ -865,17 +866,20 @@ func (s *Scheduler) scheduleBreakAutoEndTask() {
 	go s.runBreakAutoEndTaskPolling(task)
 }
 
-// runBreakAutoEndTaskPolling runs break auto-end check every 60 seconds for all tenants.
+// runBreakAutoEndTaskPolling runs break auto-end check at the configured interval for all tenants.
 func (s *Scheduler) runBreakAutoEndTaskPolling(task *ScheduledTask) {
 	defer s.wg.Done()
 
-	s.getLogger().Info("break auto-end using 60-second polling for per-tenant scheduling")
+	interval := time.Duration(s.breakAutoEndIntervalSeconds) * time.Second
+	s.getLogger().Info("break auto-end polling started",
+		slog.Int("interval_seconds", s.breakAutoEndIntervalSeconds),
+	)
 
 	// Brief delay on startup
 	time.Sleep(10 * time.Second)
 	s.checkAndRunBreakAutoEnd(task)
 
-	ticker := time.NewTicker(60 * time.Second)
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for {
@@ -926,12 +930,19 @@ func (s *Scheduler) checkAndRunBreakAutoEnd(task *ScheduledTask) {
 }
 
 // --- Settings-aware helpers ---
+//
+// Fallback chain: tenant DB override → env var → registry default.
+// The settings service's Resolve* returns the registry default when no tenant
+// override exists, which would skip the env var. We use HasTenantOverride to
+// distinguish "tenant explicitly set a value" from "returning registry default".
 
 // resolveStringSetting resolves a setting via the settings service with env var fallback.
 func (s *Scheduler) resolveStringSetting(ctx context.Context, key string, envVar string, defaultVal string) string {
 	if s.settings != nil {
-		if val, err := s.settings.ResolveString(ctx, key); err == nil && val != "" {
-			return val
+		if hasOverride, _ := s.settings.HasTenantOverride(ctx, key); hasOverride {
+			if val, err := s.settings.ResolveString(ctx, key); err == nil && val != "" {
+				return val
+			}
 		}
 	}
 	if val := os.Getenv(envVar); val != "" {
@@ -943,8 +954,10 @@ func (s *Scheduler) resolveStringSetting(ctx context.Context, key string, envVar
 // resolveBoolSetting resolves a boolean setting via the settings service with env var fallback.
 func (s *Scheduler) resolveBoolSetting(ctx context.Context, key string, envVar string, defaultVal bool) bool {
 	if s.settings != nil {
-		if val, err := s.settings.ResolveBool(ctx, key); err == nil {
-			return val
+		if hasOverride, _ := s.settings.HasTenantOverride(ctx, key); hasOverride {
+			if val, err := s.settings.ResolveBool(ctx, key); err == nil {
+				return val
+			}
 		}
 	}
 	if val := os.Getenv(envVar); val != "" {
@@ -956,8 +969,10 @@ func (s *Scheduler) resolveBoolSetting(ctx context.Context, key string, envVar s
 // resolveIntSetting resolves an integer setting via the settings service with env var fallback.
 func (s *Scheduler) resolveIntSetting(ctx context.Context, key string, envVar string, defaultVal int) int {
 	if s.settings != nil {
-		if val, err := s.settings.ResolveInt(ctx, key); err == nil && val > 0 {
-			return val
+		if hasOverride, _ := s.settings.HasTenantOverride(ctx, key); hasOverride {
+			if val, err := s.settings.ResolveInt(ctx, key); err == nil && val > 0 {
+				return val
+			}
 		}
 	}
 	if val := os.Getenv(envVar); val != "" {

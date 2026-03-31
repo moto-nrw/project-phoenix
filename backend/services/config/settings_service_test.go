@@ -224,7 +224,7 @@ func TestSetValue_StoresValueAndAudit(t *testing.T) {
 	svc := createService(valueRepo, auditRepo)
 
 	changedBy := int64(42)
-	err := svc.SetValue(tenantCtx(1), "test.timeout", 60, &changedBy)
+	err := svc.SetValue(tenantCtx(1), "test.timeout", 60, &changedBy, nil)
 	require.NoError(t, err)
 
 	// Value stored
@@ -240,7 +240,7 @@ func TestSetValue_UnknownKey_ReturnsError(t *testing.T) {
 	setupTest(t)
 	svc := createService(newMockValueRepo(), &mockAuditRepo{})
 
-	err := svc.SetValue(tenantCtx(1), "nonexistent", "val", nil)
+	err := svc.SetValue(tenantCtx(1), "nonexistent", "val", nil, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not found")
 }
@@ -259,7 +259,7 @@ func TestSetValue_ValidationError_NumberBelowMin(t *testing.T) {
 
 	svc := createService(newMockValueRepo(), &mockAuditRepo{})
 
-	err := svc.SetValue(tenantCtx(1), "test.min", 5, nil)
+	err := svc.SetValue(tenantCtx(1), "test.min", 5, nil, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "below minimum")
 }
@@ -278,7 +278,7 @@ func TestSetValue_ValidationError_NumberAboveMax(t *testing.T) {
 
 	svc := createService(newMockValueRepo(), &mockAuditRepo{})
 
-	err := svc.SetValue(tenantCtx(1), "test.max", 200, nil)
+	err := svc.SetValue(tenantCtx(1), "test.max", 200, nil, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "exceeds maximum")
 }
@@ -298,7 +298,7 @@ func TestResetValue_DeletesOverrideAndAudits(t *testing.T) {
 	svc := createService(valueRepo, auditRepo)
 
 	changedBy := int64(42)
-	err := svc.ResetValue(tenantCtx(1), "test.timeout", &changedBy)
+	err := svc.ResetValue(tenantCtx(1), "test.timeout", &changedBy, nil)
 	require.NoError(t, err)
 
 	// Value deleted
@@ -313,7 +313,7 @@ func TestResetValue_UnknownKey_ReturnsError(t *testing.T) {
 	setupTest(t)
 	svc := createService(newMockValueRepo(), &mockAuditRepo{})
 
-	err := svc.ResetValue(tenantCtx(1), "nonexistent", nil)
+	err := svc.ResetValue(tenantCtx(1), "nonexistent", nil, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not found")
 }
@@ -603,7 +603,7 @@ func TestSetValue_WithExistingOverride_RecordsOldValue(t *testing.T) {
 	auditRepo := &mockAuditRepo{}
 	svc := createService(repo, auditRepo)
 
-	err := svc.SetValue(tenantCtx(1), "test.val", 30, nil)
+	err := svc.SetValue(tenantCtx(1), "test.val", 30, nil, nil)
 	require.NoError(t, err)
 
 	// Audit should have old_value
@@ -620,7 +620,7 @@ func TestSetValue_AuditError_DoesNotFail(t *testing.T) {
 	svc := createService(newMockValueRepo(), auditRepo)
 
 	// Should succeed even if audit fails (audit is best-effort)
-	err := svc.SetValue(tenantCtx(1), "test.val", "new", nil)
+	err := svc.SetValue(tenantCtx(1), "test.val", "new", nil, nil)
 	require.NoError(t, err)
 }
 
@@ -638,7 +638,7 @@ func TestResetValue_NilChangedBy(t *testing.T) {
 	auditRepo := &mockAuditRepo{}
 	svc := createService(repo, auditRepo)
 
-	err := svc.ResetValue(tenantCtx(1), "test.val", nil)
+	err := svc.ResetValue(tenantCtx(1), "test.val", nil, nil)
 	require.NoError(t, err)
 	assert.Nil(t, auditRepo.entries[0].ChangedBy)
 }
@@ -724,7 +724,7 @@ func TestSetValue_ValidationRequired(t *testing.T) {
 
 	svc := createService(newMockValueRepo(), &mockAuditRepo{})
 
-	err := svc.SetValue(tenantCtx(1), "test.required", nil, nil)
+	err := svc.SetValue(tenantCtx(1), "test.required", nil, nil, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "required")
 }
@@ -743,7 +743,7 @@ func TestSetValue_NonNumberForNumberField(t *testing.T) {
 
 	svc := createService(newMockValueRepo(), &mockAuditRepo{})
 
-	err := svc.SetValue(tenantCtx(1), "test.num", "not_a_number", nil)
+	err := svc.SetValue(tenantCtx(1), "test.num", "not_a_number", nil, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "expected a number")
 }
@@ -834,7 +834,7 @@ func TestSetValue_RepoUpsertError(t *testing.T) {
 	repo.err = fmt.Errorf("upsert failed")
 	svc := createService(repo, &mockAuditRepo{})
 
-	err := svc.SetValue(tenantCtx(1), "test.val", "new", nil)
+	err := svc.SetValue(tenantCtx(1), "test.val", "new", nil, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "upsert failed")
 }
@@ -847,7 +847,7 @@ func TestResetValue_RepoDeleteError(t *testing.T) {
 	repo.err = fmt.Errorf("delete failed")
 	svc := createService(repo, &mockAuditRepo{})
 
-	err := svc.ResetValue(tenantCtx(1), "test.val", nil)
+	err := svc.ResetValue(tenantCtx(1), "test.val", nil, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "delete failed")
 }
@@ -859,7 +859,7 @@ func TestSetValue_NilChangedBy(t *testing.T) {
 	auditRepo := &mockAuditRepo{}
 	svc := createService(newMockValueRepo(), auditRepo)
 
-	err := svc.SetValue(tenantCtx(1), "test.val", "new", nil)
+	err := svc.SetValue(tenantCtx(1), "test.val", "new", nil, nil)
 	require.NoError(t, err)
 	assert.Len(t, auditRepo.entries, 1)
 	assert.Nil(t, auditRepo.entries[0].ChangedBy)
@@ -873,6 +873,350 @@ func TestResetValue_AuditError_DoesNotFail(t *testing.T) {
 	svc := createService(newMockValueRepo(), auditRepo)
 
 	// Should succeed even if audit fails
-	err := svc.ResetValue(tenantCtx(1), "test.val", nil)
+	err := svc.ResetValue(tenantCtx(1), "test.val", nil, nil)
 	require.NoError(t, err)
+}
+
+// =============================================================================
+// Type validation tests
+// =============================================================================
+
+func TestSetValue_BooleanRejectsString(t *testing.T) {
+	setupTest(t)
+	registerTestSetting("test.flag", config.FieldBoolean, true)
+
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+	err := svc.SetValue(tenantCtx(1), "test.flag", "yes", nil, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "expected a boolean")
+}
+
+func TestSetValue_BooleanAcceptsBool(t *testing.T) {
+	setupTest(t)
+	registerTestSetting("test.flag", config.FieldBoolean, true)
+
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+	err := svc.SetValue(tenantCtx(1), "test.flag", false, nil, nil)
+	require.NoError(t, err)
+}
+
+func TestSetValue_TimeRejectsInvalidFormat(t *testing.T) {
+	setupTest(t)
+	registerTestSetting("test.time", config.FieldTime, "18:00")
+
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+	err := svc.SetValue(tenantCtx(1), "test.time", "25:99", nil, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid hour")
+}
+
+func TestSetValue_TimeRejectsNonString(t *testing.T) {
+	setupTest(t)
+	registerTestSetting("test.time", config.FieldTime, "18:00")
+
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+	err := svc.SetValue(tenantCtx(1), "test.time", 1800, nil, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "expected a time string")
+}
+
+func TestSetValue_TimeAcceptsValidTime(t *testing.T) {
+	setupTest(t)
+	registerTestSetting("test.time", config.FieldTime, "18:00")
+
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+	err := svc.SetValue(tenantCtx(1), "test.time", "14:30", nil, nil)
+	require.NoError(t, err)
+}
+
+func TestSetValue_SelectRejectsInvalidOption(t *testing.T) {
+	setupTest(t)
+	config.Register(config.Definition{
+		Key:      "test.sel",
+		Type:     config.FieldSelect,
+		Default:  "a",
+		Tab:      "test",
+		Category: "test",
+		Options: &config.SelectOptions{
+			Static: []config.SelectOption{
+				{Label: "A", Value: "a"},
+				{Label: "B", Value: "b"},
+			},
+		},
+	})
+
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+	err := svc.SetValue(tenantCtx(1), "test.sel", "c", nil, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not a valid option")
+}
+
+func TestSetValue_SelectAcceptsValidOption(t *testing.T) {
+	setupTest(t)
+	config.Register(config.Definition{
+		Key:      "test.sel",
+		Type:     config.FieldSelect,
+		Default:  "a",
+		Tab:      "test",
+		Category: "test",
+		Options: &config.SelectOptions{
+			Static: []config.SelectOption{
+				{Label: "A", Value: "a"},
+				{Label: "B", Value: "b"},
+			},
+		},
+	})
+
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+	err := svc.SetValue(tenantCtx(1), "test.sel", "b", nil, nil)
+	require.NoError(t, err)
+}
+
+func TestSetValue_TextRejectsNonString(t *testing.T) {
+	setupTest(t)
+	registerTestSetting("test.text", config.FieldText, "default")
+
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+	err := svc.SetValue(tenantCtx(1), "test.text", 123, nil, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "expected a string")
+}
+
+// =============================================================================
+// PIN validation tests
+// =============================================================================
+
+func TestSetValue_PINRejectsMoreThan4Digits(t *testing.T) {
+	setupTest(t)
+	config.Register(config.Definition{
+		Key:      "security.ogs_device_pin",
+		Label:    "PIN",
+		Type:     config.FieldPassword,
+		Default:  "",
+		Tab:      "security",
+		Category: "auth",
+	})
+
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+	err := svc.SetValue(tenantCtx(1), "security.ogs_device_pin", "123456", nil, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "PIN must be exactly 4 digits")
+}
+
+func TestSetValue_PINRejectsNonNumeric(t *testing.T) {
+	setupTest(t)
+	config.Register(config.Definition{
+		Key:      "security.ogs_device_pin",
+		Label:    "PIN",
+		Type:     config.FieldPassword,
+		Default:  "",
+		Tab:      "security",
+		Category: "auth",
+	})
+
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+	err := svc.SetValue(tenantCtx(1), "security.ogs_device_pin", "abcd", nil, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "PIN must be exactly 4 digits")
+}
+
+func TestSetValue_PINAccepts4Digits(t *testing.T) {
+	setupTest(t)
+	config.Register(config.Definition{
+		Key:      "security.ogs_device_pin",
+		Label:    "PIN",
+		Type:     config.FieldPassword,
+		Default:  "",
+		Tab:      "security",
+		Category: "auth",
+	})
+
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+	err := svc.SetValue(tenantCtx(1), "security.ogs_device_pin", "1234", nil, nil)
+	require.NoError(t, err)
+}
+
+func TestSetValue_PINAcceptsEmpty(t *testing.T) {
+	setupTest(t)
+	config.Register(config.Definition{
+		Key:      "security.ogs_device_pin",
+		Label:    "PIN",
+		Type:     config.FieldPassword,
+		Default:  "",
+		Tab:      "security",
+		Category: "auth",
+	})
+
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+	err := svc.SetValue(tenantCtx(1), "security.ogs_device_pin", "", nil, nil)
+	require.NoError(t, err)
+}
+
+// =============================================================================
+// Write permission enforcement tests
+// =============================================================================
+
+func TestSetValue_PermissionDenied(t *testing.T) {
+	setupTest(t)
+	config.Register(config.Definition{
+		Key:             "admin.setting",
+		Label:           "Admin",
+		Type:            config.FieldText,
+		Default:         "default",
+		Tab:             "test",
+		Category:        "test",
+		WritePermission: "config:manage",
+	})
+
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+	// User with config:update but NOT config:manage
+	err := svc.SetValue(tenantCtx(1), "admin.setting", "new", nil, []string{"config:update"})
+	require.Error(t, err)
+
+	var permErr *configSvc.PermissionDeniedError
+	assert.ErrorAs(t, err, &permErr)
+	assert.Equal(t, "config:manage", permErr.RequiredPermission)
+}
+
+func TestSetValue_PermissionGranted(t *testing.T) {
+	setupTest(t)
+	config.Register(config.Definition{
+		Key:             "admin.setting",
+		Label:           "Admin",
+		Type:            config.FieldText,
+		Default:         "default",
+		Tab:             "test",
+		Category:        "test",
+		WritePermission: "config:manage",
+	})
+
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+	// User WITH config:manage
+	err := svc.SetValue(tenantCtx(1), "admin.setting", "new", nil, []string{"config:update", "config:manage"})
+	require.NoError(t, err)
+}
+
+func TestSetValue_NilPermissions_SkipsCheck(t *testing.T) {
+	setupTest(t)
+	config.Register(config.Definition{
+		Key:             "admin.setting",
+		Label:           "Admin",
+		Type:            config.FieldText,
+		Default:         "default",
+		Tab:             "test",
+		Category:        "test",
+		WritePermission: "config:manage",
+	})
+
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+	// nil permissions = system caller, skips check
+	err := svc.SetValue(tenantCtx(1), "admin.setting", "new", nil, nil)
+	require.NoError(t, err)
+}
+
+func TestResetValue_PermissionDenied(t *testing.T) {
+	setupTest(t)
+	config.Register(config.Definition{
+		Key:             "admin.setting",
+		Label:           "Admin",
+		Type:            config.FieldText,
+		Default:         "default",
+		Tab:             "test",
+		Category:        "test",
+		WritePermission: "config:manage",
+	})
+
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+	err := svc.ResetValue(tenantCtx(1), "admin.setting", nil, []string{"config:update"})
+	require.Error(t, err)
+
+	var permErr *configSvc.PermissionDeniedError
+	assert.ErrorAs(t, err, &permErr)
+}
+
+// =============================================================================
+// HasTenantOverride tests
+// =============================================================================
+
+func TestHasTenantOverride_ReturnsTrueWhenExists(t *testing.T) {
+	setupTest(t)
+	registerTestSetting("test.val", config.FieldText, "default")
+
+	repo := newMockValueRepo()
+	repo.values["test.val"] = &config.SettingValue{
+		SettingKey: "test.val",
+		Value:      json.RawMessage(`"custom"`),
+	}
+	repo.values["test.val"].TenantID = 1
+
+	svc := createService(repo, &mockAuditRepo{})
+
+	has, err := svc.HasTenantOverride(tenantCtx(1), "test.val")
+	require.NoError(t, err)
+	assert.True(t, has)
+}
+
+func TestHasTenantOverride_ReturnsFalseWhenNotExists(t *testing.T) {
+	setupTest(t)
+	registerTestSetting("test.val", config.FieldText, "default")
+
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+	has, err := svc.HasTenantOverride(tenantCtx(1), "test.val")
+	require.NoError(t, err)
+	assert.False(t, has)
+}
+
+func TestHasTenantOverride_ReturnsFalseWithNoTenant(t *testing.T) {
+	setupTest(t)
+	registerTestSetting("test.val", config.FieldText, "default")
+
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+	has, err := svc.HasTenantOverride(context.Background(), "test.val")
+	require.NoError(t, err)
+	assert.False(t, has)
+}
+
+// =============================================================================
+// Password masking tests
+// =============================================================================
+
+func TestGetSchema_EmptyPasswordNotMasked(t *testing.T) {
+	setupTest(t)
+
+	config.Register(config.Definition{
+		Key:      "security.pin",
+		Label:    "PIN",
+		Type:     config.FieldPassword,
+		Default:  "",
+		Tab:      "security",
+		Category: "auth",
+	})
+
+	// No override — empty default should NOT be masked
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+	schema, err := svc.GetSchema(tenantCtx(1), []string{})
+	require.NoError(t, err)
+	require.Len(t, schema.Tabs, 1)
+
+	item := schema.Tabs[0].Categories[0].Items[0]
+	assert.Equal(t, "", item.Value, "empty password should show empty, not masked")
 }
