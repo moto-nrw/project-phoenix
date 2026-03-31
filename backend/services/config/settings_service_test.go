@@ -505,6 +505,13 @@ func TestInvalidValueError(t *testing.T) {
 	assert.ErrorIs(t, err, configSvc.ErrInvalidValue)
 }
 
+func TestPermissionDeniedError(t *testing.T) {
+	err := &configSvc.PermissionDeniedError{Key: "admin.setting", RequiredPermission: "config:manage"}
+	assert.Contains(t, err.Error(), "admin.setting")
+	assert.Contains(t, err.Error(), "config:manage")
+	assert.ErrorIs(t, err, configSvc.ErrPermissionDenied)
+}
+
 // --- Additional coverage tests ---
 
 func TestResolve_RepoError_ReturnsError(t *testing.T) {
