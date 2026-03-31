@@ -156,17 +156,7 @@ describe("POST /api/activities/[id]/supervisors", () => {
   });
 
   it("assigns supervisor successfully", async () => {
-    const mockUpdatedSupervisors = [
-      {
-        id: 15,
-        staff_id: 15,
-        first_name: "Mr.",
-        last_name: "Brown",
-        is_primary: true,
-      },
-    ];
     mockApiPost.mockResolvedValueOnce(undefined);
-    mockApiGet.mockResolvedValueOnce({ data: mockUpdatedSupervisors });
 
     const request = createMockRequest("/api/activities/5/supervisors", {
       method: "POST",
@@ -183,20 +173,16 @@ describe("POST /api/activities/[id]/supervisors", () => {
       },
     );
     expect(response.status).toBe(200);
+    expect(mockApiGet).not.toHaveBeenCalled();
 
     const json = await parseJsonResponse<{
       success: boolean;
-      data: Array<{ id: string; staff_id: string; name: string }>;
     }>(response);
-    expect(json.data).toHaveLength(1);
-    expect(json.data[0]?.id).toBe("15");
-    expect(json.data[0]?.staff_id).toBe("15");
-    expect(json.data[0]?.name).toBe("Mr. Brown");
+    expect(json.success).toBe(true);
   });
 
   it("assigns supervisor without is_primary flag", async () => {
     mockApiPost.mockResolvedValueOnce(undefined);
-    mockApiGet.mockResolvedValueOnce({ data: [] });
 
     const request = createMockRequest("/api/activities/5/supervisors", {
       method: "POST",
@@ -213,6 +199,28 @@ describe("POST /api/activities/[id]/supervisors", () => {
       },
     );
     expect(response.status).toBe(200);
+    expect(mockApiGet).not.toHaveBeenCalled();
+  });
+
+  it("does not fail a successful assignment on refetch errors", async () => {
+    mockApiPost.mockResolvedValueOnce(undefined);
+    mockApiGet.mockRejectedValueOnce(
+      new Error("Transient list refresh failure"),
+    );
+
+    const request = createMockRequest("/api/activities/5/supervisors", {
+      method: "POST",
+      body: { staff_id: "20" },
+    });
+    const response = await POST(request, createMockContext({ id: "5" }));
+
+    expect(response.status).toBe(200);
+    expect(mockApiGet).not.toHaveBeenCalled();
+
+    const json = await parseJsonResponse<{
+      success: boolean;
+    }>(response);
+    expect(json.success).toBe(true);
   });
 
   it("throws error when activity ID is missing", async () => {

@@ -66,10 +66,6 @@ export const POST = createPostHandler(
       is_primary: supervisorData.is_primary,
     });
 
-    const response = await apiGet<{ data: BackendActivitySupervisor[] }>(
-      `/api/activities/${activityId}/supervisors`,
-      token,
-    );
-    return mapActivitySupervisorSummariesResponse(response.data ?? []);
+    return { success: true };
   },
 );

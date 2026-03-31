@@ -1,11 +1,7 @@
 // src/app/api/activities/[id]/supervisors/[supervisorId]/route.ts
 import type { NextRequest } from "next/server";
-import { apiDelete, apiGet, apiPut } from "~/lib/api-helpers";
+import { apiDelete, apiPut } from "~/lib/api-helpers";
 import { createPutHandler, createDeleteHandler } from "~/lib/route-wrapper";
-import {
-  mapActivitySupervisorSummariesResponse,
-  type BackendActivitySupervisor,
-} from "~/lib/activity-helpers";
 
 /**
  * PUT handler for updating a supervisor's role for an activity (primarily is_primary status)
@@ -43,11 +39,7 @@ export const PUT = createPutHandler(
       },
     );
 
-    const response = await apiGet<{ data: BackendActivitySupervisor[] }>(
-      `/api/activities/${activityId}/supervisors`,
-      token,
-    );
-    return mapActivitySupervisorSummariesResponse(response.data ?? []);
+    return { success: true };
   },
 );
 

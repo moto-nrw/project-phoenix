@@ -13,6 +13,10 @@ import type {
 } from "./activity-helpers";
 import { buildBackendActivity, buildBackendCategory } from "~/test/fixtures";
 
+const { mockGetServerApiUrl } = vi.hoisted(() => ({
+  mockGetServerApiUrl: vi.fn(() => "http://server:8080"),
+}));
+
 // Mock dependencies
 vi.mock("./session-cache", () => {
   const getCachedSession = vi.fn();
@@ -70,6 +74,10 @@ vi.mock("./api", () => ({
 
 vi.mock("./auth-api", () => ({
   handleAuthFailure: vi.fn(),
+}));
+
+vi.mock("~/lib/server-api-url", () => ({
+  getServerApiUrl: mockGetServerApiUrl,
 }));
 
 // Import after mocks
@@ -139,6 +147,7 @@ const sampleBackendEnrollment: BackendStudentEnrollment = {
 describe("activity-api", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetServerApiUrl.mockReturnValue("http://server:8080");
     // Reset window for browser detection
     vi.stubGlobal("window", undefined);
   });
@@ -202,6 +211,7 @@ describe("activity-api", () => {
 
       expect(result).toHaveLength(1);
       expect(result[0]?.name).toBe("Basketball AG");
+      expect(mockGetServerApiUrl).not.toHaveBeenCalled();
     });
 
     it("handles nested data.data structure in browser context", async () => {

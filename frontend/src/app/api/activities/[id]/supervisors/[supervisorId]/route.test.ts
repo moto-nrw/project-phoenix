@@ -76,12 +76,6 @@ const defaultSession: ExtendedSession = {
   expires: "2099-01-01",
 };
 
-interface ApiResponse<T> {
-  success: boolean;
-  message: string;
-  data: T;
-}
-
 async function parseJsonResponse<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
 }
@@ -112,17 +106,7 @@ describe("PUT /api/activities/[id]/supervisors/[supervisorId]", () => {
   });
 
   it("updates supervisor role successfully", async () => {
-    const updatedSupervisors = [
-      {
-        id: 2,
-        staff_id: 10,
-        first_name: "John",
-        last_name: "Doe",
-        is_primary: true,
-      },
-    ];
     mockApiPut.mockResolvedValueOnce(undefined);
-    mockApiGet.mockResolvedValueOnce({ data: updatedSupervisors });
 
     const request = createMockRequest("/api/activities/1/supervisors/2", {
       method: "PUT",
@@ -139,21 +123,32 @@ describe("PUT /api/activities/[id]/supervisors/[supervisorId]", () => {
       { is_primary: true },
     );
     expect(response.status).toBe(200);
+    expect(mockApiGet).not.toHaveBeenCalled();
 
-    const json =
-      await parseJsonResponse<
-        ApiResponse<
-          Array<{
-            id: string;
-            staff_id: string;
-            name: string;
-            is_primary: boolean;
-          }>
-        >
-      >(response);
-    expect(json.data).toEqual([
-      { id: "2", staff_id: "10", name: "John Doe", is_primary: true },
-    ]);
+    const json = await parseJsonResponse<{ success: boolean }>(response);
+    expect(json.success).toBe(true);
+  });
+
+  it("does not fail a successful update on refetch errors", async () => {
+    mockApiPut.mockResolvedValueOnce(undefined);
+    mockApiGet.mockRejectedValueOnce(
+      new Error("Transient list refresh failure"),
+    );
+
+    const request = createMockRequest("/api/activities/1/supervisors/2", {
+      method: "PUT",
+      body: { is_primary: true },
+    });
+    const response = await PUT(
+      request,
+      createMockContext({ id: "1", supervisorId: "2" }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockApiGet).not.toHaveBeenCalled();
+
+    const json = await parseJsonResponse<{ success: boolean }>(response);
+    expect(json.success).toBe(true);
   });
 
   it("uses the numeric id extracted from the URL when activityId context is empty", async () => {
