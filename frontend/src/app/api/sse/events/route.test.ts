@@ -31,6 +31,16 @@ function createMockRequest(path: string): NextRequest {
   return new NextRequest(url);
 }
 
+function createAbortableRequest(
+  path: string,
+  signal: AbortSignal,
+): NextRequest {
+  return {
+    nextUrl: new URL(path, "http://localhost:3000"),
+    signal,
+  } as unknown as NextRequest;
+}
+
 const defaultSession: ExtendedSession = {
   user: { id: "1", token: "test-token", name: "Test User" },
   expires: "2099-01-01",
@@ -92,6 +102,7 @@ describe("GET /api/sse/events", () => {
           Accept: "text/event-stream",
         },
         cache: "no-store",
+        signal: expect.any(AbortSignal),
       }),
     );
 
@@ -178,5 +189,99 @@ describe("GET /api/sse/events", () => {
     expect(response.status).toBe(500);
     const text = await response.text();
     expect(text).toBe("Internal server error");
+  });
+
+  it("aborts the upstream fetch when the client request aborts", async () => {
+    mockFetch.mockImplementationOnce((_url, init?: RequestInit) => {
+      return new Promise((_resolve, reject) => {
+        if (init?.signal?.aborted) {
+          reject(new DOMException("Client disconnected", "AbortError"));
+          return;
+        }
+
+        init?.signal?.addEventListener(
+          "abort",
+          () => reject(new DOMException("Client disconnected", "AbortError")),
+          { once: true },
+        );
+      });
+    });
+
+    const controller = new AbortController();
+    const request = createAbortableRequest(
+      "/api/sse/events",
+      controller.signal,
+    );
+    const responsePromise = GET(request);
+
+    controller.abort();
+
+    const response = await responsePromise;
+
+    expect(response.status).toBe(204);
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://localhost:8080/api/sse/events",
+      expect.objectContaining({
+        signal: expect.any(AbortSignal),
+      }),
+    );
+  });
+
+  it("cancels the upstream reader when the response body is cancelled", async () => {
+    const cancelSpy = vi.fn();
+    const mockStream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode("data: test\n\n"));
+      },
+      cancel() {
+        cancelSpy();
+      },
+    });
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      body: mockStream,
+    });
+
+    const request = createMockRequest("/api/sse/events");
+    const response = await GET(request);
+
+    await response.body?.cancel();
+
+    expect(cancelSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("treats a pending upstream read as normal cleanup after downstream cancellation", async () => {
+    let resolveRead:
+      | ((value: ReadableStreamReadResult<Uint8Array>) => void)
+      | null = null;
+    const cancelSpy = vi.fn(async () => {
+      resolveRead?.({ done: true, value: undefined });
+    });
+
+    const mockReader = {
+      read: vi.fn(
+        () =>
+          new Promise<ReadableStreamReadResult<Uint8Array>>((resolve) => {
+            resolveRead = resolve;
+          }),
+      ),
+      cancel: cancelSpy,
+    };
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      body: {
+        getReader: () => mockReader,
+      },
+    });
+
+    const request = createMockRequest("/api/sse/events");
+    const response = await GET(request);
+
+    const cancelPromise = response.body?.cancel();
+    await cancelPromise;
+
+    expect(cancelSpy).toHaveBeenCalledTimes(1);
   });
 });

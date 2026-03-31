@@ -187,7 +187,7 @@ describe("useGlobalSSE", () => {
   });
 
   describe("event handling", () => {
-    it("invalidates student caches on student_checkin event", () => {
+    it("invalidates dashboard caches on student_checkin event as a fallback", () => {
       renderHook(() => useGlobalSSE());
 
       // Get the onMessage callback
@@ -210,9 +210,19 @@ describe("useGlobalSSE", () => {
 
       // Should call mutate with pattern matching function
       expect(mutate).toHaveBeenCalled();
+
+      const mutateCalls = vi.mocked(mutate).mock.calls;
+      const dashboardCall = mutateCalls.find((call) => {
+        const matcher = call[0];
+        return (
+          typeof matcher === "function" &&
+          (matcher as (key: string) => boolean)("active-supervision-dashboard")
+        );
+      });
+      expect(dashboardCall).toBeDefined();
     });
 
-    it("invalidates student caches on student_checkout event", () => {
+    it("invalidates dashboard caches on student_checkout event as a fallback", () => {
       renderHook(() => useGlobalSSE());
 
       const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
@@ -226,7 +236,15 @@ describe("useGlobalSSE", () => {
 
       vi.advanceTimersByTime(500);
 
-      expect(mutate).toHaveBeenCalled();
+      const mutateCalls = vi.mocked(mutate).mock.calls;
+      const dashboardCall = mutateCalls.find((call) => {
+        const matcher = call[0];
+        return (
+          typeof matcher === "function" &&
+          (matcher as (key: string) => boolean)("dashboard-analytics")
+        );
+      });
+      expect(dashboardCall).toBeDefined();
     });
 
     it("invalidates activity caches on activity_start event", () => {
@@ -467,7 +485,7 @@ describe("useGlobalSSE", () => {
       consoleSpy.mockRestore();
     });
 
-    it("handles mutate rejection for dashboard gracefully", async () => {
+    it("handles mutate rejection for dashboard gracefully on daily checkout", async () => {
       vi.mocked(mutate).mockRejectedValue(new Error("SWR error"));
 
       const consoleSpy = vi
