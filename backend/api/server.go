@@ -61,6 +61,9 @@ func NewServer(logger *slog.Logger) (*Server, error) {
 			srv.scheduler.SetWorkSessionCleaner(api.Services.WorkSession)
 			srv.scheduler.SetBreakAutoEnder(api.Services.WorkSession)
 		}
+		if api.Services.OperatorAuth != nil {
+			srv.scheduler.SetEmailChangeTokenCleaner(api.Services.OperatorAuth)
+		}
 	}
 
 	return srv, nil

@@ -22,6 +22,13 @@ function FullPageLoading() {
  * Reads the operator session (via OperatorProviders SessionProvider)
  * and redirects non-operator or unauthenticated users.
  */
+const OPERATOR_PUBLIC_PAGES = [
+  "/operator/login",
+  "/login",
+  "/operator/email-confirm",
+  "/email-confirm",
+];
+
 export function OperatorAuthGuard({
   children,
 }: {
@@ -29,29 +36,29 @@ export function OperatorAuthGuard({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const isLoginPage = pathname === "/operator/login" || pathname === "/login";
+  const isPublicPage = OPERATOR_PUBLIC_PAGES.includes(pathname);
   const { data: session, status } = useSession();
 
   // Redirect non-operator authenticated users away
   useEffect(() => {
     if (
-      !isLoginPage &&
+      !isPublicPage &&
       status === "authenticated" &&
       session?.user?.scope !== "platform"
     ) {
       router.push("/");
     }
-  }, [isLoginPage, status, session, router]);
+  }, [isPublicPage, status, session, router]);
 
   // Redirect unauthenticated users to login
   useEffect(() => {
-    if (!isLoginPage && status === "unauthenticated") {
+    if (!isPublicPage && status === "unauthenticated") {
       router.push(operatorPath("/operator/login"));
     }
-  }, [isLoginPage, status, router]);
+  }, [isPublicPage, status, router]);
 
   // Login page: render without auth guards
-  if (isLoginPage) {
+  if (isPublicPage) {
     return <>{children}</>;
   }
 

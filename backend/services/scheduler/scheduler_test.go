@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"sync"
@@ -2284,4 +2285,66 @@ func TestRunSessionCleanupTask_StopsOnDoneAfterSleep(t *testing.T) {
 			t.Fatal("Goroutine did not exit after done channel closed")
 		}
 	})
+}
+
+// =============================================================================
+// SetEmailChangeTokenCleaner tests
+// =============================================================================
+
+type fakeEmailChangeCleaner struct {
+	result int
+	err    error
+	called bool
+}
+
+func (f *fakeEmailChangeCleaner) CleanupExpiredEmailChangeTokens(ctx context.Context) (int, error) {
+	f.called = true
+	return f.result, f.err
+}
+
+func TestEmailChangeTokenCleaner_InterfaceCompliance(_ *testing.T) {
+	var _ EmailChangeTokenCleaner = &fakeEmailChangeCleaner{}
+}
+
+func TestSetEmailChangeTokenCleaner_RegistersJob(t *testing.T) {
+	auth := &fakeAuthCleanup{}
+	invitations := &fakeInvitationCleaner{}
+	s := NewScheduler(nil, nil, auth, invitations, slog.Default())
+
+	initialCount := len(s.cleanupJobs)
+
+	cleaner := &fakeEmailChangeCleaner{result: 7}
+	s.SetEmailChangeTokenCleaner(cleaner)
+
+	assert.Equal(t, initialCount+1, len(s.cleanupJobs))
+	assert.Equal(t, "Email change token cleanup", s.cleanupJobs[len(s.cleanupJobs)-1].Description)
+}
+
+func TestSetEmailChangeTokenCleaner_JobIsCallable(t *testing.T) {
+	auth := &fakeAuthCleanup{}
+	invitations := &fakeInvitationCleaner{}
+	s := NewScheduler(nil, nil, auth, invitations, slog.Default())
+
+	cleaner := &fakeEmailChangeCleaner{result: 12}
+	s.SetEmailChangeTokenCleaner(cleaner)
+
+	job := s.cleanupJobs[len(s.cleanupJobs)-1]
+	count, err := job.Run(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 12, count)
+	assert.True(t, cleaner.called)
+}
+
+func TestSetEmailChangeTokenCleaner_JobPropagatesError(t *testing.T) {
+	auth := &fakeAuthCleanup{}
+	invitations := &fakeInvitationCleaner{}
+	s := NewScheduler(nil, nil, auth, invitations, slog.Default())
+
+	cleaner := &fakeEmailChangeCleaner{err: fmt.Errorf("cleanup failed")}
+	s.SetEmailChangeTokenCleaner(cleaner)
+
+	job := s.cleanupJobs[len(s.cleanupJobs)-1]
+	_, err := job.Run(context.Background())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "cleanup failed")
 }

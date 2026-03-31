@@ -161,6 +161,7 @@ interface SettingsLayoutProps {
   readonly profileTab: ReactNode;
   readonly mobileProfileCard: ReactNode;
   readonly extraTabs?: Tab[];
+  readonly initialTab?: string | null;
   readonly passwordApiEndpoint?: string;
   readonly onPasswordSuccess?: () => void;
   readonly alert?: {
@@ -175,11 +176,17 @@ export function SettingsLayout({
   profileTab,
   mobileProfileCard,
   extraTabs,
+  initialTab,
   passwordApiEndpoint,
   onPasswordSuccess,
   alert,
 }: SettingsLayoutProps) {
-  const [activeTab, setActiveTab] = useState<string | null>("profile");
+  const allTabs = extraTabs ? [...baseTabs, ...extraTabs] : baseTabs;
+  const validTabIds = new Set(allTabs.map((t) => t.id));
+  const safeInitialTab =
+    initialTab && validTabIds.has(initialTab) ? initialTab : "profile";
+
+  const [activeTab, setActiveTab] = useState<string | null>(safeInitialTab);
   const [isMobile, setIsMobile] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
 
@@ -201,7 +208,7 @@ export function SettingsLayout({
       const isNowMobile = window.innerWidth < 768;
       setIsMobile(isNowMobile);
 
-      if (wasDesktop && isNowMobile) {
+      if (wasDesktop && isNowMobile && !initialTab) {
         setActiveTab(null);
       } else if (!wasDesktop && !isNowMobile && activeTab === null) {
         setActiveTab("profile");
@@ -210,9 +217,7 @@ export function SettingsLayout({
     handleResize();
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
-  }, [isMobile, activeTab]);
-
-  const allTabs = extraTabs ? [...baseTabs, ...extraTabs] : baseTabs;
+  }, [isMobile, activeTab, initialTab]);
 
   const renderTabContent = () => {
     switch (activeTab) {

@@ -343,6 +343,7 @@ func (a *API) registerRoutesWithRateLimiting() {
 
 	// Configure auth-specific rate limiting if enabled
 	var authRateLimiter *customMiddleware.RateLimiter
+	var emailConfirmLimiter *customMiddleware.RateLimiter
 	if rateLimitEnabled {
 		// Stricter rate limit for auth endpoints
 		authLimit := 5 // default: 5 requests per minute for auth
@@ -352,8 +353,12 @@ func (a *API) registerRoutesWithRateLimiting() {
 			}
 		}
 		authRateLimiter = customMiddleware.NewRateLimiter(authLimit, 10) // allow reasonable burst for login attempts
+		// Separate instance for email-confirm: same config, independent token
+		// bucket. Prevents /email-confirm floods from blocking /login on the same IP.
+		emailConfirmLimiter = customMiddleware.NewRateLimiter(authLimit, 10)
 		if securityLogger != nil {
 			authRateLimiter.SetLogger(securityLogger)
+			emailConfirmLimiter.SetLogger(securityLogger)
 		}
 	}
 	a.Router.Get("/", func(w http.ResponseWriter, r *http.Request) {
@@ -447,6 +452,9 @@ func (a *API) registerRoutesWithRateLimiting() {
 	// Apply the same auth rate limiter to operator login for brute-force protection
 	if rateLimitEnabled && authRateLimiter != nil {
 		a.Operator.SetAuthRateLimiter(authRateLimiter.Middleware())
+	}
+	if rateLimitEnabled && emailConfirmLimiter != nil {
+		a.Operator.SetEmailConfirmRateLimiter(emailConfirmLimiter.Middleware())
 	}
 	a.Router.Mount("/operator", a.Operator.Router())
 }

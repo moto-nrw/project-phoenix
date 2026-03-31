@@ -44,6 +44,11 @@ type BreakAutoEnder interface {
 	AutoEndExpiredBreaks(ctx context.Context) (int, error)
 }
 
+// EmailChangeTokenCleaner exposes the cleanup routine for email change tokens.
+type EmailChangeTokenCleaner interface {
+	CleanupExpiredEmailChangeTokens(ctx context.Context) (int, error)
+}
+
 // Scheduler manages scheduled tasks
 type Scheduler struct {
 	activeService      active.Service
@@ -110,6 +115,16 @@ func (s *Scheduler) SetWorkSessionCleaner(wsc WorkSessionCleaner) {
 // SetBreakAutoEnder sets the break auto-end service (optional).
 func (s *Scheduler) SetBreakAutoEnder(bae BreakAutoEnder) {
 	s.breakAutoEnder = bae
+}
+
+// SetEmailChangeTokenCleaner sets the email change token cleanup service (optional).
+func (s *Scheduler) SetEmailChangeTokenCleaner(c EmailChangeTokenCleaner) {
+	s.cleanupJobs = append(s.cleanupJobs, CleanupJob{
+		Description: "Email change token cleanup",
+		Run: func(ctx context.Context) (int, error) {
+			return c.CleanupExpiredEmailChangeTokens(ctx)
+		},
+	})
 }
 
 // SetDB sets the database connection for tenant-aware operations.
