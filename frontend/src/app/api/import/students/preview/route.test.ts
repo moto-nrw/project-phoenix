@@ -28,6 +28,7 @@ vi.mock("~/server/auth", () => ({
 
 vi.mock("~/env", () => ({
   env: {
+    API_URL: "http://server:8080",
     NEXT_PUBLIC_API_URL: "http://localhost:8080",
   },
 }));
@@ -103,7 +104,7 @@ describe("POST /api/import/students/preview", () => {
     const response = await POST(request);
 
     expect(mockFetch).toHaveBeenCalledWith(
-      "http://localhost:8080/api/import/students/preview",
+      "http://server:8080/api/import/students/preview",
       expect.objectContaining({
         method: "POST",
         headers: expect.objectContaining({

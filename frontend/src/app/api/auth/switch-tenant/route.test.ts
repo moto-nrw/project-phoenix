@@ -24,6 +24,7 @@ vi.mock("~/server/auth", () => ({
 
 vi.mock("~/env", () => ({
   env: {
+    API_URL: "http://server:8080",
     NEXT_PUBLIC_API_URL: "http://localhost:8080",
   },
 }));
@@ -109,7 +110,7 @@ describe("POST /api/auth/switch-tenant", () => {
     const response = await POST(request);
 
     expect(global.fetch).toHaveBeenCalledWith(
-      "http://localhost:8080/auth/switch-tenant",
+      "http://server:8080/auth/switch-tenant",
       {
         method: "POST",
         headers: {

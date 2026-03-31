@@ -434,7 +434,7 @@ function parseSingleStudentResponse(
 
 // Create an Axios instance
 const api = axios.create({
-  baseURL: env.NEXT_PUBLIC_API_URL, // Client-safe environment variable pointing to the backend server
+  baseURL: env.NEXT_PUBLIC_API_URL,
   headers: {
     "Content-Type": "application/json",
   },
@@ -746,7 +746,7 @@ export const studentService = {
     const useProxyApi = globalThis.window !== undefined;
     const baseUrl = useProxyApi
       ? "/api/students"
-      : `${env.NEXT_PUBLIC_API_URL}/api/students`;
+      : `${env.API_URL}/api/students`;
     const queryString = params.toString();
     const url = queryString ? `${baseUrl}?${queryString}` : baseUrl;
 
@@ -790,7 +790,7 @@ export const studentService = {
     const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/students/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/api/students/${id}`;
+      : `${env.API_URL}/api/students/${id}`;
 
     try {
       if (useProxyApi) {
@@ -826,9 +826,7 @@ export const studentService = {
     validateStudentForCreation(student);
 
     const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/students`
-      : `${env.NEXT_PUBLIC_API_URL}/api/students`;
+    const url = useProxyApi ? `/api/students` : `${env.API_URL}/api/students`;
 
     try {
       if (useProxyApi) {
@@ -883,7 +881,7 @@ export const studentService = {
     const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/students/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/api/students/${id}`;
+      : `${env.API_URL}/api/students/${id}`;
 
     try {
       if (useProxyApi) {
@@ -957,7 +955,7 @@ export const studentService = {
     const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/students/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/api/students/${id}`;
+      : `${env.API_URL}/api/students/${id}`;
 
     try {
       if (useProxyApi) {
@@ -1004,9 +1002,7 @@ export const groupService = {
 
     const useProxyApi = globalThis.window !== undefined;
     const queryString = params.toString();
-    const baseUrl = useProxyApi
-      ? "/api/groups"
-      : `${env.NEXT_PUBLIC_API_URL}/api/groups`;
+    const baseUrl = useProxyApi ? "/api/groups" : `${env.API_URL}/api/groups`;
     const url = queryString ? `${baseUrl}?${queryString}` : baseUrl;
 
     try {
@@ -1049,7 +1045,7 @@ export const groupService = {
     const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/api/groups/${id}`;
+      : `${env.API_URL}/api/groups/${id}`;
 
     try {
       if (useProxyApi) {
@@ -1095,9 +1091,7 @@ export const groupService = {
     }
 
     const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/groups`
-      : `${env.NEXT_PUBLIC_API_URL}/api/groups`;
+    const url = useProxyApi ? `/api/groups` : `${env.API_URL}/api/groups`;
 
     try {
       if (useProxyApi) {
@@ -1156,7 +1150,7 @@ export const groupService = {
     const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/api/groups/${id}`;
+      : `${env.API_URL}/api/groups/${id}`;
 
     try {
       if (useProxyApi) {
@@ -1218,7 +1212,7 @@ export const groupService = {
     const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/api/groups/${id}`;
+      : `${env.API_URL}/api/groups/${id}`;
 
     const knownErrorPatterns = ["cannot delete group with students"];
 
@@ -1273,7 +1267,7 @@ export const groupService = {
     const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/${id}/students`
-      : `${env.NEXT_PUBLIC_API_URL}/api/groups/${id}/students`;
+      : `${env.API_URL}/api/groups/${id}/students`;
 
     try {
       if (useProxyApi) {
@@ -1337,7 +1331,7 @@ export const groupService = {
     const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/${groupId}/supervisors`
-      : `${env.NEXT_PUBLIC_API_URL}/api/groups/${groupId}/supervisors`;
+      : `${env.API_URL}/api/groups/${groupId}/supervisors`;
 
     try {
       if (useProxyApi) {
@@ -1392,7 +1386,7 @@ export const groupService = {
     const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/${groupId}/supervisors/${supervisorId}`
-      : `${env.NEXT_PUBLIC_API_URL}/api/groups/${groupId}/supervisors/${supervisorId}`;
+      : `${env.API_URL}/api/groups/${groupId}/supervisors/${supervisorId}`;
 
     try {
       if (useProxyApi) {
@@ -1442,7 +1436,7 @@ export const groupService = {
     const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/${groupId}/representative`
-      : `${env.NEXT_PUBLIC_API_URL}/api/groups/${groupId}/representative`;
+      : `${env.API_URL}/api/groups/${groupId}/representative`;
 
     try {
       if (useProxyApi) {
@@ -1497,7 +1491,7 @@ export const combinedGroupService = {
     const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? "/api/groups/combined"
-      : `${env.NEXT_PUBLIC_API_URL}/api/groups/combined`;
+      : `${env.API_URL}/api/groups/combined`;
 
     try {
       if (useProxyApi) {
@@ -1544,7 +1538,7 @@ export const combinedGroupService = {
     const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/combined/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/api/groups/combined/${id}`;
+      : `${env.API_URL}/api/groups/combined/${id}`;
 
     try {
       if (useProxyApi) {
@@ -1605,7 +1599,7 @@ export const combinedGroupService = {
     const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/combined`
-      : `${env.NEXT_PUBLIC_API_URL}/api/groups/combined`;
+      : `${env.API_URL}/api/groups/combined`;
 
     try {
       if (useProxyApi) {
@@ -1660,7 +1654,7 @@ export const combinedGroupService = {
     const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/combined/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/api/groups/combined/${id}`;
+      : `${env.API_URL}/api/groups/combined/${id}`;
 
     try {
       if (useProxyApi) {
@@ -1710,7 +1704,7 @@ export const combinedGroupService = {
     const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/combined/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/api/groups/combined/${id}`;
+      : `${env.API_URL}/api/groups/combined/${id}`;
 
     try {
       if (useProxyApi) {
@@ -1759,7 +1753,7 @@ export const combinedGroupService = {
     const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/combined/${combinedGroupId}/groups`
-      : `${env.NEXT_PUBLIC_API_URL}/api/groups/combined/${combinedGroupId}/groups`;
+      : `${env.API_URL}/api/groups/combined/${combinedGroupId}/groups`;
 
     try {
       if (useProxyApi) {
@@ -1810,7 +1804,7 @@ export const combinedGroupService = {
     const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/groups/combined/${combinedGroupId}/groups/${groupId}`
-      : `${env.NEXT_PUBLIC_API_URL}/api/groups/combined/${combinedGroupId}/groups/${groupId}`;
+      : `${env.API_URL}/api/groups/combined/${combinedGroupId}/groups/${groupId}`;
 
     try {
       if (useProxyApi) {
@@ -1867,9 +1861,7 @@ export const roomService = {
     const queryString = params.toString();
 
     const useProxyApi = globalThis.window !== undefined;
-    const baseUrl = useProxyApi
-      ? "/api/rooms"
-      : `${env.NEXT_PUBLIC_API_URL}/api/rooms`;
+    const baseUrl = useProxyApi ? "/api/rooms" : `${env.API_URL}/api/rooms`;
     const url = queryString ? `${baseUrl}?${queryString}` : baseUrl;
 
     try {
@@ -1906,7 +1898,7 @@ export const roomService = {
     const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/rooms/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/api/rooms/${id}`;
+      : `${env.API_URL}/api/rooms/${id}`;
 
     try {
       if (useProxyApi) {
@@ -1951,9 +1943,7 @@ export const roomService = {
     const backendRoom = prepareRoomForBackend(room);
 
     const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/rooms`
-      : `${env.NEXT_PUBLIC_API_URL}/api/rooms`;
+    const url = useProxyApi ? `/api/rooms` : `${env.API_URL}/api/rooms`;
 
     try {
       if (useProxyApi) {
@@ -2007,7 +1997,7 @@ export const roomService = {
     const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/rooms/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/api/rooms/${id}`;
+      : `${env.API_URL}/api/rooms/${id}`;
 
     try {
       if (useProxyApi) {
@@ -2069,7 +2059,7 @@ export const roomService = {
     const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? `/api/rooms/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/api/rooms/${id}`;
+      : `${env.API_URL}/api/rooms/${id}`;
 
     try {
       if (useProxyApi) {
@@ -2115,7 +2105,7 @@ export const roomService = {
     const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? "/api/rooms/by-category"
-      : `${env.NEXT_PUBLIC_API_URL}/api/rooms/by-category`;
+      : `${env.API_URL}/api/rooms/by-category`;
 
     try {
       if (useProxyApi) {

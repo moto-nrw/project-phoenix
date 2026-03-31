@@ -15,10 +15,10 @@ interface ExtendedSession extends Session {
 // Mocks
 // ============================================================================
 
-const { mockAuth, mockApiDelete, mockGetEnrolledStudents } = vi.hoisted(() => ({
+const { mockAuth, mockApiDelete, mockApiGet } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
   mockApiDelete: vi.fn(),
-  mockGetEnrolledStudents: vi.fn(),
+  mockApiGet: vi.fn(),
 }));
 
 vi.mock("~/server/auth", () => ({
@@ -26,7 +26,7 @@ vi.mock("~/server/auth", () => ({
 }));
 
 vi.mock("~/lib/api-helpers", () => ({
-  apiGet: vi.fn(),
+  apiGet: mockApiGet,
   apiPost: vi.fn(),
   apiPut: vi.fn(),
   apiDelete: mockApiDelete,
@@ -40,10 +40,6 @@ vi.mock("~/lib/api-helpers", () => ({
         : 500;
     return new Response(JSON.stringify({ error: message }), { status });
   }),
-}));
-
-vi.mock("~/lib/activity-api", () => ({
-  getEnrolledStudents: mockGetEnrolledStudents,
 }));
 
 // ============================================================================
@@ -113,10 +109,10 @@ describe("GET /api/activities/[id]/students/[studentId]", () => {
 
   it("returns student enrollment details", async () => {
     const students = [
-      { student_id: "100", first_name: "John", last_name: "Doe" },
-      { student_id: "101", first_name: "Jane", last_name: "Smith" },
+      { id: 100, first_name: "John", last_name: "Doe" },
+      { id: 101, first_name: "Jane", last_name: "Smith" },
     ];
-    mockGetEnrolledStudents.mockResolvedValueOnce(students);
+    mockApiGet.mockResolvedValueOnce({ data: students });
 
     const request = createMockRequest("/api/activities/1/students/100");
     const response = await GET(
@@ -124,12 +120,22 @@ describe("GET /api/activities/[id]/students/[studentId]", () => {
       createMockContext({ id: "1", studentId: "100" }),
     );
 
-    expect(mockGetEnrolledStudents).toHaveBeenCalledWith("1");
+    expect(mockApiGet).toHaveBeenCalledWith(
+      "/api/activities/1/students",
+      "test-token",
+    );
     expect(response.status).toBe(200);
 
-    const json =
-      await parseJsonResponse<ApiResponse<(typeof students)[0]>>(response);
-    expect(json.data).toEqual(students[0]);
+    const json = await parseJsonResponse<
+      ApiResponse<{
+        id: string;
+        student_id: string;
+        name: string;
+      }>
+    >(response);
+    expect(json.data.id).toBe("100");
+    expect(json.data.student_id).toBe("100");
+    expect(json.data.name).toBe("John Doe");
   });
 
   it("returns 500 when activityId is missing", async () => {
@@ -160,10 +166,8 @@ describe("GET /api/activities/[id]/students/[studentId]", () => {
   });
 
   it("returns 500 when student not found in enrollment", async () => {
-    const students = [
-      { student_id: "101", first_name: "Jane", last_name: "Smith" },
-    ];
-    mockGetEnrolledStudents.mockResolvedValueOnce(students);
+    const students = [{ id: 101, first_name: "Jane", last_name: "Smith" }];
+    mockApiGet.mockResolvedValueOnce({ data: students });
 
     const request = createMockRequest("/api/activities/1/students/100");
     const response = await GET(
@@ -177,7 +181,7 @@ describe("GET /api/activities/[id]/students/[studentId]", () => {
   });
 
   it("handles errors from getEnrolledStudents", async () => {
-    mockGetEnrolledStudents.mockRejectedValueOnce(new Error("API error"));
+    mockApiGet.mockRejectedValueOnce(new Error("API error"));
 
     const request = createMockRequest("/api/activities/1/students/100");
     const response = await GET(

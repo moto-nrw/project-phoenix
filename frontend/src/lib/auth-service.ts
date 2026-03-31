@@ -3,6 +3,7 @@ import { getSession } from "next-auth/react";
 import { isAxiosError } from "axios";
 import { env } from "~/env";
 import api from "./api";
+import { resolveApiUrl } from "./api-url";
 import { createLogger } from "~/lib/logger";
 
 // Logger instance for auth service
@@ -364,8 +365,7 @@ async function authFetch<TBackend, TFrontend = void>(
   } = options;
 
   const useProxyApi = globalThis.window !== undefined;
-  const baseUrl = useProxyApi ? "/api" : env.NEXT_PUBLIC_API_URL;
-  const url = `${baseUrl}${endpoint}`;
+  const url = resolveApiUrl(`/api${endpoint}`, endpoint);
 
   try {
     let backendData: TBackend;
@@ -494,9 +494,7 @@ export const authService = {
   // Public endpoints
   login: async (credentials: LoginRequest): Promise<TokenResponse> => {
     const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? "/api/auth/login"
-      : `${env.NEXT_PUBLIC_API_URL}/auth/login`;
+    const url = useProxyApi ? "/api/auth/login" : `${env.API_URL}/auth/login`;
 
     try {
       if (useProxyApi) {
@@ -532,7 +530,7 @@ export const authService = {
     const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? "/api/auth/register"
-      : `${env.NEXT_PUBLIC_API_URL}/auth/register`;
+      : `${env.API_URL}/auth/register`;
 
     try {
       if (useProxyApi) {
@@ -582,9 +580,7 @@ export const authService = {
 
   logout: async (): Promise<void> => {
     const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? "/api/auth/logout"
-      : `${env.NEXT_PUBLIC_API_URL}/auth/logout`;
+    const url = useProxyApi ? "/api/auth/logout" : `${env.API_URL}/auth/logout`;
 
     try {
       const session = await getSession();
@@ -621,7 +617,7 @@ export const authService = {
     const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? "/api/auth/refresh"
-      : `${env.NEXT_PUBLIC_API_URL}/auth/refresh`;
+      : `${env.API_URL}/auth/refresh`;
 
     try {
       if (useProxyApi) {
@@ -665,7 +661,7 @@ export const authService = {
     const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? "/api/auth/password-reset"
-      : `${env.NEXT_PUBLIC_API_URL}/auth/password-reset`;
+      : `${env.API_URL}/auth/password-reset`;
 
     try {
       if (useProxyApi) {
@@ -700,7 +696,7 @@ export const authService = {
     const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? "/api/auth/password-reset/confirm"
-      : `${env.NEXT_PUBLIC_API_URL}/auth/password-reset/confirm`;
+      : `${env.API_URL}/auth/password-reset/confirm`;
     const fallbackMessage = "Fehler beim Zurücksetzen des Passworts";
     const payload = {
       token: data.token,

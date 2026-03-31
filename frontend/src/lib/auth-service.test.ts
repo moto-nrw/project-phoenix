@@ -121,7 +121,7 @@ describe("authService", () => {
       const result = await authService.login(credentials);
 
       expect(mockedApiPost).toHaveBeenCalledWith(
-        "http://localhost:8080/auth/login",
+        "http://server:8080/auth/login",
         credentials,
       );
       expect(result.access_token).toBe("access-token");
@@ -280,7 +280,7 @@ describe("authService", () => {
       await authService.logout();
 
       expect(mockedApiPost).toHaveBeenCalledWith(
-        "http://localhost:8080/auth/logout",
+        "http://server:8080/auth/logout",
       );
     });
 
@@ -369,7 +369,7 @@ describe("authService", () => {
         await authService.initiatePasswordReset(resetRequest);
 
         expect(mockedApiPost).toHaveBeenCalledWith(
-          "http://localhost:8080/auth/password-reset",
+          "http://server:8080/auth/password-reset",
           resetRequest,
         );
       });

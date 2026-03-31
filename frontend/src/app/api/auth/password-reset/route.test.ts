@@ -7,6 +7,7 @@ import { NextRequest } from "next/server";
 
 vi.mock("~/env", () => ({
   env: {
+    API_URL: "http://server:8080",
     NEXT_PUBLIC_API_URL: "http://localhost:8080",
   },
 }));
@@ -74,7 +75,7 @@ describe("POST /api/auth/password-reset", () => {
 
     expect(global.fetch).toHaveBeenCalledTimes(1);
     expect(vi.mocked(global.fetch).mock.calls[0]?.[0]).toBe(
-      "http://localhost:8080/auth/password-reset",
+      "http://server:8080/auth/password-reset",
     );
     expect(requestInit).toMatchObject({
       method: "POST",

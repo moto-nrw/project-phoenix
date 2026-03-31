@@ -13,6 +13,7 @@ global.fetch = mockFetch;
 // Mock env
 vi.mock("~/env", () => ({
   env: {
+    API_URL: "http://server:8080",
     NEXT_PUBLIC_API_URL: "http://localhost:8080",
   },
 }));
@@ -66,7 +67,7 @@ describe("GET /api/invitations/validate", () => {
     const response = await GET(request);
 
     expect(mockFetch).toHaveBeenCalledWith(
-      "http://localhost:8080/auth/invitations/abc123",
+      "http://server:8080/auth/invitations/abc123",
     );
     expect(response.status).toBe(200);
     const json = await parseJsonResponse(response);
@@ -172,7 +173,7 @@ describe("GET /api/invitations/validate", () => {
     await GET(request);
 
     expect(mockFetch).toHaveBeenCalledWith(
-      "http://localhost:8080/auth/invitations/abc%20def%2Fghi%3D",
+      "http://server:8080/auth/invitations/abc%20def%2Fghi%3D",
     );
   });
 });
