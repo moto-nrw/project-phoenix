@@ -7,18 +7,11 @@ interface ExtendedSession extends Session {
   user: Session["user"] & { token?: string };
 }
 
-const {
-  mockAuth,
-  mockApiGet,
-  mockApiPut,
-  mockUpdateGroupEnrollments,
-  mockEnrollStudent,
-} = vi.hoisted(() => ({
+const { mockAuth, mockApiGet, mockApiPost, mockApiPut } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
   mockApiGet: vi.fn(),
+  mockApiPost: vi.fn(),
   mockApiPut: vi.fn(),
-  mockUpdateGroupEnrollments: vi.fn(),
-  mockEnrollStudent: vi.fn(),
 }));
 
 vi.mock("~/server/auth", () => ({
@@ -27,7 +20,7 @@ vi.mock("~/server/auth", () => ({
 
 vi.mock("~/lib/api-helpers", () => ({
   apiGet: mockApiGet,
-  apiPost: vi.fn(),
+  apiPost: mockApiPost,
   apiPut: mockApiPut,
   apiDelete: vi.fn(),
   handleApiError: vi.fn((error: unknown) => {
@@ -40,11 +33,6 @@ vi.mock("~/lib/api-helpers", () => ({
         : 500;
     return new Response(JSON.stringify({ error: message }), { status });
   }),
-}));
-
-vi.mock("~/lib/activity-api", () => ({
-  updateGroupEnrollments: mockUpdateGroupEnrollments,
-  enrollStudent: mockEnrollStudent,
 }));
 
 function createMockRequest(
@@ -114,11 +102,17 @@ describe("GET /api/activities/[id]/students", () => {
 
     const json = await parseJsonResponse<{
       success: boolean;
-      data: Array<{ id: string; name: string; school_class: string }>;
+      data: Array<{
+        id: number;
+        first_name: string;
+        last_name: string;
+        school_class: string;
+      }>;
     }>(response);
     expect(json.data).toHaveLength(2);
-    expect(json.data[0]!.id).toBe("1");
-    expect(json.data[0]!.name).toBe("Alice Smith");
+    expect(json.data[0]!.id).toBe(1);
+    expect(json.data[0]!.first_name).toBe("Alice");
+    expect(json.data[0]!.last_name).toBe("Smith");
   });
 
   it("fetches available students when available=true query param", async () => {
@@ -216,11 +210,10 @@ describe("POST /api/activities/[id]/students", () => {
   });
 
   it("enrolls single student successfully", async () => {
-    mockEnrollStudent.mockResolvedValueOnce({ success: true });
-
     const mockUpdatedEnrollments = [
       { id: 10, first_name: "Eve", last_name: "Brown", school_class: "3D" },
     ];
+    mockApiPost.mockResolvedValueOnce(undefined);
     mockApiGet.mockResolvedValueOnce({ data: mockUpdatedEnrollments });
 
     const request = createMockRequest("/api/activities/5/students", {
@@ -229,24 +222,27 @@ describe("POST /api/activities/[id]/students", () => {
     });
     const response = await POST(request, createMockContext({ id: "5" }));
 
-    expect(mockEnrollStudent).toHaveBeenCalledWith("5", { studentId: "10" });
+    expect(mockApiPost).toHaveBeenCalledWith(
+      "/api/activities/5/enroll/10",
+      "test-token",
+      {},
+    );
     expect(response.status).toBe(200);
 
     const json = await parseJsonResponse<{
       success: boolean;
-      data: Array<{ id: string }>;
+      data: Array<{ id: number }>;
     }>(response);
     expect(json.data).toHaveLength(1);
-    expect(json.data[0]!.id).toBe("10");
+    expect(json.data[0]!.id).toBe(10);
   });
 
   it("batch updates multiple students", async () => {
-    mockUpdateGroupEnrollments.mockResolvedValueOnce(true);
-
     const mockUpdatedEnrollments = [
       { id: 10, first_name: "Eve", last_name: "Brown", school_class: "3D" },
       { id: 11, first_name: "Frank", last_name: "Green", school_class: "3E" },
     ];
+    mockApiPut.mockResolvedValueOnce(undefined);
     mockApiGet.mockResolvedValueOnce({ data: mockUpdatedEnrollments });
 
     const request = createMockRequest("/api/activities/5/students", {
@@ -255,9 +251,11 @@ describe("POST /api/activities/[id]/students", () => {
     });
     const response = await POST(request, createMockContext({ id: "5" }));
 
-    expect(mockUpdateGroupEnrollments).toHaveBeenCalledWith("5", {
-      student_ids: ["10", "11"],
-    });
+    expect(mockApiPut).toHaveBeenCalledWith(
+      "/api/activities/5/students",
+      "test-token",
+      { student_ids: [10, 11] },
+    );
     expect(response.status).toBe(200);
 
     const json = await parseJsonResponse<{
@@ -268,7 +266,7 @@ describe("POST /api/activities/[id]/students", () => {
   });
 
   it("throws error when batch update fails", async () => {
-    mockUpdateGroupEnrollments.mockResolvedValueOnce(false);
+    mockApiPut.mockRejectedValueOnce(new Error("Failed to update enrollments"));
 
     const request = createMockRequest("/api/activities/5/students", {
       method: "POST",
@@ -282,7 +280,7 @@ describe("POST /api/activities/[id]/students", () => {
   });
 
   it("throws error when single enrollment fails", async () => {
-    mockEnrollStudent.mockResolvedValueOnce({ success: false });
+    mockApiPost.mockRejectedValueOnce(new Error("Failed to enroll student"));
 
     const request = createMockRequest("/api/activities/5/students", {
       method: "POST",
@@ -350,10 +348,10 @@ describe("PUT /api/activities/[id]/students", () => {
 
     const json = await parseJsonResponse<{
       success: boolean;
-      data: Array<{ id: string }>;
+      data: Array<{ id: number }>;
     }>(response);
     expect(json.data).toHaveLength(2);
-    expect(json.data[0]!.id).toBe("20");
+    expect(json.data[0]!.id).toBe(20);
   });
 
   it("throws error when student_ids not provided", async () => {

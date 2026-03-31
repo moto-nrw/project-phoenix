@@ -129,7 +129,7 @@ describe("POST /api/auth/accounts/[accountId]/roles/[roleId]", () => {
     );
 
     expect(mockFetch).toHaveBeenCalledWith(
-      "http://localhost:8080/auth/accounts/1/roles/2",
+      "http://server:8080/auth/accounts/1/roles/2",
       expect.objectContaining({
         method: "POST",
         headers: expect.objectContaining({
@@ -259,7 +259,7 @@ describe("DELETE /api/auth/accounts/[accountId]/roles/[roleId]", () => {
     );
 
     expect(mockFetch).toHaveBeenCalledWith(
-      "http://localhost:8080/auth/accounts/1/roles/2",
+      "http://server:8080/auth/accounts/1/roles/2",
       expect.objectContaining({
         method: "DELETE",
         headers: expect.objectContaining({

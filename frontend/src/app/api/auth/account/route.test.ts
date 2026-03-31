@@ -96,7 +96,7 @@ describe("GET /api/auth/account", () => {
     const response = await GET(request);
 
     expect(global.fetch).toHaveBeenCalledWith(
-      "http://localhost:8080/auth/account",
+      "http://server:8080/auth/account",
       {
         headers: {
           Authorization: "Bearer test-token",

@@ -91,7 +91,7 @@ describe("GET /api/import/students/template", () => {
     const response = await GET(request);
 
     expect(mockFetch).toHaveBeenCalledWith(
-      "http://localhost:8080/api/import/students/template?format=csv",
+      "http://server:8080/api/import/students/template?format=csv",
       expect.objectContaining({
         headers: expect.objectContaining({
           Authorization: "Bearer test-token",
@@ -131,7 +131,7 @@ describe("GET /api/import/students/template", () => {
     const response = await GET(request);
 
     expect(mockFetch).toHaveBeenCalledWith(
-      "http://localhost:8080/api/import/students/template?format=xlsx",
+      "http://server:8080/api/import/students/template?format=xlsx",
       expect.any(Object),
     );
 

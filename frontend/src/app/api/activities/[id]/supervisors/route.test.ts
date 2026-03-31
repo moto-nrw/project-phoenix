@@ -7,20 +7,19 @@ interface ExtendedSession extends Session {
   user: Session["user"] & { token?: string };
 }
 
-const { mockAuth, mockGetActivitySupervisors, mockAssignSupervisor } =
-  vi.hoisted(() => ({
-    mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
-    mockGetActivitySupervisors: vi.fn(),
-    mockAssignSupervisor: vi.fn(),
-  }));
+const { mockAuth, mockApiGet, mockApiPost } = vi.hoisted(() => ({
+  mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
+  mockApiGet: vi.fn(),
+  mockApiPost: vi.fn(),
+}));
 
 vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
 vi.mock("~/lib/api-helpers", () => ({
-  apiGet: vi.fn(),
-  apiPost: vi.fn(),
+  apiGet: mockApiGet,
+  apiPost: mockApiPost,
   apiPut: vi.fn(),
   apiDelete: vi.fn(),
   handleApiError: vi.fn((error: unknown) => {
@@ -33,11 +32,6 @@ vi.mock("~/lib/api-helpers", () => ({
         : 500;
     return new Response(JSON.stringify({ error: message }), { status });
   }),
-}));
-
-vi.mock("~/lib/activity-api", () => ({
-  getActivitySupervisors: mockGetActivitySupervisors,
-  assignSupervisor: mockAssignSupervisor,
 }));
 
 function createMockRequest(
@@ -90,24 +84,46 @@ describe("GET /api/activities/[id]/supervisors", () => {
 
   it("fetches supervisors for activity", async () => {
     const mockSupervisors = [
-      { id: "10", name: "Mr. Smith", is_primary: true },
-      { id: "11", name: "Ms. Johnson", is_primary: false },
+      {
+        id: 10,
+        staff_id: 110,
+        first_name: "Mr.",
+        last_name: "Smith",
+        is_primary: true,
+      },
+      {
+        id: 11,
+        staff_id: 111,
+        first_name: "Ms.",
+        last_name: "Johnson",
+        is_primary: false,
+      },
     ];
 
-    mockGetActivitySupervisors.mockResolvedValueOnce(mockSupervisors);
+    mockApiGet.mockResolvedValueOnce({ data: mockSupervisors });
 
     const request = createMockRequest("/api/activities/5/supervisors");
     const response = await GET(request, createMockContext({ id: "5" }));
 
-    expect(mockGetActivitySupervisors).toHaveBeenCalledWith("5");
+    expect(mockApiGet).toHaveBeenCalledWith(
+      "/api/activities/5/supervisors",
+      "test-token",
+    );
     expect(response.status).toBe(200);
 
     const json = await parseJsonResponse<{
       success: boolean;
-      data: Array<{ id: string; name: string; is_primary: boolean }>;
+      data: Array<{
+        id: number;
+        staff_id: number;
+        first_name?: string;
+        last_name?: string;
+        is_primary: boolean;
+      }>;
     }>(response);
     expect(json.data).toHaveLength(2);
-    expect(json.data[0]?.name).toBe("Mr. Smith");
+    expect(json.data[0]?.first_name).toBe("Mr.");
+    expect(json.data[0]?.last_name).toBe("Smith");
     expect(json.data[0]?.is_primary).toBe(true);
   });
 
@@ -140,12 +156,17 @@ describe("POST /api/activities/[id]/supervisors", () => {
   });
 
   it("assigns supervisor successfully", async () => {
-    mockAssignSupervisor.mockResolvedValueOnce(true);
-
     const mockUpdatedSupervisors = [
-      { id: "15", name: "Mr. Brown", is_primary: true },
+      {
+        id: 15,
+        staff_id: 15,
+        first_name: "Mr.",
+        last_name: "Brown",
+        is_primary: true,
+      },
     ];
-    mockGetActivitySupervisors.mockResolvedValueOnce(mockUpdatedSupervisors);
+    mockApiPost.mockResolvedValueOnce(undefined);
+    mockApiGet.mockResolvedValueOnce({ data: mockUpdatedSupervisors });
 
     const request = createMockRequest("/api/activities/5/supervisors", {
       method: "POST",
@@ -153,24 +174,28 @@ describe("POST /api/activities/[id]/supervisors", () => {
     });
     const response = await POST(request, createMockContext({ id: "5" }));
 
-    expect(mockAssignSupervisor).toHaveBeenCalledWith("5", {
-      staff_id: "15",
-      is_primary: true,
-    });
-    expect(mockGetActivitySupervisors).toHaveBeenCalledWith("5");
+    expect(mockApiPost).toHaveBeenCalledWith(
+      "/api/activities/5/supervisors",
+      "test-token",
+      {
+        staff_id: 15,
+        is_primary: true,
+      },
+    );
     expect(response.status).toBe(200);
 
     const json = await parseJsonResponse<{
       success: boolean;
-      data: Array<{ id: string; name: string }>;
+      data: Array<{ id: number; first_name?: string; last_name?: string }>;
     }>(response);
     expect(json.data).toHaveLength(1);
-    expect(json.data[0]?.name).toBe("Mr. Brown");
+    expect(json.data[0]?.first_name).toBe("Mr.");
+    expect(json.data[0]?.last_name).toBe("Brown");
   });
 
   it("assigns supervisor without is_primary flag", async () => {
-    mockAssignSupervisor.mockResolvedValueOnce(true);
-    mockGetActivitySupervisors.mockResolvedValueOnce([]);
+    mockApiPost.mockResolvedValueOnce(undefined);
+    mockApiGet.mockResolvedValueOnce({ data: [] });
 
     const request = createMockRequest("/api/activities/5/supervisors", {
       method: "POST",
@@ -178,10 +203,14 @@ describe("POST /api/activities/[id]/supervisors", () => {
     });
     const response = await POST(request, createMockContext({ id: "5" }));
 
-    expect(mockAssignSupervisor).toHaveBeenCalledWith("5", {
-      staff_id: "20",
-      is_primary: undefined,
-    });
+    expect(mockApiPost).toHaveBeenCalledWith(
+      "/api/activities/5/supervisors",
+      "test-token",
+      {
+        staff_id: 20,
+        is_primary: undefined,
+      },
+    );
     expect(response.status).toBe(200);
   });
 
@@ -210,7 +239,7 @@ describe("POST /api/activities/[id]/supervisors", () => {
   });
 
   it("throws error when assignment fails", async () => {
-    mockAssignSupervisor.mockResolvedValueOnce(false);
+    mockApiPost.mockRejectedValueOnce(new Error("Failed to assign supervisor"));
 
     const request = createMockRequest("/api/activities/5/supervisors", {
       method: "POST",

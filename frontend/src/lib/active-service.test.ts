@@ -212,7 +212,7 @@ describe("active-service", () => {
         const result = await activeService.getActiveGroups();
 
         expect(mockedApiGet).toHaveBeenCalledWith(
-          "http://localhost:8080/active/groups",
+          "http://server:8080/active/groups",
         );
         expect(result).toHaveLength(1);
       });
@@ -972,7 +972,7 @@ describe("active-service", () => {
       const result = await activeService.getActiveGroup("1");
 
       expect(mockedApiGet).toHaveBeenCalledWith(
-        "http://localhost:8080/active/groups/1",
+        "http://server:8080/active/groups/1",
       );
       expect(result.id).toBe("1");
     });
@@ -989,7 +989,7 @@ describe("active-service", () => {
       });
 
       expect(mockedApiPost).toHaveBeenCalledWith(
-        "http://localhost:8080/active/groups",
+        "http://server:8080/active/groups",
         expect.any(Object),
       );
     });
@@ -1000,7 +1000,7 @@ describe("active-service", () => {
       await activeService.deleteActiveGroup("1");
 
       expect(mockedApiDelete).toHaveBeenCalledWith(
-        "http://localhost:8080/active/groups/1",
+        "http://server:8080/active/groups/1",
       );
     });
 
@@ -1012,7 +1012,7 @@ describe("active-service", () => {
       await activeService.updateActiveGroup("1", { notes: "Updated" });
 
       expect(mockedApiPut).toHaveBeenCalledWith(
-        "http://localhost:8080/active/groups/1",
+        "http://server:8080/active/groups/1",
         expect.any(Object),
       );
     });
@@ -1025,7 +1025,7 @@ describe("active-service", () => {
       const result = await activeService.getUnclaimedGroups();
 
       expect(mockedApiGet).toHaveBeenCalledWith(
-        "http://localhost:8080/active/groups/unclaimed",
+        "http://server:8080/active/groups/unclaimed",
       );
       expect(result).toHaveLength(1);
     });
@@ -1135,7 +1135,7 @@ describe("active-service", () => {
         const result = await activeService.getSchulhofStatus();
 
         expect(mockedApiGet).toHaveBeenCalledWith(
-          "http://localhost:8080/active/schulhof/status",
+          "http://server:8080/active/schulhof/status",
         );
         expect(result.exists).toBe(true);
       });
@@ -1227,7 +1227,7 @@ describe("active-service", () => {
         const result = await activeService.toggleSchulhofSupervision("start");
 
         expect(mockedApiPost).toHaveBeenCalledWith(
-          "http://localhost:8080/active/schulhof/supervise",
+          "http://server:8080/active/schulhof/supervise",
           { action: "start" },
         );
         expect(result.action).toBe("started");
@@ -1249,7 +1249,7 @@ describe("active-service", () => {
         const result = await activeService.toggleSchulhofSupervision("stop");
 
         expect(mockedApiPost).toHaveBeenCalledWith(
-          "http://localhost:8080/active/schulhof/supervise",
+          "http://server:8080/active/schulhof/supervise",
           { action: "stop" },
         );
         expect(result.action).toBe("stopped");

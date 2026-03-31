@@ -104,7 +104,7 @@ describe("POST /api/import/students/preview", () => {
     const response = await POST(request);
 
     expect(mockFetch).toHaveBeenCalledWith(
-      "http://localhost:8080/api/import/students/preview",
+      "http://server:8080/api/import/students/preview",
       expect.objectContaining({
         method: "POST",
         headers: expect.objectContaining({

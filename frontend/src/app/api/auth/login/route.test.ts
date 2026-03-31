@@ -81,7 +81,7 @@ describe("POST /api/auth/login", () => {
 
     expect(global.fetch).toHaveBeenCalledTimes(1);
     expect(vi.mocked(global.fetch).mock.calls[0]?.[0]).toBe(
-      "http://localhost:8080/auth/login",
+      "http://server:8080/auth/login",
     );
     expect(requestInit).toMatchObject({
       method: "POST",

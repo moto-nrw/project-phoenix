@@ -96,7 +96,7 @@ describe("GET /api/auth/account-tenants", () => {
     const response = await GET(request);
 
     expect(global.fetch).toHaveBeenCalledWith(
-      "http://localhost:8080/auth/account/tenants",
+      "http://server:8080/auth/account/tenants",
       {
         headers: {
           "Content-Type": "application/json",

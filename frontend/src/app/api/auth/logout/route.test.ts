@@ -103,7 +103,7 @@ describe("POST /api/auth/logout", () => {
     ];
 
     expect(global.fetch).toHaveBeenCalledTimes(1);
-    expect(url).toBe("http://localhost:8080/auth/logout");
+    expect(url).toBe("http://server:8080/auth/logout");
 
     // Must send refresh token — backend /auth/logout is guarded by
     // AuthenticateRefreshJWT which rejects access tokens.
