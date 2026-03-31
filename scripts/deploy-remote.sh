@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # deploy-remote.sh — Runs ON the remote server during CI deployment.
-# SCP'd by CI alongside .env.new and docker-compose.yml.new.
+# SCP'd by CI into ~/scripts/ alongside restore-db.sh.
 #
 # Required env vars:
 #   DEPLOY_DIR        — Server directory (staging/demo/production)
@@ -123,6 +123,7 @@ if [ "$DEPLOY_FAILED" = "false" ]; then
   echo "DEPLOYED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> .deploy-state
   echo "BACKUP_FILE=${BACKUP_FILE}" >> .deploy-state
   rm -f .env.rollback docker-compose.yml.rollback
+  rm -f ~/deploy-remote.sh ~/restore-db.sh
   RETENTION_CUTOFF=$((BACKUP_RETENTION + 1))
   ls -t ~/backups/"$DEPLOY_DIR"/backup-*.dump 2>/dev/null | tail -n +"$RETENTION_CUTOFF" | xargs -r rm -v
   ls -t ~/backups/"$DEPLOY_DIR"/globals-*.sql 2>/dev/null | tail -n +"$RETENTION_CUTOFF" | xargs -r rm -v
