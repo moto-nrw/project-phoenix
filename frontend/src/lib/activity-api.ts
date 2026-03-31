@@ -123,6 +123,30 @@ function parseActivitiesResponse(responseData: unknown): Activity[] {
 function parseEnrolledStudentsResponse(
   responseData: unknown,
 ): ActivityStudent[] {
+  const isActivityStudent = (value: unknown): value is ActivityStudent => {
+    if (!value || typeof value !== "object") {
+      return false;
+    }
+
+    return "student_id" in value && "name" in value;
+  };
+
+  const normalizeActivityStudent = (
+    student: ActivityStudent,
+  ): ActivityStudent => ({
+    ...student,
+    id: String(student.id),
+    student_id: String(student.student_id),
+    created_at:
+      student.created_at instanceof Date
+        ? student.created_at
+        : new Date(student.created_at),
+    updated_at:
+      student.updated_at instanceof Date
+        ? student.updated_at
+        : new Date(student.updated_at),
+  });
+
   // Check for wrapped response with data property
   if (
     responseData &&
@@ -130,16 +154,22 @@ function parseEnrolledStudentsResponse(
     "data" in responseData
   ) {
     const wrapped = responseData as { data: unknown };
-    return Array.isArray(wrapped.data)
-      ? wrapped.data.map((item) =>
-          mapStudentEnrollmentResponse(item as BackendStudentEnrollment),
-        )
-      : [];
+    if (!Array.isArray(wrapped.data)) {
+      return [];
+    }
+
+    return wrapped.data.map((item) =>
+      isActivityStudent(item)
+        ? normalizeActivityStudent(item)
+        : mapStudentEnrollmentResponse(item as BackendStudentEnrollment),
+    );
   }
   // Handle direct array response
   return Array.isArray(responseData)
     ? responseData.map((item) =>
-        mapStudentEnrollmentResponse(item as BackendStudentEnrollment),
+        isActivityStudent(item)
+          ? normalizeActivityStudent(item)
+          : mapStudentEnrollmentResponse(item as BackendStudentEnrollment),
       )
     : [];
 }
@@ -981,6 +1011,24 @@ export async function deleteActivitySchedule(
 function parseActivitySupervisorsResponse(
   responseData: unknown,
 ): ActivitySupervisorSummary[] {
+  const isSupervisorSummary = (
+    value: unknown,
+  ): value is ActivitySupervisorSummary => {
+    if (!value || typeof value !== "object") {
+      return false;
+    }
+
+    return "name" in value && "staff_id" in value;
+  };
+
+  const normalizeSupervisorSummary = (
+    supervisor: ActivitySupervisorSummary,
+  ): ActivitySupervisorSummary => ({
+    ...supervisor,
+    id: String(supervisor.id),
+    staff_id: String(supervisor.staff_id),
+  });
+
   // Check for wrapped response with data property
   if (
     responseData &&
@@ -988,18 +1036,26 @@ function parseActivitySupervisorsResponse(
     "data" in responseData
   ) {
     const wrapped = responseData as { data: unknown };
-    return Array.isArray(wrapped.data)
-      ? mapActivitySupervisorSummariesResponse(
+    if (!Array.isArray(wrapped.data)) {
+      return [];
+    }
+
+    return wrapped.data.every(isSupervisorSummary)
+      ? wrapped.data.map(normalizeSupervisorSummary)
+      : mapActivitySupervisorSummariesResponse(
           wrapped.data as BackendActivitySupervisor[],
-        )
-      : [];
+        );
   }
   // Handle direct array response
-  return Array.isArray(responseData)
-    ? mapActivitySupervisorSummariesResponse(
+  if (!Array.isArray(responseData)) {
+    return [];
+  }
+
+  return responseData.every(isSupervisorSummary)
+    ? responseData.map(normalizeSupervisorSummary)
+    : mapActivitySupervisorSummariesResponse(
         responseData as BackendActivitySupervisor[],
-      )
-    : [];
+      );
 }
 
 // Get all supervisors assigned to an activity

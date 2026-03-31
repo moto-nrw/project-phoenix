@@ -2,7 +2,10 @@
 import type { NextRequest } from "next/server";
 import { apiGet, apiPost } from "~/lib/api-helpers";
 import { createGetHandler, createPostHandler } from "~/lib/route-wrapper";
-import type { BackendActivitySupervisor } from "~/lib/activity-helpers";
+import {
+  mapActivitySupervisorSummariesResponse,
+  type BackendActivitySupervisor,
+} from "~/lib/activity-helpers";
 
 /**
  * GET handler for retrieving all supervisors assigned to an activity
@@ -25,7 +28,7 @@ export const GET = createGetHandler(
       `/api/activities/${activityId}/supervisors`,
       token,
     );
-    return response.data ?? [];
+    return mapActivitySupervisorSummariesResponse(response.data ?? []);
   },
 );
 
@@ -67,6 +70,6 @@ export const POST = createPostHandler(
       `/api/activities/${activityId}/supervisors`,
       token,
     );
-    return response.data ?? [];
+    return mapActivitySupervisorSummariesResponse(response.data ?? []);
   },
 );

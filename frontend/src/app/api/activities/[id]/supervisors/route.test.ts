@@ -114,16 +114,16 @@ describe("GET /api/activities/[id]/supervisors", () => {
     const json = await parseJsonResponse<{
       success: boolean;
       data: Array<{
-        id: number;
-        staff_id: number;
-        first_name?: string;
-        last_name?: string;
+        id: string;
+        staff_id: string;
+        name: string;
         is_primary: boolean;
       }>;
     }>(response);
     expect(json.data).toHaveLength(2);
-    expect(json.data[0]?.first_name).toBe("Mr.");
-    expect(json.data[0]?.last_name).toBe("Smith");
+    expect(json.data[0]?.id).toBe("10");
+    expect(json.data[0]?.staff_id).toBe("110");
+    expect(json.data[0]?.name).toBe("Mr. Smith");
     expect(json.data[0]?.is_primary).toBe(true);
   });
 
@@ -186,11 +186,12 @@ describe("POST /api/activities/[id]/supervisors", () => {
 
     const json = await parseJsonResponse<{
       success: boolean;
-      data: Array<{ id: number; first_name?: string; last_name?: string }>;
+      data: Array<{ id: string; staff_id: string; name: string }>;
     }>(response);
     expect(json.data).toHaveLength(1);
-    expect(json.data[0]?.first_name).toBe("Mr.");
-    expect(json.data[0]?.last_name).toBe("Brown");
+    expect(json.data[0]?.id).toBe("15");
+    expect(json.data[0]?.staff_id).toBe("15");
+    expect(json.data[0]?.name).toBe("Mr. Brown");
   });
 
   it("assigns supervisor without is_primary flag", async () => {

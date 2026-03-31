@@ -9,7 +9,10 @@ import {
   createPostHandler,
   createPutHandler,
 } from "~/lib/route-wrapper";
-import type { BackendStudentEnrollment } from "~/lib/activity-helpers";
+import {
+  mapStudentEnrollmentsResponse,
+  type BackendStudentEnrollment,
+} from "~/lib/activity-helpers";
 
 /**
  * Handler for GET /api/activities/[id]/students
@@ -81,7 +84,7 @@ export const GET = createGetHandler(
         endpoint,
         token,
       );
-      return response.data ?? [];
+      return mapStudentEnrollmentsResponse(response.data ?? []);
     } catch (error) {
       logger.error("failed to fetch enrolled students", {
         error: error instanceof Error ? error.message : String(error),
@@ -117,7 +120,7 @@ export const POST = createPostHandler(
         `/api/activities/${id}/students`,
         token,
       );
-      return response.data ?? [];
+      return mapStudentEnrollmentsResponse(response.data ?? []);
     }
     // Regular single student enrollment
     else if (body.student_id) {
@@ -127,7 +130,7 @@ export const POST = createPostHandler(
         `/api/activities/${id}/students`,
         token,
       );
-      return response.data ?? [];
+      return mapStudentEnrollmentsResponse(response.data ?? []);
     } else {
       throw new Error(
         "Invalid request: must provide student_id or student_ids",
@@ -165,6 +168,6 @@ export const PUT = createPutHandler(
       endpoint,
       token,
     );
-    return response.data ?? [];
+    return mapStudentEnrollmentsResponse(response.data ?? []);
   },
 );

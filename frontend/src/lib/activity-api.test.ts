@@ -635,13 +635,28 @@ describe("activity-api", () => {
 
       const mockResponse = {
         ok: true,
-        json: async () => ({ data: [sampleBackendEnrollment] }),
+        json: async () => ({
+          data: [
+            {
+              id: "42",
+              student_id: "42",
+              name: "Jane Smith",
+              school_class: "3A",
+              current_location: null,
+              activity_id: "1",
+              created_at: "2024-01-15T08:00:00Z",
+              updated_at: "2024-01-15T08:00:00Z",
+            },
+          ],
+        }),
       };
       vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(mockResponse));
 
       const result = await activityApi.getEnrolledStudents("1");
 
       expect(result).toHaveLength(1);
+      expect(result[0]?.student_id).toBe("42");
+      expect(result[0]?.name).toBe("Jane Smith");
     });
 
     it("handles direct array response", async () => {
@@ -962,6 +977,40 @@ describe("activity-api", () => {
 
         expect(result).toHaveLength(1);
         expect(result[0]?.name).toBe("John Doe");
+      });
+
+      it("fetches activity supervisors in browser context", async () => {
+        vi.stubGlobal("window", {});
+        mockedGetSession.mockResolvedValueOnce({
+          user: { id: "1", token: "test-token" },
+          expires: "2099-01-01",
+        });
+
+        const mockResponse = {
+          ok: true,
+          json: async () => ({
+            data: [
+              {
+                id: "1",
+                staff_id: "10",
+                is_primary: true,
+                name: "John Doe",
+              },
+            ],
+          }),
+        };
+        vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(mockResponse));
+
+        const result = await activityApi.getActivitySupervisors("1");
+
+        expect(result).toEqual([
+          {
+            id: "1",
+            staff_id: "10",
+            is_primary: true,
+            name: "John Doe",
+          },
+        ]);
       });
 
       it("returns empty array on error", async () => {

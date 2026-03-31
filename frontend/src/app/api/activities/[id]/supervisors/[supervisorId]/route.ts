@@ -2,7 +2,10 @@
 import type { NextRequest } from "next/server";
 import { apiDelete, apiGet, apiPut } from "~/lib/api-helpers";
 import { createPutHandler, createDeleteHandler } from "~/lib/route-wrapper";
-import type { BackendActivitySupervisor } from "~/lib/activity-helpers";
+import {
+  mapActivitySupervisorSummariesResponse,
+  type BackendActivitySupervisor,
+} from "~/lib/activity-helpers";
 
 /**
  * PUT handler for updating a supervisor's role for an activity (primarily is_primary status)
@@ -44,7 +47,7 @@ export const PUT = createPutHandler(
       `/api/activities/${activityId}/supervisors`,
       token,
     );
-    return response.data ?? [];
+    return mapActivitySupervisorSummariesResponse(response.data ?? []);
   },
 );
 

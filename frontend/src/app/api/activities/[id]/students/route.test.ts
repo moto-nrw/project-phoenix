@@ -102,17 +102,12 @@ describe("GET /api/activities/[id]/students", () => {
 
     const json = await parseJsonResponse<{
       success: boolean;
-      data: Array<{
-        id: number;
-        first_name: string;
-        last_name: string;
-        school_class: string;
-      }>;
+      data: Array<{ id: string; student_id: string; name: string }>;
     }>(response);
     expect(json.data).toHaveLength(2);
-    expect(json.data[0]!.id).toBe(1);
-    expect(json.data[0]!.first_name).toBe("Alice");
-    expect(json.data[0]!.last_name).toBe("Smith");
+    expect(json.data[0]!.id).toBe("1");
+    expect(json.data[0]!.student_id).toBe("1");
+    expect(json.data[0]!.name).toBe("Alice Smith");
   });
 
   it("fetches available students when available=true query param", async () => {
@@ -231,10 +226,12 @@ describe("POST /api/activities/[id]/students", () => {
 
     const json = await parseJsonResponse<{
       success: boolean;
-      data: Array<{ id: number }>;
+      data: Array<{ id: string; student_id: string; name: string }>;
     }>(response);
     expect(json.data).toHaveLength(1);
-    expect(json.data[0]!.id).toBe(10);
+    expect(json.data[0]!.id).toBe("10");
+    expect(json.data[0]!.student_id).toBe("10");
+    expect(json.data[0]!.name).toBe("Eve Brown");
   });
 
   it("batch updates multiple students", async () => {
@@ -263,6 +260,8 @@ describe("POST /api/activities/[id]/students", () => {
       data: Array<{ id: string }>;
     }>(response);
     expect(json.data).toHaveLength(2);
+    expect(json.data[0]!.id).toBe("10");
+    expect(json.data[1]!.id).toBe("11");
   });
 
   it("throws error when batch update fails", async () => {
@@ -348,10 +347,12 @@ describe("PUT /api/activities/[id]/students", () => {
 
     const json = await parseJsonResponse<{
       success: boolean;
-      data: Array<{ id: number }>;
+      data: Array<{ id: string; student_id: string; name: string }>;
     }>(response);
     expect(json.data).toHaveLength(2);
-    expect(json.data[0]!.id).toBe(20);
+    expect(json.data[0]!.id).toBe("20");
+    expect(json.data[0]!.student_id).toBe("20");
+    expect(json.data[0]!.name).toBe("Grace Lee");
   });
 
   it("throws error when student_ids not provided", async () => {

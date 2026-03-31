@@ -112,7 +112,15 @@ describe("PUT /api/activities/[id]/supervisors/[supervisorId]", () => {
   });
 
   it("updates supervisor role successfully", async () => {
-    const updatedSupervisors = [{ id: 2, staff_id: 10, is_primary: true }];
+    const updatedSupervisors = [
+      {
+        id: 2,
+        staff_id: 10,
+        first_name: "John",
+        last_name: "Doe",
+        is_primary: true,
+      },
+    ];
     mockApiPut.mockResolvedValueOnce(undefined);
     mockApiGet.mockResolvedValueOnce({ data: updatedSupervisors });
 
@@ -133,8 +141,19 @@ describe("PUT /api/activities/[id]/supervisors/[supervisorId]", () => {
     expect(response.status).toBe(200);
 
     const json =
-      await parseJsonResponse<ApiResponse<typeof updatedSupervisors>>(response);
-    expect(json.data).toEqual(updatedSupervisors);
+      await parseJsonResponse<
+        ApiResponse<
+          Array<{
+            id: string;
+            staff_id: string;
+            name: string;
+            is_primary: boolean;
+          }>
+        >
+      >(response);
+    expect(json.data).toEqual([
+      { id: "2", staff_id: "10", name: "John Doe", is_primary: true },
+    ]);
   });
 
   it("uses the numeric id extracted from the URL when activityId context is empty", async () => {
