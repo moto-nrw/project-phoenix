@@ -156,7 +156,7 @@ describe("activity-api", () => {
       const result = await activityApi.fetchActivities();
 
       expect(mockedApiGet).toHaveBeenCalledWith(
-        "http://localhost:8080/api/activities",
+        "http://server:8080/api/activities",
       );
       expect(result).toHaveLength(1);
       expect(result[0]?.id).toBe("1");
@@ -280,7 +280,7 @@ describe("activity-api", () => {
       const result = await activityApi.getActivity("1");
 
       expect(mockedApiGet).toHaveBeenCalledWith(
-        "http://localhost:8080/api/activities/1",
+        "http://server:8080/api/activities/1",
       );
       expect(result.id).toBe("1");
       expect(result.name).toBe("Basketball AG");
@@ -372,7 +372,7 @@ describe("activity-api", () => {
       const result = await activityApi.createActivity(createRequest);
 
       expect(mockedApiPost).toHaveBeenCalledWith(
-        "http://localhost:8080/api/activities",
+        "http://server:8080/api/activities",
         createRequest,
       );
       expect(result.id).toBe("1");
@@ -493,7 +493,7 @@ describe("activity-api", () => {
       await activityApi.deleteActivity("1");
 
       expect(mockedApiDelete).toHaveBeenCalledWith(
-        "http://localhost:8080/api/activities/1",
+        "http://server:8080/api/activities/1",
       );
     });
 
@@ -670,7 +670,7 @@ describe("activity-api", () => {
       const result = await activityApi.enrollStudent("1", { studentId: "42" });
 
       expect(mockedApiPost).toHaveBeenCalledWith(
-        "http://localhost:8080/api/activities/1/enroll/42",
+        "http://server:8080/api/activities/1/enroll/42",
         {},
       );
       expect(result.success).toBe(true);
@@ -699,7 +699,7 @@ describe("activity-api", () => {
       await activityApi.unenrollStudent("1", "42");
 
       expect(mockedApiDelete).toHaveBeenCalledWith(
-        "http://localhost:8080/api/activities/1/students/42",
+        "http://server:8080/api/activities/1/students/42",
       );
     });
 
@@ -1003,7 +1003,7 @@ describe("activity-api", () => {
         });
 
         expect(mockedApiPost).toHaveBeenCalledWith(
-          "http://localhost:8080/api/activities/1/supervisors",
+          "http://server:8080/api/activities/1/supervisors",
           { staff_id: 10, is_primary: true },
         );
         expect(result).toBe(true);
@@ -1112,7 +1112,7 @@ describe("activity-api", () => {
       });
 
       expect(mockedApiPut).toHaveBeenCalledWith(
-        "http://localhost:8080/api/activities/1/students",
+        "http://server:8080/api/activities/1/students",
         { student_ids: [1, 2, 3] },
       );
       expect(result).toBe(true);

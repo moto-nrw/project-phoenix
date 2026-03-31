@@ -1,6 +1,6 @@
 // app/api/activities/[id]/students/route.ts
 import type { NextRequest } from "next/server";
-import { apiGet, apiPut } from "~/lib/api-helpers";
+import { apiGet, apiPost, apiPut } from "~/lib/api-helpers";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "ActivityStudentsRoute" });
@@ -9,9 +9,7 @@ import {
   createPostHandler,
   createPutHandler,
 } from "~/lib/route-wrapper";
-import { updateGroupEnrollments, enrollStudent } from "~/lib/activity-api";
 import type { BackendStudentEnrollment } from "~/lib/activity-helpers";
-import { mapStudentEnrollmentsResponse } from "~/lib/activity-helpers";
 
 /**
  * Handler for GET /api/activities/[id]/students
@@ -83,9 +81,7 @@ export const GET = createGetHandler(
         endpoint,
         token,
       );
-      const enrollments = response.data ?? [];
-      // Map the backend enrollment structure to frontend format
-      return mapStudentEnrollmentsResponse(enrollments);
+      return response.data ?? [];
     } catch (error) {
       logger.error("failed to fetch enrolled students", {
         error: error instanceof Error ? error.message : String(error),
@@ -112,42 +108,26 @@ export const POST = createPostHandler(
 
     // Check if this is a batch update operation
     if (body.student_ids && Array.isArray(body.student_ids)) {
-      // Use batch update function
-      const success = await updateGroupEnrollments(id, {
-        student_ids: body.student_ids,
+      await apiPut(`/api/activities/${id}/students`, token, {
+        student_ids: body.student_ids.map((studentId) =>
+          Number.parseInt(studentId, 10),
+        ),
       });
-
-      if (success) {
-        // Return updated enrolled students - call backend directly with token
-        const endpoint = `/api/activities/${id}/students`;
-        const response = await apiGet<{ data: BackendStudentEnrollment[] }>(
-          endpoint,
-          token,
-        );
-        const enrollments = response.data ?? [];
-        return mapStudentEnrollmentsResponse(enrollments);
-      } else {
-        throw new Error("Failed to update enrollments");
-      }
+      const response = await apiGet<{ data: BackendStudentEnrollment[] }>(
+        `/api/activities/${id}/students`,
+        token,
+      );
+      return response.data ?? [];
     }
     // Regular single student enrollment
     else if (body.student_id) {
       const studentId = String(body.student_id);
-      // Enroll a single student
-      const result = await enrollStudent(id, { studentId });
-
-      if (result.success) {
-        // Return updated enrolled students - call backend directly with token
-        const endpoint = `/api/activities/${id}/students`;
-        const response = await apiGet<{ data: BackendStudentEnrollment[] }>(
-          endpoint,
-          token,
-        );
-        const enrollments = response.data ?? [];
-        return mapStudentEnrollmentsResponse(enrollments);
-      } else {
-        throw new Error("Failed to enroll student");
-      }
+      await apiPost(`/api/activities/${id}/enroll/${studentId}`, token, {});
+      const response = await apiGet<{ data: BackendStudentEnrollment[] }>(
+        `/api/activities/${id}/students`,
+        token,
+      );
+      return response.data ?? [];
     } else {
       throw new Error(
         "Invalid request: must provide student_id or student_ids",
@@ -185,8 +165,6 @@ export const PUT = createPutHandler(
       endpoint,
       token,
     );
-    const enrollments = response.data ?? [];
-    // Map the backend enrollment structure to frontend format
-    return mapStudentEnrollmentsResponse(enrollments);
+    return response.data ?? [];
   },
 );

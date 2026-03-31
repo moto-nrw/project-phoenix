@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { isAxiosError } from "axios";
 import api from "./api";
+import { isBrowserContext } from "./api-url";
 import { createLogger } from "~/lib/logger";
 
 // Note: Server-only imports (auth, refreshSessionTokensOnServer) are dynamically
@@ -324,12 +325,7 @@ export function handleDomainApiError(
   );
 }
 
-/**
- * Check if running in browser context
- */
-export function isBrowserContext(): boolean {
-  return globalThis.window !== undefined;
-}
+export { isBrowserContext };
 
 /**
  * Options for authenticated fetch requests

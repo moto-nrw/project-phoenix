@@ -13,6 +13,7 @@ global.fetch = mockFetch;
 // Mock env
 vi.mock("~/env", () => ({
   env: {
+    API_URL: "http://server:8080",
     NEXT_PUBLIC_API_URL: "http://localhost:8080",
   },
 }));

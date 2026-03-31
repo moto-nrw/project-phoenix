@@ -3,8 +3,8 @@ import { getCachedSession } from "./session-cache";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "UserContextAPI" });
-import { env } from "~/env";
 import api from "./api";
+import { resolveApiUrl } from "./api-url";
 import { fetchWithAuth } from "./fetch-with-auth";
 import {
   mapEducationalGroupResponse,
@@ -38,7 +38,7 @@ export const userContextService = {
   // Get current user profile
   getCurrentUser: async (): Promise<UserProfile> => {
     const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi ? "/api/me" : `${env.NEXT_PUBLIC_API_URL}/me`;
+    const url = resolveApiUrl("/api/me", "/me");
 
     try {
       if (useProxyApi) {
@@ -75,9 +75,7 @@ export const userContextService = {
   // Get current user's staff profile
   getCurrentStaff: async (): Promise<Staff> => {
     const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? "/api/me/staff"
-      : `${env.NEXT_PUBLIC_API_URL}/me/staff`;
+    const url = resolveApiUrl("/api/me/staff", "/me/staff");
 
     try {
       if (useProxyApi) {
@@ -126,9 +124,7 @@ export const userContextService = {
   // Get current user's teacher profile
   getCurrentTeacher: async (): Promise<Teacher> => {
     const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? "/api/me/teacher"
-      : `${env.NEXT_PUBLIC_API_URL}/me/teacher`;
+    const url = resolveApiUrl("/api/me/teacher", "/me/teacher");
 
     try {
       if (useProxyApi) {
@@ -168,9 +164,7 @@ export const userContextService = {
     token?: string,
   ): Promise<EducationalGroup[]> => {
     const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? "/api/me/groups"
-      : `${env.NEXT_PUBLIC_API_URL}/me/groups`;
+    const url = resolveApiUrl("/api/me/groups", "/me/groups");
 
     try {
       if (useProxyApi) {
@@ -223,9 +217,7 @@ export const userContextService = {
   // Get activity groups for current user
   getMyActivityGroups: async (): Promise<ActivityGroup[]> => {
     const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? "/api/me/groups/activity"
-      : `${env.NEXT_PUBLIC_API_URL}/me/groups/activity`;
+    const url = resolveApiUrl("/api/me/groups/activity", "/me/groups/activity");
 
     try {
       if (useProxyApi) {
@@ -264,9 +256,7 @@ export const userContextService = {
   // Get active groups for current user
   getMyActiveGroups: async (): Promise<ActiveGroup[]> => {
     const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? "/api/me/groups/active"
-      : `${env.NEXT_PUBLIC_API_URL}/me/groups/active`;
+    const url = resolveApiUrl("/api/me/groups/active", "/me/groups/active");
 
     try {
       if (useProxyApi) {
@@ -311,9 +301,10 @@ export const userContextService = {
   // Get supervised groups for current user
   getMySupervisedGroups: async (): Promise<ActiveGroup[]> => {
     const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? "/api/me/groups/supervised"
-      : `${env.NEXT_PUBLIC_API_URL}/me/groups/supervised`;
+    const url = resolveApiUrl(
+      "/api/me/groups/supervised",
+      "/me/groups/supervised",
+    );
 
     try {
       if (useProxyApi) {

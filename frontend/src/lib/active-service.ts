@@ -361,7 +361,7 @@ export const activeService = {
     const suffix = buildActiveFilterSuffix(filters);
     return proxyGetPaginated<BackendActiveGroup, ActiveGroup>(
       `/api/active/groups${suffix}`,
-      `${env.NEXT_PUBLIC_API_URL}/active/groups${suffix}`,
+      `${env.API_URL}/active/groups${suffix}`,
       mapActiveGroupResponse,
       "Get active groups",
     );
@@ -370,7 +370,7 @@ export const activeService = {
   getActiveGroup: async (id: string): Promise<ActiveGroup> => {
     return proxyGet<BackendActiveGroup, ActiveGroup>(
       `/api/active/groups/${id}`,
-      `${env.NEXT_PUBLIC_API_URL}/active/groups/${id}`,
+      `${env.API_URL}/active/groups/${id}`,
       mapActiveGroupResponse,
       "Get active group",
     );
@@ -379,7 +379,7 @@ export const activeService = {
   getActiveGroupsByRoom: async (roomId: string): Promise<ActiveGroup[]> => {
     return proxyGetArray<BackendActiveGroup, ActiveGroup>(
       `/api/active/groups/room/${roomId}`,
-      `${env.NEXT_PUBLIC_API_URL}/active/groups/room/${roomId}`,
+      `${env.API_URL}/active/groups/room/${roomId}`,
       mapActiveGroupResponse,
       "Get active groups by room",
     );
@@ -388,7 +388,7 @@ export const activeService = {
   getActiveGroupsByGroup: async (groupId: string): Promise<ActiveGroup[]> => {
     return proxyGetArray<BackendActiveGroup, ActiveGroup>(
       `/api/active/groups/group/${groupId}`,
-      `${env.NEXT_PUBLIC_API_URL}/active/groups/group/${groupId}`,
+      `${env.API_URL}/active/groups/group/${groupId}`,
       mapActiveGroupResponse,
       "Get active groups by group",
     );
@@ -397,7 +397,7 @@ export const activeService = {
   getActiveGroupVisits: async (id: string): Promise<Visit[]> => {
     return proxyGetArray<BackendVisit, Visit>(
       `/api/active/groups/${id}/visits`,
-      `${env.NEXT_PUBLIC_API_URL}/active/groups/${id}/visits`,
+      `${env.API_URL}/active/groups/${id}/visits`,
       mapVisitResponse,
       "Get active group visits",
     );
@@ -433,7 +433,7 @@ export const activeService = {
   getActiveGroupSupervisors: async (id: string): Promise<Supervisor[]> => {
     return proxyGetPaginated<BackendSupervisor, Supervisor>(
       `/api/active/groups/${id}/supervisors`,
-      `${env.NEXT_PUBLIC_API_URL}/active/groups/${id}/supervisors`,
+      `${env.API_URL}/active/groups/${id}/supervisors`,
       mapSupervisorResponse,
       "Get active group supervisors",
     );
@@ -445,7 +445,7 @@ export const activeService = {
     const backendData = prepareActiveGroupForBackend(activeGroup);
     return proxyPost<BackendActiveGroup, ActiveGroup>(
       "/api/active/groups",
-      `${env.NEXT_PUBLIC_API_URL}/active/groups`,
+      `${env.API_URL}/active/groups`,
       backendData,
       mapActiveGroupResponse,
       "Create active group",
@@ -459,7 +459,7 @@ export const activeService = {
     const backendData = prepareActiveGroupForBackend(activeGroup);
     return proxyPut<BackendActiveGroup, ActiveGroup>(
       `/api/active/groups/${id}`,
-      `${env.NEXT_PUBLIC_API_URL}/active/groups/${id}`,
+      `${env.API_URL}/active/groups/${id}`,
       backendData,
       mapActiveGroupResponse,
       "Update active group",
@@ -469,7 +469,7 @@ export const activeService = {
   deleteActiveGroup: async (id: string): Promise<void> => {
     return proxyDelete(
       `/api/active/groups/${id}`,
-      `${env.NEXT_PUBLIC_API_URL}/active/groups/${id}`,
+      `${env.API_URL}/active/groups/${id}`,
       "Delete active group",
     );
   },
@@ -477,7 +477,7 @@ export const activeService = {
   endActiveGroup: async (id: string): Promise<ActiveGroup> => {
     return proxyPostNoBody<BackendActiveGroup, ActiveGroup>(
       `/api/active/groups/${id}/end`,
-      `${env.NEXT_PUBLIC_API_URL}/active/groups/${id}/end`,
+      `${env.API_URL}/active/groups/${id}/end`,
       mapActiveGroupResponse,
       "End active group",
     );
@@ -488,7 +488,7 @@ export const activeService = {
     const suffix = buildActiveFilterSuffix(filters);
     return proxyGetArray<BackendVisit, Visit>(
       `/api/active/visits${suffix}`,
-      `${env.NEXT_PUBLIC_API_URL}/active/visits${suffix}`,
+      `${env.API_URL}/active/visits${suffix}`,
       mapVisitResponse,
       "Get visits",
     );
@@ -497,7 +497,7 @@ export const activeService = {
   getVisit: async (id: string): Promise<Visit> => {
     return proxyGet<BackendVisit, Visit>(
       `/api/active/visits/${id}`,
-      `${env.NEXT_PUBLIC_API_URL}/active/visits/${id}`,
+      `${env.API_URL}/active/visits/${id}`,
       mapVisitResponse,
       "Get visit",
     );
@@ -506,7 +506,7 @@ export const activeService = {
   getStudentVisits: async (studentId: string): Promise<Visit[]> => {
     return proxyGetArray<BackendVisit, Visit>(
       `/api/active/visits/student/${studentId}`,
-      `${env.NEXT_PUBLIC_API_URL}/active/visits/student/${studentId}`,
+      `${env.API_URL}/active/visits/student/${studentId}`,
       mapVisitResponse,
       "Get student visits",
     );
@@ -515,7 +515,7 @@ export const activeService = {
   getStudentCurrentVisit: async (studentId: string): Promise<Visit | null> => {
     return proxyGetNullable<BackendVisit, Visit>(
       `/api/active/visits/student/${studentId}/current`,
-      `${env.NEXT_PUBLIC_API_URL}/active/visits/student/${studentId}/current`,
+      `${env.API_URL}/active/visits/student/${studentId}/current`,
       mapVisitResponse,
       "Get student current visit",
     );
@@ -524,7 +524,7 @@ export const activeService = {
   getVisitsByGroup: async (groupId: string): Promise<Visit[]> => {
     return proxyGetArray<BackendVisit, Visit>(
       `/api/active/visits/group/${groupId}`,
-      `${env.NEXT_PUBLIC_API_URL}/active/visits/group/${groupId}`,
+      `${env.API_URL}/active/visits/group/${groupId}`,
       mapVisitResponse,
       "Get visits by group",
     );
@@ -534,7 +534,7 @@ export const activeService = {
     const backendData = prepareVisitForBackend(visit);
     return proxyPost<BackendVisit, Visit>(
       "/api/active/visits",
-      `${env.NEXT_PUBLIC_API_URL}/active/visits`,
+      `${env.API_URL}/active/visits`,
       backendData,
       mapVisitResponse,
       "Create visit",
@@ -545,7 +545,7 @@ export const activeService = {
     const backendData = prepareVisitForBackend(visit);
     return proxyPut<BackendVisit, Visit>(
       `/api/active/visits/${id}`,
-      `${env.NEXT_PUBLIC_API_URL}/active/visits/${id}`,
+      `${env.API_URL}/active/visits/${id}`,
       backendData,
       mapVisitResponse,
       "Update visit",
@@ -555,7 +555,7 @@ export const activeService = {
   deleteVisit: async (id: string): Promise<void> => {
     return proxyDelete(
       `/api/active/visits/${id}`,
-      `${env.NEXT_PUBLIC_API_URL}/active/visits/${id}`,
+      `${env.API_URL}/active/visits/${id}`,
       "Delete visit",
     );
   },
@@ -563,7 +563,7 @@ export const activeService = {
   endVisit: async (id: string): Promise<Visit> => {
     return proxyPostNoBody<BackendVisit, Visit>(
       `/api/active/visits/${id}/end`,
-      `${env.NEXT_PUBLIC_API_URL}/active/visits/${id}/end`,
+      `${env.API_URL}/active/visits/${id}/end`,
       mapVisitResponse,
       "End visit",
     );
@@ -576,7 +576,7 @@ export const activeService = {
     const suffix = buildActiveFilterSuffix(filters);
     return proxyGetArray<BackendSupervisor, Supervisor>(
       `/api/active/supervisors${suffix}`,
-      `${env.NEXT_PUBLIC_API_URL}/active/supervisors${suffix}`,
+      `${env.API_URL}/active/supervisors${suffix}`,
       mapSupervisorResponse,
       "Get supervisors",
     );
@@ -585,7 +585,7 @@ export const activeService = {
   getSupervisor: async (id: string): Promise<Supervisor> => {
     return proxyGet<BackendSupervisor, Supervisor>(
       `/api/active/supervisors/${id}`,
-      `${env.NEXT_PUBLIC_API_URL}/active/supervisors/${id}`,
+      `${env.API_URL}/active/supervisors/${id}`,
       mapSupervisorResponse,
       "Get supervisor",
     );
@@ -594,7 +594,7 @@ export const activeService = {
   getStaffSupervisions: async (staffId: string): Promise<Supervisor[]> => {
     return proxyGetArray<BackendSupervisor, Supervisor>(
       `/api/active/supervisors/staff/${staffId}`,
-      `${env.NEXT_PUBLIC_API_URL}/active/supervisors/staff/${staffId}`,
+      `${env.API_URL}/active/supervisors/staff/${staffId}`,
       mapSupervisorResponse,
       "Get staff supervisions",
     );
@@ -605,7 +605,7 @@ export const activeService = {
   ): Promise<Supervisor[]> => {
     return proxyGetArray<BackendSupervisor, Supervisor>(
       `/api/active/supervisors/staff/${staffId}/active`,
-      `${env.NEXT_PUBLIC_API_URL}/active/supervisors/staff/${staffId}/active`,
+      `${env.API_URL}/active/supervisors/staff/${staffId}/active`,
       mapSupervisorResponse,
       "Get staff active supervisions",
     );
@@ -614,7 +614,7 @@ export const activeService = {
   getSupervisorsByGroup: async (groupId: string): Promise<Supervisor[]> => {
     return proxyGetArray<BackendSupervisor, Supervisor>(
       `/api/active/supervisors/group/${groupId}`,
-      `${env.NEXT_PUBLIC_API_URL}/active/supervisors/group/${groupId}`,
+      `${env.API_URL}/active/supervisors/group/${groupId}`,
       mapSupervisorResponse,
       "Get supervisors by group",
     );
@@ -626,7 +626,7 @@ export const activeService = {
     const backendData = prepareSupervisorForBackend(supervisor);
     return proxyPost<BackendSupervisor, Supervisor>(
       "/api/active/supervisors",
-      `${env.NEXT_PUBLIC_API_URL}/active/supervisors`,
+      `${env.API_URL}/active/supervisors`,
       backendData,
       mapSupervisorResponse,
       "Create supervisor",
@@ -640,7 +640,7 @@ export const activeService = {
     const backendData = prepareSupervisorForBackend(supervisor);
     return proxyPut<BackendSupervisor, Supervisor>(
       `/api/active/supervisors/${id}`,
-      `${env.NEXT_PUBLIC_API_URL}/active/supervisors/${id}`,
+      `${env.API_URL}/active/supervisors/${id}`,
       backendData,
       mapSupervisorResponse,
       "Update supervisor",
@@ -650,7 +650,7 @@ export const activeService = {
   deleteSupervisor: async (id: string): Promise<void> => {
     return proxyDelete(
       `/api/active/supervisors/${id}`,
-      `${env.NEXT_PUBLIC_API_URL}/active/supervisors/${id}`,
+      `${env.API_URL}/active/supervisors/${id}`,
       "Delete supervisor",
     );
   },
@@ -658,7 +658,7 @@ export const activeService = {
   endSupervision: async (id: string): Promise<Supervisor> => {
     return proxyPostNoBody<BackendSupervisor, Supervisor>(
       `/api/active/supervisors/${id}/end`,
-      `${env.NEXT_PUBLIC_API_URL}/active/supervisors/${id}/end`,
+      `${env.API_URL}/active/supervisors/${id}/end`,
       mapSupervisorResponse,
       "End supervision",
     );
@@ -671,7 +671,7 @@ export const activeService = {
     const suffix = buildActiveFilterSuffix(filters);
     return proxyGetArray<BackendCombinedGroup, CombinedGroup>(
       `/api/active/combined${suffix}`,
-      `${env.NEXT_PUBLIC_API_URL}/active/combined${suffix}`,
+      `${env.API_URL}/active/combined${suffix}`,
       mapCombinedGroupResponse,
       "Get combined groups",
     );
@@ -680,7 +680,7 @@ export const activeService = {
   getActiveCombinedGroups: async (): Promise<CombinedGroup[]> => {
     return proxyGetArray<BackendCombinedGroup, CombinedGroup>(
       "/api/active/combined/active",
-      `${env.NEXT_PUBLIC_API_URL}/active/combined/active`,
+      `${env.API_URL}/active/combined/active`,
       mapCombinedGroupResponse,
       "Get active combined groups",
     );
@@ -689,7 +689,7 @@ export const activeService = {
   getCombinedGroup: async (id: string): Promise<CombinedGroup> => {
     return proxyGet<BackendCombinedGroup, CombinedGroup>(
       `/api/active/combined/${id}`,
-      `${env.NEXT_PUBLIC_API_URL}/active/combined/${id}`,
+      `${env.API_URL}/active/combined/${id}`,
       mapCombinedGroupResponse,
       "Get combined group",
     );
@@ -698,7 +698,7 @@ export const activeService = {
   getCombinedGroupGroups: async (id: string): Promise<ActiveGroup[]> => {
     return proxyGetArray<BackendActiveGroup, ActiveGroup>(
       `/api/active/combined/${id}/groups`,
-      `${env.NEXT_PUBLIC_API_URL}/active/combined/${id}/groups`,
+      `${env.API_URL}/active/combined/${id}/groups`,
       mapActiveGroupResponse,
       "Get combined group groups",
     );
@@ -710,7 +710,7 @@ export const activeService = {
     const backendData = prepareCombinedGroupForBackend(combinedGroup);
     return proxyPost<BackendCombinedGroup, CombinedGroup>(
       "/api/active/combined",
-      `${env.NEXT_PUBLIC_API_URL}/active/combined`,
+      `${env.API_URL}/active/combined`,
       backendData,
       mapCombinedGroupResponse,
       "Create combined group",
@@ -724,7 +724,7 @@ export const activeService = {
     const backendData = prepareCombinedGroupForBackend(combinedGroup);
     return proxyPut<BackendCombinedGroup, CombinedGroup>(
       `/api/active/combined/${id}`,
-      `${env.NEXT_PUBLIC_API_URL}/active/combined/${id}`,
+      `${env.API_URL}/active/combined/${id}`,
       backendData,
       mapCombinedGroupResponse,
       "Update combined group",
@@ -734,7 +734,7 @@ export const activeService = {
   deleteCombinedGroup: async (id: string): Promise<void> => {
     return proxyDelete(
       `/api/active/combined/${id}`,
-      `${env.NEXT_PUBLIC_API_URL}/active/combined/${id}`,
+      `${env.API_URL}/active/combined/${id}`,
       "Delete combined group",
     );
   },
@@ -742,7 +742,7 @@ export const activeService = {
   endCombinedGroup: async (id: string): Promise<CombinedGroup> => {
     return proxyPostNoBody<BackendCombinedGroup, CombinedGroup>(
       `/api/active/combined/${id}/end`,
-      `${env.NEXT_PUBLIC_API_URL}/active/combined/${id}/end`,
+      `${env.API_URL}/active/combined/${id}/end`,
       mapCombinedGroupResponse,
       "End combined group",
     );
@@ -752,7 +752,7 @@ export const activeService = {
   getGroupMappingsByGroup: async (groupId: string): Promise<GroupMapping[]> => {
     return proxyGetArray<BackendGroupMapping, GroupMapping>(
       `/api/active/mappings/group/${groupId}`,
-      `${env.NEXT_PUBLIC_API_URL}/active/mappings/group/${groupId}`,
+      `${env.API_URL}/active/mappings/group/${groupId}`,
       mapGroupMappingResponse,
       "Get group mappings by group",
     );
@@ -763,7 +763,7 @@ export const activeService = {
   ): Promise<GroupMapping[]> => {
     return proxyGetArray<BackendGroupMapping, GroupMapping>(
       `/api/active/mappings/combined/${combinedId}`,
-      `${env.NEXT_PUBLIC_API_URL}/active/mappings/combined/${combinedId}`,
+      `${env.API_URL}/active/mappings/combined/${combinedId}`,
       mapGroupMappingResponse,
       "Get group mappings by combined",
     );
@@ -779,7 +779,7 @@ export const activeService = {
     });
     return proxyPost<BackendGroupMapping, GroupMapping>(
       "/api/active/mappings/add",
-      `${env.NEXT_PUBLIC_API_URL}/active/mappings/add`,
+      `${env.API_URL}/active/mappings/add`,
       backendData,
       mapGroupMappingResponse,
       "Add group to combination",
@@ -796,7 +796,7 @@ export const activeService = {
     });
     return proxyPostVoid(
       "/api/active/mappings/remove",
-      `${env.NEXT_PUBLIC_API_URL}/active/mappings/remove`,
+      `${env.API_URL}/active/mappings/remove`,
       backendData,
       "Remove group from combination",
     );
@@ -806,7 +806,7 @@ export const activeService = {
   getAnalyticsCounts: async (): Promise<Analytics> => {
     return proxyGet<BackendAnalytics, Analytics>(
       "/api/active/analytics/counts",
-      `${env.NEXT_PUBLIC_API_URL}/active/analytics/counts`,
+      `${env.API_URL}/active/analytics/counts`,
       mapAnalyticsResponse,
       "Get analytics counts",
     );
@@ -817,7 +817,7 @@ export const activeService = {
     const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? "/api/active/groups/unclaimed"
-      : `${env.NEXT_PUBLIC_API_URL}/active/groups/unclaimed`;
+      : `${env.API_URL}/active/groups/unclaimed`;
 
     const metadataKeys = new Set([
       "status",
@@ -951,7 +951,7 @@ export const activeService = {
   claimActiveGroup: async (groupId: string): Promise<void> => {
     return proxyPostVoid(
       `/api/active/groups/${groupId}/claim`,
-      `${env.NEXT_PUBLIC_API_URL}/active/groups/${groupId}/claim`,
+      `${env.API_URL}/active/groups/${groupId}/claim`,
       { role: "supervisor" },
       "Claim group",
     );
@@ -964,7 +964,7 @@ export const activeService = {
   checkoutStudent: async (studentId: string): Promise<void> => {
     return proxyPostVoid(
       `/api/active/visits/student/${studentId}/checkout`,
-      `${env.NEXT_PUBLIC_API_URL}/active/visits/student/${studentId}/checkout`,
+      `${env.API_URL}/active/visits/student/${studentId}/checkout`,
       {},
       "Checkout student",
     );
@@ -978,7 +978,7 @@ export const activeService = {
   getSchulhofStatus: async (): Promise<SchulhofStatus> => {
     return proxyGet<BackendSchulhofStatus, SchulhofStatus>(
       "/api/active/schulhof/status",
-      `${env.NEXT_PUBLIC_API_URL}/active/schulhof/status`,
+      `${env.API_URL}/active/schulhof/status`,
       mapSchulhofStatusResponse,
       "Get Schulhof status",
     );
@@ -996,7 +996,7 @@ export const activeService = {
       ToggleSupervisionResponse
     >(
       "/api/active/schulhof/supervise",
-      `${env.NEXT_PUBLIC_API_URL}/active/schulhof/supervise`,
+      `${env.API_URL}/active/schulhof/supervise`,
       { action },
       mapToggleSupervisionResponse,
       "Toggle Schulhof supervision",

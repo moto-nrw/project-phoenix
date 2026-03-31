@@ -7,7 +7,7 @@ export const env = createEnv({
    * isn't built with invalid env vars.
    */
   server: {
-    API_URL: z.string().url().optional(),
+    API_URL: z.string().url(),
     // Remove AUTH_SECRET or make it fully optional
     AUTH_SECRET: z.string().optional(),
     AUTH_JWT_EXPIRY: z.string().default("1h"),

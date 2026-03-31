@@ -74,9 +74,7 @@ function buildStudentUrl(
   filters?: StudentFilters,
 ): { url: string; useProxy: boolean } {
   const useProxy = isBrowserContext();
-  const baseUrl = useProxy
-    ? proxyPath
-    : `${env.NEXT_PUBLIC_API_URL}${backendPath}`;
+  const baseUrl = useProxy ? proxyPath : `${env.API_URL}${backendPath}`;
 
   if (!filters) return { url: baseUrl, useProxy };
 
@@ -175,7 +173,7 @@ export async function fetchStudent(id: string): Promise<Student> {
   const useProxy = isBrowserContext();
   const url = useProxy
     ? `/api/students/${id}`
-    : `${env.NEXT_PUBLIC_API_URL}/students/${id}`;
+    : `${env.API_URL}/students/${id}`;
 
   try {
     if (useProxy) {
@@ -209,9 +207,7 @@ export async function createStudent(studentData: {
   guardian_phone?: string;
 }): Promise<Student> {
   const useProxy = isBrowserContext();
-  const url = useProxy
-    ? "/api/students"
-    : `${env.NEXT_PUBLIC_API_URL}/students`;
+  const url = useProxy ? "/api/students" : `${env.API_URL}/students`;
 
   try {
     if (useProxy) {
@@ -245,7 +241,7 @@ export async function updateStudent(
   const useProxy = isBrowserContext();
   const url = useProxy
     ? `/api/students/${id}`
-    : `${env.NEXT_PUBLIC_API_URL}/students/${id}`;
+    : `${env.API_URL}/students/${id}`;
 
   try {
     if (useProxy) {
@@ -272,7 +268,7 @@ export async function deleteStudent(id: string): Promise<void> {
   const useProxy = isBrowserContext();
   const url = useProxy
     ? `/api/students/${id}`
-    : `${env.NEXT_PUBLIC_API_URL}/students/${id}`;
+    : `${env.API_URL}/students/${id}`;
 
   try {
     if (useProxy) {
@@ -292,7 +288,7 @@ export async function deleteStudent(id: string): Promise<void> {
 // Fetch all groups (for filter dropdown)
 export async function fetchGroups(): Promise<Group[]> {
   const useProxy = isBrowserContext();
-  const url = useProxy ? "/api/groups" : `${env.NEXT_PUBLIC_API_URL}/groups`;
+  const url = useProxy ? "/api/groups" : `${env.API_URL}/groups`;
 
   try {
     if (useProxy) {
@@ -320,7 +316,7 @@ export async function fetchStudentPrivacyConsent(
   const useProxy = isBrowserContext();
   const url = useProxy
     ? `/api/students/${studentId}/privacy-consent`
-    : `${env.NEXT_PUBLIC_API_URL}/students/${studentId}/privacy-consent`;
+    : `${env.API_URL}/students/${studentId}/privacy-consent`;
 
   try {
     if (useProxy) {
@@ -366,7 +362,7 @@ export async function updateStudentPrivacyConsent(
   const useProxy = isBrowserContext();
   const url = useProxy
     ? `/api/students/${studentId}/privacy-consent`
-    : `${env.NEXT_PUBLIC_API_URL}/students/${studentId}/privacy-consent`;
+    : `${env.API_URL}/students/${studentId}/privacy-consent`;
 
   try {
     if (useProxy) {
