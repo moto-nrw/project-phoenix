@@ -845,17 +845,17 @@ func (s *Scheduler) scheduleBreakAutoEndTask() {
 		return
 	}
 
-	// Parse global default (backward compat)
-	s.breakAutoEndIntervalSeconds = 60
-	if envInterval := os.Getenv("BREAK_AUTO_END_INTERVAL_SECONDS"); envInterval != "" {
-		if parsed, err := strconv.Atoi(envInterval); err == nil && parsed > 0 {
-			s.breakAutoEndIntervalSeconds = parsed
-		}
-	}
+	// Resolve interval: settings service → env var → default (60s)
+	s.breakAutoEndIntervalSeconds = s.resolveIntSetting(
+		context.Background(),
+		"operations.break_auto_end_interval_seconds",
+		"BREAK_AUTO_END_INTERVAL_SECONDS",
+		60,
+	)
 
 	task := &ScheduledTask{
 		Name:     "break-auto-end",
-		Schedule: "60s-poll",
+		Schedule: fmt.Sprintf("%ds-poll", s.breakAutoEndIntervalSeconds),
 	}
 
 	s.mu.Lock()
