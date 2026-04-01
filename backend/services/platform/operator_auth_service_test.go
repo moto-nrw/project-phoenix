@@ -442,6 +442,201 @@ func TestOperatorAuthService_UpdateProfile_UpdateError(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to update operator profile")
 }
 
+func TestOperatorAuthService_UpdateProfile_EmailChange_Success(t *testing.T) {
+	ctx := context.Background()
+	operatorRepo := &mockOperatorRepo{
+		findByIDFn: func(ctx context.Context, id int64) (*platform.Operator, error) {
+			return &platform.Operator{
+				Model:       base.Model{ID: 1},
+				Email:       "old@example.com",
+				DisplayName: "Operator",
+			}, nil
+		},
+		findByEmailFn: func(ctx context.Context, email string) (*platform.Operator, error) {
+			return nil, nil // no conflict
+		},
+		updateFn: func(ctx context.Context, operator *platform.Operator) error {
+			assert.Equal(t, "new@example.com", operator.Email)
+			return nil
+		},
+	}
+	auditLogRepo := &mockAuditLogRepoShared{}
+
+	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+		OperatorRepo: operatorRepo,
+		AuditLogRepo: auditLogRepo,
+		DB:           &bun.DB{},
+		Logger:       slog.Default(),
+	})
+	require.NoError(t, err)
+
+	operator, err := service.UpdateProfile(ctx, 1, "Operator", "new@example.com")
+	require.NoError(t, err)
+	assert.Equal(t, "new@example.com", operator.Email)
+}
+
+func TestOperatorAuthService_UpdateProfile_EmailConflict(t *testing.T) {
+	ctx := context.Background()
+	operatorRepo := &mockOperatorRepo{
+		findByIDFn: func(ctx context.Context, id int64) (*platform.Operator, error) {
+			return &platform.Operator{
+				Model:       base.Model{ID: 1},
+				Email:       "old@example.com",
+				DisplayName: "Operator",
+			}, nil
+		},
+		findByEmailFn: func(ctx context.Context, email string) (*platform.Operator, error) {
+			return &platform.Operator{
+				Model: base.Model{ID: 2},
+				Email: "taken@example.com",
+			}, nil
+		},
+	}
+	auditLogRepo := &mockAuditLogRepoShared{}
+
+	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+		OperatorRepo: operatorRepo,
+		AuditLogRepo: auditLogRepo,
+		DB:           &bun.DB{},
+		Logger:       slog.Default(),
+	})
+	require.NoError(t, err)
+
+	_, err = service.UpdateProfile(ctx, 1, "Operator", "taken@example.com")
+	require.Error(t, err)
+	assert.IsType(t, &platformSvc.ConflictError{}, err)
+}
+
+func TestOperatorAuthService_UpdateProfile_InvalidEmailFormat(t *testing.T) {
+	ctx := context.Background()
+	operatorRepo := &mockOperatorRepo{}
+	auditLogRepo := &mockAuditLogRepoShared{}
+
+	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+		OperatorRepo: operatorRepo,
+		AuditLogRepo: auditLogRepo,
+		DB:           &bun.DB{},
+		Logger:       slog.Default(),
+	})
+	require.NoError(t, err)
+
+	_, err = service.UpdateProfile(ctx, 1, "Name", "not-an-email")
+	require.Error(t, err)
+	assert.IsType(t, &platformSvc.InvalidDataError{}, err)
+}
+
+func TestOperatorAuthService_UpdateProfile_EmptyEmail(t *testing.T) {
+	ctx := context.Background()
+	operatorRepo := &mockOperatorRepo{}
+	auditLogRepo := &mockAuditLogRepoShared{}
+
+	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+		OperatorRepo: operatorRepo,
+		AuditLogRepo: auditLogRepo,
+		DB:           &bun.DB{},
+		Logger:       slog.Default(),
+	})
+	require.NoError(t, err)
+
+	_, err = service.UpdateProfile(ctx, 1, "Name", "")
+	require.Error(t, err)
+	assert.IsType(t, &platformSvc.InvalidDataError{}, err)
+}
+
+func TestOperatorAuthService_UpdateProfile_SameEmail_NoConflictCheck(t *testing.T) {
+	ctx := context.Background()
+	findByEmailCalled := false
+	operatorRepo := &mockOperatorRepo{
+		findByIDFn: func(ctx context.Context, id int64) (*platform.Operator, error) {
+			return &platform.Operator{
+				Model:       base.Model{ID: 1},
+				Email:       "same@example.com",
+				DisplayName: "Old Name",
+			}, nil
+		},
+		findByEmailFn: func(ctx context.Context, email string) (*platform.Operator, error) {
+			findByEmailCalled = true
+			return nil, nil
+		},
+		updateFn: func(ctx context.Context, operator *platform.Operator) error {
+			return nil
+		},
+	}
+	auditLogRepo := &mockAuditLogRepoShared{}
+
+	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+		OperatorRepo: operatorRepo,
+		AuditLogRepo: auditLogRepo,
+		DB:           &bun.DB{},
+		Logger:       slog.Default(),
+	})
+	require.NoError(t, err)
+
+	operator, err := service.UpdateProfile(ctx, 1, "New Name", "same@example.com")
+	require.NoError(t, err)
+	assert.Equal(t, "New Name", operator.DisplayName)
+	assert.False(t, findByEmailCalled, "FindByEmail should not be called when email is unchanged")
+}
+
+func TestOperatorAuthService_UpdateProfile_EmailDisplayNameStripped(t *testing.T) {
+	ctx := context.Background()
+	operatorRepo := &mockOperatorRepo{
+		findByIDFn: func(ctx context.Context, id int64) (*platform.Operator, error) {
+			return &platform.Operator{
+				Model:       base.Model{ID: 1},
+				Email:       "old@example.com",
+				DisplayName: "Operator",
+			}, nil
+		},
+		findByEmailFn: func(ctx context.Context, email string) (*platform.Operator, error) {
+			assert.Equal(t, "new@example.com", email, "display name should be stripped from email")
+			return nil, nil
+		},
+		updateFn: func(ctx context.Context, operator *platform.Operator) error {
+			assert.Equal(t, "new@example.com", operator.Email, "stored email should not contain display name")
+			return nil
+		},
+	}
+	auditLogRepo := &mockAuditLogRepoShared{}
+
+	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+		OperatorRepo: operatorRepo,
+		AuditLogRepo: auditLogRepo,
+		DB:           &bun.DB{},
+		Logger:       slog.Default(),
+	})
+	require.NoError(t, err)
+
+	// mail.ParseAddress accepts "Name <addr>" — we must extract .Address
+	operator, err := service.UpdateProfile(ctx, 1, "Operator", "Admin <new@example.com>")
+	require.NoError(t, err)
+	assert.Equal(t, "new@example.com", operator.Email)
+}
+
+func TestOperatorAuthService_UpdateProfile_EmailTooLong(t *testing.T) {
+	ctx := context.Background()
+	operatorRepo := &mockOperatorRepo{}
+	auditLogRepo := &mockAuditLogRepoShared{}
+
+	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+		OperatorRepo: operatorRepo,
+		AuditLogRepo: auditLogRepo,
+		DB:           &bun.DB{},
+		Logger:       slog.Default(),
+	})
+	require.NoError(t, err)
+
+	longLocal := ""
+	for i := 0; i < 250; i++ {
+		longLocal += "a"
+	}
+	longEmail := longLocal + "@example.com"
+
+	_, err = service.UpdateProfile(ctx, 1, "Name", longEmail)
+	require.Error(t, err)
+	assert.IsType(t, &platformSvc.InvalidDataError{}, err)
+}
+
 func TestOperatorAuthService_ChangePassword_OperatorNotFound(t *testing.T) {
 	ctx := context.Background()
 	operatorRepo := &mockOperatorRepo{
