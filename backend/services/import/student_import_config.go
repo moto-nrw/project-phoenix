@@ -738,6 +738,9 @@ func parseSupportedDate(dateStr string) (time.Time, error) {
 	for _, layout := range dateLayouts {
 		parsed, err := time.Parse(layout, dateStr)
 		if err == nil {
+			if err := validateBirthdayDate(parsed); err != nil {
+				return time.Time{}, err
+			}
 			return parsed, nil
 		}
 		lastErr = err
@@ -745,10 +748,10 @@ func parseSupportedDate(dateStr string) (time.Time, error) {
 
 	shortDate, err := parseGermanShortDate(dateStr)
 	if err == nil {
+		if err := validateBirthdayDate(shortDate); err != nil {
+			return time.Time{}, err
+		}
 		return shortDate, nil
-	}
-	if stdErrors.Is(err, errFutureBirthday) {
-		return time.Time{}, err
 	}
 
 	return time.Time{}, lastErr
@@ -779,13 +782,17 @@ func parseGermanShortDate(dateStr string) (time.Time, error) {
 		return time.Time{}, fmt.Errorf("invalid short German date value")
 	}
 
+	return parsed, nil
+}
+
+func validateBirthdayDate(parsed time.Time) error {
 	today := time.Now().In(time.UTC)
 	currentDate := time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, time.UTC)
 	if parsed.After(currentDate) {
-		return time.Time{}, errFutureBirthday
+		return errFutureBirthday
 	}
 
-	return parsed, nil
+	return nil
 }
 
 // parseOptionalDate parses a date string or returns nil
