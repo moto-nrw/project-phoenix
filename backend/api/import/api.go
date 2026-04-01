@@ -201,7 +201,7 @@ func getStudentImportHeaders() []string {
 // getStudentImportExamples returns example data rows for the template
 func getStudentImportExamples() [][]any {
 	return [][]any{
-		{"Max", "Mustermann", "1A", "Gruppe 1A", "2015-08-15",
+		{"Max", "Mustermann", "1A", "Gruppe 1A", "15.08.2015",
 			// Guardian 1: phones, relationship
 			"Maria", testLastNameMueller, "maria.mueller@example.com", "0123-456789", "", "", "", "0221-9876543", "", "Mutter", "Ja", "Ja", "Ja",
 			// Guardian 1: address, notes, language
@@ -214,7 +214,7 @@ func getStudentImportExamples() [][]any {
 			"", "Sehr ruhiges Kind", "", "Wird abgeholt", "Ja", 30, "Nein",
 			// Pickup schedule (Mon-Fri)
 			"16:00", "", "15:30", "", "16:00", "", "15:30", "", "14:00", "Frühschluss"},
-		{"Anna", "Schmidt", "2B", "Gruppe 2B", "2014-03-22",
+		{"Anna", "Schmidt", "2B", "Gruppe 2B", "22.03.14",
 			// Guardian 1: phones, relationship
 			"Petra", "Schmidt", "petra.schmidt@example.com", "0234-567890", "", "", "", "0211-5551234", "", "Mutter", "Ja", "Ja", "Ja",
 			// Guardian 1: address, notes, language
@@ -286,7 +286,7 @@ func writeHinweiseSheet(f *excelize.File) {
 		{"Nachname", "Ja", "Text", "Nachname des Schülers"},
 		{"Klasse", "Ja", "Text (z.B. 1A, 2B)", "Schulklasse"},
 		{"Gruppe", "Nein", "Text (exakter Gruppenname)", "OGS-Gruppe — muss in der Datenbank existieren"},
-		{"Geburtstag", "Nein", "JJJJ-MM-TT (z.B. 2015-08-15)", "Geburtsdatum im ISO-Format"},
+		{"Geburtstag", "Nein", "JJJJ-MM-TT, TT.MM.JJJJ oder TT.MM.JJ", "Geburtsdatum, z.B. 2015-08-15, 15.08.2015 oder 15.08.15"},
 		// row 7: section header (injected)
 		// rows 8-20: guardian fields
 		{"Erz1.Vorname", "Nein", "Text", "Vorname des Erziehungsberechtigten"},
@@ -320,6 +320,7 @@ func writeHinweiseSheet(f *excelize.File) {
 		// row 34: general hints
 		{"Ja/Nein-Felder", "", "Ja, Nein, Yes, No, true, false, 1, 0", "Groß-/Kleinschreibung egal"},
 		{"Erz2, Erz3, ...", "", "Gleiche Spalten wie Erz1", "Beliebig viele Erziehungsberechtigte möglich"},
+		{"Geburtstag", "", "Beispiele: 2015-08-15, 15.08.2015, 15.08.15", "Alle drei Formate werden beim Import akzeptiert"},
 	}
 
 	// Create styles
