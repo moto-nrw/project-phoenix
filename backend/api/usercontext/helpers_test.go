@@ -3,6 +3,7 @@ package usercontext
 import (
 	"errors"
 	"net/http"
+	"path/filepath"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
@@ -236,6 +237,60 @@ func TestValidateAvatarPath_InvalidPath(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			_, errRenderer := validateAvatarPath(tt.path)
 			assert.NotNil(t, errRenderer, "Expected error for invalid path: %s", tt.path)
+		})
+	}
+}
+
+func TestAvatarPathToFilePath_ValidPaths(t *testing.T) {
+	testCases := []struct {
+		name       string
+		avatarPath string
+		want       string
+	}{
+		{
+			name:       "global avatar path",
+			avatarPath: "/uploads/avatars/global/12345_abc123.jpg",
+			want:       filepath.Join("public", "uploads", "avatars", "global", "12345_abc123.jpg"),
+		},
+		{
+			name:       "legacy tenant avatar path",
+			avatarPath: "/uploads/avatars/1/1_x.png",
+			want:       filepath.Join("public", "uploads", "avatars", "1", "1_x.png"),
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := avatarPathToFilePath(tt.avatarPath)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestAvatarPathToFilePath_InvalidPaths(t *testing.T) {
+	testCases := []struct {
+		name       string
+		avatarPath string
+		wantErr    string
+	}{
+		{
+			name:       "invalid prefix",
+			avatarPath: "/uploads/not-avatars/file.jpg",
+			wantErr:    "invalid avatar path",
+		},
+		{
+			name:       "path traversal",
+			avatarPath: "/uploads/avatars/global/../../secret.txt",
+			wantErr:    "invalid path",
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := avatarPathToFilePath(tt.avatarPath)
+			assert.Empty(t, got)
+			assert.EqualError(t, err, tt.wantErr)
 		})
 	}
 }

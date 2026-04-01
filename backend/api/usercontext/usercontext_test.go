@@ -851,6 +851,50 @@ func TestUploadAvatar_NoFile(t *testing.T) {
 	testutil.AssertBadRequest(t, rr)
 }
 
+func TestUploadAvatar_Success(t *testing.T) {
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
+
+	_, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "Upload", "Success")
+
+	router := chi.NewRouter()
+	router.Post("/profile/avatar", tc.resource.UploadAvatarHandler())
+
+	pngContent := string([]byte{
+		0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n',
+		0x00, 0x00, 0x00, 0x0d, 'I', 'H', 'D', 'R',
+		0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+		0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53, 0xde,
+		0x00, 0x00, 0x00, 0x0a, 'I', 'D', 'A', 'T',
+		0x08, 0xd7, 0x63, 0xf8, 0xcf, 0xc0, 0x00, 0x00,
+		0x03, 0x01, 0x01, 0x00, 0xc9, 0xfe, 0x92, 0xef,
+		0x00, 0x00, 0x00, 0x00, 'I', 'E', 'N', 'D',
+		0xae, 'B', 0x60, 0x82,
+	})
+	claims := testutil.TeacherTestClaims(int(account.ID))
+	req := testutil.NewMultipartRequest(t, "POST", "/profile/avatar", "avatar", "avatar.png", pngContent,
+		testutil.WithClaims(claims),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	found, err := tc.repos.Account.FindByID(context.Background(), account.ID)
+	require.NoError(t, err)
+	require.NotEmpty(t, found.Avatar)
+	assert.Contains(t, found.Avatar, "/uploads/avatars/global/")
+	assert.Equal(t, ".png", filepath.Ext(found.Avatar))
+
+	avatarFilePath := filepath.Join("public", filepath.FromSlash(found.Avatar[1:]))
+	t.Cleanup(func() {
+		_ = os.Remove(avatarFilePath)
+	})
+
+	_, err = os.Stat(avatarFilePath)
+	require.NoError(t, err)
+}
+
 // =============================================================================
 // DELETE AVATAR WITH AVATAR TESTS
 // =============================================================================

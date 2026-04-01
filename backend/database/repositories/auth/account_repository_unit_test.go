@@ -14,6 +14,25 @@ import (
 	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
+func TestAccountRepository_UpdateAvatar_Success(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, sqlDB.Close())
+	}()
+
+	db := bun.NewDB(sqlDB, pgdialect.New())
+	defer func() { _ = db.Close() }()
+
+	repo := authrepo.NewAccountRepository(db)
+	mock.ExpectExec(`UPDATE auth\.accounts SET avatar = .* WHERE \(id = .*\)`).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	err = repo.UpdateAvatar(context.Background(), 42, "/uploads/avatars/global/success.jpg")
+	require.NoError(t, err)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestAccountRepository_UpdateAvatar_ReturnsDatabaseError(t *testing.T) {
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
