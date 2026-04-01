@@ -1,16 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
-const { mockUseSession, mockUpdateSession, mockFetch } = vi.hoisted(() => ({
-  mockUseSession: vi.fn(),
-  mockUpdateSession: vi.fn(),
-  mockFetch: vi.fn(),
-}));
-
-global.fetch = mockFetch;
+const { mockUseSession, mockUpdateSession, mockSessionFetch } = vi.hoisted(
+  () => ({
+    mockUseSession: vi.fn(),
+    mockUpdateSession: vi.fn(),
+    mockSessionFetch: vi.fn(),
+  }),
+);
 
 vi.mock("next-auth/react", () => ({
   useSession: mockUseSession,
+}));
+
+vi.mock("~/lib/session-cache", () => ({
+  sessionFetch: (...args: unknown[]) => mockSessionFetch(...args),
 }));
 
 vi.mock("~/components/ui/loading", () => ({
@@ -44,7 +48,7 @@ describe("OperatorSettingsPage", () => {
       status: "authenticated",
       update: mockUpdateSession,
     });
-    mockFetch.mockResolvedValue({
+    mockSessionFetch.mockResolvedValue({
       ok: true,
       json: async () => ({
         data: { id: 1, email: "test@example.com", display_name: "Test User" },
@@ -90,7 +94,7 @@ describe("OperatorSettingsPage", () => {
     fireEvent.click(saveButton);
 
     await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalledWith(
+      expect(mockSessionFetch).toHaveBeenCalledWith(
         "/api/operator/profile",
         expect.objectContaining({
           method: "PUT",
@@ -105,7 +109,7 @@ describe("OperatorSettingsPage", () => {
   });
 
   it("handles save error gracefully", async () => {
-    mockFetch.mockResolvedValueOnce({
+    mockSessionFetch.mockResolvedValueOnce({
       ok: false,
       json: async () => ({ error: "Something went wrong" }),
     } as Response);

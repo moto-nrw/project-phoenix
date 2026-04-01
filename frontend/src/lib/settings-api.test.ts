@@ -70,12 +70,12 @@ describe("fetchSettingsSchema", () => {
     expect(result).toBeNull();
   });
 
-  it("returns null on 500 (logs error)", async () => {
+  it("throws on 500 (server error)", async () => {
     mockSessionFetch.mockResolvedValue(mockResponse(500));
 
-    const result = await fetchSettingsSchema();
-
-    expect(result).toBeNull();
+    await expect(fetchSettingsSchema()).rejects.toThrow(
+      "Einstellungen konnten nicht geladen werden (500)",
+    );
   });
 
   it("returns null when no auth token available", async () => {
