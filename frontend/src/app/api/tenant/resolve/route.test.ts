@@ -7,6 +7,7 @@ import { NextRequest } from "next/server";
 
 vi.mock("~/env", () => ({
   env: {
+    API_URL: "http://server:8080",
     NEXT_PUBLIC_API_URL: "http://localhost:8080",
   },
 }));
@@ -70,7 +71,7 @@ describe("GET /api/tenant/resolve", () => {
     const response = await GET(request);
 
     expect(global.fetch).toHaveBeenCalledWith(
-      "http://localhost:8080/auth/tenant/resolve?slug=demo-school",
+      "http://server:8080/auth/tenant/resolve?slug=demo-school",
     );
 
     expect(response.status).toBe(200);
@@ -106,7 +107,7 @@ describe("GET /api/tenant/resolve", () => {
     await GET(request);
 
     expect(global.fetch).toHaveBeenCalledWith(
-      "http://localhost:8080/auth/tenant/resolve?slug=school%20with%20spaces",
+      "http://server:8080/auth/tenant/resolve?slug=school%20with%20spaces",
     );
   });
 

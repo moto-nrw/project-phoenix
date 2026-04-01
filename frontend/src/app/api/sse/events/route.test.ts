@@ -22,6 +22,7 @@ global.fetch = mockFetch;
 // Mock env
 vi.mock("~/env", () => ({
   env: {
+    API_URL: "http://server:8080",
     NEXT_PUBLIC_API_URL: "http://localhost:8080",
   },
 }));
@@ -95,7 +96,7 @@ describe("GET /api/sse/events", () => {
     const response = await GET(request);
 
     expect(mockFetch).toHaveBeenCalledWith(
-      "http://localhost:8080/api/sse/events",
+      "http://server:8080/api/sse/events",
       expect.objectContaining({
         headers: {
           Authorization: "Bearer test-token",
@@ -129,7 +130,7 @@ describe("GET /api/sse/events", () => {
     await GET(request);
 
     expect(mockFetch).toHaveBeenCalledWith(
-      "http://localhost:8080/api/sse/events?cache=123",
+      "http://server:8080/api/sse/events?cache=123",
       expect.any(Object),
     );
   });
@@ -220,7 +221,7 @@ describe("GET /api/sse/events", () => {
 
     expect(response.status).toBe(204);
     expect(mockFetch).toHaveBeenCalledWith(
-      "http://localhost:8080/api/sse/events",
+      "http://server:8080/api/sse/events",
       expect.objectContaining({
         signal: expect.any(AbortSignal),
       }),

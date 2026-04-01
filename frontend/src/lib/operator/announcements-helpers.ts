@@ -5,7 +5,7 @@ export type SystemRole = "admin" | "user" | "guardian";
 
 export const SYSTEM_ROLE_LABELS: Record<SystemRole, string> = {
   admin: "Administratoren",
-  user: "Lehrer/Personal",
+  user: "Betreuer",
   guardian: "Erziehungsberechtigte",
 };
 

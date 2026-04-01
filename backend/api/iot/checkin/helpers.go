@@ -75,8 +75,13 @@ func (rs *Resource) shouldShowDailyCheckoutWithGroup(ctx context.Context, studen
 	}
 
 	educationGroup, err := rs.EducationService.GetGroup(ctx, *student.GroupID)
-	if err != nil || educationGroup == nil || educationGroup.RoomID == nil {
+	if err != nil || educationGroup == nil {
 		return false
+	}
+
+	// If the group has no room assigned, daily checkout is available from any room
+	if educationGroup.RoomID == nil {
+		return true
 	}
 
 	return currentVisit.ActiveGroup.RoomID == *educationGroup.RoomID

@@ -12,6 +12,33 @@ export interface BackendActivitySupervisor {
   last_name?: string;
 }
 
+export interface ActivitySupervisorSummary {
+  id: string;
+  staff_id: string;
+  is_primary: boolean;
+  name: string;
+}
+
+export function mapActivitySupervisorSummaryResponse(
+  supervisor: BackendActivitySupervisor,
+): ActivitySupervisorSummary {
+  return {
+    id: String(supervisor.id),
+    staff_id: String(supervisor.staff_id),
+    is_primary: supervisor.is_primary,
+    name:
+      supervisor.first_name && supervisor.last_name
+        ? `${supervisor.first_name} ${supervisor.last_name}`
+        : `Supervisor ${supervisor.id}`,
+  };
+}
+
+export function mapActivitySupervisorSummariesResponse(
+  supervisors: BackendActivitySupervisor[],
+): ActivitySupervisorSummary[] {
+  return supervisors.map(mapActivitySupervisorSummaryResponse);
+}
+
 // Backend types (from Go structs)
 export interface BackendActivity {
   id: number;

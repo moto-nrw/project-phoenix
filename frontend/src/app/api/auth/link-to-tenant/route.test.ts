@@ -24,6 +24,7 @@ vi.mock("~/server/auth", () => ({
 
 vi.mock("~/env", () => ({
   env: {
+    API_URL: "http://server:8080",
     NEXT_PUBLIC_API_URL: "http://localhost:8080",
   },
 }));
@@ -126,7 +127,7 @@ describe("POST /api/auth/link-to-tenant", () => {
 
     expect(global.fetch).toHaveBeenCalledTimes(1);
     expect(vi.mocked(global.fetch).mock.calls[0]?.[0]).toBe(
-      "http://localhost:8080/auth/link-to-tenant",
+      "http://server:8080/auth/link-to-tenant",
     );
 
     expect(response.status).toBe(200);

@@ -16,6 +16,7 @@ type Account struct {
 	base.Model     `bun:"schema:auth,table:accounts"`
 	Email          string     `bun:"email,notnull" json:"email"`
 	Username       *string    `bun:"username,unique" json:"username,omitempty"`
+	Avatar         string     `bun:"avatar" json:"avatar,omitempty"`
 	Active         bool       `bun:"active,notnull,default:true" json:"active"`
 	PasswordHash   *string    `bun:"password_hash" json:"-"`
 	IsPasswordOTP  bool       `bun:"is_password_otp,default:false" json:"is_password_otp"`

@@ -66,7 +66,7 @@ describe("GET /api/time-tracking/export", () => {
     const response = await GET(request);
 
     expect(global.fetch).toHaveBeenCalledWith(
-      "http://localhost:8080/api/time-tracking/export?format=csv&from=2024-01-01&to=2024-01-31",
+      "http://server:8080/api/time-tracking/export?format=csv&from=2024-01-01&to=2024-01-31",
       {
         headers: {
           Authorization: "Bearer test-token",

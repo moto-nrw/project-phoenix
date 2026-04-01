@@ -312,6 +312,7 @@ func (res *Resource) getGroupVisits(w http.ResponseWriter, r *http.Request) {
 const (
 	maxUploadSize   = 5 * 1024 * 1024 // 5MB
 	avatarDir       = "public/uploads/avatars"
+	globalAvatarDir = "global"
 	errCloseFileFmt = "Error closing file: %v"
 )
 
@@ -342,14 +343,14 @@ func (res *Resource) uploadAvatar(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tenantID := tenant.FromContext(r.Context())
-	filePath, err := res.saveAvatarFile(file, header, contentType, user.ID, tenantID)
+	filePath, err := res.saveAvatarFile(file, header, contentType, user.ID)
 	if err != nil {
 		render.Status(r, http.StatusInternalServerError)
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
-	avatarURL := fmt.Sprintf("/uploads/avatars/%d/%s", tenantID, filepath.Base(filePath))
+	avatarURL := fmt.Sprintf("/uploads/avatars/%s/%s", globalAvatarDir, filepath.Base(filePath))
 	var updatedProfile interface{}
 	if err := tenant.WithTenantTx(r.Context(), res.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		var txErr error
@@ -405,7 +406,7 @@ func detectAndValidateContentType(file io.ReadSeeker) (string, error) {
 }
 
 // saveAvatarFile saves the uploaded file and returns the file path
-func (res *Resource) saveAvatarFile(file io.Reader, header *multipart.FileHeader, contentType string, userID, tenantID int64) (string, error) {
+func (res *Resource) saveAvatarFile(file io.Reader, header *multipart.FileHeader, contentType string, userID int64) (string, error) {
 	fileExt := getFileExtension(header.Filename, contentType)
 	randomStr, err := generateRandomString(8)
 	if err != nil {
@@ -413,10 +414,10 @@ func (res *Resource) saveAvatarFile(file io.Reader, header *multipart.FileHeader
 	}
 
 	filename := fmt.Sprintf("%d_%s%s", userID, randomStr, fileExt)
-	tenantDir := filepath.Join(avatarDir, fmt.Sprintf("%d", tenantID))
-	filePath := filepath.Join(tenantDir, filename)
+	targetDir := filepath.Join(avatarDir, globalAvatarDir)
+	filePath := filepath.Join(targetDir, filename)
 
-	if os.MkdirAll(tenantDir, 0755) != nil {
+	if os.MkdirAll(targetDir, 0755) != nil {
 		return "", errors.New("failed to create upload directory")
 	}
 
@@ -504,17 +505,6 @@ func (res *Resource) deleteAvatar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Delete file from filesystem
-	if strings.HasPrefix(avatarPath, "/uploads/avatars/") {
-		filePath := filepath.Join("public", avatarPath)
-		if err := os.Remove(filePath); err != nil {
-			// Log error but don't fail the request
-			slog.Default().Warn("failed to delete avatar file",
-				slog.String("path", filePath),
-				slog.String("error", err.Error()))
-		}
-	}
-
 	render.Status(r, http.StatusOK)
 	common.RenderError(w, r, common.NewResponse(updatedProfile, "Avatar deleted successfully"))
 }
@@ -530,14 +520,14 @@ func (res *Resource) serveAvatar(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate avatar access for current user
-	if err := res.validateAvatarAccess(r, filename); err != nil {
+	avatarPath, err := res.validateAvatarAccess(r, filename)
+	if err != nil {
 		common.RenderError(w, r, err)
 		return
 	}
 
-	// Construct and validate file path
-	tenantID := tenant.FromContext(r.Context())
-	filePath, rendErr := validateAvatarPath(filename, tenantID)
+	// Construct and validate file path from the stored avatar path
+	filePath, rendErr := validateAvatarPath(avatarPath)
 	if rendErr != nil {
 		common.RenderError(w, r, rendErr)
 		return
@@ -548,58 +538,58 @@ func (res *Resource) serveAvatar(w http.ResponseWriter, r *http.Request) {
 }
 
 // validateAvatarAccess checks if the current user can access the requested avatar
-func (res *Resource) validateAvatarAccess(r *http.Request, filename string) render.Renderer {
+func (res *Resource) validateAvatarAccess(r *http.Request, filename string) (string, render.Renderer) {
 	profile, err := res.service.GetCurrentProfile(r.Context())
 	if err != nil {
-		return ErrorRenderer(err)
+		return "", ErrorRenderer(err)
 	}
 
 	avatarPath, ok := profile["avatar"].(string)
 	if !ok || avatarPath == "" {
 		render.Status(r, http.StatusNotFound)
-		return common.ErrorNotFound(errors.New("no avatar found"))
+		return "", common.ErrorNotFound(errors.New("no avatar found"))
 	}
 
 	if filepath.Base(avatarPath) != filename {
 		render.Status(r, http.StatusForbidden)
-		return common.ErrorForbidden(errors.New("access denied"))
+		return "", common.ErrorForbidden(errors.New("access denied"))
 	}
 
-	return nil
+	return avatarPath, nil
 }
 
-// validateAvatarPath validates the file path is within the avatar directory.
-// It checks for the file in the tenant-namespaced subdirectory first, falling
-// back to the flat directory for avatars uploaded before tenant namespacing.
-func validateAvatarPath(filename string, tenantID int64) (string, render.Renderer) {
+// validateAvatarPath validates the stored avatar path and converts it to a filesystem path.
+func validateAvatarPath(avatarPath string) (string, render.Renderer) {
+	filePath, err := avatarPathToFilePath(avatarPath)
+	if err != nil {
+		return "", common.ErrorForbidden(err)
+	}
+
+	return filePath, nil
+}
+
+func avatarPathToFilePath(avatarPath string) (string, error) {
+	if !strings.HasPrefix(avatarPath, "/uploads/avatars/") {
+		return "", errors.New("invalid avatar path")
+	}
+
 	absAvatarDir, err := filepath.Abs(avatarDir)
 	if err != nil {
-		return "", common.ErrorInternalServer(errors.New("failed to process avatar directory"))
+		return "", errors.New("failed to process avatar directory")
 	}
 
-	// Try tenant-namespaced path first
-	tenantPath := filepath.Join(avatarDir, fmt.Sprintf("%d", tenantID), filename)
-	absPath, err := filepath.Abs(tenantPath)
+	filePath := filepath.Join("public", strings.TrimPrefix(avatarPath, "/"))
+	absPath, err := filepath.Abs(filePath)
 	if err != nil {
-		return "", common.ErrorInternalServer(errors.New("failed to process path"))
-	}
-	if strings.HasPrefix(absPath, absAvatarDir) {
-		if _, statErr := os.Stat(tenantPath); statErr == nil {
-			return tenantPath, nil
-		}
+		return "", errors.New("failed to process path")
 	}
 
-	// Fall back to legacy flat path (pre-tenant-namespacing)
-	flatPath := filepath.Join(avatarDir, filename)
-	absPath, err = filepath.Abs(flatPath)
-	if err != nil {
-		return "", common.ErrorInternalServer(errors.New("failed to process path"))
-	}
-	if !strings.HasPrefix(absPath, absAvatarDir) {
-		return "", common.ErrorForbidden(errors.New("invalid path"))
+	avatarPrefix := absAvatarDir + string(os.PathSeparator)
+	if absPath != absAvatarDir && !strings.HasPrefix(absPath, avatarPrefix) {
+		return "", errors.New("invalid path")
 	}
 
-	return flatPath, nil
+	return filePath, nil
 }
 
 // serveAvatarFile opens and serves the avatar file

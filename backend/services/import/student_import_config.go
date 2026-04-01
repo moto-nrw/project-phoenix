@@ -2,8 +2,10 @@ package importpkg
 
 import (
 	"context"
+	stdErrors "errors"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -16,9 +18,14 @@ import (
 )
 
 var (
-	emailRegex = regexp.MustCompile(`^[A-Za-z0-9._+%-]+@[A-Za-z0-9.-]+[.][A-Za-z]+$`)
-	phoneRegex = regexp.MustCompile(`^(\+[0-9]{1,3}\s?)?[0-9\s-]{7,15}$`)
-	timeRegex  = regexp.MustCompile(`^([01]?[0-9]|2[0-3]):[0-5][0-9]$`)
+	emailRegex  = regexp.MustCompile(`^[A-Za-z0-9._+%-]+@[A-Za-z0-9.-]+[.][A-Za-z]+$`)
+	phoneRegex  = regexp.MustCompile(`^(\+[0-9]{1,3}\s?)?[0-9\s-]{7,15}$`)
+	timeRegex   = regexp.MustCompile(`^([01]?[0-9]|2[0-3]):[0-5][0-9]$`)
+	dateLayouts = []string{
+		"2006-01-02",
+		"02.01.2006",
+	}
+	errFutureBirthday = stdErrors.New("birthday cannot be in the future")
 )
 
 // isValidTimeFormat checks if a string is in HH:MM format
@@ -193,15 +200,26 @@ func (c *StudentImportConfig) Validate(ctx context.Context, row *importModels.St
 	errors = append(errors, validatePickupSchedules(row.PickupSchedules)...)
 
 	// 6. Birthday validation (if provided)
-	if row.Birthday != "" {
-		if _, err := time.Parse("2006-01-02", row.Birthday); err != nil {
+	if trimmedBirthday := strings.TrimSpace(row.Birthday); trimmedBirthday != "" {
+		parsedBirthday, err := parseSupportedDate(trimmedBirthday)
+		if err != nil {
+			message := "Ungültiges Datumsformat. Bitte verwenden Sie eines dieser Formate: JJJJ-MM-TT (z.B. 2015-08-15), TT.MM.JJJJ (z.B. 15.08.2015) oder TT.MM.JJ (z.B. 15.08.15)"
+			code := "invalid_date_format"
+			if stdErrors.Is(err, errFutureBirthday) {
+				message = "Ungültiges Geburtsdatum. Geburtstage in der Zukunft sind nicht erlaubt."
+				code = "invalid_date"
+			}
 			errors = append(errors, importModels.ValidationError{
 				Field:    "birthday",
-				Message:  "Ungültiges Datumsformat. Bitte verwenden Sie JJJJ-MM-TT (z.B. 2015-08-15)",
-				Code:     "invalid_date_format",
+				Message:  message,
+				Code:     code,
 				Severity: importModels.ErrorSeverityError,
 			})
+		} else {
+			row.Birthday = parsedBirthday.Format("2006-01-02")
 		}
+	} else {
+		row.Birthday = ""
 	}
 
 	// 7. Privacy validation
@@ -714,13 +732,77 @@ func (c *StudentImportConfig) EntityName() string {
 
 // Helper functions
 
+// parseSupportedDate tries all supported import date formats in order.
+func parseSupportedDate(dateStr string) (time.Time, error) {
+	var lastErr error
+	for _, layout := range dateLayouts {
+		parsed, err := time.Parse(layout, dateStr)
+		if err == nil {
+			if err := validateBirthdayDate(parsed); err != nil {
+				return time.Time{}, err
+			}
+			return parsed, nil
+		}
+		lastErr = err
+	}
+
+	shortDate, err := parseGermanShortDate(dateStr)
+	if err == nil {
+		if err := validateBirthdayDate(shortDate); err != nil {
+			return time.Time{}, err
+		}
+		return shortDate, nil
+	}
+
+	return time.Time{}, lastErr
+}
+
+func parseGermanShortDate(dateStr string) (time.Time, error) {
+	parts := strings.Split(dateStr, ".")
+	if len(parts) != 3 || len(parts[2]) != 2 {
+		return time.Time{}, fmt.Errorf("invalid short German date format")
+	}
+
+	day, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return time.Time{}, err
+	}
+	month, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return time.Time{}, err
+	}
+	shortYear, err := strconv.Atoi(parts[2])
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	year := 2000 + shortYear
+	parsed := time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.UTC)
+	if parsed.Year() != year || int(parsed.Month()) != month || parsed.Day() != day {
+		return time.Time{}, fmt.Errorf("invalid short German date value")
+	}
+
+	return parsed, nil
+}
+
+func validateBirthdayDate(parsed time.Time) error {
+	today := time.Now().In(time.UTC)
+	currentDate := time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, time.UTC)
+	if parsed.After(currentDate) {
+		return errFutureBirthday
+	}
+
+	return nil
+}
+
 // parseOptionalDate parses a date string or returns nil
 func parseOptionalDate(dateStr string) (*time.Time, error) {
-	if dateStr == "" {
+	trimmed := strings.TrimSpace(dateStr)
+	if trimmed == "" {
 		return nil, nil
 	}
 
-	t, err := time.Parse("2006-01-02", dateStr)
+	t, err := parseSupportedDate(trimmed)
 	if err != nil {
 		return nil, err
 	}

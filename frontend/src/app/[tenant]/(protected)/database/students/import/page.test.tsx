@@ -153,6 +153,9 @@ describe("StudentImportPage", () => {
     expect(
       screen.getByText(/Laden Sie die Vorlage herunter/),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Für Geburtstage sind diese Formate erlaubt/),
+    ).toBeInTheDocument();
   });
 
   it("renders the template download section", () => {
@@ -163,6 +166,7 @@ describe("StudentImportPage", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Format wählen")).toBeInTheDocument();
     expect(screen.getByText("Vorlage herunterladen")).toBeInTheDocument();
+    expect(screen.getByText(/Beispiel Geburtstag:/)).toBeInTheDocument();
   });
 
   it("renders the upload section", () => {
