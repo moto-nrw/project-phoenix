@@ -2288,3 +2288,85 @@ func TestRunSessionCleanupTask_StopsOnDoneAfterSleep(t *testing.T) {
 		}
 	})
 }
+
+type mockBreakAutoEnder struct{}
+
+func (m *mockBreakAutoEnder) AutoEndExpiredBreaks(_ context.Context) (int, error) {
+	return 0, nil
+}
+
+func TestWaitUntilNextMinute_ShutdownDuringWait(t *testing.T) {
+	s := &Scheduler{done: make(chan struct{}), logger: slog.Default()}
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		close(s.done)
+	}()
+	result := s.waitUntilNextMinute()
+	assert.False(t, result, "should return false when shutdown signal fires during wait")
+}
+
+func TestScheduleCleanupTask_DisabledByEnv(t *testing.T) {
+	t.Setenv("CLEANUP_SCHEDULER_ENABLED", "false")
+	s := &Scheduler{
+		done:   make(chan struct{}),
+		logger: slog.Default(),
+		tasks:  make(map[string]*ScheduledTask),
+	}
+	s.scheduleCleanupTask()
+	assert.Empty(t, s.tasks, "cleanup task should not be registered when disabled")
+}
+
+func TestScheduleSessionEndTask_DisabledByEnv(t *testing.T) {
+	t.Setenv("SESSION_END_SCHEDULER_ENABLED", "false")
+	s := &Scheduler{
+		done:   make(chan struct{}),
+		logger: slog.Default(),
+		tasks:  make(map[string]*ScheduledTask),
+	}
+	s.scheduleSessionEndTask()
+	assert.Empty(t, s.tasks, "session end task should not be registered when disabled")
+}
+
+func TestScheduleBreakAutoEndTask_DisabledByEnv(t *testing.T) {
+	t.Setenv("BREAK_AUTO_END_ENABLED", "false")
+	s := &Scheduler{
+		done:           make(chan struct{}),
+		logger:         slog.Default(),
+		tasks:          make(map[string]*ScheduledTask),
+		breakAutoEnder: &mockBreakAutoEnder{},
+	}
+	s.scheduleBreakAutoEndTask()
+	assert.Empty(t, s.tasks, "break auto-end task should not be registered when disabled")
+}
+
+func TestExecuteCleanupForTenant_ReturnsFalseOnError(t *testing.T) {
+	s := &Scheduler{
+		cleanupService: &mockCleanupService{
+			cleanupErr: errors.New("db error"),
+		},
+		logger: slog.Default(),
+	}
+	result := s.executeCleanupForTenant(context.Background(), 1)
+	assert.False(t, result)
+}
+
+func TestExecuteCleanupForTenant_ReturnsTrueOnSuccess(t *testing.T) {
+	s := &Scheduler{
+		cleanupService: &mockCleanupService{
+			cleanupResult: &activeService.CleanupResult{},
+		},
+		logger: slog.Default(),
+	}
+	result := s.executeCleanupForTenant(context.Background(), 1)
+	assert.True(t, result)
+}
+
+func TestTimeMatchesNow(t *testing.T) {
+	now := time.Now()
+	nowStr := now.Format("15:04")
+	assert.True(t, timeMatchesNow(nowStr))
+	assert.False(t, timeMatchesNow("99:99"))
+	assert.False(t, timeMatchesNow("invalid"))
+	assert.False(t, timeMatchesNow("25:00"))
+	assert.False(t, timeMatchesNow("12:60"))
+}

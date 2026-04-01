@@ -1289,6 +1289,49 @@ func TestResolveInt_WholeFloat(t *testing.T) {
 // HasTenantOverride no-tenant path
 // =============================================================================
 
+func TestResolveString_NonStringCoercion(t *testing.T) {
+	setupTest(t)
+	registerTestSetting("test.coerce", config.FieldNumber, 42)
+
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	val, err := svc.ResolveString(tenantCtx(1), "test.coerce")
+	require.NoError(t, err)
+	assert.Equal(t, "42", val)
+}
+
+func TestResolveString_NilValue(t *testing.T) {
+	setupTest(t)
+	registerTestSetting("test.nilstr", config.FieldText, nil)
+
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	val, err := svc.ResolveString(tenantCtx(1), "test.nilstr")
+	require.NoError(t, err)
+	assert.Equal(t, "", val)
+}
+
+func TestSetValue_SelectRejectsInvalidWithMarshalable(t *testing.T) {
+	setupTest(t)
+	config.Register(config.Definition{
+		Key:      "test.sel2",
+		Label:    "Sel2",
+		Type:     config.FieldSelect,
+		Default:  "a",
+		Tab:      "test",
+		Category: "test",
+		Options: &config.SelectOptions{
+			Static: []config.SelectOption{
+				{Label: "A", Value: "a"},
+				{Label: "B", Value: "b"},
+			},
+		},
+	})
+
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	err := svc.SetValue(tenantCtx(1), "test.sel2", "c", nil, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not a valid option")
+}
+
 func TestHasTenantOverride_NoTenantContext(t *testing.T) {
 	setupTest(t)
 	registerTestSetting("test.override", config.FieldText, "default")
