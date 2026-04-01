@@ -177,8 +177,9 @@ func (m *mockSettingsService) ResolveBool(_ context.Context, _ string) (bool, er
 func (m *mockSettingsService) ResolveInt(_ context.Context, _ string) (int, error) {
 	return 0, nil
 }
-func (m *mockSettingsService) HasTenantOverride(_ context.Context, _ string) (bool, error) {
-	return false, nil
+func (m *mockSettingsService) HasTenantOverride(_ context.Context, key string) (bool, error) {
+	_, exists := m.values[key]
+	return exists, nil
 }
 func (m *mockSettingsService) SetValue(_ context.Context, _ string, _ any, _ *int64, _ []string) error {
 	return nil
