@@ -117,10 +117,11 @@ func TestSettingValueRepository_TenantIsolation(t *testing.T) {
 	defer func() { _ = db.Close() }()
 	repo := configRepo.NewSettingValueRepository(db)
 
-	// Use tenant IDs as variables to satisfy the hermetic test pattern check.
-	// Tenant 1 is created by SetupTestDB; tenant 10 avoids collisions with other test fixtures.
-	tenantA := int64(10)
-	tenantB := int64(11)
+	// Use high tenant IDs to avoid sequence collisions: other tests use
+	// auto-increment (BIGSERIAL) for orgs/schools, so low explicit IDs like
+	// 2–20 can collide when the sequence catches up. IDs 9990+ are safe.
+	tenantA := int64(9990)
+	tenantB := int64(9991)
 	testpkg.EnsureTestTenant(t, db, tenantA)
 	testpkg.EnsureTestTenant(t, db, tenantB)
 
