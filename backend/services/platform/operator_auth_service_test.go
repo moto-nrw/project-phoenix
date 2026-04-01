@@ -324,7 +324,7 @@ func TestOperatorAuthService_UpdateProfile_Success(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	operator, err := service.UpdateProfile(ctx, 1, "New Name", "operator@example.com")
+	operator, err := service.UpdateProfile(ctx, 1, "New Name", "operator@example.com", nil)
 	require.NoError(t, err)
 	assert.NotNil(t, operator)
 	assert.Equal(t, "New Name", operator.DisplayName)
@@ -343,7 +343,7 @@ func TestOperatorAuthService_UpdateProfile_EmptyName(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = service.UpdateProfile(ctx, 1, "", "operator@example.com")
+	_, err = service.UpdateProfile(ctx, 1, "", "operator@example.com", nil)
 	require.Error(t, err)
 	assert.IsType(t, &platformSvc.InvalidDataError{}, err)
 }
@@ -361,7 +361,7 @@ func TestOperatorAuthService_UpdateProfile_WhitespaceName(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = service.UpdateProfile(ctx, 1, "   ", "operator@example.com")
+	_, err = service.UpdateProfile(ctx, 1, "   ", "operator@example.com", nil)
 	require.Error(t, err)
 	assert.IsType(t, &platformSvc.InvalidDataError{}, err)
 }
@@ -384,7 +384,7 @@ func TestOperatorAuthService_UpdateProfile_NameTooLong(t *testing.T) {
 		longName += "a"
 	}
 
-	_, err = service.UpdateProfile(ctx, 1, longName, "operator@example.com")
+	_, err = service.UpdateProfile(ctx, 1, longName, "operator@example.com", nil)
 	require.Error(t, err)
 	assert.IsType(t, &platformSvc.InvalidDataError{}, err)
 }
@@ -406,7 +406,7 @@ func TestOperatorAuthService_UpdateProfile_OperatorNotFound(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = service.UpdateProfile(ctx, 999, "New Name", "operator@example.com")
+	_, err = service.UpdateProfile(ctx, 999, "New Name", "operator@example.com", nil)
 	require.Error(t, err)
 	assert.IsType(t, &platformSvc.OperatorNotFoundError{}, err)
 }
@@ -437,7 +437,7 @@ func TestOperatorAuthService_UpdateProfile_UpdateError(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = service.UpdateProfile(ctx, 1, "New Name", "operator@example.com")
+	_, err = service.UpdateProfile(ctx, 1, "New Name", "operator@example.com", nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to update operator profile")
 }
@@ -470,7 +470,7 @@ func TestOperatorAuthService_UpdateProfile_EmailChange_Success(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	operator, err := service.UpdateProfile(ctx, 1, "Operator", "new@example.com")
+	operator, err := service.UpdateProfile(ctx, 1, "Operator", "new@example.com", nil)
 	require.NoError(t, err)
 	assert.Equal(t, "new@example.com", operator.Email)
 }
@@ -502,7 +502,7 @@ func TestOperatorAuthService_UpdateProfile_EmailConflict(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = service.UpdateProfile(ctx, 1, "Operator", "taken@example.com")
+	_, err = service.UpdateProfile(ctx, 1, "Operator", "taken@example.com", nil)
 	require.Error(t, err)
 	assert.IsType(t, &platformSvc.ConflictError{}, err)
 }
@@ -520,7 +520,7 @@ func TestOperatorAuthService_UpdateProfile_InvalidEmailFormat(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = service.UpdateProfile(ctx, 1, "Name", "not-an-email")
+	_, err = service.UpdateProfile(ctx, 1, "Name", "not-an-email", nil)
 	require.Error(t, err)
 	assert.IsType(t, &platformSvc.InvalidDataError{}, err)
 }
@@ -538,7 +538,7 @@ func TestOperatorAuthService_UpdateProfile_EmptyEmail(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = service.UpdateProfile(ctx, 1, "Name", "")
+	_, err = service.UpdateProfile(ctx, 1, "Name", "", nil)
 	require.Error(t, err)
 	assert.IsType(t, &platformSvc.InvalidDataError{}, err)
 }
@@ -572,7 +572,7 @@ func TestOperatorAuthService_UpdateProfile_SameEmail_NoConflictCheck(t *testing.
 	})
 	require.NoError(t, err)
 
-	operator, err := service.UpdateProfile(ctx, 1, "New Name", "same@example.com")
+	operator, err := service.UpdateProfile(ctx, 1, "New Name", "same@example.com", nil)
 	require.NoError(t, err)
 	assert.Equal(t, "New Name", operator.DisplayName)
 	assert.False(t, findByEmailCalled, "FindByEmail should not be called when email is unchanged")
@@ -608,7 +608,7 @@ func TestOperatorAuthService_UpdateProfile_EmailDisplayNameStripped(t *testing.T
 	require.NoError(t, err)
 
 	// mail.ParseAddress accepts "Name <addr>" — we must extract .Address
-	operator, err := service.UpdateProfile(ctx, 1, "Operator", "Admin <new@example.com>")
+	operator, err := service.UpdateProfile(ctx, 1, "Operator", "Admin <new@example.com>", nil)
 	require.NoError(t, err)
 	assert.Equal(t, "new@example.com", operator.Email)
 }
@@ -632,7 +632,7 @@ func TestOperatorAuthService_UpdateProfile_EmailTooLong(t *testing.T) {
 	}
 	longEmail := longLocal + "@example.com"
 
-	_, err = service.UpdateProfile(ctx, 1, "Name", longEmail)
+	_, err = service.UpdateProfile(ctx, 1, "Name", longEmail, nil)
 	require.Error(t, err)
 	assert.IsType(t, &platformSvc.InvalidDataError{}, err)
 }

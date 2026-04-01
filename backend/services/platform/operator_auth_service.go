@@ -35,7 +35,7 @@ type OperatorAuthService interface {
 	ListOperators(ctx context.Context) ([]*platform.Operator, error)
 
 	// UpdateProfile updates an operator's display name and email
-	UpdateProfile(ctx context.Context, operatorID int64, displayName string, email string) (*platform.Operator, error)
+	UpdateProfile(ctx context.Context, operatorID int64, displayName string, email string, clientIP net.IP) (*platform.Operator, error)
 
 	// ChangePassword changes an operator's password after verifying the current one
 	ChangePassword(ctx context.Context, operatorID int64, currentPassword, newPassword string) error
@@ -245,7 +245,7 @@ func (s *operatorAuthService) ListOperators(ctx context.Context) ([]*platform.Op
 }
 
 // UpdateProfile updates an operator's display name and email
-func (s *operatorAuthService) UpdateProfile(ctx context.Context, operatorID int64, displayName string, newEmail string) (*platform.Operator, error) {
+func (s *operatorAuthService) UpdateProfile(ctx context.Context, operatorID int64, displayName string, newEmail string, clientIP net.IP) (*platform.Operator, error) {
 	displayName = strings.TrimSpace(displayName)
 	if displayName == "" {
 		return nil, &InvalidDataError{Err: fmt.Errorf("display name is required")}
@@ -298,7 +298,7 @@ func (s *operatorAuthService) UpdateProfile(ctx context.Context, operatorID int6
 	}
 
 	if emailChanged {
-		s.logAction(ctx, operatorID, platform.ActionUpdate, platform.ResourceOperator, &operatorID, nil, map[string]any{
+		s.logAction(ctx, operatorID, platform.ActionUpdate, platform.ResourceOperator, &operatorID, clientIP, map[string]any{
 			"old_email": oldEmail,
 			"new_email": newEmail,
 		})

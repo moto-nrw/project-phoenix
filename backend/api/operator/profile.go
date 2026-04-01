@@ -80,7 +80,8 @@ func (rs *ProfileResource) UpdateProfile(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	operator, err := rs.authService.UpdateProfile(r.Context(), operatorID, req.DisplayName, req.Email)
+	clientIP := getClientIP(r)
+	operator, err := rs.authService.UpdateProfile(r.Context(), operatorID, req.DisplayName, req.Email, clientIP)
 	if err != nil {
 		common.RenderError(w, r, ProfileErrorRenderer(err))
 		return
