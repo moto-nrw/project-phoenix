@@ -129,6 +129,70 @@ func TestXLSXParser_ParseStudents(t *testing.T) {
 		assert.Equal(t, "2017-05-14", students[0].Birthday)
 	})
 
+	t.Run("preserves formatted postal codes with leading zeros", func(t *testing.T) {
+		f := excelize.NewFile()
+		defer func() { _ = f.Close() }()
+
+		sheetName := f.GetSheetName(0)
+		require.NoError(t, f.SetCellValue(sheetName, "A1", "Vorname"))
+		require.NoError(t, f.SetCellValue(sheetName, "B1", "Nachname"))
+		require.NoError(t, f.SetCellValue(sheetName, "C1", "Klasse"))
+		require.NoError(t, f.SetCellValue(sheetName, "D1", "Erz1.Email"))
+		require.NoError(t, f.SetCellValue(sheetName, "E1", "Erz1.PLZ"))
+
+		require.NoError(t, f.SetCellValue(sheetName, "A2", "Markus"))
+		require.NoError(t, f.SetCellValue(sheetName, "B2", "Dell"))
+		require.NoError(t, f.SetCellValue(sheetName, "C2", "4A"))
+		require.NoError(t, f.SetCellValue(sheetName, "D2", "maria.mueller@example.com"))
+		require.NoError(t, f.SetCellValue(sheetName, "E2", 1067))
+
+		plzFormat := "00000"
+		plzStyle, err := f.NewStyle(&excelize.Style{CustomNumFmt: &plzFormat})
+		require.NoError(t, err)
+		require.NoError(t, f.SetCellStyle(sheetName, "E2", "E2", plzStyle))
+
+		buf, err := f.WriteToBuffer()
+		require.NoError(t, err)
+
+		parser := NewXLSXParser()
+		students, err := parser.ParseStudents(buf)
+
+		require.NoError(t, err)
+		require.Len(t, students, 1)
+		require.Len(t, students[0].Guardians, 1)
+		assert.Equal(t, "01067", students[0].Guardians[0].AddressPostalCode)
+	})
+
+	t.Run("keeps suspicious early Excel birthday serials invalid", func(t *testing.T) {
+		f := excelize.NewFile()
+		defer func() { _ = f.Close() }()
+
+		sheetName := f.GetSheetName(0)
+		require.NoError(t, f.SetCellValue(sheetName, "A1", "Vorname"))
+		require.NoError(t, f.SetCellValue(sheetName, "B1", "Nachname"))
+		require.NoError(t, f.SetCellValue(sheetName, "C1", "Klasse"))
+		require.NoError(t, f.SetCellValue(sheetName, "D1", "Geburtstag"))
+
+		require.NoError(t, f.SetCellValue(sheetName, "A2", "Markus"))
+		require.NoError(t, f.SetCellValue(sheetName, "B2", "Dell"))
+		require.NoError(t, f.SetCellValue(sheetName, "C2", "4A"))
+		require.NoError(t, f.SetCellValue(sheetName, "D2", 42))
+
+		dateStyle, err := f.NewStyle(&excelize.Style{NumFmt: 14})
+		require.NoError(t, err)
+		require.NoError(t, f.SetCellStyle(sheetName, "D2", "D2", dateStyle))
+
+		buf, err := f.WriteToBuffer()
+		require.NoError(t, err)
+
+		parser := NewXLSXParser()
+		students, err := parser.ParseStudents(buf)
+
+		require.NoError(t, err)
+		require.Len(t, students, 1)
+		assert.Equal(t, "42", students[0].Birthday)
+	})
+
 	t.Run("parses guardians", func(t *testing.T) {
 		// ARRANGE
 		headers := []string{"Vorname", "Nachname", "Klasse", "Erz1.Vorname", "Erz1.Nachname", "Erz1.Email", "Erz1.Telefon"}
