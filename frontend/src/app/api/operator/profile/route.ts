@@ -14,6 +14,7 @@ interface ProfileResponse {
 
 interface UpdateProfileBody {
   display_name: string;
+  email: string;
 }
 
 export const GET = createOperatorGetHandler<ProfileResponse>(

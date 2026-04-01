@@ -25,7 +25,7 @@ type mockOperatorAuthService struct {
 	loginFn          func(ctx context.Context, email, password string, clientIP net.IP) (string, string, *platform.Operator, error)
 	refreshTokenFn   func(ctx context.Context, operatorID int64) (string, string, error)
 	getOperatorFn    func(ctx context.Context, id int64) (*platform.Operator, error)
-	updateProfileFn  func(ctx context.Context, operatorID int64, displayName string) (*platform.Operator, error)
+	updateProfileFn  func(ctx context.Context, operatorID int64, displayName string, email string) (*platform.Operator, error)
 	changePasswordFn func(ctx context.Context, operatorID int64, currentPassword, newPassword string) error
 }
 
@@ -58,9 +58,9 @@ func (m *mockOperatorAuthService) ListOperators(ctx context.Context) ([]*platfor
 	return nil, nil
 }
 
-func (m *mockOperatorAuthService) UpdateProfile(ctx context.Context, operatorID int64, displayName string) (*platform.Operator, error) {
+func (m *mockOperatorAuthService) UpdateProfile(ctx context.Context, operatorID int64, displayName string, email string) (*platform.Operator, error) {
 	if m.updateProfileFn != nil {
-		return m.updateProfileFn(ctx, operatorID, displayName)
+		return m.updateProfileFn(ctx, operatorID, displayName, email)
 	}
 	return nil, nil
 }

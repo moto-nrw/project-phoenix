@@ -35,30 +35,51 @@ function OperatorSettingsContent() {
   }, [session]);
 
   const handleSaveProfile = async () => {
+    const emailTrimmed = formData.email.trim();
+    if (!emailTrimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrimmed)) {
+      setAlertMessage("Bitte gib eine gültige E-Mail-Adresse ein");
+      setAlertType("error");
+      setShowAlert(true);
+      return;
+    }
+
     setIsSaving(true);
     try {
       const response = await fetch("/api/operator/profile", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ display_name: formData.displayName }),
+        body: JSON.stringify({
+          display_name: formData.displayName,
+          email: emailTrimmed,
+        }),
       });
 
       if (!response.ok) {
         const data = (await response.json()) as { error?: string };
+        if (response.status === 409) {
+          throw new Error("Diese E-Mail-Adresse wird bereits verwendet");
+        }
         throw new Error(
           data.error ?? "Profil konnte nicht aktualisiert werden",
         );
       }
 
-      // Trigger session refresh with the updated name so JWT callback picks it up
-      await updateSession({ name: formData.displayName });
+      // Trigger session refresh with updated name and email so JWT callback picks them up
+      await updateSession({
+        name: formData.displayName,
+        email: emailTrimmed,
+      });
 
       setIsEditing(false);
       setAlertMessage("Profil erfolgreich aktualisiert");
       setAlertType("success");
       setShowAlert(true);
-    } catch {
-      setAlertMessage("Fehler beim Speichern des Profils");
+    } catch (error) {
+      setAlertMessage(
+        error instanceof Error
+          ? error.message
+          : "Fehler beim Speichern des Profils",
+      );
       setAlertType("error");
       setShowAlert(true);
     } finally {
@@ -123,9 +144,12 @@ function OperatorSettingsContent() {
               id="settings-email"
               type="email"
               value={formData.email}
-              disabled
+              onChange={(e) =>
+                setFormData({ ...formData, email: e.target.value })
+              }
+              disabled={!isEditing}
               maxLength={255}
-              className="w-full rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-base text-gray-500"
+              className="w-full rounded-lg border border-gray-200 px-4 py-3 text-base transition-all focus:ring-2 focus:ring-[#5080D8] focus:outline-none disabled:bg-gray-50 disabled:text-gray-500"
             />
           </div>
         </div>

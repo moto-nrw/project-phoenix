@@ -395,6 +395,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		AuditLogRepo: repos.OperatorAuditLog,
 		DB:           db,
 		Logger:       platformLogger,
+		Dispatcher:   dispatcher,
+		DefaultFrom:  defaultFrom,
+		FrontendURL:  frontendURL,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create operator auth service: %w", err)

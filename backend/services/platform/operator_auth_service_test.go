@@ -324,7 +324,7 @@ func TestOperatorAuthService_UpdateProfile_Success(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	operator, err := service.UpdateProfile(ctx, 1, "New Name")
+	operator, err := service.UpdateProfile(ctx, 1, "New Name", "operator@example.com")
 	require.NoError(t, err)
 	assert.NotNil(t, operator)
 	assert.Equal(t, "New Name", operator.DisplayName)
@@ -343,7 +343,7 @@ func TestOperatorAuthService_UpdateProfile_EmptyName(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = service.UpdateProfile(ctx, 1, "")
+	_, err = service.UpdateProfile(ctx, 1, "", "operator@example.com")
 	require.Error(t, err)
 	assert.IsType(t, &platformSvc.InvalidDataError{}, err)
 }
@@ -361,7 +361,7 @@ func TestOperatorAuthService_UpdateProfile_WhitespaceName(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = service.UpdateProfile(ctx, 1, "   ")
+	_, err = service.UpdateProfile(ctx, 1, "   ", "operator@example.com")
 	require.Error(t, err)
 	assert.IsType(t, &platformSvc.InvalidDataError{}, err)
 }
@@ -384,7 +384,7 @@ func TestOperatorAuthService_UpdateProfile_NameTooLong(t *testing.T) {
 		longName += "a"
 	}
 
-	_, err = service.UpdateProfile(ctx, 1, longName)
+	_, err = service.UpdateProfile(ctx, 1, longName, "operator@example.com")
 	require.Error(t, err)
 	assert.IsType(t, &platformSvc.InvalidDataError{}, err)
 }
@@ -406,7 +406,7 @@ func TestOperatorAuthService_UpdateProfile_OperatorNotFound(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = service.UpdateProfile(ctx, 999, "New Name")
+	_, err = service.UpdateProfile(ctx, 999, "New Name", "operator@example.com")
 	require.Error(t, err)
 	assert.IsType(t, &platformSvc.OperatorNotFoundError{}, err)
 }
@@ -437,7 +437,7 @@ func TestOperatorAuthService_UpdateProfile_UpdateError(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = service.UpdateProfile(ctx, 1, "New Name")
+	_, err = service.UpdateProfile(ctx, 1, "New Name", "operator@example.com")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to update operator profile")
 }

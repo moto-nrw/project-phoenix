@@ -25,6 +25,7 @@ func NewProfileResource(authService platformSvc.OperatorAuthService) *ProfileRes
 // UpdateProfileRequest represents the profile update request body
 type UpdateProfileRequest struct {
 	DisplayName string `json:"display_name"`
+	Email       string `json:"email"`
 }
 
 // Bind validates the update profile request
@@ -79,7 +80,7 @@ func (rs *ProfileResource) UpdateProfile(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	operator, err := rs.authService.UpdateProfile(r.Context(), operatorID, req.DisplayName)
+	operator, err := rs.authService.UpdateProfile(r.Context(), operatorID, req.DisplayName, req.Email)
 	if err != nil {
 		common.RenderError(w, r, ProfileErrorRenderer(err))
 		return
@@ -123,12 +124,15 @@ func ProfileErrorRenderer(err error) render.Renderer {
 	var passwordMismatch *platformSvc.PasswordMismatchError
 	var operatorNotFound *platformSvc.OperatorNotFoundError
 	var invalidData *platformSvc.InvalidDataError
+	var conflictErr *platformSvc.ConflictError
 
 	switch {
 	case errors.As(err, &passwordMismatch):
 		return ErrInvalidRequest(errors.New("das aktuelle Passwort ist falsch"))
 	case errors.As(err, &operatorNotFound):
 		return ErrNotFound("Operator not found")
+	case errors.As(err, &conflictErr):
+		return ErrConflict("Diese E-Mail-Adresse wird bereits verwendet")
 	case errors.As(err, &invalidData):
 		return ErrInvalidRequest(err)
 	default:

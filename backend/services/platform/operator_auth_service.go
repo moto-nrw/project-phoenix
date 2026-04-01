@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"net/mail"
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/auth/userpass"
+	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/uptrace/bun"
@@ -31,8 +33,8 @@ type OperatorAuthService interface {
 	// ListOperators retrieves all operators
 	ListOperators(ctx context.Context) ([]*platform.Operator, error)
 
-	// UpdateProfile updates an operator's display name
-	UpdateProfile(ctx context.Context, operatorID int64, displayName string) (*platform.Operator, error)
+	// UpdateProfile updates an operator's display name and email
+	UpdateProfile(ctx context.Context, operatorID int64, displayName string, email string) (*platform.Operator, error)
 
 	// ChangePassword changes an operator's password after verifying the current one
 	ChangePassword(ctx context.Context, operatorID int64, currentPassword, newPassword string) error
@@ -44,6 +46,9 @@ type operatorAuthService struct {
 	tokenAuth    *jwt.TokenAuth
 	db           *bun.DB
 	logger       *slog.Logger
+	dispatcher   *email.Dispatcher
+	defaultFrom  email.Email
+	frontendURL  string
 }
 
 // OperatorAuthServiceConfig holds configuration for the operator auth service
@@ -52,6 +57,9 @@ type OperatorAuthServiceConfig struct {
 	AuditLogRepo platform.OperatorAuditLogRepository
 	DB           *bun.DB
 	Logger       *slog.Logger
+	Dispatcher   *email.Dispatcher
+	DefaultFrom  email.Email
+	FrontendURL  string
 }
 
 // NewOperatorAuthService creates a new operator auth service
@@ -67,6 +75,9 @@ func NewOperatorAuthService(cfg OperatorAuthServiceConfig) (OperatorAuthService,
 		tokenAuth:    tokenAuth,
 		db:           cfg.DB,
 		logger:       cfg.Logger,
+		dispatcher:   cfg.Dispatcher,
+		defaultFrom:  cfg.DefaultFrom,
+		frontendURL:  cfg.FrontendURL,
 	}, nil
 }
 
@@ -232,14 +243,25 @@ func (s *operatorAuthService) ListOperators(ctx context.Context) ([]*platform.Op
 	return s.operatorRepo.List(ctx)
 }
 
-// UpdateProfile updates an operator's display name
-func (s *operatorAuthService) UpdateProfile(ctx context.Context, operatorID int64, displayName string) (*platform.Operator, error) {
+// UpdateProfile updates an operator's display name and email
+func (s *operatorAuthService) UpdateProfile(ctx context.Context, operatorID int64, displayName string, newEmail string) (*platform.Operator, error) {
 	displayName = strings.TrimSpace(displayName)
 	if displayName == "" {
 		return nil, &InvalidDataError{Err: fmt.Errorf("display name is required")}
 	}
 	if len(displayName) > 100 {
 		return nil, &InvalidDataError{Err: fmt.Errorf("display name must not exceed 100 characters")}
+	}
+
+	newEmail = strings.TrimSpace(strings.ToLower(newEmail))
+	if newEmail == "" {
+		return nil, &InvalidDataError{Err: fmt.Errorf("email is required")}
+	}
+	if _, err := mail.ParseAddress(newEmail); err != nil {
+		return nil, &InvalidDataError{Err: fmt.Errorf("invalid email format")}
+	}
+	if len(newEmail) > 255 {
+		return nil, &InvalidDataError{Err: fmt.Errorf("email must not exceed 255 characters")}
 	}
 
 	operator, err := s.operatorRepo.FindByID(ctx, operatorID)
@@ -250,12 +272,61 @@ func (s *operatorAuthService) UpdateProfile(ctx context.Context, operatorID int6
 		return nil, &OperatorNotFoundError{OperatorID: operatorID}
 	}
 
+	oldEmail := operator.Email
+	emailChanged := newEmail != oldEmail
+
+	if emailChanged {
+		existing, err := s.operatorRepo.FindByEmail(ctx, newEmail)
+		if err != nil {
+			return nil, fmt.Errorf("failed to check email uniqueness: %w", err)
+		}
+		if existing != nil {
+			return nil, &ConflictError{Err: fmt.Errorf("email address is already in use")}
+		}
+		operator.Email = newEmail
+	}
+
 	operator.DisplayName = displayName
 	if err := s.operatorRepo.Update(ctx, operator); err != nil {
 		return nil, fmt.Errorf("failed to update operator profile: %w", err)
 	}
 
+	if emailChanged {
+		s.sendEmailChangedNotification(oldEmail, newEmail, displayName)
+	}
+
 	return operator, nil
+}
+
+// sendEmailChangedNotification sends a courtesy notification to the old email address.
+func (s *operatorAuthService) sendEmailChangedNotification(oldEmail, newEmail, displayName string) {
+	if s.dispatcher == nil {
+		s.getLogger().Warn("no email dispatcher configured, skipping email change notification",
+			"old_email", oldEmail,
+		)
+		return
+	}
+
+	msg := email.Message{
+		From:     s.defaultFrom,
+		To:       email.NewEmail(displayName, oldEmail),
+		Subject:  "Deine E-Mail-Adresse wurde geändert",
+		Template: "operator-email-changed.html",
+		Content: map[string]any{
+			"DisplayName": displayName,
+			"OldEmail":    oldEmail,
+			"NewEmail":    newEmail,
+			"LogoURL":     fmt.Sprintf("%s/images/moto_transparent.png", s.frontendURL),
+		},
+	}
+
+	s.dispatcher.Dispatch(context.Background(), email.DeliveryRequest{
+		Message: msg,
+		Metadata: email.DeliveryMetadata{
+			Type:      "operator_email_changed",
+			Recipient: oldEmail,
+		},
+	})
 }
 
 // ChangePassword changes an operator's password after verifying the current one

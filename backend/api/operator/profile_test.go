@@ -97,7 +97,7 @@ func TestGetProfile_ServiceError(t *testing.T) {
 
 func TestUpdateProfile_Success(t *testing.T) {
 	mockService := &mockOperatorAuthService{
-		updateProfileFn: func(ctx context.Context, operatorID int64, displayName string) (*platform.Operator, error) {
+		updateProfileFn: func(ctx context.Context, operatorID int64, displayName string, email string) (*platform.Operator, error) {
 			assert.Equal(t, int64(123), operatorID)
 			assert.Equal(t, "New Display Name", displayName)
 			op := &platform.Operator{
@@ -173,7 +173,7 @@ func TestUpdateProfile_InvalidJSON(t *testing.T) {
 
 func TestUpdateProfile_InvalidData(t *testing.T) {
 	mockService := &mockOperatorAuthService{
-		updateProfileFn: func(ctx context.Context, operatorID int64, displayName string) (*platform.Operator, error) {
+		updateProfileFn: func(ctx context.Context, operatorID int64, displayName string, email string) (*platform.Operator, error) {
 			return nil, &platformSvc.InvalidDataError{Err: errors.New("display name too long")}
 		},
 	}

@@ -1,0 +1,21 @@
+{{define "operator-email-changed.html"}}
+{{template "header" .}}
+
+<div class="email-body">
+    <div class="brand">
+        <img src="{{.LogoURL}}" alt="moto Logo" style="max-width: 180px; height: auto; display: block; margin: 0 auto;" />
+    </div>
+    <h1>E-Mail-Adresse geändert</h1>
+    <p>Hallo {{.DisplayName}},</p>
+    <p>deine E-Mail-Adresse für das moto Operator-Dashboard wurde geändert.</p>
+
+    <div class="highlight-box">
+        <p><strong>Alte E-Mail:</strong> {{.OldEmail}}</p>
+        <p><strong>Neue E-Mail:</strong> {{.NewEmail}}</p>
+    </div>
+
+    <p class="security-note">Falls du diese Änderung nicht vorgenommen hast, kontaktiere uns bitte umgehend unter <a href="mailto:kontakt@moto.nrw">kontakt@moto.nrw</a>.</p>
+</div>
+
+{{template "footer" .}}
+{{end}}

@@ -472,11 +472,14 @@ export const sharedJwtCallback: NonNullable<
     }
   }
 
-  // Handle client-side session update (e.g. profile name change)
+  // Handle client-side session update (e.g. profile name/email change)
   if (trigger === "update" && session) {
     const update = session as Record<string, unknown>;
     if (typeof update.name === "string") {
       token.name = update.name;
+    }
+    if (typeof update.email === "string") {
+      token.email = update.email;
     }
   }
 
