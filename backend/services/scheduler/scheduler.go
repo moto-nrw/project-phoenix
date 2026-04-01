@@ -476,7 +476,7 @@ func (s *Scheduler) executeSessionCleanup(task *ScheduledTask, _ int, thresholdM
 		task.mu.Unlock()
 	}()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Hour)
 	defer cancel()
 
 	threshold := time.Duration(thresholdMinutes) * time.Minute
@@ -826,7 +826,7 @@ func (s *Scheduler) checkAndRunSessionCleanup(task *ScheduledTask) {
 		task.mu.Unlock()
 	}()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Hour)
 	defer cancel()
 
 	s.forEachTenantSettings(ctx, "session-cleanup", func(tenantCtx context.Context, tenantID int64) error {
