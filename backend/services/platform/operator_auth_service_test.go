@@ -683,11 +683,12 @@ func TestOperatorAuthService_UpdateProfile_EmailChange_AuditLog(t *testing.T) {
 	ctx := context.Background()
 	auditLogCalled := false
 	var auditEntry *platform.OperatorAuditLog
+	var operatorID int64 = 42
 
 	operatorRepo := &mockOperatorRepo{
 		findByIDFn: func(ctx context.Context, id int64) (*platform.Operator, error) {
 			return &platform.Operator{
-				Model:       base.Model{ID: 1},
+				Model:       base.Model{ID: operatorID},
 				Email:       "old@example.com",
 				DisplayName: "Operator",
 			}, nil
@@ -716,11 +717,11 @@ func TestOperatorAuthService_UpdateProfile_EmailChange_AuditLog(t *testing.T) {
 	require.NoError(t, err)
 
 	clientIP := net.ParseIP("192.168.1.1")
-	_, err = service.UpdateProfile(ctx, 1, "Operator", "new@example.com", clientIP)
+	_, err = service.UpdateProfile(ctx, operatorID, "Operator", "new@example.com", clientIP)
 	require.NoError(t, err)
 
 	assert.True(t, auditLogCalled, "audit log should be created for email change")
-	assert.Equal(t, int64(1), auditEntry.OperatorID)
+	assert.Equal(t, operatorID, auditEntry.OperatorID)
 	assert.Equal(t, platform.ActionUpdate, auditEntry.Action)
 	assert.Equal(t, platform.ResourceOperator, auditEntry.ResourceType)
 	assert.Equal(t, clientIP, auditEntry.RequestIP)
