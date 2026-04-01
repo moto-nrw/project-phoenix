@@ -6,7 +6,7 @@ import (
 
 func init() {
 	config.Register(config.Definition{
-		Key:             "gdpr.data_cleanup_enabled",
+		Key:             config.KeyDataCleanupEnabled,
 		Label:           "Automatische Datenbereinigung",
 		Description:     "Automatische Löschung abgelaufener Besuchsdaten gemäß Datenschutzeinstellungen",
 		Type:            config.FieldBoolean,
@@ -19,7 +19,7 @@ func init() {
 	})
 
 	config.Register(config.Definition{
-		Key:             "gdpr.data_cleanup_time",
+		Key:             config.KeyDataCleanupTime,
 		Label:           "Bereinigungszeitpunkt",
 		Description:     "Uhrzeit für die tägliche Datenbereinigung",
 		Type:            config.FieldTime,
@@ -30,7 +30,7 @@ func init() {
 		Category:        "cleanup",
 		SortOrder:       2,
 		DependsOn: &config.Dependency{
-			Key:       "gdpr.data_cleanup_enabled",
+			Key:       config.KeyDataCleanupEnabled,
 			Condition: "eq",
 			Value:     true,
 		},
@@ -39,7 +39,7 @@ func init() {
 	minTimeout := float64(5)
 	maxTimeout := float64(120)
 	config.Register(config.Definition{
-		Key:             "gdpr.data_cleanup_timeout_minutes",
+		Key:             config.KeyDataCleanupTimeoutMinutes,
 		Label:           "Bereinigung Timeout (Minuten)",
 		Description:     "Maximale Dauer für den Bereinigungsvorgang",
 		Type:            config.FieldNumber,
@@ -51,7 +51,7 @@ func init() {
 		SortOrder:       3,
 		Validation:      &config.ValidationRules{Min: &minTimeout, Max: &maxTimeout},
 		DependsOn: &config.Dependency{
-			Key:       "gdpr.data_cleanup_enabled",
+			Key:       config.KeyDataCleanupEnabled,
 			Condition: "eq",
 			Value:     true,
 		},

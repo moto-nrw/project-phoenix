@@ -143,12 +143,23 @@ function SettingsContent({ tabKey }: SettingsContentProps) {
         setError(errorMsg);
       } else {
         setError(null);
-        await loadSchema();
         logger.info("setting_value_reset", { key });
+
+        // Background sync: re-fetch schema to get the default value
+        // without blocking the UI or showing a loading spinner.
+        setTimeout(() => {
+          void fetchSettingsSchema().then((fresh) => {
+            if (!fresh) return;
+            setSchema((prev) => {
+              if (JSON.stringify(prev) === JSON.stringify(fresh)) return prev;
+              return fresh;
+            });
+          });
+        }, 500);
       }
       return errorMsg;
     },
-    [loadSchema],
+    [],
   );
 
   if (loading) {

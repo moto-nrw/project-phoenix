@@ -56,6 +56,7 @@ export function SettingsField({
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const feedbackRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isResettingRef = useRef(false);
   const isDirtyRef = useRef(false);
   const localValueRef = useRef<unknown>(setting.value);
 
@@ -156,17 +157,23 @@ export function SettingsField({
   }, [isDirty, localValue, doSave]);
 
   const handleReset = useCallback(async () => {
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current);
-      debounceRef.current = null;
-    }
-    const errorMsg = await onReset(setting.key);
-    if (errorMsg) {
-      setError(errorMsg);
-      showFeedback("error");
-    } else {
-      setError(null);
-      showFeedback("saved");
+    if (isResettingRef.current) return;
+    isResettingRef.current = true;
+    try {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+        debounceRef.current = null;
+      }
+      const errorMsg = await onReset(setting.key);
+      if (errorMsg) {
+        setError(errorMsg);
+        showFeedback("error");
+      } else {
+        setError(null);
+        showFeedback("saved");
+      }
+    } finally {
+      isResettingRef.current = false;
     }
   }, [setting.key, onReset, showFeedback]);
 

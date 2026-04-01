@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"sort"
 
 	"github.com/moto-nrw/project-phoenix/models/config"
@@ -151,7 +152,11 @@ func evaluateDependency(resolved *ResolvedSetting, resolvedMap map[string]*Resol
 	case "not_empty":
 		return parent.Value != nil && parent.Value != ""
 	default:
-		return true
+		slog.Warn("unknown dependency condition, treating as not met",
+			slog.String("key", resolved.DependsOn.Key),
+			slog.String("condition", resolved.DependsOn.Condition),
+		)
+		return false
 	}
 }
 

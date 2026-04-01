@@ -244,6 +244,9 @@ func deviceAuthenticator(iotService iotSvc.Service, schoolRepo platform.SchoolRe
 				ogsPin = pinResolver(r.Context(), device.TenantID)
 			}
 			if ogsPin == "" {
+				slog.Warn("settings service returned no PIN, falling back to OGS_DEVICE_PIN env var",
+					slog.Int64("tenant_id", device.TenantID),
+				)
 				ogsPin = os.Getenv("OGS_DEVICE_PIN")
 			}
 			if ogsPin == "" {

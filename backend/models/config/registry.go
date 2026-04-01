@@ -54,6 +54,7 @@ type ValidationRules struct {
 	Required bool     `json:"required,omitempty"`
 	Min      *float64 `json:"min,omitempty"`
 	Max      *float64 `json:"max,omitempty"`
+	Pattern  *string  `json:"pattern,omitempty"` // Regex pattern for string/password fields
 }
 
 // Dependency makes a setting conditionally visible based on another setting's value.

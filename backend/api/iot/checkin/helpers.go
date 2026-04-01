@@ -3,12 +3,14 @@ package checkin
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/active"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
@@ -19,8 +21,13 @@ func (rs *Resource) getStudentDailyCheckoutTime(ctx context.Context) (time.Time,
 
 	// Try settings service first
 	if rs.SettingsService != nil {
-		if val, err := rs.SettingsService.ResolveString(ctx, "operations.student_daily_checkout_time"); err == nil && val != "" {
+		if val, err := rs.SettingsService.ResolveString(ctx, configModel.KeyStudentDailyCheckoutTime); err == nil && val != "" {
 			checkoutTimeStr = val
+		} else if err != nil {
+			slog.Warn("settings resolution failed, falling back to env var",
+				slog.String("key", configModel.KeyStudentDailyCheckoutTime),
+				slog.String("error", err.Error()),
+			)
 		}
 	}
 

@@ -29,6 +29,12 @@ type SettingAuditEntry struct {
 // GetID returns the entity's ID.
 func (e *SettingAuditEntry) GetID() interface{} { return e.ID }
 
+// GetTenantID returns the tenant ID (satisfies base.TenantScoped interface).
+func (e *SettingAuditEntry) GetTenantID() int64 { return e.TenantID }
+
+// SetTenantID sets the tenant ID (satisfies base.TenantScoped interface).
+func (e *SettingAuditEntry) SetTenantID(id int64) { e.TenantID = id }
+
 // GetCreatedAt returns the creation timestamp.
 func (e *SettingAuditEntry) GetCreatedAt() time.Time { return e.ChangedAt }
 

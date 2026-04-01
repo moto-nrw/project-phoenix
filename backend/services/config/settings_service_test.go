@@ -792,8 +792,8 @@ func TestResolveBool_NonBoolValue(t *testing.T) {
 	svc := createService(newMockValueRepo(), &mockAuditRepo{})
 
 	val, err := svc.ResolveBool(tenantCtx(1), "test.notbool")
-	require.NoError(t, err)
-	assert.False(t, val) // non-bool value returns false
+	require.Error(t, err) // type mismatch now returns an error
+	assert.False(t, val)
 }
 
 func TestResolveInt_ErrorFromResolve(t *testing.T) {
@@ -811,8 +811,8 @@ func TestResolveInt_NonNumericValue(t *testing.T) {
 	svc := createService(newMockValueRepo(), &mockAuditRepo{})
 
 	val, err := svc.ResolveInt(tenantCtx(1), "test.notint")
-	require.NoError(t, err)
-	assert.Equal(t, 0, val) // non-numeric returns 0
+	require.Error(t, err) // type mismatch now returns an error
+	assert.Equal(t, 0, val)
 }
 
 func TestResolveInt_IntValue(t *testing.T) {
@@ -1003,49 +1003,55 @@ func TestSetValue_TextRejectsNonString(t *testing.T) {
 
 func TestSetValue_PINRejectsMoreThan4Digits(t *testing.T) {
 	setupTest(t)
+	pinPattern := `^\d{4}$`
 	config.Register(config.Definition{
-		Key:      "security.ogs_device_pin",
-		Label:    "PIN",
-		Type:     config.FieldPassword,
-		Default:  "",
-		Tab:      "security",
-		Category: "auth",
+		Key:        "security.ogs_device_pin",
+		Label:      "PIN",
+		Type:       config.FieldPassword,
+		Default:    "",
+		Tab:        "security",
+		Category:   "auth",
+		Validation: &config.ValidationRules{Pattern: &pinPattern},
 	})
 
 	svc := createService(newMockValueRepo(), &mockAuditRepo{})
 
 	err := svc.SetValue(tenantCtx(1), "security.ogs_device_pin", "123456", nil, nil)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "PIN must be exactly 4 digits")
+	assert.Contains(t, err.Error(), "does not match required pattern")
 }
 
 func TestSetValue_PINRejectsNonNumeric(t *testing.T) {
 	setupTest(t)
+	pinPattern := `^\d{4}$`
 	config.Register(config.Definition{
-		Key:      "security.ogs_device_pin",
-		Label:    "PIN",
-		Type:     config.FieldPassword,
-		Default:  "",
-		Tab:      "security",
-		Category: "auth",
+		Key:        "security.ogs_device_pin",
+		Label:      "PIN",
+		Type:       config.FieldPassword,
+		Default:    "",
+		Tab:        "security",
+		Category:   "auth",
+		Validation: &config.ValidationRules{Pattern: &pinPattern},
 	})
 
 	svc := createService(newMockValueRepo(), &mockAuditRepo{})
 
 	err := svc.SetValue(tenantCtx(1), "security.ogs_device_pin", "abcd", nil, nil)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "PIN must be exactly 4 digits")
+	assert.Contains(t, err.Error(), "does not match required pattern")
 }
 
 func TestSetValue_PINAccepts4Digits(t *testing.T) {
 	setupTest(t)
+	pinPattern := `^\d{4}$`
 	config.Register(config.Definition{
-		Key:      "security.ogs_device_pin",
-		Label:    "PIN",
-		Type:     config.FieldPassword,
-		Default:  "",
-		Tab:      "security",
-		Category: "auth",
+		Key:        "security.ogs_device_pin",
+		Label:      "PIN",
+		Type:       config.FieldPassword,
+		Default:    "",
+		Tab:        "security",
+		Category:   "auth",
+		Validation: &config.ValidationRules{Pattern: &pinPattern},
 	})
 
 	svc := createService(newMockValueRepo(), &mockAuditRepo{})
@@ -1056,13 +1062,15 @@ func TestSetValue_PINAccepts4Digits(t *testing.T) {
 
 func TestSetValue_PINAcceptsEmpty(t *testing.T) {
 	setupTest(t)
+	pinPattern := `^\d{4}$`
 	config.Register(config.Definition{
-		Key:      "security.ogs_device_pin",
-		Label:    "PIN",
-		Type:     config.FieldPassword,
-		Default:  "",
-		Tab:      "security",
-		Category: "auth",
+		Key:        "security.ogs_device_pin",
+		Label:      "PIN",
+		Type:       config.FieldPassword,
+		Default:    "",
+		Tab:        "security",
+		Category:   "auth",
+		Validation: &config.ValidationRules{Pattern: &pinPattern},
 	})
 
 	svc := createService(newMockValueRepo(), &mockAuditRepo{})

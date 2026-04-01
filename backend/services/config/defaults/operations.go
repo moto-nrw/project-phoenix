@@ -8,7 +8,7 @@ func init() {
 	// --- Session End ---
 
 	config.Register(config.Definition{
-		Key:             "operations.session_end_enabled",
+		Key:             config.KeySessionEndEnabled,
 		Label:           "Automatisches Sitzungsende",
 		Description:     "Alle aktiven Sitzungen werden automatisch zur konfigurierten Uhrzeit beendet",
 		Type:            config.FieldBoolean,
@@ -21,7 +21,7 @@ func init() {
 	})
 
 	config.Register(config.Definition{
-		Key:             "operations.session_end_time",
+		Key:             config.KeySessionEndTime,
 		Label:           "Sitzungsende Uhrzeit",
 		Description:     "Uhrzeit, zu der alle aktiven Sitzungen automatisch beendet werden",
 		Type:            config.FieldTime,
@@ -32,7 +32,7 @@ func init() {
 		Category:        "sessions",
 		SortOrder:       2,
 		DependsOn: &config.Dependency{
-			Key:       "operations.session_end_enabled",
+			Key:       config.KeySessionEndEnabled,
 			Condition: "eq",
 			Value:     true,
 		},
@@ -41,7 +41,7 @@ func init() {
 	minTimeout := float64(1)
 	maxTimeout := float64(60)
 	config.Register(config.Definition{
-		Key:             "operations.session_end_timeout_minutes",
+		Key:             config.KeySessionEndTimeoutMinutes,
 		Label:           "Sitzungsende Timeout (Minuten)",
 		Description:     "Maximale Dauer für den automatischen Sitzungsende-Vorgang",
 		Type:            config.FieldNumber,
@@ -53,7 +53,7 @@ func init() {
 		SortOrder:       3,
 		Validation:      &config.ValidationRules{Min: &minTimeout, Max: &maxTimeout},
 		DependsOn: &config.Dependency{
-			Key:       "operations.session_end_enabled",
+			Key:       config.KeySessionEndEnabled,
 			Condition: "eq",
 			Value:     true,
 		},
@@ -62,7 +62,7 @@ func init() {
 	// --- Student Daily Checkout ---
 
 	config.Register(config.Definition{
-		Key:             "operations.student_daily_checkout_time",
+		Key:             config.KeyStudentDailyCheckoutTime,
 		Label:           "Tägliche Abmeldezeit",
 		Description:     "Uhrzeit, ab der Schüler aus dem Heimraum abgemeldet werden können",
 		Type:            config.FieldTime,
@@ -77,7 +77,7 @@ func init() {
 	// --- Abandoned Session Cleanup ---
 
 	config.Register(config.Definition{
-		Key:             "operations.session_cleanup_enabled",
+		Key:             config.KeySessionCleanupEnabled,
 		Label:           "Bereinigung verlassener Sitzungen",
 		Description:     "Automatische Bereinigung von Sitzungen ohne Aktivität",
 		Type:            config.FieldBoolean,
@@ -92,7 +92,7 @@ func init() {
 	minInterval := float64(5)
 	maxInterval := float64(120)
 	config.Register(config.Definition{
-		Key:             "operations.session_cleanup_interval_minutes",
+		Key:             config.KeySessionCleanupIntervalMinutes,
 		Label:           "Bereinigungsintervall (Minuten)",
 		Description:     "Wie oft nach verlassenen Sitzungen geprüft wird",
 		Type:            config.FieldNumber,
@@ -104,7 +104,7 @@ func init() {
 		SortOrder:       2,
 		Validation:      &config.ValidationRules{Min: &minInterval, Max: &maxInterval},
 		DependsOn: &config.Dependency{
-			Key:       "operations.session_cleanup_enabled",
+			Key:       config.KeySessionCleanupEnabled,
 			Condition: "eq",
 			Value:     true,
 		},
@@ -113,7 +113,7 @@ func init() {
 	minThreshold := float64(10)
 	maxThreshold := float64(480)
 	config.Register(config.Definition{
-		Key:             "operations.session_abandoned_threshold_minutes",
+		Key:             config.KeySessionAbandonedThresholdMin,
 		Label:           "Inaktivitätsschwelle (Minuten)",
 		Description:     "Minuten ohne Aktivität, bevor eine Sitzung als verlassen gilt",
 		Type:            config.FieldNumber,
@@ -125,7 +125,7 @@ func init() {
 		SortOrder:       3,
 		Validation:      &config.ValidationRules{Min: &minThreshold, Max: &maxThreshold},
 		DependsOn: &config.Dependency{
-			Key:       "operations.session_cleanup_enabled",
+			Key:       config.KeySessionCleanupEnabled,
 			Condition: "eq",
 			Value:     true,
 		},
@@ -136,7 +136,7 @@ func init() {
 	minBreakInterval := float64(10)
 	maxBreakInterval := float64(300)
 	config.Register(config.Definition{
-		Key:             "operations.break_auto_end_interval_seconds",
+		Key:             config.KeyBreakAutoEndIntervalSeconds,
 		Label:           "Pausen-Auto-Ende Intervall (Sekunden)",
 		Description:     "Wie oft geprüft wird, ob Pausen automatisch beendet werden sollen",
 		Type:            config.FieldNumber,

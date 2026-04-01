@@ -110,7 +110,7 @@ func (s *settingsService) ResolveBool(ctx context.Context, key string) (bool, er
 	}
 	b, ok := val.(bool)
 	if !ok {
-		return false, nil
+		return false, &SettingsError{Op: "resolve_bool", Err: fmt.Errorf("expected bool, got %T", val)}
 	}
 	return b, nil
 }
@@ -132,11 +132,11 @@ func (s *settingsService) ResolveInt(ctx context.Context, key string) (int, erro
 	case json.Number:
 		i, err := n.Int64()
 		if err != nil {
-			return 0, nil
+			return 0, &SettingsError{Op: "resolve_int", Err: fmt.Errorf("invalid number: %w", err)}
 		}
 		return int(i), nil
 	default:
-		return 0, nil
+		return 0, &SettingsError{Op: "resolve_int", Err: fmt.Errorf("expected number, got %T", val)}
 	}
 }
 
@@ -288,9 +288,6 @@ func (s *settingsService) GetSchema(ctx context.Context, userPermissions []strin
 
 // --- Validation ---
 
-// pinPattern matches exactly 4 numeric digits.
-var pinPattern = regexp.MustCompile(`^\d{4}$`)
-
 func validateValue(def *config.Definition, value any) error {
 	// Check required constraint (from validation rules)
 	if def.Validation != nil && def.Validation.Required && value == nil {
@@ -337,9 +334,12 @@ func validateValue(def *config.Definition, value any) error {
 		if !ok {
 			return fmt.Errorf("expected a string")
 		}
-		// PIN-specific validation: must be empty or exactly 4 digits
-		if def.Key == "security.ogs_device_pin" && str != "" && !pinPattern.MatchString(str) {
-			return fmt.Errorf("PIN must be exactly 4 digits")
+		// Apply pattern validation from registry definition if present
+		if def.Validation != nil && def.Validation.Pattern != nil && str != "" {
+			pat := regexp.MustCompile(*def.Validation.Pattern)
+			if !pat.MatchString(str) {
+				return fmt.Errorf("value does not match required pattern")
+			}
 		}
 
 	case config.FieldSelect:

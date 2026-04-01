@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -272,6 +273,14 @@ func (s *Scheduler) runCleanupTaskPolling(task *ScheduledTask) {
 
 	s.getLogger().Info("cleanup task using minute-polling for per-tenant scheduling")
 
+	// Immediate check on startup so we don't miss the current minute after a restart.
+	s.checkAndRunCleanup(task)
+
+	// Align to the next minute boundary so ticks land at HH:MM:00.
+	if !s.waitUntilNextMinute() {
+		return
+	}
+
 	ticker := time.NewTicker(60 * time.Second)
 	defer ticker.Stop()
 
@@ -291,12 +300,12 @@ func (s *Scheduler) checkAndRunCleanup(task *ScheduledTask) {
 	defer cancel()
 
 	s.forEachTenantSettings(ctx, "cleanup-check", func(tenantCtx context.Context, tenantID int64) error {
-		enabled := s.resolveBoolSetting(tenantCtx, "gdpr.data_cleanup_enabled", "CLEANUP_SCHEDULER_ENABLED", true)
+		enabled := s.resolveBoolSetting(tenantCtx, configModel.KeyDataCleanupEnabled, "CLEANUP_SCHEDULER_ENABLED", true)
 		if !enabled {
 			return nil
 		}
 
-		cleanupTime := s.resolveStringSetting(tenantCtx, "gdpr.data_cleanup_time", "CLEANUP_SCHEDULER_TIME", "02:00")
+		cleanupTime := s.resolveStringSetting(tenantCtx, configModel.KeyDataCleanupTime, "CLEANUP_SCHEDULER_TIME", "02:00")
 		if !timeMatchesNow(cleanupTime) {
 			return nil
 		}
@@ -310,7 +319,7 @@ func (s *Scheduler) checkAndRunCleanup(task *ScheduledTask) {
 			slog.String("cleanup_time", cleanupTime),
 		)
 
-		timeoutMinutes := s.resolveIntSetting(tenantCtx, "gdpr.data_cleanup_timeout_minutes", "CLEANUP_SCHEDULER_TIMEOUT_MINUTES", 30)
+		timeoutMinutes := s.resolveIntSetting(tenantCtx, configModel.KeyDataCleanupTimeoutMinutes, "CLEANUP_SCHEDULER_TIMEOUT_MINUTES", 30)
 		cleanupCtx, cleanupCancel := context.WithTimeout(tenantCtx, time.Duration(timeoutMinutes)*time.Minute)
 		defer cleanupCancel()
 
@@ -387,7 +396,7 @@ func (s *Scheduler) executeCleanup(task *ScheduledTask) {
 		task.mu.Unlock()
 	}()
 
-	timeoutMinutes := s.resolveIntSetting(context.Background(), "gdpr.data_cleanup_timeout_minutes", "CLEANUP_SCHEDULER_TIMEOUT_MINUTES", 30)
+	timeoutMinutes := s.resolveIntSetting(context.Background(), configModel.KeyDataCleanupTimeoutMinutes, "CLEANUP_SCHEDULER_TIMEOUT_MINUTES", 30)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutMinutes)*time.Minute)
 	defer cancel()
 
@@ -417,7 +426,7 @@ func (s *Scheduler) executeSessionEnd(task *ScheduledTask) {
 		task.mu.Unlock()
 	}()
 
-	timeoutMinutes := s.resolveIntSetting(context.Background(), "operations.session_end_timeout_minutes", "SESSION_END_TIMEOUT_MINUTES", 10)
+	timeoutMinutes := s.resolveIntSetting(context.Background(), configModel.KeySessionEndTimeoutMinutes, "SESSION_END_TIMEOUT_MINUTES", 10)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutMinutes)*time.Minute)
 	defer cancel()
 
@@ -654,6 +663,14 @@ func (s *Scheduler) runSessionEndTaskPolling(task *ScheduledTask) {
 
 	s.getLogger().Info("session end task using minute-polling for per-tenant scheduling")
 
+	// Immediate check on startup so we don't miss the current minute after a restart.
+	s.checkAndRunSessionEnd(task)
+
+	// Align to the next minute boundary so ticks land at HH:MM:00.
+	if !s.waitUntilNextMinute() {
+		return
+	}
+
 	ticker := time.NewTicker(60 * time.Second)
 	defer ticker.Stop()
 
@@ -673,12 +690,12 @@ func (s *Scheduler) checkAndRunSessionEnd(task *ScheduledTask) {
 	defer cancel()
 
 	s.forEachTenantSettings(ctx, "session-end-check", func(tenantCtx context.Context, tenantID int64) error {
-		enabled := s.resolveBoolSetting(tenantCtx, "operations.session_end_enabled", "SESSION_END_SCHEDULER_ENABLED", true)
+		enabled := s.resolveBoolSetting(tenantCtx, configModel.KeySessionEndEnabled, "SESSION_END_SCHEDULER_ENABLED", true)
 		if !enabled {
 			return nil
 		}
 
-		endTime := s.resolveStringSetting(tenantCtx, "operations.session_end_time", "SESSION_END_TIME", "18:00")
+		endTime := s.resolveStringSetting(tenantCtx, configModel.KeySessionEndTime, "SESSION_END_TIME", "18:00")
 		if !timeMatchesNow(endTime) {
 			return nil
 		}
@@ -692,7 +709,7 @@ func (s *Scheduler) checkAndRunSessionEnd(task *ScheduledTask) {
 			slog.String("session_end_time", endTime),
 		)
 
-		timeoutMinutes := s.resolveIntSetting(tenantCtx, "operations.session_end_timeout_minutes", "SESSION_END_TIMEOUT_MINUTES", 10)
+		timeoutMinutes := s.resolveIntSetting(tenantCtx, configModel.KeySessionEndTimeoutMinutes, "SESSION_END_TIMEOUT_MINUTES", 10)
 		endCtx, endCancel := context.WithTimeout(tenantCtx, time.Duration(timeoutMinutes)*time.Minute)
 		defer endCancel()
 
@@ -796,13 +813,13 @@ func (s *Scheduler) checkAndRunSessionCleanup(task *ScheduledTask) {
 	defer cancel()
 
 	s.forEachTenantSettings(ctx, "session-cleanup", func(tenantCtx context.Context, tenantID int64) error {
-		enabled := s.resolveBoolSetting(tenantCtx, "operations.session_cleanup_enabled", "SESSION_CLEANUP_ENABLED", true)
+		enabled := s.resolveBoolSetting(tenantCtx, configModel.KeySessionCleanupEnabled, "SESSION_CLEANUP_ENABLED", true)
 		if !enabled {
 			return nil
 		}
 
-		intervalMinutes := s.resolveIntSetting(tenantCtx, "operations.session_cleanup_interval_minutes", "SESSION_CLEANUP_INTERVAL_MINUTES", 15)
-		thresholdMinutes := s.resolveIntSetting(tenantCtx, "operations.session_abandoned_threshold_minutes", "SESSION_ABANDONED_THRESHOLD_MINUTES", 60)
+		intervalMinutes := s.resolveIntSetting(tenantCtx, configModel.KeySessionCleanupIntervalMinutes, "SESSION_CLEANUP_INTERVAL_MINUTES", 15)
+		thresholdMinutes := s.resolveIntSetting(tenantCtx, configModel.KeySessionAbandonedThresholdMin, "SESSION_ABANDONED_THRESHOLD_MINUTES", 60)
 
 		// Check if enough time has passed since last run for this tenant
 		if val, ok := s.lastSessionCleanup.Load(tenantID); ok {
@@ -848,7 +865,7 @@ func (s *Scheduler) scheduleBreakAutoEndTask() {
 	// Resolve interval: settings service → env var → default (60s)
 	s.breakAutoEndIntervalSeconds = s.resolveIntSetting(
 		context.Background(),
-		"operations.break_auto_end_interval_seconds",
+		configModel.KeyBreakAutoEndIntervalSeconds,
 		"BREAK_AUTO_END_INTERVAL_SECONDS",
 		60,
 	)
@@ -981,6 +998,21 @@ func (s *Scheduler) resolveIntSetting(ctx context.Context, key string, envVar st
 		}
 	}
 	return defaultVal
+}
+
+// waitUntilNextMinute blocks until the start of the next wall-clock minute,
+// so that subsequent 60-second ticks are aligned to HH:MM:00.
+// Returns false if the scheduler is shutting down during the wait.
+func (s *Scheduler) waitUntilNextMinute() bool {
+	now := time.Now()
+	nextMinute := now.Truncate(time.Minute).Add(time.Minute)
+	delay := time.Until(nextMinute)
+	select {
+	case <-time.After(delay):
+		return true
+	case <-s.done:
+		return false
+	}
 }
 
 // timeMatchesNow checks if an HH:MM time string matches the current minute.

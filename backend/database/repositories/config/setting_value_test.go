@@ -117,20 +117,49 @@ func TestSettingValueRepository_TenantIsolation(t *testing.T) {
 	defer func() { _ = db.Close() }()
 	repo := configRepo.NewSettingValueRepository(db)
 	ctx1 := testpkg.TenantContext(1)
+	ctx2 := testpkg.TenantContext(2)
 
-	require.NoError(t, repo.Upsert(ctx1, newSV("test.isolation", `"tenant1"`)))
+	// Insert data for both tenants using their own contexts
+	sv1 := &config.SettingValue{
+		SettingKey: "test.isolation",
+		Value:      json.RawMessage(`"tenant1"`),
+	}
+	sv1.TenantID = 1
+	require.NoError(t, repo.Upsert(ctx1, sv1))
 
-	// Tenant 1 can see it
-	found, err := repo.FindByTenantAndKey(ctx1, 1, "test.isolation")
+	sv2 := &config.SettingValue{
+		SettingKey: "test.isolation",
+		Value:      json.RawMessage(`"tenant2"`),
+	}
+	sv2.TenantID = 2
+	require.NoError(t, repo.Upsert(ctx2, sv2))
+
+	// Tenant 1 can see its own data
+	found1, err := repo.FindByTenantAndKey(ctx1, 1, "test.isolation")
 	require.NoError(t, err)
-	require.NotNil(t, found)
+	require.NotNil(t, found1)
+	assert.Equal(t, json.RawMessage(`"tenant1"`), found1.Value)
 
-	// Query for tenant 2 should NOT find tenant 1's value
-	found2, err := repo.FindByTenantAndKey(ctx1, 2, "test.isolation")
+	// Tenant 1 cannot see tenant 2's data (RLS blocks cross-tenant access)
+	cross1, err := repo.FindByTenantAndKey(ctx1, 2, "test.isolation")
 	require.NoError(t, err)
-	assert.Nil(t, found2)
+	assert.Nil(t, cross1)
 
-	t.Cleanup(func() { _ = repo.Delete(ctx1, 1, "test.isolation") })
+	// Tenant 2 can see its own data
+	found2, err := repo.FindByTenantAndKey(ctx2, 2, "test.isolation")
+	require.NoError(t, err)
+	require.NotNil(t, found2)
+	assert.Equal(t, json.RawMessage(`"tenant2"`), found2.Value)
+
+	// Tenant 2 cannot see tenant 1's data (RLS blocks cross-tenant access)
+	cross2, err := repo.FindByTenantAndKey(ctx2, 1, "test.isolation")
+	require.NoError(t, err)
+	assert.Nil(t, cross2)
+
+	t.Cleanup(func() {
+		_ = repo.Delete(ctx1, 1, "test.isolation")
+		_ = repo.Delete(ctx2, 2, "test.isolation")
+	})
 }
 
 func TestSettingValueRepository_Validate_RejectsEmpty(t *testing.T) {

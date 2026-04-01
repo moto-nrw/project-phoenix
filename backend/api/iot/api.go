@@ -16,6 +16,7 @@ import (
 	sessionsAPI "github.com/moto-nrw/project-phoenix/api/iot/sessions"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
@@ -98,7 +99,7 @@ func (rs *Resource) pinResolver() device.PINResolver {
 		return nil
 	}
 	return func(ctx context.Context, tenantID int64) string {
-		pin, err := rs.SettingsService.ResolveStringForTenant(ctx, tenantID, "security.ogs_device_pin")
+		pin, err := rs.SettingsService.ResolveStringForTenant(ctx, tenantID, configModel.KeyOGSDevicePIN)
 		if err != nil {
 			return ""
 		}

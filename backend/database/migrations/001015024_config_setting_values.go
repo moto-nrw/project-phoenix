@@ -32,7 +32,7 @@ func init() {
 }
 
 func createSettingValuesTables(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.19: Creating config.setting_values and config.setting_audit tables...")
+	fmt.Println("Migration 1.15.24: Creating config.setting_values and config.setting_audit tables...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -111,7 +111,7 @@ func createSettingValuesTables(ctx context.Context, db *bun.DB) error {
 }
 
 func dropSettingValuesTables(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.19: Dropping config.setting_values and config.setting_audit...")
+	fmt.Println("Rolling back migration 1.15.24: Dropping config.setting_values and config.setting_audit...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
