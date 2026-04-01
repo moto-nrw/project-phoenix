@@ -45,7 +45,7 @@ function OperatorSettingsContent() {
       emailTrimmed.indexOf("@", atIndex + 1) === -1 &&
       emailTrimmed.indexOf(".", atIndex + 1) > atIndex + 1 &&
       !emailTrimmed.includes(" ") &&
-      emailTrimmed.length <= 254;
+      emailTrimmed.length <= 255;
 
     if (emailChanged && (!emailTrimmed || !hasValidStructure)) {
       setAlertMessage("Bitte gib eine gültige E-Mail-Adresse ein");
@@ -69,8 +69,12 @@ function OperatorSettingsContent() {
         body: JSON.stringify(body),
       });
 
+      const data = (await response.json()) as {
+        data?: { email?: string; display_name?: string };
+        error?: string;
+      };
+
       if (!response.ok) {
-        const data = (await response.json()) as { error?: string };
         if (response.status === 409) {
           throw new Error("Diese E-Mail-Adresse wird bereits verwendet");
         }
@@ -79,12 +83,12 @@ function OperatorSettingsContent() {
         );
       }
 
-      // Trigger session refresh so JWT callback picks up changes
+      // Use the backend's canonicalized values for the session update
       const sessionUpdate: Record<string, string> = {
-        name: formData.displayName,
+        name: data.data?.display_name ?? formData.displayName,
       };
       if (emailChanged) {
-        sessionUpdate.email = emailTrimmed;
+        sessionUpdate.email = data.data?.email ?? emailTrimmed;
       }
       await updateSession(sessionUpdate);
 
