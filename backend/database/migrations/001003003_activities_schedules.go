@@ -16,11 +16,11 @@ const (
 
 func init() {
 	// Register migration with explicit version
-	MigrationRegistry[ActivitiesSchedulesVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     ActivitiesSchedulesVersion,
 		Description: ActivitiesSchedulesDescription,
 		DependsOn:   []string{"1.3.2", "1.1.2"}, // Depends on activities.groups and schedule.timeframes
-	}
+	})
 
 	// Migration 1.3.3: Create activities.schedules table
 	Migrations.MustRegister(

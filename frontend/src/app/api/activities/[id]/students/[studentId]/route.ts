@@ -1,8 +1,11 @@
 // app/api/activities/[id]/students/[studentId]/route.ts
 import type { NextRequest } from "next/server";
 import { createGetHandler, createDeleteHandler } from "~/lib/route-wrapper";
-import { apiDelete } from "~/lib/api-helpers";
-import { getEnrolledStudents } from "~/lib/activity-api";
+import { apiDelete, apiGet } from "~/lib/api-helpers";
+import {
+  type BackendStudentEnrollment,
+  mapStudentEnrollmentsResponse,
+} from "~/lib/activity-helpers";
 
 /**
  * Handler for GET /api/activities/[id]/students/[studentId]
@@ -21,8 +24,11 @@ export const GET = createGetHandler(
       throw new Error("Activity ID and Student ID are required");
     }
 
-    // Get all enrolled students for the activity
-    const students = await getEnrolledStudents(id);
+    const response = await apiGet<{ data: BackendStudentEnrollment[] }>(
+      `/api/activities/${id}/students`,
+      token,
+    );
+    const students = mapStudentEnrollmentsResponse(response.data ?? []);
 
     // Find the specific student
     const student = students.find((s) => s.student_id === studentId);

@@ -109,12 +109,13 @@ jobs:
           RESTORE_DB: ${{ inputs.restore_db }}
           SSH_HOST: ${{ steps.ssh.outputs.host }}
         run: |
-          scp -i ~/.ssh/deploy_key scripts/rollback-remote.sh root@$SSH_HOST:~/rollback-remote.sh
-          scp -i ~/.ssh/deploy_key scripts/restore-db.sh root@$SSH_HOST:~/restore-db.sh
+          ssh -i ~/.ssh/deploy_key "root@${SSH_HOST}" "mkdir -p ~/scripts"
+          scp -i ~/.ssh/deploy_key scripts/rollback-remote.sh root@$SSH_HOST:~/scripts/rollback-remote.sh
+          scp -i ~/.ssh/deploy_key scripts/restore-db.sh root@$SSH_HOST:~/scripts/restore-db.sh
 
           set +e
           ssh -i ~/.ssh/deploy_key "root@${SSH_HOST}" \
-            "TARGET_SHA=$TARGET_SHA DEPLOY_DIR=$DEPLOY_DIR RESTORE_DB=$RESTORE_DB bash ~/rollback-remote.sh"
+            "TARGET_SHA=$TARGET_SHA DEPLOY_DIR=$DEPLOY_DIR RESTORE_DB=$RESTORE_DB bash ~/scripts/rollback-remote.sh"
           ROLLBACK_EXIT=$?
           set -e
 

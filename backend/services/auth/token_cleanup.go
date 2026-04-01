@@ -55,6 +55,16 @@ func (s *Service) RevokeAllTokens(ctx context.Context, accountID int) error {
 	return nil
 }
 
+// RevokeTokensByTenantID deletes all refresh tokens for a given tenant.
+// Used during soft-delete to immediately cut off session refresh for all users of the school.
+func (s *Service) RevokeTokensByTenantID(ctx context.Context, tenantID int64) (int, error) {
+	count, err := s.repos.Token.DeleteByTenantID(ctx, tenantID)
+	if err != nil {
+		return 0, &AuthError{Op: "revoke tokens by tenant", Err: err}
+	}
+	return count, nil
+}
+
 // GetActiveTokens retrieves all active tokens for an account
 func (s *Service) GetActiveTokens(ctx context.Context, accountID int) ([]*auth.Token, error) {
 	filters := map[string]interface{}{

@@ -183,6 +183,7 @@ func TestAuthService_Login(t *testing.T) {
 		password := testPassword
 		account, err := service.Register(ctx, email, username, password, nil, 0)
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, 1)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		// ACT
@@ -267,6 +268,7 @@ func TestAuthService_ValidateToken(t *testing.T) {
 		email, username := uniqueTestCredentials("validate")
 		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, 1)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		accessToken, _, err := service.Login(ctx, email, testPassword)
@@ -317,6 +319,7 @@ func TestAuthService_RefreshToken(t *testing.T) {
 		email, username := uniqueTestCredentials("refresh")
 		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, 1)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		_, refreshToken, err := service.Login(ctx, email, testPassword)
@@ -367,6 +370,7 @@ func TestAuthService_RefreshToken_ConcurrentSingleflight(t *testing.T) {
 	email, username := uniqueTestCredentials("singleflight")
 	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 	require.NoError(t, err)
+	testpkg.EnsureAccountTenant(t, db, account.ID, 1)
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	_, refreshToken, err := service.Login(ctx, email, testPassword)
@@ -429,6 +433,7 @@ func TestAuthService_Logout(t *testing.T) {
 		email, username := uniqueTestCredentials("logout")
 		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, 1)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		_, refreshToken, err := service.Login(ctx, email, testPassword)
@@ -472,6 +477,7 @@ func TestAuthService_ChangePassword(t *testing.T) {
 		newPassword := "NewPassword1%"
 		account, err := service.Register(ctx, email, username, oldPassword, nil, 0)
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, 1)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		// ACT
@@ -751,6 +757,7 @@ func TestAuthService_RevokeAllTokens(t *testing.T) {
 		email, username := uniqueTestCredentials("revoke")
 		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, 1)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		// Login to create tokens
@@ -781,6 +788,7 @@ func TestAuthService_GetActiveTokens(t *testing.T) {
 		email, username := uniqueTestCredentials("activetokens")
 		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, 1)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		// Login to create token
@@ -2079,6 +2087,7 @@ func TestAuthService_ResetPassword(t *testing.T) {
 		email := fmt.Sprintf("resetpw-%d@test.local", time.Now().UnixNano())
 		account, err := service.Register(ctx, email, fmt.Sprintf("resetpw%d", time.Now().UnixNano()), testPassword, nil, 0)
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, 1)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		token, err := service.InitiatePasswordReset(ctx, email)
@@ -2800,4 +2809,81 @@ func TestAuthService_LinkAccountToTenant(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 1, tenantCount, "should still have exactly one mapping")
 	})
+}
+
+// =============================================================================
+// RevokeTokensByTenantID Tests
+// =============================================================================
+
+func TestAuthService_RevokeTokensByTenantID_Success(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+
+	// ARRANGE — create a dedicated tenant, account, and token
+	tenantID := int64(42)
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	ctx := testpkg.TenantContext(tenantID)
+
+	account := testpkg.CreateTestAccount(t, db, "revokeByTenant")
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+	testpkg.CreateTestTokenForTenant(t, db, tenantID, account.ID)
+
+	// ACT
+	count, err := service.RevokeTokensByTenantID(ctx, tenantID)
+
+	// ASSERT
+	require.NoError(t, err)
+	assert.Equal(t, 1, count, "should have revoked one token")
+}
+
+func TestAuthService_RevokeTokensByTenantID_NoTokens(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+
+	// ARRANGE — use a tenant with no tokens
+	tenantID := int64(43)
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	ctx := testpkg.TenantContext(tenantID)
+
+	// ACT
+	count, err := service.RevokeTokensByTenantID(ctx, tenantID)
+
+	// ASSERT
+	require.NoError(t, err)
+	assert.Equal(t, 0, count, "should have revoked zero tokens")
+}
+
+// =============================================================================
+// InvalidatePendingInvitationsByTenantID Tests
+// =============================================================================
+
+func TestInvitationService_InvalidatePendingInvitationsByTenantID_Success(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupInvitationService(t, db)
+
+	// ARRANGE — use tenant 1 because CreateTestInvitationToken is hardcoded to tenant 1
+	ctx := testpkg.TenantContext(1)
+
+	role := testpkg.CreateTestRole(t, db, "inv-svc-invalidate-role")
+	creator := testpkg.CreateTestAccount(t, db, "inv-svc-invalidate-creator")
+	defer testpkg.CleanupTableRecords(t, db, "auth.roles", role.ID)
+	defer testpkg.CleanupAuthFixtures(t, db, creator.ID)
+
+	// Create a pending invitation (scoped to tenant 1 by fixture)
+	invitation := testpkg.CreateTestInvitationToken(t, db, "svc-invalidate@example.com", role.ID, creator.ID, time.Now().Add(48*time.Hour))
+	defer testpkg.CleanupTableRecords(t, db, "auth.invitation_tokens", invitation.ID)
+
+	// ACT
+	count, err := service.InvalidatePendingInvitationsByTenantID(ctx, 1)
+
+	// ASSERT
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, count, 1, "should have invalidated at least one invitation")
 }

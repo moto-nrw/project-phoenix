@@ -22,6 +22,7 @@ global.fetch = mockFetch;
 // Mock env
 vi.mock("~/env", () => ({
   env: {
+    API_URL: "http://server:8080",
     NEXT_PUBLIC_API_URL: "http://localhost:8080",
   },
 }));
@@ -29,6 +30,16 @@ vi.mock("~/env", () => ({
 function createMockRequest(path: string): NextRequest {
   const url = new URL(path, "http://localhost:3000");
   return new NextRequest(url);
+}
+
+function createAbortableRequest(
+  path: string,
+  signal: AbortSignal,
+): NextRequest {
+  return {
+    nextUrl: new URL(path, "http://localhost:3000"),
+    signal,
+  } as unknown as NextRequest;
 }
 
 const defaultSession: ExtendedSession = {
@@ -85,13 +96,14 @@ describe("GET /api/sse/events", () => {
     const response = await GET(request);
 
     expect(mockFetch).toHaveBeenCalledWith(
-      "http://localhost:8080/api/sse/events",
+      "http://server:8080/api/sse/events",
       expect.objectContaining({
         headers: {
           Authorization: "Bearer test-token",
           Accept: "text/event-stream",
         },
         cache: "no-store",
+        signal: expect.any(AbortSignal),
       }),
     );
 
@@ -118,7 +130,7 @@ describe("GET /api/sse/events", () => {
     await GET(request);
 
     expect(mockFetch).toHaveBeenCalledWith(
-      "http://localhost:8080/api/sse/events?cache=123",
+      "http://server:8080/api/sse/events?cache=123",
       expect.any(Object),
     );
   });
@@ -178,5 +190,99 @@ describe("GET /api/sse/events", () => {
     expect(response.status).toBe(500);
     const text = await response.text();
     expect(text).toBe("Internal server error");
+  });
+
+  it("aborts the upstream fetch when the client request aborts", async () => {
+    mockFetch.mockImplementationOnce((_url, init?: RequestInit) => {
+      return new Promise((_resolve, reject) => {
+        if (init?.signal?.aborted) {
+          reject(new DOMException("Client disconnected", "AbortError"));
+          return;
+        }
+
+        init?.signal?.addEventListener(
+          "abort",
+          () => reject(new DOMException("Client disconnected", "AbortError")),
+          { once: true },
+        );
+      });
+    });
+
+    const controller = new AbortController();
+    const request = createAbortableRequest(
+      "/api/sse/events",
+      controller.signal,
+    );
+    const responsePromise = GET(request);
+
+    controller.abort();
+
+    const response = await responsePromise;
+
+    expect(response.status).toBe(204);
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://server:8080/api/sse/events",
+      expect.objectContaining({
+        signal: expect.any(AbortSignal),
+      }),
+    );
+  });
+
+  it("cancels the upstream reader when the response body is cancelled", async () => {
+    const cancelSpy = vi.fn();
+    const mockStream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode("data: test\n\n"));
+      },
+      cancel() {
+        cancelSpy();
+      },
+    });
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      body: mockStream,
+    });
+
+    const request = createMockRequest("/api/sse/events");
+    const response = await GET(request);
+
+    await response.body?.cancel();
+
+    expect(cancelSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("treats a pending upstream read as normal cleanup after downstream cancellation", async () => {
+    let resolveRead:
+      | ((value: ReadableStreamReadResult<Uint8Array>) => void)
+      | null = null;
+    const cancelSpy = vi.fn(async () => {
+      resolveRead?.({ done: true, value: undefined });
+    });
+
+    const mockReader = {
+      read: vi.fn(
+        () =>
+          new Promise<ReadableStreamReadResult<Uint8Array>>((resolve) => {
+            resolveRead = resolve;
+          }),
+      ),
+      cancel: cancelSpy,
+    };
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      body: {
+        getReader: () => mockReader,
+      },
+    });
+
+    const request = createMockRequest("/api/sse/events");
+    const response = await GET(request);
+
+    const cancelPromise = response.body?.cancel();
+    await cancelPromise;
+
+    expect(cancelSpy).toHaveBeenCalledTimes(1);
   });
 });

@@ -16,11 +16,11 @@ const (
 
 func init() {
 	// Register migration with explicit version
-	MigrationRegistry[UsersStudentsGuardiansVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     UsersStudentsGuardiansVersion,
 		Description: UsersStudentsGuardiansDescription,
 		DependsOn:   []string{"1.3.5", "1.3.5.1"}, // Depends on students and guardian_profiles tables
-	}
+	})
 
 	// Migration 1.3.6: Students to guardians relationship
 	Migrations.MustRegister(

@@ -106,3 +106,13 @@ func TestOperatorDeviceNotFoundError(t *testing.T) {
 	assert.Contains(t, err.Error(), "555")
 	assert.Contains(t, err.Error(), "not found")
 }
+
+func TestPersonNotFoundError(t *testing.T) {
+	err := &platform.PersonNotFoundError{PersonID: 42}
+	assert.Equal(t, "person with ID 42 not found", err.Error())
+}
+
+func TestPersonHasActiveSupervisionsError(t *testing.T) {
+	err := &platform.PersonHasActiveSupervisionsError{PersonID: 42, Count: 3}
+	assert.Equal(t, "person with ID 42 has 3 active supervision(s) and cannot be deleted", err.Error())
+}

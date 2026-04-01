@@ -24,6 +24,7 @@ vi.mock("~/server/auth", () => ({
 
 vi.mock("~/env", () => ({
   env: {
+    API_URL: "http://server:8080",
     NEXT_PUBLIC_API_URL: "http://localhost:8080",
   },
 }));
@@ -95,7 +96,7 @@ describe("GET /api/auth/account", () => {
     const response = await GET(request);
 
     expect(global.fetch).toHaveBeenCalledWith(
-      "http://localhost:8080/auth/account",
+      "http://server:8080/auth/account",
       {
         headers: {
           Authorization: "Bearer test-token",

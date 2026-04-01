@@ -370,7 +370,8 @@ func (r *PersonRepository) FindWithAccount(ctx context.Context, id int64) (*user
 		ColumnExpr(`"account".pin_hash AS "account__pin_hash", "account".pin_attempts AS "account__pin_attempts", "account".pin_locked_until AS "account__pin_locked_until"`).
 		// JOIN - Fixed to use auth.accounts directly rather than joining to a table alias "accounts"
 		Join(`LEFT JOIN auth.accounts AS "account" ON ("account".id = "person".account_id)`).
-		Where(`"person".id = ?`, id)
+		Where(`"person".id = ?`, id).
+		Where(`"person".deleted_at IS NULL`)
 
 	if where, val, ok := base.TenantWhere(ctx, "person"); ok {
 		query = query.Where(where, val)
@@ -419,7 +420,8 @@ func (r *PersonRepository) FindWithRFIDCard(ctx context.Context, id int64) (*use
 		ColumnExpr(`"rfid_card".is_active AS "rfid_card__is_active", "rfid_card".last_used AS "rfid_card__last_used"`).
 		// JOIN
 		Join(`LEFT JOIN users.rfid_cards AS "rfid_card" ON "rfid_card".id = "person".tag_id`).
-		Where(`"person".id = ?`, id)
+		Where(`"person".id = ?`, id).
+		Where(`"person".deleted_at IS NULL`)
 
 	if where, val, ok := base.TenantWhere(ctx, "person"); ok {
 		query = query.Where(where, val)

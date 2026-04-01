@@ -13,11 +13,11 @@ const (
 )
 
 func init() {
-	MigrationRegistry[activePathPartialIndexesVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     activePathPartialIndexesVersion,
 		Description: activePathPartialIndexesDescription,
 		DependsOn:   []string{"1.12.7"},
-	}
+	})
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {

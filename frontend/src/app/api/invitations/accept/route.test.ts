@@ -7,6 +7,7 @@ import { NextRequest } from "next/server";
 
 vi.mock("~/env", () => ({
   env: {
+    API_URL: "http://server:8080",
     NEXT_PUBLIC_API_URL: "http://localhost:8080",
   },
 }));
@@ -82,7 +83,7 @@ describe("POST /api/invitations/accept", () => {
     const response = await POST(request);
 
     expect(global.fetch).toHaveBeenCalledWith(
-      "http://localhost:8080/auth/invitations/invitation-token-123/accept",
+      "http://server:8080/auth/invitations/invitation-token-123/accept",
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },

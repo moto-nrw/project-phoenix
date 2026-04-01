@@ -16,6 +16,7 @@ type AccountRepository interface {
 	List(ctx context.Context, filters map[string]interface{}) ([]*Account, error)
 	UpdateLastLogin(ctx context.Context, id int64) error
 	UpdatePassword(ctx context.Context, id int64, passwordHash string) error
+	UpdateAvatar(ctx context.Context, id int64, avatar string) error
 	FindByRole(ctx context.Context, role string) ([]*Account, error)
 	FindAccountsWithRolesAndPermissions(ctx context.Context, filters map[string]interface{}) ([]*Account, error)
 	FindEmailsByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64]string, error)
@@ -137,6 +138,9 @@ type TokenRepository interface {
 	FindTokensWithAccount(ctx context.Context, filters map[string]interface{}) ([]*Token, error)
 	CleanupOldTokensForAccount(ctx context.Context, accountID int64, keepCount int) error
 
+	// Bulk deletion
+	DeleteByTenantID(ctx context.Context, tenantID int64) (int, error)
+
 	// Token family tracking methods
 	FindByFamilyID(ctx context.Context, familyID string) ([]*Token, error)
 	DeleteByFamilyID(ctx context.Context, familyID string) error
@@ -178,6 +182,7 @@ type InvitationTokenRepository interface {
 	FindByEmail(ctx context.Context, email string) ([]*InvitationToken, error)
 	MarkAsUsed(ctx context.Context, id int64) error
 	InvalidateByEmail(ctx context.Context, email string) (int, error)
+	InvalidateByTenantID(ctx context.Context, tenantID int64) (int, error)
 	DeleteExpired(ctx context.Context, now time.Time) (int, error)
 	List(ctx context.Context, filters map[string]interface{}) ([]*InvitationToken, error)
 }

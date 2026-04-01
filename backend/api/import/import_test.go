@@ -239,6 +239,28 @@ func TestDownloadTemplate_HasRequiredHeaders(t *testing.T) {
 	assert.True(t, strings.Contains(body, "Klasse"), "Template should contain Klasse header")
 }
 
+func TestDownloadTemplate_CSVAdvertisesBirthdayFormats(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	admin, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Import", "AdminBirthday")
+
+	router := chi.NewRouter()
+	router.Get("/template", ctx.resource.DownloadTemplateHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/template?format=csv", nil,
+		testutil.WithClaims(testutil.AdminTestClaims(int(admin.ID))),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	body := rr.Body.String()
+	assert.Contains(t, body, "15.08.2015")
+	assert.Contains(t, body, "22.03.14")
+}
+
 // =============================================================================
 // PREVIEW IMPORT WITH FILE TESTS
 // =============================================================================

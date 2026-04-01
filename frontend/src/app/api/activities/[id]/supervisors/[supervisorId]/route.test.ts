@@ -15,33 +15,22 @@ interface ExtendedSession extends Session {
 // Mocks
 // ============================================================================
 
-const {
-  mockAuth,
-  mockUpdateSupervisorRole,
-  mockRemoveSupervisor,
-  mockGetActivitySupervisors,
-} = vi.hoisted(() => ({
+const { mockAuth, mockApiPut, mockApiDelete, mockApiGet } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
-  mockUpdateSupervisorRole: vi.fn(),
-  mockRemoveSupervisor: vi.fn(),
-  mockGetActivitySupervisors: vi.fn(),
+  mockApiPut: vi.fn(),
+  mockApiDelete: vi.fn(),
+  mockApiGet: vi.fn(),
 }));
 
 vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("~/lib/activity-api", () => ({
-  updateSupervisorRole: mockUpdateSupervisorRole,
-  removeSupervisor: mockRemoveSupervisor,
-  getActivitySupervisors: mockGetActivitySupervisors,
-}));
-
 vi.mock("~/lib/api-helpers", () => ({
-  apiGet: vi.fn(),
+  apiGet: mockApiGet,
   apiPost: vi.fn(),
-  apiPut: vi.fn(),
-  apiDelete: vi.fn(),
+  apiPut: mockApiPut,
+  apiDelete: mockApiDelete,
   handleApiError: vi.fn((error: unknown) => {
     const message =
       error instanceof Error ? error.message : "Internal Server Error";
@@ -87,12 +76,6 @@ const defaultSession: ExtendedSession = {
   expires: "2099-01-01",
 };
 
-interface ApiResponse<T> {
-  success: boolean;
-  message: string;
-  data: T;
-}
-
 async function parseJsonResponse<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
 }
@@ -123,9 +106,7 @@ describe("PUT /api/activities/[id]/supervisors/[supervisorId]", () => {
   });
 
   it("updates supervisor role successfully", async () => {
-    const updatedSupervisors = [{ id: "2", staff_id: "10", is_primary: true }];
-    mockUpdateSupervisorRole.mockResolvedValueOnce(true);
-    mockGetActivitySupervisors.mockResolvedValueOnce(updatedSupervisors);
+    mockApiPut.mockResolvedValueOnce(undefined);
 
     const request = createMockRequest("/api/activities/1/supervisors/2", {
       method: "PUT",
@@ -136,21 +117,45 @@ describe("PUT /api/activities/[id]/supervisors/[supervisorId]", () => {
       createMockContext({ id: "1", supervisorId: "2" }),
     );
 
-    expect(mockUpdateSupervisorRole).toHaveBeenCalledWith("1", "2", {
-      is_primary: true,
-    });
-    expect(mockGetActivitySupervisors).toHaveBeenCalledWith("1");
+    expect(mockApiPut).toHaveBeenCalledWith(
+      "/api/activities/1/supervisors/2",
+      "test-token",
+      { is_primary: true },
+    );
     expect(response.status).toBe(200);
+    expect(mockApiGet).not.toHaveBeenCalled();
 
-    const json =
-      await parseJsonResponse<ApiResponse<typeof updatedSupervisors>>(response);
-    expect(json.data).toEqual(updatedSupervisors);
+    const json = await parseJsonResponse<{ success: boolean }>(response);
+    expect(json.success).toBe(true);
   });
 
-  it("returns 500 when activityId is empty and route extracts id from URL", async () => {
-    // Note: extractParams in route-wrapper extracts numeric IDs from URL path,
-    // so even with empty id param, "2" from the URL gets used as id.
-    // The handler then calls updateSupervisorRole which isn't mocked to succeed.
+  it("does not fail a successful update on refetch errors", async () => {
+    mockApiPut.mockResolvedValueOnce(undefined);
+    mockApiGet.mockRejectedValueOnce(
+      new Error("Transient list refresh failure"),
+    );
+
+    const request = createMockRequest("/api/activities/1/supervisors/2", {
+      method: "PUT",
+      body: { is_primary: true },
+    });
+    const response = await PUT(
+      request,
+      createMockContext({ id: "1", supervisorId: "2" }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockApiGet).not.toHaveBeenCalled();
+
+    const json = await parseJsonResponse<{ success: boolean }>(response);
+    expect(json.success).toBe(true);
+  });
+
+  it("uses the numeric id extracted from the URL when activityId context is empty", async () => {
+    mockApiPut.mockRejectedValueOnce(
+      new Error("Fallback activity id was extracted from URL"),
+    );
+
     const request = createMockRequest("/api/activities//supervisors/2", {
       method: "PUT",
       body: { is_primary: true },
@@ -161,8 +166,13 @@ describe("PUT /api/activities/[id]/supervisors/[supervisorId]", () => {
     );
 
     expect(response.status).toBe(500);
+    expect(mockApiPut).toHaveBeenCalledWith(
+      "/api/activities/2/supervisors/2",
+      "test-token",
+      { is_primary: true },
+    );
     const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Failed to update supervisor role");
+    expect(json.error).toContain("Fallback activity id was extracted from URL");
   });
 
   it("returns 400 when supervisorId is missing", async () => {
@@ -196,7 +206,9 @@ describe("PUT /api/activities/[id]/supervisors/[supervisorId]", () => {
   });
 
   it("returns 500 when update fails", async () => {
-    mockUpdateSupervisorRole.mockResolvedValueOnce(false);
+    mockApiPut.mockRejectedValueOnce(
+      new Error("Failed to update supervisor role"),
+    );
 
     const request = createMockRequest("/api/activities/1/supervisors/2", {
       method: "PUT",
@@ -234,7 +246,7 @@ describe("DELETE /api/activities/[id]/supervisors/[supervisorId]", () => {
   });
 
   it("removes supervisor successfully", async () => {
-    mockRemoveSupervisor.mockResolvedValueOnce(true);
+    mockApiDelete.mockResolvedValueOnce(undefined);
 
     const request = createMockRequest("/api/activities/1/supervisors/2", {
       method: "DELETE",
@@ -244,15 +256,19 @@ describe("DELETE /api/activities/[id]/supervisors/[supervisorId]", () => {
       createMockContext({ id: "1", supervisorId: "2" }),
     );
 
-    expect(mockRemoveSupervisor).toHaveBeenCalledWith("1", "2");
+    expect(mockApiDelete).toHaveBeenCalledWith(
+      "/api/activities/1/supervisors/2",
+      "test-token",
+    );
     expect(response.status).toBe(200);
 
     const json = await parseJsonResponse<{ success: boolean }>(response);
     expect(json.success).toBe(true);
   });
 
-  it("returns 500 when activityId is empty and route extracts id from URL", async () => {
-    // extractParams extracts numeric "2" from URL path as id
+  it("uses the numeric id extracted from the URL when activityId context is empty", async () => {
+    mockApiDelete.mockResolvedValueOnce(undefined);
+
     const request = createMockRequest("/api/activities//supervisors/2", {
       method: "DELETE",
     });
@@ -261,9 +277,13 @@ describe("DELETE /api/activities/[id]/supervisors/[supervisorId]", () => {
       createMockContext({ id: "", supervisorId: "2" }),
     );
 
-    expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Failed to remove supervisor");
+    expect(mockApiDelete).toHaveBeenCalledWith(
+      "/api/activities/2/supervisors/2",
+      "test-token",
+    );
+    expect(response.status).toBe(200);
+    const json = await parseJsonResponse<{ success: boolean }>(response);
+    expect(json.success).toBe(true);
   });
 
   it("returns 400 when supervisorId is missing", async () => {
@@ -281,7 +301,9 @@ describe("DELETE /api/activities/[id]/supervisors/[supervisorId]", () => {
   });
 
   it("returns 500 when removal fails", async () => {
-    mockRemoveSupervisor.mockResolvedValueOnce(false);
+    mockApiDelete.mockRejectedValueOnce(
+      new Error("Failed to remove supervisor"),
+    );
 
     const request = createMockRequest("/api/activities/1/supervisors/2", {
       method: "DELETE",

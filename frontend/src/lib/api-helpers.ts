@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { isAxiosError } from "axios";
 import api from "./api";
+import { isBrowserContext } from "./api-url";
 import { createLogger } from "~/lib/logger";
 
 // Note: Server-only imports (auth, refreshSessionTokensOnServer) are dynamically
@@ -58,8 +59,8 @@ export async function checkAuth(): Promise<NextResponse<ApiErrorResponse> | null
 }
 
 /**
- * Server-side fetch with automatic 401 retry and token refresh
- * Centralized logic for all HTTP methods to eliminate duplication
+ * Server-side fetch against the backend API.
+ * Route-level 401 retry with a refreshed session happens in route-wrapper.ts.
  */
 async function serverFetchWithRetry<T>(
   endpoint: string,
@@ -324,12 +325,7 @@ export function handleDomainApiError(
   );
 }
 
-/**
- * Check if running in browser context
- */
-export function isBrowserContext(): boolean {
-  return globalThis.window !== undefined;
-}
+export { isBrowserContext };
 
 /**
  * Options for authenticated fetch requests

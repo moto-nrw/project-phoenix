@@ -13,11 +13,11 @@ const (
 )
 
 func init() {
-	MigrationRegistry[fixPhoenixAuthTokenGrantsVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     fixPhoenixAuthTokenGrantsVersion,
 		Description: fixPhoenixAuthTokenGrantsDescription,
 		DependsOn:   []string{"1.15.12"},
-	}
+	})
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {

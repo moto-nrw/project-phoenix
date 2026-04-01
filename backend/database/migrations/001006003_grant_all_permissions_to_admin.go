@@ -15,11 +15,11 @@ const (
 
 func init() {
 	// Register migration with explicit version
-	MigrationRegistry[GrantAllPermissionsToAdminVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     GrantAllPermissionsToAdminVersion,
 		Description: GrantAllPermissionsToAdminDescription,
 		DependsOn:   []string{"1.5.3", "1.6.2"}, // Depends on fix_permission_names and create_admin_account
-	}
+	})
 
 	// Register the actual migration functions
 	Migrations.MustRegister(

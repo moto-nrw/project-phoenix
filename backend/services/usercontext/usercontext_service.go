@@ -630,11 +630,15 @@ func (s *userContextService) GetCurrentProfile(ctx context.Context) (map[string]
 
 // buildBaseResponse builds the base response with account data
 func buildBaseResponse(account *auth.Account) map[string]interface{} {
-	return map[string]interface{}{
+	response := map[string]interface{}{
 		"email":      account.Email,
 		"username":   account.Username,
 		"last_login": account.LastLogin,
 	}
+
+	addProfileFieldIfNotEmpty(response, "avatar", account.Avatar)
+
+	return response
 }
 
 // addPersonOrAccountData adds person data if available, otherwise account fallback
@@ -679,7 +683,6 @@ func addProfileDataToResponse(ctx context.Context, s *userContextService, respon
 		return
 	}
 
-	addProfileFieldIfNotEmpty(response, "avatar", profile.Avatar)
 	addProfileFieldIfNotEmpty(response, "bio", profile.Bio)
 	addProfileFieldIfNotEmpty(response, "settings", profile.Settings)
 }
@@ -822,8 +825,8 @@ func (s *userContextService) UpdateAvatar(ctx context.Context, avatarURL string)
 		return nil, &UserContextError{Op: "update avatar", Err: err}
 	}
 
-	oldAvatarPath, err := s.updateAvatarInTx(ctx, account.ID, avatarURL)
-	if err != nil {
+	oldAvatarPath := getOldAvatarPath(account.Avatar)
+	if err := s.accountRepo.UpdateAvatar(ctx, account.ID, avatarURL); err != nil {
 		return nil, &UserContextError{Op: "update avatar", Err: err}
 	}
 
@@ -832,37 +835,10 @@ func (s *userContextService) UpdateAvatar(ctx context.Context, avatarURL string)
 	return s.GetCurrentProfile(ctx)
 }
 
-// updateAvatarInTx updates or creates profile with new avatar, returns old avatar path
-func (s *userContextService) updateAvatarInTx(ctx context.Context, accountID int64, avatarURL string) (string, error) {
-	profile, _ := s.profileRepo.FindByAccountID(ctx, accountID)
-	if profile == nil {
-		return "", s.createProfileWithAvatar(ctx, accountID, avatarURL)
-	}
-
-	oldPath := getOldAvatarPath(profile.Avatar)
-	profile.Avatar = avatarURL
-
-	if err := s.profileRepo.Update(ctx, profile); err != nil {
-		return "", err
-	}
-
-	return oldPath, nil
-}
-
-// createProfileWithAvatar creates a new profile with avatar
-func (s *userContextService) createProfileWithAvatar(ctx context.Context, accountID int64, avatarURL string) error {
-	profile := &users.Profile{
-		AccountID: accountID,
-		Avatar:    avatarURL,
-		Settings:  "{}",
-	}
-	return s.profileRepo.Create(ctx, profile)
-}
-
 // getOldAvatarPath returns the file path of old avatar if it needs cleanup
 func getOldAvatarPath(currentAvatar string) string {
 	if currentAvatar != "" && strings.HasPrefix(currentAvatar, "/uploads/avatars/") {
-		return filepath.Join("public", currentAvatar)
+		return filepath.Join("public", strings.TrimPrefix(currentAvatar, "/"))
 	}
 	return ""
 }

@@ -50,6 +50,13 @@ var migrateValidateCmd = &cobra.Command{
 	Short: "validate migration dependencies",
 	Long:  `Check all migration dependencies for correctness and ordering`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// Detect duplicate version registrations by scanning source files.
+		// In Docker, source files don't exist (only the compiled binary),
+		// so DetectVersionCollisions gracefully returns nil when the directory is missing.
+		if err := migrations.DetectVersionCollisions("database/migrations"); err != nil {
+			return fmt.Errorf("migration version collision check failed: %w", err)
+		}
+
 		if err := migrations.ValidateMigrations(); err != nil {
 			return fmt.Errorf("migration validation failed: %w", err)
 		}

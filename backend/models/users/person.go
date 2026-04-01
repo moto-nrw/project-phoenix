@@ -19,6 +19,7 @@ type Person struct {
 	Birthday  *time.Time `bun:"birthday,type:date" json:"birthday,omitempty"`
 	TagID     *string    `bun:"tag_id" json:"tag_id,omitempty"`
 	AccountID *int64     `bun:"account_id" json:"account_id,omitempty"`
+	DeletedAt *time.Time `bun:"deleted_at,soft_delete,nullzero" json:"-"`
 
 	// Relations not stored in the database
 	Account  *auth.Account `bun:"rel:belongs-to,join:account_id=id" json:"account,omitempty"`

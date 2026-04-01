@@ -109,6 +109,25 @@ func (r *AccountRepository) UpdatePassword(ctx context.Context, id int64, passwo
 	return nil
 }
 
+// UpdateAvatar updates the global avatar path for an account.
+func (r *AccountRepository) UpdateAvatar(ctx context.Context, id int64, avatar string) error {
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*auth.Account)(nil)).
+		ModelTableExpr(accountTable).
+		Set("avatar = ?", avatar).
+		Where(whereID, id).
+		Exec(ctx)
+
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "update avatar",
+			Err: err,
+		}
+	}
+
+	return nil
+}
+
 // FindByRole retrieves accounts that have a specific role
 func (r *AccountRepository) FindByRole(ctx context.Context, role string) ([]*auth.Account, error) {
 	var accounts []*auth.Account

@@ -1,7 +1,11 @@
 // src/app/api/activities/[id]/supervisors/route.ts
 import type { NextRequest } from "next/server";
+import { apiGet, apiPost } from "~/lib/api-helpers";
 import { createGetHandler, createPostHandler } from "~/lib/route-wrapper";
-import { getActivitySupervisors, assignSupervisor } from "~/lib/activity-api";
+import {
+  mapActivitySupervisorSummariesResponse,
+  type BackendActivitySupervisor,
+} from "~/lib/activity-helpers";
 
 /**
  * GET handler for retrieving all supervisors assigned to an activity
@@ -20,9 +24,11 @@ export const GET = createGetHandler(
       throw new Error("Activity ID is required");
     }
 
-    // Fetch supervisors for the activity
-    const supervisors = await getActivitySupervisors(activityId);
-    return supervisors;
+    const response = await apiGet<{ data: BackendActivitySupervisor[] }>(
+      `/api/activities/${activityId}/supervisors`,
+      token,
+    );
+    return mapActivitySupervisorSummariesResponse(response.data ?? []);
   },
 );
 
@@ -55,15 +61,11 @@ export const POST = createPostHandler(
       is_primary: body.is_primary,
     };
 
-    // Assign the supervisor to the activity
-    const success = await assignSupervisor(activityId, supervisorData);
+    await apiPost(`/api/activities/${activityId}/supervisors`, token, {
+      staff_id: Number.parseInt(supervisorData.staff_id, 10),
+      is_primary: supervisorData.is_primary,
+    });
 
-    if (!success) {
-      throw new Error("Failed to assign supervisor");
-    }
-
-    // If successful, return the updated supervisors list
-    const updatedSupervisors = await getActivitySupervisors(activityId);
-    return updatedSupervisors;
+    return { success: true };
   },
 );

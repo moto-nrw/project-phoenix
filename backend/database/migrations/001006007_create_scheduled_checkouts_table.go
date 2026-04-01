@@ -15,11 +15,11 @@ const (
 
 func init() {
 	// Register migration with explicit version
-	MigrationRegistry[ScheduledCheckoutsVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     ScheduledCheckoutsVersion,
 		Description: ScheduledCheckoutsDescription,
 		DependsOn:   []string{"1.6.5", "1.2.1", "1.2.2"}, // Depends on active.attendance, users.students, users.staff
-	}
+	})
 
 	// Migration 1.6.7: Create active.scheduled_checkouts table
 	Migrations.MustRegister(

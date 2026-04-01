@@ -16,11 +16,11 @@ const (
 
 func init() {
 	// Register migration with explicit version
-	MigrationRegistry[EducationGroupSubstitutionVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     EducationGroupSubstitutionVersion,
 		Description: EducationGroupSubstitutionDescription,
 		DependsOn:   []string{"1.2.3", "1.2.7"}, // Depends on education.groups and users.staff
-	}
+	})
 
 	// Migration 1.2.8: Create education.group_substitution table
 	Migrations.MustRegister(

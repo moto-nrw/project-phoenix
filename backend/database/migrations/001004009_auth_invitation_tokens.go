@@ -15,7 +15,7 @@ const (
 )
 
 func init() {
-	MigrationRegistry[AuthInvitationTokensVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     AuthInvitationTokensVersion,
 		Description: AuthInvitationTokensDescription,
 		DependsOn: []string{
@@ -23,7 +23,7 @@ func init() {
 			AuthAccountsVersion,
 			AuthPasswordResetRateLimitsVersion,
 		},
-	}
+	})
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {

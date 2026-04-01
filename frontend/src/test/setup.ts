@@ -68,6 +68,7 @@ vi.mock("~/lib/logger", () => {
 // Mock ~/env globally to avoid Zod validation issues in tests
 vi.mock("~/env", () => ({
   env: {
+    API_URL: "http://server:8080",
     NEXT_PUBLIC_API_URL: "http://localhost:8080",
     NEXTAUTH_URL: "http://localhost:3000",
     NEXTAUTH_SECRET: "test-secret",

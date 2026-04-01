@@ -216,6 +216,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           platforms: linux/amd64
           build-args: |
+            API_URL=http://server:8080
             NEXT_PUBLIC_API_URL=${{ steps.api_url.outputs.url }}
             NEXT_PUBLIC_OPERATOR_HOSTNAME=${{ steps.operator_hostname.outputs.hostname }}
             TENANT_DOMAIN=${{ steps.tenant_domain.outputs.domain }}
@@ -272,14 +273,15 @@ jobs:
 
           SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
 
+          ssh -i ~/.ssh/deploy_key root@$SSH_HOST "mkdir -p ~/scripts"
           scp -i ~/.ssh/deploy_key /tmp/staging.env root@$SSH_HOST:~/staging/.env.new
           scp -i ~/.ssh/deploy_key environments/staging.compose.yml root@$SSH_HOST:~/staging/docker-compose.yml.new
-          scp -i ~/.ssh/deploy_key scripts/deploy-remote.sh root@$SSH_HOST:~/deploy-remote.sh
-          scp -i ~/.ssh/deploy_key scripts/restore-db.sh root@$SSH_HOST:~/restore-db.sh
+          scp -i ~/.ssh/deploy_key scripts/deploy-remote.sh root@$SSH_HOST:~/scripts/deploy-remote.sh
+          scp -i ~/.ssh/deploy_key scripts/restore-db.sh root@$SSH_HOST:~/scripts/restore-db.sh
 
           set +e
           ssh -i ~/.ssh/deploy_key root@$SSH_HOST \
-            "DEPLOY_DIR=staging DEPLOY_SHA=$SHORT_SHA BACKUP_RETENTION=3 bash ~/deploy-remote.sh"
+            "DEPLOY_DIR=staging DEPLOY_SHA=$SHORT_SHA BACKUP_RETENTION=3 bash ~/scripts/deploy-remote.sh"
           DEPLOY_EXIT=$?
           set -e
 
@@ -348,14 +350,15 @@ jobs:
 
           SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
 
+          ssh -i ~/.ssh/deploy_key root@$SSH_HOST "mkdir -p ~/scripts"
           scp -i ~/.ssh/deploy_key /tmp/production.env root@$SSH_HOST:~/production/.env.new
           scp -i ~/.ssh/deploy_key environments/production.compose.yml root@$SSH_HOST:~/production/docker-compose.yml.new
-          scp -i ~/.ssh/deploy_key scripts/deploy-remote.sh root@$SSH_HOST:~/deploy-remote.sh
-          scp -i ~/.ssh/deploy_key scripts/restore-db.sh root@$SSH_HOST:~/restore-db.sh
+          scp -i ~/.ssh/deploy_key scripts/deploy-remote.sh root@$SSH_HOST:~/scripts/deploy-remote.sh
+          scp -i ~/.ssh/deploy_key scripts/restore-db.sh root@$SSH_HOST:~/scripts/restore-db.sh
 
           set +e
           ssh -i ~/.ssh/deploy_key root@$SSH_HOST \
-            "DEPLOY_DIR=production DEPLOY_SHA=$SHORT_SHA BACKUP_RETENTION=7 bash ~/deploy-remote.sh"
+            "DEPLOY_DIR=production DEPLOY_SHA=$SHORT_SHA BACKUP_RETENTION=7 bash ~/scripts/deploy-remote.sh"
           DEPLOY_EXIT=$?
           set -e
 

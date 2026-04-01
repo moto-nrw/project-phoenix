@@ -16,11 +16,11 @@ const (
 
 func init() {
 	// Register migration with explicit version
-	MigrationRegistry[OptimizeGroupSupervisorsIndexVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     OptimizeGroupSupervisorsIndexVersion,
 		Description: OptimizeGroupSupervisorsIndexDescription,
 		DependsOn:   []string{"1.4.3"}, // Depends on active.group_supervisors table creation
-	}
+	})
 
 	// Migration 1.6.9: Add composite index for query optimization
 	Migrations.MustRegister(

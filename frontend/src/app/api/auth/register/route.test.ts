@@ -24,6 +24,7 @@ vi.mock("~/server/auth", () => ({
 
 vi.mock("~/env", () => ({
   env: {
+    API_URL: "http://server:8080",
     NEXT_PUBLIC_API_URL: "http://localhost:8080",
   },
 }));
@@ -107,7 +108,7 @@ describe("POST /api/auth/register", () => {
 
     expect(global.fetch).toHaveBeenCalledTimes(1);
     expect(vi.mocked(global.fetch).mock.calls[0]?.[0]).toBe(
-      "http://localhost:8080/auth/register",
+      "http://server:8080/auth/register",
     );
     expect(requestInit).toMatchObject({
       method: "POST",
@@ -157,7 +158,7 @@ describe("POST /api/auth/register", () => {
 
     expect(global.fetch).toHaveBeenCalledTimes(1);
     expect(vi.mocked(global.fetch).mock.calls[0]?.[0]).toBe(
-      "http://localhost:8080/auth/register",
+      "http://server:8080/auth/register",
     );
     expect(requestInit).toMatchObject({
       method: "POST",

@@ -1,6 +1,5 @@
 // lib/activity-api.ts
 import { sessionFetch } from "./session-cache";
-import { env } from "~/env";
 import api from "./api";
 import { handleDomainApiError } from "./api-helpers";
 import { createLogger } from "~/lib/logger";
@@ -18,9 +17,11 @@ import {
   mapActivityScheduleResponse,
   mapTimeframeResponse,
   mapStudentEnrollmentResponse,
+  mapActivitySupervisorSummariesResponse,
   prepareActivityForBackend,
   prepareActivityScheduleForBackend,
   type Activity,
+  type ActivitySupervisorSummary,
   type ActivityCategory,
   type CreateActivityRequest,
   type UpdateActivityRequest,
@@ -65,6 +66,19 @@ interface ApiResponse<T> {
 interface AvailableTimeSlot {
   weekday: string;
   timeframe_id?: string;
+}
+
+function isBrowserApiContext(): boolean {
+  return globalThis.window !== undefined;
+}
+
+async function resolveActivityApiUrl(path: string): Promise<string> {
+  if (isBrowserApiContext()) {
+    return path;
+  }
+
+  const { getServerApiUrl } = await import("~/lib/server-api-url");
+  return `${getServerApiUrl()}${path}`;
 }
 
 // Helper: Build URL with query params for activities
@@ -121,6 +135,30 @@ function parseActivitiesResponse(responseData: unknown): Activity[] {
 function parseEnrolledStudentsResponse(
   responseData: unknown,
 ): ActivityStudent[] {
+  const isActivityStudent = (value: unknown): value is ActivityStudent => {
+    if (!value || typeof value !== "object") {
+      return false;
+    }
+
+    return "student_id" in value && "name" in value;
+  };
+
+  const normalizeActivityStudent = (
+    student: ActivityStudent,
+  ): ActivityStudent => ({
+    ...student,
+    id: String(student.id),
+    student_id: String(student.student_id),
+    created_at:
+      student.created_at instanceof Date
+        ? student.created_at
+        : new Date(student.created_at),
+    updated_at:
+      student.updated_at instanceof Date
+        ? student.updated_at
+        : new Date(student.updated_at),
+  });
+
   // Check for wrapped response with data property
   if (
     responseData &&
@@ -128,16 +166,22 @@ function parseEnrolledStudentsResponse(
     "data" in responseData
   ) {
     const wrapped = responseData as { data: unknown };
-    return Array.isArray(wrapped.data)
-      ? wrapped.data.map((item) =>
-          mapStudentEnrollmentResponse(item as BackendStudentEnrollment),
-        )
-      : [];
+    if (!Array.isArray(wrapped.data)) {
+      return [];
+    }
+
+    return wrapped.data.map((item) =>
+      isActivityStudent(item)
+        ? normalizeActivityStudent(item)
+        : mapStudentEnrollmentResponse(item as BackendStudentEnrollment),
+    );
   }
   // Handle direct array response
   return Array.isArray(responseData)
     ? responseData.map((item) =>
-        mapStudentEnrollmentResponse(item as BackendStudentEnrollment),
+        isActivityStudent(item)
+          ? normalizeActivityStudent(item)
+          : mapStudentEnrollmentResponse(item as BackendStudentEnrollment),
       )
     : [];
 }
@@ -352,10 +396,8 @@ function createSafeActivity(data: CreateActivityRequest): Activity {
 export async function fetchActivities(
   filters?: ActivityFilter,
 ): Promise<Activity[]> {
-  const useProxyApi = globalThis.window !== undefined;
-  const baseUrl = useProxyApi
-    ? "/api/activities"
-    : `${env.NEXT_PUBLIC_API_URL}/api/activities`;
+  const useProxyApi = isBrowserApiContext();
+  const baseUrl = await resolveActivityApiUrl("/api/activities");
   const url = buildActivitiesUrl(baseUrl, filters);
 
   if (useProxyApi) {
@@ -387,10 +429,8 @@ export async function fetchActivity(id: string): Promise<Activity> {
 
 // Get a single activity by ID
 export async function getActivity(id: string): Promise<Activity> {
-  const useProxyApi = globalThis.window !== undefined;
-  const url = useProxyApi
-    ? `/api/activities/${id}`
-    : `${env.NEXT_PUBLIC_API_URL}/api/activities/${id}`;
+  const useProxyApi = isBrowserApiContext();
+  const url = await resolveActivityApiUrl(`/api/activities/${id}`);
 
   if (useProxyApi) {
     const response = await sessionFetch(url, {
@@ -424,10 +464,10 @@ export async function getActivity(id: string): Promise<Activity> {
 export async function getEnrolledStudents(
   activityId: string,
 ): Promise<ActivityStudent[]> {
-  const useProxyApi = globalThis.window !== undefined;
-  const url = useProxyApi
-    ? `/api/activities/${activityId}/students`
-    : `${env.NEXT_PUBLIC_API_URL}/api/activities/${activityId}/students`;
+  const useProxyApi = isBrowserApiContext();
+  const url = await resolveActivityApiUrl(
+    `/api/activities/${activityId}/students`,
+  );
 
   try {
     if (useProxyApi) {
@@ -456,11 +496,11 @@ export async function enrollStudent(
   activityId: string,
   studentData: { studentId: string },
 ): Promise<{ success: boolean }> {
-  const useProxyApi = globalThis.window !== undefined;
+  const useProxyApi = isBrowserApiContext();
   // Update URL to match backend endpoint structure which expects the studentId in the URL path
-  const url = useProxyApi
-    ? `/api/activities/${activityId}/enroll/${studentData.studentId}`
-    : `${env.NEXT_PUBLIC_API_URL}/api/activities/${activityId}/enroll/${studentData.studentId}`;
+  const url = await resolveActivityApiUrl(
+    `/api/activities/${activityId}/enroll/${studentData.studentId}`,
+  );
 
   // No request body needed since backend extracts IDs from URL path
 
@@ -487,10 +527,10 @@ export async function unenrollStudent(
   activityId: string,
   studentId: string,
 ): Promise<void> {
-  const useProxyApi = globalThis.window !== undefined;
-  const url = useProxyApi
-    ? `/api/activities/${activityId}/students/${studentId}`
-    : `${env.NEXT_PUBLIC_API_URL}/api/activities/${activityId}/students/${studentId}`;
+  const useProxyApi = isBrowserApiContext();
+  const url = await resolveActivityApiUrl(
+    `/api/activities/${activityId}/students/${studentId}`,
+  );
 
   if (useProxyApi) {
     const response = await sessionFetch(url, {
@@ -510,10 +550,8 @@ export async function unenrollStudent(
 export async function createActivity(
   data: CreateActivityRequest,
 ): Promise<Activity> {
-  const useProxyApi = globalThis.window !== undefined;
-  const url = useProxyApi
-    ? "/api/activities"
-    : `${env.NEXT_PUBLIC_API_URL}/api/activities`;
+  const useProxyApi = isBrowserApiContext();
+  const url = await resolveActivityApiUrl("/api/activities");
 
   const safeActivity = createSafeActivity(data);
 
@@ -545,10 +583,8 @@ export async function updateActivity(
   id: string,
   data: UpdateActivityRequest,
 ): Promise<Activity> {
-  const useProxyApi = globalThis.window !== undefined;
-  const url = useProxyApi
-    ? `/api/activities/${id}`
-    : `${env.NEXT_PUBLIC_API_URL}/api/activities/${id}`;
+  const useProxyApi = isBrowserApiContext();
+  const url = await resolveActivityApiUrl(`/api/activities/${id}`);
 
   // Convert UpdateActivityRequest to a format compatible with prepareActivityForBackend
   const activityData: Partial<Activity> = {
@@ -598,10 +634,8 @@ export async function updateActivity(
 
 // Delete an activity
 export async function deleteActivity(id: string): Promise<void> {
-  const useProxyApi = globalThis.window !== undefined;
-  const url = useProxyApi
-    ? `/api/activities/${id}`
-    : `${env.NEXT_PUBLIC_API_URL}/api/activities/${id}`;
+  const useProxyApi = isBrowserApiContext();
+  const url = await resolveActivityApiUrl(`/api/activities/${id}`);
 
   if (useProxyApi) {
     const response = await sessionFetch(url, {
@@ -618,10 +652,8 @@ export async function deleteActivity(id: string): Promise<void> {
 
 // Get all categories
 export async function getCategories(): Promise<ActivityCategory[]> {
-  const useProxyApi = globalThis.window !== undefined;
-  const url = useProxyApi
-    ? "/api/activities/categories"
-    : `${env.NEXT_PUBLIC_API_URL}/api/activities/categories`;
+  const useProxyApi = isBrowserApiContext();
+  const url = await resolveActivityApiUrl("/api/activities/categories");
 
   try {
     if (useProxyApi) {
@@ -662,10 +694,8 @@ export async function getCategories(): Promise<ActivityCategory[]> {
 export async function getSupervisors(): Promise<
   Array<{ id: string; name: string }>
 > {
-  const useProxyApi = globalThis.window !== undefined;
-  const url = useProxyApi
-    ? "/api/activities/supervisors"
-    : `${env.NEXT_PUBLIC_API_URL}/api/activities/supervisors`;
+  const useProxyApi = isBrowserApiContext();
+  const url = await resolveActivityApiUrl("/api/activities/supervisors");
 
   try {
     if (useProxyApi) {
@@ -705,10 +735,10 @@ export async function getSupervisors(): Promise<
 export async function getActivitySchedules(
   activityId: string,
 ): Promise<ActivitySchedule[]> {
-  const useProxyApi = globalThis.window !== undefined;
-  const url = useProxyApi
-    ? `/api/activities/${activityId}/schedules`
-    : `${env.NEXT_PUBLIC_API_URL}/api/activities/${activityId}/schedules`;
+  const useProxyApi = isBrowserApiContext();
+  const url = await resolveActivityApiUrl(
+    `/api/activities/${activityId}/schedules`,
+  );
 
   try {
     if (useProxyApi) {
@@ -736,10 +766,10 @@ export async function getActivitySchedule(
   activityId: string,
   scheduleId: string,
 ): Promise<ActivitySchedule | null> {
-  const useProxyApi = globalThis.window !== undefined;
-  const url = useProxyApi
-    ? `/api/activities/${activityId}/schedules/${scheduleId}`
-    : `${env.NEXT_PUBLIC_API_URL}/api/activities/${activityId}/schedules/${scheduleId}`;
+  const useProxyApi = isBrowserApiContext();
+  const url = await resolveActivityApiUrl(
+    `/api/activities/${activityId}/schedules/${scheduleId}`,
+  );
 
   try {
     if (useProxyApi) {
@@ -775,10 +805,8 @@ export async function getActivitySchedule(
 
 // Get all available timeframes
 export async function getTimeframes(): Promise<Timeframe[]> {
-  const useProxyApi = globalThis.window !== undefined;
-  const url = useProxyApi
-    ? "/api/schedules/timeframes"
-    : `${env.NEXT_PUBLIC_API_URL}/api/schedules/timeframes`;
+  const useProxyApi = isBrowserApiContext();
+  const url = await resolveActivityApiUrl("/api/schedules/timeframes");
 
   try {
     if (useProxyApi) {
@@ -806,10 +834,10 @@ export async function getAvailableTimeSlots(
   activityId: string,
   date?: string,
 ): Promise<AvailableTimeSlot[]> {
-  const useProxyApi = globalThis.window !== undefined;
-  let url = useProxyApi
-    ? `/api/activities/${activityId}/schedules/available`
-    : `${env.NEXT_PUBLIC_API_URL}/api/activities/${activityId}/schedules/available`;
+  const useProxyApi = isBrowserApiContext();
+  let url = await resolveActivityApiUrl(
+    `/api/activities/${activityId}/schedules/available`,
+  );
 
   // Add date parameter if provided
   if (date) {
@@ -853,10 +881,10 @@ export async function createActivitySchedule(
   activityId: string,
   scheduleData: Partial<ActivitySchedule>,
 ): Promise<ActivitySchedule> {
-  const useProxyApi = globalThis.window !== undefined;
-  const url = useProxyApi
-    ? `/api/activities/${activityId}/schedules`
-    : `${env.NEXT_PUBLIC_API_URL}/api/activities/${activityId}/schedules`;
+  const useProxyApi = isBrowserApiContext();
+  const url = await resolveActivityApiUrl(
+    `/api/activities/${activityId}/schedules`,
+  );
 
   // Prepare backend data
   const backendData = prepareActivityScheduleForBackend(scheduleData);
@@ -903,10 +931,10 @@ export async function updateActivitySchedule(
   scheduleId: string,
   scheduleData: Partial<ActivitySchedule>,
 ): Promise<ActivitySchedule | null> {
-  const useProxyApi = globalThis.window !== undefined;
-  const url = useProxyApi
-    ? `/api/activities/${activityId}/schedules/${scheduleId}`
-    : `${env.NEXT_PUBLIC_API_URL}/api/activities/${activityId}/schedules/${scheduleId}`;
+  const useProxyApi = isBrowserApiContext();
+  const url = await resolveActivityApiUrl(
+    `/api/activities/${activityId}/schedules/${scheduleId}`,
+  );
 
   // Prepare backend data
   const backendData = prepareActivityScheduleForBackend(scheduleData);
@@ -952,10 +980,10 @@ export async function deleteActivitySchedule(
   activityId: string,
   scheduleId: string,
 ): Promise<boolean> {
-  const useProxyApi = globalThis.window !== undefined;
-  const url = useProxyApi
-    ? `/api/activities/${activityId}/schedules/${scheduleId}`
-    : `${env.NEXT_PUBLIC_API_URL}/api/activities/${activityId}/schedules/${scheduleId}`;
+  const useProxyApi = isBrowserApiContext();
+  const url = await resolveActivityApiUrl(
+    `/api/activities/${activityId}/schedules/${scheduleId}`,
+  );
 
   try {
     if (useProxyApi) {
@@ -977,32 +1005,28 @@ export async function deleteActivitySchedule(
   }
 }
 
-// Helper: Map a single BackendActivitySupervisor to frontend type
-type ActivitySupervisorFrontend = {
-  id: string;
-  staff_id: string;
-  is_primary: boolean;
-  name: string;
-};
-
-function mapActivitySupervisorToFrontend(
-  s: BackendActivitySupervisor,
-): ActivitySupervisorFrontend {
-  return {
-    id: String(s.id),
-    staff_id: String(s.staff_id),
-    is_primary: s.is_primary,
-    name:
-      s.first_name && s.last_name
-        ? `${s.first_name} ${s.last_name}`
-        : `Supervisor ${s.id}`,
-  };
-}
-
 // Helper: Parse activity supervisors response (wrapped or direct array)
 function parseActivitySupervisorsResponse(
   responseData: unknown,
-): ActivitySupervisorFrontend[] {
+): ActivitySupervisorSummary[] {
+  const isSupervisorSummary = (
+    value: unknown,
+  ): value is ActivitySupervisorSummary => {
+    if (!value || typeof value !== "object") {
+      return false;
+    }
+
+    return "name" in value && "staff_id" in value;
+  };
+
+  const normalizeSupervisorSummary = (
+    supervisor: ActivitySupervisorSummary,
+  ): ActivitySupervisorSummary => ({
+    ...supervisor,
+    id: String(supervisor.id),
+    staff_id: String(supervisor.staff_id),
+  });
+
   // Check for wrapped response with data property
   if (
     responseData &&
@@ -1010,24 +1034,36 @@ function parseActivitySupervisorsResponse(
     "data" in responseData
   ) {
     const wrapped = responseData as { data: unknown };
-    return Array.isArray(wrapped.data)
-      ? wrapped.data.map(mapActivitySupervisorToFrontend)
-      : [];
+    if (!Array.isArray(wrapped.data)) {
+      return [];
+    }
+
+    return wrapped.data.every(isSupervisorSummary)
+      ? wrapped.data.map(normalizeSupervisorSummary)
+      : mapActivitySupervisorSummariesResponse(
+          wrapped.data as BackendActivitySupervisor[],
+        );
   }
   // Handle direct array response
-  return Array.isArray(responseData)
-    ? responseData.map(mapActivitySupervisorToFrontend)
-    : [];
+  if (!Array.isArray(responseData)) {
+    return [];
+  }
+
+  return responseData.every(isSupervisorSummary)
+    ? responseData.map(normalizeSupervisorSummary)
+    : mapActivitySupervisorSummariesResponse(
+        responseData as BackendActivitySupervisor[],
+      );
 }
 
 // Get all supervisors assigned to an activity
 export async function getActivitySupervisors(
   activityId: string,
-): Promise<ActivitySupervisorFrontend[]> {
-  const useProxyApi = globalThis.window !== undefined;
-  const url = useProxyApi
-    ? `/api/activities/${activityId}/supervisors`
-    : `${env.NEXT_PUBLIC_API_URL}/api/activities/${activityId}/supervisors`;
+): Promise<ActivitySupervisorSummary[]> {
+  const useProxyApi = isBrowserApiContext();
+  const url = await resolveActivityApiUrl(
+    `/api/activities/${activityId}/supervisors`,
+  );
 
   try {
     if (useProxyApi) {
@@ -1076,10 +1112,10 @@ function parseSupervisorsResponse(
 export async function getAvailableSupervisors(
   activityId: string,
 ): Promise<Array<{ id: string; name: string }>> {
-  const useProxyApi = globalThis.window !== undefined;
-  const url = useProxyApi
-    ? `/api/activities/${activityId}/supervisors/available`
-    : `${env.NEXT_PUBLIC_API_URL}/api/activities/${activityId}/supervisors/available`;
+  const useProxyApi = isBrowserApiContext();
+  const url = await resolveActivityApiUrl(
+    `/api/activities/${activityId}/supervisors/available`,
+  );
 
   try {
     if (useProxyApi) {
@@ -1107,10 +1143,10 @@ export async function assignSupervisor(
   activityId: string,
   supervisorData: { staff_id: string; is_primary?: boolean },
 ): Promise<boolean> {
-  const useProxyApi = globalThis.window !== undefined;
-  const url = useProxyApi
-    ? `/api/activities/${activityId}/supervisors`
-    : `${env.NEXT_PUBLIC_API_URL}/api/activities/${activityId}/supervisors`;
+  const useProxyApi = isBrowserApiContext();
+  const url = await resolveActivityApiUrl(
+    `/api/activities/${activityId}/supervisors`,
+  );
 
   // Convert staff_id to number for backend and set is_primary if defined
   const backendData = {
@@ -1145,10 +1181,10 @@ export async function updateSupervisorRole(
   supervisorId: string,
   roleData: { is_primary: boolean },
 ): Promise<boolean> {
-  const useProxyApi = globalThis.window !== undefined;
-  const url = useProxyApi
-    ? `/api/activities/${activityId}/supervisors/${supervisorId}`
-    : `${env.NEXT_PUBLIC_API_URL}/api/activities/${activityId}/supervisors/${supervisorId}`;
+  const useProxyApi = isBrowserApiContext();
+  const url = await resolveActivityApiUrl(
+    `/api/activities/${activityId}/supervisors/${supervisorId}`,
+  );
 
   try {
     if (useProxyApi) {
@@ -1176,10 +1212,10 @@ export async function removeSupervisor(
   activityId: string,
   supervisorId: string,
 ): Promise<boolean> {
-  const useProxyApi = globalThis.window !== undefined;
-  const url = useProxyApi
-    ? `/api/activities/${activityId}/supervisors/${supervisorId}`
-    : `${env.NEXT_PUBLIC_API_URL}/api/activities/${activityId}/supervisors/${supervisorId}`;
+  const useProxyApi = isBrowserApiContext();
+  const url = await resolveActivityApiUrl(
+    `/api/activities/${activityId}/supervisors/${supervisorId}`,
+  );
 
   try {
     if (useProxyApi) {
@@ -1262,10 +1298,10 @@ export async function getAvailableStudents(
   activityId: string,
   filters?: { search?: string; group_id?: string },
 ): Promise<AvailableStudentFrontend[]> {
-  const useProxyApi = globalThis.window !== undefined;
-  const baseUrl = useProxyApi
-    ? `/api/activities/${activityId}/students`
-    : `${env.NEXT_PUBLIC_API_URL}/api/activities/${activityId}/students`;
+  const useProxyApi = isBrowserApiContext();
+  const baseUrl = await resolveActivityApiUrl(
+    `/api/activities/${activityId}/students`,
+  );
   const url = buildAvailableStudentsUrl(baseUrl, filters);
 
   try {
@@ -1310,10 +1346,10 @@ export async function updateGroupEnrollments(
   activityId: string,
   data: { student_ids: string[] },
 ): Promise<boolean> {
-  const useProxyApi = globalThis.window !== undefined;
-  const url = useProxyApi
-    ? `/api/activities/${activityId}/students`
-    : `${env.NEXT_PUBLIC_API_URL}/api/activities/${activityId}/students`;
+  const useProxyApi = isBrowserApiContext();
+  const url = await resolveActivityApiUrl(
+    `/api/activities/${activityId}/students`,
+  );
 
   // The API expects student_ids as an array of strings when using proxy API
   const requestData = useProxyApi

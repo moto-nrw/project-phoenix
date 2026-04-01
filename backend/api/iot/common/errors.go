@@ -180,6 +180,8 @@ func handleIoTServiceError(iotErr *iotSvc.IoTError) render.Renderer {
 		return ErrorConflict(iotErr)
 	case iotSvc.ErrInvalidStatus:
 		return ErrorInvalidRequest(iotErr)
+	case iotSvc.ErrDeviceProtected:
+		return common.ErrorForbidden(iotErr)
 	case iotSvc.ErrDeviceOffline:
 		return ErrorConflict(iotErr)
 	case iotSvc.ErrNetworkScanFailed:

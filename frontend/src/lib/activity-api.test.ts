@@ -13,6 +13,10 @@ import type {
 } from "./activity-helpers";
 import { buildBackendActivity, buildBackendCategory } from "~/test/fixtures";
 
+const { mockGetServerApiUrl } = vi.hoisted(() => ({
+  mockGetServerApiUrl: vi.fn(() => "http://server:8080"),
+}));
+
 // Mock dependencies
 vi.mock("./session-cache", () => {
   const getCachedSession = vi.fn();
@@ -70,6 +74,10 @@ vi.mock("./api", () => ({
 
 vi.mock("./auth-api", () => ({
   handleAuthFailure: vi.fn(),
+}));
+
+vi.mock("~/lib/server-api-url", () => ({
+  getServerApiUrl: mockGetServerApiUrl,
 }));
 
 // Import after mocks
@@ -139,6 +147,7 @@ const sampleBackendEnrollment: BackendStudentEnrollment = {
 describe("activity-api", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetServerApiUrl.mockReturnValue("http://server:8080");
     // Reset window for browser detection
     vi.stubGlobal("window", undefined);
   });
@@ -156,7 +165,7 @@ describe("activity-api", () => {
       const result = await activityApi.fetchActivities();
 
       expect(mockedApiGet).toHaveBeenCalledWith(
-        "http://localhost:8080/api/activities",
+        "http://server:8080/api/activities",
       );
       expect(result).toHaveLength(1);
       expect(result[0]?.id).toBe("1");
@@ -202,6 +211,7 @@ describe("activity-api", () => {
 
       expect(result).toHaveLength(1);
       expect(result[0]?.name).toBe("Basketball AG");
+      expect(mockGetServerApiUrl).not.toHaveBeenCalled();
     });
 
     it("handles nested data.data structure in browser context", async () => {
@@ -280,7 +290,7 @@ describe("activity-api", () => {
       const result = await activityApi.getActivity("1");
 
       expect(mockedApiGet).toHaveBeenCalledWith(
-        "http://localhost:8080/api/activities/1",
+        "http://server:8080/api/activities/1",
       );
       expect(result.id).toBe("1");
       expect(result.name).toBe("Basketball AG");
@@ -372,7 +382,7 @@ describe("activity-api", () => {
       const result = await activityApi.createActivity(createRequest);
 
       expect(mockedApiPost).toHaveBeenCalledWith(
-        "http://localhost:8080/api/activities",
+        "http://server:8080/api/activities",
         createRequest,
       );
       expect(result.id).toBe("1");
@@ -493,7 +503,7 @@ describe("activity-api", () => {
       await activityApi.deleteActivity("1");
 
       expect(mockedApiDelete).toHaveBeenCalledWith(
-        "http://localhost:8080/api/activities/1",
+        "http://server:8080/api/activities/1",
       );
     });
 
@@ -635,13 +645,28 @@ describe("activity-api", () => {
 
       const mockResponse = {
         ok: true,
-        json: async () => ({ data: [sampleBackendEnrollment] }),
+        json: async () => ({
+          data: [
+            {
+              id: "42",
+              student_id: "42",
+              name: "Jane Smith",
+              school_class: "3A",
+              current_location: null,
+              activity_id: "1",
+              created_at: "2024-01-15T08:00:00Z",
+              updated_at: "2024-01-15T08:00:00Z",
+            },
+          ],
+        }),
       };
       vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(mockResponse));
 
       const result = await activityApi.getEnrolledStudents("1");
 
       expect(result).toHaveLength(1);
+      expect(result[0]?.student_id).toBe("42");
+      expect(result[0]?.name).toBe("Jane Smith");
     });
 
     it("handles direct array response", async () => {
@@ -670,7 +695,7 @@ describe("activity-api", () => {
       const result = await activityApi.enrollStudent("1", { studentId: "42" });
 
       expect(mockedApiPost).toHaveBeenCalledWith(
-        "http://localhost:8080/api/activities/1/enroll/42",
+        "http://server:8080/api/activities/1/enroll/42",
         {},
       );
       expect(result.success).toBe(true);
@@ -699,7 +724,7 @@ describe("activity-api", () => {
       await activityApi.unenrollStudent("1", "42");
 
       expect(mockedApiDelete).toHaveBeenCalledWith(
-        "http://localhost:8080/api/activities/1/students/42",
+        "http://server:8080/api/activities/1/students/42",
       );
     });
 
@@ -964,6 +989,40 @@ describe("activity-api", () => {
         expect(result[0]?.name).toBe("John Doe");
       });
 
+      it("fetches activity supervisors in browser context", async () => {
+        vi.stubGlobal("window", {});
+        mockedGetSession.mockResolvedValueOnce({
+          user: { id: "1", token: "test-token" },
+          expires: "2099-01-01",
+        });
+
+        const mockResponse = {
+          ok: true,
+          json: async () => ({
+            data: [
+              {
+                id: "1",
+                staff_id: "10",
+                is_primary: true,
+                name: "John Doe",
+              },
+            ],
+          }),
+        };
+        vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(mockResponse));
+
+        const result = await activityApi.getActivitySupervisors("1");
+
+        expect(result).toEqual([
+          {
+            id: "1",
+            staff_id: "10",
+            is_primary: true,
+            name: "John Doe",
+          },
+        ]);
+      });
+
       it("returns empty array on error", async () => {
         mockedApiGet.mockRejectedValueOnce(new Error("Network error"));
 
@@ -1003,7 +1062,7 @@ describe("activity-api", () => {
         });
 
         expect(mockedApiPost).toHaveBeenCalledWith(
-          "http://localhost:8080/api/activities/1/supervisors",
+          "http://server:8080/api/activities/1/supervisors",
           { staff_id: 10, is_primary: true },
         );
         expect(result).toBe(true);
@@ -1112,7 +1171,7 @@ describe("activity-api", () => {
       });
 
       expect(mockedApiPut).toHaveBeenCalledWith(
-        "http://localhost:8080/api/activities/1/students",
+        "http://server:8080/api/activities/1/students",
         { student_ids: [1, 2, 3] },
       );
       expect(result).toBe(true);

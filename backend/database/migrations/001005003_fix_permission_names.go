@@ -16,11 +16,11 @@ const (
 // init registers this migration when the package is loaded
 func init() {
 	// Register migration with explicit version
-	MigrationRegistry[FixPermissionNamesVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     FixPermissionNamesVersion,
 		Description: FixPermissionNamesDescription,
 		DependsOn:   []string{"1.0.6"}, // Depends on auth.role_permissions table
-	}
+	})
 
 	// Register the migration functions
 	Migrations.MustRegister(

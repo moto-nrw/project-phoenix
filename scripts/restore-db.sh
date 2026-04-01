@@ -12,6 +12,37 @@
 #   0  — Restore and verification succeeded
 #   1  — Restore or verification failed
 
+uploads_volume_name() {
+  if [ -n "${DEPLOY_DIR:-}" ]; then
+    echo "phoenix-${DEPLOY_DIR}-uploads"
+    return 0
+  fi
+
+  local cwd_base
+  cwd_base="$(basename "$(pwd)")"
+  echo "phoenix-${cwd_base}-uploads"
+}
+
+restore_uploads_volume() {
+  local uploads_file="$1"
+  local volume_name
+  volume_name="$(uploads_volume_name)"
+
+  echo "Restoring uploads volume from: $(basename "$uploads_file")"
+
+  if ! docker run --rm \
+    -v "${volume_name}:/volume" \
+    -v "$(dirname "$uploads_file"):/backup" \
+    --entrypoint sh \
+    postgres:17-alpine \
+    -c "rm -rf /volume/* /volume/.[!.]* /volume/..?* && tar -xzf /backup/$(basename "$uploads_file") -C /volume"; then
+    echo "CRITICAL: Uploads restore failed"
+    return 1
+  fi
+
+  return 0
+}
+
 BACKUP_FILE="$1"
 
 if [ -z "$BACKUP_FILE" ]; then
@@ -33,11 +64,13 @@ echo "Restoring database from: $(basename "$BACKUP_FILE")"
 BACKUP_DIR=$(dirname "$BACKUP_FILE")
 BACKUP_BASE=$(basename "$BACKUP_FILE" .dump)
 GLOBALS_FILE=""
+UPLOADS_FILE=""
 
 # Try deploy-remote.sh naming: backup-* → globals-*
 if [[ "$BACKUP_BASE" == backup-* ]]; then
   TIMESTAMP_PART="${BACKUP_BASE#backup-}"
   GLOBALS_FILE="${BACKUP_DIR}/globals-${TIMESTAMP_PART}.sql"
+  UPLOADS_FILE="${BACKUP_DIR}/uploads-${TIMESTAMP_PART}.tar.gz"
 fi
 
 # Try backup.sh naming: phoenix_env_timestamp.dump → phoenix_env_timestamp_globals.sql
@@ -46,6 +79,10 @@ if [ -z "$GLOBALS_FILE" ] || [ ! -f "$GLOBALS_FILE" ]; then
   if [ -f "$CANDIDATE" ]; then
     GLOBALS_FILE="$CANDIDATE"
   fi
+fi
+
+if [ -n "$UPLOADS_FILE" ] && [ ! -f "$UPLOADS_FILE" ]; then
+  UPLOADS_FILE=""
 fi
 
 if [ -n "$GLOBALS_FILE" ] && [ -f "$GLOBALS_FILE" ]; then
@@ -124,6 +161,14 @@ if ! docker compose exec -T postgres psql -U postgres -d postgres -c "
 " > /dev/null 2>&1; then
   echo "CRITICAL: Database restored but role privileges are missing — restore may have dropped ACLs"
   exit 1
+fi
+
+if [ -n "$UPLOADS_FILE" ] && [ -f "$UPLOADS_FILE" ]; then
+  if ! restore_uploads_volume "$UPLOADS_FILE"; then
+    exit 1
+  fi
+else
+  echo "WARNING: No uploads backup found — uploads volume left unchanged"
 fi
 
 echo "Database restored and verified"

@@ -10,16 +10,16 @@ import (
 )
 
 const (
-	GradeTransitionPermissionsVersion     = "1.7.7"
+	GradeTransitionPermissionsVersion     = "1.7.7.1"
 	GradeTransitionPermissionsDescription = "Add grade transition permissions to admin role"
 )
 
 func init() {
-	MigrationRegistry[GradeTransitionPermissionsVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     GradeTransitionPermissionsVersion,
 		Description: GradeTransitionPermissionsDescription,
 		DependsOn:   []string{"1.0.5", "1.0.4"}, // Depends on auth.permissions and auth.roles
-	}
+	})
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {

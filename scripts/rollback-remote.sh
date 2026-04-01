@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # rollback-remote.sh — Runs ON the remote server during manual rollback.
-# SCP'd by CI, same pattern as deploy-remote.sh to avoid heredoc stdin bugs.
+# SCP'd by CI into ~/scripts/, same pattern as deploy-remote.sh to avoid heredoc stdin bugs.
 #
 # Required env vars:
 #   DEPLOY_DIR   — Server directory (staging/demo/production)
@@ -59,6 +59,8 @@ echo "CURRENT_SHA=${TARGET_SHA}" > .deploy-state
 echo "PREVIOUS_SHA=${PREVIOUS_SHA}" >> .deploy-state
 echo "DEPLOYED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> .deploy-state
 echo "BACKUP_FILE=" >> .deploy-state
+
+rm -f ~/rollback-remote.sh ~/restore-db.sh
 
 echo "Rollback to ${TARGET_SHA} complete"
 exit 0

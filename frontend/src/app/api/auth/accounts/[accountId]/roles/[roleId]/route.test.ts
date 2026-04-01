@@ -29,6 +29,7 @@ global.fetch = mockFetch as typeof fetch;
 // Mock env
 vi.mock("~/env", () => ({
   env: {
+    API_URL: "http://server:8080",
     NEXT_PUBLIC_API_URL: "http://localhost:8080",
   },
 }));
@@ -128,7 +129,7 @@ describe("POST /api/auth/accounts/[accountId]/roles/[roleId]", () => {
     );
 
     expect(mockFetch).toHaveBeenCalledWith(
-      "http://localhost:8080/auth/accounts/1/roles/2",
+      "http://server:8080/auth/accounts/1/roles/2",
       expect.objectContaining({
         method: "POST",
         headers: expect.objectContaining({
@@ -258,7 +259,7 @@ describe("DELETE /api/auth/accounts/[accountId]/roles/[roleId]", () => {
     );
 
     expect(mockFetch).toHaveBeenCalledWith(
-      "http://localhost:8080/auth/accounts/1/roles/2",
+      "http://server:8080/auth/accounts/1/roles/2",
       expect.objectContaining({
         method: "DELETE",
         headers: expect.objectContaining({

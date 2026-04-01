@@ -1,196 +1,145 @@
 import { describe, it, expect } from "vitest";
 import {
-  mapViewDetail,
   mapAnnouncement,
+  mapViewDetail,
   TYPE_LABELS,
   SEVERITY_LABELS,
   ANNOUNCEMENT_STATUS_LABELS,
   SYSTEM_ROLE_LABELS,
-  TYPE_STYLES,
-  SEVERITY_STYLES,
-  ANNOUNCEMENT_STATUS_STYLES,
+  type BackendAnnouncement,
+  type BackendAnnouncementViewDetail,
 } from "./announcements-helpers";
-import type {
-  BackendAnnouncementViewDetail,
-  BackendAnnouncement,
-} from "./announcements-helpers";
-
-describe("mapViewDetail", () => {
-  it("maps backend view detail to frontend type", () => {
-    const backendDetail: BackendAnnouncementViewDetail = {
-      user_id: 123,
-      user_name: "John Doe",
-      seen_at: "2024-01-15T10:30:00Z",
-      dismissed: true,
-    };
-
-    const result = mapViewDetail(backendDetail);
-
-    expect(result.userId).toBe("123");
-    expect(result.userName).toBe("John Doe");
-    expect(result.seenAt).toBe("2024-01-15T10:30:00Z");
-    expect(result.dismissed).toBe(true);
-  });
-
-  it("maps view detail with dismissed false", () => {
-    const backendDetail: BackendAnnouncementViewDetail = {
-      user_id: 456,
-      user_name: "Jane Smith",
-      seen_at: "2024-02-20T14:45:00Z",
-      dismissed: false,
-    };
-
-    const result = mapViewDetail(backendDetail);
-
-    expect(result.userId).toBe("456");
-    expect(result.dismissed).toBe(false);
-  });
-});
 
 describe("mapAnnouncement", () => {
-  it("maps backend announcement with all fields", () => {
-    const backendAnnouncement: BackendAnnouncement = {
-      id: 99,
-      title: "System Maintenance",
-      content: "The system will be down for maintenance.",
-      type: "maintenance",
-      severity: "warning",
-      version: "2.1.0",
-      active: true,
-      published_at: "2024-03-01T09:00:00Z",
-      expires_at: "2024-03-31T23:59:59Z",
-      target_roles: ["admin", "user"],
-      created_by: 42,
-      created_at: "2024-02-28T10:00:00Z",
-      updated_at: "2024-03-01T08:00:00Z",
-      status: "published",
-    };
+  const base: BackendAnnouncement = {
+    id: 42,
+    title: "Release v2.0",
+    content: "Neue Features",
+    type: "release",
+    severity: "warning",
+    version: "2.0.0",
+    active: true,
+    published_at: "2026-03-01T10:00:00Z",
+    expires_at: "2026-04-01T10:00:00Z",
+    target_roles: ["admin", "user"],
+    target_org_ids: [5, 10],
+    target_tenant_ids: [12],
+    created_by: 1,
+    created_at: "2026-02-28T08:00:00Z",
+    updated_at: "2026-02-28T09:00:00Z",
+    status: "published",
+  };
 
-    const result = mapAnnouncement(backendAnnouncement);
+  it("maps all fields including targeting arrays", () => {
+    const result = mapAnnouncement(base);
 
-    expect(result.id).toBe("99");
-    expect(result.title).toBe("System Maintenance");
-    expect(result.content).toBe("The system will be down for maintenance.");
-    expect(result.type).toBe("maintenance");
+    expect(result.id).toBe("42");
+    expect(result.title).toBe("Release v2.0");
+    expect(result.content).toBe("Neue Features");
+    expect(result.type).toBe("release");
     expect(result.severity).toBe("warning");
-    expect(result.version).toBe("2.1.0");
+    expect(result.version).toBe("2.0.0");
     expect(result.active).toBe(true);
-    expect(result.publishedAt).toBe("2024-03-01T09:00:00Z");
-    expect(result.expiresAt).toBe("2024-03-31T23:59:59Z");
+    expect(result.publishedAt).toBe("2026-03-01T10:00:00Z");
+    expect(result.expiresAt).toBe("2026-04-01T10:00:00Z");
     expect(result.targetRoles).toEqual(["admin", "user"]);
-    expect(result.createdBy).toBe("42");
-    expect(result.createdAt).toBe("2024-02-28T10:00:00Z");
-    expect(result.updatedAt).toBe("2024-03-01T08:00:00Z");
+    expect(result.targetOrgIds).toEqual(["5", "10"]);
+    expect(result.targetTenantIds).toEqual(["12"]);
+    expect(result.createdBy).toBe("1");
+    expect(result.createdAt).toBe("2026-02-28T08:00:00Z");
+    expect(result.updatedAt).toBe("2026-02-28T09:00:00Z");
     expect(result.status).toBe("published");
   });
 
-  it("maps announcement with null optional fields", () => {
-    const backendAnnouncement: BackendAnnouncement = {
-      id: 100,
-      title: "Important Notice",
-      content: "Please read this.",
-      type: "announcement",
-      severity: "info",
+  it("handles null/undefined optional fields", () => {
+    const input: BackendAnnouncement = {
+      ...base,
       version: null,
-      active: false,
       published_at: null,
       expires_at: null,
       target_roles: [],
-      created_by: 1,
-      created_at: "2024-04-01T08:00:00Z",
-      updated_at: "2024-04-01T08:00:00Z",
-      status: "draft",
+      target_org_ids: [],
+      target_tenant_ids: [],
     };
 
-    const result = mapAnnouncement(backendAnnouncement);
+    const result = mapAnnouncement(input);
 
-    expect(result.id).toBe("100");
     expect(result.version).toBeNull();
     expect(result.publishedAt).toBeNull();
     expect(result.expiresAt).toBeNull();
     expect(result.targetRoles).toEqual([]);
-    expect(result.active).toBe(false);
-    expect(result.status).toBe("draft");
+    expect(result.targetOrgIds).toEqual([]);
+    expect(result.targetTenantIds).toEqual([]);
   });
 
-  it("maps release announcement correctly", () => {
-    const backendAnnouncement: BackendAnnouncement = {
-      id: 101,
-      title: "New Release Available",
-      content: "Version 3.0 is here!",
-      type: "release",
-      severity: "critical",
-      version: "3.0.0",
-      active: true,
-      published_at: "2024-05-01T00:00:00Z",
-      expires_at: null,
-      target_roles: ["admin", "user", "guardian"],
-      created_by: 5,
-      created_at: "2024-04-30T12:00:00Z",
-      updated_at: "2024-05-01T00:00:00Z",
-      status: "published",
-    };
+  it("converts int64 IDs to strings", () => {
+    const result = mapAnnouncement(base);
 
-    const result = mapAnnouncement(backendAnnouncement);
-
-    expect(result.type).toBe("release");
-    expect(result.version).toBe("3.0.0");
-    expect(result.targetRoles).toHaveLength(3);
+    expect(typeof result.id).toBe("string");
+    expect(typeof result.createdBy).toBe("string");
+    expect(result.targetOrgIds.every((id) => typeof id === "string")).toBe(
+      true,
+    );
+    expect(result.targetTenantIds.every((id) => typeof id === "string")).toBe(
+      true,
+    );
   });
 });
 
-describe("TYPE_LABELS", () => {
-  it("contains all announcement type labels", () => {
+describe("mapViewDetail", () => {
+  it("maps backend view detail to frontend format", () => {
+    const input: BackendAnnouncementViewDetail = {
+      user_id: 123,
+      user_name: "Max Mustermann",
+      seen_at: "2026-03-15T14:30:00Z",
+      dismissed: false,
+    };
+
+    const result = mapViewDetail(input);
+
+    expect(result.userId).toBe("123");
+    expect(result.userName).toBe("Max Mustermann");
+    expect(result.seenAt).toBe("2026-03-15T14:30:00Z");
+    expect(result.dismissed).toBe(false);
+  });
+
+  it("maps dismissed view detail", () => {
+    const input: BackendAnnouncementViewDetail = {
+      user_id: 456,
+      user_name: "Erika Muster",
+      seen_at: "2026-03-15T15:00:00Z",
+      dismissed: true,
+    };
+
+    const result = mapViewDetail(input);
+
+    expect(result.userId).toBe("456");
+    expect(result.dismissed).toBe(true);
+  });
+});
+
+describe("label constants", () => {
+  it("TYPE_LABELS covers all types", () => {
     expect(TYPE_LABELS.announcement).toBe("Ankündigung");
     expect(TYPE_LABELS.release).toBe("Release");
     expect(TYPE_LABELS.maintenance).toBe("Wartung");
   });
-});
 
-describe("SEVERITY_LABELS", () => {
-  it("contains all severity labels", () => {
+  it("SEVERITY_LABELS covers all severities", () => {
     expect(SEVERITY_LABELS.info).toBe("Info");
     expect(SEVERITY_LABELS.warning).toBe("Warnung");
     expect(SEVERITY_LABELS.critical).toBe("Kritisch");
   });
-});
 
-describe("ANNOUNCEMENT_STATUS_LABELS", () => {
-  it("contains all status labels", () => {
+  it("ANNOUNCEMENT_STATUS_LABELS covers all statuses", () => {
     expect(ANNOUNCEMENT_STATUS_LABELS.draft).toBe("Entwurf");
     expect(ANNOUNCEMENT_STATUS_LABELS.published).toBe("Veröffentlicht");
     expect(ANNOUNCEMENT_STATUS_LABELS.expired).toBe("Abgelaufen");
   });
-});
 
-describe("SYSTEM_ROLE_LABELS", () => {
-  it("contains all role labels", () => {
+  it("SYSTEM_ROLE_LABELS covers all roles", () => {
     expect(SYSTEM_ROLE_LABELS.admin).toBe("Administratoren");
-    expect(SYSTEM_ROLE_LABELS.user).toBe("Lehrer/Personal");
+    expect(SYSTEM_ROLE_LABELS.user).toBe("Betreuer");
     expect(SYSTEM_ROLE_LABELS.guardian).toBe("Erziehungsberechtigte");
-  });
-});
-
-describe("TYPE_STYLES", () => {
-  it("contains style classes for all types", () => {
-    expect(TYPE_STYLES.announcement).toContain("bg-blue-100");
-    expect(TYPE_STYLES.release).toContain("bg-green-100");
-    expect(TYPE_STYLES.maintenance).toContain("bg-orange-100");
-  });
-});
-
-describe("SEVERITY_STYLES", () => {
-  it("contains style classes for all severities", () => {
-    expect(SEVERITY_STYLES.info).toContain("bg-gray-100");
-    expect(SEVERITY_STYLES.warning).toContain("bg-yellow-100");
-    expect(SEVERITY_STYLES.critical).toContain("bg-red-100");
-  });
-});
-
-describe("ANNOUNCEMENT_STATUS_STYLES", () => {
-  it("contains style classes for all statuses", () => {
-    expect(ANNOUNCEMENT_STATUS_STYLES.draft).toContain("bg-gray-100");
-    expect(ANNOUNCEMENT_STATUS_STYLES.published).toContain("bg-green-100");
-    expect(ANNOUNCEMENT_STATUS_STYLES.expired).toContain("bg-red-100");
   });
 });

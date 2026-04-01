@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -77,7 +78,28 @@ type OperatorProvisioningService interface {
 	ListOrganizationDevices(ctx context.Context, organizationID int64) ([]OperatorDeviceInfo, error)
 	CreateDevice(ctx context.Context, schoolID int64, deviceID, deviceType string, name, apiKey *string, operatorID int64, clientIP net.IP) (*OperatorDeviceInfo, error)
 	SetDeviceAPIKey(ctx context.Context, id int64, apiKey *string, operatorID int64, clientIP net.IP) (*OperatorDeviceInfo, error)
+	SoftDeleteSchool(ctx context.Context, schoolID, operatorID int64, clientIP net.IP) error
+	RestoreSchool(ctx context.Context, schoolID, operatorID int64, clientIP net.IP) error
 	DeleteDevice(ctx context.Context, id int64, operatorID int64, clientIP net.IP) error
+	ListSchoolPersons(ctx context.Context, schoolID int64) ([]OperatorPersonInfo, error)
+	SoftDeletePerson(ctx context.Context, personID int64, operatorID int64, clientIP net.IP) error
+}
+
+// OperatorPersonInfo holds person information with school/org context for operator views.
+type OperatorPersonInfo struct {
+	ID               int64     `bun:"id" json:"id"`
+	FirstName        string    `bun:"first_name" json:"first_name"`
+	LastName         string    `bun:"last_name" json:"last_name"`
+	HasAccount       bool      `bun:"has_account" json:"has_account"`
+	AccountEmail     *string   `bun:"account_email" json:"account_email,omitempty"`
+	HasRFIDCard      bool      `bun:"has_rfid_card" json:"has_rfid_card"`
+	IsStaff          bool      `bun:"is_staff" json:"is_staff"`
+	IsStudent        bool      `bun:"is_student" json:"is_student"`
+	SchoolID         int64     `bun:"school_id" json:"school_id"`
+	SchoolName       string    `bun:"school_name" json:"school_name"`
+	OrganizationID   int64     `bun:"organization_id" json:"organization_id"`
+	OrganizationName string    `bun:"organization_name" json:"organization_name"`
+	CreatedAt        time.Time `bun:"created_at" json:"created_at"`
 }
 
 // OperatorDeviceInfo holds device information with school/org context for operator views.
@@ -123,57 +145,60 @@ func enrichDeviceInfo(devices []OperatorDeviceInfo) []OperatorDeviceInfo {
 }
 
 type operatorProvisioningService struct {
-	organizationRepo  platform.OrganizationRepository
-	schoolRepo        platform.SchoolRepository
-	categoryRepo      activityModels.CategoryRepository
-	deviceRepo        iotModels.DeviceRepository
-	roleRepo          authModels.RoleRepository
-	accountTenantRepo authModels.AccountTenantRepository
-	personRepo        userModels.PersonRepository
-	staffRepo         userModels.StaffRepository
-	teacherRepo       userModels.TeacherRepository
-	invitationService authSvc.InvitationService
-	authService       authSvc.AuthService
-	auditLogRepo      platform.OperatorAuditLogRepository
-	txHandler         *modelBase.TxHandler
-	logger            *slog.Logger
+	organizationRepo    platform.OrganizationRepository
+	schoolRepo          platform.SchoolRepository
+	categoryRepo        activityModels.CategoryRepository
+	deviceRepo          iotModels.DeviceRepository
+	roleRepo            authModels.RoleRepository
+	accountTenantRepo   authModels.AccountTenantRepository
+	personRepo          userModels.PersonRepository
+	staffRepo           userModels.StaffRepository
+	teacherRepo         userModels.TeacherRepository
+	groupSupervisorRepo activeModels.GroupSupervisorRepository
+	invitationService   authSvc.InvitationService
+	authService         authSvc.AuthService
+	auditLogRepo        platform.OperatorAuditLogRepository
+	txHandler           *modelBase.TxHandler
+	logger              *slog.Logger
 }
 
 // OperatorProvisioningServiceConfig holds dependencies for operator provisioning.
 type OperatorProvisioningServiceConfig struct {
-	OrganizationRepo  platform.OrganizationRepository
-	SchoolRepo        platform.SchoolRepository
-	CategoryRepo      activityModels.CategoryRepository
-	DeviceRepo        iotModels.DeviceRepository
-	RoleRepo          authModels.RoleRepository
-	AccountTenantRepo authModels.AccountTenantRepository
-	PersonRepo        userModels.PersonRepository
-	StaffRepo         userModels.StaffRepository
-	TeacherRepo       userModels.TeacherRepository
-	InvitationService authSvc.InvitationService
-	AuthService       authSvc.AuthService
-	AuditLogRepo      platform.OperatorAuditLogRepository
-	DB                *bun.DB
-	Logger            *slog.Logger
+	OrganizationRepo    platform.OrganizationRepository
+	SchoolRepo          platform.SchoolRepository
+	CategoryRepo        activityModels.CategoryRepository
+	DeviceRepo          iotModels.DeviceRepository
+	RoleRepo            authModels.RoleRepository
+	AccountTenantRepo   authModels.AccountTenantRepository
+	PersonRepo          userModels.PersonRepository
+	StaffRepo           userModels.StaffRepository
+	TeacherRepo         userModels.TeacherRepository
+	GroupSupervisorRepo activeModels.GroupSupervisorRepository
+	InvitationService   authSvc.InvitationService
+	AuthService         authSvc.AuthService
+	AuditLogRepo        platform.OperatorAuditLogRepository
+	DB                  *bun.DB
+	Logger              *slog.Logger
 }
 
 // NewOperatorProvisioningService creates a provisioning service.
 func NewOperatorProvisioningService(cfg OperatorProvisioningServiceConfig) OperatorProvisioningService {
 	return &operatorProvisioningService{
-		organizationRepo:  cfg.OrganizationRepo,
-		schoolRepo:        cfg.SchoolRepo,
-		categoryRepo:      cfg.CategoryRepo,
-		deviceRepo:        cfg.DeviceRepo,
-		roleRepo:          cfg.RoleRepo,
-		accountTenantRepo: cfg.AccountTenantRepo,
-		personRepo:        cfg.PersonRepo,
-		staffRepo:         cfg.StaffRepo,
-		teacherRepo:       cfg.TeacherRepo,
-		invitationService: cfg.InvitationService,
-		authService:       cfg.AuthService,
-		auditLogRepo:      cfg.AuditLogRepo,
-		txHandler:         modelBase.NewTxHandler(cfg.DB),
-		logger:            cfg.Logger,
+		organizationRepo:    cfg.OrganizationRepo,
+		schoolRepo:          cfg.SchoolRepo,
+		categoryRepo:        cfg.CategoryRepo,
+		deviceRepo:          cfg.DeviceRepo,
+		roleRepo:            cfg.RoleRepo,
+		accountTenantRepo:   cfg.AccountTenantRepo,
+		personRepo:          cfg.PersonRepo,
+		staffRepo:           cfg.StaffRepo,
+		teacherRepo:         cfg.TeacherRepo,
+		groupSupervisorRepo: cfg.GroupSupervisorRepo,
+		invitationService:   cfg.InvitationService,
+		authService:         cfg.AuthService,
+		auditLogRepo:        cfg.AuditLogRepo,
+		txHandler:           modelBase.NewTxHandler(cfg.DB),
+		logger:              cfg.Logger,
 	}
 }
 
@@ -331,6 +356,9 @@ func (s *operatorProvisioningService) UpdateSchool(ctx context.Context, id int64
 		}
 		if existing == nil {
 			return &SchoolNotFoundError{SchoolID: id}
+		}
+		if existing.IsDeleted() {
+			return &SchoolAlreadyDeletedError{SchoolID: id}
 		}
 
 		changes := map[string]any{}
@@ -573,6 +601,9 @@ func (s *operatorProvisioningService) ListSchoolAccounts(ctx context.Context, sc
 		if school == nil {
 			return &SchoolNotFoundError{SchoolID: schoolID}
 		}
+		if school.IsDeleted() {
+			return &SchoolAlreadyDeletedError{SchoolID: schoolID}
+		}
 		accounts, listErr := s.accountTenantRepo.ListAccountsByTenantID(adminCtx, schoolID)
 		if listErr != nil {
 			return listErr
@@ -690,6 +721,9 @@ func (s *operatorProvisioningService) ListSchoolDevices(ctx context.Context, sch
 		}
 		if school == nil {
 			return &SchoolNotFoundError{SchoolID: schoolID}
+		}
+		if school.IsDeleted() {
+			return &SchoolAlreadyDeletedError{SchoolID: schoolID}
 		}
 		var queryErr error
 		result, queryErr = s.queryDevices(adminCtx, `"d".tenant_id = ?`, schoolID)
@@ -813,6 +847,9 @@ func (s *operatorProvisioningService) CreateDevice(ctx context.Context, schoolID
 		if school == nil {
 			return &SchoolNotFoundError{SchoolID: schoolID}
 		}
+		if school.IsDeleted() {
+			return &SchoolAlreadyDeletedError{SchoolID: schoolID}
+		}
 		if !school.Active {
 			return &SchoolInactiveError{SchoolID: schoolID}
 		}
@@ -908,7 +945,13 @@ func (s *operatorProvisioningService) SetDeviceAPIKey(ctx context.Context, id in
 		if schoolErr != nil {
 			return fmt.Errorf("SetDeviceAPIKey: lookup school: %w", schoolErr)
 		}
-		if school == nil || !school.Active {
+		if school == nil {
+			return &SchoolNotFoundError{SchoolID: device.TenantID}
+		}
+		if school.IsDeleted() {
+			return &SchoolAlreadyDeletedError{SchoolID: device.TenantID}
+		}
+		if !school.Active {
 			return &SchoolInactiveError{SchoolID: device.TenantID}
 		}
 
@@ -980,7 +1023,7 @@ func (s *operatorProvisioningService) DeleteDevice(ctx context.Context, id int64
 		}
 
 		// Prevent deletion of system-managed virtual devices (e.g. WEB-MANUAL-001).
-		if device.DeviceID == webManualDeviceID {
+		if device.DeviceID == iotModels.WebManualDeviceID {
 			return &DeviceProtectedError{DeviceID: id, Reason: "system device required for manual web check-ins"}
 		}
 
@@ -998,6 +1041,186 @@ func (s *operatorProvisioningService) DeleteDevice(ctx context.Context, id int64
 			"device_type": device.DeviceType,
 			"school_id":   device.TenantID,
 		})
+
+		return nil
+	})
+}
+
+// operatorPersonQuery is the shared query for listing persons with school/org context.
+const operatorPersonQuery = `
+SELECT
+	"p".id,
+	"p".first_name,
+	"p".last_name,
+	("p".account_id IS NOT NULL) AS has_account,
+	"a".email AS account_email,
+	(EXISTS (SELECT 1 FROM users.staff WHERE person_id = "p".id)) AS is_staff,
+	(EXISTS (SELECT 1 FROM users.students WHERE person_id = "p".id)) AS is_student,
+	("p".tag_id IS NOT NULL) AS has_rfid_card,
+	"s".id AS school_id,
+	"s".name AS school_name,
+	"o".id AS organization_id,
+	"o".name AS organization_name,
+	"p".created_at
+FROM users.persons AS "p"
+INNER JOIN platform.schools AS "s" ON "s".id = "p".tenant_id
+INNER JOIN platform.organizations AS "o" ON "o".id = "s".organization_id
+LEFT JOIN auth.accounts AS "a" ON "a".id = "p".account_id
+WHERE "p".deleted_at IS NULL
+`
+
+func (s *operatorProvisioningService) ListSchoolPersons(ctx context.Context, schoolID int64) ([]OperatorPersonInfo, error) {
+	var result []OperatorPersonInfo
+	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
+		school, findErr := s.schoolRepo.FindByID(adminCtx, schoolID)
+		if findErr != nil {
+			if isSchoolLookupNotFound(findErr) {
+				return &SchoolNotFoundError{SchoolID: schoolID}
+			}
+			return findErr
+		}
+		if school == nil {
+			return &SchoolNotFoundError{SchoolID: schoolID}
+		}
+
+		var db bun.IDB = s.txHandler.DB
+		if tx, ok := modelBase.TxFromContext(adminCtx); ok && tx != nil {
+			db = tx
+		}
+
+		q := operatorPersonQuery + ` AND "p".tenant_id = ? ORDER BY "p".last_name, "p".first_name`
+		if scanErr := db.NewRaw(q, schoolID).Scan(adminCtx, &result); scanErr != nil {
+			return scanErr
+		}
+		if result == nil {
+			result = []OperatorPersonInfo{}
+		}
+		return nil
+	})
+	return result, err
+}
+
+func (s *operatorProvisioningService) SoftDeletePerson(ctx context.Context, personID int64, operatorID int64, clientIP net.IP) error {
+	if personID <= 0 {
+		return &InvalidDataError{Err: fmt.Errorf("person id is required")}
+	}
+
+	return s.withAdminTx(ctx, func(adminCtx context.Context) error {
+		var db bun.IDB = s.txHandler.DB
+		if tx, ok := modelBase.TxFromContext(adminCtx); ok && tx != nil {
+			db = tx
+		}
+
+		// Find person (cross-tenant, raw query bypasses tenant filter).
+		// WhereAllWithDeleted is not needed here — BUN auto-excludes soft-deleted rows.
+		var person userModels.Person
+		err := db.NewSelect().
+			ModelTableExpr(`users.persons AS "person"`).
+			ColumnExpr(`"person".*`).
+			Where(`"person".id = ?`, personID).
+			Where(`"person".deleted_at IS NULL`).
+			Scan(adminCtx, &person)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return &PersonNotFoundError{PersonID: personID}
+			}
+			return fmt.Errorf("SoftDeletePerson: find person: %w", err)
+		}
+
+		// If person is staff, check for active supervisions
+		var staff userModels.Staff
+		staffErr := db.NewSelect().
+			ModelTableExpr(`users.staff AS "staff"`).
+			ColumnExpr(`"staff".*`).
+			Where(`"staff".person_id = ?`, personID).
+			Scan(adminCtx, &staff)
+		if staffErr == nil {
+			// Staff exists — check active supervisions
+			if s.groupSupervisorRepo != nil {
+				supervisors, supErr := s.groupSupervisorRepo.FindActiveByStaffID(adminCtx, staff.ID)
+				if supErr != nil {
+					s.getLogger().Warn("soft_delete_supervision_check_failed",
+						slog.Int64("person_id", personID),
+						slog.Int64("staff_id", staff.ID),
+						slog.Any("error", supErr),
+					)
+				} else if len(supervisors) > 0 {
+					return &PersonHasActiveSupervisionsError{PersonID: personID, Count: len(supervisors)}
+				}
+			}
+		}
+
+		// Unlink RFID card
+		if person.TagID != nil {
+			_, err = db.NewUpdate().
+				ModelTableExpr(`users.persons AS "person"`).
+				Set(`tag_id = NULL`).
+				Where(`"person".id = ?`, personID).
+				Exec(adminCtx)
+			if err != nil {
+				return fmt.Errorf("SoftDeletePerson: unlink rfid: %w", err)
+			}
+		}
+
+		// Deactivate account + anonymize email
+		if person.AccountID != nil {
+			accountID := *person.AccountID
+
+			// Deactivate account and delete tokens
+			if deactivateErr := s.authService.DeactivateAccount(adminCtx, int(accountID)); deactivateErr != nil {
+				s.getLogger().Warn("soft_delete_account_deactivation_failed",
+					slog.Int64("person_id", personID),
+					slog.Int64("account_id", accountID),
+					slog.Any("error", deactivateErr),
+				)
+			}
+
+			// Anonymize email
+			anonymizedEmail := fmt.Sprintf("deleted-%d@anonymized.local", personID)
+			_, err = db.NewUpdate().
+				ModelTableExpr(`auth.accounts AS "account"`).
+				Set(`email = ?`, anonymizedEmail).
+				Set(`username = NULL`).
+				Where(`"account".id = ?`, accountID).
+				Exec(adminCtx)
+			if err != nil {
+				return fmt.Errorf("SoftDeletePerson: anonymize account: %w", err)
+			}
+
+			// Unlink account from person
+			_, err = db.NewUpdate().
+				ModelTableExpr(`users.persons AS "person"`).
+				Set(`account_id = NULL`).
+				Where(`"person".id = ?`, personID).
+				Exec(adminCtx)
+			if err != nil {
+				return fmt.Errorf("SoftDeletePerson: unlink account: %w", err)
+			}
+		}
+
+		// Anonymize PII and soft delete
+		_, err = db.NewUpdate().
+			ModelTableExpr(`users.persons AS "person"`).
+			Set(`first_name = ?`, "Gelöscht").
+			Set(`last_name = ?`, "Benutzer").
+			Set(`birthday = NULL`).
+			Set(`deleted_at = NOW()`).
+			Where(`"person".id = ?`, personID).
+			Exec(adminCtx)
+		if err != nil {
+			return fmt.Errorf("SoftDeletePerson: anonymize and soft delete: %w", err)
+		}
+
+		s.logAction(adminCtx, operatorID, platform.ActionSoftDelete, platform.ResourcePerson, &personID, clientIP, map[string]any{
+			"person_id": personID,
+			"school_id": person.TenantID,
+		})
+
+		s.getLogger().Info("person_soft_deleted",
+			slog.Int64("person_id", personID),
+			slog.Int64("school_id", person.TenantID),
+			slog.Int64("operator_id", operatorID),
+		)
 
 		return nil
 	})
@@ -1065,6 +1288,9 @@ func (s *operatorProvisioningService) loadActiveSchool(ctx context.Context, scho
 	if school == nil {
 		return nil, &SchoolNotFoundError{SchoolID: schoolID}
 	}
+	if school.IsDeleted() {
+		return nil, &SchoolAlreadyDeletedError{SchoolID: schoolID}
+	}
 	if !school.Active {
 		return nil, &InvalidDataError{Err: fmt.Errorf("school is inactive")}
 	}
@@ -1109,10 +1335,6 @@ func (s *operatorProvisioningService) seedDefaultActivityCategories(ctx context.
 	return nil
 }
 
-// webManualDeviceID is the device_id for the virtual web check-in device.
-// Each tenant gets its own instance so RLS keeps it visible only to that school.
-const webManualDeviceID = "WEB-MANUAL-001"
-
 func (s *operatorProvisioningService) createWebManualDevice(ctx context.Context, tenantID int64) error {
 	if s.deviceRepo == nil || tenantID <= 0 {
 		return nil
@@ -1120,8 +1342,8 @@ func (s *operatorProvisioningService) createWebManualDevice(ctx context.Context,
 
 	deviceName := "Web-Portal (Manuell)"
 	device := &iotModels.Device{
-		DeviceID:   webManualDeviceID,
-		DeviceType: "virtual",
+		DeviceID:   iotModels.WebManualDeviceID,
+		DeviceType: iotModels.DeviceTypeVirtual,
 		Name:       &deviceName,
 		Status:     iotModels.DeviceStatusActive,
 	}
@@ -1137,7 +1359,7 @@ func (s *operatorProvisioningService) createWebManualDevice(ctx context.Context,
 
 	s.getLogger().Info("created web manual device for tenant",
 		slog.Int64("tenant_id", tenantID),
-		slog.String("device_id", webManualDeviceID),
+		slog.String("device_id", iotModels.WebManualDeviceID),
 	)
 	return nil
 }
@@ -1227,6 +1449,20 @@ func isUniqueViolation(err error) bool {
 	return false
 }
 
+// isRowsAffectedMismatch returns true when a DatabaseError wraps a "expected N rows affected, got M"
+// failure from AssertRowsAffected. This happens when a concurrent operation changed the row between
+// our read and our conditional UPDATE (e.g. soft-delete WHERE deleted_at IS NULL).
+func isRowsAffectedMismatch(err error) bool {
+	if err == nil {
+		return false
+	}
+	var dbErr *modelBase.DatabaseError
+	if errors.As(err, &dbErr) {
+		return dbErr.Err != nil && strings.Contains(dbErr.Err.Error(), "rows affected")
+	}
+	return false
+}
+
 func isForeignKeyViolation(err error) bool {
 	if err == nil {
 		return false
@@ -1240,6 +1476,116 @@ func isForeignKeyViolation(err error) bool {
 		return pgErr.IntegrityViolation() && pgErr.Field('C') == "23503"
 	}
 	return false
+}
+
+// SoftDeleteSchool marks a school as deleted. The school remains in the database but is excluded
+// from login, tenant resolution, and all tenant-scoped operations.
+//
+// Session handling after soft-delete:
+//   - New logins: blocked immediately (resolveAccountTenantBySlug + resolveAccountTenantDefault
+//     both reject deleted schools)
+//   - IoT devices: blocked immediately (rejectDeletedSchool checks deleted_at on every request,
+//     since devices use long-lived API keys that don't expire)
+//   - Refresh tokens: revoked immediately via bulk DELETE from auth.tokens. As a second
+//     layer, validateTenantAccess checks school.deleted_at on every refresh attempt,
+//     catching tokens that a concurrent refresh may have inserted after the bulk DELETE.
+//   - Existing JWT sessions: drain naturally within the 15-min access token TTL. The JWT
+//     middleware trusts token claims without a DB lookup per request.
+//   - Pending invitations: invalidated immediately (marked as used, so invite links can no
+//     longer be redeemed for the deleted school)
+func (s *operatorProvisioningService) SoftDeleteSchool(ctx context.Context, schoolID, operatorID int64, clientIP net.IP) error {
+	return s.withAdminTx(ctx, func(adminCtx context.Context) error {
+		school, err := s.schoolRepo.FindByID(adminCtx, schoolID)
+		if err != nil {
+			if isSchoolLookupNotFound(err) {
+				return &SchoolNotFoundError{SchoolID: schoolID}
+			}
+			return err
+		}
+		if school == nil {
+			return &SchoolNotFoundError{SchoolID: schoolID}
+		}
+		if school.IsDeleted() {
+			return &SchoolAlreadyDeletedError{SchoolID: schoolID}
+		}
+
+		if err := s.schoolRepo.SoftDelete(adminCtx, schoolID); err != nil {
+			// If another operator concurrently deleted this school between our read and
+			// update, the WHERE deleted_at IS NULL clause matches zero rows. Map that
+			// race to the same conflict error the pre-check would have returned.
+			if isRowsAffectedMismatch(err) {
+				return &SchoolAlreadyDeletedError{SchoolID: schoolID}
+			}
+			return err
+		}
+
+		// Revoke all refresh tokens for the deleted school so users cannot
+		// obtain new access tokens via /auth/refresh after the 15-min drain.
+		// These steps are fatal: if they fail the transaction rolls back so we
+		// never commit a soft-delete without actually revoking access.
+		var revokedTokens int
+		if s.authService != nil {
+			revokedTokens, err = s.authService.RevokeTokensByTenantID(adminCtx, schoolID)
+			if err != nil {
+				return fmt.Errorf("revoke tokens for school %d: %w", schoolID, err)
+			}
+		}
+
+		// Invalidate all pending invitations so they cannot be redeemed after deletion.
+		var invalidatedInvitations int
+		if s.invitationService != nil {
+			invalidatedInvitations, err = s.invitationService.InvalidatePendingInvitationsByTenantID(adminCtx, schoolID)
+			if err != nil {
+				return fmt.Errorf("invalidate invitations for school %d: %w", schoolID, err)
+			}
+		}
+
+		s.logAction(adminCtx, operatorID, platform.ActionSoftDelete, platform.ResourceSchool, &schoolID, clientIP, map[string]any{
+			"name":                school.Name,
+			"slug":                school.Slug,
+			"subdomain":           school.Subdomain,
+			"revoked_tokens":      revokedTokens,
+			"invalidated_invites": invalidatedInvitations,
+		})
+		return nil
+	})
+}
+
+// RestoreSchool returns a soft-deleted school to its pre-deletion state.
+// The active field is preserved — a school that was inactive before deletion remains inactive after restore.
+func (s *operatorProvisioningService) RestoreSchool(ctx context.Context, schoolID, operatorID int64, clientIP net.IP) error {
+	return s.withAdminTx(ctx, func(adminCtx context.Context) error {
+		school, err := s.schoolRepo.FindByID(adminCtx, schoolID)
+		if err != nil {
+			if isSchoolLookupNotFound(err) {
+				return &SchoolNotFoundError{SchoolID: schoolID}
+			}
+			return err
+		}
+		if school == nil {
+			return &SchoolNotFoundError{SchoolID: schoolID}
+		}
+		if !school.IsDeleted() {
+			return &SchoolNotDeletedError{SchoolID: schoolID}
+		}
+
+		if err := s.schoolRepo.Restore(adminCtx, schoolID); err != nil {
+			// If another operator concurrently restored this school between our read and
+			// update, the WHERE deleted_at IS NOT NULL clause matches zero rows. Map that
+			// race to the same conflict error the pre-check would have returned.
+			if isRowsAffectedMismatch(err) {
+				return &SchoolNotDeletedError{SchoolID: schoolID}
+			}
+			return err
+		}
+
+		s.logAction(adminCtx, operatorID, platform.ActionRestore, platform.ResourceSchool, &schoolID, clientIP, map[string]any{
+			"name":      school.Name,
+			"slug":      school.Slug,
+			"subdomain": school.Subdomain,
+		})
+		return nil
+	})
 }
 
 func mapSchoolCreateConflict(ctx context.Context, schoolRepo platform.SchoolRepository, school *platform.School) error {

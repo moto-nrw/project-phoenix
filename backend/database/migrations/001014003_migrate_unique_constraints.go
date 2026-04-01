@@ -15,11 +15,11 @@ const (
 )
 
 func init() {
-	MigrationRegistry[migrateUniqueConstraintsVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     migrateUniqueConstraintsVersion,
 		Description: migrateUniqueConstraintsDescription,
 		DependsOn:   []string{"1.14.2"}, // tenant_id columns exist
-	}
+	})
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {

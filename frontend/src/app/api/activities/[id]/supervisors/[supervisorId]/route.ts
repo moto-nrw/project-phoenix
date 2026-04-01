@@ -1,11 +1,7 @@
 // src/app/api/activities/[id]/supervisors/[supervisorId]/route.ts
 import type { NextRequest } from "next/server";
+import { apiDelete, apiPut } from "~/lib/api-helpers";
 import { createPutHandler, createDeleteHandler } from "~/lib/route-wrapper";
-import {
-  updateSupervisorRole,
-  removeSupervisor,
-  getActivitySupervisors,
-} from "~/lib/activity-api";
 
 /**
  * PUT handler for updating a supervisor's role for an activity (primarily is_primary status)
@@ -35,18 +31,15 @@ export const PUT = createPutHandler(
       throw new Error("is_primary parameter is required");
     }
 
-    // Update the supervisor role
-    const success = await updateSupervisorRole(activityId, supervisorId, {
-      is_primary: body.is_primary,
-    });
+    await apiPut(
+      `/api/activities/${activityId}/supervisors/${supervisorId}`,
+      token,
+      {
+        is_primary: body.is_primary,
+      },
+    );
 
-    if (!success) {
-      throw new Error("Failed to update supervisor role");
-    }
-
-    // If successful, return the updated supervisors list
-    const updatedSupervisors = await getActivitySupervisors(activityId);
-    return updatedSupervisors;
+    return { success: true };
   },
 );
 
@@ -72,12 +65,10 @@ export const DELETE = createDeleteHandler(
       throw new Error("Supervisor ID is required");
     }
 
-    // Remove the supervisor
-    const success = await removeSupervisor(activityId, supervisorId);
-
-    if (!success) {
-      throw new Error("Failed to remove supervisor");
-    }
+    await apiDelete(
+      `/api/activities/${activityId}/supervisors/${supervisorId}`,
+      token,
+    );
 
     return { success: true };
   },

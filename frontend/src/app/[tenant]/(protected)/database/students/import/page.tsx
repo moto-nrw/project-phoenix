@@ -423,6 +423,10 @@ export default function StudentImportPage() {
             <ul className="list-inside list-disc space-y-1 text-sm text-gray-600">
               <li>Laden Sie die Vorlage herunter (siehe unten)</li>
               <li>Füllen Sie die Datei mit Ihren Schülerdaten aus</li>
+              <li>
+                Für Geburtstage sind diese Formate erlaubt: JJJJ-MM-TT,
+                TT.MM.JJJJ oder TT.MM.JJ
+              </li>
               <li>Speichern Sie die ausgefüllte Datei</li>
               <li>
                 Laden Sie die Datei hier hoch und überprüfen Sie die Vorschau
@@ -513,6 +517,12 @@ export default function StudentImportPage() {
                 </svg>
               </div>
             </div>
+            <p className="mt-2 text-sm text-gray-500">
+              Beispiel Geburtstag:{" "}
+              <span className="font-medium">2015-08-15</span>,{" "}
+              <span className="font-medium">15.08.2015</span> oder{" "}
+              <span className="font-medium">15.08.15</span>
+            </p>
           </div>
           <div className="flex-1 sm:pt-6">
             <Button

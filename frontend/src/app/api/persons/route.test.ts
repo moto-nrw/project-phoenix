@@ -129,7 +129,7 @@ describe("POST /api/persons", () => {
 
     expect(mockFetch).toHaveBeenCalledTimes(1);
     expect(mockFetch).toHaveBeenCalledWith(
-      "http://localhost:8080/persons",
+      "http://server:8080/persons",
       expect.objectContaining({
         method: "POST",
         headers: expect.objectContaining({

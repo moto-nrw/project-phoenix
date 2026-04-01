@@ -16,11 +16,11 @@ const (
 
 func init() {
 	// Register migration with explicit version
-	MigrationRegistry[ActiveGroupsVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     ActiveGroupsVersion,
 		Description: ActiveGroupsDescription,
 		DependsOn:   []string{"1.3.9", "1.3.2", "1.1.1"}, // Depends on IoT devices, activity groups, and rooms
-	}
+	})
 
 	// Migration 1.4.1: Create active.groups table
 	Migrations.MustRegister(

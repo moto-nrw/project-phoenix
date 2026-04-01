@@ -177,7 +177,7 @@ describe("student-api", () => {
 
         const result = await fetchStudents();
 
-        expect(mockGet).toHaveBeenCalledWith("http://localhost:8080/students");
+        expect(mockGet).toHaveBeenCalledWith("http://server:8080/students");
         expect(result.students).toHaveLength(1);
         expect(result.students[0]?.id).toBe("1");
         expect(result.students[0]?.first_name).toBe("Max");
@@ -310,7 +310,7 @@ describe("student-api", () => {
         await deleteStudent("123");
 
         expect(mockDelete).toHaveBeenCalledWith(
-          "http://localhost:8080/students/123",
+          "http://server:8080/students/123",
         );
       });
     });
@@ -371,7 +371,7 @@ describe("student-api", () => {
 
         const result = await fetchGroups();
 
-        expect(mockGet).toHaveBeenCalledWith("http://localhost:8080/groups");
+        expect(mockGet).toHaveBeenCalledWith("http://server:8080/groups");
         expect(result).toHaveLength(1);
       });
 

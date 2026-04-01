@@ -2,6 +2,8 @@ package database
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"log/slog"
 	"time"
 
@@ -38,6 +40,10 @@ func (h *QueryHook) AfterQuery(_ context.Context, event *bun.QueryEvent) {
 	}
 
 	if event.Err != nil {
+		if errors.Is(event.Err, sql.ErrNoRows) {
+			h.logger.LogAttrs(context.Background(), slog.LevelDebug, "query no rows", attrs...)
+			return
+		}
 		attrs = append(attrs, slog.String("error", event.Err.Error()))
 		h.logger.LogAttrs(context.Background(), slog.LevelError, "query error", attrs...)
 		return

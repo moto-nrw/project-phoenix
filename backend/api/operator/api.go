@@ -99,10 +99,17 @@ func (rs *Resource) Router() chi.Router {
 			r.Get("/", rs.provisioningResource.ListSchools)
 			r.Post("/", rs.provisioningResource.CreateSchool)
 			r.Put("/{id}", rs.provisioningResource.UpdateSchool)
+			r.Delete("/{id}", rs.provisioningResource.SoftDeleteSchool)
+			r.Post("/{id}/restore", rs.provisioningResource.RestoreSchool)
 			r.Post("/{id}/invite-admin", rs.provisioningResource.InviteSchoolAdmin)
 			r.Post("/{id}/create-account", rs.provisioningResource.CreateSchoolAccount)
 			r.Get("/{id}/accounts", rs.provisioningResource.ListSchoolAccounts)
 			r.Get("/{id}/devices", rs.provisioningResource.ListSchoolDevices)
+			r.Get("/{id}/persons", rs.provisioningResource.ListSchoolPersons)
+		})
+
+		r.Route("/persons", func(r chi.Router) {
+			r.Delete("/{id}", rs.provisioningResource.SoftDeletePerson)
 		})
 
 		// Suggestions management

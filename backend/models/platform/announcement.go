@@ -2,6 +2,7 @@ package platform
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -29,22 +30,27 @@ const (
 	RoleGuardian = "guardian"
 )
 
+// MaxTargetIDs is the upper bound for target_org_ids and target_tenant_ids arrays.
+const MaxTargetIDs = 100
+
 // tablePlatformAnnouncements is the schema-qualified table name
 const tablePlatformAnnouncements = "platform.announcements"
 
 // Announcement represents a platform announcement or release note
 type Announcement struct {
-	base.Model  `bun:"schema:platform,table:announcements"`
-	Title       string     `bun:"title,notnull" json:"title"`
-	Content     string     `bun:"content,notnull" json:"content"`
-	Type        string     `bun:"type,notnull,default:'announcement'" json:"type"`
-	Severity    string     `bun:"severity,notnull,default:'info'" json:"severity"`
-	Version     *string    `bun:"version" json:"version,omitempty"`
-	Active      bool       `bun:"active,notnull,default:true" json:"active"`
-	PublishedAt *time.Time `bun:"published_at" json:"published_at,omitempty"`
-	ExpiresAt   *time.Time `bun:"expires_at" json:"expires_at,omitempty"`
-	TargetRoles []string   `bun:"target_roles,array" json:"target_roles,omitempty"`
-	CreatedBy   int64      `bun:"created_by,notnull" json:"created_by"`
+	base.Model      `bun:"schema:platform,table:announcements"`
+	Title           string     `bun:"title,notnull" json:"title"`
+	Content         string     `bun:"content,notnull" json:"content"`
+	Type            string     `bun:"type,notnull,default:'announcement'" json:"type"`
+	Severity        string     `bun:"severity,notnull,default:'info'" json:"severity"`
+	Version         *string    `bun:"version" json:"version,omitempty"`
+	Active          bool       `bun:"active,notnull,default:true" json:"active"`
+	PublishedAt     *time.Time `bun:"published_at" json:"published_at,omitempty"`
+	ExpiresAt       *time.Time `bun:"expires_at" json:"expires_at,omitempty"`
+	TargetRoles     []string   `bun:"target_roles,array,nullzero,default:'{}'" json:"target_roles,omitempty"`
+	TargetOrgIDs    []int64    `bun:"target_org_ids,array,nullzero,default:'{}'" json:"target_org_ids,omitempty"`
+	TargetTenantIDs []int64    `bun:"target_tenant_ids,array,nullzero,default:'{}'" json:"target_tenant_ids,omitempty"`
+	CreatedBy       int64      `bun:"created_by,notnull" json:"created_by"`
 
 	// Relations
 	Creator *Operator `bun:"rel:belongs-to,join:created_by=id" json:"creator,omitempty"`
@@ -86,6 +92,26 @@ func (a *Announcement) Validate() error {
 	if a.Version != nil && len(*a.Version) > 50 {
 		return errors.New("version must not exceed 50 characters")
 	}
+
+	// Normalize nil slices to empty arrays so BUN sends '{}' instead of NULL.
+	if a.TargetRoles == nil {
+		a.TargetRoles = []string{}
+	}
+	if a.TargetOrgIDs == nil {
+		a.TargetOrgIDs = []int64{}
+	}
+	if a.TargetTenantIDs == nil {
+		a.TargetTenantIDs = []int64{}
+	}
+
+	// Cap targeting array sizes to prevent bloated IN clauses and GIN index overhead.
+	if len(a.TargetOrgIDs) > MaxTargetIDs {
+		return fmt.Errorf("target_org_ids exceeds maximum of %d entries", MaxTargetIDs)
+	}
+	if len(a.TargetTenantIDs) > MaxTargetIDs {
+		return fmt.Errorf("target_tenant_ids exceeds maximum of %d entries", MaxTargetIDs)
+	}
+
 	return nil
 }
 

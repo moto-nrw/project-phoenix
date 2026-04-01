@@ -301,6 +301,32 @@ func (rs *ProvisioningResource) UpdateSchool(w http.ResponseWriter, r *http.Requ
 	common.Respond(w, r, http.StatusOK, updated, "School updated successfully")
 }
 
+func (rs *ProvisioningResource) SoftDeleteSchool(w http.ResponseWriter, r *http.Request) {
+	schoolID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid school ID")
+	if !ok {
+		return
+	}
+	operatorID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	if err := rs.service.SoftDeleteSchool(r.Context(), schoolID, operatorID, getClientIP(r)); err != nil {
+		common.RenderError(w, r, ProvisioningErrorRenderer(err))
+		return
+	}
+	common.RespondNoContent(w, r)
+}
+
+func (rs *ProvisioningResource) RestoreSchool(w http.ResponseWriter, r *http.Request) {
+	schoolID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid school ID")
+	if !ok {
+		return
+	}
+	operatorID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	if err := rs.service.RestoreSchool(r.Context(), schoolID, operatorID, getClientIP(r)); err != nil {
+		common.RenderError(w, r, ProvisioningErrorRenderer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, nil, "School restored successfully")
+}
+
 func (rs *ProvisioningResource) InviteSchoolAdmin(w http.ResponseWriter, r *http.Request) {
 	req := &inviteSchoolAdminRequest{}
 	if err := render.Bind(r, req); err != nil {
@@ -434,9 +460,13 @@ func ProvisioningErrorRenderer(err error) render.Renderer {
 	var organizationNotFound *platformSvc.OrganizationNotFoundError
 	var schoolNotFound *platformSvc.SchoolNotFoundError
 	var schoolInactive *platformSvc.SchoolInactiveError
+	var schoolAlreadyDeleted *platformSvc.SchoolAlreadyDeletedError
+	var schoolNotDeleted *platformSvc.SchoolNotDeletedError
 	var operatorDeviceNotFound *platformSvc.OperatorDeviceNotFoundError
 	var deviceInUse *platformSvc.DeviceInUseError
 	var deviceProtected *platformSvc.DeviceProtectedError
+	var personNotFound *platformSvc.PersonNotFoundError
+	var personActiveSupervisors *platformSvc.PersonHasActiveSupervisionsError
 	var authErr *authSvc.AuthError
 
 	if errors.As(err, &authErr) && authErr.Err != nil {
@@ -467,12 +497,20 @@ func ProvisioningErrorRenderer(err error) render.Renderer {
 		return ErrNotFound("School not found")
 	case errors.As(err, &schoolInactive):
 		return ErrForbidden("School is inactive")
+	case errors.As(err, &schoolAlreadyDeleted):
+		return ErrConflict("School is already deleted")
+	case errors.As(err, &schoolNotDeleted):
+		return ErrConflict("School is not deleted")
 	case errors.As(err, &operatorDeviceNotFound):
 		return ErrNotFound("Device not found")
 	case errors.As(err, &deviceInUse):
 		return ErrConflict("Device is still referenced by attendance or session records and cannot be deleted")
 	case errors.As(err, &deviceProtected):
 		return ErrForbidden("This system device cannot be deleted")
+	case errors.As(err, &personNotFound):
+		return ErrNotFound("Person not found")
+	case errors.As(err, &personActiveSupervisors):
+		return ErrConflict("Person has active supervisions and cannot be deleted")
 	default:
 		return ErrInternal("An error occurred")
 	}
@@ -622,6 +660,33 @@ func (rs *ProvisioningResource) DeleteDevice(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	common.Respond(w, r, http.StatusOK, nil, "Device deleted successfully")
+}
+
+func (rs *ProvisioningResource) ListSchoolPersons(w http.ResponseWriter, r *http.Request) {
+	schoolID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid school ID")
+	if !ok {
+		return
+	}
+	persons, err := rs.service.ListSchoolPersons(r.Context(), schoolID)
+	if err != nil {
+		common.RenderError(w, r, ProvisioningErrorRenderer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, persons, "School persons retrieved successfully")
+}
+
+func (rs *ProvisioningResource) SoftDeletePerson(w http.ResponseWriter, r *http.Request) {
+	personID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid person ID")
+	if !ok {
+		return
+	}
+	operatorID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	err := rs.service.SoftDeletePerson(r.Context(), personID, operatorID, getClientIP(r))
+	if err != nil {
+		common.RenderError(w, r, ProvisioningErrorRenderer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, nil, "Person deleted successfully")
 }
 
 func shouldExposeSeedInvitationToken(r *http.Request) bool {

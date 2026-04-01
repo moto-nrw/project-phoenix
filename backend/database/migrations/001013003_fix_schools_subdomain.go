@@ -15,11 +15,11 @@ const (
 )
 
 func init() {
-	MigrationRegistry[fixSchoolsSubdomainVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     fixSchoolsSubdomainVersion,
 		Description: fixSchoolsSubdomainDescription,
 		DependsOn:   []string{"1.13.1"}, // Depends on platform.schools table
-	}
+	})
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {

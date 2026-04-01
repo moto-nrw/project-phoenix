@@ -337,9 +337,11 @@ describe("PasswordResetModal", () => {
         expect(screen.getByTestId("alert-error")).toBeInTheDocument();
       });
 
-      expect(scrollIntoViewMock).toHaveBeenCalledWith({
-        behavior: "smooth",
-        block: "start",
+      await waitFor(() => {
+        expect(scrollIntoViewMock).toHaveBeenCalledWith({
+          behavior: "smooth",
+          block: "start",
+        });
       });
     });
   });

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # deploy-remote.sh — Runs ON the remote server during CI deployment.
-# SCP'd by CI alongside .env.new and docker-compose.yml.new.
+# SCP'd by CI into ~/scripts/ alongside restore-db.sh.
 #
 # Required env vars:
 #   DEPLOY_DIR        — Server directory (staging/demo/production)
@@ -12,6 +12,29 @@
 #   1  — Deploy aborted before migration (pull/backup failure), services restored
 #   10 — Deploy failed, automatic rollback succeeded
 #   11 — Deploy failed AND rollback failed (CRITICAL)
+
+uploads_volume_name() {
+  echo "phoenix-${DEPLOY_DIR}-uploads"
+}
+
+backup_uploads_volume() {
+  local uploads_file="$1"
+  local volume_name
+  volume_name="$(uploads_volume_name)"
+
+  mkdir -p "$(dirname "$uploads_file")"
+
+  if ! docker run --rm \
+    -v "${volume_name}:/volume" \
+    -v "$(dirname "$uploads_file"):/backup" \
+    --entrypoint sh \
+    postgres:17-alpine \
+    -c "tar -czf /backup/$(basename "$uploads_file") -C /volume ."; then
+    return 1
+  fi
+
+  return 0
+}
 
 for var in DEPLOY_DIR DEPLOY_SHA BACKUP_RETENTION; do
   eval "val=\${$var:-}"
@@ -63,6 +86,7 @@ mkdir -p ~/backups/"$DEPLOY_DIR"
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 BACKUP_FILE=~/backups/$DEPLOY_DIR/backup-${TIMESTAMP}.dump
 GLOBALS_FILE=~/backups/$DEPLOY_DIR/globals-${TIMESTAMP}.sql
+UPLOADS_FILE=~/backups/$DEPLOY_DIR/uploads-${TIMESTAMP}.tar.gz
 # Dump cluster globals (roles, passwords, tablespaces) — needed for full restore
 if ! docker compose exec -T postgres pg_dumpall -U postgres --globals-only > "$GLOBALS_FILE"; then
   echo "pg_dumpall failed, aborting deploy"
@@ -86,14 +110,36 @@ if ! docker compose exec -T postgres pg_dump -U postgres -d postgres -Fc > "$BAC
 fi
 if [ ! -s "$BACKUP_FILE" ] || [ ! -s "$GLOBALS_FILE" ]; then
   echo "Backup files empty, aborting deploy"
-  rm -f "$BACKUP_FILE" "$GLOBALS_FILE"
+  rm -f "$BACKUP_FILE" "$GLOBALS_FILE" "$UPLOADS_FILE"
   cp .env.rollback .env 2>/dev/null || true
   cp docker-compose.yml.rollback docker-compose.yml 2>/dev/null || true
   docker compose pull 2>/dev/null || true
   docker compose up -d --wait --remove-orphans 2>/dev/null || true
   exit 1
 fi
+
+if ! backup_uploads_volume "$UPLOADS_FILE"; then
+  echo "Uploads backup failed, aborting deploy"
+  rm -f "$BACKUP_FILE" "$GLOBALS_FILE" "$UPLOADS_FILE"
+  cp .env.rollback .env 2>/dev/null || true
+  cp docker-compose.yml.rollback docker-compose.yml 2>/dev/null || true
+  docker compose pull 2>/dev/null || true
+  docker compose up -d --wait --remove-orphans 2>/dev/null || true
+  exit 1
+fi
+
+if [ ! -s "$UPLOADS_FILE" ]; then
+  echo "Uploads backup empty, aborting deploy"
+  rm -f "$BACKUP_FILE" "$GLOBALS_FILE" "$UPLOADS_FILE"
+  cp .env.rollback .env 2>/dev/null || true
+  cp docker-compose.yml.rollback docker-compose.yml 2>/dev/null || true
+  docker compose pull 2>/dev/null || true
+  docker compose up -d --wait --remove-orphans 2>/dev/null || true
+  exit 1
+fi
+
 echo "Backup: $(basename "$BACKUP_FILE") ($(du -h "$BACKUP_FILE" | cut -f1))"
+echo "Uploads backup: $(basename "$UPLOADS_FILE") ($(du -h "$UPLOADS_FILE" | cut -f1))"
 
 # ── Read previous deploy state ──
 PREVIOUS_SHA=""
@@ -122,10 +168,13 @@ if [ "$DEPLOY_FAILED" = "false" ]; then
   echo "PREVIOUS_SHA=${PREVIOUS_SHA}" >> .deploy-state
   echo "DEPLOYED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> .deploy-state
   echo "BACKUP_FILE=${BACKUP_FILE}" >> .deploy-state
+  echo "UPLOADS_FILE=${UPLOADS_FILE}" >> .deploy-state
   rm -f .env.rollback docker-compose.yml.rollback
+  rm -f ~/deploy-remote.sh ~/restore-db.sh
   RETENTION_CUTOFF=$((BACKUP_RETENTION + 1))
   ls -t ~/backups/"$DEPLOY_DIR"/backup-*.dump 2>/dev/null | tail -n +"$RETENTION_CUTOFF" | xargs -r rm -v
   ls -t ~/backups/"$DEPLOY_DIR"/globals-*.sql 2>/dev/null | tail -n +"$RETENTION_CUTOFF" | xargs -r rm -v
+  ls -t ~/backups/"$DEPLOY_DIR"/uploads-*.tar.gz 2>/dev/null | tail -n +"$RETENTION_CUTOFF" | xargs -r rm -v
   echo "$DEPLOY_DIR deployment complete"
   exit 0
 fi

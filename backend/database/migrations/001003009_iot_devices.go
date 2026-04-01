@@ -16,11 +16,11 @@ const (
 
 func init() {
 	// Register migration with explicit version
-	MigrationRegistry[IoTDevicesVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     IoTDevicesVersion,
 		Description: IoTDevicesDescription,
 		DependsOn:   []string{"1.2.3"}, // Depends on users.staff
-	}
+	})
 
 	// Migration 1.3.9: Create iot.devices table
 	Migrations.MustRegister(

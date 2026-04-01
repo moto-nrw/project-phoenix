@@ -31,7 +31,7 @@ describe("profile-helpers", () => {
         last_name: "Doe",
         email: "john.doe@example.com",
         username: "johndoe",
-        avatar: "/uploads/avatars/profile.jpg",
+        avatar: "/uploads/avatars/global/profile.jpg",
         bio: "Test bio",
         rfid_card: "RFID123",
         settings: JSON.stringify(settingsObj),
@@ -116,7 +116,7 @@ describe("profile-helpers", () => {
         first_name: "Avatar",
         last_name: "Test",
         email: "avatar@example.com",
-        avatar: "/uploads/avatars/user123.png",
+        avatar: "/uploads/avatars/global/user123.png",
         created_at: "2024-01-01T00:00:00Z",
         updated_at: "2024-01-15T10:30:00Z",
       };

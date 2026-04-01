@@ -92,6 +92,22 @@ func (r *OrganizationRepository) Update(ctx context.Context, organization *platf
 	return base.AssertRowsAffected(result, 1, "update organization")
 }
 
+// CountByIDs counts how many of the given IDs exist in the organizations table.
+func (r *OrganizationRepository) CountByIDs(ctx context.Context, ids []int64) (int, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	count, err := base.GetDB(ctx, r.db).NewSelect().
+		Model((*platform.Organization)(nil)).
+		ModelTableExpr(tablePlatformOrganizationsAlias).
+		Where(`"organization".id IN (?)`, bun.List(ids)).
+		Count(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "count organizations by ids", Err: err}
+	}
+	return count, nil
+}
+
 func (r *OrganizationRepository) List(ctx context.Context) ([]*platform.Organization, error) {
 	var organizations []*platform.Organization
 	err := base.GetDB(ctx, r.db).NewSelect().

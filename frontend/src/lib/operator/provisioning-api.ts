@@ -6,12 +6,14 @@ import type {
   BackendSchoolAccount,
   BackendOrgAccount,
   BackendOperatorDevice,
+  BackendOperatorPerson,
   Organization,
   School,
   Invitation,
   SchoolAccount,
   OrgAccount,
   OperatorDevice,
+  OperatorPerson,
   CreateOrganizationRequest,
   CreateSchoolRequest,
   CreateDeviceRequest,
@@ -27,6 +29,7 @@ import {
   mapSchoolAccount,
   mapOrgAccount,
   mapOperatorDevice,
+  mapOperatorPerson,
 } from "./provisioning-helpers";
 
 class OperatorProvisioningService {
@@ -169,6 +172,34 @@ class OperatorProvisioningService {
       { method: "POST", body: data },
     );
     return { id: result.id.toString(), email: result.email };
+  }
+
+  async listSchoolPersons(schoolId: string): Promise<OperatorPerson[]> {
+    const data = await operatorFetch<BackendOperatorPerson[]>(
+      `/api/operator/provisioning/schools/${encodeURIComponent(schoolId)}/persons`,
+    );
+    return data.map(mapOperatorPerson);
+  }
+
+  async softDeletePerson(personId: string): Promise<void> {
+    await operatorFetch<null>(
+      `/api/operator/provisioning/persons/${encodeURIComponent(personId)}`,
+      { method: "DELETE" },
+    );
+  }
+
+  async softDeleteSchool(id: string): Promise<void> {
+    await operatorFetch(
+      `/api/operator/provisioning/schools/${encodeURIComponent(id)}`,
+      { method: "DELETE" },
+    );
+  }
+
+  async restoreSchool(id: string): Promise<void> {
+    await operatorFetch(
+      `/api/operator/provisioning/schools/${encodeURIComponent(id)}/restore`,
+      { method: "POST" },
+    );
   }
 
   async listSystemRoles(): Promise<
