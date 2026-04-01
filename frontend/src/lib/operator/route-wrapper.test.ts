@@ -398,4 +398,26 @@ describe("createOperatorProxyPostHandler", () => {
 
     expect(response.status).toBe(500);
   });
+
+  it("returns 400 for invalid JSON body", async () => {
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
+
+    const handler = createOperatorProxyPostHandler(
+      "/operator/profile/email-change",
+    );
+    const request = new NextRequest(
+      "http://localhost:3000/api/operator/profile/email-change",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "not valid json{{{",
+      },
+    );
+    const response = await handler(request, mockContext);
+
+    expect(response.status).toBe(400);
+    const json = (await response.json()) as { message?: string };
+    expect(json.message).toBe("Ungültige Anfrage");
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
 });
