@@ -1,15 +1,21 @@
 package checkin
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	iotCommon "github.com/moto-nrw/project-phoenix/api/iot/common"
 	"github.com/moto-nrw/project-phoenix/auth/device"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
+
+const errStudentRFIDRequiredForPickupQuery = "student RFID tag required for pickup query"
 
 // devicePing handles ping requests from RFID devices
 // This endpoint keeps both the device AND any active session alive
@@ -85,6 +91,83 @@ func (rs *Resource) deviceStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, response, "Device status retrieved")
+}
+
+// devicePickupQuery handles read-only pickup information lookups for students.
+func (rs *Resource) devicePickupQuery(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	now := time.Now()
+
+	deviceCtx := validateDeviceContext(w, r)
+	if deviceCtx == nil {
+		return
+	}
+
+	req := &PickupQueryRequest{}
+	if err := render.Bind(r, req); err != nil {
+		rs.getLogger().ErrorContext(ctx, "invalid pickup query request",
+			slog.String("device_id", deviceCtx.DeviceID),
+			slog.String("error", err.Error()),
+		)
+		iotCommon.RenderError(w, r, iotCommon.ErrorInvalidRequest(err))
+		return
+	}
+
+	person := rs.lookupPersonByRFID(ctx, w, r, req.StudentRFID)
+	if person == nil {
+		return
+	}
+
+	student := rs.lookupStudentFromPerson(ctx, person.ID)
+	if student == nil {
+		staffRepo := rs.UsersService.StaffRepository()
+		staff, err := staffRepo.FindByPersonID(ctx, person.ID)
+		if err != nil {
+			rs.getLogger().ErrorContext(ctx, "failed to lookup staff during pickup query",
+				slog.Int64("person_id", person.ID),
+				slog.String("error", err.Error()),
+			)
+			iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
+			return
+		}
+		if staff != nil {
+			iotCommon.RenderError(w, r, iotCommon.ErrorInvalidRequest(errors.New(errStudentRFIDRequiredForPickupQuery)))
+			return
+		}
+		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New("RFID tag not assigned to student or staff")))
+		return
+	}
+
+	response := map[string]interface{}{
+		"student_id":   student.ID,
+		"student_name": person.FirstName + " " + person.LastName,
+		"action":       "pickup_info",
+		"processed_at": now,
+		"status":       "success",
+	}
+
+	if rs.PickupScheduleService != nil {
+		effectivePickup, err := rs.PickupScheduleService.GetEffectivePickupTimeForDate(ctx, student.ID, now)
+		if err != nil {
+			rs.getLogger().WarnContext(ctx, "failed to get pickup info during pickup query",
+				slog.Int64("student_id", student.ID),
+				slog.String("error", err.Error()),
+			)
+		} else {
+			attachPickupInfoToResponse(response, effectivePickup)
+		}
+	}
+
+	if session, err := rs.ActiveService.GetDeviceCurrentSession(ctx, deviceCtx.ID); err == nil && session != nil {
+		if err := rs.ActiveService.UpdateSessionActivity(ctx, session.ID); err != nil {
+			rs.getLogger().WarnContext(ctx, "failed to update session activity during pickup query",
+				slog.Int64("session_id", session.ID),
+				slog.String("error", err.Error()),
+			)
+		}
+	}
+
+	common.Respond(w, r, http.StatusOK, response, "Pickup information retrieved successfully")
 }
 
 // deviceCheckin handles student check-in/check-out requests from RFID devices
@@ -250,4 +333,43 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	)
 
 	sendCheckinResponse(w, r, response, result.Action)
+}
+
+func attachPickupInfoToResponse(response map[string]interface{}, effectivePickup *scheduleSvc.EffectivePickupTime) {
+	if effectivePickup == nil {
+		return
+	}
+
+	if effectivePickup.PickupTime != nil {
+		response["pickup_time"] = effectivePickup.PickupTime.Format("15:04")
+	}
+
+	if pickupNote := selectPickupNote(effectivePickup); pickupNote != "" {
+		response["pickup_note"] = pickupNote
+	}
+}
+
+func selectPickupNote(effectivePickup *scheduleSvc.EffectivePickupTime) string {
+	if effectivePickup == nil {
+		return ""
+	}
+
+	if len(effectivePickup.DayNotes) > 0 {
+		notes := append([]scheduleSvc.NoteData(nil), effectivePickup.DayNotes...)
+		sort.Slice(notes, func(i, j int) bool {
+			return notes[i].ID < notes[j].ID
+		})
+
+		contents := make([]string, 0, len(notes))
+		for _, note := range notes {
+			if trimmed := strings.TrimSpace(note.Content); trimmed != "" {
+				contents = append(contents, trimmed)
+			}
+		}
+		if len(contents) > 0 {
+			return strings.Join(contents, "\n")
+		}
+	}
+
+	return strings.TrimSpace(effectivePickup.Notes)
 }
