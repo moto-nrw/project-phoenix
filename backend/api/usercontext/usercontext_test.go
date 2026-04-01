@@ -860,8 +860,18 @@ func TestDeleteAvatar_WithAvatar(t *testing.T) {
 	defer func() { _ = tc.db.Close() }()
 
 	_, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "HasAvatar", "Delete")
+	avatarDir := filepath.Join("public", "uploads", "avatars", "global")
+	err := os.MkdirAll(avatarDir, 0755)
+	require.NoError(t, err)
 
-	_, err := tc.db.ExecContext(context.Background(),
+	avatarPath := filepath.Join(avatarDir, "test_avatar.jpg")
+	err = os.WriteFile(avatarPath, []byte("fake-image-data"), 0644)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = os.Remove(avatarPath)
+	})
+
+	_, err = tc.db.ExecContext(context.Background(),
 		`UPDATE auth.accounts SET avatar = ? WHERE id = ?`,
 		"/uploads/avatars/global/test_avatar.jpg",
 		account.ID,
@@ -879,6 +889,8 @@ func TestDeleteAvatar_WithAvatar(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
+	_, err = os.Stat(avatarPath)
+	assert.True(t, os.IsNotExist(err))
 }
 
 // =============================================================================

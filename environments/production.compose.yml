@@ -51,7 +51,7 @@ services:
     ports:
       - "127.0.0.1:8080:8080"
     volumes:
-      - production-avatar-uploads:/app/public/uploads/avatars
+      - production-avatar-uploads:/app/public/uploads
     env_file:
       - .env
     logging:
@@ -101,3 +101,4 @@ networks:
 volumes:
   postgres:
   production-avatar-uploads:
+    name: phoenix-production-uploads

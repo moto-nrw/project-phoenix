@@ -505,21 +505,6 @@ func (res *Resource) deleteAvatar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Delete file from filesystem
-	if strings.HasPrefix(avatarPath, "/uploads/avatars/") {
-		filePath, pathErr := avatarPathToFilePath(avatarPath)
-		if pathErr != nil {
-			slog.Default().Warn("failed to resolve avatar file path",
-				slog.String("path", avatarPath),
-				slog.String("error", pathErr.Error()))
-		} else if err := os.Remove(filePath); err != nil {
-			// Log error but don't fail the request
-			slog.Default().Warn("failed to delete avatar file",
-				slog.String("path", filePath),
-				slog.String("error", err.Error()))
-		}
-	}
-
 	render.Status(r, http.StatusOK)
 	common.RenderError(w, r, common.NewResponse(updatedProfile, "Avatar deleted successfully"))
 }

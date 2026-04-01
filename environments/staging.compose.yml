@@ -32,7 +32,7 @@ services:
     ports:
       - "127.0.0.1:8081:8080"
     volumes:
-      - staging-avatar-uploads:/app/public/uploads/avatars
+      - staging-avatar-uploads:/app/public/uploads
     env_file:
       - .env
     logging:
@@ -82,3 +82,4 @@ networks:
 volumes:
   staging-postgres:
   staging-avatar-uploads:
+    name: phoenix-staging-uploads
