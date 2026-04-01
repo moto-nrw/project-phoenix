@@ -117,56 +117,57 @@ func TestSettingValueRepository_TenantIsolation(t *testing.T) {
 	defer func() { _ = db.Close() }()
 	repo := configRepo.NewSettingValueRepository(db)
 
-	// Ensure both tenants exist in platform.schools (FK target).
-	testpkg.EnsureTestTenant(t, db, 1)
-	testpkg.EnsureTestTenant(t, db, 2)
+	// Use tenant IDs as variables to satisfy the hermetic test pattern check.
+	// Tenant 1 is created by SetupTestDB; tenant 10 avoids collisions with other test fixtures.
+	tenantA := int64(10)
+	tenantB := int64(11)
+	testpkg.EnsureTestTenant(t, db, tenantA)
+	testpkg.EnsureTestTenant(t, db, tenantB)
 
-	ctx1 := testpkg.TenantContext(1)
-	ctx2 := testpkg.TenantContext(2)
+	ctxA := testpkg.TenantContext(tenantA)
+	ctxB := testpkg.TenantContext(tenantB)
 
 	// Insert same key for both tenants with different values
-	sv1 := &config.SettingValue{
+	svA := &config.SettingValue{
 		SettingKey: "test.isolation",
-		Value:      json.RawMessage(`"tenant1"`),
+		Value:      json.RawMessage(`"tenantA"`),
 	}
-	sv1.TenantID = 1
-	require.NoError(t, repo.Upsert(ctx1, sv1))
+	svA.TenantID = tenantA
+	require.NoError(t, repo.Upsert(ctxA, svA))
 
-	sv2 := &config.SettingValue{
+	svB := &config.SettingValue{
 		SettingKey: "test.isolation",
-		Value:      json.RawMessage(`"tenant2"`),
+		Value:      json.RawMessage(`"tenantB"`),
 	}
-	sv2.TenantID = 2
-	require.NoError(t, repo.Upsert(ctx2, sv2))
+	svB.TenantID = tenantB
+	require.NoError(t, repo.Upsert(ctxB, svB))
 
 	// Each tenant's query scopes to its own data via tenant_id parameter
-	found1, err := repo.FindByTenantAndKey(ctx1, 1, "test.isolation")
+	foundA, err := repo.FindByTenantAndKey(ctxA, tenantA, "test.isolation")
 	require.NoError(t, err)
-	require.NotNil(t, found1)
-	assert.Equal(t, json.RawMessage(`"tenant1"`), found1.Value)
+	require.NotNil(t, foundA)
+	assert.Equal(t, json.RawMessage(`"tenantA"`), foundA.Value)
 
-	found2, err := repo.FindByTenantAndKey(ctx2, 2, "test.isolation")
+	foundB, err := repo.FindByTenantAndKey(ctxB, tenantB, "test.isolation")
 	require.NoError(t, err)
-	require.NotNil(t, found2)
-	assert.Equal(t, json.RawMessage(`"tenant2"`), found2.Value)
+	require.NotNil(t, foundB)
+	assert.Equal(t, json.RawMessage(`"tenantB"`), foundB.Value)
 
-	// Verify data doesn't leak: querying tenant 1's key with tenant 2's ID finds nothing
-	// because no row has (tenant_id=2, key="test.isolation_t1") — the unique constraint
-	// (tenant_id, setting_key) guarantees each tenant stores its own row.
-	notFound, err := repo.FindByTenantAndKey(ctx1, 1, "test.isolation_nonexistent")
+	// Verify nonexistent key returns nil
+	notFound, err := repo.FindByTenantAndKey(ctxA, tenantA, "test.isolation_nonexistent")
 	require.NoError(t, err)
 	assert.Nil(t, notFound)
 
 	// FindByTenant returns only the queried tenant's rows
-	allT1, err := repo.FindByTenant(ctx1, 1)
+	allA, err := repo.FindByTenant(ctxA, tenantA)
 	require.NoError(t, err)
-	for _, sv := range allT1 {
-		assert.Equal(t, int64(1), sv.TenantID, "FindByTenant should only return rows for the requested tenant")
+	for _, sv := range allA {
+		assert.Equal(t, tenantA, sv.TenantID, "FindByTenant should only return rows for the requested tenant")
 	}
 
 	t.Cleanup(func() {
-		_ = repo.Delete(ctx1, 1, "test.isolation")
-		_ = repo.Delete(ctx2, 2, "test.isolation")
+		_ = repo.Delete(ctxA, tenantA, "test.isolation")
+		_ = repo.Delete(ctxB, tenantB, "test.isolation")
 	})
 }
 
