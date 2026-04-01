@@ -1341,3 +1341,76 @@ func TestHasTenantOverride_NoTenantContext(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, has)
 }
+
+func TestSetValue_RequiredFieldRejectsNil(t *testing.T) {
+	setupTest(t)
+	config.Register(config.Definition{
+		Key:        "test.required",
+		Label:      "Required",
+		Type:       config.FieldText,
+		Default:    "default",
+		Tab:        "test",
+		Category:   "test",
+		Validation: &config.ValidationRules{Required: true},
+	})
+
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	err := svc.SetValue(tenantCtx(1), "test.required", nil, nil, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "required")
+}
+
+func TestSetValue_BoolRejectsNonBool(t *testing.T) {
+	setupTest(t)
+	registerTestSetting("test.boolval", config.FieldBoolean, true)
+
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	err := svc.SetValue(tenantCtx(1), "test.boolval", "not a bool", nil, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "expected a boolean")
+}
+
+func TestSetValue_TimeRejectsNumericValue(t *testing.T) {
+	setupTest(t)
+	registerTestSetting("test.timeval", config.FieldTime, "12:00")
+
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	err := svc.SetValue(tenantCtx(1), "test.timeval", 123, nil, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "expected a time string")
+}
+
+func TestSetValue_NumberRejectsString(t *testing.T) {
+	setupTest(t)
+	registerTestSetting("test.numval", config.FieldNumber, 10)
+
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	err := svc.SetValue(tenantCtx(1), "test.numval", "not a number", nil, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "expected a number")
+}
+
+func TestSetValue_PasswordRejectsNumeric(t *testing.T) {
+	setupTest(t)
+	config.Register(config.Definition{
+		Key:      "test.pwd",
+		Label:    "Password",
+		Type:     config.FieldPassword,
+		Default:  "",
+		Tab:      "test",
+		Category: "test",
+	})
+
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	err := svc.SetValue(tenantCtx(1), "test.pwd", 12345, nil, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "expected a string")
+}
+
+func TestResolveStringForTenant_UnknownKey(t *testing.T) {
+	setupTest(t)
+
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	_, err := svc.ResolveStringForTenant(context.Background(), 1, "nonexistent.key")
+	require.Error(t, err)
+}
