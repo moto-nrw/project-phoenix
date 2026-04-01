@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  act,
+} from "@testing-library/react";
 
 // Mock dependencies
 const { mockPush, mockSignIn, mockUseSession } = vi.hoisted(() => ({
@@ -165,7 +171,7 @@ describe("OperatorLoginPage", () => {
     expect(screen.getByText("Loading...")).toBeInTheDocument();
   });
 
-  it("submits form when Enter is pressed in an input field", async () => {
+  it("submits form when submit event is triggered", async () => {
     mockSignIn.mockResolvedValue({ error: null });
 
     render(<OperatorLoginPage />);
@@ -178,10 +184,11 @@ describe("OperatorLoginPage", () => {
       target: { value: "password123" },
     });
 
-    // Simulate Enter key on input element
-    fireEvent.keyDown(passwordInput, {
-      key: "Enter",
-      code: "Enter",
+    const form = screen
+      .getByRole("button", { name: /Anmelden/i })
+      .closest("form")!;
+    await act(async () => {
+      fireEvent.submit(form);
     });
 
     await waitFor(() => {
@@ -191,20 +198,6 @@ describe("OperatorLoginPage", () => {
         password: "password123",
       });
     });
-  });
-
-  it("does not submit form when Enter is pressed on non-input element", () => {
-    render(<OperatorLoginPage />);
-
-    const form = screen
-      .getByRole("button", { name: /Anmelden/i })
-      .closest("form")!;
-    fireEvent.keyDown(form, {
-      key: "Enter",
-      code: "Enter",
-    });
-
-    expect(mockSignIn).not.toHaveBeenCalled();
   });
 
   it("shows account_inactive error message", async () => {

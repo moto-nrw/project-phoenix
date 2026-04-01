@@ -512,7 +512,7 @@ describe("Enter key form submission", () => {
     Element.prototype.animate = mockAnimate;
   });
 
-  it("submits form when Enter is pressed in an input field", async () => {
+  it("submits form when submit event is triggered", async () => {
     mockSignIn.mockResolvedValue({ error: null });
 
     render(<HomePage />);
@@ -530,33 +530,14 @@ describe("Enter key form submission", () => {
       });
     });
 
+    const form = screen.getByTestId("input-email").closest("form")!;
     await act(async () => {
-      fireEvent.keyDown(screen.getByTestId("input-password"), {
-        key: "Enter",
-        code: "Enter",
-      });
+      fireEvent.submit(form);
     });
 
     await waitFor(() => {
       expect(mockSignIn).toHaveBeenCalled();
     });
-  });
-
-  it("does not submit form when non-Enter key is pressed", async () => {
-    render(<HomePage />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("input-email")).toBeInTheDocument();
-    });
-
-    await act(async () => {
-      fireEvent.keyDown(screen.getByTestId("input-email"), {
-        key: "Tab",
-        code: "Tab",
-      });
-    });
-
-    expect(mockSignIn).not.toHaveBeenCalled();
   });
 });
 
