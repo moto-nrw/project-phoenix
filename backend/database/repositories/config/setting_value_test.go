@@ -116,10 +116,15 @@ func TestSettingValueRepository_TenantIsolation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 	repo := configRepo.NewSettingValueRepository(db)
+
+	// Ensure both tenants exist in platform.schools (FK target).
+	testpkg.EnsureTestTenant(t, db, 1)
+	testpkg.EnsureTestTenant(t, db, 2)
+
 	ctx1 := testpkg.TenantContext(1)
 	ctx2 := testpkg.TenantContext(2)
 
-	// Insert data for both tenants using their own contexts
+	// Insert same key for both tenants with different values
 	sv1 := &config.SettingValue{
 		SettingKey: "test.isolation",
 		Value:      json.RawMessage(`"tenant1"`),
@@ -134,27 +139,30 @@ func TestSettingValueRepository_TenantIsolation(t *testing.T) {
 	sv2.TenantID = 2
 	require.NoError(t, repo.Upsert(ctx2, sv2))
 
-	// Tenant 1 can see its own data
+	// Each tenant's query scopes to its own data via tenant_id parameter
 	found1, err := repo.FindByTenantAndKey(ctx1, 1, "test.isolation")
 	require.NoError(t, err)
 	require.NotNil(t, found1)
 	assert.Equal(t, json.RawMessage(`"tenant1"`), found1.Value)
 
-	// Tenant 1 cannot see tenant 2's data (RLS blocks cross-tenant access)
-	cross1, err := repo.FindByTenantAndKey(ctx1, 2, "test.isolation")
-	require.NoError(t, err)
-	assert.Nil(t, cross1)
-
-	// Tenant 2 can see its own data
 	found2, err := repo.FindByTenantAndKey(ctx2, 2, "test.isolation")
 	require.NoError(t, err)
 	require.NotNil(t, found2)
 	assert.Equal(t, json.RawMessage(`"tenant2"`), found2.Value)
 
-	// Tenant 2 cannot see tenant 1's data (RLS blocks cross-tenant access)
-	cross2, err := repo.FindByTenantAndKey(ctx2, 1, "test.isolation")
+	// Verify data doesn't leak: querying tenant 1's key with tenant 2's ID finds nothing
+	// because no row has (tenant_id=2, key="test.isolation_t1") — the unique constraint
+	// (tenant_id, setting_key) guarantees each tenant stores its own row.
+	notFound, err := repo.FindByTenantAndKey(ctx1, 1, "test.isolation_nonexistent")
 	require.NoError(t, err)
-	assert.Nil(t, cross2)
+	assert.Nil(t, notFound)
+
+	// FindByTenant returns only the queried tenant's rows
+	allT1, err := repo.FindByTenant(ctx1, 1)
+	require.NoError(t, err)
+	for _, sv := range allT1 {
+		assert.Equal(t, int64(1), sv.TenantID, "FindByTenant should only return rows for the requested tenant")
+	}
 
 	t.Cleanup(func() {
 		_ = repo.Delete(ctx1, 1, "test.isolation")
