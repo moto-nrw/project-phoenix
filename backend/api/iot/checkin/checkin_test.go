@@ -22,8 +22,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -42,6 +44,43 @@ type testContext struct {
 type failingPickupScheduleService struct {
 	scheduleSvc.PickupScheduleService
 	err error
+}
+
+type failingPersonService struct {
+	usersSvc.PersonService
+	findByTagIDErr error
+	studentRepo    userModels.StudentRepository
+	staffRepo      userModels.StaffRepository
+}
+
+func (s *failingPersonService) FindByTagID(ctx context.Context, tagID string) (*userModels.Person, error) {
+	if s.findByTagIDErr != nil {
+		return nil, s.findByTagIDErr
+	}
+	return s.PersonService.FindByTagID(ctx, tagID)
+}
+
+func (s *failingPersonService) StudentRepository() userModels.StudentRepository {
+	if s.studentRepo != nil {
+		return s.studentRepo
+	}
+	return s.PersonService.StudentRepository()
+}
+
+func (s *failingPersonService) StaffRepository() userModels.StaffRepository {
+	if s.staffRepo != nil {
+		return s.staffRepo
+	}
+	return s.PersonService.StaffRepository()
+}
+
+type failingStudentRepository struct {
+	userModels.StudentRepository
+	err error
+}
+
+func (r *failingStudentRepository) FindByPersonID(context.Context, int64) (*userModels.Student, error) {
+	return nil, r.err
 }
 
 func (s *failingPickupScheduleService) GetEffectivePickupTimeForDate(
@@ -2849,6 +2888,76 @@ func TestDevicePickupQuery_ReturnsErrorWhenPickupLookupFails(t *testing.T) {
 	ctx.resource.PickupScheduleService = &failingPickupScheduleService{
 		PickupScheduleService: ctx.services.PickupSchedule,
 		err:                   errors.New("schedule lookup exploded"),
+	}
+
+	router := testutil.NewTenantRouter(ctx.db)
+	router.Post("/checkin/pickup-query", ctx.resource.DevicePickupQueryHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/pickup-query", map[string]interface{}{
+		"student_rfid": card.ID,
+	},
+		testutil.WithDeviceContext(createTestDeviceContext(device)),
+		testutil.WithStaffContext(staff),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+}
+
+func TestDevicePickupQuery_ReturnsServerErrorWhenRFIDLookupFails(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-rfid-failure")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
+
+	staff := testpkg.CreateTestStaff(t, ctx.db, "PickupRFIDFailure", "Staff")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
+
+	ctx.resource.UsersService = &failingPersonService{
+		PersonService:  ctx.services.Users,
+		findByTagIDErr: errors.New("rfid lookup exploded"),
+	}
+
+	router := testutil.NewTenantRouter(ctx.db)
+	router.Post("/checkin/pickup-query", ctx.resource.DevicePickupQueryHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/pickup-query", map[string]interface{}{
+		"student_rfid": "BROKENRFID",
+	},
+		testutil.WithDeviceContext(createTestDeviceContext(device)),
+		testutil.WithStaffContext(staff),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+}
+
+func TestDevicePickupQuery_ReturnsServerErrorWhenStudentResolutionFails(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-student-failure")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
+
+	staff := testpkg.CreateTestStaff(t, ctx.db, "PickupStudentFailure", "Staff")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
+
+	student := testpkg.CreateTestStudent(t, ctx.db, "PickupStudentFailure", "Student", "4d")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
+
+	card := testpkg.CreateTestRFIDCard(t, ctx.db, "BROKENSTUDENTLOOKUP")
+	defer testpkg.CleanupRFIDCards(t, ctx.db, card.ID)
+	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
+
+	ctx.resource.UsersService = &failingPersonService{
+		PersonService: ctx.services.Users,
+		studentRepo: &failingStudentRepository{
+			StudentRepository: ctx.services.Users.StudentRepository(),
+			err:               errors.New("student lookup exploded"),
+		},
 	}
 
 	router := testutil.NewTenantRouter(ctx.db)

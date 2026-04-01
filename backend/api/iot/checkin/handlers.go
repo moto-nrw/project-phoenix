@@ -13,6 +13,7 @@ import (
 	iotCommon "github.com/moto-nrw/project-phoenix/api/iot/common"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
 
 const errStudentRFIDRequiredForPickupQuery = "student RFID tag required for pickup query"
@@ -113,15 +114,43 @@ func (rs *Resource) devicePickupQuery(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	person := rs.lookupPersonByRFID(ctx, w, r, req.StudentRFID)
-	if person == nil {
+	person, err := rs.resolvePersonByRFID(ctx, req.StudentRFID)
+	if err != nil {
+		if errors.Is(err, usersSvc.ErrPersonNotFound) {
+			rs.getLogger().WarnContext(ctx, "RFID tag not found during pickup query",
+				slog.String("rfid", req.StudentRFID),
+			)
+			iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New(iotCommon.ErrMsgRFIDTagNotFound)))
+			return
+		}
+		rs.getLogger().ErrorContext(ctx, "failed to lookup RFID tag during pickup query",
+			slog.String("rfid", req.StudentRFID),
+			slog.String("error", err.Error()),
+		)
+		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
 		return
 	}
 
-	student := rs.lookupStudentFromPerson(ctx, person.ID)
+	if person == nil || person.TagID == nil {
+		rs.getLogger().WarnContext(ctx, "RFID tag not assigned to any person during pickup query",
+			slog.String("rfid", req.StudentRFID),
+		)
+		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New("RFID tag not assigned to any person")))
+		return
+	}
+
+	student, err := rs.resolveStudentFromPerson(ctx, person.ID)
+	if err != nil {
+		rs.getLogger().ErrorContext(ctx, "failed to lookup student during pickup query",
+			slog.Int64("person_id", person.ID),
+			slog.String("error", err.Error()),
+		)
+		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
+		return
+	}
+
 	if student == nil {
-		staffRepo := rs.UsersService.StaffRepository()
-		staff, err := staffRepo.FindByPersonID(ctx, person.ID)
+		staff, err := rs.resolveStaffFromPerson(ctx, person.ID)
 		if err != nil {
 			rs.getLogger().ErrorContext(ctx, "failed to lookup staff during pickup query",
 				slog.Int64("person_id", person.ID),
