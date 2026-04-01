@@ -149,10 +149,12 @@ func (rs *Resource) devicePickupQuery(w http.ResponseWriter, r *http.Request) {
 	if rs.PickupScheduleService != nil {
 		effectivePickup, err := rs.PickupScheduleService.GetEffectivePickupTimeForDate(ctx, student.ID, now)
 		if err != nil {
-			rs.getLogger().WarnContext(ctx, "failed to get pickup info during pickup query",
+			rs.getLogger().ErrorContext(ctx, "failed to get pickup info during pickup query",
 				slog.Int64("student_id", student.ID),
 				slog.String("error", err.Error()),
 			)
+			iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
+			return
 		} else {
 			attachPickupInfoToResponse(response, effectivePickup)
 		}
@@ -354,6 +356,8 @@ func selectPickupNote(effectivePickup *scheduleSvc.EffectivePickupTime) string {
 		return ""
 	}
 
+	// Day-specific notes are an override for the recurring weekday note in the kiosk flow.
+	// If no usable day note exists, fall back to the recurring note text.
 	if len(effectivePickup.DayNotes) > 0 {
 		notes := append([]scheduleSvc.NoteData(nil), effectivePickup.DayNotes...)
 		sort.Slice(notes, func(i, j int) bool {

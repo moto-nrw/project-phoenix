@@ -2,6 +2,7 @@ package checkin_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -22,6 +23,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/services"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -35,6 +37,17 @@ type testContext struct {
 	db       *bun.DB
 	services *services.Factory
 	resource *checkinAPI.Resource
+}
+
+type failingPickupScheduleService struct {
+	scheduleSvc.PickupScheduleService
+	err error
+}
+
+func (s *failingPickupScheduleService) GetEffectivePickupTimeForDate(
+	context.Context, int64, time.Time,
+) (*scheduleSvc.EffectivePickupTime, error) {
+	return nil, s.err
 }
 
 // setupTestContext initializes test database, services, and resource.
@@ -2814,4 +2827,116 @@ func TestDevicePickupQuery_RejectsStaffRFID(t *testing.T) {
 	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
 	errorMsg, _ := response["error"].(string)
 	assert.Contains(t, errorMsg, "student RFID tag required for pickup query")
+}
+
+func TestDevicePickupQuery_ReturnsErrorWhenPickupLookupFails(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-error")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
+
+	staff := testpkg.CreateTestStaff(t, ctx.db, "PickupError", "Staff")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
+
+	student := testpkg.CreateTestStudent(t, ctx.db, "PickupError", "Student", "4c")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
+
+	card := testpkg.CreateTestRFIDCard(t, ctx.db, "PICKUPQUERYERROR")
+	defer testpkg.CleanupRFIDCards(t, ctx.db, card.ID)
+	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
+
+	ctx.resource.PickupScheduleService = &failingPickupScheduleService{
+		PickupScheduleService: ctx.services.PickupSchedule,
+		err:                   errors.New("schedule lookup exploded"),
+	}
+
+	router := testutil.NewTenantRouter(ctx.db)
+	router.Post("/checkin/pickup-query", ctx.resource.DevicePickupQueryHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/pickup-query", map[string]interface{}{
+		"student_rfid": card.ID,
+	},
+		testutil.WithDeviceContext(createTestDeviceContext(device)),
+		testutil.WithStaffContext(staff),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+}
+
+func TestDevicePickupQuery_PrefersDayNotesOverRecurringNotes(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-note-precedence")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
+
+	staff := testpkg.CreateTestStaff(t, ctx.db, "PickupNotes", "Staff")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
+
+	student := testpkg.CreateTestStudent(t, ctx.db, "PickupNotes", "Student", "2b")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
+
+	card := testpkg.CreateTestRFIDCard(t, ctx.db, "PICKUPNOTEPRIO")
+	defer testpkg.CleanupRFIDCards(t, ctx.db, card.ID)
+	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
+
+	berlinToday := timezone.DateOf(time.Now())
+	todayWeekday := int(berlinToday.Weekday())
+	if todayWeekday == 0 {
+		todayWeekday = 7
+	}
+	if todayWeekday > 5 {
+		t.Skip("Skipping pickup query note precedence test on weekend — no pickup schedule applies")
+	}
+
+	todayUTC := timezone.DateOfUTC(time.Now())
+	tenantCtx := testpkg.TenantContext(1)
+	recurringNote := "Papa holt normalerweise ab"
+	pickupTime := time.Date(2024, 1, 1, 15, 30, 0, 0, time.UTC)
+	err := ctx.services.PickupSchedule.UpsertStudentPickupSchedule(tenantCtx, &scheduleModels.StudentPickupSchedule{
+		StudentID:  student.ID,
+		Weekday:    todayWeekday,
+		PickupTime: pickupTime,
+		Notes:      &recurringNote,
+		CreatedBy:  staff.ID,
+	})
+	require.NoError(t, err)
+
+	err = ctx.services.PickupSchedule.CreateStudentPickupNote(tenantCtx, &scheduleModels.StudentPickupNote{
+		StudentID: student.ID,
+		NoteDate:  todayUTC,
+		Content:   "Heute holt Oma ab",
+		CreatedBy: staff.ID,
+	})
+	require.NoError(t, err)
+
+	err = ctx.services.PickupSchedule.CreateStudentPickupNote(tenantCtx, &scheduleModels.StudentPickupNote{
+		StudentID: student.ID,
+		NoteDate:  todayUTC,
+		Content:   "Bitte am Seiteneingang warten",
+		CreatedBy: staff.ID,
+	})
+	require.NoError(t, err)
+
+	router := testutil.NewTenantRouter(ctx.db)
+	router.Post("/checkin/pickup-query", ctx.resource.DevicePickupQueryHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/pickup-query", map[string]interface{}{
+		"student_rfid": card.ID,
+	},
+		testutil.WithDeviceContext(createTestDeviceContext(device)),
+		testutil.WithStaffContext(staff),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data, ok := response["data"].(map[string]interface{})
+	require.True(t, ok, "Response should have data field")
+	assert.Equal(t, "Heute holt Oma ab\nBitte am Seiteneingang warten", data["pickup_note"])
 }
