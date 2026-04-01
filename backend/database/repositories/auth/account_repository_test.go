@@ -330,6 +330,27 @@ func TestAccountRepository_UpdatePassword(t *testing.T) {
 	})
 }
 
+func TestAccountRepository_UpdateAvatar(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).Account
+	ctx := testpkg.TenantContext(1)
+
+	t.Run("updates global avatar path", func(t *testing.T) {
+		account := testpkg.CreateTestAccount(t, db, "avatar")
+		defer cleanupAccountRecords(t, db, account.ID)
+
+		newAvatar := "/uploads/avatars/global/avatar-test.jpg"
+		err := repo.UpdateAvatar(ctx, account.ID, newAvatar)
+		require.NoError(t, err)
+
+		found, err := repo.FindByID(ctx, account.ID)
+		require.NoError(t, err)
+		assert.Equal(t, newAvatar, found.Avatar)
+	})
+}
+
 // ============================================================================
 // Complex Query Tests
 // ============================================================================

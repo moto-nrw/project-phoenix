@@ -226,6 +226,10 @@ func (noopAccountRepository) UpdatePassword(context.Context, int64, string) erro
 	panic("UpdatePassword not implemented")
 }
 
+func (noopAccountRepository) UpdateAvatar(context.Context, int64, string) error {
+	panic("UpdateAvatar not implemented")
+}
+
 func (noopAccountRepository) FindByRole(context.Context, string) ([]*authModel.Account, error) {
 	panic("FindByRole not implemented")
 }
@@ -309,6 +313,16 @@ func (r *stubAccountRepository) UpdatePassword(_ context.Context, id int64, hash
 	defer r.mu.Unlock()
 	if acc, ok := r.byID[id]; ok {
 		acc.PasswordHash = &hash
+		return nil
+	}
+	return sql.ErrNoRows
+}
+
+func (r *stubAccountRepository) UpdateAvatar(_ context.Context, id int64, avatar string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if acc, ok := r.byID[id]; ok {
+		acc.Avatar = avatar
 		return nil
 	}
 	return sql.ErrNoRows

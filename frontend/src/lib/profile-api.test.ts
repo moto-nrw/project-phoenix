@@ -56,7 +56,7 @@ const sampleBackendProfile: BackendProfile = {
   last_name: "Mustermann",
   email: "max@example.com",
   username: "maxmuster",
-  avatar: "/uploads/avatars/avatar.jpg",
+  avatar: "/uploads/avatars/global/avatar.jpg",
   bio: "Test bio",
   rfid_card: "CARD001",
   settings: '{"theme":"dark"}',
