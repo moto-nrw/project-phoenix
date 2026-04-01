@@ -2,6 +2,7 @@ package platform
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net"
@@ -297,6 +298,10 @@ func (s *operatorAuthService) UpdateProfile(ctx context.Context, operatorID int6
 	}
 
 	if emailChanged {
+		s.logAction(ctx, operatorID, platform.ActionUpdate, platform.ResourceOperator, &operatorID, nil, map[string]any{
+			"old_email": oldEmail,
+			"new_email": newEmail,
+		})
 		s.sendEmailChangedNotification(oldEmail, newEmail, displayName)
 	}
 
@@ -367,4 +372,25 @@ func (s *operatorAuthService) ChangePassword(ctx context.Context, operatorID int
 	}
 
 	return nil
+}
+
+func (s *operatorAuthService) logAction(ctx context.Context, operatorID int64, action, resourceType string, resourceID *int64, clientIP net.IP, changes map[string]any) {
+	entry := &platform.OperatorAuditLog{
+		OperatorID:   operatorID,
+		Action:       action,
+		ResourceType: resourceType,
+		ResourceID:   resourceID,
+		RequestIP:    clientIP,
+	}
+	if len(changes) > 0 {
+		if payload, err := json.Marshal(changes); err == nil {
+			entry.Changes = payload
+		}
+	}
+	if err := s.auditLogRepo.Create(ctx, entry); err != nil {
+		s.getLogger().Error("failed to create operator audit log",
+			slog.Any("error", err),
+			slog.String("resource_type", resourceType),
+		)
+	}
 }
