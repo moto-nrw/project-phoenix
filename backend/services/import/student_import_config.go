@@ -747,7 +747,9 @@ func parseSupportedDate(dateStr string) (time.Time, error) {
 	if err == nil {
 		return shortDate, nil
 	}
-	lastErr = err
+	if stdErrors.Is(err, errFutureBirthday) {
+		return time.Time{}, err
+	}
 
 	return time.Time{}, lastErr
 }
