@@ -517,6 +517,11 @@ export function DatabaseForm<T = Record<string, unknown>>({
           ? field.options
           : (asyncOptions[field.name] ?? []);
 
+        // Check if options already include an empty-value option (e.g. "Kein Gruppenraum")
+        const hasEmptyOption = selectOptions.some(
+          (option) => option.value === "",
+        );
+
         return (
           <div>
             <label htmlFor={field.name} className={labelClasses}>
@@ -533,11 +538,13 @@ export function DatabaseForm<T = Record<string, unknown>>({
                 className={`${baseInputClasses} appearance-none pr-10`}
                 disabled={loadingOptions[field.name]}
               >
-                <option value="">
-                  {loadingOptions[field.name]
-                    ? "Optionen werden geladen..."
-                    : (field.placeholder ?? "Bitte wählen")}
-                </option>
+                {!hasEmptyOption && (
+                  <option value="">
+                    {loadingOptions[field.name]
+                      ? "Optionen werden geladen..."
+                      : (field.placeholder ?? "Bitte wählen")}
+                  </option>
+                )}
                 {selectOptions.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
