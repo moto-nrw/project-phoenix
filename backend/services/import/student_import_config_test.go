@@ -269,18 +269,24 @@ func TestStudentImportConfig_Validate_BirthdayFormat(t *testing.T) {
 	}
 
 	tests := []struct {
-		name      string
-		birthday  string
-		wantError bool
+		name           string
+		birthday       string
+		wantError      bool
+		wantErrorCode  string
+		wantMessage    string
+		wantNormalized string
 	}{
-		{"valid ISO format", "2015-08-15", false},
-		{"valid ISO format 2", "2014-03-22", false},
-		{"empty (optional)", "", false},
-		{"invalid format DD.MM.YYYY", "15.08.2015", true},
-		{"invalid format DD/MM/YYYY", "15/08/2015", true},
-		{"invalid format YYYY/MM/DD", "2015/08/15", true},
-		{"invalid date", "2015-13-45", true},
-		{"just text", "invalid", true},
+		{"valid ISO format", "2015-08-15", false, "", "", "2015-08-15"},
+		{"valid ISO format 2", "2014-03-22", false, "", "", "2014-03-22"},
+		{"valid German format DD.MM.YYYY", "15.08.2015", false, "", "", "2015-08-15"},
+		{"valid German format DD.MM.YY", "15.08.15", false, "", "", "2015-08-15"},
+		{"empty (optional)", "", false, "", "", ""},
+		{"invalid format DD/MM/YYYY", "15/08/2015", true, "invalid_date_format", "JJJJ-MM-TT", ""},
+		{"invalid format YYYY/MM/DD", "2015/08/15", true, "invalid_date_format", "JJJJ-MM-TT", ""},
+		{"invalid date", "2015-13-45", true, "invalid_date_format", "JJJJ-MM-TT", ""},
+		{"future short date 2030", "15.08.30", true, "invalid_date", "Zukunft", ""},
+		{"future short date 2068", "15.08.68", true, "invalid_date", "Zukunft", ""},
+		{"just text", "invalid", true, "invalid_date_format", "JJJJ-MM-TT", ""},
 	}
 
 	for _, tt := range tests {
@@ -298,9 +304,14 @@ func TestStudentImportConfig_Validate_BirthdayFormat(t *testing.T) {
 			if tt.wantError {
 				hasBirthdayError := false
 				for _, err := range errors {
-					if err.Code == "invalid_date_format" {
+					if err.Field == "birthday" {
 						hasBirthdayError = true
-						assert.Contains(t, err.Message, "JJJJ-MM-TT")
+						assert.Equal(t, tt.wantErrorCode, err.Code)
+						assert.Contains(t, err.Message, tt.wantMessage)
+						if tt.wantErrorCode == "invalid_date_format" {
+							assert.Contains(t, err.Message, "TT.MM.JJJJ")
+							assert.Contains(t, err.Message, "TT.MM.JJ")
+						}
 						break
 					}
 				}
@@ -311,6 +322,7 @@ func TestStudentImportConfig_Validate_BirthdayFormat(t *testing.T) {
 						t.Errorf("Unexpected birthday error for '%s'", tt.birthday)
 					}
 				}
+				assert.Equal(t, tt.wantNormalized, row.Birthday)
 			}
 		})
 	}
@@ -1086,13 +1098,17 @@ func TestParseOptionalDate(t *testing.T) {
 		input     string
 		wantDate  bool
 		wantError bool
+		wantISO   string
 	}{
-		{"empty string returns nil", "", false, false},
-		{"valid ISO date", "2015-08-15", true, false},
-		{"valid ISO date 2", "2020-01-01", true, false},
-		{"invalid format DD.MM.YYYY", "15.08.2015", false, true},
-		{"invalid date", "2015-13-45", false, true},
-		{"random text", "invalid", false, true},
+		{"empty string returns nil", "", false, false, ""},
+		{"valid ISO date", "2015-08-15", true, false, "2015-08-15"},
+		{"valid ISO date 2", "2020-01-01", true, false, "2020-01-01"},
+		{"valid German date DD.MM.YYYY", "15.08.2015", true, false, "2015-08-15"},
+		{"valid German date DD.MM.YY", "15.08.15", true, false, "2015-08-15"},
+		{"future German short date rejected", "15.08.30", false, true, ""},
+		{"future German short date 2068 rejected", "15.08.68", false, true, ""},
+		{"invalid date", "2015-13-45", false, true, ""},
+		{"random text", "invalid", false, true, ""},
 	}
 
 	for _, tt := range tests {
@@ -1107,6 +1123,7 @@ func TestParseOptionalDate(t *testing.T) {
 
 			if tt.wantDate {
 				assert.NotNil(t, result)
+				assert.Equal(t, tt.wantISO, result.Format("2006-01-02"))
 			} else if !tt.wantError {
 				assert.Nil(t, result)
 			}
