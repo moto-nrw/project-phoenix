@@ -197,6 +197,33 @@ func TestUpdateProfile_InvalidData(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 }
 
+func TestUpdateProfile_ConflictError(t *testing.T) {
+	mockService := &mockOperatorAuthService{
+		updateProfileFn: func(ctx context.Context, operatorID int64, displayName string, email string, clientIP net.IP) (*platform.Operator, error) {
+			return nil, &platformSvc.ConflictError{Err: errors.New("email address is already in use")}
+		},
+	}
+
+	resource := operator.NewProfileResource(mockService)
+
+	body := map[string]string{
+		"display_name": "Some Name",
+		"email":        "taken@example.com",
+	}
+	jsonBody, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPut, "/profile", bytes.NewReader(jsonBody))
+	req.Header.Set("Content-Type", "application/json")
+	claims := jwt.AppClaims{ID: 123}
+	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+
+	resource.UpdateProfile(rr, req)
+
+	assert.Equal(t, http.StatusConflict, rr.Code)
+	assert.Contains(t, rr.Body.String(), "Diese E-Mail-Adresse wird bereits verwendet")
+}
+
 func TestChangePassword_Success(t *testing.T) {
 	mockService := &mockOperatorAuthService{
 		changePasswordFn: func(ctx context.Context, operatorID int64, currentPassword, newPassword string) error {

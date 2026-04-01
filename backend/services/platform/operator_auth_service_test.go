@@ -7,6 +7,7 @@ import (
 	"net"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
@@ -727,6 +728,47 @@ func TestOperatorAuthService_UpdateProfile_EmailChange_AuditLog(t *testing.T) {
 	assert.Equal(t, clientIP, auditEntry.RequestIP)
 	assert.Contains(t, string(auditEntry.Changes), "old@example.com")
 	assert.Contains(t, string(auditEntry.Changes), "new@example.com")
+}
+
+func TestOperatorAuthService_UpdateProfile_EmailChange_WithDispatcher(t *testing.T) {
+	ctx := context.Background()
+	var operatorID int64 = 42
+
+	operatorRepo := &mockOperatorRepo{
+		findByIDFn: func(ctx context.Context, id int64) (*platform.Operator, error) {
+			return &platform.Operator{
+				Model:       base.Model{ID: operatorID},
+				Email:       "old@example.com",
+				DisplayName: "Operator",
+			}, nil
+		},
+		findByEmailFn: func(ctx context.Context, email string) (*platform.Operator, error) {
+			return nil, nil
+		},
+		updateFn: func(ctx context.Context, operator *platform.Operator) error {
+			return nil
+		},
+	}
+	auditLogRepo := &mockAuditLogRepoShared{}
+
+	mockMailer := email.NewMockMailer()
+	dispatcher := email.NewDispatcher(mockMailer, slog.Default())
+	dispatcher.SetDefaults(0, nil) // disable retries for test
+
+	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+		OperatorRepo: operatorRepo,
+		AuditLogRepo: auditLogRepo,
+		DB:           &bun.DB{},
+		Logger:       slog.Default(),
+		Dispatcher:   dispatcher,
+		DefaultFrom:  email.NewEmail("MOTO", "noreply@moto-app.de"),
+		FrontendURL:  "https://operator.moto-app.de",
+	})
+	require.NoError(t, err)
+
+	operator, err := service.UpdateProfile(ctx, operatorID, "Operator", "new@example.com", nil)
+	require.NoError(t, err)
+	assert.Equal(t, "new@example.com", operator.Email)
 }
 
 func TestOperatorAuthService_UpdateProfile_NoAuditLog_WhenEmailUnchanged(t *testing.T) {
