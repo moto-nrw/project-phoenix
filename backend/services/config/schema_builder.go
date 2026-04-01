@@ -172,11 +172,6 @@ func jsonValuesEqual(a, b any) bool {
 	return string(aj) == string(bj)
 }
 
-// isDefaultValue checks if the resolved value matches the registry default.
-func isDefaultValue(value, defaultVal any) bool {
-	return jsonValuesEqual(value, defaultVal)
-}
-
 // orderTabs returns tab keys ordered by TabOrder, with unknown tabs appended alphabetically.
 func orderTabs(tabSet map[string]bool) []string {
 	var ordered []string
