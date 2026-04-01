@@ -39,12 +39,15 @@ function OperatorSettingsContent() {
     const emailTrimmed = formData.email.trim();
     const emailChanged = emailTrimmed !== originalEmail;
 
-    if (
-      emailChanged &&
-      (!emailTrimmed ||
-        emailTrimmed.length > 254 ||
-        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrimmed))
-    ) {
+    const atIndex = emailTrimmed.indexOf("@");
+    const hasValidStructure =
+      atIndex > 0 &&
+      emailTrimmed.indexOf("@", atIndex + 1) === -1 &&
+      emailTrimmed.indexOf(".", atIndex + 1) > atIndex + 1 &&
+      !emailTrimmed.includes(" ") &&
+      emailTrimmed.length <= 254;
+
+    if (emailChanged && (!emailTrimmed || !hasValidStructure)) {
       setAlertMessage("Bitte gib eine gültige E-Mail-Adresse ein");
       setAlertType("error");
       setShowAlert(true);
