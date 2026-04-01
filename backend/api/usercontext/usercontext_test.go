@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -620,6 +622,45 @@ func TestServeAvatar_Unauthenticated(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, rr.Code, "Expected 401 for unauthenticated request")
 }
 
+func TestServeAvatar_GlobalAvatarFile(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	_, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "Avatar", "GlobalFile")
+
+	avatarDir := filepath.Join("public", "uploads", "avatars", "global")
+	err := os.MkdirAll(avatarDir, 0755)
+	require.NoError(t, err)
+
+	filename := fmt.Sprintf("%d_test-avatar.jpg", account.ID)
+	filePath := filepath.Join(avatarDir, filename)
+	err = os.WriteFile(filePath, []byte("fake-image-data"), 0644)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = os.Remove(filePath)
+	})
+
+	_, err = ctx.db.ExecContext(context.Background(),
+		`UPDATE auth.accounts SET avatar = ? WHERE id = ?`,
+		"/uploads/avatars/global/"+filename,
+		account.ID,
+	)
+	require.NoError(t, err)
+
+	router := chi.NewRouter()
+	router.Get("/profile/avatar/{filename}", ctx.resource.ServeAvatarHandler())
+
+	claims := testutil.TeacherTestClaims(int(account.ID))
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/profile/avatar/"+filename, nil,
+		testutil.WithClaims(claims),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, []byte("fake-image-data"), rr.Body.Bytes())
+}
+
 // =============================================================================
 // ROUTER TESTS
 // =============================================================================
@@ -820,15 +861,12 @@ func TestDeleteAvatar_WithAvatar(t *testing.T) {
 
 	_, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "HasAvatar", "Delete")
 
-	// Set avatar in users.profiles via raw SQL
-	_, err := tc.db.NewRaw(
-		`UPDATE users.profiles SET avatar = ?
-		 WHERE account_id = ?`,
-		"/uploads/avatars/test_avatar.jpg",
+	_, err := tc.db.ExecContext(context.Background(),
+		`UPDATE auth.accounts SET avatar = ? WHERE id = ?`,
+		"/uploads/avatars/global/test_avatar.jpg",
 		account.ID,
-	).Exec(context.Background())
-	// Note: This may fail if person doesn't have a profile - that's OK
-	_ = err
+	)
+	require.NoError(t, err)
 
 	router := chi.NewRouter()
 	router.Delete("/profile/avatar", tc.resource.DeleteAvatarHandler())
@@ -840,8 +878,7 @@ func TestDeleteAvatar_WithAvatar(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	// The request might succeed (200) or return 400 if no avatar
-	assert.Contains(t, []int{http.StatusOK, http.StatusBadRequest, http.StatusInternalServerError}, rr.Code)
+	assert.Equal(t, http.StatusOK, rr.Code)
 }
 
 // =============================================================================

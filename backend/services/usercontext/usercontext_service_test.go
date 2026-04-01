@@ -43,11 +43,15 @@ func setupUserContextService(t *testing.T, db *bun.DB) usercontextSvc.UserContex
 
 // contextWithClaims creates a context with JWT claims
 func contextWithClaims(userID int) context.Context {
+	return contextWithTenantClaims(userID, 1)
+}
+
+func contextWithTenantClaims(userID int, tenantID int64) context.Context {
 	claims := jwt.AppClaims{
 		ID:       userID,
-		TenantID: 1,
+		TenantID: tenantID,
 	}
-	return context.WithValue(testpkg.TenantContext(1), jwt.CtxClaims, claims)
+	return context.WithValue(testpkg.TenantContext(tenantID), jwt.CtxClaims, claims)
 }
 
 // ============================================================================
@@ -376,6 +380,26 @@ func TestUserContextService_GetCurrentProfile(t *testing.T) {
 		assert.Equal(t, account.Email, result["email"])
 	})
 
+	t.Run("returns global avatar even when current tenant has no tenant profile row", func(t *testing.T) {
+		account := testpkg.CreateTestAccount(t, db, "globalavatar@example.com")
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		avatarPath := "/uploads/avatars/global/account-global.jpg"
+		_, err := db.ExecContext(context.Background(),
+			`UPDATE auth.accounts SET avatar = ? WHERE id = ?`,
+			avatarPath, account.ID)
+		require.NoError(t, err)
+
+		ctx := contextWithTenantClaims(int(account.ID), 5)
+
+		result, err := service.GetCurrentProfile(ctx)
+
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Equal(t, avatarPath, result["avatar"])
+		assert.Equal(t, account.Email, result["email"])
+	})
+
 	t.Run("returns error for unauthenticated context", func(t *testing.T) {
 		// ACT
 		_, err := service.GetCurrentProfile(context.Background())
@@ -481,7 +505,7 @@ func TestUserContextService_UpdateAvatar(t *testing.T) {
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		ctx := contextWithClaims(int(account.ID))
-		avatarURL := "/uploads/avatars/test.jpg"
+		avatarURL := "/uploads/avatars/global/test.jpg"
 
 		// ACT
 		result, err := service.UpdateAvatar(ctx, avatarURL)
@@ -490,6 +514,10 @@ func TestUserContextService_UpdateAvatar(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		assert.Equal(t, avatarURL, result["avatar"])
+
+		accountRecord, err := repositories.NewFactory(db).Account.FindByID(ctx, account.ID)
+		require.NoError(t, err)
+		assert.Equal(t, avatarURL, accountRecord.Avatar)
 	})
 
 	t.Run("returns error for unauthenticated context", func(t *testing.T) {

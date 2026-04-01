@@ -206,14 +206,14 @@ func TestGenerateRandomString_ZeroLength(t *testing.T) {
 
 func TestValidateAvatarPath_ValidPath(t *testing.T) {
 	validPaths := []string{
-		"12345_abc123.jpg",
-		"1_x.png",
-		"99999999_abcdefgh.webp",
+		"/uploads/avatars/global/12345_abc123.jpg",
+		"/uploads/avatars/1/1_x.png",
+		"/uploads/avatars/99999999/99999999_abcdefgh.webp",
 	}
 
 	for _, path := range validPaths {
 		t.Run(path, func(t *testing.T) {
-			filePath, errRenderer := validateAvatarPath(path, 1)
+			filePath, errRenderer := validateAvatarPath(path)
 			assert.Nil(t, errRenderer, "Expected no error for valid path")
 			assert.NotEmpty(t, filePath, "Expected non-empty file path")
 		})
@@ -226,14 +226,15 @@ func TestValidateAvatarPath_InvalidPath(t *testing.T) {
 		name string
 		path string
 	}{
-		{"path traversal up", "../etc/passwd"},
+		{"path traversal up", "/uploads/avatars/../etc/passwd"},
 		{"double dot", ".."},
-		{"path traversal up2", "../../secret.txt"},
+		{"path traversal up2", "/uploads/avatars/global/../../secret.txt"},
+		{"wrong base path", "/uploads/not-avatars/file.jpg"},
 	}
 
 	for _, tt := range invalidPaths {
 		t.Run(tt.name, func(t *testing.T) {
-			_, errRenderer := validateAvatarPath(tt.path, 1)
+			_, errRenderer := validateAvatarPath(tt.path)
 			assert.NotNil(t, errRenderer, "Expected error for invalid path: %s", tt.path)
 		})
 	}
