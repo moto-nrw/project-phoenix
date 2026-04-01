@@ -2690,6 +2690,12 @@ func TestDevicePickupQuery_ReturnsPickupInfoWithoutCreatingVisit(t *testing.T) {
 		t.Skip("Skipping pickup query test on weekend — no pickup schedule applies")
 	}
 
+	// Use DateOfUTC for the note date: PostgreSQL casts timestamptz → DATE in session
+	// timezone (UTC). DateOf returns midnight Berlin which can shift to the previous day
+	// in UTC (e.g. 2026-04-01 00:00+02 → 2026-03-31 22:00 UTC → DATE 2026-03-31).
+	// DateOfUTC avoids this by encoding the Berlin calendar date as midnight UTC.
+	todayUTC := timezone.DateOfUTC(time.Now())
+
 	tenantCtx := testpkg.TenantContext(1)
 	pickupTime := time.Date(2024, 1, 1, 15, 30, 0, 0, time.UTC)
 	err := ctx.services.PickupSchedule.UpsertStudentPickupSchedule(tenantCtx, &scheduleModels.StudentPickupSchedule{
@@ -2702,7 +2708,7 @@ func TestDevicePickupQuery_ReturnsPickupInfoWithoutCreatingVisit(t *testing.T) {
 
 	err = ctx.services.PickupSchedule.CreateStudentPickupNote(tenantCtx, &scheduleModels.StudentPickupNote{
 		StudentID: student.ID,
-		NoteDate:  berlinToday,
+		NoteDate:  todayUTC,
 		Content:   "Mama holt heute frueher ab",
 		CreatedBy: staff.ID,
 	})
@@ -2806,6 +2812,6 @@ func TestDevicePickupQuery_RejectsStaffRFID(t *testing.T) {
 	testutil.AssertBadRequest(t, rr)
 
 	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
-	message, _ := response["message"].(string)
-	assert.Contains(t, message, "student RFID tag required for pickup query")
+	errorMsg, _ := response["error"].(string)
+	assert.Contains(t, errorMsg, "student RFID tag required for pickup query")
 }
