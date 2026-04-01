@@ -26,7 +26,7 @@ func newMockValueRepo() *mockValueRepo {
 }
 
 func (m *mockValueRepo) key(tenantID int64, settingKey string) string {
-	return settingKey // simplified for tests
+	return fmt.Sprintf("%d:%s", tenantID, settingKey)
 }
 
 func (m *mockValueRepo) FindByTenantAndKey(_ context.Context, tenantID int64, settingKey string) (*config.SettingValue, error) {
@@ -59,11 +59,11 @@ func (m *mockValueRepo) Upsert(_ context.Context, sv *config.SettingValue) error
 	return nil
 }
 
-func (m *mockValueRepo) Delete(_ context.Context, _ int64, settingKey string) error {
+func (m *mockValueRepo) Delete(_ context.Context, tenantID int64, settingKey string) error {
 	if m.err != nil {
 		return m.err
 	}
-	delete(m.values, settingKey)
+	delete(m.values, m.key(tenantID, settingKey))
 	return nil
 }
 
@@ -131,11 +131,11 @@ func TestResolve_ReturnsTenantOverride(t *testing.T) {
 	registerTestSetting("test.timeout", config.FieldNumber, 30)
 
 	repo := newMockValueRepo()
-	repo.values["test.timeout"] = &config.SettingValue{
+	repo.values["1:test.timeout"] = &config.SettingValue{
 		SettingKey: "test.timeout",
 		Value:      json.RawMessage(`60`),
 	}
-	repo.values["test.timeout"].TenantID = 1
+	repo.values["1:test.timeout"].TenantID = 1
 
 	svc := createService(repo, &mockAuditRepo{})
 
@@ -202,11 +202,11 @@ func TestResolveInt_FromOverride(t *testing.T) {
 	registerTestSetting("test.count", config.FieldNumber, 42)
 
 	repo := newMockValueRepo()
-	repo.values["test.count"] = &config.SettingValue{
+	repo.values["1:test.count"] = &config.SettingValue{
 		SettingKey: "test.count",
 		Value:      json.RawMessage(`99`),
 	}
-	repo.values["test.count"].TenantID = 1
+	repo.values["1:test.count"].TenantID = 1
 
 	svc := createService(repo, &mockAuditRepo{})
 
@@ -288,11 +288,11 @@ func TestResetValue_DeletesOverrideAndAudits(t *testing.T) {
 	registerTestSetting("test.timeout", config.FieldNumber, 30)
 
 	valueRepo := newMockValueRepo()
-	valueRepo.values["test.timeout"] = &config.SettingValue{
+	valueRepo.values["1:test.timeout"] = &config.SettingValue{
 		SettingKey: "test.timeout",
 		Value:      json.RawMessage(`60`),
 	}
-	valueRepo.values["test.timeout"].TenantID = 1
+	valueRepo.values["1:test.timeout"].TenantID = 1
 
 	auditRepo := &mockAuditRepo{}
 	svc := createService(valueRepo, auditRepo)
@@ -388,11 +388,11 @@ func TestGetSchema_PasswordMasked(t *testing.T) {
 	})
 
 	valueRepo := newMockValueRepo()
-	valueRepo.values["security.pin"] = &config.SettingValue{
+	valueRepo.values["1:security.pin"] = &config.SettingValue{
 		SettingKey: "security.pin",
 		Value:      json.RawMessage(`"1234"`),
 	}
-	valueRepo.values["security.pin"].TenantID = 1
+	valueRepo.values["1:security.pin"].TenantID = 1
 
 	svc := createService(valueRepo, &mockAuditRepo{})
 
@@ -532,11 +532,11 @@ func TestResolveString_FromOverride(t *testing.T) {
 	registerTestSetting("test.name", config.FieldText, "default")
 
 	repo := newMockValueRepo()
-	repo.values["test.name"] = &config.SettingValue{
+	repo.values["1:test.name"] = &config.SettingValue{
 		SettingKey: "test.name",
 		Value:      json.RawMessage(`"custom"`),
 	}
-	repo.values["test.name"].TenantID = 1
+	repo.values["1:test.name"].TenantID = 1
 
 	svc := createService(repo, &mockAuditRepo{})
 
@@ -561,11 +561,11 @@ func TestResolveBool_FromOverride(t *testing.T) {
 	registerTestSetting("test.flag", config.FieldBoolean, true)
 
 	repo := newMockValueRepo()
-	repo.values["test.flag"] = &config.SettingValue{
+	repo.values["1:test.flag"] = &config.SettingValue{
 		SettingKey: "test.flag",
 		Value:      json.RawMessage(`false`),
 	}
-	repo.values["test.flag"].TenantID = 1
+	repo.values["1:test.flag"].TenantID = 1
 
 	svc := createService(repo, &mockAuditRepo{})
 
@@ -601,11 +601,11 @@ func TestSetValue_WithExistingOverride_RecordsOldValue(t *testing.T) {
 	registerTestSetting("test.val", config.FieldNumber, 10)
 
 	repo := newMockValueRepo()
-	repo.values["test.val"] = &config.SettingValue{
+	repo.values["1:test.val"] = &config.SettingValue{
 		SettingKey: "test.val",
 		Value:      json.RawMessage(`20`),
 	}
-	repo.values["test.val"].TenantID = 1
+	repo.values["1:test.val"].TenantID = 1
 
 	auditRepo := &mockAuditRepo{}
 	svc := createService(repo, auditRepo)
@@ -636,11 +636,11 @@ func TestResetValue_NilChangedBy(t *testing.T) {
 	registerTestSetting("test.val", config.FieldText, "default")
 
 	repo := newMockValueRepo()
-	repo.values["test.val"] = &config.SettingValue{
+	repo.values["1:test.val"] = &config.SettingValue{
 		SettingKey: "test.val",
 		Value:      json.RawMessage(`"custom"`),
 	}
-	repo.values["test.val"].TenantID = 1
+	repo.values["1:test.val"].TenantID = 1
 
 	auditRepo := &mockAuditRepo{}
 	svc := createService(repo, auditRepo)
@@ -820,11 +820,11 @@ func TestResolveInt_IntValue(t *testing.T) {
 	registerTestSetting("test.intval", config.FieldNumber, 0)
 
 	repo := newMockValueRepo()
-	repo.values["test.intval"] = &config.SettingValue{
+	repo.values["1:test.intval"] = &config.SettingValue{
 		SettingKey: "test.intval",
 		Value:      json.RawMessage(`42`),
 	}
-	repo.values["test.intval"].TenantID = 1
+	repo.values["1:test.intval"].TenantID = 1
 
 	svc := createService(repo, &mockAuditRepo{})
 
@@ -1174,11 +1174,11 @@ func TestHasTenantOverride_ReturnsTrueWhenExists(t *testing.T) {
 	registerTestSetting("test.val", config.FieldText, "default")
 
 	repo := newMockValueRepo()
-	repo.values["test.val"] = &config.SettingValue{
+	repo.values["1:test.val"] = &config.SettingValue{
 		SettingKey: "test.val",
 		Value:      json.RawMessage(`"custom"`),
 	}
-	repo.values["test.val"].TenantID = 1
+	repo.values["1:test.val"].TenantID = 1
 
 	svc := createService(repo, &mockAuditRepo{})
 

@@ -6,6 +6,7 @@ import { Loading } from "~/components/ui/loading";
 import { SimpleAlert } from "~/components/simple/SimpleAlert";
 import { PasswordChangeModal } from "~/components/ui";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
+import { sessionFetch } from "~/lib/session-cache";
 
 function OperatorSettingsContent() {
   const { data: session, status, update: updateSession } = useSession();
@@ -42,7 +43,7 @@ function OperatorSettingsContent() {
   const handleSaveProfile = async () => {
     setIsSaving(true);
     try {
-      const response = await fetch("/api/operator/profile", {
+      const response = await sessionFetch("/api/operator/profile", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ display_name: formData.displayName }),

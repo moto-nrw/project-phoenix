@@ -248,7 +248,12 @@ func (s *Scheduler) Stop() {
 // scheduleCleanupTask schedules the daily cleanup task using minute-polling.
 // Each minute, it checks each tenant's configured cleanup time and fires if matched.
 func (s *Scheduler) scheduleCleanupTask() {
-	// Quick check: if globally disabled via env and no settings service, skip entirely
+	// Env var can globally disable cleanup regardless of settings service
+	if os.Getenv("CLEANUP_SCHEDULER_ENABLED") == "false" {
+		s.getLogger().Info("cleanup scheduler is disabled via env var")
+		return
+	}
+	// Legacy guard: without settings service, require explicit opt-in via env var
 	if s.settings == nil && os.Getenv("CLEANUP_SCHEDULER_ENABLED") != "true" {
 		s.getLogger().Info("cleanup scheduler is disabled")
 		return
@@ -296,7 +301,7 @@ func (s *Scheduler) runCleanupTaskPolling(task *ScheduledTask) {
 
 // checkAndRunCleanup evaluates each tenant's cleanup settings and runs if time matches.
 func (s *Scheduler) checkAndRunCleanup(task *ScheduledTask) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Hour)
 	defer cancel()
 
 	s.forEachTenantSettings(ctx, "cleanup-check", func(tenantCtx context.Context, tenantID int64) error {
@@ -314,6 +319,9 @@ func (s *Scheduler) checkAndRunCleanup(task *ScheduledTask) {
 			return nil
 		}
 
+		// Mark immediately to prevent double-fire from concurrent ticks
+		markRunToday(&s.lastDataCleanup, tenantID)
+
 		s.getLogger().Info("running data cleanup for tenant",
 			slog.Int64("tenant_id", tenantID),
 			slog.String("cleanup_time", cleanupTime),
@@ -323,14 +331,17 @@ func (s *Scheduler) checkAndRunCleanup(task *ScheduledTask) {
 		cleanupCtx, cleanupCancel := context.WithTimeout(tenantCtx, time.Duration(timeoutMinutes)*time.Minute)
 		defer cleanupCancel()
 
-		s.executeCleanupForTenant(cleanupCtx, tenantID)
-		markRunToday(&s.lastDataCleanup, tenantID)
+		if !s.executeCleanupForTenant(cleanupCtx, tenantID) {
+			// Clear mark so cleanup retries on next matching minute
+			s.lastDataCleanup.Delete(tenantID)
+		}
 		return nil
 	})
 }
 
 // executeCleanupForTenant runs the cleanup operations for a single tenant.
-func (s *Scheduler) executeCleanupForTenant(ctx context.Context, tenantID int64) {
+// Returns true if the primary cleanup (expired visits) succeeded.
+func (s *Scheduler) executeCleanupForTenant(ctx context.Context, tenantID int64) bool {
 	// Cleanup expired visits
 	result, err := s.cleanupService.CleanupExpiredVisits(ctx)
 	if err != nil {
@@ -338,7 +349,7 @@ func (s *Scheduler) executeCleanupForTenant(ctx context.Context, tenantID int64)
 			slog.Int64("tenant_id", tenantID),
 			slog.String("error", err.Error()),
 		)
-		return
+		return false
 	}
 
 	s.getLogger().Info("cleanup completed for tenant",
@@ -374,6 +385,7 @@ func (s *Scheduler) executeCleanupForTenant(ctx context.Context, tenantID int64)
 			)
 		}
 	}
+	return true
 }
 
 // executeCleanup runs the cleanup task for all tenants (backward-compatible wrapper).
@@ -638,7 +650,12 @@ func buildCleanupJobs(authService AuthCleanup, invitationService InvitationClean
 
 // scheduleSessionEndTask schedules the daily session end task using minute-polling.
 func (s *Scheduler) scheduleSessionEndTask() {
-	// Quick check: if globally disabled via env and no settings service, skip
+	// Env var can globally disable session end regardless of settings service
+	if os.Getenv("SESSION_END_SCHEDULER_ENABLED") == "false" {
+		s.getLogger().Info("session end scheduler is disabled via env var")
+		return
+	}
+	// Legacy guard: without settings service, require non-false env var
 	if s.settings == nil && os.Getenv("SESSION_END_SCHEDULER_ENABLED") == "false" {
 		s.getLogger().Info("session end scheduler is disabled")
 		return
@@ -686,7 +703,7 @@ func (s *Scheduler) runSessionEndTaskPolling(task *ScheduledTask) {
 
 // checkAndRunSessionEnd evaluates each tenant's session end settings and runs if time matches.
 func (s *Scheduler) checkAndRunSessionEnd(task *ScheduledTask) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Hour)
 	defer cancel()
 
 	s.forEachTenantSettings(ctx, "session-end-check", func(tenantCtx context.Context, tenantID int64) error {
@@ -857,18 +874,18 @@ func (s *Scheduler) scheduleBreakAutoEndTask() {
 		return
 	}
 
-	if s.settings == nil && os.Getenv("BREAK_AUTO_END_ENABLED") == "false" {
-		s.getLogger().Info("break auto-end is disabled")
+	if os.Getenv("BREAK_AUTO_END_ENABLED") == "false" {
+		s.getLogger().Info("break auto-end is disabled via env var")
 		return
 	}
 
-	// Resolve interval: settings service → env var → default (60s)
-	s.breakAutoEndIntervalSeconds = s.resolveIntSetting(
-		context.Background(),
-		configModel.KeyBreakAutoEndIntervalSeconds,
-		"BREAK_AUTO_END_INTERVAL_SECONDS",
-		60,
-	)
+	// Resolve interval from env var (global, not per-tenant)
+	s.breakAutoEndIntervalSeconds = 60
+	if val := os.Getenv("BREAK_AUTO_END_INTERVAL_SECONDS"); val != "" {
+		if parsed, err := strconv.Atoi(val); err == nil && parsed > 0 {
+			s.breakAutoEndIntervalSeconds = parsed
+		}
+	}
 
 	task := &ScheduledTask{
 		Name:     "break-auto-end",
@@ -956,7 +973,12 @@ func (s *Scheduler) checkAndRunBreakAutoEnd(task *ScheduledTask) {
 // resolveStringSetting resolves a setting via the settings service with env var fallback.
 func (s *Scheduler) resolveStringSetting(ctx context.Context, key string, envVar string, defaultVal string) string {
 	if s.settings != nil {
-		if hasOverride, _ := s.settings.HasTenantOverride(ctx, key); hasOverride {
+		if hasOverride, err := s.settings.HasTenantOverride(ctx, key); err != nil {
+			s.getLogger().Warn("settings override check failed, falling back",
+				slog.String("key", key),
+				slog.String("error", err.Error()),
+			)
+		} else if hasOverride {
 			if val, err := s.settings.ResolveString(ctx, key); err == nil && val != "" {
 				return val
 			}
@@ -971,7 +993,12 @@ func (s *Scheduler) resolveStringSetting(ctx context.Context, key string, envVar
 // resolveBoolSetting resolves a boolean setting via the settings service with env var fallback.
 func (s *Scheduler) resolveBoolSetting(ctx context.Context, key string, envVar string, defaultVal bool) bool {
 	if s.settings != nil {
-		if hasOverride, _ := s.settings.HasTenantOverride(ctx, key); hasOverride {
+		if hasOverride, err := s.settings.HasTenantOverride(ctx, key); err != nil {
+			s.getLogger().Warn("settings override check failed, falling back",
+				slog.String("key", key),
+				slog.String("error", err.Error()),
+			)
+		} else if hasOverride {
 			if val, err := s.settings.ResolveBool(ctx, key); err == nil {
 				return val
 			}
@@ -986,7 +1013,12 @@ func (s *Scheduler) resolveBoolSetting(ctx context.Context, key string, envVar s
 // resolveIntSetting resolves an integer setting via the settings service with env var fallback.
 func (s *Scheduler) resolveIntSetting(ctx context.Context, key string, envVar string, defaultVal int) int {
 	if s.settings != nil {
-		if hasOverride, _ := s.settings.HasTenantOverride(ctx, key); hasOverride {
+		if hasOverride, err := s.settings.HasTenantOverride(ctx, key); err != nil {
+			s.getLogger().Warn("settings override check failed, falling back",
+				slog.String("key", key),
+				slog.String("error", err.Error()),
+			)
+		} else if hasOverride {
 			if val, err := s.settings.ResolveInt(ctx, key); err == nil && val > 0 {
 				return val
 			}

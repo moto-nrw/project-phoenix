@@ -88,7 +88,9 @@ export async function fetchSettingsSchema(): Promise<SettingsSchema | null> {
     logger.error("fetch_settings_schema_failed", {
       status: response.status,
     });
-    return null;
+    throw new Error(
+      `Einstellungen konnten nicht geladen werden (${response.status})`,
+    );
   }
 
   const result = (await response.json()) as ApiResponse<SettingsSchema>;

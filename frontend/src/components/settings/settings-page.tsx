@@ -47,9 +47,18 @@ function SettingsContent({ tabKey }: SettingsContentProps) {
   const loadSchema = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const data = await fetchSettingsSchema();
-    setSchema(data);
-    setLoading(false);
+    try {
+      const data = await fetchSettingsSchema();
+      setSchema(data);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Einstellungen konnten nicht geladen werden",
+      );
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -91,9 +100,11 @@ function SettingsContent({ tabKey }: SettingsContentProps) {
               categories: tab.categories.map((cat) => ({
                 ...cat,
                 items: cat.items.map((item) => {
+                  const optimisticValue =
+                    item.type === "password" ? "••••••" : value;
                   const updated =
                     item.key === key
-                      ? { ...item, value, is_default: false }
+                      ? { ...item, value: optimisticValue, is_default: false }
                       : item;
                   // Re-evaluate DependsOn visibility
                   if (updated.depends_on) {

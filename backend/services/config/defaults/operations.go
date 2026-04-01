@@ -131,21 +131,6 @@ func init() {
 		},
 	})
 
-	// --- Break Auto-End ---
-
-	minBreakInterval := float64(10)
-	maxBreakInterval := float64(300)
-	config.Register(config.Definition{
-		Key:             config.KeyBreakAutoEndIntervalSeconds,
-		Label:           "Pausen-Auto-Ende Intervall (Sekunden)",
-		Description:     "Wie oft geprüft wird, ob Pausen automatisch beendet werden sollen",
-		Type:            config.FieldNumber,
-		Default:         60,
-		ReadPermission:  "config:read",
-		WritePermission: "config:update",
-		Tab:             "operations",
-		Category:        "cleanup",
-		SortOrder:       4,
-		Validation:      &config.ValidationRules{Min: &minBreakInterval, Max: &maxBreakInterval},
-	})
+	// Break auto-end interval is NOT registered here — it controls a global ticker
+	// (not per-tenant) and is configured via BREAK_AUTO_END_INTERVAL_SECONDS env var only.
 }

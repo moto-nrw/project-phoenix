@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"regexp"
+	"math"
 	"strconv"
 	"strings"
 
@@ -126,6 +126,9 @@ func (s *settingsService) ResolveInt(ctx context.Context, key string) (int, erro
 	}
 	switch n := val.(type) {
 	case float64:
+		if n > float64(math.MaxInt) || n < float64(math.MinInt) {
+			return 0, &SettingsError{Op: "resolve_int", Err: fmt.Errorf("value %v out of int range", n)}
+		}
 		return int(n), nil
 	case int:
 		return n, nil
@@ -133,6 +136,9 @@ func (s *settingsService) ResolveInt(ctx context.Context, key string) (int, erro
 		i, err := n.Int64()
 		if err != nil {
 			return 0, &SettingsError{Op: "resolve_int", Err: fmt.Errorf("invalid number: %w", err)}
+		}
+		if i > int64(math.MaxInt) || i < int64(math.MinInt) {
+			return 0, &SettingsError{Op: "resolve_int", Err: fmt.Errorf("value %v out of int range", i)}
 		}
 		return int(i), nil
 	default:
@@ -194,6 +200,9 @@ func (s *settingsService) SetValue(ctx context.Context, key string, value any, c
 	}
 
 	tenantID := tenant.FromContext(ctx)
+	if tenantID <= 0 {
+		return &SettingsError{Op: "set_value", Err: fmt.Errorf("no tenant context")}
+	}
 
 	// Read current value for audit
 	existing, err := s.valueRepo.FindByTenantAndKey(ctx, tenantID, key)
@@ -249,6 +258,9 @@ func (s *settingsService) ResetValue(ctx context.Context, key string, changedBy 
 	}
 
 	tenantID := tenant.FromContext(ctx)
+	if tenantID <= 0 {
+		return &SettingsError{Op: "reset_value", Err: fmt.Errorf("no tenant context")}
+	}
 
 	// Read current value for audit
 	existing, err := s.valueRepo.FindByTenantAndKey(ctx, tenantID, key)
@@ -335,9 +347,8 @@ func validateValue(def *config.Definition, value any) error {
 			return fmt.Errorf("expected a string")
 		}
 		// Apply pattern validation from registry definition if present
-		if def.Validation != nil && def.Validation.Pattern != nil && str != "" {
-			pat := regexp.MustCompile(*def.Validation.Pattern)
-			if !pat.MatchString(str) {
+		if def.Validation != nil && def.Validation.CompiledPattern != nil && str != "" {
+			if !def.Validation.CompiledPattern.MatchString(str) {
 				return fmt.Errorf("value does not match required pattern")
 			}
 		}

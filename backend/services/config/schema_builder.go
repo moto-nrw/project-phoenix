@@ -39,8 +39,9 @@ func buildSchema(
 			continue
 		}
 
-		// Determine if this is the default or an override
-		isDefault := isDefaultValue(value, def.Default)
+		// Determine if this is using the default (no tenant DB override exists)
+		hasOverride, _ := svc.HasTenantOverride(ctx, key)
+		isDefault := !hasOverride
 
 		// Mask password values (only when actually set, not empty defaults)
 		displayValue := value
@@ -161,9 +162,13 @@ func evaluateDependency(resolved *ResolvedSetting, resolvedMap map[string]*Resol
 }
 
 // jsonValuesEqual compares two values by their JSON representation.
+// Returns false if either value fails to marshal.
 func jsonValuesEqual(a, b any) bool {
-	aj, _ := json.Marshal(a)
-	bj, _ := json.Marshal(b)
+	aj, errA := json.Marshal(a)
+	bj, errB := json.Marshal(b)
+	if errA != nil || errB != nil {
+		return false
+	}
 	return string(aj) == string(bj)
 }
 

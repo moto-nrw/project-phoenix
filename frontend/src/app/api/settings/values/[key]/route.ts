@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { apiPut, apiDelete } from "~/lib/api-helpers";
 import { createPutHandler, createDeleteHandler } from "~/lib/route-wrapper";
 
-const VALID_KEY_PATTERN = /^[a-z0-9_.]+$/;
+const VALID_KEY_PATTERN = /^[a-z0-9_.]{1,255}$/;
 
 export const PUT = createPutHandler(
   async (

@@ -15,19 +15,21 @@ import (
 )
 
 // getStudentDailyCheckoutTime resolves the daily checkout time.
-// Fallback chain: settings service → STUDENT_DAILY_CHECKOUT_TIME env var → "15:00".
+// Fallback chain: tenant DB override → STUDENT_DAILY_CHECKOUT_TIME env var → "15:00".
 func (rs *Resource) getStudentDailyCheckoutTime(ctx context.Context) (time.Time, error) {
 	checkoutTimeStr := ""
 
-	// Try settings service first
+	// Try tenant DB override first (only if an explicit override exists)
 	if rs.SettingsService != nil {
-		if val, err := rs.SettingsService.ResolveString(ctx, configModel.KeyStudentDailyCheckoutTime); err == nil && val != "" {
-			checkoutTimeStr = val
-		} else if err != nil {
-			slog.Warn("settings resolution failed, falling back to env var",
+		if has, err := rs.SettingsService.HasTenantOverride(ctx, configModel.KeyStudentDailyCheckoutTime); err != nil {
+			slog.Warn("settings override check failed, falling back to env var",
 				slog.String("key", configModel.KeyStudentDailyCheckoutTime),
 				slog.String("error", err.Error()),
 			)
+		} else if has {
+			if val, err := rs.SettingsService.ResolveString(ctx, configModel.KeyStudentDailyCheckoutTime); err == nil && val != "" {
+				checkoutTimeStr = val
+			}
 		}
 	}
 

@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"sync"
 )
 
@@ -51,10 +52,11 @@ type Definition struct {
 
 // ValidationRules defines constraints on a setting value.
 type ValidationRules struct {
-	Required bool     `json:"required,omitempty"`
-	Min      *float64 `json:"min,omitempty"`
-	Max      *float64 `json:"max,omitempty"`
-	Pattern  *string  `json:"pattern,omitempty"` // Regex pattern for string/password fields
+	Required        bool           `json:"required,omitempty"`
+	Min             *float64       `json:"min,omitempty"`
+	Max             *float64       `json:"max,omitempty"`
+	Pattern         *string        `json:"pattern,omitempty"` // Regex pattern for string/password fields
+	CompiledPattern *regexp.Regexp `json:"-"`                 // Pre-compiled pattern, set during Validate()
 }
 
 // Dependency makes a setting conditionally visible based on another setting's value.
@@ -103,7 +105,41 @@ func (d *Definition) Validate() error {
 	if d.Type == FieldSelect && d.Options == nil {
 		return fmt.Errorf("select field %s must have options", d.Key)
 	}
+	if d.Validation != nil && d.Validation.Pattern != nil {
+		compiled, err := regexp.Compile(*d.Validation.Pattern)
+		if err != nil {
+			return fmt.Errorf("invalid validation pattern for %s: %w", d.Key, err)
+		}
+		d.Validation.CompiledPattern = compiled
+	}
+	// Validate default against min/max rules
+	if d.Validation != nil && d.Default != nil && d.Type == FieldNumber {
+		if num, ok := toFloat(d.Default); ok {
+			if d.Validation.Min != nil && num < *d.Validation.Min {
+				return fmt.Errorf("default value %v for %s is below minimum %v", num, d.Key, *d.Validation.Min)
+			}
+			if d.Validation.Max != nil && num > *d.Validation.Max {
+				return fmt.Errorf("default value %v for %s exceeds maximum %v", num, d.Key, *d.Validation.Max)
+			}
+		}
+	}
 	return nil
+}
+
+// toFloat converts a numeric value to float64 for validation.
+func toFloat(v any) (float64, bool) {
+	switch n := v.(type) {
+	case float64:
+		return n, true
+	case float32:
+		return float64(n), true
+	case int:
+		return float64(n), true
+	case int64:
+		return float64(n), true
+	default:
+		return 0, false
+	}
 }
 
 // MarshalDefault returns the default value as JSON bytes.
@@ -144,14 +180,16 @@ func GetDefinition(key string) *Definition {
 	return registry[key]
 }
 
-// AllDefinitions returns a copy of all registered definitions.
+// AllDefinitions returns a deep copy of all registered definitions.
+// Callers cannot mutate the registry through the returned pointers.
 func AllDefinitions() map[string]*Definition {
 	registryMu.RLock()
 	defer registryMu.RUnlock()
 
 	result := make(map[string]*Definition, len(registry))
 	for k, v := range registry {
-		result[k] = v
+		defCopy := *v
+		result[k] = &defCopy
 	}
 	return result
 }

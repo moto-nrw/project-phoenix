@@ -228,6 +228,7 @@ export function SettingsField({
             onClick={handleReset}
             className="text-xs text-gray-400 hover:text-gray-600"
             title="Auf Standard zurücksetzen"
+            aria-label="Auf Standard zurücksetzen"
           >
             <svg
               className="h-4 w-4"

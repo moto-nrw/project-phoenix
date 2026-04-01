@@ -44,9 +44,11 @@ func (rs *SettingsResource) SettingsRouter() chi.Router {
 		r.Use(jwt.TenantMiddleware)
 		withTx := tenant.TenantTxMiddleware(rs.db)
 
+		settingsWrite := authorize.RequiresAnyPermission(permissions.ConfigUpdate, permissions.ConfigManage)
+
 		r.With(authorize.RequiresPermission(permissions.ConfigRead), withTx).Get("/schema", rs.getSchema)
-		r.With(authorize.RequiresPermission(permissions.ConfigUpdate), withTx).Put("/values/{key}", rs.setValue)
-		r.With(authorize.RequiresPermission(permissions.ConfigUpdate), withTx).Delete("/values/{key}", rs.resetValue)
+		r.With(settingsWrite, withTx).Put("/values/{key}", rs.setValue)
+		r.With(settingsWrite, withTx).Delete("/values/{key}", rs.resetValue)
 	})
 
 	return r
