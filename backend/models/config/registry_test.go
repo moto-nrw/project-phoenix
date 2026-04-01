@@ -200,3 +200,87 @@ func TestRegister_AllFieldTypes(t *testing.T) {
 
 	assert.Len(t, config.AllDefinitions(), 6)
 }
+
+func TestValidate_InvalidPattern(t *testing.T) {
+	def := config.Definition{
+		Key:        "test.bad_pattern",
+		Type:       config.FieldPassword,
+		Tab:        "security",
+		Category:   "auth",
+		Validation: &config.ValidationRules{Pattern: strPtr("[invalid(regex")},
+	}
+	err := def.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid validation pattern")
+}
+
+func TestValidate_ValidPattern(t *testing.T) {
+	def := config.Definition{
+		Key:        "test.good_pattern",
+		Type:       config.FieldPassword,
+		Tab:        "security",
+		Category:   "auth",
+		Validation: &config.ValidationRules{Pattern: strPtr(`^\d{4}$`)},
+	}
+	err := def.Validate()
+	require.NoError(t, err)
+	assert.NotNil(t, def.Validation.CompiledPattern)
+}
+
+func TestValidate_DefaultBelowMin(t *testing.T) {
+	minVal := 10.0
+	def := config.Definition{
+		Key:        "test.below_min",
+		Type:       config.FieldNumber,
+		Default:    5,
+		Tab:        "general",
+		Category:   "test",
+		Validation: &config.ValidationRules{Min: &minVal},
+	}
+	err := def.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "below minimum")
+}
+
+func TestValidate_DefaultExceedsMax(t *testing.T) {
+	maxVal := 100.0
+	def := config.Definition{
+		Key:        "test.above_max",
+		Type:       config.FieldNumber,
+		Default:    150,
+		Tab:        "general",
+		Category:   "test",
+		Validation: &config.ValidationRules{Max: &maxVal},
+	}
+	err := def.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "exceeds maximum")
+}
+
+func TestValidate_DefaultWithinRange(t *testing.T) {
+	minVal := 1.0
+	maxVal := 100.0
+	def := config.Definition{
+		Key:        "test.in_range",
+		Type:       config.FieldNumber,
+		Default:    50,
+		Tab:        "general",
+		Category:   "test",
+		Validation: &config.ValidationRules{Min: &minVal, Max: &maxVal},
+	}
+	require.NoError(t, def.Validate())
+}
+
+func TestAllDefinitions_DeepCopy(t *testing.T) {
+	setup(t)
+	config.Register(validDefinition("test.copy"))
+
+	defs := config.AllDefinitions()
+	defs["test.copy"].Label = "MUTATED"
+
+	// Original in registry should be unchanged
+	orig := config.GetDefinition("test.copy")
+	assert.Equal(t, "Test Setting", orig.Label)
+}
+
+func strPtr(s string) *string { return &s }

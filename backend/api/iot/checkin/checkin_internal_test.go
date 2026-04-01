@@ -1438,3 +1438,26 @@ func TestSchulhofActivityGroup_NoStaffContext(t *testing.T) {
 	assert.NotZero(t, group.ID)
 	assert.Nil(t, group.CreatedBy, "system-created Schulhof group should have NULL created_by")
 }
+
+// mockErrorSettingsService returns errors from HasTenantOverride.
+type mockErrorSettingsService struct {
+	mockSettingsService
+}
+
+func (m *mockErrorSettingsService) HasTenantOverride(_ context.Context, _ string) (bool, error) {
+	return false, fmt.Errorf("db connection failed")
+}
+
+func TestGetStudentDailyCheckoutTime_HasTenantOverrideError(t *testing.T) {
+	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
+
+	rs := &Resource{
+		SettingsService: &mockErrorSettingsService{},
+	}
+
+	checkoutTime, err := rs.getStudentDailyCheckoutTime(context.Background())
+	require.NoError(t, err)
+	// Should fall back to default "15:00"
+	assert.Equal(t, 15, checkoutTime.Hour())
+	assert.Equal(t, 0, checkoutTime.Minute())
+}

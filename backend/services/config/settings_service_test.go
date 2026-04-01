@@ -1235,3 +1235,66 @@ func TestGetSchema_EmptyPasswordNotMasked(t *testing.T) {
 	item := schema.Tabs[0].Categories[0].Items[0]
 	assert.Equal(t, "", item.Value, "empty password should show empty, not masked")
 }
+
+// =============================================================================
+// Tenant context guard tests
+// =============================================================================
+
+func TestSetValue_NoTenantContext(t *testing.T) {
+	setupTest(t)
+	registerTestSetting("test.guard", config.FieldText, "default")
+
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	// context.Background() has no tenant
+	err := svc.SetValue(context.Background(), "test.guard", "value", nil, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no tenant context")
+}
+
+func TestResetValue_NoTenantContext(t *testing.T) {
+	setupTest(t)
+	registerTestSetting("test.guard", config.FieldText, "default")
+
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	err := svc.ResetValue(context.Background(), "test.guard", nil, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no tenant context")
+}
+
+// =============================================================================
+// ResolveInt edge cases
+// =============================================================================
+
+func TestResolveInt_FractionalFloat(t *testing.T) {
+	setupTest(t)
+	registerTestSetting("test.frac", config.FieldNumber, 30.5)
+
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	_, err := svc.ResolveInt(tenantCtx(1), "test.frac")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "fractional part")
+}
+
+func TestResolveInt_WholeFloat(t *testing.T) {
+	setupTest(t)
+	registerTestSetting("test.whole", config.FieldNumber, 30.0)
+
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	val, err := svc.ResolveInt(tenantCtx(1), "test.whole")
+	require.NoError(t, err)
+	assert.Equal(t, 30, val)
+}
+
+// =============================================================================
+// HasTenantOverride no-tenant path
+// =============================================================================
+
+func TestHasTenantOverride_NoTenantContext(t *testing.T) {
+	setupTest(t)
+	registerTestSetting("test.override", config.FieldText, "default")
+
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	has, err := svc.HasTenantOverride(context.Background(), "test.override")
+	require.NoError(t, err)
+	assert.False(t, has)
+}
