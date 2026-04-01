@@ -255,17 +255,16 @@ func (s *operatorAuthService) UpdateProfile(ctx context.Context, operatorID int6
 	}
 
 	newEmail = strings.TrimSpace(strings.ToLower(newEmail))
-	if newEmail == "" {
-		return nil, &InvalidDataError{Err: fmt.Errorf("email is required")}
+	if newEmail != "" {
+		if len(newEmail) > 255 {
+			return nil, &InvalidDataError{Err: fmt.Errorf("email must not exceed 255 characters")}
+		}
+		parsed, err := mail.ParseAddress(newEmail)
+		if err != nil {
+			return nil, &InvalidDataError{Err: fmt.Errorf("invalid email format")}
+		}
+		newEmail = parsed.Address
 	}
-	if len(newEmail) > 255 {
-		return nil, &InvalidDataError{Err: fmt.Errorf("email must not exceed 255 characters")}
-	}
-	parsed, err := mail.ParseAddress(newEmail)
-	if err != nil {
-		return nil, &InvalidDataError{Err: fmt.Errorf("invalid email format")}
-	}
-	newEmail = parsed.Address
 
 	operator, err := s.operatorRepo.FindByID(ctx, operatorID)
 	if err != nil {
@@ -276,7 +275,7 @@ func (s *operatorAuthService) UpdateProfile(ctx context.Context, operatorID int6
 	}
 
 	oldEmail := operator.Email
-	emailChanged := newEmail != oldEmail
+	emailChanged := newEmail != "" && newEmail != oldEmail
 
 	if emailChanged {
 		existing, err := s.operatorRepo.FindByEmail(ctx, newEmail)

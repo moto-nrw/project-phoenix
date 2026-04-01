@@ -525,9 +525,22 @@ func TestOperatorAuthService_UpdateProfile_InvalidEmailFormat(t *testing.T) {
 	assert.IsType(t, &platformSvc.InvalidDataError{}, err)
 }
 
-func TestOperatorAuthService_UpdateProfile_EmptyEmail(t *testing.T) {
+func TestOperatorAuthService_UpdateProfile_EmptyEmail_KeepsCurrent(t *testing.T) {
 	ctx := context.Background()
-	operatorRepo := &mockOperatorRepo{}
+	operatorRepo := &mockOperatorRepo{
+		findByIDFn: func(ctx context.Context, id int64) (*platform.Operator, error) {
+			return &platform.Operator{
+				Model:       base.Model{ID: 1},
+				Email:       "existing@example.com",
+				DisplayName: "Old Name",
+			}, nil
+		},
+		updateFn: func(ctx context.Context, op *platform.Operator) error {
+			assert.Equal(t, "existing@example.com", op.Email, "email should remain unchanged")
+			assert.Equal(t, "New Name", op.DisplayName)
+			return nil
+		},
+	}
 	auditLogRepo := &mockAuditLogRepoShared{}
 
 	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
@@ -538,9 +551,9 @@ func TestOperatorAuthService_UpdateProfile_EmptyEmail(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = service.UpdateProfile(ctx, 1, "Name", "", nil)
-	require.Error(t, err)
-	assert.IsType(t, &platformSvc.InvalidDataError{}, err)
+	result, err := service.UpdateProfile(ctx, 1, "New Name", "", nil)
+	require.NoError(t, err)
+	assert.Equal(t, "existing@example.com", result.Email)
 }
 
 func TestOperatorAuthService_UpdateProfile_SameEmail_NoConflictCheck(t *testing.T) {
