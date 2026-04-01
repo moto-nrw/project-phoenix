@@ -39,7 +39,7 @@ describe("OperatorSettingsPage", () => {
     mockFetch.mockResolvedValue({
       ok: true,
       json: async () => ({
-        data: { id: 1, email: "test@example.com", display_name: "Test User" },
+        data: { id: 1, email: "john@example.com", display_name: "John Doe" },
       }),
     } as Response);
   });
@@ -142,6 +142,13 @@ describe("OperatorSettingsPage", () => {
   });
 
   it("includes email in PUT body when email is changed", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        data: { id: 1, email: "new@example.com", display_name: "John Doe" },
+      }),
+    } as Response);
+
     render(<OperatorSettingsPage />);
 
     await waitFor(() => {
