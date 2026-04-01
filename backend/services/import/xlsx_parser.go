@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/xuri/excelize/v2"
 
@@ -45,7 +47,7 @@ func (p *XLSXParser) ParseStudents(reader io.Reader) ([]importModels.StudentImpo
 	}
 
 	// Read all rows from the sheet
-	rows, err := f.GetRows(sheetName)
+	rows, err := f.GetRows(sheetName, excelize.Options{RawCellValue: true})
 	if err != nil {
 		return nil, fmt.Errorf("read rows: %w", err)
 	}
@@ -56,6 +58,11 @@ func (p *XLSXParser) ParseStudents(reader io.Reader) ([]importModels.StudentImpo
 
 	// First row is the header
 	header := rows[0]
+
+	date1904 := false
+	if props, err := f.GetWorkbookProps(); err == nil && props.Date1904 != nil {
+		date1904 = *props.Date1904
+	}
 
 	// Build column mapping (case-insensitive)
 	p.columnMapping = make(map[string]int)
@@ -71,7 +78,7 @@ func (p *XLSXParser) ParseStudents(reader io.Reader) ([]importModels.StudentImpo
 			break
 		}
 
-		values := rows[rowNum-1]
+		values := normalizeXLSXRowValues(f, sheetName, rowNum, header, rows[rowNum-1], date1904)
 
 		// Skip empty rows
 		if isEmptyRow(values) {
@@ -169,4 +176,129 @@ func isEmptyRow(values []string) bool {
 		}
 	}
 	return true
+}
+
+func normalizeXLSXRowValues(f *excelize.File, sheetName string, rowNum int, header, values []string, date1904 bool) []string {
+	normalized := append([]string(nil), values...)
+	limit := len(header)
+	if len(normalized) < limit {
+		limit = len(normalized)
+	}
+
+	for colIdx := 0; colIdx < limit; colIdx++ {
+		headerKey := normalizeHeaderKey(header[colIdx])
+		cellValue := strings.TrimSpace(normalized[colIdx])
+		if cellValue == "" {
+			continue
+		}
+
+		cellName, err := excelize.CoordinatesToCellName(colIdx+1, rowNum)
+		if err != nil {
+			continue
+		}
+
+		style, err := getCellStyle(f, sheetName, cellName)
+		if err != nil {
+			continue
+		}
+
+		switch {
+		case headerKey == "geburtstag":
+			if converted, ok := normalizeExcelBirthday(cellValue, style, date1904); ok {
+				normalized[colIdx] = converted
+			}
+		case isPickupTimeColumn(headerKey):
+			if converted, ok := normalizeExcelPickupTime(cellValue, style, date1904); ok {
+				normalized[colIdx] = converted
+			}
+		}
+	}
+
+	return normalized
+}
+
+func getCellStyle(f *excelize.File, sheetName, cellName string) (*excelize.Style, error) {
+	styleID, err := f.GetCellStyle(sheetName, cellName)
+	if err != nil {
+		return nil, err
+	}
+	return f.GetStyle(styleID)
+}
+
+func normalizeExcelBirthday(raw string, style *excelize.Style, date1904 bool) (string, bool) {
+	if !isDateNumberFormat(style) {
+		return "", false
+	}
+
+	parsed, ok := parseExcelSerial(raw, date1904)
+	if !ok {
+		return "", false
+	}
+
+	return parsed.Format("2006-01-02"), true
+}
+
+func normalizeExcelPickupTime(raw string, style *excelize.Style, date1904 bool) (string, bool) {
+	if !isTimeNumberFormat(style) {
+		return "", false
+	}
+
+	parsed, ok := parseExcelSerial(raw, date1904)
+	if !ok {
+		return "", false
+	}
+
+	return parsed.Format("15:04"), true
+}
+
+func parseExcelSerial(raw string, date1904 bool) (time.Time, bool) {
+	serial, err := strconv.ParseFloat(raw, 64)
+	if err != nil {
+		return time.Time{}, false
+	}
+
+	parsed, err := excelize.ExcelDateToTime(serial, date1904)
+	if err != nil {
+		return time.Time{}, false
+	}
+
+	return parsed, true
+}
+
+func isPickupTimeColumn(headerKey string) bool {
+	return strings.HasPrefix(headerKey, "abholung.") && !strings.HasSuffix(headerKey, ".notizen")
+}
+
+func isDateNumberFormat(style *excelize.Style) bool {
+	if style == nil {
+		return false
+	}
+	if style.CustomNumFmt != nil {
+		custom := strings.ToLower(*style.CustomNumFmt)
+		return strings.Contains(custom, "d") && strings.Contains(custom, "y")
+	}
+
+	switch style.NumFmt {
+	case 14, 15, 16, 17, 22, 27, 30, 36, 50, 57, 58:
+		return true
+	default:
+		return false
+	}
+}
+
+func isTimeNumberFormat(style *excelize.Style) bool {
+	if style == nil {
+		return false
+	}
+	if style.CustomNumFmt != nil {
+		custom := strings.ToLower(*style.CustomNumFmt)
+		return strings.Contains(custom, "h") || strings.Contains(custom, "s")
+	}
+
+	switch style.NumFmt {
+	case 18, 19, 20, 21, 22, 32, 45, 46, 47:
+		return true
+	default:
+		return false
+	}
 }
