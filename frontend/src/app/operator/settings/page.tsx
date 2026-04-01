@@ -35,8 +35,16 @@ function OperatorSettingsContent() {
   }, [session]);
 
   const handleSaveProfile = async () => {
+    const originalEmail = session?.user?.email ?? "";
     const emailTrimmed = formData.email.trim();
-    if (!emailTrimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrimmed)) {
+    const emailChanged = emailTrimmed !== originalEmail;
+
+    if (
+      emailChanged &&
+      (!emailTrimmed ||
+        emailTrimmed.length > 254 ||
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrimmed))
+    ) {
       setAlertMessage("Bitte gib eine gültige E-Mail-Adresse ein");
       setAlertType("error");
       setShowAlert(true);
@@ -45,13 +53,17 @@ function OperatorSettingsContent() {
 
     setIsSaving(true);
     try {
+      const body: Record<string, string> = {
+        display_name: formData.displayName,
+      };
+      if (emailChanged) {
+        body.email = emailTrimmed;
+      }
+
       const response = await fetch("/api/operator/profile", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          display_name: formData.displayName,
-          email: emailTrimmed,
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {
@@ -64,11 +76,14 @@ function OperatorSettingsContent() {
         );
       }
 
-      // Trigger session refresh with updated name and email so JWT callback picks them up
-      await updateSession({
+      // Trigger session refresh so JWT callback picks up changes
+      const sessionUpdate: Record<string, string> = {
         name: formData.displayName,
-        email: emailTrimmed,
-      });
+      };
+      if (emailChanged) {
+        sessionUpdate.email = emailTrimmed;
+      }
+      await updateSession(sessionUpdate);
 
       setIsEditing(false);
       setAlertMessage("Profil erfolgreich aktualisiert");

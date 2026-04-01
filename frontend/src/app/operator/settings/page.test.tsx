@@ -141,6 +141,83 @@ describe("OperatorSettingsPage", () => {
     });
   });
 
+  it("includes email in PUT body when email is changed", async () => {
+    render(<OperatorSettingsPage />);
+
+    await waitFor(() => {
+      fireEvent.click(screen.getByText("Bearbeiten"));
+    });
+
+    const emailInput = screen.getByLabelText("E-Mail");
+    fireEvent.change(emailInput, { target: { value: "new@example.com" } });
+
+    const saveButton = screen.getByText("Speichern");
+    fireEvent.click(saveButton);
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/operator/profile",
+        expect.objectContaining({
+          method: "PUT",
+          body: JSON.stringify({
+            display_name: "John Doe",
+            email: "new@example.com",
+          }),
+        }),
+      );
+    });
+
+    await waitFor(() => {
+      expect(mockUpdateSession).toHaveBeenCalledWith({
+        name: "John Doe",
+        email: "new@example.com",
+      });
+    });
+  });
+
+  it("shows validation error for invalid email format", async () => {
+    render(<OperatorSettingsPage />);
+
+    await waitFor(() => {
+      fireEvent.click(screen.getByText("Bearbeiten"));
+    });
+
+    const emailInput = screen.getByLabelText("E-Mail");
+    fireEvent.change(emailInput, { target: { value: "not-an-email" } });
+
+    fireEvent.click(screen.getByText("Speichern"));
+
+    await waitFor(() => {
+      expect(mockFetch).not.toHaveBeenCalledWith(
+        "/api/operator/profile",
+        expect.anything(),
+      );
+    });
+  });
+
+  it("shows conflict error when email is already in use", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 409,
+      json: async () => ({ error: "email already in use" }),
+    } as Response);
+
+    render(<OperatorSettingsPage />);
+
+    await waitFor(() => {
+      fireEvent.click(screen.getByText("Bearbeiten"));
+    });
+
+    const emailInput = screen.getByLabelText("E-Mail");
+    fireEvent.change(emailInput, { target: { value: "taken@example.com" } });
+
+    fireEvent.click(screen.getByText("Speichern"));
+
+    await waitFor(() => {
+      expect(mockUpdateSession).not.toHaveBeenCalled();
+    });
+  });
+
   it("handles single word name initials", async () => {
     mockUseSession.mockReturnValue({
       data: {

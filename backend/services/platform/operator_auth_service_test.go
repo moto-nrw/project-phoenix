@@ -650,6 +650,120 @@ func TestOperatorAuthService_UpdateProfile_EmailTooLong(t *testing.T) {
 	assert.IsType(t, &platformSvc.InvalidDataError{}, err)
 }
 
+func TestOperatorAuthService_UpdateProfile_FindByEmailError(t *testing.T) {
+	ctx := context.Background()
+	operatorRepo := &mockOperatorRepo{
+		findByIDFn: func(ctx context.Context, id int64) (*platform.Operator, error) {
+			return &platform.Operator{
+				Model:       base.Model{ID: 1},
+				Email:       "old@example.com",
+				DisplayName: "Operator",
+			}, nil
+		},
+		findByEmailFn: func(ctx context.Context, email string) (*platform.Operator, error) {
+			return nil, fmt.Errorf("database connection error")
+		},
+	}
+	auditLogRepo := &mockAuditLogRepoShared{}
+
+	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+		OperatorRepo: operatorRepo,
+		AuditLogRepo: auditLogRepo,
+		DB:           &bun.DB{},
+		Logger:       slog.Default(),
+	})
+	require.NoError(t, err)
+
+	_, err = service.UpdateProfile(ctx, 1, "Operator", "new@example.com", nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to check email uniqueness")
+}
+
+func TestOperatorAuthService_UpdateProfile_EmailChange_AuditLog(t *testing.T) {
+	ctx := context.Background()
+	auditLogCalled := false
+	var auditEntry *platform.OperatorAuditLog
+
+	operatorRepo := &mockOperatorRepo{
+		findByIDFn: func(ctx context.Context, id int64) (*platform.Operator, error) {
+			return &platform.Operator{
+				Model:       base.Model{ID: 1},
+				Email:       "old@example.com",
+				DisplayName: "Operator",
+			}, nil
+		},
+		findByEmailFn: func(ctx context.Context, email string) (*platform.Operator, error) {
+			return nil, nil
+		},
+		updateFn: func(ctx context.Context, operator *platform.Operator) error {
+			return nil
+		},
+	}
+	auditLogRepo := &mockAuditLogRepoShared{
+		createFn: func(ctx context.Context, entry *platform.OperatorAuditLog) error {
+			auditLogCalled = true
+			auditEntry = entry
+			return nil
+		},
+	}
+
+	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+		OperatorRepo: operatorRepo,
+		AuditLogRepo: auditLogRepo,
+		DB:           &bun.DB{},
+		Logger:       slog.Default(),
+	})
+	require.NoError(t, err)
+
+	clientIP := net.ParseIP("192.168.1.1")
+	_, err = service.UpdateProfile(ctx, 1, "Operator", "new@example.com", clientIP)
+	require.NoError(t, err)
+
+	assert.True(t, auditLogCalled, "audit log should be created for email change")
+	assert.Equal(t, int64(1), auditEntry.OperatorID)
+	assert.Equal(t, platform.ActionUpdate, auditEntry.Action)
+	assert.Equal(t, platform.ResourceOperator, auditEntry.ResourceType)
+	assert.Equal(t, clientIP, auditEntry.RequestIP)
+	assert.Contains(t, string(auditEntry.Changes), "old@example.com")
+	assert.Contains(t, string(auditEntry.Changes), "new@example.com")
+}
+
+func TestOperatorAuthService_UpdateProfile_NoAuditLog_WhenEmailUnchanged(t *testing.T) {
+	ctx := context.Background()
+	auditLogCalled := false
+
+	operatorRepo := &mockOperatorRepo{
+		findByIDFn: func(ctx context.Context, id int64) (*platform.Operator, error) {
+			return &platform.Operator{
+				Model:       base.Model{ID: 1},
+				Email:       "same@example.com",
+				DisplayName: "Old Name",
+			}, nil
+		},
+		updateFn: func(ctx context.Context, operator *platform.Operator) error {
+			return nil
+		},
+	}
+	auditLogRepo := &mockAuditLogRepoShared{
+		createFn: func(ctx context.Context, entry *platform.OperatorAuditLog) error {
+			auditLogCalled = true
+			return nil
+		},
+	}
+
+	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+		OperatorRepo: operatorRepo,
+		AuditLogRepo: auditLogRepo,
+		DB:           &bun.DB{},
+		Logger:       slog.Default(),
+	})
+	require.NoError(t, err)
+
+	_, err = service.UpdateProfile(ctx, 1, "New Name", "same@example.com", nil)
+	require.NoError(t, err)
+	assert.False(t, auditLogCalled, "audit log should not be created when email is unchanged")
+}
+
 func TestOperatorAuthService_ChangePassword_OperatorNotFound(t *testing.T) {
 	ctx := context.Background()
 	operatorRepo := &mockOperatorRepo{
