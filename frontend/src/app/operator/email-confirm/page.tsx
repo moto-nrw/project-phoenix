@@ -1,15 +1,11 @@
 import { EmailConfirmContent } from "./email-confirm-content";
 
 /**
- * Server component page that resolves the token from searchParams
- * before passing it to the client component. This avoids useSearchParams
- * hydration mismatches entirely.
+ * Page for the email change confirmation flow.
+ * The verification token arrives via URL fragment (#token=...) to prevent
+ * leaking in Referer headers and server logs — fragments are never sent
+ * in HTTP requests. The client component extracts it on mount.
  */
-export default async function OperatorEmailConfirmPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ token?: string }>;
-}) {
-  const { token } = await searchParams;
-  return <EmailConfirmContent token={token ?? null} />;
+export default function OperatorEmailConfirmPage() {
+  return <EmailConfirmContent />;
 }

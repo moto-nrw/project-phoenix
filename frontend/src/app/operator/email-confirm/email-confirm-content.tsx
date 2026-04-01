@@ -4,32 +4,50 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { Loading } from "~/components/ui/loading";
+import { operatorPath } from "~/lib/operator-url";
 import { createLogger } from "~/lib/logger";
 const logger = createLogger({ component: "OperatorEmailConfirmPage" });
 
-type ConfirmState = "idle" | "confirming" | "success" | "error";
+type ConfirmState = "loading" | "idle" | "confirming" | "success" | "error";
 
-export function EmailConfirmContent({ token }: { token: string | null }) {
-  const [state, setState] = useState<ConfirmState>(token ? "idle" : "error");
-  const [errorMessage, setErrorMessage] = useState(
-    token ? "" : "Kein Token angegeben.",
-  );
+/**
+ * Extracts the token from the URL fragment (#token=...).
+ * Using a fragment instead of a query parameter prevents the token from
+ * leaking in Referer headers, server access logs, or CDN logs.
+ */
+function extractTokenFromHash(): string | null {
+  if (typeof window === "undefined") return null;
+  const hash = window.location.hash;
+  if (!hash.startsWith("#token=")) return null;
+  const token = hash.slice("#token=".length);
+  return token || null;
+}
+
+export function EmailConfirmContent() {
+  const [token, setToken] = useState<string | null>(null);
+  const [state, setState] = useState<ConfirmState>("loading");
+  const [errorMessage, setErrorMessage] = useState("");
   const [retryable, setRetryable] = useState(false);
   const { update: updateSession, status: sessionStatus } = useSession();
   const primaryRef = useRef<HTMLButtonElement | HTMLAnchorElement>(null);
 
+  // Extract token from URL fragment on mount, then strip it from the URL
+  // to prevent leaking via browser history or shoulder-surfing.
+  useEffect(() => {
+    const extracted = extractTokenFromHash();
+    if (extracted) {
+      setToken(extracted);
+      setState("idle");
+      window.history.replaceState({}, "", window.location.pathname);
+    } else {
+      setErrorMessage("Kein Token angegeben.");
+      setState("error");
+    }
+  }, []);
+
   useEffect(() => {
     primaryRef.current?.focus();
   }, [state]);
-
-  // Strip token from URL on mount to prevent leaking via Referer header,
-  // browser history, or shoulder-surfing. The token prop remains in React
-  // state for retry attempts.
-  useEffect(() => {
-    if (token) {
-      window.history.replaceState({}, "", "/operator/email-confirm");
-    }
-  }, [token]);
 
   const handleConfirm = useCallback(async () => {
     if (!token || state === "confirming") return;
@@ -89,6 +107,14 @@ export function EmailConfirmContent({ token }: { token: string | null }) {
       setState("error");
     }
   }, [token, state, sessionStatus, updateSession]);
+
+  if (state === "loading") {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <Loading fullPage={false} />
+      </div>
+    );
+  }
 
   if (state === "idle") {
     return (
@@ -169,7 +195,7 @@ export function EmailConfirmContent({ token }: { token: string | null }) {
             sichtbar ist. Eine erneute Anmeldung übernimmt die Änderung sofort.
           </p>
           <Link
-            href="/operator/settings?tab=profile"
+            href={operatorPath("/operator/settings?tab=profile")}
             ref={primaryRef as React.RefObject<HTMLAnchorElement>}
             className="inline-block rounded-lg bg-gray-900 px-6 py-3 text-sm font-medium text-white transition-all hover:bg-gray-700"
           >
@@ -214,7 +240,7 @@ export function EmailConfirmContent({ token }: { token: string | null }) {
             </button>
           )}
           <Link
-            href="/operator/settings"
+            href={operatorPath("/operator/settings")}
             ref={
               !(token && retryable)
                 ? (primaryRef as React.RefObject<HTMLAnchorElement>)

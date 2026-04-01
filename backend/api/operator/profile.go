@@ -191,12 +191,20 @@ func (rs *ProfileResource) ConfirmEmailChange(w http.ResponseWriter, r *http.Req
 	common.Respond(w, r, http.StatusOK, nil, "Email changed successfully")
 }
 
-// confirmEmailChangeErrorRenderer maps all ConfirmEmailChange errors to a
-// generic 400 response. This endpoint is unauthenticated, so distinct status
-// codes (403 inactive, 409 email-taken) would leak account/email state to
-// anyone with a token or brute-forcing tokens.
+// confirmEmailChangeErrorRenderer maps known application errors to a generic
+// 400 response for anti-enumeration (this endpoint is unauthenticated), but
+// lets infrastructure errors (DB failures, tx errors) pass through as 500 so
+// the frontend can offer a retry — the token remains unconsumed on rollback.
 func confirmEmailChangeErrorRenderer(err error) render.Renderer {
-	return ErrInvalidRequest(errors.New("dieser Link ist abgelaufen oder ungültig. Bitte starte den Vorgang erneut"))
+	var tokenInvalid *platformSvc.EmailChangeTokenInvalidError
+	var emailInUse *platformSvc.EmailAlreadyInUseError
+	var inactive *platformSvc.OperatorInactiveError
+	switch {
+	case errors.As(err, &tokenInvalid), errors.As(err, &emailInUse), errors.As(err, &inactive):
+		return ErrInvalidRequest(errors.New("dieser Link ist abgelaufen oder ungültig. Bitte starte den Vorgang erneut"))
+	default:
+		return ErrInternal("Ein Serverfehler ist aufgetreten")
+	}
 }
 
 // ProfileErrorRenderer maps profile-related service errors to HTTP responses

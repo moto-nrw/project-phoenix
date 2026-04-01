@@ -68,6 +68,30 @@ func (r *OperatorRepository) FindByID(ctx context.Context, id int64) (*platform.
 	return operator, nil
 }
 
+// FindByIDForUpdate retrieves an operator by ID with a FOR UPDATE row lock.
+// Must be called within a transaction to serialize concurrent access.
+func (r *OperatorRepository) FindByIDForUpdate(ctx context.Context, id int64) (*platform.Operator, error) {
+	operator := new(platform.Operator)
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(operator).
+		ModelTableExpr(tablePlatformOperatorsAlias).
+		Where(`"operator".id = ?`, id).
+		For("UPDATE").
+		Scan(ctx)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, &modelBase.DatabaseError{
+			Op:  "find operator by id for update",
+			Err: err,
+		}
+	}
+
+	return operator, nil
+}
+
 // FindByEmail retrieves an operator by email
 func (r *OperatorRepository) FindByEmail(ctx context.Context, email string) (*platform.Operator, error) {
 	operator := new(platform.Operator)

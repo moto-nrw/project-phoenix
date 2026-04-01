@@ -10,6 +10,7 @@ type OperatorRepository interface {
 	// Core CRUD operations
 	Create(ctx context.Context, operator *Operator) error
 	FindByID(ctx context.Context, id int64) (*Operator, error)
+	FindByIDForUpdate(ctx context.Context, id int64) (*Operator, error)
 	FindByEmail(ctx context.Context, email string) (*Operator, error)
 	Update(ctx context.Context, operator *Operator) error
 	Delete(ctx context.Context, id int64) error

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
 const { mockUseSession, mockUpdateSession, mockFetch } = vi.hoisted(() => ({
@@ -15,6 +15,10 @@ vi.mock("next-auth/react", () => ({
 
 vi.mock("~/components/ui/loading", () => ({
   Loading: () => <div>Loading...</div>,
+}));
+
+vi.mock("~/lib/operator-url", () => ({
+  operatorPath: (path: string) => path,
 }));
 
 vi.mock("next/link", () => ({
@@ -35,6 +39,11 @@ vi.mock("next/link", () => ({
 
 import { EmailConfirmContent } from "./email-confirm-content";
 
+/** Sets window.location.hash and returns a cleanup function. */
+function setHash(hash: string) {
+  window.location.hash = hash;
+}
+
 describe("EmailConfirmContent", () => {
   let replaceStateSpy: ReturnType<typeof vi.spyOn>;
 
@@ -48,48 +57,76 @@ describe("EmailConfirmContent", () => {
     replaceStateSpy = vi
       .spyOn(window.history, "replaceState")
       .mockImplementation(() => {});
+    // Clear hash before each test
+    window.location.hash = "";
   });
 
-  it("shows error when no token is provided", () => {
-    render(<EmailConfirmContent token={null} />);
-
-    expect(screen.getByText("Bestätigung fehlgeschlagen")).toBeInTheDocument();
-    expect(screen.getByText("Kein Token angegeben.")).toBeInTheDocument();
+  afterEach(() => {
+    window.location.hash = "";
   });
 
-  it("shows settings link when no token", () => {
-    render(<EmailConfirmContent token={null} />);
+  it("shows error when no token is provided", async () => {
+    render(<EmailConfirmContent />);
 
-    const settingsLink = screen.getByText("Zu den Einstellungen");
-    expect(settingsLink).toHaveAttribute("href", "/operator/settings");
+    await waitFor(() => {
+      expect(
+        screen.getByText("Bestätigung fehlgeschlagen"),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Kein Token angegeben.")).toBeInTheDocument();
+    });
   });
 
-  it("does not show retry button when no token", () => {
-    render(<EmailConfirmContent token={null} />);
+  it("shows settings link when no token", async () => {
+    render(<EmailConfirmContent />);
 
+    await waitFor(() => {
+      const settingsLink = screen.getByText("Zu den Einstellungen");
+      expect(settingsLink).toHaveAttribute("href", "/operator/settings");
+    });
+  });
+
+  it("does not show retry button when no token", async () => {
+    render(<EmailConfirmContent />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Bestätigung fehlgeschlagen"),
+      ).toBeInTheDocument();
+    });
     expect(screen.queryByText("Erneut versuchen")).not.toBeInTheDocument();
   });
 
-  it("shows idle state with confirm button when token is provided", () => {
-    render(<EmailConfirmContent token="test-token" />);
+  it("shows idle state with confirm button when token is provided", async () => {
+    setHash("#token=test-token");
+    render(<EmailConfirmContent />);
 
-    expect(screen.getByText("E-Mail-Adresse bestätigen")).toBeInTheDocument();
-    expect(screen.getByText("Jetzt bestätigen")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("E-Mail-Adresse bestätigen")).toBeInTheDocument();
+      expect(screen.getByText("Jetzt bestätigen")).toBeInTheDocument();
+    });
   });
 
-  it("strips token from URL on mount", () => {
-    render(<EmailConfirmContent token="test-token" />);
+  it("strips token from URL on mount", async () => {
+    setHash("#token=test-token");
+    render(<EmailConfirmContent />);
 
-    expect(replaceStateSpy).toHaveBeenCalledWith(
-      {},
-      "",
-      "/operator/email-confirm",
-    );
+    await waitFor(() => {
+      expect(replaceStateSpy).toHaveBeenCalledWith(
+        {},
+        "",
+        window.location.pathname,
+      );
+    });
   });
 
-  it("does not strip URL when no token", () => {
-    render(<EmailConfirmContent token={null} />);
+  it("does not strip URL when no token", async () => {
+    render(<EmailConfirmContent />);
 
+    await waitFor(() => {
+      expect(
+        screen.getByText("Bestätigung fehlgeschlagen"),
+      ).toBeInTheDocument();
+    });
     expect(replaceStateSpy).not.toHaveBeenCalled();
   });
 
@@ -100,7 +137,12 @@ describe("EmailConfirmContent", () => {
       json: async () => ({ message: "Email changed successfully" }),
     });
 
-    render(<EmailConfirmContent token="test-token" />);
+    setHash("#token=test-token");
+    render(<EmailConfirmContent />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Jetzt bestätigen")).toBeInTheDocument();
+    });
     fireEvent.click(screen.getByText("Jetzt bestätigen"));
 
     await waitFor(() => {
@@ -115,7 +157,12 @@ describe("EmailConfirmContent", () => {
       json: async () => ({ message: "OK" }),
     });
 
-    render(<EmailConfirmContent token="test-token" />);
+    setHash("#token=test-token");
+    render(<EmailConfirmContent />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Jetzt bestätigen")).toBeInTheDocument();
+    });
     fireEvent.click(screen.getByText("Jetzt bestätigen"));
 
     await waitFor(() => {
@@ -136,7 +183,12 @@ describe("EmailConfirmContent", () => {
       json: async () => ({ message: "OK" }),
     });
 
-    render(<EmailConfirmContent token="test-token" />);
+    setHash("#token=test-token");
+    render(<EmailConfirmContent />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Jetzt bestätigen")).toBeInTheDocument();
+    });
     fireEvent.click(screen.getByText("Jetzt bestätigen"));
 
     await waitFor(() => {
@@ -151,7 +203,12 @@ describe("EmailConfirmContent", () => {
       json: async () => ({ message: "OK" }),
     });
 
-    render(<EmailConfirmContent token="test-token" />);
+    setHash("#token=test-token");
+    render(<EmailConfirmContent />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Jetzt bestätigen")).toBeInTheDocument();
+    });
     fireEvent.click(screen.getByText("Jetzt bestätigen"));
 
     await waitFor(() => {
@@ -174,7 +231,12 @@ describe("EmailConfirmContent", () => {
       json: async () => ({ message: "OK" }),
     });
 
-    render(<EmailConfirmContent token="test-token" />);
+    setHash("#token=test-token");
+    render(<EmailConfirmContent />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Jetzt bestätigen")).toBeInTheDocument();
+    });
     fireEvent.click(screen.getByText("Jetzt bestätigen"));
 
     await waitFor(() => {
@@ -189,7 +251,12 @@ describe("EmailConfirmContent", () => {
       json: async () => ({ error: "Serverfehler" }),
     });
 
-    render(<EmailConfirmContent token="test-token" />);
+    setHash("#token=test-token");
+    render(<EmailConfirmContent />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Jetzt bestätigen")).toBeInTheDocument();
+    });
     fireEvent.click(screen.getByText("Jetzt bestätigen"));
 
     await waitFor(() => {
@@ -208,7 +275,12 @@ describe("EmailConfirmContent", () => {
       json: async () => ({}),
     });
 
-    render(<EmailConfirmContent token="test-token" />);
+    setHash("#token=test-token");
+    render(<EmailConfirmContent />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Jetzt bestätigen")).toBeInTheDocument();
+    });
     fireEvent.click(screen.getByText("Jetzt bestätigen"));
 
     await waitFor(() => {
@@ -227,7 +299,12 @@ describe("EmailConfirmContent", () => {
       json: async () => ({ message: "Bad Gateway" }),
     });
 
-    render(<EmailConfirmContent token="test-token" />);
+    setHash("#token=test-token");
+    render(<EmailConfirmContent />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Jetzt bestätigen")).toBeInTheDocument();
+    });
     fireEvent.click(screen.getByText("Jetzt bestätigen"));
 
     await waitFor(() => {
@@ -242,7 +319,12 @@ describe("EmailConfirmContent", () => {
       json: async () => ({ error: "Token abgelaufen" }),
     });
 
-    render(<EmailConfirmContent token="test-token" />);
+    setHash("#token=test-token");
+    render(<EmailConfirmContent />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Jetzt bestätigen")).toBeInTheDocument();
+    });
     fireEvent.click(screen.getByText("Jetzt bestätigen"));
 
     await waitFor(() => {
@@ -261,7 +343,12 @@ describe("EmailConfirmContent", () => {
       json: async () => ({}),
     });
 
-    render(<EmailConfirmContent token="test-token" />);
+    setHash("#token=test-token");
+    render(<EmailConfirmContent />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Jetzt bestätigen")).toBeInTheDocument();
+    });
     fireEvent.click(screen.getByText("Jetzt bestätigen"));
 
     await waitFor(() => {
@@ -274,7 +361,12 @@ describe("EmailConfirmContent", () => {
   it("shows retryable error on network failure", async () => {
     mockFetch.mockRejectedValueOnce(new Error("Network error"));
 
-    render(<EmailConfirmContent token="test-token" />);
+    setHash("#token=test-token");
+    render(<EmailConfirmContent />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Jetzt bestätigen")).toBeInTheDocument();
+    });
     fireEvent.click(screen.getByText("Jetzt bestätigen"));
 
     await waitFor(() => {
@@ -302,7 +394,12 @@ describe("EmailConfirmContent", () => {
       json: async () => ({ message: "OK" }),
     });
 
-    render(<EmailConfirmContent token="test-token" />);
+    setHash("#token=test-token");
+    render(<EmailConfirmContent />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Jetzt bestätigen")).toBeInTheDocument();
+    });
     fireEvent.click(screen.getByText("Jetzt bestätigen"));
 
     await waitFor(() => {
@@ -323,7 +420,12 @@ describe("EmailConfirmContent", () => {
       json: async () => ({ message: "OK" }),
     });
 
-    render(<EmailConfirmContent token="my-test-token" />);
+    setHash("#token=my-test-token");
+    render(<EmailConfirmContent />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Jetzt bestätigen")).toBeInTheDocument();
+    });
     fireEvent.click(screen.getByText("Jetzt bestätigen"));
 
     await waitFor(() => {
@@ -346,8 +448,12 @@ describe("EmailConfirmContent", () => {
       }),
     );
 
-    render(<EmailConfirmContent token="test-token" />);
+    setHash("#token=test-token");
+    render(<EmailConfirmContent />);
 
+    await waitFor(() => {
+      expect(screen.getByText("Jetzt bestätigen")).toBeInTheDocument();
+    });
     fireEvent.click(screen.getByText("Jetzt bestätigen"));
 
     // While confirming, the idle UI is gone — can't double-click
@@ -368,7 +474,12 @@ describe("EmailConfirmContent", () => {
   it("handles non-Error thrown by fetch", async () => {
     mockFetch.mockRejectedValueOnce("string error");
 
-    render(<EmailConfirmContent token="test-token" />);
+    setHash("#token=test-token");
+    render(<EmailConfirmContent />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Jetzt bestätigen")).toBeInTheDocument();
+    });
     fireEvent.click(screen.getByText("Jetzt bestätigen"));
 
     await waitFor(() => {

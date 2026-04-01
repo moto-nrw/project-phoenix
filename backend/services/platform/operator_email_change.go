@@ -73,28 +73,19 @@ func (s *operatorAuthService) InitiateEmailChange(ctx context.Context, operatorI
 		return &InvalidDataError{Err: fmt.Errorf("invalid email format")}
 	}
 
+	// 5c. Reject oversized emails early — Operator.Validate() enforces 255-char
+	// column limit, but catching it here gives a clear error instead of a
+	// confusing "invalid link" on confirmation.
+	if len(newEmail) > 255 {
+		return &InvalidDataError{Err: fmt.Errorf("email address too long")}
+	}
+
 	// 6. Same-email guard
 	if newEmail == operator.Email {
 		return &EmailChangeSameEmailError{}
 	}
 
-	// 7. Check uniqueness — return success silently if taken to prevent
-	// email enumeration (attacker with valid session could probe addresses).
-	// The actual uniqueness constraint is enforced in ConfirmEmailChange
-	// inside the transaction.
-	existing, err := s.operatorRepo.FindByEmail(ctx, newEmail)
-	if err != nil {
-		return fmt.Errorf("failed to check email uniqueness: %w", err)
-	}
-	if existing != nil {
-		s.getLogger().Debug("email change skipped: address already in use",
-			slog.Int64("operator_id", operatorID),
-			slog.String("new_email", maskEmail(newEmail)),
-		)
-		return nil
-	}
-
-	// 8. Create token and audit log in transaction.
+	// 7. Create token and audit log in transaction.
 	// Rate limit is checked BEFORE invalidating existing tokens so that a
 	// blocked request never destroys the operator's last usable confirmation link.
 	// The partial unique index idx_email_change_tokens_one_active_per_operator
@@ -102,12 +93,23 @@ func (s *operatorAuthService) InitiateEmailChange(ctx context.Context, operatorI
 	// check, the second INSERT fails with a unique violation mapped to
 	// EmailChangeRateLimitError.
 	var token *platform.OperatorEmailChangeToken
+	// emailTaken is set inside the transaction when the address is already in use.
+	// We return nil (silent success) after the tx to prevent email enumeration,
+	// but the check runs after the rate limit so probing behavior is identical
+	// regardless of whether the address exists.
+	var emailTaken bool
 	maskedEmail := maskEmail(newEmail)
 	err = tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
+		// Lock the operator row to serialize concurrent email-change requests
+		// for the same operator. Without this, two parallel transactions under
+		// READ COMMITTED could both pass the rate-limit count and both insert,
+		// relying solely on the partial unique index for conflict detection.
+		if _, err := s.operatorRepo.FindByIDForUpdate(txCtx, operatorID); err != nil {
+			return fmt.Errorf("failed to lock operator row: %w", err)
+		}
+
 		// Rate limit FIRST — check before invalidating the active token so that
 		// a blocked request does not destroy the operator's last usable link.
-		// Concurrent serialization is still guaranteed by the partial unique index
-		// idx_email_change_tokens_one_active_per_operator on INSERT.
 		count, err := s.emailChangeTokenRepo.CountRecentByOperatorID(txCtx, operatorID, time.Now().Add(-1*time.Hour))
 		if err != nil {
 			return fmt.Errorf("failed to check rate limit: %w", err)
@@ -125,6 +127,19 @@ func (s *operatorAuthService) InitiateEmailChange(ctx context.Context, operatorI
 		}
 		if current == nil || current.PasswordHash != preCheckPasswordHash {
 			return &PasswordMismatchError{}
+		}
+
+		// Check uniqueness AFTER rate limit — returning success silently for
+		// taken addresses prevents email enumeration, and doing so after the
+		// rate-limit check ensures the observable behavior (rate limit vs.
+		// success) is the same regardless of whether the address is in use.
+		existing, err := s.operatorRepo.FindByEmail(txCtx, newEmail)
+		if err != nil {
+			return fmt.Errorf("failed to check email uniqueness: %w", err)
+		}
+		if existing != nil {
+			emailTaken = true
+			return nil
 		}
 
 		// Only invalidate after passing the rate limit — the old token stays
@@ -153,7 +168,18 @@ func (s *operatorAuthService) InitiateEmailChange(ctx context.Context, operatorI
 		return fmt.Errorf("failed to create email change token: %w", err)
 	}
 
-	// 9. Audit log (outside transaction — fire-and-forget, consistent with Login/Confirm pattern).
+	// Anti-enumeration: silently return success when the email is already taken.
+	// The rate-limit check ran inside the transaction so the observable behavior
+	// is identical regardless of whether the address exists.
+	if emailTaken {
+		s.getLogger().Debug("email change skipped: address already in use",
+			slog.Int64("operator_id", operatorID),
+			slog.String("new_email", maskedEmail),
+		)
+		return nil
+	}
+
+	// 8. Audit log (outside transaction — fire-and-forget, consistent with Login/Confirm pattern).
 	// Trade-off: if the audit INSERT fails, the email change succeeds without a trail entry.
 	// This is acceptable because (a) the failure is logged at Error level for Grafana/Loki
 	// alerting, and (b) making audit writes transactional would let audit DB errors block
@@ -319,10 +345,10 @@ func (s *operatorAuthService) dispatchVerificationEmail(ctx context.Context, tok
 	}
 
 	// The URL goes through /operator/* → operator subdomain redirect (proxy.ts).
-	// The token briefly appears in the Referer header during the 302 hop, but both
-	// hops are same-origin and the client strips the token from the URL on mount
-	// via replaceState. Acceptable trade-off vs. adding a separate operator URL config.
-	verifyURL := fmt.Sprintf("%s/operator/email-confirm?token=%s", s.frontendURL, token.Token)
+	// Using a fragment (#token=...) instead of a query parameter prevents the
+	// token from appearing in Referer headers, server access logs, or CDN logs
+	// — fragments are never sent in HTTP requests.
+	verifyURL := fmt.Sprintf("%s/operator/email-confirm#token=%s", s.frontendURL, token.Token)
 	logoURL := fmt.Sprintf("%s/images/moto_transparent.png", s.frontendURL)
 
 	message := email.Message{

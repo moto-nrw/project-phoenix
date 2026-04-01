@@ -255,7 +255,15 @@ export function createOperatorProxyPostHandler(backendEndpoint: string) {
       const session = await auth();
       if (!session?.user?.token) return createUnauthorizedResponse();
 
-      const body: unknown = await parseRequestBody(request);
+      let body: unknown;
+      try {
+        body = await parseRequestBody(request);
+      } catch {
+        return NextResponse.json(
+          { message: "Ungültige Anfrage" },
+          { status: 400 },
+        );
+      }
       const { getServerApiUrl } = await import("~/lib/server-api-url");
       const { getClientForwardHeaders } = await import("~/lib/client-headers");
       const url = `${getServerApiUrl()}${backendEndpoint}`;
