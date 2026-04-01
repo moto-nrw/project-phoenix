@@ -3,11 +3,29 @@ package importpkg
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/education"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	"github.com/stretchr/testify/assert"
 )
+
+func futureBirthdayForTests() time.Time {
+	now := time.Now().In(time.UTC)
+	return time.Date(now.Year()+1, now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+}
+
+func futureBirthdayISOForTests() string {
+	return futureBirthdayForTests().Format("2006-01-02")
+}
+
+func futureBirthdayGermanLongForTests() string {
+	return futureBirthdayForTests().Format("02.01.2006")
+}
+
+func futureBirthdayGermanShortForTests() string {
+	return futureBirthdayForTests().Format("02.01.06")
+}
 
 func TestStudentImportConfig_Validate_RequiredFields(t *testing.T) {
 	config := &StudentImportConfig{
@@ -267,6 +285,9 @@ func TestStudentImportConfig_Validate_BirthdayFormat(t *testing.T) {
 			groupCache: make(map[string]*education.Group),
 		},
 	}
+	futureISO := futureBirthdayISOForTests()
+	futureGermanLong := futureBirthdayGermanLongForTests()
+	futureGermanShort := futureBirthdayGermanShortForTests()
 
 	tests := []struct {
 		name           string
@@ -281,13 +302,12 @@ func TestStudentImportConfig_Validate_BirthdayFormat(t *testing.T) {
 		{"valid German format DD.MM.YYYY", "15.08.2015", false, "", "", "2015-08-15"},
 		{"valid German format DD.MM.YY", "15.08.15", false, "", "", "2015-08-15"},
 		{"empty (optional)", "", false, "", "", ""},
-		{"future ISO date", "2030-08-15", true, "invalid_date", "Zukunft", ""},
-		{"future German format DD.MM.YYYY", "15.08.2030", true, "invalid_date", "Zukunft", ""},
+		{"future ISO date", futureISO, true, "invalid_date", "Zukunft", ""},
+		{"future German format DD.MM.YYYY", futureGermanLong, true, "invalid_date", "Zukunft", ""},
 		{"invalid format DD/MM/YYYY", "15/08/2015", true, "invalid_date_format", "JJJJ-MM-TT", ""},
 		{"invalid format YYYY/MM/DD", "2015/08/15", true, "invalid_date_format", "JJJJ-MM-TT", ""},
 		{"invalid date", "2015-13-45", true, "invalid_date_format", "JJJJ-MM-TT", ""},
-		{"future short date 2030", "15.08.30", true, "invalid_date", "Zukunft", ""},
-		{"future short date 2068", "15.08.68", true, "invalid_date", "Zukunft", ""},
+		{"future German format DD.MM.YY", futureGermanShort, true, "invalid_date", "Zukunft", ""},
 		{"just text", "invalid", true, "invalid_date_format", "JJJJ-MM-TT", ""},
 	}
 
@@ -1095,6 +1115,10 @@ func TestStringPtr(t *testing.T) {
 // ============================================================================
 
 func TestParseOptionalDate(t *testing.T) {
+	futureISO := futureBirthdayISOForTests()
+	futureGermanLong := futureBirthdayGermanLongForTests()
+	futureGermanShort := futureBirthdayGermanShortForTests()
+
 	tests := []struct {
 		name      string
 		input     string
@@ -1107,10 +1131,9 @@ func TestParseOptionalDate(t *testing.T) {
 		{"valid ISO date 2", "2020-01-01", true, false, "2020-01-01"},
 		{"valid German date DD.MM.YYYY", "15.08.2015", true, false, "2015-08-15"},
 		{"valid German date DD.MM.YY", "15.08.15", true, false, "2015-08-15"},
-		{"future ISO date rejected", "2030-08-15", false, true, ""},
-		{"future German date DD.MM.YYYY rejected", "15.08.2030", false, true, ""},
-		{"future German short date rejected", "15.08.30", false, true, ""},
-		{"future German short date 2068 rejected", "15.08.68", false, true, ""},
+		{"future ISO date rejected", futureISO, false, true, ""},
+		{"future German date DD.MM.YYYY rejected", futureGermanLong, false, true, ""},
+		{"future German short date rejected", futureGermanShort, false, true, ""},
 		{"invalid date", "2015-13-45", false, true, ""},
 		{"random text", "invalid", false, true, ""},
 	}
