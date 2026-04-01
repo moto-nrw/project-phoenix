@@ -2384,14 +2384,16 @@ func TestWasRunToday_RanToday(t *testing.T) {
 
 func TestWasRunToday_RanYesterday(t *testing.T) {
 	var m sync.Map
-	m.Store(int64(1), time.Now().Add(-25*time.Hour))
-	assert.False(t, wasRunToday(&m, 1))
+	tenantID := int64(100)
+	m.Store(tenantID, time.Now().Add(-25*time.Hour))
+	assert.False(t, wasRunToday(&m, tenantID))
 }
 
 func TestWasRunToday_InvalidType(t *testing.T) {
 	var m sync.Map
-	m.Store(int64(1), "not a time")
-	assert.False(t, wasRunToday(&m, 1))
+	tenantID := int64(100)
+	m.Store(tenantID, "not a time")
+	assert.False(t, wasRunToday(&m, tenantID))
 }
 
 func TestWasRunToday_DifferentTenant(t *testing.T) {

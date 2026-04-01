@@ -1407,10 +1407,10 @@ func TestSetValue_PasswordRejectsNumeric(t *testing.T) {
 	assert.Contains(t, err.Error(), "expected a string")
 }
 
-func TestResolveStringForTenant_UnknownKey(t *testing.T) {
+func TestResolveString_UnknownKey(t *testing.T) {
 	setupTest(t)
 
 	svc := createService(newMockValueRepo(), &mockAuditRepo{})
-	_, err := svc.ResolveStringForTenant(context.Background(), 1, "nonexistent.key")
+	_, err := svc.ResolveString(tenantCtx(1), "nonexistent.key")
 	require.Error(t, err)
 }
