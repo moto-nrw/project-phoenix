@@ -86,13 +86,13 @@ type ScheduledTask struct {
 }
 
 // NewScheduler creates a new scheduler
-func NewScheduler(activeService active.Service, cleanupService active.CleanupService, authService AuthCleanup, invitationService InvitationCleaner, logger *slog.Logger) *Scheduler {
+func NewScheduler(activeService active.Service, cleanupService active.CleanupService, authService AuthCleanup, invitationService InvitationCleaner, emailChangeCleaner EmailChangeTokenCleaner, logger *slog.Logger) *Scheduler {
 	return &Scheduler{
 		activeService:     activeService,
 		cleanupService:    cleanupService,
 		authCleanup:       authService,
 		invitationCleanup: invitationService,
-		cleanupJobs:       buildCleanupJobs(authService, invitationService),
+		cleanupJobs:       buildCleanupJobs(authService, invitationService, emailChangeCleaner),
 		tasks:             make(map[string]*ScheduledTask),
 		done:              make(chan struct{}),
 		logger:            logger,
@@ -115,16 +115,6 @@ func (s *Scheduler) SetWorkSessionCleaner(wsc WorkSessionCleaner) {
 // SetBreakAutoEnder sets the break auto-end service (optional).
 func (s *Scheduler) SetBreakAutoEnder(bae BreakAutoEnder) {
 	s.breakAutoEnder = bae
-}
-
-// SetEmailChangeTokenCleaner sets the email change token cleanup service (optional).
-func (s *Scheduler) SetEmailChangeTokenCleaner(c EmailChangeTokenCleaner) {
-	s.cleanupJobs = append(s.cleanupJobs, CleanupJob{
-		Description: "Email change token cleanup",
-		Run: func(ctx context.Context) (int, error) {
-			return c.CleanupExpiredEmailChangeTokens(ctx)
-		},
-	})
 }
 
 // SetDB sets the database connection for tenant-aware operations.
@@ -513,7 +503,7 @@ func (s *Scheduler) RunCleanupJobs() error {
 }
 
 // buildCleanupJobs constructs the set of cleanup jobs so other runners can reuse the same registry.
-func buildCleanupJobs(authService AuthCleanup, invitationService InvitationCleaner) []CleanupJob {
+func buildCleanupJobs(authService AuthCleanup, invitationService InvitationCleaner, emailChangeCleaner EmailChangeTokenCleaner) []CleanupJob {
 	var jobs []CleanupJob
 
 	if authService != nil {
@@ -544,6 +534,15 @@ func buildCleanupJobs(authService AuthCleanup, invitationService InvitationClean
 			Description: "Invitation cleanup",
 			Run: func(ctx context.Context) (int, error) {
 				return invitationService.CleanupExpiredInvitations(ctx)
+			},
+		})
+	}
+
+	if emailChangeCleaner != nil {
+		jobs = append(jobs, CleanupJob{
+			Description: "Email change token cleanup",
+			Run: func(ctx context.Context) (int, error) {
+				return emailChangeCleaner.CleanupExpiredEmailChangeTokens(ctx)
 			},
 		})
 	}
