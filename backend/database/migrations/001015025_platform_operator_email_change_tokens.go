@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	platformOperatorEmailChangeTokensVersion     = "1.15.24"
+	platformOperatorEmailChangeTokensVersion     = "1.15.25"
 	platformOperatorEmailChangeTokensDescription = "Create platform.operator_email_change_tokens table"
 )
 
@@ -18,7 +18,7 @@ func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     platformOperatorEmailChangeTokensVersion,
 		Description: platformOperatorEmailChangeTokensDescription,
-		DependsOn:   []string{"1.15.23"},
+		DependsOn:   []string{"1.15.24"},
 	})
 
 	Migrations.MustRegister(
