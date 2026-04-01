@@ -746,9 +746,11 @@ func TestConfirmEmailChange_ServiceError(t *testing.T) {
 
 	resource.ConfirmEmailChange(rr, req)
 
-	// Anti-enumeration: even internal errors return generic 400
-	assert.Equal(t, http.StatusBadRequest, rr.Code)
-	assert.Contains(t, rr.Body.String(), "abgelaufen oder ungültig")
+	// Infrastructure errors return 500 so the frontend can offer retry
+	// (the token remains unconsumed on rollback). Anti-enumeration only
+	// flattens known application errors (token invalid, email taken, inactive).
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+	assert.Contains(t, rr.Body.String(), "Serverfehler")
 }
 
 func TestConfirmEmailChange_WhitespaceToken(t *testing.T) {
