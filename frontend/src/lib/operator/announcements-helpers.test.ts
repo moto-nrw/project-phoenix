@@ -139,7 +139,7 @@ describe("label constants", () => {
 
   it("SYSTEM_ROLE_LABELS covers all roles", () => {
     expect(SYSTEM_ROLE_LABELS.admin).toBe("Administratoren");
-    expect(SYSTEM_ROLE_LABELS.user).toBe("Lehrer/Personal");
+    expect(SYSTEM_ROLE_LABELS.user).toBe("Betreuer");
     expect(SYSTEM_ROLE_LABELS.guardian).toBe("Erziehungsberechtigte");
   });
 });
