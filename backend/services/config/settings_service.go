@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
-	"strconv"
 	"strings"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -126,6 +126,9 @@ func (s *settingsService) ResolveInt(ctx context.Context, key string) (int, erro
 	}
 	switch n := val.(type) {
 	case float64:
+		if n != math.Floor(n) {
+			return 0, &SettingsError{Op: "resolve_int", Err: fmt.Errorf("value %v has fractional part", n)}
+		}
 		if n > float64(math.MaxInt) || n < float64(math.MinInt) {
 			return 0, &SettingsError{Op: "resolve_int", Err: fmt.Errorf("value %v out of int range", n)}
 		}
@@ -367,26 +370,23 @@ func validateValue(def *config.Definition, value any) error {
 
 // validateTimeFormat checks that a string is a valid HH:MM time.
 func validateTimeFormat(s string) error {
-	parts := strings.Split(s, ":")
-	if len(parts) != 2 {
+	if _, err := time.Parse("15:04", strings.TrimSpace(s)); err != nil {
 		return fmt.Errorf("expected time in HH:MM format")
-	}
-	hour, err := strconv.Atoi(parts[0])
-	if err != nil || hour < 0 || hour > 23 {
-		return fmt.Errorf("invalid hour in time value")
-	}
-	minute, err := strconv.Atoi(parts[1])
-	if err != nil || minute < 0 || minute > 59 {
-		return fmt.Errorf("invalid minute in time value")
 	}
 	return nil
 }
 
 // isValidSelectOption checks if a value matches one of the allowed select options.
 func isValidSelectOption(value any, options []config.SelectOption) bool {
-	vJSON, _ := json.Marshal(value)
+	vJSON, err := json.Marshal(value)
+	if err != nil {
+		return false
+	}
 	for _, opt := range options {
-		optJSON, _ := json.Marshal(opt.Value)
+		optJSON, err := json.Marshal(opt.Value)
+		if err != nil {
+			continue
+		}
 		if string(vJSON) == string(optJSON) {
 			return true
 		}

@@ -111,7 +111,7 @@ func (rs *SettingsResource) resetValue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	common.Respond(w, r, http.StatusNoContent, nil, "")
+	common.RespondNoContent(w, r)
 }
 
 // --- Error rendering ---

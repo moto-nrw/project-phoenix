@@ -917,7 +917,7 @@ func TestSetValue_TimeRejectsInvalidFormat(t *testing.T) {
 
 	err := svc.SetValue(tenantCtx(1), "test.time", "25:99", nil, nil)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid hour")
+	assert.Contains(t, err.Error(), "expected time in HH:MM format")
 }
 
 func TestSetValue_TimeRejectsNonString(t *testing.T) {

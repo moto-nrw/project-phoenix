@@ -4,7 +4,7 @@ import { useState } from "react";
 
 interface PasswordFieldProps {
   readonly hasValue: boolean;
-  readonly onChange: (value: string) => void;
+  readonly onChange: (value: unknown) => Promise<void>;
   readonly disabled?: boolean;
 }
 
@@ -46,9 +46,9 @@ export function PasswordField({
       />
       <button
         type="button"
-        onClick={() => {
+        onClick={async () => {
           if (newValue) {
-            onChange(newValue);
+            await onChange(newValue);
             setNewValue("");
             setIsEditing(false);
           }
