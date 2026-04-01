@@ -253,17 +253,7 @@ function LoginForm() {
         <div
           className={`transition-opacity duration-300 ${isCheckingAuth ? "pointer-events-none hidden" : "opacity-100"}`}
         >
-          <form
-            onSubmit={handleSubmit}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && e.target instanceof HTMLInputElement) {
-                e.preventDefault();
-                e.currentTarget.requestSubmit();
-              }
-            }}
-            noValidate
-            className="space-y-6"
-          >
+          <form onSubmit={handleSubmit} noValidate className="space-y-6">
             {error && <Alert type="error" message={error} />}
 
             <div className="space-y-4">
