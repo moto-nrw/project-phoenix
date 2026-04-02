@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"sort"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/models/config"
 )
 
@@ -15,18 +16,13 @@ func buildSchema(
 	svc *settingsService,
 	userPermissions []string,
 ) (*SettingsSchema, error) {
-	permSet := make(map[string]bool, len(userPermissions))
-	for _, p := range userPermissions {
-		permSet[p] = true
-	}
-
 	defs := config.AllDefinitions()
 
 	// Resolve all values and build the resolved map
 	resolvedMap := make(map[string]*ResolvedSetting, len(defs))
 	for key, def := range defs {
 		// Permission filter: if ReadPermission is set, user must have it
-		if def.ReadPermission != "" && !permSet[def.ReadPermission] {
+		if def.ReadPermission != "" && !authorize.HasPermission(def.ReadPermission, userPermissions) {
 			continue
 		}
 
@@ -57,7 +53,7 @@ func buildSchema(
 			Default:     def.Default,
 			Value:       displayValue,
 			IsDefault:   isDefault,
-			Writable:    def.WritePermission == "" || permSet[def.WritePermission],
+			Writable:    def.WritePermission == "" || authorize.HasPermission(def.WritePermission, userPermissions),
 			Visible:     true,
 			SortOrder:   def.SortOrder,
 			Validation:  def.Validation,

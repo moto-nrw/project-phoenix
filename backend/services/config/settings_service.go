@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -164,14 +165,13 @@ func (s *settingsService) HasTenantOverride(ctx context.Context, key string) (bo
 
 // checkWritePermission verifies the caller has the required write permission.
 // If userPermissions is nil, the check is skipped (system-level callers).
+// Uses wildcard-aware matching (e.g. "admin:*" grants "config:update").
 func checkWritePermission(def *config.Definition, userPermissions []string) error {
 	if userPermissions == nil || def.WritePermission == "" {
 		return nil
 	}
-	for _, p := range userPermissions {
-		if p == def.WritePermission {
-			return nil
-		}
+	if authorize.HasPermission(def.WritePermission, userPermissions) {
+		return nil
 	}
 	return &PermissionDeniedError{Key: def.Key, RequiredPermission: def.WritePermission}
 }

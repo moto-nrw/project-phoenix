@@ -181,6 +181,22 @@ function SettingsContent({ tabKey }: SettingsContentProps) {
     );
   }
 
+  // Server error — show error message with retry
+  if (error && !schema) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-4 py-12 text-center">
+        <p className="text-sm text-red-600">{error}</p>
+        <button
+          type="button"
+          onClick={() => void loadSchema()}
+          className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700"
+        >
+          Erneut versuchen
+        </button>
+      </div>
+    );
+  }
+
   // No access (null from 401/403) — render nothing, tabs won't show
   if (!schema) {
     return null;

@@ -12,9 +12,9 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// adminClaimsWithConfigPerms returns admin claims that include explicit config
-// permissions. The service-level checkWritePermission does direct string
-// comparison (no wildcard support), so "admin:*" alone is insufficient.
+// adminClaimsWithConfigPerms returns admin claims with explicit config permissions.
+// While "admin:*" now works via wildcard matching, explicit permissions make
+// tests clearer about which permissions are being exercised.
 func adminClaimsWithConfigPerms() jwt.AppClaims {
 	claims := testutil.DefaultTestClaims()
 	claims.Permissions = append(claims.Permissions, permissions.ConfigRead, permissions.ConfigUpdate, permissions.ConfigManage)
