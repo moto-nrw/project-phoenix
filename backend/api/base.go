@@ -66,6 +66,7 @@ type API struct {
 	Suggestions      *suggestionsAPI.Resource
 	Schedules        *schedulesAPI.Resource
 	Config           *configAPI.Resource
+	Settings         *configAPI.SettingsResource
 	Active           *activeAPI.Resource
 	IoT              *iotAPI.Resource
 	SSE              *sseAPI.Resource
@@ -288,6 +289,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Suggestions = suggestionsAPI.NewResource(api.Services.Suggestions, db)
 	api.Schedules = schedulesAPI.NewResource(api.Services.Schedule, db)
 	api.Config = configAPI.NewResource(api.Services.Config, api.Services.ActiveCleanup, db)
+	api.Settings = configAPI.NewSettingsResource(api.Services.Settings, db)
 	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, api.Services.Schulhof, api.Services.UserContext, db, logger.With("handler", "active"))
 	api.IoT = iotAPI.NewResource(iotAPI.ServiceDependencies{
 		IoTService:            api.Services.IoT,
@@ -295,6 +297,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		ActiveService:         api.Services.Active,
 		ActivitiesService:     api.Services.Activities,
 		ConfigService:         api.Services.Config,
+		SettingsService:       api.Services.Settings,
 		FacilityService:       api.Services.Facilities,
 		EducationService:      api.Services.Education,
 		FeedbackService:       api.Services.Feedback,
@@ -411,6 +414,9 @@ func (a *API) registerRoutesWithRateLimiting() {
 
 		// Mount config resources
 		r.Mount("/config", a.Config.Router())
+
+		// Mount settings resources (new schema-driven settings system)
+		r.Mount("/settings", a.Settings.SettingsRouter())
 
 		// Mount active resources
 		r.Mount("/active", a.Active.Router())

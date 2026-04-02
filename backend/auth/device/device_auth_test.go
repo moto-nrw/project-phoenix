@@ -431,7 +431,7 @@ func TestDeviceAuthenticator_ValidAPIKeyAndPIN(t *testing.T) {
 	mockIoT.addDevice(apiKey, device)
 
 	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockIoT, nil, nil)) // PersonService not used
+	r.Use(DeviceAuthenticator(mockIoT, nil, nil, nil)) // PersonService not used
 	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
 		// Verify device is in context
 		ctxDevice := DeviceFromCtx(r.Context())
@@ -468,7 +468,7 @@ func TestDeviceAuthenticator_MissingPIN(t *testing.T) {
 	mockIoT.addDevice(apiKey, device)
 
 	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockIoT, nil, nil))
+	r.Use(DeviceAuthenticator(mockIoT, nil, nil, nil))
 	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -496,7 +496,7 @@ func TestDeviceAuthenticator_InvalidPIN(t *testing.T) {
 	mockIoT.addDevice(apiKey, device)
 
 	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockIoT, nil, nil))
+	r.Use(DeviceAuthenticator(mockIoT, nil, nil, nil))
 	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -524,7 +524,7 @@ func TestDeviceAuthenticator_MissingOGSPINConfig(t *testing.T) {
 	mockIoT.addDevice(apiKey, device)
 
 	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockIoT, nil, nil))
+	r.Use(DeviceAuthenticator(mockIoT, nil, nil, nil))
 	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -545,7 +545,7 @@ func TestDeviceAuthenticator_MissingAPIKey(t *testing.T) {
 	mockIoT := newMockIoTService()
 
 	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockIoT, nil, nil))
+	r.Use(DeviceAuthenticator(mockIoT, nil, nil, nil))
 	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -567,7 +567,7 @@ func TestDeviceAuthenticator_InvalidAPIKey(t *testing.T) {
 	// No devices added
 
 	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockIoT, nil, nil))
+	r.Use(DeviceAuthenticator(mockIoT, nil, nil, nil))
 	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -595,7 +595,7 @@ func TestDeviceAuthenticator_InactiveDevice(t *testing.T) {
 	mockIoT.addDevice(apiKey, device)
 
 	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockIoT, nil, nil))
+	r.Use(DeviceAuthenticator(mockIoT, nil, nil, nil))
 	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -607,6 +607,122 @@ func TestDeviceAuthenticator_InactiveDevice(t *testing.T) {
 
 	r.ServeHTTP(rr, req)
 	assert.Equal(t, http.StatusForbidden, rr.Code)
+}
+
+// =============================================================================
+// PINResolver Wiring Tests
+// =============================================================================
+
+func TestDeviceAuthenticator_UsesPINResolver(t *testing.T) {
+	lastSeenWriteCache = sync.Map{}
+
+	// Do NOT set OGS_DEVICE_PIN env var — PIN only available via resolver
+	_ = os.Unsetenv("OGS_DEVICE_PIN")
+
+	mockIoT := newMockIoTService()
+	apiKey := "valid-api-key-resolver"
+	device := &iot.Device{
+		DeviceID:   "device-resolver",
+		DeviceType: "terminal",
+		Status:     iot.DeviceStatusActive,
+	}
+	device.TenantID = 42
+	mockIoT.addDevice(apiKey, device)
+
+	// PIN resolver returns a tenant-specific PIN
+	resolverCalled := false
+	resolver := func(_ context.Context, tenantID int64) string {
+		resolverCalled = true
+		if tenantID == 42 {
+			return "9999"
+		}
+		return ""
+	}
+
+	r := chi.NewRouter()
+	r.Use(DeviceAuthenticator(mockIoT, nil, nil, resolver))
+	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/checkin", nil)
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+	req.Header.Set("X-Staff-PIN", "9999")
+	rr := httptest.NewRecorder()
+
+	r.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code, "should authenticate using PIN from resolver")
+	assert.True(t, resolverCalled, "PIN resolver should have been called")
+}
+
+func TestDeviceAuthenticator_PINResolverFallsBackToEnv(t *testing.T) {
+	lastSeenWriteCache = sync.Map{}
+
+	// Set env var as fallback
+	require.NoError(t, os.Setenv("OGS_DEVICE_PIN", "env-pin"))
+	defer func() { _ = os.Unsetenv("OGS_DEVICE_PIN") }()
+
+	mockIoT := newMockIoTService()
+	apiKey := "valid-api-key-fallback"
+	device := &iot.Device{
+		DeviceID:   "device-fallback",
+		DeviceType: "terminal",
+		Status:     iot.DeviceStatusActive,
+	}
+	device.TenantID = 42
+	mockIoT.addDevice(apiKey, device)
+
+	// Resolver returns empty — should fall back to env var
+	resolver := func(_ context.Context, _ int64) string {
+		return ""
+	}
+
+	r := chi.NewRouter()
+	r.Use(DeviceAuthenticator(mockIoT, nil, nil, resolver))
+	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/checkin", nil)
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+	req.Header.Set("X-Staff-PIN", "env-pin")
+	rr := httptest.NewRecorder()
+
+	r.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code, "should fall back to OGS_DEVICE_PIN env var")
+}
+
+func TestDeviceAuthenticator_PINResolverWrongPIN(t *testing.T) {
+	lastSeenWriteCache = sync.Map{}
+	_ = os.Unsetenv("OGS_DEVICE_PIN")
+
+	mockIoT := newMockIoTService()
+	apiKey := "valid-api-key-wrong"
+	device := &iot.Device{
+		DeviceID:   "device-wrong",
+		DeviceType: "terminal",
+		Status:     iot.DeviceStatusActive,
+	}
+	device.TenantID = 42
+	mockIoT.addDevice(apiKey, device)
+
+	resolver := func(_ context.Context, _ int64) string {
+		return "9999"
+	}
+
+	r := chi.NewRouter()
+	r.Use(DeviceAuthenticator(mockIoT, nil, nil, resolver))
+	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/checkin", nil)
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+	req.Header.Set("X-Staff-PIN", "0000") // wrong PIN
+	rr := httptest.NewRecorder()
+
+	r.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusUnauthorized, rr.Code, "wrong PIN should be rejected")
 }
 
 // =============================================================================
@@ -792,7 +908,7 @@ func TestDeviceAuthenticator_NilDeviceReturn(t *testing.T) {
 	mockService := &mockIoTServiceNilDevice{mockIoTService: *newMockIoTService()}
 
 	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockService, nil, nil))
+	r.Use(DeviceAuthenticator(mockService, nil, nil, nil))
 	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})

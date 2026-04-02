@@ -86,7 +86,7 @@ describe("TeacherShellProvider", () => {
     expect(result.current.isSessionExpired).toBe(false);
     expect(result.current.mode).toBe("teacher");
     expect(result.current.homeUrl).toBe("/dashboard");
-    expect(result.current.settingsUrl).toBe("/settings");
+    expect(result.current.profileUrl).toBe("/profile");
   });
 
   it("provides profile data from context", () => {
@@ -296,7 +296,7 @@ describe("OperatorShellProvider", () => {
     expect(result.current.status).toBe("authenticated");
     expect(result.current.mode).toBe("operator");
     expect(result.current.homeUrl).toBe("/operator/suggestions");
-    expect(result.current.settingsUrl).toBe("/operator/settings");
+    expect(result.current.profileUrl).toBeNull();
   });
 
   it("splits display name into first and last name", () => {

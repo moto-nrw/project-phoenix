@@ -165,7 +165,7 @@ const additionalNavItems: AdditionalNavItem[] = [
     href: "/settings",
     label: "Einstellungen",
     iconKey: "settings",
-    alwaysShow: true,
+    requiresAdmin: true,
   },
   // Coming soon features - shown to all users
   {

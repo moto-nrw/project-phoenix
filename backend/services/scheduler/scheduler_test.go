@@ -1841,7 +1841,8 @@ func TestScheduleCleanupTask_CustomTime(t *testing.T) {
 		task, hasTask := s.tasks["visit-cleanup"]
 		s.mu.RUnlock()
 		assert.True(t, hasTask)
-		assert.Equal(t, "03:30", task.Schedule)
+		// With per-tenant minute-polling, the schedule is now descriptive (not HH:MM)
+		assert.Equal(t, "1m-poll", task.Schedule)
 
 		// Stop scheduler
 		close(s.done)
@@ -1874,7 +1875,8 @@ func TestScheduleSessionEndTask_CustomTime(t *testing.T) {
 		task, hasTask := s.tasks["session-end"]
 		s.mu.RUnlock()
 		assert.True(t, hasTask)
-		assert.Equal(t, "17:00", task.Schedule)
+		// With per-tenant minute-polling, the schedule is now descriptive (not HH:MM)
+		assert.Equal(t, "1m-poll", task.Schedule)
 
 		// Stop scheduler
 		close(s.done)
@@ -1987,7 +1989,8 @@ func TestRunCleanupTask_DefaultScheduleTime(t *testing.T) {
 		task, hasTask := s.tasks["visit-cleanup"]
 		s.mu.RUnlock()
 		assert.True(t, hasTask)
-		assert.Equal(t, "02:00", task.Schedule, "Should use default schedule when env var is not set")
+		// With per-tenant minute-polling, the schedule is now descriptive (not HH:MM)
+		assert.Equal(t, "1m-poll", task.Schedule, "Should use polling schedule for per-tenant support")
 
 		// Stop scheduler
 		close(s.done)
@@ -2285,6 +2288,189 @@ func TestRunSessionCleanupTask_StopsOnDoneAfterSleep(t *testing.T) {
 			t.Fatal("Goroutine did not exit after done channel closed")
 		}
 	})
+}
+
+type mockBreakAutoEnder struct{}
+
+func (m *mockBreakAutoEnder) AutoEndExpiredBreaks(_ context.Context) (int, error) {
+	return 0, nil
+}
+
+func TestWaitUntilNextMinute_ShutdownDuringWait(t *testing.T) {
+	s := &Scheduler{done: make(chan struct{}), logger: slog.Default()}
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		close(s.done)
+	}()
+	result := s.waitUntilNextMinute()
+	assert.False(t, result, "should return false when shutdown signal fires during wait")
+}
+
+func TestScheduleCleanupTask_DisabledByEnv(t *testing.T) {
+	t.Setenv("CLEANUP_SCHEDULER_ENABLED", "false")
+	s := &Scheduler{
+		done:   make(chan struct{}),
+		logger: slog.Default(),
+		tasks:  make(map[string]*ScheduledTask),
+	}
+	s.scheduleCleanupTask()
+	assert.Empty(t, s.tasks, "cleanup task should not be registered when disabled")
+}
+
+func TestScheduleSessionEndTask_DisabledByEnv(t *testing.T) {
+	t.Setenv("SESSION_END_SCHEDULER_ENABLED", "false")
+	s := &Scheduler{
+		done:   make(chan struct{}),
+		logger: slog.Default(),
+		tasks:  make(map[string]*ScheduledTask),
+	}
+	s.scheduleSessionEndTask()
+	assert.Empty(t, s.tasks, "session end task should not be registered when disabled")
+}
+
+func TestScheduleBreakAutoEndTask_DisabledByEnv(t *testing.T) {
+	t.Setenv("BREAK_AUTO_END_ENABLED", "false")
+	s := &Scheduler{
+		done:           make(chan struct{}),
+		logger:         slog.Default(),
+		tasks:          make(map[string]*ScheduledTask),
+		breakAutoEnder: &mockBreakAutoEnder{},
+	}
+	s.scheduleBreakAutoEndTask()
+	assert.Empty(t, s.tasks, "break auto-end task should not be registered when disabled")
+}
+
+func TestExecuteCleanupForTenant_ReturnsFalseOnError(t *testing.T) {
+	s := &Scheduler{
+		cleanupService: &mockCleanupService{
+			cleanupErr: errors.New("db error"),
+		},
+		logger: slog.Default(),
+	}
+	result := s.executeCleanupForTenant(context.Background(), 1)
+	assert.False(t, result)
+}
+
+func TestExecuteCleanupForTenant_ReturnsTrueOnSuccess(t *testing.T) {
+	s := &Scheduler{
+		cleanupService: &mockCleanupService{
+			cleanupResult: &activeService.CleanupResult{},
+		},
+		logger: slog.Default(),
+	}
+	result := s.executeCleanupForTenant(context.Background(), 1)
+	assert.True(t, result)
+}
+
+func TestTimeMatchesNow(t *testing.T) {
+	now := time.Now()
+	nowStr := now.Format("15:04")
+	assert.True(t, timeMatchesNow(nowStr))
+	assert.False(t, timeMatchesNow("99:99"))
+	assert.False(t, timeMatchesNow("invalid"))
+	assert.False(t, timeMatchesNow("25:00"))
+	assert.False(t, timeMatchesNow("12:60"))
+}
+
+func TestWasRunToday_NotRun(t *testing.T) {
+	var m sync.Map
+	assert.False(t, wasRunToday(&m, 1))
+}
+
+func TestWasRunToday_RanToday(t *testing.T) {
+	var m sync.Map
+	markRunToday(&m, 1)
+	assert.True(t, wasRunToday(&m, 1))
+}
+
+func TestWasRunToday_RanYesterday(t *testing.T) {
+	var m sync.Map
+	tenantID := int64(100)
+	m.Store(tenantID, time.Now().Add(-25*time.Hour))
+	assert.False(t, wasRunToday(&m, tenantID))
+}
+
+func TestWasRunToday_InvalidType(t *testing.T) {
+	var m sync.Map
+	tenantID := int64(100)
+	m.Store(tenantID, "not a time")
+	assert.False(t, wasRunToday(&m, tenantID))
+}
+
+func TestWasRunToday_DifferentTenant(t *testing.T) {
+	var m sync.Map
+	markRunToday(&m, 1)
+	assert.False(t, wasRunToday(&m, 2))
+}
+
+func TestResolveStringSetting_NoSettings(t *testing.T) {
+	s := &Scheduler{logger: slog.Default()}
+	val := s.resolveStringSetting(context.Background(), "key", "NONEXISTENT_ENV", "fallback")
+	assert.Equal(t, "fallback", val)
+}
+
+func TestResolveBoolSetting_NoSettings(t *testing.T) {
+	s := &Scheduler{logger: slog.Default()}
+	val := s.resolveBoolSetting(context.Background(), "key", "NONEXISTENT_ENV", true)
+	assert.True(t, val)
+}
+
+func TestResolveIntSetting_NoSettings(t *testing.T) {
+	s := &Scheduler{logger: slog.Default()}
+	val := s.resolveIntSetting(context.Background(), "key", "NONEXISTENT_ENV", 42)
+	assert.Equal(t, 42, val)
+}
+
+func TestResolveStringSetting_FromEnv(t *testing.T) {
+	t.Setenv("TEST_RESOLVE_STR", "from_env")
+	s := &Scheduler{logger: slog.Default()}
+	val := s.resolveStringSetting(context.Background(), "key", "TEST_RESOLVE_STR", "default")
+	assert.Equal(t, "from_env", val)
+}
+
+func TestResolveBoolSetting_FromEnv(t *testing.T) {
+	t.Setenv("TEST_RESOLVE_BOOL", "true")
+	s := &Scheduler{logger: slog.Default()}
+	val := s.resolveBoolSetting(context.Background(), "key", "TEST_RESOLVE_BOOL", false)
+	assert.True(t, val)
+}
+
+func TestResolveIntSetting_FromEnv(t *testing.T) {
+	t.Setenv("TEST_RESOLVE_INT", "99")
+	s := &Scheduler{logger: slog.Default()}
+	val := s.resolveIntSetting(context.Background(), "key", "TEST_RESOLVE_INT", 10)
+	assert.Equal(t, 99, val)
+}
+
+func TestResolveIntSetting_InvalidEnv(t *testing.T) {
+	t.Setenv("TEST_RESOLVE_INT_BAD", "notanumber")
+	s := &Scheduler{logger: slog.Default()}
+	val := s.resolveIntSetting(context.Background(), "key", "TEST_RESOLVE_INT_BAD", 10)
+	assert.Equal(t, 10, val)
+}
+
+func TestScheduleBreakAutoEndTask_NilBreakAutoEnder(t *testing.T) {
+	s := &Scheduler{
+		done:   make(chan struct{}),
+		logger: slog.Default(),
+		tasks:  make(map[string]*ScheduledTask),
+	}
+	s.scheduleBreakAutoEndTask()
+	assert.Empty(t, s.tasks, "should not register task without break auto-ender")
+}
+
+func TestScheduleBreakAutoEndTask_CustomInterval(t *testing.T) {
+	t.Setenv("BREAK_AUTO_END_INTERVAL_SECONDS", "30")
+	s := &Scheduler{
+		done:           make(chan struct{}),
+		logger:         slog.Default(),
+		tasks:          make(map[string]*ScheduledTask),
+		wg:             sync.WaitGroup{},
+		breakAutoEnder: &mockBreakAutoEnder{},
+	}
+	s.scheduleBreakAutoEndTask()
+	defer close(s.done)
+	assert.Equal(t, 30, s.breakAutoEndIntervalSeconds)
 }
 
 // =============================================================================

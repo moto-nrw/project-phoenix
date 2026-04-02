@@ -21,6 +21,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/activities"
 	"github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/services/config"
+	_ "github.com/moto-nrw/project-phoenix/services/config/defaults"
 	"github.com/moto-nrw/project-phoenix/services/database"
 	"github.com/moto-nrw/project-phoenix/services/education"
 	"github.com/moto-nrw/project-phoenix/services/facilities"
@@ -51,6 +52,7 @@ type Factory struct {
 	Suggestions              suggestions.Service
 	IoT                      iot.Service
 	Config                   config.Service
+	Settings                 config.SettingsService
 	Schedule                 schedule.Service
 	PickupSchedule           schedule.PickupScheduleService
 	Users                    users.PersonService
@@ -243,6 +245,14 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	configService := config.NewService(
 		repos.Setting,
 		db,
+	)
+
+	// Initialize settings service (new schema-driven settings system)
+	settingsService := config.NewSettingsService(
+		repos.SettingValue,
+		repos.SettingAudit,
+		db,
+		logger,
 	)
 
 	// Initialize activities service
@@ -472,6 +482,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Suggestions:              suggestionsService,
 		IoT:                      iotService,
 		Config:                   configService,
+		Settings:                 settingsService,
 		Schedule:                 scheduleService,
 		PickupSchedule:           pickupScheduleService,
 		Users:                    usersService,

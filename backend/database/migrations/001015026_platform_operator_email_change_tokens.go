@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	platformOperatorEmailChangeTokensVersion     = "1.15.25"
+	platformOperatorEmailChangeTokensVersion     = "1.15.26"
 	platformOperatorEmailChangeTokensDescription = "Create platform.operator_email_change_tokens table"
 )
 
@@ -18,7 +18,7 @@ func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     platformOperatorEmailChangeTokensVersion,
 		Description: platformOperatorEmailChangeTokensDescription,
-		DependsOn:   []string{"1.15.24"},
+		DependsOn:   []string{"1.15.25"},
 	})
 
 	Migrations.MustRegister(
@@ -32,7 +32,7 @@ func init() {
 }
 
 func createPlatformOperatorEmailChangeTokensTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.24: Creating platform.operator_email_change_tokens table...")
+	fmt.Println("Migration 1.15.26: Creating platform.operator_email_change_tokens table...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -117,7 +117,7 @@ func createPlatformOperatorEmailChangeTokensTable(ctx context.Context, db *bun.D
 }
 
 func dropPlatformOperatorEmailChangeTokensTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.24: Removing platform.operator_email_change_tokens table...")
+	fmt.Println("Rolling back migration 1.15.26: Removing platform.operator_email_change_tokens table...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {

@@ -1,26 +1,38 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
-const { mockUseSession, mockUpdateSession, mockFetch } = vi.hoisted(() => ({
-  mockUseSession: vi.fn(),
-  mockUpdateSession: vi.fn(),
-  mockFetch: vi.fn(),
-}));
-
-global.fetch = mockFetch;
+const { mockUseSession, mockUpdateSession, mockSessionFetch } = vi.hoisted(
+  () => ({
+    mockUseSession: vi.fn(),
+    mockUpdateSession: vi.fn(),
+    mockSessionFetch: vi.fn(),
+  }),
+);
 
 vi.mock("next-auth/react", () => ({
   useSession: mockUseSession,
+}));
+
+vi.mock("~/lib/session-cache", () => ({
+  sessionFetch: (...args: unknown[]) => mockSessionFetch(...args),
 }));
 
 vi.mock("~/components/ui/loading", () => ({
   Loading: () => <div>Loading...</div>,
 }));
 
-vi.mock("~/components/shared/settings-layout", () => ({
-  SettingsLayout: ({ profileTab }: { profileTab: React.ReactNode }) => (
-    <div>{profileTab}</div>
+vi.mock("~/components/ui/page-header", () => ({
+  PageHeaderWithSearch: ({ title }: { title: string }) => (
+    <div data-testid="page-header">{title}</div>
   ),
+}));
+
+vi.mock("~/components/simple/SimpleAlert", () => ({
+  SimpleAlert: () => null,
+}));
+
+vi.mock("~/components/ui", () => ({
+  PasswordChangeModal: () => null,
 }));
 
 import OperatorSettingsPage from "./page";
@@ -36,7 +48,7 @@ describe("OperatorSettingsPage", () => {
       status: "authenticated",
       update: mockUpdateSession,
     });
-    mockFetch.mockResolvedValue({
+    mockSessionFetch.mockResolvedValue({
       ok: true,
       json: async () => ({
         data: { id: 1, email: "test@example.com", display_name: "Test User" },
@@ -82,7 +94,7 @@ describe("OperatorSettingsPage", () => {
     fireEvent.click(saveButton);
 
     await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalledWith(
+      expect(mockSessionFetch).toHaveBeenCalledWith(
         "/api/operator/profile",
         expect.objectContaining({
           method: "PUT",
@@ -97,7 +109,7 @@ describe("OperatorSettingsPage", () => {
   });
 
   it("handles save error gracefully", async () => {
-    mockFetch.mockResolvedValueOnce({
+    mockSessionFetch.mockResolvedValueOnce({
       ok: false,
       json: async () => ({ error: "Something went wrong" }),
     } as Response);
@@ -205,7 +217,7 @@ describe("OperatorSettingsPage", () => {
     });
 
     it("submits email change request successfully", async () => {
-      mockFetch.mockResolvedValueOnce({
+      mockSessionFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => ({ message: "Verification email sent" }),
       } as Response);
@@ -234,7 +246,7 @@ describe("OperatorSettingsPage", () => {
       fireEvent.click(screen.getByText("E-Mail-Änderung anfordern"));
 
       await waitFor(() => {
-        expect(mockFetch).toHaveBeenCalledWith(
+        expect(mockSessionFetch).toHaveBeenCalledWith(
           "/api/operator/profile/email-change",
           expect.objectContaining({
             method: "POST",
@@ -248,7 +260,7 @@ describe("OperatorSettingsPage", () => {
     });
 
     it("closes dialog after successful submission", async () => {
-      mockFetch.mockResolvedValueOnce({
+      mockSessionFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => ({ message: "OK" }),
       } as Response);
@@ -284,7 +296,7 @@ describe("OperatorSettingsPage", () => {
     });
 
     it("sends error response without closing dialog on wrong password", async () => {
-      mockFetch.mockResolvedValueOnce({
+      mockSessionFetch.mockResolvedValueOnce({
         ok: false,
         json: async () => ({
           error: "Das aktuelle Passwort ist falsch",
@@ -315,7 +327,7 @@ describe("OperatorSettingsPage", () => {
       fireEvent.click(screen.getByText("E-Mail-Änderung anfordern"));
 
       await waitFor(() => {
-        expect(mockFetch).toHaveBeenCalledWith(
+        expect(mockSessionFetch).toHaveBeenCalledWith(
           "/api/operator/profile/email-change",
           expect.objectContaining({
             method: "POST",
@@ -332,7 +344,7 @@ describe("OperatorSettingsPage", () => {
     });
 
     it("keeps dialog open on other API errors", async () => {
-      mockFetch.mockResolvedValueOnce({
+      mockSessionFetch.mockResolvedValueOnce({
         ok: false,
         json: async () => ({ error: "E-Mail bereits verwendet" }),
       } as Response);
@@ -361,7 +373,7 @@ describe("OperatorSettingsPage", () => {
       fireEvent.click(screen.getByText("E-Mail-Änderung anfordern"));
 
       await waitFor(() => {
-        expect(mockFetch).toHaveBeenCalledTimes(1);
+        expect(mockSessionFetch).toHaveBeenCalledTimes(1);
       });
 
       // Dialog stays open on error
@@ -369,7 +381,7 @@ describe("OperatorSettingsPage", () => {
     });
 
     it("keeps dialog open on network error", async () => {
-      mockFetch.mockRejectedValueOnce(new Error("Network error"));
+      mockSessionFetch.mockRejectedValueOnce(new Error("Network error"));
 
       render(<OperatorSettingsPage />);
 
@@ -395,7 +407,7 @@ describe("OperatorSettingsPage", () => {
       fireEvent.click(screen.getByText("E-Mail-Änderung anfordern"));
 
       await waitFor(() => {
-        expect(mockFetch).toHaveBeenCalledTimes(1);
+        expect(mockSessionFetch).toHaveBeenCalledTimes(1);
       });
 
       // Dialog stays open on network error
@@ -421,9 +433,13 @@ describe("OperatorSettingsPage", () => {
         target: { value: "typed@example.com" },
       });
 
-      // Dialog renders before SettingsLayout in DOM, so dialog's Abbrechen is first
+      // Dialog's Abbrechen is distinct from the profile edit Abbrechen
       const cancelButtons = screen.getAllByText("Abbrechen");
-      fireEvent.click(cancelButtons[0]!);
+      // The dialog cancel button — find the one inside the dialog
+      const dialogCancel = cancelButtons.find(
+        (btn) => btn.closest("dialog") !== null,
+      );
+      fireEvent.click(dialogCancel ?? cancelButtons[0]!);
 
       await waitFor(() => {
         expect(

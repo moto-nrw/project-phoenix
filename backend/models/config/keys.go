@@ -1,0 +1,27 @@
+package config
+
+// Settings key constants. Use these instead of string literals to ensure
+// compile-time safety when referencing settings keys across the codebase.
+
+// Security settings.
+const (
+	KeyOGSDevicePIN = "security.ogs_device_pin"
+)
+
+// GDPR / data cleanup settings.
+const (
+	KeyDataCleanupEnabled        = "gdpr.data_cleanup_enabled"
+	KeyDataCleanupTime           = "gdpr.data_cleanup_time"
+	KeyDataCleanupTimeoutMinutes = "gdpr.data_cleanup_timeout_minutes"
+)
+
+// Operations settings.
+const (
+	KeySessionEndEnabled             = "operations.session_end_enabled"
+	KeySessionEndTime                = "operations.session_end_time"
+	KeySessionEndTimeoutMinutes      = "operations.session_end_timeout_minutes"
+	KeyStudentDailyCheckoutTime      = "operations.student_daily_checkout_time"
+	KeySessionCleanupEnabled         = "operations.session_cleanup_enabled"
+	KeySessionCleanupIntervalMinutes = "operations.session_cleanup_interval_minutes"
+	KeySessionAbandonedThresholdMin  = "operations.session_abandoned_threshold_minutes"
+)
