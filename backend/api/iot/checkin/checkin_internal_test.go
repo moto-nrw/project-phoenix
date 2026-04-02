@@ -24,6 +24,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -200,6 +201,20 @@ func TestShouldSkipCheckin_DifferentRoom(t *testing.T) {
 	roomID := int64(2)
 	result := shouldSkipCheckin(&roomID, true, &active.Visit{ActiveGroup: &active.Group{RoomID: 1}})
 	assert.False(t, result)
+}
+
+func TestSelectPickupNote_PreservesDayNoteOrder(t *testing.T) {
+	effectivePickup := &scheduleSvc.EffectivePickupTime{
+		Notes: "Recurring note should be ignored when day notes exist",
+		DayNotes: []scheduleSvc.NoteData{
+			{ID: 42, Content: "Ring bell at side entrance"},
+			{ID: 7, Content: "Grandma is picking up today"},
+		},
+	}
+
+	result := selectPickupNote(effectivePickup)
+
+	assert.Equal(t, "Ring bell at side entrance\nGrandma is picking up today", result)
 }
 
 // =============================================================================

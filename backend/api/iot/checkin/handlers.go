@@ -4,7 +4,6 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"sort"
 	"strings"
 	"time"
 
@@ -388,13 +387,8 @@ func selectPickupNote(effectivePickup *scheduleSvc.EffectivePickupTime) string {
 	// Day-specific notes are an override for the recurring weekday note in the kiosk flow.
 	// If no usable day note exists, fall back to the recurring note text.
 	if len(effectivePickup.DayNotes) > 0 {
-		notes := append([]scheduleSvc.NoteData(nil), effectivePickup.DayNotes...)
-		sort.Slice(notes, func(i, j int) bool {
-			return notes[i].ID < notes[j].ID
-		})
-
-		contents := make([]string, 0, len(notes))
-		for _, note := range notes {
+		contents := make([]string, 0, len(effectivePickup.DayNotes))
+		for _, note := range effectivePickup.DayNotes {
 			if trimmed := strings.TrimSpace(note.Content); trimmed != "" {
 				contents = append(contents, trimmed)
 			}
