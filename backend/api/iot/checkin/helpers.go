@@ -3,20 +3,44 @@ package checkin
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/active"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
-// getStudentDailyCheckoutTime parses the daily checkout time from environment variable
-func getStudentDailyCheckoutTime() (time.Time, error) {
-	checkoutTimeStr := os.Getenv("STUDENT_DAILY_CHECKOUT_TIME")
+// getStudentDailyCheckoutTime resolves the daily checkout time.
+// Fallback chain: tenant DB override → STUDENT_DAILY_CHECKOUT_TIME env var → "15:00".
+func (rs *Resource) getStudentDailyCheckoutTime(ctx context.Context) (time.Time, error) {
+	checkoutTimeStr := ""
+
+	// Try tenant DB override first (only if an explicit override exists)
+	if rs.SettingsService != nil {
+		if has, err := rs.SettingsService.HasTenantOverride(ctx, configModel.KeyStudentDailyCheckoutTime); err != nil {
+			slog.Warn("settings override check failed, falling back to env var",
+				slog.String("key", configModel.KeyStudentDailyCheckoutTime),
+				slog.String("error", err.Error()),
+			)
+		} else if has {
+			if val, err := rs.SettingsService.ResolveString(ctx, configModel.KeyStudentDailyCheckoutTime); err == nil && val != "" {
+				checkoutTimeStr = val
+			}
+		}
+	}
+
+	// Fall back to env var
 	if checkoutTimeStr == "" {
-		checkoutTimeStr = "15:00" // Default to 3:00 PM
+		checkoutTimeStr = os.Getenv("STUDENT_DAILY_CHECKOUT_TIME")
+	}
+
+	// Fall back to default
+	if checkoutTimeStr == "" {
+		checkoutTimeStr = "15:00"
 	}
 
 	// Parse time in HH:MM format
@@ -69,7 +93,7 @@ func (rs *Resource) shouldShowDailyCheckoutWithGroup(ctx context.Context, studen
 		return false
 	}
 
-	checkoutTime, err := getStudentDailyCheckoutTime()
+	checkoutTime, err := rs.getStudentDailyCheckoutTime(ctx)
 	if err != nil || !time.Now().After(checkoutTime) {
 		return false
 	}

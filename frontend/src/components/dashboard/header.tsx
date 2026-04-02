@@ -55,7 +55,7 @@ export function Header() {
     isSessionExpired: sessionExpired,
     mode,
     homeUrl,
-    settingsUrl,
+    profileUrl,
   } = useShellAuth();
 
   // Derive user info from ShellAuth context
@@ -158,7 +158,7 @@ export function Header() {
                 displayName={displayName}
                 displayAvatar={displayAvatar}
                 userEmail={userEmail}
-                settingsUrl={settingsUrl}
+                profileUrl={profileUrl}
                 onClose={() => setIsProfileMenuOpen(false)}
                 onLogout={() => setIsLogoutModalOpen(true)}
               />

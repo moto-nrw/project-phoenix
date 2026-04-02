@@ -75,6 +75,13 @@ func RequiresAllPermissions(permissions ...string) func(next http.Handler) http.
 	}
 }
 
+// HasPermission checks if the specified permission is included in the permissions list.
+// Supports wildcard matching for resource and action components (e.g. "admin:*", "config:*").
+// Exported for use by service-layer permission checks that need wildcard support.
+func HasPermission(required string, permissions []string) bool {
+	return hasPermission(required, permissions)
+}
+
 // hasPermission checks if the specified permission is included in the permissions list.
 // Supports wildcard matching for resource and action components.
 func hasPermission(required string, permissions []string) bool {

@@ -110,7 +110,8 @@ describe("Sidebar", () => {
       logout: vi.fn(),
       mode: "teacher",
       homeUrl: "/dashboard",
-      settingsUrl: "/settings",
+
+      profileUrl: "/profile",
     });
     mockUsePathname.mockReturnValue("/dashboard");
     mockUseSearchParams.mockReturnValue(createMockSearchParams());
@@ -135,7 +136,7 @@ describe("Sidebar", () => {
       expect(screen.getByText("Aktivitäten")).toBeInTheDocument();
       expect(screen.getByText("Räume")).toBeInTheDocument();
       expect(screen.getByText("Mitarbeiter")).toBeInTheDocument();
-      expect(screen.getByText("Einstellungen")).toBeInTheDocument();
+      // Einstellungen is admin-only (requiresAdmin: true in sidebar nav items)
     });
 
     it("renders with custom className", () => {
@@ -681,7 +682,9 @@ describe("Sidebar", () => {
   });
 
   describe("bottom pinned items", () => {
-    it("renders feedback and settings at the bottom", () => {
+    it("renders feedback at the bottom and settings for admins", () => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
       render(<Sidebar />);
 
       expect(screen.getByText("Feedback")).toBeInTheDocument();
@@ -1242,7 +1245,8 @@ describe("Sidebar", () => {
         logout: vi.fn(),
         mode: "operator",
         homeUrl: "/operator/suggestions",
-        settingsUrl: "/operator/settings",
+
+        profileUrl: null,
       });
       mockUsePathname.mockReturnValue("/operator/suggestions");
     });
