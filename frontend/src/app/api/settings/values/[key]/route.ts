@@ -13,7 +13,7 @@ export const PUT = createPutHandler(
   ) => {
     const key = params.key as string;
     if (!VALID_KEY_PATTERN.test(key)) {
-      throw new Error("Invalid settings key format");
+      throw new Error("API error (400): Invalid settings key format");
     }
     return await apiPut(`/api/settings/values/${key}`, token, body);
   },
@@ -27,7 +27,7 @@ export const DELETE = createDeleteHandler(
   ) => {
     const key = params.key as string;
     if (!VALID_KEY_PATTERN.test(key)) {
-      throw new Error("Invalid settings key format");
+      throw new Error("API error (400): Invalid settings key format");
     }
     return await apiDelete(`/api/settings/values/${key}`, token);
   },
