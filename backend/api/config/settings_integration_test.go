@@ -7,9 +7,19 @@ import (
 	configAPI "github.com/moto-nrw/project-phoenix/api/config"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/stretchr/testify/assert"
 	"github.com/uptrace/bun"
 )
+
+// adminClaimsWithConfigPerms returns admin claims that include explicit config
+// permissions. The service-level checkWritePermission does direct string
+// comparison (no wildcard support), so "admin:*" alone is insufficient.
+func adminClaimsWithConfigPerms() jwt.AppClaims {
+	claims := testutil.DefaultTestClaims()
+	claims.Permissions = append(claims.Permissions, permissions.ConfigRead, permissions.ConfigUpdate, permissions.ConfigManage)
+	return claims
+}
 
 // settingsTestContext holds dependencies for settings API integration tests.
 type settingsTestContext struct {
@@ -42,8 +52,7 @@ func TestSettingsGetSchema_Success(t *testing.T) {
 	router.Get("/schema", ctx.resource.GetSchema())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/schema", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions(permissions.ConfigRead),
+		testutil.WithClaims(adminClaimsWithConfigPerms()),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -92,8 +101,7 @@ func TestSettingsSetValue_Success(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/operations.session_end_time", body,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions(permissions.ConfigUpdate),
+		testutil.WithClaims(adminClaimsWithConfigPerms()),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -112,8 +120,7 @@ func TestSettingsSetValue_InvalidKey(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/nonexistent.key", body,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions(permissions.ConfigUpdate),
+		testutil.WithClaims(adminClaimsWithConfigPerms()),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -132,8 +139,7 @@ func TestSettingsSetValue_InvalidValue(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/operations.session_end_enabled", body,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions(permissions.ConfigUpdate),
+		testutil.WithClaims(adminClaimsWithConfigPerms()),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -152,9 +158,11 @@ func TestSettingsSetValue_WithConfigManage(t *testing.T) {
 	}
 
 	// Use config:manage instead of config:update — should also work
-	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/operations.session_end_time", body,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions(permissions.ConfigManage),
+	// Must include config:manage in claims.Permissions for service-level check
+	manageClaims := testutil.DefaultTestClaims()
+	manageClaims.Permissions = append(manageClaims.Permissions, permissions.ConfigRead, permissions.ConfigManage)
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/gdpr.data_cleanup_time", body,
+		testutil.WithClaims(manageClaims),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -173,8 +181,7 @@ func TestSettingsResetValue_Success(t *testing.T) {
 	router.Delete("/values/{key}", ctx.resource.ResetValue())
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/values/operations.session_end_time", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions(permissions.ConfigUpdate),
+		testutil.WithClaims(adminClaimsWithConfigPerms()),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -189,8 +196,7 @@ func TestSettingsResetValue_InvalidKey(t *testing.T) {
 	router.Delete("/values/{key}", ctx.resource.ResetValue())
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/values/nonexistent.key", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-		testutil.WithPermissions(permissions.ConfigUpdate),
+		testutil.WithClaims(adminClaimsWithConfigPerms()),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
