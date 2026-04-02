@@ -217,6 +217,16 @@ func TestSelectPickupNote_PreservesDayNoteOrder(t *testing.T) {
 	assert.Equal(t, "Ring bell at side entrance\nGrandma is picking up today", result)
 }
 
+func TestSelectPickupNote_FallsBackToEffectiveNotes(t *testing.T) {
+	effectivePickup := &scheduleSvc.EffectivePickupTime{
+		Notes: "Wait at the side entrance",
+	}
+
+	result := selectPickupNote(effectivePickup)
+
+	assert.Equal(t, "Wait at the side entrance", result)
+}
+
 // =============================================================================
 // buildCheckinResult TESTS
 // =============================================================================

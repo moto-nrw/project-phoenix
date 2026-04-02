@@ -3049,3 +3049,74 @@ func TestDevicePickupQuery_PrefersDayNotesOverRecurringNotes(t *testing.T) {
 	require.True(t, ok, "Response should have data field")
 	assert.Equal(t, "Heute holt Oma ab\nBitte am Seiteneingang warten", data["pickup_note"])
 }
+
+func TestDevicePickupQuery_PreservesRecurringNotesWhenExceptionReasonIsBlank(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-exception-fallback")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
+
+	staff := testpkg.CreateTestStaff(t, ctx.db, "PickupException", "Staff")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
+
+	student := testpkg.CreateTestStudent(t, ctx.db, "PickupException", "Student", "2c")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
+
+	card := testpkg.CreateTestRFIDCard(t, ctx.db, "PICKUPEXCEPTION")
+	defer testpkg.CleanupRFIDCards(t, ctx.db, card.ID)
+	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
+
+	berlinToday := timezone.DateOf(time.Now())
+	todayWeekday := int(berlinToday.Weekday())
+	if todayWeekday == 0 {
+		todayWeekday = 7
+	}
+	if todayWeekday > 5 {
+		t.Skip("Skipping pickup query exception fallback test on weekend — no pickup schedule applies")
+	}
+
+	todayUTC := timezone.DateOfUTC(time.Now())
+	tenantCtx := testpkg.TenantContext(1)
+	recurringNote := "Bitte am Seiteneingang klingeln"
+	pickupTime := time.Date(2024, 1, 1, 15, 30, 0, 0, time.UTC)
+	err := ctx.services.PickupSchedule.UpsertStudentPickupSchedule(tenantCtx, &scheduleModels.StudentPickupSchedule{
+		StudentID:  student.ID,
+		Weekday:    todayWeekday,
+		PickupTime: pickupTime,
+		Notes:      &recurringNote,
+		CreatedBy:  staff.ID,
+	})
+	require.NoError(t, err)
+
+	updatedTime := time.Date(2024, 1, 1, 13, 0, 0, 0, time.UTC)
+	blankReason := "   "
+	err = ctx.services.PickupSchedule.CreateStudentPickupException(tenantCtx, &scheduleModels.StudentPickupException{
+		StudentID:     student.ID,
+		ExceptionDate: todayUTC,
+		PickupTime:    &updatedTime,
+		Reason:        &blankReason,
+		CreatedBy:     staff.ID,
+	})
+	require.NoError(t, err)
+
+	router := testutil.NewTenantRouter(ctx.db)
+	router.Post("/checkin/pickup-query", ctx.resource.DevicePickupQueryHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/pickup-query", map[string]interface{}{
+		"student_rfid": card.ID,
+	},
+		testutil.WithDeviceContext(createTestDeviceContext(device)),
+		testutil.WithStaffContext(staff),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data, ok := response["data"].(map[string]interface{})
+	require.True(t, ok, "Response should have data field")
+	assert.Equal(t, "13:00", data["pickup_time"])
+	assert.Equal(t, "Bitte am Seiteneingang klingeln", data["pickup_note"])
+}
