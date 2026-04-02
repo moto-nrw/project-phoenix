@@ -19,9 +19,9 @@ import (
 	baseModel "github.com/moto-nrw/project-phoenix/models/base"
 )
 
-// testStrongPassword is a valid password for unit tests that meets strength requirements.
+// testStrongCredential is a valid credential for unit tests that meets strength requirements.
 // This is NOT a real secret - it's only used with mocked services in tests.
-const testStrongPassword = "Str0ngP@ssword!" //nolint:gosec // Test-only constant, not a real credential
+const testStrongCredential = "Str0ngP@ssword!" //nolint:gosec // Test-only constant, not a real credential
 
 func newInvitationTestEnv(t *testing.T) (InvitationService, *stubInvitationTokenRepository, *stubAccountRepository, *stubRoleRepository, *stubAccountRoleRepository, *stubPersonRepository, *capturingMailer, sqlmock.Sqlmock, func()) {
 	service, invitations, accounts, roles, accountRoles, persons, _, mock, cleanup := newInvitationTestEnvWithMailer(t, nil)
@@ -333,8 +333,8 @@ func TestAcceptInvitationCreatesAccountAndPerson(t *testing.T) {
 	account, err := service.AcceptInvitation(ctx, "accept", UserRegistrationData{
 		FirstName:       "Katherine",
 		LastName:        "Johnson",
-		Password:        testStrongPassword,
-		ConfirmPassword: testStrongPassword,
+		Password:        testStrongCredential,
+		ConfirmPassword: testStrongCredential,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, account)
@@ -370,8 +370,8 @@ func TestAcceptInvitationRollsBackOnError(t *testing.T) {
 	_, err := service.AcceptInvitation(ctx, "fail", UserRegistrationData{
 		FirstName:       "Jane",
 		LastName:        "Doe",
-		Password:        testStrongPassword,
-		ConfirmPassword: testStrongPassword,
+		Password:        testStrongCredential,
+		ConfirmPassword: testStrongCredential,
 	})
 	require.Error(t, err)
 	require.False(t, token.IsUsed(), "invitation should remain unused on failure")
@@ -533,8 +533,8 @@ func TestAcceptInvitationSecondAttemptFails(t *testing.T) {
 	account, err := service.AcceptInvitation(ctx, "second-attempt-token", UserRegistrationData{
 		FirstName:       "First",
 		LastName:        "User",
-		Password:        testStrongPassword,
-		ConfirmPassword: testStrongPassword,
+		Password:        testStrongCredential,
+		ConfirmPassword: testStrongCredential,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, account)
@@ -544,8 +544,8 @@ func TestAcceptInvitationSecondAttemptFails(t *testing.T) {
 	_, err = service.AcceptInvitation(ctx, "second-attempt-token", UserRegistrationData{
 		FirstName:       "Second",
 		LastName:        "User",
-		Password:        testStrongPassword,
-		ConfirmPassword: testStrongPassword,
+		Password:        testStrongCredential,
+		ConfirmPassword: testStrongCredential,
 	})
 	require.Error(t, err)
 	require.True(t, errors.Is(err, ErrInvitationUsed), "Second acceptance should fail with ErrInvitationUsed")
@@ -636,8 +636,8 @@ func TestAcceptInvitationDeletedSchoolRejectsAcceptance(t *testing.T) {
 	_, err = service.AcceptInvitation(ctx, "deleted-school-token", UserRegistrationData{
 		FirstName:       "Ghost",
 		LastName:        "User",
-		Password:        testStrongPassword,
-		ConfirmPassword: testStrongPassword,
+		Password:        testStrongCredential,
+		ConfirmPassword: testStrongCredential,
 	})
 	require.Error(t, err)
 	require.True(t, errors.Is(err, ErrInvitationTenantDeleted),
@@ -671,8 +671,8 @@ func TestAcceptInvitationReusesExistingAccountForNewTenant(t *testing.T) {
 	account, err := service.AcceptInvitation(ctx, "existing-account", UserRegistrationData{
 		FirstName:       "Alex",
 		LastName:        "Principal",
-		Password:        testStrongPassword,
-		ConfirmPassword: testStrongPassword,
+		Password:        testStrongCredential,
+		ConfirmPassword: testStrongCredential,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, account)
