@@ -114,6 +114,17 @@ func (rs *SettingsResource) resetValue(w http.ResponseWriter, r *http.Request) {
 	common.RespondNoContent(w, r)
 }
 
+// --- Handler accessors for testing ---
+
+// GetSchema returns the getSchema handler for external test access.
+func (rs *SettingsResource) GetSchema() http.HandlerFunc { return rs.getSchema }
+
+// SetValue returns the setValue handler for external test access.
+func (rs *SettingsResource) SetValue() http.HandlerFunc { return rs.setValue }
+
+// ResetValue returns the resetValue handler for external test access.
+func (rs *SettingsResource) ResetValue() http.HandlerFunc { return rs.resetValue }
+
 // --- Error rendering ---
 
 func renderSettingsError(w http.ResponseWriter, r *http.Request, err error) {
