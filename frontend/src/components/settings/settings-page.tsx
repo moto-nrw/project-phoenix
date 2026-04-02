@@ -244,9 +244,14 @@ export function useSettingsTabs(): {
 
   useEffect(() => {
     if (sessionStatus === "authenticated") {
-      void fetchSettingsSchema().then((data) => {
-        if (data) setSchema(data);
-      });
+      void fetchSettingsSchema()
+        .then((data) => {
+          if (data) setSchema(data);
+        })
+        .catch(() => {
+          // Schema fetch failed — tabs won't render, inner SettingsContent
+          // has its own fetch with error display and retry button.
+        });
     }
   }, [sessionStatus]);
 

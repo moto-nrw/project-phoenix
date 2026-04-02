@@ -170,6 +170,7 @@ export function SettingsField({
         showFeedback("error");
       } else {
         setError(null);
+        setIsDirty(false);
         showFeedback("saved");
       }
     } finally {

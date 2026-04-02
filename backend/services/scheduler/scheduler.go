@@ -301,6 +301,19 @@ func (s *Scheduler) runCleanupTaskPolling(task *ScheduledTask) {
 
 // checkAndRunCleanup evaluates each tenant's cleanup settings and runs if time matches.
 func (s *Scheduler) checkAndRunCleanup(task *ScheduledTask) {
+	task.mu.Lock()
+	if task.Running {
+		task.mu.Unlock()
+		return
+	}
+	task.Running = true
+	task.mu.Unlock()
+	defer func() {
+		task.mu.Lock()
+		task.Running = false
+		task.mu.Unlock()
+	}()
+
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Hour)
 	defer cancel()
 
@@ -703,6 +716,19 @@ func (s *Scheduler) runSessionEndTaskPolling(task *ScheduledTask) {
 
 // checkAndRunSessionEnd evaluates each tenant's session end settings and runs if time matches.
 func (s *Scheduler) checkAndRunSessionEnd(task *ScheduledTask) {
+	task.mu.Lock()
+	if task.Running {
+		task.mu.Unlock()
+		return
+	}
+	task.Running = true
+	task.mu.Unlock()
+	defer func() {
+		task.mu.Lock()
+		task.Running = false
+		task.mu.Unlock()
+	}()
+
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Hour)
 	defer cancel()
 

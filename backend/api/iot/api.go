@@ -101,6 +101,10 @@ func (rs *Resource) pinResolver() device.PINResolver {
 	return func(ctx context.Context, tenantID int64) string {
 		pin, err := rs.SettingsService.ResolveStringForTenant(ctx, tenantID, configModel.KeyOGSDevicePIN)
 		if err != nil {
+			slog.Error("failed to resolve tenant PIN from settings, falling back to env var",
+				slog.Int64("tenant_id", tenantID),
+				slog.String("error", err.Error()),
+			)
 			return ""
 		}
 		return pin

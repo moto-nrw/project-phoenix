@@ -229,8 +229,14 @@ func (s *settingsService) SetValue(ctx context.Context, key string, value any, c
 		return &SettingsError{Op: "set_value", Err: err}
 	}
 
-	// Audit
-	audit := config.NewAuditEntry(tenantID, key, "set", oldValue, valueJSON, changedBy)
+	// Audit — redact password values to avoid storing cleartext PINs
+	auditOld := oldValue
+	auditNew := valueJSON
+	if def.Type == config.FieldPassword {
+		auditOld = json.RawMessage(`"[REDACTED]"`)
+		auditNew = json.RawMessage(`"[REDACTED]"`)
+	}
+	audit := config.NewAuditEntry(tenantID, key, "set", auditOld, auditNew, changedBy)
 	if err := s.auditRepo.Create(ctx, audit); err != nil {
 		s.logger.Error("failed to write audit entry",
 			"key", key,
@@ -279,8 +285,12 @@ func (s *settingsService) ResetValue(ctx context.Context, key string, changedBy 
 		return &SettingsError{Op: "reset_value", Err: err}
 	}
 
-	// Audit
-	audit := config.NewAuditEntry(tenantID, key, "reset", oldValue, nil, changedBy)
+	// Audit — redact password values
+	auditOld := oldValue
+	if def.Type == config.FieldPassword {
+		auditOld = json.RawMessage(`"[REDACTED]"`)
+	}
+	audit := config.NewAuditEntry(tenantID, key, "reset", auditOld, nil, changedBy)
 	if err := s.auditRepo.Create(ctx, audit); err != nil {
 		s.logger.Error("failed to write audit entry",
 			"key", key,
@@ -320,6 +330,9 @@ func validateValue(def *config.Definition, value any) error {
 		num, ok := toFloat64(value)
 		if !ok {
 			return fmt.Errorf("expected a number")
+		}
+		if num != math.Floor(num) {
+			return fmt.Errorf("expected an integer, got %v", num)
 		}
 		if def.Validation != nil {
 			if def.Validation.Min != nil && num < *def.Validation.Min {
