@@ -217,7 +217,7 @@ func (s *operatorInvitationService) AcceptInvitation(ctx context.Context, tokenS
 		return nil, &OperatorInvitationExpiredOrUsedError{}
 	}
 
-	// 1. Validate password strength (same rules as operator password change)
+	// 1. Validate password strength (cheap check before anything else)
 	if err := authSvc.ValidatePasswordStrength(password); err != nil {
 		return nil, &InvalidDataError{Err: fmt.Errorf("password doesn't meet complexity requirements")}
 	}
@@ -230,13 +230,24 @@ func (s *operatorInvitationService) AcceptInvitation(ctx context.Context, tokenS
 		return nil, &InvalidDataError{Err: fmt.Errorf("display name too long")}
 	}
 
-	// 2. Hash password outside transaction (expensive Argon2id)
+	// 2. Verify token exists before expensive Argon2id hashing.
+	// This is an unauthenticated endpoint — without this check, any request
+	// with a random/expired token would still pay the full hash cost.
+	existing, err := s.invitationRepo.FindValidByToken(ctx, tokenStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to validate invitation token: %w", err)
+	}
+	if existing == nil {
+		return nil, &OperatorInvitationExpiredOrUsedError{}
+	}
+
+	// 3. Hash password outside transaction (expensive Argon2id)
 	passwordHash, err := userpass.HashPassword(password, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to hash password: %w", err)
 	}
 
-	// 3. Consume token and create operator atomically
+	// 4. Consume token and create operator atomically
 	var newOperator *platform.Operator
 	var consumedTokenID int64
 	err = tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
@@ -401,7 +412,10 @@ func (s *operatorInvitationService) dispatchInvitationEmail(ctx context.Context,
 		return
 	}
 
-	invitationURL := fmt.Sprintf("%s/operator/invite?token=%s", s.frontendURL, token.Token)
+	// Use a URL fragment (#token=...) instead of a query parameter to prevent the
+	// token from appearing in Referer headers, server access logs, or CDN logs.
+	// Matches the pattern used by the operator email-change flow.
+	invitationURL := fmt.Sprintf("%s/operator/invite#token=%s", s.frontendURL, token.Token)
 	logoURL := fmt.Sprintf("%s/images/moto_transparent.png", s.frontendURL)
 
 	displayName := ""
@@ -432,7 +446,7 @@ func (s *operatorInvitationService) dispatchInvitationEmail(ctx context.Context,
 
 	baseRetry := token.EmailRetryCount
 
-	s.dispatcher.Dispatch(ctx, email.DeliveryRequest{
+	s.dispatcher.Dispatch(context.WithoutCancel(ctx), email.DeliveryRequest{
 		Message:  msg,
 		Metadata: meta,
 		BackoffPolicy: []time.Duration{

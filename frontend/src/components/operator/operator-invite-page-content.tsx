@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createLogger } from "~/lib/logger";
 import {
@@ -17,12 +16,31 @@ type PageState =
   | { type: "error"; message: string }
   | { type: "ready"; invitation: OperatorInvitationValidation; token: string };
 
+/**
+ * Extracts the token from the URL fragment (#token=...).
+ * Using a fragment instead of a query parameter prevents the token from
+ * leaking in Referer headers, server access logs, or CDN logs.
+ */
+function extractTokenFromHash(): string | null {
+  if (typeof window === "undefined") return null;
+  const hash = window.location.hash;
+  if (!hash.startsWith("#token=")) return null;
+  const token = hash.slice("#token=".length);
+  return token || null;
+}
+
 export function OperatorInvitePageContent() {
-  const searchParams = useSearchParams();
-  const token = searchParams.get("token");
   const [state, setState] = useState<PageState>({ type: "loading" });
 
   useEffect(() => {
+    const token = extractTokenFromHash();
+
+    // Strip token from URL immediately to prevent leakage via
+    // browser history or shoulder-surfing.
+    if (token) {
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+
     if (!token) {
       setState({
         type: "error",
@@ -47,7 +65,7 @@ export function OperatorInvitePageContent() {
               : "Diese Einladung ist ungültig oder abgelaufen.",
         });
       });
-  }, [token]);
+  }, []);
 
   if (state.type === "loading") {
     return (

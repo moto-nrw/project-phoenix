@@ -38,14 +38,18 @@ export function OperatorsManagementPage() {
   const [error, setError] = useState<string | null>(null);
   const { success: toastSuccess } = useToast();
 
-  const { data: operators, isLoading: operatorsLoading } = useSWR(
-    ["operator-list", refreshKey],
-    () => listOperators(),
-  );
+  const {
+    data: operators,
+    isLoading: operatorsLoading,
+    error: operatorsError,
+  } = useSWR(["operator-list", refreshKey], () => listOperators());
 
-  const { data: invitations, isLoading: invitationsLoading } = useSWR(
-    ["operator-invitations", refreshKey],
-    () => listPendingOperatorInvitations(),
+  const {
+    data: invitations,
+    isLoading: invitationsLoading,
+    error: invitationsError,
+  } = useSWR(["operator-invitations", refreshKey], () =>
+    listPendingOperatorInvitations(),
   );
 
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
@@ -150,7 +154,12 @@ export function OperatorsManagementPage() {
 
       {!isLoading && activeTab === "operators" && (
         <>
-          {operators && operators.length > 0 ? (
+          {operatorsError ? (
+            <div className="mx-auto max-w-3xl rounded-lg bg-red-50 p-4 text-sm text-red-700">
+              Operatoren konnten nicht geladen werden. Bitte versuche es später
+              erneut.
+            </div>
+          ) : operators && operators.length > 0 ? (
             <OperatorsTable operators={operators} />
           ) : (
             <SimpleEmptyState
@@ -163,7 +172,12 @@ export function OperatorsManagementPage() {
 
       {!isLoading && activeTab === "invitations" && (
         <>
-          {invitations && invitations.length > 0 ? (
+          {invitationsError ? (
+            <div className="mx-auto max-w-3xl rounded-lg bg-red-50 p-4 text-sm text-red-700">
+              Einladungen konnten nicht geladen werden. Bitte versuche es später
+              erneut.
+            </div>
+          ) : invitations && invitations.length > 0 ? (
             <InvitationsTable
               invitations={invitations}
               onResend={handleResend}

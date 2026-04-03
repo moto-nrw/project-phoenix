@@ -157,13 +157,15 @@ export async function createOperatorInvitation(
   data: CreateOperatorInvitationRequest,
 ): Promise<PendingOperatorInvitation> {
   try {
-    const result = await operatorFetch<{
-      data: PendingOperatorInvitation;
-    }>("/api/operator/invitations", {
-      method: "POST",
-      body: data,
-    });
-    return result.data;
+    const result = await operatorFetch<PendingOperatorInvitation>(
+      "/api/operator/invitations",
+      {
+        method: "POST",
+        body: data,
+      },
+    );
+    // operatorFetch already unwraps the proxy envelope, so result is the invitation
+    return result;
   } catch (error) {
     logger.error("create_operator_invitation_failed", {
       error: error instanceof Error ? error.message : String(error),
