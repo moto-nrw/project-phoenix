@@ -3,6 +3,8 @@
 import { useState, useCallback, useMemo } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
 import useSWR from "swr";
+import { useToast } from "~/contexts/ToastContext";
+import { ConfirmationModal } from "~/components/ui/modal";
 import { createLogger } from "~/lib/logger";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import {
@@ -30,6 +32,11 @@ export function OperatorsManagementPage() {
   const [activeTab, setActiveTab] = useState<ActiveTab>("operators");
   const [inviteOpen, setInviteOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [revokeTarget, setRevokeTarget] =
+    useState<PendingOperatorInvitation | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const { success: toastSuccess } = useToast();
 
   const { data: operators, isLoading: operatorsLoading } = useSWR(
     ["operator-list", refreshKey],
@@ -44,32 +51,43 @@ export function OperatorsManagementPage() {
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
 
   const handleResend = useCallback(
-    async (id: number) => {
+    async (id: string) => {
+      setError(null);
       try {
+        setActionLoading(id);
         await resendOperatorInvitation(id);
+        toastSuccess("Einladung wurde erneut gesendet.");
         refresh();
-      } catch (error) {
+      } catch (err) {
+        setError("Die Einladung konnte nicht erneut gesendet werden.");
         logger.error("resend_invitation_failed", {
-          error: error instanceof Error ? error.message : String(error),
+          error: err instanceof Error ? err.message : String(err),
         });
+      } finally {
+        setActionLoading(null);
       }
     },
-    [refresh],
+    [refresh, toastSuccess],
   );
 
-  const handleRevoke = useCallback(
-    async (id: number) => {
-      try {
-        await revokeOperatorInvitation(id);
-        refresh();
-      } catch (error) {
-        logger.error("revoke_invitation_failed", {
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-    },
-    [refresh],
-  );
+  const handleRevoke = useCallback(async () => {
+    if (!revokeTarget) return;
+    setError(null);
+    try {
+      setActionLoading(revokeTarget.id);
+      await revokeOperatorInvitation(revokeTarget.id);
+      toastSuccess("Einladung wurde widerrufen.");
+      setRevokeTarget(null);
+      refresh();
+    } catch (err) {
+      setError("Die Einladung konnte nicht widerrufen werden.");
+      logger.error("revoke_invitation_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      setActionLoading(null);
+    }
+  }, [revokeTarget, refresh, toastSuccess]);
 
   const tabs = useMemo(
     () => ({
@@ -122,6 +140,12 @@ export function OperatorsManagementPage() {
         }
       />
 
+      {error && (
+        <div className="mx-auto mb-4 max-w-3xl rounded-lg bg-red-50 p-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
       {isLoading && <CardSkeletons />}
 
       {!isLoading && activeTab === "operators" && (
@@ -143,7 +167,8 @@ export function OperatorsManagementPage() {
             <InvitationsTable
               invitations={invitations}
               onResend={handleResend}
-              onRevoke={handleRevoke}
+              onRevoke={setRevokeTarget}
+              actionLoading={actionLoading}
             />
           ) : (
             <SimpleEmptyState
@@ -162,6 +187,24 @@ export function OperatorsManagementPage() {
           refresh();
         }}
       />
+
+      <ConfirmationModal
+        isOpen={revokeTarget !== null}
+        onClose={() => setRevokeTarget(null)}
+        onConfirm={() => void handleRevoke()}
+        title="Einladung widerrufen"
+        confirmText="Widerrufen"
+        confirmButtonClass="bg-red-600 hover:bg-red-700"
+        isConfirmLoading={actionLoading !== null}
+      >
+        <p className="text-sm text-gray-600">
+          Möchtest du die Einladung an{" "}
+          <span className="font-medium text-gray-900">
+            {revokeTarget?.email}
+          </span>{" "}
+          wirklich widerrufen? Der Einladungslink wird dadurch ungültig.
+        </p>
+      </ConfirmationModal>
     </div>
   );
 }
@@ -352,10 +395,12 @@ function InvitationsTable({
   invitations,
   onResend,
   onRevoke,
+  actionLoading,
 }: {
   readonly invitations: PendingOperatorInvitation[];
-  readonly onResend: (id: number) => void;
-  readonly onRevoke: (id: number) => void;
+  readonly onResend: (id: string) => void;
+  readonly onRevoke: (invitation: PendingOperatorInvitation) => void;
+  readonly actionLoading: string | null;
 }) {
   const { sort, toggle } = useSort<InvitationSortKey>("email");
   const sorted = useMemo(
@@ -396,6 +441,7 @@ function InvitationsTable({
               invitation={inv}
               onResend={onResend}
               onRevoke={onRevoke}
+              isLoading={actionLoading === inv.id}
             />
           ))}
         </tbody>
@@ -408,10 +454,12 @@ function InvitationRow({
   invitation,
   onResend,
   onRevoke,
+  isLoading,
 }: {
   readonly invitation: PendingOperatorInvitation;
-  readonly onResend: (id: number) => void;
-  readonly onRevoke: (id: number) => void;
+  readonly onResend: (id: string) => void;
+  readonly onRevoke: (invitation: PendingOperatorInvitation) => void;
+  readonly isLoading: boolean;
 }) {
   const expiresAt = new Date(invitation.expires_at);
   const isExpiringSoon = expiresAt.getTime() - Date.now() < 6 * 60 * 60 * 1000;
@@ -437,14 +485,16 @@ function InvitationRow({
           <button
             type="button"
             onClick={() => onResend(invitation.id)}
-            className="rounded-lg border border-gray-200 px-2 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900"
+            disabled={isLoading}
+            className="rounded-lg border border-gray-200 px-2 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 disabled:opacity-50"
           >
             Erneut senden
           </button>
           <button
             type="button"
-            onClick={() => onRevoke(invitation.id)}
-            className="rounded-lg border border-red-200 px-2 py-1 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 hover:text-red-700"
+            onClick={() => onRevoke(invitation)}
+            disabled={isLoading}
+            className="rounded-lg border border-red-200 px-2 py-1 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 hover:text-red-700 disabled:opacity-50"
           >
             Widerrufen
           </button>

@@ -70,6 +70,32 @@ func (r *OperatorInvitationTokenRepository) FindByID(ctx context.Context, id int
 	return token, nil
 }
 
+// FindValidByToken retrieves a valid (not expired, not used) invitation token with its inviter.
+// Returns (nil, nil) when no matching valid token exists.
+func (r *OperatorInvitationTokenRepository) FindValidByToken(ctx context.Context, tokenStr string) (*platform.OperatorInvitationToken, error) {
+	token := new(platform.OperatorInvitationToken)
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(token).
+		ModelTableExpr(operatorInvitationTokenTableAlias).
+		Relation("Inviter").
+		Where(`"operator_invitation_token".token = ?`, tokenStr).
+		Where(`"operator_invitation_token".expiry > ?`, time.Now()).
+		Where(`"operator_invitation_token".used = FALSE`).
+		Scan(ctx)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, &modelBase.DatabaseError{
+			Op:  "find valid operator invitation token",
+			Err: err,
+		}
+	}
+
+	return token, nil
+}
+
 // ConsumeByToken atomically marks a valid token as used and returns it.
 // Returns (nil, nil) when no matching valid token exists.
 func (r *OperatorInvitationTokenRepository) ConsumeByToken(ctx context.Context, tokenStr string) (*platform.OperatorInvitationToken, error) {

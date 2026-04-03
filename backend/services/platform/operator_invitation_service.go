@@ -2,8 +2,6 @@ package platform
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -41,15 +39,15 @@ type OperatorInvitationValidation struct {
 
 // OperatorInvitationServiceConfig holds configuration for the operator invitation service
 type OperatorInvitationServiceConfig struct {
-	InvitationRepo platform.OperatorInvitationTokenRepository
-	OperatorRepo   platform.OperatorRepository
-	AuditLogRepo   platform.OperatorAuditLogRepository
-	DB             *bun.DB
-	Logger         *slog.Logger
-	Dispatcher     *email.Dispatcher
-	DefaultFrom    email.Email
-	FrontendURL    string
-	InvitationExp  time.Duration
+	InvitationRepo   platform.OperatorInvitationTokenRepository
+	OperatorRepo     platform.OperatorRepository
+	AuditLogRepo     platform.OperatorAuditLogRepository
+	DB               *bun.DB
+	Logger           *slog.Logger
+	Dispatcher       *email.Dispatcher
+	DefaultFrom      email.Email
+	FrontendURL      string
+	InvitationExpiry time.Duration
 }
 
 type operatorInvitationService struct {
@@ -66,7 +64,7 @@ type operatorInvitationService struct {
 
 // NewOperatorInvitationService creates a new operator invitation service
 func NewOperatorInvitationService(cfg OperatorInvitationServiceConfig) OperatorInvitationService {
-	exp := cfg.InvitationExp
+	exp := cfg.InvitationExpiry
 	if exp <= 0 {
 		exp = 48 * time.Hour
 	}
@@ -184,22 +182,12 @@ func (s *operatorInvitationService) ValidateInvitation(ctx context.Context, toke
 	// Run in admin tx to bypass RLS (public endpoint, no tenant context)
 	var result *OperatorInvitationValidation
 	err := tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
-		// Use a raw select instead of ConsumeByToken — we only want to read, not consume
-		token := new(platform.OperatorInvitationToken)
-		err := s.db.NewSelect().
-			Model(token).
-			ModelTableExpr(`platform.operator_invitation_tokens AS "operator_invitation_token"`).
-			Relation("Inviter").
-			Where(`"operator_invitation_token".token = ?`, tokenStr).
-			Where(`"operator_invitation_token".expiry > ?`, time.Now()).
-			Where(`"operator_invitation_token".used = FALSE`).
-			Scan(txCtx)
-
+		token, err := s.invitationRepo.FindValidByToken(txCtx, tokenStr)
 		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return &OperatorInvitationExpiredOrUsedError{}
-			}
 			return fmt.Errorf("failed to validate invitation token: %w", err)
+		}
+		if token == nil {
+			return &OperatorInvitationExpiredOrUsedError{}
 		}
 
 		inviterName := ""

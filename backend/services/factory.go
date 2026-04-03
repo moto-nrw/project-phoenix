@@ -451,15 +451,15 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	})
 
 	operatorInvitationService := platform.NewOperatorInvitationService(platform.OperatorInvitationServiceConfig{
-		InvitationRepo: repos.OperatorInvitationToken,
-		OperatorRepo:   repos.Operator,
-		AuditLogRepo:   repos.OperatorAuditLog,
-		DB:             db,
-		Logger:         platformLogger,
-		Dispatcher:     dispatcher,
-		DefaultFrom:    defaultFrom,
-		FrontendURL:    frontendURL,
-		InvitationExp:  invitationTokenExpiry,
+		InvitationRepo:   repos.OperatorInvitationToken,
+		OperatorRepo:     repos.Operator,
+		AuditLogRepo:     repos.OperatorAuditLog,
+		DB:               db,
+		Logger:           platformLogger,
+		Dispatcher:       dispatcher,
+		DefaultFrom:      defaultFrom,
+		FrontendURL:      frontendURL,
+		InvitationExpiry: invitationTokenExpiry,
 	})
 
 	operatorProvisioningService := platform.NewOperatorProvisioningService(platform.OperatorProvisioningServiceConfig{

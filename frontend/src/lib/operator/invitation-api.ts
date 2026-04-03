@@ -13,10 +13,10 @@ export interface OperatorInvitationValidation {
 }
 
 export interface PendingOperatorInvitation {
-  id: number;
+  id: string;
   email: string;
   display_name: string | null;
-  invited_by: number;
+  invited_by: string;
   inviter_name: string;
   expires_at: string;
   created_at: string;
@@ -27,7 +27,7 @@ export interface PendingOperatorInvitation {
 }
 
 export interface OperatorListItem {
-  id: number;
+  id: string;
   email: string;
   display_name: string;
   active: boolean;
@@ -76,7 +76,7 @@ export async function validateOperatorInvitation(
 
 export async function acceptOperatorInvitation(
   data: AcceptOperatorInvitationRequest,
-): Promise<{ operator_id: number; email: string }> {
+): Promise<{ operator_id: string; email: string }> {
   const response = await fetch("/api/operator/auth/invite-accept", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -95,10 +95,10 @@ export async function acceptOperatorInvitation(
   }
 
   const json = (await response.json()) as {
-    data?: { operator_id: number; email: string };
+    data?: { operator_id: string; email: string };
   };
   return (
-    json.data ?? (json as unknown as { operator_id: number; email: string })
+    json.data ?? (json as unknown as { operator_id: string; email: string })
   );
 }
 
@@ -172,7 +172,7 @@ export async function createOperatorInvitation(
   }
 }
 
-export async function resendOperatorInvitation(id: number): Promise<void> {
+export async function resendOperatorInvitation(id: string): Promise<void> {
   try {
     await operatorFetch(`/api/operator/invitations/${id}/resend`, {
       method: "POST",
@@ -185,7 +185,7 @@ export async function resendOperatorInvitation(id: number): Promise<void> {
   }
 }
 
-export async function revokeOperatorInvitation(id: number): Promise<void> {
+export async function revokeOperatorInvitation(id: string): Promise<void> {
   try {
     await operatorFetch(`/api/operator/invitations/${id}`, {
       method: "DELETE",

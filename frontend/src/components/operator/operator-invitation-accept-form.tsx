@@ -138,7 +138,7 @@ export function OperatorInvitationAcceptForm({
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
         {/* Email (read-only) */}
         <div>
           <label

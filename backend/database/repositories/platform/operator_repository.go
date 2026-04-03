@@ -137,7 +137,8 @@ func (r *OperatorRepository) List(ctx context.Context) ([]*platform.Operator, er
 	var operators []*platform.Operator
 	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&operators).
-		Order("display_name ASC").
+		ModelTableExpr(tablePlatformOperatorsAlias).
+		Order(`"operator".display_name ASC`).
 		Scan(ctx)
 
 	if err != nil {
