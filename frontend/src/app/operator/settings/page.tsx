@@ -217,42 +217,40 @@ function OperatorSettingsContent() {
               )}
             </div>
           </div>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex gap-3">
-          {isEditing ? (
-            <>
+          <div className="mt-4 flex gap-3">
+            {isEditing ? (
+              <>
+                <button
+                  onClick={() => {
+                    setIsEditing(false);
+                    if (session?.user) {
+                      setFormData({
+                        displayName: session.user.name ?? "",
+                        email: session.user.email ?? "",
+                      });
+                    }
+                  }}
+                  className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:scale-105 hover:border-gray-400 hover:bg-gray-50 hover:shadow-md active:scale-100"
+                >
+                  Abbrechen
+                </button>
+                <button
+                  onClick={() => void handleSaveProfile()}
+                  disabled={isSaving}
+                  className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:scale-105 hover:bg-gray-700 hover:shadow-lg active:scale-100 disabled:opacity-50 disabled:hover:scale-100"
+                >
+                  {isSaving ? "Speichern..." : "Speichern"}
+                </button>
+              </>
+            ) : (
               <button
-                onClick={() => {
-                  setIsEditing(false);
-                  if (session?.user) {
-                    setFormData({
-                      displayName: session.user.name ?? "",
-                      email: session.user.email ?? "",
-                    });
-                  }
-                }}
-                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:scale-105 hover:border-gray-400 hover:bg-gray-50 hover:shadow-md active:scale-100"
+                onClick={() => setIsEditing(true)}
+                className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:scale-105 hover:bg-gray-700 hover:shadow-lg active:scale-100"
               >
-                Abbrechen
+                Bearbeiten
               </button>
-              <button
-                onClick={() => void handleSaveProfile()}
-                disabled={isSaving}
-                className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:scale-105 hover:bg-gray-700 hover:shadow-lg active:scale-100 disabled:opacity-50 disabled:hover:scale-100"
-              >
-                {isSaving ? "Speichern..." : "Speichern"}
-              </button>
-            </>
-          ) : (
-            <button
-              onClick={() => setIsEditing(true)}
-              className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:scale-105 hover:bg-gray-700 hover:shadow-lg active:scale-100"
-            >
-              Bearbeiten
-            </button>
-          )}
+            )}
+          </div>
         </div>
 
         {/* Security Section */}
