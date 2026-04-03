@@ -45,11 +45,12 @@ const CSP_HEADER = [
   "form-action 'self'",
 ].join("; ");
 
-/** Attach security headers (CSP, X-Content-Type-Options, X-Frame-Options) to a response. */
+/** Attach security headers (CSP, X-Content-Type-Options, X-Frame-Options, Referrer-Policy) to a response. */
 function withSecurityHeaders(response: NextResponse): NextResponse {
   response.headers.set("Content-Security-Policy", CSP_HEADER);
   response.headers.set("X-Content-Type-Options", "nosniff");
   response.headers.set("X-Frame-Options", "DENY");
+  response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   return response;
 }
 
@@ -58,6 +59,7 @@ function withSecurityHeaders(response: NextResponse): NextResponse {
 /** Paths that the operator subdomain serves (without /operator prefix) */
 const OPERATOR_PUBLIC_PATHS = [
   "/login",
+  "/email-confirm",
   "/suggestions",
   "/announcements",
   "/settings",
@@ -173,8 +175,9 @@ export function proxy(request: NextRequest): NextResponse {
   if (pathname.startsWith("/operator")) {
     const cleanPath = pathname.replace(/^\/operator/, "") || "/";
     const protocol = request.nextUrl.protocol;
-    const redirectUrl = `${protocol}//${OPERATOR_HOSTNAME}${cleanPath}`;
-    return NextResponse.redirect(redirectUrl);
+    const search = request.nextUrl.search;
+    const redirectUrl = `${protocol}//${OPERATOR_HOSTNAME}${cleanPath}${search}`;
+    return withSecurityHeaders(NextResponse.redirect(redirectUrl));
   }
 
   // 4. Tenant subdomain routing

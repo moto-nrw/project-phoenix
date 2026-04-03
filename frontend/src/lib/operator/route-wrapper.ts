@@ -240,4 +240,71 @@ export function createOperatorProxyGetHandler<T>(backendEndpoint: string) {
   );
 }
 
+/**
+ * Creates a POST route handler that proxies the backend response verbatim
+ * (preserving status codes and error messages) while adding 401 retry logic.
+ * Mirrors createOperatorProxyGetHandler but for POST with a JSON body.
+ */
+export function createOperatorProxyPostHandler(backendEndpoint: string) {
+  return async (
+    request: NextRequest,
+    _context: RouteContext,
+  ): Promise<NextResponse> => {
+    try {
+      const { operatorAuth: auth } = await import("~/server/auth/operator");
+      const session = await auth();
+      if (!session?.user?.token) return createUnauthorizedResponse();
+
+      let body: unknown;
+      try {
+        body = await parseRequestBody(request);
+      } catch {
+        return NextResponse.json(
+          { message: "Ungültige Anfrage" },
+          { status: 400 },
+        );
+      }
+      const { getServerApiUrl } = await import("~/lib/server-api-url");
+      const { getClientForwardHeaders } = await import("~/lib/client-headers");
+      const url = `${getServerApiUrl()}${backendEndpoint}`;
+      const forwardHeaders = getClientForwardHeaders(request);
+
+      const makeRequest = async (token: string) =>
+        fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+            ...forwardHeaders,
+          },
+          body: JSON.stringify(body),
+        });
+
+      let response = await makeRequest(session.user.token);
+
+      if (response.status === 401) {
+        const retried = await tryRetryWithRefreshedToken(
+          session.user.token,
+          async (newToken) => makeRequest(newToken),
+        );
+        if (retried) response = retried;
+      }
+
+      const contentType = response.headers.get("content-type");
+      if (!contentType?.includes("application/json")) {
+        const message =
+          response.status === 429
+            ? "Zu viele Anfragen. Bitte versuchen Sie es später erneut."
+            : (await response.text()) || response.statusText;
+        return NextResponse.json({ message }, { status: response.status });
+      }
+
+      const data: unknown = await response.json();
+      return NextResponse.json(data, { status: response.status });
+    } catch (error) {
+      return handleApiError(error);
+    }
+  };
+}
+
 export { isStringParam } from "../route-wrapper-utils";

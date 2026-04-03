@@ -11,13 +11,14 @@ import (
 
 // Resource defines the operator API resource
 type Resource struct {
-	authResource          *AuthResource
-	provisioningResource  *ProvisioningResource
-	suggestionsResource   *SuggestionsResource
-	announcementsResource *AnnouncementsResource
-	profileResource       *ProfileResource
-	tokenAuth             *jwt.TokenAuth
-	authRateLimiter       func(http.Handler) http.Handler
+	authResource            *AuthResource
+	provisioningResource    *ProvisioningResource
+	suggestionsResource     *SuggestionsResource
+	announcementsResource   *AnnouncementsResource
+	profileResource         *ProfileResource
+	tokenAuth               *jwt.TokenAuth
+	authRateLimiter         func(http.Handler) http.Handler
+	emailConfirmRateLimiter func(http.Handler) http.Handler
 }
 
 // ResourceConfig holds dependencies for the operator resource
@@ -32,6 +33,13 @@ type ResourceConfig struct {
 // SetAuthRateLimiter sets the rate limiter middleware for operator auth endpoints.
 func (rs *Resource) SetAuthRateLimiter(mw func(http.Handler) http.Handler) {
 	rs.authRateLimiter = mw
+}
+
+// SetEmailConfirmRateLimiter sets a dedicated rate limiter for the public
+// email-confirm endpoint, isolated from login to prevent cross-endpoint
+// rate limit exhaustion.
+func (rs *Resource) SetEmailConfirmRateLimiter(mw func(http.Handler) http.Handler) {
+	rs.emailConfirmRateLimiter = mw
 }
 
 // NewResource creates a new operator resource
@@ -57,12 +65,26 @@ func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	// Public routes (no auth required) — apply auth rate limiter for brute-force protection
+	// Public routes (no auth required) — rate-limited for brute-force protection.
+	// Login and email-confirm use separate rate limiter instances so that
+	// flooding one endpoint cannot exhaust the budget for the other.
 	r.Route("/auth", func(r chi.Router) {
-		if rs.authRateLimiter != nil {
-			r.Use(rs.authRateLimiter)
-		}
-		r.Post("/login", rs.authResource.Login)
+		r.Group(func(r chi.Router) {
+			if rs.authRateLimiter != nil {
+				r.Use(rs.authRateLimiter)
+			}
+			r.Post("/login", rs.authResource.Login)
+		})
+		r.Group(func(r chi.Router) {
+			limiter := rs.emailConfirmRateLimiter
+			if limiter == nil {
+				limiter = rs.authRateLimiter
+			}
+			if limiter != nil {
+				r.Use(limiter)
+			}
+			r.Post("/email-confirm", rs.profileResource.ConfirmEmailChange)
+		})
 	})
 
 	// Refresh token route (requires valid refresh JWT, no scope check)
@@ -132,6 +154,7 @@ func (rs *Resource) Router() chi.Router {
 			r.Get("/", rs.profileResource.GetProfile)
 			r.Put("/", rs.profileResource.UpdateProfile)
 			r.Post("/password", rs.profileResource.ChangePassword)
+			r.Post("/email-change", rs.profileResource.InitiateEmailChange)
 		})
 
 		// Announcements management

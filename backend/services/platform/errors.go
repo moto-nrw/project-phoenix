@@ -173,6 +173,34 @@ func (e *PersonNotFoundError) Error() string {
 	return fmt.Sprintf("person with ID %d not found", e.PersonID)
 }
 
+// EmailAlreadyInUseError is returned when the requested email is already taken by another operator
+type EmailAlreadyInUseError struct{}
+
+func (e *EmailAlreadyInUseError) Error() string {
+	return "email address is already in use"
+}
+
+// EmailChangeRateLimitError is returned when too many email change requests have been made
+type EmailChangeRateLimitError struct{}
+
+func (e *EmailChangeRateLimitError) Error() string {
+	return "too many email change attempts, please wait"
+}
+
+// EmailChangeSameEmailError is returned when the new email matches the current email
+type EmailChangeSameEmailError struct{}
+
+func (e *EmailChangeSameEmailError) Error() string {
+	return "new email is the same as current email"
+}
+
+// EmailChangeTokenInvalidError is returned when a confirmation token is not found, expired, or already used
+type EmailChangeTokenInvalidError struct{}
+
+func (e *EmailChangeTokenInvalidError) Error() string {
+	return "email change token is invalid, expired, or already used"
+}
+
 // PersonHasActiveSupervisionsError is returned when a person cannot be deleted
 // because the associated staff member has active group supervisions.
 type PersonHasActiveSupervisionsError struct {

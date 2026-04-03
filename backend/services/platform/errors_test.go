@@ -116,3 +116,54 @@ func TestPersonHasActiveSupervisionsError(t *testing.T) {
 	err := &platform.PersonHasActiveSupervisionsError{PersonID: 42, Count: 3}
 	assert.Equal(t, "person with ID 42 has 3 active supervision(s) and cannot be deleted", err.Error())
 }
+
+func TestEmailAlreadyInUseError(t *testing.T) {
+	err := &platform.EmailAlreadyInUseError{}
+	assert.Equal(t, "email address is already in use", err.Error())
+}
+
+func TestEmailChangeRateLimitError(t *testing.T) {
+	err := &platform.EmailChangeRateLimitError{}
+	assert.Contains(t, err.Error(), "too many")
+}
+
+func TestEmailChangeSameEmailError(t *testing.T) {
+	err := &platform.EmailChangeSameEmailError{}
+	assert.Contains(t, err.Error(), "same as current")
+}
+
+func TestEmailChangeTokenInvalidError(t *testing.T) {
+	err := &platform.EmailChangeTokenInvalidError{}
+	assert.Contains(t, err.Error(), "invalid")
+}
+
+func TestSchoolInactiveError(t *testing.T) {
+	err := &platform.SchoolInactiveError{SchoolID: 99}
+	assert.Contains(t, err.Error(), "99")
+	assert.Contains(t, err.Error(), "inactive")
+}
+
+func TestSchoolAlreadyDeletedError(t *testing.T) {
+	err := &platform.SchoolAlreadyDeletedError{SchoolID: 88}
+	assert.Contains(t, err.Error(), "88")
+	assert.Contains(t, err.Error(), "already soft-deleted")
+}
+
+func TestSchoolNotDeletedError(t *testing.T) {
+	err := &platform.SchoolNotDeletedError{SchoolID: 77}
+	assert.Contains(t, err.Error(), "77")
+	assert.Contains(t, err.Error(), "not soft-deleted")
+}
+
+func TestDeviceInUseError(t *testing.T) {
+	err := &platform.DeviceInUseError{DeviceID: 66}
+	assert.Contains(t, err.Error(), "66")
+	assert.Contains(t, err.Error(), "still in use")
+}
+
+func TestDeviceProtectedError(t *testing.T) {
+	err := &platform.DeviceProtectedError{DeviceID: 55, Reason: "web-manual device"}
+	assert.Contains(t, err.Error(), "55")
+	assert.Contains(t, err.Error(), "protected")
+	assert.Contains(t, err.Error(), "web-manual device")
+}

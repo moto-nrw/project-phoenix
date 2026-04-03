@@ -45,6 +45,11 @@ type BreakAutoEnder interface {
 	AutoEndExpiredBreaks(ctx context.Context) (int, error)
 }
 
+// EmailChangeTokenCleaner exposes the cleanup routine for email change tokens.
+type EmailChangeTokenCleaner interface {
+	CleanupExpiredEmailChangeTokens(ctx context.Context) (int, error)
+}
+
 // SettingsResolver resolves setting values per tenant. Implemented by config.SettingsService.
 type SettingsResolver interface {
 	ResolveString(ctx context.Context, key string) (string, error)
@@ -96,13 +101,13 @@ type ScheduledTask struct {
 }
 
 // NewScheduler creates a new scheduler
-func NewScheduler(activeService active.Service, cleanupService active.CleanupService, authService AuthCleanup, invitationService InvitationCleaner, logger *slog.Logger) *Scheduler {
+func NewScheduler(activeService active.Service, cleanupService active.CleanupService, authService AuthCleanup, invitationService InvitationCleaner, emailChangeCleaner EmailChangeTokenCleaner, logger *slog.Logger) *Scheduler {
 	return &Scheduler{
 		activeService:     activeService,
 		cleanupService:    cleanupService,
 		authCleanup:       authService,
 		invitationCleanup: invitationService,
-		cleanupJobs:       buildCleanupJobs(authService, invitationService),
+		cleanupJobs:       buildCleanupJobs(authService, invitationService, emailChangeCleaner),
 		tasks:             make(map[string]*ScheduledTask),
 		done:              make(chan struct{}),
 		logger:            logger,
@@ -623,7 +628,7 @@ func (s *Scheduler) RunCleanupJobs() error {
 }
 
 // buildCleanupJobs constructs the set of cleanup jobs so other runners can reuse the same registry.
-func buildCleanupJobs(authService AuthCleanup, invitationService InvitationCleaner) []CleanupJob {
+func buildCleanupJobs(authService AuthCleanup, invitationService InvitationCleaner, emailChangeCleaner EmailChangeTokenCleaner) []CleanupJob {
 	var jobs []CleanupJob
 
 	if authService != nil {
@@ -654,6 +659,15 @@ func buildCleanupJobs(authService AuthCleanup, invitationService InvitationClean
 			Description: "Invitation cleanup",
 			Run: func(ctx context.Context) (int, error) {
 				return invitationService.CleanupExpiredInvitations(ctx)
+			},
+		})
+	}
+
+	if emailChangeCleaner != nil {
+		jobs = append(jobs, CleanupJob{
+			Description: "Email change token cleanup",
+			Run: func(ctx context.Context) (int, error) {
+				return emailChangeCleaner.CleanupExpiredEmailChangeTokens(ctx)
 			},
 		})
 	}

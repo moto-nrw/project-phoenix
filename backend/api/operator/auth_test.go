@@ -22,11 +22,14 @@ import (
 
 // Mock OperatorAuthService
 type mockOperatorAuthService struct {
-	loginFn          func(ctx context.Context, email, password string, clientIP net.IP) (string, string, *platform.Operator, error)
-	refreshTokenFn   func(ctx context.Context, operatorID int64) (string, string, error)
-	getOperatorFn    func(ctx context.Context, id int64) (*platform.Operator, error)
-	updateProfileFn  func(ctx context.Context, operatorID int64, displayName string) (*platform.Operator, error)
-	changePasswordFn func(ctx context.Context, operatorID int64, currentPassword, newPassword string) error
+	loginFn                          func(ctx context.Context, email, password string, clientIP net.IP) (string, string, *platform.Operator, error)
+	refreshTokenFn                   func(ctx context.Context, operatorID int64) (string, string, error)
+	getOperatorFn                    func(ctx context.Context, id int64) (*platform.Operator, error)
+	updateProfileFn                  func(ctx context.Context, operatorID int64, displayName string) (*platform.Operator, error)
+	changePasswordFn                 func(ctx context.Context, operatorID int64, currentPassword, newPassword string) error
+	initiateEmailChangeFn            func(ctx context.Context, operatorID int64, newEmail, currentPassword string, clientIP net.IP) error
+	confirmEmailChangeFn             func(ctx context.Context, token string, clientIP net.IP) (string, error)
+	cleanupExpiredEmailChangeTokenFn func(ctx context.Context) (int, error)
 }
 
 func (m *mockOperatorAuthService) Login(ctx context.Context, email, password string, clientIP net.IP) (string, string, *platform.Operator, error) {
@@ -70,6 +73,27 @@ func (m *mockOperatorAuthService) ChangePassword(ctx context.Context, operatorID
 		return m.changePasswordFn(ctx, operatorID, currentPassword, newPassword)
 	}
 	return nil
+}
+
+func (m *mockOperatorAuthService) InitiateEmailChange(ctx context.Context, operatorID int64, newEmail, currentPassword string, clientIP net.IP) error {
+	if m.initiateEmailChangeFn != nil {
+		return m.initiateEmailChangeFn(ctx, operatorID, newEmail, currentPassword, clientIP)
+	}
+	return nil
+}
+
+func (m *mockOperatorAuthService) ConfirmEmailChange(ctx context.Context, token string, clientIP net.IP) (string, error) {
+	if m.confirmEmailChangeFn != nil {
+		return m.confirmEmailChangeFn(ctx, token, clientIP)
+	}
+	return "", nil
+}
+
+func (m *mockOperatorAuthService) CleanupExpiredEmailChangeTokens(ctx context.Context) (int, error) {
+	if m.cleanupExpiredEmailChangeTokenFn != nil {
+		return m.cleanupExpiredEmailChangeTokenFn(ctx)
+	}
+	return 0, nil
 }
 
 func TestLogin_Success(t *testing.T) {
