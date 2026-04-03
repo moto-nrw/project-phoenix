@@ -18,9 +18,16 @@ export async function GET(request: NextRequest) {
 
   try {
     const { getServerApiUrl } = await import("~/lib/server-api-url");
+    const { getClientForwardHeaders } = await import("~/lib/client-headers");
     const response = await fetch(
       `${getServerApiUrl()}/operator/auth/invite-validate?token=${encodeURIComponent(token)}`,
-      { method: "GET", headers: { "Content-Type": "application/json" } },
+      {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          ...getClientForwardHeaders(request),
+        },
+      },
     );
 
     const contentType = response.headers.get("content-type");

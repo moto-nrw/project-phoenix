@@ -2,6 +2,8 @@ package platform
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -13,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/userpass"
 	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/models/platform"
+	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -193,7 +196,10 @@ func (s *operatorInvitationService) ValidateInvitation(ctx context.Context, toke
 			Scan(txCtx)
 
 		if err != nil {
-			return &OperatorInvitationExpiredOrUsedError{}
+			if errors.Is(err, sql.ErrNoRows) {
+				return &OperatorInvitationExpiredOrUsedError{}
+			}
+			return fmt.Errorf("failed to validate invitation token: %w", err)
 		}
 
 		inviterName := ""
@@ -223,9 +229,9 @@ func (s *operatorInvitationService) AcceptInvitation(ctx context.Context, tokenS
 		return nil, &OperatorInvitationExpiredOrUsedError{}
 	}
 
-	// 1. Validate password strength (same rules as operator email change)
-	if len(password) < 8 {
-		return nil, &InvalidDataError{Err: fmt.Errorf("password must be at least 8 characters")}
+	// 1. Validate password strength (same rules as operator password change)
+	if err := authSvc.ValidatePasswordStrength(password); err != nil {
+		return nil, &InvalidDataError{Err: fmt.Errorf("password doesn't meet complexity requirements")}
 	}
 
 	displayName = strings.TrimSpace(displayName)
@@ -244,6 +250,7 @@ func (s *operatorInvitationService) AcceptInvitation(ctx context.Context, tokenS
 
 	// 3. Consume token and create operator atomically
 	var newOperator *platform.Operator
+	var consumedTokenID int64
 	err = tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
 		// Atomically consume token
 		token, err := s.invitationRepo.ConsumeByToken(txCtx, tokenStr)
@@ -253,6 +260,7 @@ func (s *operatorInvitationService) AcceptInvitation(ctx context.Context, tokenS
 		if token == nil {
 			return &OperatorInvitationExpiredOrUsedError{}
 		}
+		consumedTokenID = token.ID
 
 		// Check email uniqueness (race condition guard)
 		existing, err := s.operatorRepo.FindByEmail(txCtx, token.Email)
@@ -281,7 +289,7 @@ func (s *operatorInvitationService) AcceptInvitation(ctx context.Context, tokenS
 	}
 
 	// 4. Audit log (fire-and-forget, outside transaction)
-	s.logAudit(ctx, newOperator.ID, platform.ActionAcceptInvitation, &newOperator.ID, map[string]any{
+	s.logAudit(ctx, newOperator.ID, platform.ActionAcceptInvitation, &consumedTokenID, map[string]any{
 		"email": newOperator.Email,
 	}, clientIP)
 
