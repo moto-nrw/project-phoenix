@@ -87,6 +87,18 @@ type SchoolRepository interface {
 	CountByIDs(ctx context.Context, ids []int64) (int, error)
 }
 
+// OperatorInvitationTokenRepository defines operations for operator invitation tokens
+type OperatorInvitationTokenRepository interface {
+	Create(ctx context.Context, token *OperatorInvitationToken) error
+	FindByID(ctx context.Context, id int64) (*OperatorInvitationToken, error)
+	ConsumeByToken(ctx context.Context, tokenStr string) (*OperatorInvitationToken, error)
+	InvalidateByEmail(ctx context.Context, email string) error
+	UpdateDeliveryResult(ctx context.Context, tokenID int64, sentAt *time.Time, emailError *string, retryCount int) error
+	ListPending(ctx context.Context) ([]*OperatorInvitationToken, error)
+	InvalidateExpiredTokens(ctx context.Context) (int, error)
+	DeleteStaleTokens(ctx context.Context) (int, error)
+}
+
 // OperatorEmailChangeTokenRepository defines operations for email change verification tokens
 type OperatorEmailChangeTokenRepository interface {
 	Create(ctx context.Context, token *OperatorEmailChangeToken) error

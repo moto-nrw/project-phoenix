@@ -27,6 +27,8 @@ const OPERATOR_PUBLIC_PAGES = [
   "/login",
   "/operator/email-confirm",
   "/email-confirm",
+  "/operator/invite",
+  "/invite",
 ];
 
 export function OperatorAuthGuard({

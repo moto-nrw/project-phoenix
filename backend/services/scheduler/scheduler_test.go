@@ -79,7 +79,7 @@ func TestNewScheduler(t *testing.T) {
 	auth := &fakeAuthCleanup{}
 	invitations := &fakeInvitationCleaner{}
 
-	s := NewScheduler(nil, nil, auth, invitations, nil, slog.Default())
+	s := NewScheduler(nil, nil, auth, invitations, nil, nil, slog.Default())
 
 	require.NotNil(t, s)
 	assert.NotNil(t, s.tasks)
@@ -88,7 +88,7 @@ func TestNewScheduler(t *testing.T) {
 }
 
 func TestNewScheduler_NilServices(t *testing.T) {
-	s := NewScheduler(nil, nil, nil, nil, nil, slog.Default())
+	s := NewScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
 
 	require.NotNil(t, s)
 	assert.Empty(t, s.cleanupJobs)
@@ -97,7 +97,7 @@ func TestNewScheduler_NilServices(t *testing.T) {
 func TestNewScheduler_OnlyAuthService(t *testing.T) {
 	auth := &fakeAuthCleanup{}
 
-	s := NewScheduler(nil, nil, auth, nil, nil, slog.Default())
+	s := NewScheduler(nil, nil, auth, nil, nil, nil, slog.Default())
 
 	require.NotNil(t, s)
 	assert.Len(t, s.cleanupJobs, 3) // 3 auth jobs only
@@ -106,7 +106,7 @@ func TestNewScheduler_OnlyAuthService(t *testing.T) {
 func TestNewScheduler_OnlyInvitationService(t *testing.T) {
 	invitations := &fakeInvitationCleaner{}
 
-	s := NewScheduler(nil, nil, nil, invitations, nil, slog.Default())
+	s := NewScheduler(nil, nil, nil, invitations, nil, nil, slog.Default())
 
 	require.NotNil(t, s)
 	assert.Len(t, s.cleanupJobs, 1) // 1 invitation job only
@@ -127,7 +127,7 @@ func TestScheduler_StartStop(t *testing.T) {
 		_ = os.Unsetenv("SESSION_CLEANUP_ENABLED")
 	}()
 
-	s := NewScheduler(nil, nil, nil, nil, nil, slog.Default())
+	s := NewScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
 
 	// Start should not panic
 	assert.NotPanics(t, func() {
@@ -150,7 +150,7 @@ func TestScheduler_StartStop(t *testing.T) {
 }
 
 func TestScheduler_StopWithoutStart(t *testing.T) {
-	s := NewScheduler(nil, nil, nil, nil, nil, slog.Default())
+	s := NewScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
 
 	// Stop without start should not panic
 	assert.NotPanics(t, func() {
@@ -176,7 +176,7 @@ func TestScheduler_StartWithTokenCleanupOnly(t *testing.T) {
 			rateLimitResult: 3,
 		}
 
-		s := NewScheduler(nil, nil, auth, nil, nil, slog.Default())
+		s := NewScheduler(nil, nil, auth, nil, nil, nil, slog.Default())
 		s.Start()
 
 		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
@@ -205,7 +205,7 @@ func TestRunCleanupJobsExecutesAllJobs(t *testing.T) {
 	}
 	invitations := &fakeInvitationCleaner{result: 4}
 
-	s := NewScheduler(nil, nil, auth, invitations, nil, slog.Default())
+	s := NewScheduler(nil, nil, auth, invitations, nil, nil, slog.Default())
 
 	if err := s.RunCleanupJobs(); err != nil {
 		t.Fatalf("RunCleanupJobs() returned error: %v", err)
@@ -229,7 +229,7 @@ func TestRunCleanupJobsReturnsFirstErrorAndContinues(t *testing.T) {
 	}
 	invitations := &fakeInvitationCleaner{}
 
-	s := NewScheduler(nil, nil, auth, invitations, nil, slog.Default())
+	s := NewScheduler(nil, nil, auth, invitations, nil, nil, slog.Default())
 
 	err := s.RunCleanupJobs()
 	if !errors.Is(err, expectedErr) {
@@ -247,7 +247,7 @@ func TestRunCleanupJobsReturnsFirstErrorAndContinues(t *testing.T) {
 }
 
 func TestRunCleanupJobs_NoJobs(t *testing.T) {
-	s := NewScheduler(nil, nil, nil, nil, nil, slog.Default())
+	s := NewScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
 
 	// Should not error when no jobs
 	err := s.RunCleanupJobs()
@@ -274,7 +274,7 @@ func TestRunCleanupJobs_MultipleErrors(t *testing.T) {
 		rateLimitErr: errors.New("rate limit error"),
 	}
 
-	s := NewScheduler(nil, nil, auth, nil, nil, slog.Default())
+	s := NewScheduler(nil, nil, auth, nil, nil, nil, slog.Default())
 
 	err := s.RunCleanupJobs()
 
@@ -295,7 +295,7 @@ func TestRunCleanupJobs_Concurrent(t *testing.T) {
 		rateLimitResult: 3,
 	}
 
-	s := NewScheduler(nil, nil, auth, nil, nil, slog.Default())
+	s := NewScheduler(nil, nil, auth, nil, nil, nil, slog.Default())
 
 	// Run cleanup jobs concurrently
 	var wg sync.WaitGroup
@@ -466,7 +466,7 @@ func TestScheduler_DisabledByEnvVars(t *testing.T) {
 	}()
 
 	synctest.Test(t, func(t *testing.T) {
-		s := NewScheduler(nil, nil, nil, nil, nil, slog.Default())
+		s := NewScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
 		s.Start()
 
 		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
@@ -499,7 +499,7 @@ func TestScheduler_DefaultEnvValues(t *testing.T) {
 	_ = os.Unsetenv("SESSION_CLEANUP_INTERVAL_MINUTES")
 	_ = os.Unsetenv("SESSION_ABANDONED_THRESHOLD_MINUTES")
 
-	s := NewScheduler(nil, nil, nil, nil, nil, slog.Default())
+	s := NewScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
 
 	// Default values should be set
 	assert.Equal(t, 0, s.sessionCleanupIntervalMinutes) // Not set until Start()
@@ -1549,7 +1549,7 @@ func TestExecuteTokenCleanup_Success(t *testing.T) {
 		rateLimitResult: 2,
 	}
 
-	s := NewScheduler(nil, nil, auth, nil, nil, slog.Default())
+	s := NewScheduler(nil, nil, auth, nil, nil, nil, slog.Default())
 
 	task := &ScheduledTask{Name: "token-cleanup"}
 
@@ -1572,7 +1572,7 @@ func TestExecuteTokenCleanup_Success(t *testing.T) {
 func TestExecuteTokenCleanup_AlreadyRunning(t *testing.T) {
 	auth := &fakeAuthCleanup{}
 
-	s := NewScheduler(nil, nil, auth, nil, nil, slog.Default())
+	s := NewScheduler(nil, nil, auth, nil, nil, nil, slog.Default())
 
 	task := &ScheduledTask{Name: "token-cleanup", Running: true}
 
@@ -1590,7 +1590,7 @@ func TestExecuteTokenCleanup_Error(t *testing.T) {
 		tokenErr: errors.New("token cleanup failed"),
 	}
 
-	s := NewScheduler(nil, nil, auth, nil, nil, slog.Default())
+	s := NewScheduler(nil, nil, auth, nil, nil, nil, slog.Default())
 
 	task := &ScheduledTask{Name: "token-cleanup"}
 
@@ -2210,7 +2210,7 @@ func TestRunTokenCleanupTask_TickerRepeat(t *testing.T) {
 			rateLimitResult: 3,
 		}
 
-		s := NewScheduler(nil, nil, auth, nil, nil, slog.Default())
+		s := NewScheduler(nil, nil, auth, nil, nil, nil, slog.Default())
 
 		// Schedule token cleanup task (runs immediately, then every hour)
 		s.scheduleTokenCleanupTask()

@@ -12,6 +12,7 @@ import (
 // Resource defines the operator API resource
 type Resource struct {
 	authResource            *AuthResource
+	operatorsResource       *OperatorsResource
 	provisioningResource    *ProvisioningResource
 	suggestionsResource     *SuggestionsResource
 	announcementsResource   *AnnouncementsResource
@@ -24,6 +25,7 @@ type Resource struct {
 // ResourceConfig holds dependencies for the operator resource
 type ResourceConfig struct {
 	AuthService          platformSvc.OperatorAuthService
+	InvitationService    platformSvc.OperatorInvitationService
 	ProvisioningService  platformSvc.OperatorProvisioningService
 	SuggestionsService   platformSvc.OperatorSuggestionsService
 	AnnouncementsService platformSvc.AnnouncementService
@@ -52,6 +54,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 
 	return &Resource{
 		authResource:          NewAuthResource(cfg.AuthService),
+		operatorsResource:     NewOperatorsResource(cfg.AuthService, cfg.InvitationService),
 		provisioningResource:  NewProvisioningResource(cfg.ProvisioningService),
 		suggestionsResource:   NewSuggestionsResource(cfg.SuggestionsService),
 		announcementsResource: NewAnnouncementsResource(cfg.AnnouncementsService),
@@ -85,6 +88,18 @@ func (rs *Resource) Router() chi.Router {
 			}
 			r.Post("/email-confirm", rs.profileResource.ConfirmEmailChange)
 		})
+		// Operator invitation public endpoints (rate-limited with email-confirm limiter)
+		r.Group(func(r chi.Router) {
+			limiter := rs.emailConfirmRateLimiter
+			if limiter == nil {
+				limiter = rs.authRateLimiter
+			}
+			if limiter != nil {
+				r.Use(limiter)
+			}
+			r.Get("/invite-validate", rs.operatorsResource.ValidateInvitation)
+			r.Post("/invite-accept", rs.operatorsResource.AcceptInvitation)
+		})
 	})
 
 	// Refresh token route (requires valid refresh JWT, no scope check)
@@ -99,6 +114,15 @@ func (rs *Resource) Router() chi.Router {
 		r.Use(rs.tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
 		r.Use(RequiresOperatorScope)
+
+		// Operator management
+		r.Get("/operators", rs.operatorsResource.ListOperators)
+		r.Route("/invitations", func(r chi.Router) {
+			r.Get("/", rs.operatorsResource.ListPendingInvitations)
+			r.Post("/", rs.operatorsResource.CreateInvitation)
+			r.Post("/{id}/resend", rs.operatorsResource.ResendInvitation)
+			r.Delete("/{id}", rs.operatorsResource.RevokeInvitation)
+		})
 
 		r.Get("/accounts", rs.provisioningResource.ListAllAccounts)
 		r.Get("/roles", rs.provisioningResource.ListSystemRoles)

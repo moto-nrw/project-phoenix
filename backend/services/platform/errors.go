@@ -201,6 +201,31 @@ func (e *EmailChangeTokenInvalidError) Error() string {
 	return "email change token is invalid, expired, or already used"
 }
 
+// OperatorInvitationNotFoundError is returned when an invitation token is not found
+type OperatorInvitationNotFoundError struct {
+	InvitationID int64
+}
+
+func (e *OperatorInvitationNotFoundError) Error() string {
+	return fmt.Sprintf("operator invitation with ID %d not found", e.InvitationID)
+}
+
+// OperatorInvitationExpiredOrUsedError is returned when an invitation token is expired or already used
+type OperatorInvitationExpiredOrUsedError struct{}
+
+func (e *OperatorInvitationExpiredOrUsedError) Error() string {
+	return "operator invitation is invalid, expired, or already used"
+}
+
+// OperatorInvitationAlreadyAcceptedError is returned when trying to resend/revoke an already used invitation
+type OperatorInvitationAlreadyAcceptedError struct {
+	InvitationID int64
+}
+
+func (e *OperatorInvitationAlreadyAcceptedError) Error() string {
+	return fmt.Sprintf("operator invitation %d has already been accepted", e.InvitationID)
+}
+
 // PersonHasActiveSupervisionsError is returned when a person cannot be deleted
 // because the associated staff member has active group supervisions.
 type PersonHasActiveSupervisionsError struct {

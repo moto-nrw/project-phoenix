@@ -29,20 +29,25 @@ const (
 	ActionRestore              = "restore"
 	ActionEmailChangeInitiated = "email_change_initiated"
 	ActionEmailChangeConfirmed = "email_change_confirmed"
+	ActionInviteOperator       = "invite_operator"
+	ActionAcceptInvitation     = "accept_invitation"
+	ActionRevokeInvitation     = "revoke_invitation"
+	ActionResendInvitation     = "resend_invitation"
 )
 
 // Common resource type constants
 const (
-	ResourceAnnouncement = "announcement"
-	ResourceSuggestion   = "suggestion"
-	ResourceComment      = "operator_comment"
-	ResourceOperator     = "operator"
-	ResourceOrganization = "organization"
-	ResourceSchool       = "school"
-	ResourceInvitation   = "invitation"
-	ResourceDevice       = "device"
-	ResourceAccount      = "account"
-	ResourcePerson       = "person"
+	ResourceAnnouncement       = "announcement"
+	ResourceSuggestion         = "suggestion"
+	ResourceComment            = "operator_comment"
+	ResourceOperator           = "operator"
+	ResourceOrganization       = "organization"
+	ResourceSchool             = "school"
+	ResourceInvitation         = "invitation"
+	ResourceDevice             = "device"
+	ResourceAccount            = "account"
+	ResourcePerson             = "person"
+	ResourceOperatorInvitation = "operator_invitation"
 )
 
 // OperatorAuditLog tracks operator actions for auditing

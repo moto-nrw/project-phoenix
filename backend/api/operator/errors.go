@@ -72,6 +72,15 @@ func ErrTooManyRequests(message string) render.Renderer {
 	}
 }
 
+// ErrGone creates a 410 Gone error response for expired/used resources
+func ErrGone(message string) render.Renderer {
+	return &ErrResponse{
+		HTTPStatusCode: http.StatusGone,
+		StatusText:     "error",
+		ErrorText:      message,
+	}
+}
+
 // ErrInternal creates an internal server error response
 func ErrInternal(message string) render.Renderer {
 	return &ErrResponse{
@@ -111,6 +120,49 @@ func AnnouncementErrorRenderer(err error) render.Renderer {
 		return ErrInvalidRequest(err)
 	default:
 		return ErrInternal("An error occurred")
+	}
+}
+
+// InvitationErrorRenderer maps operator invitation service errors to HTTP responses
+func InvitationErrorRenderer(err error) render.Renderer {
+	var invitationNotFound *platformSvc.OperatorInvitationNotFoundError
+	var invitationExpiredOrUsed *platformSvc.OperatorInvitationExpiredOrUsedError
+	var invitationAlreadyAccepted *platformSvc.OperatorInvitationAlreadyAcceptedError
+	var emailAlreadyInUse *platformSvc.EmailAlreadyInUseError
+	var invalidData *platformSvc.InvalidDataError
+
+	switch {
+	case errors.As(err, &invitationNotFound):
+		return ErrNotFound("Einladung nicht gefunden")
+	case errors.As(err, &invitationExpiredOrUsed):
+		return ErrGone("Diese Einladung ist abgelaufen oder wurde bereits verwendet")
+	case errors.As(err, &invitationAlreadyAccepted):
+		return ErrGone("Diese Einladung wurde bereits angenommen")
+	case errors.As(err, &emailAlreadyInUse):
+		return ErrConflict("Diese E-Mail-Adresse wird bereits verwendet")
+	case errors.As(err, &invalidData):
+		return ErrInvalidRequest(err)
+	default:
+		return ErrInternal("Ein Fehler ist aufgetreten")
+	}
+}
+
+// InvitationAcceptErrorRenderer maps errors from the public accept endpoint.
+// Uses generic messages for anti-enumeration on the unauthenticated endpoint.
+func InvitationAcceptErrorRenderer(err error) render.Renderer {
+	var invitationExpiredOrUsed *platformSvc.OperatorInvitationExpiredOrUsedError
+	var emailAlreadyInUse *platformSvc.EmailAlreadyInUseError
+	var invalidData *platformSvc.InvalidDataError
+
+	switch {
+	case errors.As(err, &invitationExpiredOrUsed):
+		return ErrGone("Diese Einladung ist abgelaufen oder wurde bereits verwendet")
+	case errors.As(err, &emailAlreadyInUse):
+		return ErrConflict("Diese E-Mail-Adresse wird bereits verwendet")
+	case errors.As(err, &invalidData):
+		return ErrInvalidRequest(err)
+	default:
+		return ErrInternal("Ein Serverfehler ist aufgetreten")
 	}
 }
 

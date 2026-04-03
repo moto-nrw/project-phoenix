@@ -69,6 +69,7 @@ type Factory struct {
 
 	// Platform domain (operator dashboard)
 	OperatorAuth         platform.OperatorAuthService
+	OperatorInvitation   platform.OperatorInvitationService
 	OperatorProvisioning platform.OperatorProvisioningService
 	Announcement         platform.AnnouncementService
 	OperatorSuggestions  platform.OperatorSuggestionsService
@@ -449,6 +450,18 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:          platformLogger,
 	})
 
+	operatorInvitationService := platform.NewOperatorInvitationService(platform.OperatorInvitationServiceConfig{
+		InvitationRepo: repos.OperatorInvitationToken,
+		OperatorRepo:   repos.Operator,
+		AuditLogRepo:   repos.OperatorAuditLog,
+		DB:             db,
+		Logger:         platformLogger,
+		Dispatcher:     dispatcher,
+		DefaultFrom:    defaultFrom,
+		FrontendURL:    frontendURL,
+		InvitationExp:  invitationTokenExpiry,
+	})
+
 	operatorProvisioningService := platform.NewOperatorProvisioningService(platform.OperatorProvisioningServiceConfig{
 		OrganizationRepo:    repos.Organization,
 		SchoolRepo:          repos.School,
@@ -500,6 +513,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 
 		// Platform services
 		OperatorAuth:         operatorAuthService,
+		OperatorInvitation:   operatorInvitationService,
 		OperatorProvisioning: operatorProvisioningService,
 		Announcement:         announcementService,
 		OperatorSuggestions:  operatorSuggestionsService,
