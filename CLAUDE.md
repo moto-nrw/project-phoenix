@@ -347,6 +347,73 @@ CI (`build.yml`) runs on push/merge:
 
 `platform` · `auth` · `users` · `education` · `facilities` · `activities` · `active` · `schedule` · `iot` · `feedback` · `config` · `suggestions` · `meta` · `audit`
 
+## Tenant-Scoped Settings System
+
+Per-school configuration that replaces hardcoded defaults and environment variables. Schools configure settings via the admin UI; the backend resolves values with a three-tier fallback chain.
+
+### Architecture
+
+```
+Registry (init-time definitions)
+  ↓
+Schema Builder → Frontend settings page (auto-generated)
+  ↓
+SettingsService → Resolve/Set/Reset per tenant
+  ↓
+SettingValueRepository → config.setting_values (RLS-enforced)
+  ↓
+SettingAuditRepository → config.setting_audit (append-only)
+```
+
+### Key Files
+
+| File | Role |
+|------|------|
+| `models/config/keys.go` | Key constants (`KeySessionEndTime`, etc.) |
+| `models/config/registry.go` | `Definition` struct, `Register()`, field types |
+| `services/config/defaults/*.go` | Registry definitions grouped by category |
+| `services/config/settings_service.go` | Resolve, SetValue, ResetValue, validation |
+| `services/config/schema_builder.go` | Builds schema response for frontend |
+| `database/repositories/config/` | DB access (setting_values + setting_audit) |
+| `api/config/settings_api.go` | HTTP handlers (GET /schema, PUT/DELETE /values/{key}) |
+| `frontend/src/lib/settings-api.ts` | Frontend API client |
+| `frontend/src/components/settings/` | Settings page, field components, auto-save |
+
+### Value Resolution — Three-Tier Fallback
+
+```
+1. Tenant DB override  (config.setting_values row exists)
+2. Environment variable (os.Getenv)
+3. Registry default    (Definition.Default)
+```
+
+**CRITICAL**: `Resolve*()` returns the registry default when no tenant override exists — it skips env vars. Backend consumers MUST use `HasTenantOverride()` first to distinguish "no override" from "override exists". See the rule in `.claude/rules/settings-system.md` for the correct pattern.
+
+### Field Types
+
+`boolean` · `number` · `time` · `text` · `password` · `select`
+
+### Tabs and Permissions
+
+| Tab | WritePermission | Who can edit |
+|-----|-----------------|-------------|
+| `operations` | `config:update` | Admin |
+| `gdpr` | `config:manage` | Admin |
+| `security` | `config:manage` | Admin |
+
+Route-level auth accepts `config:update` OR `config:manage`. Service-level `checkWritePermission` uses wildcard-aware matching (`admin:*` works).
+
+### Frontend
+
+The settings page is fully auto-generated from the backend schema. Field components render based on `type`, with:
+- Auto-save on blur (debounced for text/number/time)
+- Immediate save for boolean/select
+- Green/red border feedback
+- Conditional visibility via `depends_on`
+- Password fields masked as `••••••`
+
+**For step-by-step instructions on adding, editing, or deleting settings, see `.claude/rules/settings-system.md`.**
+
 ---
 
 @CLAUDE.local.md
