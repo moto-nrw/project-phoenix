@@ -16,7 +16,7 @@ type OperatorInvitationToken struct {
 	base.Model      `bun:"schema:platform,table:operator_invitation_tokens"`
 	Email           string     `bun:"email,notnull" json:"email"`
 	DisplayName     *string    `bun:"display_name,nullzero" json:"display_name,omitempty"`
-	Token           string     `bun:"token,notnull" json:"token"`
+	Token           string     `bun:"token,notnull" json:"-"`
 	Expiry          time.Time  `bun:"expiry,notnull" json:"expiry"`
 	Used            bool       `bun:"used,notnull,default:false" json:"used"`
 	InvitedBy       int64      `bun:"invited_by,notnull" json:"invited_by"`

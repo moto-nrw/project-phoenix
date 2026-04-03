@@ -127,15 +127,16 @@ func newInvitationServiceTestEnv(t *testing.T) (
 	dispatcher := email.NewDispatcher(nil, slog.Default())
 
 	service := platformSvc.NewOperatorInvitationService(platformSvc.OperatorInvitationServiceConfig{
-		InvitationRepo:   invitationRepo,
-		OperatorRepo:     operatorRepo,
-		AuditLogRepo:     auditLogRepo,
-		DB:               bunDB,
-		Logger:           slog.Default(),
-		Dispatcher:       dispatcher,
-		DefaultFrom:      email.NewEmail("moto", "test@example.com"),
-		FrontendURL:      "http://localhost:3000",
-		InvitationExpiry: 48 * time.Hour,
+		InvitationRepo:      invitationRepo,
+		OperatorRepo:        operatorRepo,
+		AuditLogRepo:        auditLogRepo,
+		DB:                  bunDB,
+		Logger:              slog.Default(),
+		Dispatcher:          dispatcher,
+		DefaultFrom:         email.NewEmail("moto", "test@example.com"),
+		FrontendURL:         "http://localhost:3000",
+		OperatorFrontendURL: "http://operator.localhost:3000",
+		InvitationExpiry:    48 * time.Hour,
 	})
 
 	cleanup := func() {
@@ -326,10 +327,6 @@ func TestAcceptInvitation_Success(t *testing.T) {
 		return nil, nil // no existing operator
 	}
 
-	var createdOperator *platform.Operator
-	originalCreate := operatorRepo.Create
-	_ = originalCreate
-	// Override Create via a custom findByEmailFn is not enough; we need to intercept Create
 	// The mockOperatorRepo.Create always returns nil, which is fine — we just check the result
 
 	// Preflight admin tx (FindValidByToken)
@@ -347,7 +344,6 @@ func TestAcceptInvitation_Success(t *testing.T) {
 	assert.Equal(t, "new@example.com", result.Email)
 	assert.Equal(t, "New Operator", result.DisplayName)
 	assert.True(t, result.Active)
-	_ = createdOperator
 }
 
 func TestAcceptInvitation_EmptyToken(t *testing.T) {

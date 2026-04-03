@@ -111,12 +111,15 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 
 	rawOperatorFrontendURL := viper.GetString("operator_frontend_url")
 	operatorFrontendURL := strings.TrimRight(rawOperatorFrontendURL, "/")
+	if operatorFrontendURL == "" {
+		return nil, fmt.Errorf("OPERATOR_FRONTEND_URL is required but not set")
+	}
 
 	appEnv := strings.ToLower(viper.GetString("app_env"))
 	if appEnv == "production" && !strings.HasPrefix(frontendURL, "https://") {
 		return nil, fmt.Errorf("FRONTEND_URL must use https:// in production (received %q)", rawFrontendURL)
 	}
-	if appEnv == "production" && operatorFrontendURL != "" && !strings.HasPrefix(operatorFrontendURL, "https://") {
+	if appEnv == "production" && !strings.HasPrefix(operatorFrontendURL, "https://") {
 		return nil, fmt.Errorf("OPERATOR_FRONTEND_URL must use https:// in production (received %q)", rawOperatorFrontendURL)
 	}
 

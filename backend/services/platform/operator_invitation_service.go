@@ -64,16 +64,15 @@ type operatorInvitationService struct {
 	invitationExp       time.Duration
 }
 
-// NewOperatorInvitationService creates a new operator invitation service
+// NewOperatorInvitationService creates a new operator invitation service.
+// All configuration fields must be set — missing values cause a panic to
+// enforce fail-fast behaviour per project rules.
 func NewOperatorInvitationService(cfg OperatorInvitationServiceConfig) OperatorInvitationService {
-	exp := cfg.InvitationExpiry
-	if exp <= 0 {
-		exp = 48 * time.Hour
+	if cfg.InvitationExpiry <= 0 {
+		panic("OperatorInvitationServiceConfig.InvitationExpiry must be > 0")
 	}
-
-	operatorURL := cfg.OperatorFrontendURL
-	if operatorURL == "" {
-		operatorURL = cfg.FrontendURL
+	if cfg.OperatorFrontendURL == "" {
+		panic("OperatorInvitationServiceConfig.OperatorFrontendURL must be set")
 	}
 
 	return &operatorInvitationService{
@@ -85,8 +84,8 @@ func NewOperatorInvitationService(cfg OperatorInvitationServiceConfig) OperatorI
 		dispatcher:          cfg.Dispatcher,
 		defaultFrom:         cfg.DefaultFrom,
 		frontendURL:         cfg.FrontendURL,
-		operatorFrontendURL: operatorURL,
-		invitationExp:       exp,
+		operatorFrontendURL: cfg.OperatorFrontendURL,
+		invitationExp:       cfg.InvitationExpiry,
 	}
 }
 
@@ -302,14 +301,13 @@ func (s *operatorInvitationService) AcceptInvitation(ctx context.Context, tokenS
 		return nil, err
 	}
 
-	// 4. Audit log (fire-and-forget, outside transaction)
+	// 5. Audit log (fire-and-forget, outside transaction)
 	s.logAudit(ctx, newOperator.ID, platform.ActionAcceptInvitation, &consumedTokenID, map[string]any{
 		"email": newOperator.Email,
 	}, clientIP)
 
 	s.getLogger().Info("operator invitation accepted",
 		slog.Int64("operator_id", newOperator.ID),
-		slog.String("email", newOperator.Email),
 	)
 
 	return newOperator, nil
