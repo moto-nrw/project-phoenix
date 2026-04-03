@@ -412,6 +412,17 @@ The settings page is fully auto-generated from the backend schema. Field compone
 - Conditional visibility via `depends_on`
 - Password fields masked as `••••••`
 
+### When to Use Settings vs Environment Variables
+
+| Use a **setting** when... | Use an **env var** when... |
+|---------------------------|---------------------------|
+| Value differs per school/tenant | Value is the same across all tenants |
+| Admins should be able to change it at runtime | Only infrastructure operators should change it |
+| It's a business rule (times, thresholds, toggles) | It's infrastructure config (DB DSN, JWT secret, SMTP host) |
+| It affects end-user behavior | It affects how the server connects to external services |
+
+**RULE: New per-tenant runtime configuration MUST use the settings system, not environment variables.** Env vars are for infrastructure. If a school admin should be able to configure it, it's a setting.
+
 **For step-by-step instructions on adding, editing, or deleting settings, see `.claude/rules/settings-system.md`.**
 
 ---

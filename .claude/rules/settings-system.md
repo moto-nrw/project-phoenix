@@ -98,6 +98,7 @@ cd backend && go build ./... && go test ./services/config/... -v
 
 ## Key Rules
 
+- **NEVER add new env vars for per-tenant runtime config** — use the settings system instead. Env vars are for infrastructure (DB DSN, SMTP host, JWT secret). If a school admin should be able to change it, it's a setting. Existing env vars are kept for backward compatibility only.
 - **NEVER call `Resolve*()` directly for fallback** — use `HasTenantOverride()` first, or the resolved value will be the registry default, not the env var
 - **NEVER hardcode key strings** — use constants from `models/config/keys.go`
 - **ALWAYS use `config:manage`** for sensitive settings (GDPR, security)
