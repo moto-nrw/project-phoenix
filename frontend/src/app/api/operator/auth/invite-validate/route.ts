@@ -4,11 +4,22 @@ import { createLogger } from "~/lib/logger";
 const logger = createLogger({ component: "OperatorInviteValidateRoute" });
 
 /**
- * GET /api/operator/auth/invite-validate?token=...
- * Public endpoint (no auth required) — proxies to backend GET /operator/auth/invite-validate.
+ * POST /api/operator/auth/invite-validate
+ * Public endpoint (no auth required) — proxies to backend POST /operator/auth/invite-validate.
+ * Token is sent in the request body to prevent leaking into server access logs.
  */
-export async function GET(request: NextRequest) {
-  const token = request.nextUrl.searchParams.get("token");
+export async function POST(request: NextRequest) {
+  let body: { token?: string };
+  try {
+    body = (await request.json()) as { token?: string };
+  } catch {
+    return NextResponse.json(
+      { message: "Ungültiger Request-Body" },
+      { status: 400 },
+    );
+  }
+
+  const token = body.token?.trim();
   if (!token) {
     return NextResponse.json(
       { message: "Token ist erforderlich" },
@@ -20,13 +31,14 @@ export async function GET(request: NextRequest) {
     const { getServerApiUrl } = await import("~/lib/server-api-url");
     const { getClientForwardHeaders } = await import("~/lib/client-headers");
     const response = await fetch(
-      `${getServerApiUrl()}/operator/auth/invite-validate?token=${encodeURIComponent(token)}`,
+      `${getServerApiUrl()}/operator/auth/invite-validate`,
       {
-        method: "GET",
+        method: "POST",
         headers: {
           "Content-Type": "application/json",
           ...getClientForwardHeaders(request),
         },
+        body: JSON.stringify({ token }),
       },
     );
 

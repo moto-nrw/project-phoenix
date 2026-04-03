@@ -39,27 +39,29 @@ type OperatorInvitationValidation struct {
 
 // OperatorInvitationServiceConfig holds configuration for the operator invitation service
 type OperatorInvitationServiceConfig struct {
-	InvitationRepo   platform.OperatorInvitationTokenRepository
-	OperatorRepo     platform.OperatorRepository
-	AuditLogRepo     platform.OperatorAuditLogRepository
-	DB               *bun.DB
-	Logger           *slog.Logger
-	Dispatcher       *email.Dispatcher
-	DefaultFrom      email.Email
-	FrontendURL      string
-	InvitationExpiry time.Duration
+	InvitationRepo      platform.OperatorInvitationTokenRepository
+	OperatorRepo        platform.OperatorRepository
+	AuditLogRepo        platform.OperatorAuditLogRepository
+	DB                  *bun.DB
+	Logger              *slog.Logger
+	Dispatcher          *email.Dispatcher
+	DefaultFrom         email.Email
+	FrontendURL         string
+	OperatorFrontendURL string // Base URL for the operator subdomain (e.g. https://operator.moto-app.de)
+	InvitationExpiry    time.Duration
 }
 
 type operatorInvitationService struct {
-	invitationRepo platform.OperatorInvitationTokenRepository
-	operatorRepo   platform.OperatorRepository
-	auditLogRepo   platform.OperatorAuditLogRepository
-	db             *bun.DB
-	logger         *slog.Logger
-	dispatcher     *email.Dispatcher
-	defaultFrom    email.Email
-	frontendURL    string
-	invitationExp  time.Duration
+	invitationRepo      platform.OperatorInvitationTokenRepository
+	operatorRepo        platform.OperatorRepository
+	auditLogRepo        platform.OperatorAuditLogRepository
+	db                  *bun.DB
+	logger              *slog.Logger
+	dispatcher          *email.Dispatcher
+	defaultFrom         email.Email
+	frontendURL         string
+	operatorFrontendURL string
+	invitationExp       time.Duration
 }
 
 // NewOperatorInvitationService creates a new operator invitation service
@@ -69,16 +71,22 @@ func NewOperatorInvitationService(cfg OperatorInvitationServiceConfig) OperatorI
 		exp = 48 * time.Hour
 	}
 
+	operatorURL := cfg.OperatorFrontendURL
+	if operatorURL == "" {
+		operatorURL = cfg.FrontendURL
+	}
+
 	return &operatorInvitationService{
-		invitationRepo: cfg.InvitationRepo,
-		operatorRepo:   cfg.OperatorRepo,
-		auditLogRepo:   cfg.AuditLogRepo,
-		db:             cfg.DB,
-		logger:         cfg.Logger,
-		dispatcher:     cfg.Dispatcher,
-		defaultFrom:    cfg.DefaultFrom,
-		frontendURL:    cfg.FrontendURL,
-		invitationExp:  exp,
+		invitationRepo:      cfg.InvitationRepo,
+		operatorRepo:        cfg.OperatorRepo,
+		auditLogRepo:        cfg.AuditLogRepo,
+		db:                  cfg.DB,
+		logger:              cfg.Logger,
+		dispatcher:          cfg.Dispatcher,
+		defaultFrom:         cfg.DefaultFrom,
+		frontendURL:         cfg.FrontendURL,
+		operatorFrontendURL: operatorURL,
+		invitationExp:       exp,
 	}
 }
 
@@ -233,7 +241,14 @@ func (s *operatorInvitationService) AcceptInvitation(ctx context.Context, tokenS
 	// 2. Verify token exists before expensive Argon2id hashing.
 	// This is an unauthenticated endpoint — without this check, any request
 	// with a random/expired token would still pay the full hash cost.
-	existing, err := s.invitationRepo.FindValidByToken(ctx, tokenStr)
+	// Must use WithAdminTx to bypass RLS (public endpoint, no tenant context),
+	// matching the pattern used by ValidateInvitation.
+	var existing *platform.OperatorInvitationToken
+	err := tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
+		var findErr error
+		existing, findErr = s.invitationRepo.FindValidByToken(txCtx, tokenStr)
+		return findErr
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to validate invitation token: %w", err)
 	}
@@ -412,10 +427,10 @@ func (s *operatorInvitationService) dispatchInvitationEmail(ctx context.Context,
 		return
 	}
 
-	// Use a URL fragment (#token=...) instead of a query parameter to prevent the
-	// token from appearing in Referer headers, server access logs, or CDN logs.
-	// Matches the pattern used by the operator email-change flow.
-	invitationURL := fmt.Sprintf("%s/operator/invite#token=%s", s.frontendURL, token.Token)
+	// Use the operator-specific URL so the link goes directly to the operator
+	// subdomain, avoiding a redirect that would strip the URL fragment.
+	// The fragment (#token=...) keeps the token out of Referer headers and logs.
+	invitationURL := fmt.Sprintf("%s/invite#token=%s", s.operatorFrontendURL, token.Token)
 	logoURL := fmt.Sprintf("%s/images/moto_transparent.png", s.frontendURL)
 
 	displayName := ""

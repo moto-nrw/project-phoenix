@@ -51,9 +51,13 @@ export interface AcceptOperatorInvitationRequest {
 export async function validateOperatorInvitation(
   token: string,
 ): Promise<OperatorInvitationValidation> {
-  const response = await fetch(
-    `/api/operator/auth/invite-validate?token=${encodeURIComponent(token)}`,
-  );
+  // Send token in POST body instead of query string to prevent it from
+  // leaking into server access logs, CDN logs, or Referer headers.
+  const response = await fetch("/api/operator/auth/invite-validate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token }),
+  });
 
   if (!response.ok) {
     let message = "Einladung ist ungültig oder abgelaufen";

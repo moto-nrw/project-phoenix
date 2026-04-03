@@ -231,15 +231,30 @@ func (rs *OperatorsResource) RevokeInvitation(w http.ResponseWriter, r *http.Req
 
 // --- Public Handlers (no auth) ---
 
-// ValidateInvitation handles GET /operator/auth/invite-validate?token=...
+// ValidateInvitationRequest is the request body for POST /operator/auth/invite-validate
+type ValidateInvitationRequest struct {
+	Token string `json:"token"`
+}
+
+// Bind validates the validate invitation request
+func (req *ValidateInvitationRequest) Bind(r *http.Request) error {
+	req.Token = strings.TrimSpace(req.Token)
+	if req.Token == "" {
+		return errors.New("token is required")
+	}
+	return nil
+}
+
+// ValidateInvitation handles POST /operator/auth/invite-validate
+// Token is sent in the request body to prevent leaking into server access logs.
 func (rs *OperatorsResource) ValidateInvitation(w http.ResponseWriter, r *http.Request) {
-	token := strings.TrimSpace(r.URL.Query().Get("token"))
-	if token == "" {
-		common.RenderError(w, r, ErrInvalidRequest(errors.New("token is required")))
+	req := &ValidateInvitationRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, ErrInvalidRequest(err))
 		return
 	}
 
-	result, err := rs.invitationService.ValidateInvitation(r.Context(), token)
+	result, err := rs.invitationService.ValidateInvitation(r.Context(), req.Token)
 	if err != nil {
 		common.RenderError(w, r, InvitationAcceptErrorRenderer(err))
 		return

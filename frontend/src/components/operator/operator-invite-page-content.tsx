@@ -35,12 +35,6 @@ export function OperatorInvitePageContent() {
   useEffect(() => {
     const token = extractTokenFromHash();
 
-    // Strip token from URL immediately to prevent leakage via
-    // browser history or shoulder-surfing.
-    if (token) {
-      window.history.replaceState({}, "", window.location.pathname);
-    }
-
     if (!token) {
       setState({
         type: "error",
@@ -51,6 +45,11 @@ export function OperatorInvitePageContent() {
 
     validateOperatorInvitation(token)
       .then((invitation) => {
+        // Strip token from URL only after successful validation to prevent
+        // leakage via browser history or shoulder-surfing. Doing this before
+        // validation would make transient failures unrecoverable without
+        // reopening the email.
+        window.history.replaceState({}, "", window.location.pathname);
         setState({ type: "ready", invitation, token });
       })
       .catch((error) => {

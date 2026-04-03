@@ -298,6 +298,18 @@ func TestAcceptInvitation_Success(t *testing.T) {
 	service, invitationRepo, operatorRepo, _, mock, cleanup := newInvitationServiceTestEnv(t)
 	defer cleanup()
 
+	invitationRepo.findValidByTokenFn = func(_ context.Context, tokenStr string) (*platform.OperatorInvitationToken, error) {
+		if tokenStr == "valid-token" {
+			return &platform.OperatorInvitationToken{
+				Model:     base.Model{ID: int64(10)},
+				Email:     "new@example.com",
+				Token:     "valid-token",
+				Expiry:    time.Now().Add(24 * time.Hour),
+				InvitedBy: int64(42),
+			}, nil
+		}
+		return nil, nil
+	}
 	invitationRepo.consumeByTokenFn = func(_ context.Context, tokenStr string) (*platform.OperatorInvitationToken, error) {
 		if tokenStr == "valid-token" {
 			return &platform.OperatorInvitationToken{
@@ -320,6 +332,11 @@ func TestAcceptInvitation_Success(t *testing.T) {
 	// Override Create via a custom findByEmailFn is not enough; we need to intercept Create
 	// The mockOperatorRepo.Create always returns nil, which is fine — we just check the result
 
+	// Preflight admin tx (FindValidByToken)
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectCommit()
+	// Consume admin tx (ConsumeByToken + CreateOperator)
 	mock.ExpectBegin()
 	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectCommit()
@@ -378,13 +395,14 @@ func TestAcceptInvitation_TokenExpiredOrUsed(t *testing.T) {
 	service, invitationRepo, _, _, mock, cleanup := newInvitationServiceTestEnv(t)
 	defer cleanup()
 
-	invitationRepo.consumeByTokenFn = func(_ context.Context, _ string) (*platform.OperatorInvitationToken, error) {
+	invitationRepo.findValidByTokenFn = func(_ context.Context, _ string) (*platform.OperatorInvitationToken, error) {
 		return nil, nil // token not found / expired / used
 	}
 
+	// Preflight admin tx — FindValidByToken returns nil, so accept aborts before consume tx
 	mock.ExpectBegin()
 	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectRollback()
+	mock.ExpectCommit()
 
 	_, err := service.AcceptInvitation(context.Background(), "expired-token", "Name", testStrongInvitationPassword, net.ParseIP("127.0.0.1"))
 	require.Error(t, err)
@@ -395,6 +413,15 @@ func TestAcceptInvitation_EmailAlreadyRegistered(t *testing.T) {
 	service, invitationRepo, operatorRepo, _, mock, cleanup := newInvitationServiceTestEnv(t)
 	defer cleanup()
 
+	invitationRepo.findValidByTokenFn = func(_ context.Context, _ string) (*platform.OperatorInvitationToken, error) {
+		return &platform.OperatorInvitationToken{
+			Model:     base.Model{ID: int64(10)},
+			Email:     "existing@example.com",
+			Token:     "valid-token",
+			Expiry:    time.Now().Add(24 * time.Hour),
+			InvitedBy: int64(42),
+		}, nil
+	}
 	invitationRepo.consumeByTokenFn = func(_ context.Context, _ string) (*platform.OperatorInvitationToken, error) {
 		return &platform.OperatorInvitationToken{
 			Model:     base.Model{ID: int64(10)},
@@ -411,6 +438,11 @@ func TestAcceptInvitation_EmailAlreadyRegistered(t *testing.T) {
 		}, nil
 	}
 
+	// Preflight admin tx (FindValidByToken)
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectCommit()
+	// Consume admin tx (ConsumeByToken + FindByEmail → EmailAlreadyInUseError → rollback)
 	mock.ExpectBegin()
 	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectRollback()

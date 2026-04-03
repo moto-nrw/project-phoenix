@@ -97,7 +97,7 @@ func (rs *Resource) Router() chi.Router {
 			if limiter != nil {
 				r.Use(limiter)
 			}
-			r.Get("/invite-validate", rs.operatorsResource.ValidateInvitation)
+			r.Post("/invite-validate", rs.operatorsResource.ValidateInvitation)
 			r.Post("/invite-accept", rs.operatorsResource.AcceptInvitation)
 		})
 	})

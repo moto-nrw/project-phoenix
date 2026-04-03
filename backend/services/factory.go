@@ -109,9 +109,15 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		frontendURL = "http://localhost:3000"
 	}
 
+	rawOperatorFrontendURL := viper.GetString("operator_frontend_url")
+	operatorFrontendURL := strings.TrimRight(rawOperatorFrontendURL, "/")
+
 	appEnv := strings.ToLower(viper.GetString("app_env"))
 	if appEnv == "production" && !strings.HasPrefix(frontendURL, "https://") {
 		return nil, fmt.Errorf("FRONTEND_URL must use https:// in production (received %q)", rawFrontendURL)
+	}
+	if appEnv == "production" && operatorFrontendURL != "" && !strings.HasPrefix(operatorFrontendURL, "https://") {
+		return nil, fmt.Errorf("OPERATOR_FRONTEND_URL must use https:// in production (received %q)", rawOperatorFrontendURL)
 	}
 
 	invitationExpiryHours := viper.GetInt("invitation_token_expiry_hours")
@@ -451,15 +457,16 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	})
 
 	operatorInvitationService := platform.NewOperatorInvitationService(platform.OperatorInvitationServiceConfig{
-		InvitationRepo:   repos.OperatorInvitationToken,
-		OperatorRepo:     repos.Operator,
-		AuditLogRepo:     repos.OperatorAuditLog,
-		DB:               db,
-		Logger:           platformLogger,
-		Dispatcher:       dispatcher,
-		DefaultFrom:      defaultFrom,
-		FrontendURL:      frontendURL,
-		InvitationExpiry: invitationTokenExpiry,
+		InvitationRepo:      repos.OperatorInvitationToken,
+		OperatorRepo:        repos.Operator,
+		AuditLogRepo:        repos.OperatorAuditLog,
+		DB:                  db,
+		Logger:              platformLogger,
+		Dispatcher:          dispatcher,
+		DefaultFrom:         defaultFrom,
+		FrontendURL:         frontendURL,
+		OperatorFrontendURL: operatorFrontendURL,
+		InvitationExpiry:    invitationTokenExpiry,
 	})
 
 	operatorProvisioningService := platform.NewOperatorProvisioningService(platform.OperatorProvisioningServiceConfig{
