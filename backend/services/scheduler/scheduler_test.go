@@ -325,7 +325,7 @@ func TestBuildCleanupJobs_AllServices(t *testing.T) {
 	auth := &fakeAuthCleanup{}
 	invitations := &fakeInvitationCleaner{}
 
-	jobs := buildCleanupJobs(auth, invitations, nil)
+	jobs := buildCleanupJobs(auth, invitations, nil, nil)
 
 	assert.Len(t, jobs, 4)
 	assert.Equal(t, "Auth token cleanup", jobs[0].Description)
@@ -335,14 +335,14 @@ func TestBuildCleanupJobs_AllServices(t *testing.T) {
 }
 
 func TestBuildCleanupJobs_NoServices(t *testing.T) {
-	jobs := buildCleanupJobs(nil, nil, nil)
+	jobs := buildCleanupJobs(nil, nil, nil, nil)
 	assert.Empty(t, jobs)
 }
 
 func TestBuildCleanupJobs_OnlyAuth(t *testing.T) {
 	auth := &fakeAuthCleanup{}
 
-	jobs := buildCleanupJobs(auth, nil, nil)
+	jobs := buildCleanupJobs(auth, nil, nil, nil)
 
 	assert.Len(t, jobs, 3)
 }
@@ -350,7 +350,7 @@ func TestBuildCleanupJobs_OnlyAuth(t *testing.T) {
 func TestBuildCleanupJobs_OnlyInvitations(t *testing.T) {
 	invitations := &fakeInvitationCleaner{}
 
-	jobs := buildCleanupJobs(nil, invitations, nil)
+	jobs := buildCleanupJobs(nil, invitations, nil, nil)
 
 	assert.Len(t, jobs, 1)
 	assert.Equal(t, "Invitation cleanup", jobs[0].Description)
@@ -360,7 +360,7 @@ func TestBuildCleanupJobs_JobsAreCallable(t *testing.T) {
 	auth := &fakeAuthCleanup{tokenResult: 5}
 	invitations := &fakeInvitationCleaner{result: 3}
 
-	jobs := buildCleanupJobs(auth, invitations, nil)
+	jobs := buildCleanupJobs(auth, invitations, nil, nil)
 	ctx := context.Background()
 
 	// All jobs should be callable
@@ -2497,7 +2497,7 @@ func TestBuildCleanupJobs_WithEmailChangeCleaner(t *testing.T) {
 	invitations := &fakeInvitationCleaner{}
 	cleaner := &fakeEmailChangeCleaner{result: 7}
 
-	jobs := buildCleanupJobs(auth, invitations, cleaner)
+	jobs := buildCleanupJobs(auth, invitations, cleaner, nil)
 
 	assert.Len(t, jobs, 5)
 	assert.Equal(t, "Email change token cleanup", jobs[4].Description)
@@ -2511,7 +2511,7 @@ func TestBuildCleanupJobs_WithEmailChangeCleaner(t *testing.T) {
 func TestBuildCleanupJobs_EmailChangeCleanerPropagatesError(t *testing.T) {
 	cleaner := &fakeEmailChangeCleaner{err: fmt.Errorf("cleanup failed")}
 
-	jobs := buildCleanupJobs(nil, nil, cleaner)
+	jobs := buildCleanupJobs(nil, nil, cleaner, nil)
 
 	assert.Len(t, jobs, 1)
 	_, err := jobs[0].Run(context.Background())
