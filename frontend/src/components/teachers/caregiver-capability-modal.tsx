@@ -2,6 +2,14 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { FormModal } from "~/components/ui";
+import { Alert } from "~/components/ui/alert";
+import { Input } from "~/components/ui/input";
+import {
+  DataField,
+  DataGrid,
+  DetailIcons,
+  InfoSection,
+} from "~/components/ui/detail-modal-components";
 import { useToast } from "~/contexts/ToastContext";
 import {
   caregiverCapabilityService,
@@ -27,25 +35,7 @@ interface CaregiverCapabilityModalProps {
   ) => void | Promise<void>;
 }
 
-function StatusPill({
-  active,
-  label,
-}: {
-  readonly active: boolean;
-  readonly label: string;
-}) {
-  return (
-    <span
-      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
-        active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
-      }`}
-    >
-      {label}
-    </span>
-  );
-}
-
-function getCapabilitySummary(state: CaregiverCapabilityState) {
+function getRoleSummary(state: CaregiverCapabilityState): string {
   if (state.isActiveCaregiver && state.hasAdminRole) {
     return "Verwaltung + Betreuung";
   }
@@ -56,12 +46,12 @@ function getCapabilitySummary(state: CaregiverCapabilityState) {
     return "Nur Verwaltung";
   }
   if (state.hasUserRole && !state.hasCaregiverProfile) {
-    return "Betreuung unvollständig";
+    return "Betreuung wird eingerichtet";
   }
   if (state.hasCaregiverProfile && !state.hasUserRole) {
-    return "Betreuungsprofil inaktiv";
+    return "Betreuung deaktiviert";
   }
-  return "Noch keine Betreuung";
+  return "Keine Betreuung";
 }
 
 export function CaregiverCapabilityModal({
@@ -129,10 +119,6 @@ export function CaregiverCapabilityModal({
 
   const canDisable = Boolean(state?.hasUserRole);
   const needsNames = state != null && !state.hasPerson;
-  const enableButtonLabel =
-    state?.isActiveCaregiver || state?.hasUserRole
-      ? "Betreuerprofil vervollständigen"
-      : "Betreuung aktivieren";
 
   async function handleEnable() {
     if (!accountId || (needsSchoolId && !schoolId)) {
@@ -145,7 +131,7 @@ export function CaregiverCapabilityModal({
 
     if (needsNames && (!trimmedFirstName || !trimmedLastName)) {
       setErrorMessage(
-        "Vorname und Nachname werden benötigt, wenn für das Konto noch kein Personalprofil existiert.",
+        "Vorname und Nachname werden benötigt, da noch kein Personalprofil existiert.",
       );
       return;
     }
@@ -175,7 +161,7 @@ export function CaregiverCapabilityModal({
             );
 
       setState(nextState);
-      toastSuccess("Betreuerfähigkeit wurde erfolgreich aktualisiert.");
+      toastSuccess("Betreuung wurde erfolgreich aktiviert.");
       await onUpdated?.(nextState);
     } catch (error) {
       logger.error("failed to enable caregiver capability", {
@@ -187,7 +173,7 @@ export function CaregiverCapabilityModal({
       if (error instanceof CaregiverCapabilityApiError) {
         setErrorMessage(error.message);
       } else {
-        setErrorMessage("Die Betreuerfähigkeit konnte nicht aktiviert werden.");
+        setErrorMessage("Die Betreuung konnte nicht aktiviert werden.");
       }
     } finally {
       setSaving(false);
@@ -214,7 +200,7 @@ export function CaregiverCapabilityModal({
             );
 
       setState(nextState);
-      toastSuccess("Betreuerfähigkeit wurde entfernt.");
+      toastSuccess("Betreuung wurde deaktiviert.");
       await onUpdated?.(nextState);
     } catch (error) {
       logger.error("failed to disable caregiver capability", {
@@ -227,22 +213,24 @@ export function CaregiverCapabilityModal({
         setErrorMessage(error.message);
         if (error.blockers.length > 0) {
           toastError(
-            "Die Betreuerfähigkeit ist noch an aktive Zuordnungen gebunden.",
+            "Betreuung kann nicht deaktiviert werden. Bitte zuerst die offenen Zuordnungen entfernen.",
           );
         }
       } else {
-        setErrorMessage("Die Betreuerfähigkeit konnte nicht entfernt werden.");
+        setErrorMessage("Die Betreuung konnte nicht deaktiviert werden.");
       }
     } finally {
       setSaving(false);
     }
   }
 
+  const showEnableButton = !state?.isActiveCaregiver || needsNames;
+
   return (
     <FormModal
       isOpen={isOpen}
       onClose={onClose}
-      title={`Betreuung verwalten${accountLabel ? ` - ${accountLabel}` : ""}`}
+      title={`Betreuung verwalten — ${accountLabel}`}
       size="lg"
       footer={
         <>
@@ -253,120 +241,125 @@ export function CaregiverCapabilityModal({
           >
             Schließen
           </button>
-          <button
-            type="button"
-            onClick={() => void handleDisable()}
-            disabled={!canDisable || saving || loading || state?.disableBlocked}
-            className="rounded-lg border border-red-200 px-4 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Betreuung entziehen
-          </button>
-          <button
-            type="button"
-            onClick={() => void handleEnable()}
-            disabled={saving || loading}
-            className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {saving ? "Wird gespeichert..." : enableButtonLabel}
-          </button>
+          {canDisable ? (
+            <button
+              type="button"
+              onClick={() => void handleDisable()}
+              disabled={saving || loading || state?.disableBlocked}
+              className="rounded-lg border border-red-200 px-4 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Betreuung deaktivieren
+            </button>
+          ) : null}
+          {showEnableButton ? (
+            <button
+              type="button"
+              onClick={() => void handleEnable()}
+              disabled={saving || loading}
+              className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {saving ? "Wird gespeichert..." : "Betreuung aktivieren"}
+            </button>
+          ) : null}
         </>
       }
     >
       {loading ? (
-        <div className="py-8 text-sm text-gray-500">
-          Betreuerfähigkeit wird geladen...
-        </div>
+        <div className="py-8 text-sm text-gray-500">Wird geladen...</div>
       ) : state ? (
-        <div className="space-y-5">
-          <div className="rounded-2xl border border-gray-100 bg-gray-50/80 p-4">
-            <div className="text-sm font-medium text-gray-900">
-              {getCapabilitySummary(state)}
-            </div>
-            <div className="mt-2 flex flex-wrap gap-2">
-              <StatusPill active={state.hasAdminRole} label="Verwaltung" />
-              <StatusPill active={state.hasUserRole} label="User-Rolle" />
-              <StatusPill
-                active={state.hasCaregiverProfile}
-                label="Person/Staff/Teacher"
-              />
-            </div>
-            {scope === "operator" && schoolName ? (
-              <p className="mt-3 text-xs text-gray-500">Schule: {schoolName}</p>
-            ) : null}
-          </div>
+        <div className="space-y-4">
+          {/* Current role overview */}
+          <InfoSection
+            title="Aktuelle Rolle"
+            icon={DetailIcons.person}
+            accentColor={state.isActiveCaregiver ? "green" : "gray"}
+          >
+            <DataGrid>
+              <DataField label="Status">{getRoleSummary(state)}</DataField>
+              <DataField label="E-Mail">
+                {state.email || "Nicht verknüpft"}
+              </DataField>
+              {scope === "operator" && schoolName ? (
+                <DataField label="Schule">{schoolName}</DataField>
+              ) : null}
+            </DataGrid>
+          </InfoSection>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <label className="space-y-1">
-              <span className="text-sm font-medium text-gray-700">Vorname</span>
-              <input
-                value={firstName}
-                onChange={(event) => setFirstName(event.target.value)}
-                placeholder="Vorname"
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none"
-              />
-            </label>
-            <label className="space-y-1">
-              <span className="text-sm font-medium text-gray-700">
-                Nachname
-              </span>
-              <input
-                value={lastName}
-                onChange={(event) => setLastName(event.target.value)}
-                placeholder="Nachname"
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none"
-              />
-            </label>
-          </div>
-
-          <label className="space-y-1">
-            <span className="text-sm font-medium text-gray-700">
-              Pädagogische Rolle
-            </span>
-            <input
-              value={position}
-              onChange={(event) => setPosition(event.target.value)}
-              placeholder="z. B. Gruppenleitung"
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none"
-            />
-          </label>
-
-          <div className="rounded-2xl border border-gray-100 bg-white p-4">
-            <div className="text-sm font-medium text-gray-900">
-              Aktueller Profilstatus
-            </div>
-            <ul className="mt-3 space-y-2 text-sm text-gray-600">
-              <li>Account: {state.email || "Kein Konto verknüpft"}</li>
-              <li>Personprofil: {state.hasPerson ? "vorhanden" : "fehlt"}</li>
-              <li>Staff-Profil: {state.hasStaff ? "vorhanden" : "fehlt"}</li>
-              <li>
-                Teacher-Profil: {state.hasTeacher ? "vorhanden" : "fehlt"}
-              </li>
-            </ul>
-          </div>
-
-          {state.disableBlockers.length > 0 ? (
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-              <div className="text-sm font-semibold text-amber-900">
-                Betreuung kann aktuell nicht entzogen werden
+          {/* Name fields — only when no person profile exists yet */}
+          {needsNames ? (
+            <InfoSection
+              title="Personaldaten anlegen"
+              icon={DetailIcons.briefcase}
+              accentColor="orange"
+            >
+              <p className="mb-3 text-xs text-gray-600">
+                Für dieses Konto existiert noch kein Personalprofil. Bitte Name
+                und optional eine pädagogische Rolle angeben.
+              </p>
+              <div className="grid gap-3 md:grid-cols-2">
+                <Input
+                  label="Vorname"
+                  name="firstName"
+                  value={firstName}
+                  onChange={(event) => setFirstName(event.target.value)}
+                  placeholder="Vorname"
+                />
+                <Input
+                  label="Nachname"
+                  name="lastName"
+                  value={lastName}
+                  onChange={(event) => setLastName(event.target.value)}
+                  placeholder="Nachname"
+                />
               </div>
-              <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-amber-800">
+              <div className="mt-3">
+                <Input
+                  label="Pädagogische Rolle (optional)"
+                  name="position"
+                  value={position}
+                  onChange={(event) => setPosition(event.target.value)}
+                  placeholder="z.B. Gruppenleitung, Ergänzungskraft"
+                />
+              </div>
+            </InfoSection>
+          ) : null}
+
+          {/* Blocker warnings */}
+          {state.disableBlockers.length > 0 ? (
+            <InfoSection
+              title="Offene Zuordnungen"
+              icon={DetailIcons.group}
+              accentColor="amber"
+            >
+              <p className="mb-2 text-xs text-gray-600">
+                Die Betreuung kann erst deaktiviert werden, wenn folgende
+                Zuordnungen entfernt oder an andere Betreuungskräfte übertragen
+                wurden:
+              </p>
+              <ul className="space-y-1.5">
                 {state.disableBlockers.map((blocker) => (
-                  <li key={blocker}>{blocker}</li>
+                  <li
+                    key={blocker}
+                    className="flex items-start gap-2 text-sm text-amber-800"
+                  >
+                    <span className="mt-1 h-3 w-3 flex-shrink-0 text-amber-500">
+                      {DetailIcons.x}
+                    </span>
+                    {blocker}
+                  </li>
                 ))}
               </ul>
-            </div>
+            </InfoSection>
           ) : null}
 
-          {errorMessage ? (
-            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {errorMessage}
-            </div>
-          ) : null}
+          {/* Error display */}
+          <Alert type="error" message={errorMessage} />
         </div>
       ) : (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          Die Betreuerfähigkeit konnte nicht geladen werden.
-        </div>
+        <Alert
+          type="error"
+          message="Die Betreuerfähigkeit konnte nicht geladen werden."
+        />
       )}
     </FormModal>
   );
