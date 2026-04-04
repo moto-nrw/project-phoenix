@@ -71,8 +71,14 @@ export async function validateOperatorInvitation(
   if (!response.ok) {
     let message = "Einladung nicht gefunden oder abgelaufen";
     try {
-      const data = (await response.json()) as { message?: string };
-      if (data.message) message = data.message;
+      // Operator backend serializes errors as { status, message } via
+      // ErrResponse json:"message" — matching api-helpers.ts, read both keys
+      // so the helper survives any intermediate layer that uses `error`.
+      const data = (await response.json()) as {
+        message?: string;
+        error?: string;
+      };
+      message = data.message ?? data.error ?? message;
     } catch {
       // use default
     }
@@ -97,8 +103,13 @@ export async function acceptOperatorInvitation(
   if (!response.ok) {
     let message = "Einladung konnte nicht angenommen werden";
     try {
-      const errorData = (await response.json()) as { message?: string };
-      if (errorData.message) message = errorData.message;
+      // Dual-read matches api-helpers.ts — operator backend natively emits
+      // { message } but the helper tolerates { error } from intermediate layers.
+      const errorData = (await response.json()) as {
+        message?: string;
+        error?: string;
+      };
+      message = errorData.message ?? errorData.error ?? message;
     } catch {
       // use default
     }

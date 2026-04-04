@@ -248,6 +248,16 @@ export function createOperatorProxyGetHandler<T>(backendEndpoint: string) {
  *
  * Shared by all proxy helpers below so their response-forwarding behavior
  * stays identical.
+ *
+ * Error-key convention: the operator backend's ErrResponse struct serializes
+ * with `json:"message"` (backend/api/operator/middleware.go), so operator API
+ * errors natively ship as { status, message } — distinct from the main/tenant
+ * backend which uses `json:"error"`. This helper keeps the operator-native
+ * `message` key intact on both forwarded JSON and the synthetic non-JSON
+ * envelope so that proxy output stays consistent with what the operator
+ * backend itself emits. Operator-side consumers should dual-read
+ * `data.message ?? data.error` (see frontend/src/lib/operator/api-helpers.ts)
+ * to stay robust against any intermediate layer that normalizes to `error`.
  */
 async function forwardBackendResponse(
   response: Response,
