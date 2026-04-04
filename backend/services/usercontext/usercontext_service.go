@@ -138,7 +138,7 @@ func (s *userContextService) GetCurrentPerson(ctx context.Context) (*users.Perso
 
 // GetCurrentStaff retrieves the staff member linked to the currently authenticated user
 func (s *userContextService) GetCurrentStaff(ctx context.Context) (*users.Staff, error) {
-	if !currentUserHasRole(ctx, "user") {
+	if !currentUserHasAnyRole(ctx, "user", "admin") {
 		return nil, &UserContextError{Op: opGetCurrentStaff, Err: ErrUserNotLinkedToStaff}
 	}
 
@@ -164,7 +164,7 @@ func (s *userContextService) GetCurrentStaff(ctx context.Context) (*users.Staff,
 
 // GetCurrentTeacher retrieves the teacher linked to the currently authenticated user
 func (s *userContextService) GetCurrentTeacher(ctx context.Context) (*users.Teacher, error) {
-	if !currentUserHasRole(ctx, "user") {
+	if !currentUserHasAnyRole(ctx, "user", "admin") {
 		return nil, &UserContextError{Op: "get current teacher", Err: ErrUserNotLinkedToTeacher}
 	}
 
@@ -186,7 +186,7 @@ func (s *userContextService) GetCurrentTeacher(ctx context.Context) (*users.Teac
 
 // GetMyGroups retrieves educational groups associated with the current user
 func (s *userContextService) GetMyGroups(ctx context.Context) ([]*education.Group, error) {
-	if !currentUserHasRole(ctx, "user") {
+	if !currentUserHasAnyRole(ctx, "user", "admin") {
 		return []*education.Group{}, nil
 	}
 
@@ -240,6 +240,15 @@ func currentUserHasRole(ctx context.Context, roleName string) bool {
 	claims := jwt.ClaimsFromCtx(ctx)
 	for _, role := range claims.Roles {
 		if strings.EqualFold(role, roleName) {
+			return true
+		}
+	}
+	return false
+}
+
+func currentUserHasAnyRole(ctx context.Context, roleNames ...string) bool {
+	for _, name := range roleNames {
+		if currentUserHasRole(ctx, name) {
 			return true
 		}
 	}
