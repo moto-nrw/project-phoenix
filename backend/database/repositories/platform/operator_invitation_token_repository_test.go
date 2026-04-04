@@ -64,7 +64,7 @@ func newTestToken(email string, createdBy int64) *platform.OperatorInvitationTok
 
 func TestOperatorInvitationTokenRepository_Create_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	op := createTestOperatorForInvitation(t, db)
 	defer cleanupOperator(t, db, op.ID)
 	defer cleanupInvitationTokens(t, db, op.ID)
@@ -80,7 +80,7 @@ func TestOperatorInvitationTokenRepository_Create_Success(t *testing.T) {
 
 func TestOperatorInvitationTokenRepository_Create_NilToken(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	repo := repoplatform.NewOperatorInvitationTokenRepository(db)
 
@@ -91,7 +91,7 @@ func TestOperatorInvitationTokenRepository_Create_NilToken(t *testing.T) {
 
 func TestOperatorInvitationTokenRepository_Create_ValidationError(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	repo := repoplatform.NewOperatorInvitationTokenRepository(db)
 
@@ -107,7 +107,7 @@ func TestOperatorInvitationTokenRepository_Create_ValidationError(t *testing.T) 
 
 func TestOperatorInvitationTokenRepository_FindByID_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	op := createTestOperatorForInvitation(t, db)
 	defer cleanupOperator(t, db, op.ID)
 	defer cleanupInvitationTokens(t, db, op.ID)
@@ -125,7 +125,7 @@ func TestOperatorInvitationTokenRepository_FindByID_Success(t *testing.T) {
 
 func TestOperatorInvitationTokenRepository_FindByID_NotFound(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	repo := repoplatform.NewOperatorInvitationTokenRepository(db)
 
@@ -140,7 +140,7 @@ func TestOperatorInvitationTokenRepository_FindByID_NotFound(t *testing.T) {
 
 func TestOperatorInvitationTokenRepository_FindValidByToken_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	op := createTestOperatorForInvitation(t, db)
 	defer cleanupOperator(t, db, op.ID)
 	defer cleanupInvitationTokens(t, db, op.ID)
@@ -157,7 +157,7 @@ func TestOperatorInvitationTokenRepository_FindValidByToken_Success(t *testing.T
 
 func TestOperatorInvitationTokenRepository_FindValidByToken_Expired(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	op := createTestOperatorForInvitation(t, db)
 	defer cleanupOperator(t, db, op.ID)
 	defer cleanupInvitationTokens(t, db, op.ID)
@@ -181,7 +181,7 @@ func TestOperatorInvitationTokenRepository_FindValidByToken_Expired(t *testing.T
 
 func TestOperatorInvitationTokenRepository_FindValidByToken_Used(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	op := createTestOperatorForInvitation(t, db)
 	defer cleanupOperator(t, db, op.ID)
 	defer cleanupInvitationTokens(t, db, op.ID)
@@ -201,7 +201,7 @@ func TestOperatorInvitationTokenRepository_FindValidByToken_Used(t *testing.T) {
 
 func TestOperatorInvitationTokenRepository_FindValidByToken_NotFound(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	repo := repoplatform.NewOperatorInvitationTokenRepository(db)
 
@@ -216,7 +216,7 @@ func TestOperatorInvitationTokenRepository_FindValidByToken_NotFound(t *testing.
 
 func TestOperatorInvitationTokenRepository_ConsumeByToken_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	op := createTestOperatorForInvitation(t, db)
 	defer cleanupOperator(t, db, op.ID)
 	defer cleanupInvitationTokens(t, db, op.ID)
@@ -234,7 +234,7 @@ func TestOperatorInvitationTokenRepository_ConsumeByToken_Success(t *testing.T) 
 
 func TestOperatorInvitationTokenRepository_ConsumeByToken_AlreadyConsumed(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	op := createTestOperatorForInvitation(t, db)
 	defer cleanupOperator(t, db, op.ID)
 	defer cleanupInvitationTokens(t, db, op.ID)
@@ -256,7 +256,7 @@ func TestOperatorInvitationTokenRepository_ConsumeByToken_AlreadyConsumed(t *tes
 
 func TestOperatorInvitationTokenRepository_ConsumeByToken_NotFound(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	repo := repoplatform.NewOperatorInvitationTokenRepository(db)
 
@@ -271,7 +271,7 @@ func TestOperatorInvitationTokenRepository_ConsumeByToken_NotFound(t *testing.T)
 
 func TestOperatorInvitationTokenRepository_MarkAsUsed_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	op := createTestOperatorForInvitation(t, db)
 	defer cleanupOperator(t, db, op.ID)
 	defer cleanupInvitationTokens(t, db, op.ID)
@@ -293,7 +293,7 @@ func TestOperatorInvitationTokenRepository_MarkAsUsed_Success(t *testing.T) {
 
 func TestOperatorInvitationTokenRepository_MarkAsUsed_AlreadyUsed(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	op := createTestOperatorForInvitation(t, db)
 	defer cleanupOperator(t, db, op.ID)
 	defer cleanupInvitationTokens(t, db, op.ID)
@@ -319,7 +319,7 @@ func TestOperatorInvitationTokenRepository_MarkAsUsed_AlreadyUsed(t *testing.T) 
 
 func TestOperatorInvitationTokenRepository_ListPending(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	op := createTestOperatorForInvitation(t, db)
 	defer cleanupOperator(t, db, op.ID)
 	defer cleanupInvitationTokens(t, db, op.ID)
@@ -363,7 +363,7 @@ func TestOperatorInvitationTokenRepository_ListPending(t *testing.T) {
 
 func TestOperatorInvitationTokenRepository_ExtendExpiry_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	op := createTestOperatorForInvitation(t, db)
 	defer cleanupOperator(t, db, op.ID)
 	defer cleanupInvitationTokens(t, db, op.ID)
@@ -385,7 +385,7 @@ func TestOperatorInvitationTokenRepository_ExtendExpiry_Success(t *testing.T) {
 
 func TestOperatorInvitationTokenRepository_ExtendExpiry_AlreadyUsed(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	op := createTestOperatorForInvitation(t, db)
 	defer cleanupOperator(t, db, op.ID)
 	defer cleanupInvitationTokens(t, db, op.ID)
@@ -409,7 +409,7 @@ func TestOperatorInvitationTokenRepository_ExtendExpiry_AlreadyUsed(t *testing.T
 
 func TestOperatorInvitationTokenRepository_InvalidateByEmail(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	op := createTestOperatorForInvitation(t, db)
 	defer cleanupOperator(t, db, op.ID)
 	defer cleanupInvitationTokens(t, db, op.ID)
@@ -433,7 +433,7 @@ func TestOperatorInvitationTokenRepository_InvalidateByEmail(t *testing.T) {
 
 func TestOperatorInvitationTokenRepository_InvalidateByEmail_NoMatch(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	repo := repoplatform.NewOperatorInvitationTokenRepository(db)
 
@@ -448,7 +448,7 @@ func TestOperatorInvitationTokenRepository_InvalidateByEmail_NoMatch(t *testing.
 
 func TestOperatorInvitationTokenRepository_UpdateDeliveryResult_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	op := createTestOperatorForInvitation(t, db)
 	defer cleanupOperator(t, db, op.ID)
 	defer cleanupInvitationTokens(t, db, op.ID)
@@ -471,7 +471,7 @@ func TestOperatorInvitationTokenRepository_UpdateDeliveryResult_Success(t *testi
 
 func TestOperatorInvitationTokenRepository_UpdateDeliveryResult_WithError(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	op := createTestOperatorForInvitation(t, db)
 	defer cleanupOperator(t, db, op.ID)
 	defer cleanupInvitationTokens(t, db, op.ID)
@@ -495,7 +495,7 @@ func TestOperatorInvitationTokenRepository_UpdateDeliveryResult_WithError(t *tes
 
 func TestOperatorInvitationTokenRepository_UpdateDeliveryResult_ClearsOnReset(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	op := createTestOperatorForInvitation(t, db)
 	defer cleanupOperator(t, db, op.ID)
 	defer cleanupInvitationTokens(t, db, op.ID)
@@ -527,7 +527,7 @@ func TestOperatorInvitationTokenRepository_UpdateDeliveryResult_ClearsOnReset(t 
 
 func TestOperatorInvitationTokenRepository_DeleteExpired(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	op := createTestOperatorForInvitation(t, db)
 	defer cleanupOperator(t, db, op.ID)
 	defer cleanupInvitationTokens(t, db, op.ID)
