@@ -22,8 +22,11 @@ func (s *operatorAuthService) InviteOperator(ctx context.Context, inviteeEmail s
 	if s.invitationTokenRepo == nil {
 		return fmt.Errorf("operator invitation requires invitation_token_repo to be configured")
 	}
-	if s.frontendURL == "" {
-		return fmt.Errorf("operator invitation requires frontend_url to be configured")
+	if s.operatorFrontendURL == "" {
+		return fmt.Errorf("operator invitation requires operator_frontend_url to be configured")
+	}
+	if s.dispatcher == nil {
+		return fmt.Errorf("operator invitation requires email dispatcher to be configured")
 	}
 
 	// 1. Normalize email
@@ -255,6 +258,9 @@ func (s *operatorAuthService) ResendOperatorInvitation(ctx context.Context, invi
 	if s.invitationTokenRepo == nil {
 		return fmt.Errorf("operator invitation requires invitation_token_repo to be configured")
 	}
+	if s.dispatcher == nil {
+		return fmt.Errorf("operator invitation resend requires email dispatcher to be configured")
+	}
 
 	token, err := s.invitationTokenRepo.FindByID(ctx, invitationID)
 	if err != nil {
@@ -279,6 +285,7 @@ func (s *operatorAuthService) ResendOperatorInvitation(ctx context.Context, invi
 	if err := s.invitationTokenRepo.UpdateDeliveryResult(ctx, invitationID, nil, nil, 0); err != nil {
 		return fmt.Errorf("failed to reset delivery tracking: %w", err)
 	}
+	token.EmailRetryCount = 0
 
 	// Re-dispatch email
 	s.dispatchOperatorInvitationEmail(ctx, token, actorID)

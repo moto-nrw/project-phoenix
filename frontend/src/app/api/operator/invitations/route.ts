@@ -1,9 +1,8 @@
 import type { NextRequest } from "next/server";
 import {
   createOperatorGetHandler,
-  createOperatorPostHandler,
+  createOperatorProxyPostHandler,
   operatorApiGet,
-  operatorApiPost,
 } from "~/lib/operator/route-wrapper";
 
 export const GET = createOperatorGetHandler(
@@ -12,8 +11,4 @@ export const GET = createOperatorGetHandler(
   },
 );
 
-export const POST = createOperatorPostHandler(
-  async (_request: NextRequest, body: unknown, token: string) => {
-    return await operatorApiPost("/operator/invitations", token, body);
-  },
-);
+export const POST = createOperatorProxyPostHandler("/operator/invitations");

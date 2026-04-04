@@ -20,6 +20,7 @@ type Resource struct {
 	tokenAuth               *jwt.TokenAuth
 	authRateLimiter         func(http.Handler) http.Handler
 	emailConfirmRateLimiter func(http.Handler) http.Handler
+	invitationRateLimiter   func(http.Handler) http.Handler
 }
 
 // ResourceConfig holds dependencies for the operator resource
@@ -41,6 +42,13 @@ func (rs *Resource) SetAuthRateLimiter(mw func(http.Handler) http.Handler) {
 // rate limit exhaustion.
 func (rs *Resource) SetEmailConfirmRateLimiter(mw func(http.Handler) http.Handler) {
 	rs.emailConfirmRateLimiter = mw
+}
+
+// SetInvitationRateLimiter sets a dedicated rate limiter for the public
+// invitation validate/accept endpoints, isolated from email-confirm so that
+// repeated validate calls (page refreshes) cannot exhaust the accept budget.
+func (rs *Resource) SetInvitationRateLimiter(mw func(http.Handler) http.Handler) {
+	rs.invitationRateLimiter = mw
 }
 
 // NewResource creates a new operator resource
@@ -86,6 +94,15 @@ func (rs *Resource) Router() chi.Router {
 				r.Use(limiter)
 			}
 			r.Post("/email-confirm", rs.profileResource.ConfirmEmailChange)
+		})
+		r.Group(func(r chi.Router) {
+			limiter := rs.invitationRateLimiter
+			if limiter == nil {
+				limiter = rs.authRateLimiter
+			}
+			if limiter != nil {
+				r.Use(limiter)
+			}
 			r.Post("/invitations/validate", rs.invitationsResource.ValidateInvitation)
 			r.Post("/invitations/accept", rs.invitationsResource.AcceptInvitation)
 		})

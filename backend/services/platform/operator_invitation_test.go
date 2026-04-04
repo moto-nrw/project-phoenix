@@ -14,6 +14,7 @@ import (
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 
+	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 )
@@ -127,12 +128,17 @@ func newInvitationTestService(
 	bunDB *bun.DB,
 ) platformSvc.OperatorAuthService {
 	t.Helper()
+	// Dispatcher is required by InviteOperator and ResendOperatorInvitation guards.
+	// Tests that exercise dispatch behavior use newTestServiceWithDispatcher instead.
+	dispatcher := email.NewDispatcher(email.NewMockMailer(), slog.Default())
 	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
 		OperatorRepo:        operatorRepo,
 		AuditLogRepo:        auditLogRepo,
 		InvitationTokenRepo: invitationTokenRepo,
 		DB:                  bunDB,
 		Logger:              slog.Default(),
+		Dispatcher:          dispatcher,
+		DefaultFrom:         email.NewEmail("moto", "no-reply@test.local"),
 		FrontendURL:         "https://example.com",
 		OperatorFrontendURL: "https://operator.example.com",
 		InvitationExpiry:    48 * time.Hour,

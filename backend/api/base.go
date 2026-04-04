@@ -462,5 +462,8 @@ func (a *API) registerRoutesWithRateLimiting() {
 	if rateLimitEnabled && emailConfirmLimiter != nil {
 		a.Operator.SetEmailConfirmRateLimiter(emailConfirmLimiter.Middleware())
 	}
+	if rateLimitEnabled && emailConfirmLimiter != nil {
+		a.Operator.SetInvitationRateLimiter(emailConfirmLimiter.Middleware())
+	}
 	a.Router.Mount("/operator", a.Operator.Router())
 }

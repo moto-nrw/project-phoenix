@@ -416,15 +416,16 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	// Operator frontend URL for invitation emails. The operator subdomain is separate
 	// from FRONTEND_URL, and invitation links use URL fragments (#token=...) which are
 	// dropped by cross-host redirects, so we must link directly to the operator host.
-	operatorHostname := viper.GetString("next_public_operator_hostname")
-	if operatorHostname == "" {
-		return nil, fmt.Errorf("NEXT_PUBLIC_OPERATOR_HOSTNAME is required for operator invitation links")
+	// Constructed conditionally — only required when actually sending invitations.
+	// InviteOperator and ResendOperatorInvitation guard on empty operatorFrontendURL.
+	var operatorFrontendURL string
+	if operatorHostname := viper.GetString("next_public_operator_hostname"); operatorHostname != "" {
+		protocol := "http"
+		if strings.HasPrefix(frontendURL, "https://") {
+			protocol = "https"
+		}
+		operatorFrontendURL = fmt.Sprintf("%s://%s", protocol, strings.TrimRight(operatorHostname, "/"))
 	}
-	protocol := "http"
-	if strings.HasPrefix(frontendURL, "https://") {
-		protocol = "https"
-	}
-	operatorFrontendURL := fmt.Sprintf("%s://%s", protocol, strings.TrimRight(operatorHostname, "/"))
 
 	// Initialize platform services (operator dashboard)
 	operatorAuthService, err := platform.NewOperatorAuthService(platform.OperatorAuthServiceConfig{
