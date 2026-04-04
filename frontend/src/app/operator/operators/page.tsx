@@ -96,7 +96,7 @@ function InviteForm({ onCreated }: { readonly onCreated: () => void }) {
       try {
         await createOperatorInvitation({
           email: email.trim(),
-          display_name: displayName.trim() || undefined,
+          displayName: displayName.trim() || undefined,
         });
         toastSuccess("Einladung wurde gesendet.");
         setEmail("");

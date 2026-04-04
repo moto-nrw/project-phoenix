@@ -181,9 +181,9 @@ describe("InviteContent", () => {
       expect(screen.getByText("Konto erstellt")).toBeInTheDocument();
     });
     expect(mockAccept).toHaveBeenCalledWith("valid-token", {
-      display_name: "New Operator",
+      displayName: "New Operator",
       password: "Str0ng!Pass",
-      confirm_password: "Str0ng!Pass",
+      confirmPassword: "Str0ng!Pass",
     });
   });
 

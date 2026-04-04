@@ -65,13 +65,13 @@ export interface OperatorInvitationValidation {
 
 export interface CreateOperatorInvitationRequest {
   email: string;
-  display_name?: string;
+  displayName?: string;
 }
 
 export interface AcceptOperatorInvitationRequest {
-  display_name: string;
+  displayName: string;
   password: string;
-  confirm_password: string;
+  confirmPassword: string;
 }
 
 // --- Mappers ---

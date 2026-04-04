@@ -39,12 +39,12 @@ describe("operator invitation api", () => {
   });
 
   describe("createOperatorInvitation", () => {
-    it("sends POST with email and display_name", async () => {
+    it("converts camelCase frontend shape to snake_case backend body", async () => {
       mockOperatorFetch.mockResolvedValue(undefined);
 
       await createOperatorInvitation({
         email: "new@example.com",
-        display_name: "New Op",
+        displayName: "New Op",
       });
 
       expect(mockOperatorFetch).toHaveBeenCalledWith(
@@ -236,9 +236,9 @@ describe("acceptOperatorInvitation", () => {
     global.fetch = vi.fn().mockResolvedValue({ ok: true });
 
     await acceptOperatorInvitation("my-token", {
-      display_name: "New Op",
+      displayName: "New Op",
       password: "Str0ng!Pass",
-      confirm_password: "Str0ng!Pass",
+      confirmPassword: "Str0ng!Pass",
     });
 
     expect(global.fetch).toHaveBeenCalledWith(
@@ -264,9 +264,9 @@ describe("acceptOperatorInvitation", () => {
 
     await expect(
       acceptOperatorInvitation("token", {
-        display_name: "Test",
+        displayName: "Test",
         password: "weak",
-        confirm_password: "weak",
+        confirmPassword: "weak",
       }),
     ).rejects.toThrow("Passwort zu schwach");
   });
@@ -282,9 +282,9 @@ describe("acceptOperatorInvitation", () => {
 
     await expect(
       acceptOperatorInvitation("token", {
-        display_name: "Test",
+        displayName: "Test",
         password: "pass",
-        confirm_password: "pass",
+        confirmPassword: "pass",
       }),
     ).rejects.toThrow("Einladung konnte nicht angenommen werden");
   });

@@ -145,9 +145,9 @@ export function InviteContent() {
 
       try {
         await acceptOperatorInvitation(token, {
-          display_name: displayName.trim(),
+          displayName: displayName.trim(),
           password,
-          confirm_password: confirmPassword,
+          confirmPassword,
         });
         clearPersistedToken();
         setState("success");

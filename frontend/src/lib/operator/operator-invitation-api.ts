@@ -27,9 +27,13 @@ export interface OperatorInvitationsData {
 export async function createOperatorInvitation(
   data: CreateOperatorInvitationRequest,
 ): Promise<void> {
+  // Convert camelCase frontend shape to the snake_case the backend expects.
   await operatorFetch<unknown>("/api/operator/invitations", {
     method: "POST",
-    body: data,
+    body: {
+      email: data.email,
+      display_name: data.displayName,
+    },
   });
 }
 
@@ -94,10 +98,16 @@ export async function acceptOperatorInvitation(
   token: string,
   data: AcceptOperatorInvitationRequest,
 ): Promise<void> {
+  // Convert camelCase frontend shape to the snake_case the backend expects.
   const response = await fetch("/api/operator/auth/invitations/accept", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ token, ...data }),
+    body: JSON.stringify({
+      token,
+      display_name: data.displayName,
+      password: data.password,
+      confirm_password: data.confirmPassword,
+    }),
   });
 
   if (!response.ok) {

@@ -193,13 +193,13 @@ describe("OperatorOperatorsPage", () => {
     await waitFor(() => {
       expect(mockCreateInvitation).toHaveBeenCalledWith({
         email: "new@example.com",
-        display_name: "New Op",
+        displayName: "New Op",
       });
     });
     expect(mockToastSuccess).toHaveBeenCalledWith("Einladung wurde gesendet.");
   });
 
-  it("sends undefined display_name when field is empty", async () => {
+  it("sends undefined displayName when field is empty", async () => {
     setupSWR(sampleData);
     mockCreateInvitation.mockResolvedValue(undefined);
 
@@ -214,7 +214,7 @@ describe("OperatorOperatorsPage", () => {
     await waitFor(() => {
       expect(mockCreateInvitation).toHaveBeenCalledWith({
         email: "new@example.com",
-        display_name: undefined,
+        displayName: undefined,
       });
     });
   });
