@@ -119,10 +119,10 @@ describe("InviteContent", () => {
     });
 
     expect(screen.getByText("Mindestens 8 Zeichen")).toBeInTheDocument();
-    expect(screen.getByText("Großbuchstabe")).toBeInTheDocument();
-    expect(screen.getByText("Kleinbuchstabe")).toBeInTheDocument();
-    expect(screen.getByText("Ziffer")).toBeInTheDocument();
-    expect(screen.getByText("Sonderzeichen")).toBeInTheDocument();
+    expect(screen.getByText("Ein Großbuchstabe")).toBeInTheDocument();
+    expect(screen.getByText("Ein Kleinbuchstabe")).toBeInTheDocument();
+    expect(screen.getByText("Eine Zahl")).toBeInTheDocument();
+    expect(screen.getByText("Ein Sonderzeichen")).toBeInTheDocument();
   });
 
   it("shows password mismatch message", async () => {

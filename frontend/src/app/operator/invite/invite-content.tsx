@@ -8,6 +8,7 @@ import {
   acceptOperatorInvitation,
 } from "~/lib/operator/operator-invitation-api";
 import type { OperatorInvitationValidation } from "~/lib/operator/operator-invitation-helpers";
+import { PASSWORD_RULES } from "~/lib/password-rules";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "OperatorInviteAcceptPage" });
@@ -48,17 +49,6 @@ function clearPersistedToken(): void {
     // ignore
   }
 }
-
-const PASSWORD_RULES = [
-  { label: "Mindestens 8 Zeichen", test: (p: string) => p.length >= 8 },
-  { label: "Großbuchstabe", test: (p: string) => /[A-Z]/.test(p) },
-  { label: "Kleinbuchstabe", test: (p: string) => /[a-z]/.test(p) },
-  { label: "Ziffer", test: (p: string) => /\d/.test(p) },
-  {
-    label: "Sonderzeichen",
-    test: (p: string) => /[^A-Za-z0-9]/.test(p),
-  },
-];
 
 export function InviteContent() {
   const [token, setToken] = useState<string | null>(null);
