@@ -352,12 +352,9 @@ func (s *operatorAuthService) CleanupExpiredOperatorInvitations(ctx context.Cont
 }
 
 func (s *operatorAuthService) dispatchOperatorInvitationEmail(ctx context.Context, token *platform.OperatorInvitationToken, inviterID int64) {
-	if s.dispatcher == nil {
-		s.getLogger().Warn("email dispatcher unavailable, skipping operator invitation email",
-			slog.Int64("invitation_id", token.ID),
-		)
-		return
-	}
+	// Dispatcher presence is enforced by the callers (InviteOperator and
+	// ResendOperatorInvitation) before they reach this point, so no nil check
+	// is needed here.
 
 	// Look up inviter name for the email template
 	inviterName := "Ein Operator"
