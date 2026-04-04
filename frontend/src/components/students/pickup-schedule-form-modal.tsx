@@ -9,6 +9,7 @@ import type {
   PickupScheduleFormData,
 } from "@/lib/pickup-schedule-helpers";
 import { WEEKDAYS } from "@/lib/pickup-schedule-helpers";
+import { Alert } from "~/components/ui/alert";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "PickupScheduleForm" });
@@ -130,6 +131,12 @@ export function PickupScheduleFormModal({
           Zeiten und Notizen gelten wöchentlich wiederkehrend für jeden
           Wochentag.
         </p>
+        <div className="mb-4">
+          <Alert
+            type="info"
+            message="Abholzeiten und Notizen werden auch auf den NFC-Tablets angezeigt und sind für Kinder einsehbar."
+          />
+        </div>
         {error && (
           <div
             ref={errorRef}
