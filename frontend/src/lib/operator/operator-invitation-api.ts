@@ -22,40 +22,40 @@ export interface OperatorInvitationsData {
   operators: OperatorInfo[];
 }
 
-class OperatorInvitationService {
-  async createInvitation(data: CreateOperatorInvitationRequest): Promise<void> {
-    await operatorFetch<unknown>("/api/operator/invitations", {
-      method: "POST",
-      body: data,
-    });
-  }
+// --- Authenticated API functions ---
 
-  async listInvitations(): Promise<OperatorInvitationsData> {
-    const raw = await operatorFetch<BackendInvitationsListResponse>(
-      "/api/operator/invitations",
-    );
-    return {
-      invitations: (raw.invitations ?? []).map(mapPendingInvitation),
-      operators: (raw.operators ?? []).map(mapOperatorInfo),
-    };
-  }
-
-  async resendInvitation(id: string): Promise<void> {
-    await operatorFetch<unknown>(
-      `/api/operator/invitations/${encodeURIComponent(id)}/resend`,
-      { method: "POST" },
-    );
-  }
-
-  async revokeInvitation(id: string): Promise<void> {
-    await operatorFetch<unknown>(
-      `/api/operator/invitations/${encodeURIComponent(id)}`,
-      { method: "DELETE" },
-    );
-  }
+export async function createOperatorInvitation(
+  data: CreateOperatorInvitationRequest,
+): Promise<void> {
+  await operatorFetch<unknown>("/api/operator/invitations", {
+    method: "POST",
+    body: data,
+  });
 }
 
-export const operatorInvitationService = new OperatorInvitationService();
+export async function listOperatorInvitations(): Promise<OperatorInvitationsData> {
+  const raw = await operatorFetch<BackendInvitationsListResponse>(
+    "/api/operator/invitations",
+  );
+  return {
+    invitations: (raw.invitations ?? []).map(mapPendingInvitation),
+    operators: (raw.operators ?? []).map(mapOperatorInfo),
+  };
+}
+
+export async function resendOperatorInvitation(id: string): Promise<void> {
+  await operatorFetch<unknown>(
+    `/api/operator/invitations/${encodeURIComponent(id)}/resend`,
+    { method: "POST" },
+  );
+}
+
+export async function revokeOperatorInvitation(id: string): Promise<void> {
+  await operatorFetch<unknown>(
+    `/api/operator/invitations/${encodeURIComponent(id)}`,
+    { method: "DELETE" },
+  );
+}
 
 // --- Public (unauthenticated) API functions ---
 

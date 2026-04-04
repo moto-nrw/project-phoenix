@@ -6,12 +6,14 @@ import type { OperatorInvitationsData } from "~/lib/operator/operator-invitation
 const {
   mockUseSWR,
   mockMutate,
+  mockListInvitations,
   mockCreateInvitation,
   mockResendInvitation,
   mockRevokeInvitation,
 } = vi.hoisted(() => ({
   mockUseSWR: vi.fn(),
   mockMutate: vi.fn(),
+  mockListInvitations: vi.fn(),
   mockCreateInvitation: vi.fn(),
   mockResendInvitation: vi.fn(),
   mockRevokeInvitation: vi.fn(),
@@ -22,12 +24,10 @@ vi.mock("swr", () => ({
 }));
 
 vi.mock("~/lib/operator/operator-invitation-api", () => ({
-  operatorInvitationService: {
-    listInvitations: vi.fn(),
-    createInvitation: mockCreateInvitation,
-    resendInvitation: mockResendInvitation,
-    revokeInvitation: mockRevokeInvitation,
-  },
+  listOperatorInvitations: mockListInvitations,
+  createOperatorInvitation: mockCreateInvitation,
+  resendOperatorInvitation: mockResendInvitation,
+  revokeOperatorInvitation: mockRevokeInvitation,
 }));
 
 vi.mock("~/lib/operator/api-helpers", () => ({

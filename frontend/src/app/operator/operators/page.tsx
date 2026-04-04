@@ -6,7 +6,10 @@ import useSWR from "swr";
 import { useToast } from "~/contexts/ToastContext";
 import { ConfirmationModal } from "~/components/ui/modal";
 import {
-  operatorInvitationService,
+  createOperatorInvitation,
+  listOperatorInvitations,
+  resendOperatorInvitation,
+  revokeOperatorInvitation,
   type OperatorInvitationsData,
 } from "~/lib/operator/operator-invitation-api";
 import type {
@@ -29,7 +32,7 @@ export default function OperatorOperatorsPage() {
     mutate,
   } = useSWR<OperatorInvitationsData>(
     "operator-invitations",
-    () => operatorInvitationService.listInvitations(),
+    () => listOperatorInvitations(),
     { revalidateOnFocus: false },
   );
 
@@ -91,7 +94,7 @@ function InviteForm({ onCreated }: { readonly onCreated: () => void }) {
       setError(null);
 
       try {
-        await operatorInvitationService.createInvitation({
+        await createOperatorInvitation({
           email: email.trim(),
           display_name: displayName.trim() || undefined,
         });
@@ -190,7 +193,7 @@ function PendingInvitationsList({
       setError(null);
       setActionLoading(id);
       try {
-        await operatorInvitationService.resendInvitation(id);
+        await resendOperatorInvitation(id);
         toastSuccess("Einladung wurde erneut gesendet.");
         onMutate();
       } catch (err) {
@@ -211,7 +214,7 @@ function PendingInvitationsList({
     setError(null);
     setActionLoading(revokeTarget.id);
     try {
-      await operatorInvitationService.revokeInvitation(revokeTarget.id);
+      await revokeOperatorInvitation(revokeTarget.id);
       toastSuccess("Einladung wurde widerrufen.");
       setRevokeTarget(null);
       onMutate();

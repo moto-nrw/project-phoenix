@@ -25,21 +25,24 @@ vi.mock("./api-helpers", () => ({
 
 // Must import after mocks
 import {
-  operatorInvitationService,
+  createOperatorInvitation,
+  listOperatorInvitations,
+  resendOperatorInvitation,
+  revokeOperatorInvitation,
   validateOperatorInvitation,
   acceptOperatorInvitation,
 } from "./operator-invitation-api";
 
-describe("OperatorInvitationService", () => {
+describe("operator invitation api", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  describe("createInvitation", () => {
+  describe("createOperatorInvitation", () => {
     it("sends POST with email and display_name", async () => {
       mockOperatorFetch.mockResolvedValue(undefined);
 
-      await operatorInvitationService.createInvitation({
+      await createOperatorInvitation({
         email: "new@example.com",
         display_name: "New Op",
       });
@@ -84,7 +87,7 @@ describe("OperatorInvitationService", () => {
       };
       mockOperatorFetch.mockResolvedValue(raw);
 
-      const result = await operatorInvitationService.listInvitations();
+      const result = await listOperatorInvitations();
 
       expect(result.invitations).toHaveLength(1);
       expect(result.invitations[0]!.id).toBe("1");
@@ -99,18 +102,18 @@ describe("OperatorInvitationService", () => {
         operators: null,
       });
 
-      const result = await operatorInvitationService.listInvitations();
+      const result = await listOperatorInvitations();
 
       expect(result.invitations).toEqual([]);
       expect(result.operators).toEqual([]);
     });
   });
 
-  describe("resendInvitation", () => {
+  describe("resendOperatorInvitation", () => {
     it("sends POST to resend endpoint with encoded ID", async () => {
       mockOperatorFetch.mockResolvedValue(undefined);
 
-      await operatorInvitationService.resendInvitation("42");
+      await resendOperatorInvitation("42");
 
       expect(mockOperatorFetch).toHaveBeenCalledWith(
         "/api/operator/invitations/42/resend",
@@ -119,11 +122,11 @@ describe("OperatorInvitationService", () => {
     });
   });
 
-  describe("revokeInvitation", () => {
+  describe("revokeOperatorInvitation", () => {
     it("sends DELETE to invitation endpoint", async () => {
       mockOperatorFetch.mockResolvedValue(undefined);
 
-      await operatorInvitationService.revokeInvitation("42");
+      await revokeOperatorInvitation("42");
 
       expect(mockOperatorFetch).toHaveBeenCalledWith(
         "/api/operator/invitations/42",
