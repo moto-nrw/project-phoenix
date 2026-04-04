@@ -26,6 +26,7 @@ type Resource struct {
 // ResourceConfig holds dependencies for the operator resource
 type ResourceConfig struct {
 	AuthService          platformSvc.OperatorAuthService
+	InvitationService    platformSvc.OperatorInvitationService
 	ProvisioningService  platformSvc.OperatorProvisioningService
 	SuggestionsService   platformSvc.OperatorSuggestionsService
 	AnnouncementsService platformSvc.AnnouncementService
@@ -65,7 +66,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 		suggestionsResource:   NewSuggestionsResource(cfg.SuggestionsService),
 		announcementsResource: NewAnnouncementsResource(cfg.AnnouncementsService),
 		profileResource:       NewProfileResource(cfg.AuthService),
-		invitationsResource:   NewInvitationsResource(cfg.AuthService),
+		invitationsResource:   NewInvitationsResource(cfg.InvitationService),
 		tokenAuth:             tokenAuth,
 	}
 }

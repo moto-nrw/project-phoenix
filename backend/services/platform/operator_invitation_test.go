@@ -135,7 +135,7 @@ func newInvitationTestService(
 	auditLogRepo platform.OperatorAuditLogRepository,
 	invitationTokenRepo platform.OperatorInvitationTokenRepository,
 	bunDB *bun.DB,
-) platformSvc.OperatorAuthService {
+) platformSvc.OperatorAuthAndInvitationService {
 	t.Helper()
 	// Dispatcher is required by InviteOperator and ResendOperatorInvitation guards.
 	// Tests that exercise dispatch behavior use newTestServiceWithDispatcher instead.

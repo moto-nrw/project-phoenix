@@ -57,10 +57,6 @@ func (m *mockOperatorAuthService) GetOperator(ctx context.Context, id int64) (*p
 	return nil, nil
 }
 
-func (m *mockOperatorAuthService) ListOperators(ctx context.Context) ([]*platform.Operator, error) {
-	return nil, nil
-}
-
 func (m *mockOperatorAuthService) UpdateProfile(ctx context.Context, operatorID int64, displayName string) (*platform.Operator, error) {
 	if m.updateProfileFn != nil {
 		return m.updateProfileFn(ctx, operatorID, displayName)
@@ -93,34 +89,6 @@ func (m *mockOperatorAuthService) CleanupExpiredEmailChangeTokens(ctx context.Co
 	if m.cleanupExpiredEmailChangeTokenFn != nil {
 		return m.cleanupExpiredEmailChangeTokenFn(ctx)
 	}
-	return 0, nil
-}
-
-func (m *mockOperatorAuthService) InviteOperator(_ context.Context, _ string, _ *string, _ int64, _ net.IP) error {
-	return nil
-}
-
-func (m *mockOperatorAuthService) ValidateOperatorInvitation(_ context.Context, _ string) (*platform.OperatorInvitationToken, error) {
-	return nil, nil
-}
-
-func (m *mockOperatorAuthService) AcceptOperatorInvitation(_ context.Context, _, _, _ string, _ net.IP) (*platform.Operator, error) {
-	return nil, nil
-}
-
-func (m *mockOperatorAuthService) ListPendingOperatorInvitations(_ context.Context) ([]*platform.OperatorInvitationToken, error) {
-	return nil, nil
-}
-
-func (m *mockOperatorAuthService) RevokeOperatorInvitation(_ context.Context, _ int64, _ int64, _ net.IP) error {
-	return nil
-}
-
-func (m *mockOperatorAuthService) ResendOperatorInvitation(_ context.Context, _ int64, _ int64, _ net.IP) error {
-	return nil
-}
-
-func (m *mockOperatorAuthService) CleanupExpiredOperatorInvitations(_ context.Context) (int, error) {
 	return 0, nil
 }
 

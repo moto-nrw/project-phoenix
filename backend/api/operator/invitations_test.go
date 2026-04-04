@@ -21,8 +21,9 @@ import (
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 )
 
-// invitationMockService implements platformSvc.OperatorAuthService with
-// function fields for invitation methods. Non-invitation methods are no-ops.
+// invitationMockService implements platformSvc.OperatorInvitationService —
+// the narrow interface InvitationsResource depends on. It only stubs the
+// eight invitation-management methods the handler actually calls.
 type invitationMockService struct {
 	inviteOperatorFn             func(ctx context.Context, email string, displayName *string, createdByID int64, clientIP net.IP) error
 	validateOperatorInvitationFn func(ctx context.Context, token string) (*platform.OperatorInvitationToken, error)
@@ -32,34 +33,6 @@ type invitationMockService struct {
 	resendOperatorInvitationFn   func(ctx context.Context, invitationID int64, actorID int64, clientIP net.IP) error
 	listOperatorsFn              func(ctx context.Context) ([]*platform.Operator, error)
 	cleanupExpiredInvitationsFn  func(ctx context.Context) (int, error)
-}
-
-func (m *invitationMockService) Login(_ context.Context, _, _ string, _ net.IP) (string, string, *platform.Operator, error) {
-	return "", "", nil, nil
-}
-func (m *invitationMockService) RefreshToken(_ context.Context, _ int64) (string, string, error) {
-	return "", "", nil
-}
-func (m *invitationMockService) ValidateOperator(_ context.Context, _, _ string) (*platform.Operator, error) {
-	return nil, nil
-}
-func (m *invitationMockService) GetOperator(_ context.Context, _ int64) (*platform.Operator, error) {
-	return nil, nil
-}
-func (m *invitationMockService) UpdateProfile(_ context.Context, _ int64, _ string) (*platform.Operator, error) {
-	return nil, nil
-}
-func (m *invitationMockService) ChangePassword(_ context.Context, _ int64, _, _ string) error {
-	return nil
-}
-func (m *invitationMockService) InitiateEmailChange(_ context.Context, _ int64, _, _ string, _ net.IP) error {
-	return nil
-}
-func (m *invitationMockService) ConfirmEmailChange(_ context.Context, _ string, _ net.IP) (string, error) {
-	return "", nil
-}
-func (m *invitationMockService) CleanupExpiredEmailChangeTokens(_ context.Context) (int, error) {
-	return 0, nil
 }
 
 func (m *invitationMockService) ListOperators(ctx context.Context) ([]*platform.Operator, error) {

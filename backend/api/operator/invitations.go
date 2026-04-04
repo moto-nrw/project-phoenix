@@ -15,15 +15,18 @@ import (
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 )
 
-// InvitationsResource handles operator invitation endpoints
+// InvitationsResource handles operator invitation endpoints. Depends on the
+// narrow OperatorInvitationService interface rather than the full
+// OperatorAuthService, so tests can mock only the methods this handler
+// actually calls.
 type InvitationsResource struct {
-	authService platformSvc.OperatorAuthService
+	invitationService platformSvc.OperatorInvitationService
 }
 
 // NewInvitationsResource creates a new invitations resource
-func NewInvitationsResource(authService platformSvc.OperatorAuthService) *InvitationsResource {
+func NewInvitationsResource(invitationService platformSvc.OperatorInvitationService) *InvitationsResource {
 	return &InvitationsResource{
-		authService: authService,
+		invitationService: invitationService,
 	}
 }
 
@@ -144,7 +147,7 @@ func (rs *InvitationsResource) CreateInvitation(w http.ResponseWriter, r *http.R
 	}
 
 	clientIP := getClientIP(r)
-	if err := rs.authService.InviteOperator(r.Context(), req.Email, req.DisplayName, operatorID, clientIP); err != nil {
+	if err := rs.invitationService.InviteOperator(r.Context(), req.Email, req.DisplayName, operatorID, clientIP); err != nil {
 		common.RenderError(w, r, invitationErrorRenderer(err))
 		return
 	}
@@ -154,13 +157,13 @@ func (rs *InvitationsResource) CreateInvitation(w http.ResponseWriter, r *http.R
 
 // ListInvitations handles listing pending invitations and existing operators
 func (rs *InvitationsResource) ListInvitations(w http.ResponseWriter, r *http.Request) {
-	pending, err := rs.authService.ListPendingOperatorInvitations(r.Context())
+	pending, err := rs.invitationService.ListPendingOperatorInvitations(r.Context())
 	if err != nil {
 		common.RenderError(w, r, ErrInternal("Failed to list invitations"))
 		return
 	}
 
-	operators, err := rs.authService.ListOperators(r.Context())
+	operators, err := rs.invitationService.ListOperators(r.Context())
 	if err != nil {
 		common.RenderError(w, r, ErrInternal("Failed to list operators"))
 		return
@@ -220,7 +223,7 @@ func (rs *InvitationsResource) ResendInvitation(w http.ResponseWriter, r *http.R
 	}
 
 	clientIP := getClientIP(r)
-	if err := rs.authService.ResendOperatorInvitation(r.Context(), invitationID, operatorID, clientIP); err != nil {
+	if err := rs.invitationService.ResendOperatorInvitation(r.Context(), invitationID, operatorID, clientIP); err != nil {
 		common.RenderError(w, r, invitationErrorRenderer(err))
 		return
 	}
@@ -241,7 +244,7 @@ func (rs *InvitationsResource) RevokeInvitation(w http.ResponseWriter, r *http.R
 	}
 
 	clientIP := getClientIP(r)
-	if err := rs.authService.RevokeOperatorInvitation(r.Context(), invitationID, operatorID, clientIP); err != nil {
+	if err := rs.invitationService.RevokeOperatorInvitation(r.Context(), invitationID, operatorID, clientIP); err != nil {
 		common.RenderError(w, r, invitationErrorRenderer(err))
 		return
 	}
@@ -257,7 +260,7 @@ func (rs *InvitationsResource) ValidateInvitation(w http.ResponseWriter, r *http
 		return
 	}
 
-	token, err := rs.authService.ValidateOperatorInvitation(r.Context(), req.Token)
+	token, err := rs.invitationService.ValidateOperatorInvitation(r.Context(), req.Token)
 	if err != nil {
 		common.RenderError(w, r, publicInvitationErrorRenderer(err))
 		return
@@ -279,7 +282,7 @@ func (rs *InvitationsResource) AcceptInvitation(w http.ResponseWriter, r *http.R
 	}
 
 	clientIP := getClientIP(r)
-	operator, err := rs.authService.AcceptOperatorInvitation(r.Context(), req.Token, req.DisplayName, req.Password, clientIP)
+	operator, err := rs.invitationService.AcceptOperatorInvitation(r.Context(), req.Token, req.DisplayName, req.Password, clientIP)
 	if err != nil {
 		common.RenderError(w, r, publicInvitationErrorRenderer(err))
 		return

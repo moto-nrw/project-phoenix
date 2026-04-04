@@ -69,6 +69,7 @@ type Factory struct {
 
 	// Platform domain (operator dashboard)
 	OperatorAuth         platform.OperatorAuthService
+	OperatorInvitation   platform.OperatorInvitationService
 	OperatorProvisioning platform.OperatorProvisioningService
 	Announcement         platform.AnnouncementService
 	OperatorSuggestions  platform.OperatorSuggestionsService
@@ -515,8 +516,13 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		InvitationTokenExpiry:    invitationTokenExpiry,
 		PasswordResetTokenExpiry: passwordResetTokenExpiry,
 
-		// Platform services
+		// Platform services — OperatorAuth and OperatorInvitation both point
+		// at the same concrete operatorAuthService struct, exposed through
+		// two narrower interfaces so that each handler depends only on the
+		// methods it actually calls. NewOperatorAuthService returns the
+		// combined interface, so both fields can be assigned directly.
 		OperatorAuth:         operatorAuthService,
+		OperatorInvitation:   operatorAuthService,
 		OperatorProvisioning: operatorProvisioningService,
 		Announcement:         announcementService,
 		OperatorSuggestions:  operatorSuggestionsService,

@@ -66,7 +66,7 @@ func newTestServiceWithDispatcher(
 	invitationTokenRepo platform.OperatorInvitationTokenRepository,
 	bunDB *bun.DB,
 	mailer email.Mailer,
-) platformSvc.OperatorAuthService {
+) platformSvc.OperatorAuthAndInvitationService {
 	t.Helper()
 
 	dispatcher := email.NewDispatcher(mailer, slog.Default())
