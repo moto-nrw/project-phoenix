@@ -334,6 +334,120 @@ func TestSelectPickupNote_FallsBackToEffectiveNotes(t *testing.T) {
 	assert.Equal(t, "Wait at the side entrance", result)
 }
 
+func TestSelectPickupNote_NilInput(t *testing.T) {
+	result := selectPickupNote(nil)
+	assert.Equal(t, "", result)
+}
+
+func TestSelectPickupNote_AllWhitespaceDayNotesFallsBackToRecurring(t *testing.T) {
+	effectivePickup := &scheduleSvc.EffectivePickupTime{
+		Notes: "Recurring fallback note",
+		DayNotes: []scheduleSvc.NoteData{
+			{ID: 1, Content: "   "},
+			{ID: 2, Content: "\t"},
+		},
+	}
+
+	result := selectPickupNote(effectivePickup)
+
+	assert.Equal(t, "Recurring fallback note", result)
+}
+
+func TestSelectPickupNote_EmptyDayNotesAndEmptyRecurring(t *testing.T) {
+	effectivePickup := &scheduleSvc.EffectivePickupTime{
+		Notes:    "  ",
+		DayNotes: []scheduleSvc.NoteData{},
+	}
+
+	result := selectPickupNote(effectivePickup)
+
+	assert.Equal(t, "", result)
+}
+
+// =============================================================================
+// attachPickupInfoToResponse TESTS
+// =============================================================================
+
+func TestAttachPickupInfoToResponse_NilPickup(t *testing.T) {
+	response := map[string]interface{}{}
+	attachPickupInfoToResponse(response, nil)
+
+	_, hasTime := response["pickup_time"]
+	_, hasNote := response["pickup_note"]
+	assert.False(t, hasTime, "Should not set pickup_time for nil pickup")
+	assert.False(t, hasNote, "Should not set pickup_note for nil pickup")
+}
+
+func TestAttachPickupInfoToResponse_WithPickupTimeOnly(t *testing.T) {
+	pickupTime := time.Date(2024, 1, 1, 15, 30, 0, 0, time.UTC)
+	effectivePickup := &scheduleSvc.EffectivePickupTime{
+		PickupTime: &pickupTime,
+	}
+
+	response := map[string]interface{}{}
+	attachPickupInfoToResponse(response, effectivePickup)
+
+	assert.Equal(t, "15:30", response["pickup_time"])
+	_, hasNote := response["pickup_note"]
+	assert.False(t, hasNote, "Should not set pickup_note when no notes exist")
+}
+
+func TestAttachPickupInfoToResponse_WithPickupNoteOnly(t *testing.T) {
+	effectivePickup := &scheduleSvc.EffectivePickupTime{
+		Notes: "Bitte klingeln",
+	}
+
+	response := map[string]interface{}{}
+	attachPickupInfoToResponse(response, effectivePickup)
+
+	_, hasTime := response["pickup_time"]
+	assert.False(t, hasTime, "Should not set pickup_time when nil")
+	assert.Equal(t, "Bitte klingeln", response["pickup_note"])
+}
+
+func TestAttachPickupInfoToResponse_WithPickupTimeAndNote(t *testing.T) {
+	pickupTime := time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC)
+	effectivePickup := &scheduleSvc.EffectivePickupTime{
+		PickupTime: &pickupTime,
+		Notes:      "Seiteneingang",
+	}
+
+	response := map[string]interface{}{}
+	attachPickupInfoToResponse(response, effectivePickup)
+
+	assert.Equal(t, "14:00", response["pickup_time"])
+	assert.Equal(t, "Seiteneingang", response["pickup_note"])
+}
+
+func TestAttachPickupInfoToResponse_WithDayNotes(t *testing.T) {
+	pickupTime := time.Date(2024, 1, 1, 16, 0, 0, 0, time.UTC)
+	effectivePickup := &scheduleSvc.EffectivePickupTime{
+		PickupTime: &pickupTime,
+		Notes:      "Should be ignored",
+		DayNotes: []scheduleSvc.NoteData{
+			{ID: 1, Content: "Day-specific note"},
+		},
+	}
+
+	response := map[string]interface{}{}
+	attachPickupInfoToResponse(response, effectivePickup)
+
+	assert.Equal(t, "16:00", response["pickup_time"])
+	assert.Equal(t, "Day-specific note", response["pickup_note"])
+}
+
+func TestAttachPickupInfoToResponse_EmptyNotesOmitsKey(t *testing.T) {
+	effectivePickup := &scheduleSvc.EffectivePickupTime{
+		Notes: "",
+	}
+
+	response := map[string]interface{}{}
+	attachPickupInfoToResponse(response, effectivePickup)
+
+	_, hasNote := response["pickup_note"]
+	assert.False(t, hasNote, "Should not set pickup_note for empty notes")
+}
+
 // =============================================================================
 // buildCheckinResult TESTS
 // =============================================================================
