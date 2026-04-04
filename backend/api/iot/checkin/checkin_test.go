@@ -103,6 +103,7 @@ func setupTestContext(t *testing.T) *testContext {
 		svc.Activities,
 		svc.Education,
 		svc.PickupSchedule,
+		nil, // settings service (nil = env var fallback)
 		slog.Default(),
 	)
 

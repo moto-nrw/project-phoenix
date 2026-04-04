@@ -24,6 +24,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -33,11 +34,17 @@ import (
 // getStudentDailyCheckoutTime TESTS
 // =============================================================================
 
+// helperResource creates a Resource with nil services for testing helper methods.
+func helperResource() *Resource {
+	return &Resource{}
+}
+
 func TestGetStudentDailyCheckoutTime_Default(t *testing.T) {
 	// Clear any existing env var
 	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
 
-	checkoutTime, err := getStudentDailyCheckoutTime()
+	rs := helperResource()
+	checkoutTime, err := rs.getStudentDailyCheckoutTime(context.Background())
 	require.NoError(t, err)
 
 	// Default should be 15:00
@@ -49,7 +56,8 @@ func TestGetStudentDailyCheckoutTime_CustomValid(t *testing.T) {
 	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "14:30"))
 	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
 
-	checkoutTime, err := getStudentDailyCheckoutTime()
+	rs := helperResource()
+	checkoutTime, err := rs.getStudentDailyCheckoutTime(context.Background())
 	require.NoError(t, err)
 
 	assert.Equal(t, 14, checkoutTime.Hour())
@@ -60,7 +68,8 @@ func TestGetStudentDailyCheckoutTime_InvalidFormat(t *testing.T) {
 	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "invalid"))
 	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
 
-	_, err := getStudentDailyCheckoutTime()
+	rs := helperResource()
+	_, err := rs.getStudentDailyCheckoutTime(context.Background())
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid checkout time format")
 }
@@ -69,7 +78,8 @@ func TestGetStudentDailyCheckoutTime_InvalidHour(t *testing.T) {
 	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "25:00"))
 	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
 
-	_, err := getStudentDailyCheckoutTime()
+	rs := helperResource()
+	_, err := rs.getStudentDailyCheckoutTime(context.Background())
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid hour")
 }
@@ -78,7 +88,8 @@ func TestGetStudentDailyCheckoutTime_InvalidMinute(t *testing.T) {
 	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "12:99"))
 	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
 
-	_, err := getStudentDailyCheckoutTime()
+	rs := helperResource()
+	_, err := rs.getStudentDailyCheckoutTime(context.Background())
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid minute")
 }
@@ -87,7 +98,8 @@ func TestGetStudentDailyCheckoutTime_NegativeHour(t *testing.T) {
 	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "-1:00"))
 	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
 
-	_, err := getStudentDailyCheckoutTime()
+	rs := helperResource()
+	_, err := rs.getStudentDailyCheckoutTime(context.Background())
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid hour")
 }
@@ -96,7 +108,8 @@ func TestGetStudentDailyCheckoutTime_NegativeMinute(t *testing.T) {
 	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "12:-5"))
 	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
 
-	_, err := getStudentDailyCheckoutTime()
+	rs := helperResource()
+	_, err := rs.getStudentDailyCheckoutTime(context.Background())
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid minute")
 }
@@ -119,7 +132,8 @@ func TestGetStudentDailyCheckoutTime_EdgeCases(t *testing.T) {
 			require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", tt.envVar))
 			defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
 
-			checkoutTime, err := getStudentDailyCheckoutTime()
+			rs := helperResource()
+			checkoutTime, err := rs.getStudentDailyCheckoutTime(context.Background())
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
@@ -129,6 +143,99 @@ func TestGetStudentDailyCheckoutTime_EdgeCases(t *testing.T) {
 			}
 		})
 	}
+}
+
+// =============================================================================
+// Settings service wiring tests
+// =============================================================================
+
+// mockSettingsService is a minimal mock that only supports ResolveString.
+type mockSettingsService struct {
+	values map[string]string
+}
+
+func (m *mockSettingsService) GetSchema(_ context.Context, _ []string) (*configSvc.SettingsSchema, error) {
+	return nil, nil
+}
+func (m *mockSettingsService) Resolve(_ context.Context, key string) (any, error) {
+	if v, ok := m.values[key]; ok {
+		return v, nil
+	}
+	return nil, fmt.Errorf("not found")
+}
+func (m *mockSettingsService) ResolveString(_ context.Context, key string) (string, error) {
+	if v, ok := m.values[key]; ok {
+		return v, nil
+	}
+	return "", fmt.Errorf("not found")
+}
+func (m *mockSettingsService) ResolveStringForTenant(_ context.Context, _ int64, key string) (string, error) {
+	return m.ResolveString(context.Background(), key)
+}
+func (m *mockSettingsService) ResolveBool(_ context.Context, _ string) (bool, error) {
+	return false, nil
+}
+func (m *mockSettingsService) ResolveInt(_ context.Context, _ string) (int, error) {
+	return 0, nil
+}
+func (m *mockSettingsService) HasTenantOverride(_ context.Context, key string) (bool, error) {
+	_, exists := m.values[key]
+	return exists, nil
+}
+func (m *mockSettingsService) SetValue(_ context.Context, _ string, _ any, _ *int64, _ []string) error {
+	return nil
+}
+func (m *mockSettingsService) ResetValue(_ context.Context, _ string, _ *int64, _ []string) error {
+	return nil
+}
+
+func TestGetStudentDailyCheckoutTime_UsesSettingsService(t *testing.T) {
+	// Clear env var so only the settings service provides the value
+	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
+
+	rs := &Resource{
+		SettingsService: &mockSettingsService{
+			values: map[string]string{
+				"operations.student_daily_checkout_time": "16:45",
+			},
+		},
+	}
+
+	checkoutTime, err := rs.getStudentDailyCheckoutTime(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 16, checkoutTime.Hour())
+	assert.Equal(t, 45, checkoutTime.Minute())
+}
+
+func TestGetStudentDailyCheckoutTime_SettingsServiceFallsBackToEnv(t *testing.T) {
+	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "13:15"))
+	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
+
+	// Settings service returns empty — should fall back to env var
+	rs := &Resource{
+		SettingsService: &mockSettingsService{
+			values: map[string]string{},
+		},
+	}
+
+	checkoutTime, err := rs.getStudentDailyCheckoutTime(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 13, checkoutTime.Hour())
+	assert.Equal(t, 15, checkoutTime.Minute())
+}
+
+func TestGetStudentDailyCheckoutTime_NilSettingsServiceUsesEnv(t *testing.T) {
+	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "17:00"))
+	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
+
+	rs := &Resource{
+		SettingsService: nil,
+	}
+
+	checkoutTime, err := rs.getStudentDailyCheckoutTime(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 17, checkoutTime.Hour())
+	assert.Equal(t, 0, checkoutTime.Minute())
 }
 
 // =============================================================================
@@ -1355,4 +1462,27 @@ func TestSchulhofActivityGroup_NoStaffContext(t *testing.T) {
 	assert.Equal(t, constants.SchulhofActivityName, group.Name)
 	assert.NotZero(t, group.ID)
 	assert.Nil(t, group.CreatedBy, "system-created Schulhof group should have NULL created_by")
+}
+
+// mockErrorSettingsService returns errors from HasTenantOverride.
+type mockErrorSettingsService struct {
+	mockSettingsService
+}
+
+func (m *mockErrorSettingsService) HasTenantOverride(_ context.Context, _ string) (bool, error) {
+	return false, fmt.Errorf("db connection failed")
+}
+
+func TestGetStudentDailyCheckoutTime_HasTenantOverrideError(t *testing.T) {
+	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
+
+	rs := &Resource{
+		SettingsService: &mockErrorSettingsService{},
+	}
+
+	checkoutTime, err := rs.getStudentDailyCheckoutTime(context.Background())
+	require.NoError(t, err)
+	// Should fall back to default "15:00"
+	assert.Equal(t, 15, checkoutTime.Hour())
+	assert.Equal(t, 0, checkoutTime.Minute())
 }

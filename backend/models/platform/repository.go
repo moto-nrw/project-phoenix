@@ -10,6 +10,7 @@ type OperatorRepository interface {
 	// Core CRUD operations
 	Create(ctx context.Context, operator *Operator) error
 	FindByID(ctx context.Context, id int64) (*Operator, error)
+	FindByIDForUpdate(ctx context.Context, id int64) (*Operator, error)
 	FindByEmail(ctx context.Context, email string) (*Operator, error)
 	Update(ctx context.Context, operator *Operator) error
 	Delete(ctx context.Context, id int64) error
@@ -84,6 +85,17 @@ type SchoolRepository interface {
 	SoftDelete(ctx context.Context, id int64) error
 	Restore(ctx context.Context, id int64) error
 	CountByIDs(ctx context.Context, ids []int64) (int, error)
+}
+
+// OperatorEmailChangeTokenRepository defines operations for email change verification tokens
+type OperatorEmailChangeTokenRepository interface {
+	Create(ctx context.Context, token *OperatorEmailChangeToken) error
+	ConsumeByToken(ctx context.Context, tokenStr string) (*OperatorEmailChangeToken, error)
+	InvalidateByOperatorID(ctx context.Context, operatorID int64) error
+	UpdateDeliveryResult(ctx context.Context, tokenID int64, sentAt *time.Time, emailError *string, retryCount int) error
+	CountRecentByOperatorID(ctx context.Context, operatorID int64, since time.Time) (int, error)
+	InvalidateExpiredTokens(ctx context.Context) (int, error)
+	DeleteStaleTokens(ctx context.Context) (int, error)
 }
 
 // OperatorAuditLogRepository defines operations for the audit log

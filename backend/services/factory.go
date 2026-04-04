@@ -21,6 +21,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/activities"
 	"github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/services/config"
+	_ "github.com/moto-nrw/project-phoenix/services/config/defaults"
 	"github.com/moto-nrw/project-phoenix/services/database"
 	"github.com/moto-nrw/project-phoenix/services/education"
 	"github.com/moto-nrw/project-phoenix/services/facilities"
@@ -51,6 +52,7 @@ type Factory struct {
 	Suggestions              suggestions.Service
 	IoT                      iot.Service
 	Config                   config.Service
+	Settings                 config.SettingsService
 	Schedule                 schedule.Service
 	PickupSchedule           schedule.PickupScheduleService
 	Users                    users.PersonService
@@ -245,6 +247,14 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		db,
 	)
 
+	// Initialize settings service (new schema-driven settings system)
+	settingsService := config.NewSettingsService(
+		repos.SettingValue,
+		repos.SettingAudit,
+		db,
+		logger,
+	)
+
 	// Initialize activities service
 	activitiesService, err := activities.NewService(
 		repos.ActivityCategory,
@@ -389,12 +399,31 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	)
 	studentImportService := importService.NewImportService(studentImportConfig, db)
 
+	// Email change tokens deliberately reuse PASSWORD_RESET_TOKEN_EXPIRY_MINUTES
+	// because both serve the same purpose (one-time verification links with the same
+	// delivery constraints and security profile). If the two ever need to diverge,
+	// introduce EMAIL_CHANGE_TOKEN_EXPIRY_MINUTES and fall back to passwordResetTokenExpiry.
+	// The 15-minute floor accounts for email delivery latency + user interaction time.
+	emailChangeExpiry := passwordResetTokenExpiry
+	if emailChangeExpiry < 15*time.Minute {
+		logger.Warn("email change token expiry bumped to minimum 15 minutes",
+			slog.Int("configured_minutes", int(passwordResetTokenExpiry.Minutes())),
+			slog.Int("effective_minutes", 15),
+		)
+		emailChangeExpiry = 15 * time.Minute
+	}
+
 	// Initialize platform services (operator dashboard)
 	operatorAuthService, err := platform.NewOperatorAuthService(platform.OperatorAuthServiceConfig{
-		OperatorRepo: repos.Operator,
-		AuditLogRepo: repos.OperatorAuditLog,
-		DB:           db,
-		Logger:       platformLogger,
+		OperatorRepo:         repos.Operator,
+		AuditLogRepo:         repos.OperatorAuditLog,
+		EmailChangeTokenRepo: repos.OperatorEmailChangeToken,
+		DB:                   db,
+		Logger:               platformLogger,
+		Dispatcher:           dispatcher,
+		DefaultFrom:          defaultFrom,
+		FrontendURL:          frontendURL,
+		EmailChangeExpiry:    emailChangeExpiry,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create operator auth service: %w", err)
@@ -453,6 +482,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Suggestions:              suggestionsService,
 		IoT:                      iotService,
 		Config:                   configService,
+		Settings:                 settingsService,
 		Schedule:                 scheduleService,
 		PickupSchedule:           pickupScheduleService,
 		Users:                    usersService,

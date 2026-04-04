@@ -63,6 +63,15 @@ func ErrForbidden(message string) render.Renderer {
 	}
 }
 
+// ErrTooManyRequests creates a rate limit error response
+func ErrTooManyRequests(message string) render.Renderer {
+	return &ErrResponse{
+		HTTPStatusCode: http.StatusTooManyRequests,
+		StatusText:     "Too Many Requests",
+		ErrorText:      message,
+	}
+}
+
 // ErrInternal creates an internal server error response
 func ErrInternal(message string) render.Renderer {
 	return &ErrResponse{

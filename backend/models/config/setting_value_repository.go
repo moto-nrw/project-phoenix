@@ -1,0 +1,27 @@
+package config
+
+import (
+	"context"
+)
+
+// SettingValueRepository defines data access operations for tenant-scoped setting overrides.
+type SettingValueRepository interface {
+	// FindByTenantAndKey retrieves a single value for a tenant and key.
+	// Returns (nil, nil) if not found.
+	FindByTenantAndKey(ctx context.Context, tenantID int64, key string) (*SettingValue, error)
+
+	// FindByTenant retrieves all setting values for a tenant.
+	FindByTenant(ctx context.Context, tenantID int64) ([]*SettingValue, error)
+
+	// Upsert inserts or updates a setting value (INSERT ... ON CONFLICT ... DO UPDATE).
+	Upsert(ctx context.Context, sv *SettingValue) error
+
+	// Delete removes a single setting value for a tenant and key.
+	Delete(ctx context.Context, tenantID int64, key string) error
+}
+
+// SettingAuditRepository defines data access operations for the setting audit trail.
+type SettingAuditRepository interface {
+	// Create appends a new audit entry.
+	Create(ctx context.Context, entry *SettingAuditEntry) error
+}

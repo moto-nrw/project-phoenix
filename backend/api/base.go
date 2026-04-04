@@ -66,6 +66,7 @@ type API struct {
 	Suggestions      *suggestionsAPI.Resource
 	Schedules        *schedulesAPI.Resource
 	Config           *configAPI.Resource
+	Settings         *configAPI.SettingsResource
 	Active           *activeAPI.Resource
 	IoT              *iotAPI.Resource
 	SSE              *sseAPI.Resource
@@ -288,6 +289,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Suggestions = suggestionsAPI.NewResource(api.Services.Suggestions, db)
 	api.Schedules = schedulesAPI.NewResource(api.Services.Schedule, db)
 	api.Config = configAPI.NewResource(api.Services.Config, api.Services.ActiveCleanup, db)
+	api.Settings = configAPI.NewSettingsResource(api.Services.Settings, db)
 	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, api.Services.Schulhof, api.Services.UserContext, db, logger.With("handler", "active"))
 	api.IoT = iotAPI.NewResource(iotAPI.ServiceDependencies{
 		IoTService:            api.Services.IoT,
@@ -295,6 +297,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		ActiveService:         api.Services.Active,
 		ActivitiesService:     api.Services.Activities,
 		ConfigService:         api.Services.Config,
+		SettingsService:       api.Services.Settings,
 		FacilityService:       api.Services.Facilities,
 		EducationService:      api.Services.Education,
 		FeedbackService:       api.Services.Feedback,
@@ -343,6 +346,7 @@ func (a *API) registerRoutesWithRateLimiting() {
 
 	// Configure auth-specific rate limiting if enabled
 	var authRateLimiter *customMiddleware.RateLimiter
+	var emailConfirmLimiter *customMiddleware.RateLimiter
 	if rateLimitEnabled {
 		// Stricter rate limit for auth endpoints
 		authLimit := 5 // default: 5 requests per minute for auth
@@ -352,8 +356,12 @@ func (a *API) registerRoutesWithRateLimiting() {
 			}
 		}
 		authRateLimiter = customMiddleware.NewRateLimiter(authLimit, 10) // allow reasonable burst for login attempts
+		// Separate instance for email-confirm: same config, independent token
+		// bucket. Prevents /email-confirm floods from blocking /login on the same IP.
+		emailConfirmLimiter = customMiddleware.NewRateLimiter(authLimit, 10)
 		if securityLogger != nil {
 			authRateLimiter.SetLogger(securityLogger)
+			emailConfirmLimiter.SetLogger(securityLogger)
 		}
 	}
 	a.Router.Get("/", func(w http.ResponseWriter, r *http.Request) {
@@ -407,6 +415,9 @@ func (a *API) registerRoutesWithRateLimiting() {
 		// Mount config resources
 		r.Mount("/config", a.Config.Router())
 
+		// Mount settings resources (new schema-driven settings system)
+		r.Mount("/settings", a.Settings.SettingsRouter())
+
 		// Mount active resources
 		r.Mount("/active", a.Active.Router())
 
@@ -447,6 +458,9 @@ func (a *API) registerRoutesWithRateLimiting() {
 	// Apply the same auth rate limiter to operator login for brute-force protection
 	if rateLimitEnabled && authRateLimiter != nil {
 		a.Operator.SetAuthRateLimiter(authRateLimiter.Middleware())
+	}
+	if rateLimitEnabled && emailConfirmLimiter != nil {
+		a.Operator.SetEmailConfirmRateLimiter(emailConfirmLimiter.Middleware())
 	}
 	a.Router.Mount("/operator", a.Operator.Router())
 }

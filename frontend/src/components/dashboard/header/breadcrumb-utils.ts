@@ -68,6 +68,7 @@ function getMainRouteTitle(pathname: string): string {
     "/substitutions": "Vertretungen",
     "/database": "Datenverwaltung",
     "/settings": "Einstellungen",
+    "/profile": "Profil",
     "/invitations": "Einladungen",
     "/time-tracking": "Zeiterfassung",
     "/borndal_feedback": "Borndal Feedback",

@@ -1434,21 +1434,6 @@ func isSchoolLookupNotFound(err error) bool {
 	return false
 }
 
-func isUniqueViolation(err error) bool {
-	if err == nil {
-		return false
-	}
-	var dbErr *modelBase.DatabaseError
-	if errors.As(err, &dbErr) {
-		err = dbErr.Err
-	}
-	var pgErr pgdriver.Error
-	if errors.As(err, &pgErr) {
-		return pgErr.IntegrityViolation() && pgErr.Field('C') == "23505"
-	}
-	return false
-}
-
 // isRowsAffectedMismatch returns true when a DatabaseError wraps a "expected N rows affected, got M"
 // failure from AssertRowsAffected. This happens when a concurrent operation changed the row between
 // our read and our conditional UPDATE (e.g. soft-delete WHERE deleted_at IS NULL).

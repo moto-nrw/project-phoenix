@@ -141,6 +141,29 @@ export function buildDisplayName(
   return payload.username ?? (fallbackEmail || ultimateFallback);
 }
 
+/**
+ * Sync JWT token fields from a decoded payload. Used in all three refresh
+ * code paths (cached, in-flight dedup, fresh) to keep session claims current.
+ */
+function syncTokenFromPayload(
+  token: Record<string, unknown>,
+  payload: JwtPayload,
+): void {
+  token.tenantId = payload.tenant_id;
+  token.orgId = payload.org_id;
+  token.roles = payload.roles ?? [];
+  token.isAdmin = payload.is_admin ?? false;
+  token.scope = payload.scope;
+  token.name = buildDisplayName(payload, (token.email as string) ?? "");
+  // Operator JWTs store email as username; keep session in sync after email change.
+  // Tenant-scoped users don't need this: their email comes from the NextAuth
+  // sign-in flow (authorize callback) and doesn't change via JWT refresh —
+  // only operators can change their email through the platform UI.
+  if (payload.scope === "platform" && payload.username) {
+    token.email = payload.username;
+  }
+}
+
 export function buildAuthUser(
   payload: JwtPayload,
   token: string,
@@ -472,11 +495,27 @@ export const sharedJwtCallback: NonNullable<
     }
   }
 
-  // Handle client-side session update (e.g. profile name change)
+  // Refresh buffer: how far before access token expiry we proactively refresh.
+  // Also used to force an immediate refresh after email change confirmation.
+  const REFRESH_BUFFER_MS = 5 * 60 * 1000;
+
+  // Handle client-side session update (e.g. profile name or email change)
   if (trigger === "update" && session) {
     const update = session as Record<string, unknown>;
     if (typeof update.name === "string") {
       token.name = update.name;
+    }
+    if (typeof update.email === "string") {
+      token.email = update.email;
+    }
+    if (update.emailChanged === true) {
+      // Force proactive refresh on the next JWT callback by placing
+      // tokenExpiry just inside the REFRESH_BUFFER_MS window (1min margin).
+      // The refresh re-reads operator.Email from the DB, syncing the
+      // session to the newly confirmed email. If refresh fails, the
+      // token is still in the future (now < tokenExpiry), so
+      // RefreshTokenError is NOT set and the user keeps their session.
+      token.tokenExpiry = Date.now() + (REFRESH_BUFFER_MS - 60_000);
     }
   }
 
@@ -510,7 +549,6 @@ export const sharedJwtCallback: NonNullable<
   }
 
   // Proactive token refresh
-  const REFRESH_BUFFER_MS = 5 * 60 * 1000;
   const REFRESH_TIMEOUT_MS = 5_000;
 
   const now = Date.now();
@@ -538,11 +576,7 @@ export const sharedJwtCallback: NonNullable<
       token.needsRefresh = undefined;
       const cachedPayload = parseJwtPayload(cached.result.access_token);
       if (cachedPayload) {
-        token.tenantId = cachedPayload.tenant_id;
-        token.orgId = cachedPayload.org_id;
-        token.roles = cachedPayload.roles ?? [];
-        token.isAdmin = cachedPayload.is_admin ?? false;
-        token.scope = cachedPayload.scope;
+        syncTokenFromPayload(token, cachedPayload);
       }
       logger.info("proactive_token_refresh_deduplicated");
       return token;
@@ -561,11 +595,7 @@ export const sharedJwtCallback: NonNullable<
         token.needsRefresh = undefined;
         const inflightPayload = parseJwtPayload(result.access_token);
         if (inflightPayload) {
-          token.tenantId = inflightPayload.tenant_id;
-          token.orgId = inflightPayload.org_id;
-          token.roles = inflightPayload.roles ?? [];
-          token.isAdmin = inflightPayload.is_admin ?? false;
-          token.scope = inflightPayload.scope;
+          syncTokenFromPayload(token, inflightPayload);
         }
         logger.info("proactive_token_refresh_succeeded");
       } else if (now > tokenExpiry) {
@@ -637,11 +667,7 @@ export const sharedJwtCallback: NonNullable<
       token.needsRefresh = undefined;
       const refreshedPayload = parseJwtPayload(result.access_token);
       if (refreshedPayload) {
-        token.tenantId = refreshedPayload.tenant_id;
-        token.orgId = refreshedPayload.org_id;
-        token.roles = refreshedPayload.roles ?? [];
-        token.isAdmin = refreshedPayload.is_admin ?? false;
-        token.scope = refreshedPayload.scope;
+        syncTokenFromPayload(token, refreshedPayload);
       }
       logger.info("proactive_token_refresh_succeeded");
     } else if (now > tokenExpiry) {

@@ -19,7 +19,8 @@ vi.mock("~/lib/shell-auth-context", () => ({
     logout: mockLogout,
     mode: "teacher",
     homeUrl: "/dashboard",
-    settingsUrl: "/settings",
+
+    profileUrl: "/profile",
   }),
 }));
 

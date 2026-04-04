@@ -10,11 +10,12 @@ import (
 
 // Shared mock for operator repository
 type mockOperatorRepo struct {
-	findByIDFn        func(ctx context.Context, id int64) (*platform.Operator, error)
-	findByEmailFn     func(ctx context.Context, email string) (*platform.Operator, error)
-	updateFn          func(ctx context.Context, operator *platform.Operator) error
-	updateLastLoginFn func(ctx context.Context, id int64) error
-	listFn            func(ctx context.Context) ([]*platform.Operator, error)
+	findByIDFn          func(ctx context.Context, id int64) (*platform.Operator, error)
+	findByIDForUpdateFn func(ctx context.Context, id int64) (*platform.Operator, error)
+	findByEmailFn       func(ctx context.Context, email string) (*platform.Operator, error)
+	updateFn            func(ctx context.Context, operator *platform.Operator) error
+	updateLastLoginFn   func(ctx context.Context, id int64) error
+	listFn              func(ctx context.Context) ([]*platform.Operator, error)
 }
 
 func (m *mockOperatorRepo) Create(ctx context.Context, operator *platform.Operator) error {
@@ -22,6 +23,20 @@ func (m *mockOperatorRepo) Create(ctx context.Context, operator *platform.Operat
 }
 
 func (m *mockOperatorRepo) FindByID(ctx context.Context, id int64) (*platform.Operator, error) {
+	if m.findByIDFn != nil {
+		return m.findByIDFn(ctx, id)
+	}
+	return nil, nil
+}
+
+// FindByIDForUpdate delegates to findByIDForUpdateFn when set, allowing tests
+// to independently control locking behavior (e.g. simulating lock failures).
+// Falls back to findByIDFn so tests that don't care about locking semantics
+// can configure a single lookup function for both FindByID and FindByIDForUpdate.
+func (m *mockOperatorRepo) FindByIDForUpdate(ctx context.Context, id int64) (*platform.Operator, error) {
+	if m.findByIDForUpdateFn != nil {
+		return m.findByIDForUpdateFn(ctx, id)
+	}
 	if m.findByIDFn != nil {
 		return m.findByIDFn(ctx, id)
 	}
