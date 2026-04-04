@@ -249,6 +249,26 @@ func (r *OperatorInvitationTokenRepository) UpdateDeliveryResult(ctx context.Con
 	return nil
 }
 
+// CountRecentByCreatedBy counts tokens created after `since` by the given
+// inviter for per-operator rate limiting. Counts ALL rows (used or pending)
+// because each successful Create dispatches an invitation email, so the
+// rate limit must reflect total email-send volume, not currently-active tokens.
+func (r *OperatorInvitationTokenRepository) CountRecentByCreatedBy(ctx context.Context, createdByID int64, since time.Time) (int, error) {
+	count, err := base.GetDB(ctx, r.db).NewSelect().
+		Model((*platform.OperatorInvitationToken)(nil)).
+		Where("created_by = ? AND created_at > ?", createdByID, since).
+		Count(ctx)
+
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "count recent invitation tokens",
+			Err: err,
+		}
+	}
+
+	return count, nil
+}
+
 // DeleteExpired deletes all expired invitation tokens
 func (r *OperatorInvitationTokenRepository) DeleteExpired(ctx context.Context) (int, error) {
 	res, err := base.GetDB(ctx, r.db).NewDelete().

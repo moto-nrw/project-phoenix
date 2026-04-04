@@ -318,6 +318,7 @@ func translateInvitationValidationError(err error) string {
 func invitationErrorRenderer(err error) render.Renderer {
 	var notFound *platformSvc.OperatorInvitationNotFoundError
 	var emailExists *platformSvc.OperatorInvitationEmailExistsError
+	var rateLimit *platformSvc.OperatorInvitationRateLimitError
 	var invalidData *platformSvc.InvalidDataError
 
 	switch {
@@ -325,6 +326,8 @@ func invitationErrorRenderer(err error) render.Renderer {
 		return ErrNotFound("Einladung nicht gefunden oder abgelaufen")
 	case errors.As(err, &emailExists):
 		return ErrConflict("Ein Operator mit dieser E-Mail existiert bereits")
+	case errors.As(err, &rateLimit):
+		return ErrTooManyRequests("Zu viele Einladungen. Bitte warte eine Stunde.")
 	case errors.As(err, &invalidData):
 		return ErrInvalidRequest(errors.New(translateInvitationValidationError(invalidData.Unwrap())))
 	default:

@@ -161,6 +161,14 @@ func TestInviteOperator_DispatchesEmail_InviterLookupFails_FallbackName(t *testi
 		findByEmailFn: func(_ context.Context, _ string) (*platform.Operator, error) {
 			return nil, nil
 		},
+		// The pre-tx rate-limit lock must succeed so the invitation reaches
+		// email dispatch; this test targets failure of the post-tx cosmetic
+		// name lookup inside dispatchOperatorInvitationEmail, not the lock.
+		findByIDForUpdateFn: func(_ context.Context, id int64) (*platform.Operator, error) {
+			op := &platform.Operator{DisplayName: "Locker"}
+			op.ID = id
+			return op, nil
+		},
 		findByIDFn: func(_ context.Context, _ int64) (*platform.Operator, error) {
 			return nil, fmt.Errorf("db error") // Inviter lookup fails
 		},

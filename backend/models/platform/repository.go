@@ -110,6 +110,7 @@ type OperatorInvitationTokenRepository interface {
 	ExtendExpiry(ctx context.Context, id int64, newExpiresAt time.Time) (bool, error)
 	UpdateDeliveryResult(ctx context.Context, tokenID int64, sentAt *time.Time, emailError *string, retryCount int) error
 	DeleteExpired(ctx context.Context) (int, error)
+	CountRecentByCreatedBy(ctx context.Context, createdByID int64, since time.Time) (int, error)
 }
 
 // OperatorAuditLogRepository defines operations for the audit log

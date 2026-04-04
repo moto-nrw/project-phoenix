@@ -2,6 +2,7 @@ package platform_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -561,4 +562,98 @@ func TestOperatorInvitationTokenRepository_DeleteExpired(t *testing.T) {
 	found, err = repo.FindByID(context.Background(), validToken.ID)
 	require.NoError(t, err)
 	assert.NotNil(t, found, "valid token should not be deleted")
+}
+
+// =====================================================================
+// CountRecentByCreatedBy Tests (rate limiting)
+// =====================================================================
+
+func TestOperatorInvitationTokenRepository_CountRecentByCreatedBy(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repoplatform.NewOperatorInvitationTokenRepository(db)
+	ctx := context.Background()
+
+	t.Run("NoTokens_ReturnsZero", func(t *testing.T) {
+		op := createTestOperatorForInvitation(t, db)
+		defer cleanupOperator(t, db, op.ID)
+		defer cleanupInvitationTokens(t, db, op.ID)
+
+		count, err := repo.CountRecentByCreatedBy(ctx, op.ID, time.Now().Add(-1*time.Hour))
+		require.NoError(t, err)
+		assert.Equal(t, 0, count)
+	})
+
+	t.Run("CountsAllTokensInWindow_PendingAndUsed", func(t *testing.T) {
+		op := createTestOperatorForInvitation(t, db)
+		defer cleanupOperator(t, db, op.ID)
+		defer cleanupInvitationTokens(t, db, op.ID)
+
+		// Two pending tokens
+		for i := 0; i < 2; i++ {
+			token := newTestToken(fmt.Sprintf("pending-%d-%d@test.local", i, time.Now().UnixNano()), op.ID)
+			require.NoError(t, repo.Create(ctx, token))
+		}
+		// One used token
+		usedToken := newTestToken(fmt.Sprintf("used-%d@test.local", time.Now().UnixNano()), op.ID)
+		require.NoError(t, repo.Create(ctx, usedToken))
+		_, err := repo.MarkAsUsed(ctx, usedToken.ID)
+		require.NoError(t, err)
+
+		count, err := repo.CountRecentByCreatedBy(ctx, op.ID, time.Now().Add(-1*time.Hour))
+		require.NoError(t, err)
+		assert.Equal(t, 3, count, "should count pending and used tokens regardless of state")
+	})
+
+	t.Run("IgnoresTokensOutsideWindow", func(t *testing.T) {
+		op := createTestOperatorForInvitation(t, db)
+		defer cleanupOperator(t, db, op.ID)
+		defer cleanupInvitationTokens(t, db, op.ID)
+
+		// Insert a token with created_at well in the past (2 hours ago).
+		// Using raw SQL because repo.Create sets created_at to NOW() via the
+		// base.Model hooks.
+		tokenStr := uuid.Must(uuid.NewV4()).String()
+		oldEmail := fmt.Sprintf("old-%d@test.local", time.Now().UnixNano())
+		pastTime := time.Now().Add(-2 * time.Hour)
+		_, err := db.ExecContext(ctx,
+			`INSERT INTO platform.operator_invitation_tokens
+			 (email, token, expires_at, created_by, created_at, updated_at)
+			 VALUES (?, ?, ?, ?, ?, ?)`,
+			oldEmail, tokenStr, time.Now().Add(48*time.Hour), op.ID, pastTime, pastTime,
+		)
+		require.NoError(t, err)
+
+		// Insert a recent token
+		recent := newTestToken(fmt.Sprintf("recent-%d@test.local", time.Now().UnixNano()), op.ID)
+		require.NoError(t, repo.Create(ctx, recent))
+
+		count, err := repo.CountRecentByCreatedBy(ctx, op.ID, time.Now().Add(-1*time.Hour))
+		require.NoError(t, err)
+		assert.Equal(t, 1, count, "should only count tokens created within the window")
+	})
+
+	t.Run("ScopesByCreatedBy", func(t *testing.T) {
+		opA := createTestOperatorForInvitation(t, db)
+		opB := createTestOperatorForInvitation(t, db)
+		defer cleanupOperator(t, db, opA.ID)
+		defer cleanupOperator(t, db, opB.ID)
+		defer cleanupInvitationTokens(t, db, opA.ID)
+		defer cleanupInvitationTokens(t, db, opB.ID)
+
+		// Three tokens from opA, one from opB
+		for i := 0; i < 3; i++ {
+			require.NoError(t, repo.Create(ctx, newTestToken(fmt.Sprintf("a-%d-%d@test.local", i, time.Now().UnixNano()), opA.ID)))
+		}
+		require.NoError(t, repo.Create(ctx, newTestToken(fmt.Sprintf("b-%d@test.local", time.Now().UnixNano()), opB.ID)))
+
+		countA, err := repo.CountRecentByCreatedBy(ctx, opA.ID, time.Now().Add(-1*time.Hour))
+		require.NoError(t, err)
+		assert.Equal(t, 3, countA)
+
+		countB, err := repo.CountRecentByCreatedBy(ctx, opB.ID, time.Now().Add(-1*time.Hour))
+		require.NoError(t, err)
+		assert.Equal(t, 1, countB)
+	})
 }

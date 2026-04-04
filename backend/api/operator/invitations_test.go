@@ -243,6 +243,24 @@ func TestCreateInvitation_EmailAlreadyExists(t *testing.T) {
 	assert.Equal(t, http.StatusConflict, rr.Code)
 }
 
+func TestCreateInvitation_RateLimit(t *testing.T) {
+	mockService := &invitationMockService{
+		inviteOperatorFn: func(_ context.Context, _ string, _ *string, _ int64, _ net.IP) error {
+			return &platformSvc.OperatorInvitationRateLimitError{}
+		},
+	}
+
+	resource := operator.NewInvitationsResource(mockService)
+	body, _ := json.Marshal(map[string]string{"email": "spam@example.com"})
+	req := invitationReqWithClaims(http.MethodPost, "/invitations", body, 42)
+	rr := httptest.NewRecorder()
+
+	resource.CreateInvitation(rr, req)
+
+	assert.Equal(t, http.StatusTooManyRequests, rr.Code)
+	assert.Contains(t, rr.Body.String(), "Zu viele Einladungen")
+}
+
 func TestCreateInvitation_ServiceError(t *testing.T) {
 	mockService := &invitationMockService{
 		inviteOperatorFn: func(_ context.Context, _ string, _ *string, _ int64, _ net.IP) error {

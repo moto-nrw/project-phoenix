@@ -215,6 +215,14 @@ func (e *OperatorInvitationEmailExistsError) Error() string {
 	return "an operator with this email already exists"
 }
 
+// OperatorInvitationRateLimitError is returned when an inviter has created
+// too many invitation tokens within the rate-limit window.
+type OperatorInvitationRateLimitError struct{}
+
+func (e *OperatorInvitationRateLimitError) Error() string {
+	return "too many invitation attempts, please wait"
+}
+
 // PersonHasActiveSupervisionsError is returned when a person cannot be deleted
 // because the associated staff member has active group supervisions.
 type PersonHasActiveSupervisionsError struct {

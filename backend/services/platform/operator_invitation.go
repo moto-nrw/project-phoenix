@@ -17,6 +17,19 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// operatorInvitationRateLimit caps the number of invitations a single operator
+// may create within operatorInvitationRateWindow. Protects against an
+// authenticated operator bulk-spamming invitations to arbitrary addresses,
+// which would amplify into mass email dispatch and Argon2id work on acceptance.
+// Resend is intentionally not rate-limited here: it reuses an existing row
+// (no new Create), is addressed to the original invitee, and is already
+// bounded by the HTTP middleware plus the finite set of pending invitations
+// owned by the operator.
+const (
+	operatorInvitationRateLimit  = 5
+	operatorInvitationRateWindow = 1 * time.Hour
+)
+
 // InviteOperator creates an invitation token and sends an email to the invitee.
 func (s *operatorAuthService) InviteOperator(ctx context.Context, inviteeEmail string, displayName *string, createdByID int64, clientIP net.IP) error {
 	if s.invitationTokenRepo == nil {
@@ -59,6 +72,29 @@ func (s *operatorAuthService) InviteOperator(ctx context.Context, inviteeEmail s
 	// Without the transaction, a failed insert would leave the old token burned.
 	var token *platform.OperatorInvitationToken
 	if err := tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
+		// Lock the inviter's operator row to serialize concurrent InviteOperator
+		// calls from the same operator. Without this, two parallel transactions
+		// under READ COMMITTED could both read count=N, both pass the rate-limit
+		// check, and both insert — producing N+2 rows despite the limit being N+1.
+		// The lock forces the second tx to wait until the first commits, at which
+		// point it observes the updated count.
+		if _, lockErr := s.operatorRepo.FindByIDForUpdate(txCtx, createdByID); lockErr != nil {
+			return fmt.Errorf("failed to lock inviter row: %w", lockErr)
+		}
+
+		// Rate limit BEFORE invalidating existing tokens so a blocked request
+		// does not destroy the invitee's last usable invitation link. Counts
+		// every row (pending or used) created by this operator in the window,
+		// because each successful Create dispatches an email regardless of the
+		// token's eventual state.
+		recentCount, countErr := s.invitationTokenRepo.CountRecentByCreatedBy(txCtx, createdByID, time.Now().Add(-operatorInvitationRateWindow))
+		if countErr != nil {
+			return fmt.Errorf("failed to check invitation rate limit: %w", countErr)
+		}
+		if recentCount >= operatorInvitationRateLimit {
+			return &OperatorInvitationRateLimitError{}
+		}
+
 		if _, txErr := s.invitationTokenRepo.InvalidateByEmail(txCtx, inviteeEmail); txErr != nil {
 			return fmt.Errorf("failed to invalidate previous invitations: %w", txErr)
 		}

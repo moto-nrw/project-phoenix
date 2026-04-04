@@ -2,6 +2,7 @@ package platform_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -32,6 +33,7 @@ type mockInvitationTokenRepo struct {
 	extendExpiryFn         func(ctx context.Context, id int64, newExpiresAt time.Time) (bool, error)
 	updateDeliveryResultFn func(ctx context.Context, tokenID int64, sentAt *time.Time, emailError *string, retryCount int) error
 	deleteExpiredFn        func(ctx context.Context) (int, error)
+	countRecentFn          func(ctx context.Context, createdByID int64, since time.Time) (int, error)
 }
 
 func (m *mockInvitationTokenRepo) Create(ctx context.Context, token *platform.OperatorInvitationToken) error {
@@ -100,6 +102,13 @@ func (m *mockInvitationTokenRepo) UpdateDeliveryResult(ctx context.Context, toke
 func (m *mockInvitationTokenRepo) DeleteExpired(ctx context.Context) (int, error) {
 	if m.deleteExpiredFn != nil {
 		return m.deleteExpiredFn(ctx)
+	}
+	return 0, nil
+}
+
+func (m *mockInvitationTokenRepo) CountRecentByCreatedBy(ctx context.Context, createdByID int64, since time.Time) (int, error) {
+	if m.countRecentFn != nil {
+		return m.countRecentFn(ctx, createdByID, since)
 	}
 	return 0, nil
 }
@@ -364,6 +373,131 @@ func TestInviteOperator_InvalidateError(t *testing.T) {
 	err := service.InviteOperator(context.Background(), "test@example.com", nil, 42, net.ParseIP("127.0.0.1"))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalidate previous invitations")
+}
+
+func TestInviteOperator_RateLimit_BlocksAtLimit(t *testing.T) {
+	bunDB, mock := setupSqlMock(t)
+	expectAdminTx(mock)
+	mock.ExpectRollback()
+
+	createCalled := false
+	invalidateCalled := false
+	invitationRepo := &mockInvitationTokenRepo{
+		countRecentFn: func(_ context.Context, createdByID int64, since time.Time) (int, error) {
+			assert.Equal(t, int64(42), createdByID)
+			// Window should be ~1 hour ago; allow some jitter.
+			assert.WithinDuration(t, time.Now().Add(-1*time.Hour), since, 5*time.Second)
+			return 5, nil
+		},
+		invalidateByEmailFn: func(_ context.Context, _ string) (int, error) {
+			invalidateCalled = true
+			return 0, nil
+		},
+		createFn: func(_ context.Context, _ *platform.OperatorInvitationToken) error {
+			createCalled = true
+			return nil
+		},
+	}
+	operatorRepo := &mockOperatorRepo{
+		findByEmailFn: func(_ context.Context, _ string) (*platform.Operator, error) {
+			return nil, nil
+		},
+	}
+
+	service := newInvitationTestService(t, operatorRepo, &mockAuditLogRepoShared{}, invitationRepo, bunDB)
+
+	err := service.InviteOperator(context.Background(), "new@example.com", nil, 42, net.ParseIP("127.0.0.1"))
+	require.Error(t, err)
+
+	var rateLimit *platformSvc.OperatorInvitationRateLimitError
+	assert.True(t, assert.ErrorAs(t, err, &rateLimit))
+	assert.False(t, invalidateCalled, "previous invitations must NOT be invalidated when rate limited")
+	assert.False(t, createCalled, "token must NOT be created when rate limited")
+}
+
+func TestInviteOperator_RateLimit_AllowsJustBelowLimit(t *testing.T) {
+	bunDB, mock := setupSqlMock(t)
+	expectAdminTx(mock)
+	mock.ExpectCommit()
+
+	var createdToken *platform.OperatorInvitationToken
+	invitationRepo := &mockInvitationTokenRepo{
+		countRecentFn: func(_ context.Context, _ int64, _ time.Time) (int, error) {
+			return 4, nil // one below the limit
+		},
+		createFn: func(_ context.Context, token *platform.OperatorInvitationToken) error {
+			createdToken = token
+			token.ID = 101
+			return nil
+		},
+	}
+	operatorRepo := &mockOperatorRepo{
+		findByEmailFn: func(_ context.Context, _ string) (*platform.Operator, error) {
+			return nil, nil
+		},
+	}
+
+	service := newInvitationTestService(t, operatorRepo, &mockAuditLogRepoShared{}, invitationRepo, bunDB)
+
+	err := service.InviteOperator(context.Background(), "new@example.com", nil, 42, net.ParseIP("127.0.0.1"))
+	require.NoError(t, err)
+	require.NotNil(t, createdToken)
+	assert.Equal(t, "new@example.com", createdToken.Email)
+}
+
+func TestInviteOperator_RateLimit_CountError(t *testing.T) {
+	bunDB, mock := setupSqlMock(t)
+	expectAdminTx(mock)
+	mock.ExpectRollback()
+
+	invitationRepo := &mockInvitationTokenRepo{
+		countRecentFn: func(_ context.Context, _ int64, _ time.Time) (int, error) {
+			return 0, fmt.Errorf("db error during count")
+		},
+	}
+	operatorRepo := &mockOperatorRepo{
+		findByEmailFn: func(_ context.Context, _ string) (*platform.Operator, error) {
+			return nil, nil
+		},
+	}
+
+	service := newInvitationTestService(t, operatorRepo, &mockAuditLogRepoShared{}, invitationRepo, bunDB)
+
+	err := service.InviteOperator(context.Background(), "new@example.com", nil, 42, net.ParseIP("127.0.0.1"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "check invitation rate limit")
+	// Must NOT be returned as a user-facing rate limit error.
+	var rateLimit *platformSvc.OperatorInvitationRateLimitError
+	assert.False(t, errors.As(err, &rateLimit))
+}
+
+func TestInviteOperator_RateLimit_LockFailure(t *testing.T) {
+	bunDB, mock := setupSqlMock(t)
+	expectAdminTx(mock)
+	mock.ExpectRollback()
+
+	countCalled := false
+	invitationRepo := &mockInvitationTokenRepo{
+		countRecentFn: func(_ context.Context, _ int64, _ time.Time) (int, error) {
+			countCalled = true
+			return 0, nil
+		},
+	}
+	operatorRepo := &mockOperatorRepo{
+		findByIDForUpdateFn: func(_ context.Context, _ int64) (*platform.Operator, error) {
+			return nil, fmt.Errorf("lock timeout")
+		},
+		findByEmailFn: func(_ context.Context, _ string) (*platform.Operator, error) {
+			return nil, nil
+		},
+	}
+
+	service := newInvitationTestService(t, operatorRepo, &mockAuditLogRepoShared{}, invitationRepo, bunDB)
+
+	err := service.InviteOperator(context.Background(), "new@example.com", nil, 42, net.ParseIP("127.0.0.1"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "lock inviter row")
+	assert.False(t, countCalled, "rate limit count must not run after lock failure")
 }
 
 func TestInviteOperator_AuditLogErrorDoesNotBlock(t *testing.T) {
