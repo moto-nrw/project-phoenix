@@ -161,7 +161,7 @@ function InviteForm({ onCreated }: { readonly onCreated: () => void }) {
         <button
           type="submit"
           disabled={isSubmitting || !email.trim()}
-          className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-full bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isSubmitting ? "Wird gesendet..." : "Einladung senden"}
         </button>
@@ -262,7 +262,7 @@ function PendingInvitationsList({
                 type="button"
                 disabled={actionLoading === inv.id}
                 onClick={() => void handleResend(inv.id)}
-                className="rounded px-3 py-1 text-xs font-medium text-violet-700 transition-colors hover:bg-violet-50 disabled:opacity-50"
+                className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700 transition-colors hover:bg-violet-200 disabled:opacity-50"
               >
                 Erneut senden
               </button>
@@ -270,7 +270,7 @@ function PendingInvitationsList({
                 type="button"
                 disabled={actionLoading === inv.id}
                 onClick={() => setRevokeTarget(inv)}
-                className="rounded px-3 py-1 text-xs font-medium text-red-700 transition-colors hover:bg-red-50 disabled:opacity-50"
+                className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 transition-colors hover:bg-red-200 disabled:opacity-50"
               >
                 Widerrufen
               </button>
