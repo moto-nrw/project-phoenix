@@ -24,18 +24,38 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const params = await extractParams(request, context);
     const { getServerApiUrl } = await import("~/lib/server-api-url");
     const { getClientForwardHeaders } = await import("~/lib/client-headers");
+    const forwardHeaders = getClientForwardHeaders(request);
 
-    const response = await fetch(
-      `${getServerApiUrl()}/operator/invitations/${params.id}/resend`,
-      {
+    const makeRequest = async (token: string) =>
+      fetch(`${getServerApiUrl()}/operator/invitations/${params.id}/resend`, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${session.user.token}`,
+          Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
-          ...getClientForwardHeaders(request),
+          ...forwardHeaders,
         },
-      },
-    );
+      });
+
+    let response = await makeRequest(session.user.token);
+
+    // Retry with refreshed token on 401 (expired access token)
+    if (response.status === 401) {
+      const { uncachedOperatorAuth } = await import("~/server/auth/operator");
+      const refreshed = await uncachedOperatorAuth();
+      if (
+        refreshed?.user?.token &&
+        refreshed.user.token !== session.user.token
+      ) {
+        response = await makeRequest(refreshed.user.token);
+      }
+    }
+
+    if (response.status === 401) {
+      return NextResponse.json(
+        { error: "Token expired", code: "TOKEN_EXPIRED" },
+        { status: 401 },
+      );
+    }
 
     const contentType = response.headers.get("content-type");
     if (!contentType?.includes("application/json")) {

@@ -24,17 +24,37 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     const params = await extractParams(request, context);
     const { getServerApiUrl } = await import("~/lib/server-api-url");
     const { getClientForwardHeaders } = await import("~/lib/client-headers");
+    const forwardHeaders = getClientForwardHeaders(request);
 
-    const response = await fetch(
-      `${getServerApiUrl()}/operator/invitations/${params.id}`,
-      {
+    const makeRequest = async (token: string) =>
+      fetch(`${getServerApiUrl()}/operator/invitations/${params.id}`, {
         method: "DELETE",
         headers: {
-          Authorization: `Bearer ${session.user.token}`,
-          ...getClientForwardHeaders(request),
+          Authorization: `Bearer ${token}`,
+          ...forwardHeaders,
         },
-      },
-    );
+      });
+
+    let response = await makeRequest(session.user.token);
+
+    // Retry with refreshed token on 401 (expired access token)
+    if (response.status === 401) {
+      const { uncachedOperatorAuth } = await import("~/server/auth/operator");
+      const refreshed = await uncachedOperatorAuth();
+      if (
+        refreshed?.user?.token &&
+        refreshed.user.token !== session.user.token
+      ) {
+        response = await makeRequest(refreshed.user.token);
+      }
+    }
+
+    if (response.status === 401) {
+      return NextResponse.json(
+        { error: "Token expired", code: "TOKEN_EXPIRED" },
+        { status: 401 },
+      );
+    }
 
     if (response.status === 204) {
       return new NextResponse(null, { status: 204 });
