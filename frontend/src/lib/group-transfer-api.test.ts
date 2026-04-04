@@ -103,10 +103,10 @@ describe("groupTransferService", () => {
       expect(result).toHaveLength(3);
       expect(result.map((s) => s.id)).toEqual(["1", "2", "3"]);
 
-      // Single request with all roles combined
+      // Single request against the canonical caregiver pool
       expect(fetchMock).toHaveBeenCalledTimes(1);
       expect(fetchMock).toHaveBeenCalledWith(
-        "/api/staff/by-role?roles=teacher,staff,user",
+        "/api/staff/by-role?role=user",
         expect.anything(),
       );
     });

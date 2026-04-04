@@ -52,13 +52,12 @@ function mapStaffWithRole(data: BackendStaffWithRole): StaffWithRole {
 
 export const groupTransferService = {
   // Get all staff members available for group transfer
-  // Uses multi-role endpoint to fetch all roles in a single request
+  // Uses the canonical caregiver pool so admin-only staff never appear here.
   async getAllAvailableStaff(): Promise<StaffWithRole[]> {
     try {
-      const response = await sessionFetch(
-        `/api/staff/by-role?roles=teacher,staff,user`,
-        { method: "GET" },
-      );
+      const response = await sessionFetch(`/api/staff/by-role?role=user`, {
+        method: "GET",
+      });
 
       if (!response.ok) {
         logger.error("fetch_staff_by_roles_failed", {

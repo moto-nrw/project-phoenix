@@ -86,6 +86,7 @@ func (rs *Resource) processStaffForListOptimized(
 	ctx context.Context,
 	staff *users.Staff,
 	teacherMap map[int64]*users.Teacher,
+	caregiverStaffIDs map[int64]struct{},
 	presentMap map[int64]bool,
 	workStatusMap map[int64]string,
 	absenceMap map[int64]string,
@@ -111,8 +112,13 @@ func (rs *Resource) processStaffForListOptimized(
 	// Look up teacher from pre-loaded map (O(1) lookup instead of DB query)
 	teacher, isTeacher := teacherMap[staff.ID]
 
-	if filters.teachersOnly && !isTeacher {
-		return nil, false
+	if filters.teachersOnly {
+		if !isTeacher {
+			return nil, false
+		}
+		if _, ok := caregiverStaffIDs[staff.ID]; !ok {
+			return nil, false
+		}
 	}
 
 	// Look up presence from pre-loaded map (O(1) lookup)

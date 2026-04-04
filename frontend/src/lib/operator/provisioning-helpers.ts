@@ -186,6 +186,7 @@ export interface CreateAccountRequest {
   confirm_password: string;
   role_id?: number;
   position?: string;
+  caregiver_enabled?: boolean;
 }
 
 // Mapping functions

@@ -29,12 +29,13 @@ import (
 
 // CreateSchoolAccountRequest holds fields for operator-created school accounts.
 type CreateSchoolAccountRequest struct {
-	Email     string
-	Password  string
-	FirstName string
-	LastName  string
-	RoleID    *int64
-	Position  string // optional, maps to Teacher.Role
+	Email            string
+	Password         string
+	FirstName        string
+	LastName         string
+	RoleID           *int64
+	Position         string // optional, maps to Teacher.Role
+	CaregiverEnabled bool
 }
 
 // UpdateOrganizationRequest holds fields for updating an organization.
@@ -476,6 +477,7 @@ func (s *operatorProvisioningService) CreateSchoolAccount(ctx context.Context, s
 		}
 
 		roleID := req.RoleID
+		var selectedRole *authModels.Role
 		if roleID == nil {
 			adminRole, roleErr := s.resolveSystemRoleByName(adminCtx, "admin")
 			if roleErr != nil {
@@ -485,6 +487,7 @@ func (s *operatorProvisioningService) CreateSchoolAccount(ctx context.Context, s
 				return &InvalidDataError{Err: fmt.Errorf("admin role not found")}
 			}
 			roleID = &adminRole.ID
+			selectedRole = adminRole
 		} else {
 			// Validate that the provided role is a system role and not guardian
 			role, roleErr := s.roleRepo.FindByID(adminCtx, *roleID)
@@ -500,6 +503,7 @@ func (s *operatorProvisioningService) CreateSchoolAccount(ctx context.Context, s
 			if strings.EqualFold(role.Name, "guardian") {
 				return &InvalidDataError{Err: fmt.Errorf("guardian accounts must be created through the guardian invitation flow")}
 			}
+			selectedRole = role
 		}
 
 		// Auto-generate username from name
@@ -534,28 +538,29 @@ func (s *operatorProvisioningService) CreateSchoolAccount(ctx context.Context, s
 		}
 
 		// Step 3: Create Staff (only for system roles)
-		if roleID != nil {
-			role, roleErr := s.roleRepo.FindByID(tenantCtx, *roleID)
-			if roleErr != nil {
-				return fmt.Errorf("lookup role for staff creation: %w", roleErr)
+		if selectedRole != nil && selectedRole.IsSystem {
+			staff := &userModels.Staff{PersonID: person.ID}
+			staff.SetTenantID(school.ID)
+			if err := s.staffRepo.Create(tenantCtx, staff); err != nil {
+				return fmt.Errorf("create staff: %w", err)
 			}
-			if role != nil && role.IsSystem {
-				staff := &userModels.Staff{PersonID: person.ID}
-				staff.SetTenantID(school.ID)
-				if err := s.staffRepo.Create(tenantCtx, staff); err != nil {
-					return fmt.Errorf("create staff: %w", err)
+
+			roleAlreadyCarriesCaregiverCapability := shouldCreateTeacher(selectedRole.Name)
+			enableCaregiverCapability := roleAlreadyCarriesCaregiverCapability || req.CaregiverEnabled
+			if enableCaregiverCapability {
+				if !roleAlreadyCarriesCaregiverCapability {
+					if err := s.ensureUserRole(tenantCtx, account.ID); err != nil {
+						return fmt.Errorf("assign caregiver role: %w", err)
+					}
 				}
 
-				// Create Teacher for "user" and "teacher" roles
-				if shouldCreateTeacher(role.Name) {
-					teacher := &userModels.Teacher{StaffID: staff.ID}
-					teacher.SetTenantID(school.ID)
-					if req.Position != "" {
-						teacher.Role = req.Position
-					}
-					if err := s.teacherRepo.Create(tenantCtx, teacher); err != nil {
-						return fmt.Errorf("create teacher: %w", err)
-					}
+				teacher := &userModels.Teacher{StaffID: staff.ID}
+				teacher.SetTenantID(school.ID)
+				if req.Position != "" {
+					teacher.Role = req.Position
+				}
+				if err := s.teacherRepo.Create(tenantCtx, teacher); err != nil {
+					return fmt.Errorf("create teacher: %w", err)
 				}
 			}
 		}
@@ -570,6 +575,18 @@ func (s *operatorProvisioningService) CreateSchoolAccount(ctx context.Context, s
 		return nil, err
 	}
 	return account, nil
+}
+
+func (s *operatorProvisioningService) ensureUserRole(ctx context.Context, accountID int64) error {
+	userRole, err := s.resolveSystemRoleByName(ctx, "user")
+	if err != nil {
+		return err
+	}
+	if userRole == nil {
+		return fmt.Errorf("user role not found")
+	}
+
+	return s.authService.AssignRoleToAccount(ctx, int(accountID), int(userRole.ID))
 }
 
 func (s *operatorProvisioningService) ListSystemRoles(ctx context.Context) ([]*authModels.Role, error) {

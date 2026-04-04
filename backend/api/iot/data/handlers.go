@@ -32,25 +32,26 @@ func (rs *Resource) getAvailableTeachers(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Get all teachers with staff and person data in a single query (avoids N+1)
-	teachers, err := rs.UsersService.TeacherRepository().ListAllWithStaffAndPerson(r.Context())
+	directory, err := usersSvc.CaregiverDirectoryFromPersonService(rs.UsersService)
+	if err != nil {
+		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
+		return
+	}
+	caregivers, err := directory.ListActiveCaregivers(r.Context())
 	if err != nil {
 		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
 		return
 	}
 
-	// Build response - all teachers are available for selection (global PIN)
-	responses := make([]DeviceTeacherResponse, 0, len(teachers))
-	for _, teacher := range teachers {
-		if teacher.Staff == nil || teacher.Staff.Person == nil {
-			continue // Skip if missing staff or person data
-		}
-
+	// Build response from the canonical caregiver pool.
+	responses := make([]DeviceTeacherResponse, 0, len(caregivers))
+	for _, caregiver := range caregivers {
 		responses = append(responses, DeviceTeacherResponse{
-			StaffID:     teacher.Staff.ID,
-			PersonID:    teacher.Staff.Person.ID,
-			FirstName:   teacher.Staff.Person.FirstName,
-			LastName:    teacher.Staff.Person.LastName,
-			DisplayName: fmt.Sprintf("%s %s", teacher.Staff.Person.FirstName, teacher.Staff.Person.LastName),
+			StaffID:     caregiver.StaffID,
+			PersonID:    caregiver.PersonID,
+			FirstName:   caregiver.FirstName,
+			LastName:    caregiver.LastName,
+			DisplayName: caregiver.FullName(),
 		})
 	}
 

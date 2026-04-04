@@ -138,6 +138,10 @@ func (s *userContextService) GetCurrentPerson(ctx context.Context) (*users.Perso
 
 // GetCurrentStaff retrieves the staff member linked to the currently authenticated user
 func (s *userContextService) GetCurrentStaff(ctx context.Context) (*users.Staff, error) {
+	if !currentUserHasRole(ctx, "user") {
+		return nil, &UserContextError{Op: opGetCurrentStaff, Err: ErrUserNotLinkedToStaff}
+	}
+
 	person, err := s.GetCurrentPerson(ctx)
 	if err != nil {
 		return nil, err
@@ -160,6 +164,10 @@ func (s *userContextService) GetCurrentStaff(ctx context.Context) (*users.Staff,
 
 // GetCurrentTeacher retrieves the teacher linked to the currently authenticated user
 func (s *userContextService) GetCurrentTeacher(ctx context.Context) (*users.Teacher, error) {
+	if !currentUserHasRole(ctx, "user") {
+		return nil, &UserContextError{Op: "get current teacher", Err: ErrUserNotLinkedToTeacher}
+	}
+
 	staff, err := s.GetCurrentStaff(ctx)
 	if err != nil {
 		return nil, err
@@ -178,6 +186,10 @@ func (s *userContextService) GetCurrentTeacher(ctx context.Context) (*users.Teac
 
 // GetMyGroups retrieves educational groups associated with the current user
 func (s *userContextService) GetMyGroups(ctx context.Context) ([]*education.Group, error) {
+	if !currentUserHasRole(ctx, "user") {
+		return []*education.Group{}, nil
+	}
+
 	staff, staffErr := s.GetCurrentStaff(ctx)
 
 	// Derive teacher from the already-resolved staff to avoid duplicate identity queries.
@@ -222,6 +234,16 @@ func (s *userContextService) GetMyGroups(ctx context.Context) ([]*education.Grou
 
 	groups := mapToSlice(groupMap)
 	return s.handlePartialError(groups, partialErr)
+}
+
+func currentUserHasRole(ctx context.Context, roleName string) bool {
+	claims := jwt.ClaimsFromCtx(ctx)
+	for _, role := range claims.Roles {
+		if strings.EqualFold(role, roleName) {
+			return true
+		}
+	}
+	return false
 }
 
 // hasValidStaffOrTeacher checks if the user has valid staff or teacher linkage

@@ -3,6 +3,7 @@ package staff
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -253,6 +254,38 @@ func (rs *Resource) parseAndGetStaff(w http.ResponseWriter, r *http.Request) (*u
 	return staff, true
 }
 
+func (rs *Resource) listActiveCaregivers(ctx context.Context) ([]*users.ActiveCaregiver, error) {
+	directory, err := usersSvc.CaregiverDirectoryFromPersonService(rs.PersonService)
+	if err != nil {
+		return nil, fmt.Errorf("resolve caregiver directory: %w", err)
+	}
+
+	return directory.ListActiveCaregivers(ctx)
+}
+
+func caregiverStaffIDSet(caregivers []*users.ActiveCaregiver) map[int64]struct{} {
+	result := make(map[int64]struct{}, len(caregivers))
+	for _, caregiver := range caregivers {
+		result[caregiver.StaffID] = struct{}{}
+	}
+	return result
+}
+
+func requestedCaregiverPool(roles []string) bool {
+	if len(roles) == 0 {
+		return false
+	}
+
+	for _, role := range roles {
+		switch strings.ToLower(strings.TrimSpace(role)) {
+		case "user", "teacher", "staff":
+			return true
+		}
+	}
+
+	return false
+}
+
 // =============================================================================
 // RESPONSE HELPERS
 // =============================================================================
@@ -398,6 +431,16 @@ func (rs *Resource) listStaff(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	caregiverStaffIDs := map[int64]struct{}{}
+	if filters.teachersOnly {
+		caregivers, caregiverErr := rs.listActiveCaregivers(ctx)
+		if caregiverErr != nil {
+			common.RenderError(w, r, ErrorInternalServer(caregiverErr))
+			return
+		}
+		caregiverStaffIDs = caregiverStaffIDSet(caregivers)
+	}
+
 	// Batch-load staff who had supervision activity today (for "Anwesend" status)
 	presentStaffIDs, err := rs.GroupSupervisorRepo.GetStaffIDsWithSupervisionToday(ctx)
 	if err != nil {
@@ -423,7 +466,7 @@ func (rs *Resource) listStaff(w http.ResponseWriter, r *http.Request) {
 	// Build response objects using pre-loaded data
 	responses := make([]interface{}, 0, len(staffMembers))
 	for _, staff := range staffMembers {
-		if response, include := rs.processStaffForListOptimized(ctx, staff, teacherMap, presentMap, workStatusMap, absenceMap, accountRoleMap, accountEmailMap, filters); include {
+		if response, include := rs.processStaffForListOptimized(ctx, staff, teacherMap, caregiverStaffIDs, presentMap, workStatusMap, absenceMap, accountRoleMap, accountEmailMap, filters); include {
 			responses = append(responses, response)
 		}
 	}
@@ -920,15 +963,22 @@ func (rs *Resource) getAvailableForSubstitution(w http.ResponseWriter, r *http.R
 		}
 	}
 
-	// Get all teachers with staff and person data in a single query (avoids N+1)
+	caregivers, err := rs.listActiveCaregivers(ctx)
+	if err != nil {
+		common.RenderError(w, r, ErrorInternalServer(err))
+		return
+	}
+
+	// Keep the richer teacher payload, but only for canonical caregivers.
 	teachers, err := rs.TeacherRepo.ListAllWithStaffAndPerson(ctx)
 	if err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
+	activeCaregiverStaffIDs := caregiverStaffIDSet(caregivers)
 	substitutingStaffMap := rs.buildSubstitutionMap(ctx, date)
-	results := rs.filterAndBuildTeacherResults(ctx, teachers, substitutingStaffMap, searchTerm)
+	results := rs.filterAndBuildTeacherResults(ctx, teachers, activeCaregiverStaffIDs, substitutingStaffMap, searchTerm)
 
 	common.Respond(w, r, http.StatusOK, results, "Available staff for substitution retrieved successfully")
 }
@@ -952,13 +1002,14 @@ func (rs *Resource) buildSubstitutionMap(ctx context.Context, date time.Time) ma
 func (rs *Resource) filterAndBuildTeacherResults(
 	ctx context.Context,
 	teachers []*users.Teacher,
+	activeCaregiverStaffIDs map[int64]struct{},
 	subsMap map[int64][]*education.GroupSubstitution,
 	searchTerm string,
 ) []StaffWithSubstitutionStatus {
 	results := make([]StaffWithSubstitutionStatus, 0, len(teachers))
 
 	for _, teacher := range teachers {
-		result := rs.processTeacherForSubstitution(ctx, teacher, subsMap, searchTerm)
+		result := rs.processTeacherForSubstitution(ctx, teacher, activeCaregiverStaffIDs, subsMap, searchTerm)
 		if result != nil {
 			results = append(results, *result)
 		}
@@ -971,11 +1022,15 @@ func (rs *Resource) filterAndBuildTeacherResults(
 func (rs *Resource) processTeacherForSubstitution(
 	ctx context.Context,
 	teacher *users.Teacher,
+	activeCaregiverStaffIDs map[int64]struct{},
 	subsMap map[int64][]*education.GroupSubstitution,
 	searchTerm string,
 ) *StaffWithSubstitutionStatus {
 	// Skip if staff or person data is missing
 	if teacher.Staff == nil || teacher.Staff.Person == nil {
+		return nil
+	}
+	if _, ok := activeCaregiverStaffIDs[teacher.Staff.ID]; !ok {
 		return nil
 	}
 
@@ -1189,6 +1244,32 @@ func (rs *Resource) getStaffByRole(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
+
+	if requestedCaregiverPool(roles) {
+		caregivers, err := rs.listActiveCaregivers(ctx)
+		if err != nil {
+			common.RenderError(w, r, ErrorInternalServer(err))
+			return
+		}
+
+		results := make([]StaffWithRoleResponse, 0, len(caregivers))
+		for _, caregiver := range caregivers {
+			results = append(results, StaffWithRoleResponse{
+				ID:        caregiver.StaffID,
+				PersonID:  caregiver.PersonID,
+				FirstName: caregiver.FirstName,
+				LastName:  caregiver.LastName,
+				FullName:  caregiver.FullName(),
+				AccountID: caregiver.AccountID,
+				Email:     caregiver.Email,
+				CreatedAt: caregiver.CreatedAt,
+				UpdatedAt: caregiver.UpdatedAt,
+			})
+		}
+
+		common.Respond(w, r, http.StatusOK, results, "Active caregivers retrieved successfully")
+		return
+	}
 
 	staffByRoles, err := rs.StaffRepo.ListStaffByRoles(ctx, roles)
 	if err != nil {

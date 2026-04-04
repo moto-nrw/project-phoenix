@@ -151,13 +151,14 @@ func (req *inviteSchoolAdminRequest) Bind(_ *http.Request) error {
 }
 
 type createSchoolAccountRequest struct {
-	Email           string `json:"email"`
-	FirstName       string `json:"first_name"`
-	LastName        string `json:"last_name"`
-	Password        string `json:"password"`
-	ConfirmPassword string `json:"confirm_password"`
-	RoleID          *int64 `json:"role_id,omitempty"`
-	Position        string `json:"position,omitempty"`
+	Email            string `json:"email"`
+	FirstName        string `json:"first_name"`
+	LastName         string `json:"last_name"`
+	Password         string `json:"password"`
+	ConfirmPassword  string `json:"confirm_password"`
+	RoleID           *int64 `json:"role_id,omitempty"`
+	Position         string `json:"position,omitempty"`
+	CaregiverEnabled bool   `json:"caregiver_enabled,omitempty"`
 }
 
 func (req *createSchoolAccountRequest) Bind(_ *http.Request) error {
@@ -394,12 +395,13 @@ func (rs *ProvisioningResource) CreateSchoolAccount(w http.ResponseWriter, r *ht
 	}
 	operatorID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
 	svcReq := platformSvc.CreateSchoolAccountRequest{
-		Email:     req.Email,
-		Password:  req.Password,
-		FirstName: req.FirstName,
-		LastName:  req.LastName,
-		RoleID:    req.RoleID,
-		Position:  req.Position,
+		Email:            req.Email,
+		Password:         req.Password,
+		FirstName:        req.FirstName,
+		LastName:         req.LastName,
+		RoleID:           req.RoleID,
+		Position:         req.Position,
+		CaregiverEnabled: req.CaregiverEnabled,
 	}
 	account, err := rs.service.CreateSchoolAccount(r.Context(), schoolID, operatorID, getClientIP(r), svcReq)
 	if err != nil {
