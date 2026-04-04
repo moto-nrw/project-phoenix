@@ -72,8 +72,8 @@ export const groupsConfig = defineEntityConfig<Group>({
             colSpan: 2,
             options: async () => {
               try {
-                // Fetch teachers from staff API (filtered for teachers only)
-                const response = await fetch("/api/staff?teachers_only=true");
+                // Fetch active caregivers from the canonical caregiver pool.
+                const response = await fetch("/api/staff/by-role?role=user");
                 const result = (await response.json()) as
                   | {
                       data?: Array<{

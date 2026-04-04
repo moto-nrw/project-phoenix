@@ -1,6 +1,7 @@
 package operator
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strings"
@@ -11,16 +12,22 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
+	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/spf13/viper"
+	"github.com/uptrace/bun"
 )
 
 const seedTokenHeader = "X-Phoenix-Seed-Token"
 
 // ProvisioningResource handles operator tenant provisioning endpoints.
 type ProvisioningResource struct {
-	service platformSvc.OperatorProvisioningService
+	service                    platformSvc.OperatorProvisioningService
+	CaregiverCapabilityService usersSvc.CaregiverCapabilityService
+	db                         *bun.DB
 }
 
 // NewProvisioningResource creates a new provisioning resource.
@@ -161,6 +168,12 @@ type createSchoolAccountRequest struct {
 	CaregiverEnabled bool   `json:"caregiver_enabled,omitempty"`
 }
 
+type updateCaregiverCapabilityRequest struct {
+	FirstName string `json:"first_name,omitempty"`
+	LastName  string `json:"last_name,omitempty"`
+	Position  string `json:"position,omitempty"`
+}
+
 func (req *createSchoolAccountRequest) Bind(_ *http.Request) error {
 	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
 	req.FirstName = strings.TrimSpace(req.FirstName)
@@ -181,6 +194,13 @@ func (req *createSchoolAccountRequest) Bind(_ *http.Request) error {
 	if req.Password != req.ConfirmPassword {
 		return errors.New("passwords do not match")
 	}
+	return nil
+}
+
+func (req *updateCaregiverCapabilityRequest) Bind(_ *http.Request) error {
+	req.FirstName = strings.TrimSpace(req.FirstName)
+	req.LastName = strings.TrimSpace(req.LastName)
+	req.Position = strings.TrimSpace(req.Position)
 	return nil
 }
 
@@ -433,6 +453,110 @@ func (rs *ProvisioningResource) ListSchoolAccounts(w http.ResponseWriter, r *htt
 	common.Respond(w, r, http.StatusOK, accounts, "School accounts retrieved successfully")
 }
 
+func (rs *ProvisioningResource) GetSchoolAccountCaregiverCapability(w http.ResponseWriter, r *http.Request) {
+	if rs.CaregiverCapabilityService == nil {
+		common.RenderError(w, r, ErrInternal("Caregiver capability service is not configured"))
+		return
+	}
+
+	schoolID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid school ID")
+	if !ok {
+		return
+	}
+	accountID, ok := common.ParseInt64IDWithError(w, r, "accountId", "invalid account ID")
+	if !ok {
+		return
+	}
+
+	var state *userModels.CaregiverCapabilityState
+	err := tenant.WithAdminTx(r.Context(), rs.db, func(adminCtx context.Context, _ bun.Tx) error {
+		tenantCtx := tenant.WithTenantID(adminCtx, schoolID)
+		var getErr error
+		state, getErr = rs.CaregiverCapabilityService.GetCaregiverCapability(tenantCtx, accountID)
+		return getErr
+	})
+	if err != nil {
+		common.RenderError(w, r, caregiverCapabilityProvisioningErrorRenderer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, state, "Caregiver capability retrieved successfully")
+}
+
+func (rs *ProvisioningResource) EnableSchoolAccountCaregiverCapability(w http.ResponseWriter, r *http.Request) {
+	if rs.CaregiverCapabilityService == nil {
+		common.RenderError(w, r, ErrInternal("Caregiver capability service is not configured"))
+		return
+	}
+
+	schoolID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid school ID")
+	if !ok {
+		return
+	}
+	accountID, ok := common.ParseInt64IDWithError(w, r, "accountId", "invalid account ID")
+	if !ok {
+		return
+	}
+
+	req := &updateCaregiverCapabilityRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, ErrInvalidRequest(err))
+		return
+	}
+
+	var state *userModels.CaregiverCapabilityState
+	err := tenant.WithAdminTx(r.Context(), rs.db, func(adminCtx context.Context, _ bun.Tx) error {
+		tenantCtx := tenant.WithTenantID(adminCtx, schoolID)
+		var enableErr error
+		state, enableErr = rs.CaregiverCapabilityService.EnableCaregiverCapability(
+			tenantCtx,
+			accountID,
+			userModels.EnableCaregiverCapabilityInput{
+				FirstName: req.FirstName,
+				LastName:  req.LastName,
+				Position:  req.Position,
+			},
+		)
+		return enableErr
+	})
+	if err != nil {
+		common.RenderError(w, r, caregiverCapabilityProvisioningErrorRenderer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, state, "Caregiver capability enabled successfully")
+}
+
+func (rs *ProvisioningResource) DisableSchoolAccountCaregiverCapability(w http.ResponseWriter, r *http.Request) {
+	if rs.CaregiverCapabilityService == nil {
+		common.RenderError(w, r, ErrInternal("Caregiver capability service is not configured"))
+		return
+	}
+
+	schoolID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid school ID")
+	if !ok {
+		return
+	}
+	accountID, ok := common.ParseInt64IDWithError(w, r, "accountId", "invalid account ID")
+	if !ok {
+		return
+	}
+
+	var state *userModels.CaregiverCapabilityState
+	err := tenant.WithAdminTx(r.Context(), rs.db, func(adminCtx context.Context, _ bun.Tx) error {
+		tenantCtx := tenant.WithTenantID(adminCtx, schoolID)
+		var disableErr error
+		state, disableErr = rs.CaregiverCapabilityService.DisableCaregiverCapability(tenantCtx, accountID)
+		return disableErr
+	})
+	if err != nil {
+		common.RenderError(w, r, caregiverCapabilityProvisioningErrorRenderer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, state, "Caregiver capability disabled successfully")
+}
+
 func (rs *ProvisioningResource) ListOrganizationAccounts(w http.ResponseWriter, r *http.Request) {
 	orgID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid organization ID")
 	if !ok {
@@ -516,6 +640,45 @@ func ProvisioningErrorRenderer(err error) render.Renderer {
 	default:
 		return ErrInternal("An error occurred")
 	}
+}
+
+func caregiverCapabilityProvisioningErrorRenderer(err error) render.Renderer {
+	var blockedErr *usersSvc.CaregiverCapabilityBlockedError
+	var accountTenantErr *usersSvc.AccountNotAssignedToTenantError
+
+	switch {
+	case errors.As(err, &blockedErr):
+		return &caregiverCapabilityBlockedResponse{
+			HTTPStatusCode: http.StatusConflict,
+			Status:         "error",
+			ErrorText:      blockedErr.Error(),
+			Blockers:       blockedErr.Reasons,
+		}
+	case errors.Is(err, authSvc.ErrAccountNotFound), errors.As(err, &accountTenantErr):
+		return ErrNotFound("Account not found")
+	default:
+		var invalidData *platformSvc.InvalidDataError
+		if errors.As(err, &invalidData) {
+			return ErrInvalidRequest(invalidData.Err)
+		}
+		var usersErr *usersSvc.UsersError
+		if errors.As(err, &usersErr) {
+			return ErrInvalidRequest(usersErr.Err)
+		}
+		return ProvisioningErrorRenderer(err)
+	}
+}
+
+type caregiverCapabilityBlockedResponse struct {
+	HTTPStatusCode int      `json:"-"`
+	Status         string   `json:"status"`
+	ErrorText      string   `json:"error"`
+	Blockers       []string `json:"blockers"`
+}
+
+func (e *caregiverCapabilityBlockedResponse) Render(_ http.ResponseWriter, r *http.Request) error {
+	render.Status(r, e.HTTPStatusCode)
+	return nil
 }
 
 func operatorInvitationCreatedByValue(createdBy *int64) int64 {

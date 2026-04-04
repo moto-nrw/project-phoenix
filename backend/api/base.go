@@ -267,6 +267,7 @@ func parsePositiveInt(envVar string, defaultValue int) int {
 // initializeAPIResources initializes all API resource instances
 func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun.DB, logger *slog.Logger) {
 	api.Auth = authAPI.NewResource(api.Services.Auth, api.Services.Invitation, repoFactory.School, db)
+	api.Auth.CaregiverCapabilityService = api.Services.CaregiverCapability
 	api.Rooms = roomsAPI.NewResource(api.Services.Facilities, db)
 	api.Students = studentsAPI.NewResource(studentsAPI.ResourceConfig{
 		PersonService:         api.Services.Users,
@@ -316,11 +317,13 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 
 	// Initialize operator dashboard resources
 	api.Operator = operatorAPI.NewResource(operatorAPI.ResourceConfig{
-		AuthService:          api.Services.OperatorAuth,
-		ProvisioningService:  api.Services.OperatorProvisioning,
-		SuggestionsService:   api.Services.OperatorSuggestions,
-		AnnouncementsService: api.Services.Announcement,
-		TokenAuth:            nil, // Created internally by operator API
+		AuthService:                api.Services.OperatorAuth,
+		ProvisioningService:        api.Services.OperatorProvisioning,
+		CaregiverCapabilityService: api.Services.CaregiverCapability,
+		SuggestionsService:         api.Services.OperatorSuggestions,
+		AnnouncementsService:       api.Services.Announcement,
+		TokenAuth:                  nil, // Created internally by operator API
+		DB:                         db,
 	})
 	api.Platform = platformAPI.NewResource(platformAPI.ResourceConfig{
 		AnnouncementsService: api.Services.Announcement,

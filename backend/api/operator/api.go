@@ -7,6 +7,8 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
+	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/uptrace/bun"
 )
 
 // Resource defines the operator API resource
@@ -23,11 +25,13 @@ type Resource struct {
 
 // ResourceConfig holds dependencies for the operator resource
 type ResourceConfig struct {
-	AuthService          platformSvc.OperatorAuthService
-	ProvisioningService  platformSvc.OperatorProvisioningService
-	SuggestionsService   platformSvc.OperatorSuggestionsService
-	AnnouncementsService platformSvc.AnnouncementService
-	TokenAuth            *jwt.TokenAuth
+	AuthService                platformSvc.OperatorAuthService
+	ProvisioningService        platformSvc.OperatorProvisioningService
+	CaregiverCapabilityService usersSvc.CaregiverCapabilityService
+	SuggestionsService         platformSvc.OperatorSuggestionsService
+	AnnouncementsService       platformSvc.AnnouncementService
+	TokenAuth                  *jwt.TokenAuth
+	DB                         *bun.DB
 }
 
 // SetAuthRateLimiter sets the rate limiter middleware for operator auth endpoints.
@@ -50,7 +54,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 		tokenAuth, _ = jwt.NewTokenAuth()
 	}
 
-	return &Resource{
+	resource := &Resource{
 		authResource:          NewAuthResource(cfg.AuthService),
 		provisioningResource:  NewProvisioningResource(cfg.ProvisioningService),
 		suggestionsResource:   NewSuggestionsResource(cfg.SuggestionsService),
@@ -58,6 +62,9 @@ func NewResource(cfg ResourceConfig) *Resource {
 		profileResource:       NewProfileResource(cfg.AuthService),
 		tokenAuth:             tokenAuth,
 	}
+	resource.provisioningResource.CaregiverCapabilityService = cfg.CaregiverCapabilityService
+	resource.provisioningResource.db = cfg.DB
+	return resource
 }
 
 // Router returns a configured router for operator endpoints
@@ -126,6 +133,11 @@ func (rs *Resource) Router() chi.Router {
 			r.Post("/{id}/invite-admin", rs.provisioningResource.InviteSchoolAdmin)
 			r.Post("/{id}/create-account", rs.provisioningResource.CreateSchoolAccount)
 			r.Get("/{id}/accounts", rs.provisioningResource.ListSchoolAccounts)
+			r.Route("/{id}/accounts/{accountId}/caregiver-capability", func(r chi.Router) {
+				r.Get("/", rs.provisioningResource.GetSchoolAccountCaregiverCapability)
+				r.Post("/", rs.provisioningResource.EnableSchoolAccountCaregiverCapability)
+				r.Delete("/", rs.provisioningResource.DisableSchoolAccountCaregiverCapability)
+			})
 			r.Get("/{id}/devices", rs.provisioningResource.ListSchoolDevices)
 			r.Get("/{id}/persons", rs.provisioningResource.ListSchoolPersons)
 		})

@@ -23,7 +23,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/platform"
+	userModel "github.com/moto-nrw/project-phoenix/models/users"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -43,11 +45,12 @@ const (
 
 // Resource defines the auth resource
 type Resource struct {
-	AuthService       authService.AuthService
-	InvitationService authService.InvitationService
-	SchoolRepo        platform.SchoolRepository
-	db                *bun.DB
-	authRateLimiter   func(http.Handler) http.Handler
+	AuthService                authService.AuthService
+	InvitationService          authService.InvitationService
+	CaregiverCapabilityService usersService.CaregiverCapabilityService
+	SchoolRepo                 platform.SchoolRepository
+	db                         *bun.DB
+	authRateLimiter            func(http.Handler) http.Handler
 }
 
 // SetAuthRateLimiter sets the rate limiter middleware for auth endpoints (login, register, password-reset).
@@ -160,6 +163,9 @@ func (rs *Resource) Router() chi.Router {
 					r.With(authorize.RequiresPermission(permUsersUpdate)).Put("/", rs.updateAccount)
 					r.With(authorize.RequiresPermission(permUsersUpdate)).Put("/activate", rs.activateAccount)
 					r.With(authorize.RequiresPermission(permUsersUpdate)).Put("/deactivate", rs.deactivateAccount)
+					r.With(authorize.RequiresPermission(permUsersManage)).Get("/caregiver-capability", rs.getCaregiverCapability)
+					r.With(authorize.RequiresPermission(permUsersManage)).Post("/caregiver-capability", rs.enableCaregiverCapability)
+					r.With(authorize.RequiresPermission(permUsersManage)).Delete("/caregiver-capability", rs.disableCaregiverCapability)
 
 					// Role assignments
 					r.Route("/roles", func(r chi.Router) {
@@ -945,6 +951,12 @@ type UpdateAccountRequest struct {
 	Username string `json:"username,omitempty"`
 }
 
+type EnableCaregiverCapabilityRequest struct {
+	FirstName string `json:"first_name,omitempty"`
+	LastName  string `json:"last_name,omitempty"`
+	Position  string `json:"position,omitempty"`
+}
+
 // Bind validates the update account request
 func (req *UpdateAccountRequest) Bind(_ *http.Request) error {
 	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
@@ -954,6 +966,13 @@ func (req *UpdateAccountRequest) Bind(_ *http.Request) error {
 		validation.Field(&req.Email, validation.Required, is.Email),
 		validation.Field(&req.Username, validation.Length(3, 30)),
 	)
+}
+
+func (req *EnableCaregiverCapabilityRequest) Bind(_ *http.Request) error {
+	req.FirstName = strings.TrimSpace(req.FirstName)
+	req.LastName = strings.TrimSpace(req.LastName)
+	req.Position = strings.TrimSpace(req.Position)
+	return nil
 }
 
 // PasswordResetRequest represents the password reset request payload
@@ -1253,6 +1272,110 @@ func (rs *Resource) getAccountRoles(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Account roles retrieved successfully")
+}
+
+func (rs *Resource) getCaregiverCapability(w http.ResponseWriter, r *http.Request) {
+	if rs.CaregiverCapabilityService == nil {
+		common.RenderError(w, r, ErrorInternalServer(errors.New("caregiver capability service is not configured")))
+		return
+	}
+
+	accountID, ok := common.ParseInt64IDWithError(w, r, "accountId", common.MsgInvalidAccountID)
+	if !ok {
+		return
+	}
+
+	state, err := rs.CaregiverCapabilityService.GetCaregiverCapability(r.Context(), accountID)
+	if err != nil {
+		common.RenderError(w, r, caregiverCapabilityErrorRenderer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, state, "Caregiver capability retrieved successfully")
+}
+
+func (rs *Resource) enableCaregiverCapability(w http.ResponseWriter, r *http.Request) {
+	if rs.CaregiverCapabilityService == nil {
+		common.RenderError(w, r, ErrorInternalServer(errors.New("caregiver capability service is not configured")))
+		return
+	}
+
+	accountID, ok := common.ParseInt64IDWithError(w, r, "accountId", common.MsgInvalidAccountID)
+	if !ok {
+		return
+	}
+
+	req := &EnableCaregiverCapabilityRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, ErrorInvalidRequest(err))
+		return
+	}
+
+	state, err := rs.CaregiverCapabilityService.EnableCaregiverCapability(r.Context(), accountID, userModel.EnableCaregiverCapabilityInput{
+		FirstName: req.FirstName,
+		LastName:  req.LastName,
+		Position:  req.Position,
+	})
+	if err != nil {
+		common.RenderError(w, r, caregiverCapabilityErrorRenderer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, state, "Caregiver capability enabled successfully")
+}
+
+func (rs *Resource) disableCaregiverCapability(w http.ResponseWriter, r *http.Request) {
+	if rs.CaregiverCapabilityService == nil {
+		common.RenderError(w, r, ErrorInternalServer(errors.New("caregiver capability service is not configured")))
+		return
+	}
+
+	accountID, ok := common.ParseInt64IDWithError(w, r, "accountId", common.MsgInvalidAccountID)
+	if !ok {
+		return
+	}
+
+	state, err := rs.CaregiverCapabilityService.DisableCaregiverCapability(r.Context(), accountID)
+	if err != nil {
+		common.RenderError(w, r, caregiverCapabilityErrorRenderer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, state, "Caregiver capability disabled successfully")
+}
+
+func caregiverCapabilityErrorRenderer(err error) render.Renderer {
+	var blockedErr *usersService.CaregiverCapabilityBlockedError
+	var accountTenantErr *usersService.AccountNotAssignedToTenantError
+	var usersErr *usersService.UsersError
+
+	switch {
+	case errors.As(err, &blockedErr):
+		return &caregiverCapabilityBlockedResponse{
+			HTTPStatusCode: http.StatusConflict,
+			Status:         "error",
+			ErrorText:      blockedErr.Error(),
+			Blockers:       blockedErr.Reasons,
+		}
+	case errors.Is(err, authService.ErrAccountNotFound), errors.As(err, &accountTenantErr):
+		return ErrorNotFound(errors.New("account not found"))
+	case errors.As(err, &usersErr):
+		return ErrorInvalidRequest(usersErr.Err)
+	default:
+		return ErrorInternalServer(err)
+	}
+}
+
+type caregiverCapabilityBlockedResponse struct {
+	HTTPStatusCode int      `json:"-"`
+	Status         string   `json:"status"`
+	ErrorText      string   `json:"error"`
+	Blockers       []string `json:"blockers"`
+}
+
+func (e *caregiverCapabilityBlockedResponse) Render(_ http.ResponseWriter, r *http.Request) error {
+	render.Status(r, e.HTTPStatusCode)
+	return nil
 }
 
 // Permission Management Endpoints

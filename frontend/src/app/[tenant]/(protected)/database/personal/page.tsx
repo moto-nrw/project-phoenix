@@ -13,6 +13,7 @@ import type { ActiveFilter } from "~/components/ui/page-header/types";
 import { useToast } from "~/contexts/ToastContext";
 import { useIsMobile } from "~/hooks/useIsMobile";
 import {
+  CaregiverCapabilityModal,
   TeacherRoleManagementModal,
   TeacherPermissionManagementModal,
 } from "@/components/teachers";
@@ -85,6 +86,7 @@ export default function TeachersPage() {
   // Role and permission modals
   const [roleModalOpen, setRoleModalOpen] = useState(false);
   const [permissionModalOpen, setPermissionModalOpen] = useState(false);
+  const [caregiverModalOpen, setCaregiverModalOpen] = useState(false);
 
   const { success: toastSuccess, error: toastError } = useToast();
 
@@ -230,6 +232,11 @@ export default function TeachersPage() {
   const handleEditClick = () => {
     setShowDetailModal(false);
     setShowEditModal(true);
+  };
+
+  const handleManageCaregiverClick = () => {
+    setShowDetailModal(false);
+    setCaregiverModalOpen(true);
   };
 
   return (
@@ -490,6 +497,9 @@ export default function TeachersPage() {
           teacher={selectedTeacher}
           onEdit={handleEditClick}
           onDelete={handleDeleteTeacher}
+          onManageCaregiver={
+            selectedTeacher.account_id ? handleManageCaregiverClick : undefined
+          }
           loading={detailLoading}
           onDeleteClick={handleDeleteClick}
         />
@@ -528,6 +538,19 @@ export default function TeachersPage() {
       )}
 
       {/* Role Management Modal */}
+      {selectedTeacher && (
+        <CaregiverCapabilityModal
+          isOpen={caregiverModalOpen}
+          onClose={() => setCaregiverModalOpen(false)}
+          scope="tenant"
+          accountId={selectedTeacher.account_id?.toString() ?? ""}
+          accountLabel={`${selectedTeacher.first_name} ${selectedTeacher.last_name}`}
+          onUpdated={async () => {
+            await tenantMutate("database-teachers-list");
+          }}
+        />
+      )}
+
       {selectedTeacher && (
         <TeacherRoleManagementModal
           isOpen={roleModalOpen}

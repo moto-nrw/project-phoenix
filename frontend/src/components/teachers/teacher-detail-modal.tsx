@@ -17,6 +17,7 @@ interface TeacherDetailModalProps {
   readonly teacher: Teacher | null;
   readonly onEdit: () => void;
   readonly onDelete: () => void;
+  readonly onManageCaregiver?: () => void;
   readonly loading?: boolean;
   /**
    * Custom click handler for delete button.
@@ -32,6 +33,7 @@ export function TeacherDetailModal({
   teacher,
   onEdit,
   onDelete,
+  onManageCaregiver,
   loading = false,
   onDeleteClick,
 }: TeacherDetailModalProps) {
@@ -175,6 +177,18 @@ export function TeacherDetailModal({
             </InfoSection>
           )}
         </div>
+
+        {onManageCaregiver ? (
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={onManageCaregiver}
+              className="rounded-lg border border-orange-200 px-3 py-2 text-xs font-medium text-orange-700 transition-all duration-200 hover:bg-orange-50 md:text-sm"
+            >
+              Betreuung verwalten
+            </button>
+          </div>
+        ) : null}
 
         <DetailModalActions
           onEdit={onEdit}

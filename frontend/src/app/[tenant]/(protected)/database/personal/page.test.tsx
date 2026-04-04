@@ -96,6 +96,7 @@ vi.mock("~/components/ui/page-header", () => ({
 }));
 
 vi.mock("@/components/teachers", () => ({
+  CaregiverCapabilityModal: () => <div data-testid="caregiver-modal" />,
   TeacherRoleManagementModal: () => <div data-testid="role-modal" />,
   TeacherPermissionManagementModal: () => (
     <div data-testid="permission-modal" />

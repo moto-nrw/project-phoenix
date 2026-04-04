@@ -1207,15 +1207,17 @@ func verifyCurrentPIN(account interface {
 
 // StaffWithRoleResponse represents a staff member with role information
 type StaffWithRoleResponse struct {
-	ID        int64     `json:"id"`
-	PersonID  int64     `json:"person_id"`
-	FirstName string    `json:"first_name"`
-	LastName  string    `json:"last_name"`
-	FullName  string    `json:"full_name"`
-	AccountID int64     `json:"account_id"`
-	Email     string    `json:"email"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID                int64     `json:"id"`
+	PersonID          int64     `json:"person_id"`
+	TeacherID         int64     `json:"teacher_id,omitempty"`
+	FirstName         string    `json:"first_name"`
+	LastName          string    `json:"last_name"`
+	FullName          string    `json:"full_name"`
+	AccountID         int64     `json:"account_id"`
+	Email             string    `json:"email"`
+	IsActiveCaregiver bool      `json:"is_active_caregiver"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
 }
 
 // getStaffByRole handles GET /api/staff/by-role?role=user or ?roles=teacher,staff,user
@@ -1255,15 +1257,17 @@ func (rs *Resource) getStaffByRole(w http.ResponseWriter, r *http.Request) {
 		results := make([]StaffWithRoleResponse, 0, len(caregivers))
 		for _, caregiver := range caregivers {
 			results = append(results, StaffWithRoleResponse{
-				ID:        caregiver.StaffID,
-				PersonID:  caregiver.PersonID,
-				FirstName: caregiver.FirstName,
-				LastName:  caregiver.LastName,
-				FullName:  caregiver.FullName(),
-				AccountID: caregiver.AccountID,
-				Email:     caregiver.Email,
-				CreatedAt: caregiver.CreatedAt,
-				UpdatedAt: caregiver.UpdatedAt,
+				ID:                caregiver.StaffID,
+				PersonID:          caregiver.PersonID,
+				TeacherID:         caregiver.TeacherID,
+				FirstName:         caregiver.FirstName,
+				LastName:          caregiver.LastName,
+				FullName:          caregiver.FullName(),
+				AccountID:         caregiver.AccountID,
+				Email:             caregiver.Email,
+				IsActiveCaregiver: true,
+				CreatedAt:         caregiver.CreatedAt,
+				UpdatedAt:         caregiver.UpdatedAt,
 			})
 		}
 
