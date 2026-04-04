@@ -16,6 +16,7 @@ type Resource struct {
 	suggestionsResource     *SuggestionsResource
 	announcementsResource   *AnnouncementsResource
 	profileResource         *ProfileResource
+	invitationsResource     *InvitationsResource
 	tokenAuth               *jwt.TokenAuth
 	authRateLimiter         func(http.Handler) http.Handler
 	emailConfirmRateLimiter func(http.Handler) http.Handler
@@ -56,6 +57,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 		suggestionsResource:   NewSuggestionsResource(cfg.SuggestionsService),
 		announcementsResource: NewAnnouncementsResource(cfg.AnnouncementsService),
 		profileResource:       NewProfileResource(cfg.AuthService),
+		invitationsResource:   NewInvitationsResource(cfg.AuthService),
 		tokenAuth:             tokenAuth,
 	}
 }
@@ -84,6 +86,8 @@ func (rs *Resource) Router() chi.Router {
 				r.Use(limiter)
 			}
 			r.Post("/email-confirm", rs.profileResource.ConfirmEmailChange)
+			r.Post("/invitations/validate", rs.invitationsResource.ValidateInvitation)
+			r.Post("/invitations/accept", rs.invitationsResource.AcceptInvitation)
 		})
 	})
 
@@ -155,6 +159,14 @@ func (rs *Resource) Router() chi.Router {
 			r.Put("/", rs.profileResource.UpdateProfile)
 			r.Post("/password", rs.profileResource.ChangePassword)
 			r.Post("/email-change", rs.profileResource.InitiateEmailChange)
+		})
+
+		// Operator invitations
+		r.Route("/invitations", func(r chi.Router) {
+			r.Post("/", rs.invitationsResource.CreateInvitation)
+			r.Get("/", rs.invitationsResource.ListInvitations)
+			r.Post("/{id}/resend", rs.invitationsResource.ResendInvitation)
+			r.Delete("/{id}", rs.invitationsResource.RevokeInvitation)
 		})
 
 		// Announcements management

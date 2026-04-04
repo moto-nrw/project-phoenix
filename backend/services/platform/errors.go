@@ -201,6 +201,20 @@ func (e *EmailChangeTokenInvalidError) Error() string {
 	return "email change token is invalid, expired, or already used"
 }
 
+// OperatorInvitationNotFoundError is returned when an invitation token is not found, expired, or already used
+type OperatorInvitationNotFoundError struct{}
+
+func (e *OperatorInvitationNotFoundError) Error() string {
+	return "operator invitation not found, expired, or already used"
+}
+
+// OperatorInvitationEmailExistsError is returned when an operator with that email already exists
+type OperatorInvitationEmailExistsError struct{}
+
+func (e *OperatorInvitationEmailExistsError) Error() string {
+	return "an operator with this email already exists"
+}
+
 // PersonHasActiveSupervisionsError is returned when a person cannot be deleted
 // because the associated staff member has active group supervisions.
 type PersonHasActiveSupervisionsError struct {

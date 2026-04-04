@@ -98,6 +98,20 @@ type OperatorEmailChangeTokenRepository interface {
 	DeleteStaleTokens(ctx context.Context) (int, error)
 }
 
+// OperatorInvitationTokenRepository defines operations for operator invitation tokens
+type OperatorInvitationTokenRepository interface {
+	Create(ctx context.Context, token *OperatorInvitationToken) error
+	FindByID(ctx context.Context, id int64) (*OperatorInvitationToken, error)
+	FindValidByToken(ctx context.Context, tokenStr string) (*OperatorInvitationToken, error)
+	ConsumeByToken(ctx context.Context, tokenStr string) (*OperatorInvitationToken, error)
+	MarkAsUsed(ctx context.Context, id int64) (bool, error)
+	ListPending(ctx context.Context) ([]*OperatorInvitationToken, error)
+	InvalidateByEmail(ctx context.Context, email string) (int, error)
+	ExtendExpiry(ctx context.Context, id int64, newExpiresAt time.Time) (bool, error)
+	UpdateDeliveryResult(ctx context.Context, tokenID int64, sentAt *time.Time, emailError *string, retryCount int) error
+	DeleteExpired(ctx context.Context) (int, error)
+}
+
 // OperatorAuditLogRepository defines operations for the audit log
 type OperatorAuditLogRepository interface {
 	// Create a new audit log entry

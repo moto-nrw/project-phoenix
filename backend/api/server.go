@@ -54,7 +54,9 @@ func NewServer(logger *slog.Logger) (*Server, error) {
 	// Initialize scheduler if cleanup is enabled
 	// Note: Session cleanup is now handled by the scheduler's scheduleSessionCleanupTask()
 	if api.Services != nil && api.Services.ActiveCleanup != nil && api.Services.Active != nil {
-		srv.scheduler = scheduler.NewScheduler(api.Services.Active, api.Services.ActiveCleanup, api.Services.Auth, api.Services.Invitation, api.Services.OperatorAuth, logger.With("service", "scheduler"))
+		// OperatorAuth is passed twice: it implements both EmailChangeTokenCleaner (5th arg)
+		// and OperatorInvitationCleaner (6th arg) — same service, two cleanup interfaces.
+		srv.scheduler = scheduler.NewScheduler(api.Services.Active, api.Services.ActiveCleanup, api.Services.Auth, api.Services.Invitation, api.Services.OperatorAuth, api.Services.OperatorAuth, logger.With("service", "scheduler"))
 		srv.scheduler.SetDB(api.db)
 		srv.scheduler.SetSchoolRepo(api.repos.School)
 		if api.Services.Settings != nil {

@@ -50,19 +50,43 @@ type OperatorAuthService interface {
 
 	// CleanupExpiredEmailChangeTokens removes expired and used email change tokens
 	CleanupExpiredEmailChangeTokens(ctx context.Context) (int, error)
+
+	// InviteOperator creates an invitation token and sends an email to the invitee
+	InviteOperator(ctx context.Context, email string, displayName *string, createdByID int64, clientIP net.IP) error
+
+	// ValidateOperatorInvitation validates an invitation token and returns its data
+	ValidateOperatorInvitation(ctx context.Context, token string) (*platform.OperatorInvitationToken, error)
+
+	// AcceptOperatorInvitation creates a new operator from a valid invitation token
+	AcceptOperatorInvitation(ctx context.Context, token, displayName, password string, clientIP net.IP) (*platform.Operator, error)
+
+	// ListPendingOperatorInvitations returns all pending operator invitations
+	ListPendingOperatorInvitations(ctx context.Context) ([]*platform.OperatorInvitationToken, error)
+
+	// RevokeOperatorInvitation marks an invitation as used
+	RevokeOperatorInvitation(ctx context.Context, invitationID int64, actorID int64, clientIP net.IP) error
+
+	// ResendOperatorInvitation re-sends the invitation email
+	ResendOperatorInvitation(ctx context.Context, invitationID int64, actorID int64, clientIP net.IP) error
+
+	// CleanupExpiredOperatorInvitations removes expired invitation tokens
+	CleanupExpiredOperatorInvitations(ctx context.Context) (int, error)
 }
 
 type operatorAuthService struct {
 	operatorRepo         platform.OperatorRepository
 	auditLogRepo         platform.OperatorAuditLogRepository
 	emailChangeTokenRepo platform.OperatorEmailChangeTokenRepository
+	invitationTokenRepo  platform.OperatorInvitationTokenRepository
 	tokenAuth            *jwt.TokenAuth
 	db                   *bun.DB
 	logger               *slog.Logger
 	dispatcher           *emailpkg.Dispatcher
 	defaultFrom          emailpkg.Email
 	frontendURL          string
+	operatorFrontendURL  string
 	emailChangeExpiry    time.Duration
+	invitationExpiry     time.Duration
 }
 
 // OperatorAuthServiceConfig holds configuration for the operator auth service
@@ -70,12 +94,15 @@ type OperatorAuthServiceConfig struct {
 	OperatorRepo         platform.OperatorRepository
 	AuditLogRepo         platform.OperatorAuditLogRepository
 	EmailChangeTokenRepo platform.OperatorEmailChangeTokenRepository
+	InvitationTokenRepo  platform.OperatorInvitationTokenRepository
 	DB                   *bun.DB
 	Logger               *slog.Logger
 	Dispatcher           *emailpkg.Dispatcher
 	DefaultFrom          emailpkg.Email
 	FrontendURL          string
+	OperatorFrontendURL  string
 	EmailChangeExpiry    time.Duration
+	InvitationExpiry     time.Duration
 }
 
 // NewOperatorAuthService creates a new operator auth service
@@ -89,13 +116,16 @@ func NewOperatorAuthService(cfg OperatorAuthServiceConfig) (OperatorAuthService,
 		operatorRepo:         cfg.OperatorRepo,
 		auditLogRepo:         cfg.AuditLogRepo,
 		emailChangeTokenRepo: cfg.EmailChangeTokenRepo,
+		invitationTokenRepo:  cfg.InvitationTokenRepo,
 		tokenAuth:            tokenAuth,
 		db:                   cfg.DB,
 		logger:               cfg.Logger,
 		dispatcher:           cfg.Dispatcher,
 		defaultFrom:          cfg.DefaultFrom,
 		frontendURL:          cfg.FrontendURL,
+		operatorFrontendURL:  cfg.OperatorFrontendURL,
 		emailChangeExpiry:    cfg.EmailChangeExpiry,
+		invitationExpiry:     cfg.InvitationExpiry,
 	}, nil
 }
 
