@@ -2,6 +2,7 @@ package checkin_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -21,7 +22,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -35,6 +39,63 @@ type testContext struct {
 	db       *bun.DB
 	services *services.Factory
 	resource *checkinAPI.Resource
+}
+
+type failingPickupScheduleService struct {
+	scheduleSvc.PickupScheduleService
+	err error
+}
+
+type failingPersonService struct {
+	usersSvc.PersonService
+	findByTagIDErr error
+	studentRepo    userModels.StudentRepository
+	staffRepo      userModels.StaffRepository
+}
+
+func (s *failingPersonService) FindByTagID(ctx context.Context, tagID string) (*userModels.Person, error) {
+	if s.findByTagIDErr != nil {
+		return nil, s.findByTagIDErr
+	}
+	return s.PersonService.FindByTagID(ctx, tagID)
+}
+
+func (s *failingPersonService) StudentRepository() userModels.StudentRepository {
+	if s.studentRepo != nil {
+		return s.studentRepo
+	}
+	return s.PersonService.StudentRepository()
+}
+
+func (s *failingPersonService) StaffRepository() userModels.StaffRepository {
+	if s.staffRepo != nil {
+		return s.staffRepo
+	}
+	return s.PersonService.StaffRepository()
+}
+
+type failingStudentRepository struct {
+	userModels.StudentRepository
+	err error
+}
+
+func (r *failingStudentRepository) FindByPersonID(context.Context, int64) (*userModels.Student, error) {
+	return nil, r.err
+}
+
+type failingStaffRepository struct {
+	userModels.StaffRepository
+	err error
+}
+
+func (r *failingStaffRepository) FindByPersonID(context.Context, int64) (*userModels.Staff, error) {
+	return nil, r.err
+}
+
+func (s *failingPickupScheduleService) GetEffectivePickupTimeForDate(
+	context.Context, int64, time.Time,
+) (*scheduleSvc.EffectivePickupTime, error) {
+	return nil, s.err
 }
 
 // setupTestContext initializes test database, services, and resource.
@@ -2663,4 +2724,533 @@ func TestDeviceCheckin_ResponseOmitsPickupTimeWhenNoSchedule(t *testing.T) {
 	assert.Equal(t, "checked_in", data["action"])
 	_, hasPickupTime := data["pickup_time"]
 	assert.False(t, hasPickupTime, "Response should NOT include pickup_time when student has no schedule")
+}
+
+func TestDevicePickupQuery_ReturnsPickupInfoWithoutCreatingVisit(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-success")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
+
+	staff := testpkg.CreateTestStaff(t, ctx.db, "PickupQuery", "Staff")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
+
+	student := testpkg.CreateTestStudent(t, ctx.db, "PickupQuery", "Student", "2a")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
+
+	card := testpkg.CreateTestRFIDCard(t, ctx.db, "PICKUPQUERY")
+	defer testpkg.CleanupRFIDCards(t, ctx.db, card.ID)
+	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
+
+	berlinToday := timezone.DateOf(time.Now())
+	todayWeekday := int(berlinToday.Weekday())
+	if todayWeekday == 0 {
+		todayWeekday = 7
+	}
+	if todayWeekday > 5 {
+		t.Skip("Skipping pickup query test on weekend — no pickup schedule applies")
+	}
+
+	// Use DateOfUTC for the note date: PostgreSQL casts timestamptz → DATE in session
+	// timezone (UTC). DateOf returns midnight Berlin which can shift to the previous day
+	// in UTC (e.g. 2026-04-01 00:00+02 → 2026-03-31 22:00 UTC → DATE 2026-03-31).
+	// DateOfUTC avoids this by encoding the Berlin calendar date as midnight UTC.
+	todayUTC := timezone.DateOfUTC(time.Now())
+
+	tenantCtx := testpkg.TenantContext(1)
+	pickupTime := time.Date(2024, 1, 1, 15, 30, 0, 0, time.UTC)
+	err := ctx.services.PickupSchedule.UpsertStudentPickupSchedule(tenantCtx, &scheduleModels.StudentPickupSchedule{
+		StudentID:  student.ID,
+		Weekday:    todayWeekday,
+		PickupTime: pickupTime,
+		CreatedBy:  staff.ID,
+	})
+	require.NoError(t, err)
+
+	err = ctx.services.PickupSchedule.CreateStudentPickupNote(tenantCtx, &scheduleModels.StudentPickupNote{
+		StudentID: student.ID,
+		NoteDate:  todayUTC,
+		Content:   "Mama holt heute frueher ab",
+		CreatedBy: staff.ID,
+	})
+	require.NoError(t, err)
+
+	router := testutil.NewTenantRouter(ctx.db)
+	router.Post("/checkin/pickup-query", ctx.resource.DevicePickupQueryHandler())
+
+	body := map[string]interface{}{
+		"student_rfid": card.ID,
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/pickup-query", body,
+		testutil.WithDeviceContext(createTestDeviceContext(device)),
+		testutil.WithStaffContext(staff),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data, ok := response["data"].(map[string]interface{})
+	require.True(t, ok, "Response should have data field")
+	assert.Equal(t, "pickup_info", data["action"])
+	assert.Equal(t, "15:30", data["pickup_time"])
+	assert.Equal(t, "Mama holt heute frueher ab", data["pickup_note"])
+
+	visits, err := ctx.services.Active.FindVisitsByStudentID(tenantCtx, student.ID)
+	require.NoError(t, err)
+	assert.Empty(t, visits, "Pickup query must not create visit records")
+}
+
+func TestDevicePickupQuery_OmitsPickupInfoWhenNoScheduleOrNote(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-empty")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
+
+	staff := testpkg.CreateTestStaff(t, ctx.db, "EmptyPickup", "Staff")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
+
+	student := testpkg.CreateTestStudent(t, ctx.db, "EmptyPickup", "Student", "3b")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
+
+	card := testpkg.CreateTestRFIDCard(t, ctx.db, "EMPTYPICKUP")
+	defer testpkg.CleanupRFIDCards(t, ctx.db, card.ID)
+	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
+
+	router := testutil.NewTenantRouter(ctx.db)
+	router.Post("/checkin/pickup-query", ctx.resource.DevicePickupQueryHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/pickup-query", map[string]interface{}{
+		"student_rfid": card.ID,
+	},
+		testutil.WithDeviceContext(createTestDeviceContext(device)),
+		testutil.WithStaffContext(staff),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data, ok := response["data"].(map[string]interface{})
+	require.True(t, ok, "Response should have data field")
+	assert.Equal(t, "pickup_info", data["action"])
+	_, hasPickupTime := data["pickup_time"]
+	assert.False(t, hasPickupTime, "Response should omit pickup_time when no schedule exists")
+	_, hasPickupNote := data["pickup_note"]
+	assert.False(t, hasPickupNote, "Response should omit pickup_note when no note exists")
+}
+
+func TestDevicePickupQuery_RejectsStaffRFID(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-staff")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
+
+	staff := testpkg.CreateTestStaff(t, ctx.db, "PickupStaff", "Only")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
+
+	card := testpkg.CreateTestRFIDCard(t, ctx.db, "STAFFPICKUP")
+	defer testpkg.CleanupRFIDCards(t, ctx.db, card.ID)
+	testpkg.LinkRFIDToStudent(t, ctx.db, staff.PersonID, card.ID)
+
+	router := testutil.NewTenantRouter(ctx.db)
+	router.Post("/checkin/pickup-query", ctx.resource.DevicePickupQueryHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/pickup-query", map[string]interface{}{
+		"student_rfid": card.ID,
+	},
+		testutil.WithDeviceContext(createTestDeviceContext(device)),
+		testutil.WithStaffContext(staff),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertBadRequest(t, rr)
+
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	errorMsg, _ := response["error"].(string)
+	assert.Contains(t, errorMsg, "student RFID tag required for pickup query")
+}
+
+func TestDevicePickupQuery_ReturnsErrorWhenPickupLookupFails(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-error")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
+
+	staff := testpkg.CreateTestStaff(t, ctx.db, "PickupError", "Staff")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
+
+	student := testpkg.CreateTestStudent(t, ctx.db, "PickupError", "Student", "4c")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
+
+	card := testpkg.CreateTestRFIDCard(t, ctx.db, "PICKUPQUERYERROR")
+	defer testpkg.CleanupRFIDCards(t, ctx.db, card.ID)
+	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
+
+	ctx.resource.PickupScheduleService = &failingPickupScheduleService{
+		PickupScheduleService: ctx.services.PickupSchedule,
+		err:                   errors.New("schedule lookup exploded"),
+	}
+
+	router := testutil.NewTenantRouter(ctx.db)
+	router.Post("/checkin/pickup-query", ctx.resource.DevicePickupQueryHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/pickup-query", map[string]interface{}{
+		"student_rfid": card.ID,
+	},
+		testutil.WithDeviceContext(createTestDeviceContext(device)),
+		testutil.WithStaffContext(staff),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+}
+
+func TestDevicePickupQuery_ReturnsServerErrorWhenRFIDLookupFails(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-rfid-failure")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
+
+	staff := testpkg.CreateTestStaff(t, ctx.db, "PickupRFIDFailure", "Staff")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
+
+	ctx.resource.UsersService = &failingPersonService{
+		PersonService:  ctx.services.Users,
+		findByTagIDErr: errors.New("rfid lookup exploded"),
+	}
+
+	router := testutil.NewTenantRouter(ctx.db)
+	router.Post("/checkin/pickup-query", ctx.resource.DevicePickupQueryHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/pickup-query", map[string]interface{}{
+		"student_rfid": "BROKENRFID",
+	},
+		testutil.WithDeviceContext(createTestDeviceContext(device)),
+		testutil.WithStaffContext(staff),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+}
+
+func TestDevicePickupQuery_ReturnsServerErrorWhenStudentResolutionFails(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-student-failure")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
+
+	staff := testpkg.CreateTestStaff(t, ctx.db, "PickupStudentFailure", "Staff")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
+
+	student := testpkg.CreateTestStudent(t, ctx.db, "PickupStudentFailure", "Student", "4d")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
+
+	card := testpkg.CreateTestRFIDCard(t, ctx.db, "BROKENSTUDENTLOOKUP")
+	defer testpkg.CleanupRFIDCards(t, ctx.db, card.ID)
+	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
+
+	ctx.resource.UsersService = &failingPersonService{
+		PersonService: ctx.services.Users,
+		studentRepo: &failingStudentRepository{
+			StudentRepository: ctx.services.Users.StudentRepository(),
+			err:               errors.New("student lookup exploded"),
+		},
+	}
+
+	router := testutil.NewTenantRouter(ctx.db)
+	router.Post("/checkin/pickup-query", ctx.resource.DevicePickupQueryHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/pickup-query", map[string]interface{}{
+		"student_rfid": card.ID,
+	},
+		testutil.WithDeviceContext(createTestDeviceContext(device)),
+		testutil.WithStaffContext(staff),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+}
+
+func TestDevicePickupQuery_PrefersDayNotesOverRecurringNotes(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-note-precedence")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
+
+	staff := testpkg.CreateTestStaff(t, ctx.db, "PickupNotes", "Staff")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
+
+	student := testpkg.CreateTestStudent(t, ctx.db, "PickupNotes", "Student", "2b")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
+
+	card := testpkg.CreateTestRFIDCard(t, ctx.db, "PICKUPNOTEPRIO")
+	defer testpkg.CleanupRFIDCards(t, ctx.db, card.ID)
+	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
+
+	berlinToday := timezone.DateOf(time.Now())
+	todayWeekday := int(berlinToday.Weekday())
+	if todayWeekday == 0 {
+		todayWeekday = 7
+	}
+	if todayWeekday > 5 {
+		t.Skip("Skipping pickup query note precedence test on weekend — no pickup schedule applies")
+	}
+
+	todayUTC := timezone.DateOfUTC(time.Now())
+	tenantCtx := testpkg.TenantContext(1)
+	recurringNote := "Papa holt normalerweise ab"
+	pickupTime := time.Date(2024, 1, 1, 15, 30, 0, 0, time.UTC)
+	err := ctx.services.PickupSchedule.UpsertStudentPickupSchedule(tenantCtx, &scheduleModels.StudentPickupSchedule{
+		StudentID:  student.ID,
+		Weekday:    todayWeekday,
+		PickupTime: pickupTime,
+		Notes:      &recurringNote,
+		CreatedBy:  staff.ID,
+	})
+	require.NoError(t, err)
+
+	err = ctx.services.PickupSchedule.CreateStudentPickupNote(tenantCtx, &scheduleModels.StudentPickupNote{
+		StudentID: student.ID,
+		NoteDate:  todayUTC,
+		Content:   "Heute holt Oma ab",
+		CreatedBy: staff.ID,
+	})
+	require.NoError(t, err)
+
+	err = ctx.services.PickupSchedule.CreateStudentPickupNote(tenantCtx, &scheduleModels.StudentPickupNote{
+		StudentID: student.ID,
+		NoteDate:  todayUTC,
+		Content:   "Bitte am Seiteneingang warten",
+		CreatedBy: staff.ID,
+	})
+	require.NoError(t, err)
+
+	router := testutil.NewTenantRouter(ctx.db)
+	router.Post("/checkin/pickup-query", ctx.resource.DevicePickupQueryHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/pickup-query", map[string]interface{}{
+		"student_rfid": card.ID,
+	},
+		testutil.WithDeviceContext(createTestDeviceContext(device)),
+		testutil.WithStaffContext(staff),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data, ok := response["data"].(map[string]interface{})
+	require.True(t, ok, "Response should have data field")
+	assert.Equal(t, "Heute holt Oma ab\nBitte am Seiteneingang warten", data["pickup_note"])
+}
+
+func TestDevicePickupQuery_PreservesRecurringNotesWhenExceptionReasonIsBlank(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-exception-fallback")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
+
+	staff := testpkg.CreateTestStaff(t, ctx.db, "PickupException", "Staff")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
+
+	student := testpkg.CreateTestStudent(t, ctx.db, "PickupException", "Student", "2c")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
+
+	card := testpkg.CreateTestRFIDCard(t, ctx.db, "PICKUPEXCEPTION")
+	defer testpkg.CleanupRFIDCards(t, ctx.db, card.ID)
+	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
+
+	berlinToday := timezone.DateOf(time.Now())
+	todayWeekday := int(berlinToday.Weekday())
+	if todayWeekday == 0 {
+		todayWeekday = 7
+	}
+	if todayWeekday > 5 {
+		t.Skip("Skipping pickup query exception fallback test on weekend — no pickup schedule applies")
+	}
+
+	todayUTC := timezone.DateOfUTC(time.Now())
+	tenantCtx := testpkg.TenantContext(1)
+	recurringNote := "Bitte am Seiteneingang klingeln"
+	pickupTime := time.Date(2024, 1, 1, 15, 30, 0, 0, time.UTC)
+	err := ctx.services.PickupSchedule.UpsertStudentPickupSchedule(tenantCtx, &scheduleModels.StudentPickupSchedule{
+		StudentID:  student.ID,
+		Weekday:    todayWeekday,
+		PickupTime: pickupTime,
+		Notes:      &recurringNote,
+		CreatedBy:  staff.ID,
+	})
+	require.NoError(t, err)
+
+	updatedTime := time.Date(2024, 1, 1, 13, 0, 0, 0, time.UTC)
+	blankReason := "   "
+	err = ctx.services.PickupSchedule.CreateStudentPickupException(tenantCtx, &scheduleModels.StudentPickupException{
+		StudentID:     student.ID,
+		ExceptionDate: todayUTC,
+		PickupTime:    &updatedTime,
+		Reason:        &blankReason,
+		CreatedBy:     staff.ID,
+	})
+	require.NoError(t, err)
+
+	router := testutil.NewTenantRouter(ctx.db)
+	router.Post("/checkin/pickup-query", ctx.resource.DevicePickupQueryHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/pickup-query", map[string]interface{}{
+		"student_rfid": card.ID,
+	},
+		testutil.WithDeviceContext(createTestDeviceContext(device)),
+		testutil.WithStaffContext(staff),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data, ok := response["data"].(map[string]interface{})
+	require.True(t, ok, "Response should have data field")
+	assert.Equal(t, "13:00", data["pickup_time"])
+	assert.Equal(t, "Bitte am Seiteneingang klingeln", data["pickup_note"])
+}
+
+func TestDevicePickupQuery_Unauthorized(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	router := testutil.NewTenantRouter(ctx.db)
+	router.Post("/checkin/pickup-query", ctx.resource.DevicePickupQueryHandler())
+
+	// Request without device context
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/pickup-query", nil)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertUnauthorized(t, rr)
+}
+
+func TestDevicePickupQuery_InvalidRequestBody(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-bad-body")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
+
+	router := testutil.NewTenantRouter(ctx.db)
+	router.Post("/checkin/pickup-query", ctx.resource.DevicePickupQueryHandler())
+
+	// Send request with empty body (missing required student_rfid)
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/pickup-query", map[string]interface{}{},
+		testutil.WithDeviceContext(createTestDeviceContext(device)),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertBadRequest(t, rr)
+}
+
+func TestDevicePickupQuery_UnknownRFIDReturnsNotFound(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-unknown-rfid")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
+
+	router := testutil.NewTenantRouter(ctx.db)
+	router.Post("/checkin/pickup-query", ctx.resource.DevicePickupQueryHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/pickup-query", map[string]interface{}{
+		"student_rfid": "NONEXISTENT_RFID_TAG_XYZ",
+	},
+		testutil.WithDeviceContext(createTestDeviceContext(device)),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertNotFound(t, rr)
+}
+
+func TestDevicePickupQuery_StaffLookupFailureReturnsServerError(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-staff-fail")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
+
+	// Create a person who is NOT a student — the handler will fall into the
+	// student==nil branch and then try resolveStaffFromPerson.
+	person := testpkg.CreateTestPerson(t, ctx.db, "OrphanPickup", "Person")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, person.ID)
+
+	card := testpkg.CreateTestRFIDCard(t, ctx.db, "ORPHANPICKUP")
+	defer testpkg.CleanupRFIDCards(t, ctx.db, card.ID)
+	testpkg.LinkRFIDToStudent(t, ctx.db, person.ID, card.ID)
+
+	// Override UsersService with a failing staff repository
+	ctx.resource.UsersService = &failingPersonService{
+		PersonService: ctx.services.Users,
+		staffRepo: &failingStaffRepository{
+			StaffRepository: ctx.services.Users.StaffRepository(),
+			err:             errors.New("staff lookup exploded"),
+		},
+	}
+
+	router := testutil.NewTenantRouter(ctx.db)
+	router.Post("/checkin/pickup-query", ctx.resource.DevicePickupQueryHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/pickup-query", map[string]interface{}{
+		"student_rfid": card.ID,
+	},
+		testutil.WithDeviceContext(createTestDeviceContext(device)),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+}
+
+func TestDevicePickupQuery_PersonNeitherStudentNorStaffReturnsNotFound(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-orphan")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
+
+	// Create a person who is neither a student nor staff
+	person := testpkg.CreateTestPerson(t, ctx.db, "NeitherPickup", "Person")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, person.ID)
+
+	card := testpkg.CreateTestRFIDCard(t, ctx.db, "NEITHERPICKUP")
+	defer testpkg.CleanupRFIDCards(t, ctx.db, card.ID)
+	testpkg.LinkRFIDToStudent(t, ctx.db, person.ID, card.ID)
+
+	router := testutil.NewTenantRouter(ctx.db)
+	router.Post("/checkin/pickup-query", ctx.resource.DevicePickupQueryHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/pickup-query", map[string]interface{}{
+		"student_rfid": card.ID,
+	},
+		testutil.WithDeviceContext(createTestDeviceContext(device)),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertNotFound(t, rr)
 }

@@ -2,6 +2,7 @@ package checkin
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -19,6 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
 
 // checkinResult holds the result of processing a checkin request
@@ -79,7 +81,7 @@ func parseCheckinRequest(ctx context.Context, w http.ResponseWriter, r *http.Req
 // lookupPersonByRFID finds a person by RFID tag and validates the assignment
 func (rs *Resource) lookupPersonByRFID(ctx context.Context, w http.ResponseWriter, r *http.Request, rfid string) *users.Person {
 	rs.getLogger().DebugContext(ctx, "looking up RFID tag", slog.String("rfid", rfid))
-	person, err := rs.UsersService.FindByTagID(ctx, rfid)
+	person, err := rs.resolvePersonByRFID(ctx, rfid)
 	if err != nil {
 		rs.getLogger().WarnContext(ctx, "RFID tag not found",
 			slog.String("rfid", rfid),
@@ -105,11 +107,23 @@ func (rs *Resource) lookupPersonByRFID(ctx context.Context, w http.ResponseWrite
 	return person
 }
 
+// resolvePersonByRFID finds a person by RFID without rendering an HTTP response.
+// It preserves ErrPersonNotFound so callers can distinguish "unknown tag" from backend failures.
+func (rs *Resource) resolvePersonByRFID(ctx context.Context, rfid string) (*users.Person, error) {
+	person, err := rs.UsersService.FindByTagID(ctx, rfid)
+	if err != nil {
+		return nil, err
+	}
+	if person == nil {
+		return nil, usersSvc.ErrPersonNotFound
+	}
+	return person, nil
+}
+
 // lookupStudentFromPerson attempts to find a student from a person record.
 // Returns nil if person is not a student or if lookup fails (errors are logged).
 func (rs *Resource) lookupStudentFromPerson(ctx context.Context, personID int64) *users.Student {
-	studentRepo := rs.UsersService.StudentRepository()
-	student, err := studentRepo.FindByPersonID(ctx, personID)
+	student, err := rs.resolveStudentFromPerson(ctx, personID)
 	if err != nil {
 		// Log error but continue - person may be staff instead of student
 		rs.getLogger().DebugContext(ctx, "student lookup for person",
@@ -119,6 +133,34 @@ func (rs *Resource) lookupStudentFromPerson(ctx context.Context, personID int64)
 		return nil
 	}
 	return student
+}
+
+// resolveStudentFromPerson finds a student from a person record without rendering an HTTP response.
+// A missing student returns (nil, nil); repository failures are returned to the caller.
+func (rs *Resource) resolveStudentFromPerson(ctx context.Context, personID int64) (*users.Student, error) {
+	studentRepo := rs.UsersService.StudentRepository()
+	student, err := studentRepo.FindByPersonID(ctx, personID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return student, nil
+}
+
+// resolveStaffFromPerson finds a staff record from a person record without rendering an HTTP response.
+// A missing staff member returns (nil, nil); repository failures are returned to the caller.
+func (rs *Resource) resolveStaffFromPerson(ctx context.Context, personID int64) (*users.Staff, error) {
+	staffRepo := rs.UsersService.StaffRepository()
+	staff, err := staffRepo.FindByPersonID(ctx, personID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return staff, nil
 }
 
 // handleStaffScan checks if person is staff and handles supervisor authentication

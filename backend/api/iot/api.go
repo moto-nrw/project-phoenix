@@ -182,6 +182,7 @@ func (rs *Resource) Router() chi.Router {
 		// Register routes directly instead of mounting at "/" to avoid Chi conflict
 		checkinHandler := delegateHandler(checkinResource.Router())
 		r.Post("/checkin", checkinHandler)
+		r.Post("/pickup-query", checkinHandler)
 		r.Post("/ping", checkinHandler)
 		r.Get("/status", checkinHandler)
 

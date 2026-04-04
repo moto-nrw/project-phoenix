@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -409,6 +410,15 @@ func (s *pickupScheduleService) GetEffectivePickupTimeForDate(ctx context.Contex
 	if exception != nil {
 		result.IsException = true
 		result.PickupTime = exception.PickupTime
+		if reason := pickupNoteOverride(exception.Reason); reason != "" {
+			result.Notes = reason
+		} else {
+			sched, err := s.scheduleRepo.FindByStudentIDAndWeekday(ctx, studentID, weekday)
+			if err != nil {
+				return nil, &ScheduleError{Op: opGetEffectivePickupTime, Err: err}
+			}
+			result.Notes = pickupScheduleNotes(sched)
+		}
 	} else {
 		// Fall back to regular schedule
 		sched, err := s.scheduleRepo.FindByStudentIDAndWeekday(ctx, studentID, weekday)
@@ -418,9 +428,7 @@ func (s *pickupScheduleService) GetEffectivePickupTimeForDate(ctx context.Contex
 
 		if sched != nil {
 			result.PickupTime = &sched.PickupTime
-			if sched.Notes != nil {
-				result.Notes = *sched.Notes
-			}
+			result.Notes = pickupScheduleNotes(sched)
 		}
 	}
 
@@ -518,17 +526,21 @@ func mergePickupResults(
 ) {
 	for _, studentID := range studentIDs {
 		r := result[studentID]
+		sched := scheduleMap[studentID]
 
 		// Check for exception first (takes priority)
 		if exc, ok := exceptionMap[studentID]; ok {
 			r.IsException = true
 			r.PickupTime = exc.PickupTime
-		} else if sched, ok := scheduleMap[studentID]; ok {
+			if reason := pickupNoteOverride(exc.Reason); reason != "" {
+				r.Notes = reason
+			} else {
+				r.Notes = pickupScheduleNotes(sched)
+			}
+		} else if sched != nil {
 			// Fall back to regular schedule
 			r.PickupTime = &sched.PickupTime
-			if sched.Notes != nil {
-				r.Notes = *sched.Notes
-			}
+			r.Notes = pickupScheduleNotes(sched)
 		}
 
 		// Attach day notes
@@ -538,4 +550,20 @@ func mergePickupResults(
 			}
 		}
 	}
+}
+
+func pickupNoteOverride(reason *string) string {
+	if reason == nil {
+		return ""
+	}
+
+	return strings.TrimSpace(*reason)
+}
+
+func pickupScheduleNotes(sched *schedule.StudentPickupSchedule) string {
+	if sched == nil || sched.Notes == nil {
+		return ""
+	}
+
+	return strings.TrimSpace(*sched.Notes)
 }

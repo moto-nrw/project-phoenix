@@ -598,10 +598,12 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
+		recurringNote := "Pick up at the side entrance"
 		sched := &scheduleModels.StudentPickupSchedule{
 			StudentID:  student.ID,
 			Weekday:    scheduleModels.WeekdayMonday,
 			PickupTime: time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
+			Notes:      &recurringNote,
 			CreatedBy:  1,
 		}
 		err := service.UpsertStudentPickupSchedule(ctx, sched)
@@ -628,6 +630,7 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 		assert.True(t, result.IsException)
 		assert.NotNil(t, result.PickupTime)
 		assert.Equal(t, 12, result.PickupTime.Hour())
+		assert.Equal(t, "Early pickup", result.Notes)
 	})
 
 	t.Run("returns schedule when no exception", func(t *testing.T) {
@@ -712,6 +715,41 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 		assert.Equal(t, "Pick up with grandma", result.Notes)
 	})
 
+	t.Run("falls back to recurring schedule notes when exception reason is blank", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+		recurringNote := "Wait at the side entrance"
+		sched := &scheduleModels.StudentPickupSchedule{
+			StudentID:  student.ID,
+			Weekday:    scheduleModels.WeekdayMonday,
+			PickupTime: time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
+			Notes:      &recurringNote,
+			CreatedBy:  1,
+		}
+		err := service.UpsertStudentPickupSchedule(ctx, sched)
+		require.NoError(t, err)
+
+		testDate := time.Date(2024, 1, 8, 12, 0, 0, 0, time.UTC)
+		updatedTime := time.Date(2024, 1, 1, 11, 30, 0, 0, time.UTC)
+		blankReason := "   "
+		exception := &scheduleModels.StudentPickupException{
+			StudentID:     student.ID,
+			ExceptionDate: testDate,
+			PickupTime:    &updatedTime,
+			Reason:        &blankReason,
+			CreatedBy:     1,
+		}
+		err = service.CreateStudentPickupException(ctx, exception)
+		require.NoError(t, err)
+
+		result, err := service.GetEffectivePickupTimeForDate(ctx, student.ID, testDate)
+
+		require.NoError(t, err)
+		assert.True(t, result.IsException)
+		assert.Equal(t, "Wait at the side entrance", result.Notes)
+	})
+
 	t.Run("handles Sunday correctly", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
@@ -786,9 +824,11 @@ func TestPickupScheduleService_GetBulkEffectivePickupTimesForDate(t *testing.T) 
 		assert.True(t, results[student2.ID].IsException)
 		assert.NotNil(t, results[student2.ID].PickupTime)
 		assert.Equal(t, 12, results[student2.ID].PickupTime.Hour())
+		assert.Equal(t, "Doctor appointment", results[student2.ID].Notes)
 
 		assert.True(t, results[student3.ID].IsException)
 		assert.Nil(t, results[student3.ID].PickupTime)
+		assert.Equal(t, "Sick", results[student3.ID].Notes)
 	})
 
 	t.Run("returns empty map for empty student IDs", func(t *testing.T) {
@@ -839,6 +879,43 @@ func TestPickupScheduleService_GetBulkEffectivePickupTimesForDate(t *testing.T) 
 		assert.NotNil(t, results[student.ID].PickupTime)
 		assert.Equal(t, "Picked up by aunt", results[student.ID].Notes)
 		assert.False(t, results[student.ID].IsException)
+	})
+
+	t.Run("falls back to recurring schedule notes in bulk lookup when exception reason is blank", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+		testDate := time.Date(2024, 1, 8, 12, 0, 0, 0, time.UTC)
+
+		recurringNote := "Ring the side entrance bell"
+		sched := &scheduleModels.StudentPickupSchedule{
+			StudentID:  student.ID,
+			Weekday:    scheduleModels.WeekdayMonday,
+			PickupTime: time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC),
+			Notes:      &recurringNote,
+			CreatedBy:  1,
+		}
+		err := service.UpsertStudentPickupSchedule(ctx, sched)
+		require.NoError(t, err)
+
+		updatedTime := time.Date(2024, 1, 1, 13, 15, 0, 0, time.UTC)
+		blankReason := " "
+		exception := &scheduleModels.StudentPickupException{
+			StudentID:     student.ID,
+			ExceptionDate: testDate,
+			PickupTime:    &updatedTime,
+			Reason:        &blankReason,
+			CreatedBy:     1,
+		}
+		err = service.CreateStudentPickupException(ctx, exception)
+		require.NoError(t, err)
+
+		results, err := service.GetBulkEffectivePickupTimesForDate(ctx, []int64{student.ID}, testDate)
+
+		require.NoError(t, err)
+		assert.Len(t, results, 1)
+		assert.True(t, results[student.ID].IsException)
+		assert.Equal(t, "Ring the side entrance bell", results[student.ID].Notes)
 	})
 }
 

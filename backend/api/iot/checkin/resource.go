@@ -71,6 +71,7 @@ func (rs *Resource) Router() chi.Router {
 
 	// Check-in workflow endpoints
 	r.Post("/checkin", rs.deviceCheckin)
+	r.Post("/pickup-query", rs.devicePickupQuery)
 	r.Post("/ping", rs.devicePing)
 	r.Get("/status", rs.deviceStatus)
 
@@ -89,3 +90,6 @@ func (rs *Resource) DevicePingHandler() http.HandlerFunc { return rs.devicePing 
 
 // DeviceStatusHandler returns the deviceStatus handler for testing.
 func (rs *Resource) DeviceStatusHandler() http.HandlerFunc { return rs.deviceStatus }
+
+// DevicePickupQueryHandler returns the devicePickupQuery handler for testing.
+func (rs *Resource) DevicePickupQueryHandler() http.HandlerFunc { return rs.devicePickupQuery }
