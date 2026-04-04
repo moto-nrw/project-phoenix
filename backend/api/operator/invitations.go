@@ -292,6 +292,27 @@ func (rs *InvitationsResource) AcceptInvitation(w http.ResponseWriter, r *http.R
 	}, "Operator account created successfully")
 }
 
+// --- Error translation ---
+
+// invitationValidationErrors maps English service-layer validation messages to German.
+var invitationValidationErrors = map[string]string{
+	"invalid email format":                          "Ungültiges E-Mail-Format",
+	"email address too long":                        "E-Mail-Adresse ist zu lang",
+	"password doesn't meet complexity requirements": "Passwort erfüllt nicht die Anforderungen",
+	"display name is required":                      "Anzeigename ist erforderlich",
+	"display name must not exceed 100 characters":   "Anzeigename darf maximal 100 Zeichen lang sein",
+}
+
+func translateInvitationValidationError(err error) string {
+	if err == nil {
+		return "Ungültige Eingabe"
+	}
+	if translated, ok := invitationValidationErrors[err.Error()]; ok {
+		return translated
+	}
+	return "Ungültige Eingabe"
+}
+
 // --- Error renderers ---
 
 func invitationErrorRenderer(err error) render.Renderer {
@@ -305,7 +326,7 @@ func invitationErrorRenderer(err error) render.Renderer {
 	case errors.As(err, &emailExists):
 		return ErrConflict("Ein Operator mit dieser E-Mail existiert bereits")
 	case errors.As(err, &invalidData):
-		return ErrInvalidRequest(err)
+		return ErrInvalidRequest(errors.New(translateInvitationValidationError(invalidData.Unwrap())))
 	default:
 		return ErrInternal("Ein Fehler ist aufgetreten")
 	}
@@ -323,7 +344,7 @@ func publicInvitationErrorRenderer(err error) render.Renderer {
 		// Generic message for both cases to prevent email enumeration
 		return ErrInvalidRequest(errors.New("dieser Link ist abgelaufen oder ungültig"))
 	case errors.As(err, &invalidData):
-		return ErrInvalidRequest(err)
+		return ErrInvalidRequest(errors.New(translateInvitationValidationError(invalidData.Unwrap())))
 	default:
 		return ErrInternal("Ein Serverfehler ist aufgetreten")
 	}
