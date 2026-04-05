@@ -245,9 +245,17 @@ export default function TeachersPage() {
   // Handle inline notes update from detail modal
   const handleUpdateNotes = async (notes: string) => {
     if (!selectedTeacher) return;
-    await service.update(selectedTeacher.id, { staff_notes: notes });
-    setSelectedTeacher({ ...selectedTeacher, staff_notes: notes });
-    await tenantMutate("database-teachers-list");
+
+    try {
+      await service.update(selectedTeacher.id, { staff_notes: notes });
+      setSelectedTeacher({ ...selectedTeacher, staff_notes: notes });
+      await tenantMutate("database-teachers-list");
+    } catch (err) {
+      logger.error("failed to update teacher notes", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      throw err;
+    }
   };
 
   // Handle edit click from detail modal

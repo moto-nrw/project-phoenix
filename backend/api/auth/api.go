@@ -1351,12 +1351,11 @@ func caregiverCapabilityErrorRenderer(err error) render.Renderer {
 
 	switch {
 	case errors.As(err, &blockedErr):
-		return &caregiverCapabilityBlockedResponse{
-			HTTPStatusCode: http.StatusConflict,
-			Status:         "error",
-			ErrorText:      blockedErr.Error(),
-			Blockers:       blockedErr.Reasons,
-		}
+		return common.NewCaregiverCapabilityBlockedResponse(
+			http.StatusConflict,
+			blockedErr.Error(),
+			blockedErr.Reasons,
+		)
 	case errors.Is(err, authService.ErrAccountNotFound), errors.As(err, &accountTenantErr):
 		return ErrorNotFound(errors.New("account not found"))
 	case errors.As(err, &usersErr):
@@ -1364,18 +1363,6 @@ func caregiverCapabilityErrorRenderer(err error) render.Renderer {
 	default:
 		return ErrorInternalServer(err)
 	}
-}
-
-type caregiverCapabilityBlockedResponse struct {
-	HTTPStatusCode int                                        `json:"-"`
-	Status         string                                     `json:"status"`
-	ErrorText      string                                     `json:"error"`
-	Blockers       []userModel.CaregiverCapabilityBlockerCode `json:"blockers"`
-}
-
-func (e *caregiverCapabilityBlockedResponse) Render(_ http.ResponseWriter, r *http.Request) error {
-	render.Status(r, e.HTTPStatusCode)
-	return nil
 }
 
 // Permission Management Endpoints

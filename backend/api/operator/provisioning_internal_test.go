@@ -14,6 +14,7 @@ import (
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	"github.com/moto-nrw/project-phoenix/api/common"
 	jwtPkg "github.com/moto-nrw/project-phoenix/auth/jwt"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -1867,7 +1868,7 @@ func TestCaregiverCapabilityProvisioningErrorRenderer(t *testing.T) {
 			},
 		})
 
-		blocked, ok := renderer.(*caregiverCapabilityBlockedResponse)
+		blocked, ok := renderer.(*common.CaregiverCapabilityBlockedResponse)
 		require.True(t, ok)
 		assert.Equal(t, http.StatusConflict, blocked.HTTPStatusCode)
 		assert.Equal(
@@ -1905,7 +1906,11 @@ func TestCaregiverCapabilityProvisioningErrorRenderer(t *testing.T) {
 }
 
 func TestCaregiverCapabilityBlockedResponse_Render(t *testing.T) {
-	resp := &caregiverCapabilityBlockedResponse{HTTPStatusCode: http.StatusConflict}
+	resp := common.NewCaregiverCapabilityBlockedResponse(
+		http.StatusConflict,
+		"blocked",
+		nil,
+	)
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 
 	require.NoError(t, resp.Render(httptest.NewRecorder(), req))

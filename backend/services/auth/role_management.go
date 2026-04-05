@@ -101,59 +101,61 @@ func (s *Service) ListRoles(ctx context.Context, filters map[string]interface{})
 
 // AssignRoleToAccount assigns a role to an account
 func (s *Service) AssignRoleToAccount(ctx context.Context, accountID, roleID int) error {
-	// Verify account exists
-	if _, err := s.repos.Account.FindByID(ctx, int64(accountID)); err != nil {
-		return &AuthError{Op: "assign role", Err: ErrAccountNotFound}
-	}
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		// Verify account exists
+		if _, err := s.repos.Account.FindByID(txCtx, int64(accountID)); err != nil {
+			return &AuthError{Op: "assign role", Err: ErrAccountNotFound}
+		}
 
-	// Verify role exists
-	if _, err := s.repos.Role.FindByID(ctx, int64(roleID)); err != nil {
-		return &AuthError{Op: "assign role", Err: errors.New("role not found")}
-	}
+		// Verify role exists
+		if _, err := s.repos.Role.FindByID(txCtx, int64(roleID)); err != nil {
+			return &AuthError{Op: "assign role", Err: errors.New("role not found")}
+		}
 
-	// Check if role is already assigned using the repository
-	existingRole, err := s.repos.AccountRole.FindByAccountAndRole(ctx, int64(accountID), int64(roleID))
-	if err != nil && !strings.Contains(err.Error(), "no rows") {
-		return &AuthError{Op: "check role assignment", Err: err}
-	}
+		// Check if role is already assigned using the repository
+		existingRole, err := s.repos.AccountRole.FindByAccountAndRole(txCtx, int64(accountID), int64(roleID))
+		if err != nil && !strings.Contains(err.Error(), "no rows") {
+			return &AuthError{Op: "check role assignment", Err: err}
+		}
 
-	if existingRole != nil {
-		// Role already assigned, no action needed
+		if existingRole != nil {
+			// Role already assigned, no action needed
+			return nil
+		}
+
+		accountRole := &auth.AccountRole{
+			AccountID: int64(accountID),
+			RoleID:    int64(roleID),
+		}
+		accountRole.SetTenantID(tenant.FromContext(txCtx))
+
+		if err := s.repos.AccountRole.Create(txCtx, accountRole); err != nil {
+			return &AuthError{Op: "assign role to account", Err: err}
+		}
+
+		// Revoke all tokens so the user picks up the new role on next refresh.
+		if err := s.RevokeAllTokens(txCtx, accountID); err != nil {
+			return &AuthError{Op: "revoke tokens after role assignment", Err: err}
+		}
+
 		return nil
-	}
-
-	// Create the role assignment using the repository
-	accountRole := &auth.AccountRole{
-		AccountID: int64(accountID),
-		RoleID:    int64(roleID),
-	}
-	accountRole.SetTenantID(tenant.FromContext(ctx))
-
-	if err := s.repos.AccountRole.Create(ctx, accountRole); err != nil {
-		return &AuthError{Op: "assign role to account", Err: err}
-	}
-
-	// Revoke all tokens so the user picks up the new role on next refresh
-	if err := s.RevokeAllTokens(ctx, accountID); err != nil {
-		return &AuthError{Op: "revoke tokens after role assignment", Err: err}
-	}
-
-	return nil
+	})
 }
 
 // RemoveRoleFromAccount removes a role from an account
 func (s *Service) RemoveRoleFromAccount(ctx context.Context, accountID, roleID int) error {
-	// Use the repository to delete the role assignment
-	if err := s.repos.AccountRole.DeleteByAccountAndRole(ctx, int64(accountID), int64(roleID)); err != nil {
-		return &AuthError{Op: "remove role from account", Err: err}
-	}
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		if err := s.repos.AccountRole.DeleteByAccountAndRole(txCtx, int64(accountID), int64(roleID)); err != nil {
+			return &AuthError{Op: "remove role from account", Err: err}
+		}
 
-	// Revoke all tokens so the user loses the removed role on next refresh
-	if err := s.RevokeAllTokens(ctx, accountID); err != nil {
-		return &AuthError{Op: "revoke tokens after role removal", Err: err}
-	}
+		// Revoke all tokens so the user loses the removed role on next refresh.
+		if err := s.RevokeAllTokens(txCtx, accountID); err != nil {
+			return &AuthError{Op: "revoke tokens after role removal", Err: err}
+		}
 
-	return nil
+		return nil
+	})
 }
 
 // GetAccountRoles retrieves all roles for an account

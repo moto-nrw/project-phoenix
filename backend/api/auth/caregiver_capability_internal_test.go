@@ -230,3 +230,17 @@ func TestCaregiverCapabilityErrorRenderer_MapsUsersErrorToBadRequest(t *testing.
 	require.True(t, ok)
 	assert.Equal(t, http.StatusBadRequest, errResponse.HTTPStatusCode)
 }
+
+func TestCaregiverCapabilityErrorRenderer_MapsBlockedToSharedRenderer(t *testing.T) {
+	renderer := caregiverCapabilityErrorRenderer(&usersService.CaregiverCapabilityBlockedError{
+		Reasons: []userModel.CaregiverCapabilityBlockerCode{
+			userModel.CaregiverCapabilityBlockerGroupAssignments,
+		},
+	})
+	blocked, ok := renderer.(*common.CaregiverCapabilityBlockedResponse)
+	require.True(t, ok)
+	assert.Equal(t, http.StatusConflict, blocked.HTTPStatusCode)
+	assert.Equal(t, []userModel.CaregiverCapabilityBlockerCode{
+		userModel.CaregiverCapabilityBlockerGroupAssignments,
+	}, blocked.Blockers)
+}

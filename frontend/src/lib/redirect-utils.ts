@@ -51,13 +51,6 @@ export function getSmartRedirectPath(
     return "/dashboard";
   }
 
-  // If still loading supervision state, use ogs-groups as fallback
-  if (
-    supervisionState.isLoadingGroups ||
-    supervisionState.isLoadingSupervision
-  ) {
-    return "/dashboard";
-  }
   return "/dashboard";
 }
 

@@ -2,7 +2,6 @@ package users
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -32,19 +31,20 @@ func (s *personService) ListActiveCaregivers(ctx context.Context) ([]*userModels
 }
 
 func (s *personService) FindActiveCaregiverByAccountID(ctx context.Context, accountID int64) (*userModels.ActiveCaregiver, error) {
-	var caregiver userModels.ActiveCaregiver
+	var caregivers []*userModels.ActiveCaregiver
 	query := s.caregiverDirectoryQuery(ctx).
 		Where(`"account".id = ?`, accountID).
 		Limit(1)
 
-	if err := query.Scan(ctx, &caregiver); err != nil {
-		if err == sql.ErrNoRows {
-			return nil, nil
-		}
+	if err := query.Scan(ctx, &caregivers); err != nil {
 		return nil, &UsersError{Op: "find active caregiver by account ID", Err: err}
 	}
 
-	return &caregiver, nil
+	if len(caregivers) == 0 {
+		return nil, nil
+	}
+
+	return caregivers[0], nil
 }
 
 func (s *personService) caregiverDirectoryQuery(ctx context.Context) *bun.SelectQuery {
