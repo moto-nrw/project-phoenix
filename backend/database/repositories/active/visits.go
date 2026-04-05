@@ -106,6 +106,34 @@ func (r *VisitRepository) FindByTimeRange(ctx context.Context, start, end time.T
 	return visits, nil
 }
 
+// FindByStudentAndTimeRange finds all visits (active or ended) for a specific
+// student whose entry_time falls within [start, end], ordered by entry_time desc.
+// Eagerly loads the active group and its room so callers can display room names.
+func (r *VisitRepository) FindByStudentAndTimeRange(ctx context.Context, studentID int64, start, end time.Time) ([]*active.Visit, error) {
+	var visits []*active.Visit
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&visits).
+		ModelTableExpr(tableExprActiveVisitsAsVisit).
+		Relation("ActiveGroup").
+		Relation("ActiveGroup.Room").
+		Where(`"visit".student_id = ?`, studentID).
+		Where(`"visit".entry_time >= ?`, start).
+		Where(`"visit".entry_time <= ?`, end).
+		OrderExpr(`"visit".entry_time DESC`)
+
+	if where, val, ok := base.TenantWhere(ctx, "visit"); ok {
+		query = query.Where(where, val)
+	}
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by student and time range",
+			Err: err,
+		}
+	}
+	return visits, nil
+}
+
 // EndVisit marks a visit as ended at the current time
 func (r *VisitRepository) EndVisit(ctx context.Context, id int64) error {
 	query := base.GetDB(ctx, r.db).NewUpdate().

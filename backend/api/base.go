@@ -278,6 +278,11 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		PrivacyConsentRepo:    repoFactory.PrivacyConsent,
 		PickupScheduleService: api.Services.PickupSchedule,
 		SchoolRepo:            repoFactory.School,
+		SettingsService:       api.Services.Settings,
+		AttendanceRepo:        repoFactory.Attendance,
+		VisitRepo:             repoFactory.ActiveVisit,
+		DataAccessLogRepo:     repoFactory.DataAccessLog,
+		Logger:                logger.With("handler", "students"),
 		DB:                    db,
 	})
 	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, repoFactory.Student, repoFactory.GroupSubstitution, db)

@@ -81,6 +81,10 @@ type VisitRepository interface {
 	// FindByTimeRange finds all visits active during a specific time range
 	FindByTimeRange(ctx context.Context, start, end time.Time) ([]*Visit, error)
 
+	// FindByStudentAndTimeRange finds all visits (active or ended) for a specific
+	// student whose entry_time falls within [start, end], ordered by entry_time desc.
+	FindByStudentAndTimeRange(ctx context.Context, studentID int64, start, end time.Time) ([]*Visit, error)
+
 	// EndVisit marks a visit as ended at the current time
 	EndVisit(ctx context.Context, id int64) error
 

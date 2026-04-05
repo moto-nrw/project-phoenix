@@ -618,7 +618,7 @@ function FullAccessView({
           onUpdate={onRefreshData}
         />
 
-        <StudentHistorySection />
+        <StudentHistorySection studentId={studentId} />
       </div>
 
       <PersonalInfoFormModal

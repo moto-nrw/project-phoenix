@@ -18,34 +18,48 @@ vi.mock("~/components/ui/info-card", () => ({
   ),
 }));
 
+vi.mock("~/lib/tenant-router", () => ({
+  useTenantRouter: () => ({ push: vi.fn() }),
+}));
+
 describe("HistoryLinks", () => {
   it("renders Historien title", () => {
-    render(<HistoryLinks />);
+    render(<HistoryLinks studentId="42" attendanceLogEnabled={false} />);
     expect(screen.getByText("Historien")).toBeInTheDocument();
   });
 
   it("renders all three history link buttons", () => {
-    render(<HistoryLinks />);
+    render(<HistoryLinks studentId="42" attendanceLogEnabled={true} />);
 
     expect(screen.getByText("Raumverlauf")).toBeInTheDocument();
     expect(screen.getByText("Feedbackhistorie")).toBeInTheDocument();
     expect(screen.getByText("Mensaverlauf")).toBeInTheDocument();
   });
 
-  it("renders subtitles for each button", () => {
-    render(<HistoryLinks />);
+  it("feedback and mensa buttons remain disabled", () => {
+    render(<HistoryLinks studentId="42" attendanceLogEnabled={true} />);
 
-    expect(screen.getByText("Verlauf der Raumbesuche")).toBeInTheDocument();
-    expect(screen.getByText("Feedback und Bewertungen")).toBeInTheDocument();
-    expect(screen.getByText("Mahlzeiten und Bestellungen")).toBeInTheDocument();
+    expect(
+      screen.getByText("Feedbackhistorie").closest("button"),
+    ).toBeDisabled();
+    expect(screen.getByText("Mensaverlauf").closest("button")).toBeDisabled();
   });
 
-  it("all buttons are disabled", () => {
-    render(<HistoryLinks />);
+  it("raumverlauf button is enabled when attendanceLogEnabled is true", () => {
+    render(<HistoryLinks studentId="42" attendanceLogEnabled={true} />);
 
-    const buttons = screen.getAllByRole("button");
-    buttons.forEach((button) => {
-      expect(button).toBeDisabled();
-    });
+    const raumButton = screen.getByText("Raumverlauf").closest("button");
+    expect(raumButton).not.toBeDisabled();
+    expect(
+      screen.getByText("Anwesenheit und besuchte Räume"),
+    ).toBeInTheDocument();
+  });
+
+  it("raumverlauf button is disabled when attendanceLogEnabled is false", () => {
+    render(<HistoryLinks studentId="42" attendanceLogEnabled={false} />);
+
+    const raumButton = screen.getByText("Raumverlauf").closest("button");
+    expect(raumButton).toBeDisabled();
+    expect(screen.getByText("Für Ihre Schule deaktiviert")).toBeInTheDocument();
   });
 });

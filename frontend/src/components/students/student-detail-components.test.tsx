@@ -1,5 +1,10 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
+
+vi.mock("~/lib/tenant-router", () => ({
+  useTenantRouter: () => ({ push: vi.fn() }),
+}));
+
 import {
   PersonIcon,
   ChevronDownIcon,
@@ -542,33 +547,38 @@ describe("PersonalInfoReadOnly with showEditButton", () => {
 
 describe("StudentHistorySection", () => {
   it("renders section title", () => {
-    render(<StudentHistorySection />);
+    render(<StudentHistorySection studentId="42" />);
     expect(screen.getByText("Historien")).toBeInTheDocument();
   });
 
   it("renders room history button", () => {
-    render(<StudentHistorySection />);
+    render(<StudentHistorySection studentId="42" />);
     expect(screen.getByText("Raumverlauf")).toBeInTheDocument();
-    expect(screen.getByText("Verlauf der Raumbesuche")).toBeInTheDocument();
+    expect(
+      screen.getByText("Anwesenheit und besuchte Räume"),
+    ).toBeInTheDocument();
   });
 
   it("renders feedback history button", () => {
-    render(<StudentHistorySection />);
+    render(<StudentHistorySection studentId="42" />);
     expect(screen.getByText("Feedbackhistorie")).toBeInTheDocument();
     expect(screen.getByText("Feedback und Bewertungen")).toBeInTheDocument();
   });
 
   it("renders meal history button", () => {
-    render(<StudentHistorySection />);
+    render(<StudentHistorySection studentId="42" />);
     expect(screen.getByText("Mensaverlauf")).toBeInTheDocument();
     expect(screen.getByText("Mahlzeiten und Bestellungen")).toBeInTheDocument();
   });
 
-  it("all history buttons are disabled", () => {
-    render(<StudentHistorySection />);
-    const buttons = screen.getAllByRole("button");
-    buttons.forEach((button) => {
-      expect(button).toBeDisabled();
-    });
+  it("raumverlauf is clickable, feedback + mensa remain disabled", () => {
+    render(<StudentHistorySection studentId="42" />);
+    expect(
+      screen.getByText("Raumverlauf").closest("button"),
+    ).not.toBeDisabled();
+    expect(
+      screen.getByText("Feedbackhistorie").closest("button"),
+    ).toBeDisabled();
+    expect(screen.getByText("Mensaverlauf").closest("button")).toBeDisabled();
   });
 });

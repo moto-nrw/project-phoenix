@@ -5,6 +5,7 @@ import { LocationBadge } from "@/components/ui/location-badge";
 import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
 import type { SupervisorContact } from "~/lib/student-helpers";
 import { InfoCard, InfoItem } from "~/components/ui/info-card";
+import { useTenantRouter } from "~/lib/tenant-router";
 
 // =============================================================================
 // ICONS - Reusable SVG icons
@@ -528,19 +529,29 @@ interface HistoryButtonProps {
   title: string;
   description: string;
   bgColor: string;
+  disabled?: boolean;
+  onClick?: () => void;
 }
 
-function DisabledHistoryButton({
+function HistoryButton({
   icon,
   title,
   description,
   bgColor,
+  disabled = false,
+  onClick,
 }: Readonly<HistoryButtonProps>) {
+  const baseClasses = "flex items-center justify-between rounded-lg border p-3";
+  const stateClasses = disabled
+    ? "cursor-not-allowed border-gray-100 bg-gray-50 opacity-60"
+    : "cursor-pointer border-gray-200 bg-white transition-colors hover:bg-gray-50";
+
   return (
     <button
       type="button"
-      disabled
-      className="flex cursor-not-allowed items-center justify-between rounded-lg border border-gray-100 bg-gray-50 p-3 opacity-60"
+      disabled={disabled}
+      onClick={onClick}
+      className={`${baseClasses} ${stateClasses}`}
     >
       <div className="flex items-center gap-3">
         <div
@@ -549,7 +560,11 @@ function DisabledHistoryButton({
           {icon}
         </div>
         <div className="min-w-0 flex-1 text-left">
-          <p className="text-sm font-medium text-gray-400 sm:text-base">
+          <p
+            className={`text-sm font-medium sm:text-base ${
+              disabled ? "text-gray-400" : "text-gray-900"
+            }`}
+          >
             {title}
           </p>
           <p className="text-xs text-gray-400">{description}</p>
@@ -560,27 +575,45 @@ function DisabledHistoryButton({
   );
 }
 
-export function StudentHistorySection() {
+interface StudentHistorySectionProps {
+  readonly studentId: string;
+}
+
+/**
+ * History section on the student detail page. The Raumverlauf button navigates
+ * to the attendance + room-movement log; the destination page handles the
+ * feature flag, scope check, and configured day caps, rendering a German
+ * "deaktiviert" message if the tenant has not opted in. Feedback and mensa
+ * history are future features and remain disabled placeholders.
+ */
+export function StudentHistorySection({
+  studentId,
+}: StudentHistorySectionProps) {
+  const router = useTenantRouter();
+
   return (
     <InfoCard title="Historien" icon={<ClockIcon />}>
       <div className="grid grid-cols-1 gap-2">
-        <DisabledHistoryButton
+        <HistoryButton
           icon={<BuildingIcon />}
           title="Raumverlauf"
-          description="Verlauf der Raumbesuche"
+          description="Anwesenheit und besuchte Räume"
           bgColor="bg-[#5080D8]"
+          onClick={() => router.push(`/students/${studentId}/room_history`)}
         />
-        <DisabledHistoryButton
+        <HistoryButton
           icon={<ChatIcon />}
           title="Feedbackhistorie"
           description="Feedback und Bewertungen"
           bgColor="bg-[#83CD2D]"
+          disabled
         />
-        <DisabledHistoryButton
+        <HistoryButton
           icon={<ForkKnifeIcon />}
           title="Mensaverlauf"
           description="Mahlzeiten und Bestellungen"
           bgColor="bg-[#F78C10]"
+          disabled
         />
       </div>
     </InfoCard>

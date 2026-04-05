@@ -2,6 +2,7 @@ package students
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -193,7 +194,11 @@ func (rs *Resource) getStudentCurrentVisit(w http.ResponseWriter, r *http.Reques
 	common.Respond(w, r, http.StatusOK, currentVisit, "Current visit retrieved successfully")
 }
 
-// getStudentVisitHistory handles getting a student's visit history for today
+// getStudentVisitHistory handles getting a student's visit history for today.
+//
+// Deprecated: Use GET /students/{id}/attendance-history instead, which supports
+// arbitrary date ranges and includes the daily attendance log. This endpoint
+// will be removed in a future release.
 func (rs *Resource) getStudentVisitHistory(w http.ResponseWriter, r *http.Request) {
 	// Parse student ID from URL
 	studentID, err := common.ParseID(r)
@@ -201,6 +206,15 @@ func (rs *Resource) getStudentVisitHistory(w http.ResponseWriter, r *http.Reques
 		renderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidStudentID)))
 		return
 	}
+
+	// Signal deprecation to clients per RFC 8594.
+	w.Header().Set("Deprecation", "true")
+	w.Header().Set("Link", `</api/students/{id}/attendance-history>; rel="successor-version"`)
+	slog.Default().Warn("deprecated endpoint called",
+		slog.String("endpoint", "GET /students/{id}/visit-history"),
+		slog.String("successor", "GET /students/{id}/attendance-history"),
+		slog.Int64("student_id", studentID),
+	)
 
 	// Get all visits for this student
 	visits, err := rs.ActiveService.FindVisitsByStudentID(r.Context(), studentID)
