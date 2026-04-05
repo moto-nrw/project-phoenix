@@ -52,6 +52,12 @@ type caregiverCapabilityService struct {
 	db                     *bun.DB
 }
 
+type caregiverRoleFlags struct {
+	hasAdminRole         bool
+	hasUserRole          bool
+	hasLegacyTeacherRole bool
+}
+
 var caregiverCapabilityBindingTables = []string{
 	"education.group_teacher",
 	"education.group_substitution",
@@ -86,7 +92,8 @@ func (s *caregiverCapabilityService) GetCaregiverCapability(
 	ctx context.Context,
 	accountID int64,
 ) (*userModels.CaregiverCapabilityState, error) {
-	return s.loadCapabilityState(ctx, accountID)
+	state, _, err := s.loadCapabilityStateWithRoleFlags(ctx, accountID)
+	return state, err
 }
 
 func (s *caregiverCapabilityService) EnableCaregiverCapability(
@@ -104,7 +111,7 @@ func (s *caregiverCapabilityService) EnableCaregiverCapability(
 
 	var result *userModels.CaregiverCapabilityState
 	if err := s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
-		beforeState, err := s.loadCapabilityState(txCtx, accountID)
+		beforeState, _, err := s.loadCapabilityStateWithRoleFlags(txCtx, accountID)
 		if err != nil {
 			return err
 		}
@@ -185,7 +192,7 @@ func (s *caregiverCapabilityService) EnableCaregiverCapability(
 			return err
 		}
 
-		result, err = s.loadCapabilityState(txCtx, accountID)
+		result, _, err = s.loadCapabilityStateWithRoleFlags(txCtx, accountID)
 		if err != nil {
 			return err
 		}
@@ -217,7 +224,7 @@ func (s *caregiverCapabilityService) DisableCaregiverCapability(
 			return err
 		}
 
-		state, err := s.loadCapabilityState(txCtx, accountID)
+		state, roleFlags, err := s.loadCapabilityStateWithRoleFlags(txCtx, accountID)
 		if err != nil {
 			return err
 		}
@@ -226,24 +233,37 @@ func (s *caregiverCapabilityService) DisableCaregiverCapability(
 			return &CaregiverCapabilityBlockedError{Reasons: state.DisableBlockers}
 		}
 
-		if !state.HasUserRole {
+		if !roleFlags.hasUserRole && !roleFlags.hasLegacyTeacherRole {
 			result = state
 			return nil
 		}
 
-		userRole, err := s.resolveSystemRoleByName(txCtx, "user")
-		if err != nil {
-			return err
+		roleNamesToRemove := make([]string, 0, 2)
+		if roleFlags.hasUserRole {
+			roleNamesToRemove = append(roleNamesToRemove, "user")
 		}
-		if userRole == nil {
-			return &UsersError{Op: "disable caregiver capability", Err: fmt.Errorf("user role not found")}
-		}
-
-		if err := s.authService.RemoveRoleFromAccount(txCtx, int(accountID), int(userRole.ID)); err != nil {
-			return err
+		if roleFlags.hasLegacyTeacherRole {
+			roleNamesToRemove = append(roleNamesToRemove, "teacher")
 		}
 
-		result, err = s.loadCapabilityState(txCtx, accountID)
+		for _, roleName := range roleNamesToRemove {
+			role, err := s.resolveSystemRoleByName(txCtx, roleName)
+			if err != nil {
+				return err
+			}
+			if role == nil {
+				return &UsersError{
+					Op:  "disable caregiver capability",
+					Err: fmt.Errorf("%s role not found", roleName),
+				}
+			}
+
+			if err := s.authService.RemoveRoleFromAccount(txCtx, int(accountID), int(role.ID)); err != nil {
+				return err
+			}
+		}
+
+		result, _, err = s.loadCapabilityStateWithRoleFlags(txCtx, accountID)
 		if err != nil {
 			return err
 		}
@@ -363,19 +383,28 @@ func (s *caregiverCapabilityService) loadCapabilityState(
 	ctx context.Context,
 	accountID int64,
 ) (*userModels.CaregiverCapabilityState, error) {
+	state, _, err := s.loadCapabilityStateWithRoleFlags(ctx, accountID)
+	return state, err
+}
+
+func (s *caregiverCapabilityService) loadCapabilityStateWithRoleFlags(
+	ctx context.Context,
+	accountID int64,
+) (*userModels.CaregiverCapabilityState, caregiverRoleFlags, error) {
 	account, tenantID, err := s.loadAccountAndTenant(ctx, accountID)
 	if err != nil {
-		return nil, err
+		return nil, caregiverRoleFlags{}, err
 	}
 
 	state := &userModels.CaregiverCapabilityState{
 		AccountID: account.ID,
 		Email:     account.Email,
 	}
+	roleFlags := caregiverRoleFlags{}
 
 	roles, err := s.roleRepo.FindByAccountID(ctx, accountID)
 	if err != nil {
-		return nil, err
+		return nil, caregiverRoleFlags{}, err
 	}
 	for _, role := range roles {
 		if role == nil {
@@ -383,15 +412,19 @@ func (s *caregiverCapabilityService) loadCapabilityState(
 		}
 		switch strings.ToLower(strings.TrimSpace(role.Name)) {
 		case "admin":
-			state.HasAdminRole = true
+			roleFlags.hasAdminRole = true
 		case "user":
-			state.HasUserRole = true
+			roleFlags.hasUserRole = true
+		case "teacher":
+			roleFlags.hasLegacyTeacherRole = true
 		}
 	}
+	state.HasAdminRole = roleFlags.hasAdminRole
+	state.HasUserRole = roleFlags.hasUserRole
 
 	person, err := s.personRepo.FindByAccountID(ctx, accountID)
 	if err != nil {
-		return nil, err
+		return nil, caregiverRoleFlags{}, err
 	}
 	if person != nil {
 		state.HasPerson = true
@@ -404,7 +437,7 @@ func (s *caregiverCapabilityService) loadCapabilityState(
 	if person != nil {
 		staff, err = s.findStaffByPersonID(ctx, person.ID)
 		if err != nil {
-			return nil, err
+			return nil, caregiverRoleFlags{}, err
 		}
 	}
 	if staff != nil {
@@ -416,7 +449,7 @@ func (s *caregiverCapabilityService) loadCapabilityState(
 	if staff != nil {
 		teacher, err = s.teacherRepo.FindByStaffID(ctx, staff.ID)
 		if err != nil {
-			return nil, err
+			return nil, caregiverRoleFlags{}, err
 		}
 	}
 	if teacher != nil {
@@ -427,15 +460,15 @@ func (s *caregiverCapabilityService) loadCapabilityState(
 	state.HasCaregiverProfile = state.HasPerson && state.HasStaff && state.HasTeacher
 	state.IsActiveCaregiver = state.HasUserRole && state.HasCaregiverProfile
 
-	blockers, err := s.listDisableBlockers(ctx, tenantID, state)
+	blockers, err := s.listDisableBlockers(ctx, tenantID, state, roleFlags.hasLegacyTeacherRole)
 	if err != nil {
-		return nil, err
+		return nil, caregiverRoleFlags{}, err
 	}
 	state.DisableBlockers = blockers
 	state.DisableBlockersCount = len(blockers)
 	state.DisableBlocked = len(blockers) > 0
 
-	return state, nil
+	return state, roleFlags, nil
 }
 
 func (s *caregiverCapabilityService) loadAccountAndTenant(
@@ -506,6 +539,7 @@ func (s *caregiverCapabilityService) listDisableBlockers(
 	ctx context.Context,
 	tenantID int64,
 	state *userModels.CaregiverCapabilityState,
+	hasLegacyTeacherRole bool,
 ) ([]userModels.CaregiverCapabilityBlockerCode, error) {
 	if state == nil {
 		return nil, nil
@@ -513,7 +547,7 @@ func (s *caregiverCapabilityService) listDisableBlockers(
 
 	var blockers []userModels.CaregiverCapabilityBlockerCode
 
-	if state.HasUserRole && !state.HasAdminRole {
+	if (state.HasUserRole || hasLegacyTeacherRole) && !state.HasAdminRole {
 		blockers = append(blockers, userModels.CaregiverCapabilityBlockerMissingUsableRole)
 	}
 

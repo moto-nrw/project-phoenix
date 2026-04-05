@@ -134,6 +134,53 @@ func assignSystemRoleToAccount(
 	require.NoError(t, err)
 }
 
+func accountHasSystemRole(
+	t *testing.T,
+	db *bun.DB,
+	accountID int64,
+	tenantID int64,
+	roleName string,
+) bool {
+	t.Helper()
+
+	var count int
+	err := db.NewSelect().
+		TableExpr(`auth.account_roles AS "ar"`).
+		Join(`INNER JOIN auth.roles AS "role" ON "role".id = "ar".role_id`).
+		ColumnExpr(`COUNT(*)`).
+		Where(`"ar".account_id = ?`, accountID).
+		Where(`"ar".tenant_id = ?`, tenantID).
+		Where(`"role".is_system = TRUE`).
+		Where(`"role".tenant_id IS NULL`).
+		Where(`LOWER("role".name) = LOWER(?)`, roleName).
+		Scan(context.Background(), &count)
+	require.NoError(t, err)
+
+	return count > 0
+}
+
+func setAccountTenantStatus(
+	t *testing.T,
+	db *bun.DB,
+	accountID int64,
+	tenantID int64,
+	status string,
+) {
+	t.Helper()
+
+	_, err := db.ExecContext(
+		context.Background(),
+		`UPDATE auth.account_tenants
+		 SET status = ?, deactivated_at = CASE WHEN ? = 'inactive' THEN NOW() ELSE NULL END
+		 WHERE account_id = ? AND tenant_id = ?`,
+		status,
+		status,
+		accountID,
+		tenantID,
+	)
+	require.NoError(t, err)
+}
+
 func insertPlannedSupervisor(
 	t *testing.T,
 	db *bun.DB,
@@ -637,6 +684,77 @@ func TestCaregiverCapability_DisableReturnsStateWhenUserRoleIsAlreadyMissing(t *
 	assert.False(t, state.IsActiveCaregiver)
 }
 
+func TestCaregiverCapability_DisableRemovesLegacyTeacherRoleWhenAdminRemains(t *testing.T) {
+	db, factory := setupCaregiverFactory(t)
+	ctx := testpkg.TenantContext(1)
+
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "Legacy", "Disable")
+	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
+	t.Cleanup(func() {
+		testpkg.CleanupActivityFixtures(
+			t,
+			db,
+			teacher.ID,
+			teacher.Staff.ID,
+			teacher.Staff.Person.ID,
+		)
+	})
+	testpkg.EnsureAccountTenant(t, db, account.ID, 1)
+	ensureSystemRoleExists(t, db, "teacher")
+	assignSystemRoleToAccount(t, db, account.ID, 1, "admin")
+	assignSystemRoleToAccount(t, db, account.ID, 1, "teacher")
+
+	state, err := factory.CaregiverCapability.DisableCaregiverCapability(ctx, account.ID)
+
+	require.NoError(t, err)
+	require.NotNil(t, state)
+	assert.True(t, state.HasAdminRole)
+	assert.False(t, state.HasUserRole)
+	assert.True(t, state.HasCaregiverProfile)
+	assert.False(t, state.IsActiveCaregiver)
+	assert.False(t, accountHasSystemRole(t, db, account.ID, 1, "teacher"))
+}
+
+func TestCaregiverCapability_DisableBlocksLegacyTeacherOnlyAccount(t *testing.T) {
+	db, factory := setupCaregiverFactory(t)
+	ctx := testpkg.TenantContext(1)
+
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "Legacy", "TeacherOnly")
+	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
+	t.Cleanup(func() {
+		testpkg.CleanupActivityFixtures(
+			t,
+			db,
+			teacher.ID,
+			teacher.Staff.ID,
+			teacher.Staff.Person.ID,
+		)
+	})
+	testpkg.EnsureAccountTenant(t, db, account.ID, 1)
+	ensureSystemRoleExists(t, db, "teacher")
+	assignSystemRoleToAccount(t, db, account.ID, 1, "teacher")
+
+	state, err := factory.CaregiverCapability.GetCaregiverCapability(ctx, account.ID)
+	require.NoError(t, err)
+	require.NotNil(t, state)
+	assert.True(t, state.DisableBlocked)
+	assert.Contains(
+		t,
+		state.DisableBlockers,
+		userModels.CaregiverCapabilityBlockerMissingUsableRole,
+	)
+
+	var blockedErr *usersSvc.CaregiverCapabilityBlockedError
+	_, err = factory.CaregiverCapability.DisableCaregiverCapability(ctx, account.ID)
+	require.ErrorAs(t, err, &blockedErr)
+	assert.Contains(
+		t,
+		blockedErr.Reasons,
+		userModels.CaregiverCapabilityBlockerMissingUsableRole,
+	)
+	assert.True(t, accountHasSystemRole(t, db, account.ID, 1, "teacher"))
+}
+
 func TestCaregiverDirectory_ListAndFindOnlyActiveCaregivers(t *testing.T) {
 	db, factory := setupCaregiverFactory(t)
 	ctx := testpkg.TenantContext(1)
@@ -701,16 +819,40 @@ func TestCaregiverDirectory_ListAndFindOnlyActiveCaregivers(t *testing.T) {
 	_, err := db.ExecContext(context.Background(), `UPDATE auth.accounts SET active = false WHERE id = ?`, inactiveAccount.ID)
 	require.NoError(t, err)
 
+	inactiveMembershipTeacher, inactiveMembershipAccount := testpkg.CreateTestTeacherWithAccount(
+		t,
+		db,
+		"Former",
+		"Member",
+	)
+	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, inactiveMembershipAccount.ID) })
+	t.Cleanup(func() {
+		testpkg.CleanupActivityFixtures(
+			t,
+			db,
+			inactiveMembershipTeacher.ID,
+			inactiveMembershipTeacher.Staff.ID,
+			inactiveMembershipTeacher.Staff.Person.ID,
+		)
+	})
+	testpkg.EnsureAccountTenant(t, db, inactiveMembershipAccount.ID, 1)
+	assignSystemRoleToAccount(t, db, inactiveMembershipAccount.ID, 1, "user")
+	setAccountTenantStatus(
+		t,
+		db,
+		inactiveMembershipAccount.ID,
+		1,
+		authModels.AccountTenantStatusInactive,
+	)
+
 	directory, err := usersSvc.CaregiverDirectoryFromPersonService(factory.Users)
 	require.NoError(t, err)
 
 	caregivers, err := directory.ListActiveCaregivers(ctx)
 	require.NoError(t, err)
-	require.Len(t, caregivers, 2)
+	require.Len(t, caregivers, 1)
 	assert.Equal(t, activeAccount.ID, caregivers[0].AccountID)
 	assert.Equal(t, "Active Caregiver", caregivers[0].FullName())
-	assert.Equal(t, legacyTeacherRoleAccount.ID, caregivers[1].AccountID)
-	assert.Equal(t, "Legacy Teacher", caregivers[1].FullName())
 
 	found, err := directory.FindActiveCaregiverByAccountID(ctx, activeAccount.ID)
 	require.NoError(t, err)
@@ -719,8 +861,7 @@ func TestCaregiverDirectory_ListAndFindOnlyActiveCaregivers(t *testing.T) {
 
 	legacyFound, err := directory.FindActiveCaregiverByAccountID(ctx, legacyTeacherRoleAccount.ID)
 	require.NoError(t, err)
-	require.NotNil(t, legacyFound)
-	assert.Equal(t, legacyTeacherRoleTeacher.ID, legacyFound.TeacherID)
+	assert.Nil(t, legacyFound)
 
 	missing, err := directory.FindActiveCaregiverByAccountID(ctx, adminOnlyAccount.ID)
 	require.NoError(t, err)
@@ -729,6 +870,10 @@ func TestCaregiverDirectory_ListAndFindOnlyActiveCaregivers(t *testing.T) {
 	inactive, err := directory.FindActiveCaregiverByAccountID(ctx, inactiveAccount.ID)
 	require.NoError(t, err)
 	assert.Nil(t, inactive)
+
+	inactiveMembership, err := directory.FindActiveCaregiverByAccountID(ctx, inactiveMembershipAccount.ID)
+	require.NoError(t, err)
+	assert.Nil(t, inactiveMembership)
 }
 
 func TestCaregiverDirectory_ExcludesTenantScopedUserRole(t *testing.T) {

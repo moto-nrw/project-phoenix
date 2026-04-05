@@ -2069,6 +2069,24 @@ func TestProvisioningResource_EnableSchoolAccountCaregiverCapability(t *testing.
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestProvisioningResource_EnableSchoolAccountCaregiverCapability_EmptyBody(t *testing.T) {
+	resource := &ProvisioningResource{
+		CaregiverCapabilityService: &mockCaregiverCapabilityService{},
+	}
+
+	req := httptest.NewRequest(http.MethodPut, "/operator/schools/12/accounts/34/caregiver-capability", http.NoBody)
+	req.Header.Set("Content-Type", "application/json")
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "12")
+	routeCtx.URLParams.Add("accountId", "34")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.EnableSchoolAccountCaregiverCapability(rr, req)
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
 func TestProvisioningResource_DisableSchoolAccountCaregiverCapability(t *testing.T) {
 	db, mock := newMockAdminDB(t)
 	mock.ExpectBegin()

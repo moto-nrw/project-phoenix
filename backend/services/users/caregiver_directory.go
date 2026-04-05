@@ -4,13 +4,12 @@ import (
 	"context"
 	"fmt"
 
+	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
-
-var caregiverRoleNames = []string{"user", "teacher"}
 
 // CaregiverDirectory exposes the canonical operational caregiver lookup.
 // It is intentionally separate from PersonService so existing mocks do not
@@ -70,18 +69,19 @@ func (s *personService) caregiverDirectoryQuery(ctx context.Context) *bun.Select
 		Join(`INNER JOIN users.staff AS "staff" ON "staff".id = "teacher".staff_id`).
 		Join(`INNER JOIN users.persons AS "person" ON "person".id = "staff".person_id`).
 		Join(`INNER JOIN auth.accounts AS "account" ON "account".id = "person".account_id`).
-		Join(`INNER JOIN auth.account_roles AS "ar" ON "ar".account_id = "account".id`).
+		Join(`INNER JOIN auth.account_tenants AS "at" ON "at".account_id = "account".id AND "at".tenant_id = "teacher".tenant_id`).
+		Join(`INNER JOIN auth.account_roles AS "ar" ON "ar".account_id = "account".id AND "ar".tenant_id = "teacher".tenant_id`).
 		Join(`INNER JOIN auth.roles AS "role" ON "role".id = "ar".role_id`).
 		Where(`"account".active = TRUE`).
+		Where(`"at".status = ?`, authModels.AccountTenantStatusActive).
 		Where(`"role".is_system = TRUE`).
 		Where(`"role".tenant_id IS NULL`).
-		// Keep legacy teacher-only accounts visible until the rollout includes
-		// a complete backfill away from the system "teacher" role.
-		Where(`LOWER("role".name) IN (?)`, bun.List(caregiverRoleNames)).
+		Where(`LOWER("role".name) = ?`, "user").
 		Distinct()
 
 	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
 		query = query.
+			Where(`"at".tenant_id = ?`, tenantID).
 			Where(`"teacher".tenant_id = ?`, tenantID).
 			Where(`"staff".tenant_id = ?`, tenantID).
 			Where(`"person".tenant_id = ?`, tenantID).

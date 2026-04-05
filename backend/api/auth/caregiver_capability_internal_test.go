@@ -167,6 +167,23 @@ func TestEnableCaregiverCapability_InvalidBody(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 }
 
+func TestEnableCaregiverCapability_EmptyBody(t *testing.T) {
+	resource := &Resource{
+		CaregiverCapabilityService: caregiverCapabilityServiceStub{},
+	}
+
+	req := withAccountRouteParam(
+		httptest.NewRequest(http.MethodPost, "/accounts/7/caregiver-capability", http.NoBody),
+		"7",
+	)
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	resource.enableCaregiverCapability(rr, req)
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
 func TestEnableCaregiverCapability_RendersUsersValidationError(t *testing.T) {
 	resource := &Resource{
 		CaregiverCapabilityService: caregiverCapabilityServiceStub{
