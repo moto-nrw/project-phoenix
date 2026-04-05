@@ -17,6 +17,7 @@ interface ExtendedSession extends Session {
 
 const {
   mockAuth,
+  mockUncachedAuth,
   mockApiPut,
   mockApiGet,
   mockFetch,
@@ -24,6 +25,7 @@ const {
   mockHandleApiError,
 } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
+  mockUncachedAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
   mockApiPut: vi.fn(),
   mockApiGet: vi.fn(),
   mockFetch: vi.fn(),
@@ -42,6 +44,7 @@ const {
 
 vi.mock("~/server/auth", () => ({
   auth: mockAuth,
+  uncachedAuth: mockUncachedAuth,
 }));
 
 vi.mock("~/lib/api-helpers", () => ({
@@ -103,6 +106,7 @@ describe("PUT /api/activities/[id]/supervisors/[supervisorId]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
+    mockUncachedAuth.mockResolvedValue(defaultSession);
   });
 
   it("returns 401 when not authenticated", async () => {
@@ -244,6 +248,7 @@ describe("DELETE /api/activities/[id]/supervisors/[supervisorId]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
+    mockUncachedAuth.mockResolvedValue(defaultSession);
   });
 
   it("returns 401 when not authenticated", async () => {
@@ -396,6 +401,84 @@ describe("DELETE /api/activities/[id]/supervisors/[supervisorId]", () => {
       status: "error",
       error: "cannot remove the only supervisor",
       code: "ONLY_SUPERVISOR_REPLACEMENT_REQUIRED",
+    });
+  });
+
+  it("retries once with uncachedAuth when the backend returns 401", async () => {
+    mockUncachedAuth.mockResolvedValueOnce({
+      ...defaultSession,
+      user: { ...defaultSession.user, token: "fresh-token" },
+    });
+    mockFetch
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: "expired" }), {
+          status: 401,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ status: "success" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+
+    const request = createMockRequest("/api/activities/1/supervisors/2", {
+      method: "DELETE",
+    });
+    const response = await DELETE(
+      request,
+      createMockContext({ id: "1", supervisorId: "2" }),
+    );
+
+    expect(mockFetch).toHaveBeenNthCalledWith(
+      1,
+      "http://localhost:8080/api/activities/1/supervisors/2",
+      {
+        method: "DELETE",
+        headers: {
+          Authorization: "Bearer test-token",
+        },
+        cache: "no-store",
+      },
+    );
+    expect(mockFetch).toHaveBeenNthCalledWith(
+      2,
+      "http://localhost:8080/api/activities/1/supervisors/2",
+      {
+        method: "DELETE",
+        headers: {
+          Authorization: "Bearer fresh-token",
+        },
+        cache: "no-store",
+      },
+    );
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ success: true });
+  });
+
+  it("returns TOKEN_EXPIRED when refresh does not yield a new token", async () => {
+    mockUncachedAuth.mockResolvedValueOnce(defaultSession);
+    mockFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: "expired" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    const request = createMockRequest("/api/activities/1/supervisors/2", {
+      method: "DELETE",
+    });
+    const response = await DELETE(
+      request,
+      createMockContext({ id: "1", supervisorId: "2" }),
+    );
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({
+      error: "Token expired",
+      code: "TOKEN_EXPIRED",
     });
   });
 });

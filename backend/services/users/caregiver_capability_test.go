@@ -2,6 +2,7 @@ package users_test
 
 import (
 	"context"
+	"database/sql"
 	"log/slog"
 	"testing"
 	"time"
@@ -55,6 +56,38 @@ func lookupSystemRoleID(t *testing.T, db *bun.DB, name string) int64 {
 	require.NoError(t, err)
 
 	return role.ID
+}
+
+func ensureSystemRoleExists(t *testing.T, db *bun.DB, name string) {
+	t.Helper()
+
+	var role authModels.Role
+	err := db.NewSelect().
+		Model(&role).
+		ModelTableExpr(`auth.roles AS "role"`).
+		Where(`LOWER("role".name) = LOWER(?)`, name).
+		Where(`"role".is_system = TRUE`).
+		Where(`"role".tenant_id IS NULL`).
+		Limit(1).
+		Scan(context.Background())
+	if err == nil {
+		return
+	}
+	if err != nil && err != sql.ErrNoRows {
+		require.NoError(t, err)
+	}
+
+	role = authModels.Role{
+		Name:        name,
+		Description: "Test system role: " + name,
+		IsSystem:    true,
+	}
+	err = db.NewInsert().
+		Model(&role).
+		ModelTableExpr(`auth.roles`).
+		Scan(context.Background())
+	require.NoError(t, err)
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "auth.roles", role.ID) })
 }
 
 func loadLatestAuthEvent(
@@ -622,6 +655,21 @@ func TestCaregiverDirectory_ListAndFindOnlyActiveCaregivers(t *testing.T) {
 	testpkg.EnsureAccountTenant(t, db, activeAccount.ID, 1)
 	assignSystemRoleToAccount(t, db, activeAccount.ID, 1, "user")
 
+	legacyTeacherRoleTeacher, legacyTeacherRoleAccount := testpkg.CreateTestTeacherWithAccount(t, db, "Legacy", "Teacher")
+	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, legacyTeacherRoleAccount.ID) })
+	t.Cleanup(func() {
+		testpkg.CleanupActivityFixtures(
+			t,
+			db,
+			legacyTeacherRoleTeacher.ID,
+			legacyTeacherRoleTeacher.Staff.ID,
+			legacyTeacherRoleTeacher.Staff.Person.ID,
+		)
+	})
+	testpkg.EnsureAccountTenant(t, db, legacyTeacherRoleAccount.ID, 1)
+	ensureSystemRoleExists(t, db, "teacher")
+	assignSystemRoleToAccount(t, db, legacyTeacherRoleAccount.ID, 1, "teacher")
+
 	adminOnlyTeacher, adminOnlyAccount := testpkg.CreateTestTeacherWithAccount(t, db, "Admin", "Only")
 	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, adminOnlyAccount.ID) })
 	t.Cleanup(func() {
@@ -658,14 +706,21 @@ func TestCaregiverDirectory_ListAndFindOnlyActiveCaregivers(t *testing.T) {
 
 	caregivers, err := directory.ListActiveCaregivers(ctx)
 	require.NoError(t, err)
-	require.Len(t, caregivers, 1)
+	require.Len(t, caregivers, 2)
 	assert.Equal(t, activeAccount.ID, caregivers[0].AccountID)
 	assert.Equal(t, "Active Caregiver", caregivers[0].FullName())
+	assert.Equal(t, legacyTeacherRoleAccount.ID, caregivers[1].AccountID)
+	assert.Equal(t, "Legacy Teacher", caregivers[1].FullName())
 
 	found, err := directory.FindActiveCaregiverByAccountID(ctx, activeAccount.ID)
 	require.NoError(t, err)
 	require.NotNil(t, found)
 	assert.Equal(t, activeTeacher.ID, found.TeacherID)
+
+	legacyFound, err := directory.FindActiveCaregiverByAccountID(ctx, legacyTeacherRoleAccount.ID)
+	require.NoError(t, err)
+	require.NotNil(t, legacyFound)
+	assert.Equal(t, legacyTeacherRoleTeacher.ID, legacyFound.TeacherID)
 
 	missing, err := directory.FindActiveCaregiverByAccountID(ctx, adminOnlyAccount.ID)
 	require.NoError(t, err)

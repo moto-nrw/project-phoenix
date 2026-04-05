@@ -10,6 +10,8 @@ import (
 	"github.com/uptrace/bun"
 )
 
+var caregiverRoleNames = []string{"user", "teacher"}
+
 // CaregiverDirectory exposes the canonical operational caregiver lookup.
 // It is intentionally separate from PersonService so existing mocks do not
 // need to implement these methods unless a test actually exercises them.
@@ -73,7 +75,9 @@ func (s *personService) caregiverDirectoryQuery(ctx context.Context) *bun.Select
 		Where(`"account".active = TRUE`).
 		Where(`"role".is_system = TRUE`).
 		Where(`"role".tenant_id IS NULL`).
-		Where(`LOWER("role".name) = ?`, "user").
+		// Keep legacy teacher-only accounts visible until the rollout includes
+		// a complete backfill away from the system "teacher" role.
+		Where(`LOWER("role".name) IN (?)`, bun.In(caregiverRoleNames)).
 		Distinct()
 
 	if tenantID := tenant.FromContext(ctx); tenantID > 0 {

@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { apiPut, handleApiError } from "~/lib/api-helpers";
 import { createPutHandler } from "~/lib/route-wrapper";
-import { auth } from "~/server/auth";
+import { auth, uncachedAuth } from "~/server/auth";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import {
   createUnauthorizedResponse,
@@ -12,6 +12,13 @@ import {
   isStringParam,
   type RouteContext,
 } from "~/lib/route-wrapper-utils";
+
+function createTokenExpiredResponse(): NextResponse {
+  return NextResponse.json(
+    { error: "Token expired", code: "TOKEN_EXPIRED" },
+    { status: 401 },
+  );
+}
 
 /**
  * PUT handler for updating a supervisor's role for an activity (primarily is_primary status)
@@ -91,15 +98,33 @@ export const DELETE = async (
       backendUrl.searchParams.set("replacement_staff_id", replacementStaffId);
     }
 
-    const response = await fetch(backendUrl.toString(), {
-      method: "DELETE",
-      headers: {
-        Authorization: `Bearer ${session.user.token}`,
-      },
-      cache: "no-store",
-    });
+    const makeRequest = (token: string) =>
+      fetch(backendUrl.toString(), {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        cache: "no-store",
+      });
+
+    let response = await makeRequest(session.user.token);
+    if (response.status === 401) {
+      const refreshed = await uncachedAuth();
+      if (
+        refreshed?.user?.token &&
+        refreshed.user.token !== session.user.token
+      ) {
+        response = await makeRequest(refreshed.user.token);
+      } else {
+        return createTokenExpiredResponse();
+      }
+    }
 
     if (!response.ok) {
+      if (response.status === 401) {
+        return createTokenExpiredResponse();
+      }
+
       const contentType = response.headers.get("content-type") ?? "";
 
       if (contentType.includes("application/json")) {

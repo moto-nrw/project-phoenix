@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { auth } from "~/server/auth";
+import { auth, uncachedAuth } from "~/server/auth";
 import { handleApiError } from "~/lib/api-helpers";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { encodePathSegment, isStringParam } from "~/lib/route-wrapper-utils";
@@ -32,11 +32,23 @@ export const GET = async (
     }
 
     const backendUrl = `${getServerApiUrl()}/api/staff/${encodePathSegment(rawId)}/avatar`;
-    const response = await fetch(backendUrl, {
-      headers: {
-        Authorization: `Bearer ${session.user.token}`,
-      },
-    });
+    const makeRequest = (token: string) =>
+      fetch(backendUrl, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+    let response = await makeRequest(session.user.token);
+    if (response.status === 401) {
+      const refreshed = await uncachedAuth();
+      if (
+        refreshed?.user?.token &&
+        refreshed.user.token !== session.user.token
+      ) {
+        response = await makeRequest(refreshed.user.token);
+      }
+    }
 
     if (!response.ok) {
       return new NextResponse(null, { status: response.status });
