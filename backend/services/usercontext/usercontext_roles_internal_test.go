@@ -50,6 +50,12 @@ func TestGetCurrentTeacher_RejectsExplicitWrongRoleBeforeRepoLookup(t *testing.T
 	assert.ErrorIs(t, err, ErrUserNotLinkedToTeacher)
 }
 
+func TestCaregiverRoleGate_AllowsExplicitTeacherRole(t *testing.T) {
+	ctx := contextWithRoles(42, "teacher")
+
+	assert.True(t, currentUserHasAnyRole(ctx, "user", "teacher", "admin"))
+}
+
 func TestGetMyGroups_RejectsUnauthenticatedAndAllowsNonCaregiverFallback(t *testing.T) {
 	service := &userContextService{}
 
