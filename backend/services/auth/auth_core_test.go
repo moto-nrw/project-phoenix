@@ -12,6 +12,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -1032,6 +1033,40 @@ func TestAuthService_AssignRoleToAccount(t *testing.T) {
 			}
 		}
 		assert.True(t, found, "Expected to find assigned role")
+	})
+
+	t.Run("participates in outer transaction rollback", func(t *testing.T) {
+		account := testpkg.CreateTestAccount(t, db, "assign-role-tx")
+		t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
+		testpkg.EnsureAccountTenant(t, db, account.ID, 1)
+
+		token := testpkg.CreateTestTokenForTenant(t, db, 1, account.ID)
+		t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "auth.tokens", token.ID) })
+
+		roleName := fmt.Sprintf("assign-role-tx-%d", time.Now().UnixNano())
+		role, err := service.CreateRole(ctx, roleName, "transaction rollback verification")
+		require.NoError(t, err)
+		t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "auth.roles", role.ID) })
+
+		sentinelErr := errors.New("force outer rollback")
+		txHandler := modelBase.NewTxHandler(db)
+
+		err = txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+			if err := service.AssignRoleToAccount(txCtx, int(account.ID), int(role.ID)); err != nil {
+				return err
+			}
+			return sentinelErr
+		})
+		require.ErrorIs(t, err, sentinelErr)
+
+		roles, err := service.GetAccountRoles(ctx, int(account.ID))
+		require.NoError(t, err)
+		assert.Empty(t, roles, "role assignment should roll back with the outer transaction")
+
+		tokens, err := service.GetActiveTokens(ctx, int(account.ID))
+		require.NoError(t, err)
+		require.Len(t, tokens, 1)
+		assert.Equal(t, token.ID, tokens[0].ID, "token revocation should roll back with the outer transaction")
 	})
 }
 
