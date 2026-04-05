@@ -39,9 +39,9 @@ vi.mock("next/link", () => ({
 
 import { EmailConfirmContent } from "./email-confirm-content";
 
-/** Sets window.location.hash and returns a cleanup function. */
-function setHash(hash: string) {
-  window.location.hash = hash;
+/** Sets the current URL to /operator/email-confirm?token={value} via pushState. */
+function setQueryToken(token: string) {
+  window.history.pushState({}, "", `/operator/email-confirm?token=${token}`);
 }
 
 describe("EmailConfirmContent", () => {
@@ -54,15 +54,17 @@ describe("EmailConfirmContent", () => {
       update: mockUpdateSession,
       status: "unauthenticated",
     });
+    // Reset URL before installing the replaceState spy (spy is a no-op, so
+    // once installed it cannot be used to mutate the URL).
+    window.history.pushState({}, "", "/operator/email-confirm");
     replaceStateSpy = vi
       .spyOn(window.history, "replaceState")
       .mockImplementation(() => {});
-    // Clear hash before each test
-    window.location.hash = "";
   });
 
   afterEach(() => {
-    window.location.hash = "";
+    replaceStateSpy.mockRestore();
+    window.history.pushState({}, "", "/operator/email-confirm");
   });
 
   it("shows error when no token is provided", async () => {
@@ -97,7 +99,7 @@ describe("EmailConfirmContent", () => {
   });
 
   it("shows idle state with confirm button when token is provided", async () => {
-    setHash("#token=test-token");
+    setQueryToken("test-token");
     render(<EmailConfirmContent />);
 
     await waitFor(() => {
@@ -107,7 +109,7 @@ describe("EmailConfirmContent", () => {
   });
 
   it("strips token from URL on mount", async () => {
-    setHash("#token=test-token");
+    setQueryToken("test-token");
     render(<EmailConfirmContent />);
 
     await waitFor(() => {
@@ -137,7 +139,7 @@ describe("EmailConfirmContent", () => {
       json: async () => ({ message: "Email changed successfully" }),
     });
 
-    setHash("#token=test-token");
+    setQueryToken("test-token");
     render(<EmailConfirmContent />);
 
     await waitFor(() => {
@@ -157,7 +159,7 @@ describe("EmailConfirmContent", () => {
       json: async () => ({ message: "OK" }),
     });
 
-    setHash("#token=test-token");
+    setQueryToken("test-token");
     render(<EmailConfirmContent />);
 
     await waitFor(() => {
@@ -183,7 +185,7 @@ describe("EmailConfirmContent", () => {
       json: async () => ({ message: "OK" }),
     });
 
-    setHash("#token=test-token");
+    setQueryToken("test-token");
     render(<EmailConfirmContent />);
 
     await waitFor(() => {
@@ -203,7 +205,7 @@ describe("EmailConfirmContent", () => {
       json: async () => ({ message: "OK" }),
     });
 
-    setHash("#token=test-token");
+    setQueryToken("test-token");
     render(<EmailConfirmContent />);
 
     await waitFor(() => {
@@ -231,7 +233,7 @@ describe("EmailConfirmContent", () => {
       json: async () => ({ message: "OK" }),
     });
 
-    setHash("#token=test-token");
+    setQueryToken("test-token");
     render(<EmailConfirmContent />);
 
     await waitFor(() => {
@@ -251,7 +253,7 @@ describe("EmailConfirmContent", () => {
       json: async () => ({ error: "Serverfehler" }),
     });
 
-    setHash("#token=test-token");
+    setQueryToken("test-token");
     render(<EmailConfirmContent />);
 
     await waitFor(() => {
@@ -275,7 +277,7 @@ describe("EmailConfirmContent", () => {
       json: async () => ({}),
     });
 
-    setHash("#token=test-token");
+    setQueryToken("test-token");
     render(<EmailConfirmContent />);
 
     await waitFor(() => {
@@ -299,7 +301,7 @@ describe("EmailConfirmContent", () => {
       json: async () => ({ message: "Bad Gateway" }),
     });
 
-    setHash("#token=test-token");
+    setQueryToken("test-token");
     render(<EmailConfirmContent />);
 
     await waitFor(() => {
@@ -319,7 +321,7 @@ describe("EmailConfirmContent", () => {
       json: async () => ({ error: "Token abgelaufen" }),
     });
 
-    setHash("#token=test-token");
+    setQueryToken("test-token");
     render(<EmailConfirmContent />);
 
     await waitFor(() => {
@@ -343,7 +345,7 @@ describe("EmailConfirmContent", () => {
       json: async () => ({}),
     });
 
-    setHash("#token=test-token");
+    setQueryToken("test-token");
     render(<EmailConfirmContent />);
 
     await waitFor(() => {
@@ -361,7 +363,7 @@ describe("EmailConfirmContent", () => {
   it("shows retryable error on network failure", async () => {
     mockFetch.mockRejectedValueOnce(new Error("Network error"));
 
-    setHash("#token=test-token");
+    setQueryToken("test-token");
     render(<EmailConfirmContent />);
 
     await waitFor(() => {
@@ -394,7 +396,7 @@ describe("EmailConfirmContent", () => {
       json: async () => ({ message: "OK" }),
     });
 
-    setHash("#token=test-token");
+    setQueryToken("test-token");
     render(<EmailConfirmContent />);
 
     await waitFor(() => {
@@ -420,7 +422,7 @@ describe("EmailConfirmContent", () => {
       json: async () => ({ message: "OK" }),
     });
 
-    setHash("#token=my-test-token");
+    setQueryToken("my-test-token");
     render(<EmailConfirmContent />);
 
     await waitFor(() => {
@@ -448,7 +450,7 @@ describe("EmailConfirmContent", () => {
       }),
     );
 
-    setHash("#token=test-token");
+    setQueryToken("test-token");
     render(<EmailConfirmContent />);
 
     await waitFor(() => {
@@ -474,7 +476,7 @@ describe("EmailConfirmContent", () => {
   it("handles non-Error thrown by fetch", async () => {
     mockFetch.mockRejectedValueOnce("string error");
 
-    setHash("#token=test-token");
+    setQueryToken("test-token");
     render(<EmailConfirmContent />);
 
     await waitFor(() => {

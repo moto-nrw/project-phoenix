@@ -138,7 +138,7 @@ func TestInviteOperator_DispatchesEmail(t *testing.T) {
 	// Verify template content bindings
 	content, ok := msg.Content.(map[string]any)
 	require.True(t, ok, "expected map content")
-	assert.Contains(t, content["InvitationURL"], "operator.example.com/invite#token="+createdTokenStr)
+	assert.Contains(t, content["InvitationURL"], "operator.example.com/invite?token="+createdTokenStr)
 	assert.Equal(t, 48, content["ExpiryHours"])
 	assert.Equal(t, "Creator Name", content["InviterName"])
 	assert.Contains(t, content["LogoURL"], "app.example.com/images/moto_transparent.png")

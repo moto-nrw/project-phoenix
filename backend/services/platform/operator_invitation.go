@@ -363,10 +363,11 @@ func (s *operatorAuthService) dispatchOperatorInvitationEmail(ctx context.Contex
 		inviterName = inviter.DisplayName
 	}
 
-	// Use the operator-specific URL to avoid cross-host redirects that drop fragments.
-	// The path is /invite (not /operator/invite) because the operator subdomain proxy
-	// rewrites /invite → /operator/invite internally.
-	invitationURL := fmt.Sprintf("%s/invite#token=%s", s.operatorFrontendURL, token.Token)
+	// Use the operator-specific URL to avoid a cross-origin redirect hop, which
+	// email content scanners treat as a phishing signal. The path is /invite
+	// (not /operator/invite) because the operator subdomain proxy rewrites
+	// /invite → /operator/invite internally.
+	invitationURL := fmt.Sprintf("%s/invite?token=%s", s.operatorFrontendURL, token.Token)
 	logoURL := fmt.Sprintf("%s/images/moto_transparent.png", s.frontendURL)
 
 	message := email.Message{

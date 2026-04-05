@@ -18,13 +18,18 @@ vi.mock("~/lib/operator-url", () => ({
 
 import { InviteContent } from "./invite-content";
 
+/** Sets the current URL to /operator/invite?token={value} via pushState. */
+function setQueryToken(token: string) {
+  window.history.pushState({}, "", `/operator/invite?token=${token}`);
+}
+
 describe("InviteContent", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Reset sessionStorage
     sessionStorage.clear();
-    // Reset URL hash
-    window.location.hash = "";
+    // Reset URL (strips any leftover ?token=... from a prior test)
+    window.history.pushState({}, "", "/operator/invite");
   });
 
   it("shows error when no token is available", async () => {
@@ -36,8 +41,8 @@ describe("InviteContent", () => {
     expect(screen.getByText("Kein Token angegeben.")).toBeInTheDocument();
   });
 
-  it("validates token from URL hash and shows form", async () => {
-    window.location.hash = "#token=valid-token-123";
+  it("validates token from URL query and shows form", async () => {
+    setQueryToken("valid-token-123");
     mockValidate.mockResolvedValue({
       email: "invited@example.com",
       displayName: "Test User",
@@ -54,7 +59,7 @@ describe("InviteContent", () => {
   });
 
   it("pre-fills display name from invitation", async () => {
-    window.location.hash = "#token=valid-token";
+    setQueryToken("valid-token");
     mockValidate.mockResolvedValue({
       email: "invited@example.com",
       displayName: "Pre-filled Name",
@@ -86,7 +91,7 @@ describe("InviteContent", () => {
   });
 
   it("shows error state when validation fails", async () => {
-    window.location.hash = "#token=expired-token";
+    setQueryToken("expired-token");
     mockValidate.mockRejectedValue(
       new Error("Dieser Link ist abgelaufen oder ungültig"),
     );
@@ -102,7 +107,7 @@ describe("InviteContent", () => {
   });
 
   it("shows password rules when typing", async () => {
-    window.location.hash = "#token=valid-token";
+    setQueryToken("valid-token");
     mockValidate.mockResolvedValue({
       email: "test@example.com",
       expiresAt: "2026-04-06T00:00:00Z",
@@ -126,7 +131,7 @@ describe("InviteContent", () => {
   });
 
   it("shows password mismatch message", async () => {
-    window.location.hash = "#token=valid-token";
+    setQueryToken("valid-token");
     mockValidate.mockResolvedValue({
       email: "test@example.com",
       expiresAt: "2026-04-06T00:00:00Z",
@@ -151,7 +156,7 @@ describe("InviteContent", () => {
   });
 
   it("submits form and shows success", async () => {
-    window.location.hash = "#token=valid-token";
+    setQueryToken("valid-token");
     mockValidate.mockResolvedValue({
       email: "test@example.com",
       displayName: "Test",
@@ -188,7 +193,7 @@ describe("InviteContent", () => {
   });
 
   it("shows form error when accept fails", async () => {
-    window.location.hash = "#token=valid-token";
+    setQueryToken("valid-token");
     mockValidate.mockResolvedValue({
       email: "test@example.com",
       displayName: "Test",
@@ -220,7 +225,7 @@ describe("InviteContent", () => {
   });
 
   it("shows validation error for empty display name on submit", async () => {
-    window.location.hash = "#token=valid-token";
+    setQueryToken("valid-token");
     mockValidate.mockResolvedValue({
       email: "test@example.com",
       expiresAt: "2026-04-06T00:00:00Z",
@@ -256,7 +261,7 @@ describe("InviteContent", () => {
   });
 
   it("has login link on success page", async () => {
-    window.location.hash = "#token=valid-token";
+    setQueryToken("valid-token");
     mockValidate.mockResolvedValue({
       email: "test@example.com",
       displayName: "Test",

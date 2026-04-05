@@ -11,16 +11,14 @@ const logger = createLogger({ component: "OperatorEmailConfirmPage" });
 type ConfirmState = "loading" | "idle" | "confirming" | "success" | "error";
 
 /**
- * Extracts the token from the URL fragment (#token=...).
- * Using a fragment instead of a query parameter prevents the token from
- * leaking in Referer headers, server access logs, or CDN logs.
+ * Extracts the token from the URL query string (?token=...).
+ * The caller strips the token from the URL immediately after extraction via
+ * history.replaceState, so it does not persist in the address bar, browser
+ * history, or any subsequent Referer header.
  */
-function extractTokenFromHash(): string | null {
+function extractToken(): string | null {
   if (typeof window === "undefined") return null;
-  const hash = window.location.hash;
-  if (!hash.startsWith("#token=")) return null;
-  const token = hash.slice("#token=".length);
-  return token || null;
+  return new URLSearchParams(window.location.search).get("token");
 }
 
 export function EmailConfirmContent() {
@@ -31,10 +29,10 @@ export function EmailConfirmContent() {
   const { update: updateSession, status: sessionStatus } = useSession();
   const primaryRef = useRef<HTMLButtonElement | HTMLAnchorElement>(null);
 
-  // Extract token from URL fragment on mount, then strip it from the URL
+  // Extract token from URL query string on mount, then strip it from the URL
   // to prevent leaking via browser history or shoulder-surfing.
   useEffect(() => {
-    const extracted = extractTokenFromHash();
+    const extracted = extractToken();
     if (extracted) {
       setToken(extracted);
       setState("idle");
