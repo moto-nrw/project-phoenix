@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import Image from "next/image";
 import { Modal } from "~/components/ui/modal";
 import { DetailModalActions } from "~/components/ui/detail-modal-actions";
 import { ModalLoadingState } from "~/components/ui/modal-loading-state";
@@ -27,6 +29,109 @@ interface TeacherDetailModalProps {
   readonly onDeleteClick?: () => void;
 }
 
+function EmailActions({ email, name }: { email: string; name: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleMailto = () => {
+    const subject = name ? `Betreff: ${name}` : "Kontaktanfrage";
+    globalThis.location.href = `mailto:${email}?subject=${encodeURIComponent(subject)}`;
+  };
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(email);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback for older browsers
+      const textArea = document.createElement("textarea");
+      textArea.value = email;
+      textArea.style.position = "fixed";
+      textArea.style.opacity = "0";
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textArea);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-3">
+      <span className="min-w-0 flex-1 truncate text-sm text-gray-900">
+        {email}
+      </span>
+      <div className="flex flex-shrink-0 items-center gap-1.5">
+        <button
+          type="button"
+          onClick={handleMailto}
+          className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-600 transition-all duration-200 hover:border-gray-300 hover:bg-gray-50 hover:text-gray-900"
+          title="E-Mail schreiben"
+        >
+          <svg
+            className="h-3.5 w-3.5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+            />
+          </svg>
+          <span className="hidden sm:inline">Schreiben</span>
+        </button>
+        <button
+          type="button"
+          onClick={handleCopy}
+          className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-all duration-200 ${
+            copied
+              ? "border-green-200 bg-green-50 text-green-700"
+              : "border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50 hover:text-gray-900"
+          }`}
+          title="E-Mail kopieren"
+        >
+          {copied ? (
+            <svg
+              className="h-3.5 w-3.5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M5 13l4 4L19 7"
+              />
+            </svg>
+          ) : (
+            <svg
+              className="h-3.5 w-3.5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"
+              />
+            </svg>
+          )}
+          <span className="hidden sm:inline">
+            {copied ? "Kopiert" : "Kopieren"}
+          </span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function TeacherDetailModal({
   isOpen,
   onClose,
@@ -45,18 +150,38 @@ export function TeacherDetailModal({
       return <ModalLoadingState accentColor="orange" />;
     }
 
+    const avatarUrl = teacher.avatar
+      ? `/api/staff/${teacher.staff_id ?? teacher.id}/avatar`
+      : null;
+
     return (
       <div className="space-y-4 md:space-y-6">
         {/* Header with Avatar */}
         <div className="flex items-center gap-3 border-b border-gray-100 pb-3 md:gap-4 md:pb-4">
-          <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#F78C10] to-[#e57a00] text-lg font-bold text-white shadow-lg md:h-16 md:w-16 md:text-xl">
-            {teacher.first_name?.[0]}
-            {teacher.last_name?.[0]}
+          <div className="relative flex h-14 w-14 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-[#F78C10] to-[#e57a00] text-lg font-bold text-white shadow-lg md:h-16 md:w-16 md:text-xl">
+            {avatarUrl ? (
+              <Image
+                src={avatarUrl}
+                alt={`${teacher.first_name} ${teacher.last_name}`}
+                fill
+                className="object-cover"
+                sizes="64px"
+                unoptimized
+              />
+            ) : (
+              <>
+                {teacher.first_name?.[0]}
+                {teacher.last_name?.[0]}
+              </>
+            )}
           </div>
           <div className="min-w-0 flex-1">
             <h2 className="truncate text-lg font-bold text-gray-900 md:text-xl">
               {teacher.first_name} {teacher.last_name}
             </h2>
+            {teacher.role && (
+              <p className="mt-0.5 text-sm text-gray-500">{teacher.role}</p>
+            )}
           </div>
         </div>
 
@@ -71,11 +196,6 @@ export function TeacherDetailModal({
             <DataGrid>
               <DataField label="Vorname">{teacher.first_name}</DataField>
               <DataField label="Nachname">{teacher.last_name}</DataField>
-              {teacher.email && (
-                <DataField label="E-Mail" fullWidth>
-                  {teacher.email}
-                </DataField>
-              )}
               {teacher.tag_id && (
                 <DataField label="RFID-Karte" fullWidth mono>
                   {teacher.tag_id}
@@ -89,15 +209,33 @@ export function TeacherDetailModal({
             </DataGrid>
           </InfoSection>
 
+          {/* Email Section */}
+          {teacher.email && (
+            <InfoSection
+              title="E-Mail"
+              icon={DetailIcons.document}
+              accentColor="orange"
+            >
+              <EmailActions
+                email={teacher.email}
+                name={`${teacher.first_name} ${teacher.last_name}`}
+              />
+            </InfoSection>
+          )}
+
           {/* Professional Information */}
           {(() => {
             const trimmedRole = teacher.role?.trim() ?? "";
             const trimmedQualifications = teacher.qualifications?.trim() ?? "";
-            const hasProfessionalInfo = [
-              trimmedRole,
-              trimmedQualifications,
-            ].some((value) => value.length > 0);
+            const hasProfessionalInfo = [trimmedQualifications].some(
+              (value) => value.length > 0,
+            );
 
+            if (!hasProfessionalInfo && !trimmedRole) {
+              return null;
+            }
+
+            // Only show if there are qualifications (role is shown in header now)
             if (!hasProfessionalInfo) {
               return null;
             }
@@ -109,9 +247,6 @@ export function TeacherDetailModal({
                 accentColor="orange"
               >
                 <DataGrid>
-                  {trimmedRole && (
-                    <DataField label="Rolle">{trimmedRole}</DataField>
-                  )}
                   {trimmedQualifications && (
                     <DataField label="Qualifikationen" fullWidth>
                       <span className="whitespace-pre-wrap">

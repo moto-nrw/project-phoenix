@@ -24,7 +24,9 @@ interface BackendStaffResponse {
     first_name: string;
     last_name: string;
     email?: string;
+    avatar?: string;
     tag_id?: string;
+    account_id?: number;
     created_at: string;
     updated_at: string;
   };
@@ -84,6 +86,8 @@ function mapBackendStaff(staff: BackendStaffResponse) {
     firstName: staff.person?.first_name ?? "",
     lastName: staff.person?.last_name ?? "",
     email: staff.person?.email ?? null,
+    avatar: staff.person?.avatar ?? null,
+    account_id: staff.person?.account_id,
     specialization: staff.specialization ?? null,
     role: staff.role ?? null,
     qualifications: staff.qualifications ?? null,

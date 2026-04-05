@@ -40,6 +40,11 @@ function mapTeacherResponse(data: unknown): Teacher {
     (typedData.tag_id as string | null | undefined) ??
     (person?.tag_id as string | null | undefined);
 
+  // Get avatar from either direct data or nested person object
+  const avatar =
+    (typedData.avatar as string | null | undefined) ??
+    (person?.avatar as string | null | undefined);
+
   logger.debug("teacher mapping debug", {
     raw_data: JSON.stringify(typedData),
     person_data: JSON.stringify(person),
@@ -53,6 +58,7 @@ function mapTeacherResponse(data: unknown): Teacher {
     first_name: firstName,
     last_name: lastName,
     email: email,
+    avatar: avatar,
     specialization: (typedData.specialization as string) ?? "",
     role: typedData.role as string | null | undefined,
     qualifications: typedData.qualifications as string | null | undefined,

@@ -283,6 +283,42 @@ func (r *AccountRepository) FindEmailsByAccountIDs(ctx context.Context, accountI
 	return result, nil
 }
 
+// FindAvatarsByAccountIDs batch-loads avatar paths for the given account IDs.
+// Returns a map of accountID → avatar path (only accounts with non-empty avatars).
+func (r *AccountRepository) FindAvatarsByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64]string, error) {
+	if len(accountIDs) == 0 {
+		return make(map[int64]string), nil
+	}
+
+	type accountAvatarRow struct {
+		ID     int64  `bun:"id"`
+		Avatar string `bun:"avatar"`
+	}
+
+	var rows []accountAvatarRow
+	err := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(accountTable).
+		Column("id", "avatar").
+		Where("id IN (?)", bun.List(accountIDs)).
+		Where("avatar IS NOT NULL").
+		Where("avatar != ''").
+		Scan(ctx, &rows)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find avatars by account IDs",
+			Err: err,
+		}
+	}
+
+	result := make(map[int64]string, len(rows))
+	for _, row := range rows {
+		result[row.ID] = row.Avatar
+	}
+
+	return result, nil
+}
+
 // loadAccountsByFilters loads accounts based on provided filters
 func (r *AccountRepository) loadAccountsByFilters(ctx context.Context, tx bun.Tx, accounts *[]*auth.Account, filters map[string]interface{}) error {
 	query := tx.NewSelect().

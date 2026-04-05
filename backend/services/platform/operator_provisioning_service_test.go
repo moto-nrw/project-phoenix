@@ -361,6 +361,9 @@ func (m *mockAuthService) GetAccountRoleNames(context.Context, []int64) (map[int
 func (m *mockAuthService) GetAccountEmailsByIDs(context.Context, []int64) (map[int64]string, error) {
 	return nil, nil
 }
+func (m *mockAuthService) GetAccountAvatarsByIDs(context.Context, []int64) (map[int64]string, error) {
+	return nil, nil
+}
 func (m *mockAuthService) CreatePermission(context.Context, string, string, string, string) (*authModels.Permission, error) {
 	return nil, nil
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { createLogger } from "~/lib/logger";
+import Image from "next/image";
 import { useState, useMemo, useCallback } from "react";
 
 const logger = createLogger({ component: "DatabaseTeachersPage" });
@@ -342,6 +343,13 @@ export default function TeachersPage() {
         <div className="pointer-events-none absolute inset-0 scale-0 rounded-full bg-white/20 opacity-0 transition-transform duration-200 group-hover:scale-100 group-hover:opacity-100"></div>
       </button>
 
+      {/* Pending Invitations (above staff list) */}
+      <RoleGuard variant="adminOnly">
+        <div className="mb-4">
+          <PendingInvitationsList refreshKey={invitationRefreshKey} />
+        </div>
+      </RoleGuard>
+
       {/* Error Display */}
       {error && (
         <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
@@ -388,6 +396,10 @@ export default function TeachersPage() {
             );
             const displayName =
               teacher.name || `${teacher.first_name} ${teacher.last_name}`;
+            const hasAvatar = !!teacher.avatar;
+            const avatarUrl = hasAvatar
+              ? `/api/staff/${teacher.staff_id ?? teacher.id}/avatar`
+              : null;
 
             const handleClick = () => handleSelectTeacher(teacher);
             return (
@@ -415,8 +427,19 @@ export default function TeachersPage() {
                 <div className="relative flex items-center gap-4 p-5">
                   {/* Avatar */}
                   <div className="flex-shrink-0">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[#F78C10] to-[#e57a00] text-sm font-semibold text-white shadow-md transition-transform duration-150 md:group-hover:scale-105">
-                      {initials.toUpperCase()}
+                    <div className="relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-[#F78C10] to-[#e57a00] text-sm font-semibold text-white shadow-md transition-transform duration-150 md:group-hover:scale-105">
+                      {avatarUrl ? (
+                        <Image
+                          src={avatarUrl}
+                          alt={displayName}
+                          fill
+                          className="object-cover"
+                          sizes="48px"
+                          unoptimized
+                        />
+                      ) : (
+                        initials.toUpperCase()
+                      )}
                     </div>
                   </div>
 
@@ -425,19 +448,9 @@ export default function TeachersPage() {
                     <h3 className="text-lg font-semibold text-gray-900 transition-colors duration-300 md:group-hover:text-orange-600">
                       {displayName}
                     </h3>
-                    <div className="mt-1 flex flex-wrap items-center gap-2">
-                      {/* Specialization Badge */}
-                      {teacher.role && (
-                        <span className="inline-flex items-center rounded-full bg-orange-100 px-2 py-1 text-xs font-medium text-orange-800">
-                          {teacher.role}
-                        </span>
-                      )}
-                    </div>
-                    {/* Email info */}
-                    {teacher.email && (
-                      <p className="mt-1 text-sm text-gray-500">
-                        <span className="text-gray-400">E-Mail:</span>{" "}
-                        {teacher.email}
+                    {teacher.role && (
+                      <p className="mt-0.5 text-sm text-gray-500">
+                        {teacher.role}
                       </p>
                     )}
                   </div>
@@ -445,7 +458,7 @@ export default function TeachersPage() {
                   {/* Arrow Icon */}
                   <div className="flex-shrink-0">
                     <svg
-                      className="h-6 w-6 text-gray-400 transition-all duration-300 md:group-hover:translate-x-1 md:group-hover:text-orange-600"
+                      className="h-5 w-5 text-gray-300 transition-all duration-300 md:group-hover:translate-x-1 md:group-hover:text-orange-500"
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
@@ -467,13 +480,6 @@ export default function TeachersPage() {
           })}
         </div>
       )}
-
-      {/* Pending Invitations */}
-      <RoleGuard variant="adminOnly">
-        <div className="mt-6">
-          <PendingInvitationsList refreshKey={invitationRefreshKey} />
-        </div>
-      </RoleGuard>
 
       {/* Invite Modal */}
       <Modal

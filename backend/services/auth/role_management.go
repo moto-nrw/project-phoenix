@@ -173,3 +173,13 @@ func (s *Service) GetAccountEmailsByIDs(ctx context.Context, accountIDs []int64)
 	}
 	return emails, nil
 }
+
+// GetAccountAvatarsByIDs batch-loads avatar paths for multiple accounts.
+// Returns a map of accountID → avatar path.
+func (s *Service) GetAccountAvatarsByIDs(ctx context.Context, accountIDs []int64) (map[int64]string, error) {
+	avatars, err := s.repos.Account.FindAvatarsByAccountIDs(ctx, accountIDs)
+	if err != nil {
+		return nil, &AuthError{Op: "get account avatars by IDs", Err: err}
+	}
+	return avatars, nil
+}
