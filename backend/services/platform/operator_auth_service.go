@@ -17,7 +17,13 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// OperatorAuthService handles operator authentication
+// OperatorAuthService handles operator authentication, session management,
+// profile updates, password changes, and email-change verification.
+//
+// Invitation operations (invite, validate, accept, list, resend, revoke,
+// cleanup) and ListOperators live on the narrower OperatorInvitationService
+// interface (see operator_invitation_interface.go). The concrete
+// operatorAuthService struct satisfies both interfaces.
 type OperatorAuthService interface {
 	// Login authenticates an operator and returns JWT tokens
 	Login(ctx context.Context, email, password string, clientIP net.IP) (accessToken, refreshToken string, operator *platform.Operator, err error)
@@ -30,9 +36,6 @@ type OperatorAuthService interface {
 
 	// GetOperator retrieves an operator by ID
 	GetOperator(ctx context.Context, id int64) (*platform.Operator, error)
-
-	// ListOperators retrieves all operators
-	ListOperators(ctx context.Context) ([]*platform.Operator, error)
 
 	// UpdateProfile updates an operator's display name
 	UpdateProfile(ctx context.Context, operatorID int64, displayName string) (*platform.Operator, error)
@@ -56,13 +59,16 @@ type operatorAuthService struct {
 	operatorRepo         platform.OperatorRepository
 	auditLogRepo         platform.OperatorAuditLogRepository
 	emailChangeTokenRepo platform.OperatorEmailChangeTokenRepository
+	invitationTokenRepo  platform.OperatorInvitationTokenRepository
 	tokenAuth            *jwt.TokenAuth
 	db                   *bun.DB
 	logger               *slog.Logger
 	dispatcher           *emailpkg.Dispatcher
 	defaultFrom          emailpkg.Email
 	frontendURL          string
+	operatorFrontendURL  string
 	emailChangeExpiry    time.Duration
+	invitationExpiry     time.Duration
 }
 
 // OperatorAuthServiceConfig holds configuration for the operator auth service
@@ -70,16 +76,21 @@ type OperatorAuthServiceConfig struct {
 	OperatorRepo         platform.OperatorRepository
 	AuditLogRepo         platform.OperatorAuditLogRepository
 	EmailChangeTokenRepo platform.OperatorEmailChangeTokenRepository
+	InvitationTokenRepo  platform.OperatorInvitationTokenRepository
 	DB                   *bun.DB
 	Logger               *slog.Logger
 	Dispatcher           *emailpkg.Dispatcher
 	DefaultFrom          emailpkg.Email
 	FrontendURL          string
+	OperatorFrontendURL  string
 	EmailChangeExpiry    time.Duration
+	InvitationExpiry     time.Duration
 }
 
-// NewOperatorAuthService creates a new operator auth service
-func NewOperatorAuthService(cfg OperatorAuthServiceConfig) (OperatorAuthService, error) {
+// NewOperatorAuthService creates a new operator auth service. Returns the
+// combined interface so the factory can expose it through both the narrow
+// OperatorAuthService and OperatorInvitationService at the same time.
+func NewOperatorAuthService(cfg OperatorAuthServiceConfig) (OperatorAuthAndInvitationService, error) {
 	tokenAuth, err := jwt.NewTokenAuth()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create token auth: %w", err)
@@ -89,13 +100,16 @@ func NewOperatorAuthService(cfg OperatorAuthServiceConfig) (OperatorAuthService,
 		operatorRepo:         cfg.OperatorRepo,
 		auditLogRepo:         cfg.AuditLogRepo,
 		emailChangeTokenRepo: cfg.EmailChangeTokenRepo,
+		invitationTokenRepo:  cfg.InvitationTokenRepo,
 		tokenAuth:            tokenAuth,
 		db:                   cfg.DB,
 		logger:               cfg.Logger,
 		dispatcher:           cfg.Dispatcher,
 		defaultFrom:          cfg.DefaultFrom,
 		frontendURL:          cfg.FrontendURL,
+		operatorFrontendURL:  cfg.OperatorFrontendURL,
 		emailChangeExpiry:    cfg.EmailChangeExpiry,
+		invitationExpiry:     cfg.InvitationExpiry,
 	}, nil
 }
 

@@ -588,6 +588,8 @@ describe("MobileBottomNav", () => {
       const hrefs = links.map((link) => link.getAttribute("href"));
       expect(hrefs).toContain("/operator/suggestions");
       expect(hrefs).toContain("/operator/announcements");
+      expect(hrefs).toContain("/operator/provisioning");
+      expect(hrefs).toContain("/operator/operators");
     });
 
     it("does not show overflow menu in operator mode", () => {

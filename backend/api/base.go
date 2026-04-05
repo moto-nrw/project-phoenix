@@ -317,6 +317,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	// Initialize operator dashboard resources
 	api.Operator = operatorAPI.NewResource(operatorAPI.ResourceConfig{
 		AuthService:          api.Services.OperatorAuth,
+		InvitationService:    api.Services.OperatorInvitation,
 		ProvisioningService:  api.Services.OperatorProvisioning,
 		SuggestionsService:   api.Services.OperatorSuggestions,
 		AnnouncementsService: api.Services.Announcement,
@@ -347,6 +348,7 @@ func (a *API) registerRoutesWithRateLimiting() {
 	// Configure auth-specific rate limiting if enabled
 	var authRateLimiter *customMiddleware.RateLimiter
 	var emailConfirmLimiter *customMiddleware.RateLimiter
+	var invitationLimiter *customMiddleware.RateLimiter
 	if rateLimitEnabled {
 		// Stricter rate limit for auth endpoints
 		authLimit := 5 // default: 5 requests per minute for auth
@@ -356,12 +358,14 @@ func (a *API) registerRoutesWithRateLimiting() {
 			}
 		}
 		authRateLimiter = customMiddleware.NewRateLimiter(authLimit, 10) // allow reasonable burst for login attempts
-		// Separate instance for email-confirm: same config, independent token
-		// bucket. Prevents /email-confirm floods from blocking /login on the same IP.
+		// Separate instances for email-confirm and invitations: same config,
+		// independent per-IP counters. Prevents cross-endpoint budget exhaustion.
 		emailConfirmLimiter = customMiddleware.NewRateLimiter(authLimit, 10)
+		invitationLimiter = customMiddleware.NewRateLimiter(authLimit, 10)
 		if securityLogger != nil {
 			authRateLimiter.SetLogger(securityLogger)
 			emailConfirmLimiter.SetLogger(securityLogger)
+			invitationLimiter.SetLogger(securityLogger)
 		}
 	}
 	a.Router.Get("/", func(w http.ResponseWriter, r *http.Request) {
@@ -461,6 +465,9 @@ func (a *API) registerRoutesWithRateLimiting() {
 	}
 	if rateLimitEnabled && emailConfirmLimiter != nil {
 		a.Operator.SetEmailConfirmRateLimiter(emailConfirmLimiter.Middleware())
+	}
+	if rateLimitEnabled && invitationLimiter != nil {
+		a.Operator.SetInvitationRateLimiter(invitationLimiter.Middleware())
 	}
 	a.Router.Mount("/operator", a.Operator.Router())
 }
