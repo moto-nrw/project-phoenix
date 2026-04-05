@@ -3,14 +3,38 @@
 package sessions
 
 import (
+	"context"
+	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	usersService "github.com/moto-nrw/project-phoenix/services/users"
 )
+
+type stubStaffRepository struct {
+	userModels.StaffRepository
+	findWithPersonByIDs func(context.Context, []int64) (map[int64]*userModels.Staff, error)
+}
+
+func (s *stubStaffRepository) FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Staff, error) {
+	return s.findWithPersonByIDs(ctx, ids)
+}
+
+type stubPersonService struct {
+	usersService.PersonService
+	staffRepo userModels.StaffRepository
+}
+
+func (s *stubPersonService) StaffRepository() userModels.StaffRepository {
+	return s.staffRepo
+}
 
 // =============================================================================
 // filterActiveSupervisors TESTS
@@ -77,6 +101,37 @@ func TestFilterActiveSupervisors_ZeroStaffID(t *testing.T) {
 	result := rs.filterActiveSupervisors(supervisors)
 
 	assert.Len(t, result, 2)
+}
+
+func TestBuildSupervisorInfos_ReturnsEmptySliceWhenStaffLookupFails(t *testing.T) {
+	rs := &Resource{
+		UsersService: &stubPersonService{
+			staffRepo: &stubStaffRepository{
+				findWithPersonByIDs: func(context.Context, []int64) (map[int64]*userModels.Staff, error) {
+					return nil, errors.New("database unavailable")
+				},
+			},
+		},
+	}
+
+	infos := rs.buildSupervisorInfos(context.Background(), []*active.GroupSupervisor{
+		{StaffID: 303, Role: "supervisor"},
+	})
+
+	require.NotNil(t, infos)
+	assert.Empty(t, infos)
+}
+
+func TestUpdateSupervisorsResponse_EmptySupervisorSliceSerializesAsJSONArray(t *testing.T) {
+	payload, err := json.Marshal(UpdateSupervisorsResponse{
+		ActiveGroupID: 77,
+		Supervisors:   []SupervisorInfo{},
+		Status:        "success",
+		Message:       "Supervisors updated successfully",
+	})
+
+	require.NoError(t, err)
+	assert.Contains(t, string(payload), `"supervisors":[]`)
 }
 
 // =============================================================================

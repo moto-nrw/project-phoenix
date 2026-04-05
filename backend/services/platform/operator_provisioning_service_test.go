@@ -524,6 +524,12 @@ func (m *mockStaffRepo) UpdateNotes(context.Context, int64, string) error { retu
 func (m *mockStaffRepo) FindWithPerson(context.Context, int64) (*userModels.Staff, error) {
 	return nil, nil
 }
+func (m *mockStaffRepo) FindByIDs(context.Context, []int64) (map[int64]*userModels.Staff, error) {
+	return nil, nil
+}
+func (m *mockStaffRepo) FindWithPersonByIDs(context.Context, []int64) (map[int64]*userModels.Staff, error) {
+	return nil, nil
+}
 func (m *mockStaffRepo) ListStaffByRoles(context.Context, []string) ([]*userModels.StaffWithRoleInfo, error) {
 	return nil, nil
 }

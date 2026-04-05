@@ -113,6 +113,12 @@ const OPERATOR_MAIN_ITEMS: NavItem[] = [
     iconKey: "buildingOffice",
     alwaysShow: true,
   },
+  {
+    href: "/operator/operators",
+    label: "Operatoren",
+    iconKey: "group",
+    alwaysShow: true,
+  },
 ];
 
 // Additional navigation items that appear in the overflow menu
@@ -299,7 +305,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     return true;
   });
 
-  // Static navigation - 4 main items + overflow menu (operator mode: 2 items, no overflow)
+  // Static navigation - 4 main items + overflow menu (operator mode: 4 items, no overflow)
   const displayMainItems: NavItem[] = filteredMainItems;
   const showOverflowMenu = mode !== "operator";
   // Avoid duplicates between main and additional

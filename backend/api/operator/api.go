@@ -18,14 +18,17 @@ type Resource struct {
 	suggestionsResource     *SuggestionsResource
 	announcementsResource   *AnnouncementsResource
 	profileResource         *ProfileResource
+	invitationsResource     *InvitationsResource
 	tokenAuth               *jwt.TokenAuth
 	authRateLimiter         func(http.Handler) http.Handler
 	emailConfirmRateLimiter func(http.Handler) http.Handler
+	invitationRateLimiter   func(http.Handler) http.Handler
 }
 
 // ResourceConfig holds dependencies for the operator resource
 type ResourceConfig struct {
 	AuthService                platformSvc.OperatorAuthService
+	InvitationService          platformSvc.OperatorInvitationService
 	ProvisioningService        platformSvc.OperatorProvisioningService
 	CaregiverCapabilityService usersSvc.CaregiverCapabilityService
 	SuggestionsService         platformSvc.OperatorSuggestionsService
@@ -46,6 +49,13 @@ func (rs *Resource) SetEmailConfirmRateLimiter(mw func(http.Handler) http.Handle
 	rs.emailConfirmRateLimiter = mw
 }
 
+// SetInvitationRateLimiter sets a dedicated rate limiter for the public
+// invitation validate/accept endpoints, isolated from email-confirm so that
+// repeated validate calls (page refreshes) cannot exhaust the accept budget.
+func (rs *Resource) SetInvitationRateLimiter(mw func(http.Handler) http.Handler) {
+	rs.invitationRateLimiter = mw
+}
+
 // NewResource creates a new operator resource
 func NewResource(cfg ResourceConfig) *Resource {
 	tokenAuth := cfg.TokenAuth
@@ -60,6 +70,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 		suggestionsResource:   NewSuggestionsResource(cfg.SuggestionsService),
 		announcementsResource: NewAnnouncementsResource(cfg.AnnouncementsService),
 		profileResource:       NewProfileResource(cfg.AuthService),
+		invitationsResource:   NewInvitationsResource(cfg.InvitationService),
 		tokenAuth:             tokenAuth,
 	}
 	resource.provisioningResource.CaregiverCapabilityService = cfg.CaregiverCapabilityService
@@ -91,6 +102,17 @@ func (rs *Resource) Router() chi.Router {
 				r.Use(limiter)
 			}
 			r.Post("/email-confirm", rs.profileResource.ConfirmEmailChange)
+		})
+		r.Group(func(r chi.Router) {
+			limiter := rs.invitationRateLimiter
+			if limiter == nil {
+				limiter = rs.authRateLimiter
+			}
+			if limiter != nil {
+				r.Use(limiter)
+			}
+			r.Post("/invitations/validate", rs.invitationsResource.ValidateInvitation)
+			r.Post("/invitations/accept", rs.invitationsResource.AcceptInvitation)
 		})
 	})
 
@@ -167,6 +189,14 @@ func (rs *Resource) Router() chi.Router {
 			r.Put("/", rs.profileResource.UpdateProfile)
 			r.Post("/password", rs.profileResource.ChangePassword)
 			r.Post("/email-change", rs.profileResource.InitiateEmailChange)
+		})
+
+		// Operator invitations
+		r.Route("/invitations", func(r chi.Router) {
+			r.Post("/", rs.invitationsResource.CreateInvitation)
+			r.Get("/", rs.invitationsResource.ListInvitations)
+			r.Post("/{id}/resend", rs.invitationsResource.ResendInvitation)
+			r.Delete("/{id}", rs.invitationsResource.RevokeInvitation)
 		})
 
 		// Announcements management

@@ -253,6 +253,95 @@ func (r *StaffRepository) FindWithPerson(ctx context.Context, id int64) (*users.
 	return staff, nil
 }
 
+// FindByIDs retrieves multiple staff members by their IDs in a single query.
+// Returns a map of ID -> Staff for efficient lookup.
+func (r *StaffRepository) FindByIDs(ctx context.Context, ids []int64) (map[int64]*users.Staff, error) {
+	if len(ids) == 0 {
+		return make(map[int64]*users.Staff), nil
+	}
+
+	var staffMembers []*users.Staff
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&staffMembers).
+		ModelTableExpr(`users.staff AS "staff"`).
+		Where(`"staff".id IN (?)`, bun.List(ids))
+
+	if where, val, ok := base.TenantWhere(ctx, "staff"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by IDs",
+			Err: err,
+		}
+	}
+
+	result := make(map[int64]*users.Staff, len(staffMembers))
+	for _, s := range staffMembers {
+		result[s.ID] = s
+	}
+
+	return result, nil
+}
+
+// FindWithPersonByIDs retrieves multiple staff members with their associated person data in a single query.
+// Returns a map of staff ID -> Staff (with Person populated) for efficient lookup.
+func (r *StaffRepository) FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*users.Staff, error) {
+	if len(ids) == 0 {
+		return make(map[int64]*users.Staff), nil
+	}
+
+	type staffResult struct {
+		Staff  *users.Staff  `bun:"staff"`
+		Person *users.Person `bun:"person"`
+	}
+
+	var results []staffResult
+
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&results).
+		ModelTableExpr(`users.staff AS "staff"`).
+		ColumnExpr(`"staff".id AS "staff__id"`).
+		ColumnExpr(`"staff".created_at AS "staff__created_at"`).
+		ColumnExpr(`"staff".updated_at AS "staff__updated_at"`).
+		ColumnExpr(`"staff".tenant_id AS "staff__tenant_id"`).
+		ColumnExpr(`"staff".person_id AS "staff__person_id"`).
+		ColumnExpr(`"staff".staff_notes AS "staff__staff_notes"`).
+		ColumnExpr(`"person".id AS "person__id"`).
+		ColumnExpr(`"person".created_at AS "person__created_at"`).
+		ColumnExpr(`"person".updated_at AS "person__updated_at"`).
+		ColumnExpr(`"person".first_name AS "person__first_name"`).
+		ColumnExpr(`"person".last_name AS "person__last_name"`).
+		ColumnExpr(`"person".tag_id AS "person__tag_id"`).
+		ColumnExpr(`"person".account_id AS "person__account_id"`).
+		Join(`LEFT JOIN users.persons AS "person" ON "person".id = "staff".person_id AND "person".deleted_at IS NULL`).
+		Where(`"staff".id IN (?)`, bun.List(ids))
+
+	if where, val, ok := base.TenantWhere(ctx, "staff"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find with person by IDs",
+			Err: err,
+		}
+	}
+
+	result := make(map[int64]*users.Staff, len(results))
+	for _, r := range results {
+		if r.Staff != nil {
+			r.Staff.Person = r.Person
+			result[r.Staff.ID] = r.Staff
+		}
+	}
+
+	return result, nil
+}
+
 // ListStaffByRoles retrieves staff members who have any of the specified roles,
 // including their person data, account ID, and email, using a single JOIN query.
 func (r *StaffRepository) ListStaffByRoles(ctx context.Context, roles []string) ([]*users.StaffWithRoleInfo, error) {

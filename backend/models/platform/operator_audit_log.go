@@ -29,6 +29,10 @@ const (
 	ActionRestore              = "restore"
 	ActionEmailChangeInitiated = "email_change_initiated"
 	ActionEmailChangeConfirmed = "email_change_confirmed"
+	ActionInvitationCreated    = "invitation_created"
+	ActionInvitationAccepted   = "invitation_accepted"
+	ActionInvitationRevoked    = "invitation_revoked"
+	ActionInvitationResent     = "invitation_resent"
 )
 
 // Common resource type constants

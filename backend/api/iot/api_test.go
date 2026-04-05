@@ -1,14 +1,56 @@
 package iot
 
 import (
+	"context"
+	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/moto-nrw/project-phoenix/auth/device"
+	iotModel "github.com/moto-nrw/project-phoenix/models/iot"
+	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// mockSchoolRepo implements platform.SchoolRepository for unit testing.
+type mockSchoolRepo struct {
+	findByIDFn func(ctx context.Context, id int64) (*platform.School, error)
+}
+
+func (m *mockSchoolRepo) Create(_ context.Context, _ *platform.School) error { return nil }
+func (m *mockSchoolRepo) FindByID(ctx context.Context, id int64) (*platform.School, error) {
+	return m.findByIDFn(ctx, id)
+}
+func (m *mockSchoolRepo) FindByIDForShare(_ context.Context, _ int64) (*platform.School, error) {
+	return nil, nil
+}
+func (m *mockSchoolRepo) FindBySlug(_ context.Context, _ string) (*platform.School, error) {
+	return nil, nil
+}
+func (m *mockSchoolRepo) FindByOrganizationAndSlug(_ context.Context, _ int64, _ string) (*platform.School, error) {
+	return nil, nil
+}
+func (m *mockSchoolRepo) FindBySubdomain(_ context.Context, _ string) (*platform.School, error) {
+	return nil, nil
+}
+func (m *mockSchoolRepo) List(_ context.Context) ([]*platform.School, error) { return nil, nil }
+func (m *mockSchoolRepo) ListActive(_ context.Context) ([]platform.School, error) {
+	return nil, nil
+}
+func (m *mockSchoolRepo) ListPublic(_ context.Context) ([]platform.School, error) {
+	return nil, nil
+}
+func (m *mockSchoolRepo) FindActiveByAccountID(_ context.Context, _ int64) ([]platform.School, error) {
+	return nil, nil
+}
+func (m *mockSchoolRepo) Update(_ context.Context, _ *platform.School) error   { return nil }
+func (m *mockSchoolRepo) SoftDelete(_ context.Context, _ int64) error          { return nil }
+func (m *mockSchoolRepo) Restore(_ context.Context, _ int64) error             { return nil }
+func (m *mockSchoolRepo) CountByIDs(_ context.Context, _ []int64) (int, error) { return 0, nil }
 
 // =============================================================================
 // delegateHandler Tests
@@ -246,4 +288,212 @@ func TestResource_Router_StaffRFIDRoute(t *testing.T) {
 
 	// Route exists (not 404)
 	assert.NotEqual(t, http.StatusNotFound, w.Code)
+}
+
+func TestResource_Router_SchoolNameRoute(t *testing.T) {
+	resource := &Resource{}
+	router := resource.Router()
+
+	req := httptest.NewRequest("GET", "/school-name", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	// Route exists (not 404)
+	assert.NotEqual(t, http.StatusNotFound, w.Code)
+}
+
+// =============================================================================
+// getSchoolName Handler Tests
+// =============================================================================
+
+// withDeviceCtx injects a device model into the request context.
+func withDeviceCtx(req *http.Request, d *iotModel.Device) *http.Request {
+	ctx := context.WithValue(req.Context(), device.CtxDevice, d)
+	return req.WithContext(ctx)
+}
+
+func TestGetSchoolName_Success(t *testing.T) {
+	repo := &mockSchoolRepo{
+		findByIDFn: func(_ context.Context, id int64) (*platform.School, error) {
+			assert.Equal(t, int64(42), id)
+			return &platform.School{Name: "OGS Musterstadt"}, nil
+		},
+	}
+	rs := &Resource{SchoolRepo: repo}
+
+	req := httptest.NewRequest("GET", "/school-name", nil)
+	dev := &iotModel.Device{}
+	dev.TenantID = 42
+	req = withDeviceCtx(req, dev)
+
+	w := httptest.NewRecorder()
+	rs.getSchoolName(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var body map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &body)
+	require.NoError(t, err)
+	assert.Equal(t, "success", body["status"])
+	assert.Equal(t, "School name retrieved", body["message"])
+
+	data, ok := body["data"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, "OGS Musterstadt", data["name"])
+}
+
+func TestGetSchoolName_NoDeviceContext(t *testing.T) {
+	rs := &Resource{}
+
+	req := httptest.NewRequest("GET", "/school-name", nil)
+	w := httptest.NewRecorder()
+	rs.getSchoolName(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+
+	var body map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &body)
+	require.NoError(t, err)
+	assert.Equal(t, "error", body["status"])
+	assert.Equal(t, device.ErrMissingAPIKey.Error(), body["error"])
+}
+
+func TestGetSchoolName_SchoolNotFound(t *testing.T) {
+	repo := &mockSchoolRepo{
+		findByIDFn: func(_ context.Context, _ int64) (*platform.School, error) {
+			return nil, errors.New("sql: no rows in result set")
+		},
+	}
+	rs := &Resource{SchoolRepo: repo}
+
+	req := httptest.NewRequest("GET", "/school-name", nil)
+	dev := &iotModel.Device{}
+	dev.TenantID = 999
+	req = withDeviceCtx(req, dev)
+
+	w := httptest.NewRecorder()
+	rs.getSchoolName(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+
+	var body map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &body)
+	require.NoError(t, err)
+	assert.Equal(t, "error", body["status"])
+}
+
+func TestGetSchoolName_DatabaseError(t *testing.T) {
+	repo := &mockSchoolRepo{
+		findByIDFn: func(_ context.Context, _ int64) (*platform.School, error) {
+			return nil, errors.New("connection refused")
+		},
+	}
+	rs := &Resource{SchoolRepo: repo}
+
+	req := httptest.NewRequest("GET", "/school-name", nil)
+	dev := &iotModel.Device{}
+	dev.TenantID = 10
+	req = withDeviceCtx(req, dev)
+
+	w := httptest.NewRecorder()
+	rs.getSchoolName(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestGetSchoolName_EmptySchoolName(t *testing.T) {
+	repo := &mockSchoolRepo{
+		findByIDFn: func(_ context.Context, _ int64) (*platform.School, error) {
+			return &platform.School{Name: ""}, nil
+		},
+	}
+	rs := &Resource{SchoolRepo: repo}
+
+	req := httptest.NewRequest("GET", "/school-name", nil)
+	dev := &iotModel.Device{}
+	dev.TenantID = 10
+	req = withDeviceCtx(req, dev)
+
+	w := httptest.NewRecorder()
+	rs.getSchoolName(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var body map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &body)
+	require.NoError(t, err)
+
+	data, ok := body["data"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, "", data["name"])
+}
+
+func TestGetSchoolName_UsesTenantIDFromDevice(t *testing.T) {
+	var receivedID int64
+	repo := &mockSchoolRepo{
+		findByIDFn: func(_ context.Context, id int64) (*platform.School, error) {
+			receivedID = id
+			return &platform.School{Name: "Test School"}, nil
+		},
+	}
+	rs := &Resource{SchoolRepo: repo}
+
+	req := httptest.NewRequest("GET", "/school-name", nil)
+	dev := &iotModel.Device{}
+	dev.TenantID = 777
+	req = withDeviceCtx(req, dev)
+
+	w := httptest.NewRecorder()
+	rs.getSchoolName(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, int64(777), receivedID)
+}
+
+func TestGetSchoolName_ResponseStructure(t *testing.T) {
+	repo := &mockSchoolRepo{
+		findByIDFn: func(_ context.Context, _ int64) (*platform.School, error) {
+			return &platform.School{Name: "Grundschule am Park"}, nil
+		},
+	}
+	rs := &Resource{SchoolRepo: repo}
+
+	req := httptest.NewRequest("GET", "/school-name", nil)
+	dev := &iotModel.Device{}
+	dev.TenantID = 10
+	req = withDeviceCtx(req, dev)
+
+	w := httptest.NewRecorder()
+	rs.getSchoolName(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
+
+	var body map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &body)
+	require.NoError(t, err)
+
+	// Verify only expected top-level keys
+	assert.Contains(t, body, "status")
+	assert.Contains(t, body, "data")
+	assert.Contains(t, body, "message")
+
+	// Verify data only contains "name"
+	data, ok := body["data"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Len(t, data, 1)
+	assert.Contains(t, data, "name")
+	assert.Equal(t, "Grundschule am Park", data["name"])
+}
+
+func TestSchoolNameResponse_JSONSerialization(t *testing.T) {
+	resp := schoolNameResponse{Name: "Test Schule"}
+	b, err := json.Marshal(resp)
+	require.NoError(t, err)
+
+	var parsed map[string]string
+	err = json.Unmarshal(b, &parsed)
+	require.NoError(t, err)
+	assert.Equal(t, "Test Schule", parsed["name"])
+	assert.Len(t, parsed, 1)
 }

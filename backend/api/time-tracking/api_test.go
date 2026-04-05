@@ -55,6 +55,12 @@ func (m *mockStaffRepo) UpdateNotes(_ context.Context, _ int64, _ string) error 
 func (m *mockStaffRepo) FindWithPerson(_ context.Context, _ int64) (*userModels.Staff, error) {
 	return nil, nil
 }
+func (m *mockStaffRepo) FindByIDs(_ context.Context, _ []int64) (map[int64]*userModels.Staff, error) {
+	return nil, nil
+}
+func (m *mockStaffRepo) FindWithPersonByIDs(_ context.Context, _ []int64) (map[int64]*userModels.Staff, error) {
+	return nil, nil
+}
 func (m *mockStaffRepo) ListStaffByRoles(_ context.Context, _ []string) ([]*userModels.StaffWithRoleInfo, error) {
 	panic("ListStaffByRoles not implemented")
 }
