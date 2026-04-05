@@ -70,6 +70,7 @@ func (s *personService) caregiverDirectoryQuery(ctx context.Context) *bun.Select
 		Join(`INNER JOIN auth.accounts AS "account" ON "account".id = "person".account_id`).
 		Join(`INNER JOIN auth.account_roles AS "ar" ON "ar".account_id = "account".id`).
 		Join(`INNER JOIN auth.roles AS "role" ON "role".id = "ar".role_id`).
+		Where(`"account".active = TRUE`).
 		Where(`LOWER("role".name) = ?`, "user").
 		Distinct()
 

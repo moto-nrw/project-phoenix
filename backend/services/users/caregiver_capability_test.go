@@ -489,6 +489,23 @@ func TestCaregiverDirectory_ListAndFindOnlyActiveCaregivers(t *testing.T) {
 	testpkg.EnsureAccountTenant(t, db, adminOnlyAccount.ID, 1)
 	assignSystemRoleToAccount(t, db, adminOnlyAccount.ID, 1, "admin")
 
+	inactiveTeacher, inactiveAccount := testpkg.CreateTestTeacherWithAccount(t, db, "Inactive", "Caregiver")
+	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, inactiveAccount.ID) })
+	t.Cleanup(func() {
+		testpkg.CleanupActivityFixtures(
+			t,
+			db,
+			inactiveTeacher.ID,
+			inactiveTeacher.Staff.ID,
+			inactiveTeacher.Staff.Person.ID,
+		)
+	})
+	testpkg.EnsureAccountTenant(t, db, inactiveAccount.ID, 1)
+	assignSystemRoleToAccount(t, db, inactiveAccount.ID, 1, "user")
+
+	_, err := db.ExecContext(context.Background(), `UPDATE auth.accounts SET active = false WHERE id = ?`, inactiveAccount.ID)
+	require.NoError(t, err)
+
 	directory, err := usersSvc.CaregiverDirectoryFromPersonService(factory.Users)
 	require.NoError(t, err)
 
@@ -506,4 +523,8 @@ func TestCaregiverDirectory_ListAndFindOnlyActiveCaregivers(t *testing.T) {
 	missing, err := directory.FindActiveCaregiverByAccountID(ctx, adminOnlyAccount.ID)
 	require.NoError(t, err)
 	assert.Nil(t, missing)
+
+	inactive, err := directory.FindActiveCaregiverByAccountID(ctx, inactiveAccount.ID)
+	require.NoError(t, err)
+	assert.Nil(t, inactive)
 }

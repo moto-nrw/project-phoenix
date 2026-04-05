@@ -342,6 +342,23 @@ func TestAnnouncementRepository_Unpublish(t *testing.T) {
 func createTestOperator(t *testing.T, db *bun.DB, email, displayName string) *platformModels.Operator {
 	t.Helper()
 
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
+	defer cancel()
+
+	// These tests reuse fixed emails. Remove stale rows from previous runs so the
+	// shared integration DB does not fail on platform.operators(email) uniqueness.
+	_, err := db.ExecContext(ctx, `
+		DELETE FROM platform.announcements
+		WHERE created_by IN (
+			SELECT id FROM platform.operators WHERE email = ?
+		)`,
+		email,
+	)
+	require.NoError(t, err)
+
+	_, err = db.ExecContext(ctx, `DELETE FROM platform.operators WHERE email = ?`, email)
+	require.NoError(t, err)
+
 	operator := &platformModels.Operator{
 		Email:        email,
 		DisplayName:  displayName,
@@ -349,10 +366,7 @@ func createTestOperator(t *testing.T, db *bun.DB, email, displayName string) *pl
 		Active:       true,
 	}
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
-	defer cancel()
-
-	_, err := db.NewInsert().
+	_, err = db.NewInsert().
 		Model(operator).
 		ModelTableExpr(`platform.operators`).
 		Exec(ctx)
