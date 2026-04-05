@@ -379,14 +379,6 @@ func capabilityAuditSnapshot(state *userModels.CaregiverCapabilityState) map[str
 	return snapshot
 }
 
-func (s *caregiverCapabilityService) loadCapabilityState(
-	ctx context.Context,
-	accountID int64,
-) (*userModels.CaregiverCapabilityState, error) {
-	state, _, err := s.loadCapabilityStateWithRoleFlags(ctx, accountID)
-	return state, err
-}
-
 func (s *caregiverCapabilityService) loadCapabilityStateWithRoleFlags(
 	ctx context.Context,
 	accountID int64,
