@@ -182,6 +182,9 @@ func TestEnableCaregiverCapability_EmptyBody(t *testing.T) {
 	resource.enableCaregiverCapability(rr, req)
 
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
+	responseBody := decodeResponseBody(t, rr)
+	assert.Equal(t, "error", responseBody["status"])
+	assert.Equal(t, "EOF", responseBody["error"])
 }
 
 func TestEnableCaregiverCapability_RendersUsersValidationError(t *testing.T) {

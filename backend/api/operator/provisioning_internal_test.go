@@ -2085,6 +2085,11 @@ func TestProvisioningResource_EnableSchoolAccountCaregiverCapability_EmptyBody(t
 	resource.EnableSchoolAccountCaregiverCapability(rr, req)
 
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
+
+	var responseBody map[string]any
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &responseBody))
+	assert.Equal(t, "error", responseBody["status"])
+	assert.Equal(t, "EOF", responseBody["message"])
 }
 
 func TestProvisioningResource_DisableSchoolAccountCaregiverCapability(t *testing.T) {
