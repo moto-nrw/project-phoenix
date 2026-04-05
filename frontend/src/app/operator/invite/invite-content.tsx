@@ -20,21 +20,18 @@ const SESSION_STORAGE_KEY = "operator_invite_token";
 function extractToken(): string | null {
   if (typeof window === "undefined") return null;
 
-  // 1. Try URL fragment first (fresh link click)
-  const hash = window.location.hash;
-  if (hash.startsWith("#token=")) {
-    const token = hash.slice("#token=".length);
-    if (token) {
-      try {
-        sessionStorage.setItem(SESSION_STORAGE_KEY, token);
-      } catch {
-        // sessionStorage unavailable (private browsing) — fall through
-      }
-      return token;
+  // 1. Try URL query parameter first (fresh link click)
+  const queryToken = new URLSearchParams(window.location.search).get("token");
+  if (queryToken) {
+    try {
+      sessionStorage.setItem(SESSION_STORAGE_KEY, queryToken);
+    } catch {
+      // sessionStorage unavailable (private browsing) — fall through
     }
+    return queryToken;
   }
 
-  // 2. Fall back to sessionStorage (page reload)
+  // 2. Fall back to sessionStorage (page reload after we stripped the query)
   try {
     return sessionStorage.getItem(SESSION_STORAGE_KEY);
   } catch {
@@ -83,8 +80,8 @@ export function InviteContent() {
     setPassword("");
     setConfirmPassword("");
 
-    // Strip fragment from URL to prevent shoulder-surfing, but keep in sessionStorage for reload
-    if (window.location.hash) {
+    // Strip token from URL to prevent shoulder-surfing, but keep in sessionStorage for reload
+    if (window.location.search || window.location.hash) {
       window.history.replaceState({}, "", window.location.pathname);
     }
 
@@ -107,13 +104,11 @@ export function InviteContent() {
       });
   }, []);
 
-  // Process token on mount and when the hash changes (new invitation link in same tab)
+  // Process token on mount. Query-string changes trigger a full navigation
+  // (unlike fragment changes), so no event listener is needed — the component
+  // remounts and this effect re-fires when the user clicks a fresh invite link.
   useEffect(() => {
     processToken();
-
-    const handleHashChange = () => processToken();
-    window.addEventListener("hashchange", handleHashChange);
-    return () => window.removeEventListener("hashchange", handleHashChange);
   }, [processToken]);
 
   const allPasswordRulesMet = PASSWORD_RULES.every((rule) =>

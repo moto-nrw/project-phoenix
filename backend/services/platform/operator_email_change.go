@@ -344,11 +344,11 @@ func (s *operatorAuthService) dispatchVerificationEmail(ctx context.Context, tok
 		return
 	}
 
-	// The URL goes through /operator/* → operator subdomain redirect (proxy.ts).
-	// Using a fragment (#token=...) instead of a query parameter prevents the
-	// token from appearing in Referer headers, server access logs, or CDN logs
-	// — fragments are never sent in HTTP requests.
-	verifyURL := fmt.Sprintf("%s/operator/email-confirm#token=%s", s.frontendURL, token.Token)
+	// The URL goes through /operator/* → operator subdomain redirect (proxy.ts),
+	// which preserves query params via nextUrl.search. The client strips the
+	// token from the URL on mount via history.replaceState, so any Referer
+	// from subsequent navigations on this page carries no token.
+	verifyURL := fmt.Sprintf("%s/operator/email-confirm?token=%s", s.frontendURL, token.Token)
 	logoURL := fmt.Sprintf("%s/images/moto_transparent.png", s.frontendURL)
 
 	message := email.Message{
