@@ -60,7 +60,20 @@ describe("GET /api/staff/[id]/avatar", () => {
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({
-      error: "Staff ID is required",
+      error: "Valid staff ID is required",
+      success: false,
+    });
+  });
+
+  it("returns 400 when the staff id is not numeric", async () => {
+    const response = await GET(
+      new NextRequest("http://localhost:3000/api/staff/not-a-number/avatar"),
+      { params: Promise.resolve({ id: "not-a-number" }) },
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "Valid staff ID is required",
       success: false,
     });
   });

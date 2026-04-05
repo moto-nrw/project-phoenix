@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Session } from "next-auth";
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { PUT, DELETE } from "./route";
 
 // ============================================================================
@@ -15,11 +15,29 @@ interface ExtendedSession extends Session {
 // Mocks
 // ============================================================================
 
-const { mockAuth, mockApiPut, mockApiDelete, mockApiGet } = vi.hoisted(() => ({
+const {
+  mockAuth,
+  mockApiPut,
+  mockApiGet,
+  mockFetch,
+  mockGetServerApiUrl,
+  mockHandleApiError,
+} = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
   mockApiPut: vi.fn(),
-  mockApiDelete: vi.fn(),
   mockApiGet: vi.fn(),
+  mockFetch: vi.fn(),
+  mockGetServerApiUrl: vi.fn(() => "http://localhost:8080"),
+  mockHandleApiError: vi.fn((error: unknown) => {
+    const message =
+      error instanceof Error ? error.message : "Internal Server Error";
+    const status = message.includes("(401)")
+      ? 401
+      : message.includes("(404)")
+        ? 404
+        : 500;
+    return NextResponse.json({ error: message }, { status });
+  }),
 }));
 
 vi.mock("~/server/auth", () => ({
@@ -30,18 +48,15 @@ vi.mock("~/lib/api-helpers", () => ({
   apiGet: mockApiGet,
   apiPost: vi.fn(),
   apiPut: mockApiPut,
-  apiDelete: mockApiDelete,
-  handleApiError: vi.fn((error: unknown) => {
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-    const status = message.includes("(401)")
-      ? 401
-      : message.includes("(404)")
-        ? 404
-        : 500;
-    return new Response(JSON.stringify({ error: message }), { status });
-  }),
+  apiDelete: vi.fn(),
+  handleApiError: mockHandleApiError,
 }));
+
+vi.mock("~/lib/server-api-url", () => ({
+  getServerApiUrl: mockGetServerApiUrl,
+}));
+
+global.fetch = mockFetch as unknown as typeof fetch;
 
 // ============================================================================
 // Test Helpers
@@ -246,7 +261,12 @@ describe("DELETE /api/activities/[id]/supervisors/[supervisorId]", () => {
   });
 
   it("removes supervisor successfully", async () => {
-    mockApiDelete.mockResolvedValueOnce(undefined);
+    mockFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ status: "success" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
 
     const request = createMockRequest("/api/activities/1/supervisors/2", {
       method: "DELETE",
@@ -256,9 +276,15 @@ describe("DELETE /api/activities/[id]/supervisors/[supervisorId]", () => {
       createMockContext({ id: "1", supervisorId: "2" }),
     );
 
-    expect(mockApiDelete).toHaveBeenCalledWith(
-      "/api/activities/1/supervisors/2",
-      "test-token",
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://localhost:8080/api/activities/1/supervisors/2",
+      {
+        method: "DELETE",
+        headers: {
+          Authorization: "Bearer test-token",
+        },
+        cache: "no-store",
+      },
     );
     expect(response.status).toBe(200);
 
@@ -267,7 +293,12 @@ describe("DELETE /api/activities/[id]/supervisors/[supervisorId]", () => {
   });
 
   it("uses the numeric id extracted from the URL when activityId context is empty", async () => {
-    mockApiDelete.mockResolvedValueOnce(undefined);
+    mockFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ status: "success" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
 
     const request = createMockRequest("/api/activities//supervisors/2", {
       method: "DELETE",
@@ -277,9 +308,15 @@ describe("DELETE /api/activities/[id]/supervisors/[supervisorId]", () => {
       createMockContext({ id: "", supervisorId: "2" }),
     );
 
-    expect(mockApiDelete).toHaveBeenCalledWith(
-      "/api/activities/2/supervisors/2",
-      "test-token",
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://localhost:8080/api/activities/2/supervisors/2",
+      {
+        method: "DELETE",
+        headers: {
+          Authorization: "Bearer test-token",
+        },
+        cache: "no-store",
+      },
     );
     expect(response.status).toBe(200);
     const json = await parseJsonResponse<{ success: boolean }>(response);
@@ -301,9 +338,8 @@ describe("DELETE /api/activities/[id]/supervisors/[supervisorId]", () => {
   });
 
   it("returns 500 when removal fails", async () => {
-    mockApiDelete.mockRejectedValueOnce(
-      new Error("Failed to remove supervisor"),
-    );
+    const thrown = new Error("Failed to remove supervisor");
+    mockFetch.mockRejectedValueOnce(thrown);
 
     const request = createMockRequest("/api/activities/1/supervisors/2", {
       method: "DELETE",
@@ -314,7 +350,52 @@ describe("DELETE /api/activities/[id]/supervisors/[supervisorId]", () => {
     );
 
     expect(response.status).toBe(500);
+    expect(mockHandleApiError).toHaveBeenCalledWith(thrown);
     const json = await parseJsonResponse<{ error: string }>(response);
     expect(json.error).toContain("Failed to remove supervisor");
+  });
+
+  it("forwards structured backend errors unchanged", async () => {
+    mockFetch.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          status: "error",
+          error: "cannot remove the only supervisor",
+          code: "ONLY_SUPERVISOR_REPLACEMENT_REQUIRED",
+        }),
+        {
+          status: 409,
+          headers: { "Content-Type": "application/json" },
+        },
+      ),
+    );
+
+    const request = createMockRequest(
+      "/api/activities/1/supervisors/2?replacement_staff_id=5",
+      {
+        method: "DELETE",
+      },
+    );
+    const response = await DELETE(
+      request,
+      createMockContext({ id: "1", supervisorId: "2" }),
+    );
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://localhost:8080/api/activities/1/supervisors/2?replacement_staff_id=5",
+      {
+        method: "DELETE",
+        headers: {
+          Authorization: "Bearer test-token",
+        },
+        cache: "no-store",
+      },
+    );
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      status: "error",
+      error: "cannot remove the only supervisor",
+      code: "ONLY_SUPERVISOR_REPLACEMENT_REQUIRED",
+    });
   });
 });

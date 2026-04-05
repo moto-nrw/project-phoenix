@@ -243,27 +243,26 @@ describe("CaregiverBlockerResolutionModal", () => {
     fireEvent.click(screen.getByText("Übertragen"));
 
     await waitFor(() => {
-      expect(mockFetch).toHaveBeenNthCalledWith(
-        1,
-        "/api/activities/12/supervisors",
-        expect.objectContaining({
-          method: "POST",
-          body: JSON.stringify({ staff_id: 21 }),
-        }),
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/activities/12/supervisors/8?replacement_staff_id=21",
+        expect.objectContaining({ method: "DELETE" }),
       );
     });
-    expect(mockFetch).toHaveBeenNthCalledWith(
-      2,
-      "/api/activities/12/supervisors/8",
-      expect.objectContaining({ method: "DELETE" }),
-    );
+    expect(mockFetch).toHaveBeenCalledTimes(1);
     expect(mockToastSuccess).toHaveBeenCalledWith(
       'Aktivitätsleitung für "Theater" übertragen.',
     );
   });
 
   it("shows the dedicated only-supervisor error when activity removal is rejected", async () => {
-    mockFetch.mockRejectedValueOnce(new Error("only supervisor"));
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 409,
+      json: async () => ({
+        error: "cannot remove the only supervisor",
+        code: "ONLY_SUPERVISOR_REPLACEMENT_REQUIRED",
+      }),
+    });
 
     render(
       <CaregiverBlockerResolutionModal
@@ -288,6 +287,42 @@ describe("CaregiverBlockerResolutionModal", () => {
     await waitFor(() => {
       expect(screen.getByTestId("alert")).toHaveTextContent(
         '"Theater": Einzige Leitung',
+      );
+    });
+  });
+
+  it("falls back to the generic activity error message for unstructured failures", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      json: async () => {
+        throw new Error("invalid json");
+      },
+    });
+
+    render(
+      <CaregiverBlockerResolutionModal
+        isOpen={true}
+        onClose={vi.fn()}
+        onResolved={vi.fn()}
+        state={createState({
+          activitySupervisions: [
+            {
+              id: "8",
+              activityId: "12",
+              activityName: "Theater",
+              isPrimary: true,
+            },
+          ],
+        })}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Entfernen"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("alert")).toHaveTextContent(
+        "Aktivitätsleitung konnte nicht entfernt werden (500)",
       );
     });
   });

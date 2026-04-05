@@ -60,35 +60,39 @@ async function deleteSubstitution(id: string): Promise<void> {
 async function removeActivitySupervisor(
   activityId: string,
   supervisorId: string,
+  replacementStaffId?: string,
 ): Promise<void> {
+  const searchParams = new URLSearchParams();
+  if (replacementStaffId) {
+    searchParams.set("replacement_staff_id", replacementStaffId);
+  }
+
   const response = await fetch(
-    `/api/activities/${encodeURIComponent(activityId)}/supervisors/${encodeURIComponent(supervisorId)}`,
+    `/api/activities/${encodeURIComponent(activityId)}/supervisors/${encodeURIComponent(supervisorId)}${searchParams.size > 0 ? `?${searchParams.toString()}` : ""}`,
     { method: "DELETE", credentials: "include" },
   );
   if (!response.ok) {
-    throw new Error(
-      `Aktivitätsleitung konnte nicht entfernt werden (${response.status})`,
-    );
-  }
-}
+    let errorMessage = replacementStaffId
+      ? `Aktivitätsleitung konnte nicht übertragen werden (${response.status})`
+      : `Aktivitätsleitung konnte nicht entfernt werden (${response.status})`;
+    let errorCode: string | undefined;
 
-async function addActivitySupervisor(
-  activityId: string,
-  staffId: string,
-): Promise<void> {
-  const response = await fetch(
-    `/api/activities/${encodeURIComponent(activityId)}/supervisors`,
-    {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ staff_id: Number(staffId) }),
-    },
-  );
-  if (!response.ok) {
-    throw new Error(
-      `Aktivitätsleitung konnte nicht übertragen werden (${response.status})`,
-    );
+    try {
+      const payload = (await response.json()) as {
+        error?: string;
+        message?: string;
+        code?: string;
+      };
+      errorMessage = payload.message ?? payload.error ?? errorMessage;
+      errorCode = payload.code;
+    } catch {
+      // Fall back to the generic status-based message when the proxy did not
+      // return structured JSON.
+    }
+
+    const error = new Error(errorMessage) as Error & { code?: string };
+    error.code = errorCode;
+    throw error;
   }
 }
 
@@ -248,12 +252,11 @@ export function CaregiverBlockerResolutionModal({
     try {
       setItemProcessing(key, true);
       setErrorMessage("");
-      if (replacementStaffId) {
-        await addActivitySupervisor(item.activityId, replacementStaffId);
-        await removeActivitySupervisor(item.activityId, item.id);
-      } else {
-        await removeActivitySupervisor(item.activityId, item.id);
-      }
+      await removeActivitySupervisor(
+        item.activityId,
+        item.id,
+        replacementStaffId,
+      );
       setActivities((prev) => prev.filter((a) => a.id !== item.id));
       toastSuccess(
         replacementStaffId
@@ -261,14 +264,17 @@ export function CaregiverBlockerResolutionModal({
           : `Aktivitätsleitung für "${item.activityName}" entfernt.`,
       );
     } catch (error) {
-      const msg = String(error);
-      const isOnlySupervisor = msg.includes("only supervisor");
+      const errorCode =
+        error instanceof Error && "code" in error
+          ? (error as Error & { code?: string }).code
+          : undefined;
       logger.error("failed to resolve activity", {
         id: item.id,
-        error: msg,
+        error: String(error),
+        errorCode,
       });
       setErrorMessage(
-        isOnlySupervisor
+        errorCode === "ONLY_SUPERVISOR_REPLACEMENT_REQUIRED"
           ? `"${item.activityName}": Einzige Leitung — bitte Ersatzkraft auswählen.`
           : error instanceof Error
             ? error.message

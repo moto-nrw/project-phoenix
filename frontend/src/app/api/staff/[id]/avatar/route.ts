@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { auth } from "~/server/auth";
 import { handleApiError } from "~/lib/api-helpers";
 import { getServerApiUrl } from "~/lib/server-api-url";
+import { encodePathSegment, isStringParam } from "~/lib/route-wrapper-utils";
 
 // GET handler for fetching staff avatar images
 // Returns raw image data, not JSON — does not use createGetHandler
@@ -21,16 +22,16 @@ export const GET = async (
     }
 
     const params = await context.params;
-    const id = params.id as string;
+    const rawId = params.id;
 
-    if (!id) {
+    if (!isStringParam(rawId) || !/^\d+$/.test(rawId)) {
       return NextResponse.json(
-        { error: "Staff ID is required", success: false },
+        { error: "Valid staff ID is required", success: false },
         { status: 400 },
       );
     }
 
-    const backendUrl = `${getServerApiUrl()}/api/staff/${id}/avatar`;
+    const backendUrl = `${getServerApiUrl()}/api/staff/${encodePathSegment(rawId)}/avatar`;
     const response = await fetch(backendUrl, {
       headers: {
         Authorization: `Bearer ${session.user.token}`,

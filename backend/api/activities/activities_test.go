@@ -1281,3 +1281,81 @@ func TestRemoveSupervisor_NotFound(t *testing.T) {
 
 	testutil.AssertNotFound(t, rr)
 }
+
+func TestRemoveSupervisor_WithReplacement_ReplacesSupervisorAtomically(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("RemSupReplace-%d", time.Now().UnixNano()))
+	outgoingStaff := testpkg.CreateTestStaff(t, ctx.db, fmt.Sprintf("Outgoing-%d", time.Now().UnixNano()), "Caregiver")
+	replacementStaff := testpkg.CreateTestStaff(t, ctx.db, fmt.Sprintf("Replacement-%d", time.Now().UnixNano()), "Caregiver")
+	defer cleanupActivity(t, ctx.db, activity.ID)
+	defer cleanupCategory(t, ctx.db, activity.CategoryID)
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, outgoingStaff.ID, replacementStaff.ID)
+
+	supervisor, err := ctx.services.Activities.AddSupervisor(testutil.TenantContext(1), activity.ID, outgoingStaff.ID, false)
+	require.NoError(t, err)
+	require.NotNil(t, supervisor)
+
+	router := testutil.NewTenantRouter(ctx.db)
+	router.Delete("/activities/{id}/supervisors/{supervisorId}", ctx.resource.RemoveSupervisorHandler())
+
+	req := testutil.NewAuthenticatedRequest(
+		t,
+		"DELETE",
+		fmt.Sprintf(
+			"/activities/%d/supervisors/%d?replacement_staff_id=%d",
+			activity.ID,
+			supervisor.ID,
+			replacementStaff.ID,
+		),
+		nil,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	supervisors, err := ctx.services.Activities.GetGroupSupervisors(testutil.TenantContext(1), activity.ID)
+	require.NoError(t, err)
+
+	staffIDs := make([]int64, 0, len(supervisors))
+	for _, updatedSupervisor := range supervisors {
+		staffIDs = append(staffIDs, updatedSupervisor.StaffID)
+	}
+
+	assert.NotContains(t, staffIDs, outgoingStaff.ID)
+	assert.Contains(t, staffIDs, replacementStaff.ID)
+}
+
+func TestRemoveSupervisor_OnlySupervisorRequiresReplacement(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("RemSupOnly-%d", time.Now().UnixNano()))
+	onlyStaff := testpkg.CreateTestStaff(t, ctx.db, fmt.Sprintf("Only-%d", time.Now().UnixNano()), "Caregiver")
+	defer cleanupActivity(t, ctx.db, activity.ID)
+	defer cleanupCategory(t, ctx.db, activity.CategoryID)
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, onlyStaff.ID)
+
+	supervisor, err := ctx.services.Activities.AddSupervisor(testutil.TenantContext(1), activity.ID, onlyStaff.ID, true)
+	require.NoError(t, err)
+	require.NotNil(t, supervisor)
+
+	router := testutil.NewTenantRouter(ctx.db)
+	router.Delete("/activities/{id}/supervisors/{supervisorId}", ctx.resource.RemoveSupervisorHandler())
+
+	req := testutil.NewAuthenticatedRequest(
+		t,
+		"DELETE",
+		fmt.Sprintf("/activities/%d/supervisors/%d", activity.ID, supervisor.ID),
+		nil,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	assert.Equal(t, http.StatusConflict, rr.Code)
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	assert.Equal(t, "ONLY_SUPERVISOR_REPLACEMENT_REQUIRED", response["code"])
+}
