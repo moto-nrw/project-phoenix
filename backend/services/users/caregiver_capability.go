@@ -362,113 +362,150 @@ func (s *caregiverCapabilityService) listDisableBlockers(
 	}
 
 	if state.StaffID != nil {
-		activeSupervisions, err := s.countActiveGroupSupervisions(ctx, *state.StaffID, tenantID)
+		supervisions, err := s.listActiveGroupSupervisions(ctx, *state.StaffID, tenantID)
 		if err != nil {
 			return nil, err
 		}
-		if activeSupervisions > 0 {
-			blockers = append(blockers, fmt.Sprintf("Es bestehen noch %d aktive Gruppenaufsichten.", activeSupervisions))
+		if len(supervisions) > 0 {
+			state.ActiveSupervisions = supervisions
+			blockers = append(blockers, fmt.Sprintf("Es bestehen noch %d aktive Gruppenaufsichten.", len(supervisions)))
 		}
 
-		activeSubstitutions, err := s.countActiveGroupSubstitutions(ctx, *state.StaffID, tenantID)
+		substitutions, err := s.listActiveGroupSubstitutions(ctx, *state.StaffID, tenantID)
 		if err != nil {
 			return nil, err
 		}
-		if activeSubstitutions > 0 {
-			blockers = append(blockers, fmt.Sprintf("Es bestehen noch %d aktive Vertretungen oder Gruppenübergaben.", activeSubstitutions))
+		if len(substitutions) > 0 {
+			state.ActiveSubstitutions = substitutions
+			blockers = append(blockers, fmt.Sprintf("Es bestehen noch %d aktive Vertretungen oder Gruppenübergaben.", len(substitutions)))
 		}
 
-		plannedActivities, err := s.countPlannedActivitySupervisions(ctx, *state.StaffID, tenantID)
+		activities, err := s.listPlannedActivitySupervisions(ctx, *state.StaffID, tenantID)
 		if err != nil {
 			return nil, err
 		}
-		if plannedActivities > 0 {
-			blockers = append(blockers, fmt.Sprintf("Es bestehen noch %d Aktivitätsleitungen.", plannedActivities))
+		if len(activities) > 0 {
+			state.ActivitySupervisions = activities
+			blockers = append(blockers, fmt.Sprintf("Es bestehen noch %d Aktivitätsleitungen.", len(activities)))
 		}
 	}
 
 	if state.TeacherID != nil {
-		groupAssignments, err := s.countGroupTeacherAssignments(ctx, *state.TeacherID, tenantID)
+		groups, err := s.listGroupTeacherAssignments(ctx, *state.TeacherID, tenantID)
 		if err != nil {
 			return nil, err
 		}
-		if groupAssignments > 0 {
-			blockers = append(blockers, fmt.Sprintf("Es bestehen noch %d Stammgruppen-Zuordnungen.", groupAssignments))
+		if len(groups) > 0 {
+			state.GroupAssignments = groups
+			blockers = append(blockers, fmt.Sprintf("Es bestehen noch %d Stammgruppen-Zuordnungen.", len(groups)))
 		}
 	}
 
 	return blockers, nil
 }
 
-func (s *caregiverCapabilityService) countActiveGroupSupervisions(
+func (s *caregiverCapabilityService) listActiveGroupSupervisions(
 	ctx context.Context,
 	staffID int64,
 	tenantID int64,
-) (int, error) {
-	return s.queryScalarCount(ctx, `
-		SELECT COUNT(*)
+) ([]userModels.BlockerSupervision, error) {
+	db := s.getDB(ctx)
+
+	var results []userModels.BlockerSupervision
+	err := db.NewRaw(`
+		SELECT gs.id, COALESCE(g.name, 'Unbekannte Gruppe') AS group_name,
+		       gs.start_date::text AS start_date
 		FROM active.group_supervisors AS gs
+		LEFT JOIN education.groups AS g ON g.id = gs.group_id AND g.tenant_id = gs.tenant_id
 		WHERE gs.tenant_id = ?
 		  AND gs.staff_id = ?
 		  AND gs.start_date <= CURRENT_DATE
 		  AND (gs.end_date IS NULL OR gs.end_date >= CURRENT_DATE)
-	`, tenantID, staffID)
+		ORDER BY gs.start_date DESC
+	`, tenantID, staffID).Scan(ctx, &results)
+	if err != nil {
+		return nil, err
+	}
+	return results, nil
 }
 
-func (s *caregiverCapabilityService) countActiveGroupSubstitutions(
+func (s *caregiverCapabilityService) listActiveGroupSubstitutions(
 	ctx context.Context,
 	staffID int64,
 	tenantID int64,
-) (int, error) {
-	return s.queryScalarCount(ctx, `
-		SELECT COUNT(*)
+) ([]userModels.BlockerSubstitution, error) {
+	db := s.getDB(ctx)
+
+	var results []userModels.BlockerSubstitution
+	err := db.NewRaw(`
+		SELECT gs.id, COALESCE(g.name, 'Unbekannte Gruppe') AS group_name,
+		       CASE WHEN gs.substitute_staff_id = ? THEN 'substitute' ELSE 'regular' END AS role,
+		       gs.start_date::text AS start_date,
+		       gs.end_date::text AS end_date
 		FROM education.group_substitution AS gs
+		LEFT JOIN education.groups AS g ON g.id = gs.group_id AND g.tenant_id = gs.tenant_id
 		WHERE gs.tenant_id = ?
 		  AND (gs.substitute_staff_id = ? OR gs.regular_staff_id = ?)
 		  AND gs.start_date <= CURRENT_DATE
 		  AND gs.end_date >= CURRENT_DATE
-	`, tenantID, staffID, staffID)
+		ORDER BY gs.start_date DESC
+	`, staffID, tenantID, staffID, staffID).Scan(ctx, &results)
+	if err != nil {
+		return nil, err
+	}
+	return results, nil
 }
 
-func (s *caregiverCapabilityService) countPlannedActivitySupervisions(
+func (s *caregiverCapabilityService) listPlannedActivitySupervisions(
 	ctx context.Context,
 	staffID int64,
 	tenantID int64,
-) (int, error) {
-	return s.queryScalarCount(ctx, `
-		SELECT COUNT(*)
+) ([]userModels.BlockerActivity, error) {
+	db := s.getDB(ctx)
+
+	var results []userModels.BlockerActivity
+	err := db.NewRaw(`
+		SELECT s.id, s.group_id AS activity_id,
+		       COALESCE(ag.name, 'Unbekannte Aktivität') AS activity_name,
+		       COALESCE(s.is_primary, false) AS is_primary
 		FROM activities.supervisors AS s
+		LEFT JOIN activities.groups AS ag ON ag.id = s.group_id AND ag.tenant_id = s.tenant_id
 		WHERE s.tenant_id = ?
 		  AND s.staff_id = ?
-	`, tenantID, staffID)
+		ORDER BY ag.name ASC
+	`, tenantID, staffID).Scan(ctx, &results)
+	if err != nil {
+		return nil, err
+	}
+	return results, nil
 }
 
-func (s *caregiverCapabilityService) countGroupTeacherAssignments(
+func (s *caregiverCapabilityService) listGroupTeacherAssignments(
 	ctx context.Context,
 	teacherID int64,
 	tenantID int64,
-) (int, error) {
-	return s.queryScalarCount(ctx, `
-		SELECT COUNT(*)
+) ([]userModels.BlockerGroup, error) {
+	db := s.getDB(ctx)
+
+	var results []userModels.BlockerGroup
+	err := db.NewRaw(`
+		SELECT gt.id, gt.group_id, COALESCE(g.name, 'Unbekannte Gruppe') AS group_name,
+		       gt.teacher_id
 		FROM education.group_teacher AS gt
+		LEFT JOIN education.groups AS g ON g.id = gt.group_id AND g.tenant_id = gt.tenant_id
 		WHERE gt.tenant_id = ?
 		  AND gt.teacher_id = ?
-	`, tenantID, teacherID)
+		ORDER BY g.name ASC
+	`, tenantID, teacherID).Scan(ctx, &results)
+	if err != nil {
+		return nil, err
+	}
+	return results, nil
 }
 
-func (s *caregiverCapabilityService) queryScalarCount(
-	ctx context.Context,
-	query string,
-	args ...interface{},
-) (int, error) {
-	var db bun.IDB = s.db
+func (s *caregiverCapabilityService) getDB(ctx context.Context) bun.IDB {
 	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
-		db = tx
+		return tx
 	}
-
-	var count int
-	if err := db.NewRaw(query, args...).Scan(ctx, &count); err != nil {
-		return 0, err
-	}
-	return count, nil
+	return s.db
 }

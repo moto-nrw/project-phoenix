@@ -2,6 +2,34 @@ import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "CaregiverCapabilityAPI" });
 
+export interface BlockerSupervision {
+  id: string;
+  groupName: string;
+  startDate: string;
+}
+
+export interface BlockerSubstitution {
+  id: string;
+  groupName: string;
+  role: "regular" | "substitute";
+  startDate: string;
+  endDate: string;
+}
+
+export interface BlockerActivity {
+  id: string;
+  activityId: string;
+  activityName: string;
+  isPrimary: boolean;
+}
+
+export interface BlockerGroup {
+  id: string;
+  groupId: string;
+  groupName: string;
+  teacherId: string;
+}
+
 export interface CaregiverCapabilityState {
   accountId: string;
   email: string;
@@ -20,6 +48,38 @@ export interface CaregiverCapabilityState {
   disableBlocked: boolean;
   disableBlockersCount: number;
   disableBlockers: string[];
+  activeSupervisions: BlockerSupervision[];
+  activeSubstitutions: BlockerSubstitution[];
+  activitySupervisions: BlockerActivity[];
+  groupAssignments: BlockerGroup[];
+}
+
+interface BackendBlockerSupervision {
+  id: number;
+  group_name: string;
+  start_date: string;
+}
+
+interface BackendBlockerSubstitution {
+  id: number;
+  group_name: string;
+  role: string;
+  start_date: string;
+  end_date: string;
+}
+
+interface BackendBlockerActivity {
+  id: number;
+  activity_id: number;
+  activity_name: string;
+  is_primary: boolean;
+}
+
+interface BackendBlockerGroup {
+  id: number;
+  group_id: number;
+  group_name: string;
+  teacher_id: number;
 }
 
 interface BackendCaregiverCapabilityState {
@@ -40,6 +100,10 @@ interface BackendCaregiverCapabilityState {
   disable_blocked: boolean;
   disable_blockers_count: number;
   disable_blockers?: string[];
+  active_supervisions?: BackendBlockerSupervision[];
+  active_substitutions?: BackendBlockerSubstitution[];
+  activity_supervisions?: BackendBlockerActivity[];
+  group_assignments?: BackendBlockerGroup[];
 }
 
 export interface EnableCaregiverCapabilityRequest {
@@ -94,6 +158,30 @@ function mapCapabilityState(
     disableBlocked: state.disable_blocked,
     disableBlockersCount: state.disable_blockers_count,
     disableBlockers: state.disable_blockers ?? [],
+    activeSupervisions: (state.active_supervisions ?? []).map((s) => ({
+      id: s.id.toString(),
+      groupName: s.group_name,
+      startDate: s.start_date,
+    })),
+    activeSubstitutions: (state.active_substitutions ?? []).map((s) => ({
+      id: s.id.toString(),
+      groupName: s.group_name,
+      role: s.role as "regular" | "substitute",
+      startDate: s.start_date,
+      endDate: s.end_date,
+    })),
+    activitySupervisions: (state.activity_supervisions ?? []).map((a) => ({
+      id: a.id.toString(),
+      activityId: a.activity_id.toString(),
+      activityName: a.activity_name,
+      isPrimary: a.is_primary,
+    })),
+    groupAssignments: (state.group_assignments ?? []).map((g) => ({
+      id: g.id.toString(),
+      groupId: g.group_id.toString(),
+      groupName: g.group_name,
+      teacherId: g.teacher_id.toString(),
+    })),
   };
 }
 

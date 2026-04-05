@@ -16,6 +16,7 @@ import {
   CaregiverCapabilityApiError,
   type CaregiverCapabilityState,
 } from "~/lib/caregiver-capability-api";
+import { CaregiverBlockerResolutionModal } from "~/components/teachers/caregiver-blocker-resolution-modal";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "CaregiverCapabilityModal" });
@@ -72,6 +73,7 @@ export function CaregiverCapabilityModal({
   const [lastName, setLastName] = useState("");
   const [position, setPosition] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [resolutionOpen, setResolutionOpen] = useState(false);
 
   const needsSchoolId = scope === "operator";
 
@@ -349,7 +351,25 @@ export function CaregiverCapabilityModal({
                   </li>
                 ))}
               </ul>
+              <div className="mt-3">
+                <button
+                  type="button"
+                  onClick={() => setResolutionOpen(true)}
+                  className="rounded-lg border border-amber-300 bg-amber-100 px-4 py-2 text-sm font-medium text-amber-900 transition-colors hover:bg-amber-200"
+                >
+                  Zuordnungen auflösen
+                </button>
+              </div>
             </InfoSection>
+          ) : null}
+
+          {state.disableBlocked ? (
+            <CaregiverBlockerResolutionModal
+              isOpen={resolutionOpen}
+              onClose={() => setResolutionOpen(false)}
+              state={state}
+              onResolved={() => void loadState()}
+            />
           ) : null}
 
           {/* Error display */}

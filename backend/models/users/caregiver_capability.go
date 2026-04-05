@@ -25,6 +25,43 @@ type CaregiverCapabilityState struct {
 	DisableBlockersCount int  `json:"disable_blockers_count"`
 
 	DisableBlockers []string `json:"disable_blockers,omitempty"`
+
+	ActiveSupervisions   []BlockerSupervision  `json:"active_supervisions,omitempty"`
+	ActiveSubstitutions  []BlockerSubstitution `json:"active_substitutions,omitempty"`
+	ActivitySupervisions []BlockerActivity     `json:"activity_supervisions,omitempty"`
+	GroupAssignments     []BlockerGroup        `json:"group_assignments,omitempty"`
+}
+
+// BlockerSupervision represents an active group supervision that blocks disable.
+type BlockerSupervision struct {
+	ID        int64  `json:"id"`
+	GroupName string `json:"group_name"`
+	StartDate string `json:"start_date"`
+}
+
+// BlockerSubstitution represents an active substitution that blocks disable.
+type BlockerSubstitution struct {
+	ID        int64  `json:"id"`
+	GroupName string `json:"group_name"`
+	Role      string `json:"role"`
+	StartDate string `json:"start_date"`
+	EndDate   string `json:"end_date"`
+}
+
+// BlockerActivity represents an activity supervision assignment that blocks disable.
+type BlockerActivity struct {
+	ID           int64  `json:"id"`
+	ActivityID   int64  `json:"activity_id"`
+	ActivityName string `json:"activity_name"`
+	IsPrimary    bool   `json:"is_primary"`
+}
+
+// BlockerGroup represents a group-teacher assignment that blocks disable.
+type BlockerGroup struct {
+	ID        int64  `json:"id"`
+	GroupID   int64  `json:"group_id"`
+	GroupName string `json:"group_name"`
+	TeacherID int64  `json:"teacher_id"`
 }
 
 // EnableCaregiverCapabilityInput supplies missing profile data when an existing
