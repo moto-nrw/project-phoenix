@@ -77,7 +77,7 @@ func (s *personService) caregiverDirectoryQuery(ctx context.Context) *bun.Select
 		Where(`"role".tenant_id IS NULL`).
 		// Keep legacy teacher-only accounts visible until the rollout includes
 		// a complete backfill away from the system "teacher" role.
-		Where(`LOWER("role".name) IN (?)`, bun.In(caregiverRoleNames)).
+		Where(`LOWER("role".name) IN (?)`, bun.List(caregiverRoleNames)).
 		Distinct()
 
 	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
