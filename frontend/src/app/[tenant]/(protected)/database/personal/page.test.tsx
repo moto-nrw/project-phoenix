@@ -344,7 +344,9 @@ describe("TeachersPage", () => {
       expect(screen.getByText("Maria Müller")).toBeInTheDocument();
     });
 
-    const teacherRow = screen.getByText("Maria Müller").closest("button");
+    const teacherRow = screen
+      .getByText("Maria Müller")
+      .closest('[role="button"]');
     if (teacherRow) {
       fireEvent.click(teacherRow);
     }
@@ -364,7 +366,9 @@ describe("TeachersPage", () => {
       expect(screen.getByText("Maria Müller")).toBeInTheDocument();
     });
 
-    const teacherRow = screen.getByText("Maria Müller").closest("button");
+    const teacherRow = screen
+      .getByText("Maria Müller")
+      .closest('[role="button"]');
     if (teacherRow) {
       fireEvent.click(teacherRow);
     }
@@ -432,7 +436,9 @@ describe("TeachersPage", () => {
       expect(screen.getByText("Maria Müller")).toBeInTheDocument();
     });
 
-    const teacherRow = screen.getByText("Maria Müller").closest("button");
+    const teacherRow = screen
+      .getByText("Maria Müller")
+      .closest('[role="button"]');
     if (teacherRow) {
       fireEvent.click(teacherRow);
     }
@@ -468,7 +474,9 @@ describe("TeachersPage", () => {
       expect(screen.getByText("Maria Müller")).toBeInTheDocument();
     });
 
-    const teacherRow = screen.getByText("Maria Müller").closest("button");
+    const teacherRow = screen
+      .getByText("Maria Müller")
+      .closest('[role="button"]');
     if (teacherRow) {
       fireEvent.click(teacherRow);
     }
@@ -494,7 +502,7 @@ describe("TeachersPage", () => {
       expect(screen.getByText("Maria Müller")).toBeInTheDocument();
     });
 
-    const row = screen.getByText("Maria Müller").closest("button");
+    const row = screen.getByText("Maria Müller").closest('[role="button"]');
     if (row) fireEvent.click(row);
     await waitFor(() => {
       expect(screen.getByTestId("teacher-detail-modal")).toBeInTheDocument();
@@ -515,7 +523,9 @@ describe("TeachersPage", () => {
       expect(screen.getByText("Maria Müller")).toBeInTheDocument();
     });
 
-    const teacherRow = screen.getByText("Maria Müller").closest("button");
+    const teacherRow = screen
+      .getByText("Maria Müller")
+      .closest('[role="button"]');
     if (teacherRow) {
       fireEvent.click(teacherRow);
     }
@@ -541,7 +551,9 @@ describe("TeachersPage", () => {
       expect(screen.getByText("Maria Müller")).toBeInTheDocument();
     });
 
-    const teacherRow = screen.getByText("Maria Müller").closest("button");
+    const teacherRow = screen
+      .getByText("Maria Müller")
+      .closest('[role="button"]');
     if (teacherRow) {
       fireEvent.click(teacherRow);
     }

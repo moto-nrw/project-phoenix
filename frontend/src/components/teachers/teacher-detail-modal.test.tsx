@@ -178,7 +178,7 @@ describe("TeacherDetailModal", () => {
   it("displays email when provided", () => {
     render(<TeacherDetailModal {...defaultProps} />);
 
-    expect(screen.getByTestId("field-e-mail")).toBeInTheDocument();
+    expect(screen.getByTestId("section-e-mail")).toBeInTheDocument();
     expect(screen.getByText("john@example.com")).toBeInTheDocument();
   });
 

@@ -107,13 +107,13 @@ describe("TeacherForm", () => {
     });
   });
 
-  it("shows position dropdown", () => {
+  it("shows position input with placeholder", () => {
     render(<TeacherForm {...defaultProps} />);
 
     expect(screen.getByLabelText(/Position/)).toBeInTheDocument();
-    expect(screen.getByText("Pädagogische Fachkraft")).toBeInTheDocument();
-    expect(screen.getByText("OGS-Büro")).toBeInTheDocument();
-    expect(screen.getByText("Extern")).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText("z.B. Pädagogische Fachkraft, OGS-Büro"),
+    ).toBeInTheDocument();
   });
 
   it("disables inputs when loading", () => {
