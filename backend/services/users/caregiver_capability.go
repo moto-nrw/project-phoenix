@@ -48,6 +48,13 @@ type caregiverCapabilityService struct {
 	db                     *bun.DB
 }
 
+var caregiverCapabilityBindingTables = []string{
+	"education.group_teacher",
+	"education.group_substitution",
+	"active.group_supervisors",
+	"activities.supervisors",
+}
+
 // NewCaregiverCapabilityService creates a tenant-scoped caregiver capability service.
 func NewCaregiverCapabilityService(
 	deps CaregiverCapabilityServiceDependencies,
@@ -174,20 +181,26 @@ func (s *caregiverCapabilityService) DisableCaregiverCapability(
 		return nil, &UsersError{Op: "disable caregiver capability", Err: fmt.Errorf("account ID is required")}
 	}
 
-	state, err := s.loadCapabilityState(ctx, accountID)
-	if err != nil {
-		return nil, err
-	}
+	var result *userModels.CaregiverCapabilityState
+	if err := s.txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
+		if err := s.lockCaregiverCapabilityBindings(txCtx, tx); err != nil {
+			return err
+		}
 
-	if len(state.DisableBlockers) > 0 {
-		return nil, &CaregiverCapabilityBlockedError{Reasons: state.DisableBlockers}
-	}
+		state, err := s.loadCapabilityState(txCtx, accountID)
+		if err != nil {
+			return err
+		}
 
-	if !state.HasUserRole {
-		return state, nil
-	}
+		if len(state.DisableBlockers) > 0 {
+			return &CaregiverCapabilityBlockedError{Reasons: state.DisableBlockers}
+		}
 
-	if err := s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+		if !state.HasUserRole {
+			result = state
+			return nil
+		}
+
 		userRole, err := s.resolveSystemRoleByName(txCtx, "user")
 		if err != nil {
 			return err
@@ -195,12 +208,37 @@ func (s *caregiverCapabilityService) DisableCaregiverCapability(
 		if userRole == nil {
 			return &UsersError{Op: "disable caregiver capability", Err: fmt.Errorf("user role not found")}
 		}
-		return s.authService.RemoveRoleFromAccount(txCtx, int(accountID), int(userRole.ID))
+
+		if err := s.authService.RemoveRoleFromAccount(txCtx, int(accountID), int(userRole.ID)); err != nil {
+			return err
+		}
+
+		result, err = s.loadCapabilityState(txCtx, accountID)
+		return err
 	}); err != nil {
 		return nil, err
 	}
 
-	return s.loadCapabilityState(ctx, accountID)
+	return result, nil
+}
+
+func (s *caregiverCapabilityService) lockCaregiverCapabilityBindings(
+	ctx context.Context,
+	tx bun.Tx,
+) error {
+	for _, tableName := range caregiverCapabilityBindingTables {
+		if _, err := tx.ExecContext(
+			ctx,
+			fmt.Sprintf("LOCK TABLE %s IN SHARE ROW EXCLUSIVE MODE", tableName),
+		); err != nil {
+			return &UsersError{
+				Op:  "disable caregiver capability",
+				Err: fmt.Errorf("lock %s: %w", tableName, err),
+			}
+		}
+	}
+
+	return nil
 }
 
 func (s *caregiverCapabilityService) loadCapabilityState(

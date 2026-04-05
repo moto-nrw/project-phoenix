@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
@@ -336,6 +337,73 @@ func TestCaregiverCapability_DisableReturnsDetailedBlockers(t *testing.T) {
 	_, err = factory.CaregiverCapability.DisableCaregiverCapability(ctx, account.ID)
 	require.ErrorAs(t, err, &blockedErr)
 	assert.Equal(t, state.DisableBlockers, blockedErr.Reasons)
+}
+
+func TestCaregiverCapability_DisableWaitsForConcurrentBindings(t *testing.T) {
+	db, factory := setupCaregiverFactory(t)
+	ctx := testpkg.TenantContext(1)
+
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "Concurrent", "Disable")
+	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
+	t.Cleanup(func() {
+		testpkg.CleanupActivityFixtures(
+			t,
+			db,
+			teacher.ID,
+			teacher.Staff.ID,
+			teacher.Staff.Person.ID,
+		)
+	})
+	testpkg.EnsureAccountTenant(t, db, account.ID, 1)
+	assignSystemRoleToAccount(t, db, account.ID, 1, "admin")
+	assignSystemRoleToAccount(t, db, account.ID, 1, "user")
+
+	group := testpkg.CreateTestEducationGroupForTenant(t, db, 1, "Concurrent Group")
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "education.groups", group.ID) })
+
+	tx, err := db.BeginTx(context.Background(), nil)
+	require.NoError(t, err)
+
+	pendingRelation := &educationModels.GroupTeacher{
+		GroupID:   group.ID,
+		TeacherID: teacher.ID,
+	}
+	pendingRelation.SetTenantID(1)
+
+	err = tx.NewInsert().
+		Model(pendingRelation).
+		ModelTableExpr(`education.group_teacher`).
+		Scan(context.Background())
+	require.NoError(t, err)
+
+	resultCh := make(chan error, 1)
+	go func() {
+		_, disableErr := factory.CaregiverCapability.DisableCaregiverCapability(ctx, account.ID)
+		resultCh <- disableErr
+	}()
+
+	select {
+	case err := <-resultCh:
+		t.Fatalf("disable completed before concurrent binding committed: %v", err)
+	case <-time.After(150 * time.Millisecond):
+	}
+
+	require.NoError(t, tx.Commit())
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, db, "education.group_teacher", pendingRelation.ID)
+	})
+
+	var blockedErr *usersSvc.CaregiverCapabilityBlockedError
+	err = <-resultCh
+	require.ErrorAs(t, err, &blockedErr)
+	require.Len(t, blockedErr.Reasons, 1)
+	assert.Contains(t, blockedErr.Reasons[0], "Stammgruppen-Zuordnungen")
+
+	state, err := factory.CaregiverCapability.GetCaregiverCapability(ctx, account.ID)
+	require.NoError(t, err)
+	assert.True(t, state.HasUserRole)
+	assert.True(t, state.DisableBlocked)
+	assert.Len(t, state.GroupAssignments, 1)
 }
 
 func TestCaregiverCapability_RequiresTenantContextAndMapping(t *testing.T) {
