@@ -6,6 +6,9 @@ import { describe, it, expect, vi } from "vitest";
 import { groupsConfig } from "./groups.config";
 import type { Group } from "@/lib/group-helpers";
 
+const mockFetch = vi.fn();
+global.fetch = mockFetch as unknown as typeof fetch;
+
 // Mock mapGroupResponse
 vi.mock("@/lib/group-helpers", async () => {
   const actual = await vi.importActual("@/lib/group-helpers");
@@ -181,5 +184,65 @@ describe("groupsConfig", () => {
   it("has custom labels", () => {
     expect(groupsConfig.labels?.createButton).toBe("Neue Gruppe erstellen");
     expect(groupsConfig.labels?.deleteConfirmation).toContain("löschen");
+  });
+
+  it("loads caregiver teacher options from wrapped responses", async () => {
+    mockFetch.mockResolvedValueOnce({
+      json: async () => ({
+        data: [
+          {
+            id: "10",
+            first_name: "Ada",
+            last_name: "Lovelace",
+            specialization: "Springer",
+            teacher_id: "77",
+          },
+        ],
+      }),
+    });
+
+    const teacherField = groupsConfig.form.sections[0]?.fields.find(
+      (field) => field.name === "teacher_ids",
+    );
+    const options = await teacherField?.options?.();
+
+    expect(mockFetch).toHaveBeenCalledWith("/api/staff/by-role?role=user");
+    expect(options).toEqual([
+      { value: "77", label: "Ada Lovelace (Springer)" },
+    ]);
+  });
+
+  it("loads caregiver teacher options from array responses and skips staff without teacher ids", async () => {
+    mockFetch.mockResolvedValueOnce({
+      json: async () => [
+        {
+          id: "10",
+          full_name: "Ada Lovelace",
+          teacher_id: "77",
+        },
+        {
+          id: "11",
+          full_name: "Ignored Staff",
+        },
+      ],
+    });
+
+    const teacherField = groupsConfig.form.sections[0]?.fields.find(
+      (field) => field.name === "teacher_ids",
+    );
+    const options = await teacherField?.options?.();
+
+    expect(options).toEqual([{ value: "77", label: "Ada Lovelace" }]);
+  });
+
+  it("returns an empty teacher option list when caregiver lookup fails", async () => {
+    mockFetch.mockRejectedValueOnce(new Error("boom"));
+
+    const teacherField = groupsConfig.form.sections[0]?.fields.find(
+      (field) => field.name === "teacher_ids",
+    );
+    const options = await teacherField?.options?.();
+
+    expect(options).toEqual([]);
   });
 });

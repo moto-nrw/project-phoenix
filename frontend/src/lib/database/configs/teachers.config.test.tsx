@@ -218,4 +218,28 @@ describe("teachersConfig", () => {
       expect(typed.email).toBe("exists@example.com");
     });
   });
+
+  it("maps nested person fields including avatar and account id", () => {
+    const mapped = teachersConfig.service?.mapResponse?.({
+      id: 42,
+      specialization: "Mathematik",
+      person: {
+        account_id: 55,
+        email: "nested@example.com",
+        first_name: "Nora",
+        last_name: "Nested",
+        avatar: "/uploads/avatars/global/nora.jpg",
+      },
+    }) as Teacher;
+
+    expect(mapped).toMatchObject({
+      id: "42",
+      name: "Nora Nested",
+      first_name: "Nora",
+      last_name: "Nested",
+      email: "nested@example.com",
+      avatar: "/uploads/avatars/global/nora.jpg",
+      account_id: 55,
+    });
+  });
 });
