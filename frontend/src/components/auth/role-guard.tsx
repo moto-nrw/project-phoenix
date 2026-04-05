@@ -2,7 +2,7 @@
 
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
-import { hasRole } from "~/lib/auth-utils";
+import { hasRole, isCaregiver } from "~/lib/auth-utils";
 import { Loading } from "~/components/ui/loading";
 import { ForbiddenPage } from "~/components/ui/forbidden-page";
 
@@ -25,9 +25,7 @@ export function RoleGuard({ variant, children, message }: RoleGuardProps) {
   }
 
   const isAllowed =
-    variant === "adminOnly"
-      ? hasRole(session, "admin")
-      : hasRole(session, "user");
+    variant === "adminOnly" ? hasRole(session, "admin") : isCaregiver(session);
 
   if (!isAllowed) {
     return <ForbiddenPage message={message} />;

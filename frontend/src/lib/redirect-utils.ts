@@ -3,7 +3,7 @@
  */
 
 import type { Session } from "next-auth";
-import { hasRole } from "~/lib/auth-utils";
+import { hasRole, isCaregiver } from "~/lib/auth-utils";
 
 export interface SupervisionState {
   hasGroups: boolean;
@@ -24,7 +24,7 @@ export function getSmartRedirectPath(
   session: Session | null,
   supervisionState: SupervisionState,
 ): string {
-  const canUseCaregiverFlows = hasRole(session, "user");
+  const canUseCaregiverFlows = isCaregiver(session);
   const canUseAdminFlows = hasRole(session, "admin");
 
   if (canUseCaregiverFlows) {

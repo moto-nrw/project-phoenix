@@ -84,6 +84,21 @@ describe("RoleGuard", () => {
     expect(screen.getByText("Staff Content")).toBeInTheDocument();
   });
 
+  it("renders children for teacher-only account on staffOnly", () => {
+    mockUseSession.mockReturnValue({
+      data: { user: { roles: ["teacher"], token: "tok" } },
+      status: "authenticated",
+    });
+
+    render(
+      <RoleGuard variant="staffOnly">
+        <div>Staff Content</div>
+      </RoleGuard>,
+    );
+
+    expect(screen.getByText("Staff Content")).toBeInTheDocument();
+  });
+
   it("renders children for dual-role account on staffOnly", () => {
     mockUseSession.mockReturnValue({
       data: { user: { roles: ["admin", "user"], token: "tok" } },

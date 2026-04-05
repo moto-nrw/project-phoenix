@@ -109,6 +109,19 @@ describe("redirect-utils", () => {
       expect(result).toBe("/ogs-groups");
     });
 
+    it("should treat teacher-only accounts as caregiver users", () => {
+      const session = createSession(["teacher"]);
+      const supervisionState: SupervisionState = {
+        hasGroups: false,
+        isLoadingGroups: false,
+        isSupervising: true,
+        isLoadingSupervision: false,
+      };
+
+      const result = getSmartRedirectPath(session, supervisionState);
+      expect(result).toBe("/active-supervisions");
+    });
+
     it("should prioritize caregiver access over admin when both roles are present", () => {
       const session = createSession(["admin", "user"]);
       const supervisionState: SupervisionState = {
@@ -288,6 +301,21 @@ describe("redirect-utils", () => {
 
       expect(result.isReady).toBe(true);
       expect(result.redirectPath).toBe("/active-supervisions");
+    });
+
+    it("should return caregiver path for teacher-only accounts when ready", () => {
+      const session = createSession(["teacher"]);
+      const supervisionState: SupervisionState = {
+        hasGroups: true,
+        isLoadingGroups: false,
+        isSupervising: false,
+        isLoadingSupervision: false,
+      };
+
+      const result = useSmartRedirectPath(session, supervisionState);
+
+      expect(result.isReady).toBe(true);
+      expect(result.redirectPath).toBe("/ogs-groups");
     });
 
     it("should handle null session", () => {

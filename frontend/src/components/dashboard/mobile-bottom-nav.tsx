@@ -14,7 +14,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { useShellAuth } from "~/lib/shell-auth-context";
-import { hasRole } from "~/lib/auth-utils";
+import { hasRole, isCaregiver } from "~/lib/auth-utils";
 import { navigationIcons } from "~/lib/navigation-icons";
 import { operatorPath } from "~/lib/operator-url";
 import {
@@ -275,7 +275,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   const baseMain =
     mode === "operator"
       ? resolvedOperatorMainItems
-      : hasRole(session, "user")
+      : isCaregiver(session)
         ? STAFF_MAIN_ITEMS
         : hasRole(session, "admin")
           ? ADMIN_MAIN_ITEMS
@@ -284,7 +284,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
 
   // Pre-compute permission flags to reduce complexity in filter
   const userIsAdmin = hasRole(session, "admin");
-  const userIsCaregiver = hasRole(session, "user");
+  const userIsCaregiver = isCaregiver(session);
   const hasGroupSupervision = !isLoadingGroups && hasGroups;
   const hasRoomSupervision = !isLoadingSupervision && isSupervising;
 

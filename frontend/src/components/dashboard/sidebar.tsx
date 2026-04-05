@@ -9,7 +9,7 @@ import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
 import { useSession } from "next-auth/react";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { useShellAuth } from "~/lib/shell-auth-context";
-import { hasRole } from "~/lib/auth-utils";
+import { hasRole, isCaregiver } from "~/lib/auth-utils";
 import { operatorPath } from "~/lib/operator-url";
 import { useSidebarAccordion } from "~/lib/hooks/use-sidebar-accordion";
 import { useSuggestionsUnread } from "~/lib/hooks/use-suggestions-unread";
@@ -256,7 +256,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const { expanded, toggle } = useSidebarAccordion(pathname, fromParam);
 
   const userIsAdmin = hasRole(session, "admin");
-  const userIsCaregiver = hasRole(session, "user");
+  const userIsCaregiver = isCaregiver(session);
 
   // Filter flat navigation items based on permissions
   const filteredNavItems = NAV_ITEMS.filter((item) => {

@@ -25,7 +25,7 @@ export function isAdmin(session: Session | null): boolean {
  * Check if the user can access caregiver workflows.
  */
 export function isCaregiver(session: Session | null): boolean {
-  return hasRole(session, "user");
+  return hasAnyRole(session, ["user", "teacher"]);
 }
 
 /**

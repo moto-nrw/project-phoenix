@@ -169,6 +169,20 @@ describe("auth-utils", () => {
       expect(isCaregiver(session)).toBe(true);
     });
 
+    it('should return true when user has the "teacher" role', () => {
+      const session: Session = {
+        user: {
+          id: "1",
+          email: "teacher@example.com",
+          roles: ["teacher"],
+          token: "token",
+        },
+        expires: "2024-12-31",
+      };
+
+      expect(isCaregiver(session)).toBe(true);
+    });
+
     it("should return false when caregiver role is missing", () => {
       const session: Session = {
         user: {
