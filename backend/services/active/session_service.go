@@ -136,10 +136,20 @@ func (s *service) validateSupervisorIDs(ctx context.Context, supervisorIDs []int
 		uniqueIDs[id] = true
 	}
 
-	// Validate each unique supervisor ID exists
+	// Batch-validate all unique supervisor IDs in a single query
+	idSlice := make([]int64, 0, len(uniqueIDs))
 	for id := range uniqueIDs {
-		_, err := s.staffRepo.FindByID(ctx, id)
-		if err != nil {
+		idSlice = append(idSlice, id)
+	}
+
+	staffMap, err := s.staffRepo.FindByIDs(ctx, idSlice)
+	if err != nil {
+		return &ActiveError{Op: "ValidateSupervisors", Err: ErrStaffNotFound}
+	}
+
+	// Check that every requested ID was found
+	for _, id := range idSlice {
+		if _, found := staffMap[id]; !found {
 			return &ActiveError{Op: "ValidateSupervisors", Err: ErrStaffNotFound}
 		}
 	}
@@ -223,7 +233,8 @@ func (s *service) createSessionWithMultipleSupervisors(ctx context.Context, acti
 	return newGroup, nil
 }
 
-// assignMultipleSupervisorsNonCritical assigns multiple supervisors but doesn't fail if assignment fails
+// assignMultipleSupervisorsNonCritical assigns multiple supervisors but doesn't fail if assignment fails.
+// Each supervisor is inserted independently so one bad row doesn't prevent the other valid assignments.
 func (s *service) assignMultipleSupervisorsNonCritical(ctx context.Context, groupID int64, supervisorIDs []int64, startDate time.Time) {
 	// Deduplicate supervisor IDs
 	uniqueSupervisors := make(map[int64]bool)
@@ -236,7 +247,6 @@ func (s *service) assignMultipleSupervisorsNonCritical(ctx context.Context, grou
 		slog.Int("unique_count", len(uniqueSupervisors)),
 	)
 
-	// Assign each unique supervisor
 	for staffID := range uniqueSupervisors {
 		supervisor := &active.GroupSupervisor{
 			StaffID:   staffID,

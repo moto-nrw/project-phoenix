@@ -151,6 +151,10 @@ type GroupSupervisorRepository interface {
 	// Returns the number of supervisions that were ended
 	EndAllActiveByStaffID(ctx context.Context, staffID int64) (int, error)
 
+	// CreateBulk inserts multiple supervisors in a single query.
+	// All supervisors must have valid fields and tenant IDs set before calling.
+	CreateBulk(ctx context.Context, supervisors []*GroupSupervisor) error
+
 	// EndSupervisionsByActiveGroupIDs ends all active supervisions for multiple group IDs in a single query.
 	// Returns the number of supervisions ended.
 	EndSupervisionsByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) (int64, error)

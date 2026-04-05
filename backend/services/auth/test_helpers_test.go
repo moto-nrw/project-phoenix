@@ -1160,6 +1160,14 @@ func (r *stubStaffRepository) ListAllWithPerson(context.Context) ([]*userModel.S
 	panic("ListAllWithPerson not implemented")
 }
 
+func (r *stubStaffRepository) FindByIDs(context.Context, []int64) (map[int64]*userModel.Staff, error) {
+	panic("FindByIDs not implemented")
+}
+
+func (r *stubStaffRepository) FindWithPersonByIDs(context.Context, []int64) (map[int64]*userModel.Staff, error) {
+	panic("FindWithPersonByIDs not implemented")
+}
+
 func (r *stubStaffRepository) ListStaffByRoles(context.Context, []string) ([]*userModel.StaffWithRoleInfo, error) {
 	panic("ListStaffByRoles not implemented")
 }

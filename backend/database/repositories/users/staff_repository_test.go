@@ -287,6 +287,75 @@ func TestStaffRepository_FindWithPerson(t *testing.T) {
 	})
 }
 
+func TestStaffRepository_FindWithPersonByIDs(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).Staff
+	ctx := testpkg.TenantContext(1)
+
+	t.Run("leaves person nil for soft-deleted people", func(t *testing.T) {
+		activeStaff := testpkg.CreateTestStaff(t, db, "Visible", "Supervisor")
+		deletedStaff := testpkg.CreateTestStaff(t, db, "Deleted", "Supervisor")
+		defer cleanupStaffRecords(t, db, activeStaff.ID, deletedStaff.ID)
+
+		_, err := db.NewUpdate().
+			TableExpr("users.persons").
+			Set("deleted_at = NOW()").
+			Where("id = ?", deletedStaff.PersonID).
+			Exec(ctx)
+		require.NoError(t, err)
+
+		found, err := repo.FindWithPersonByIDs(ctx, []int64{activeStaff.ID, deletedStaff.ID})
+		require.NoError(t, err)
+
+		require.Contains(t, found, activeStaff.ID)
+		require.NotNil(t, found[activeStaff.ID])
+		require.NotNil(t, found[activeStaff.ID].Person)
+		assert.Equal(t, "Visible", found[activeStaff.ID].Person.FirstName)
+
+		require.Contains(t, found, deletedStaff.ID)
+		require.NotNil(t, found[deletedStaff.ID])
+		assert.Nil(t, found[deletedStaff.ID].Person)
+	})
+
+	t.Run("returns empty map for empty input", func(t *testing.T) {
+		found, err := repo.FindWithPersonByIDs(ctx, []int64{})
+		require.NoError(t, err)
+		assert.Empty(t, found)
+	})
+}
+
+func TestStaffRepository_FindByIDs(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).Staff
+	ctx := testpkg.TenantContext(1)
+
+	t.Run("returns requested staff members keyed by ID", func(t *testing.T) {
+		staff1 := testpkg.CreateTestStaff(t, db, "FindByIDs", "One")
+		staff2 := testpkg.CreateTestStaff(t, db, "FindByIDs", "Two")
+		unrequested := testpkg.CreateTestStaff(t, db, "FindByIDs", "Ignored")
+		defer cleanupStaffRecords(t, db, staff1.ID, staff2.ID, unrequested.ID)
+
+		found, err := repo.FindByIDs(ctx, []int64{staff1.ID, staff2.ID})
+		require.NoError(t, err)
+		require.Len(t, found, 2)
+		require.Contains(t, found, staff1.ID)
+		require.Contains(t, found, staff2.ID)
+		assert.Equal(t, staff1.PersonID, found[staff1.ID].PersonID)
+		assert.Equal(t, staff2.PersonID, found[staff2.ID].PersonID)
+		assert.NotContains(t, found, unrequested.ID)
+	})
+
+	t.Run("returns empty map for empty input", func(t *testing.T) {
+		found, err := repo.FindByIDs(ctx, []int64{})
+		require.NoError(t, err)
+		assert.Empty(t, found)
+	})
+}
+
 // ============================================================================
 // UpdateNotes Tests
 // ============================================================================
