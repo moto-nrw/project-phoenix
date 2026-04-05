@@ -61,6 +61,7 @@ function mapTeacherResponse(data: unknown): Teacher {
     avatar: avatar,
     specialization: (typedData.specialization as string) ?? "",
     role: typedData.role as string | null | undefined,
+    account_role: typedData.account_role as string | null | undefined,
     qualifications: typedData.qualifications as string | null | undefined,
     tag_id: tagId,
     staff_notes: typedData.staff_notes as string | null | undefined,

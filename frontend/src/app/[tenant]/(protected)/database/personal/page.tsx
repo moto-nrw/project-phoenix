@@ -3,6 +3,7 @@
 import { createLogger } from "~/lib/logger";
 import Image from "next/image";
 import { useState, useMemo, useCallback } from "react";
+import { getRoleDisplayName } from "~/lib/auth-helpers";
 
 const logger = createLogger({ component: "DatabaseTeachersPage" });
 import { useSession } from "next-auth/react";
@@ -116,6 +117,16 @@ export default function TeachersPage() {
     ? "Fehler beim Laden des Personals. Bitte versuchen Sie es später erneut."
     : null;
 
+  // Extract unique positions for autocomplete suggestions
+  const existingPositions = useMemo(() => {
+    const teachers = teachersData ?? [];
+    const positions = new Set<string>();
+    for (const t of teachers) {
+      if (t.role?.trim()) positions.add(t.role.trim());
+    }
+    return [...positions].sort((a, b) => a.localeCompare(b, "de"));
+  }, [teachersData]);
+
   // Apply filters (use teachersData directly to avoid dependency issues)
   const filteredTeachers = useMemo(() => {
     const teachers = teachersData ?? [];
@@ -130,6 +141,8 @@ export default function TeachersPage() {
           (teacher.last_name?.toLowerCase().includes(searchLower) ?? false) ||
           (teacher.name?.toLowerCase().includes(searchLower) ?? false) ||
           (teacher.role?.toLowerCase().includes(searchLower) ?? false) ||
+          (teacher.account_role?.toLowerCase().includes(searchLower) ??
+            false) ||
           (teacher.specialization?.toLowerCase().includes(searchLower) ??
             false) ||
           (teacher.email?.toLowerCase().includes(searchLower) ?? false),
@@ -455,9 +468,24 @@ export default function TeachersPage() {
                     <h3 className="text-lg font-semibold text-gray-900 transition-colors duration-300 md:group-hover:text-orange-600">
                       {displayName}
                     </h3>
-                    {teacher.role && (
+                    {(teacher.account_role || teacher.role) && (
                       <p className="mt-0.5 text-sm text-gray-500">
-                        {teacher.role}
+                        {(() => {
+                          const displayRole = teacher.account_role
+                            ? getRoleDisplayName(teacher.account_role)
+                            : null;
+                          const position =
+                            teacher.role &&
+                            teacher.role.toLowerCase() !==
+                              displayRole?.toLowerCase() &&
+                            teacher.role.toLowerCase() !==
+                              teacher.account_role?.toLowerCase()
+                              ? teacher.role
+                              : null;
+                          return [displayRole, position]
+                            .filter(Boolean)
+                            .join(" · ");
+                        })()}
                       </p>
                     )}
                     {teacher.email && (
@@ -552,6 +580,7 @@ export default function TeachersPage() {
         title="Personal einladen"
       >
         <InvitationForm
+          existingPositions={existingPositions}
           onCreated={() => {
             setInvitationRefreshKey(Date.now());
             setShowInviteModal(false);
@@ -604,6 +633,7 @@ export default function TeachersPage() {
           teacher={selectedTeacher}
           onSave={handleEditTeacher}
           loading={detailLoading}
+          existingPositions={existingPositions}
         />
       )}
 

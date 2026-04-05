@@ -18,6 +18,7 @@ const logger = createLogger({ component: "InvitationForm" });
 
 interface InvitationFormProps {
   readonly onCreated?: (invitation: PendingInvitation) => void;
+  readonly existingPositions?: readonly string[];
 }
 
 interface RoleOption {
@@ -33,7 +34,10 @@ const initialForm: CreateInvitationRequest = {
   position: "",
 };
 
-export function InvitationForm({ onCreated }: InvitationFormProps) {
+export function InvitationForm({
+  onCreated,
+  existingPositions = [],
+}: InvitationFormProps) {
   const [form, setForm] = useState<CreateInvitationRequest>(initialForm);
   const [roles, setRoles] = useState<RoleOption[]>([]);
   const [isLoadingRoles, setIsLoadingRoles] = useState(true);
@@ -308,39 +312,25 @@ export function InvitationForm({ onCreated }: InvitationFormProps) {
           >
             Position (optional)
           </label>
-          <div className="relative">
-            <select
-              id="invitation-position"
-              className="w-full appearance-none rounded-lg border border-gray-200 bg-white px-3 py-2 pr-10 text-sm text-gray-900 transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-200 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500"
-              value={form.position ?? ""}
-              onChange={(event) =>
-                handleChange("position")(event.target.value || undefined)
-              }
-              disabled={isSubmitting}
-            >
-              <option value="">Position auswählen...</option>
-              <option value="Pädagogische Fachkraft">
-                Pädagogische Fachkraft
-              </option>
-              <option value="OGS-Büro">OGS-Büro</option>
-              <option value="Extern">Extern</option>
-            </select>
-            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-              <svg
-                className="h-4 w-4 text-gray-400"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M19 9l-7 7-7-7"
-                />
-              </svg>
-            </div>
-          </div>
+          <input
+            type="text"
+            id="invitation-position"
+            list="invitation-position-suggestions"
+            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-200 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500"
+            value={form.position ?? ""}
+            onChange={(event) =>
+              handleChange("position")(event.target.value || undefined)
+            }
+            placeholder="z.B. Pädagogische Fachkraft, OGS-Büro"
+            disabled={isSubmitting}
+          />
+          {existingPositions.length > 0 && (
+            <datalist id="invitation-position-suggestions">
+              {existingPositions.map((pos) => (
+                <option key={pos} value={pos} />
+              ))}
+            </datalist>
+          )}
         </div>
 
         <button
