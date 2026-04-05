@@ -204,7 +204,11 @@ describe("groupsConfig", () => {
     const teacherField = groupsConfig.form.sections[0]?.fields.find(
       (field) => field.name === "teacher_ids",
     );
-    const options = await teacherField?.options?.();
+    const loadOptions =
+      teacherField && typeof teacherField.options === "function"
+        ? teacherField.options
+        : undefined;
+    const options = await loadOptions?.();
 
     expect(mockFetch).toHaveBeenCalledWith("/api/staff/by-role?role=user");
     expect(options).toEqual([
@@ -230,7 +234,11 @@ describe("groupsConfig", () => {
     const teacherField = groupsConfig.form.sections[0]?.fields.find(
       (field) => field.name === "teacher_ids",
     );
-    const options = await teacherField?.options?.();
+    const loadOptions =
+      teacherField && typeof teacherField.options === "function"
+        ? teacherField.options
+        : undefined;
+    const options = await loadOptions?.();
 
     expect(options).toEqual([{ value: "77", label: "Ada Lovelace" }]);
   });
@@ -241,7 +249,11 @@ describe("groupsConfig", () => {
     const teacherField = groupsConfig.form.sections[0]?.fields.find(
       (field) => field.name === "teacher_ids",
     );
-    const options = await teacherField?.options?.();
+    const loadOptions =
+      teacherField && typeof teacherField.options === "function"
+        ? teacherField.options
+        : undefined;
+    const options = await loadOptions?.();
 
     expect(options).toEqual([]);
   });
