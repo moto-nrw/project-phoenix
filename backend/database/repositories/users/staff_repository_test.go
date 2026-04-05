@@ -287,6 +287,39 @@ func TestStaffRepository_FindWithPerson(t *testing.T) {
 	})
 }
 
+func TestStaffRepository_FindWithPersonByIDs(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).Staff
+	ctx := testpkg.TenantContext(1)
+
+	t.Run("leaves person nil for soft-deleted people", func(t *testing.T) {
+		activeStaff := testpkg.CreateTestStaff(t, db, "Visible", "Supervisor")
+		deletedStaff := testpkg.CreateTestStaff(t, db, "Deleted", "Supervisor")
+		defer cleanupStaffRecords(t, db, activeStaff.ID, deletedStaff.ID)
+
+		_, err := db.NewUpdate().
+			TableExpr("users.persons").
+			Set("deleted_at = NOW()").
+			Where("id = ?", deletedStaff.PersonID).
+			Exec(ctx)
+		require.NoError(t, err)
+
+		found, err := repo.FindWithPersonByIDs(ctx, []int64{activeStaff.ID, deletedStaff.ID})
+		require.NoError(t, err)
+
+		require.Contains(t, found, activeStaff.ID)
+		require.NotNil(t, found[activeStaff.ID])
+		require.NotNil(t, found[activeStaff.ID].Person)
+		assert.Equal(t, "Visible", found[activeStaff.ID].Person.FirstName)
+
+		require.Contains(t, found, deletedStaff.ID)
+		require.NotNil(t, found[deletedStaff.ID])
+		assert.Nil(t, found[deletedStaff.ID].Person)
+	})
+}
+
 // ============================================================================
 // UpdateNotes Tests
 // ============================================================================

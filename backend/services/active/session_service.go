@@ -234,7 +234,7 @@ func (s *service) createSessionWithMultipleSupervisors(ctx context.Context, acti
 }
 
 // assignMultipleSupervisorsNonCritical assigns multiple supervisors but doesn't fail if assignment fails.
-// Uses a single bulk INSERT for all supervisors instead of N individual INSERTs.
+// Each supervisor is inserted independently so one bad row doesn't prevent the other valid assignments.
 func (s *service) assignMultipleSupervisorsNonCritical(ctx context.Context, groupID int64, supervisorIDs []int64, startDate time.Time) {
 	// Deduplicate supervisor IDs
 	uniqueSupervisors := make(map[int64]bool)
@@ -247,26 +247,21 @@ func (s *service) assignMultipleSupervisorsNonCritical(ctx context.Context, grou
 		slog.Int("unique_count", len(uniqueSupervisors)),
 	)
 
-	// Build all supervisor records for bulk insert
-	tenantID := tenant.FromContext(ctx)
-	supervisors := make([]*active.GroupSupervisor, 0, len(uniqueSupervisors))
 	for staffID := range uniqueSupervisors {
-		sup := &active.GroupSupervisor{
+		supervisor := &active.GroupSupervisor{
 			StaffID:   staffID,
 			GroupID:   groupID,
 			Role:      "supervisor",
 			StartDate: startDate,
 		}
-		sup.SetTenantID(tenantID)
-		supervisors = append(supervisors, sup)
-	}
-
-	if err := s.supervisorRepo.CreateBulk(ctx, supervisors); err != nil {
-		s.getLogger().WarnContext(ctx, "bulk supervisor assignment failed",
-			slog.Int64("group_id", groupID),
-			slog.Int("count", len(supervisors)),
-			slog.String("error", err.Error()),
-		)
+		supervisor.SetTenantID(tenant.FromContext(ctx))
+		if err := s.supervisorRepo.Create(ctx, supervisor); err != nil {
+			s.getLogger().WarnContext(ctx, "supervisor assignment failed",
+				slog.Int64("staff_id", staffID),
+				slog.Int64("group_id", groupID),
+				slog.String("error", err.Error()),
+			)
+		}
 	}
 }
 

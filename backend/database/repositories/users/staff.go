@@ -316,7 +316,7 @@ func (r *StaffRepository) FindWithPersonByIDs(ctx context.Context, ids []int64) 
 		ColumnExpr(`"person".last_name AS "person__last_name"`).
 		ColumnExpr(`"person".tag_id AS "person__tag_id"`).
 		ColumnExpr(`"person".account_id AS "person__account_id"`).
-		Join(`LEFT JOIN users.persons AS "person" ON "person".id = "staff".person_id`).
+		Join(`LEFT JOIN users.persons AS "person" ON "person".id = "staff".person_id AND "person".deleted_at IS NULL`).
 		Where(`"staff".id IN (?)`, bun.List(ids))
 
 	if where, val, ok := base.TenantWhere(ctx, "staff"); ok {
