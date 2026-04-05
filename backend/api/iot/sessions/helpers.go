@@ -95,15 +95,37 @@ func (rs *Resource) buildSessionStartResponse(ctx context.Context, activeGroup *
 	return response
 }
 
-// buildSupervisorInfos builds supervisor information from supervisor list
+// buildSupervisorInfos builds supervisor information from supervisor list.
+// Uses a single batch query to fetch all staff+person data instead of N individual queries.
 func (rs *Resource) buildSupervisorInfos(ctx context.Context, supervisors []*active.GroupSupervisor) []SupervisorInfo {
-	supervisorInfos := make([]SupervisorInfo, 0, len(supervisors))
+	if len(supervisors) == 0 {
+		return nil
+	}
+
+	// Collect unique staff IDs
+	staffIDs := make([]int64, 0, len(supervisors))
+	seen := make(map[int64]bool, len(supervisors))
+	for _, sup := range supervisors {
+		if !seen[sup.StaffID] {
+			staffIDs = append(staffIDs, sup.StaffID)
+			seen[sup.StaffID] = true
+		}
+	}
+
+	// Batch fetch all staff with person data in a single query
 	staffRepo := rs.UsersService.StaffRepository()
+	staffMap, err := staffRepo.FindWithPersonByIDs(ctx, staffIDs)
+	if err != nil {
+		slog.Default().WarnContext(ctx, "batch staff lookup failed, falling back to empty list",
+			slog.String("error", err.Error()),
+		)
+		return nil
+	}
 
+	supervisorInfos := make([]SupervisorInfo, 0, len(supervisors))
 	for _, supervisor := range supervisors {
-		staff, err := staffRepo.FindWithPerson(ctx, supervisor.StaffID)
-
-		if err == nil && staff != nil && staff.Person != nil {
+		staff, ok := staffMap[supervisor.StaffID]
+		if ok && staff != nil && staff.Person != nil {
 			supervisorInfos = append(supervisorInfos, SupervisorInfo{
 				StaffID:     supervisor.StaffID,
 				FirstName:   staff.Person.FirstName,

@@ -165,6 +165,12 @@ type StaffRepository interface {
 	// FindWithPerson retrieves a staff member with their associated person data
 	FindWithPerson(ctx context.Context, id int64) (*Staff, error)
 
+	// FindByIDs retrieves multiple staff members by their IDs in a single query
+	FindByIDs(ctx context.Context, ids []int64) (map[int64]*Staff, error)
+
+	// FindWithPersonByIDs retrieves multiple staff members with their associated person data in a single query
+	FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*Staff, error)
+
 	// ListStaffByRoles retrieves staff members who have any of the specified roles,
 	// including their person data, account ID, and email, using a single JOIN query.
 	ListStaffByRoles(ctx context.Context, roles []string) ([]*StaffWithRoleInfo, error)

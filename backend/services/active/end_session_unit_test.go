@@ -311,6 +311,10 @@ func (m *mockGroupSupervisorRepository) EndAllActiveByStaffID(ctx context.Contex
 	return 0, nil
 }
 
+func (m *mockGroupSupervisorRepository) CreateBulk(ctx context.Context, supervisors []*active.GroupSupervisor) error {
+	return nil
+}
+
 func (m *mockGroupSupervisorRepository) EndSupervisionsByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) (int64, error) {
 	return 0, nil
 }
