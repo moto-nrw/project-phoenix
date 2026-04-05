@@ -108,8 +108,8 @@ describe("CaregiverBlockerResolutionModal", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetAllAvailableStaff.mockResolvedValue([
-      { id: "20", fullName: "Current Caregiver" },
-      { id: "21", fullName: "Other Caregiver" },
+      { id: "20", fullName: "Current Caregiver", teacherId: "30" },
+      { id: "21", fullName: "Other Caregiver", teacherId: "32" },
     ]);
   });
 
@@ -292,7 +292,7 @@ describe("CaregiverBlockerResolutionModal", () => {
     });
   });
 
-  it("updates group teachers when reassigning a Stammgruppe", async () => {
+  it("preserves other group leaders when removing a Stammgruppe assignment", async () => {
     mockFetch.mockResolvedValue({ ok: true });
 
     render(
@@ -307,6 +307,45 @@ describe("CaregiverBlockerResolutionModal", () => {
               groupId: "14",
               groupName: "Gruppe Gelb",
               teacherId: "30",
+              teacherIds: ["30", "31"],
+            },
+          ],
+        })}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Entfernen"));
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/groups/14",
+        expect.objectContaining({
+          method: "PUT",
+          body: JSON.stringify({ name: "Gruppe Gelb", teacher_ids: [31] }),
+        }),
+      );
+    });
+    expect(mockToastSuccess).toHaveBeenCalledWith(
+      'Gruppenleitung für "Gruppe Gelb" entfernt.',
+    );
+  });
+
+  it("preserves other group leaders when reassigning a Stammgruppe", async () => {
+    mockFetch.mockResolvedValue({ ok: true });
+
+    render(
+      <CaregiverBlockerResolutionModal
+        isOpen={true}
+        onClose={vi.fn()}
+        onResolved={vi.fn()}
+        state={createState({
+          groupAssignments: [
+            {
+              id: "10",
+              groupId: "14",
+              groupName: "Gruppe Gelb",
+              teacherId: "30",
+              teacherIds: ["30", "31"],
             },
           ],
         })}
@@ -327,7 +366,7 @@ describe("CaregiverBlockerResolutionModal", () => {
         "/api/groups/14",
         expect.objectContaining({
           method: "PUT",
-          body: JSON.stringify({ name: "Gruppe Gelb", teacher_ids: [21] }),
+          body: JSON.stringify({ name: "Gruppe Gelb", teacher_ids: [31, 32] }),
         }),
       );
     });

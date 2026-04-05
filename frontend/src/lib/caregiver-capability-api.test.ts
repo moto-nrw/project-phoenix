@@ -57,7 +57,13 @@ const backendState = {
     },
   ],
   group_assignments: [
-    { id: 5, group_id: 6, group_name: "Gruppe Gelb", teacher_id: 7 },
+    {
+      id: 5,
+      group_id: 6,
+      group_name: "Gruppe Gelb",
+      teacher_id: 7,
+      teacher_ids: [7, 8],
+    },
   ],
 };
 
@@ -101,6 +107,7 @@ describe("caregiverCapabilityService", () => {
         groupId: "6",
         groupName: "Gruppe Gelb",
         teacherId: "7",
+        teacherIds: ["7", "8"],
       },
     ]);
   });

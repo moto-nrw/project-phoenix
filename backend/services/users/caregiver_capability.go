@@ -489,8 +489,16 @@ func (s *caregiverCapabilityService) listGroupTeacherAssignments(
 
 	var results []userModels.BlockerGroup
 	err := db.NewRaw(`
-		SELECT gt.id, gt.group_id, COALESCE(g.name, 'Unbekannte Gruppe') AS group_name,
-		       gt.teacher_id
+		SELECT gt.id,
+		       gt.group_id,
+		       COALESCE(g.name, 'Unbekannte Gruppe') AS group_name,
+		       gt.teacher_id,
+		       COALESCE((
+		           SELECT ARRAY_AGG(gt_all.teacher_id ORDER BY gt_all.id)
+		           FROM education.group_teacher AS gt_all
+		           WHERE gt_all.tenant_id = gt.tenant_id
+		             AND gt_all.group_id = gt.group_id
+		       ), '{}'::bigint[]) AS teacher_ids
 		FROM education.group_teacher AS gt
 		LEFT JOIN education.groups AS g ON g.id = gt.group_id AND g.tenant_id = gt.tenant_id
 		WHERE gt.tenant_id = ?

@@ -210,6 +210,26 @@ func TestCaregiverCapability_DisableReturnsDetailedBlockers(t *testing.T) {
 	t.Cleanup(func() {
 		testpkg.CleanupTableRecords(t, db, "education.group_teacher", groupTeacher.ID)
 	})
+	otherTeacher, otherAccount := testpkg.CreateTestTeacherWithAccount(
+		t,
+		db,
+		"Second",
+		"Leader",
+	)
+	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, otherAccount.ID) })
+	t.Cleanup(func() {
+		testpkg.CleanupActivityFixtures(
+			t,
+			db,
+			otherTeacher.ID,
+			otherTeacher.Staff.ID,
+			otherTeacher.Staff.Person.ID,
+		)
+	})
+	otherGroupTeacher := testpkg.CreateTestGroupTeacher(t, db, group.ID, otherTeacher.ID)
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, db, "education.group_teacher", otherGroupTeacher.ID)
+	})
 
 	room := testpkg.CreateTestRoomForTenant(t, db, 1, "Blocked Room")
 	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID) })
@@ -262,6 +282,12 @@ func TestCaregiverCapability_DisableReturnsDetailedBlockers(t *testing.T) {
 	assert.Len(t, state.ActiveSubstitutions, 1)
 	assert.Len(t, state.ActivitySupervisions, 1)
 	assert.Len(t, state.GroupAssignments, 1)
+	assert.Equal(t, teacher.ID, state.GroupAssignments[0].TeacherID)
+	assert.ElementsMatch(
+		t,
+		[]int64{teacher.ID, otherTeacher.ID},
+		state.GroupAssignments[0].TeacherIDs,
+	)
 
 	var blockedErr *usersSvc.CaregiverCapabilityBlockedError
 	_, err = factory.CaregiverCapability.DisableCaregiverCapability(ctx, account.ID)

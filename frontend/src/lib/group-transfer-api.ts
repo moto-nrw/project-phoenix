@@ -10,6 +10,7 @@ const logger = createLogger({ component: "GroupTransferAPI" });
 export interface StaffWithRole {
   id: string;
   personId: string;
+  teacherId?: string;
   firstName: string;
   lastName: string;
   fullName: string;
@@ -30,6 +31,7 @@ export interface GroupTransfer {
 interface BackendStaffWithRole {
   id: number;
   person_id: number;
+  teacher_id?: number;
   first_name: string;
   last_name: string;
   full_name: string;
@@ -42,6 +44,7 @@ function mapStaffWithRole(data: BackendStaffWithRole): StaffWithRole {
   return {
     id: data.id.toString(),
     personId: data.person_id.toString(),
+    teacherId: data.teacher_id?.toString(),
     firstName: data.first_name,
     lastName: data.last_name,
     fullName: data.full_name,

@@ -58,10 +58,11 @@ type BlockerActivity struct {
 
 // BlockerGroup represents a group-teacher assignment that blocks disable.
 type BlockerGroup struct {
-	ID        int64  `json:"id"`
-	GroupID   int64  `json:"group_id"`
-	GroupName string `json:"group_name"`
-	TeacherID int64  `json:"teacher_id"`
+	ID         int64   `json:"id"`
+	GroupID    int64   `json:"group_id"`
+	GroupName  string  `json:"group_name"`
+	TeacherID  int64   `json:"teacher_id"`
+	TeacherIDs []int64 `bun:"teacher_ids,array" json:"teacher_ids,omitempty"`
 }
 
 // EnableCaregiverCapabilityInput supplies missing profile data when an existing

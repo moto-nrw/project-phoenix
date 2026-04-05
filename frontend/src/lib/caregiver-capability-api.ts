@@ -28,6 +28,7 @@ export interface BlockerGroup {
   groupId: string;
   groupName: string;
   teacherId: string;
+  teacherIds: string[];
 }
 
 export interface CaregiverCapabilityState {
@@ -80,6 +81,7 @@ interface BackendBlockerGroup {
   group_id: number;
   group_name: string;
   teacher_id: number;
+  teacher_ids?: number[];
 }
 
 interface BackendCaregiverCapabilityState {
@@ -181,6 +183,9 @@ function mapCapabilityState(
       groupId: g.group_id.toString(),
       groupName: g.group_name,
       teacherId: g.teacher_id.toString(),
+      teacherIds: (g.teacher_ids ?? []).map((teacherId) =>
+        teacherId.toString(),
+      ),
     })),
   };
 }

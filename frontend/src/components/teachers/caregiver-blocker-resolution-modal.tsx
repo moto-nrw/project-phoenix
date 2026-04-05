@@ -110,6 +110,31 @@ async function updateGroupTeachers(
   }
 }
 
+function buildUpdatedTeacherIds(
+  group: BlockerGroup,
+  replacementTeacherId?: string,
+): number[] {
+  const currentTeacherIds =
+    group.teacherIds.length > 0 ? group.teacherIds : [group.teacherId];
+  const nextTeacherIds = currentTeacherIds.filter(
+    (id) => id !== group.teacherId,
+  );
+
+  if (replacementTeacherId && !nextTeacherIds.includes(replacementTeacherId)) {
+    nextTeacherIds.push(replacementTeacherId);
+  }
+
+  return nextTeacherIds.map((teacherId) => {
+    const parsedTeacherId = Number.parseInt(teacherId, 10);
+    if (Number.isNaN(parsedTeacherId)) {
+      throw new Error(
+        `Gruppenleitung für "${group.groupName}" enthält eine ungültige Lehrkraft-ID.`,
+      );
+    }
+    return parsedTeacherId;
+  });
+}
+
 export function CaregiverBlockerResolutionModal({
   isOpen,
   onClose,
@@ -261,11 +286,15 @@ export function CaregiverBlockerResolutionModal({
       setItemProcessing(key, true);
       setErrorMessage("");
       const replacementTeacherId = replacementStaffId
-        ? availableStaff.find((s) => s.id === replacementStaffId)
+        ? availableStaff.find((staff) => staff.id === replacementStaffId)
+            ?.teacherId
         : undefined;
-      const newTeacherIds = replacementTeacherId
-        ? [Number(replacementTeacherId.id)]
-        : [];
+      if (replacementStaffId && !replacementTeacherId) {
+        throw new Error(
+          "Die ausgewählte Ersatzkraft kann keiner Stammgruppe zugeordnet werden.",
+        );
+      }
+      const newTeacherIds = buildUpdatedTeacherIds(item, replacementTeacherId);
       await updateGroupTeachers(item.groupId, item.groupName, newTeacherIds);
       setGroups((prev) => prev.filter((g) => g.id !== item.id));
       toastSuccess(
