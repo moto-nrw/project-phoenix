@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import { Modal } from "~/components/ui/modal";
 import { DetailModalActions } from "~/components/ui/detail-modal-actions";
@@ -43,6 +43,12 @@ function InlineNotesEditor({
   const [isEditing, setIsEditing] = useState(false);
   const [notes, setNotes] = useState(initialNotes);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!isEditing) {
+      setNotes(initialNotes);
+    }
+  }, [initialNotes, isEditing]);
 
   const handleSave = async () => {
     try {

@@ -670,10 +670,10 @@ func caregiverCapabilityProvisioningErrorRenderer(err error) render.Renderer {
 }
 
 type caregiverCapabilityBlockedResponse struct {
-	HTTPStatusCode int      `json:"-"`
-	Status         string   `json:"status"`
-	ErrorText      string   `json:"error"`
-	Blockers       []string `json:"blockers"`
+	HTTPStatusCode int                                         `json:"-"`
+	Status         string                                      `json:"status"`
+	ErrorText      string                                      `json:"error"`
+	Blockers       []userModels.CaregiverCapabilityBlockerCode `json:"blockers"`
 }
 
 func (e *caregiverCapabilityBlockedResponse) Render(_ http.ResponseWriter, r *http.Request) error {

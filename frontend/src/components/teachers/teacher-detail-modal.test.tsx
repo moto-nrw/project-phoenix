@@ -352,6 +352,36 @@ describe("TeacherDetailModal", () => {
     ).toBeInTheDocument();
   });
 
+  it("resyncs inline notes when parent props change after cancel", () => {
+    const onUpdateNotes = vi.fn().mockResolvedValue(undefined);
+    const { rerender } = render(
+      <TeacherDetailModal
+        {...defaultProps}
+        onUpdateNotes={onUpdateNotes}
+        teacher={{ ...mockTeacher, staff_notes: "Initial notes" }}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Initial notes"));
+    fireEvent.change(screen.getByPlaceholderText("Notizen hinzufügen..."), {
+      target: { value: "Unsaved local edit" },
+    });
+    fireEvent.click(screen.getByText("Abbrechen"));
+
+    rerender(
+      <TeacherDetailModal
+        {...defaultProps}
+        onUpdateNotes={onUpdateNotes}
+        teacher={{ ...mockTeacher, staff_notes: "Fresh notes from parent" }}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Fresh notes from parent"));
+    expect(
+      screen.getByDisplayValue("Fresh notes from parent"),
+    ).toBeInTheDocument();
+  });
+
   it("starts an email draft when clicking Schreiben", () => {
     const originalHref = window.location.href;
 

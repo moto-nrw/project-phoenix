@@ -194,7 +194,9 @@ func TestDisableCaregiverCapability_RendersBlockedConflict(t *testing.T) {
 		CaregiverCapabilityService: caregiverCapabilityServiceStub{
 			disableFn: func(context.Context, int64) (*userModel.CaregiverCapabilityState, error) {
 				return nil, &usersService.CaregiverCapabilityBlockedError{
-					Reasons: []string{"active supervision"},
+					Reasons: []userModel.CaregiverCapabilityBlockerCode{
+						userModel.CaregiverCapabilityBlockerActiveGroupSupervisions,
+					},
 				}
 			},
 		},
@@ -209,7 +211,7 @@ func TestDisableCaregiverCapability_RendersBlockedConflict(t *testing.T) {
 	responseBody := decodeResponseBody(t, rr)
 	assert.Equal(t, "error", responseBody["status"])
 	assert.Equal(t, "caregiver capability cannot be removed while active bindings exist", responseBody["error"])
-	assert.Equal(t, []any{"active supervision"}, responseBody["blockers"])
+	assert.Equal(t, []any{"active_group_supervisions"}, responseBody["blockers"])
 }
 
 func TestCaregiverCapabilityErrorRenderer_MapsNotFound(t *testing.T) {

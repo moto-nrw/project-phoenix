@@ -388,15 +388,15 @@ func (s *caregiverCapabilityService) listDisableBlockers(
 	ctx context.Context,
 	tenantID int64,
 	state *userModels.CaregiverCapabilityState,
-) ([]string, error) {
+) ([]userModels.CaregiverCapabilityBlockerCode, error) {
 	if state == nil {
 		return nil, nil
 	}
 
-	var blockers []string
+	var blockers []userModels.CaregiverCapabilityBlockerCode
 
 	if state.HasUserRole && !state.HasAdminRole {
-		blockers = append(blockers, "Das Konto hat keine Verwaltungsrolle und würde ohne Betreuerfähigkeit keine nutzbare Systemrolle behalten.")
+		blockers = append(blockers, userModels.CaregiverCapabilityBlockerMissingUsableRole)
 	}
 
 	if state.StaffID != nil {
@@ -406,7 +406,7 @@ func (s *caregiverCapabilityService) listDisableBlockers(
 		}
 		if len(supervisions) > 0 {
 			state.ActiveSupervisions = supervisions
-			blockers = append(blockers, fmt.Sprintf("Es bestehen noch %d aktive Gruppenaufsichten.", len(supervisions)))
+			blockers = append(blockers, userModels.CaregiverCapabilityBlockerActiveGroupSupervisions)
 		}
 
 		substitutions, err := s.listActiveGroupSubstitutions(ctx, *state.StaffID, tenantID)
@@ -415,7 +415,7 @@ func (s *caregiverCapabilityService) listDisableBlockers(
 		}
 		if len(substitutions) > 0 {
 			state.ActiveSubstitutions = substitutions
-			blockers = append(blockers, fmt.Sprintf("Es bestehen noch %d aktive Vertretungen oder Gruppenübergaben.", len(substitutions)))
+			blockers = append(blockers, userModels.CaregiverCapabilityBlockerActiveGroupSubstitutions)
 		}
 
 		activities, err := s.listPlannedActivitySupervisions(ctx, *state.StaffID, tenantID)
@@ -424,7 +424,7 @@ func (s *caregiverCapabilityService) listDisableBlockers(
 		}
 		if len(activities) > 0 {
 			state.ActivitySupervisions = activities
-			blockers = append(blockers, fmt.Sprintf("Es bestehen noch %d Aktivitätsleitungen.", len(activities)))
+			blockers = append(blockers, userModels.CaregiverCapabilityBlockerActivitySupervisions)
 		}
 	}
 
@@ -435,7 +435,7 @@ func (s *caregiverCapabilityService) listDisableBlockers(
 		}
 		if len(groups) > 0 {
 			state.GroupAssignments = groups
-			blockers = append(blockers, fmt.Sprintf("Es bestehen noch %d Stammgruppen-Zuordnungen.", len(groups)))
+			blockers = append(blockers, userModels.CaregiverCapabilityBlockerGroupAssignments)
 		}
 	}
 

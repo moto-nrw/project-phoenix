@@ -734,6 +734,34 @@ func TestTxHandler_WithTx(t *testing.T) {
 	assert.NotNil(t, gotTx)
 }
 
+func TestTxHandler_RunInTx_ReusesContextTransaction(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	tx, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = tx.Rollback() }()
+
+	ctxWithTx := base.ContextWithTx(ctx, &tx)
+	handler := base.NewTxHandler(db)
+
+	err = handler.RunInTx(ctxWithTx, func(runCtx context.Context, runTx bun.Tx) error {
+		contextTx, ok := base.TxFromContext(runCtx)
+		require.True(t, ok)
+		require.NotNil(t, contextTx)
+		assert.Same(t, tx.Tx, contextTx.Tx)
+
+		var count int
+		return runTx.NewSelect().
+			TableExpr("auth.accounts").
+			ColumnExpr("COUNT(*)").
+			Scan(runCtx, &count)
+	})
+
+	require.NoError(t, err)
+}
+
 func TestContextWithTx_NoTxInContext(t *testing.T) {
 	// Test that TxFromContext returns false when no tx in context
 	ctx := testpkg.TenantContext(1)

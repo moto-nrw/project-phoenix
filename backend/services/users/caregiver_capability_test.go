@@ -216,7 +216,7 @@ func TestCaregiverCapability_DisableUsesTenantScopedRoles(t *testing.T) {
 	assert.Contains(
 		t,
 		state.DisableBlockers,
-		"Das Konto hat keine Verwaltungsrolle und würde ohne Betreuerfähigkeit keine nutzbare Systemrolle behalten.",
+		userModels.CaregiverCapabilityBlockerMissingUsableRole,
 	)
 
 	var blockedErr *usersSvc.CaregiverCapabilityBlockedError
@@ -225,7 +225,7 @@ func TestCaregiverCapability_DisableUsesTenantScopedRoles(t *testing.T) {
 	assert.Contains(
 		t,
 		blockedErr.Reasons,
-		"Das Konto hat keine Verwaltungsrolle und würde ohne Betreuerfähigkeit keine nutzbare Systemrolle behalten.",
+		userModels.CaregiverCapabilityBlockerMissingUsableRole,
 	)
 }
 
@@ -397,7 +397,7 @@ func TestCaregiverCapability_DisableWaitsForConcurrentBindings(t *testing.T) {
 	err = <-resultCh
 	require.ErrorAs(t, err, &blockedErr)
 	require.Len(t, blockedErr.Reasons, 1)
-	assert.Contains(t, blockedErr.Reasons[0], "Stammgruppen-Zuordnungen")
+	assert.Equal(t, userModels.CaregiverCapabilityBlockerGroupAssignments, blockedErr.Reasons[0])
 
 	state, err := factory.CaregiverCapability.GetCaregiverCapability(ctx, account.ID)
 	require.NoError(t, err)

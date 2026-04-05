@@ -1,10 +1,16 @@
 package users
 
-import "testing"
+import (
+	"testing"
+
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
+)
 
 func TestCaregiverCapabilityBlockedError_Error(t *testing.T) {
 	err := &CaregiverCapabilityBlockedError{
-		Reasons: []string{"active supervision"},
+		Reasons: []userModels.CaregiverCapabilityBlockerCode{
+			userModels.CaregiverCapabilityBlockerActiveGroupSupervisions,
+		},
 	}
 
 	if got := err.Error(); got != "caregiver capability cannot be removed while active bindings exist" {

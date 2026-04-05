@@ -31,6 +31,8 @@ func TestCrossTenantStudents(t *testing.T) {
 	// Ensure two tenants exist
 	tenantA := int64(42)
 	tenantB := int64(43)
+	testpkg.CleanupTenantTestData(t, db, tenantA, tenantB)
+	t.Cleanup(func() { testpkg.CleanupTenantTestData(t, db, tenantA, tenantB) })
 	testpkg.EnsureTestTenant(t, db, tenantA)
 	testpkg.EnsureTestTenant(t, db, tenantB)
 
@@ -84,6 +86,8 @@ func TestCrossTenantStudents(t *testing.T) {
 		// Use a different pair of tenants to avoid pollution
 		tenantC := int64(44)
 		tenantD := int64(45)
+		testpkg.CleanupTenantTestData(t, db, tenantC, tenantD)
+		t.Cleanup(func() { testpkg.CleanupTenantTestData(t, db, tenantC, tenantD) })
 		testpkg.EnsureTestTenant(t, db, tenantC)
 		testpkg.EnsureTestTenant(t, db, tenantD)
 
@@ -125,6 +129,8 @@ func TestCrossTenantRepository_Direct(t *testing.T) {
 
 	tenantHost := int64(50)
 	tenantVisitor := int64(51)
+	testpkg.CleanupTenantTestData(t, db, tenantHost, tenantVisitor)
+	t.Cleanup(func() { testpkg.CleanupTenantTestData(t, db, tenantHost, tenantVisitor) })
 	testpkg.EnsureTestTenant(t, db, tenantHost)
 	testpkg.EnsureTestTenant(t, db, tenantVisitor)
 

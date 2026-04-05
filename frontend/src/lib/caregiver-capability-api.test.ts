@@ -35,7 +35,7 @@ const backendState = {
   is_active_caregiver: true,
   disable_blocked: true,
   disable_blockers_count: 2,
-  disable_blockers: ["Aktive Gruppenaufsicht", "Stammgruppen-Zuordnung"],
+  disable_blockers: ["active_group_supervisions", "group_assignments"],
   active_supervisions: [
     { id: 1, group_name: "Gruppe Blau", start_date: "2026-04-05" },
   ],
@@ -97,6 +97,7 @@ describe("caregiverCapabilityService", () => {
       hasUserRole: true,
       disableBlocked: true,
       disableBlockersCount: 2,
+      disableBlockers: ["1 aktive Gruppenaufsicht", "1 Stammgruppen-Zuordnung"],
     });
     expect(result.activeSupervisions).toEqual([
       { id: "1", groupName: "Gruppe Blau", startDate: "2026-04-05" },
@@ -148,7 +149,7 @@ describe("caregiverCapabilityService", () => {
       statusText: "Conflict",
       json: async () => ({
         message: "Betreuung kann nicht deaktiviert werden",
-        blockers: ["Aktive Gruppenaufsicht"],
+        blockers: ["active_group_supervisions"],
       }),
     });
 
@@ -158,7 +159,7 @@ describe("caregiverCapabilityService", () => {
       name: "CaregiverCapabilityApiError",
       message: "Betreuung kann nicht deaktiviert werden",
       status: 409,
-      blockers: ["Aktive Gruppenaufsicht"],
+      blockers: ["Aktive Gruppenaufsichten"],
     });
   });
 

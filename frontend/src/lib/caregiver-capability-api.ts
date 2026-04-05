@@ -55,6 +55,58 @@ export interface CaregiverCapabilityState {
   groupAssignments: BlockerGroup[];
 }
 
+function formatCount(count: number, singular: string, plural: string): string {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function translateCapabilityBlocker(
+  blocker: string,
+  state?: BackendCaregiverCapabilityState,
+): string {
+  switch (blocker) {
+    case "missing_usable_role":
+      return "Ohne Betreuerfähigkeit bliebe dem Konto keine nutzbare Systemrolle.";
+    case "active_group_supervisions":
+      if (!state) {
+        return "Aktive Gruppenaufsichten";
+      }
+      return formatCount(
+        state?.active_supervisions?.length ?? 0,
+        "aktive Gruppenaufsicht",
+        "aktive Gruppenaufsichten",
+      );
+    case "active_group_substitutions":
+      if (!state) {
+        return "Aktive Vertretungen oder Gruppenübergaben";
+      }
+      return formatCount(
+        state?.active_substitutions?.length ?? 0,
+        "aktive Vertretung oder Gruppenübergabe",
+        "aktive Vertretungen oder Gruppenübergaben",
+      );
+    case "activity_supervisions":
+      if (!state) {
+        return "Aktivitätsleitungen";
+      }
+      return formatCount(
+        state?.activity_supervisions?.length ?? 0,
+        "Aktivitätsleitung",
+        "Aktivitätsleitungen",
+      );
+    case "group_assignments":
+      if (!state) {
+        return "Stammgruppen-Zuordnungen";
+      }
+      return formatCount(
+        state?.group_assignments?.length ?? 0,
+        "Stammgruppen-Zuordnung",
+        "Stammgruppen-Zuordnungen",
+      );
+    default:
+      return blocker;
+  }
+}
+
 interface BackendBlockerSupervision {
   id: number;
   group_name: string;
@@ -159,7 +211,9 @@ function mapCapabilityState(
     isActiveCaregiver: state.is_active_caregiver,
     disableBlocked: state.disable_blocked,
     disableBlockersCount: state.disable_blockers_count,
-    disableBlockers: state.disable_blockers ?? [],
+    disableBlockers: (state.disable_blockers ?? []).map((blocker) =>
+      translateCapabilityBlocker(blocker, state),
+    ),
     activeSupervisions: (state.active_supervisions ?? []).map((s) => ({
       id: s.id.toString(),
       groupName: s.group_name,
@@ -215,7 +269,9 @@ async function handleCapabilityError(response: Response): Promise<never> {
   try {
     const payload = (await response.json()) as CapabilityErrorPayload;
     message = payload.message ?? payload.error ?? message;
-    blockers = payload.blockers ?? [];
+    blockers = (payload.blockers ?? []).map((blocker) =>
+      translateCapabilityBlocker(blocker),
+    );
   } catch (error) {
     logger.warn("failed to parse caregiver capability error response", {
       error: error instanceof Error ? error.message : String(error),

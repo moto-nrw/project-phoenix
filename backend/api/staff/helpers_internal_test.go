@@ -23,6 +23,9 @@ func TestRequestedCaregiverPool(t *testing.T) {
 }
 
 func TestStaffAvatarPathToFilePath_ValidPaths(t *testing.T) {
+	publicDir, err := resolvePublicDir()
+	require.NoError(t, err)
+
 	testCases := []struct {
 		name       string
 		avatarPath string
@@ -31,12 +34,24 @@ func TestStaffAvatarPathToFilePath_ValidPaths(t *testing.T) {
 		{
 			name:       "global avatar path",
 			avatarPath: "/uploads/avatars/global/ada.jpg",
-			want:       filepath.Join("public", "uploads", "avatars", "global", "ada.jpg"),
+			want: filepath.Join(
+				publicDir,
+				"uploads",
+				"avatars",
+				"global",
+				"ada.jpg",
+			),
 		},
 		{
 			name:       "legacy tenant avatar path",
 			avatarPath: "/uploads/avatars/42/grace.png",
-			want:       filepath.Join("public", "uploads", "avatars", "42", "grace.png"),
+			want: filepath.Join(
+				publicDir,
+				"uploads",
+				"avatars",
+				"42",
+				"grace.png",
+			),
 		},
 	}
 

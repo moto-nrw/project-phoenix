@@ -854,29 +854,67 @@ func (rs *Resource) serveStaffAvatar(w http.ResponseWriter, r *http.Request) {
 }
 
 func staffAvatarPathToFilePath(avatarPath string) (string, error) {
-	const avatarDir = "public/uploads/avatars"
-
 	if !strings.HasPrefix(avatarPath, "/uploads/avatars/") {
 		return "", errors.New("invalid avatar path")
 	}
 
-	absAvatarDir, err := filepath.Abs(avatarDir)
+	publicDir, err := resolvePublicDir()
 	if err != nil {
-		return "", errors.New("failed to process avatar directory")
+		return "", errors.New("failed to resolve public directory")
 	}
 
-	filePath := filepath.Join("public", strings.TrimPrefix(avatarPath, "/"))
-	absPath, err := filepath.Abs(filePath)
-	if err != nil {
-		return "", errors.New("failed to process path")
-	}
+	absAvatarDir := filepath.Join(publicDir, "uploads", "avatars")
+	absPath := filepath.Join(publicDir, strings.TrimPrefix(avatarPath, "/"))
 
 	avatarPrefix := absAvatarDir + string(os.PathSeparator)
 	if absPath != absAvatarDir && !strings.HasPrefix(absPath, avatarPrefix) {
 		return "", errors.New("invalid path")
 	}
 
-	return filePath, nil
+	return absPath, nil
+}
+
+func resolvePublicDir() (string, error) {
+	var candidates []string
+
+	if workingDir, err := os.Getwd(); err == nil {
+		candidates = append(candidates, publicDirCandidates(workingDir)...)
+	}
+
+	if executablePath, err := os.Executable(); err == nil {
+		candidates = append(candidates, publicDirCandidates(filepath.Dir(executablePath))...)
+	}
+
+	for _, candidate := range candidates {
+		absCandidate, err := filepath.Abs(candidate)
+		if err != nil {
+			continue
+		}
+		info, err := os.Stat(absCandidate)
+		if err == nil && info.IsDir() {
+			return absCandidate, nil
+		}
+	}
+
+	return "", errors.New("public directory not found")
+}
+
+func publicDirCandidates(base string) []string {
+	var candidates []string
+
+	for current := base; ; current = filepath.Dir(current) {
+		candidates = append(candidates,
+			filepath.Join(current, "public"),
+			filepath.Join(current, "backend", "public"),
+		)
+
+		parent := filepath.Dir(current)
+		if parent == current {
+			break
+		}
+	}
+
+	return candidates
 }
 
 // getStaffGroups handles getting groups for a staff member

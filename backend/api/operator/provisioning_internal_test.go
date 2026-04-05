@@ -1861,13 +1861,23 @@ func TestUpdateCaregiverCapabilityRequest_Bind_TrimWhitespace(t *testing.T) {
 func TestCaregiverCapabilityProvisioningErrorRenderer(t *testing.T) {
 	t.Run("renders blocker details", func(t *testing.T) {
 		renderer := caregiverCapabilityProvisioningErrorRenderer(&usersSvc.CaregiverCapabilityBlockedError{
-			Reasons: []string{"active supervision", "pending invitation"},
+			Reasons: []userModels.CaregiverCapabilityBlockerCode{
+				userModels.CaregiverCapabilityBlockerActiveGroupSupervisions,
+				userModels.CaregiverCapabilityBlockerGroupAssignments,
+			},
 		})
 
 		blocked, ok := renderer.(*caregiverCapabilityBlockedResponse)
 		require.True(t, ok)
 		assert.Equal(t, http.StatusConflict, blocked.HTTPStatusCode)
-		assert.Equal(t, []string{"active supervision", "pending invitation"}, blocked.Blockers)
+		assert.Equal(
+			t,
+			[]userModels.CaregiverCapabilityBlockerCode{
+				userModels.CaregiverCapabilityBlockerActiveGroupSupervisions,
+				userModels.CaregiverCapabilityBlockerGroupAssignments,
+			},
+			blocked.Blockers,
+		)
 	})
 
 	t.Run("maps missing account to not found", func(t *testing.T) {
@@ -2027,6 +2037,9 @@ func TestProvisioningResource_EnableSchoolAccountCaregiverCapability(t *testing.
 			enableFn: func(ctx context.Context, accountID int64, input userModels.EnableCaregiverCapabilityInput) (*userModels.CaregiverCapabilityState, error) {
 				assert.Equal(t, int64(12), tenant.FromContext(ctx))
 				assert.Equal(t, int64(34), accountID)
+				tx, ok := modelBase.TxFromContext(ctx)
+				require.True(t, ok)
+				require.NotNil(t, tx)
 				assert.Equal(t, userModels.EnableCaregiverCapabilityInput{
 					FirstName: "Ada",
 					LastName:  "Lovelace",
@@ -2062,7 +2075,14 @@ func TestProvisioningResource_DisableSchoolAccountCaregiverCapability(t *testing
 			disableFn: func(ctx context.Context, accountID int64) (*userModels.CaregiverCapabilityState, error) {
 				assert.Equal(t, int64(12), tenant.FromContext(ctx))
 				assert.Equal(t, int64(34), accountID)
-				return nil, &usersSvc.CaregiverCapabilityBlockedError{Reasons: []string{"active supervision"}}
+				tx, ok := modelBase.TxFromContext(ctx)
+				require.True(t, ok)
+				require.NotNil(t, tx)
+				return nil, &usersSvc.CaregiverCapabilityBlockedError{
+					Reasons: []userModels.CaregiverCapabilityBlockerCode{
+						userModels.CaregiverCapabilityBlockerActiveGroupSupervisions,
+					},
+				}
 			},
 		},
 		db: db,

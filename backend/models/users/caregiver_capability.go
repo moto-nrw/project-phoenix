@@ -1,5 +1,15 @@
 package users
 
+type CaregiverCapabilityBlockerCode string
+
+const (
+	CaregiverCapabilityBlockerMissingUsableRole        CaregiverCapabilityBlockerCode = "missing_usable_role"
+	CaregiverCapabilityBlockerActiveGroupSupervisions  CaregiverCapabilityBlockerCode = "active_group_supervisions"
+	CaregiverCapabilityBlockerActiveGroupSubstitutions CaregiverCapabilityBlockerCode = "active_group_substitutions"
+	CaregiverCapabilityBlockerActivitySupervisions     CaregiverCapabilityBlockerCode = "activity_supervisions"
+	CaregiverCapabilityBlockerGroupAssignments         CaregiverCapabilityBlockerCode = "group_assignments"
+)
+
 // CaregiverCapabilityState captures whether an account can currently act as an
 // operational caregiver inside a tenant.
 type CaregiverCapabilityState struct {
@@ -24,7 +34,7 @@ type CaregiverCapabilityState struct {
 	DisableBlocked       bool `json:"disable_blocked"`
 	DisableBlockersCount int  `json:"disable_blockers_count"`
 
-	DisableBlockers []string `json:"disable_blockers,omitempty"`
+	DisableBlockers []CaregiverCapabilityBlockerCode `json:"disable_blockers,omitempty"`
 
 	ActiveSupervisions   []BlockerSupervision  `json:"active_supervisions,omitempty"`
 	ActiveSubstitutions  []BlockerSubstitution `json:"active_substitutions,omitempty"`
