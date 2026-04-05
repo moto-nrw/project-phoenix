@@ -242,6 +242,14 @@ export default function TeachersPage() {
     }
   };
 
+  // Handle inline notes update from detail modal
+  const handleUpdateNotes = async (notes: string) => {
+    if (!selectedTeacher) return;
+    await service.update(selectedTeacher.id, { staff_notes: notes });
+    setSelectedTeacher({ ...selectedTeacher, staff_notes: notes });
+    await tenantMutate("database-teachers-list");
+  };
+
   // Handle edit click from detail modal
   const handleEditClick = () => {
     setShowDetailModal(false);
@@ -599,6 +607,7 @@ export default function TeachersPage() {
           onManageCaregiver={
             selectedTeacher.account_id ? handleManageCaregiverClick : undefined
           }
+          onUpdateNotes={handleUpdateNotes}
           loading={detailLoading}
           onDeleteClick={handleDeleteClick}
         />

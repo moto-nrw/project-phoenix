@@ -12,6 +12,9 @@ import {
   DetailIcons,
 } from "~/components/ui/detail-modal-components";
 import type { Teacher } from "@/lib/teacher-api";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "TeacherDetailModal" });
 
 interface TeacherDetailModalProps {
   readonly isOpen: boolean;
@@ -20,6 +23,7 @@ interface TeacherDetailModalProps {
   readonly onEdit: () => void;
   readonly onDelete: () => void;
   readonly onManageCaregiver?: () => void;
+  readonly onUpdateNotes?: (notes: string) => Promise<void>;
   readonly loading?: boolean;
   /**
    * Custom click handler for delete button.
@@ -27,6 +31,106 @@ interface TeacherDetailModalProps {
    * Use this to handle confirmation at the page level.
    */
   readonly onDeleteClick?: () => void;
+}
+
+function InlineNotesEditor({
+  initialNotes,
+  onSave,
+}: {
+  initialNotes: string;
+  onSave: (notes: string) => Promise<void>;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [notes, setNotes] = useState(initialNotes);
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      await onSave(notes);
+      setIsEditing(false);
+    } catch (err) {
+      logger.error("notes_save_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCancel = () => {
+    setNotes(initialNotes);
+    setIsEditing(false);
+  };
+
+  if (isEditing) {
+    return (
+      <div className="space-y-2">
+        <textarea
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700 transition-colors focus:border-[#F78C10] focus:ring-1 focus:ring-[#F78C10] md:text-sm"
+          rows={3}
+          placeholder="Notizen hinzufügen..."
+          disabled={saving}
+          autoFocus
+        />
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={handleCancel}
+            disabled={saving}
+            className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-50"
+          >
+            Abbrechen
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            className="rounded-lg bg-gray-900 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-gray-700 disabled:opacity-50"
+          >
+            {saving ? "Speichern..." : "Speichern"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const trimmed = initialNotes.trim();
+  return (
+    <button
+      type="button"
+      onClick={() => setIsEditing(true)}
+      className="group w-full text-left"
+      title="Klicken zum Bearbeiten"
+    >
+      {trimmed.length > 0 ? (
+        <p className="text-xs break-words whitespace-pre-wrap text-gray-700 group-hover:text-gray-900 md:text-sm">
+          {trimmed}
+          <span className="ml-2 inline-block text-gray-400">
+            <svg
+              className="inline h-3 w-3"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+              />
+            </svg>
+          </span>
+        </p>
+      ) : (
+        <p className="text-xs text-gray-400 italic group-hover:text-gray-600 md:text-sm">
+          Notizen hinzufügen...
+        </p>
+      )}
+    </button>
+  );
 }
 
 function EmailActions({ email, name }: { email: string; name: string }) {
@@ -139,6 +243,7 @@ export function TeacherDetailModal({
   onEdit,
   onDelete,
   onManageCaregiver,
+  onUpdateNotes,
   loading = false,
   onDeleteClick,
 }: TeacherDetailModalProps) {
@@ -259,24 +364,37 @@ export function TeacherDetailModal({
             );
           })()}
 
-          {/* Staff Notes */}
-          {(() => {
-            const trimmedNotes = teacher.staff_notes?.trim() ?? "";
-            if (trimmedNotes.length === 0) {
-              return null;
-            }
-            return (
-              <InfoSection
-                title="Notizen"
-                icon={DetailIcons.notes}
-                accentColor="orange"
-              >
-                <p className="text-xs break-words whitespace-pre-wrap text-gray-700 md:text-sm">
-                  {trimmedNotes}
-                </p>
-              </InfoSection>
-            );
-          })()}
+          {/* Staff Notes (inline editable when onUpdateNotes provided) */}
+          {onUpdateNotes ? (
+            <InfoSection
+              title="Notizen"
+              icon={DetailIcons.notes}
+              accentColor="orange"
+            >
+              <InlineNotesEditor
+                initialNotes={teacher.staff_notes ?? ""}
+                onSave={onUpdateNotes}
+              />
+            </InfoSection>
+          ) : (
+            (() => {
+              const trimmedNotes = teacher.staff_notes?.trim() ?? "";
+              if (trimmedNotes.length === 0) {
+                return null;
+              }
+              return (
+                <InfoSection
+                  title="Notizen"
+                  icon={DetailIcons.notes}
+                  accentColor="orange"
+                >
+                  <p className="text-xs break-words whitespace-pre-wrap text-gray-700 md:text-sm">
+                    {trimmedNotes}
+                  </p>
+                </InfoSection>
+              );
+            })()
+          )}
 
           {/* Timestamps */}
           {(teacher.created_at ?? teacher.updated_at) && (
