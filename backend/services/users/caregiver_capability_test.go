@@ -271,6 +271,8 @@ func TestCaregiverCapability_DisableReturnsDetailedBlockers(t *testing.T) {
 
 func TestCaregiverCapability_RequiresTenantContextAndMapping(t *testing.T) {
 	db, factory := setupCaregiverFactory(t)
+	var requestedTenantID int64 = 1
+	var mappedTenantID int64 = 2
 
 	account := testpkg.CreateTestAccount(t, db, "caregiver-mapping")
 	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
@@ -279,16 +281,16 @@ func TestCaregiverCapability_RequiresTenantContextAndMapping(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "tenant context is required")
 
-	testpkg.EnsureAccountTenant(t, db, account.ID, 2)
+	testpkg.EnsureAccountTenant(t, db, account.ID, mappedTenantID)
 
 	var mappingErr *usersSvc.AccountNotAssignedToTenantError
 	_, err = factory.CaregiverCapability.GetCaregiverCapability(
-		testpkg.TenantContext(1),
+		testpkg.TenantContext(requestedTenantID),
 		account.ID,
 	)
 	require.ErrorAs(t, err, &mappingErr)
 	assert.Equal(t, account.ID, mappingErr.AccountID)
-	assert.Equal(t, int64(1), mappingErr.TenantID)
+	assert.Equal(t, requestedTenantID, mappingErr.TenantID)
 }
 
 func TestCaregiverCapability_RejectsInvalidAccountIDs(t *testing.T) {
