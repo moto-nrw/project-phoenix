@@ -2,12 +2,22 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import TeachersPage from "./page";
 
+type SessionMockResult = {
+  data: { user: { id: string; token: string }; expires: string } | null;
+  status: string;
+};
+
 const { mockUseSession, mockRedirect, mockTenantMutate, mockLoggerError } =
   vi.hoisted(() => ({
-    mockUseSession: vi.fn(() => ({
-      data: { user: { id: "1", token: "test-token" }, expires: "2099-01-01" },
-      status: "authenticated",
-    })),
+    mockUseSession: vi.fn(
+      (): SessionMockResult => ({
+        data: {
+          user: { id: "1", token: "test-token" },
+          expires: "2099-01-01",
+        },
+        status: "authenticated",
+      }),
+    ),
     mockRedirect: vi.fn(),
     mockTenantMutate: vi.fn(() => Promise.resolve()),
     mockLoggerError: vi.fn(),
@@ -381,10 +391,15 @@ const mockTeachers = [
 describe("TeachersPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUseSession.mockImplementation(() => ({
-      data: { user: { id: "1", token: "test-token" }, expires: "2099-01-01" },
-      status: "authenticated",
-    }));
+    mockUseSession.mockImplementation(
+      (): SessionMockResult => ({
+        data: {
+          user: { id: "1", token: "test-token" },
+          expires: "2099-01-01",
+        },
+        status: "authenticated",
+      }),
+    );
     mockTenantMutate.mockResolvedValue(undefined);
 
     vi.mocked(useSWRAuth).mockReturnValue({
@@ -447,7 +462,7 @@ describe("TeachersPage", () => {
 
   it("redirects unauthenticated users", () => {
     mockUseSession.mockImplementationOnce(
-      (options?: { onUnauthenticated?: () => void }) => {
+      (options?: { onUnauthenticated?: () => void }): SessionMockResult => {
         options?.onUnauthenticated?.();
         return {
           data: null,
