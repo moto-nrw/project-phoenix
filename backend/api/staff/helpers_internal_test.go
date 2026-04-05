@@ -1,6 +1,7 @@
 package staff
 
 import (
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -13,9 +14,66 @@ import (
 func TestRequestedCaregiverPool(t *testing.T) {
 	assert.False(t, requestedCaregiverPool(nil))
 	assert.False(t, requestedCaregiverPool([]string{"admin"}))
+	assert.False(t, requestedCaregiverPool([]string{"admin", "user"}))
+	assert.False(t, requestedCaregiverPool([]string{"teacher", "manager"}))
 	assert.True(t, requestedCaregiverPool([]string{" user "}))
 	assert.True(t, requestedCaregiverPool([]string{"teacher"}))
 	assert.True(t, requestedCaregiverPool([]string{"STAFF"}))
+	assert.True(t, requestedCaregiverPool([]string{"user", " teacher ", "staff"}))
+}
+
+func TestStaffAvatarPathToFilePath_ValidPaths(t *testing.T) {
+	testCases := []struct {
+		name       string
+		avatarPath string
+		want       string
+	}{
+		{
+			name:       "global avatar path",
+			avatarPath: "/uploads/avatars/global/ada.jpg",
+			want:       filepath.Join("public", "uploads", "avatars", "global", "ada.jpg"),
+		},
+		{
+			name:       "legacy tenant avatar path",
+			avatarPath: "/uploads/avatars/42/grace.png",
+			want:       filepath.Join("public", "uploads", "avatars", "42", "grace.png"),
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := staffAvatarPathToFilePath(tt.avatarPath)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestStaffAvatarPathToFilePath_InvalidPaths(t *testing.T) {
+	testCases := []struct {
+		name       string
+		avatarPath string
+		wantErr    string
+	}{
+		{
+			name:       "invalid prefix",
+			avatarPath: "/uploads/not-avatars/file.jpg",
+			wantErr:    "invalid avatar path",
+		},
+		{
+			name:       "path traversal",
+			avatarPath: "/uploads/avatars/global/../../secret.txt",
+			wantErr:    "invalid path",
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := staffAvatarPathToFilePath(tt.avatarPath)
+			assert.Empty(t, got)
+			assert.EqualError(t, err, tt.wantErr)
+		})
+	}
 }
 
 func TestCaregiverStaffIDSet(t *testing.T) {

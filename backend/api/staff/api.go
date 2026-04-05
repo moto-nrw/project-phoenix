@@ -281,14 +281,19 @@ func requestedCaregiverPool(roles []string) bool {
 		return false
 	}
 
+	hasCaregiverRole := false
 	for _, role := range roles {
 		switch strings.ToLower(strings.TrimSpace(role)) {
 		case "user", "teacher", "staff":
-			return true
+			hasCaregiverRole = true
+		case "":
+			continue
+		default:
+			return false
 		}
 	}
 
-	return false
+	return hasCaregiverRole
 }
 
 // =============================================================================
@@ -827,23 +832,8 @@ func (rs *Resource) serveStaffAvatar(w http.ResponseWriter, r *http.Request) {
 	}
 
 	avatarPath := avatarMap[accountID]
-	// Avatar path is stored as "/uploads/avatars/global/filename.jpg"
-	// Resolve to the actual file on disk under "public/"
-	filename := filepath.Base(avatarPath)
-	filePath := filepath.Join("public", "uploads", "avatars", "global", filename)
-
-	// Prevent path traversal
-	absPath, err := filepath.Abs(filePath)
+	filePath, err := staffAvatarPathToFilePath(avatarPath)
 	if err != nil {
-		http.NotFound(w, r)
-		return
-	}
-	absBase, err := filepath.Abs(filepath.Join("public", "uploads", "avatars"))
-	if err != nil {
-		http.NotFound(w, r)
-		return
-	}
-	if !strings.HasPrefix(absPath, absBase) {
 		http.NotFound(w, r)
 		return
 	}
@@ -860,7 +850,33 @@ func (rs *Resource) serveStaffAvatar(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	w.Header().Set("Cache-Control", "private, max-age=86400")
-	http.ServeContent(w, r, filename, time.Time{}, file)
+	http.ServeContent(w, r, filepath.Base(filePath), time.Time{}, file)
+}
+
+func staffAvatarPathToFilePath(avatarPath string) (string, error) {
+	const avatarDir = "public/uploads/avatars"
+
+	if !strings.HasPrefix(avatarPath, "/uploads/avatars/") {
+		return "", errors.New("invalid avatar path")
+	}
+
+	absAvatarDir, err := filepath.Abs(avatarDir)
+	if err != nil {
+		return "", errors.New("failed to process avatar directory")
+	}
+
+	filePath := filepath.Join("public", strings.TrimPrefix(avatarPath, "/"))
+	absPath, err := filepath.Abs(filePath)
+	if err != nil {
+		return "", errors.New("failed to process path")
+	}
+
+	avatarPrefix := absAvatarDir + string(os.PathSeparator)
+	if absPath != absAvatarDir && !strings.HasPrefix(absPath, avatarPrefix) {
+		return "", errors.New("invalid path")
+	}
+
+	return filePath, nil
 }
 
 // getStaffGroups handles getting groups for a staff member
