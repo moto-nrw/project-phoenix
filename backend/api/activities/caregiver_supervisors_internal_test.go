@@ -58,7 +58,7 @@ func TestFetchAllSupervisors_UsesCaregiverPool(t *testing.T) {
 
 	require.Len(t, supervisors, 1)
 	assert.Equal(t, activeTeacher.Staff.ID, supervisors[0].StaffID)
-	assert.Equal(t, activeTeacher.ID, supervisors[0].ID)
+	assert.Equal(t, activeTeacher.Staff.ID, supervisors[0].ID)
 	assert.Equal(t, "Active", supervisors[0].FirstName)
 }
 
@@ -98,7 +98,7 @@ func TestFetchSupervisorsBySpecialization_FiltersToActiveCaregivers(t *testing.T
 	require.NoError(t, err)
 
 	require.Len(t, supervisors, 1)
-	assert.Equal(t, activeTeacher.ID, supervisors[0].ID)
+	assert.Equal(t, activeTeacher.StaffID, supervisors[0].ID)
 	assert.Equal(t, activeTeacher.StaffID, supervisors[0].StaffID)
 	assert.Equal(t, "Filtered", supervisors[0].FirstName)
 }

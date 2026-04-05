@@ -776,7 +776,9 @@ func (rs *Resource) fetchSupervisorsBySpecialization(ctx context.Context, specia
 				continue
 			}
 			supervisors = append(supervisors, SupervisorResponse{
-				ID:        teacher.ID,
+				// Available supervisor selections are persisted back as supervisor_ids,
+				// so this identifier must remain the staff ID for safe round-tripping.
+				ID:        fullTeacher.Staff.ID,
 				StaffID:   teacher.StaffID,
 				FirstName: fullTeacher.Staff.Person.FirstName,
 				LastName:  fullTeacher.Staff.Person.LastName,
@@ -802,7 +804,8 @@ func (rs *Resource) fetchAllSupervisors(ctx context.Context) ([]SupervisorRespon
 	supervisors := make([]SupervisorResponse, 0, len(caregivers))
 	for _, caregiver := range caregivers {
 		supervisors = append(supervisors, SupervisorResponse{
-			ID:        caregiver.TeacherID,
+			// Keep the public ID aligned with the staff ID expected by activity writes.
+			ID:        caregiver.StaffID,
 			StaffID:   caregiver.StaffID,
 			FirstName: caregiver.FirstName,
 			LastName:  caregiver.LastName,
