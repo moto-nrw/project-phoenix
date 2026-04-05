@@ -6,8 +6,10 @@ import (
 	"testing"
 	"time"
 
+	jwtPkg "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -53,6 +55,28 @@ func lookupSystemRoleID(t *testing.T, db *bun.DB, name string) int64 {
 	require.NoError(t, err)
 
 	return role.ID
+}
+
+func loadLatestAuthEvent(
+	t *testing.T,
+	db *bun.DB,
+	accountID int64,
+	eventType string,
+) *auditModels.AuthEvent {
+	t.Helper()
+
+	var event auditModels.AuthEvent
+	err := db.NewSelect().
+		Model(&event).
+		ModelTableExpr(`audit.auth_events AS "auth_event"`).
+		Where(`"auth_event".account_id = ?`, accountID).
+		Where(`"auth_event".event_type = ?`, eventType).
+		OrderExpr(`"auth_event".created_at DESC`).
+		Limit(1).
+		Scan(context.Background())
+	require.NoError(t, err)
+
+	return &event
 }
 
 func assignSystemRoleToAccount(
@@ -104,7 +128,11 @@ func insertPlannedSupervisor(
 
 func TestCaregiverCapability_EnableCreatesOperationalProfile(t *testing.T) {
 	db, factory := setupCaregiverFactory(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := context.WithValue(
+		testpkg.TenantContext(1),
+		jwtPkg.CtxClaims,
+		jwtPkg.AppClaims{ID: 91, Scope: "tenant", TenantID: 1},
+	)
 
 	account := testpkg.CreateTestAccount(t, db, "caregiver-enable")
 	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
@@ -149,11 +177,41 @@ func TestCaregiverCapability_EnableCreatesOperationalProfile(t *testing.T) {
 	require.NotNil(t, teacher)
 	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "users.teachers", teacher.ID) })
 	assert.Equal(t, "Betreuungskraft", teacher.Role)
+
+	event := loadLatestAuthEvent(
+		t,
+		db,
+		account.ID,
+		auditModels.EventTypeCaregiverCapabilityEnabled,
+	)
+	assert.Equal(t, "0.0.0.0", event.IPAddress)
+	assert.Equal(t, float64(91), event.Metadata["actor_account_id"])
+	assert.Equal(t, "tenant", event.Metadata["actor_scope"])
+	assert.Equal(t, float64(1), event.Metadata["tenant_id"])
+	assert.Equal(t, true, event.Metadata["person_created"])
+	assert.Equal(t, true, event.Metadata["staff_created"])
+	assert.Equal(t, true, event.Metadata["teacher_created"])
+	assert.Equal(t, "Betreuungskraft", event.Metadata["requested_position"])
+
+	before, ok := event.Metadata["before"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, false, before["has_person"])
+	assert.Equal(t, false, before["has_user_role"])
+
+	after, ok := event.Metadata["after"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, true, after["has_person"])
+	assert.Equal(t, true, after["has_user_role"])
+	assert.Equal(t, true, after["has_teacher"])
 }
 
 func TestCaregiverCapability_DisableRemovesUserRoleWithoutDeletingProfile(t *testing.T) {
 	db, factory := setupCaregiverFactory(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := context.WithValue(
+		testpkg.TenantContext(1),
+		jwtPkg.CtxClaims,
+		jwtPkg.AppClaims{ID: 92, Scope: "tenant", TenantID: 1},
+	)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "Disable", "Caregiver")
 	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
@@ -184,6 +242,27 @@ func TestCaregiverCapability_DisableRemovesUserRoleWithoutDeletingProfile(t *tes
 	require.NoError(t, err)
 	assert.False(t, reloaded.HasUserRole)
 	assert.True(t, reloaded.HasTeacher)
+
+	event := loadLatestAuthEvent(
+		t,
+		db,
+		account.ID,
+		auditModels.EventTypeCaregiverCapabilityDisabled,
+	)
+	assert.Equal(t, "0.0.0.0", event.IPAddress)
+	assert.Equal(t, float64(92), event.Metadata["actor_account_id"])
+	assert.Equal(t, "tenant", event.Metadata["actor_scope"])
+	assert.Equal(t, float64(1), event.Metadata["tenant_id"])
+
+	before, ok := event.Metadata["before"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, true, before["has_user_role"])
+	assert.Equal(t, true, before["has_teacher"])
+
+	after, ok := event.Metadata["after"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, false, after["has_user_role"])
+	assert.Equal(t, true, after["has_teacher"])
 }
 
 func TestCaregiverCapability_DisableUsesTenantScopedRoles(t *testing.T) {

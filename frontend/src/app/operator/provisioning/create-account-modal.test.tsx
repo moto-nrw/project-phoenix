@@ -187,6 +187,24 @@ describe("CreateAccountModal", () => {
     expect(screen.getByLabelText(/Position/)).toBeInTheDocument();
   });
 
+  it("renders caregiver helper copy with umlauts", async () => {
+    renderModal();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/System-Rolle/)).not.toBeDisabled();
+    });
+    fireEvent.change(screen.getByLabelText(/System-Rolle/), {
+      target: { value: "1" },
+    });
+
+    expect(screen.getByText("Auch als Betreuer einsetzen")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Vergibt zusätzlich die Betreuer-Rolle und legt das nötige Staff-/Teacher-Profil an.",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("submit button is disabled when form is incomplete", () => {
     renderModal();
 

@@ -205,6 +205,25 @@ describe("CaregiverCapabilityModal", () => {
     expect(screen.getByText("Verwaltung + Betreuung")).toBeInTheDocument();
   });
 
+  it("does not call operator endpoints without a school id", async () => {
+    render(
+      <CaregiverCapabilityModal
+        isOpen={true}
+        onClose={vi.fn()}
+        scope="operator"
+        accountId="42"
+        accountLabel="Ada Lovelace"
+      />,
+    );
+
+    await waitFor(() => {
+      expect(mockGetOperatorAccountCapability).not.toHaveBeenCalled();
+    });
+    expect(screen.getByTestId("alert")).toHaveTextContent(
+      "Die Betreuerfähigkeit konnte nicht geladen werden.",
+    );
+  });
+
   it("requires first and last name when enabling a profile without person data", async () => {
     mockGetTenantAccountCapability.mockResolvedValue(
       createState({

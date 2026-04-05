@@ -340,7 +340,7 @@ export function CreateAccountModal({
                   Auch als Betreuer einsetzen
                 </label>
                 <p className="text-sm text-gray-600">
-                  Vergibt zusaetzlich die Betreuer-Rolle und legt das noetige
+                  Vergibt zusätzlich die Betreuer-Rolle und legt das nötige
                   Staff-/Teacher-Profil an.
                 </p>
               </div>

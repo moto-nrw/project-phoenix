@@ -340,6 +340,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	caregiverCapabilityService := users.NewCaregiverCapabilityService(users.CaregiverCapabilityServiceDependencies{
 		AccountRepo:            repos.Account,
 		AccountTenantRepo:      repos.AccountTenant,
+		AuthEventRepo:          repos.AuthEvent,
 		RoleRepo:               repos.Role,
 		PersonRepo:             repos.Person,
 		StaffRepo:              repos.Staff,

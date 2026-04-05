@@ -76,9 +76,10 @@ export function CaregiverCapabilityModal({
   const [resolutionOpen, setResolutionOpen] = useState(false);
 
   const needsSchoolId = scope === "operator";
+  const operatorSchoolId = scope === "operator" ? schoolId : undefined;
 
   const loadState = useCallback(async () => {
-    if (!accountId || (needsSchoolId && !schoolId)) {
+    if (!accountId || (needsSchoolId && !operatorSchoolId)) {
       return;
     }
 
@@ -86,15 +87,23 @@ export function CaregiverCapabilityModal({
       setLoading(true);
       setErrorMessage("");
 
-      const nextState =
-        scope === "operator"
-          ? await caregiverCapabilityService.getOperatorAccountCapability(
-              schoolId!,
-              accountId,
-            )
-          : await caregiverCapabilityService.getTenantAccountCapability(
-              accountId,
-            );
+      let nextState: CaregiverCapabilityState;
+      if (scope === "operator") {
+        const resolvedSchoolId = operatorSchoolId;
+        if (!resolvedSchoolId) {
+          return;
+        }
+        nextState =
+          await caregiverCapabilityService.getOperatorAccountCapability(
+            resolvedSchoolId,
+            accountId,
+          );
+      } else {
+        nextState =
+          await caregiverCapabilityService.getTenantAccountCapability(
+            accountId,
+          );
+      }
 
       setState(nextState);
       setFirstName(nextState.firstName);
@@ -103,14 +112,14 @@ export function CaregiverCapabilityModal({
       logger.error("failed to load caregiver capability state", {
         error: error instanceof Error ? error.message : String(error),
         accountId,
-        schoolId,
+        schoolId: operatorSchoolId,
         scope,
       });
       setErrorMessage("Die Betreuerfähigkeit konnte nicht geladen werden.");
     } finally {
       setLoading(false);
     }
-  }, [accountId, needsSchoolId, schoolId, scope]);
+  }, [accountId, needsSchoolId, operatorSchoolId, scope]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -123,7 +132,7 @@ export function CaregiverCapabilityModal({
   const needsNames = state != null && !state.hasPerson;
 
   async function handleEnable() {
-    if (!accountId || (needsSchoolId && !schoolId)) {
+    if (!accountId || (needsSchoolId && !operatorSchoolId)) {
       return;
     }
 
@@ -142,25 +151,33 @@ export function CaregiverCapabilityModal({
       setSaving(true);
       setErrorMessage("");
 
-      const nextState =
-        scope === "operator"
-          ? await caregiverCapabilityService.enableOperatorAccountCapability(
-              schoolId!,
-              accountId,
-              {
-                first_name: trimmedFirstName || undefined,
-                last_name: trimmedLastName || undefined,
-                position: trimmedPosition || undefined,
-              },
-            )
-          : await caregiverCapabilityService.enableTenantAccountCapability(
-              accountId,
-              {
-                first_name: trimmedFirstName || undefined,
-                last_name: trimmedLastName || undefined,
-                position: trimmedPosition || undefined,
-              },
-            );
+      let nextState: CaregiverCapabilityState;
+      if (scope === "operator") {
+        const resolvedSchoolId = operatorSchoolId;
+        if (!resolvedSchoolId) {
+          return;
+        }
+        nextState =
+          await caregiverCapabilityService.enableOperatorAccountCapability(
+            resolvedSchoolId,
+            accountId,
+            {
+              first_name: trimmedFirstName || undefined,
+              last_name: trimmedLastName || undefined,
+              position: trimmedPosition || undefined,
+            },
+          );
+      } else {
+        nextState =
+          await caregiverCapabilityService.enableTenantAccountCapability(
+            accountId,
+            {
+              first_name: trimmedFirstName || undefined,
+              last_name: trimmedLastName || undefined,
+              position: trimmedPosition || undefined,
+            },
+          );
+      }
 
       setState(nextState);
       toastSuccess("Betreuung wurde erfolgreich aktiviert.");
@@ -169,7 +186,7 @@ export function CaregiverCapabilityModal({
       logger.error("failed to enable caregiver capability", {
         error: error instanceof Error ? error.message : String(error),
         accountId,
-        schoolId,
+        schoolId: operatorSchoolId,
         scope,
       });
       if (error instanceof CaregiverCapabilityApiError) {
@@ -183,7 +200,7 @@ export function CaregiverCapabilityModal({
   }
 
   async function handleDisable() {
-    if (!accountId || (needsSchoolId && !schoolId)) {
+    if (!accountId || (needsSchoolId && !operatorSchoolId)) {
       return;
     }
 
@@ -191,15 +208,23 @@ export function CaregiverCapabilityModal({
       setSaving(true);
       setErrorMessage("");
 
-      const nextState =
-        scope === "operator"
-          ? await caregiverCapabilityService.disableOperatorAccountCapability(
-              schoolId!,
-              accountId,
-            )
-          : await caregiverCapabilityService.disableTenantAccountCapability(
-              accountId,
-            );
+      let nextState: CaregiverCapabilityState;
+      if (scope === "operator") {
+        const resolvedSchoolId = operatorSchoolId;
+        if (!resolvedSchoolId) {
+          return;
+        }
+        nextState =
+          await caregiverCapabilityService.disableOperatorAccountCapability(
+            resolvedSchoolId,
+            accountId,
+          );
+      } else {
+        nextState =
+          await caregiverCapabilityService.disableTenantAccountCapability(
+            accountId,
+          );
+      }
 
       setState(nextState);
       toastSuccess("Betreuung wurde deaktiviert.");
@@ -208,7 +233,7 @@ export function CaregiverCapabilityModal({
       logger.error("failed to disable caregiver capability", {
         error: error instanceof Error ? error.message : String(error),
         accountId,
-        schoolId,
+        schoolId: operatorSchoolId,
         scope,
       });
       if (error instanceof CaregiverCapabilityApiError) {

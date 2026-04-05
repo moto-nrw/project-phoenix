@@ -23,13 +23,15 @@ type AuthEvent struct {
 
 // EventType constants
 const (
-	EventTypeLogin         = "login"
-	EventTypeLogout        = "logout"
-	EventTypeTokenRefresh  = "token_refresh"
-	EventTypeTokenExpired  = "token_expired"
-	EventTypePasswordReset = "password_reset"
-	EventTypeAccountLocked = "account_locked"
-	EventTypeTenantSwitch  = "tenant_switch"
+	EventTypeLogin                       = "login"
+	EventTypeLogout                      = "logout"
+	EventTypeTokenRefresh                = "token_refresh"
+	EventTypeTokenExpired                = "token_expired"
+	EventTypePasswordReset               = "password_reset"
+	EventTypeAccountLocked               = "account_locked"
+	EventTypeTenantSwitch                = "tenant_switch"
+	EventTypeCaregiverCapabilityEnabled  = "caregiver_capability_enabled"
+	EventTypeCaregiverCapabilityDisabled = "caregiver_capability_disabled"
 )
 
 // TableName returns the database table name
@@ -51,7 +53,8 @@ func (ae *AuthEvent) Validate() error {
 	switch ae.EventType {
 	case EventTypeLogin, EventTypeLogout, EventTypeTokenRefresh,
 		EventTypeTokenExpired, EventTypePasswordReset, EventTypeAccountLocked,
-		EventTypeTenantSwitch:
+		EventTypeTenantSwitch, EventTypeCaregiverCapabilityEnabled,
+		EventTypeCaregiverCapabilityDisabled:
 		// Valid types
 	default:
 		return errors.New("invalid event type")

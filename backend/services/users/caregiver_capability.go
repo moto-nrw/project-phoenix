@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
@@ -22,6 +24,7 @@ import (
 type CaregiverCapabilityServiceDependencies struct {
 	AccountRepo            authModels.AccountRepository
 	AccountTenantRepo      authModels.AccountTenantRepository
+	AuthEventRepo          auditModels.AuthEventRepository
 	RoleRepo               authModels.RoleRepository
 	PersonRepo             userModels.PersonRepository
 	StaffRepo              userModels.StaffRepository
@@ -36,6 +39,7 @@ type CaregiverCapabilityServiceDependencies struct {
 type caregiverCapabilityService struct {
 	accountRepo            authModels.AccountRepository
 	accountTenantRepo      authModels.AccountTenantRepository
+	authEventRepo          auditModels.AuthEventRepository
 	roleRepo               authModels.RoleRepository
 	personRepo             userModels.PersonRepository
 	staffRepo              userModels.StaffRepository
@@ -55,6 +59,8 @@ var caregiverCapabilityBindingTables = []string{
 	"activities.supervisors",
 }
 
+const caregiverCapabilityAuditIP = "0.0.0.0"
+
 // NewCaregiverCapabilityService creates a tenant-scoped caregiver capability service.
 func NewCaregiverCapabilityService(
 	deps CaregiverCapabilityServiceDependencies,
@@ -62,6 +68,7 @@ func NewCaregiverCapabilityService(
 	return &caregiverCapabilityService{
 		accountRepo:            deps.AccountRepo,
 		accountTenantRepo:      deps.AccountTenantRepo,
+		authEventRepo:          deps.AuthEventRepo,
 		roleRepo:               deps.RoleRepo,
 		personRepo:             deps.PersonRepo,
 		staffRepo:              deps.StaffRepo,
@@ -95,12 +102,19 @@ func (s *caregiverCapabilityService) EnableCaregiverCapability(
 	input.LastName = strings.TrimSpace(input.LastName)
 	input.Position = strings.TrimSpace(input.Position)
 
+	var result *userModels.CaregiverCapabilityState
 	if err := s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+		beforeState, err := s.loadCapabilityState(txCtx, accountID)
+		if err != nil {
+			return err
+		}
+
 		account, _, err := s.loadAccountAndTenant(txCtx, accountID)
 		if err != nil {
 			return err
 		}
 
+		details := map[string]any{}
 		person, err := s.personRepo.FindByAccountID(txCtx, accountID)
 		if err != nil {
 			return err
@@ -124,6 +138,7 @@ func (s *caregiverCapabilityService) EnableCaregiverCapability(
 			if err := s.personRepo.LinkToAccount(txCtx, person.ID, account.ID); err != nil {
 				return err
 			}
+			details["person_created"] = true
 		}
 
 		staff, err := s.findStaffByPersonID(txCtx, person.ID)
@@ -136,6 +151,7 @@ func (s *caregiverCapabilityService) EnableCaregiverCapability(
 			if err := s.staffRepo.Create(txCtx, staff); err != nil {
 				return err
 			}
+			details["staff_created"] = true
 		}
 
 		teacher, err := s.teacherRepo.FindByStaffID(txCtx, staff.ID)
@@ -151,6 +167,10 @@ func (s *caregiverCapabilityService) EnableCaregiverCapability(
 			if err := s.teacherRepo.Create(txCtx, teacher); err != nil {
 				return err
 			}
+			details["teacher_created"] = true
+		}
+		if input.Position != "" {
+			details["requested_position"] = input.Position
 		}
 
 		userRole, err := s.resolveSystemRoleByName(txCtx, "user")
@@ -165,12 +185,22 @@ func (s *caregiverCapabilityService) EnableCaregiverCapability(
 			return err
 		}
 
-		return nil
+		result, err = s.loadCapabilityState(txCtx, accountID)
+		if err != nil {
+			return err
+		}
+
+		return s.recordCapabilityAuditEvent(
+			txCtx,
+			accountID,
+			auditModels.EventTypeCaregiverCapabilityEnabled,
+			s.buildCapabilityAuditMetadata(txCtx, beforeState, result, details),
+		)
 	}); err != nil {
 		return nil, err
 	}
 
-	return s.loadCapabilityState(ctx, accountID)
+	return result, nil
 }
 
 func (s *caregiverCapabilityService) DisableCaregiverCapability(
@@ -214,7 +244,16 @@ func (s *caregiverCapabilityService) DisableCaregiverCapability(
 		}
 
 		result, err = s.loadCapabilityState(txCtx, accountID)
-		return err
+		if err != nil {
+			return err
+		}
+
+		return s.recordCapabilityAuditEvent(
+			txCtx,
+			accountID,
+			auditModels.EventTypeCaregiverCapabilityDisabled,
+			s.buildCapabilityAuditMetadata(txCtx, state, result, nil),
+		)
 	}); err != nil {
 		return nil, err
 	}
@@ -239,6 +278,85 @@ func (s *caregiverCapabilityService) lockCaregiverCapabilityBindings(
 	}
 
 	return nil
+}
+
+func (s *caregiverCapabilityService) recordCapabilityAuditEvent(
+	ctx context.Context,
+	accountID int64,
+	eventType string,
+	metadata map[string]any,
+) error {
+	if s.authEventRepo == nil {
+		return &UsersError{
+			Op:  "record caregiver capability audit event",
+			Err: fmt.Errorf("auth event repository is not configured"),
+		}
+	}
+
+	event := auditModels.NewAuthEvent(accountID, eventType, true, caregiverCapabilityAuditIP)
+	for key, value := range metadata {
+		event.SetMetadata(key, value)
+	}
+
+	return s.authEventRepo.Create(ctx, event)
+}
+
+func (s *caregiverCapabilityService) buildCapabilityAuditMetadata(
+	ctx context.Context,
+	before *userModels.CaregiverCapabilityState,
+	after *userModels.CaregiverCapabilityState,
+	details map[string]any,
+) map[string]any {
+	metadata := map[string]any{
+		"before": capabilityAuditSnapshot(before),
+		"after":  capabilityAuditSnapshot(after),
+	}
+
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		metadata["tenant_id"] = tenantID
+	}
+
+	claims := jwt.ClaimsFromCtx(ctx)
+	if claims.ID > 0 {
+		metadata["actor_account_id"] = claims.ID
+	}
+	if claims.Scope != "" {
+		metadata["actor_scope"] = claims.Scope
+	}
+
+	for key, value := range details {
+		metadata[key] = value
+	}
+
+	return metadata
+}
+
+func capabilityAuditSnapshot(state *userModels.CaregiverCapabilityState) map[string]any {
+	if state == nil {
+		return map[string]any{}
+	}
+
+	snapshot := map[string]any{
+		"has_admin_role":        state.HasAdminRole,
+		"has_user_role":         state.HasUserRole,
+		"has_person":            state.HasPerson,
+		"has_staff":             state.HasStaff,
+		"has_teacher":           state.HasTeacher,
+		"has_caregiver_profile": state.HasCaregiverProfile,
+		"is_active_caregiver":   state.IsActiveCaregiver,
+	}
+
+	if state.PersonID != nil {
+		snapshot["person_id"] = *state.PersonID
+	}
+	if state.StaffID != nil {
+		snapshot["staff_id"] = *state.StaffID
+	}
+	if state.TeacherID != nil {
+		snapshot["teacher_id"] = *state.TeacherID
+	}
+
+	return snapshot
 }
 
 func (s *caregiverCapabilityService) loadCapabilityState(
