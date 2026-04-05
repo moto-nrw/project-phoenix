@@ -185,6 +185,49 @@ func TestCaregiverCapability_DisableRemovesUserRoleWithoutDeletingProfile(t *tes
 	assert.True(t, reloaded.HasTeacher)
 }
 
+func TestCaregiverCapability_DisableUsesTenantScopedRoles(t *testing.T) {
+	db, factory := setupCaregiverFactory(t)
+	ctx := testpkg.TenantContext(1)
+
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "Scoped", "Caregiver")
+	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
+	t.Cleanup(func() {
+		testpkg.CleanupActivityFixtures(
+			t,
+			db,
+			teacher.ID,
+			teacher.Staff.ID,
+			teacher.Staff.Person.ID,
+		)
+	})
+
+	testpkg.EnsureAccountTenant(t, db, account.ID, 1)
+	testpkg.EnsureAccountTenant(t, db, account.ID, 2)
+	assignSystemRoleToAccount(t, db, account.ID, 1, "user")
+	assignSystemRoleToAccount(t, db, account.ID, 2, "admin")
+
+	state, err := factory.CaregiverCapability.GetCaregiverCapability(ctx, account.ID)
+	require.NoError(t, err)
+	require.NotNil(t, state)
+	assert.True(t, state.HasUserRole)
+	assert.False(t, state.HasAdminRole)
+	assert.True(t, state.DisableBlocked)
+	assert.Contains(
+		t,
+		state.DisableBlockers,
+		"Das Konto hat keine Verwaltungsrolle und würde ohne Betreuerfähigkeit keine nutzbare Systemrolle behalten.",
+	)
+
+	var blockedErr *usersSvc.CaregiverCapabilityBlockedError
+	_, err = factory.CaregiverCapability.DisableCaregiverCapability(ctx, account.ID)
+	require.ErrorAs(t, err, &blockedErr)
+	assert.Contains(
+		t,
+		blockedErr.Reasons,
+		"Das Konto hat keine Verwaltungsrolle und würde ohne Betreuerfähigkeit keine nutzbare Systemrolle behalten.",
+	)
+}
+
 func TestCaregiverCapability_DisableReturnsDetailedBlockers(t *testing.T) {
 	db, factory := setupCaregiverFactory(t)
 	ctx := testpkg.TenantContext(1)
