@@ -504,12 +504,12 @@ export default function TeachersPage() {
                                 toastError("Kopieren fehlgeschlagen"),
                               );
                           }}
-                          className="flex-shrink-0 rounded-md p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+                          className="flex-shrink-0 rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
                           aria-label="E-Mail kopieren"
                           title="E-Mail kopieren"
                         >
                           <svg
-                            className="h-3.5 w-3.5"
+                            className="h-4 w-4"
                             fill="none"
                             viewBox="0 0 24 24"
                             stroke="currentColor"
@@ -525,12 +525,12 @@ export default function TeachersPage() {
                         <a
                           href={`mailto:${teacher.email}`}
                           onClick={(e) => e.stopPropagation()}
-                          className="flex-shrink-0 rounded-md p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+                          className="flex-shrink-0 rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
                           aria-label="E-Mail senden"
                           title="E-Mail senden"
                         >
                           <svg
-                            className="h-3.5 w-3.5"
+                            className="h-4 w-4"
                             fill="none"
                             viewBox="0 0 24 24"
                             stroke="currentColor"
