@@ -51,17 +51,27 @@ func setupTestContext(t *testing.T) *testContext {
 	}
 }
 
-func assignDeviceTeacherUserRole(t *testing.T, db *bun.DB, accountID int64) {
+func assignDeviceTeacherUserRole(t *testing.T, db *bun.DB, accountID int64, tenantID int64) {
 	t.Helper()
 
-	role := testpkg.GetOrCreateTestRole(t, db, "user")
+	var role authModels.Role
+	err := db.NewSelect().
+		Model(&role).
+		ModelTableExpr(`auth.roles AS "role"`).
+		Where(`LOWER("role".name) = ?`, "user").
+		Where(`"role".is_system = TRUE`).
+		Where(`"role".tenant_id IS NULL`).
+		Limit(1).
+		Scan(context.Background())
+	require.NoError(t, err)
+
 	accountRole := &authModels.AccountRole{
 		AccountID: accountID,
 		RoleID:    role.ID,
 	}
-	accountRole.SetTenantID(1)
+	accountRole.SetTenantID(tenantID)
 
-	err := db.NewInsert().
+	err = db.NewInsert().
 		Model(accountRole).
 		ModelTableExpr(`auth.account_roles`).
 		Scan(context.Background())
@@ -113,12 +123,40 @@ func TestGetAvailableTeachers_ReturnsOnlyActiveCaregivers(t *testing.T) {
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-caregiver")
 	activeTeacher, activeAccount := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Ada", "Caregiver")
 	inactiveTeacher, inactiveAccount := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Ignored", "Teacher")
+	filteredTeacher, filteredAccount := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Filtered", "Caregiver")
 	defer testpkg.CleanupTeacherFixtures(t, ctx.db, activeTeacher.ID)
 	defer testpkg.CleanupTeacherFixtures(t, ctx.db, inactiveTeacher.ID)
+	defer testpkg.CleanupTeacherFixtures(t, ctx.db, filteredTeacher.ID)
 	defer testpkg.CleanupAuthFixtures(t, ctx.db, activeAccount.ID)
 	defer testpkg.CleanupAuthFixtures(t, ctx.db, inactiveAccount.ID)
+	defer testpkg.CleanupAuthFixtures(t, ctx.db, filteredAccount.ID)
 
-	assignDeviceTeacherUserRole(t, ctx.db, activeAccount.ID)
+	tenantID := activeTeacher.GetTenantID()
+	assignDeviceTeacherUserRole(t, ctx.db, activeAccount.ID, tenantID)
+
+	customUserRole := &authModels.Role{
+		Name:        "user",
+		Description: "Tenant-scoped custom user role",
+		IsSystem:    false,
+		TenantID:    &tenantID,
+	}
+	err := ctx.db.NewInsert().
+		Model(customUserRole).
+		ModelTableExpr(`auth.roles`).
+		Scan(context.Background())
+	require.NoError(t, err)
+	defer testpkg.CleanupTableRecords(t, ctx.db, "auth.roles", customUserRole.ID)
+
+	customAccountRole := &authModels.AccountRole{
+		AccountID: filteredAccount.ID,
+		RoleID:    customUserRole.ID,
+	}
+	customAccountRole.SetTenantID(tenantID)
+	err = ctx.db.NewInsert().
+		Model(customAccountRole).
+		ModelTableExpr(`auth.account_roles`).
+		Scan(context.Background())
+	require.NoError(t, err)
 
 	router := chi.NewRouter()
 	router.Get("/teachers", ctx.resource.GetAvailableTeachersHandler())
@@ -134,12 +172,19 @@ func TestGetAvailableTeachers_ReturnsOnlyActiveCaregivers(t *testing.T) {
 	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
 	data, ok := response["data"].([]interface{})
 	require.True(t, ok)
-	require.Len(t, data, 1)
 
-	teacher, ok := data[0].(map[string]interface{})
-	require.True(t, ok)
-	assert.Equal(t, "Ada", teacher["first_name"])
-	assert.Equal(t, "Ada Caregiver", teacher["display_name"])
+	displayNames := make([]string, 0, len(data))
+	for _, item := range data {
+		teacher, ok := item.(map[string]interface{})
+		require.True(t, ok)
+		displayName, ok := teacher["display_name"].(string)
+		require.True(t, ok)
+		displayNames = append(displayNames, displayName)
+	}
+
+	assert.Contains(t, displayNames, "Ada Caregiver")
+	assert.NotContains(t, displayNames, "Ignored Teacher")
+	assert.NotContains(t, displayNames, "Filtered Caregiver")
 }
 
 // =============================================================================

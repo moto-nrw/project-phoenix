@@ -596,3 +596,57 @@ func TestCaregiverDirectory_ListAndFindOnlyActiveCaregivers(t *testing.T) {
 	require.NoError(t, err)
 	assert.Nil(t, inactive)
 }
+
+func TestCaregiverDirectory_ExcludesTenantScopedUserRole(t *testing.T) {
+	db, factory := setupCaregiverFactory(t)
+	ctx := testpkg.TenantContext(1)
+
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "Tenant", "UserRole")
+	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
+	t.Cleanup(func() {
+		testpkg.CleanupActivityFixtures(
+			t,
+			db,
+			teacher.ID,
+			teacher.Staff.ID,
+			teacher.Staff.Person.ID,
+		)
+	})
+	testpkg.EnsureAccountTenant(t, db, account.ID, 1)
+
+	tenantID := teacher.GetTenantID()
+	customUserRole := &authModels.Role{
+		Name:        "user",
+		Description: "Tenant-scoped custom user role",
+		IsSystem:    false,
+		TenantID:    &tenantID,
+	}
+	err := db.NewInsert().
+		Model(customUserRole).
+		ModelTableExpr(`auth.roles`).
+		Scan(context.Background())
+	require.NoError(t, err)
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "auth.roles", customUserRole.ID) })
+
+	_, err = db.ExecContext(
+		context.Background(),
+		`INSERT INTO auth.account_roles (account_id, role_id, tenant_id, created_at, updated_at)
+		 VALUES (?, ?, ?, NOW(), NOW())
+		 ON CONFLICT (account_id, role_id, tenant_id) DO NOTHING`,
+		account.ID,
+		customUserRole.ID,
+		tenantID,
+	)
+	require.NoError(t, err)
+
+	directory, err := usersSvc.CaregiverDirectoryFromPersonService(factory.Users)
+	require.NoError(t, err)
+
+	caregivers, err := directory.ListActiveCaregivers(ctx)
+	require.NoError(t, err)
+	assert.Empty(t, caregivers)
+
+	found, err := directory.FindActiveCaregiverByAccountID(ctx, account.ID)
+	require.NoError(t, err)
+	assert.Nil(t, found)
+}
