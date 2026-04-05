@@ -129,6 +129,29 @@ describe("InvitationForm", () => {
     });
   });
 
+  it("renders position suggestions when existing positions are provided", async () => {
+    const { container } = render(
+      <InvitationForm
+        existingPositions={["Pädagogische Fachkraft", "OGS-Büro"]}
+      />,
+    );
+
+    await waitFor(() => {
+      const input = screen.getByLabelText("Position (optional)");
+      expect(input).toHaveAttribute("list", "invitation-position-suggestions");
+      expect(
+        container.querySelector(
+          'datalist#invitation-position-suggestions option[value="Pädagogische Fachkraft"]',
+        ),
+      ).toBeTruthy();
+      expect(
+        container.querySelector(
+          'datalist#invitation-position-suggestions option[value="OGS-Büro"]',
+        ),
+      ).toBeTruthy();
+    });
+  });
+
   it("renders submit button", async () => {
     render(<InvitationForm />);
 

@@ -18,6 +18,7 @@ import (
 	dataAPI "github.com/moto-nrw/project-phoenix/api/iot/data"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/models/active"
+	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -48,6 +49,23 @@ func setupTestContext(t *testing.T) *testContext {
 		services: svc,
 		resource: resource,
 	}
+}
+
+func assignDeviceTeacherUserRole(t *testing.T, db *bun.DB, accountID int64) {
+	t.Helper()
+
+	role := testpkg.GetOrCreateTestRole(t, db, "user")
+	accountRole := &authModels.AccountRole{
+		AccountID: accountID,
+		RoleID:    role.ID,
+	}
+	accountRole.SetTenantID(1)
+
+	err := db.NewInsert().
+		Model(accountRole).
+		ModelTableExpr(`auth.account_roles`).
+		Scan(context.Background())
+	require.NoError(t, err)
 }
 
 // =============================================================================
@@ -86,6 +104,42 @@ func TestGetAvailableTeachers_Success(t *testing.T) {
 
 	// Should succeed even if no teachers exist
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+}
+
+func TestGetAvailableTeachers_ReturnsOnlyActiveCaregivers(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-caregiver")
+	activeTeacher, activeAccount := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Ada", "Caregiver")
+	inactiveTeacher, inactiveAccount := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Ignored", "Teacher")
+	defer testpkg.CleanupTeacherFixtures(t, ctx.db, activeTeacher.ID)
+	defer testpkg.CleanupTeacherFixtures(t, ctx.db, inactiveTeacher.ID)
+	defer testpkg.CleanupAuthFixtures(t, ctx.db, activeAccount.ID)
+	defer testpkg.CleanupAuthFixtures(t, ctx.db, inactiveAccount.ID)
+
+	assignDeviceTeacherUserRole(t, ctx.db, activeAccount.ID)
+
+	router := chi.NewRouter()
+	router.Get("/teachers", ctx.resource.GetAvailableTeachersHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/teachers", nil,
+		testutil.WithDeviceContext(testDevice),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data, ok := response["data"].([]interface{})
+	require.True(t, ok)
+	require.Len(t, data, 1)
+
+	teacher, ok := data[0].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, "Ada", teacher["first_name"])
+	assert.Equal(t, "Ada Caregiver", teacher["display_name"])
 }
 
 // =============================================================================

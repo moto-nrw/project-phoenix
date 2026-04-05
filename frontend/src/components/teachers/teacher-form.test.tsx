@@ -2,14 +2,19 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { TeacherForm } from "./teacher-form";
 
+const { mockGetRoles, mockLoggerError } = vi.hoisted(() => ({
+  mockGetRoles: vi.fn(() =>
+    Promise.resolve([
+      { id: "1", name: "admin" },
+      { id: "2", name: "betreuer" },
+    ]),
+  ),
+  mockLoggerError: vi.fn(),
+}));
+
 vi.mock("@/lib/auth-service", () => ({
   authService: {
-    getRoles: vi.fn(() =>
-      Promise.resolve([
-        { id: "1", name: "admin" },
-        { id: "2", name: "betreuer" },
-      ]),
-    ),
+    getRoles: mockGetRoles,
   },
 }));
 
@@ -23,6 +28,16 @@ vi.mock("@/lib/auth-helpers", () => ({
   },
 }));
 
+vi.mock("~/lib/logger", () => ({
+  createLogger: () => ({
+    error: mockLoggerError,
+    info: vi.fn(),
+    warn: vi.fn(),
+    debug: vi.fn(),
+    child: vi.fn(),
+  }),
+}));
+
 describe("TeacherForm", () => {
   const defaultProps = {
     initialData: {},
@@ -33,6 +48,10 @@ describe("TeacherForm", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetRoles.mockResolvedValue([
+      { id: "1", name: "admin" },
+      { id: "2", name: "betreuer" },
+    ]);
   });
 
   it("renders form with default title", () => {
@@ -107,6 +126,26 @@ describe("TeacherForm", () => {
     });
   });
 
+  it("filters guardian role from the selectable roles", async () => {
+    mockGetRoles.mockResolvedValue([
+      { id: "1", name: "guardian" },
+      { id: "2", name: "admin" },
+    ]);
+
+    render(<TeacherForm {...defaultProps} initialData={{}} />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/System-Rolle/)).toBeInTheDocument();
+    });
+
+    expect(
+      screen.queryByRole("option", { name: "guardian" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "Administrator" }),
+    ).toBeInTheDocument();
+  });
+
   it("shows position input with placeholder", () => {
     render(<TeacherForm {...defaultProps} />);
 
@@ -114,6 +153,28 @@ describe("TeacherForm", () => {
     expect(
       screen.getByPlaceholderText("z.B. Pädagogische Fachkraft, OGS-Büro"),
     ).toBeInTheDocument();
+  });
+
+  it("renders position suggestions when existing positions are provided", () => {
+    const { container } = render(
+      <TeacherForm
+        {...defaultProps}
+        existingPositions={["Pädagogische Fachkraft", "OGS-Büro"]}
+      />,
+    );
+
+    const input = screen.getByLabelText(/Position/);
+    expect(input).toHaveAttribute("list", "teacher-position-suggestions");
+    expect(
+      container.querySelector(
+        'datalist#teacher-position-suggestions option[value="Pädagogische Fachkraft"]',
+      ),
+    ).toBeTruthy();
+    expect(
+      container.querySelector(
+        'datalist#teacher-position-suggestions option[value="OGS-Büro"]',
+      ),
+    ).toBeTruthy();
   });
 
   it("disables inputs when loading", () => {
@@ -173,6 +234,36 @@ describe("TeacherForm", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Ungültige E-Mail-Adresse")).toBeInTheDocument();
+    });
+  });
+
+  it("requires an email for new teachers", async () => {
+    render(<TeacherForm {...defaultProps} initialData={{}} />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/System-Rolle/)).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText(/Vorname/), {
+      target: { value: "John" },
+    });
+    fireEvent.change(screen.getByLabelText(/Nachname/), {
+      target: { value: "Doe" },
+    });
+    fireEvent.change(screen.getByLabelText(/System-Rolle/), {
+      target: { value: "1" },
+    });
+    fireEvent.change(screen.getByLabelText(/^Passwort \*/), {
+      target: { value: "ValidPass1!" },
+    });
+    fireEvent.change(screen.getByLabelText(/Passwort bestätigen/), {
+      target: { value: "ValidPass1!" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Speichern/ }));
+
+    await waitFor(() => {
+      expect(screen.getByText("E-Mail ist erforderlich")).toBeInTheDocument();
     });
   });
 
@@ -324,6 +415,12 @@ describe("TeacherForm", () => {
     expect(screen.getByText("RFID-Funktion deaktiviert")).toBeInTheDocument();
   });
 
+  it("keeps the RFID selector disabled when shown", () => {
+    render(<TeacherForm {...defaultProps} showRFID={true} />);
+
+    expect(screen.getByLabelText(/RFID-Karte/)).toBeDisabled();
+  });
+
   it("hides RFID section by default", () => {
     render(<TeacherForm {...defaultProps} />);
 
@@ -352,6 +449,92 @@ describe("TeacherForm", () => {
         screen.getByText("Bitte wähle eine Rolle aus"),
       ).toBeInTheDocument();
     });
+  });
+
+  it("updates helper text when a role is selected", async () => {
+    render(<TeacherForm {...defaultProps} initialData={{}} />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/System-Rolle/)).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText(/System-Rolle/), {
+      target: { value: "1" },
+    });
+
+    expect(
+      screen.getByText("Rolle kann später geändert werden"),
+    ).toBeInTheDocument();
+  });
+
+  it("submits new teacher with selected role id", async () => {
+    const onSubmitAction = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <TeacherForm
+        {...defaultProps}
+        initialData={{}}
+        onSubmitAction={onSubmitAction}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/System-Rolle/)).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText(/Vorname/), {
+      target: { value: " Anna " },
+    });
+    fireEvent.change(screen.getByLabelText(/Nachname/), {
+      target: { value: " Schmidt " },
+    });
+    fireEvent.change(screen.getByLabelText(/E-Mail/), {
+      target: { value: "anna@example.com" },
+    });
+    fireEvent.change(screen.getByLabelText(/Position/), {
+      target: { value: " Betreuung " },
+    });
+    fireEvent.change(screen.getByLabelText(/System-Rolle/), {
+      target: { value: "2" },
+    });
+    fireEvent.change(screen.getByLabelText(/^Passwort \*/), {
+      target: { value: "ValidPass1!" },
+    });
+    fireEvent.change(screen.getByLabelText(/Passwort bestätigen/), {
+      target: { value: "ValidPass1!" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Speichern/ }));
+
+    await waitFor(() => {
+      expect(onSubmitAction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          first_name: "Anna",
+          last_name: "Schmidt",
+          email: "anna@example.com",
+          role: "Betreuung",
+          role_id: 2,
+          is_teacher: true,
+        }),
+      );
+    });
+  });
+
+  it("logs role-loading errors without crashing the form", async () => {
+    mockGetRoles.mockRejectedValueOnce(new Error("roles unavailable"));
+
+    render(<TeacherForm {...defaultProps} initialData={{}} />);
+
+    await waitFor(() => {
+      expect(mockLoggerError).toHaveBeenCalledWith(
+        "failed to load roles",
+        expect.objectContaining({
+          error: "roles unavailable",
+        }),
+      );
+    });
+
+    expect(screen.getByLabelText(/System-Rolle/)).toBeInTheDocument();
   });
 
   describe("Scroll to error", () => {
@@ -389,6 +572,40 @@ describe("TeacherForm", () => {
         behavior: "smooth",
         block: "start",
       });
+    });
+  });
+
+  it("resets the form when editing switches to another teacher", async () => {
+    const { rerender } = render(
+      <TeacherForm
+        {...defaultProps}
+        initialData={{ id: "1", first_name: "Anna", last_name: "Alt" }}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText(/Vorname/), {
+      target: { value: "Changed" },
+    });
+    expect(screen.getByDisplayValue("Changed")).toBeInTheDocument();
+
+    rerender(
+      <TeacherForm
+        {...defaultProps}
+        initialData={{
+          id: "2",
+          first_name: "Bea",
+          last_name: "Neu",
+          email: "bea@example.com",
+          role: "OGS-Büro",
+          tag_id: "RFID-42",
+        }}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("Bea")).toBeInTheDocument();
+      expect(screen.getByDisplayValue("Neu")).toBeInTheDocument();
+      expect(screen.getByDisplayValue("OGS-Büro")).toBeInTheDocument();
     });
   });
 });

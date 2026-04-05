@@ -222,6 +222,7 @@ describe("teachersConfig", () => {
   it("maps nested person fields including avatar and account id", () => {
     const mapped = teachersConfig.service?.mapResponse?.({
       id: 42,
+      account_role: "admin",
       specialization: "Mathematik",
       person: {
         account_id: 55,
@@ -239,6 +240,7 @@ describe("teachersConfig", () => {
       last_name: "Nested",
       email: "nested@example.com",
       avatar: "/uploads/avatars/global/nora.jpg",
+      account_role: "admin",
       account_id: 55,
     });
   });

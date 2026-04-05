@@ -110,12 +110,20 @@ vi.mock("@/components/teachers/teacher-detail-modal", () => ({
     onClose,
     onEdit,
     onDelete,
+    onManageCaregiver,
+    onUpdateNotes,
   }: {
     isOpen: boolean;
-    teacher: { first_name: string; last_name: string } | null;
+    teacher: {
+      first_name: string;
+      last_name: string;
+      account_id?: string;
+    } | null;
     onClose: () => void;
     onEdit: () => void;
     onDelete: () => void;
+    onManageCaregiver?: () => void;
+    onUpdateNotes?: (notes: string) => Promise<void>;
   }) =>
     isOpen && teacher ? (
       <div data-testid="teacher-detail-modal">
@@ -128,6 +136,22 @@ vi.mock("@/components/teachers/teacher-detail-modal", () => ({
         <button data-testid="delete-button" onClick={onDelete}>
           Delete
         </button>
+        {onManageCaregiver ? (
+          <button
+            data-testid="manage-caregiver-button"
+            onClick={onManageCaregiver}
+          >
+            Manage Caregiver
+          </button>
+        ) : null}
+        {onUpdateNotes ? (
+          <button
+            data-testid="update-notes-button"
+            onClick={() => void onUpdateNotes("Neue Notiz")}
+          >
+            Update Notes
+          </button>
+        ) : null}
         <button data-testid="close-detail-modal" onClick={onClose}>
           Close
         </button>
@@ -140,13 +164,18 @@ vi.mock("@/components/teachers/teacher-edit-modal", () => ({
     isOpen,
     onClose,
     onSave,
+    existingPositions,
   }: {
     isOpen: boolean;
     onClose: () => void;
     onSave: (data: { first_name: string; last_name: string }) => Promise<void>;
+    existingPositions?: string[];
   }) =>
     isOpen ? (
       <div data-testid="teacher-edit-modal">
+        <span data-testid="edit-existing-positions">
+          {existingPositions?.join(",") ?? ""}
+        </span>
         <button
           data-testid="submit-edit"
           onClick={() =>
@@ -163,8 +192,17 @@ vi.mock("@/components/teachers/teacher-edit-modal", () => ({
 }));
 
 vi.mock("~/components/admin/invitation-form", () => ({
-  InvitationForm: ({ onCreated }: { onCreated: () => void }) => (
+  InvitationForm: ({
+    onCreated,
+    existingPositions,
+  }: {
+    onCreated: () => void;
+    existingPositions?: string[];
+  }) => (
     <div data-testid="invitation-form">
+      <span data-testid="invite-existing-positions">
+        {existingPositions?.join(",") ?? ""}
+      </span>
       <button data-testid="submit-invite" onClick={onCreated}>
         Submit
       </button>
@@ -216,14 +254,20 @@ const mockTeachers = [
     first_name: "Maria",
     last_name: "Müller",
     email: "maria@example.com",
-    roles: ["teacher"],
+    role: "OGS-Büro",
+    account_role: "admin",
+    account_id: "11",
+    staff_id: "101",
   },
   {
     id: "2",
     first_name: "Thomas",
     last_name: "Schmidt",
     email: "thomas@example.com",
-    roles: ["admin", "teacher"],
+    role: "Pädagogische Fachkraft",
+    account_role: "user",
+    account_id: "12",
+    staff_id: "102",
   },
 ];
 
@@ -241,7 +285,9 @@ describe("TeachersPage", () => {
 
     // Setup getOne to return the selected teacher
     mockGetOne.mockImplementation((id: string) =>
-      Promise.resolve(mockTeachers.find((t) => t.id === id)),
+      Promise.resolve(
+        mockTeachers.find((t) => t.id === id || t.staff_id === id),
+      ),
     );
   });
 
@@ -308,6 +354,18 @@ describe("TeachersPage", () => {
 
     const searchInput = screen.getByTestId("search-input");
     fireEvent.change(searchInput, { target: { value: "Maria" } });
+
+    await waitFor(() => {
+      expect(screen.getByText("Maria Müller")).toBeInTheDocument();
+      expect(screen.queryByText("Thomas Schmidt")).not.toBeInTheDocument();
+    });
+  });
+
+  it("filters teachers by account role", async () => {
+    render(<TeachersPage />);
+
+    const searchInput = screen.getByTestId("search-input");
+    fireEvent.change(searchInput, { target: { value: "admin" } });
 
     await waitFor(() => {
       expect(screen.getByText("Maria Müller")).toBeInTheDocument();
@@ -382,6 +440,21 @@ describe("TeachersPage", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("teacher-edit-modal")).toBeInTheDocument();
+      expect(screen.getByTestId("edit-existing-positions")).toHaveTextContent(
+        "OGS-Büro,Pädagogische Fachkraft",
+      );
+    });
+  });
+
+  it("passes existing positions into the invitation form", async () => {
+    render(<TeachersPage />);
+
+    fireEvent.click(screen.getByLabelText("Personal hinzufügen"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("invite-existing-positions")).toHaveTextContent(
+        "OGS-Büro,Pädagogische Fachkraft",
+      );
     });
   });
 
@@ -576,6 +649,63 @@ describe("TeachersPage", () => {
       expect(
         screen.queryByTestId("teacher-edit-modal"),
       ).not.toBeInTheDocument();
+    });
+  });
+
+  it("opens caregiver modal from the detail modal", async () => {
+    render(<TeachersPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Maria Müller")).toBeInTheDocument();
+    });
+
+    const teacherRow = screen
+      .getByText("Maria Müller")
+      .closest('[role="button"]');
+    if (teacherRow) {
+      fireEvent.click(teacherRow);
+    }
+
+    await waitFor(() => {
+      expect(screen.getByTestId("teacher-detail-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("manage-caregiver-button"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("caregiver-modal")).toBeInTheDocument();
+    });
+  });
+
+  it("updates notes from the detail modal", async () => {
+    mockUpdate.mockResolvedValueOnce({
+      id: "1",
+      staff_notes: "Neue Notiz",
+    });
+
+    render(<TeachersPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Maria Müller")).toBeInTheDocument();
+    });
+
+    const teacherRow = screen
+      .getByText("Maria Müller")
+      .closest('[role="button"]');
+    if (teacherRow) {
+      fireEvent.click(teacherRow);
+    }
+
+    await waitFor(() => {
+      expect(screen.getByTestId("teacher-detail-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("update-notes-button"));
+
+    await waitFor(() => {
+      expect(mockUpdate).toHaveBeenCalledWith("1", {
+        staff_notes: "Neue Notiz",
+      });
     });
   });
 
