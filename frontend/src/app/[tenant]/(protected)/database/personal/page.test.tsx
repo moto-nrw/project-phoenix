@@ -2,24 +2,41 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import TeachersPage from "./page";
 
+const { mockUseSession, mockRedirect, mockTenantMutate, mockLoggerError } =
+  vi.hoisted(() => ({
+    mockUseSession: vi.fn(() => ({
+      data: { user: { id: "1", token: "test-token" }, expires: "2099-01-01" },
+      status: "authenticated",
+    })),
+    mockRedirect: vi.fn(),
+    mockTenantMutate: vi.fn(() => Promise.resolve()),
+    mockLoggerError: vi.fn(),
+  }));
+
 // Mock next-auth/react
 vi.mock("next-auth/react", () => ({
-  useSession: vi.fn(() => ({
-    data: { user: { id: "1", token: "test-token" }, expires: "2099-01-01" },
-    status: "authenticated",
-  })),
+  useSession: mockUseSession,
 }));
 
 // Mock next/navigation
 vi.mock("next/navigation", () => ({
-  redirect: vi.fn(),
+  redirect: mockRedirect,
   useRouter: vi.fn(() => ({ push: vi.fn() })),
 }));
 
 // Mock SWR hooks
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: vi.fn(),
-  useTenantMutate: vi.fn(() => vi.fn()),
+  useTenantMutate: vi.fn(() => mockTenantMutate),
+}));
+
+vi.mock("~/lib/logger", () => ({
+  createLogger: vi.fn(() => ({
+    error: mockLoggerError,
+    warn: vi.fn(),
+    info: vi.fn(),
+    debug: vi.fn(),
+  })),
 }));
 
 // Mock service factory
@@ -42,19 +59,23 @@ vi.mock("~/hooks/useIsMobile", () => ({
   useIsMobile: vi.fn(() => false),
 }));
 
+const mockHandleDeleteClick = vi.fn();
+const mockHandleDeleteCancel = vi.fn();
+const mockConfirmDelete = vi.fn((callback?: () => void) => callback?.());
 vi.mock("~/hooks/useDeleteConfirmation", () => ({
   useDeleteConfirmation: vi.fn(() => ({
     showConfirmModal: false,
-    handleDeleteClick: vi.fn(),
-    handleDeleteCancel: vi.fn(),
-    confirmDelete: vi.fn(),
+    handleDeleteClick: mockHandleDeleteClick,
+    handleDeleteCancel: mockHandleDeleteCancel,
+    confirmDelete: mockConfirmDelete,
   })),
 }));
 
 const mockToastError = vi.fn();
+const mockToastSuccess = vi.fn();
 vi.mock("~/contexts/ToastContext", () => ({
   useToast: vi.fn(() => ({
-    success: vi.fn(),
+    success: mockToastSuccess,
     error: mockToastError,
   })),
 }));
@@ -77,10 +98,14 @@ vi.mock("~/components/database/database-page-layout", () => ({
 vi.mock("~/components/ui/page-header", () => ({
   PageHeaderWithSearch: ({
     search,
+    activeFilters,
     onClearAllFilters,
+    actionButton,
   }: {
     search: { value: string; onChange: (v: string) => void };
+    activeFilters?: Array<{ id: string; label: string; onRemove: () => void }>;
     onClearAllFilters: () => void;
+    actionButton?: React.ReactNode;
   }) => (
     <div data-testid="page-header">
       <input
@@ -88,6 +113,16 @@ vi.mock("~/components/ui/page-header", () => ({
         value={search.value}
         onChange={(e) => search.onChange(e.target.value)}
       />
+      {actionButton}
+      {activeFilters?.map((filter) => (
+        <button
+          key={filter.id}
+          data-testid={`active-filter-${filter.id}`}
+          onClick={filter.onRemove}
+        >
+          {filter.label}
+        </button>
+      ))}
       <button data-testid="clear-filters" onClick={onClearAllFilters}>
         Clear
       </button>
@@ -96,10 +131,53 @@ vi.mock("~/components/ui/page-header", () => ({
 }));
 
 vi.mock("@/components/teachers", () => ({
-  CaregiverCapabilityModal: () => <div data-testid="caregiver-modal" />,
-  TeacherRoleManagementModal: () => <div data-testid="role-modal" />,
-  TeacherPermissionManagementModal: () => (
-    <div data-testid="permission-modal" />
+  CaregiverCapabilityModal: ({
+    onClose,
+    onUpdated,
+  }: {
+    onClose: () => void;
+    onUpdated: () => Promise<void>;
+  }) => (
+    <div data-testid="caregiver-modal">
+      <button data-testid="caregiver-close" onClick={onClose}>
+        Close Caregiver
+      </button>
+      <button data-testid="caregiver-update" onClick={() => void onUpdated()}>
+        Update Caregiver
+      </button>
+    </div>
+  ),
+  TeacherRoleManagementModal: ({
+    onClose,
+    onUpdate,
+  }: {
+    onClose: () => void;
+    onUpdate: () => void;
+  }) => (
+    <div data-testid="role-modal">
+      <button data-testid="role-close" onClick={onClose}>
+        Close Role
+      </button>
+      <button data-testid="role-update" onClick={onUpdate}>
+        Update Role
+      </button>
+    </div>
+  ),
+  TeacherPermissionManagementModal: ({
+    onClose,
+    onUpdate,
+  }: {
+    onClose: () => void;
+    onUpdate: () => void;
+  }) => (
+    <div data-testid="permission-modal">
+      <button data-testid="permission-close" onClick={onClose}>
+        Close Permission
+      </button>
+      <button data-testid="permission-update" onClick={onUpdate}>
+        Update Permission
+      </button>
+    </div>
   ),
 }));
 
@@ -110,6 +188,7 @@ vi.mock("@/components/teachers/teacher-detail-modal", () => ({
     onClose,
     onEdit,
     onDelete,
+    onDeleteClick,
     onManageCaregiver,
     onUpdateNotes,
   }: {
@@ -122,6 +201,7 @@ vi.mock("@/components/teachers/teacher-detail-modal", () => ({
     onClose: () => void;
     onEdit: () => void;
     onDelete: () => void;
+    onDeleteClick?: () => void;
     onManageCaregiver?: () => void;
     onUpdateNotes?: (notes: string) => Promise<void>;
   }) =>
@@ -136,6 +216,14 @@ vi.mock("@/components/teachers/teacher-detail-modal", () => ({
         <button data-testid="delete-button" onClick={onDelete}>
           Delete
         </button>
+        {onDeleteClick ? (
+          <button
+            data-testid="open-delete-confirmation"
+            onClick={onDeleteClick}
+          >
+            Open Delete Confirmation
+          </button>
+        ) : null}
         {onManageCaregiver ? (
           <button
             data-testid="manage-caregiver-button"
@@ -179,7 +267,10 @@ vi.mock("@/components/teachers/teacher-edit-modal", () => ({
         <button
           data-testid="submit-edit"
           onClick={() =>
-            void onSave({ first_name: "Updated", last_name: "Teacher" })
+            void onSave({
+              first_name: "Updated",
+              last_name: "Teacher",
+            }).catch(() => {})
           }
         >
           Save
@@ -242,11 +333,27 @@ vi.mock("~/components/ui/modal", () => ({
         {children}
       </div>
     ) : null,
-  ConfirmationModal: () => <div data-testid="confirmation-modal" />,
+  ConfirmationModal: ({
+    onClose,
+    onConfirm,
+  }: {
+    onClose: () => void;
+    onConfirm: () => void;
+  }) => (
+    <div data-testid="confirmation-modal">
+      <button data-testid="confirm-delete" onClick={onConfirm}>
+        Confirm Delete
+      </button>
+      <button data-testid="close-confirmation" onClick={onClose}>
+        Close Confirmation
+      </button>
+    </div>
+  ),
 }));
 
 // Import mocked modules
 import { useSWRAuth } from "~/lib/swr";
+import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 
 const mockTeachers = [
   {
@@ -274,6 +381,11 @@ const mockTeachers = [
 describe("TeachersPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUseSession.mockImplementation(() => ({
+      data: { user: { id: "1", token: "test-token" }, expires: "2099-01-01" },
+      status: "authenticated",
+    }));
+    mockTenantMutate.mockResolvedValue(undefined);
 
     vi.mocked(useSWRAuth).mockReturnValue({
       data: mockTeachers,
@@ -333,6 +445,22 @@ describe("TeachersPage", () => {
     });
   });
 
+  it("redirects unauthenticated users", () => {
+    mockUseSession.mockImplementationOnce(
+      (options?: { onUnauthenticated?: () => void }) => {
+        options?.onUnauthenticated?.();
+        return {
+          data: null,
+          status: "unauthenticated",
+        };
+      },
+    );
+
+    render(<TeachersPage />);
+
+    expect(mockRedirect).toHaveBeenCalledWith("/");
+  });
+
   it("shows empty state when no teachers exist", async () => {
     vi.mocked(useSWRAuth).mockReturnValue({
       data: [],
@@ -385,13 +513,37 @@ describe("TeachersPage", () => {
     render(<TeachersPage />);
 
     // Click the "Personal hinzufügen" button to open invite modal
-    const addButton = screen.getByLabelText("Personal hinzufügen");
+    const addButton = screen.getAllByLabelText("Personal hinzufügen")[0]!;
     fireEvent.click(addButton);
 
     // Wait for invite modal to appear
     await waitFor(() => {
       expect(screen.getByTestId("modal")).toBeInTheDocument();
       expect(screen.getByTestId("invitation-form")).toBeInTheDocument();
+    });
+  });
+
+  it("logs an error when loading teacher details fails", async () => {
+    mockGetOne.mockRejectedValueOnce(new Error("teacher lookup failed"));
+
+    render(<TeachersPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Maria Müller")).toBeInTheDocument();
+    });
+
+    const teacherRow = screen
+      .getByText("Maria Müller")
+      .closest('[role="button"]');
+    expect(teacherRow).not.toBeNull();
+
+    fireEvent.click(teacherRow!);
+
+    await waitFor(() => {
+      expect(mockLoggerError).toHaveBeenCalledWith(
+        "failed to fetch teacher details",
+        { error: "teacher lookup failed" },
+      );
     });
   });
 
@@ -449,7 +601,7 @@ describe("TeachersPage", () => {
   it("passes existing positions into the invitation form", async () => {
     render(<TeachersPage />);
 
-    fireEvent.click(screen.getByLabelText("Personal hinzufügen"));
+    fireEvent.click(screen.getAllByLabelText("Personal hinzufügen")[0]!);
 
     await waitFor(() => {
       expect(screen.getByTestId("invite-existing-positions")).toHaveTextContent(
@@ -478,7 +630,7 @@ describe("TeachersPage", () => {
     render(<TeachersPage />);
 
     // Open invite modal
-    const addButton = screen.getByLabelText("Personal hinzufügen");
+    const addButton = screen.getAllByLabelText("Personal hinzufügen")[0]!;
     fireEvent.click(addButton);
 
     await waitFor(() => {
@@ -537,6 +689,40 @@ describe("TeachersPage", () => {
     });
   });
 
+  it("logs an error when saving the edit form fails", async () => {
+    mockUpdate.mockRejectedValueOnce(new Error("update failed"));
+
+    render(<TeachersPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Maria Müller")).toBeInTheDocument();
+    });
+
+    const teacherRow = screen
+      .getByText("Maria Müller")
+      .closest('[role="button"]');
+    expect(teacherRow).not.toBeNull();
+    fireEvent.click(teacherRow!);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("teacher-detail-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("edit-button"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("teacher-edit-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-edit"));
+
+    await waitFor(() => {
+      expect(mockLoggerError).toHaveBeenCalledWith("failed to update teacher", {
+        error: "update failed",
+      });
+    });
+  });
+
   it("calls delete service when deleting a teacher", async () => {
     mockDelete.mockResolvedValueOnce(null);
 
@@ -587,6 +773,68 @@ describe("TeachersPage", () => {
         "Personal kann nicht gelöscht werden",
       );
     });
+  });
+
+  it("confirms deletion through the confirmation modal", async () => {
+    vi.mocked(useDeleteConfirmation).mockReturnValueOnce({
+      showConfirmModal: true,
+      handleDeleteClick: mockHandleDeleteClick,
+      handleDeleteCancel: mockHandleDeleteCancel,
+      confirmDelete: mockConfirmDelete,
+    });
+    mockDelete.mockResolvedValueOnce(null);
+
+    render(<TeachersPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Maria Müller")).toBeInTheDocument();
+    });
+
+    const teacherRow = screen
+      .getByText("Maria Müller")
+      .closest('[role="button"]');
+    expect(teacherRow).not.toBeNull();
+    fireEvent.click(teacherRow!);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("confirm-delete"));
+
+    await waitFor(() => {
+      expect(mockConfirmDelete).toHaveBeenCalled();
+      expect(mockDelete).toHaveBeenCalledWith("1");
+    });
+  });
+
+  it("closes the confirmation modal through the cancel callback", async () => {
+    vi.mocked(useDeleteConfirmation).mockReturnValueOnce({
+      showConfirmModal: true,
+      handleDeleteClick: mockHandleDeleteClick,
+      handleDeleteCancel: mockHandleDeleteCancel,
+      confirmDelete: mockConfirmDelete,
+    });
+
+    render(<TeachersPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Maria Müller")).toBeInTheDocument();
+    });
+
+    const teacherRow = screen
+      .getByText("Maria Müller")
+      .closest('[role="button"]');
+    expect(teacherRow).not.toBeNull();
+    fireEvent.click(teacherRow!);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("close-confirmation"));
+
+    expect(mockHandleDeleteCancel).toHaveBeenCalled();
   });
 
   it("closes detail modal when close button is clicked", async () => {
@@ -677,6 +925,54 @@ describe("TeachersPage", () => {
     });
   });
 
+  it("closes the caregiver modal through its close callback", async () => {
+    render(<TeachersPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Maria Müller")).toBeInTheDocument();
+    });
+
+    const teacherRow = screen
+      .getByText("Maria Müller")
+      .closest('[role="button"]');
+    expect(teacherRow).not.toBeNull();
+    fireEvent.click(teacherRow!);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("teacher-detail-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("manage-caregiver-button"));
+    fireEvent.click(screen.getByTestId("caregiver-close"));
+
+    expect(screen.getByTestId("caregiver-modal")).toBeInTheDocument();
+  });
+
+  it("revalidates teachers after caregiver capability changes", async () => {
+    render(<TeachersPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Maria Müller")).toBeInTheDocument();
+    });
+
+    const teacherRow = screen
+      .getByText("Maria Müller")
+      .closest('[role="button"]');
+    expect(teacherRow).not.toBeNull();
+    fireEvent.click(teacherRow!);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("teacher-detail-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("manage-caregiver-button"));
+    fireEvent.click(screen.getByTestId("caregiver-update"));
+
+    await waitFor(() => {
+      expect(mockTenantMutate).toHaveBeenCalledWith("database-teachers-list");
+    });
+  });
+
   it("updates notes from the detail modal", async () => {
     mockUpdate.mockResolvedValueOnce({
       id: "1",
@@ -717,6 +1013,116 @@ describe("TeachersPage", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Kein Personal gefunden")).toBeInTheDocument();
+    });
+  });
+
+  it("clears the active search filter from the chip action", async () => {
+    render(<TeachersPage />);
+
+    const searchInput = screen.getByTestId("search-input");
+    fireEvent.change(searchInput, { target: { value: "Maria" } });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("active-filter-search")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("active-filter-search"));
+
+    await waitFor(() => {
+      expect(searchInput).toHaveValue("");
+    });
+  });
+
+  it("opens the detail modal from keyboard enter", async () => {
+    render(<TeachersPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Maria Müller")).toBeInTheDocument();
+    });
+
+    const teacherRow = screen
+      .getByText("Maria Müller")
+      .closest('[role="button"]');
+    expect(teacherRow).not.toBeNull();
+
+    fireEvent.keyDown(teacherRow!, { key: "Enter" });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("teacher-detail-modal")).toBeInTheDocument();
+    });
+  });
+
+  it("opens the detail modal from keyboard space", async () => {
+    render(<TeachersPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Maria Müller")).toBeInTheDocument();
+    });
+
+    const teacherRow = screen
+      .getByText("Maria Müller")
+      .closest('[role="button"]');
+    expect(teacherRow).not.toBeNull();
+
+    fireEvent.keyDown(teacherRow!, { key: " " });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("teacher-detail-modal")).toBeInTheDocument();
+    });
+  });
+
+  it("copies the teacher email to the clipboard", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(window.navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+
+    render(<TeachersPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("maria@example.com")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getAllByLabelText("E-Mail kopieren")[0]!);
+
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith("maria@example.com");
+      expect(mockToastSuccess).toHaveBeenCalledWith("E-Mail kopiert");
+    });
+  });
+
+  it("does not open the detail modal when clicking the mailto link", async () => {
+    render(<TeachersPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("maria@example.com")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getAllByLabelText("E-Mail senden")[0]!);
+
+    expect(
+      screen.queryByTestId("teacher-detail-modal"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows an error toast when copying the email fails", async () => {
+    const writeText = vi.fn().mockRejectedValue(new Error("clipboard denied"));
+    Object.defineProperty(window.navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+
+    render(<TeachersPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("maria@example.com")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getAllByLabelText("E-Mail kopieren")[0]!);
+
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith("Kopieren fehlgeschlagen");
     });
   });
 
@@ -865,7 +1271,7 @@ describe("TeachersPage", () => {
       render(<TeachersPage />);
 
       // Click "Personal hinzufügen" to open invite modal
-      const addButton = screen.getByLabelText("Personal hinzufügen");
+      const addButton = screen.getAllByLabelText("Personal hinzufügen")[0]!;
       fireEvent.click(addButton);
 
       await waitFor(() => {
@@ -878,7 +1284,7 @@ describe("TeachersPage", () => {
   it("closes choice modal via close button", async () => {
     render(<TeachersPage />);
 
-    const addButton = screen.getByLabelText("Personal hinzufügen");
+    const addButton = screen.getAllByLabelText("Personal hinzufügen")[0]!;
     fireEvent.click(addButton);
 
     await waitFor(() => {
@@ -897,7 +1303,7 @@ describe("TeachersPage", () => {
     render(<TeachersPage />);
 
     // Open invite modal
-    fireEvent.click(screen.getByLabelText("Personal hinzufügen"));
+    fireEvent.click(screen.getAllByLabelText("Personal hinzufügen")[0]!);
     await waitFor(() => {
       expect(screen.getByTestId("modal")).toBeInTheDocument();
     });
@@ -906,6 +1312,110 @@ describe("TeachersPage", () => {
     fireEvent.click(screen.getByTestId("close-modal"));
     await waitFor(() => {
       expect(screen.queryByTestId("modal")).not.toBeInTheDocument();
+    });
+  });
+
+  it("clears the selected teacher when the role modal closes", async () => {
+    render(<TeachersPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Maria Müller")).toBeInTheDocument();
+    });
+
+    const teacherRow = screen
+      .getByText("Maria Müller")
+      .closest('[role="button"]');
+    expect(teacherRow).not.toBeNull();
+    fireEvent.click(teacherRow!);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("role-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("role-close"));
+
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("teacher-detail-modal"),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it("ignores tenant revalidation errors from the role modal", async () => {
+    mockTenantMutate.mockRejectedValueOnce(new Error("revalidation failed"));
+
+    render(<TeachersPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Maria Müller")).toBeInTheDocument();
+    });
+
+    const teacherRow = screen
+      .getByText("Maria Müller")
+      .closest('[role="button"]');
+    expect(teacherRow).not.toBeNull();
+    fireEvent.click(teacherRow!);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("role-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("role-update"));
+
+    await waitFor(() => {
+      expect(mockTenantMutate).toHaveBeenCalledWith("database-teachers-list");
+    });
+  });
+
+  it("clears the selected teacher when the permission modal closes", async () => {
+    render(<TeachersPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Maria Müller")).toBeInTheDocument();
+    });
+
+    const teacherRow = screen
+      .getByText("Maria Müller")
+      .closest('[role="button"]');
+    expect(teacherRow).not.toBeNull();
+    fireEvent.click(teacherRow!);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("permission-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("permission-close"));
+
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("teacher-detail-modal"),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it("ignores tenant revalidation errors from the permission modal", async () => {
+    mockTenantMutate.mockRejectedValueOnce(new Error("revalidation failed"));
+
+    render(<TeachersPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Maria Müller")).toBeInTheDocument();
+    });
+
+    const teacherRow = screen
+      .getByText("Maria Müller")
+      .closest('[role="button"]');
+    expect(teacherRow).not.toBeNull();
+    fireEvent.click(teacherRow!);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("permission-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("permission-update"));
+
+    await waitFor(() => {
+      expect(mockTenantMutate).toHaveBeenCalledWith("database-teachers-list");
     });
   });
 });

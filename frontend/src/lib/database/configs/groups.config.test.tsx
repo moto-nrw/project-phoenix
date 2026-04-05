@@ -257,4 +257,60 @@ describe("groupsConfig", () => {
 
     expect(options).toEqual([]);
   });
+
+  it("loads room options from the rooms api", async () => {
+    mockFetch.mockResolvedValueOnce({
+      json: async () => ({
+        data: [
+          { id: 7, name: "Raum Sonnenblume" },
+          { id: 9, name: "Raum Regenbogen" },
+        ],
+      }),
+    });
+
+    const roomField = groupsConfig.form.sections[0]?.fields.find(
+      (field) => field.name === "room_id",
+    );
+    const loadOptions =
+      roomField && typeof roomField.options === "function"
+        ? roomField.options
+        : undefined;
+    const options = await loadOptions?.();
+
+    expect(mockFetch).toHaveBeenCalledWith("/api/rooms");
+    expect(options).toEqual([
+      { value: "", label: "Kein Gruppenraum" },
+      { value: "7", label: "Raum Sonnenblume" },
+      { value: "9", label: "Raum Regenbogen" },
+    ]);
+  });
+
+  it("falls back to the empty room option when room loading fails", async () => {
+    mockFetch.mockRejectedValueOnce(new Error("rooms unavailable"));
+
+    const roomField = groupsConfig.form.sections[0]?.fields.find(
+      (field) => field.name === "room_id",
+    );
+    const loadOptions =
+      roomField && typeof roomField.options === "function"
+        ? roomField.options
+        : undefined;
+    const options = await loadOptions?.();
+
+    expect(options).toEqual([{ value: "", label: "Kein Gruppenraum" }]);
+  });
+
+  it("unwraps wrapped response payloads before mapping", async () => {
+    const { mapGroupResponse } = await import("@/lib/group-helpers");
+
+    groupsConfig.service?.mapResponse?.({
+      status: "success",
+      data: { id: 12, name: "Wrapped Group" },
+    });
+
+    expect(vi.mocked(mapGroupResponse)).toHaveBeenCalledWith({
+      id: 12,
+      name: "Wrapped Group",
+    });
+  });
 });
