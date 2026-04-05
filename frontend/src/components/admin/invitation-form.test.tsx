@@ -118,13 +118,14 @@ describe("InvitationForm", () => {
     });
   });
 
-  it("renders position options", async () => {
+  it("renders position input with placeholder", async () => {
     render(<InvitationForm />);
 
     await waitFor(() => {
-      expect(screen.getByText("Pädagogische Fachkraft")).toBeInTheDocument();
-      expect(screen.getByText("OGS-Büro")).toBeInTheDocument();
-      expect(screen.getByText("Extern")).toBeInTheDocument();
+      const input = screen.getByPlaceholderText(
+        "z.B. Pädagogische Fachkraft, OGS-Büro",
+      );
+      expect(input).toBeInTheDocument();
     });
   });
 

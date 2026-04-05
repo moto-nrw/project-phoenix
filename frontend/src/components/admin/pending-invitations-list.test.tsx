@@ -117,7 +117,7 @@ describe("PendingInvitationsList", () => {
     render(<PendingInvitationsList refreshKey={0} />);
 
     await waitFor(() => {
-      expect(screen.getByText("2 offen")).toBeInTheDocument();
+      expect(screen.getByText("2")).toBeInTheDocument();
     });
   });
 

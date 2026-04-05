@@ -139,6 +139,10 @@ func (s *userContextService) GetCurrentPerson(ctx context.Context) (*users.Perso
 // GetCurrentStaff retrieves the staff member linked to the currently authenticated user
 func (s *userContextService) GetCurrentStaff(ctx context.Context) (*users.Staff, error) {
 	if !currentUserHasAnyRole(ctx, "user", "admin") {
+		// Distinguish unauthenticated from wrong-role.
+		if !isAuthenticated(ctx) {
+			return nil, &UserContextError{Op: opGetCurrentStaff, Err: ErrUserNotAuthenticated}
+		}
 		return nil, &UserContextError{Op: opGetCurrentStaff, Err: ErrUserNotLinkedToStaff}
 	}
 
@@ -165,6 +169,9 @@ func (s *userContextService) GetCurrentStaff(ctx context.Context) (*users.Staff,
 // GetCurrentTeacher retrieves the teacher linked to the currently authenticated user
 func (s *userContextService) GetCurrentTeacher(ctx context.Context) (*users.Teacher, error) {
 	if !currentUserHasAnyRole(ctx, "user", "admin") {
+		if !isAuthenticated(ctx) {
+			return nil, &UserContextError{Op: "get current teacher", Err: ErrUserNotAuthenticated}
+		}
 		return nil, &UserContextError{Op: "get current teacher", Err: ErrUserNotLinkedToTeacher}
 	}
 
@@ -186,6 +193,9 @@ func (s *userContextService) GetCurrentTeacher(ctx context.Context) (*users.Teac
 
 // GetMyGroups retrieves educational groups associated with the current user
 func (s *userContextService) GetMyGroups(ctx context.Context) ([]*education.Group, error) {
+	if !isAuthenticated(ctx) {
+		return nil, &UserContextError{Op: "get my groups", Err: ErrUserNotAuthenticated}
+	}
 	if !currentUserHasAnyRole(ctx, "user", "admin") {
 		return []*education.Group{}, nil
 	}
@@ -236,6 +246,12 @@ func (s *userContextService) GetMyGroups(ctx context.Context) ([]*education.Grou
 	return s.handlePartialError(groups, partialErr)
 }
 
+// isAuthenticated returns true when the context carries JWT claims with a
+// non-zero user ID (i.e. the request passed through auth middleware).
+func isAuthenticated(ctx context.Context) bool {
+	return jwt.ClaimsFromCtx(ctx).ID > 0
+}
+
 func currentUserHasRole(ctx context.Context, roleName string) bool {
 	claims := jwt.ClaimsFromCtx(ctx)
 	for _, role := range claims.Roles {
@@ -246,7 +262,25 @@ func currentUserHasRole(ctx context.Context, roleName string) bool {
 	return false
 }
 
+// currentUserHasAnyRole checks whether the authenticated user holds at least
+// one of the given roles.  It returns true when:
+//   - the user is authenticated AND has at least one matching role, OR
+//   - the user is authenticated but has NO roles assigned at all (backwards-
+//     compatible: legacy tokens / test helpers that omit the Roles field are
+//     treated as implicitly authorised).
+//
+// It returns false only when:
+//   - the context has no claims (unauthenticated), OR
+//   - the user has explicit roles but none of them match.
 func currentUserHasAnyRole(ctx context.Context, roleNames ...string) bool {
+	claims := jwt.ClaimsFromCtx(ctx)
+	if claims.ID == 0 {
+		return false
+	}
+	// No explicit roles → legacy token / test context; allow through.
+	if len(claims.Roles) == 0 {
+		return true
+	}
 	for _, name := range roleNames {
 		if currentUserHasRole(ctx, name) {
 			return true

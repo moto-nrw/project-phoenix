@@ -17,9 +17,17 @@ vi.mock("~/lib/supervision-context", () => ({
   useOptionalSupervision: vi.fn(),
 }));
 
-vi.mock("~/lib/auth-utils", () => ({
-  isAdmin: vi.fn(),
-}));
+vi.mock("~/lib/auth-utils", () => {
+  const isAdminFn = vi.fn();
+  return {
+    isAdmin: isAdminFn,
+    hasRole: vi.fn((_session: unknown, role: string) => {
+      if (role === "admin") return isAdminFn();
+      if (role === "user") return !isAdminFn();
+      return false;
+    }),
+  };
+});
 
 // Mock Drawer components
 vi.mock("~/components/ui/drawer", () => ({
