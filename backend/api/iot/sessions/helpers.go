@@ -99,7 +99,7 @@ func (rs *Resource) buildSessionStartResponse(ctx context.Context, activeGroup *
 // Uses a single batch query to fetch all staff+person data instead of N individual queries.
 func (rs *Resource) buildSupervisorInfos(ctx context.Context, supervisors []*active.GroupSupervisor) []SupervisorInfo {
 	if len(supervisors) == 0 {
-		return nil
+		return []SupervisorInfo{}
 	}
 
 	// Collect unique staff IDs
@@ -119,7 +119,7 @@ func (rs *Resource) buildSupervisorInfos(ctx context.Context, supervisors []*act
 		slog.Default().WarnContext(ctx, "batch staff lookup failed, falling back to empty list",
 			slog.String("error", err.Error()),
 		)
-		return nil
+		return []SupervisorInfo{}
 	}
 
 	supervisorInfos := make([]SupervisorInfo, 0, len(supervisors))
