@@ -7,8 +7,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/iot/attendance"
 	checkinAPI "github.com/moto-nrw/project-phoenix/api/iot/checkin"
+	iotCommon "github.com/moto-nrw/project-phoenix/api/iot/common"
 	dataAPI "github.com/moto-nrw/project-phoenix/api/iot/data"
 	"github.com/moto-nrw/project-phoenix/api/iot/devices"
 	feedbackAPI "github.com/moto-nrw/project-phoenix/api/iot/feedback"
@@ -157,6 +159,9 @@ func (rs *Resource) Router() chi.Router {
 		// Mount data sub-router for teachers endpoint (device-only auth)
 		dataResource := dataAPI.NewResource(rs.IoTService, rs.UsersService, rs.ActivitiesService, rs.FacilityService)
 		r.Mount("/teachers", dataResource.TeachersRouter())
+
+		// School name endpoint (device API key → school name)
+		r.Get("/school-name", rs.getSchoolName)
 	})
 
 	// Device-authenticated routes for RFID devices.
@@ -220,4 +225,26 @@ func (rs *Resource) Router() chi.Router {
 	})
 
 	return r
+}
+
+// schoolNameResponse is the payload for GET /school-name.
+type schoolNameResponse struct {
+	Name string `json:"name"`
+}
+
+// getSchoolName returns the school name for the authenticated device.
+func (rs *Resource) getSchoolName(w http.ResponseWriter, r *http.Request) {
+	deviceCtx := device.DeviceFromCtx(r.Context())
+	if deviceCtx == nil {
+		_ = render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey))
+		return
+	}
+
+	school, err := rs.SchoolRepo.FindByID(r.Context(), deviceCtx.TenantID)
+	if err != nil {
+		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, schoolNameResponse{Name: school.Name}, "School name retrieved")
 }
