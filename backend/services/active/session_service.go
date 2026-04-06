@@ -328,12 +328,29 @@ func (s *service) createSessionBase(ctx context.Context, activityID, deviceID, r
 		return nil, 0, err
 	}
 
+	// Auto-update device location to the room where the session is starting
+	if deviceID > 0 {
+		s.updateDeviceLocation(ctx, deviceID, roomID)
+	}
+
 	transferredCount, err := s.visitRepo.TransferVisitsFromRecentSessions(ctx, newGroup.ID, deviceID)
 	if err != nil {
 		return nil, 0, err
 	}
 
 	return newGroup, transferredCount, nil
+}
+
+// updateDeviceLocation updates the device's room_id to track its last-used location.
+// This is fire-and-forget: a failure here should not block session creation.
+func (s *service) updateDeviceLocation(ctx context.Context, deviceID, roomID int64) {
+	if err := s.deviceRepo.UpdateRoomID(ctx, deviceID, roomID); err != nil {
+		s.getLogger().WarnContext(ctx, "failed to update device location",
+			slog.Int64("device_id", deviceID),
+			slog.Int64("room_id", roomID),
+			slog.String("error", err.Error()),
+		)
+	}
 }
 
 // ForceStartActivitySessionWithSupervisors starts an activity session with multiple supervisors and override capability

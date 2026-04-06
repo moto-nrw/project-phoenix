@@ -44,7 +44,6 @@ export interface CreateDeviceRequest {
   name?: string;
   status?: string;
   registered_by_id?: number;
-  room_id?: number;
 }
 
 // Device update request
@@ -53,7 +52,6 @@ export interface UpdateDeviceRequest {
   device_type?: string;
   name?: string;
   status?: string;
-  room_id?: number;
 }
 
 /**
@@ -99,7 +97,6 @@ export function prepareDeviceForBackend(
     registered_by_id: data.registered_by_id
       ? Number.parseInt(data.registered_by_id)
       : undefined,
-    room_id: data.room_id ? Number.parseInt(data.room_id) : undefined,
   };
 }
 
