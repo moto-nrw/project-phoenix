@@ -417,4 +417,73 @@ class StaffService {
   }
 }
 
+// Work Schedule types and service
+export interface ScheduleEntry {
+  id?: string;
+  dayOfWeek: number;
+  targetMinutes: number;
+  validFrom?: string;
+}
+
+export interface StaffSchedule {
+  entries: ScheduleEntry[];
+  weeklyTotal: number;
+}
+
+interface BackendScheduleEntry {
+  id: number;
+  day_of_week: number;
+  target_minutes: number;
+  valid_from: string;
+}
+
+interface BackendScheduleResponse {
+  entries: BackendScheduleEntry[];
+  weekly_total: number;
+}
+
+function mapScheduleResponse(data: BackendScheduleResponse): StaffSchedule {
+  return {
+    entries: (data.entries ?? []).map((e) => ({
+      id: e.id.toString(),
+      dayOfWeek: e.day_of_week,
+      targetMinutes: e.target_minutes,
+      validFrom: e.valid_from,
+    })),
+    weeklyTotal: data.weekly_total ?? 0,
+  };
+}
+
+export class StaffScheduleService {
+  async getSchedule(staffId: string): Promise<StaffSchedule> {
+    const response = await sessionFetch(`/api/staff/${staffId}/schedule`);
+    const json = (await response.json()) as {
+      data: BackendScheduleResponse;
+    };
+    return mapScheduleResponse(json.data);
+  }
+
+  async updateSchedule(
+    staffId: string,
+    entries: Array<{ dayOfWeek: number; targetMinutes: number }>,
+  ): Promise<StaffSchedule> {
+    const body = {
+      entries: entries.map((e) => ({
+        day_of_week: e.dayOfWeek,
+        target_minutes: e.targetMinutes,
+      })),
+    };
+    const response = await sessionFetch(`/api/staff/${staffId}/schedule`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const json = (await response.json()) as {
+      data: BackendScheduleResponse;
+    };
+    return mapScheduleResponse(json.data);
+  }
+}
+
 export const staffService = new StaffService();
+export const staffScheduleService = new StaffScheduleService();

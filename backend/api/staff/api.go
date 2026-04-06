@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
@@ -35,6 +36,7 @@ type Resource struct {
 	GroupSupervisorRepo active.GroupSupervisorRepository
 	WorkSessionService  activeSvc.WorkSessionService
 	AbsenceRepo         active.StaffAbsenceRepository
+	ScheduleRepo        config.StaffWorkScheduleRepository
 	db                  *bun.DB
 	logger              *slog.Logger
 }
@@ -47,6 +49,7 @@ func NewResource(
 	groupSupervisorRepo active.GroupSupervisorRepository,
 	workSessionService activeSvc.WorkSessionService,
 	absenceRepo active.StaffAbsenceRepository,
+	scheduleRepo config.StaffWorkScheduleRepository,
 	db *bun.DB,
 	logger *slog.Logger,
 ) *Resource {
@@ -59,6 +62,7 @@ func NewResource(
 		GroupSupervisorRepo: groupSupervisorRepo,
 		WorkSessionService:  workSessionService,
 		AbsenceRepo:         absenceRepo,
+		ScheduleRepo:        scheduleRepo,
 		db:                  db,
 		logger:              logger,
 	}
@@ -100,6 +104,10 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.UsersCreate), withTx).Post("/", rs.createStaff)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}", rs.updateStaff)
 		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Delete("/{id}", rs.deleteStaff)
+
+		// Work schedule endpoints - require users:update for write
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/schedule", rs.getSchedule)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/schedule", rs.updateSchedule)
 
 		// PIN management endpoints - staff can manage their own PIN
 		r.With(withTx).Get("/pin", rs.getPINStatus)
@@ -1276,3 +1284,122 @@ func (rs *Resource) GetPINStatusHandler() http.HandlerFunc { return rs.getPINSta
 
 // UpdatePINHandler returns the updatePIN handler for testing.
 func (rs *Resource) UpdatePINHandler() http.HandlerFunc { return rs.updatePIN }
+
+// ============================================================================
+// Work Schedule Handlers
+// ============================================================================
+
+// ScheduleEntryRequest represents a single day in the schedule
+type ScheduleEntryRequest struct {
+	DayOfWeek     int `json:"day_of_week"`
+	TargetMinutes int `json:"target_minutes"`
+}
+
+// ScheduleEntryResponse represents a single day in the schedule response
+type ScheduleEntryResponse struct {
+	ID            int64  `json:"id"`
+	DayOfWeek     int    `json:"day_of_week"`
+	TargetMinutes int    `json:"target_minutes"`
+	ValidFrom     string `json:"valid_from"`
+}
+
+// ScheduleResponse wraps the full schedule
+type ScheduleResponse struct {
+	Entries     []ScheduleEntryResponse `json:"entries"`
+	WeeklyTotal int                     `json:"weekly_total"`
+}
+
+// getSchedule handles GET /api/staff/{id}/schedule
+func (rs *Resource) getSchedule(w http.ResponseWriter, r *http.Request) {
+	staffID, err := common.ParseID(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
+	// Verify staff exists
+	if _, err := rs.StaffRepo.FindByID(r.Context(), staffID); err != nil {
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("staff not found")))
+		return
+	}
+
+	entries, err := rs.ScheduleRepo.GetCurrentByStaffID(r.Context(), staffID)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	resp := ScheduleResponse{
+		Entries: make([]ScheduleEntryResponse, 0, len(entries)),
+	}
+	for _, e := range entries {
+		resp.Entries = append(resp.Entries, ScheduleEntryResponse{
+			ID:            e.ID,
+			DayOfWeek:     e.DayOfWeek,
+			TargetMinutes: e.TargetMinutes,
+			ValidFrom:     e.ValidFrom.Format("2006-01-02"),
+		})
+		resp.WeeklyTotal += e.TargetMinutes
+	}
+
+	common.Respond(w, r, http.StatusOK, resp, "Schedule retrieved successfully")
+}
+
+// updateSchedule handles PUT /api/staff/{id}/schedule
+func (rs *Resource) updateSchedule(w http.ResponseWriter, r *http.Request) {
+	staffID, err := common.ParseID(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
+	// Verify staff exists
+	if _, err := rs.StaffRepo.FindByID(r.Context(), staffID); err != nil {
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("staff not found")))
+		return
+	}
+
+	var req struct {
+		Entries []ScheduleEntryRequest `json:"entries"`
+	}
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
+	// Convert request to model entries
+	entries := make([]*config.StaffWorkSchedule, 0, len(req.Entries))
+	for _, e := range req.Entries {
+		entries = append(entries, &config.StaffWorkSchedule{
+			DayOfWeek:     e.DayOfWeek,
+			TargetMinutes: e.TargetMinutes,
+		})
+	}
+
+	if err := rs.ScheduleRepo.ReplaceSchedule(r.Context(), staffID, entries); err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	// Re-fetch to return the saved state
+	saved, err := rs.ScheduleRepo.GetCurrentByStaffID(r.Context(), staffID)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	resp := ScheduleResponse{
+		Entries: make([]ScheduleEntryResponse, 0, len(saved)),
+	}
+	for _, e := range saved {
+		resp.Entries = append(resp.Entries, ScheduleEntryResponse{
+			ID:            e.ID,
+			DayOfWeek:     e.DayOfWeek,
+			TargetMinutes: e.TargetMinutes,
+			ValidFrom:     e.ValidFrom.Format("2006-01-02"),
+		})
+		resp.WeeklyTotal += e.TargetMinutes
+	}
+
+	common.Respond(w, r, http.StatusOK, resp, "Schedule updated successfully")
+}
