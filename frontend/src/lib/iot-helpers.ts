@@ -12,6 +12,8 @@ export interface Device {
   status: "active" | "inactive" | "maintenance" | "offline";
   last_seen?: string;
   registered_by_id?: string;
+  room_id?: string;
+  room_name?: string;
   is_online: boolean;
   created_at: string;
   updated_at: string;
@@ -27,6 +29,8 @@ export interface BackendDevice {
   status: string;
   last_seen?: string;
   registered_by_id?: number;
+  room_id?: number;
+  room_name?: string;
   is_online: boolean;
   created_at: string;
   updated_at: string;
@@ -40,6 +44,7 @@ export interface CreateDeviceRequest {
   name?: string;
   status?: string;
   registered_by_id?: number;
+  room_id?: number;
 }
 
 // Device update request
@@ -48,6 +53,7 @@ export interface UpdateDeviceRequest {
   device_type?: string;
   name?: string;
   status?: string;
+  room_id?: number;
 }
 
 /**
@@ -70,6 +76,8 @@ export function mapDeviceResponse(data: BackendDevice): Device {
     status: data.status as Device["status"],
     last_seen: data.last_seen,
     registered_by_id: data.registered_by_id?.toString(),
+    room_id: data.room_id?.toString(),
+    room_name: data.room_name,
     is_online: data.is_online ?? false,
     created_at: data.created_at,
     updated_at: data.updated_at,
@@ -91,6 +99,7 @@ export function prepareDeviceForBackend(
     registered_by_id: data.registered_by_id
       ? Number.parseInt(data.registered_by_id)
       : undefined,
+    room_id: data.room_id ? Number.parseInt(data.room_id) : undefined,
   };
 }
 
@@ -166,6 +175,26 @@ export function formatLastSeen(lastSeen?: string): string {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+/**
+ * Format last seen timestamp as relative German time string
+ */
+export function formatRelativeLastSeen(lastSeen?: string): string {
+  if (!lastSeen) return "Nie verbunden";
+
+  const now = Date.now();
+  const seen = new Date(lastSeen).getTime();
+  const diffMs = now - seen;
+  const diffMin = Math.floor(diffMs / 60_000);
+  const diffHrs = Math.floor(diffMs / 3_600_000);
+  const diffDays = Math.floor(diffMs / 86_400_000);
+
+  if (diffMin < 1) return "Gerade eben";
+  if (diffMin < 60) return `vor ${diffMin} Min.`;
+  if (diffHrs < 24) return `vor ${diffHrs} Std.`;
+  if (diffDays === 1) return "vor 1 Tag";
+  return `vor ${diffDays} Tagen`;
 }
 
 /**
