@@ -1980,11 +1980,15 @@ func EnsureTestTenant(tb testing.TB, db *bun.DB, tenantID int64) {
 	// packages using auto-generated IDs (nextval) don't collide.
 	_, err = db.ExecContext(ctx, `
 		SELECT setval(pg_get_serial_sequence('platform.organizations', 'id'),
-			GREATEST((SELECT last_value FROM platform.organizations_id_seq), $1));
+			GREATEST((SELECT last_value FROM platform.organizations_id_seq), ?))`,
+		tenantID)
+	require.NoError(tb, err, "Failed to advance org sequence past explicit tenant ID")
+
+	_, err = db.ExecContext(ctx, `
 		SELECT setval(pg_get_serial_sequence('platform.schools', 'id'),
-			GREATEST((SELECT last_value FROM platform.schools_id_seq), $1));
-	`, tenantID)
-	require.NoError(tb, err, "Failed to advance sequences past explicit tenant ID")
+			GREATEST((SELECT last_value FROM platform.schools_id_seq), ?))`,
+		tenantID)
+	require.NoError(tb, err, "Failed to advance school sequence past explicit tenant ID")
 }
 
 // MapAccountToTenant creates an active account_tenants mapping without
