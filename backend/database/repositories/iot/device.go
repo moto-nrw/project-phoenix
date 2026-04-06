@@ -207,6 +207,27 @@ func (r *DeviceRepository) UpdateLastSeen(ctx context.Context, id int64, lastSee
 	return base.AssertRowsAffected(result, 1, "update last seen")
 }
 
+// UpdateRoomID updates the room_id for a device by its primary key.
+func (r *DeviceRepository) UpdateRoomID(ctx context.Context, id int64, roomID int64) error {
+	query := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*iot.Device)(nil)).
+		ModelTableExpr(tableIoTDevices).
+		Set("room_id = ?", roomID).
+		Set("updated_at = ?", time.Now()).
+		Where("id = ?", id)
+
+	result, err := query.Exec(ctx)
+
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "update room id",
+			Err: err,
+		}
+	}
+
+	return base.AssertRowsAffected(result, 1, "update room id")
+}
+
 // UpdateStatus updates the status for a device
 func (r *DeviceRepository) UpdateStatus(ctx context.Context, deviceID string, status iot.DeviceStatus) error {
 	query := base.GetDB(ctx, r.db).NewUpdate().

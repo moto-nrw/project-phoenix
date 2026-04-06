@@ -344,17 +344,7 @@ func (s *service) createSessionBase(ctx context.Context, activityID, deviceID, r
 // updateDeviceLocation updates the device's room_id to track its last-used location.
 // This is fire-and-forget: a failure here should not block session creation.
 func (s *service) updateDeviceLocation(ctx context.Context, deviceID, roomID int64) {
-	device, err := s.deviceRepo.FindByID(ctx, deviceID)
-	if err != nil {
-		s.getLogger().WarnContext(ctx, "failed to find device for location update",
-			slog.Int64("device_id", deviceID),
-			slog.String("error", err.Error()),
-		)
-		return
-	}
-
-	device.RoomID = &roomID
-	if err := s.deviceRepo.Update(ctx, device); err != nil {
+	if err := s.deviceRepo.UpdateRoomID(ctx, deviceID, roomID); err != nil {
 		s.getLogger().WarnContext(ctx, "failed to update device location",
 			slog.Int64("device_id", deviceID),
 			slog.Int64("room_id", roomID),

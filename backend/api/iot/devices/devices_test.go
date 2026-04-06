@@ -250,21 +250,18 @@ func TestCreateDevice_Success(t *testing.T) {
 	}
 }
 
-func TestCreateDevice_ResponseIncludesAssignedRoomName(t *testing.T) {
+func TestCreateDevice_NewDeviceHasNoRoom(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
-
-	room := testpkg.CreateTestRoom(t, ctx.db, "CreateDevice-Room")
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Post("/devices", ctx.resource.CreateDeviceHandler())
 
-	uniqueID := fmt.Sprintf("new-device-room-%d", time.Now().UnixNano())
+	uniqueID := fmt.Sprintf("new-device-no-room-%d", time.Now().UnixNano())
 	body := map[string]interface{}{
 		"device_id":   uniqueID,
 		"device_type": "terminal",
-		"name":        "Device With Room",
-		"room_id":     room.ID,
+		"name":        "Device Without Room",
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/devices", body,
@@ -279,10 +276,10 @@ func TestCreateDevice_ResponseIncludesAssignedRoomName(t *testing.T) {
 	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
 	data := response["data"].(map[string]interface{})
 	deviceID := int64(data["id"].(float64))
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, deviceID, room.ID)
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, deviceID)
 
-	assert.Equal(t, float64(room.ID), data["room_id"])
-	assert.Equal(t, room.Name, data["room_name"])
+	// A newly created device has no room — location is auto-derived from sessions
+	assert.Nil(t, data["room_name"], "new device should have no room_name before any session")
 }
 
 func TestCreateDevice_MissingDeviceID(t *testing.T) {
@@ -362,19 +359,19 @@ func TestUpdateDevice_Success(t *testing.T) {
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
 
-func TestUpdateDevice_ResponseIncludesUpdatedRoomName(t *testing.T) {
+func TestUpdateDevice_PreservesSessionDerivedRoom(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "update-room-device")
-	room1 := testpkg.CreateTestRoom(t, ctx.db, "UpdateDevice-Room-Original")
-	room2 := testpkg.CreateTestRoom(t, ctx.db, "UpdateDevice-Room-New")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID, room1.ID, room2.ID)
+	room := testpkg.CreateTestRoom(t, ctx.db, "UpdateDevice-SessionRoom")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID, room.ID)
 
+	// Simulate a session having set the device's room_id (as auto-derive would)
 	_, err := ctx.db.NewUpdate().
 		Model(device).
 		ModelTableExpr(`iot.devices`).
-		Set("room_id = ?", room1.ID).
+		Set("room_id = ?", room.ID).
 		Where("id = ?", device.ID).
 		Exec(testutil.TenantContext(1))
 	assert.NoError(t, err)
@@ -382,11 +379,11 @@ func TestUpdateDevice_ResponseIncludesUpdatedRoomName(t *testing.T) {
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Put("/devices/{id}", ctx.resource.UpdateDeviceHandler())
 
+	// Update only the name — room_id is not in the request (auto-derived, not manual)
 	body := map[string]interface{}{
 		"device_id":   device.DeviceID,
 		"device_type": device.DeviceType,
 		"name":        "Updated Device Name",
-		"room_id":     room2.ID,
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/devices/%d", device.ID), body,
@@ -401,8 +398,8 @@ func TestUpdateDevice_ResponseIncludesUpdatedRoomName(t *testing.T) {
 	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
 	data := response["data"].(map[string]interface{})
 
-	assert.Equal(t, float64(room2.ID), data["room_id"])
-	assert.Equal(t, room2.Name, data["room_name"])
+	// The session-derived room should be preserved after updating other fields
+	assert.Equal(t, room.Name, data["room_name"])
 }
 
 func TestUpdateDevice_NotFound(t *testing.T) {
