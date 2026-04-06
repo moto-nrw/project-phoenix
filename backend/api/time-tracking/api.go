@@ -237,14 +237,14 @@ func (rs *Resource) getHistory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get history
-	sessions, err := rs.WorkSessionService.GetHistory(r.Context(), staffID, from, to)
+	// Get history with weekly aggregation
+	historyResp, err := rs.WorkSessionService.GetHistory(r.Context(), staffID, from, to)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, sessions, "Session history retrieved successfully")
+	common.Respond(w, r, http.StatusOK, historyResp, "Session history retrieved successfully")
 }
 
 // updateSession handles PUT /api/time-tracking/{id}

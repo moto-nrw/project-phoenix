@@ -61,6 +61,7 @@ const backendHistory = {
   net_minutes: 480,
   is_overtime: false,
   is_break_compliant: true,
+  rest_period_warning: null,
   breaks: [backendBreak],
   edit_count: 0,
 };
@@ -240,7 +241,10 @@ describe("TimeTrackingService", () => {
       global.fetch = mockFetchResponse({
         success: true,
         message: "",
-        data: [backendHistory],
+        data: {
+          sessions: [backendHistory],
+          weekly_summaries: [],
+        },
       });
 
       const result = await timeTrackingService.getHistory(
@@ -252,12 +256,12 @@ describe("TimeTrackingService", () => {
         "/api/time-tracking/history?from=2025-06-01&to=2025-06-30",
         expect.objectContaining({ method: "GET" }),
       );
-      expect(result).toHaveLength(1);
-      expect(result[0]!.netMinutes).toBe(480);
-      expect(result[0]!.isOvertime).toBe(false);
-      expect(result[0]!.isBreakCompliant).toBe(true);
-      expect(result[0]!.breaks).toHaveLength(1);
-      expect(result[0]!.breaks[0]!.durationMinutes).toBe(30);
+      expect(result.sessions).toHaveLength(1);
+      expect(result.sessions[0]!.netMinutes).toBe(480);
+      expect(result.sessions[0]!.isOvertime).toBe(false);
+      expect(result.sessions[0]!.isBreakCompliant).toBe(true);
+      expect(result.sessions[0]!.breaks).toHaveLength(1);
+      expect(result.sessions[0]!.breaks[0]!.durationMinutes).toBe(30);
     });
   });
 

@@ -161,6 +161,7 @@ describe("mapWorkSessionHistoryResponse", () => {
       net_minutes: 450,
       is_overtime: false,
       is_break_compliant: true,
+      rest_period_warning: null,
       breaks: null,
       edit_count: 0,
     };
@@ -179,6 +180,7 @@ describe("mapWorkSessionHistoryResponse", () => {
       net_minutes: 450,
       is_overtime: false,
       is_break_compliant: true,
+      rest_period_warning: null,
       breaks: [
         {
           id: 1,
@@ -217,6 +219,7 @@ describe("mapWorkSessionHistoryResponse", () => {
       net_minutes: 450,
       is_overtime: false,
       is_break_compliant: true,
+      rest_period_warning: null,
       breaks: null,
       edit_count: 0,
     };
@@ -231,6 +234,7 @@ describe("mapWorkSessionHistoryResponse", () => {
       net_minutes: 450,
       is_overtime: false,
       is_break_compliant: true,
+      rest_period_warning: null,
       breaks: null,
       edit_count: undefined as unknown as number,
     };
@@ -574,6 +578,7 @@ describe("getComplianceWarnings", () => {
     netMinutes: 450,
     isOvertime: false,
     isBreakCompliant: true,
+    restPeriodWarning: null,
     breaks: [],
     editCount: 0,
     ...overrides,

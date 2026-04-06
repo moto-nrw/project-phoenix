@@ -32,8 +32,24 @@ export interface BackendWorkSessionHistory extends BackendWorkSession {
   net_minutes: number;
   is_overtime: boolean;
   is_break_compliant: boolean;
+  rest_period_warning: string | null;
   breaks: BackendWorkSessionBreak[] | null;
   edit_count: number;
+}
+
+export interface BackendWeeklySummary {
+  week_number: number;
+  year: number;
+  total_net_minutes: number;
+  target_minutes: number | null;
+  delta_minutes: number | null;
+  session_count: number;
+  is_over_weekly_max: boolean;
+}
+
+export interface BackendHistoryResponse {
+  sessions: BackendWorkSessionHistory[];
+  weekly_summaries: BackendWeeklySummary[];
 }
 
 export interface BackendWorkSessionEdit {
@@ -151,8 +167,19 @@ export interface WorkSessionHistory extends WorkSession {
   netMinutes: number;
   isOvertime: boolean;
   isBreakCompliant: boolean;
+  restPeriodWarning: string | null;
   breaks: WorkSessionBreak[];
   editCount: number;
+}
+
+export interface WeeklySummary {
+  weekNumber: number;
+  year: number;
+  totalNetMinutes: number;
+  targetMinutes: number | null;
+  deltaMinutes: number | null;
+  sessionCount: number;
+  isOverWeeklyMax: boolean;
 }
 
 export interface WorkSessionEdit {
@@ -215,8 +242,41 @@ export function mapWorkSessionHistoryResponse(
     netMinutes: data.net_minutes,
     isOvertime: data.is_overtime,
     isBreakCompliant: data.is_break_compliant,
+    restPeriodWarning: data.rest_period_warning ?? null,
     breaks: (data.breaks ?? []).map(mapWorkSessionBreakResponse),
     editCount: data.edit_count ?? 0,
+  };
+}
+
+/**
+ * Maps backend weekly summary to frontend type
+ */
+export function mapWeeklySummaryResponse(
+  data: BackendWeeklySummary,
+): WeeklySummary {
+  return {
+    weekNumber: data.week_number,
+    year: data.year,
+    totalNetMinutes: data.total_net_minutes,
+    targetMinutes: data.target_minutes ?? null,
+    deltaMinutes: data.delta_minutes ?? null,
+    sessionCount: data.session_count,
+    isOverWeeklyMax: data.is_over_weekly_max,
+  };
+}
+
+/**
+ * Maps the full history response (sessions + weekly summaries)
+ */
+export function mapHistoryResponse(data: BackendHistoryResponse): {
+  sessions: WorkSessionHistory[];
+  weeklySummaries: WeeklySummary[];
+} {
+  return {
+    sessions: (data.sessions ?? []).map(mapWorkSessionHistoryResponse),
+    weeklySummaries: (data.weekly_summaries ?? []).map(
+      mapWeeklySummaryResponse,
+    ),
   };
 }
 
@@ -335,6 +395,10 @@ export function getWeekNumber(date: Date): number {
  */
 export function getComplianceWarnings(session: WorkSessionHistory): string[] {
   const warnings: string[] = [];
+
+  if (session.restPeriodWarning) {
+    warnings.push(session.restPeriodWarning);
+  }
 
   if (!session.isBreakCompliant && session.netMinutes > 0) {
     if (session.netMinutes > 540 && session.breakMinutes < 45) {

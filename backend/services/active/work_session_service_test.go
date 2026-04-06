@@ -913,10 +913,11 @@ func TestWSGetHistory_Success(t *testing.T) {
 		return []*activeModels.WorkSessionBreak{}, nil
 	}
 
-	responses, err := svc.GetHistory(context.Background(), staffID, from, to)
+	historyResp, err := svc.GetHistory(context.Background(), staffID, from, to)
 	require.NoError(t, err)
-	require.Len(t, responses, 1)
-	assert.Equal(t, 2, responses[0].EditCount)
+	require.Len(t, historyResp.Sessions, 1)
+	assert.Equal(t, 2, historyResp.Sessions[0].EditCount)
+	require.Len(t, historyResp.WeeklySummaries, 1)
 }
 
 func TestWSGetHistory_RepoError(t *testing.T) {
@@ -926,9 +927,9 @@ func TestWSGetHistory_RepoError(t *testing.T) {
 		return nil, errors.New("database error")
 	}
 
-	responses, err := svc.GetHistory(context.Background(), 100, time.Now(), time.Now())
+	historyResp, err := svc.GetHistory(context.Background(), 100, time.Now(), time.Now())
 	require.Error(t, err)
-	assert.Nil(t, responses)
+	assert.Nil(t, historyResp)
 }
 
 // ============================================================================

@@ -32,6 +32,7 @@ import {
   type WorkSession,
   type WorkSessionBreak,
   type WorkSessionEdit,
+  type WeeklySummary,
   type WorkSessionHistory,
   absenceTypeLabels,
   absenceTypeColors,
@@ -3433,7 +3434,10 @@ function TimeTrackingContent() {
     data: historyData,
     isLoading: historyLoading,
     mutate: mutateHistory,
-  } = useSWRAuth<WorkSessionHistory[]>(
+  } = useSWRAuth<{
+    sessions: WorkSessionHistory[];
+    weeklySummaries: WeeklySummary[];
+  }>(
     chartFromDate && toDate
       ? `time-tracking-history-${chartFromDate}-${toDate}`
       : null,
@@ -3441,7 +3445,11 @@ function TimeTrackingContent() {
     { keepPreviousData: true, revalidateOnFocus: false, errorRetryCount: 1 },
   );
 
-  const history = historyData ?? [];
+  const history = useMemo(() => historyData?.sessions ?? [], [historyData]);
+  const _weeklySummaries = useMemo(
+    () => historyData?.weeklySummaries ?? [],
+    [historyData],
+  );
 
   // Fetch absences for the same date range
   const { data: absencesData, mutate: mutateAbsences } = useSWRAuth<
@@ -3501,10 +3509,10 @@ function TimeTrackingContent() {
   const hasTodayEditedSession = useMemo(
     () =>
       !currentSession &&
-      (historyData ?? []).some(
+      history.some(
         (s) => s.date === todayISO && s.checkOutTime && s.editCount > 0,
       ),
-    [currentSession, historyData, todayISO],
+    [currentSession, history, todayISO],
   );
 
   const executeCheckIn = useCallback(

@@ -3,17 +3,18 @@
 import { getSession } from "next-auth/react";
 import type {
   StaffAbsence,
+  WeeklySummary,
   WorkSession,
   WorkSessionBreak,
   WorkSessionEdit,
   WorkSessionHistory,
 } from "./time-tracking-helpers";
 import {
+  mapHistoryResponse,
   mapStaffAbsenceResponse,
   mapWorkSessionResponse,
   mapWorkSessionBreakResponse,
   mapWorkSessionEditResponse,
-  mapWorkSessionHistoryResponse,
 } from "./time-tracking-helpers";
 
 /**
@@ -161,16 +162,19 @@ class TimeTrackingService {
     return result.data ? mapWorkSessionResponse(result.data as never) : null;
   }
 
-  async getHistory(from: string, to: string): Promise<WorkSessionHistory[]> {
+  async getHistory(
+    from: string,
+    to: string,
+  ): Promise<{
+    sessions: WorkSessionHistory[];
+    weeklySummaries: WeeklySummary[];
+  }> {
     const params = new URLSearchParams({ from, to });
-    const result = await this.request<WorkSessionHistory[]>(
-      `/history?${params}`,
-      "GET",
-      "Failed to get history",
-    );
-    return (result.data ?? []).map((session) =>
-      mapWorkSessionHistoryResponse(session as never),
-    );
+    const result = await this.request<{
+      sessions: unknown[];
+      weekly_summaries: unknown[];
+    }>(`/history?${params}`, "GET", "Failed to get history");
+    return mapHistoryResponse(result.data as never);
   }
 
   async updateSession(

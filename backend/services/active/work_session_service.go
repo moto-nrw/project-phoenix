@@ -16,6 +16,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/xuri/excelize/v2"
 )
@@ -46,11 +48,29 @@ type SessionUpdateRequest struct {
 // SessionResponse wraps a work session with calculated fields
 type SessionResponse struct {
 	*activeModels.WorkSession
-	NetMinutes       int                              `json:"net_minutes"`
-	IsOvertime       bool                             `json:"is_overtime"`
-	IsBreakCompliant bool                             `json:"is_break_compliant"`
-	Breaks           []*activeModels.WorkSessionBreak `json:"breaks"`
-	EditCount        int                              `json:"edit_count"`
+	NetMinutes        int                              `json:"net_minutes"`
+	IsOvertime        bool                             `json:"is_overtime"`
+	IsBreakCompliant  bool                             `json:"is_break_compliant"`
+	RestPeriodWarning *string                          `json:"rest_period_warning,omitempty"`
+	Breaks            []*activeModels.WorkSessionBreak `json:"breaks"`
+	EditCount         int                              `json:"edit_count"`
+}
+
+// WeeklySummary aggregates work session data per ISO week
+type WeeklySummary struct {
+	WeekNumber      int  `json:"week_number"`
+	Year            int  `json:"year"`
+	TotalNetMinutes int  `json:"total_net_minutes"`
+	TargetMinutes   *int `json:"target_minutes,omitempty"`
+	DeltaMinutes    *int `json:"delta_minutes,omitempty"`
+	SessionCount    int  `json:"session_count"`
+	IsOverWeeklyMax bool `json:"is_over_weekly_max"`
+}
+
+// HistoryResponse wraps session history with weekly aggregation
+type HistoryResponse struct {
+	Sessions        []*SessionResponse `json:"sessions"`
+	WeeklySummaries []WeeklySummary    `json:"weekly_summaries"`
 }
 
 // WorkSessionService defines operations for staff time tracking
@@ -62,7 +82,7 @@ type WorkSessionService interface {
 	GetSessionBreaks(ctx context.Context, staffID, sessionID int64) ([]*activeModels.WorkSessionBreak, error)
 	UpdateSession(ctx context.Context, staffID int64, sessionID int64, updates SessionUpdateRequest) (*activeModels.WorkSession, error)
 	GetCurrentSession(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
-	GetHistory(ctx context.Context, staffID int64, from, to time.Time) ([]*SessionResponse, error)
+	GetHistory(ctx context.Context, staffID int64, from, to time.Time) (*HistoryResponse, error)
 	GetSessionEdits(ctx context.Context, staffID, sessionID int64) ([]*auditModels.WorkSessionEdit, error)
 	GetTodayPresenceMap(ctx context.Context) (map[int64]string, error)
 	CleanupOpenSessions(ctx context.Context) (int, error)
@@ -78,6 +98,8 @@ type workSessionService struct {
 	auditRepo      auditModels.WorkSessionEditRepository
 	absenceRepo    activeModels.StaffAbsenceRepository
 	supervisorRepo activeModels.GroupSupervisorRepository
+	staffRepo      userModels.StaffRepository
+	scheduleRepo   configModels.StaffWorkScheduleRepository
 	logger         *slog.Logger
 }
 
@@ -90,8 +112,8 @@ func (s *workSessionService) getLogger() *slog.Logger {
 }
 
 // NewWorkSessionService creates a new work session service
-func NewWorkSessionService(repo activeModels.WorkSessionRepository, breakRepo activeModels.WorkSessionBreakRepository, auditRepo auditModels.WorkSessionEditRepository, absenceRepo activeModels.StaffAbsenceRepository, supervisorRepo activeModels.GroupSupervisorRepository, logger *slog.Logger) WorkSessionService {
-	return &workSessionService{repo: repo, breakRepo: breakRepo, auditRepo: auditRepo, absenceRepo: absenceRepo, supervisorRepo: supervisorRepo, logger: logger}
+func NewWorkSessionService(repo activeModels.WorkSessionRepository, breakRepo activeModels.WorkSessionBreakRepository, auditRepo auditModels.WorkSessionEditRepository, absenceRepo activeModels.StaffAbsenceRepository, supervisorRepo activeModels.GroupSupervisorRepository, staffRepo userModels.StaffRepository, scheduleRepo configModels.StaffWorkScheduleRepository, logger *slog.Logger) WorkSessionService {
+	return &workSessionService{repo: repo, breakRepo: breakRepo, auditRepo: auditRepo, absenceRepo: absenceRepo, supervisorRepo: supervisorRepo, staffRepo: staffRepo, scheduleRepo: scheduleRepo, logger: logger}
 }
 
 // CheckIn creates a new work session for the staff member
@@ -595,8 +617,8 @@ func (s *workSessionService) GetCurrentSession(ctx context.Context, staffID int6
 	return session, nil
 }
 
-// GetHistory returns work sessions for a staff member in a date range
-func (s *workSessionService) GetHistory(ctx context.Context, staffID int64, from, to time.Time) ([]*SessionResponse, error) {
+// GetHistory returns work sessions for a staff member in a date range with weekly aggregation
+func (s *workSessionService) GetHistory(ctx context.Context, staffID int64, from, to time.Time) (*HistoryResponse, error) {
 	sessions, err := s.repo.GetHistoryByStaffID(ctx, staffID, from, to)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get session history: %w", err)
@@ -612,6 +634,15 @@ func (s *workSessionService) GetHistory(ctx context.Context, staffID int64, from
 	editCounts, err := s.auditRepo.CountBySessionIDs(ctx, sessionIDs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get edit counts: %w", err)
+	}
+
+	// Fetch weekly target minutes from work schedule
+	var targetMinutes *int
+	if s.scheduleRepo != nil {
+		target, schedErr := s.getWeeklyTargetFromSchedule(ctx, staffID)
+		if schedErr == nil {
+			targetMinutes = target
+		}
 	}
 
 	// Wrap each session in SessionResponse with calculated fields and breaks
@@ -632,7 +663,69 @@ func (s *workSessionService) GetHistory(ctx context.Context, staffID int64, from
 		}
 	}
 
-	return responses, nil
+	// Build weekly summaries
+	weeklySummaries := s.buildWeeklySummaries(responses, targetMinutes)
+
+	return &HistoryResponse{
+		Sessions:        responses,
+		WeeklySummaries: weeklySummaries,
+	}, nil
+}
+
+// buildWeeklySummaries aggregates session data by ISO week
+func (s *workSessionService) buildWeeklySummaries(sessions []*SessionResponse, targetMinutes *int) []WeeklySummary {
+	type weekKey struct {
+		Year int
+		Week int
+	}
+
+	weekMap := make(map[weekKey]*WeeklySummary)
+	var weekOrder []weekKey
+
+	for _, session := range sessions {
+		year, week := session.Date.ISOWeek()
+		key := weekKey{Year: year, Week: week}
+
+		summary, exists := weekMap[key]
+		if !exists {
+			summary = &WeeklySummary{
+				WeekNumber:    week,
+				Year:          year,
+				TargetMinutes: targetMinutes,
+			}
+			weekMap[key] = summary
+			weekOrder = append(weekOrder, key)
+		}
+
+		summary.TotalNetMinutes += session.NetMinutes
+		summary.SessionCount++
+	}
+
+	// Convert to sorted slice and compute derived fields
+	const maxWeeklyMinutes = 48 * 60 // §3 ArbZG
+	summaries := make([]WeeklySummary, 0, len(weekOrder))
+	for _, key := range weekOrder {
+		ws := weekMap[key]
+		ws.IsOverWeeklyMax = ws.TotalNetMinutes > maxWeeklyMinutes
+
+		if ws.TargetMinutes != nil {
+			delta := ws.TotalNetMinutes - *ws.TargetMinutes
+			ws.DeltaMinutes = &delta
+		}
+
+		summaries = append(summaries, *ws)
+	}
+
+	return summaries
+}
+
+// getWeeklyTargetFromSchedule fetches the current work schedule and sums weekly target minutes
+func (s *workSessionService) getWeeklyTargetFromSchedule(ctx context.Context, staffID int64) (*int, error) {
+	entries, err := s.scheduleRepo.GetCurrentByStaffID(ctx, staffID)
+	if err != nil {
+		return nil, err
+	}
+	return configModels.WeeklyTargetFromSchedule(entries), nil
 }
 
 // GetSessionEdits returns the audit trail for a work session
@@ -745,7 +838,7 @@ type exportRow struct {
 
 // ExportSessions generates a CSV or XLSX export of work sessions and absences
 func (s *workSessionService) ExportSessions(ctx context.Context, staffID int64, from, to time.Time, format string) ([]byte, string, error) {
-	sessions, err := s.GetHistory(ctx, staffID, from, to)
+	historyResp, err := s.GetHistory(ctx, staffID, from, to)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to get sessions for export: %w", err)
 	}
@@ -760,7 +853,7 @@ func (s *workSessionService) ExportSessions(ctx context.Context, staffID int64, 
 	}
 
 	// Build merged rows sorted by date
-	rows := s.buildExportRows(sessions, absences)
+	rows := s.buildExportRows(historyResp.Sessions, absences)
 
 	fromStr := from.Format("2006-01-02")
 	toStr := to.Format("2006-01-02")

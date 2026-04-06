@@ -140,7 +140,7 @@ type mockWorkSessionService struct {
 	getSessionBreaksFn   func(ctx context.Context, staffID, sessionID int64) ([]*activeModels.WorkSessionBreak, error)
 	updateSessionFn      func(ctx context.Context, staffID int64, sessionID int64, updates activeSvc.SessionUpdateRequest) (*activeModels.WorkSession, error)
 	getCurrentSessionFn  func(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
-	getHistoryFn         func(ctx context.Context, staffID int64, from, to time.Time) ([]*activeSvc.SessionResponse, error)
+	getHistoryFn         func(ctx context.Context, staffID int64, from, to time.Time) (*activeSvc.HistoryResponse, error)
 	getSessionEditsFn    func(ctx context.Context, staffID, sessionID int64) ([]*auditModels.WorkSessionEdit, error)
 	getTodayPresenceFn   func(ctx context.Context) (map[int64]string, error)
 	exportSessionsFn     func(ctx context.Context, staffID int64, from, to time.Time, format string) ([]byte, string, error)
@@ -189,7 +189,7 @@ func (m *mockWorkSessionService) GetCurrentSession(ctx context.Context, staffID 
 	}
 	return nil, nil
 }
-func (m *mockWorkSessionService) GetHistory(ctx context.Context, staffID int64, from, to time.Time) ([]*activeSvc.SessionResponse, error) {
+func (m *mockWorkSessionService) GetHistory(ctx context.Context, staffID int64, from, to time.Time) (*activeSvc.HistoryResponse, error) {
 	if m.getHistoryFn != nil {
 		return m.getHistoryFn(ctx, staffID, from, to)
 	}
@@ -618,11 +618,14 @@ func TestGetCurrent_ServiceError(t *testing.T) {
 
 func TestGetHistory_Success(t *testing.T) {
 	wsSvc := &mockWorkSessionService{
-		getHistoryFn: func(_ context.Context, staffID int64, from, to time.Time) ([]*activeSvc.SessionResponse, error) {
+		getHistoryFn: func(_ context.Context, staffID int64, from, to time.Time) (*activeSvc.HistoryResponse, error) {
 			assert.Equal(t, int64(100), staffID)
 			assert.Equal(t, "2026-01-01", from.Format("2006-01-02"))
 			assert.Equal(t, "2026-01-31", to.Format("2006-01-02"))
-			return []*activeSvc.SessionResponse{}, nil
+			return &activeSvc.HistoryResponse{
+				Sessions:        []*activeSvc.SessionResponse{},
+				WeeklySummaries: []activeSvc.WeeklySummary{},
+			}, nil
 		},
 	}
 	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
@@ -670,7 +673,7 @@ func TestGetHistory_InvalidToDate(t *testing.T) {
 
 func TestGetHistory_ServiceError(t *testing.T) {
 	wsSvc := &mockWorkSessionService{
-		getHistoryFn: func(_ context.Context, _ int64, _, _ time.Time) ([]*activeSvc.SessionResponse, error) {
+		getHistoryFn: func(_ context.Context, _ int64, _, _ time.Time) (*activeSvc.HistoryResponse, error) {
 			return nil, errors.New("database error")
 		},
 	}
