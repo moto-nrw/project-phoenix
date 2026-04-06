@@ -119,6 +119,7 @@ func (rs *Resource) createDevice(w http.ResponseWriter, r *http.Request) {
 		DeviceType:     req.DeviceType,
 		Name:           req.Name,
 		RegisteredByID: req.RegisteredByID,
+		RoomID:         req.RoomID,
 	}
 
 	// Set status if provided, otherwise default to active
@@ -165,6 +166,7 @@ func (rs *Resource) updateDevice(w http.ResponseWriter, r *http.Request) {
 	device.DeviceType = req.DeviceType
 	device.Name = req.Name
 	device.RegisteredByID = req.RegisteredByID
+	device.RoomID = req.RoomID
 
 	if req.Status != "" {
 		device.Status = iot.DeviceStatus(req.Status)

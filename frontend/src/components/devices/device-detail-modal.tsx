@@ -6,8 +6,9 @@ import { DetailModalActions } from "~/components/ui/detail-modal-actions";
 import type { Device } from "@/lib/iot-helpers";
 import {
   getDeviceStatusDisplayName,
+  getDeviceStatusColor,
   getDeviceTypeDisplayName,
-  formatLastSeen,
+  formatRelativeLastSeen,
 } from "@/lib/iot-helpers";
 
 interface Props {
@@ -49,8 +50,13 @@ export function DeviceDetailModal({
         <div className="space-y-4 md:space-y-6">
           {/* Header */}
           <div className="flex items-center gap-3 border-b border-gray-100 pb-3 md:gap-4 md:pb-4">
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-yellow-500 to-yellow-600 text-xl font-semibold text-white shadow-md md:h-16 md:w-16">
-              {initials}
+            <div className="relative">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-yellow-500 to-yellow-600 text-xl font-semibold text-white shadow-md md:h-16 md:w-16">
+                {initials}
+              </div>
+              <span
+                className={`absolute right-0 bottom-0 h-3.5 w-3.5 rounded-full border-2 border-white ${device.is_online ? "animate-pulse bg-green-500" : "bg-gray-400"}`}
+              />
             </div>
             <div className="min-w-0">
               <h2 className="truncate text-lg font-semibold text-gray-900 md:text-xl">
@@ -89,21 +95,33 @@ export function DeviceDetailModal({
                   </dd>
                 </div>
                 <div>
+                  <dt className="text-xs text-gray-500">Verbindung</dt>
+                  <dd className="mt-0.5 flex items-center gap-1.5 text-sm font-medium text-gray-900">
+                    <span
+                      className={`inline-block h-2 w-2 rounded-full ${device.is_online ? "animate-pulse bg-green-500" : "bg-gray-400"}`}
+                    />
+                    {device.is_online ? "Online" : "Offline"}
+                    {!device.is_online && (
+                      <span className="text-xs font-normal text-gray-500">
+                        · {formatRelativeLastSeen(device.last_seen)}
+                      </span>
+                    )}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-gray-500">Standort</dt>
+                  <dd className="mt-0.5 text-sm font-medium break-words text-gray-900">
+                    {device.room_name ?? "—"}
+                  </dd>
+                </div>
+                <div>
                   <dt className="text-xs text-gray-500">Status</dt>
                   <dd className="mt-0.5 text-sm font-medium break-words text-gray-900">
-                    {getDeviceStatusDisplayName(device.status)}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-gray-500">Online</dt>
-                  <dd className="mt-0.5 text-sm font-medium break-words text-gray-900">
-                    {device.is_online ? "Online" : "Offline"}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-gray-500">Zuletzt gesehen</dt>
-                  <dd className="mt-0.5 text-sm font-medium break-words text-gray-900">
-                    {formatLastSeen(device.last_seen)}
+                    <span
+                      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${getDeviceStatusColor(device.status)}`}
+                    >
+                      {getDeviceStatusDisplayName(device.status)}
+                    </span>
                   </dd>
                 </div>
               </dl>
