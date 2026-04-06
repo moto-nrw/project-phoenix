@@ -391,7 +391,7 @@ export default function DevicesPage() {
                         ?.toUpperCase() ?? "D"}
                     </div>
                     <span
-                      className={`absolute right-0 bottom-0 h-3 w-3 rounded-full border-2 border-white ${device.is_online ? "animate-pulse bg-green-500" : "bg-gray-400"}`}
+                      className={`absolute right-0 bottom-0 h-3 w-3 rounded-full border-2 border-white ${device.is_online ? "bg-green-500" : "bg-gray-400"}`}
                     />
                   </div>
                   <div className="min-w-0 flex-1">
