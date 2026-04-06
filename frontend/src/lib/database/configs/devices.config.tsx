@@ -152,20 +152,13 @@ export const devicesConfig = defineEntityConfig<Device>({
           },
           {
             label: "Status",
-            value: (device) =>
-              device.status !== "active" ? (
-                <span
-                  className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${getDeviceStatusColor(device.status)}`}
-                >
-                  {getDeviceStatusDisplayName(device.status)}
-                </span>
-              ) : (
-                <span
-                  className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${getDeviceStatusColor(device.status)}`}
-                >
-                  {getDeviceStatusDisplayName(device.status)}
-                </span>
-              ),
+            value: (device) => (
+              <span
+                className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${getDeviceStatusColor(device.status)}`}
+              >
+                {getDeviceStatusDisplayName(device.status)}
+              </span>
+            ),
           },
         ],
       },
