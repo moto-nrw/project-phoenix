@@ -129,7 +129,7 @@ export function CaregiverCapabilityModal({
     void loadState();
   }, [isOpen, loadState]);
 
-  const canDisable = Boolean(state?.hasUserRole || state?.hasTeacher);
+  const canDisable = Boolean(state?.isActiveCaregiver);
   const needsNames = state != null && !state.hasPerson;
 
   async function handleEnable() {
@@ -353,7 +353,7 @@ export function CaregiverCapabilityModal({
           ) : null}
 
           {/* Blocker warnings */}
-          {state.disableBlockers.length > 0 ? (
+          {state.isActiveCaregiver && state.disableBlockers.length > 0 ? (
             <InfoSection
               title="Offene Zuordnungen"
               icon={DetailIcons.group}
@@ -389,7 +389,7 @@ export function CaregiverCapabilityModal({
             </InfoSection>
           ) : null}
 
-          {state.disableBlocked ? (
+          {state.isActiveCaregiver && state.disableBlocked ? (
             <CaregiverBlockerResolutionModal
               isOpen={resolutionOpen}
               onClose={() => setResolutionOpen(false)}
