@@ -247,15 +247,3 @@ export function GroupSelect(
     />
   );
 }
-
-export function RoomSelect(
-  props: Readonly<Omit<EntitySelectProps, "entityType">>,
-) {
-  return (
-    <EntitySelect
-      {...props}
-      entityType="rooms"
-      label={props.label ?? "Standort"}
-    />
-  );
-}
