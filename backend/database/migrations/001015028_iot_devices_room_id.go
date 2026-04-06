@@ -49,7 +49,7 @@ func addIoTDevicesRoomID(ctx context.Context, db *bun.DB) error {
 
 		ALTER TABLE iot.devices
 			ADD CONSTRAINT fk_iot_devices_room_tenant
-			FOREIGN KEY (tenant_id, room_id) REFERENCES facilities.rooms(tenant_id, id) ON DELETE SET NULL;
+			FOREIGN KEY (tenant_id, room_id) REFERENCES facilities.rooms(tenant_id, id) ON DELETE SET NULL (room_id);
 
 		CREATE INDEX IF NOT EXISTS idx_iot_devices_room_id ON iot.devices(room_id);
 	`)
