@@ -624,6 +624,7 @@ func (res *Resource) serveAvatarFile(w http.ResponseWriter, r *http.Request, fil
 	contentType := http.DetectContentType(buffer[:n])
 
 	if _, err := file.Seek(0, 0); err != nil {
+		slog.Default().ErrorContext(r.Context(), "failed to seek avatar file", slog.String("error", err.Error()))
 		http.Error(w, "Failed to read file", http.StatusInternalServerError)
 		return
 	}

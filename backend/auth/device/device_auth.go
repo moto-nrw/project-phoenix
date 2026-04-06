@@ -218,7 +218,9 @@ func deviceAuthenticator(iotService iotSvc.Service, schoolRepo platform.SchoolRe
 			// Validate API key and get device
 			device, errResp := extractAndValidateAPIKey(r, iotService)
 			if errResp != nil {
-				_ = render.Render(w, r, errResp)
+				if err := render.Render(w, r, errResp); err != nil {
+					slog.Error("failed to render device auth error", slog.String("error", err.Error()))
+				}
 				return
 			}
 
@@ -226,7 +228,9 @@ func deviceAuthenticator(iotService iotSvc.Service, schoolRepo platform.SchoolRe
 			// Devices use long-lived API keys (not 15-min JWTs), so deleted schools
 			// must be blocked immediately rather than waiting for token expiry.
 			if errResp := rejectDeletedSchool(r.Context(), schoolRepo, device); errResp != nil {
-				_ = render.Render(w, r, errResp)
+				if err := render.Render(w, r, errResp); err != nil {
+					slog.Error("failed to render device auth error", slog.String("error", err.Error()))
+				}
 				return
 			}
 
@@ -234,7 +238,9 @@ func deviceAuthenticator(iotService iotSvc.Service, schoolRepo platform.SchoolRe
 			staffPIN := r.Header.Get("X-Staff-PIN")
 			if staffPIN == "" {
 				slog.Warn("device authentication failed: missing X-Staff-PIN header")
-				_ = render.Render(w, r, ErrDeviceUnauthorized(ErrMissingPIN))
+				if err := render.Render(w, r, ErrDeviceUnauthorized(ErrMissingPIN)); err != nil {
+					slog.Error("failed to render device auth error", slog.String("error", err.Error()))
+				}
 				return
 			}
 
@@ -251,14 +257,18 @@ func deviceAuthenticator(iotService iotSvc.Service, schoolRepo platform.SchoolRe
 			}
 			if ogsPin == "" {
 				slog.Error("OGS_DEVICE_PIN not configured")
-				_ = render.Render(w, r, ErrDeviceUnauthorized(ErrInvalidPIN))
+				if err := render.Render(w, r, ErrDeviceUnauthorized(ErrInvalidPIN)); err != nil {
+					slog.Error("failed to render device auth error", slog.String("error", err.Error()))
+				}
 				return
 			}
 
 			// Validate PIN using constant-time comparison
 			if !SecureCompareStrings(staffPIN, ogsPin) {
 				slog.Warn("device authentication failed: invalid PIN")
-				_ = render.Render(w, r, ErrDeviceUnauthorized(ErrInvalidPIN))
+				if err := render.Render(w, r, ErrDeviceUnauthorized(ErrInvalidPIN)); err != nil {
+					slog.Error("failed to render device auth error", slog.String("error", err.Error()))
+				}
 				return
 			}
 
@@ -304,13 +314,17 @@ func DeviceOnlyAuthenticator(iotService iotSvc.Service, schoolRepo platform.Scho
 			// Validate API key and get device
 			device, errResp := extractAndValidateAPIKey(r, iotService)
 			if errResp != nil {
-				_ = render.Render(w, r, errResp)
+				if err := render.Render(w, r, errResp); err != nil {
+					slog.Error("failed to render device auth error", slog.String("error", err.Error()))
+				}
 				return
 			}
 
 			// Reject requests for devices belonging to soft-deleted schools.
 			if errResp := rejectDeletedSchool(r.Context(), schoolRepo, device); errResp != nil {
-				_ = render.Render(w, r, errResp)
+				if err := render.Render(w, r, errResp); err != nil {
+					slog.Error("failed to render device auth error", slog.String("error", err.Error()))
+				}
 				return
 			}
 

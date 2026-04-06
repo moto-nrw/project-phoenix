@@ -21,6 +21,7 @@ func (rs *Resource) deviceSubmitFeedback(w http.ResponseWriter, r *http.Request)
 	deviceCtx := device.DeviceFromCtx(r.Context())
 
 	if deviceCtx == nil {
+		slog.WarnContext(r.Context(), "device auth missing API key", slog.String("path", r.URL.Path))
 		if render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)) != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}

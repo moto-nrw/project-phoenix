@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -47,7 +48,8 @@ func NewTokenAuth() (*TokenAuth, error) {
 func MustNewTokenAuth() *TokenAuth {
 	ta, err := NewTokenAuth()
 	if err != nil {
-		log.Fatalf("failed to initialize JWT auth: %v", err)
+		slog.Error("failed to initialize JWT auth", slog.String("error", err.Error()))
+		os.Exit(1)
 	}
 	return ta
 }

@@ -236,7 +236,10 @@ type schoolNameResponse struct {
 func (rs *Resource) getSchoolName(w http.ResponseWriter, r *http.Request) {
 	deviceCtx := device.DeviceFromCtx(r.Context())
 	if deviceCtx == nil {
-		_ = render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey))
+		slog.WarnContext(r.Context(), "device auth missing API key", slog.String("path", r.URL.Path))
+		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
+			slog.Error("failed to render device auth error", slog.String("error", err.Error()))
+		}
 		return
 	}
 
