@@ -365,6 +365,108 @@ describe("CaregiverCapabilityModal", () => {
     );
   });
 
+  it("keeps the disable action visible for legacy teacher-role accounts", async () => {
+    mockGetTenantAccountCapability.mockResolvedValue(
+      createState({
+        hasUserRole: false,
+        hasTeacher: true,
+        isActiveCaregiver: false,
+        disableBlocked: false,
+      }),
+    );
+
+    render(
+      <CaregiverCapabilityModal
+        isOpen={true}
+        onClose={vi.fn()}
+        scope="tenant"
+        accountId="42"
+        accountLabel="Ada Lovelace"
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Betreuung deaktivieren")).toBeInTheDocument();
+    });
+  });
+
+  it("clears the optional position when another account is loaded", async () => {
+    mockGetTenantAccountCapability
+      .mockResolvedValueOnce(
+        createState({
+          firstName: "",
+          lastName: "",
+          personId: null,
+          staffId: null,
+          teacherId: null,
+          hasPerson: false,
+          hasStaff: false,
+          hasTeacher: false,
+          hasCaregiverProfile: false,
+          hasUserRole: false,
+          isActiveCaregiver: false,
+        }),
+      )
+      .mockResolvedValueOnce(
+        createState({
+          accountId: "43",
+          firstName: "",
+          lastName: "",
+          personId: null,
+          staffId: null,
+          teacherId: null,
+          hasPerson: false,
+          hasStaff: false,
+          hasTeacher: false,
+          hasCaregiverProfile: false,
+          hasUserRole: false,
+          isActiveCaregiver: false,
+        }),
+      );
+
+    const { rerender } = render(
+      <CaregiverCapabilityModal
+        isOpen={true}
+        onClose={vi.fn()}
+        scope="tenant"
+        accountId="42"
+        accountLabel="Ada Lovelace"
+      />,
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByLabelText("Pädagogische Rolle (optional)"),
+      ).toHaveValue("");
+    });
+
+    fireEvent.change(screen.getByLabelText("Pädagogische Rolle (optional)"), {
+      target: { value: "Betreuungskraft" },
+    });
+    expect(screen.getByLabelText("Pädagogische Rolle (optional)")).toHaveValue(
+      "Betreuungskraft",
+    );
+
+    rerender(
+      <CaregiverCapabilityModal
+        isOpen={true}
+        onClose={vi.fn()}
+        scope="tenant"
+        accountId="43"
+        accountLabel="Grace Hopper"
+      />,
+    );
+
+    await waitFor(() => {
+      expect(mockGetTenantAccountCapability).toHaveBeenCalledWith("43");
+    });
+    await waitFor(() => {
+      expect(
+        screen.getByLabelText("Pädagogische Rolle (optional)"),
+      ).toHaveValue("");
+    });
+  });
+
   it("shows a generic loading error when the capability state cannot be loaded", async () => {
     mockGetTenantAccountCapability.mockRejectedValue(new Error("boom"));
 

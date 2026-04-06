@@ -59,7 +59,12 @@ export function CreateAccountModal({
         const roleList = await operatorProvisioningService.listSystemRoles();
         if (cancelled) return;
         const options = roleList
-          .filter((role) => role.name !== "guardian")
+          .filter((role) => {
+            const normalizedName = role.name.toLowerCase();
+            return (
+              normalizedName !== "guardian" && normalizedName !== "teacher"
+            );
+          })
           .map<RoleOption>((role) => ({
             id: Number(role.id),
             label: role.name

@@ -489,7 +489,7 @@ func (s *operatorProvisioningService) CreateSchoolAccount(ctx context.Context, s
 			roleID = &adminRole.ID
 			selectedRole = adminRole
 		} else {
-			// Validate that the provided role is a system role and not guardian
+			// Validate that the provided role is a supported system role.
 			role, roleErr := s.roleRepo.FindByID(adminCtx, *roleID)
 			if roleErr != nil {
 				return fmt.Errorf("lookup role: %w", roleErr)
@@ -502,6 +502,9 @@ func (s *operatorProvisioningService) CreateSchoolAccount(ctx context.Context, s
 			}
 			if strings.EqualFold(role.Name, "guardian") {
 				return &InvalidDataError{Err: fmt.Errorf("guardian accounts must be created through the guardian invitation flow")}
+			}
+			if strings.EqualFold(role.Name, "teacher") {
+				return &InvalidDataError{Err: fmt.Errorf("legacy teacher role is no longer assignable; use the user role for caregiver accounts")}
 			}
 			selectedRole = role
 		}
@@ -798,7 +801,7 @@ func generateRandomSuffix(length int) string {
 // shouldCreateTeacher returns true for roles that should have a Teacher record.
 func shouldCreateTeacher(roleName string) bool {
 	switch strings.ToLower(strings.TrimSpace(roleName)) {
-	case "user", "teacher":
+	case "user":
 		return true
 	default:
 		return false

@@ -59,9 +59,14 @@ export function InvitationForm({
         setIsLoadingRoles(true);
         const roleList = await authService.getRoles();
         if (cancelled) return;
-        // Filter guardian role — not assignable via invitation (see also teacher-form.tsx)
+        // Legacy teacher + guardian roles are no longer assignable via invitations.
         const options = roleList
-          .filter((role) => role.name !== "guardian")
+          .filter((role) => {
+            const normalizedName = role.name.toLowerCase();
+            return (
+              normalizedName !== "guardian" && normalizedName !== "teacher"
+            );
+          })
           .map<RoleOption>((role) => ({
             id: Number(role.id),
             name: role.name

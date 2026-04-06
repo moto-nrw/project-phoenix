@@ -2360,9 +2360,9 @@ func TestShouldCreateTeacher(t *testing.T) {
 		want     bool
 	}{
 		{"user role", "user", true},
-		{"teacher role", "teacher", true},
+		{"teacher role", "teacher", false},
 		{"admin role", "admin", false},
-		{"uppercase Teacher", "Teacher", true},
+		{"uppercase Teacher", "Teacher", false},
 		{"whitespace user", " user ", true},
 		{"mixed case USER", "USER", true},
 		{"empty string", "", false},

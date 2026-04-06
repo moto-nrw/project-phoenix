@@ -56,6 +56,7 @@ type caregiverRoleFlags struct {
 	hasAdminRole         bool
 	hasUserRole          bool
 	hasLegacyTeacherRole bool
+	hasOtherUsableRole   bool
 }
 
 var caregiverCapabilityBindingTables = []string{
@@ -405,10 +406,13 @@ func (s *caregiverCapabilityService) loadCapabilityStateWithRoleFlags(
 		switch strings.ToLower(strings.TrimSpace(role.Name)) {
 		case "admin":
 			roleFlags.hasAdminRole = true
+			roleFlags.hasOtherUsableRole = true
 		case "user":
 			roleFlags.hasUserRole = true
 		case "teacher":
 			roleFlags.hasLegacyTeacherRole = true
+		default:
+			roleFlags.hasOtherUsableRole = true
 		}
 	}
 	state.HasAdminRole = roleFlags.hasAdminRole
@@ -452,7 +456,13 @@ func (s *caregiverCapabilityService) loadCapabilityStateWithRoleFlags(
 	state.HasCaregiverProfile = state.HasPerson && state.HasStaff && state.HasTeacher
 	state.IsActiveCaregiver = state.HasUserRole && state.HasCaregiverProfile
 
-	blockers, err := s.listDisableBlockers(ctx, tenantID, state, roleFlags.hasLegacyTeacherRole)
+	blockers, err := s.listDisableBlockers(
+		ctx,
+		tenantID,
+		state,
+		roleFlags.hasLegacyTeacherRole,
+		roleFlags.hasOtherUsableRole,
+	)
 	if err != nil {
 		return nil, caregiverRoleFlags{}, err
 	}
@@ -532,6 +542,7 @@ func (s *caregiverCapabilityService) listDisableBlockers(
 	tenantID int64,
 	state *userModels.CaregiverCapabilityState,
 	hasLegacyTeacherRole bool,
+	hasOtherUsableRole bool,
 ) ([]userModels.CaregiverCapabilityBlockerCode, error) {
 	if state == nil {
 		return nil, nil
@@ -539,7 +550,9 @@ func (s *caregiverCapabilityService) listDisableBlockers(
 
 	var blockers []userModels.CaregiverCapabilityBlockerCode
 
-	if (state.HasUserRole || hasLegacyTeacherRole) && !state.HasAdminRole {
+	if (state.HasUserRole || hasLegacyTeacherRole) &&
+		!state.HasAdminRole &&
+		!hasOtherUsableRole {
 		blockers = append(blockers, userModels.CaregiverCapabilityBlockerMissingUsableRole)
 	}
 

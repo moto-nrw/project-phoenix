@@ -59,12 +59,13 @@ vi.mock("~/lib/invitation-api", () => ({
 
 vi.mock("~/lib/auth-helpers", () => ({
   getRoleDisplayName: (role: string) =>
-    role === "teacher" ? "Lehrkraft" : role,
+    role === "teacher" ? "Lehrkraft" : role === "user" ? "Betreuer" : role,
 }));
 
 const mockRoles = [
-  { id: "1", name: "teacher" },
+  { id: "1", name: "user" },
   { id: "2", name: "admin" },
+  { id: "3", name: "teacher" },
 ];
 
 describe("InvitationForm", () => {
@@ -114,8 +115,9 @@ describe("InvitationForm", () => {
     render(<InvitationForm />);
 
     await waitFor(() => {
-      expect(screen.getByText("Lehrkraft")).toBeInTheDocument();
+      expect(screen.getByText("Betreuer")).toBeInTheDocument();
     });
+    expect(screen.queryByText("Lehrkraft")).not.toBeInTheDocument();
   });
 
   it("renders position input with placeholder", async () => {
@@ -165,7 +167,7 @@ describe("InvitationForm", () => {
 
     // Wait for roles to load
     await waitFor(() => {
-      expect(screen.getByText("Lehrkraft")).toBeInTheDocument();
+      expect(screen.getByText("Betreuer")).toBeInTheDocument();
     });
 
     const submitButton = screen.getByText("Einladung senden");
@@ -201,7 +203,7 @@ describe("InvitationForm", () => {
 
     // Wait for roles to load first
     await waitFor(() => {
-      expect(screen.getByText("Lehrkraft")).toBeInTheDocument();
+      expect(screen.getByText("Betreuer")).toBeInTheDocument();
     });
 
     const emailInput = screen.getByTestId("invitation-email");
@@ -228,7 +230,7 @@ describe("InvitationForm", () => {
 
     // Wait for roles to load first
     await waitFor(() => {
-      expect(screen.getByText("Lehrkraft")).toBeInTheDocument();
+      expect(screen.getByText("Betreuer")).toBeInTheDocument();
     });
 
     const emailInput = screen.getByTestId("invitation-email");
@@ -267,7 +269,7 @@ describe("InvitationForm", () => {
 
     // Wait for roles to load first
     await waitFor(() => {
-      expect(screen.getByText("Lehrkraft")).toBeInTheDocument();
+      expect(screen.getByText("Betreuer")).toBeInTheDocument();
     });
 
     const emailInput = screen.getByTestId("invitation-email");
@@ -289,7 +291,7 @@ describe("InvitationForm", () => {
 
     // Wait for roles to load first
     await waitFor(() => {
-      expect(screen.getByText("Lehrkraft")).toBeInTheDocument();
+      expect(screen.getByText("Betreuer")).toBeInTheDocument();
     });
 
     const emailInput = screen.getByTestId("invitation-email");
@@ -313,7 +315,7 @@ describe("InvitationForm", () => {
 
     // Wait for roles to load first
     await waitFor(() => {
-      expect(screen.getByText("Lehrkraft")).toBeInTheDocument();
+      expect(screen.getByText("Betreuer")).toBeInTheDocument();
     });
 
     const emailInput = screen.getByTestId("invitation-email");
@@ -344,7 +346,7 @@ describe("InvitationForm", () => {
 
     // Wait for roles to load first
     await waitFor(() => {
-      expect(screen.getByText("Lehrkraft")).toBeInTheDocument();
+      expect(screen.getByText("Betreuer")).toBeInTheDocument();
     });
 
     const emailInput = screen.getByTestId("invitation-email");
@@ -372,7 +374,7 @@ describe("InvitationForm", () => {
 
     // Wait for roles to load first
     await waitFor(() => {
-      expect(screen.getByText("Lehrkraft")).toBeInTheDocument();
+      expect(screen.getByText("Betreuer")).toBeInTheDocument();
     });
 
     const emailInput = screen.getByTestId("invitation-email");
@@ -399,7 +401,7 @@ describe("InvitationForm", () => {
 
     // Wait for roles to load first
     await waitFor(() => {
-      expect(screen.getByText("Lehrkraft")).toBeInTheDocument();
+      expect(screen.getByText("Betreuer")).toBeInTheDocument();
     });
 
     const emailInput = screen.getByTestId("invitation-email");
@@ -426,7 +428,7 @@ describe("InvitationForm", () => {
 
       // Wait for roles to load
       await waitFor(() => {
-        expect(screen.getByText("Lehrkraft")).toBeInTheDocument();
+        expect(screen.getByText("Betreuer")).toBeInTheDocument();
       });
 
       const submitButton = screen.getByText("Einladung senden");
@@ -451,7 +453,7 @@ describe("InvitationForm", () => {
 
       // Wait for roles to load
       await waitFor(() => {
-        expect(screen.getByText("Lehrkraft")).toBeInTheDocument();
+        expect(screen.getByText("Betreuer")).toBeInTheDocument();
       });
 
       // Fill email but leave role empty

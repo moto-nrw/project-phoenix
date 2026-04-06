@@ -126,10 +126,11 @@ describe("TeacherForm", () => {
     });
   });
 
-  it("filters guardian role from the selectable roles", async () => {
+  it("filters unsupported legacy roles from the selectable roles", async () => {
     mockGetRoles.mockResolvedValue([
       { id: "1", name: "guardian" },
-      { id: "2", name: "admin" },
+      { id: "2", name: "teacher" },
+      { id: "3", name: "admin" },
     ]);
 
     render(<TeacherForm {...defaultProps} initialData={{}} />);
@@ -140,6 +141,9 @@ describe("TeacherForm", () => {
 
     expect(
       screen.queryByRole("option", { name: "guardian" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: "teacher" }),
     ).not.toBeInTheDocument();
     expect(
       screen.getByRole("option", { name: "Administrator" }),

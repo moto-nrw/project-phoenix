@@ -25,14 +25,24 @@ func setupActivitiesResource(t *testing.T) (*bun.DB, *services.Factory, *Resourc
 func assignUserRoleToAccount(t *testing.T, db *bun.DB, accountID int64) {
 	t.Helper()
 
-	role := testpkg.GetOrCreateTestRole(t, db, "user")
+	var role authModels.Role
+	err := db.NewSelect().
+		Model(&role).
+		ModelTableExpr(`auth.roles AS "role"`).
+		Where(`LOWER("role".name) = ?`, "user").
+		Where(`"role".is_system = TRUE`).
+		Where(`"role".tenant_id IS NULL`).
+		Limit(1).
+		Scan(context.Background())
+	require.NoError(t, err)
+
 	accountRole := &authModels.AccountRole{
 		AccountID: accountID,
 		RoleID:    role.ID,
 	}
 	accountRole.SetTenantID(1)
 
-	err := db.NewInsert().
+	err = db.NewInsert().
 		Model(accountRole).
 		ModelTableExpr(`auth.account_roles`).
 		Scan(context.Background())
@@ -50,6 +60,7 @@ func TestFetchAllSupervisors_UsesCaregiverPool(t *testing.T) {
 	defer testpkg.CleanupAuthFixtures(t, db, activeAccount.ID)
 	defer testpkg.CleanupAuthFixtures(t, db, passiveAccount.ID)
 
+	testpkg.EnsureAccountTenant(t, db, activeAccount.ID, 1)
 	assignUserRoleToAccount(t, db, activeAccount.ID)
 
 	ctx := tenant.WithTenantID(context.Background(), 1)
@@ -91,6 +102,7 @@ func TestFetchSupervisorsBySpecialization_FiltersToActiveCaregivers(t *testing.T
 	defer testpkg.CleanupAuthFixtures(t, db, activeAccount.ID)
 	defer testpkg.CleanupAuthFixtures(t, db, inactiveAccount.ID)
 
+	testpkg.EnsureAccountTenant(t, db, activeAccount.ID, 1)
 	assignUserRoleToAccount(t, db, activeAccount.ID)
 
 	ctx := tenant.WithTenantID(context.Background(), 1)

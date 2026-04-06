@@ -86,6 +86,7 @@ export function CaregiverCapabilityModal({
     try {
       setLoading(true);
       setErrorMessage("");
+      setPosition("");
 
       let nextState: CaregiverCapabilityState;
       if (scope === "operator") {
@@ -128,7 +129,7 @@ export function CaregiverCapabilityModal({
     void loadState();
   }, [isOpen, loadState]);
 
-  const canDisable = Boolean(state?.hasUserRole);
+  const canDisable = Boolean(state?.hasUserRole || state?.hasTeacher);
   const needsNames = state != null && !state.hasPerson;
 
   async function handleEnable() {

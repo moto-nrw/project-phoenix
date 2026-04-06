@@ -388,6 +388,68 @@ func TestCaregiverCapability_DisableUsesTenantScopedRoles(t *testing.T) {
 	)
 }
 
+func TestCaregiverCapability_DisableAllowsCustomTenantRoleToRemain(t *testing.T) {
+	db, factory := setupCaregiverFactory(t)
+	ctx := testpkg.TenantContext(1)
+
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "Custom", "Role")
+	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
+	t.Cleanup(func() {
+		testpkg.CleanupActivityFixtures(
+			t,
+			db,
+			teacher.ID,
+			teacher.Staff.ID,
+			teacher.Staff.Person.ID,
+		)
+	})
+
+	testpkg.EnsureAccountTenant(t, db, account.ID, 1)
+	assignSystemRoleToAccount(t, db, account.ID, 1, "user")
+
+	tenantID := teacher.GetTenantID()
+	customRole := &authModels.Role{
+		Name:        "coordinator",
+		Description: "Tenant-scoped coordinator role",
+		IsSystem:    false,
+		TenantID:    &tenantID,
+	}
+	err := db.NewInsert().
+		Model(customRole).
+		ModelTableExpr(`auth.roles`).
+		Scan(context.Background())
+	require.NoError(t, err)
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "auth.roles", customRole.ID) })
+
+	_, err = db.ExecContext(
+		context.Background(),
+		`INSERT INTO auth.account_roles (account_id, role_id, tenant_id, created_at, updated_at)
+		 VALUES (?, ?, ?, NOW(), NOW())
+		 ON CONFLICT (account_id, role_id, tenant_id) DO NOTHING`,
+		account.ID,
+		customRole.ID,
+		tenantID,
+	)
+	require.NoError(t, err)
+
+	state, err := factory.CaregiverCapability.GetCaregiverCapability(ctx, account.ID)
+	require.NoError(t, err)
+	require.NotNil(t, state)
+	assert.False(t, state.DisableBlocked)
+	assert.NotContains(
+		t,
+		state.DisableBlockers,
+		userModels.CaregiverCapabilityBlockerMissingUsableRole,
+	)
+
+	state, err = factory.CaregiverCapability.DisableCaregiverCapability(ctx, account.ID)
+	require.NoError(t, err)
+	require.NotNil(t, state)
+	assert.False(t, state.HasUserRole)
+	assert.False(t, state.IsActiveCaregiver)
+	assert.False(t, accountHasSystemRole(t, db, account.ID, 1, "user"))
+}
+
 func TestCaregiverCapability_DisableReturnsDetailedBlockers(t *testing.T) {
 	db, factory := setupCaregiverFactory(t)
 	ctx := testpkg.TenantContext(1)

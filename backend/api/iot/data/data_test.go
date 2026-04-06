@@ -132,6 +132,9 @@ func TestGetAvailableTeachers_ReturnsOnlyActiveCaregivers(t *testing.T) {
 	defer testpkg.CleanupAuthFixtures(t, ctx.db, filteredAccount.ID)
 
 	tenantID := activeTeacher.GetTenantID()
+	testpkg.EnsureAccountTenant(t, ctx.db, activeAccount.ID, tenantID)
+	testpkg.EnsureAccountTenant(t, ctx.db, inactiveAccount.ID, tenantID)
+	testpkg.EnsureAccountTenant(t, ctx.db, filteredAccount.ID, tenantID)
 	assignDeviceTeacherUserRole(t, ctx.db, activeAccount.ID, tenantID)
 
 	customUserRole := &authModels.Role{
