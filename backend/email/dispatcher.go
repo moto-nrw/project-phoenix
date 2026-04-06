@@ -2,8 +2,11 @@ package email
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"time"
+
+	"github.com/getsentry/sentry-go"
 )
 
 // DeliveryStatus represents the current state of an outbound email.
@@ -144,6 +147,14 @@ func (d *Dispatcher) resolveConfigWithMessage(req DeliveryRequest, message Messa
 
 // deliverWithRetry attempts to send the email with retries
 func (d *Dispatcher) deliverWithRetry(ctx context.Context, cfg dispatchConfig) {
+	defer func() {
+		if r := recover(); r != nil {
+			err := fmt.Errorf("panic in email delivery: %v", r)
+			d.getLogger().Error("goroutine panic recovered", slog.String("error", err.Error()))
+			sentry.CurrentHub().Recover(r)
+			sentry.Flush(2 * time.Second)
+		}
+	}()
 	for attempt := 1; attempt <= cfg.maxAttempts; attempt++ {
 		if d.tryDelivery(ctx, cfg, attempt) {
 			return

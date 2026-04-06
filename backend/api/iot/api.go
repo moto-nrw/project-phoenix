@@ -127,7 +127,7 @@ func (rs *Resource) Router() chi.Router {
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
 	// Create JWT auth instance for middleware
-	tokenAuth, _ := jwt.NewTokenAuth()
+	tokenAuth := jwt.MustNewTokenAuth()
 
 	// Public routes (if any device endpoints should be public)
 	r.Group(func(r chi.Router) {
@@ -236,7 +236,10 @@ type schoolNameResponse struct {
 func (rs *Resource) getSchoolName(w http.ResponseWriter, r *http.Request) {
 	deviceCtx := device.DeviceFromCtx(r.Context())
 	if deviceCtx == nil {
-		_ = render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey))
+		slog.WarnContext(r.Context(), "device auth missing API key", slog.String("path", r.URL.Path))
+		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
+			slog.Error("failed to render device auth error", slog.String("error", err.Error()))
+		}
 		return
 	}
 

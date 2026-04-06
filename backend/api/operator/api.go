@@ -57,7 +57,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 	tokenAuth := cfg.TokenAuth
 	if tokenAuth == nil {
 		// Create internal token auth for JWT verification
-		tokenAuth, _ = jwt.NewTokenAuth()
+		tokenAuth = jwt.MustNewTokenAuth()
 	}
 
 	return &Resource{

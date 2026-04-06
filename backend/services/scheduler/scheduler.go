@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/getsentry/sentry-go"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/services/active"
@@ -285,6 +286,14 @@ func (s *Scheduler) scheduleCleanupTask() {
 // runCleanupTaskPolling checks every minute if any tenant's cleanup time matches now.
 func (s *Scheduler) runCleanupTaskPolling(task *ScheduledTask) {
 	defer s.wg.Done()
+	defer func() {
+		if r := recover(); r != nil {
+			err := fmt.Errorf("panic in cleanup task: %v", r)
+			s.getLogger().Error("goroutine panic recovered", slog.String("error", err.Error()))
+			sentry.CurrentHub().Recover(r)
+			sentry.Flush(2 * time.Second)
+		}
+	}()
 
 	s.getLogger().Info("cleanup task using minute-polling for per-tenant scheduling")
 
@@ -535,6 +544,14 @@ func (s *Scheduler) scheduleTokenCleanupTask() {
 // runTokenCleanupTask runs the token cleanup task on schedule
 func (s *Scheduler) runTokenCleanupTask(task *ScheduledTask) {
 	defer s.wg.Done()
+	defer func() {
+		if r := recover(); r != nil {
+			err := fmt.Errorf("panic in token cleanup task: %v", r)
+			s.getLogger().Error("goroutine panic recovered", slog.String("error", err.Error()))
+			sentry.CurrentHub().Recover(r)
+			sentry.Flush(2 * time.Second)
+		}
+	}()
 
 	s.getLogger().Info("token cleanup task scheduled to run every hour")
 
@@ -718,6 +735,14 @@ func (s *Scheduler) scheduleSessionEndTask() {
 // runSessionEndTaskPolling checks every minute if any tenant's session end time matches now.
 func (s *Scheduler) runSessionEndTaskPolling(task *ScheduledTask) {
 	defer s.wg.Done()
+	defer func() {
+		if r := recover(); r != nil {
+			err := fmt.Errorf("panic in session end task: %v", r)
+			s.getLogger().Error("goroutine panic recovered", slog.String("error", err.Error()))
+			sentry.CurrentHub().Recover(r)
+			sentry.Flush(2 * time.Second)
+		}
+	}()
 
 	s.getLogger().Info("session end task using minute-polling for per-tenant scheduling")
 
@@ -844,6 +869,14 @@ func (s *Scheduler) scheduleSessionCleanupTask() {
 // runSessionCleanupTaskPolling checks every 5 minutes if any tenant needs session cleanup.
 func (s *Scheduler) runSessionCleanupTaskPolling(task *ScheduledTask) {
 	defer s.wg.Done()
+	defer func() {
+		if r := recover(); r != nil {
+			err := fmt.Errorf("panic in session cleanup task: %v", r)
+			s.getLogger().Error("goroutine panic recovered", slog.String("error", err.Error()))
+			sentry.CurrentHub().Recover(r)
+			sentry.Flush(2 * time.Second)
+		}
+	}()
 
 	s.getLogger().Info("session cleanup using 5-minute polling for per-tenant scheduling")
 
@@ -957,6 +990,14 @@ func (s *Scheduler) scheduleBreakAutoEndTask() {
 // runBreakAutoEndTaskPolling runs break auto-end check at the configured interval for all tenants.
 func (s *Scheduler) runBreakAutoEndTaskPolling(task *ScheduledTask) {
 	defer s.wg.Done()
+	defer func() {
+		if r := recover(); r != nil {
+			err := fmt.Errorf("panic in break auto-end task: %v", r)
+			s.getLogger().Error("goroutine panic recovered", slog.String("error", err.Error()))
+			sentry.CurrentHub().Recover(r)
+			sentry.Flush(2 * time.Second)
+		}
+	}()
 
 	interval := time.Duration(s.breakAutoEndIntervalSeconds) * time.Second
 	s.getLogger().Info("break auto-end polling started",
