@@ -106,6 +106,90 @@ func TestBuildAttendanceHistoryDays_WithinRoomCap_IncludesVisits(t *testing.T) {
 	assert.Equal(t, 90, *day.Visits[0].DurationMinutes)
 }
 
+func TestBuildAttendanceHistoryDays_ExactlyOnRoomCutoff_IncludesVisits(t *testing.T) {
+	// Attendance date exactly equals roomCutoff → should still include room detail.
+	today := timezone.Today()
+	roomCutoff := today.AddDate(0, 0, -6)
+	checkIn := roomCutoff.Add(8 * time.Hour)
+	checkOut := roomCutoff.Add(15 * time.Hour)
+
+	row := &active.Attendance{
+		TenantModel:  base.TenantModel{TenantID: 1},
+		StudentID:    10,
+		Date:         roomCutoff,
+		CheckInTime:  checkIn,
+		CheckOutTime: &checkOut,
+		CheckedInBy:  42,
+		DeviceID:     7,
+	}
+	exit := checkIn.Add(time.Hour)
+	visit := &active.Visit{
+		TenantModel: base.TenantModel{TenantID: 1},
+		StudentID:   10,
+		EntryTime:   checkIn,
+		ExitTime:    &exit,
+		ActiveGroup: &active.Group{
+			RoomID: 5,
+			Room:   &facilities.Room{Name: "Boundary Room"},
+		},
+	}
+	key := timezone.DateOf(roomCutoff).Format("2006-01-02")
+	days := buildAttendanceHistoryDays(
+		[]*active.Attendance{row},
+		map[string][]*active.Visit{key: {visit}},
+		roomCutoff,
+	)
+	require.Len(t, days, 1)
+	assert.True(t, days[0].RoomDetailAvailable, "date ON cutoff should have room detail available")
+	assert.Len(t, days[0].Visits, 1)
+}
+
+func TestBuildAttendanceHistoryDays_VisitWithNilActiveGroup(t *testing.T) {
+	today := timezone.Today()
+	roomCutoff := today.AddDate(0, 0, -6)
+	checkIn := today.Add(8 * time.Hour)
+
+	row := &active.Attendance{
+		TenantModel: base.TenantModel{TenantID: 1},
+		StudentID:   10,
+		Date:        today,
+		CheckInTime: checkIn,
+		CheckedInBy: 42,
+		DeviceID:    7,
+	}
+	exit := checkIn.Add(time.Hour)
+	visit := &active.Visit{
+		TenantModel: base.TenantModel{TenantID: 1},
+		StudentID:   10,
+		EntryTime:   checkIn,
+		ExitTime:    &exit,
+		ActiveGroup: nil, // No group info
+	}
+	key := timezone.DateOf(today).Format("2006-01-02")
+	days := buildAttendanceHistoryDays(
+		[]*active.Attendance{row},
+		map[string][]*active.Visit{key: {visit}},
+		roomCutoff,
+	)
+	require.Len(t, days, 1)
+	require.Len(t, days[0].Visits, 1)
+	assert.Nil(t, days[0].Visits[0].RoomID, "nil ActiveGroup should yield nil RoomID")
+	assert.Equal(t, "", days[0].Visits[0].RoomName)
+}
+
+func TestBuildAttendanceHistoryDays_MultipleDays(t *testing.T) {
+	today := timezone.Today()
+	yesterday := today.AddDate(0, 0, -1)
+	roomCutoff := today.AddDate(0, 0, -6)
+
+	rows := []*active.Attendance{
+		{TenantModel: base.TenantModel{TenantID: 1}, StudentID: 10, Date: today, CheckInTime: today.Add(8 * time.Hour), CheckedInBy: 42, DeviceID: 7},
+		{TenantModel: base.TenantModel{TenantID: 1}, StudentID: 10, Date: yesterday, CheckInTime: yesterday.Add(8 * time.Hour), CheckedInBy: 42, DeviceID: 7},
+	}
+	days := buildAttendanceHistoryDays(rows, map[string][]*active.Visit{}, roomCutoff)
+	assert.Len(t, days, 2, "should return one day entry per attendance row")
+}
+
 func TestBuildAttendanceHistoryDays_OutsideRoomCap_HidesVisits(t *testing.T) {
 	// Attendance from 10 days ago, room cutoff at 7 days ago → no room detail.
 	today := timezone.Today()

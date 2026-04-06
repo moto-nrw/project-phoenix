@@ -93,6 +93,40 @@ func TestResolveIntOrDefault_Override_ReturnsResolvedValue(t *testing.T) {
 	assert.Equal(t, 42, got)
 }
 
+func TestResolveIntOrDefault_NilService_ReturnsFallback(t *testing.T) {
+	got := configSvc.ResolveIntOrDefault(context.Background(), nil, "any.key", 99, nil)
+	assert.Equal(t, 99, got)
+}
+
+func TestResolveIntOrDefault_HasOverrideError_ReturnsFallback(t *testing.T) {
+	svc := &fakeSettingsService{hasOverrideErr: errors.New("db down")}
+	got := configSvc.ResolveIntOrDefault(context.Background(), svc, "any.key", 10, slog.Default())
+	assert.Equal(t, 10, got)
+}
+
+func TestResolveIntOrDefault_ResolveError_ReturnsFallback(t *testing.T) {
+	svc := &fakeSettingsService{hasOverride: true, intErr: errors.New("bad type")}
+	got := configSvc.ResolveIntOrDefault(context.Background(), svc, "any.key", 10, slog.Default())
+	assert.Equal(t, 10, got)
+}
+
+func TestResolveStringOrDefault_NilService_ReturnsFallback(t *testing.T) {
+	got := configSvc.ResolveStringOrDefault(context.Background(), nil, "any.key", "fb", nil)
+	assert.Equal(t, "fb", got)
+}
+
+func TestResolveStringOrDefault_HasOverrideError_ReturnsFallback(t *testing.T) {
+	svc := &fakeSettingsService{hasOverrideErr: errors.New("db down")}
+	got := configSvc.ResolveStringOrDefault(context.Background(), svc, "any.key", "fb", slog.Default())
+	assert.Equal(t, "fb", got)
+}
+
+func TestResolveStringOrDefault_ResolveError_ReturnsFallback(t *testing.T) {
+	svc := &fakeSettingsService{hasOverride: true, strErr: errors.New("bad")}
+	got := configSvc.ResolveStringOrDefault(context.Background(), svc, "any.key", "fb", slog.Default())
+	assert.Equal(t, "fb", got)
+}
+
 func TestResolveStringOrDefault_NoOverride_ReturnsFallback(t *testing.T) {
 	svc := &fakeSettingsService{hasOverride: false, strVal: "override"}
 	got := configSvc.ResolveStringOrDefault(context.Background(), svc, "any.key", "fallback", slog.Default())

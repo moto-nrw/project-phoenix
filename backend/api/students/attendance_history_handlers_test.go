@@ -147,6 +147,53 @@ func TestGetStudentAttendanceHistory_WritesAuditLog(t *testing.T) {
 	})
 }
 
+func TestGetStudentAttendanceHistory_RangeClampedWhenExceedingCap(t *testing.T) {
+	tc := setupTestContext(t)
+	enableAttendanceLog(t, tc)
+
+	student := testpkg.CreateTestStudent(t, tc.db, "Clamped", "Student", "2c")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+	// Request 90-day range (cap is 30 by default)
+	router := setupRouter(tc.resource.GetStudentAttendanceHistoryHandler(), "id")
+	req := testutil.NewRequest("GET", fmt.Sprintf("/%d?start=2026-01-01T00:00:00Z&end=2026-04-06T23:59:59Z", student.ID), nil)
+	rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+
+	var body struct {
+		Data struct {
+			Clamped bool `json:"clamped"`
+		} `json:"data"`
+	}
+	err := json.Unmarshal(rr.Body.Bytes(), &body)
+	require.NoError(t, err)
+	assert.True(t, body.Data.Clamped, "response should be clamped when range exceeds cap")
+}
+
+func TestGetStudentAttendanceHistory_ScopeAllStaff_NonAdminCanAccess(t *testing.T) {
+	tc := setupTestContext(t)
+	enableAttendanceLog(t, tc)
+
+	// Set scope to all_staff
+	ctx := testpkg.TenantContext(1)
+	err := tc.services.Settings.SetValue(ctx, configModel.KeyAttendanceLogScope, configModel.AttendanceLogScopeAllStaff, nil, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = tc.services.Settings.ResetValue(ctx, configModel.KeyAttendanceLogScope, nil, nil)
+	})
+
+	student := testpkg.CreateTestStudent(t, tc.db, "ScopeAll", "Student", "3b")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+	router := setupRouter(tc.resource.GetStudentAttendanceHistoryHandler(), "id")
+	req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
+	// Use teacher claims (non-admin) with UsersRead permission
+	rr := executeWithAuth(router, req, testutil.TeacherTestClaims(99), []string{"users:read"})
+
+	assert.Equal(t, http.StatusOK, rr.Code, "all_staff scope should allow any staff with UsersRead. Body: %s", rr.Body.String())
+}
+
 func TestGetStudentAttendanceHistory_InvalidDateRange(t *testing.T) {
 	tc := setupTestContext(t)
 	enableAttendanceLog(t, tc)
