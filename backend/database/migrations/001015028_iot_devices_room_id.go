@@ -18,7 +18,7 @@ func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     iotDevicesRoomIDVersion,
 		Description: iotDevicesRoomIDDescription,
-		DependsOn:   []string{"1.15.27", "1.3.9"},
+		DependsOn:   []string{"1.15.27", "1.3.9", "1.14.4"},
 	})
 
 	Migrations.MustRegister(
@@ -48,8 +48,8 @@ func addIoTDevicesRoomID(ctx context.Context, db *bun.DB) error {
 		ALTER TABLE iot.devices ADD COLUMN IF NOT EXISTS room_id BIGINT;
 
 		ALTER TABLE iot.devices
-			ADD CONSTRAINT fk_iot_devices_room
-			FOREIGN KEY (room_id) REFERENCES facilities.rooms(id) ON DELETE SET NULL;
+			ADD CONSTRAINT fk_iot_devices_room_tenant
+			FOREIGN KEY (tenant_id, room_id) REFERENCES facilities.rooms(tenant_id, id) ON DELETE SET NULL;
 
 		CREATE INDEX IF NOT EXISTS idx_iot_devices_room_id ON iot.devices(room_id);
 	`)
@@ -75,7 +75,7 @@ func dropIoTDevicesRoomID(ctx context.Context, db *bun.DB) error {
 
 	_, err = tx.ExecContext(ctx, `
 		DROP INDEX IF EXISTS idx_iot_devices_room_id;
-		ALTER TABLE iot.devices DROP CONSTRAINT IF EXISTS fk_iot_devices_room;
+		ALTER TABLE iot.devices DROP CONSTRAINT IF EXISTS fk_iot_devices_room_tenant;
 		ALTER TABLE iot.devices DROP COLUMN IF EXISTS room_id;
 	`)
 	if err != nil {

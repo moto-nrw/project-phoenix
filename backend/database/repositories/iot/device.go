@@ -35,6 +35,33 @@ func NewDeviceRepository(db *bun.DB) iot.DeviceRepository {
 	}
 }
 
+// FindByID retrieves a device by its primary key, including room name via JOIN.
+// Overrides base.Repository.FindByID which doesn't include the room JOIN.
+func (r *DeviceRepository) FindByID(ctx context.Context, id interface{}) (*iot.Device, error) {
+	device := new(iot.Device)
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(device).
+		ModelTableExpr(`iot.devices AS "device"`).
+		ColumnExpr(`"device".*`).
+		ColumnExpr(`"room".name AS room_name`).
+		Join(`LEFT JOIN facilities.rooms AS "room" ON "room".id = "device".room_id AND "room".tenant_id = "device".tenant_id`).
+		Where(`"device".id = ?`, id)
+
+	if where, val, ok := base.TenantWhere(ctx, "device"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by id",
+			Err: err,
+		}
+	}
+
+	return device, nil
+}
+
 // FindByDeviceID retrieves a device by its deviceID
 func (r *DeviceRepository) FindByDeviceID(ctx context.Context, deviceID string) (*iot.Device, error) {
 	device := new(iot.Device)
