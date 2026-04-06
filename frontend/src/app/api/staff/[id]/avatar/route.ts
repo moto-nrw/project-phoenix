@@ -52,7 +52,10 @@ export const GET = async (
     }
 
     if (!response.ok) {
-      return new NextResponse(null, { status: response.status });
+      return NextResponse.json(
+        { error: "Avatar not found", success: false },
+        { status: response.status },
+      );
     }
 
     const contentType = response.headers.get("content-type") ?? "image/jpeg";
@@ -61,7 +64,7 @@ export const GET = async (
     return new NextResponse(buffer, {
       headers: {
         "Content-Type": contentType,
-        "Cache-Control": "private, no-store, max-age=0",
+        "Cache-Control": "private, max-age=300",
       },
     });
   } catch (error) {

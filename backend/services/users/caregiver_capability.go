@@ -621,7 +621,6 @@ func (s *caregiverCapabilityService) listActiveGroupSupervisions(
 		LEFT JOIN education.groups AS g ON g.id = gs.group_id AND g.tenant_id = gs.tenant_id
 		WHERE gs.tenant_id = ?
 		  AND gs.staff_id = ?
-		  AND gs.start_date <= CURRENT_DATE
 		  AND (gs.end_date IS NULL OR gs.end_date >= CURRENT_DATE)
 		ORDER BY gs.start_date DESC
 	`, tenantID, staffID).Scan(ctx, &results)
@@ -648,7 +647,6 @@ func (s *caregiverCapabilityService) listActiveGroupSubstitutions(
 		LEFT JOIN education.groups AS g ON g.id = gs.group_id AND g.tenant_id = gs.tenant_id
 		WHERE gs.tenant_id = ?
 		  AND (gs.substitute_staff_id = ? OR gs.regular_staff_id = ?)
-		  AND gs.start_date <= CURRENT_DATE
 		  AND gs.end_date >= CURRENT_DATE
 		ORDER BY gs.start_date DESC
 	`, staffID, tenantID, staffID, staffID).Scan(ctx, &results)
