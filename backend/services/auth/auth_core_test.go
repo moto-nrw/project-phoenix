@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -65,6 +66,30 @@ func uniqueTestCredentials(prefix string) (email, username string) {
 	email = fmt.Sprintf("%s-%s@test.local", prefix, uniqueID)
 	username = fmt.Sprintf("%s-%s", prefix, uniqueID)
 	return
+}
+
+func parseAccessTokenClaims(t *testing.T, token string) authjwt.AppClaims {
+	t.Helper()
+
+	tokenAuth, err := authjwt.NewTokenAuth()
+	require.NoError(t, err)
+
+	decoded, err := tokenAuth.JwtAuth.Decode(token)
+	require.NoError(t, err)
+
+	claims := make(map[string]any, len(decoded.Keys()))
+	for _, key := range decoded.Keys() {
+		var value any
+		err := decoded.Get(key, &value)
+		require.NoError(t, err)
+		claims[key] = value
+	}
+
+	var appClaims authjwt.AppClaims
+	err = appClaims.ParseClaims(claims)
+	require.NoError(t, err)
+
+	return appClaims
 }
 
 // =============================================================================
@@ -1066,7 +1091,33 @@ func TestAuthService_AssignRoleToAccount(t *testing.T) {
 		tokens, err := service.GetActiveTokens(ctx, int(account.ID))
 		require.NoError(t, err)
 		require.Len(t, tokens, 1)
-		assert.Equal(t, token.ID, tokens[0].ID, "token revocation should roll back with the outer transaction")
+		assert.Equal(t, token.ID, tokens[0].ID, "existing refresh tokens should remain untouched by role assignment")
+	})
+
+	t.Run("existing refresh token picks up new role on next refresh", func(t *testing.T) {
+		email, username := uniqueTestCredentials("assign-role-refresh")
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
+		require.NoError(t, err)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+		testpkg.EnsureAccountTenant(t, db, account.ID, 1)
+
+		_, refreshToken, err := service.Login(ctx, email, testPassword)
+		require.NoError(t, err)
+
+		roleName := fmt.Sprintf("assign-role-refresh-%d", time.Now().UnixNano())
+		role, err := service.CreateRole(ctx, roleName, "refresh propagation verification")
+		require.NoError(t, err)
+		t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "auth.roles", role.ID) })
+
+		err = service.AssignRoleToAccount(ctx, int(account.ID), int(role.ID))
+		require.NoError(t, err)
+
+		newAccessToken, newRefreshToken, err := service.RefreshToken(ctx, refreshToken)
+		require.NoError(t, err)
+		assert.NotEmpty(t, newRefreshToken)
+
+		claims := parseAccessTokenClaims(t, newAccessToken)
+		assert.Contains(t, claims.Roles, roleName)
 	})
 }
 
@@ -1103,6 +1154,35 @@ func TestAuthService_RemoveRoleFromAccount(t *testing.T) {
 		for _, r := range roles {
 			assert.NotEqual(t, role.ID, r.ID)
 		}
+	})
+
+	t.Run("existing refresh token no longer carries removed role after refresh", func(t *testing.T) {
+		email, username := uniqueTestCredentials("remove-role-refresh")
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
+		require.NoError(t, err)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+		testpkg.EnsureAccountTenant(t, db, account.ID, 1)
+
+		roleName := fmt.Sprintf("remove-role-refresh-%d", time.Now().UnixNano())
+		role, err := service.CreateRole(ctx, roleName, "refresh propagation verification")
+		require.NoError(t, err)
+		t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "auth.roles", role.ID) })
+
+		err = service.AssignRoleToAccount(ctx, int(account.ID), int(role.ID))
+		require.NoError(t, err)
+
+		_, refreshToken, err := service.Login(ctx, email, testPassword)
+		require.NoError(t, err)
+
+		err = service.RemoveRoleFromAccount(ctx, int(account.ID), int(role.ID))
+		require.NoError(t, err)
+
+		newAccessToken, newRefreshToken, err := service.RefreshToken(ctx, refreshToken)
+		require.NoError(t, err)
+		assert.NotEmpty(t, newRefreshToken)
+
+		claims := parseAccessTokenClaims(t, newAccessToken)
+		assert.NotContains(t, claims.Roles, roleName)
 	})
 }
 

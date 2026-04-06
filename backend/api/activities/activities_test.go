@@ -1328,6 +1328,64 @@ func TestRemoveSupervisor_WithReplacement_ReplacesSupervisorAtomically(t *testin
 	assert.Contains(t, staffIDs, replacementStaff.ID)
 }
 
+func TestRemoveSupervisor_WithExistingPrimaryReplacement_PreservesPrimaryLead(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("RemSupExistingPrimary-%d", time.Now().UnixNano()))
+	primaryStaff := testpkg.CreateTestStaff(t, ctx.db, fmt.Sprintf("Primary-%d", time.Now().UnixNano()), "Lead")
+	outgoingStaff := testpkg.CreateTestStaff(t, ctx.db, fmt.Sprintf("Outgoing-%d", time.Now().UnixNano()), "Caregiver")
+	otherStaff := testpkg.CreateTestStaff(t, ctx.db, fmt.Sprintf("Other-%d", time.Now().UnixNano()), "Caregiver")
+	defer cleanupActivity(t, ctx.db, activity.ID)
+	defer cleanupCategory(t, ctx.db, activity.CategoryID)
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, primaryStaff.ID, outgoingStaff.ID, otherStaff.ID)
+
+	primarySupervisor, err := ctx.services.Activities.AddSupervisor(testutil.TenantContext(1), activity.ID, primaryStaff.ID, true)
+	require.NoError(t, err)
+	require.NotNil(t, primarySupervisor)
+
+	outgoingSupervisor, err := ctx.services.Activities.AddSupervisor(testutil.TenantContext(1), activity.ID, outgoingStaff.ID, false)
+	require.NoError(t, err)
+	require.NotNil(t, outgoingSupervisor)
+
+	otherSupervisor, err := ctx.services.Activities.AddSupervisor(testutil.TenantContext(1), activity.ID, otherStaff.ID, false)
+	require.NoError(t, err)
+	require.NotNil(t, otherSupervisor)
+
+	router := testutil.NewTenantRouter(ctx.db)
+	router.Delete("/activities/{id}/supervisors/{supervisorId}", ctx.resource.RemoveSupervisorHandler())
+
+	req := testutil.NewAuthenticatedRequest(
+		t,
+		"DELETE",
+		fmt.Sprintf(
+			"/activities/%d/supervisors/%d?replacement_staff_id=%d",
+			activity.ID,
+			outgoingSupervisor.ID,
+			primaryStaff.ID,
+		),
+		nil,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	supervisors, err := ctx.services.Activities.GetGroupSupervisors(testutil.TenantContext(1), activity.ID)
+	require.NoError(t, err)
+	require.Len(t, supervisors, 2)
+
+	var primaryCount int
+	for _, supervisor := range supervisors {
+		assert.NotEqual(t, outgoingStaff.ID, supervisor.StaffID)
+		if supervisor.IsPrimary {
+			primaryCount++
+			assert.Equal(t, primaryStaff.ID, supervisor.StaffID)
+		}
+	}
+	assert.Equal(t, 1, primaryCount)
+}
+
 func TestRemoveSupervisor_OnlySupervisorRequiresReplacement(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()

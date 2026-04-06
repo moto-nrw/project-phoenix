@@ -1798,10 +1798,7 @@ func buildReplacementSupervisorIDs(
 		targetSupervisor  *activities.SupervisorPlanned
 		nextSupervisorIDs []int64
 	)
-
-	if replacementStaffID != nil {
-		nextSupervisorIDs = append(nextSupervisorIDs, *replacementStaffID)
-	}
+	replacementAlreadyAssigned := false
 
 	for _, supervisor := range supervisors {
 		if supervisor == nil {
@@ -1814,7 +1811,7 @@ func buildReplacementSupervisorIDs(
 		}
 
 		if replacementStaffID != nil && supervisor.StaffID == *replacementStaffID {
-			continue
+			replacementAlreadyAssigned = true
 		}
 
 		nextSupervisorIDs = append(nextSupervisorIDs, supervisor.StaffID)
@@ -1824,12 +1821,31 @@ func buildReplacementSupervisorIDs(
 		return nil, activitiesSvc.ErrSupervisorNotFound
 	}
 
-	if replacementStaffID != nil && !targetSupervisor.IsPrimary && len(nextSupervisorIDs) > 1 {
-		replacementID := nextSupervisorIDs[0]
-		nextSupervisorIDs = append(nextSupervisorIDs[1:], replacementID)
+	if replacementStaffID == nil {
+		return nextSupervisorIDs, nil
 	}
 
-	return nextSupervisorIDs, nil
+	if targetSupervisor.IsPrimary {
+		if replacementAlreadyAssigned {
+			reordered := make([]int64, 0, len(nextSupervisorIDs))
+			reordered = append(reordered, *replacementStaffID)
+			for _, staffID := range nextSupervisorIDs {
+				if staffID == *replacementStaffID {
+					continue
+				}
+				reordered = append(reordered, staffID)
+			}
+			return reordered, nil
+		}
+
+		return append([]int64{*replacementStaffID}, nextSupervisorIDs...), nil
+	}
+
+	if replacementAlreadyAssigned {
+		return nextSupervisorIDs, nil
+	}
+
+	return append(nextSupervisorIDs, *replacementStaffID), nil
 }
 
 // assignSupervisor assigns a supervisor to an activity

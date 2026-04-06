@@ -31,27 +31,27 @@ func (rs *Resource) getAvailableTeachers(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Get all teachers with staff and person data in a single query (avoids N+1)
-	directory, err := usersSvc.CaregiverDirectoryFromPersonService(rs.UsersService)
-	if err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
-		return
-	}
-	caregivers, err := directory.ListActiveCaregivers(r.Context())
+	// Use the teacher roster directly so kiosk selection remains independent
+	// of caregiver-account lifecycle state.
+	teachers, err := rs.UsersService.TeacherRepository().ListAllWithStaffAndPerson(r.Context())
 	if err != nil {
 		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
 		return
 	}
 
-	// Build response from the canonical caregiver pool.
-	responses := make([]DeviceTeacherResponse, 0, len(caregivers))
-	for _, caregiver := range caregivers {
+	responses := make([]DeviceTeacherResponse, 0, len(teachers))
+	for _, teacher := range teachers {
+		if teacher == nil || teacher.Staff == nil || teacher.Staff.Person == nil {
+			continue
+		}
+
+		person := teacher.Staff.Person
 		responses = append(responses, DeviceTeacherResponse{
-			StaffID:     caregiver.StaffID,
-			PersonID:    caregiver.PersonID,
-			FirstName:   caregiver.FirstName,
-			LastName:    caregiver.LastName,
-			DisplayName: caregiver.FullName(),
+			StaffID:     teacher.StaffID,
+			PersonID:    person.ID,
+			FirstName:   person.FirstName,
+			LastName:    person.LastName,
+			DisplayName: strings.TrimSpace(person.FirstName + " " + person.LastName),
 		})
 	}
 
