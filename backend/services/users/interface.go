@@ -88,3 +88,11 @@ type PersonService interface {
 	// GetAllStudentsWithGroups retrieves all students with their group info
 	GetAllStudentsWithGroups(ctx context.Context) ([]StudentWithGroup, error)
 }
+
+// CaregiverCapabilityService manages the operational caregiver capability of an
+// existing account inside a tenant.
+type CaregiverCapabilityService interface {
+	GetCaregiverCapability(ctx context.Context, accountID int64) (*userModels.CaregiverCapabilityState, error)
+	EnableCaregiverCapability(ctx context.Context, accountID int64, input userModels.EnableCaregiverCapabilityInput) (*userModels.CaregiverCapabilityState, error)
+	DisableCaregiverCapability(ctx context.Context, accountID int64) (*userModels.CaregiverCapabilityState, error)
+}

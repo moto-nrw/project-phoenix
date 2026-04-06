@@ -63,15 +63,21 @@ func (r *RoleRepository) FindByName(ctx context.Context, name string) (*auth.Rol
 	return role, nil
 }
 
-// FindByAccountID retrieves all roles assigned to an account
+// FindByAccountID retrieves all roles assigned to an account.
+// When tenant context is present, account-role assignments are scoped to that tenant.
 func (r *RoleRepository) FindByAccountID(ctx context.Context, accountID int64) ([]*auth.Role, error) {
 	var roles []*auth.Role
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&roles).
 		ModelTableExpr(roleTableAlias).
 		Join("JOIN auth.account_roles ar ON ar.role_id = role.id").
-		Where("ar.account_id = ?", accountID).
-		Scan(ctx)
+		Where("ar.account_id = ?", accountID)
+
+	if where, val, ok := base.TenantWhere(ctx, "ar"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{

@@ -38,6 +38,7 @@ import { CreateAccountModal } from "./create-account-modal";
 import { CreateDeviceModal } from "./create-device-modal";
 import { SetApiKeyModal } from "./set-api-key-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
+import { CaregiverCapabilityModal } from "~/components/teachers";
 
 const logger = createLogger({ component: "OperatorProvisioningPage" });
 
@@ -68,6 +69,13 @@ export default function OperatorProvisioningPage() {
     string | null
   >(null);
   const [createAccountSchoolName, setCreateAccountSchoolName] = useState("");
+  const [caregiverAccount, setCaregiverAccount] = useState<
+    SchoolAccount | OrgAccount | null
+  >(null);
+  const [caregiverSchoolContext, setCaregiverSchoolContext] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const [selectedSchool, setSelectedSchool] = useState<School | null>(null);
   const [filterOrgId, setFilterOrgId] = useState<string>("");
   const [createDeviceOpen, setCreateDeviceOpen] = useState(false);
@@ -337,6 +345,17 @@ export default function OperatorProvisioningPage() {
       setDeletePersonLoading(false);
     }
   }, [deletePersonTarget, mutateSchoolPersons, setDeletePersonTarget]);
+
+  const openCaregiverModal = useCallback(
+    (
+      account: SchoolAccount | OrgAccount,
+      schoolContext: { id: string; name: string } | null,
+    ) => {
+      setCaregiverAccount(account);
+      setCaregiverSchoolContext(schoolContext);
+    },
+    [],
+  );
 
   // Schools filtered by selected organization (for accounts tab filter)
   const filteredSchools = useMemo(() => {
@@ -890,7 +909,11 @@ export default function OperatorProvisioningPage() {
                 />
               )}
               {orgAccounts && orgAccounts.length > 0 && (
-                <AccountsTable accounts={orgAccounts} showSchool />
+                <AccountsTable
+                  accounts={orgAccounts}
+                  showSchool
+                  onManageCaregiver={openCaregiverModal}
+                />
               )}
             </>
           )}
@@ -905,7 +928,11 @@ export default function OperatorProvisioningPage() {
                 />
               )}
               {allAccounts && allAccounts.length > 0 && (
-                <AccountsTable accounts={allAccounts} showSchool />
+                <AccountsTable
+                  accounts={allAccounts}
+                  showSchool
+                  onManageCaregiver={openCaregiverModal}
+                />
               )}
             </>
           )}
@@ -936,7 +963,11 @@ export default function OperatorProvisioningPage() {
                 />
               )}
               {schoolAccounts && schoolAccounts.length > 0 && (
-                <AccountsTable accounts={schoolAccounts} />
+                <AccountsTable
+                  accounts={schoolAccounts}
+                  selectedSchool={selectedSchool}
+                  onManageCaregiver={openCaregiverModal}
+                />
               )}
             </>
           )}
@@ -1274,6 +1305,23 @@ export default function OperatorProvisioningPage() {
           void refreshDevices();
         }}
       />
+      {caregiverAccount && caregiverSchoolContext ? (
+        <CaregiverCapabilityModal
+          isOpen={true}
+          onClose={() => {
+            setCaregiverAccount(null);
+            setCaregiverSchoolContext(null);
+          }}
+          scope="operator"
+          accountId={caregiverAccount.accountId}
+          accountLabel={`${caregiverAccount.firstName} ${caregiverAccount.lastName}`.trim()}
+          schoolId={caregiverSchoolContext.id}
+          schoolName={caregiverSchoolContext.name}
+          onUpdated={async () => {
+            await refreshAccounts();
+          }}
+        />
+      ) : null}
 
       {/* Delete Device Confirmation Dialog */}
       {deleteDevice && (
@@ -1649,7 +1697,59 @@ function sortAccounts<T extends SchoolAccount>(
   });
 }
 
-function AccountRow({ account }: { readonly account: SchoolAccount }) {
+function getAccountCapabilityMeta(account: SchoolAccount) {
+  if (account.isActiveCaregiver && account.hasAdminRole) {
+    return {
+      label: "Verwaltung + Betreuung",
+      className: "bg-emerald-100 text-emerald-700",
+    };
+  }
+  if (account.isActiveCaregiver) {
+    return {
+      label: "Betreuung aktiv",
+      className: "bg-orange-100 text-orange-700",
+    };
+  }
+  if (account.hasUserRole && !account.hasCaregiverProfile) {
+    return {
+      label: "Betreuung unvollständig",
+      className: "bg-amber-100 text-amber-700",
+    };
+  }
+  if (account.hasCaregiverProfile && !account.hasUserRole) {
+    return {
+      label: "Betreuungsprofil inaktiv",
+      className: "bg-slate-100 text-slate-700",
+    };
+  }
+  if (account.hasAdminRole) {
+    return {
+      label: "Nur Verwaltung",
+      className: "bg-blue-100 text-blue-700",
+    };
+  }
+  return {
+    label: "Keine Betreuung",
+    className: "bg-gray-100 text-gray-600",
+  };
+}
+
+function AccountRowWithAction({
+  account,
+  schoolContext,
+  onManageCaregiver,
+}: {
+  readonly account: SchoolAccount | OrgAccount;
+  readonly schoolContext: { id: string; name: string } | null;
+  readonly onManageCaregiver?: (
+    account: SchoolAccount | OrgAccount,
+    schoolContext: { id: string; name: string } | null,
+  ) => void;
+}) {
+  const capability = getAccountCapabilityMeta(account);
+  const canManageCaregiver =
+    account.accountId !== "0" && account.status !== "invited";
+
   return (
     <>
       <td className="px-5 py-3 font-medium text-gray-900">
@@ -1678,7 +1778,27 @@ function AccountRow({ account }: { readonly account: SchoolAccount }) {
         {account.pedagogicRole || "—"}
       </td>
       <td className="px-5 py-3">
+        <span
+          className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${capability.className}`}
+        >
+          {capability.label}
+        </span>
+      </td>
+      <td className="px-5 py-3">
         <AccountStatusBadge status={account.status} />
+      </td>
+      <td className="px-5 py-3 text-right">
+        {canManageCaregiver ? (
+          <button
+            type="button"
+            onClick={() => onManageCaregiver?.(account, schoolContext)}
+            className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50"
+          >
+            Betreuung verwalten
+          </button>
+        ) : (
+          <span className="text-xs text-gray-400">—</span>
+        )}
       </td>
     </>
   );
@@ -1687,9 +1807,16 @@ function AccountRow({ account }: { readonly account: SchoolAccount }) {
 function AccountsTable({
   accounts,
   showSchool = false,
+  selectedSchool,
+  onManageCaregiver,
 }: {
   readonly accounts: SchoolAccount[] | OrgAccount[];
   readonly showSchool?: boolean;
+  readonly selectedSchool?: School | null;
+  readonly onManageCaregiver?: (
+    account: SchoolAccount | OrgAccount,
+    schoolContext: { id: string; name: string } | null,
+  ) => void;
 }) {
   const { sort, toggle } = useSort<AccountSortKey>(
     showSchool ? "schoolName" : "name",
@@ -1733,17 +1860,26 @@ function AccountsTable({
               sort={sort}
               onToggle={toggle}
             />
+            <th className="px-5 py-3">Einsatz</th>
             <SortableHeader
               label="Status"
               sortKey="status"
               sort={sort}
               onToggle={toggle}
             />
+            <th className="px-5 py-3 text-right">Aktion</th>
           </tr>
         </thead>
         <tbody>
           {sorted.map((account) => {
             const orgAccount = showSchool ? (account as OrgAccount) : undefined;
+            const schoolContext = showSchool
+              ? orgAccount
+                ? { id: orgAccount.schoolId, name: orgAccount.schoolName }
+                : null
+              : selectedSchool
+                ? { id: selectedSchool.id, name: selectedSchool.name }
+                : null;
             return (
               <tr
                 key={
@@ -1758,7 +1894,11 @@ function AccountsTable({
                     {orgAccount.schoolName}
                   </td>
                 )}
-                <AccountRow account={account} />
+                <AccountRowWithAction
+                  account={account}
+                  schoolContext={schoolContext}
+                  onManageCaregiver={onManageCaregiver}
+                />
               </tr>
             );
           })}

@@ -308,6 +308,10 @@ describe("OperatorProvisioningService", () => {
         roleName: "teacher",
         pedagogicRole: "Erzieher",
         status: "active",
+        hasAdminRole: false,
+        hasUserRole: false,
+        hasCaregiverProfile: false,
+        isActiveCaregiver: false,
       });
     });
   });
@@ -341,6 +345,10 @@ describe("OperatorProvisioningService", () => {
         status: "active",
         schoolId: "10",
         schoolName: "GGS Europaschule",
+        hasAdminRole: false,
+        hasUserRole: false,
+        hasCaregiverProfile: false,
+        isActiveCaregiver: false,
       });
     });
   });

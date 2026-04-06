@@ -85,6 +85,10 @@ func (r *AccountTenantRepository) ListAccountsByTenantID(ctx context.Context, te
 		ColumnExpr(`COALESCE(string_agg(DISTINCT "r".name, ', ' ORDER BY "r".name), '') AS role_name`).
 		ColumnExpr(`COALESCE("t".role, '') AS pedagogic_role`).
 		ColumnExpr(`"at".status`).
+		ColumnExpr(`COALESCE(bool_or(LOWER("r".name) = 'admin'), false) AS has_admin_role`).
+		ColumnExpr(`COALESCE(bool_or(LOWER("r".name) = 'user'), false) AS has_user_role`).
+		ColumnExpr(`("p".id IS NOT NULL AND "s".id IS NOT NULL AND "t".id IS NOT NULL) AS has_caregiver_profile`).
+		ColumnExpr(`(COALESCE(bool_or(LOWER("r".name) = 'user'), false) AND "p".id IS NOT NULL AND "s".id IS NOT NULL AND "t".id IS NOT NULL) AS is_active_caregiver`).
 		TableExpr(`auth.account_tenants AS "at"`).
 		Join(`INNER JOIN auth.accounts AS "a" ON "a".id = "at".account_id`).
 		Join(`LEFT JOIN auth.account_roles AS "ar" ON "ar".account_id = "at".account_id AND "ar".tenant_id = ?`, tenantID).
@@ -93,7 +97,7 @@ func (r *AccountTenantRepository) ListAccountsByTenantID(ctx context.Context, te
 		Join(`LEFT JOIN users.staff AS "s" ON "s".person_id = "p".id AND "s".tenant_id = ?`, tenantID).
 		Join(`LEFT JOIN users.teachers AS "t" ON "t".staff_id = "s".id AND "t".tenant_id = ?`, tenantID).
 		Where(`"at".tenant_id = ?`, tenantID).
-		GroupExpr(`"at".account_id, "a".email, "a".active, "p".first_name, "p".last_name, "t".role, "at".status`).
+		GroupExpr(`"at".account_id, "a".email, "a".active, "p".id, "p".first_name, "p".last_name, "s".id, "t".id, "t".role, "at".status`).
 		OrderExpr(`"p".last_name ASC, "p".first_name ASC`).
 		Scan(ctx, &accounts)
 	if err != nil {
@@ -120,6 +124,10 @@ func (r *AccountTenantRepository) scanPendingInvitationsTenant(ctx context.Conte
 		ColumnExpr(`COALESCE("r".name, '') AS role_name`).
 		ColumnExpr(`'' AS pedagogic_role`).
 		ColumnExpr(`'invited' AS status`).
+		ColumnExpr(`false AS has_admin_role`).
+		ColumnExpr(`false AS has_user_role`).
+		ColumnExpr(`false AS has_caregiver_profile`).
+		ColumnExpr(`false AS is_active_caregiver`).
 		TableExpr(`auth.invitation_tokens AS "inv"`).
 		Join(`LEFT JOIN auth.roles AS "r" ON "r".id = "inv".role_id`).
 		Where(`"inv".tenant_id = ?`, tenantID).
@@ -183,6 +191,10 @@ func (r *AccountTenantRepository) queryOrgAccounts(ctx context.Context, db bun.I
 		ColumnExpr(`COALESCE(string_agg(DISTINCT "r".name, ', ' ORDER BY "r".name), '') AS role_name`).
 		ColumnExpr(`COALESCE("t".role, '') AS pedagogic_role`).
 		ColumnExpr(`"at".status`).
+		ColumnExpr(`COALESCE(bool_or(LOWER("r".name) = 'admin'), false) AS has_admin_role`).
+		ColumnExpr(`COALESCE(bool_or(LOWER("r".name) = 'user'), false) AS has_user_role`).
+		ColumnExpr(`("p".id IS NOT NULL AND "s".id IS NOT NULL AND "t".id IS NOT NULL) AS has_caregiver_profile`).
+		ColumnExpr(`(COALESCE(bool_or(LOWER("r".name) = 'user'), false) AND "p".id IS NOT NULL AND "s".id IS NOT NULL AND "t".id IS NOT NULL) AS is_active_caregiver`).
 		TableExpr(`auth.account_tenants AS "at"`).
 		Join(`INNER JOIN platform.schools AS "sch" ON "sch".id = "at".tenant_id`).
 		Join(`INNER JOIN auth.accounts AS "a" ON "a".id = "at".account_id`).
@@ -195,7 +207,7 @@ func (r *AccountTenantRepository) queryOrgAccounts(ctx context.Context, db bun.I
 		q = q.Where(whereClause, arg)
 	}
 	err := q.
-		GroupExpr(`"at".tenant_id, "sch".name, "at".account_id, "a".email, "a".active, "p".first_name, "p".last_name, "t".role, "at".status`).
+		GroupExpr(`"at".tenant_id, "sch".name, "at".account_id, "a".email, "a".active, "p".id, "p".first_name, "p".last_name, "s".id, "t".id, "t".role, "at".status`).
 		OrderExpr(`"sch".name ASC, "p".last_name ASC, "p".first_name ASC`).
 		Scan(ctx, &accounts)
 	return accounts, err
@@ -215,6 +227,10 @@ func (r *AccountTenantRepository) queryOrgInvitations(ctx context.Context, db bu
 		ColumnExpr(`COALESCE("r".name, '') AS role_name`).
 		ColumnExpr(`'' AS pedagogic_role`).
 		ColumnExpr(`'invited' AS status`).
+		ColumnExpr(`false AS has_admin_role`).
+		ColumnExpr(`false AS has_user_role`).
+		ColumnExpr(`false AS has_caregiver_profile`).
+		ColumnExpr(`false AS is_active_caregiver`).
 		TableExpr(`auth.invitation_tokens AS "inv"`).
 		Join(`INNER JOIN platform.schools AS "sch" ON "sch".id = "inv".tenant_id`).
 		Join(`LEFT JOIN auth.roles AS "r" ON "r".id = "inv".role_id`)

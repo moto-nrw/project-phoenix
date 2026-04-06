@@ -10,7 +10,8 @@ const logger = createLogger({ component: "CreateAccountModal" });
 
 interface RoleOption {
   id: number;
-  name: string;
+  label: string;
+  systemName: string;
 }
 
 export function CreateAccountModal({
@@ -33,6 +34,7 @@ export function CreateAccountModal({
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [position, setPosition] = useState("");
+  const [caregiverEnabled, setCaregiverEnabled] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const errorRef = useScrollToError(error);
@@ -57,12 +59,18 @@ export function CreateAccountModal({
         const roleList = await operatorProvisioningService.listSystemRoles();
         if (cancelled) return;
         const options = roleList
-          .filter((role) => role.name !== "guardian")
+          .filter((role) => {
+            const normalizedName = role.name.toLowerCase();
+            return (
+              normalizedName !== "guardian" && normalizedName !== "teacher"
+            );
+          })
           .map<RoleOption>((role) => ({
             id: Number(role.id),
-            name: role.name
+            label: role.name
               ? getRoleDisplayName(role.name)
               : `Rolle ${role.id}`,
+            systemName: role.name,
           }))
           .filter((role) => !Number.isNaN(role.id));
         setRoles(options);
@@ -93,10 +101,14 @@ export function CreateAccountModal({
       setPassword("");
       setConfirmPassword("");
       setPosition("");
+      setCaregiverEnabled(false);
       setError("");
       setResult(null);
     }
   }, [isOpen]);
+
+  const selectedRole = roles.find((role) => role.id === roleId);
+  const showCaregiverToggle = selectedRole?.systemName === "admin";
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -130,6 +142,8 @@ export function CreateAccountModal({
             confirm_password: confirmPassword,
             role_id: roleId,
             position: position || undefined,
+            caregiver_enabled:
+              showCaregiverToggle && caregiverEnabled ? true : undefined,
           },
         );
         setResult(created);
@@ -156,6 +170,8 @@ export function CreateAccountModal({
       password,
       confirmPassword,
       position,
+      caregiverEnabled,
+      showCaregiverToggle,
       onCreated,
     ],
   );
@@ -307,11 +323,34 @@ export function CreateAccountModal({
               </option>
               {roles.map((role) => (
                 <option key={role.id} value={role.id}>
-                  {role.name}
+                  {role.label}
                 </option>
               ))}
             </SelectWithChevron>
           </FormField>
+          {showCaregiverToggle && (
+            <div className="flex items-start gap-3 rounded-lg border border-gray-200 px-4 py-3">
+              <input
+                id="create-account-caregiver-enabled"
+                type="checkbox"
+                checked={caregiverEnabled}
+                onChange={(e) => setCaregiverEnabled(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <div className="space-y-1">
+                <label
+                  htmlFor="create-account-caregiver-enabled"
+                  className="text-sm font-medium text-gray-900"
+                >
+                  Auch als Betreuer einsetzen
+                </label>
+                <p className="text-sm text-gray-600">
+                  Vergibt zusätzlich die Betreuer-Rolle und legt das nötige
+                  Staff-/Teacher-Profil an.
+                </p>
+              </div>
+            </div>
+          )}
           <FormField
             label="Passwort"
             htmlFor="create-account-password"

@@ -1,7 +1,9 @@
 "use client";
 
 import { createLogger } from "~/lib/logger";
+import Image from "next/image";
 import { useState, useMemo, useCallback } from "react";
+import { getRoleDisplayName } from "~/lib/auth-helpers";
 
 const logger = createLogger({ component: "DatabaseTeachersPage" });
 import { useSession } from "next-auth/react";
@@ -13,6 +15,7 @@ import type { ActiveFilter } from "~/components/ui/page-header/types";
 import { useToast } from "~/contexts/ToastContext";
 import { useIsMobile } from "~/hooks/useIsMobile";
 import {
+  CaregiverCapabilityModal,
   TeacherRoleManagementModal,
   TeacherPermissionManagementModal,
 } from "@/components/teachers";
@@ -85,6 +88,7 @@ export default function TeachersPage() {
   // Role and permission modals
   const [roleModalOpen, setRoleModalOpen] = useState(false);
   const [permissionModalOpen, setPermissionModalOpen] = useState(false);
+  const [caregiverModalOpen, setCaregiverModalOpen] = useState(false);
 
   const { success: toastSuccess, error: toastError } = useToast();
 
@@ -113,6 +117,16 @@ export default function TeachersPage() {
     ? "Fehler beim Laden des Personals. Bitte versuchen Sie es später erneut."
     : null;
 
+  // Extract unique positions for autocomplete suggestions
+  const existingPositions = useMemo(() => {
+    const teachers = teachersData ?? [];
+    const positions = new Set<string>();
+    for (const t of teachers) {
+      if (t.role?.trim()) positions.add(t.role.trim());
+    }
+    return [...positions].sort((a, b) => a.localeCompare(b, "de"));
+  }, [teachersData]);
+
   // Apply filters (use teachersData directly to avoid dependency issues)
   const filteredTeachers = useMemo(() => {
     const teachers = teachersData ?? [];
@@ -127,6 +141,8 @@ export default function TeachersPage() {
           (teacher.last_name?.toLowerCase().includes(searchLower) ?? false) ||
           (teacher.name?.toLowerCase().includes(searchLower) ?? false) ||
           (teacher.role?.toLowerCase().includes(searchLower) ?? false) ||
+          (teacher.account_role?.toLowerCase().includes(searchLower) ??
+            false) ||
           (teacher.specialization?.toLowerCase().includes(searchLower) ??
             false) ||
           (teacher.email?.toLowerCase().includes(searchLower) ?? false),
@@ -226,10 +242,31 @@ export default function TeachersPage() {
     }
   };
 
+  // Handle inline notes update from detail modal
+  const handleUpdateNotes = async (notes: string) => {
+    if (!selectedTeacher) return;
+
+    try {
+      await service.update(selectedTeacher.id, { staff_notes: notes });
+      setSelectedTeacher({ ...selectedTeacher, staff_notes: notes });
+      await tenantMutate("database-teachers-list");
+    } catch (err) {
+      logger.error("failed to update teacher notes", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      throw err;
+    }
+  };
+
   // Handle edit click from detail modal
   const handleEditClick = () => {
     setShowDetailModal(false);
     setShowEditModal(true);
+  };
+
+  const handleManageCaregiverClick = () => {
+    setShowDetailModal(false);
+    setCaregiverModalOpen(true);
   };
 
   return (
@@ -335,6 +372,13 @@ export default function TeachersPage() {
         <div className="pointer-events-none absolute inset-0 scale-0 rounded-full bg-white/20 opacity-0 transition-transform duration-200 group-hover:scale-100 group-hover:opacity-100"></div>
       </button>
 
+      {/* Pending Invitations (above staff list) */}
+      <RoleGuard variant="adminOnly">
+        <div className="mb-4">
+          <PendingInvitationsList refreshKey={invitationRefreshKey} />
+        </div>
+      </RoleGuard>
+
       {/* Error Display */}
       {error && (
         <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
@@ -381,13 +425,25 @@ export default function TeachersPage() {
             );
             const displayName =
               teacher.name || `${teacher.first_name} ${teacher.last_name}`;
+            const hasAvatar = !!teacher.avatar;
+            const avatarUrl =
+              hasAvatar && teacher.staff_id
+                ? `/api/staff/${teacher.staff_id}/avatar`
+                : null;
 
             const handleClick = () => handleSelectTeacher(teacher);
             return (
-              <button
-                type="button"
+              <div
+                role="button"
+                tabIndex={0}
                 key={teacher.id}
                 onClick={handleClick}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    handleClick();
+                  }
+                }}
                 className="group relative w-full cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150 active:scale-[0.98] md:hover:-translate-y-0.5 md:hover:border-orange-300/50 md:hover:bg-white md:hover:shadow-[0_12px_40px_rgb(0,0,0,0.18)]"
                 style={{
                   animationName: "fadeInUp",
@@ -408,8 +464,19 @@ export default function TeachersPage() {
                 <div className="relative flex items-center gap-4 p-5">
                   {/* Avatar */}
                   <div className="flex-shrink-0">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[#F78C10] to-[#e57a00] text-sm font-semibold text-white shadow-md transition-transform duration-150 md:group-hover:scale-105">
-                      {initials.toUpperCase()}
+                    <div className="relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-[#F78C10] to-[#e57a00] text-sm font-semibold text-white shadow-md transition-transform duration-150 md:group-hover:scale-105">
+                      {avatarUrl ? (
+                        <Image
+                          src={avatarUrl}
+                          alt={displayName}
+                          fill
+                          className="object-cover"
+                          sizes="48px"
+                          unoptimized
+                        />
+                      ) : (
+                        initials.toUpperCase()
+                      )}
                     </div>
                   </div>
 
@@ -418,27 +485,89 @@ export default function TeachersPage() {
                     <h3 className="text-lg font-semibold text-gray-900 transition-colors duration-300 md:group-hover:text-orange-600">
                       {displayName}
                     </h3>
-                    <div className="mt-1 flex flex-wrap items-center gap-2">
-                      {/* Specialization Badge */}
-                      {teacher.role && (
-                        <span className="inline-flex items-center rounded-full bg-orange-100 px-2 py-1 text-xs font-medium text-orange-800">
-                          {teacher.role}
-                        </span>
-                      )}
-                    </div>
-                    {/* Email info */}
-                    {teacher.email && (
-                      <p className="mt-1 text-sm text-gray-500">
-                        <span className="text-gray-400">E-Mail:</span>{" "}
-                        {teacher.email}
+                    {(teacher.account_role || teacher.role) && (
+                      <p className="mt-0.5 text-sm text-gray-500">
+                        {(() => {
+                          const displayRole = teacher.account_role
+                            ? getRoleDisplayName(teacher.account_role)
+                            : null;
+                          const position =
+                            teacher.role &&
+                            teacher.role.toLowerCase() !==
+                              displayRole?.toLowerCase() &&
+                            teacher.role.toLowerCase() !==
+                              teacher.account_role?.toLowerCase()
+                              ? teacher.role
+                              : null;
+                          return [displayRole, position]
+                            .filter(Boolean)
+                            .join(" · ");
+                        })()}
                       </p>
+                    )}
+                    {teacher.email && (
+                      <div className="mt-1 flex items-center gap-1.5">
+                        <span className="truncate text-xs text-gray-400">
+                          {teacher.email}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigator.clipboard
+                              .writeText(teacher.email!)
+                              .then(() => toastSuccess("E-Mail kopiert"))
+                              .catch(() =>
+                                toastError("Kopieren fehlgeschlagen"),
+                              );
+                          }}
+                          className="flex-shrink-0 rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+                          aria-label="E-Mail kopieren"
+                          title="E-Mail kopieren"
+                        >
+                          <svg
+                            className="h-4 w-4"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth={2}
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9.75a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184"
+                            />
+                          </svg>
+                        </button>
+                        <a
+                          href={`mailto:${teacher.email}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="flex-shrink-0 rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+                          aria-label="E-Mail senden"
+                          title="E-Mail senden"
+                        >
+                          <svg
+                            className="h-4 w-4"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth={2}
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"
+                            />
+                          </svg>
+                        </a>
+                      </div>
                     )}
                   </div>
 
                   {/* Arrow Icon */}
                   <div className="flex-shrink-0">
                     <svg
-                      className="h-6 w-6 text-gray-400 transition-all duration-300 md:group-hover:translate-x-1 md:group-hover:text-orange-600"
+                      className="h-5 w-5 text-gray-300 transition-all duration-300 md:group-hover:translate-x-1 md:group-hover:text-orange-500"
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
@@ -454,19 +583,12 @@ export default function TeachersPage() {
                 </div>
 
                 {/* Glowing border effect on hover */}
-                <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-orange-100/30 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100"></div>
-              </button>
+                <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-orange-100/30 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100"></div>
+              </div>
             );
           })}
         </div>
       )}
-
-      {/* Pending Invitations */}
-      <RoleGuard variant="adminOnly">
-        <div className="mt-6">
-          <PendingInvitationsList refreshKey={invitationRefreshKey} />
-        </div>
-      </RoleGuard>
 
       {/* Invite Modal */}
       <Modal
@@ -475,6 +597,7 @@ export default function TeachersPage() {
         title="Personal einladen"
       >
         <InvitationForm
+          existingPositions={existingPositions}
           onCreated={() => {
             setInvitationRefreshKey(Date.now());
             setShowInviteModal(false);
@@ -490,6 +613,10 @@ export default function TeachersPage() {
           teacher={selectedTeacher}
           onEdit={handleEditClick}
           onDelete={handleDeleteTeacher}
+          onManageCaregiver={
+            selectedTeacher.account_id ? handleManageCaregiverClick : undefined
+          }
+          onUpdateNotes={handleUpdateNotes}
           loading={detailLoading}
           onDeleteClick={handleDeleteClick}
         />
@@ -524,10 +651,24 @@ export default function TeachersPage() {
           teacher={selectedTeacher}
           onSave={handleEditTeacher}
           loading={detailLoading}
+          existingPositions={existingPositions}
         />
       )}
 
       {/* Role Management Modal */}
+      {selectedTeacher && (
+        <CaregiverCapabilityModal
+          isOpen={caregiverModalOpen}
+          onClose={() => setCaregiverModalOpen(false)}
+          scope="tenant"
+          accountId={selectedTeacher.account_id?.toString() ?? ""}
+          accountLabel={`${selectedTeacher.first_name} ${selectedTeacher.last_name}`}
+          onUpdated={async () => {
+            await tenantMutate("database-teachers-list");
+          }}
+        />
+      )}
+
       {selectedTeacher && (
         <TeacherRoleManagementModal
           isOpen={roleModalOpen}

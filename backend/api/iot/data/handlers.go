@@ -32,26 +32,27 @@ func (rs *Resource) getAvailableTeachers(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Get all teachers with staff and person data in a single query (avoids N+1)
+	// Use the teacher roster directly so kiosk selection remains independent
+	// of caregiver-account lifecycle state.
 	teachers, err := rs.UsersService.TeacherRepository().ListAllWithStaffAndPerson(r.Context())
 	if err != nil {
 		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
 		return
 	}
 
-	// Build response - all teachers are available for selection (global PIN)
 	responses := make([]DeviceTeacherResponse, 0, len(teachers))
 	for _, teacher := range teachers {
-		if teacher.Staff == nil || teacher.Staff.Person == nil {
-			continue // Skip if missing staff or person data
+		if teacher == nil || teacher.Staff == nil || teacher.Staff.Person == nil {
+			continue
 		}
 
+		person := teacher.Staff.Person
 		responses = append(responses, DeviceTeacherResponse{
-			StaffID:     teacher.Staff.ID,
-			PersonID:    teacher.Staff.Person.ID,
-			FirstName:   teacher.Staff.Person.FirstName,
-			LastName:    teacher.Staff.Person.LastName,
-			DisplayName: fmt.Sprintf("%s %s", teacher.Staff.Person.FirstName, teacher.Staff.Person.LastName),
+			StaffID:     teacher.StaffID,
+			PersonID:    person.ID,
+			FirstName:   person.FirstName,
+			LastName:    person.LastName,
+			DisplayName: strings.TrimSpace(person.FirstName + " " + person.LastName),
 		})
 	}
 

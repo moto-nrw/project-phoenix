@@ -9,7 +9,7 @@ import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
 import { useSession } from "next-auth/react";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { useShellAuth } from "~/lib/shell-auth-context";
-import { isAdmin } from "~/lib/auth-utils";
+import { hasRole, isCaregiver } from "~/lib/auth-utils";
 import { operatorPath } from "~/lib/operator-url";
 import { useSidebarAccordion } from "~/lib/hooks/use-sidebar-accordion";
 import { useSuggestionsUnread } from "~/lib/hooks/use-suggestions-unread";
@@ -255,11 +255,12 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const fromParam = searchParams.get("from");
   const { expanded, toggle } = useSidebarAccordion(pathname, fromParam);
 
-  const userIsAdmin = isAdmin(session);
+  const userIsAdmin = hasRole(session, "admin");
+  const userIsCaregiver = isCaregiver(session);
 
   // Filter flat navigation items based on permissions
   const filteredNavItems = NAV_ITEMS.filter((item) => {
-    if (item.hideForAdmin && userIsAdmin) return false;
+    if (item.hideForAdmin && userIsAdmin && !userIsCaregiver) return false;
     if (item.alwaysShow) return true;
     if (item.requiresAdmin && !userIsAdmin) return false;
     return true;
@@ -513,8 +514,8 @@ function SidebarContent({ className = "" }: SidebarProps) {
     }
   }, [toggle, pathname, router]);
 
-  // Show staff-only accordions (groups + supervisions) only for non-admin
-  const showStaffAccordions = !userIsAdmin;
+  // Caregiver accordions are driven by the explicit caregiver role.
+  const showStaffAccordions = userIsCaregiver;
 
   // Resolve operator nav hrefs once (operatorPath is deterministic for the page lifetime)
   const resolvedOperatorItems = useMemo(

@@ -388,6 +388,10 @@ describe("mapSchoolAccount", () => {
       roleName: "Teacher",
       pedagogicRole: "Erzieher",
       status: "active",
+      hasAdminRole: false,
+      hasUserRole: false,
+      hasCaregiverProfile: false,
+      isActiveCaregiver: false,
     });
   });
 
@@ -448,6 +452,10 @@ describe("mapOrgAccount", () => {
       roleName: "OrgAdmin",
       pedagogicRole: "",
       status: "active",
+      hasAdminRole: false,
+      hasUserRole: false,
+      hasCaregiverProfile: false,
+      isActiveCaregiver: false,
       schoolId: "10",
       schoolName: "Test School",
     });
