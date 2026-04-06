@@ -19,7 +19,7 @@ func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 
 	// Create JWT auth instance for middleware
-	tokenAuth, _ := jwt.NewTokenAuth()
+	tokenAuth := jwt.MustNewTokenAuth()
 
 	// SSE endpoint requires authentication
 	r.Group(func(r chi.Router) {

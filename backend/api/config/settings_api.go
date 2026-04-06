@@ -36,7 +36,7 @@ func (rs *SettingsResource) SettingsRouter() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	tokenAuth, _ := jwt.NewTokenAuth()
+	tokenAuth := jwt.MustNewTokenAuth()
 
 	r.Group(func(r chi.Router) {
 		r.Use(tokenAuth.Verifier())

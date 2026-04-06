@@ -42,6 +42,16 @@ func NewTokenAuth() (*TokenAuth, error) {
 	return NewTokenAuthWithSecret(secret)
 }
 
+// MustNewTokenAuth is like NewTokenAuth but fatals on error.
+// Use this in Router() functions where JWT auth is required at startup.
+func MustNewTokenAuth() *TokenAuth {
+	ta, err := NewTokenAuth()
+	if err != nil {
+		log.Fatalf("failed to initialize JWT auth: %v", err)
+	}
+	return ta
+}
+
 // resolveRandomSecret generates or loads a persistent development secret.
 func resolveRandomSecret() (string, error) {
 	// Check environment - don't allow random in production

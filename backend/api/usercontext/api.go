@@ -58,7 +58,7 @@ func NewResource(service usercontext.UserContextService, substitutionRepo educat
 	}
 
 	// Create JWT auth instance for middleware
-	tokenAuth, _ := jwt.NewTokenAuth()
+	tokenAuth := jwt.MustNewTokenAuth()
 
 	// Setup routes with proper authentication chain
 	r.router.Use(tokenAuth.Verifier())
