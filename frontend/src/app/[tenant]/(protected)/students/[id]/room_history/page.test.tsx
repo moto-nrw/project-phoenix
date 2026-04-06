@@ -9,7 +9,7 @@ vi.mock("next/navigation", () => ({
     push: mockPush,
   }),
   useParams: () => ({
-    id: "1",
+    id: "42",
   }),
   useSearchParams: () => ({
     get: vi.fn((key: string) => (key === "from" ? "/students/search" : null)),
@@ -47,221 +47,277 @@ vi.mock("~/components/ui/alert", () => ({
   ),
 }));
 
+// Mock fetch to simulate backend responses
+const mockFetch = vi.fn();
+global.fetch = mockFetch;
+
+// Helper to build a mock student response
+function mockStudentResponse() {
+  return {
+    ok: true,
+    status: 200,
+    json: async () => ({
+      data: {
+        id: "42",
+        first_name: "Test",
+        second_name: "Student",
+        name: "Test Student",
+        school_class: "2a",
+        group_name: "Sterne",
+      },
+    }),
+  };
+}
+
+// Helper to build a mock attendance-history response
+function mockAttendanceHistoryResponse(days: unknown[] = []) {
+  return {
+    ok: true,
+    status: 200,
+    json: async () => ({
+      data: {
+        student_id: "42",
+        days,
+        range: {
+          start: "2026-03-07T00:00:00Z",
+          end: "2026-04-06T23:59:59Z",
+        },
+        clamped: false,
+        caps: { attendance_days: 30, room_detail_days: 7 },
+      },
+    }),
+  };
+}
+
+function mockFeatureDisabledResponse() {
+  return {
+    ok: false,
+    status: 403,
+    json: async () => ({ error: "feature_disabled" }),
+  };
+}
+
+function mockNotGroupSupervisorResponse() {
+  return {
+    ok: false,
+    status: 403,
+    json: async () => ({ error: "not_group_supervisor" }),
+  };
+}
+
 describe("StudentRoomHistoryPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   it("renders loading state initially", () => {
+    mockFetch.mockResolvedValue(mockStudentResponse());
     render(<StudentRoomHistoryPage />);
-
     expect(screen.getByTestId("loading")).toBeInTheDocument();
   });
 
-  it("renders student info after loading", async () => {
+  it("renders student profile header after loading", async () => {
+    mockFetch.mockImplementation((url: string) => {
+      if (url.includes("/attendance-history")) {
+        return Promise.resolve(mockAttendanceHistoryResponse());
+      }
+      return Promise.resolve(mockStudentResponse());
+    });
+
     render(<StudentRoomHistoryPage />);
 
-    await waitFor(
-      () => {
-        expect(screen.getByText("Emma Müller")).toBeInTheDocument();
-      },
-      { timeout: 2000 },
-    );
+    await waitFor(() => {
+      expect(screen.getByText("Test Student")).toBeInTheDocument();
+    });
+    expect(screen.getByText("Klasse 2a")).toBeInTheDocument();
+    expect(screen.getByText(/Gruppe: Sterne/)).toBeInTheDocument();
   });
 
-  it("displays room history title", async () => {
+  it("displays page title", async () => {
+    mockFetch.mockImplementation((url: string) => {
+      if (url.includes("/attendance-history")) {
+        return Promise.resolve(mockAttendanceHistoryResponse());
+      }
+      return Promise.resolve(mockStudentResponse());
+    });
+
     render(<StudentRoomHistoryPage />);
 
-    await waitFor(
-      () => {
-        expect(screen.getByText("Raumverlauf")).toBeInTheDocument();
-      },
-      { timeout: 2000 },
-    );
+    await waitFor(() => {
+      expect(
+        screen.getByText("Anwesenheitsprotokoll & Raumverlauf"),
+      ).toBeInTheDocument();
+    });
   });
 
-  it("displays student class and group info", async () => {
+  it("displays back button that navigates to student profile", async () => {
+    mockFetch.mockImplementation((url: string) => {
+      if (url.includes("/attendance-history")) {
+        return Promise.resolve(mockAttendanceHistoryResponse());
+      }
+      return Promise.resolve(mockStudentResponse());
+    });
+
     render(<StudentRoomHistoryPage />);
 
-    await waitFor(
-      () => {
-        expect(screen.getByText(/Klasse 3b/)).toBeInTheDocument();
-        expect(screen.getByText(/Gruppe: Eulen/)).toBeInTheDocument();
-      },
-      { timeout: 2000 },
-    );
-  });
-
-  it("displays time range filter buttons", async () => {
-    render(<StudentRoomHistoryPage />);
-
-    await waitFor(
-      () => {
-        expect(screen.getByText("Heute")).toBeInTheDocument();
-        expect(screen.getByText("Diese Woche")).toBeInTheDocument();
-        expect(screen.getByText("Letzte 7 Tage")).toBeInTheDocument();
-        expect(screen.getByText("Diesen Monat")).toBeInTheDocument();
-      },
-      { timeout: 2000 },
-    );
-  });
-
-  it("displays back button", async () => {
-    render(<StudentRoomHistoryPage />);
-
-    await waitFor(
-      () => {
-        expect(
-          screen.getByText("Zurück zum Schülerprofil"),
-        ).toBeInTheDocument();
-      },
-      { timeout: 2000 },
-    );
-  });
-
-  it("navigates back to student profile when back button clicked", async () => {
-    render(<StudentRoomHistoryPage />);
-
-    await waitFor(
-      () => {
-        expect(
-          screen.getByText("Zurück zum Schülerprofil"),
-        ).toBeInTheDocument();
-      },
-      { timeout: 2000 },
-    );
+    await waitFor(() => {
+      expect(screen.getByText("Zurück zum Schülerprofil")).toBeInTheDocument();
+    });
 
     fireEvent.click(screen.getByText("Zurück zum Schülerprofil"));
-
     expect(mockPush).toHaveBeenCalledWith(
-      "/test-tenant/students/1?from=/students/search",
+      "/test-tenant/students/42?from=/students/search",
     );
   });
 
-  it("displays room history entries", async () => {
+  it("shows feature disabled message on 403", async () => {
+    mockFetch.mockImplementation((url: string) => {
+      if (url.includes("/attendance-history")) {
+        return Promise.resolve(mockFeatureDisabledResponse());
+      }
+      return Promise.resolve(mockStudentResponse());
+    });
+
     render(<StudentRoomHistoryPage />);
 
-    await waitFor(
-      () => {
-        // Check for room names from mock data
-        expect(screen.getAllByText(/Eulen Gruppenraum/).length).toBeGreaterThan(
-          0,
-        );
-      },
-      { timeout: 2000 },
-    );
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Diese Funktion ist für Ihre Schule deaktiviert/),
+      ).toBeInTheDocument();
+    });
   });
 
-  it("displays room entry reasons", async () => {
+  it("shows not_group_supervisor error", async () => {
+    mockFetch.mockImplementation((url: string) => {
+      if (url.includes("/attendance-history")) {
+        return Promise.resolve(mockNotGroupSupervisorResponse());
+      }
+      return Promise.resolve(mockStudentResponse());
+    });
+
     render(<StudentRoomHistoryPage />);
 
-    await waitFor(
-      () => {
-        // Check for room entry reasons from mock data
-        // Using queryAllByText for more flexible matching
-        const mittagessen = screen.queryAllByText(/Mittagessen/i);
-        const fussballAg = screen.queryAllByText(/Fußball AG/i);
-        expect(mittagessen.length + fussballAg.length).toBeGreaterThan(0);
-      },
-      { timeout: 2000 },
-    );
+    await waitFor(() => {
+      expect(
+        screen.getByText(/nur.*Anwesenheitsprotokoll.*betreuten Gruppen/i),
+      ).toBeInTheDocument();
+    });
   });
 
-  it("displays duration for room entries", async () => {
+  it("shows empty state when no attendance data", async () => {
+    mockFetch.mockImplementation((url: string) => {
+      if (url.includes("/attendance-history")) {
+        return Promise.resolve(mockAttendanceHistoryResponse([]));
+      }
+      return Promise.resolve(mockStudentResponse());
+    });
+
     render(<StudentRoomHistoryPage />);
 
-    await waitFor(
-      () => {
-        // Check for duration text (e.g., "45 Min." or "1 Std. 30 Min.")
-        expect(screen.getAllByText(/Min\./).length).toBeGreaterThan(0);
-      },
-      { timeout: 2000 },
-    );
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          /Keine Anwesenheitsdaten für den ausgewählten Zeitraum/,
+        ),
+      ).toBeInTheDocument();
+    });
   });
 
-  it("changes time range when filter button clicked", async () => {
+  it("renders attendance data with check-in/check-out", async () => {
+    const day = {
+      date: "2026-04-06",
+      attendance: {
+        check_in_time: "2026-04-06T08:00:00Z",
+        check_out_time: "2026-04-06T15:30:00Z",
+        duration_minutes: 450,
+        checked_in_by: 1,
+        device_id: 1,
+      },
+      room_detail_available: true,
+      visits: [
+        {
+          room_name: "Gruppenraum A",
+          entry_time: "2026-04-06T08:10:00Z",
+          exit_time: "2026-04-06T10:30:00Z",
+          duration_minutes: 140,
+        },
+      ],
+    };
+
+    mockFetch.mockImplementation((url: string) => {
+      if (url.includes("/attendance-history")) {
+        return Promise.resolve(mockAttendanceHistoryResponse([day]));
+      }
+      return Promise.resolve(mockStudentResponse());
+    });
+
     render(<StudentRoomHistoryPage />);
 
-    await waitFor(
-      () => {
-        expect(screen.getByText("Heute")).toBeInTheDocument();
-      },
-      { timeout: 2000 },
-    );
+    await waitFor(() => {
+      expect(screen.getByText("Gruppenraum A")).toBeInTheDocument();
+    });
+    // Check attendance duration
+    expect(screen.getByText("7 h 30 min")).toBeInTheDocument();
+  });
 
-    // Click the "Heute" button - this triggers a re-render with loading state
-    fireEvent.click(screen.getByText("Heute"));
-
-    // Wait for loading to complete and UI to show again
-    await waitFor(
-      () => {
-        expect(screen.getByText("Heute")).toBeInTheDocument();
+  it("shows room detail unavailable note for old days", async () => {
+    const day = {
+      date: "2026-03-20",
+      attendance: {
+        check_in_time: "2026-03-20T08:00:00Z",
+        check_out_time: "2026-03-20T15:00:00Z",
+        duration_minutes: 420,
+        checked_in_by: 1,
+        device_id: 1,
       },
-      { timeout: 2000 },
-    );
+      room_detail_available: false,
+      visits: null,
+    };
+
+    mockFetch.mockImplementation((url: string) => {
+      if (url.includes("/attendance-history")) {
+        return Promise.resolve(mockAttendanceHistoryResponse([day]));
+      }
+      return Promise.resolve(mockStudentResponse());
+    });
+
+    render(<StudentRoomHistoryPage />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Raumdetails.*nicht mehr verfügbar/),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("displays caps info banner", async () => {
+    mockFetch.mockImplementation((url: string) => {
+      if (url.includes("/attendance-history")) {
+        return Promise.resolve(mockAttendanceHistoryResponse([]));
+      }
+      return Promise.resolve(mockStudentResponse());
+    });
+
+    render(<StudentRoomHistoryPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/letzten 30 Tage/)).toBeInTheDocument();
+      expect(screen.getByText(/letzten 7 Tage/)).toBeInTheDocument();
+    });
   });
 
   it("displays student initials in header", async () => {
-    render(<StudentRoomHistoryPage />);
-
-    await waitFor(
-      () => {
-        // Emma Müller initials
-        expect(screen.getByText("EM")).toBeInTheDocument();
-      },
-      { timeout: 2000 },
-    );
-  });
-
-  it("displays time range selection header", async () => {
-    render(<StudentRoomHistoryPage />);
-
-    await waitFor(
-      () => {
-        expect(screen.getByText("Zeitraum auswählen")).toBeInTheDocument();
-      },
-      { timeout: 2000 },
-    );
-  });
-});
-
-describe("getYear helper function", () => {
-  it("extracts year from school class", () => {
-    const getYear = (schoolClass: string): number => {
-      const yearMatch = /^(\d)/.exec(schoolClass);
-      return yearMatch?.[1] ? Number.parseInt(yearMatch[1], 10) : 0;
-    };
-
-    expect(getYear("1a")).toBe(1);
-    expect(getYear("2b")).toBe(2);
-    expect(getYear("3c")).toBe(3);
-    expect(getYear("4d")).toBe(4);
-    expect(getYear("unknown")).toBe(0);
-  });
-});
-
-describe("getYearColor helper function", () => {
-  it("returns correct color for each year", () => {
-    const getYearColor = (year: number): string => {
-      switch (year) {
-        case 1:
-          return "bg-blue-500";
-        case 2:
-          return "bg-green-500";
-        case 3:
-          return "bg-yellow-500";
-        case 4:
-          return "bg-purple-500";
-        default:
-          return "bg-gray-400";
+    mockFetch.mockImplementation((url: string) => {
+      if (url.includes("/attendance-history")) {
+        return Promise.resolve(mockAttendanceHistoryResponse());
       }
-    };
+      return Promise.resolve(mockStudentResponse());
+    });
 
-    expect(getYearColor(1)).toBe("bg-blue-500");
-    expect(getYearColor(2)).toBe("bg-green-500");
-    expect(getYearColor(3)).toBe("bg-yellow-500");
-    expect(getYearColor(4)).toBe("bg-purple-500");
-    expect(getYearColor(0)).toBe("bg-gray-400");
-    expect(getYearColor(5)).toBe("bg-gray-400");
+    render(<StudentRoomHistoryPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("TS")).toBeInTheDocument();
+    });
   });
 });

@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	auditDataAccessLogVersion     = "1.15.27"
+	auditDataAccessLogVersion     = "1.15.29"
 	auditDataAccessLogDescription = "Create audit.data_access_log table for attendance history view events"
 )
 
@@ -18,7 +18,7 @@ func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     auditDataAccessLogVersion,
 		Description: auditDataAccessLogDescription,
-		DependsOn:   []string{"1.15.26"},
+		DependsOn:   []string{"1.15.28"},
 	})
 
 	Migrations.MustRegister(
@@ -32,7 +32,7 @@ func init() {
 }
 
 func createAuditDataAccessLogTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.27: Creating audit.data_access_log table...")
+	fmt.Println("Migration 1.15.29: Creating audit.data_access_log table...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
