@@ -221,6 +221,7 @@ jobs:
             NEXT_PUBLIC_OPERATOR_HOSTNAME=${{ steps.operator_hostname.outputs.hostname }}
             TENANT_DOMAIN=${{ steps.tenant_domain.outputs.domain }}
             NEXT_PUBLIC_TENANT_DOMAIN=${{ steps.tenant_domain.outputs.domain }}
+            NEXT_PUBLIC_SENTRY_DSN=${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
           # Use separate cache scope to prevent backend overwriting frontend cache
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,mode=max,scope=frontend
