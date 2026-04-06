@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	iotCommon "github.com/moto-nrw/project-phoenix/api/iot/common"
 	"github.com/moto-nrw/project-phoenix/auth/device"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
@@ -318,6 +319,14 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	// Compute daily_checkout_available flag for frontend "nach Hause" button
 	if currentVisit != nil && (result.Action == "checked_out" || result.Action == "checked_out_daily") {
 		result.DailyCheckoutAvailable = rs.shouldShowDailyCheckoutWithGroup(ctx, student, currentVisit)
+	}
+
+	// Resolve feedback_enabled setting so PyrePortal knows whether to show the feedback modal
+	result.FeedbackEnabled = true // default
+	if rs.SettingsService != nil {
+		if val, err := rs.SettingsService.ResolveBool(ctx, configModel.KeyFeedbackEnabled); err == nil {
+			result.FeedbackEnabled = val
+		}
 	}
 
 	// Step 11: Keep heartbeat and active_students scoped to the scanning device session.

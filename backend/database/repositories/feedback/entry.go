@@ -317,6 +317,28 @@ func (r *EntryRepository) List(ctx context.Context, filters map[string]interface
 	return entries, nil
 }
 
+// DeleteOlderThan deletes feedback entries older than the specified number of days.
+// Uses tenant scoping via TenantWhere for GDPR-compliant per-tenant cleanup.
+func (r *EntryRepository) DeleteOlderThan(ctx context.Context, days int) (int, error) {
+	cutoff := time.Now().AddDate(0, 0, -days)
+	query := base.GetDB(ctx, r.db).NewDelete().
+		Model((*feedback.Entry)(nil)).
+		TableExpr(tableFeedbackEntries).
+		Where("day < ?", cutoff.Format("2006-01-02"))
+
+	if where, val, ok := base.TenantWhere(ctx, ""); ok {
+		query = query.Where(where, val)
+	}
+
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "delete older than", Err: err}
+	}
+
+	rows, _ := result.RowsAffected()
+	return int(rows), nil
+}
+
 // applyFeedbackFilters applies all filters to the query
 func applyFeedbackFilters(query *bun.SelectQuery, filters map[string]interface{}) *bun.SelectQuery {
 	for field, value := range filters {

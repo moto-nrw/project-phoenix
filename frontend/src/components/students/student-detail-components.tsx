@@ -560,7 +560,50 @@ function DisabledHistoryButton({
   );
 }
 
-export function StudentHistorySection() {
+interface ActiveHistoryButtonProps extends HistoryButtonProps {
+  onClick: () => void;
+}
+
+function ActiveHistoryButton({
+  icon,
+  title,
+  description,
+  bgColor,
+  onClick,
+}: Readonly<ActiveHistoryButtonProps>) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex items-center justify-between rounded-lg border border-gray-100 bg-white p-3 transition-colors hover:bg-gray-50"
+    >
+      <div className="flex items-center gap-3">
+        <div
+          className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg sm:h-9 sm:w-9 ${bgColor}`}
+        >
+          {icon}
+        </div>
+        <div className="min-w-0 flex-1 text-left">
+          <p className="text-sm font-medium text-gray-700 sm:text-base">
+            {title}
+          </p>
+          <p className="text-xs text-gray-500">{description}</p>
+        </div>
+      </div>
+      <ChevronRightIcon className="h-4 w-4 flex-shrink-0 text-gray-400" />
+    </button>
+  );
+}
+
+interface StudentHistorySectionProps {
+  studentId: string;
+  onNavigate: (path: string) => void;
+}
+
+export function StudentHistorySection({
+  studentId,
+  onNavigate,
+}: Readonly<StudentHistorySectionProps>) {
   return (
     <InfoCard title="Historien" icon={<ClockIcon />}>
       <div className="grid grid-cols-1 gap-2">
@@ -570,11 +613,12 @@ export function StudentHistorySection() {
           description="Verlauf der Raumbesuche"
           bgColor="bg-[#5080D8]"
         />
-        <DisabledHistoryButton
+        <ActiveHistoryButton
           icon={<ChatIcon />}
           title="Feedbackhistorie"
           description="Feedback und Bewertungen"
           bgColor="bg-[#83CD2D]"
+          onClick={() => onNavigate(`/students/${studentId}/feedback_history`)}
         />
         <DisabledHistoryButton
           icon={<ForkKnifeIcon />}

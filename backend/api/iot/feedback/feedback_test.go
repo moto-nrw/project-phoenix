@@ -40,6 +40,7 @@ func setupTestContext(t *testing.T) *testContext {
 		svc.IoT,
 		svc.Users,
 		svc.Feedback,
+		nil,
 	)
 
 	return &testContext{

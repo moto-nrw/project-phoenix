@@ -15,6 +15,12 @@ const (
 	KeyDataCleanupTimeoutMinutes = "gdpr.data_cleanup_timeout_minutes"
 )
 
+// Feedback settings.
+const (
+	KeyFeedbackEnabled           = "feedback.enabled"
+	KeyFeedbackDataRetentionDays = "feedback.data_retention_days"
+)
+
 // Operations settings.
 const (
 	KeySessionEndEnabled             = "operations.session_end_enabled"

@@ -56,6 +56,11 @@ type OperatorInvitationCleaner interface {
 	CleanupExpiredOperatorInvitations(ctx context.Context) (int, error)
 }
 
+// FeedbackCleaner exposes the cleanup routine for old feedback entries.
+type FeedbackCleaner interface {
+	DeleteEntriesOlderThan(ctx context.Context, days int) (int, error)
+}
+
 // SettingsResolver resolves setting values per tenant. Implemented by config.SettingsService.
 type SettingsResolver interface {
 	ResolveString(ctx context.Context, key string) (string, error)
@@ -72,6 +77,7 @@ type Scheduler struct {
 	invitationCleanup  InvitationCleaner
 	workSessionCleanup WorkSessionCleaner
 	breakAutoEnder     BreakAutoEnder
+	feedbackCleaner    FeedbackCleaner
 	settings           SettingsResolver
 	db                 *bun.DB
 	schoolRepo         platform.SchoolRepository
@@ -136,6 +142,11 @@ func (s *Scheduler) SetWorkSessionCleaner(wsc WorkSessionCleaner) {
 // SetBreakAutoEnder sets the break auto-end service (optional).
 func (s *Scheduler) SetBreakAutoEnder(bae BreakAutoEnder) {
 	s.breakAutoEnder = bae
+}
+
+// SetFeedbackCleaner sets the feedback cleanup service (optional).
+func (s *Scheduler) SetFeedbackCleaner(fc FeedbackCleaner) {
+	s.feedbackCleaner = fc
 }
 
 // SetDB sets the database connection for tenant-aware operations.
@@ -417,6 +428,24 @@ func (s *Scheduler) executeCleanupForTenant(ctx context.Context, tenantID int64)
 			)
 		}
 	}
+
+	// Cleanup old feedback entries based on data retention setting
+	if s.feedbackCleaner != nil {
+		retentionDays := s.resolveIntSetting(ctx, configModel.KeyFeedbackDataRetentionDays, "", 90)
+		if deleted, err := s.feedbackCleaner.DeleteEntriesOlderThan(ctx, retentionDays); err != nil {
+			s.getLogger().Error("feedback cleanup failed",
+				slog.Int64("tenant_id", tenantID),
+				slog.String("error", err.Error()),
+			)
+		} else if deleted > 0 {
+			s.getLogger().Info("feedback cleanup completed",
+				slog.Int64("tenant_id", tenantID),
+				slog.Int("records_deleted", deleted),
+				slog.Int("retention_days", retentionDays),
+			)
+		}
+	}
+
 	return true
 }
 

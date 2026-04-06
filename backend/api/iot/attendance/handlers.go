@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	iotCommon "github.com/moto-nrw/project-phoenix/api/iot/common"
 	"github.com/moto-nrw/project-phoenix/auth/device"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 )
@@ -260,6 +261,14 @@ func (rs *Resource) handleDailyCheckout(w http.ResponseWriter, r *http.Request, 
 		slog.String("destination", *req.Destination),
 	)
 
+	// Resolve feedback_enabled setting so PyrePortal knows whether to show the feedback modal
+	var feedbackEnabled *bool
+	if rs.SettingsService != nil {
+		if val, err := rs.SettingsService.ResolveBool(r.Context(), configModel.KeyFeedbackEnabled); err == nil {
+			feedbackEnabled = &val
+		}
+	}
+
 	response := AttendanceToggleResponse{
 		Action:  action,
 		Message: message,
@@ -268,6 +277,7 @@ func (rs *Resource) handleDailyCheckout(w http.ResponseWriter, r *http.Request, 
 			FirstName: person.FirstName,
 			LastName:  person.LastName,
 		},
+		FeedbackEnabled: feedbackEnabled,
 	}
 	common.Respond(w, r, http.StatusOK, response, "Daily checkout confirmed")
 }
