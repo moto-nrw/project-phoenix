@@ -60,11 +60,16 @@ func (r *AttendanceRepository) FindByStudentAndDate(ctx context.Context, student
 
 // FindByStudentAndDateRange finds all attendance records for a student between two
 // dates (inclusive), ordered by date descending then check_in_time descending.
+//
+// Uses DateOfUTC (not DateOf) when binding to the PostgreSQL DATE column: the
+// PG session runs in UTC, so a Berlin-midnight timestamptz gets cast to the
+// previous UTC day, silently excluding today's row. DateOfUTC yields UTC
+// midnight of the Berlin calendar date, which round-trips correctly.
 func (r *AttendanceRepository) FindByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate time.Time) ([]*active.Attendance, error) {
 	var attendance []*active.Attendance
 
-	startOnly := timezone.DateOf(startDate)
-	endOnly := timezone.DateOf(endDate)
+	startOnly := timezone.DateOfUTC(startDate)
+	endOnly := timezone.DateOfUTC(endDate)
 
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&attendance).
