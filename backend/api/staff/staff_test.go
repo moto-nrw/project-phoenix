@@ -796,6 +796,46 @@ func TestGetStaffByRole_Teacher_IncludesLegacyTeacherRoleAccounts(t *testing.T) 
 	assert.True(t, found, "expected role=teacher response to include legacy teacher staff ID %d", teacher.Staff.ID)
 }
 
+func TestGetStaffByRole_User_IncludesLegacyTeacherRoleAccounts(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Legacy", "Caregiver")
+	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
+	defer testpkg.CleanupTeacherFixtures(t, ctx.db, teacher.ID)
+	testpkg.EnsureAccountTenant(t, ctx.db, account.ID, 1)
+	assignSystemRoleToAccount(t, ctx.db, account.ID, 1, "teacher")
+
+	router := chi.NewRouter()
+	router.Get("/staff/by-role", ctx.resource.GetStaffByRoleHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/by-role?role=user", nil,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithPermissions("users:read"),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data, ok := response["data"].([]interface{})
+	require.True(t, ok, "response should contain a data array")
+
+	found := false
+	for _, item := range data {
+		staffResp, ok := item.(map[string]interface{})
+		require.True(t, ok, "staff response should be an object")
+		if staffResp["id"] == float64(teacher.Staff.ID) {
+			found = true
+			assert.Equal(t, float64(teacher.ID), staffResp["teacher_id"])
+			assert.Equal(t, true, staffResp["is_active_caregiver"])
+			break
+		}
+	}
+	assert.True(t, found, "expected role=user caregiver response to include legacy teacher staff ID %d", teacher.Staff.ID)
+}
+
 func TestGetStaffByRole_MissingRoleParam(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()

@@ -34,6 +34,7 @@ export const GET = async (
     const backendUrl = `${getServerApiUrl()}/api/staff/${encodePathSegment(rawId)}/avatar`;
     const makeRequest = (token: string) =>
       fetch(backendUrl, {
+        cache: "no-store",
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -60,7 +61,7 @@ export const GET = async (
     return new NextResponse(buffer, {
       headers: {
         "Content-Type": contentType,
-        "Cache-Control": "private, max-age=86400",
+        "Cache-Control": "private, no-store, max-age=0",
       },
     });
   } catch (error) {

@@ -78,6 +78,39 @@ func assignDeviceTeacherUserRole(t *testing.T, db *bun.DB, accountID int64, tena
 	require.NoError(t, err)
 }
 
+func assignDeviceTeacherSystemRole(
+	t *testing.T,
+	db *bun.DB,
+	accountID int64,
+	tenantID int64,
+	roleName string,
+) {
+	t.Helper()
+
+	var role authModels.Role
+	err := db.NewSelect().
+		Model(&role).
+		ModelTableExpr(`auth.roles AS "role"`).
+		Where(`LOWER("role".name) = ?`, roleName).
+		Where(`"role".is_system = TRUE`).
+		Where(`"role".tenant_id IS NULL`).
+		Limit(1).
+		Scan(context.Background())
+	require.NoError(t, err)
+
+	accountRole := &authModels.AccountRole{
+		AccountID: accountID,
+		RoleID:    role.ID,
+	}
+	accountRole.SetTenantID(tenantID)
+
+	err = db.NewInsert().
+		Model(accountRole).
+		ModelTableExpr(`auth.account_roles`).
+		Scan(context.Background())
+	require.NoError(t, err)
+}
+
 // =============================================================================
 // GET AVAILABLE TEACHERS TESTS
 // =============================================================================
@@ -122,20 +155,25 @@ func TestGetAvailableTeachers_ReturnsOnlyActiveCaregivers(t *testing.T) {
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-caregiver")
 	activeTeacher, activeAccount := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Ada", "Caregiver")
+	legacyTeacher, legacyAccount := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Legacy", "Teacher")
 	inactiveTeacher, inactiveAccount := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Ignored", "Teacher")
 	filteredTeacher, filteredAccount := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Filtered", "Caregiver")
 	defer testpkg.CleanupTeacherFixtures(t, ctx.db, activeTeacher.ID)
+	defer testpkg.CleanupTeacherFixtures(t, ctx.db, legacyTeacher.ID)
 	defer testpkg.CleanupTeacherFixtures(t, ctx.db, inactiveTeacher.ID)
 	defer testpkg.CleanupTeacherFixtures(t, ctx.db, filteredTeacher.ID)
 	defer testpkg.CleanupAuthFixtures(t, ctx.db, activeAccount.ID)
+	defer testpkg.CleanupAuthFixtures(t, ctx.db, legacyAccount.ID)
 	defer testpkg.CleanupAuthFixtures(t, ctx.db, inactiveAccount.ID)
 	defer testpkg.CleanupAuthFixtures(t, ctx.db, filteredAccount.ID)
 
 	tenantID := activeTeacher.GetTenantID()
 	testpkg.EnsureAccountTenant(t, ctx.db, activeAccount.ID, tenantID)
+	testpkg.EnsureAccountTenant(t, ctx.db, legacyAccount.ID, tenantID)
 	testpkg.EnsureAccountTenant(t, ctx.db, inactiveAccount.ID, tenantID)
 	testpkg.EnsureAccountTenant(t, ctx.db, filteredAccount.ID, tenantID)
 	assignDeviceTeacherUserRole(t, ctx.db, activeAccount.ID, tenantID)
+	assignDeviceTeacherSystemRole(t, ctx.db, legacyAccount.ID, tenantID, "teacher")
 
 	customUserRole := &authModels.Role{
 		Name:        "user",
@@ -186,6 +224,7 @@ func TestGetAvailableTeachers_ReturnsOnlyActiveCaregivers(t *testing.T) {
 	}
 
 	assert.Contains(t, displayNames, "Ada Caregiver")
+	assert.Contains(t, displayNames, "Legacy Teacher")
 	assert.NotContains(t, displayNames, "Ignored Teacher")
 	assert.NotContains(t, displayNames, "Filtered Caregiver")
 }

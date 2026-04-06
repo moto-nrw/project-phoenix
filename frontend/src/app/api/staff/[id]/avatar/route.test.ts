@@ -86,7 +86,7 @@ describe("GET /api/staff/[id]/avatar", () => {
     });
   });
 
-  it("proxies avatar bytes and cache headers", async () => {
+  it("proxies avatar bytes without allowing caches to reuse stale avatars", async () => {
     const bytes = new Uint8Array([1, 2, 3, 4]);
     mockFetch.mockResolvedValue({
       ok: true,
@@ -103,6 +103,7 @@ describe("GET /api/staff/[id]/avatar", () => {
     expect(mockFetch).toHaveBeenCalledWith(
       "http://localhost:8080/api/staff/42/avatar",
       {
+        cache: "no-store",
         headers: {
           Authorization: "Bearer session-token",
         },
@@ -111,7 +112,7 @@ describe("GET /api/staff/[id]/avatar", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toBe("image/png");
     expect(response.headers.get("Cache-Control")).toBe(
-      "private, max-age=86400",
+      "private, no-store, max-age=0",
     );
     expect(new Uint8Array(await response.arrayBuffer())).toEqual(bytes);
   });
@@ -155,6 +156,7 @@ describe("GET /api/staff/[id]/avatar", () => {
       1,
       "http://localhost:8080/api/staff/42/avatar",
       {
+        cache: "no-store",
         headers: {
           Authorization: "Bearer session-token",
         },
@@ -164,6 +166,7 @@ describe("GET /api/staff/[id]/avatar", () => {
       2,
       "http://localhost:8080/api/staff/42/avatar",
       {
+        cache: "no-store",
         headers: {
           Authorization: "Bearer fresh-token",
         },

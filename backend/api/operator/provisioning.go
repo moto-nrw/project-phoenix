@@ -660,9 +660,9 @@ func caregiverCapabilityProvisioningErrorRenderer(err error) render.Renderer {
 		if errors.As(err, &invalidData) {
 			return ErrInvalidRequest(invalidData.Err)
 		}
-		var usersErr *usersSvc.UsersError
-		if errors.As(err, &usersErr) {
-			return ErrInvalidRequest(usersErr.Err)
+		var validationErr *usersSvc.ValidationError
+		if errors.As(err, &validationErr) {
+			return ErrInvalidRequest(validationErr.Err)
 		}
 		return ProvisioningErrorRenderer(err)
 	}

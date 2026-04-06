@@ -817,7 +817,7 @@ func TestCaregiverCapability_DisableBlocksLegacyTeacherOnlyAccount(t *testing.T)
 	assert.True(t, accountHasSystemRole(t, db, account.ID, 1, "teacher"))
 }
 
-func TestCaregiverDirectory_ListAndFindOnlyActiveCaregivers(t *testing.T) {
+func TestCaregiverDirectory_ListAndFindActiveCaregiversIncludingLegacyTeacherRole(t *testing.T) {
 	db, factory := setupCaregiverFactory(t)
 	ctx := testpkg.TenantContext(1)
 
@@ -912,9 +912,10 @@ func TestCaregiverDirectory_ListAndFindOnlyActiveCaregivers(t *testing.T) {
 
 	caregivers, err := directory.ListActiveCaregivers(ctx)
 	require.NoError(t, err)
-	require.Len(t, caregivers, 1)
-	assert.Equal(t, activeAccount.ID, caregivers[0].AccountID)
-	assert.Equal(t, "Active Caregiver", caregivers[0].FullName())
+	require.Len(t, caregivers, 2)
+
+	accountIDs := []int64{caregivers[0].AccountID, caregivers[1].AccountID}
+	assert.ElementsMatch(t, []int64{activeAccount.ID, legacyTeacherRoleAccount.ID}, accountIDs)
 
 	found, err := directory.FindActiveCaregiverByAccountID(ctx, activeAccount.ID)
 	require.NoError(t, err)
@@ -923,7 +924,8 @@ func TestCaregiverDirectory_ListAndFindOnlyActiveCaregivers(t *testing.T) {
 
 	legacyFound, err := directory.FindActiveCaregiverByAccountID(ctx, legacyTeacherRoleAccount.ID)
 	require.NoError(t, err)
-	assert.Nil(t, legacyFound)
+	require.NotNil(t, legacyFound)
+	assert.Equal(t, legacyTeacherRoleTeacher.ID, legacyFound.TeacherID)
 
 	missing, err := directory.FindActiveCaregiverByAccountID(ctx, adminOnlyAccount.ID)
 	require.NoError(t, err)

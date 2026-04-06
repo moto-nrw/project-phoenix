@@ -1903,6 +1903,30 @@ func TestCaregiverCapabilityProvisioningErrorRenderer(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, resp.HTTPStatusCode)
 		assert.Equal(t, "invalid caregiver input", resp.ErrorText)
 	})
+
+	t.Run("maps wrapped validation errors to bad request", func(t *testing.T) {
+		renderer := caregiverCapabilityProvisioningErrorRenderer(&usersSvc.UsersError{
+			Op:  "enable caregiver capability",
+			Err: &usersSvc.ValidationError{Err: errors.New("first_name is required")},
+		})
+
+		resp, ok := renderer.(*ErrResponse)
+		require.True(t, ok)
+		assert.Equal(t, http.StatusBadRequest, resp.HTTPStatusCode)
+		assert.Equal(t, "first_name is required", resp.ErrorText)
+	})
+
+	t.Run("preserves internal users errors as internal server errors", func(t *testing.T) {
+		renderer := caregiverCapabilityProvisioningErrorRenderer(&usersSvc.UsersError{
+			Op:  "enable caregiver capability",
+			Err: errors.New("audit write failed"),
+		})
+
+		resp, ok := renderer.(*ErrResponse)
+		require.True(t, ok)
+		assert.Equal(t, http.StatusInternalServerError, resp.HTTPStatusCode)
+		assert.Equal(t, "An error occurred", resp.ErrorText)
+	})
 }
 
 func TestCaregiverCapabilityBlockedResponse_Render(t *testing.T) {

@@ -3,8 +3,9 @@ package users
 import "time"
 
 // ActiveCaregiver represents the canonical operational caregiver projection.
-// A person is only included when the account has the "user" role and resolves
-// cleanly through person -> staff -> teacher.
+// A person is only included when the account has the canonical "user" role or
+// the legacy "teacher" system role and resolves cleanly through
+// person -> staff -> teacher.
 type ActiveCaregiver struct {
 	AccountID int64     `bun:"account_id" json:"account_id"`
 	PersonID  int64     `bun:"person_id" json:"person_id"`

@@ -76,7 +76,7 @@ func (s *personService) caregiverDirectoryQuery(ctx context.Context) *bun.Select
 		Where(`"at".status = ?`, authModels.AccountTenantStatusActive).
 		Where(`"role".is_system = TRUE`).
 		Where(`"role".tenant_id IS NULL`).
-		Where(`LOWER("role".name) = ?`, "user").
+		Where(`LOWER("role".name) IN (?, ?)`, "user", "teacher").
 		Distinct()
 
 	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
