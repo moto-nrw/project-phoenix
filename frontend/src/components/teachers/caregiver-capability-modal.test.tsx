@@ -364,7 +364,7 @@ describe("CaregiverCapabilityModal", () => {
     );
   });
 
-  it("keeps the disable action visible for legacy teacher-role accounts", async () => {
+  it("hides the disable button for legacy teacher-role accounts that are not active caregivers", async () => {
     mockGetTenantAccountCapability.mockResolvedValue(
       createState({
         hasUserRole: false,
@@ -385,8 +385,11 @@ describe("CaregiverCapabilityModal", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText("Betreuung deaktivieren")).toBeInTheDocument();
+      expect(screen.getByText("Betreuung aktivieren")).toBeInTheDocument();
     });
+    expect(
+      screen.queryByText("Betreuung deaktivieren"),
+    ).not.toBeInTheDocument();
   });
 
   it("clears the optional position when another account is loaded", async () => {
