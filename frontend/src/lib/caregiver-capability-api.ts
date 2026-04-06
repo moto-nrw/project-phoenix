@@ -47,7 +47,6 @@ export interface CaregiverCapabilityState {
   hasCaregiverProfile: boolean;
   isActiveCaregiver: boolean;
   disableBlocked: boolean;
-  disableBlockersCount: number;
   disableBlockers: string[];
   activeSupervisions: BlockerSupervision[];
   activeSubstitutions: BlockerSubstitution[];
@@ -152,7 +151,6 @@ interface BackendCaregiverCapabilityState {
   has_caregiver_profile: boolean;
   is_active_caregiver: boolean;
   disable_blocked: boolean;
-  disable_blockers_count: number;
   disable_blockers?: string[];
   active_supervisions?: BackendBlockerSupervision[];
   active_substitutions?: BackendBlockerSubstitution[];
@@ -210,7 +208,6 @@ function mapCapabilityState(
     hasCaregiverProfile: state.has_caregiver_profile,
     isActiveCaregiver: state.is_active_caregiver,
     disableBlocked: state.disable_blocked,
-    disableBlockersCount: state.disable_blockers_count,
     disableBlockers: (state.disable_blockers ?? []).map((blocker) =>
       translateCapabilityBlocker(blocker, state),
     ),

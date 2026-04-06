@@ -170,7 +170,6 @@ function createState(overrides: Record<string, unknown> = {}) {
     hasCaregiverProfile: true,
     isActiveCaregiver: true,
     disableBlocked: false,
-    disableBlockersCount: 0,
     disableBlockers: [],
     activeSupervisions: [],
     activeSubstitutions: [],
@@ -523,7 +522,6 @@ describe("CaregiverCapabilityModal", () => {
     mockGetTenantAccountCapability.mockResolvedValue(
       createState({
         disableBlockers: ["Aktive Gruppenaufsicht"],
-        disableBlockersCount: 1,
         disableBlocked: true,
       }),
     );
@@ -550,7 +548,6 @@ describe("CaregiverCapabilityModal", () => {
     mockGetTenantAccountCapability.mockResolvedValue(
       createState({
         disableBlockers: [],
-        disableBlockersCount: 0,
         disableBlocked: false,
       }),
     );

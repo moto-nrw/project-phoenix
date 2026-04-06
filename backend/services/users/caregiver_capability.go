@@ -475,7 +475,6 @@ func (s *caregiverCapabilityService) loadCapabilityStateWithRoleFlags(
 		return nil, caregiverRoleFlags{}, err
 	}
 	state.DisableBlockers = blockers
-	state.DisableBlockersCount = len(blockers)
 	state.DisableBlocked = len(blockers) > 0
 
 	return state, roleFlags, nil

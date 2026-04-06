@@ -26,13 +26,12 @@ type CaregiverCapabilityState struct {
 	HasAdminRole bool `json:"has_admin_role"`
 	HasUserRole  bool `json:"has_user_role"`
 
-	HasPerson            bool `json:"has_person"`
-	HasStaff             bool `json:"has_staff"`
-	HasTeacher           bool `json:"has_teacher"`
-	HasCaregiverProfile  bool `json:"has_caregiver_profile"`
-	IsActiveCaregiver    bool `json:"is_active_caregiver"`
-	DisableBlocked       bool `json:"disable_blocked"`
-	DisableBlockersCount int  `json:"disable_blockers_count"`
+	HasPerson           bool `json:"has_person"`
+	HasStaff            bool `json:"has_staff"`
+	HasTeacher          bool `json:"has_teacher"`
+	HasCaregiverProfile bool `json:"has_caregiver_profile"`
+	IsActiveCaregiver   bool `json:"is_active_caregiver"`
+	DisableBlocked      bool `json:"disable_blocked"`
 
 	DisableBlockers []CaregiverCapabilityBlockerCode `json:"disable_blockers,omitempty"`
 

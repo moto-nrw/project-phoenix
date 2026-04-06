@@ -94,7 +94,6 @@ function createState(overrides: Record<string, unknown> = {}) {
     hasCaregiverProfile: true,
     isActiveCaregiver: true,
     disableBlocked: true,
-    disableBlockersCount: 1,
     disableBlockers: ["Aktive Gruppenaufsicht"],
     activeSupervisions: [],
     activeSubstitutions: [],

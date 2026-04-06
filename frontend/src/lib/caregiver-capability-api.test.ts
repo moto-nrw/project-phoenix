@@ -34,7 +34,6 @@ const backendState = {
   has_caregiver_profile: true,
   is_active_caregiver: true,
   disable_blocked: true,
-  disable_blockers_count: 2,
   disable_blockers: ["active_group_supervisions", "group_assignments"],
   active_supervisions: [
     { id: 1, group_name: "Gruppe Blau", start_date: "2026-04-05" },
@@ -96,7 +95,6 @@ describe("caregiverCapabilityService", () => {
       hasAdminRole: true,
       hasUserRole: true,
       disableBlocked: true,
-      disableBlockersCount: 2,
       disableBlockers: ["1 aktive Gruppenaufsicht", "1 Stammgruppen-Zuordnung"],
     });
     expect(result.activeSupervisions).toEqual([
