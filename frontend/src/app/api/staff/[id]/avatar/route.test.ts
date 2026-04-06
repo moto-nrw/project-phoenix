@@ -111,9 +111,7 @@ describe("GET /api/staff/[id]/avatar", () => {
     );
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toBe("image/png");
-    expect(response.headers.get("Cache-Control")).toBe(
-      "private, no-store, max-age=0",
-    );
+    expect(response.headers.get("Cache-Control")).toBe("private, max-age=300");
     expect(new Uint8Array(await response.arrayBuffer())).toEqual(bytes);
   });
 

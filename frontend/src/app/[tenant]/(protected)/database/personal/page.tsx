@@ -426,9 +426,10 @@ export default function TeachersPage() {
             const displayName =
               teacher.name || `${teacher.first_name} ${teacher.last_name}`;
             const hasAvatar = !!teacher.avatar;
-            const avatarUrl = hasAvatar
-              ? `/api/staff/${teacher.staff_id ?? teacher.id}/avatar`
-              : null;
+            const avatarUrl =
+              hasAvatar && teacher.staff_id
+                ? `/api/staff/${teacher.staff_id}/avatar`
+                : null;
 
             const handleClick = () => handleSelectTeacher(teacher);
             return (

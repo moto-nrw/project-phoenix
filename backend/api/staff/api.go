@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -857,29 +858,40 @@ func staffAvatarPathToFilePath(avatarPath string) (string, error) {
 	return absPath, nil
 }
 
+var (
+	resolvedPublicDir string
+	resolvedPublicErr error
+	resolvePublicOnce sync.Once
+)
+
 func resolvePublicDir() (string, error) {
-	var candidates []string
+	resolvePublicOnce.Do(func() {
+		var candidates []string
 
-	if workingDir, err := os.Getwd(); err == nil {
-		candidates = append(candidates, publicDirCandidates(workingDir)...)
-	}
-
-	if executablePath, err := os.Executable(); err == nil {
-		candidates = append(candidates, publicDirCandidates(filepath.Dir(executablePath))...)
-	}
-
-	for _, candidate := range candidates {
-		absCandidate, err := filepath.Abs(candidate)
-		if err != nil {
-			continue
+		if workingDir, err := os.Getwd(); err == nil {
+			candidates = append(candidates, publicDirCandidates(workingDir)...)
 		}
-		info, err := os.Stat(absCandidate)
-		if err == nil && info.IsDir() {
-			return absCandidate, nil
-		}
-	}
 
-	return "", errors.New("public directory not found")
+		if executablePath, err := os.Executable(); err == nil {
+			candidates = append(candidates, publicDirCandidates(filepath.Dir(executablePath))...)
+		}
+
+		for _, candidate := range candidates {
+			absCandidate, err := filepath.Abs(candidate)
+			if err != nil {
+				continue
+			}
+			info, err := os.Stat(absCandidate)
+			if err == nil && info.IsDir() {
+				resolvedPublicDir = absCandidate
+				return
+			}
+		}
+
+		resolvedPublicErr = errors.New("public directory not found")
+	})
+
+	return resolvedPublicDir, resolvedPublicErr
 }
 
 func publicDirCandidates(base string) []string {
