@@ -119,6 +119,7 @@ func (rs *Resource) createDevice(w http.ResponseWriter, r *http.Request) {
 		DeviceType:     req.DeviceType,
 		Name:           req.Name,
 		RegisteredByID: req.RegisteredByID,
+		RoomID:         req.RoomID,
 	}
 
 	// Set status if provided, otherwise default to active
@@ -134,7 +135,13 @@ func (rs *Resource) createDevice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	common.Respond(w, r, http.StatusCreated, newDeviceCreationResponse(device), "Device created successfully")
+	createdDevice, err := rs.IoTService.GetDeviceByID(r.Context(), device.ID)
+	if err != nil {
+		iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusCreated, newDeviceCreationResponse(createdDevice), "Device created successfully")
 }
 
 // updateDevice handles updating an existing device
@@ -165,6 +172,7 @@ func (rs *Resource) updateDevice(w http.ResponseWriter, r *http.Request) {
 	device.DeviceType = req.DeviceType
 	device.Name = req.Name
 	device.RegisteredByID = req.RegisteredByID
+	device.RoomID = req.RoomID
 
 	if req.Status != "" {
 		device.Status = iot.DeviceStatus(req.Status)
@@ -176,7 +184,13 @@ func (rs *Resource) updateDevice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, newDeviceResponse(device), "Device updated successfully")
+	updatedDevice, err := rs.IoTService.GetDeviceByID(r.Context(), device.ID)
+	if err != nil {
+		iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, newDeviceResponse(updatedDevice), "Device updated successfully")
 }
 
 // deleteDevice handles deleting a device

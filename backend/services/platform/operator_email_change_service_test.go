@@ -442,7 +442,7 @@ func TestDispatchVerificationEmail_MessageContent(t *testing.T) {
 	content, ok := captured.Content.(map[string]any)
 	require.True(t, ok, "content should be map[string]any")
 
-	expectedVerifyURL := frontendURL + "/operator/email-confirm#token=" + token.Token
+	expectedVerifyURL := frontendURL + "/operator/email-confirm?token=" + token.Token
 	assert.Equal(t, expectedVerifyURL, content["VerifyURL"])
 	assert.Equal(t, int(expiry.Minutes()), content["ExpiryMinutes"])
 

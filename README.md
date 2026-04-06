@@ -177,7 +177,7 @@ docker compose up -d
 
 When you `cd` into the project, direnv automatically activates Devbox and you'll see:
 ```
-phoenix dev ready - go 1.25.5, node 20.20.0
+phoenix dev ready - go 1.25.5, node 24.x
 ```
 
 All tools (Go, Node, pnpm, golangci-lint, etc.) are now available.

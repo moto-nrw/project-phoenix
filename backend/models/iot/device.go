@@ -40,9 +40,13 @@ type Device struct {
 	APIKey         *string      `bun:"api_key,unique" json:"-"`              // Never expose API key in JSON
 	LastSeen       *time.Time   `bun:"last_seen" json:"last_seen,omitempty"` // Used as last_activity for health monitoring
 	RegisteredByID *int64       `bun:"registered_by_id" json:"registered_by_id,omitempty"`
+	RoomID         *int64       `bun:"room_id" json:"room_id,omitempty"`
 
 	// Relations
 	RegisteredBy *users.Person `bun:"-" json:"registered_by,omitempty"`
+
+	// Transient fields populated by JOINs (ignored by INSERT/UPDATE)
+	RoomName *string `bun:"room_name,scanonly" json:"room_name,omitempty"`
 }
 
 func (d *Device) BeforeAppendModel(query any) error {
