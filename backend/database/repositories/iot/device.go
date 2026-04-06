@@ -385,7 +385,7 @@ func applyDeviceFilter(query *bun.SelectQuery, field string, value interface{}) 
 	case "device_id_like":
 		return applyDeviceStringLikeFilter(query, "device_id", value)
 	case "name_like":
-		return applyDeviceStringLikeFilter(query, "name", value)
+		return applyDeviceStringLikeFilter(query, `"device".name`, value)
 	case "status":
 		return query.Where(whereStatusEqual, value)
 	case "device_type":
@@ -427,9 +427,9 @@ func applyDeviceTimeFilter(query *bun.SelectQuery, column, operator string, valu
 func applyHasNameFilter(query *bun.SelectQuery, value interface{}) *bun.SelectQuery {
 	if boolValue, ok := value.(bool); ok {
 		if boolValue {
-			return query.Where("name IS NOT NULL")
+			return query.Where(`"device".name IS NOT NULL`)
 		}
-		return query.Where("name IS NULL")
+		return query.Where(`"device".name IS NULL`)
 	}
 	return query
 }
