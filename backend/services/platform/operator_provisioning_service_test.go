@@ -178,6 +178,7 @@ func (m *mockDeviceRepo) FindByRegisteredBy(context.Context, int64) ([]*iotModel
 	return nil, nil
 }
 func (m *mockDeviceRepo) UpdateLastSeen(context.Context, int64, time.Time) error { return nil }
+func (m *mockDeviceRepo) UpdateRoomID(context.Context, int64, int64) error       { return nil }
 func (m *mockDeviceRepo) UpdateStatus(context.Context, string, iotModels.DeviceStatus) error {
 	return nil
 }

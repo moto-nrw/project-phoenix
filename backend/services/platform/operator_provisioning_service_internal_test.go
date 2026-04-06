@@ -171,6 +171,9 @@ func (s *internalDeviceRepoStub) FindByRegisteredBy(context.Context, int64) ([]*
 func (s *internalDeviceRepoStub) UpdateLastSeen(context.Context, int64, time.Time) error {
 	return nil
 }
+func (s *internalDeviceRepoStub) UpdateRoomID(context.Context, int64, int64) error {
+	return nil
+}
 func (s *internalDeviceRepoStub) UpdateStatus(context.Context, string, iotModels.DeviceStatus) error {
 	return nil
 }
