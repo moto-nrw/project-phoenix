@@ -729,6 +729,10 @@ func TestFeedbackService_DeleteEntriesOlderThan(t *testing.T) {
 		recentEntry := createTestFeedbackEntry(t, db, student.ID, feedback.ValueNeutral, recentDay)
 		defer cleanupFeedbackFixtures(t, db, []int64{oldEntry.ID, recentEntry.ID})
 
+		// Count before
+		countBefore, err := service.CountByStudent(ctx, student.ID)
+		require.NoError(t, err)
+
 		// ACT: Delete entries older than 30 days
 		deleted, err := service.DeleteEntriesOlderThan(ctx, 30)
 
@@ -736,9 +740,10 @@ func TestFeedbackService_DeleteEntriesOlderThan(t *testing.T) {
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, deleted, 1, "should delete at least the old entry")
 
-		// Verify old entry is gone
-		_, err = service.GetEntryByID(ctx, oldEntry.ID)
-		assert.Error(t, err, "old entry should be deleted")
+		// Verify count decreased
+		countAfter, err := service.CountByStudent(ctx, student.ID)
+		require.NoError(t, err)
+		assert.Less(t, countAfter, countBefore, "should have fewer entries after cleanup")
 
 		// Verify recent entry still exists
 		recent, err := service.GetEntryByID(ctx, recentEntry.ID)
