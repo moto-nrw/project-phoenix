@@ -1,10 +1,12 @@
 package common
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 	"time"
 
+	"github.com/getsentry/sentry-go"
 	"github.com/go-chi/render"
 )
 
@@ -46,8 +48,20 @@ func Respond(w http.ResponseWriter, r *http.Request, status int, data interface{
 	}
 }
 
-// RespondWithError sends a structured error response
+// RespondWithError sends a structured error response.
+// For server errors (5xx), it logs the error to slog and captures to Sentry.
 func RespondWithError(w http.ResponseWriter, r *http.Request, status int, errorMsg string) {
+	if status >= 500 {
+		slog.Default().ErrorContext(r.Context(), "server error",
+			slog.Int("status", status),
+			slog.String("error", errorMsg),
+		)
+		if hub := sentry.GetHubFromContext(r.Context()); hub != nil {
+			hub.CaptureException(errors.New(errorMsg))
+		} else {
+			sentry.CaptureException(errors.New(errorMsg))
+		}
+	}
 	render.Status(r, status)
 	render.JSON(w, r, map[string]string{
 		"status": "error",
