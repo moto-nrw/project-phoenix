@@ -2518,3 +2518,34 @@ func TestBuildCleanupJobs_EmailChangeCleanerPropagatesError(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "cleanup failed")
 }
+
+// =============================================================================
+// FeedbackCleaner Tests
+// =============================================================================
+
+type fakeFeedbackCleaner struct {
+	mu       sync.Mutex
+	calls    int
+	result   int
+	callErr  error
+	lastDays int
+}
+
+func (f *fakeFeedbackCleaner) DeleteEntriesOlderThan(_ context.Context, days int) (int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls++
+	f.lastDays = days
+	return f.result, f.callErr
+}
+
+func TestSetFeedbackCleaner(t *testing.T) {
+	s := NewScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
+
+	assert.Nil(t, s.feedbackCleaner)
+
+	fc := &fakeFeedbackCleaner{}
+	s.SetFeedbackCleaner(fc)
+
+	assert.NotNil(t, s.feedbackCleaner)
+}

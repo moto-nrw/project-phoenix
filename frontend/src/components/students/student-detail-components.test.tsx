@@ -541,34 +541,53 @@ describe("PersonalInfoReadOnly with showEditButton", () => {
 // =============================================================================
 
 describe("StudentHistorySection", () => {
+  const defaultProps = {
+    studentId: "123",
+    onNavigate: vi.fn(),
+  };
+
   it("renders section title", () => {
-    render(<StudentHistorySection />);
+    render(<StudentHistorySection {...defaultProps} />);
     expect(screen.getByText("Historien")).toBeInTheDocument();
   });
 
   it("renders room history button", () => {
-    render(<StudentHistorySection />);
+    render(<StudentHistorySection {...defaultProps} />);
     expect(screen.getByText("Raumverlauf")).toBeInTheDocument();
     expect(screen.getByText("Verlauf der Raumbesuche")).toBeInTheDocument();
   });
 
-  it("renders feedback history button", () => {
-    render(<StudentHistorySection />);
+  it("renders feedback history button as enabled", () => {
+    render(<StudentHistorySection {...defaultProps} />);
     expect(screen.getByText("Feedbackhistorie")).toBeInTheDocument();
     expect(screen.getByText("Feedback und Bewertungen")).toBeInTheDocument();
+    const feedbackButton = screen
+      .getByText("Feedbackhistorie")
+      .closest("button");
+    expect(feedbackButton).not.toBeDisabled();
   });
 
   it("renders meal history button", () => {
-    render(<StudentHistorySection />);
+    render(<StudentHistorySection {...defaultProps} />);
     expect(screen.getByText("Mensaverlauf")).toBeInTheDocument();
     expect(screen.getByText("Mahlzeiten und Bestellungen")).toBeInTheDocument();
   });
 
-  it("all history buttons are disabled", () => {
-    render(<StudentHistorySection />);
-    const buttons = screen.getAllByRole("button");
-    buttons.forEach((button) => {
-      expect(button).toBeDisabled();
-    });
+  it("room and mensa history buttons are disabled", () => {
+    render(<StudentHistorySection {...defaultProps} />);
+    const raumButton = screen.getByText("Raumverlauf").closest("button");
+    const mensaButton = screen.getByText("Mensaverlauf").closest("button");
+    expect(raumButton).toBeDisabled();
+    expect(mensaButton).toBeDisabled();
+  });
+
+  it("feedback button navigates on click", () => {
+    const onNavigate = vi.fn();
+    render(<StudentHistorySection studentId="456" onNavigate={onNavigate} />);
+    const feedbackButton = screen
+      .getByText("Feedbackhistorie")
+      .closest("button");
+    fireEvent.click(feedbackButton!);
+    expect(onNavigate).toHaveBeenCalledWith("/students/456/feedback_history");
   });
 });

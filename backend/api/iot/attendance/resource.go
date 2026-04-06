@@ -4,6 +4,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
@@ -13,14 +14,16 @@ type Resource struct {
 	UsersService     usersSvc.PersonService
 	ActiveService    activeSvc.Service
 	EducationService educationSvc.Service
+	SettingsService  configSvc.SettingsService
 }
 
 // NewResource creates a new Attendance resource
-func NewResource(usersService usersSvc.PersonService, activeService activeSvc.Service, educationService educationSvc.Service) *Resource {
+func NewResource(usersService usersSvc.PersonService, activeService activeSvc.Service, educationService educationSvc.Service, settingsService configSvc.SettingsService) *Resource {
 	return &Resource{
 		UsersService:     usersService,
 		ActiveService:    activeService,
 		EducationService: educationService,
+		SettingsService:  settingsService,
 	}
 }
 

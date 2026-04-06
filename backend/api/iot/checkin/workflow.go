@@ -31,6 +31,7 @@ type checkinResult struct {
 	PreviousRoomName       string
 	GreetingMsg            string
 	DailyCheckoutAvailable bool
+	FeedbackEnabled        bool
 	ActiveStudents         *int
 	PickupTime             *string
 }
@@ -841,6 +842,7 @@ func buildCheckinResponse(student *users.Student, result *checkinResult, now tim
 		"message":                  result.GreetingMsg,
 		"status":                   "success",
 		"daily_checkout_available": result.DailyCheckoutAvailable,
+		"feedback_enabled":         result.FeedbackEnabled,
 	}
 
 	if result.Action == "transferred" && result.PreviousRoomName != "" {

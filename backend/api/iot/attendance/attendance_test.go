@@ -42,6 +42,7 @@ func setupTestContext(t *testing.T) *testContext {
 		svc.Users,
 		svc.Active,
 		svc.Education,
+		nil,
 	)
 
 	return &testContext{

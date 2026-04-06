@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/feedback"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -315,6 +316,27 @@ func (r *EntryRepository) List(ctx context.Context, filters map[string]interface
 	}
 
 	return entries, nil
+}
+
+// DeleteOlderThan deletes feedback entries older than the specified number of days.
+// Uses tenant scoping for GDPR-compliant per-tenant cleanup.
+func (r *EntryRepository) DeleteOlderThan(ctx context.Context, days int) (int, error) {
+	cutoff := time.Now().AddDate(0, 0, -days)
+	query := base.GetDB(ctx, r.db).NewDelete().
+		TableExpr(tableFeedbackEntries).
+		Where("day < ?", cutoff.Format("2006-01-02"))
+
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
+
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "delete older than", Err: err}
+	}
+
+	rows, _ := result.RowsAffected()
+	return int(rows), nil
 }
 
 // applyFeedbackFilters applies all filters to the query

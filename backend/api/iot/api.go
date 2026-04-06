@@ -192,7 +192,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Get("/status", checkinHandler)
 
 		// Feedback endpoint (device-based feedback submission)
-		feedbackResource := feedbackAPI.NewResource(rs.IoTService, rs.UsersService, rs.FeedbackService)
+		feedbackResource := feedbackAPI.NewResource(rs.IoTService, rs.UsersService, rs.FeedbackService, rs.SettingsService)
 		r.Post("/feedback", delegateHandler(feedbackResource.Router()))
 
 		// Data query endpoints (device + PIN auth)
@@ -204,7 +204,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Get("/rfid/{tagId}", dataHandler)
 
 		// Mount attendance sub-router (handles daily attendance tracking)
-		attendanceResource := attendance.NewResource(rs.UsersService, rs.ActiveService, rs.EducationService)
+		attendanceResource := attendance.NewResource(rs.UsersService, rs.ActiveService, rs.EducationService, rs.SettingsService)
 		r.Mount("/attendance", attendanceResource.Router())
 
 		// Mount sessions sub-router (handles activity session management and timeout)

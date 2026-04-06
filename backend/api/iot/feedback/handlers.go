@@ -12,6 +12,7 @@ import (
 	iotCommon "github.com/moto-nrw/project-phoenix/api/iot/common"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/feedback"
 )
 
@@ -32,6 +33,17 @@ func (rs *Resource) deviceSubmitFeedback(w http.ResponseWriter, r *http.Request)
 		slog.String("device_id", deviceCtx.DeviceID),
 		slog.Int64("device_db_id", deviceCtx.ID),
 	)
+
+	// Check if feedback is enabled for this tenant (defense in depth)
+	if rs.SettingsService != nil {
+		if enabled, err := rs.SettingsService.ResolveBool(r.Context(), configModel.KeyFeedbackEnabled); err == nil && !enabled {
+			common.Respond(w, r, http.StatusOK, map[string]interface{}{
+				"status": "skipped",
+				"reason": "feedback_disabled",
+			}, "Feedback is disabled for this tenant")
+			return
+		}
+	}
 
 	// Parse request
 	req := &IoTFeedbackRequest{}

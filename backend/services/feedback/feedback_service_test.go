@@ -706,6 +706,82 @@ func TestFeedbackService_CreateEntries(t *testing.T) {
 }
 
 // ============================================================================
+// Cleanup Operations Tests
+// ============================================================================
+
+func TestFeedbackService_DeleteEntriesOlderThan(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupFeedbackService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	// Create a test student
+	student := testpkg.CreateTestStudent(t, db, "Feedback", "CleanupStudent", "13a")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, 0, 0)
+
+	t.Run("deletes entries older than specified days", func(t *testing.T) {
+		// ARRANGE: Create an old entry (100 days ago) and a recent entry (today)
+		oldDay := time.Now().AddDate(0, 0, -100)
+		recentDay := timezone.Today()
+
+		oldEntry := createTestFeedbackEntry(t, db, student.ID, feedback.ValuePositive, oldDay)
+		recentEntry := createTestFeedbackEntry(t, db, student.ID, feedback.ValueNeutral, recentDay)
+		defer cleanupFeedbackFixtures(t, db, []int64{oldEntry.ID, recentEntry.ID})
+
+		// Count before
+		countBefore, err := service.CountByStudent(ctx, student.ID)
+		require.NoError(t, err)
+
+		// ACT: Delete entries older than 30 days
+		deleted, err := service.DeleteEntriesOlderThan(ctx, 30)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, deleted, 1, "should delete at least the old entry")
+
+		// Verify count decreased
+		countAfter, err := service.CountByStudent(ctx, student.ID)
+		require.NoError(t, err)
+		assert.Less(t, countAfter, countBefore, "should have fewer entries after cleanup")
+
+		// Verify recent entry still exists
+		recent, err := service.GetEntryByID(ctx, recentEntry.ID)
+		require.NoError(t, err, "recent entry should still exist")
+		assert.Equal(t, recentEntry.ID, recent.ID)
+	})
+
+	t.Run("returns zero when no old entries exist", func(t *testing.T) {
+		// ARRANGE: Create only a recent entry
+		recentEntry := createTestFeedbackEntry(t, db, student.ID, feedback.ValueNegative, timezone.Today())
+		defer cleanupFeedbackFixtures(t, db, []int64{recentEntry.ID})
+
+		// ACT: Delete entries older than 365 days — none should qualify
+		deleted, err := service.DeleteEntriesOlderThan(ctx, 365)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.Equal(t, 0, deleted)
+	})
+
+	t.Run("rejects zero days", func(t *testing.T) {
+		// ACT
+		_, err := service.DeleteEntriesOlderThan(ctx, 0)
+
+		// ASSERT
+		require.Error(t, err)
+	})
+
+	t.Run("rejects negative days", func(t *testing.T) {
+		// ACT
+		_, err := service.DeleteEntriesOlderThan(ctx, -1)
+
+		// ASSERT
+		require.Error(t, err)
+	})
+}
+
+// ============================================================================
 // Error Type Tests
 // ============================================================================
 

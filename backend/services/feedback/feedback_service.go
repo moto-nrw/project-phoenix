@@ -225,3 +225,11 @@ func (s *feedbackService) CreateEntries(ctx context.Context, entries []*feedback
 
 	return nil, nil
 }
+
+// DeleteEntriesOlderThan deletes feedback entries older than the specified number of days.
+func (s *feedbackService) DeleteEntriesOlderThan(ctx context.Context, days int) (int, error) {
+	if days <= 0 {
+		return 0, ErrInvalidParameters
+	}
+	return s.entryRepo.DeleteOlderThan(ctx, days)
+}
