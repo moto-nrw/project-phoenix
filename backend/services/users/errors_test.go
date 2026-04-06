@@ -125,3 +125,12 @@ func TestUsersError(t *testing.T) {
 		assert.Equal(t, "GetStaffByID", targetErr.Op)
 	})
 }
+
+func TestValidationError(t *testing.T) {
+	baseErr := errors.New("invalid caregiver capability request")
+	validationErr := &ValidationError{Err: baseErr}
+
+	assert.Equal(t, "invalid caregiver capability request", validationErr.Error())
+	assert.Equal(t, baseErr, validationErr.Unwrap())
+	assert.True(t, errors.Is(validationErr, baseErr))
+}

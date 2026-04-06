@@ -138,14 +138,6 @@ func (s *userContextService) GetCurrentPerson(ctx context.Context) (*users.Perso
 
 // GetCurrentStaff retrieves the staff member linked to the currently authenticated user
 func (s *userContextService) GetCurrentStaff(ctx context.Context) (*users.Staff, error) {
-	if !currentUserHasAnyRole(ctx, "user", "teacher", "admin") {
-		// Distinguish unauthenticated from wrong-role.
-		if !isAuthenticated(ctx) {
-			return nil, &UserContextError{Op: opGetCurrentStaff, Err: ErrUserNotAuthenticated}
-		}
-		return nil, &UserContextError{Op: opGetCurrentStaff, Err: ErrUserNotLinkedToStaff}
-	}
-
 	person, err := s.GetCurrentPerson(ctx)
 	if err != nil {
 		return nil, err
@@ -168,13 +160,6 @@ func (s *userContextService) GetCurrentStaff(ctx context.Context) (*users.Staff,
 
 // GetCurrentTeacher retrieves the teacher linked to the currently authenticated user
 func (s *userContextService) GetCurrentTeacher(ctx context.Context) (*users.Teacher, error) {
-	if !currentUserHasAnyRole(ctx, "user", "teacher", "admin") {
-		if !isAuthenticated(ctx) {
-			return nil, &UserContextError{Op: "get current teacher", Err: ErrUserNotAuthenticated}
-		}
-		return nil, &UserContextError{Op: "get current teacher", Err: ErrUserNotLinkedToTeacher}
-	}
-
 	staff, err := s.GetCurrentStaff(ctx)
 	if err != nil {
 		return nil, err
@@ -195,9 +180,6 @@ func (s *userContextService) GetCurrentTeacher(ctx context.Context) (*users.Teac
 func (s *userContextService) GetMyGroups(ctx context.Context) ([]*education.Group, error) {
 	if !isAuthenticated(ctx) {
 		return nil, &UserContextError{Op: "get my groups", Err: ErrUserNotAuthenticated}
-	}
-	if !currentUserHasAnyRole(ctx, "user", "teacher", "admin") {
-		return []*education.Group{}, nil
 	}
 
 	staff, staffErr := s.GetCurrentStaff(ctx)

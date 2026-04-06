@@ -16,10 +16,10 @@ func TestRequestedCaregiverPool(t *testing.T) {
 	assert.False(t, requestedCaregiverPool([]string{"admin"}))
 	assert.False(t, requestedCaregiverPool([]string{"admin", "user"}))
 	assert.False(t, requestedCaregiverPool([]string{"teacher", "manager"}))
+	assert.False(t, requestedCaregiverPool([]string{"teacher"}))
+	assert.False(t, requestedCaregiverPool([]string{"user", " teacher ", "staff"}))
 	assert.True(t, requestedCaregiverPool([]string{" user "}))
-	assert.True(t, requestedCaregiverPool([]string{"teacher"}))
 	assert.True(t, requestedCaregiverPool([]string{"STAFF"}))
-	assert.True(t, requestedCaregiverPool([]string{"user", " teacher ", "staff"}))
 }
 
 func TestStaffAvatarPathToFilePath_ValidPaths(t *testing.T) {

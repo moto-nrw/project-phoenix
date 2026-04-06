@@ -193,7 +193,7 @@ func TestEnableCaregiverCapability_RendersUsersValidationError(t *testing.T) {
 			enableFn: func(context.Context, int64, userModel.EnableCaregiverCapabilityInput) (*userModel.CaregiverCapabilityState, error) {
 				return nil, &usersService.UsersError{
 					Op:  "enable caregiver capability",
-					Err: fmt.Errorf("invalid caregiver capability request"),
+					Err: &usersService.ValidationError{Err: fmt.Errorf("invalid caregiver capability request")},
 				}
 			},
 		},
@@ -244,11 +244,21 @@ func TestCaregiverCapabilityErrorRenderer_MapsNotFound(t *testing.T) {
 func TestCaregiverCapabilityErrorRenderer_MapsUsersErrorToBadRequest(t *testing.T) {
 	renderer := caregiverCapabilityErrorRenderer(&usersService.UsersError{
 		Op:  "enable caregiver capability",
-		Err: fmt.Errorf("invalid caregiver capability request"),
+		Err: &usersService.ValidationError{Err: fmt.Errorf("invalid caregiver capability request")},
 	})
 	errResponse, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok)
 	assert.Equal(t, http.StatusBadRequest, errResponse.HTTPStatusCode)
+}
+
+func TestCaregiverCapabilityErrorRenderer_MapsUsersOperationalErrorToInternalServerError(t *testing.T) {
+	renderer := caregiverCapabilityErrorRenderer(&usersService.UsersError{
+		Op:  "disable caregiver capability",
+		Err: fmt.Errorf("lock activities.supervisors: database offline"),
+	})
+	errResponse, ok := renderer.(*common.ErrResponse)
+	require.True(t, ok)
+	assert.Equal(t, http.StatusInternalServerError, errResponse.HTTPStatusCode)
 }
 
 func TestCaregiverCapabilityErrorRenderer_MapsBlockedToSharedRenderer(t *testing.T) {

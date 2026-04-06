@@ -1348,6 +1348,7 @@ func caregiverCapabilityErrorRenderer(err error) render.Renderer {
 	var blockedErr *usersService.CaregiverCapabilityBlockedError
 	var accountTenantErr *usersService.AccountNotAssignedToTenantError
 	var usersErr *usersService.UsersError
+	var validationErr *usersService.ValidationError
 
 	switch {
 	case errors.As(err, &blockedErr):
@@ -1358,8 +1359,10 @@ func caregiverCapabilityErrorRenderer(err error) render.Renderer {
 		)
 	case errors.Is(err, authService.ErrAccountNotFound), errors.As(err, &accountTenantErr):
 		return ErrorNotFound(errors.New("account not found"))
+	case errors.As(err, &usersErr) && errors.As(err, &validationErr):
+		return ErrorInvalidRequest(validationErr)
 	case errors.As(err, &usersErr):
-		return ErrorInvalidRequest(usersErr.Err)
+		return ErrorInternalServer(usersErr.Err)
 	default:
 		return ErrorInternalServer(err)
 	}

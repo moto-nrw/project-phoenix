@@ -103,7 +103,10 @@ func (s *caregiverCapabilityService) EnableCaregiverCapability(
 	input userModels.EnableCaregiverCapabilityInput,
 ) (*userModels.CaregiverCapabilityState, error) {
 	if accountID <= 0 {
-		return nil, &UsersError{Op: "enable caregiver capability", Err: fmt.Errorf("account ID is required")}
+		return nil, &UsersError{
+			Op:  "enable caregiver capability",
+			Err: &ValidationError{Err: fmt.Errorf("account ID is required")},
+		}
 	}
 
 	input.FirstName = strings.TrimSpace(input.FirstName)
@@ -130,8 +133,10 @@ func (s *caregiverCapabilityService) EnableCaregiverCapability(
 		if person == nil {
 			if input.FirstName == "" || input.LastName == "" {
 				return &UsersError{
-					Op:  "enable caregiver capability",
-					Err: fmt.Errorf("first_name and last_name are required when the account has no person profile"),
+					Op: "enable caregiver capability",
+					Err: &ValidationError{
+						Err: fmt.Errorf("first_name and last_name are required when the account has no person profile"),
+					},
 				}
 			}
 
@@ -216,7 +221,10 @@ func (s *caregiverCapabilityService) DisableCaregiverCapability(
 	accountID int64,
 ) (*userModels.CaregiverCapabilityState, error) {
 	if accountID <= 0 {
-		return nil, &UsersError{Op: "disable caregiver capability", Err: fmt.Errorf("account ID is required")}
+		return nil, &UsersError{
+			Op:  "disable caregiver capability",
+			Err: &ValidationError{Err: fmt.Errorf("account ID is required")},
+		}
 	}
 
 	var result *userModels.CaregiverCapabilityState

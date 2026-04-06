@@ -277,23 +277,16 @@ func caregiverStaffIDSet(caregivers []*users.ActiveCaregiver) map[int64]struct{}
 }
 
 func requestedCaregiverPool(roles []string) bool {
-	if len(roles) == 0 {
+	if len(roles) != 1 {
 		return false
 	}
 
-	hasCaregiverRole := false
-	for _, role := range roles {
-		switch strings.ToLower(strings.TrimSpace(role)) {
-		case "user", "teacher", "staff":
-			hasCaregiverRole = true
-		case "":
-			continue
-		default:
-			return false
-		}
+	switch strings.ToLower(strings.TrimSpace(roles[0])) {
+	case "user", "staff":
+		return true
+	default:
+		return false
 	}
-
-	return hasCaregiverRole
 }
 
 // =============================================================================
@@ -467,16 +460,6 @@ func (rs *Resource) listStaff(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	caregiverStaffIDs := map[int64]struct{}{}
-	if filters.teachersOnly {
-		caregivers, caregiverErr := rs.listActiveCaregivers(ctx)
-		if caregiverErr != nil {
-			common.RenderError(w, r, ErrorInternalServer(caregiverErr))
-			return
-		}
-		caregiverStaffIDs = caregiverStaffIDSet(caregivers)
-	}
-
 	// Batch-load staff who had supervision activity today (for "Anwesend" status)
 	presentStaffIDs, err := rs.GroupSupervisorRepo.GetStaffIDsWithSupervisionToday(ctx)
 	if err != nil {
@@ -503,7 +486,7 @@ func (rs *Resource) listStaff(w http.ResponseWriter, r *http.Request) {
 	// Build response objects using pre-loaded data
 	responses := make([]interface{}, 0, len(staffMembers))
 	for _, staff := range staffMembers {
-		if response, include := rs.processStaffForListOptimized(ctx, staff, teacherMap, caregiverStaffIDs, presentMap, workStatusMap, absenceMap, accountRoleMap, accountEmailMap, accountAvatarMap, filters); include {
+		if response, include := rs.processStaffForListOptimized(ctx, staff, teacherMap, presentMap, workStatusMap, absenceMap, accountRoleMap, accountEmailMap, accountAvatarMap, filters); include {
 			responses = append(responses, response)
 		}
 	}

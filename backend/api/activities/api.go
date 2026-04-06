@@ -743,19 +743,6 @@ func parseDurationWithDefault(durationStr string) (time.Duration, error) {
 
 // fetchSupervisorsBySpecialization retrieves supervisors filtered by specialization.
 func (rs *Resource) fetchSupervisorsBySpecialization(ctx context.Context, specialization string) ([]SupervisorResponse, error) {
-	directory, err := usersSvc.CaregiverDirectoryFromPersonService(rs.UserService)
-	if err != nil {
-		return nil, err
-	}
-	caregivers, err := directory.ListActiveCaregivers(ctx)
-	if err != nil {
-		return nil, err
-	}
-	activeStaffIDs := make(map[int64]struct{}, len(caregivers))
-	for _, caregiver := range caregivers {
-		activeStaffIDs[caregiver.StaffID] = struct{}{}
-	}
-
 	teachers, err := rs.UserService.TeacherRepository().FindBySpecialization(ctx, specialization)
 	if err != nil {
 		return nil, err
@@ -773,9 +760,6 @@ func (rs *Resource) fetchSupervisorsBySpecialization(ctx context.Context, specia
 		}
 
 		if fullTeacher.Staff != nil && fullTeacher.Staff.Person != nil {
-			if _, ok := activeStaffIDs[fullTeacher.Staff.ID]; !ok {
-				continue
-			}
 			supervisors = append(supervisors, SupervisorResponse{
 				// Available supervisor selections are persisted back as supervisor_ids,
 				// so this identifier must remain the staff ID for safe round-tripping.
@@ -793,23 +777,25 @@ func (rs *Resource) fetchSupervisorsBySpecialization(ctx context.Context, specia
 
 // fetchAllSupervisors retrieves all staff members as potential supervisors.
 func (rs *Resource) fetchAllSupervisors(ctx context.Context) ([]SupervisorResponse, error) {
-	directory, err := usersSvc.CaregiverDirectoryFromPersonService(rs.UserService)
-	if err != nil {
-		return nil, err
-	}
-	caregivers, err := directory.ListActiveCaregivers(ctx)
+	// Use batch query to avoid N+1 (fetches staff with person in single query).
+	staffMembers, err := rs.UserService.StaffRepository().ListAllWithPerson(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	supervisors := make([]SupervisorResponse, 0, len(caregivers))
-	for _, caregiver := range caregivers {
+	supervisors := make([]SupervisorResponse, 0, len(staffMembers))
+	for _, staffMember := range staffMembers {
+		if staffMember.Person == nil {
+			slog.Default().Warn("Staff has no associated person", slog.Int64("staff_id", staffMember.ID))
+			continue
+		}
+
 		supervisors = append(supervisors, SupervisorResponse{
 			// Keep the public ID aligned with the staff ID expected by activity writes.
-			ID:        caregiver.StaffID,
-			StaffID:   caregiver.StaffID,
-			FirstName: caregiver.FirstName,
-			LastName:  caregiver.LastName,
+			ID:        staffMember.ID,
+			StaffID:   staffMember.ID,
+			FirstName: staffMember.Person.FirstName,
+			LastName:  staffMember.Person.LastName,
 			IsPrimary: false,
 		})
 	}

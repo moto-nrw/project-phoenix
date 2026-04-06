@@ -175,6 +175,19 @@ func TestUserContextService_GetCurrentStaff(t *testing.T) {
 		// ASSERT
 		require.Error(t, err)
 	})
+
+	t.Run("retrieves current staff for tenant custom role after permission checks", func(t *testing.T) {
+		staff, account := testpkg.CreateTestStaffWithAccount(t, db, "CustomRole", "Staff")
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		ctx := contextWithTenantClaimsAndRoles(int(account.ID), 1, "betreuung-plus")
+
+		result, err := service.GetCurrentStaff(ctx)
+
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Equal(t, staff.ID, result.ID)
+	})
 }
 
 func TestUserContextService_GetCurrentTeacher(t *testing.T) {

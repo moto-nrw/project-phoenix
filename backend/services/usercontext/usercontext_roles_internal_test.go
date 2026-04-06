@@ -30,24 +30,9 @@ func TestCurrentUserHasRoleHelpers(t *testing.T) {
 	assert.False(t, isAuthenticated(context.Background()))
 }
 
-func TestGetCurrentStaff_RejectsExplicitWrongRoleBeforeRepoLookup(t *testing.T) {
-	service := &userContextService{}
-
-	staff, err := service.GetCurrentStaff(contextWithRoles(42, "guardian"))
-
-	require.Error(t, err)
-	assert.Nil(t, staff)
-	assert.ErrorIs(t, err, ErrUserNotLinkedToStaff)
-}
-
-func TestGetCurrentTeacher_RejectsExplicitWrongRoleBeforeRepoLookup(t *testing.T) {
-	service := &userContextService{}
-
-	teacher, err := service.GetCurrentTeacher(contextWithRoles(42, "guardian"))
-
-	require.Error(t, err)
-	assert.Nil(t, teacher)
-	assert.ErrorIs(t, err, ErrUserNotLinkedToTeacher)
+func TestCurrentUserHasAnyRole_AllowsExplicitAndLegacyRoleShapes(t *testing.T) {
+	assert.True(t, currentUserHasAnyRole(contextWithRoles(42, "guardian"), "guardian"))
+	assert.True(t, currentUserHasAnyRole(contextWithRoles(42), "user"))
 }
 
 func TestCaregiverRoleGate_AllowsExplicitTeacherRole(t *testing.T) {
@@ -56,16 +41,12 @@ func TestCaregiverRoleGate_AllowsExplicitTeacherRole(t *testing.T) {
 	assert.True(t, currentUserHasAnyRole(ctx, "user", "teacher", "admin"))
 }
 
-func TestGetMyGroups_RejectsUnauthenticatedAndAllowsNonCaregiverFallback(t *testing.T) {
+func TestGetMyGroups_RejectsUnauthenticated(t *testing.T) {
 	service := &userContextService{}
 
 	groups, err := service.GetMyGroups(context.Background())
 	require.Error(t, err)
 	assert.Nil(t, groups)
-
-	groups, err = service.GetMyGroups(contextWithRoles(42, "guardian"))
-	require.NoError(t, err)
-	assert.Empty(t, groups)
 }
 
 func TestUserContextServiceGetLogger_FallsBackToDefault(t *testing.T) {

@@ -87,7 +87,6 @@ func (rs *Resource) processStaffForListOptimized(
 	ctx context.Context,
 	staff *users.Staff,
 	teacherMap map[int64]*users.Teacher,
-	caregiverStaffIDs map[int64]struct{},
 	presentMap map[int64]bool,
 	workStatusMap map[int64]string,
 	absenceMap map[int64]string,
@@ -116,9 +115,6 @@ func (rs *Resource) processStaffForListOptimized(
 
 	if filters.teachersOnly {
 		if !isTeacher {
-			return nil, false
-		}
-		if _, ok := caregiverStaffIDs[staff.ID]; !ok {
 			return nil, false
 		}
 	}

@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -22,63 +21,35 @@ func setupActivitiesResource(t *testing.T) (*bun.DB, *services.Factory, *Resourc
 	return db, svc, resource
 }
 
-func assignUserRoleToAccount(t *testing.T, db *bun.DB, accountID int64) {
-	t.Helper()
-
-	var role authModels.Role
-	err := db.NewSelect().
-		Model(&role).
-		ModelTableExpr(`auth.roles AS "role"`).
-		Where(`LOWER("role".name) = ?`, "user").
-		Where(`"role".is_system = TRUE`).
-		Where(`"role".tenant_id IS NULL`).
-		Limit(1).
-		Scan(context.Background())
-	require.NoError(t, err)
-
-	accountRole := &authModels.AccountRole{
-		AccountID: accountID,
-		RoleID:    role.ID,
-	}
-	accountRole.SetTenantID(1)
-
-	err = db.NewInsert().
-		Model(accountRole).
-		ModelTableExpr(`auth.account_roles`).
-		Scan(context.Background())
-	require.NoError(t, err)
-}
-
-func TestFetchAllSupervisors_UsesCaregiverPool(t *testing.T) {
+func TestFetchAllSupervisors_IncludesLegacyTeachers(t *testing.T) {
 	db, _, resource := setupActivitiesResource(t)
 	defer func() { _ = db.Close() }()
 
 	activeTeacher, activeAccount := testpkg.CreateTestTeacherWithAccount(t, db, "Active", "Caregiver")
-	passiveTeacher, passiveAccount := testpkg.CreateTestTeacherWithAccount(t, db, "Passive", "Teacher")
+	legacyTeacher, legacyAccount := testpkg.CreateTestTeacherWithAccount(t, db, "Legacy", "Teacher")
 	defer testpkg.CleanupTeacherFixtures(t, db, activeTeacher.ID)
-	defer testpkg.CleanupTeacherFixtures(t, db, passiveTeacher.ID)
+	defer testpkg.CleanupTeacherFixtures(t, db, legacyTeacher.ID)
 	defer testpkg.CleanupAuthFixtures(t, db, activeAccount.ID)
-	defer testpkg.CleanupAuthFixtures(t, db, passiveAccount.ID)
-
-	testpkg.EnsureAccountTenant(t, db, activeAccount.ID, 1)
-	assignUserRoleToAccount(t, db, activeAccount.ID)
+	defer testpkg.CleanupAuthFixtures(t, db, legacyAccount.ID)
 
 	ctx := tenant.WithTenantID(context.Background(), 1)
 	supervisors, err := resource.fetchAllSupervisors(ctx)
 	require.NoError(t, err)
 
-	require.Len(t, supervisors, 1)
-	assert.Equal(t, activeTeacher.Staff.ID, supervisors[0].StaffID)
-	assert.Equal(t, activeTeacher.Staff.ID, supervisors[0].ID)
-	assert.Equal(t, "Active", supervisors[0].FirstName)
+	supervisorNames := make(map[int64]string, len(supervisors))
+	for _, supervisor := range supervisors {
+		supervisorNames[supervisor.StaffID] = supervisor.FirstName
+	}
+
+	assert.Equal(t, "Active", supervisorNames[activeTeacher.Staff.ID])
+	assert.Equal(t, "Legacy", supervisorNames[legacyTeacher.Staff.ID])
 }
 
-func TestFetchSupervisorsBySpecialization_FiltersToActiveCaregivers(t *testing.T) {
+func TestFetchSupervisorsBySpecialization_IncludesLegacyTeachers(t *testing.T) {
 	db, _, resource := setupActivitiesResource(t)
 	defer func() { _ = db.Close() }()
 
 	activeTeacher, activeAccount := testpkg.CreateTestTeacherWithAccount(t, db, "Filtered", "Caregiver")
-	activeTeacher.Specialization = "Sport"
 	_, err := db.NewUpdate().
 		Model(activeTeacher).
 		ModelTableExpr(`users.teachers`).
@@ -87,52 +58,29 @@ func TestFetchSupervisorsBySpecialization_FiltersToActiveCaregivers(t *testing.T
 		Exec(context.Background())
 	require.NoError(t, err)
 
-	inactiveTeacher, inactiveAccount := testpkg.CreateTestTeacherWithAccount(t, db, "Filtered", "Ignored")
-	inactiveTeacher.Specialization = "Sport"
+	legacyTeacher, legacyAccount := testpkg.CreateTestTeacherWithAccount(t, db, "Legacy", "Included")
 	_, err = db.NewUpdate().
-		Model(inactiveTeacher).
+		Model(legacyTeacher).
 		ModelTableExpr(`users.teachers`).
 		Set("specialization = ?", "Sport").
-		Where("id = ?", inactiveTeacher.ID).
+		Where("id = ?", legacyTeacher.ID).
 		Exec(context.Background())
 	require.NoError(t, err)
 
 	defer testpkg.CleanupTeacherFixtures(t, db, activeTeacher.ID)
-	defer testpkg.CleanupTeacherFixtures(t, db, inactiveTeacher.ID)
+	defer testpkg.CleanupTeacherFixtures(t, db, legacyTeacher.ID)
 	defer testpkg.CleanupAuthFixtures(t, db, activeAccount.ID)
-	defer testpkg.CleanupAuthFixtures(t, db, inactiveAccount.ID)
-
-	testpkg.EnsureAccountTenant(t, db, activeAccount.ID, 1)
-	assignUserRoleToAccount(t, db, activeAccount.ID)
+	defer testpkg.CleanupAuthFixtures(t, db, legacyAccount.ID)
 
 	ctx := tenant.WithTenantID(context.Background(), 1)
 	supervisors, err := resource.fetchSupervisorsBySpecialization(ctx, "Sport")
 	require.NoError(t, err)
 
-	require.Len(t, supervisors, 1)
-	assert.Equal(t, activeTeacher.StaffID, supervisors[0].ID)
-	assert.Equal(t, activeTeacher.StaffID, supervisors[0].StaffID)
-	assert.Equal(t, "Filtered", supervisors[0].FirstName)
-}
-
-func TestFetchAllSupervisors_ReturnsDirectoryError(t *testing.T) {
-	resource := &Resource{
-		UserService: nil,
+	supervisorNames := make(map[int64]string, len(supervisors))
+	for _, supervisor := range supervisors {
+		supervisorNames[supervisor.StaffID] = supervisor.FirstName
 	}
 
-	_, err := resource.fetchAllSupervisors(context.Background())
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "person service does not implement caregiver directory")
-}
-
-func TestFetchSupervisorsBySpecialization_ReturnsDirectoryError(t *testing.T) {
-	resource := &Resource{
-		UserService: nil,
-	}
-
-	_, err := resource.fetchSupervisorsBySpecialization(context.Background(), "Sport")
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "person service does not implement caregiver directory")
+	assert.Equal(t, "Filtered", supervisorNames[activeTeacher.StaffID])
+	assert.Equal(t, "Legacy", supervisorNames[legacyTeacher.StaffID])
 }
