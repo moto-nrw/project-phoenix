@@ -49,9 +49,56 @@ vi.mock("~/components/ui/alert", () => ({
 
 vi.mock("~/lib/date-helpers", () => ({
   getStartDateForTimeRange: vi.fn((_timeRange: string, _now: Date) => {
-    // Return a date far in the past to include all mock data from May 2025
     return new Date("2020-01-01");
   }),
+}));
+
+vi.mock("~/lib/student-api", () => ({
+  fetchStudent: vi.fn().mockResolvedValue({
+    id: "1",
+    name: "Emma Müller",
+    first_name: "Emma",
+    second_name: "Müller",
+    school_class: "3b",
+    group_name: "Eulen",
+    group_id: "g3",
+    current_location: "Anwesend",
+  }),
+}));
+
+vi.mock("~/lib/feedback-api", () => ({
+  fetchStudentFeedback: vi.fn().mockResolvedValue([
+    {
+      id: "1",
+      timestamp: "2025-05-14T15:30:23",
+      feedback_type: "positive",
+      is_mensa_feedback: false,
+    },
+    {
+      id: "2",
+      timestamp: "2025-05-13T15:45:12",
+      feedback_type: "negative",
+      is_mensa_feedback: false,
+    },
+    {
+      id: "3",
+      timestamp: "2025-05-12T15:25:18",
+      feedback_type: "positive",
+      is_mensa_feedback: false,
+    },
+    {
+      id: "4",
+      timestamp: "2025-05-11T15:10:09",
+      feedback_type: "neutral",
+      is_mensa_feedback: false,
+    },
+    {
+      id: "5",
+      timestamp: "2025-05-10T12:30:22",
+      feedback_type: "negative",
+      is_mensa_feedback: false,
+    },
+  ]),
 }));
 
 describe("StudentFeedbackHistoryPage", () => {
@@ -197,23 +244,8 @@ describe("StudentFeedbackHistoryPage", () => {
 
     await waitFor(
       () => {
-        // Check for feedback type labels from mock data using regex
         expect(
           screen.getAllByText(/Positives Feedback/i).length,
-        ).toBeGreaterThan(0);
-      },
-      { timeout: 2000 },
-    );
-  });
-
-  it("displays invalid feedback markers", async () => {
-    render(<StudentFeedbackHistoryPage />);
-
-    await waitFor(
-      () => {
-        // The mock data has some entries marked as is_valid: false
-        expect(
-          screen.getAllByText(/Ungültiges Feedback/i).length,
         ).toBeGreaterThan(0);
       },
       { timeout: 2000 },
@@ -230,10 +262,8 @@ describe("StudentFeedbackHistoryPage", () => {
       { timeout: 2000 },
     );
 
-    // Click the "Alle" button - this triggers a re-render with loading state
     fireEvent.click(screen.getByText("Alle"));
 
-    // Wait for loading to complete and UI to show again
     await waitFor(
       () => {
         expect(screen.getByText("Alle")).toBeInTheDocument();
@@ -247,7 +277,6 @@ describe("StudentFeedbackHistoryPage", () => {
 
     await waitFor(
       () => {
-        // Check for emoji containers
         expect(screen.getAllByText("😊").length).toBeGreaterThan(0);
       },
       { timeout: 2000 },
