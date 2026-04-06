@@ -19,7 +19,6 @@ type DeviceResponse struct {
 	Status         string       `json:"status"`
 	LastSeen       *common.Time `json:"last_seen,omitempty"`
 	RegisteredByID *int64       `json:"registered_by_id,omitempty"`
-	RoomID         *int64       `json:"room_id,omitempty"`
 	RoomName       *string      `json:"room_name,omitempty"`
 	IsOnline       bool         `json:"is_online"`
 	CreatedAt      common.Time  `json:"created_at"`
@@ -39,7 +38,6 @@ type DeviceRequest struct {
 	Name           *string `json:"name,omitempty"`
 	Status         string  `json:"status,omitempty"`
 	RegisteredByID *int64  `json:"registered_by_id,omitempty"`
-	RoomID         *int64  `json:"room_id,omitempty"`
 }
 
 // Bind validates the device request
@@ -103,7 +101,6 @@ func newDeviceResponse(device *iot.Device) DeviceResponse {
 		Name:           device.Name,
 		Status:         string(device.Status),
 		RegisteredByID: device.RegisteredByID,
-		RoomID:         device.RoomID,
 		RoomName:       device.RoomName,
 		IsOnline:       device.IsOnline(),
 		CreatedAt:      common.Time(device.CreatedAt),

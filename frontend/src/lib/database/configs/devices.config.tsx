@@ -14,7 +14,6 @@ import {
   generateDefaultDeviceName,
   DEVICE_TYPE_OPTIONS,
 } from "@/lib/iot-helpers";
-import { RoomSelect } from "@/components/ui/database/database-select";
 
 export const devicesConfig = defineEntityConfig<Device>({
   name: {
@@ -63,22 +62,6 @@ export const devicesConfig = defineEntityConfig<Device>({
             type: "text",
             placeholder: "z.B. Eingangsbereich Terminal",
             helperText: "Optionaler Name zur besseren Identifikation",
-          },
-          {
-            name: "room_id",
-            label: "Standort",
-            type: "custom",
-            helperText: "Raum, in dem das Gerät installiert ist",
-            component: (props) =>
-              RoomSelect({
-                name: "room_id",
-                value: props.value as string,
-                onChange: props.onChange as (value: string) => void,
-                label: props.label,
-                required: props.required,
-                includeEmpty: true,
-                emptyOptionLabel: "Kein Standort",
-              }),
           },
         ],
       },
@@ -147,8 +130,8 @@ export const devicesConfig = defineEntityConfig<Device>({
             ),
           },
           {
-            label: "Standort",
-            value: (device) => device.room_name ?? "—",
+            label: "Letzter Standort",
+            value: (device) => device.room_name ?? "Noch nicht verwendet",
           },
           {
             label: "Status",
