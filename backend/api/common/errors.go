@@ -6,14 +6,26 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/getsentry/sentry-go"
 	"github.com/go-chi/render"
 	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 // RenderError renders an error response and logs any render failures.
-// This helper consolidates the common pattern of rendering errors and
-// logging render failures, reducing code duplication across handlers.
+// For server errors (5xx), it also logs the root cause to slog and reports
+// the error to Sentry so that failures are visible in both Grafana and Sentry.
 func RenderError(w http.ResponseWriter, r *http.Request, renderer render.Renderer) {
+	if errResp, ok := renderer.(*ErrResponse); ok && errResp.HTTPStatusCode >= 500 && errResp.Err != nil {
+		slog.Default().ErrorContext(r.Context(), "server error",
+			slog.Int("status", errResp.HTTPStatusCode),
+			slog.String("error", errResp.Err.Error()),
+		)
+		if hub := sentry.GetHubFromContext(r.Context()); hub != nil {
+			hub.CaptureException(errResp.Err)
+		} else {
+			sentry.CaptureException(errResp.Err)
+		}
+	}
 	if err := render.Render(w, r, renderer); err != nil {
 		slog.Default().Error("error rendering error response", slog.String("error", err.Error()))
 	}

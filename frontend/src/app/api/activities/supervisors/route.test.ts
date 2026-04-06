@@ -133,7 +133,7 @@ describe("GET /api/activities/supervisors", () => {
     const response = await GET(request, createMockContext());
 
     expect(mockApiGet).toHaveBeenCalledWith(
-      "/api/staff?teachers_only=true",
+      "/api/staff/by-role?role=user",
       "test-token",
     );
     expect(response.status).toBe(200);

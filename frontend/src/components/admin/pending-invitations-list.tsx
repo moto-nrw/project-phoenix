@@ -114,11 +114,11 @@ export function PendingInvitationsList({
   }
 
   return (
-    <div className="rounded-2xl border border-gray-200/50 bg-white/90 p-4 shadow-sm backdrop-blur-sm md:p-6">
-      <div className="mb-4 flex items-center gap-2 md:gap-3">
-        <div className="rounded-xl bg-gray-100 p-2">
+    <div className="rounded-2xl border border-gray-200/50 bg-white/90 p-3 shadow-sm backdrop-blur-sm md:p-4">
+      <div className="mb-2 flex items-center gap-2">
+        <div className="rounded-lg bg-gray-100 p-1.5">
           <svg
-            className="h-4 w-4 text-gray-600 md:h-5 md:w-5"
+            className="h-4 w-4 text-gray-500"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -127,18 +127,16 @@ export function PendingInvitationsList({
             <path
               strokeLinecap="round"
               strokeLinejoin="round"
-              d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"
+              d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
             />
           </svg>
         </div>
-        <div className="flex-1">
-          <h2 className="text-base font-semibold text-gray-900 md:text-lg">
-            Offene Einladungen
-          </h2>
-          <p className="text-xs text-gray-600 md:text-sm">
-            {invitations.length} offen
-          </p>
-        </div>
+        <h2 className="text-sm font-semibold text-gray-900">
+          Offene Einladungen
+        </h2>
+        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
+          {invitations.length}
+        </span>
       </div>
 
       {error && (
@@ -174,23 +172,8 @@ export function PendingInvitationsList({
       {/* Success toasts handled globally; no inline feedback */}
 
       {sortedInvitations.length === 0 ? (
-        <div className="mt-4 rounded-xl border border-dashed border-gray-200 bg-gray-50/50 px-4 py-16 text-center md:px-8 md:py-32">
-          <svg
-            className="mx-auto mb-3 h-10 w-10 text-gray-400 md:h-12 md:w-12"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={1.5}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"
-            />
-          </svg>
-          <p className="text-xs text-gray-600 md:text-sm">
-            Keine offenen Einladungen
-          </p>
+        <div className="mt-2 rounded-xl border border-dashed border-gray-200 bg-gray-50/50 px-4 py-6 text-center">
+          <p className="text-xs text-gray-400">Keine offenen Einladungen</p>
         </div>
       ) : (
         <div className="mt-4 overflow-x-auto rounded-xl border border-gray-200">

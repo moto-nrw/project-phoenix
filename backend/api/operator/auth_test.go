@@ -57,10 +57,6 @@ func (m *mockOperatorAuthService) GetOperator(ctx context.Context, id int64) (*p
 	return nil, nil
 }
 
-func (m *mockOperatorAuthService) ListOperators(ctx context.Context) ([]*platform.Operator, error) {
-	return nil, nil
-}
-
 func (m *mockOperatorAuthService) UpdateProfile(ctx context.Context, operatorID int64, displayName string) (*platform.Operator, error) {
 	if m.updateProfileFn != nil {
 		return m.updateProfileFn(ctx, operatorID, displayName)

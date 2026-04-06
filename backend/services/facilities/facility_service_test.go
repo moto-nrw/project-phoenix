@@ -7,6 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
+	"github.com/moto-nrw/project-phoenix/models/iot"
 	facilitiesSvc "github.com/moto-nrw/project-phoenix/services/facilities"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -345,6 +346,32 @@ func TestFacilitiesService_DeleteRoom(t *testing.T) {
 		// ASSERT
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "Raum kann nicht")
+	})
+
+	t.Run("clears device room reference before deleting room", func(t *testing.T) {
+		room := testpkg.CreateTestRoom(t, db, "DeleteRoom-DeviceReference")
+		device := testpkg.CreateTestDevice(t, db, "delete-room-device-reference")
+		defer testpkg.CleanupActivityFixtures(t, db, device.ID, room.ID)
+
+		_, err := db.NewUpdate().
+			Model((*iot.Device)(nil)).
+			ModelTableExpr(`iot.devices`).
+			Set("room_id = ?", room.ID).
+			Where("id = ?", device.ID).
+			Exec(ctx)
+		require.NoError(t, err)
+
+		err = service.DeleteRoom(ctx, room.ID)
+		require.NoError(t, err)
+
+		var updatedDevice iot.Device
+		err = db.NewSelect().
+			Model(&updatedDevice).
+			ModelTableExpr(`iot.devices AS "device"`).
+			Where(`"device".id = ?`, device.ID).
+			Scan(ctx)
+		require.NoError(t, err)
+		assert.Nil(t, updatedDevice.RoomID)
 	})
 
 	t.Run("returns error for non-existent room", func(t *testing.T) {

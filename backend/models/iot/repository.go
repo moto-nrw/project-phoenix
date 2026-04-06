@@ -21,6 +21,7 @@ type DeviceRepository interface {
 	FindByStatus(ctx context.Context, status DeviceStatus) ([]*Device, error)
 	FindByRegisteredBy(ctx context.Context, personID int64) ([]*Device, error)
 	UpdateLastSeen(ctx context.Context, id int64, lastSeen time.Time) error
+	UpdateRoomID(ctx context.Context, id int64, roomID int64) error
 	UpdateStatus(ctx context.Context, deviceID string, status DeviceStatus) error
 
 	// Specialized queries

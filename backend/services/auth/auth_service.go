@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"time"
@@ -138,4 +139,23 @@ func (s *Service) WithTx(tx bun.Tx) interface{} {
 		db:                  s.db,
 		logger:              s.logger,
 	}
+}
+
+func (s *Service) runInTx(
+	ctx context.Context,
+	fn func(txCtx context.Context) error,
+) error {
+	if s.txHandler == nil {
+		return fn(ctx)
+	}
+
+	if s.txHandler.DB == nil {
+		if _, ok := base.TxFromContext(ctx); !ok {
+			return fn(ctx)
+		}
+	}
+
+	return s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+		return fn(txCtx)
+	})
 }

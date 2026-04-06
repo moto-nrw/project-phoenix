@@ -1,9 +1,17 @@
 package api
 
 import (
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestParseAllowedOrigins tests the parseAllowedOrigins function
@@ -195,4 +203,56 @@ func TestParsePositiveInt_DifferentDefaults(t *testing.T) {
 			assert.Equal(t, tt.defaultValue, result)
 		})
 	}
+}
+
+func TestInitializeAPIResources_WiresCaregiverServices(t *testing.T) {
+	db, serviceFactory := testutil.SetupAPITest(t)
+	defer func() { _ = db.Close() }()
+
+	repoFactory := repositories.NewFactory(db)
+	api := &API{
+		Services: serviceFactory,
+		Router:   chi.NewRouter(),
+		db:       db,
+		repos:    repoFactory,
+	}
+
+	initializeAPIResources(api, repoFactory, db, slog.Default())
+
+	require.NotNil(t, api.Auth)
+	require.NotNil(t, api.Operator)
+	assert.Same(t, serviceFactory.CaregiverCapability, api.Auth.CaregiverCapabilityService)
+}
+
+func TestRegisterRoutesWithRateLimiting_MountsOperatorInvitationRoutes(t *testing.T) {
+	db, serviceFactory := testutil.SetupAPITest(t)
+	defer func() { _ = db.Close() }()
+
+	repoFactory := repositories.NewFactory(db)
+	api := &API{
+		Services: serviceFactory,
+		Router:   chi.NewRouter(),
+		db:       db,
+		repos:    repoFactory,
+	}
+
+	initializeAPIResources(api, repoFactory, db, slog.Default())
+
+	previousEnabled := viper.Get("rate_limit_enabled")
+	previousPerMinute := viper.Get("rate_limit_per_minute")
+	viper.Set("rate_limit_enabled", true)
+	viper.Set("rate_limit_per_minute", 5)
+	t.Cleanup(func() {
+		viper.Set("rate_limit_enabled", previousEnabled)
+		viper.Set("rate_limit_per_minute", previousPerMinute)
+	})
+
+	api.registerRoutesWithRateLimiting()
+
+	req := httptest.NewRequest(http.MethodPost, "/operator/auth/invitations/validate", nil)
+	rr := httptest.NewRecorder()
+
+	api.Router.ServeHTTP(rr, req)
+
+	assert.NotEqual(t, http.StatusNotFound, rr.Code)
 }

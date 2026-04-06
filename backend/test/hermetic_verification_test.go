@@ -145,7 +145,11 @@ func checkHardcodedIDs(t *testing.T, root string) []string {
 		"handlers_unit_test.go",                 // Unit tests for converters (no DB)
 		"http_middleware_test.go",               // Uses nil *bun.DB for unit testing middleware
 		"operator_provisioning_service_test.go", // Uses mocks (sqlmock + stubs)
+		"operator_invitation_test.go",           // Uses mocks (sqlmock + stubs)
+		"operator_invitation_dispatch_test.go",  // Uses mocks for email dispatch tests
+		"invitations_test.go",                   // Uses mocks for handler tests
 		"error_helpers_test.go",                 // Internal unit tests for helper functions (no DB)
+		"api/iot/api_test.go",                   // Uses mock SchoolRepo for unit testing handler
 	}
 
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
@@ -279,7 +283,8 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 		// Skip files that reference DB types but don't perform real DB operations
 		normalizedPath := filepath.ToSlash(path)
 		skipFiles := []string{
-			"http_middleware_test.go", // Uses nil *bun.DB for unit testing middleware
+			"http_middleware_test.go",          // Uses nil *bun.DB for unit testing middleware
+			"role_management_internal_test.go", // Uses hand-rolled stub repos injected via repositories.Factory, no real DB
 		}
 		skip := false
 		for _, sf := range skipFiles {

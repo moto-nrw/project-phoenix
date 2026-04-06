@@ -62,6 +62,12 @@ type UsersError struct {
 	Err error  // Underlying error
 }
 
+// ValidationError marks a users-service failure as bad client input rather than
+// an operational or persistence problem.
+type ValidationError struct {
+	Err error
+}
+
 // Error returns the error message
 func (e *UsersError) Error() string {
 	return fmt.Sprintf("users.%s: %v", e.Op, e.Err)
@@ -69,5 +75,21 @@ func (e *UsersError) Error() string {
 
 // Unwrap returns the underlying error
 func (e *UsersError) Unwrap() error {
+	return e.Err
+}
+
+// Error returns the validation message.
+func (e *ValidationError) Error() string {
+	if e == nil || e.Err == nil {
+		return ""
+	}
+	return e.Err.Error()
+}
+
+// Unwrap returns the underlying validation error.
+func (e *ValidationError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
 	return e.Err
 }

@@ -56,6 +56,7 @@ type Factory struct {
 	Schedule                 schedule.Service
 	PickupSchedule           schedule.PickupScheduleService
 	Users                    users.PersonService
+	CaregiverCapability      users.CaregiverCapabilityService
 	Guardian                 users.GuardianService
 	UserContext              usercontext.UserContextService
 	Database                 database.DatabaseService
@@ -69,6 +70,7 @@ type Factory struct {
 
 	// Platform domain (operator dashboard)
 	OperatorAuth         platform.OperatorAuthService
+	OperatorInvitation   platform.OperatorInvitationService
 	OperatorProvisioning platform.OperatorProvisioningService
 	Announcement         platform.AnnouncementService
 	OperatorSuggestions  platform.OperatorSuggestionsService
@@ -335,6 +337,21 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:            authLogger,
 	})
 
+	caregiverCapabilityService := users.NewCaregiverCapabilityService(users.CaregiverCapabilityServiceDependencies{
+		AccountRepo:            repos.Account,
+		AccountTenantRepo:      repos.AccountTenant,
+		AuthEventRepo:          repos.AuthEvent,
+		RoleRepo:               repos.Role,
+		PersonRepo:             repos.Person,
+		StaffRepo:              repos.Staff,
+		TeacherRepo:            repos.Teacher,
+		GroupTeacherRepo:       repos.GroupTeacher,
+		GroupSubstitutionRepo:  repos.GroupSubstitution,
+		ActivitySupervisorRepo: repos.ActivitySupervisor,
+		AuthService:            authService,
+		DB:                     db,
+	})
+
 	// Initialize authorization
 	authorizationService := authorize.NewAuthorizationService()
 
@@ -413,17 +430,35 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		emailChangeExpiry = 15 * time.Minute
 	}
 
+	// Operator frontend URL for invitation emails. The operator subdomain is separate
+	// from FRONTEND_URL, so we link directly to the operator host to avoid a
+	// cross-origin redirect hop that email content scanners treat as a phishing
+	// signal. Constructed conditionally — only required when actually sending
+	// invitations. InviteOperator and ResendOperatorInvitation guard on empty
+	// operatorFrontendURL.
+	var operatorFrontendURL string
+	if operatorHostname := viper.GetString("next_public_operator_hostname"); operatorHostname != "" {
+		protocol := "http"
+		if strings.HasPrefix(frontendURL, "https://") {
+			protocol = "https"
+		}
+		operatorFrontendURL = fmt.Sprintf("%s://%s", protocol, strings.TrimRight(operatorHostname, "/"))
+	}
+
 	// Initialize platform services (operator dashboard)
 	operatorAuthService, err := platform.NewOperatorAuthService(platform.OperatorAuthServiceConfig{
 		OperatorRepo:         repos.Operator,
 		AuditLogRepo:         repos.OperatorAuditLog,
 		EmailChangeTokenRepo: repos.OperatorEmailChangeToken,
+		InvitationTokenRepo:  repos.OperatorInvitationToken,
 		DB:                   db,
 		Logger:               platformLogger,
 		Dispatcher:           dispatcher,
 		DefaultFrom:          defaultFrom,
 		FrontendURL:          frontendURL,
+		OperatorFrontendURL:  operatorFrontendURL,
 		EmailChangeExpiry:    emailChangeExpiry,
+		InvitationExpiry:     invitationTokenExpiry,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create operator auth service: %w", err)
@@ -486,6 +521,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Schedule:                 scheduleService,
 		PickupSchedule:           pickupScheduleService,
 		Users:                    usersService,
+		CaregiverCapability:      caregiverCapabilityService,
 		Guardian:                 guardianService,
 		UserContext:              userContextService,
 		Database:                 databaseService,
@@ -498,8 +534,13 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		InvitationTokenExpiry:    invitationTokenExpiry,
 		PasswordResetTokenExpiry: passwordResetTokenExpiry,
 
-		// Platform services
+		// Platform services — OperatorAuth and OperatorInvitation both point
+		// at the same concrete operatorAuthService struct, exposed through
+		// two narrower interfaces so that each handler depends only on the
+		// methods it actually calls. NewOperatorAuthService returns the
+		// combined interface, so both fields can be assigned directly.
 		OperatorAuth:         operatorAuthService,
+		OperatorInvitation:   operatorAuthService,
 		OperatorProvisioning: operatorProvisioningService,
 		Announcement:         announcementService,
 		OperatorSuggestions:  operatorSuggestionsService,

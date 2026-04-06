@@ -242,6 +242,10 @@ func (noopAccountRepository) FindEmailsByAccountIDs(context.Context, []int64) (m
 	panic("FindEmailsByAccountIDs not implemented")
 }
 
+func (noopAccountRepository) FindAvatarsByAccountIDs(context.Context, []int64) (map[int64]string, error) {
+	panic("FindAvatarsByAccountIDs not implemented")
+}
+
 // stubAccountRepository implements a minimal in-memory account store.
 type stubAccountRepository struct {
 	noopAccountRepository
@@ -1158,6 +1162,14 @@ func (r *stubStaffRepository) FindWithPerson(context.Context, int64) (*userModel
 
 func (r *stubStaffRepository) ListAllWithPerson(context.Context) ([]*userModel.Staff, error) {
 	panic("ListAllWithPerson not implemented")
+}
+
+func (r *stubStaffRepository) FindByIDs(context.Context, []int64) (map[int64]*userModel.Staff, error) {
+	panic("FindByIDs not implemented")
+}
+
+func (r *stubStaffRepository) FindWithPersonByIDs(context.Context, []int64) (map[int64]*userModel.Staff, error) {
+	panic("FindWithPersonByIDs not implemented")
 }
 
 func (r *stubStaffRepository) ListStaffByRoles(context.Context, []string) ([]*userModel.StaffWithRoleInfo, error) {

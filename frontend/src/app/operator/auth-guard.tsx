@@ -27,6 +27,8 @@ const OPERATOR_PUBLIC_PAGES = [
   "/login",
   "/operator/email-confirm",
   "/email-confirm",
+  "/operator/invite",
+  "/invite",
 ];
 
 export function OperatorAuthGuard({
@@ -36,7 +38,9 @@ export function OperatorAuthGuard({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const isPublicPage = OPERATOR_PUBLIC_PAGES.includes(pathname);
+  const isPublicPage = OPERATOR_PUBLIC_PAGES.some(
+    (p) => pathname === p || pathname.startsWith(`${p}/`),
+  );
   const { data: session, status } = useSession();
 
   // Redirect non-operator authenticated users away

@@ -3,6 +3,7 @@ package sse
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -19,7 +20,7 @@ func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 
 	// Create JWT auth instance for middleware
-	tokenAuth, _ := jwt.NewTokenAuth()
+	tokenAuth := jwt.MustNewTokenAuth()
 
 	// SSE endpoint requires authentication
 	r.Group(func(r chi.Router) {
@@ -49,6 +50,7 @@ func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
 	// Step 1: Setup SSE connection (headers, flusher validation)
 	conn, statusCode := rs.setupSSEConnection(w)
 	if conn == nil {
+		slog.WarnContext(ctx, "SSE streaming unsupported by client")
 		http.Error(w, "Streaming unsupported", statusCode)
 		return
 	}
@@ -78,8 +80,10 @@ func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		if setupErr, ok := err.(*sseSetupError); ok {
+			slog.WarnContext(ctx, "SSE setup failed", slog.String("error", setupErr.msg))
 			http.Error(w, setupErr.msg, setupErr.status)
 		} else {
+			slog.ErrorContext(ctx, "SSE failed to determine supervised groups", slog.String("error", err.Error()))
 			http.Error(w, "Failed to determine supervised groups", http.StatusInternalServerError)
 		}
 		return
@@ -88,7 +92,8 @@ func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
 	conn.topics = topics
 
 	// Step 5: Send initial "connected" event
-	if conn.sendConnectedEvent(topics) != nil {
+	if err := conn.sendConnectedEvent(topics); err != nil {
+		slog.ErrorContext(ctx, "SSE failed to send connected event", slog.String("error", err.Error()))
 		http.Error(w, "Failed to initialize SSE stream", http.StatusInternalServerError)
 		return
 	}

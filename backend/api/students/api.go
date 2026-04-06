@@ -32,12 +32,11 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// renderError writes an error response to the HTTP response writer
-// Logs rendering errors but doesn't propagate them (already in error state)
+// renderError writes an error response to the HTTP response writer.
+// Delegates to common.RenderError which logs 5xx root causes to slog
+// and captures them to Sentry.
 func renderError(w http.ResponseWriter, r *http.Request, errorResponse render.Renderer) {
-	if err := render.Render(w, r, errorResponse); err != nil {
-		slog.Default().Error("error rendering error response", slog.String("error", err.Error()))
-	}
+	common.RenderError(w, r, errorResponse)
 }
 
 // Resource defines the students API resource
@@ -106,7 +105,7 @@ func (rs *Resource) Router() chi.Router {
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
 	// Create JWT auth instance for middleware
-	tokenAuth, _ := jwt.NewTokenAuth()
+	tokenAuth := jwt.MustNewTokenAuth()
 
 	// Protected routes that require authentication and permissions
 	r.Group(func(r chi.Router) {

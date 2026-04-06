@@ -30,4 +30,7 @@ type Service interface {
 
 	// Batch operations
 	CreateEntries(ctx context.Context, entries []*feedback.Entry) ([]error, error)
+
+	// Cleanup operations
+	DeleteEntriesOlderThan(ctx context.Context, days int) (int, error)
 }

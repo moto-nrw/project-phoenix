@@ -29,6 +29,12 @@ const (
 	AttendanceLogScopeAllStaff             = "all_staff"
 )
 
+// Feedback settings.
+const (
+	KeyFeedbackEnabled           = "feedback.enabled"
+	KeyFeedbackDataRetentionDays = "feedback.data_retention_days"
+)
+
 // Operations settings.
 const (
 	KeySessionEndEnabled             = "operations.session_end_enabled"

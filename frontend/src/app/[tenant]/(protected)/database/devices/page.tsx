@@ -384,12 +384,15 @@ export default function DevicesPage() {
                 <div className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-white/20 transition-all duration-150 md:group-hover:ring-yellow-300/60"></div>
 
                 <div className="relative flex items-center gap-4 p-5">
-                  <div className="flex-shrink-0">
+                  <div className="relative flex-shrink-0">
                     <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-yellow-500 to-yellow-600 font-semibold text-white shadow-md transition-transform duration-150 md:group-hover:scale-110">
                       {(device.name ?? device.device_id)
                         ?.charAt(0)
                         ?.toUpperCase() ?? "D"}
                     </div>
+                    <span
+                      className={`absolute right-0 bottom-0 h-3 w-3 rounded-full border-2 border-white ${device.is_online ? "bg-green-500" : "bg-gray-400"}`}
+                    />
                   </div>
                   <div className="min-w-0 flex-1">
                     <h3 className="text-lg font-semibold text-gray-900 transition-colors duration-150 md:group-hover:text-yellow-600">
@@ -399,6 +402,30 @@ export default function DevicesPage() {
                       <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">
                         {getDeviceTypeDisplayName(device.device_type)}
                       </span>
+                      {device.room_name && (
+                        <span className="inline-flex items-center gap-1 text-xs text-gray-500">
+                          <svg
+                            className="h-3 w-3"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                            />
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                            />
+                          </svg>
+                          {device.room_name}
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="flex-shrink-0">

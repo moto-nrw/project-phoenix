@@ -263,9 +263,14 @@ func (m *mockVisitRepository) CountActiveByStudentID(ctx context.Context, studen
 type mockGroupSupervisorRepository struct {
 	findByActiveGroupIDFunc func(ctx context.Context, activeGroupID int64, activeOnly bool) ([]*active.GroupSupervisor, error)
 	endSupervisionFunc      func(ctx context.Context, id int64) error
+	createFunc              func(ctx context.Context, entity *active.GroupSupervisor) error
+	createBulkFunc          func(ctx context.Context, supervisors []*active.GroupSupervisor) error
 }
 
 func (m *mockGroupSupervisorRepository) Create(ctx context.Context, entity *active.GroupSupervisor) error {
+	if m.createFunc != nil {
+		return m.createFunc(ctx, entity)
+	}
 	return nil
 }
 
@@ -313,6 +318,13 @@ func (m *mockGroupSupervisorRepository) GetStaffIDsWithSupervisionToday(ctx cont
 
 func (m *mockGroupSupervisorRepository) EndAllActiveByStaffID(ctx context.Context, staffID int64) (int, error) {
 	return 0, nil
+}
+
+func (m *mockGroupSupervisorRepository) CreateBulk(ctx context.Context, supervisors []*active.GroupSupervisor) error {
+	if m.createBulkFunc != nil {
+		return m.createBulkFunc(ctx, supervisors)
+	}
+	return nil
 }
 
 func (m *mockGroupSupervisorRepository) EndSupervisionsByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) (int64, error) {
@@ -375,6 +387,29 @@ func TestEndActivitySession_FindByActiveGroupIDError(t *testing.T) {
 	// Verify all expectations were met
 	err = mock.ExpectationsWereMet()
 	assert.NoError(t, err)
+}
+
+func TestAssignMultipleSupervisorsNonCritical_PreservesBestEffortAssignments(t *testing.T) {
+	ctx := context.Background()
+
+	var createdStaffIDs []int64
+	supervisorRepo := &mockGroupSupervisorRepository{
+		createFunc: func(_ context.Context, entity *active.GroupSupervisor) error {
+			if entity.StaffID == int64(22) {
+				return errors.New("insert failed")
+			}
+			createdStaffIDs = append(createdStaffIDs, entity.StaffID)
+			return nil
+		},
+	}
+
+	svc := &service{
+		supervisorRepo: supervisorRepo,
+	}
+
+	svc.assignMultipleSupervisorsNonCritical(ctx, 77, []int64{11, 22, 33, 11}, time.Now())
+
+	assert.ElementsMatch(t, []int64{11, 33}, createdStaffIDs)
 }
 
 // TestEndActivitySession_EndSupervisionError tests the error path when ending supervision fails.

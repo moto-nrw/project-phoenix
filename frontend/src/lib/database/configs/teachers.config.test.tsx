@@ -218,4 +218,98 @@ describe("teachersConfig", () => {
       expect(typed.email).toBe("exists@example.com");
     });
   });
+
+  it("maps nested person fields including avatar and account id", () => {
+    const mapped = teachersConfig.service?.mapResponse?.({
+      id: 42,
+      account_role: "admin",
+      specialization: "Mathematik",
+      person: {
+        account_id: 55,
+        email: "nested@example.com",
+        first_name: "Nora",
+        last_name: "Nested",
+        avatar: "/uploads/avatars/global/nora.jpg",
+      },
+    }) as Teacher;
+
+    expect(mapped).toMatchObject({
+      id: "42",
+      name: "Nora Nested",
+      first_name: "Nora",
+      last_name: "Nested",
+      email: "nested@example.com",
+      avatar: "/uploads/avatars/global/nora.jpg",
+      account_role: "admin",
+      account_id: 55,
+    });
+  });
+
+  it("prefers direct teacher fields over nested person fields", () => {
+    const mapped = teachersConfig.service?.mapResponse?.({
+      id: 99,
+      name: "Direkt Vorrang",
+      first_name: "Direkt",
+      last_name: "Lehrkraft",
+      email: "direct@example.com",
+      avatar: "/avatars/direct.png",
+      tag_id: "RFID-9",
+      account_id: 123,
+      person: {
+        first_name: "Nested",
+        last_name: "Ignored",
+        email: "nested@example.com",
+        avatar: "/avatars/nested.png",
+        tag_id: "RFID-nested",
+        account_id: 456,
+      },
+    }) as Teacher;
+
+    expect(mapped).toMatchObject({
+      id: "99",
+      name: "Direkt Vorrang",
+      first_name: "Direkt",
+      last_name: "Lehrkraft",
+      email: "direct@example.com",
+      avatar: "/avatars/direct.png",
+      tag_id: "RFID-9",
+      account_id: 123,
+    });
+  });
+
+  it("forwards update calls to the teacher service", async () => {
+    const { teacherService } = await import("@/lib/teacher-api");
+    const updateFn = teacherService.updateTeacher;
+    const mockedUpdate = vi.mocked(updateFn);
+
+    mockedUpdate.mockResolvedValueOnce({
+      id: "7",
+      first_name: "Updated",
+      last_name: "Teacher",
+    } as Teacher);
+
+    const result = await teachersConfig.service!.update!("7", {
+      first_name: "Updated",
+      last_name: "Teacher",
+    });
+
+    expect(mockedUpdate).toHaveBeenCalledWith("7", {
+      first_name: "Updated",
+      last_name: "Teacher",
+    });
+    expect(result).toMatchObject({
+      id: "7",
+      first_name: "Updated",
+    });
+  });
+
+  it("returns undefined when creation succeeds without temporary credentials", () => {
+    const result = teachersConfig.onCreateSuccess?.({
+      id: "5",
+      first_name: "Ohne",
+      last_name: "Zugangsdaten",
+    } as Teacher);
+
+    expect(result).toBeUndefined();
+  });
 });

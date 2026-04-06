@@ -7,8 +7,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/iot/attendance"
 	checkinAPI "github.com/moto-nrw/project-phoenix/api/iot/checkin"
+	iotCommon "github.com/moto-nrw/project-phoenix/api/iot/common"
 	dataAPI "github.com/moto-nrw/project-phoenix/api/iot/data"
 	"github.com/moto-nrw/project-phoenix/api/iot/devices"
 	feedbackAPI "github.com/moto-nrw/project-phoenix/api/iot/feedback"
@@ -125,7 +127,7 @@ func (rs *Resource) Router() chi.Router {
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
 	// Create JWT auth instance for middleware
-	tokenAuth, _ := jwt.NewTokenAuth()
+	tokenAuth := jwt.MustNewTokenAuth()
 
 	// Public routes (if any device endpoints should be public)
 	r.Group(func(r chi.Router) {
@@ -157,6 +159,9 @@ func (rs *Resource) Router() chi.Router {
 		// Mount data sub-router for teachers endpoint (device-only auth)
 		dataResource := dataAPI.NewResource(rs.IoTService, rs.UsersService, rs.ActivitiesService, rs.FacilityService)
 		r.Mount("/teachers", dataResource.TeachersRouter())
+
+		// School name endpoint (device API key → school name)
+		r.Get("/school-name", rs.getSchoolName)
 	})
 
 	// Device-authenticated routes for RFID devices.
@@ -187,7 +192,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Get("/status", checkinHandler)
 
 		// Feedback endpoint (device-based feedback submission)
-		feedbackResource := feedbackAPI.NewResource(rs.IoTService, rs.UsersService, rs.FeedbackService)
+		feedbackResource := feedbackAPI.NewResource(rs.IoTService, rs.UsersService, rs.FeedbackService, rs.SettingsService)
 		r.Post("/feedback", delegateHandler(feedbackResource.Router()))
 
 		// Data query endpoints (device + PIN auth)
@@ -199,7 +204,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Get("/rfid/{tagId}", dataHandler)
 
 		// Mount attendance sub-router (handles daily attendance tracking)
-		attendanceResource := attendance.NewResource(rs.UsersService, rs.ActiveService, rs.EducationService)
+		attendanceResource := attendance.NewResource(rs.UsersService, rs.ActiveService, rs.EducationService, rs.SettingsService)
 		r.Mount("/attendance", attendanceResource.Router())
 
 		// Mount sessions sub-router (handles activity session management and timeout)
@@ -220,4 +225,29 @@ func (rs *Resource) Router() chi.Router {
 	})
 
 	return r
+}
+
+// schoolNameResponse is the payload for GET /school-name.
+type schoolNameResponse struct {
+	Name string `json:"name"`
+}
+
+// getSchoolName returns the school name for the authenticated device.
+func (rs *Resource) getSchoolName(w http.ResponseWriter, r *http.Request) {
+	deviceCtx := device.DeviceFromCtx(r.Context())
+	if deviceCtx == nil {
+		slog.WarnContext(r.Context(), "device auth missing API key", slog.String("path", r.URL.Path))
+		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
+			slog.Error("failed to render device auth error", slog.String("error", err.Error()))
+		}
+		return
+	}
+
+	school, err := rs.SchoolRepo.FindByID(r.Context(), deviceCtx.TenantID)
+	if err != nil {
+		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, schoolNameResponse{Name: school.Name}, "School name retrieved")
 }

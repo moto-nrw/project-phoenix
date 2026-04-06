@@ -1,6 +1,7 @@
 package staff_test
 
 import (
+	"database/sql"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -16,6 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -42,6 +44,54 @@ func setupTestContext(t *testing.T) *testContext {
 		services: svc,
 		resource: resource,
 	}
+}
+
+func assignSystemRoleToAccount(
+	t *testing.T,
+	db *bun.DB,
+	accountID int64,
+	tenantID int64,
+	roleName string,
+) {
+	t.Helper()
+
+	var role authModels.Role
+	err := db.NewSelect().
+		Model(&role).
+		ModelTableExpr(`auth.roles AS "role"`).
+		Where(`LOWER("role".name) = LOWER(?)`, roleName).
+		Where(`"role".is_system = TRUE`).
+		Where(`"role".tenant_id IS NULL`).
+		OrderExpr(`"role".id ASC`).
+		Limit(1).
+		Scan(testpkg.TenantContext(tenantID))
+	if err == sql.ErrNoRows {
+		role = authModels.Role{
+			Name:        roleName,
+			Description: "test system role: " + roleName,
+			IsSystem:    true,
+		}
+		err = db.NewInsert().
+			Model(&role).
+			ModelTableExpr(`auth.roles`).
+			Scan(testpkg.TenantContext(tenantID))
+		require.NoError(t, err)
+		t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "auth.roles", role.ID) })
+	} else {
+		require.NoError(t, err)
+	}
+
+	accountRole := &authModels.AccountRole{
+		AccountID: accountID,
+		RoleID:    role.ID,
+	}
+	accountRole.SetTenantID(tenantID)
+
+	err = db.NewInsert().
+		Model(accountRole).
+		ModelTableExpr(`auth.account_roles`).
+		Scan(testpkg.TenantContext(tenantID))
+	require.NoError(t, err)
 }
 
 // =============================================================================
@@ -84,6 +134,42 @@ func TestListStaff_WithTeachersOnlyFilter(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+}
+
+func TestListStaff_WithTeachersOnlyFilter_IncludesLegacyTeacherAccounts(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Legacy", "TeacherOnly")
+	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
+	defer testpkg.CleanupTeacherFixtures(t, ctx.db, teacher.ID)
+
+	router := chi.NewRouter()
+	router.Get("/staff", ctx.resource.ListStaffHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff?teachers_only=true", nil,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithPermissions("users:read"),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data, ok := response["data"].([]interface{})
+	require.True(t, ok, "response should contain a data array")
+
+	found := false
+	for _, item := range data {
+		teacherResp, ok := item.(map[string]interface{})
+		require.True(t, ok, "teacher response should be an object")
+		if teacherResp["id"] == float64(teacher.Staff.ID) {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "expected teachers_only response to include legacy teacher staff ID %d", teacher.Staff.ID)
 }
 
 func TestListStaff_WithNameFilter(t *testing.T) {
@@ -670,6 +756,84 @@ func TestGetStaffByRole_Success(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+}
+
+func TestGetStaffByRole_Teacher_IncludesLegacyTeacherRoleAccounts(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Legacy", "RoleTeacher")
+	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
+	defer testpkg.CleanupTeacherFixtures(t, ctx.db, teacher.ID)
+	testpkg.EnsureAccountTenant(t, ctx.db, account.ID, 1)
+	assignSystemRoleToAccount(t, ctx.db, account.ID, 1, "teacher")
+
+	router := chi.NewRouter()
+	router.Get("/staff/by-role", ctx.resource.GetStaffByRoleHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/by-role?role=teacher", nil,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithPermissions("users:read"),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data, ok := response["data"].([]interface{})
+	require.True(t, ok, "response should contain a data array")
+
+	found := false
+	for _, item := range data {
+		staffResp, ok := item.(map[string]interface{})
+		require.True(t, ok, "staff response should be an object")
+		if staffResp["id"] == float64(teacher.Staff.ID) {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "expected role=teacher response to include legacy teacher staff ID %d", teacher.Staff.ID)
+}
+
+func TestGetStaffByRole_User_IncludesLegacyTeacherRoleAccounts(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Legacy", "Caregiver")
+	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
+	defer testpkg.CleanupTeacherFixtures(t, ctx.db, teacher.ID)
+	testpkg.EnsureAccountTenant(t, ctx.db, account.ID, 1)
+	assignSystemRoleToAccount(t, ctx.db, account.ID, 1, "teacher")
+
+	router := chi.NewRouter()
+	router.Get("/staff/by-role", ctx.resource.GetStaffByRoleHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/by-role?role=user", nil,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithPermissions("users:read"),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data, ok := response["data"].([]interface{})
+	require.True(t, ok, "response should contain a data array")
+
+	found := false
+	for _, item := range data {
+		staffResp, ok := item.(map[string]interface{})
+		require.True(t, ok, "staff response should be an object")
+		if staffResp["id"] == float64(teacher.Staff.ID) {
+			found = true
+			assert.Equal(t, float64(teacher.ID), staffResp["teacher_id"])
+			assert.Equal(t, true, staffResp["is_active_caregiver"])
+			break
+		}
+	}
+	assert.True(t, found, "expected role=user caregiver response to include legacy teacher staff ID %d", teacher.Staff.ID)
 }
 
 func TestGetStaffByRole_MissingRoleParam(t *testing.T) {

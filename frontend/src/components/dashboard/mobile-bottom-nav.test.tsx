@@ -17,9 +17,18 @@ vi.mock("~/lib/supervision-context", () => ({
   useOptionalSupervision: vi.fn(),
 }));
 
-vi.mock("~/lib/auth-utils", () => ({
-  isAdmin: vi.fn(),
-}));
+vi.mock("~/lib/auth-utils", () => {
+  const isAdminFn = vi.fn();
+  return {
+    isAdmin: isAdminFn,
+    isCaregiver: vi.fn(() => !isAdminFn()),
+    hasRole: vi.fn((_session: unknown, role: string) => {
+      if (role === "admin") return isAdminFn();
+      if (role === "user") return !isAdminFn();
+      return false;
+    }),
+  };
+});
 
 // Mock Drawer components
 vi.mock("~/components/ui/drawer", () => ({
@@ -588,6 +597,8 @@ describe("MobileBottomNav", () => {
       const hrefs = links.map((link) => link.getAttribute("href"));
       expect(hrefs).toContain("/operator/suggestions");
       expect(hrefs).toContain("/operator/announcements");
+      expect(hrefs).toContain("/operator/provisioning");
+      expect(hrefs).toContain("/operator/operators");
     });
 
     it("does not show overflow menu in operator mode", () => {

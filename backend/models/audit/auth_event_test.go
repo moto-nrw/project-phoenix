@@ -73,6 +73,26 @@ func TestAuthEvent_Validate(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "valid caregiver capability enabled",
+			ae: &AuthEvent{
+				AccountID: 1,
+				EventType: EventTypeCaregiverCapabilityEnabled,
+				Success:   true,
+				IPAddress: "0.0.0.0",
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid caregiver capability disabled",
+			ae: &AuthEvent{
+				AccountID: 1,
+				EventType: EventTypeCaregiverCapabilityDisabled,
+				Success:   true,
+				IPAddress: "0.0.0.0",
+			},
+			wantErr: false,
+		},
+		{
 			name: "valid failed login with error message",
 			ae: &AuthEvent{
 				AccountID:    1,
@@ -273,6 +293,8 @@ func TestEventTypeConstants(t *testing.T) {
 		{EventTypeTokenExpired, "token_expired"},
 		{EventTypePasswordReset, "password_reset"},
 		{EventTypeAccountLocked, "account_locked"},
+		{EventTypeCaregiverCapabilityEnabled, "caregiver_capability_enabled"},
+		{EventTypeCaregiverCapabilityDisabled, "caregiver_capability_disabled"},
 	}
 
 	for _, tt := range tests {

@@ -1,7 +1,8 @@
 package cmd
 
 import (
-	"log"
+	"log/slog"
+	"os"
 	"time"
 
 	"github.com/getsentry/sentry-go"
@@ -40,7 +41,8 @@ var serveCmd = &cobra.Command{
 				},
 			})
 			if err != nil {
-				log.Fatalf("sentry init failed: %s", err)
+				slog.Error("sentry init failed", slog.String("error", err.Error()))
+				os.Exit(1)
 			}
 			defer sentry.Flush(2 * time.Second)
 			logger.Info("sentry error tracking initialized")
@@ -48,7 +50,8 @@ var serveCmd = &cobra.Command{
 
 		server, err := api.NewServer(logger)
 		if err != nil {
-			log.Fatal(err)
+			slog.Error("failed to create server", slog.String("error", err.Error()))
+			os.Exit(1)
 		}
 		server.Start()
 	},

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -40,6 +41,17 @@ func NewTokenAuth() (*TokenAuth, error) {
 	}
 
 	return NewTokenAuthWithSecret(secret)
+}
+
+// MustNewTokenAuth is like NewTokenAuth but fatals on error.
+// Use this in Router() functions where JWT auth is required at startup.
+func MustNewTokenAuth() *TokenAuth {
+	ta, err := NewTokenAuth()
+	if err != nil {
+		slog.Error("failed to initialize JWT auth", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+	return ta
 }
 
 // resolveRandomSecret generates or loads a persistent development secret.

@@ -5,7 +5,6 @@ import { LocationBadge } from "@/components/ui/location-badge";
 import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
 import type { SupervisorContact } from "~/lib/student-helpers";
 import { InfoCard, InfoItem } from "~/components/ui/info-card";
-import { useTenantRouter } from "~/lib/tenant-router";
 
 // =============================================================================
 // ICONS - Reusable SVG icons
@@ -576,21 +575,20 @@ function HistoryButton({
 }
 
 interface StudentHistorySectionProps {
-  readonly studentId: string;
+  studentId: string;
+  onNavigate: (path: string) => void;
 }
 
 /**
- * History section on the student detail page. The Raumverlauf button navigates
- * to the attendance + room-movement log; the destination page handles the
- * feature flag, scope check, and configured day caps, rendering a German
- * "deaktiviert" message if the tenant has not opted in. Feedback and mensa
- * history are future features and remain disabled placeholders.
+ * History section on the student detail page. Raumverlauf and Feedbackhistorie
+ * are active and navigate to their respective pages. The destination pages
+ * handle their own feature flags and scope checks. Mensa history remains a
+ * disabled placeholder (future feature).
  */
 export function StudentHistorySection({
   studentId,
-}: StudentHistorySectionProps) {
-  const router = useTenantRouter();
-
+  onNavigate,
+}: Readonly<StudentHistorySectionProps>) {
   return (
     <InfoCard title="Historien" icon={<ClockIcon />}>
       <div className="grid grid-cols-1 gap-2">
@@ -599,14 +597,14 @@ export function StudentHistorySection({
           title="Raumverlauf"
           description="Anwesenheit und besuchte Räume"
           bgColor="bg-[#5080D8]"
-          onClick={() => router.push(`/students/${studentId}/room_history`)}
+          onClick={() => onNavigate(`/students/${studentId}/room_history`)}
         />
         <HistoryButton
           icon={<ChatIcon />}
           title="Feedbackhistorie"
           description="Feedback und Bewertungen"
           bgColor="bg-[#83CD2D]"
-          disabled
+          onClick={() => onNavigate(`/students/${studentId}/feedback_history`)}
         />
         <HistoryButton
           icon={<ForkKnifeIcon />}

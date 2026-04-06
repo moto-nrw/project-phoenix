@@ -9,7 +9,7 @@ import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
 import { useSession } from "next-auth/react";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { useShellAuth } from "~/lib/shell-auth-context";
-import { isAdmin } from "~/lib/auth-utils";
+import { hasRole, isCaregiver } from "~/lib/auth-utils";
 import { operatorPath } from "~/lib/operator-url";
 import { useSidebarAccordion } from "~/lib/hooks/use-sidebar-accordion";
 import { useSuggestionsUnread } from "~/lib/hooks/use-suggestions-unread";
@@ -162,6 +162,13 @@ const OPERATOR_NAV_ITEMS: NavItem[] = [
     alwaysShow: true,
   },
   {
+    href: "/operator/operators",
+    label: "Operatoren",
+    icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z",
+    activeColor: "text-violet-500",
+    alwaysShow: true,
+  },
+  {
     href: "/operator/settings",
     label: "Einstellungen",
     icon: "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z",
@@ -248,11 +255,12 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const fromParam = searchParams.get("from");
   const { expanded, toggle } = useSidebarAccordion(pathname, fromParam);
 
-  const userIsAdmin = isAdmin(session);
+  const userIsAdmin = hasRole(session, "admin");
+  const userIsCaregiver = isCaregiver(session);
 
   // Filter flat navigation items based on permissions
   const filteredNavItems = NAV_ITEMS.filter((item) => {
-    if (item.hideForAdmin && userIsAdmin) return false;
+    if (item.hideForAdmin && userIsAdmin && !userIsCaregiver) return false;
     if (item.alwaysShow) return true;
     if (item.requiresAdmin && !userIsAdmin) return false;
     return true;
@@ -506,8 +514,8 @@ function SidebarContent({ className = "" }: SidebarProps) {
     }
   }, [toggle, pathname, router]);
 
-  // Show staff-only accordions (groups + supervisions) only for non-admin
-  const showStaffAccordions = !userIsAdmin;
+  // Caregiver accordions are driven by the explicit caregiver role.
+  const showStaffAccordions = userIsCaregiver;
 
   // Resolve operator nav hrefs once (operatorPath is deterministic for the page lifetime)
   const resolvedOperatorItems = useMemo(

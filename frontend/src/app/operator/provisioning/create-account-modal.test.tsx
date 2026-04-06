@@ -55,8 +55,9 @@ import { CreateAccountModal } from "./create-account-modal";
 
 const defaultRoles = [
   { id: "1", name: "admin" },
-  { id: "2", name: "teacher" },
-  { id: "3", name: "guardian" },
+  { id: "2", name: "user" },
+  { id: "3", name: "teacher" },
+  { id: "4", name: "guardian" },
 ];
 
 function renderModal(
@@ -145,17 +146,18 @@ describe("CreateAccountModal", () => {
 
     await waitFor(() => {
       expect(screen.getByText("admin")).toBeInTheDocument();
-      expect(screen.getByText("teacher")).toBeInTheDocument();
+      expect(screen.getByText("user")).toBeInTheDocument();
     });
   });
 
-  it("filters out guardian role from options", async () => {
+  it("filters out unsupported legacy roles from options", async () => {
     renderModal();
 
     await waitFor(() => {
       expect(screen.getByText("admin")).toBeInTheDocument();
     });
 
+    expect(screen.queryByText("teacher")).not.toBeInTheDocument();
     expect(screen.queryByText("guardian")).not.toBeInTheDocument();
   });
 
@@ -185,6 +187,24 @@ describe("CreateAccountModal", () => {
       document.getElementById("create-account-confirm-password"),
     ).toBeInTheDocument();
     expect(screen.getByLabelText(/Position/)).toBeInTheDocument();
+  });
+
+  it("renders caregiver helper copy with umlauts", async () => {
+    renderModal();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/System-Rolle/)).not.toBeDisabled();
+    });
+    fireEvent.change(screen.getByLabelText(/System-Rolle/), {
+      target: { value: "1" },
+    });
+
+    expect(screen.getByText("Auch als Betreuer einsetzen")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Vergibt zusätzlich die Betreuer-Rolle und legt das nötige Staff-/Teacher-Profil an.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("submit button is disabled when form is incomplete", () => {

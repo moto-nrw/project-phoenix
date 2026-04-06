@@ -10,6 +10,7 @@ import { getRoleDisplayName } from "~/lib/auth-helpers";
 import { acceptInvitation } from "~/lib/invitation-api";
 import type { InvitationValidation } from "~/lib/invitation-helpers";
 import type { ApiError } from "~/lib/auth-api";
+import { PASSWORD_RULES } from "~/lib/password-rules";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "InvitationAccept" });
@@ -18,17 +19,6 @@ interface InvitationAcceptFormProps {
   readonly token: string;
   readonly invitation: InvitationValidation;
 }
-
-const PASSWORD_REQUIREMENTS: Array<{
-  label: string;
-  test: (value: string) => boolean;
-}> = [
-  { label: "Mindestens 8 Zeichen", test: (value) => value.length >= 8 },
-  { label: "Ein Großbuchstabe", test: (value) => /[A-Z]/.test(value) },
-  { label: "Ein Kleinbuchstabe", test: (value) => /[a-z]/.test(value) },
-  { label: "Eine Zahl", test: (value) => /\d/.test(value) },
-  { label: "Ein Sonderzeichen", test: (value) => /[^A-Za-z0-9]/.test(value) },
-];
 
 // Helper to map API error status to user-friendly message
 const getInvitationErrorMessage = (
@@ -83,7 +73,7 @@ export function InvitationAcceptForm({
 
   const requirementStatus = useMemo(
     () =>
-      PASSWORD_REQUIREMENTS.map(({ label, test }) => ({
+      PASSWORD_RULES.map(({ label, test }) => ({
         label,
         met: test(password),
       })),

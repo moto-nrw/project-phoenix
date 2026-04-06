@@ -10,38 +10,11 @@ import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
 
 import { Loading } from "~/components/ui/loading";
 import { createLogger } from "~/lib/logger";
+import { fetchStudent } from "~/lib/student-api";
+import type { Student } from "~/lib/student-helpers";
+import { fetchStudentFeedback, type FeedbackEntry } from "~/lib/feedback-api";
 
 const logger = createLogger({ component: "StudentFeedbackHistoryPage" });
-// Student type (reused from student page)
-interface Student {
-  id: string;
-  first_name: string;
-  second_name: string;
-  name?: string;
-  school_class: string;
-  group_id: string;
-  group_name?: string;
-  bus: boolean;
-  current_room?: string;
-  current_location?: string;
-  guardian_name: string;
-  guardian_contact: string;
-  guardian_phone?: string;
-  birthday?: string;
-  notes?: string;
-  buskind?: boolean;
-  attendance_rate?: number;
-}
-
-// Feedback History interface
-interface FeedbackEntry {
-  id: string;
-  timestamp: string;
-  feedback_type: "positive" | "neutral" | "negative";
-  is_mensa_feedback: boolean;
-  comment?: string;
-  is_valid?: boolean; // Neue Eigenschaft für die Validität
-}
 
 // Feedback type display labels
 const feedbackTypeLabels: Record<FeedbackEntry["feedback_type"], string> = {
@@ -68,102 +41,36 @@ export default function StudentFeedbackHistoryPage() {
 
   // Fetch student data and feedback history
   useEffect(() => {
+    let cancelled = false;
     setLoading(true);
     setError(null);
 
-    // Simulate API request with timeout
-    const timer = setTimeout(() => {
+    async function loadData() {
       try {
-        // Mock student data (same as in student detail page)
-        const mockStudent: Student = {
-          id: studentId,
-          first_name: "Emma",
-          second_name: "Müller",
-          name: "Emma Müller",
-          school_class: "3b",
-          group_id: "g3",
-          group_name: "Eulen",
-          bus: false,
-          current_room: "Raum 1.2",
-          current_location: "Anwesend - Raum 1.2",
-          guardian_name: "Maria Müller",
-          guardian_contact: "muellers@example.com",
-          guardian_phone: "+49 176 12345678",
-          birthday: "2016-06-15",
-          notes: "Nimmt an der Musik-AG teil. Liebt Kunst und Lesen.",
-          buskind: true,
-          attendance_rate: 92.5,
-        };
+        const [studentData, feedbackData] = await Promise.all([
+          fetchStudent(studentId),
+          fetchStudentFeedback(studentId),
+        ]);
 
-        // Mock feedback history data - Jetzt mit aufeinanderfolgenden Daten und den ersten beiden als ungültig markiert
-        const mockFeedbackHistory: FeedbackEntry[] = [
-          {
-            id: "1",
-            timestamp: "2025-05-14T15:30:23",
-            feedback_type: "positive",
-            is_mensa_feedback: false,
-            comment: "",
-            is_valid: false, // Als ungültig markiert
-          },
-          {
-            id: "2",
-            timestamp: "2025-05-13T15:45:12",
-            feedback_type: "negative",
-            is_mensa_feedback: false,
-            comment: "",
-            is_valid: false, // Als ungültig markiert
-          },
-          {
-            id: "3",
-            timestamp: "2025-05-12T15:25:18",
-            feedback_type: "positive",
-            is_mensa_feedback: false,
-            comment: "",
-          },
-          {
-            id: "4",
-            timestamp: "2025-05-11T15:10:09",
-            feedback_type: "neutral",
-            is_mensa_feedback: false,
-            comment: "",
-          },
-          {
-            id: "5",
-            timestamp: "2025-05-10T12:30:22",
-            feedback_type: "negative",
-            is_mensa_feedback: false,
-            comment: "",
-          },
-          {
-            id: "6",
-            timestamp: "2025-05-09T15:50:37",
-            feedback_type: "positive",
-            is_mensa_feedback: false,
-            comment: "",
-          },
-          {
-            id: "7",
-            timestamp: "2025-05-08T16:15:54",
-            feedback_type: "neutral",
-            is_mensa_feedback: false,
-            comment: "",
-          },
-        ];
-
-        setStudent(mockStudent);
-        setFeedbackHistory(mockFeedbackHistory);
-        setLoading(false);
+        if (cancelled) return;
+        setStudent(studentData);
+        setFeedbackHistory(feedbackData);
       } catch (err) {
-        logger.error("failed to fetch feedback history", {
+        if (cancelled) return;
+        logger.error("failed_to_fetch_feedback_history", {
           error: err instanceof Error ? err.message : String(err),
         });
         setError("Fehler beim Laden der Daten.");
-        setLoading(false);
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-    }, 800);
+    }
 
-    return () => clearTimeout(timer);
-  }, [studentId, timeRange]);
+    void loadData();
+    return () => {
+      cancelled = true;
+    };
+  }, [studentId]);
 
   // Time range filtering implementation
   const getFilteredFeedbackHistory = (): FeedbackEntry[] => {
@@ -265,15 +172,15 @@ export default function StudentFeedbackHistoryPage() {
   const year = student ? getYear(student.school_class) : 0;
   const yearColor = getYearColor(year);
 
-  // Count feedback by type (zähle nur gültige Feedbacks)
+  // Count feedback by type
   const positiveFeedbackCount = filteredFeedbackHistory.filter(
-    (entry) => entry.feedback_type === "positive" && entry.is_valid !== false,
+    (entry) => entry.feedback_type === "positive",
   ).length;
   const neutralFeedbackCount = filteredFeedbackHistory.filter(
-    (entry) => entry.feedback_type === "neutral" && entry.is_valid !== false,
+    (entry) => entry.feedback_type === "neutral",
   ).length;
   const negativeFeedbackCount = filteredFeedbackHistory.filter(
-    (entry) => entry.feedback_type === "negative" && entry.is_valid !== false,
+    (entry) => entry.feedback_type === "negative",
   ).length;
 
   // Calculate percentages
@@ -340,8 +247,8 @@ export default function StudentFeedbackHistoryPage() {
       <div className="relative mb-8 overflow-hidden rounded-xl bg-gradient-to-r from-teal-500 to-blue-600 p-6 text-white shadow-md">
         <div className="flex items-center">
           <div className="mr-6 flex h-24 w-24 items-center justify-center rounded-full bg-white/30 text-4xl font-bold">
-            {student.first_name[0]}
-            {student.second_name[0]}
+            {student.first_name?.[0] ?? ""}
+            {student.second_name?.[0] ?? ""}
           </div>
           <div>
             <h1 className="text-3xl font-bold">{student.name}</h1>
@@ -515,15 +422,10 @@ export default function StudentFeedbackHistoryPage() {
                                 {formatTime(feedback.timestamp)}
                               </span>
                             </span>
-                            {feedback.is_valid === false && (
-                              <span className="mt-1 text-sm text-red-500">
-                                Ungültiges Feedback
+                            {feedback.is_mensa_feedback && (
+                              <span className="mt-1 text-sm text-blue-500">
+                                Mensa-Feedback
                               </span>
-                            )}
-                            {feedback.comment && (
-                              <p className="mt-1 text-sm text-gray-600">
-                                {feedback.comment}
-                              </p>
                             )}
                           </div>
                         </div>

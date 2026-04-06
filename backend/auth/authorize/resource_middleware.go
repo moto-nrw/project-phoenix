@@ -1,6 +1,7 @@
 package authorize
 
 import (
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -82,6 +83,10 @@ func applyExtractors(r *http.Request, extractors []ResourceExtractor) (interface
 
 // handleAuthorizationError handles authorization error response
 func handleAuthorizationError(w http.ResponseWriter, r *http.Request, err error) {
+	slog.ErrorContext(r.Context(), "authorization error",
+		slog.String("error", err.Error()),
+		slog.String("path", r.URL.Path),
+	)
 	if render.Render(w, r, &ErrResponse{
 		HTTPStatusCode: http.StatusInternalServerError,
 		StatusText:     "Authorization error",
@@ -93,6 +98,9 @@ func handleAuthorizationError(w http.ResponseWriter, r *http.Request, err error)
 
 // handleForbiddenResponse handles forbidden response
 func handleForbiddenResponse(w http.ResponseWriter, r *http.Request) {
+	slog.WarnContext(r.Context(), "forbidden access attempt",
+		slog.String("path", r.URL.Path),
+	)
 	if render.Render(w, r, ErrForbidden) != nil {
 		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 	}

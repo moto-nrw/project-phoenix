@@ -25,4 +25,7 @@ type EntryRepository interface {
 	CountByDay(ctx context.Context, day time.Time) (int, error)
 	CountByStudentID(ctx context.Context, studentID int64) (int, error)
 	CountMensaFeedback(ctx context.Context, isMensaFeedback bool) (int, error)
+
+	// Cleanup methods
+	DeleteOlderThan(ctx context.Context, days int) (int, error)
 }

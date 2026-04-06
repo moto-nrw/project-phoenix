@@ -20,6 +20,7 @@ type AccountRepository interface {
 	FindByRole(ctx context.Context, role string) ([]*Account, error)
 	FindAccountsWithRolesAndPermissions(ctx context.Context, filters map[string]interface{}) ([]*Account, error)
 	FindEmailsByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64]string, error)
+	FindAvatarsByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64]string, error)
 }
 
 // RoleRepository defines operations for managing roles
@@ -189,14 +190,18 @@ type InvitationTokenRepository interface {
 
 // TenantAccountInfo holds flattened account data for a given tenant, used by operator dashboard.
 type TenantAccountInfo struct {
-	AccountID     int64  `bun:"account_id" json:"account_id"`
-	Email         string `bun:"email" json:"email"`
-	Active        bool   `bun:"active" json:"active"`
-	FirstName     string `bun:"first_name" json:"first_name"`
-	LastName      string `bun:"last_name" json:"last_name"`
-	RoleName      string `bun:"role_name" json:"role_name"`
-	PedagogicRole string `bun:"pedagogic_role" json:"pedagogic_role"`
-	Status        string `bun:"status" json:"status"`
+	AccountID           int64  `bun:"account_id" json:"account_id"`
+	Email               string `bun:"email" json:"email"`
+	Active              bool   `bun:"active" json:"active"`
+	FirstName           string `bun:"first_name" json:"first_name"`
+	LastName            string `bun:"last_name" json:"last_name"`
+	RoleName            string `bun:"role_name" json:"role_name"`
+	PedagogicRole       string `bun:"pedagogic_role" json:"pedagogic_role"`
+	Status              string `bun:"status" json:"status"`
+	HasAdminRole        bool   `bun:"has_admin_role" json:"has_admin_role"`
+	HasUserRole         bool   `bun:"has_user_role" json:"has_user_role"`
+	HasCaregiverProfile bool   `bun:"has_caregiver_profile" json:"has_caregiver_profile"`
+	IsActiveCaregiver   bool   `bun:"is_active_caregiver" json:"is_active_caregiver"`
 }
 
 // OrgAccountInfo extends TenantAccountInfo with school context for org-level listings.

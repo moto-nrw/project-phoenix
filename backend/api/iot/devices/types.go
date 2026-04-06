@@ -19,6 +19,7 @@ type DeviceResponse struct {
 	Status         string       `json:"status"`
 	LastSeen       *common.Time `json:"last_seen,omitempty"`
 	RegisteredByID *int64       `json:"registered_by_id,omitempty"`
+	RoomName       *string      `json:"room_name,omitempty"`
 	IsOnline       bool         `json:"is_online"`
 	CreatedAt      common.Time  `json:"created_at"`
 	UpdatedAt      common.Time  `json:"updated_at"`
@@ -100,6 +101,7 @@ func newDeviceResponse(device *iot.Device) DeviceResponse {
 		Name:           device.Name,
 		Status:         string(device.Status),
 		RegisteredByID: device.RegisteredByID,
+		RoomName:       device.RoomName,
 		IsOnline:       device.IsOnline(),
 		CreatedAt:      common.Time(device.CreatedAt),
 		UpdatedAt:      common.Time(device.UpdatedAt),

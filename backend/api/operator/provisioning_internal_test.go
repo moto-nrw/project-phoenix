@@ -11,17 +11,24 @@ import (
 	"testing"
 	"time"
 
+	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/render"
+	"github.com/moto-nrw/project-phoenix/api/common"
 	jwtPkg "github.com/moto-nrw/project-phoenix/auth/jwt"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
+	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
 type mockProvisioningService struct {
@@ -165,6 +172,43 @@ func (m *mockProvisioningService) SoftDeletePerson(ctx context.Context, personID
 		return m.softDeletePersonFn(ctx, personID, operatorID, clientIP)
 	}
 	return nil
+}
+
+type mockCaregiverCapabilityService struct {
+	getFn     func(context.Context, int64) (*userModels.CaregiverCapabilityState, error)
+	enableFn  func(context.Context, int64, userModels.EnableCaregiverCapabilityInput) (*userModels.CaregiverCapabilityState, error)
+	disableFn func(context.Context, int64) (*userModels.CaregiverCapabilityState, error)
+}
+
+func (m *mockCaregiverCapabilityService) GetCaregiverCapability(ctx context.Context, accountID int64) (*userModels.CaregiverCapabilityState, error) {
+	if m.getFn != nil {
+		return m.getFn(ctx, accountID)
+	}
+	return nil, nil
+}
+
+func newMockAdminDB(t *testing.T) (*bun.DB, sqlmock.Sqlmock) {
+	t.Helper()
+
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = sqlDB.Close() })
+
+	return bun.NewDB(sqlDB, pgdialect.New()), mock
+}
+
+func (m *mockCaregiverCapabilityService) EnableCaregiverCapability(ctx context.Context, accountID int64, input userModels.EnableCaregiverCapabilityInput) (*userModels.CaregiverCapabilityState, error) {
+	if m.enableFn != nil {
+		return m.enableFn(ctx, accountID, input)
+	}
+	return nil, nil
+}
+
+func (m *mockCaregiverCapabilityService) DisableCaregiverCapability(ctx context.Context, accountID int64) (*userModels.CaregiverCapabilityState, error) {
+	if m.disableFn != nil {
+		return m.disableFn(ctx, accountID)
+	}
+	return nil, nil
 }
 
 func withOperatorClaims(req *http.Request, operatorID int) *http.Request {
@@ -1800,4 +1844,310 @@ func TestProvisioningErrorRenderer_SchoolNotDeleted(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
 	assert.Contains(t, resp.ErrorText, "not deleted")
+}
+
+func TestUpdateCaregiverCapabilityRequest_Bind_TrimWhitespace(t *testing.T) {
+	req := &updateCaregiverCapabilityRequest{
+		FirstName: "  Ada ",
+		LastName:  " Lovelace  ",
+		Position:  "  Springer ",
+	}
+
+	require.NoError(t, req.Bind(nil))
+	assert.Equal(t, "Ada", req.FirstName)
+	assert.Equal(t, "Lovelace", req.LastName)
+	assert.Equal(t, "Springer", req.Position)
+}
+
+func TestCaregiverCapabilityProvisioningErrorRenderer(t *testing.T) {
+	t.Run("renders blocker details", func(t *testing.T) {
+		renderer := caregiverCapabilityProvisioningErrorRenderer(&usersSvc.CaregiverCapabilityBlockedError{
+			Reasons: []userModels.CaregiverCapabilityBlockerCode{
+				userModels.CaregiverCapabilityBlockerActiveGroupSupervisions,
+				userModels.CaregiverCapabilityBlockerGroupAssignments,
+			},
+		})
+
+		blocked, ok := renderer.(*common.CaregiverCapabilityBlockedResponse)
+		require.True(t, ok)
+		assert.Equal(t, http.StatusConflict, blocked.HTTPStatusCode)
+		assert.Equal(
+			t,
+			[]userModels.CaregiverCapabilityBlockerCode{
+				userModels.CaregiverCapabilityBlockerActiveGroupSupervisions,
+				userModels.CaregiverCapabilityBlockerGroupAssignments,
+			},
+			blocked.Blockers,
+		)
+	})
+
+	t.Run("maps missing account to not found", func(t *testing.T) {
+		renderer := caregiverCapabilityProvisioningErrorRenderer(&usersSvc.AccountNotAssignedToTenantError{
+			AccountID: 77,
+			TenantID:  4,
+		})
+
+		resp, ok := renderer.(*ErrResponse)
+		require.True(t, ok)
+		assert.Equal(t, http.StatusNotFound, resp.HTTPStatusCode)
+		assert.Equal(t, "Account not found", resp.ErrorText)
+	})
+
+	t.Run("maps invalid data to bad request", func(t *testing.T) {
+		renderer := caregiverCapabilityProvisioningErrorRenderer(&platformSvc.InvalidDataError{
+			Err: errors.New("invalid caregiver input"),
+		})
+
+		resp, ok := renderer.(*ErrResponse)
+		require.True(t, ok)
+		assert.Equal(t, http.StatusBadRequest, resp.HTTPStatusCode)
+		assert.Equal(t, "invalid caregiver input", resp.ErrorText)
+	})
+
+	t.Run("maps wrapped validation errors to bad request", func(t *testing.T) {
+		renderer := caregiverCapabilityProvisioningErrorRenderer(&usersSvc.UsersError{
+			Op:  "enable caregiver capability",
+			Err: &usersSvc.ValidationError{Err: errors.New("first_name is required")},
+		})
+
+		resp, ok := renderer.(*ErrResponse)
+		require.True(t, ok)
+		assert.Equal(t, http.StatusBadRequest, resp.HTTPStatusCode)
+		assert.Equal(t, "first_name is required", resp.ErrorText)
+	})
+
+	t.Run("preserves internal users errors as internal server errors", func(t *testing.T) {
+		renderer := caregiverCapabilityProvisioningErrorRenderer(&usersSvc.UsersError{
+			Op:  "enable caregiver capability",
+			Err: errors.New("audit write failed"),
+		})
+
+		resp, ok := renderer.(*ErrResponse)
+		require.True(t, ok)
+		assert.Equal(t, http.StatusInternalServerError, resp.HTTPStatusCode)
+		assert.Equal(t, "An error occurred", resp.ErrorText)
+	})
+}
+
+func TestCaregiverCapabilityBlockedResponse_Render(t *testing.T) {
+	resp := common.NewCaregiverCapabilityBlockedResponse(
+		http.StatusConflict,
+		"blocked",
+		nil,
+	)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+
+	require.NoError(t, resp.Render(httptest.NewRecorder(), req))
+	assert.Equal(t, http.StatusConflict, req.Context().Value(render.StatusCtxKey))
+}
+
+func TestProvisioningResource_CaregiverCapabilityServiceNotConfigured(t *testing.T) {
+	t.Run("GetSchoolAccountCaregiverCapability returns internal error", func(t *testing.T) {
+		resource := &ProvisioningResource{}
+		req := httptest.NewRequest(http.MethodGet, "/operator/schools/12/accounts/34/caregiver-capability", nil)
+		rr := httptest.NewRecorder()
+
+		resource.GetSchoolAccountCaregiverCapability(rr, req)
+		assert.Equal(t, http.StatusInternalServerError, rr.Code)
+	})
+
+	t.Run("EnableSchoolAccountCaregiverCapability returns internal error", func(t *testing.T) {
+		resource := &ProvisioningResource{}
+		req := httptest.NewRequest(http.MethodPut, "/operator/schools/12/accounts/34/caregiver-capability", bytes.NewBufferString(`{}`))
+		req.Header.Set("Content-Type", "application/json")
+		rr := httptest.NewRecorder()
+
+		resource.EnableSchoolAccountCaregiverCapability(rr, req)
+		assert.Equal(t, http.StatusInternalServerError, rr.Code)
+	})
+
+	t.Run("DisableSchoolAccountCaregiverCapability returns internal error", func(t *testing.T) {
+		resource := &ProvisioningResource{}
+		req := httptest.NewRequest(http.MethodDelete, "/operator/schools/12/accounts/34/caregiver-capability", nil)
+		rr := httptest.NewRecorder()
+
+		resource.DisableSchoolAccountCaregiverCapability(rr, req)
+		assert.Equal(t, http.StatusInternalServerError, rr.Code)
+	})
+}
+
+func TestProvisioningResource_DeleteDevice(t *testing.T) {
+	t.Run("deletes device successfully", func(t *testing.T) {
+		resource := NewProvisioningResource(&mockProvisioningService{
+			deleteDeviceFn: func(_ context.Context, id int64, operatorID int64, clientIP net.IP) error {
+				assert.Equal(t, int64(55), id)
+				assert.Equal(t, int64(42), operatorID)
+				assert.Equal(t, "203.0.113.50", clientIP.String())
+				return nil
+			},
+		})
+
+		req := httptest.NewRequest(http.MethodDelete, "/operator/devices/55", nil)
+		req.RemoteAddr = "203.0.113.50:4242"
+		req = withOperatorClaims(req, 42)
+		routeCtx := chi.NewRouteContext()
+		routeCtx.URLParams.Add("id", "55")
+		req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+		rr := httptest.NewRecorder()
+
+		resource.DeleteDevice(rr, req)
+		assert.Equal(t, http.StatusOK, rr.Code)
+	})
+
+	t.Run("rejects invalid device id", func(t *testing.T) {
+		resource := NewProvisioningResource(&mockProvisioningService{})
+		req := httptest.NewRequest(http.MethodDelete, "/operator/devices/nope", nil)
+		req = withOperatorClaims(req, 42)
+		routeCtx := chi.NewRouteContext()
+		routeCtx.URLParams.Add("id", "nope")
+		req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+		rr := httptest.NewRecorder()
+
+		resource.DeleteDevice(rr, req)
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+	})
+
+	t.Run("renders service errors", func(t *testing.T) {
+		resource := NewProvisioningResource(&mockProvisioningService{
+			deleteDeviceFn: func(context.Context, int64, int64, net.IP) error {
+				return &platformSvc.OperatorDeviceNotFoundError{DeviceID: 55}
+			},
+		})
+
+		req := httptest.NewRequest(http.MethodDelete, "/operator/devices/55", nil)
+		req = withOperatorClaims(req, 42)
+		routeCtx := chi.NewRouteContext()
+		routeCtx.URLParams.Add("id", "55")
+		req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+		rr := httptest.NewRecorder()
+
+		resource.DeleteDevice(rr, req)
+		assert.Equal(t, http.StatusNotFound, rr.Code)
+	})
+}
+
+func TestProvisioningResource_GetSchoolAccountCaregiverCapability(t *testing.T) {
+	db, mock := newMockAdminDB(t)
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectCommit()
+
+	resource := &ProvisioningResource{
+		CaregiverCapabilityService: &mockCaregiverCapabilityService{
+			getFn: func(ctx context.Context, accountID int64) (*userModels.CaregiverCapabilityState, error) {
+				assert.Equal(t, int64(12), tenant.FromContext(ctx))
+				assert.Equal(t, int64(34), accountID)
+				return &userModels.CaregiverCapabilityState{AccountID: accountID, HasUserRole: true}, nil
+			},
+		},
+		db: db,
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/operator/schools/12/accounts/34/caregiver-capability", nil)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "12")
+	routeCtx.URLParams.Add("accountId", "34")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.GetSchoolAccountCaregiverCapability(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestProvisioningResource_EnableSchoolAccountCaregiverCapability(t *testing.T) {
+	db, mock := newMockAdminDB(t)
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectCommit()
+
+	resource := &ProvisioningResource{
+		CaregiverCapabilityService: &mockCaregiverCapabilityService{
+			enableFn: func(ctx context.Context, accountID int64, input userModels.EnableCaregiverCapabilityInput) (*userModels.CaregiverCapabilityState, error) {
+				assert.Equal(t, int64(12), tenant.FromContext(ctx))
+				assert.Equal(t, int64(34), accountID)
+				tx, ok := modelBase.TxFromContext(ctx)
+				require.True(t, ok)
+				require.NotNil(t, tx)
+				assert.Equal(t, userModels.EnableCaregiverCapabilityInput{
+					FirstName: "Ada",
+					LastName:  "Lovelace",
+					Position:  "Springer",
+				}, input)
+				return &userModels.CaregiverCapabilityState{AccountID: accountID, HasUserRole: true}, nil
+			},
+		},
+		db: db,
+	}
+
+	req := httptest.NewRequest(http.MethodPut, "/operator/schools/12/accounts/34/caregiver-capability", bytes.NewBufferString(`{"first_name":" Ada ","last_name":" Lovelace ","position":" Springer "}`))
+	req.Header.Set("Content-Type", "application/json")
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "12")
+	routeCtx.URLParams.Add("accountId", "34")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.EnableSchoolAccountCaregiverCapability(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestProvisioningResource_EnableSchoolAccountCaregiverCapability_EmptyBody(t *testing.T) {
+	resource := &ProvisioningResource{
+		CaregiverCapabilityService: &mockCaregiverCapabilityService{},
+	}
+
+	req := httptest.NewRequest(http.MethodPut, "/operator/schools/12/accounts/34/caregiver-capability", http.NoBody)
+	req.Header.Set("Content-Type", "application/json")
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "12")
+	routeCtx.URLParams.Add("accountId", "34")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.EnableSchoolAccountCaregiverCapability(rr, req)
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+
+	var responseBody map[string]any
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &responseBody))
+	assert.Equal(t, "error", responseBody["status"])
+	assert.Equal(t, "EOF", responseBody["message"])
+}
+
+func TestProvisioningResource_DisableSchoolAccountCaregiverCapability(t *testing.T) {
+	db, mock := newMockAdminDB(t)
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectRollback()
+
+	resource := &ProvisioningResource{
+		CaregiverCapabilityService: &mockCaregiverCapabilityService{
+			disableFn: func(ctx context.Context, accountID int64) (*userModels.CaregiverCapabilityState, error) {
+				assert.Equal(t, int64(12), tenant.FromContext(ctx))
+				assert.Equal(t, int64(34), accountID)
+				tx, ok := modelBase.TxFromContext(ctx)
+				require.True(t, ok)
+				require.NotNil(t, tx)
+				return nil, &usersSvc.CaregiverCapabilityBlockedError{
+					Reasons: []userModels.CaregiverCapabilityBlockerCode{
+						userModels.CaregiverCapabilityBlockerActiveGroupSupervisions,
+					},
+				}
+			},
+		},
+		db: db,
+	}
+
+	req := httptest.NewRequest(http.MethodDelete, "/operator/schools/12/accounts/34/caregiver-capability", nil)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "12")
+	routeCtx.URLParams.Add("accountId", "34")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.DisableSchoolAccountCaregiverCapability(rr, req)
+	assert.Equal(t, http.StatusConflict, rr.Code)
+	require.NoError(t, mock.ExpectationsWereMet())
 }

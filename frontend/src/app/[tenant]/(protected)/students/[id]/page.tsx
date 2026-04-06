@@ -581,6 +581,7 @@ function FullAccessView({
   onSickClick,
   sickLoading,
 }: Readonly<FullAccessViewProps>) {
+  const historyRouter = useTenantRouter();
   return (
     <>
       <div className="mb-4 flex gap-3 sm:mb-6 sm:gap-4">
@@ -618,7 +619,10 @@ function FullAccessView({
           onUpdate={onRefreshData}
         />
 
-        <StudentHistorySection studentId={studentId} />
+        <StudentHistorySection
+          studentId={studentId}
+          onNavigate={(path) => historyRouter.push(path)}
+        />
       </div>
 
       <PersonalInfoFormModal

@@ -1,6 +1,7 @@
 package authorize
 
 import (
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -17,7 +18,9 @@ func RequiresPermission(permission string) func(next http.Handler) http.Handler 
 
 			// Check for required permission
 			if !hasPermission(permission, permissions) {
-				_ = render.Render(w, r, ErrForbidden)
+				if err := render.Render(w, r, ErrForbidden); err != nil {
+					slog.Error("failed to render forbidden response", slog.String("error", err.Error()))
+				}
 				return
 			}
 
@@ -44,7 +47,9 @@ func RequiresAnyPermission(permissions ...string) func(next http.Handler) http.H
 			}
 
 			if !hasAny {
-				_ = render.Render(w, r, ErrForbidden)
+				if err := render.Render(w, r, ErrForbidden); err != nil {
+					slog.Error("failed to render forbidden response", slog.String("error", err.Error()))
+				}
 				return
 			}
 
@@ -64,7 +69,9 @@ func RequiresAllPermissions(permissions ...string) func(next http.Handler) http.
 			// Check for all required permissions
 			for _, perm := range permissions {
 				if !hasPermission(perm, userPermissions) {
-					_ = render.Render(w, r, ErrForbidden)
+					if err := render.Render(w, r, ErrForbidden); err != nil {
+						slog.Error("failed to render forbidden response", slog.String("error", err.Error()))
+					}
 					return
 				}
 			}
