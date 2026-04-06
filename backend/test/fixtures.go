@@ -1975,6 +1975,16 @@ func EnsureTestTenant(tb testing.TB, db *bun.DB, tenantID int64) {
 		fmt.Sprintf("test-school-%d", tenantID),
 		fmt.Sprintf("t%d", tenantID))
 	require.NoError(tb, err, "Failed to ensure test school")
+
+	// Advance sequences past the explicitly inserted ID so that concurrent
+	// packages using auto-generated IDs (nextval) don't collide.
+	_, err = db.ExecContext(ctx, `
+		SELECT setval(pg_get_serial_sequence('platform.organizations', 'id'),
+			GREATEST((SELECT last_value FROM platform.organizations_id_seq), $1));
+		SELECT setval(pg_get_serial_sequence('platform.schools', 'id'),
+			GREATEST((SELECT last_value FROM platform.schools_id_seq), $1));
+	`, tenantID)
+	require.NoError(tb, err, "Failed to advance sequences past explicit tenant ID")
 }
 
 // MapAccountToTenant creates an active account_tenants mapping without
