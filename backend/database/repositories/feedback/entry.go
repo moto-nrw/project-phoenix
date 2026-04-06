@@ -323,10 +323,10 @@ func (r *EntryRepository) DeleteOlderThan(ctx context.Context, days int) (int, e
 	cutoff := time.Now().AddDate(0, 0, -days)
 	query := base.GetDB(ctx, r.db).NewDelete().
 		Model((*feedback.Entry)(nil)).
-		TableExpr(tableFeedbackEntries).
-		Where("day < ?", cutoff.Format("2006-01-02"))
+		ModelTableExpr(tableFeedbackEntriesAlias).
+		Where(`"entry".day < ?`, cutoff.Format("2006-01-02"))
 
-	if where, val, ok := base.TenantWhere(ctx, ""); ok {
+	if where, val, ok := base.TenantWhere(ctx, "entry"); ok {
 		query = query.Where(where, val)
 	}
 

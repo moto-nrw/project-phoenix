@@ -32,10 +32,5 @@ func init() {
 		Category:        "feedback",
 		SortOrder:       10,
 		Validation:      &config.ValidationRules{Min: &minDays, Max: &maxDays},
-		DependsOn: &config.Dependency{
-			Key:       config.KeyFeedbackEnabled,
-			Condition: "eq",
-			Value:     true,
-		},
 	})
 }
