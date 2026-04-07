@@ -88,10 +88,14 @@ function handleOperatorSubdomain(request: NextRequest): NextResponse {
     return withSecurityHeaders(new NextResponse(null, { status: 404 }));
   }
 
-  // Pass through: operator API routes, static assets
+  // Pass through: operator API routes, static assets, Sentry tunnel
   // Note: favicon.ico, favicon.png, apple-touch-icon.png, site.webmanifest,
   // icons/, and images/ are excluded from the proxy matcher entirely.
-  if (pathname.startsWith("/api/") || pathname.startsWith("/_next")) {
+  if (
+    pathname.startsWith("/api/") ||
+    pathname.startsWith("/_next") ||
+    pathname.startsWith("/monitoring")
+  ) {
     return withSecurityHeaders(NextResponse.next());
   }
 
@@ -166,8 +170,8 @@ export function proxy(request: NextRequest): NextResponse {
     return handleOperatorSubdomain(request);
   }
 
-  // 2. /api/* — Next.js API proxy routes; still attach security headers.
-  if (pathname.startsWith("/api")) {
+  // 2. /api/* and /monitoring (Sentry tunnel) — pass through with security headers.
+  if (pathname.startsWith("/api") || pathname.startsWith("/monitoring")) {
     return withSecurityHeaders(NextResponse.next());
   }
 
