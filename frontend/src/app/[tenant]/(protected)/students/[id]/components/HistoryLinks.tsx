@@ -31,7 +31,7 @@ export function HistoryLinks({
         <HistoryLinkButton
           icon={<BuildingIcon />}
           iconBgColor="bg-[#5080D8]"
-          title="Raumverlauf"
+          title="Anwesenheitsprotokoll"
           subtitle={
             attendanceLogEnabled
               ? "Anwesenheit und besuchte Räume"
@@ -40,7 +40,7 @@ export function HistoryLinks({
           disabled={!attendanceLogEnabled}
           onClick={
             attendanceLogEnabled
-              ? () => router.push(`/students/${studentId}/room_history`)
+              ? () => router.push(`/students/${studentId}/room-history`)
               : undefined
           }
         />

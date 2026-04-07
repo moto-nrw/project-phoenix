@@ -53,7 +53,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       endpoint,
       session.user.token,
     );
-    return NextResponse.json({ status: "success", data: envelope.data });
+    return NextResponse.json(
+      { status: "success", data: envelope.data },
+      { headers: { "Cache-Control": "no-store" } },
+    );
   } catch (apiError) {
     const message =
       apiError instanceof Error ? apiError.message : String(apiError);

@@ -31,7 +31,7 @@ describe("HistoryLinks", () => {
   it("renders all three history link buttons", () => {
     render(<HistoryLinks studentId="42" attendanceLogEnabled={true} />);
 
-    expect(screen.getByText("Raumverlauf")).toBeInTheDocument();
+    expect(screen.getByText("Anwesenheitsprotokoll")).toBeInTheDocument();
     expect(screen.getByText("Feedbackhistorie")).toBeInTheDocument();
     expect(screen.getByText("Mensaverlauf")).toBeInTheDocument();
   });
@@ -48,7 +48,9 @@ describe("HistoryLinks", () => {
   it("raumverlauf button is enabled when attendanceLogEnabled is true", () => {
     render(<HistoryLinks studentId="42" attendanceLogEnabled={true} />);
 
-    const raumButton = screen.getByText("Raumverlauf").closest("button");
+    const raumButton = screen
+      .getByText("Anwesenheitsprotokoll")
+      .closest("button");
     expect(raumButton).not.toBeDisabled();
     expect(
       screen.getByText("Anwesenheit und besuchte Räume"),
@@ -58,7 +60,9 @@ describe("HistoryLinks", () => {
   it("raumverlauf button is disabled when attendanceLogEnabled is false", () => {
     render(<HistoryLinks studentId="42" attendanceLogEnabled={false} />);
 
-    const raumButton = screen.getByText("Raumverlauf").closest("button");
+    const raumButton = screen
+      .getByText("Anwesenheitsprotokoll")
+      .closest("button");
     expect(raumButton).toBeDisabled();
     expect(screen.getByText("Für Ihre Schule deaktiviert")).toBeInTheDocument();
   });
