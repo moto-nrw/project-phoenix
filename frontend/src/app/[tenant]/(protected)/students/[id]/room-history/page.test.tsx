@@ -144,9 +144,7 @@ describe("StudentRoomHistoryPage", () => {
     render(<StudentRoomHistoryPage />);
 
     await waitFor(() => {
-      expect(
-        screen.getByText("Anwesenheitsprotokoll & Raumverlauf"),
-      ).toBeInTheDocument();
+      expect(screen.getByText("Anwesenheitsprotokoll")).toBeInTheDocument();
     });
   });
 

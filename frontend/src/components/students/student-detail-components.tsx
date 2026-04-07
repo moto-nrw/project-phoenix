@@ -594,10 +594,10 @@ export function StudentHistorySection({
       <div className="grid grid-cols-1 gap-2">
         <HistoryButton
           icon={<BuildingIcon />}
-          title="Raumverlauf"
+          title="Anwesenheitsprotokoll"
           description="Anwesenheit und besuchte Räume"
           bgColor="bg-[#5080D8]"
-          onClick={() => onNavigate(`/students/${studentId}/room_history`)}
+          onClick={() => onNavigate(`/students/${studentId}/room-history`)}
         />
         <HistoryButton
           icon={<ChatIcon />}

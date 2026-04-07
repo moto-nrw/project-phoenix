@@ -558,12 +558,12 @@ describe("StudentHistorySection", () => {
 
   it("renders room history button as enabled", () => {
     render(<StudentHistorySection {...defaultProps} />);
-    expect(screen.getByText("Raumverlauf")).toBeInTheDocument();
+    expect(screen.getByText("Anwesenheitsprotokoll")).toBeInTheDocument();
     expect(
       screen.getByText("Anwesenheit und besuchte Räume"),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Raumverlauf").closest("button"),
+      screen.getByText("Anwesenheitsprotokoll").closest("button"),
     ).not.toBeDisabled();
   });
 
@@ -587,9 +587,11 @@ describe("StudentHistorySection", () => {
   it("raumverlauf button navigates on click", () => {
     const onNavigate = vi.fn();
     render(<StudentHistorySection studentId="456" onNavigate={onNavigate} />);
-    const raumButton = screen.getByText("Raumverlauf").closest("button");
+    const raumButton = screen
+      .getByText("Anwesenheitsprotokoll")
+      .closest("button");
     fireEvent.click(raumButton!);
-    expect(onNavigate).toHaveBeenCalledWith("/students/456/room_history");
+    expect(onNavigate).toHaveBeenCalledWith("/students/456/room-history");
   });
 
   it("feedback button navigates on click", () => {
