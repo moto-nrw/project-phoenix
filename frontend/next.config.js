@@ -3,8 +3,17 @@
  * for Docker builds.
  */
 import "./src/env.js";
+import { withSentryConfig } from "@sentry/nextjs";
 
 /** @type {import("next").NextConfig} */
 const config = {};
 
-export default config;
+export default withSentryConfig(config, {
+  silent: true,
+
+  sourcemaps: {
+    disable: true,
+  },
+
+  tunnelRoute: "/monitoring",
+});

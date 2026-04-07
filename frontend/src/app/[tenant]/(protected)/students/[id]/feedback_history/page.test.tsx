@@ -35,6 +35,14 @@ vi.mock("~/lib/breadcrumb-context", () => ({
   ),
 }));
 
+vi.mock("~/components/ui/back-button", () => ({
+  BackButton: ({ referrer }: { referrer: string }) => (
+    <button data-testid="back-button" data-referrer={referrer}>
+      Zurück
+    </button>
+  ),
+}));
+
 vi.mock("~/components/ui/loading", () => ({
   Loading: ({ fullPage }: { fullPage?: boolean }) => (
     <div data-testid="loading" data-fullpage={fullPage} aria-label="Lädt..." />
@@ -101,6 +109,32 @@ vi.mock("~/lib/feedback-api", () => ({
   ]),
 }));
 
+// Mock recharts to avoid ResizeObserver issues in tests
+vi.mock("recharts", () => ({
+  Bar: () => null,
+  BarChart: () => null,
+  XAxis: () => null,
+  YAxis: () => null,
+  CartesianGrid: () => null,
+  ResponsiveContainer: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+}));
+
+vi.mock("~/components/ui/chart", () => ({
+  ChartContainer: ({
+    children,
+  }: {
+    children: React.ReactNode;
+    config: unknown;
+    className: string;
+  }) => <div data-testid="chart-container">{children}</div>,
+  ChartTooltip: () => null,
+  ChartTooltipContent: () => null,
+  ChartLegend: () => null,
+  ChartLegendContent: () => null,
+}));
+
 describe("StudentFeedbackHistoryPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -112,34 +146,25 @@ describe("StudentFeedbackHistoryPage", () => {
     expect(screen.getByTestId("loading")).toBeInTheDocument();
   });
 
-  it("renders student info after loading", async () => {
+  it("renders student name as page heading", async () => {
     render(<StudentFeedbackHistoryPage />);
 
     await waitFor(
       () => {
-        expect(screen.getByText("Emma Müller")).toBeInTheDocument();
+        expect(
+          screen.getByRole("heading", { level: 1, name: "Emma Müller" }),
+        ).toBeInTheDocument();
       },
       { timeout: 2000 },
     );
   });
 
-  it("displays feedback history title", async () => {
+  it("displays feedback history subtitle", async () => {
     render(<StudentFeedbackHistoryPage />);
 
     await waitFor(
       () => {
         expect(screen.getByText("Feedbackhistorie")).toBeInTheDocument();
-      },
-      { timeout: 2000 },
-    );
-  });
-
-  it("displays filter section", async () => {
-    render(<StudentFeedbackHistoryPage />);
-
-    await waitFor(
-      () => {
-        expect(screen.getByText("Filter")).toBeInTheDocument();
       },
       { timeout: 2000 },
     );
@@ -160,7 +185,7 @@ describe("StudentFeedbackHistoryPage", () => {
     );
   });
 
-  it("displays feedback overview section", async () => {
+  it("displays feedback overview heading", async () => {
     render(<StudentFeedbackHistoryPage />);
 
     await waitFor(
@@ -171,7 +196,7 @@ describe("StudentFeedbackHistoryPage", () => {
     );
   });
 
-  it("displays feedback type categories", async () => {
+  it("displays feedback type stats inline", async () => {
     render(<StudentFeedbackHistoryPage />);
 
     await waitFor(
@@ -189,39 +214,22 @@ describe("StudentFeedbackHistoryPage", () => {
 
     await waitFor(
       () => {
-        expect(
-          screen.getByText("Zurück zum Schülerprofil"),
-        ).toBeInTheDocument();
+        expect(screen.getByTestId("back-button")).toBeInTheDocument();
       },
       { timeout: 2000 },
     );
   });
 
-  it("navigates back to student profile when back button clicked", async () => {
+  it("back button links to student profile", async () => {
     render(<StudentFeedbackHistoryPage />);
 
     await waitFor(
       () => {
-        expect(
-          screen.getByText("Zurück zum Schülerprofil"),
-        ).toBeInTheDocument();
-      },
-      { timeout: 2000 },
-    );
-
-    fireEvent.click(screen.getByText("Zurück zum Schülerprofil"));
-
-    expect(mockPush).toHaveBeenCalledWith(
-      "/test-tenant/students/1?from=/students/search",
-    );
-  });
-
-  it("displays student initials in header", async () => {
-    render(<StudentFeedbackHistoryPage />);
-
-    await waitFor(
-      () => {
-        expect(screen.getByText("EM")).toBeInTheDocument();
+        const backButton = screen.getByTestId("back-button");
+        expect(backButton).toHaveAttribute(
+          "data-referrer",
+          "/students/1?from=/students/search",
+        );
       },
       { timeout: 2000 },
     );
@@ -232,21 +240,8 @@ describe("StudentFeedbackHistoryPage", () => {
 
     await waitFor(
       () => {
-        expect(screen.getByText(/Klasse 3b/)).toBeInTheDocument();
+        expect(screen.getByText(/3b/)).toBeInTheDocument();
         expect(screen.getByText(/Gruppe: Eulen/)).toBeInTheDocument();
-      },
-      { timeout: 2000 },
-    );
-  });
-
-  it("displays feedback entries with type labels", async () => {
-    render(<StudentFeedbackHistoryPage />);
-
-    await waitFor(
-      () => {
-        expect(
-          screen.getAllByText(/Positives Feedback/i).length,
-        ).toBeGreaterThan(0);
       },
       { timeout: 2000 },
     );
@@ -272,12 +267,37 @@ describe("StudentFeedbackHistoryPage", () => {
     );
   });
 
-  it("displays feedback emojis", async () => {
+  it("hides detail list by default and shows toggle button", async () => {
     render(<StudentFeedbackHistoryPage />);
 
     await waitFor(
       () => {
-        expect(screen.getAllByText("😊").length).toBeGreaterThan(0);
+        expect(screen.getByText(/Alle Einträge anzeigen/)).toBeInTheDocument();
+      },
+      { timeout: 2000 },
+    );
+  });
+
+  it("shows detail entries when toggle is clicked", async () => {
+    render(<StudentFeedbackHistoryPage />);
+
+    await waitFor(
+      () => {
+        expect(screen.getByText(/Alle Einträge anzeigen/)).toBeInTheDocument();
+      },
+      { timeout: 2000 },
+    );
+
+    fireEvent.click(screen.getByText(/Alle Einträge anzeigen/));
+
+    await waitFor(
+      () => {
+        expect(
+          screen.getAllByTestId(/feedback-indicator/).length,
+        ).toBeGreaterThan(0);
+        expect(
+          screen.getAllByText(/Positives Feedback/i).length,
+        ).toBeGreaterThan(0);
       },
       { timeout: 2000 },
     );

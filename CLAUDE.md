@@ -337,6 +337,18 @@ CI (`build.yml`) runs on push/merge:
 | `AUTH_TRUST_HOST`, `TENANT_DOMAIN`, `NEXT_PUBLIC_TENANT_DOMAIN` | deploy-only | Multi-tenancy, not needed for local dev |
 | `PHOENIX_AUTH_PASSWORD` | deploy-only | Server DB role password |
 
+## URL & Route Conventions
+
+**All URL paths must use kebab-case** — both backend API routes and frontend page routes.
+
+```
+/students/{id}/attendance-history   ✅ kebab-case
+/students/{id}/room-history         ✅ kebab-case
+/students/{id}/feedback_history     ❌ snake_case (legacy, migrate when touched)
+```
+
+Existing snake_case routes (`feedback_history`, `mensa_history`) are legacy. When modifying these routes, migrate them to kebab-case.
+
 ## Git Conventions
 
 **Commit types**: `feat`, `fix`, `refactor`, `chore`, `docs`, `test`, `style`
