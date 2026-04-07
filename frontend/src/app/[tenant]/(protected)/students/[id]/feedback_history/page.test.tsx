@@ -272,12 +272,14 @@ describe("StudentFeedbackHistoryPage", () => {
     );
   });
 
-  it("displays feedback emojis", async () => {
+  it("displays feedback type indicators", async () => {
     render(<StudentFeedbackHistoryPage />);
 
     await waitFor(
       () => {
-        expect(screen.getAllByText("😊").length).toBeGreaterThan(0);
+        expect(
+          screen.getAllByTestId(/feedback-indicator/).length,
+        ).toBeGreaterThan(0);
       },
       { timeout: 2000 },
     );

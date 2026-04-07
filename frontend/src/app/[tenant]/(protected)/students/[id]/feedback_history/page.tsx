@@ -7,6 +7,7 @@ import { Alert } from "~/components/ui/alert";
 import { useSession } from "next-auth/react";
 import { getStartDateForTimeRange } from "~/lib/date-helpers";
 import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
+import { InfoCard } from "~/components/ui/info-card";
 
 import { Loading } from "~/components/ui/loading";
 import { createLogger } from "~/lib/logger";
@@ -21,6 +22,66 @@ const feedbackTypeLabels: Record<FeedbackEntry["feedback_type"], string> = {
   positive: "Positives Feedback",
   neutral: "Neutrales Feedback",
   negative: "Negatives Feedback",
+};
+
+// Feedback type indicator config (no emojis)
+const feedbackTypeConfig: Record<
+  FeedbackEntry["feedback_type"],
+  {
+    bgColor: string;
+    iconColor: string;
+    icon: React.ReactNode;
+  }
+> = {
+  positive: {
+    bgColor: "bg-green-100",
+    iconColor: "text-green-600",
+    icon: (
+      <svg
+        className="h-5 w-5"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        strokeWidth={2}
+      >
+        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+      </svg>
+    ),
+  },
+  neutral: {
+    bgColor: "bg-yellow-100",
+    iconColor: "text-yellow-600",
+    icon: (
+      <svg
+        className="h-5 w-5"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        strokeWidth={2}
+      >
+        <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14" />
+      </svg>
+    ),
+  },
+  negative: {
+    bgColor: "bg-red-100",
+    iconColor: "text-red-600",
+    icon: (
+      <svg
+        className="h-5 w-5"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        strokeWidth={2}
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M6 18L18 6M6 6l12 12"
+        />
+      </svg>
+    ),
+  },
 };
 
 export default function StudentFeedbackHistoryPage() {
@@ -113,7 +174,6 @@ export default function StudentFeedbackHistoryPage() {
     }
   };
 
-  // Format date function is actually used in the dateObj.toLocaleDateString call
   // Format time for display
   const formatTime = (dateString: string): string => {
     const date = new Date(dateString);
@@ -142,32 +202,6 @@ export default function StudentFeedbackHistoryPage() {
   const sortedDates = Object.keys(groupedFeedbackHistory).sort((a, b) => {
     return new Date(b).getTime() - new Date(a).getTime();
   });
-
-  // Render the appropriate emoji based on feedback type
-  const renderFeedbackEmoji = (type: string) => {
-    switch (type) {
-      case "positive":
-        return (
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100 text-2xl text-green-500">
-            😊
-          </div>
-        );
-      case "neutral":
-        return (
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-yellow-100 text-2xl text-yellow-500">
-            😐
-          </div>
-        );
-      case "negative":
-        return (
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100 text-2xl text-red-500">
-            😔
-          </div>
-        );
-      default:
-        return null;
-    }
-  };
 
   const year = student ? getYear(student.school_class) : 0;
   const yearColor = getYearColor(year);
@@ -217,6 +251,14 @@ export default function StudentFeedbackHistoryPage() {
     );
   }
 
+  const timeRangeOptions = [
+    { key: "all", label: "Alle" },
+    { key: "today", label: "Heute" },
+    { key: "week", label: "Diese Woche" },
+    { key: "7days", label: "Letzte 7 Tage" },
+    { key: "month", label: "Diesen Monat" },
+  ];
+
   return (
     <div className="mx-auto max-w-7xl">
       {/* Back Button */}
@@ -226,7 +268,6 @@ export default function StudentFeedbackHistoryPage() {
           className="flex items-center text-gray-600 transition-colors hover:text-blue-600"
         >
           <svg
-            xmlns="http://www.w3.org/2000/svg"
             className="mr-1 h-5 w-5"
             fill="none"
             viewBox="0 0 24 24"
@@ -243,7 +284,7 @@ export default function StudentFeedbackHistoryPage() {
         </button>
       </div>
 
-      {/* Student Profile Header with Status */}
+      {/* Student Profile Header */}
       <div className="relative mb-8 overflow-hidden rounded-xl bg-gradient-to-r from-teal-500 to-blue-600 p-6 text-white shadow-md">
         <div className="flex items-center">
           <div className="mr-6 flex h-24 w-24 items-center justify-center rounded-full bg-white/30 text-4xl font-bold">
@@ -258,7 +299,7 @@ export default function StudentFeedbackHistoryPage() {
                 className={`ml-2 inline-block h-3 w-3 rounded-full ${yearColor}`}
                 title={`Jahrgang ${year}`}
               ></span>
-              <span className="mx-2">•</span>
+              <span className="mx-2">·</span>
               <span className="opacity-90">Gruppe: {student.group_name}</span>
             </div>
             <div className="mt-4">
@@ -271,109 +312,81 @@ export default function StudentFeedbackHistoryPage() {
       </div>
 
       {/* Filter Controls and Feedback Overview */}
-      <div className="mb-8">
-        <div className="rounded-lg bg-white p-4 shadow-sm">
-          <div className="flex flex-col md:flex-row md:justify-between">
-            {/* Time Range Filter */}
-            <div className="mb-4 md:mb-0">
-              <h2 className="mb-3 text-lg font-medium text-gray-800">Filter</h2>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  className={`rounded-lg px-4 py-2 transition-colors ${timeRange === "all" ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
-                  onClick={() => setTimeRange("all")}
-                >
-                  Alle
-                </button>
-                <button
-                  className={`rounded-lg px-4 py-2 transition-colors ${timeRange === "today" ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
-                  onClick={() => setTimeRange("today")}
-                >
-                  Heute
-                </button>
-                <button
-                  className={`rounded-lg px-4 py-2 transition-colors ${timeRange === "week" ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
-                  onClick={() => setTimeRange("week")}
-                >
-                  Diese Woche
-                </button>
-                <button
-                  className={`rounded-lg px-4 py-2 transition-colors ${timeRange === "7days" ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
-                  onClick={() => setTimeRange("7days")}
-                >
-                  Letzte 7 Tage
-                </button>
-                <button
-                  className={`rounded-lg px-4 py-2 transition-colors ${timeRange === "month" ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
-                  onClick={() => setTimeRange("month")}
-                >
-                  Diesen Monat
-                </button>
-              </div>
-            </div>
-
-            {/* Feedback Overview - now placed beside the filter */}
-            <div>
-              <h2 className="mb-3 text-lg font-medium text-gray-800">
-                Feedback-Übersicht
-              </h2>
-              <div className="flex gap-4">
-                {/* Positive Feedback */}
-                <div className="rounded-lg border border-green-100 bg-green-50 p-3">
-                  <div className="flex items-center">
-                    <div className="mr-2 text-2xl">😊</div>
-                    <div>
-                      <h3 className="text-sm font-medium text-green-800">
-                        Positiv
-                      </h3>
-                      <p className="text-xl font-bold text-green-600">
-                        {positiveFeedbackCount}{" "}
-                        <span className="text-sm font-normal">
-                          ({positivePercentage}%)
-                        </span>
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Neutral Feedback */}
-                <div className="rounded-lg border border-yellow-100 bg-yellow-50 p-3">
-                  <div className="flex items-center">
-                    <div className="mr-2 text-2xl">😐</div>
-                    <div>
-                      <h3 className="text-sm font-medium text-yellow-800">
-                        Neutral
-                      </h3>
-                      <p className="text-xl font-bold text-yellow-600">
-                        {neutralFeedbackCount}{" "}
-                        <span className="text-sm font-normal">
-                          ({neutralPercentage}%)
-                        </span>
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Negative Feedback */}
-                <div className="rounded-lg border border-red-100 bg-red-50 p-3">
-                  <div className="flex items-center">
-                    <div className="mr-2 text-2xl">😔</div>
-                    <div>
-                      <h3 className="text-sm font-medium text-red-800">
-                        Negativ
-                      </h3>
-                      <p className="text-xl font-bold text-red-600">
-                        {negativeFeedbackCount}{" "}
-                        <span className="text-sm font-normal">
-                          ({negativePercentage}%)
-                        </span>
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+      <div className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {/* Time Range Filter */}
+        <div className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm sm:p-6">
+          <h2 className="mb-3 text-base font-semibold text-gray-900 sm:text-lg">
+            Filter
+          </h2>
+          <div className="flex flex-wrap gap-2">
+            {timeRangeOptions.map((option) => (
+              <button
+                key={option.key}
+                className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                  timeRange === option.key
+                    ? "bg-blue-500 text-white"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                }`}
+                onClick={() => setTimeRange(option.key)}
+              >
+                {option.label}
+              </button>
+            ))}
           </div>
         </div>
+
+        {/* Feedback Overview */}
+        <InfoCard
+          title="Feedback-Übersicht"
+          icon={
+            <svg
+              className="h-5 w-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+              />
+            </svg>
+          }
+        >
+          <div className="flex flex-wrap gap-3">
+            <StatBlock
+              label="Positiv"
+              count={positiveFeedbackCount}
+              percentage={positivePercentage}
+              bgColor="bg-green-50"
+              borderColor="border-green-100"
+              labelColor="text-green-800"
+              valueColor="text-green-600"
+              indicator={feedbackTypeConfig.positive}
+            />
+            <StatBlock
+              label="Neutral"
+              count={neutralFeedbackCount}
+              percentage={neutralPercentage}
+              bgColor="bg-yellow-50"
+              borderColor="border-yellow-100"
+              labelColor="text-yellow-800"
+              valueColor="text-yellow-600"
+              indicator={feedbackTypeConfig.neutral}
+            />
+            <StatBlock
+              label="Negativ"
+              count={negativeFeedbackCount}
+              percentage={negativePercentage}
+              bgColor="bg-red-50"
+              borderColor="border-red-100"
+              labelColor="text-red-800"
+              valueColor="text-red-600"
+              indicator={feedbackTypeConfig.negative}
+            />
+          </div>
+        </InfoCard>
       </div>
 
       {/* Feedback History */}
@@ -407,14 +420,20 @@ export default function StudentFeedbackHistoryPage() {
                       })}
                     </h3>
                   </div>
-                  <div className="px-6 py-4">
-                    {feedbackForDate.length > 0 ? (
-                      feedbackForDate.map((feedback) => (
+                  <div className="divide-y divide-gray-50 px-6 py-2">
+                    {feedbackForDate.map((feedback) => {
+                      const config = feedbackTypeConfig[feedback.feedback_type];
+                      return (
                         <div
                           key={feedback.id}
-                          className="mb-3 flex items-center gap-3 last:mb-0"
+                          className="flex items-center gap-3 py-3"
+                          data-testid={`feedback-indicator-${feedback.feedback_type}`}
                         >
-                          {renderFeedbackEmoji(feedback.feedback_type)}
+                          <div
+                            className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full ${config.bgColor} ${config.iconColor}`}
+                          >
+                            {config.icon}
+                          </div>
                           <div className="flex flex-col">
                             <span className="font-medium text-gray-900">
                               {feedbackTypeLabels[feedback.feedback_type]}
@@ -429,18 +448,53 @@ export default function StudentFeedbackHistoryPage() {
                             )}
                           </div>
                         </div>
-                      ))
-                    ) : (
-                      <p className="text-gray-500 italic">
-                        Kein Feedback an diesem Tag
-                      </p>
-                    )}
+                      );
+                    })}
                   </div>
                 </div>
               );
             })}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// Stat block for the feedback overview
+function StatBlock({
+  label,
+  count,
+  percentage,
+  bgColor,
+  borderColor,
+  labelColor,
+  valueColor,
+  indicator,
+}: Readonly<{
+  label: string;
+  count: number;
+  percentage: number;
+  bgColor: string;
+  borderColor: string;
+  labelColor: string;
+  valueColor: string;
+  indicator: { bgColor: string; iconColor: string; icon: React.ReactNode };
+}>) {
+  return (
+    <div className={`flex-1 rounded-lg border ${borderColor} ${bgColor} p-3`}>
+      <div className="flex items-center">
+        <div
+          className={`mr-2 flex h-8 w-8 items-center justify-center rounded-full ${indicator.bgColor} ${indicator.iconColor}`}
+        >
+          {indicator.icon}
+        </div>
+        <div>
+          <h3 className={`text-sm font-medium ${labelColor}`}>{label}</h3>
+          <p className={`text-xl font-bold ${valueColor}`}>
+            {count} <span className="text-sm font-normal">({percentage}%)</span>
+          </p>
+        </div>
       </div>
     </div>
   );
