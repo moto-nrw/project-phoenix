@@ -225,7 +225,7 @@ describe("StudentFeedbackHistoryPage", () => {
 
     await waitFor(
       () => {
-        expect(screen.getByText(/Klasse 3b/)).toBeInTheDocument();
+        expect(screen.getByText(/3b/)).toBeInTheDocument();
         expect(screen.getByText(/Gruppe: Eulen/)).toBeInTheDocument();
       },
       { timeout: 2000 },

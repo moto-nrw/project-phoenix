@@ -244,7 +244,7 @@ export default function StudentFeedbackHistoryPage() {
             />
           </svg>
           <span>
-            Klasse {student.school_class} · Gruppe: {student.group_name}
+            {student.school_class} · Gruppe: {student.group_name}
           </span>
         </div>
       </div>
