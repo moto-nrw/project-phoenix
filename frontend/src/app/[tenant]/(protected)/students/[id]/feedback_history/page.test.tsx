@@ -109,6 +109,32 @@ vi.mock("~/lib/feedback-api", () => ({
   ]),
 }));
 
+// Mock recharts to avoid ResizeObserver issues in tests
+vi.mock("recharts", () => ({
+  Bar: () => null,
+  BarChart: () => null,
+  XAxis: () => null,
+  YAxis: () => null,
+  CartesianGrid: () => null,
+  ResponsiveContainer: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+}));
+
+vi.mock("~/components/ui/chart", () => ({
+  ChartContainer: ({
+    children,
+  }: {
+    children: React.ReactNode;
+    config: unknown;
+    className: string;
+  }) => <div data-testid="chart-container">{children}</div>,
+  ChartTooltip: () => null,
+  ChartTooltipContent: () => null,
+  ChartLegend: () => null,
+  ChartLegendContent: () => null,
+}));
+
 describe("StudentFeedbackHistoryPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -144,17 +170,6 @@ describe("StudentFeedbackHistoryPage", () => {
     );
   });
 
-  it("displays filter section", async () => {
-    render(<StudentFeedbackHistoryPage />);
-
-    await waitFor(
-      () => {
-        expect(screen.getByText("Filter")).toBeInTheDocument();
-      },
-      { timeout: 2000 },
-    );
-  });
-
   it("displays time range filter buttons", async () => {
     render(<StudentFeedbackHistoryPage />);
 
@@ -170,7 +185,7 @@ describe("StudentFeedbackHistoryPage", () => {
     );
   });
 
-  it("displays feedback overview section", async () => {
+  it("displays feedback overview heading", async () => {
     render(<StudentFeedbackHistoryPage />);
 
     await waitFor(
@@ -181,7 +196,7 @@ describe("StudentFeedbackHistoryPage", () => {
     );
   });
 
-  it("displays feedback type categories", async () => {
+  it("displays feedback type stats inline", async () => {
     render(<StudentFeedbackHistoryPage />);
 
     await waitFor(
@@ -232,19 +247,6 @@ describe("StudentFeedbackHistoryPage", () => {
     );
   });
 
-  it("displays feedback entries with type labels", async () => {
-    render(<StudentFeedbackHistoryPage />);
-
-    await waitFor(
-      () => {
-        expect(
-          screen.getAllByText(/Positives Feedback/i).length,
-        ).toBeGreaterThan(0);
-      },
-      { timeout: 2000 },
-    );
-  });
-
   it("changes time range when filter button clicked", async () => {
     render(<StudentFeedbackHistoryPage />);
 
@@ -265,13 +267,36 @@ describe("StudentFeedbackHistoryPage", () => {
     );
   });
 
-  it("displays feedback type indicators", async () => {
+  it("hides detail list by default and shows toggle button", async () => {
     render(<StudentFeedbackHistoryPage />);
+
+    await waitFor(
+      () => {
+        expect(screen.getByText(/Alle Einträge anzeigen/)).toBeInTheDocument();
+      },
+      { timeout: 2000 },
+    );
+  });
+
+  it("shows detail entries when toggle is clicked", async () => {
+    render(<StudentFeedbackHistoryPage />);
+
+    await waitFor(
+      () => {
+        expect(screen.getByText(/Alle Einträge anzeigen/)).toBeInTheDocument();
+      },
+      { timeout: 2000 },
+    );
+
+    fireEvent.click(screen.getByText(/Alle Einträge anzeigen/));
 
     await waitFor(
       () => {
         expect(
           screen.getAllByTestId(/feedback-indicator/).length,
+        ).toBeGreaterThan(0);
+        expect(
+          screen.getAllByText(/Positives Feedback/i).length,
         ).toBeGreaterThan(0);
       },
       { timeout: 2000 },
