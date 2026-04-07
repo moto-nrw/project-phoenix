@@ -56,7 +56,7 @@ func TestParseAttendanceHistoryRange_StartAfterEnd(t *testing.T) {
 }
 
 func TestBuildAttendanceHistoryDays_EmptyRows(t *testing.T) {
-	days := buildAttendanceHistoryDays(nil, nil, time.Now())
+	days := buildAttendanceHistoryDays(nil, nil, time.Now(), false)
 	assert.Empty(t, days)
 }
 
@@ -91,6 +91,7 @@ func TestBuildAttendanceHistoryDays_WithinRoomCap_IncludesVisits(t *testing.T) {
 		[]*active.Attendance{row},
 		map[string][]*active.Visit{key: {visit}},
 		roomCutoff,
+		false,
 	)
 
 	require.Len(t, days, 1)
@@ -138,6 +139,7 @@ func TestBuildAttendanceHistoryDays_ExactlyOnRoomCutoff_IncludesVisits(t *testin
 		[]*active.Attendance{row},
 		map[string][]*active.Visit{key: {visit}},
 		roomCutoff,
+		false,
 	)
 	require.Len(t, days, 1)
 	assert.True(t, days[0].RoomDetailAvailable, "date ON cutoff should have room detail available")
@@ -170,6 +172,7 @@ func TestBuildAttendanceHistoryDays_VisitWithNilActiveGroup(t *testing.T) {
 		[]*active.Attendance{row},
 		map[string][]*active.Visit{key: {visit}},
 		roomCutoff,
+		false,
 	)
 	require.Len(t, days, 1)
 	require.Len(t, days[0].Visits, 1)
@@ -186,7 +189,7 @@ func TestBuildAttendanceHistoryDays_MultipleDays(t *testing.T) {
 		{TenantModel: base.TenantModel{TenantID: 1}, StudentID: 10, Date: today, CheckInTime: today.Add(8 * time.Hour), CheckedInBy: 42, DeviceID: 7},
 		{TenantModel: base.TenantModel{TenantID: 1}, StudentID: 10, Date: yesterday, CheckInTime: yesterday.Add(8 * time.Hour), CheckedInBy: 42, DeviceID: 7},
 	}
-	days := buildAttendanceHistoryDays(rows, map[string][]*active.Visit{}, roomCutoff)
+	days := buildAttendanceHistoryDays(rows, map[string][]*active.Visit{}, roomCutoff, false)
 	assert.Len(t, days, 2, "should return one day entry per attendance row")
 }
 
@@ -209,6 +212,7 @@ func TestBuildAttendanceHistoryDays_OutsideRoomCap_HidesVisits(t *testing.T) {
 		[]*active.Attendance{row},
 		map[string][]*active.Visit{},
 		roomCutoff,
+		false,
 	)
 	require.Len(t, days, 1)
 	assert.False(t, days[0].RoomDetailAvailable, "older-than-room-cap day must hide visits")

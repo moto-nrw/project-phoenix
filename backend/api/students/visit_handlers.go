@@ -210,7 +210,7 @@ func (rs *Resource) getStudentVisitHistory(w http.ResponseWriter, r *http.Reques
 	// Signal deprecation to clients per RFC 8594.
 	w.Header().Set("Deprecation", "true")
 	w.Header().Set("Link", `</api/students/{id}/attendance-history>; rel="successor-version"`)
-	slog.Default().Warn("deprecated endpoint called",
+	rs.Logger.Warn("deprecated endpoint called",
 		slog.String("endpoint", "GET /students/{id}/visit-history"),
 		slog.String("successor", "GET /students/{id}/attendance-history"),
 		slog.Int64("student_id", studentID),

@@ -132,6 +132,7 @@ func (rs *Resource) getStudentAttendanceHistory(w http.ResponseWriter, r *http.R
 	// 6. Conditionally load visits for days within the room-detail cap
 	roomCutoff := today.AddDate(0, 0, -(roomCap - 1))
 	visitsByDate := map[string][]*active.Visit{}
+	visitQueryFailed := false
 	if roomCap > 0 && !start.After(endOfToday) {
 		visitStart := start
 		if roomCutoff.After(visitStart) {
@@ -143,6 +144,7 @@ func (rs *Resource) getStudentAttendanceHistory(w http.ResponseWriter, r *http.R
 				slog.Int64("student_id", student.ID),
 				slog.String("error", visitErr.Error()),
 			)
+			visitQueryFailed = true
 		} else {
 			for _, v := range visits {
 				key := timezone.DateOf(v.EntryTime).Format("2006-01-02")
@@ -152,7 +154,7 @@ func (rs *Resource) getStudentAttendanceHistory(w http.ResponseWriter, r *http.R
 	}
 
 	// 7. Assemble per-day response
-	days := buildAttendanceHistoryDays(attendanceRows, visitsByDate, roomCutoff)
+	days := buildAttendanceHistoryDays(attendanceRows, visitsByDate, roomCutoff, visitQueryFailed)
 
 	resp := attendanceHistoryResponse{
 		StudentID: strconv.FormatInt(student.ID, 10),
@@ -162,7 +164,7 @@ func (rs *Resource) getStudentAttendanceHistory(w http.ResponseWriter, r *http.R
 		Caps:      attendanceHistoryCaps{AttendanceDays: attendanceCap, RoomDetailDays: roomCap},
 	}
 
-	// 8. Fire-and-forget audit write
+	// 8. Audit write (synchronous — errors are logged but never block the response)
 	rs.writeAttendanceHistoryAudit(r, student.ID, start, end, logger)
 
 	common.Respond(w, r, http.StatusOK, resp, "Attendance history retrieved successfully")
@@ -222,7 +224,9 @@ func parseAttendanceHistoryRange(r *http.Request, defaultStart, defaultEnd time.
 
 // buildAttendanceHistoryDays groups attendance rows by date and merges matching
 // visit timelines. Days older than roomCutoff have RoomDetailAvailable=false.
-func buildAttendanceHistoryDays(rows []*active.Attendance, visitsByDate map[string][]*active.Visit, roomCutoff time.Time) []attendanceHistoryDay {
+// If visitQueryFailed is true, all days are marked as RoomDetailAvailable=false
+// because the visit data could not be loaded.
+func buildAttendanceHistoryDays(rows []*active.Attendance, visitsByDate map[string][]*active.Visit, roomCutoff time.Time, visitQueryFailed bool) []attendanceHistoryDay {
 	days := make([]attendanceHistoryDay, 0, len(rows))
 	for _, row := range rows {
 		dateKey := timezone.DateOf(row.Date).Format("2006-01-02")
@@ -246,7 +250,8 @@ func buildAttendanceHistoryDays(rows []*active.Attendance, visitsByDate map[stri
 		}
 
 		// Room detail cap: only include visits if this day is on/after the cutoff
-		if !timezone.DateOf(row.Date).Before(timezone.DateOf(roomCutoff)) {
+		// and the visit query succeeded.
+		if !visitQueryFailed && !timezone.DateOf(row.Date).Before(timezone.DateOf(roomCutoff)) {
 			day.RoomDetailAvailable = true
 			if vs, ok := visitsByDate[dateKey]; ok {
 				for _, v := range vs {

@@ -79,11 +79,20 @@ func createAuditDataAccessLogTable(ctx context.Context, db *bun.DB) error {
 	}
 	fmt.Println("  ✓ audit.data_access_log — table, indexes, RLS created")
 
+	_, err = tx.ExecContext(ctx, `
+		GRANT INSERT, SELECT ON audit.data_access_log TO phoenix_tenant;
+		GRANT USAGE ON SEQUENCE audit.data_access_log_id_seq TO phoenix_tenant;
+	`)
+	if err != nil {
+		return fmt.Errorf("error granting permissions on audit.data_access_log: %w", err)
+	}
+	fmt.Println("  ✓ audit.data_access_log — GRANT INSERT, SELECT + USAGE ON SEQUENCE to phoenix_tenant")
+
 	return tx.Commit()
 }
 
 func dropAuditDataAccessLogTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.27: Dropping audit.data_access_log...")
+	fmt.Println("Rolling back migration 1.15.29: Dropping audit.data_access_log...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {

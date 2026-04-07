@@ -58,26 +58,28 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const message =
       apiError instanceof Error ? apiError.message : String(apiError);
 
-    // Backend returns 403 with a code in the error message for feature-gated
-    // or scope-restricted access. Pass these through so the client can render
-    // a precise German message.
-    if (message.includes("403")) {
+    // apiGet throws errors in the format "API error (STATUS): body".
+    // Extract the status code structurally instead of matching on body text.
+    const statusMatch = message.match(/API error \((\d+)\)/);
+    const status = statusMatch?.[1] ? Number.parseInt(statusMatch[1], 10) : 500;
+
+    if (status === 403) {
       const code = message.includes("not_group_supervisor")
         ? "not_group_supervisor"
         : "feature_disabled";
       return NextResponse.json({ error: code }, { status: 403 });
     }
-    if (message.includes("404")) {
+    if (status === 404) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
 
-    logger.error("attendance history fetch failed", {
+    logger.error("attendance_history_fetch_failed", {
       student_id: studentId,
       error: message,
     });
     return NextResponse.json(
       { error: `Backend API error: ${message}` },
-      { status: 500 },
+      { status },
     );
   }
 }

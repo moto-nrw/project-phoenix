@@ -147,15 +147,18 @@ func (r *VisitRepository) FindByStudentAndTimeRange(ctx context.Context, student
 		}
 	}
 
-	// Materialize into []*active.Visit with ActiveGroup + Room populated
+	// Materialize into []*active.Visit with ActiveGroup + Room populated.
+	// When the LEFT JOIN finds no group, GroupRoomID is 0 — leave ActiveGroup nil.
 	visits := make([]*active.Visit, 0, len(results))
 	for i := range results {
 		v := results[i].Visit
-		v.ActiveGroup = &active.Group{
-			RoomID: results[i].GroupRoomID,
-			Room: &facilities.Room{
-				Name: results[i].GroupRoomName,
-			},
+		if results[i].GroupRoomID != 0 {
+			v.ActiveGroup = &active.Group{
+				RoomID: results[i].GroupRoomID,
+				Room: &facilities.Room{
+					Name: results[i].GroupRoomName,
+				},
+			}
 		}
 		visits = append(visits, &v)
 	}
