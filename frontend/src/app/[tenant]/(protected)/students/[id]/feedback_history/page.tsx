@@ -106,7 +106,7 @@ export default function StudentFeedbackHistoryPage() {
     const startDate = getStartDateForTimeRange(timeRange, now);
     return feedbackHistory.filter((entry) => {
       const entryDate = new Date(entry.timestamp);
-      return entryDate >= startDate && entryDate <= now;
+      return entryDate >= startDate;
     });
   }, [feedbackHistory, timeRange]);
 
