@@ -99,8 +99,6 @@ func (s *guardianService) CreateGuardian(ctx context.Context, req GuardianCreate
 		AddressPostalCode:      req.AddressPostalCode,
 		PreferredContactMethod: req.PreferredContactMethod,
 		LanguagePreference:     req.LanguagePreference,
-		Occupation:             req.Occupation,
-		Employer:               req.Employer,
 		Notes:                  req.Notes,
 		HasAccount:             false,
 	}
@@ -185,8 +183,6 @@ func (s *guardianService) UpdateGuardian(ctx context.Context, id int64, req Guar
 	profile.AddressStreet = req.AddressStreet
 	profile.AddressCity = req.AddressCity
 	profile.AddressPostalCode = req.AddressPostalCode
-	profile.Occupation = req.Occupation
-	profile.Employer = req.Employer
 	profile.Notes = req.Notes
 
 	if req.PreferredContactMethod != "" {

@@ -198,8 +198,6 @@ const mockBackendGuardian: BackendGuardianProfile = {
   address_postal_code: "12345",
   preferred_contact_method: "email",
   language_preference: "de",
-  occupation: "Engineer",
-  employer: "Tech Corp",
   notes: "Some notes",
   has_account: false,
   account_id: undefined,
@@ -225,8 +223,6 @@ const mockGuardianFormData: GuardianFormData = {
   addressPostalCode: "12345",
   preferredContactMethod: "email",
   languagePreference: "de",
-  occupation: "Engineer",
-  employer: "Tech Corp",
   notes: "Some notes",
 };
 
@@ -291,8 +287,6 @@ describe("guardian-api functions", () => {
         addressPostalCode: "12345",
         preferredContactMethod: "email",
         languagePreference: "de",
-        occupation: "Engineer",
-        employer: "Tech Corp",
         notes: "Some notes",
         hasAccount: false,
         accountId: undefined,

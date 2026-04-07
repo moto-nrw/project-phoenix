@@ -58,8 +58,6 @@ describe("guardian-helpers", () => {
         address_postal_code: "10115",
         preferred_contact_method: "email",
         language_preference: "de",
-        occupation: "Engineer",
-        employer: "Tech Corp",
         notes: "Some notes",
         has_account: true,
         account_id: 456,
@@ -95,8 +93,6 @@ describe("guardian-helpers", () => {
         addressPostalCode: "10115",
         preferredContactMethod: "email",
         languagePreference: "de",
-        occupation: "Engineer",
-        employer: "Tech Corp",
         notes: "Some notes",
         hasAccount: true,
         accountId: "456",
@@ -132,8 +128,6 @@ describe("guardian-helpers", () => {
         address_street: undefined,
         address_city: undefined,
         address_postal_code: undefined,
-        occupation: undefined,
-        employer: undefined,
         notes: undefined,
         account_id: undefined,
       };
@@ -145,8 +139,6 @@ describe("guardian-helpers", () => {
       expect(result.addressStreet).toBeUndefined();
       expect(result.addressCity).toBeUndefined();
       expect(result.addressPostalCode).toBeUndefined();
-      expect(result.occupation).toBeUndefined();
-      expect(result.employer).toBeUndefined();
       expect(result.notes).toBeUndefined();
       expect(result.accountId).toBeUndefined();
     });
@@ -203,8 +195,6 @@ describe("guardian-helpers", () => {
         addressPostalCode: undefined,
         preferredContactMethod: "email",
         languagePreference: "de",
-        occupation: undefined,
-        employer: undefined,
         notes: undefined,
         hasAccount: true,
         accountId: "200",
@@ -257,8 +247,6 @@ describe("guardian-helpers", () => {
         addressPostalCode: "80331",
         preferredContactMethod: "mobile",
         languagePreference: "en",
-        occupation: "Doctor",
-        employer: "Hospital",
         notes: "Available after 17:00",
       };
 
@@ -273,8 +261,6 @@ describe("guardian-helpers", () => {
         address_postal_code: "80331",
         preferred_contact_method: "mobile",
         language_preference: "en",
-        occupation: "Doctor",
-        employer: "Hospital",
         notes: "Available after 17:00",
       });
     });

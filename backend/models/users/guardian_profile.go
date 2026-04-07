@@ -39,9 +39,7 @@ type GuardianProfile struct {
 	LanguagePreference     string `bun:"language_preference,default:'de'" json:"language_preference"`
 
 	// Additional Info
-	Occupation *string `bun:"occupation" json:"occupation,omitempty"`
-	Employer   *string `bun:"employer" json:"employer,omitempty"`
-	Notes      *string `bun:"notes" json:"notes,omitempty"` // Staff/admin notes
+	Notes *string `bun:"notes" json:"notes,omitempty"` // Staff/admin notes
 
 	// Relations (not stored in database)
 	Account      *auth.AccountParent    `bun:"rel:belongs-to,join:account_id=id" json:"account,omitempty"`
