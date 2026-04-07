@@ -548,6 +548,7 @@ describe("PersonalInfoReadOnly with showEditButton", () => {
 describe("StudentHistorySection", () => {
   const defaultProps = {
     studentId: "123",
+    attendanceLogEnabled: true,
     onNavigate: vi.fn(),
   };
 
@@ -556,7 +557,7 @@ describe("StudentHistorySection", () => {
     expect(screen.getByText("Historien")).toBeInTheDocument();
   });
 
-  it("renders room history button as enabled", () => {
+  it("renders room history button as enabled when feature is on", () => {
     render(<StudentHistorySection {...defaultProps} />);
     expect(screen.getByText("Anwesenheitsprotokoll")).toBeInTheDocument();
     expect(
@@ -565,6 +566,17 @@ describe("StudentHistorySection", () => {
     expect(
       screen.getByText("Anwesenheitsprotokoll").closest("button"),
     ).not.toBeDisabled();
+  });
+
+  it("renders room history button as disabled when feature is off", () => {
+    render(
+      <StudentHistorySection {...defaultProps} attendanceLogEnabled={false} />,
+    );
+    expect(screen.getByText("Anwesenheitsprotokoll")).toBeInTheDocument();
+    expect(screen.getByText("Für Ihre Schule deaktiviert")).toBeInTheDocument();
+    expect(
+      screen.getByText("Anwesenheitsprotokoll").closest("button"),
+    ).toBeDisabled();
   });
 
   it("renders feedback history button as enabled", () => {
@@ -584,9 +596,15 @@ describe("StudentHistorySection", () => {
     expect(screen.getByText("Mensaverlauf").closest("button")).toBeDisabled();
   });
 
-  it("raumverlauf button navigates on click", () => {
+  it("raumverlauf button navigates on click when enabled", () => {
     const onNavigate = vi.fn();
-    render(<StudentHistorySection studentId="456" onNavigate={onNavigate} />);
+    render(
+      <StudentHistorySection
+        studentId="456"
+        attendanceLogEnabled={true}
+        onNavigate={onNavigate}
+      />,
+    );
     const raumButton = screen
       .getByText("Anwesenheitsprotokoll")
       .closest("button");
@@ -594,9 +612,31 @@ describe("StudentHistorySection", () => {
     expect(onNavigate).toHaveBeenCalledWith("/students/456/room-history");
   });
 
+  it("raumverlauf button does not navigate when disabled", () => {
+    const onNavigate = vi.fn();
+    render(
+      <StudentHistorySection
+        studentId="456"
+        attendanceLogEnabled={false}
+        onNavigate={onNavigate}
+      />,
+    );
+    const raumButton = screen
+      .getByText("Anwesenheitsprotokoll")
+      .closest("button");
+    fireEvent.click(raumButton!);
+    expect(onNavigate).not.toHaveBeenCalled();
+  });
+
   it("feedback button navigates on click", () => {
     const onNavigate = vi.fn();
-    render(<StudentHistorySection studentId="456" onNavigate={onNavigate} />);
+    render(
+      <StudentHistorySection
+        studentId="456"
+        attendanceLogEnabled={true}
+        onNavigate={onNavigate}
+      />,
+    );
     const feedbackButton = screen
       .getByText("Feedbackhistorie")
       .closest("button");

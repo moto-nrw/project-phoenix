@@ -18,6 +18,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -394,6 +395,8 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 	group := rs.getStudentGroup(r.Context(), student)
 	hasFullAccess := rs.checkStudentFullAccess(r, student)
 
+	attendanceLogEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyAttendanceLogEnabled, false, rs.Logger)
+
 	response := StudentDetailResponse{
 		StudentResponse: newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
 			Student:       student,
@@ -404,7 +407,8 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 			ActiveService: rs.ActiveService,
 			PersonService: rs.PersonService,
 		}),
-		HasFullAccess: hasFullAccess,
+		HasFullAccess:        hasFullAccess,
+		AttendanceLogEnabled: attendanceLogEnabled,
 	}
 
 	// Add supervisor contacts for users without full access

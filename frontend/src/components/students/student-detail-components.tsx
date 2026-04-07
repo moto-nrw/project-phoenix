@@ -576,17 +576,19 @@ function HistoryButton({
 
 interface StudentHistorySectionProps {
   studentId: string;
+  attendanceLogEnabled: boolean;
   onNavigate: (path: string) => void;
 }
 
 /**
- * History section on the student detail page. Raumverlauf and Feedbackhistorie
- * are active and navigate to their respective pages. The destination pages
- * handle their own feature flags and scope checks. Mensa history remains a
- * disabled placeholder (future feature).
+ * History section on the student detail page. The Anwesenheitsprotokoll button
+ * is gated by the tenant's `gdpr.attendance_log_enabled` setting. Scope checks
+ * (group supervisor) are handled by the destination page. Mensa history remains
+ * a disabled placeholder (future feature).
  */
 export function StudentHistorySection({
   studentId,
+  attendanceLogEnabled,
   onNavigate,
 }: Readonly<StudentHistorySectionProps>) {
   return (
@@ -595,9 +597,18 @@ export function StudentHistorySection({
         <HistoryButton
           icon={<BuildingIcon />}
           title="Anwesenheitsprotokoll"
-          description="Anwesenheit und besuchte Räume"
+          description={
+            attendanceLogEnabled
+              ? "Anwesenheit und besuchte Räume"
+              : "Für Ihre Schule deaktiviert"
+          }
           bgColor="bg-[#5080D8]"
-          onClick={() => onNavigate(`/students/${studentId}/room-history`)}
+          disabled={!attendanceLogEnabled}
+          onClick={
+            attendanceLogEnabled
+              ? () => onNavigate(`/students/${studentId}/room-history`)
+              : undefined
+          }
         />
         <HistoryButton
           icon={<ChatIcon />}
