@@ -35,6 +35,14 @@ vi.mock("~/lib/breadcrumb-context", () => ({
   ),
 }));
 
+vi.mock("~/components/ui/back-button", () => ({
+  BackButton: ({ referrer }: { referrer: string }) => (
+    <button data-testid="back-button" data-referrer={referrer}>
+      Zurück
+    </button>
+  ),
+}));
+
 vi.mock("~/components/ui/loading", () => ({
   Loading: ({ fullPage }: { fullPage?: boolean }) => (
     <div data-testid="loading" data-fullpage={fullPage} aria-label="Lädt..." />
@@ -112,18 +120,20 @@ describe("StudentFeedbackHistoryPage", () => {
     expect(screen.getByTestId("loading")).toBeInTheDocument();
   });
 
-  it("renders student info after loading", async () => {
+  it("renders student name as page heading", async () => {
     render(<StudentFeedbackHistoryPage />);
 
     await waitFor(
       () => {
-        expect(screen.getByText("Emma Müller")).toBeInTheDocument();
+        expect(
+          screen.getByRole("heading", { level: 1, name: "Emma Müller" }),
+        ).toBeInTheDocument();
       },
       { timeout: 2000 },
     );
   });
 
-  it("displays feedback history title", async () => {
+  it("displays feedback history subtitle", async () => {
     render(<StudentFeedbackHistoryPage />);
 
     await waitFor(
@@ -189,39 +199,22 @@ describe("StudentFeedbackHistoryPage", () => {
 
     await waitFor(
       () => {
-        expect(
-          screen.getByText("Zurück zum Schülerprofil"),
-        ).toBeInTheDocument();
+        expect(screen.getByTestId("back-button")).toBeInTheDocument();
       },
       { timeout: 2000 },
     );
   });
 
-  it("navigates back to student profile when back button clicked", async () => {
+  it("back button links to student profile", async () => {
     render(<StudentFeedbackHistoryPage />);
 
     await waitFor(
       () => {
-        expect(
-          screen.getByText("Zurück zum Schülerprofil"),
-        ).toBeInTheDocument();
-      },
-      { timeout: 2000 },
-    );
-
-    fireEvent.click(screen.getByText("Zurück zum Schülerprofil"));
-
-    expect(mockPush).toHaveBeenCalledWith(
-      "/test-tenant/students/1?from=/students/search",
-    );
-  });
-
-  it("displays student initials in header", async () => {
-    render(<StudentFeedbackHistoryPage />);
-
-    await waitFor(
-      () => {
-        expect(screen.getByText("EM")).toBeInTheDocument();
+        const backButton = screen.getByTestId("back-button");
+        expect(backButton).toHaveAttribute(
+          "data-referrer",
+          "/students/1?from=/students/search",
+        );
       },
       { timeout: 2000 },
     );

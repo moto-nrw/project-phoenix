@@ -7,8 +7,8 @@ import { Alert } from "~/components/ui/alert";
 import { useSession } from "next-auth/react";
 import { getStartDateForTimeRange } from "~/lib/date-helpers";
 import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
+import { BackButton } from "~/components/ui/back-button";
 import { InfoCard } from "~/components/ui/info-card";
-
 import { Loading } from "~/components/ui/loading";
 import { createLogger } from "~/lib/logger";
 import { fetchStudent } from "~/lib/student-api";
@@ -24,14 +24,10 @@ const feedbackTypeLabels: Record<FeedbackEntry["feedback_type"], string> = {
   negative: "Negatives Feedback",
 };
 
-// Feedback type indicator config (no emojis)
+// Feedback type indicator config
 const feedbackTypeConfig: Record<
   FeedbackEntry["feedback_type"],
-  {
-    bgColor: string;
-    iconColor: string;
-    icon: React.ReactNode;
-  }
+  { bgColor: string; iconColor: string; icon: React.ReactNode }
 > = {
   positive: {
     bgColor: "bg-green-100",
@@ -84,23 +80,30 @@ const feedbackTypeConfig: Record<
   },
 };
 
+const timeRangeOptions = [
+  { key: "all", label: "Alle" },
+  { key: "today", label: "Heute" },
+  { key: "week", label: "Diese Woche" },
+  { key: "7days", label: "Letzte 7 Tage" },
+  { key: "month", label: "Diesen Monat" },
+];
+
 export default function StudentFeedbackHistoryPage() {
   const router = useTenantRouter();
   const params = useParams();
   const searchParams = useSearchParams();
   const studentId = params.id as string;
   const referrer = searchParams.get("from") ?? "/students/search";
-  useSession(); // Ensure session is active
+  useSession();
 
   const [student, setStudent] = useState<Student | null>(null);
   const [feedbackHistory, setFeedbackHistory] = useState<FeedbackEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [timeRange, setTimeRange] = useState<string>("7days"); // Default to last 7 days
+  const [timeRange, setTimeRange] = useState<string>("7days");
 
   useStudentHistoryBreadcrumb({ studentName: student?.name, referrer });
 
-  // Fetch student data and feedback history
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -133,48 +136,19 @@ export default function StudentFeedbackHistoryPage() {
     };
   }, [studentId]);
 
-  // Time range filtering implementation
   const getFilteredFeedbackHistory = (): FeedbackEntry[] => {
-    // Wenn "all" ausgewählt ist, geben wir die gesamte Historie zurück
-    if (timeRange === "all") {
-      return feedbackHistory;
-    }
+    if (timeRange === "all") return feedbackHistory;
 
     const now = new Date();
     const startDate = getStartDateForTimeRange(timeRange, now);
-
     return feedbackHistory.filter((entry) => {
       const entryDate = new Date(entry.timestamp);
       return entryDate >= startDate && entryDate <= now;
     });
   };
 
-  // Apply filtering
   const filteredFeedbackHistory = getFilteredFeedbackHistory();
 
-  // Get year from class
-  const getYear = (schoolClass: string): number => {
-    const yearMatch = /^(\d)/.exec(schoolClass);
-    return yearMatch?.[1] ? Number.parseInt(yearMatch[1], 10) : 0;
-  };
-
-  // Determine color for year indicator
-  const getYearColor = (year: number): string => {
-    switch (year) {
-      case 1:
-        return "bg-blue-500";
-      case 2:
-        return "bg-green-500";
-      case 3:
-        return "bg-yellow-500";
-      case 4:
-        return "bg-purple-500";
-      default:
-        return "bg-gray-400";
-    }
-  };
-
-  // Format time for display
   const formatTime = (dateString: string): string => {
     const date = new Date(dateString);
     return date.toLocaleTimeString("de-DE", {
@@ -183,7 +157,6 @@ export default function StudentFeedbackHistoryPage() {
     });
   };
 
-  // Group feedback history by date
   const groupedFeedbackHistory = filteredFeedbackHistory.reduce(
     (groups, entry) => {
       const date = new Date(entry.timestamp).toLocaleDateString("de-DE", {
@@ -198,13 +171,9 @@ export default function StudentFeedbackHistoryPage() {
     {} as Record<string, FeedbackEntry[]>,
   );
 
-  // Sort dates in descending order (most recent first)
   const sortedDates = Object.keys(groupedFeedbackHistory).sort((a, b) => {
     return new Date(b).getTime() - new Date(a).getTime();
   });
-
-  const year = student ? getYear(student.school_class) : 0;
-  const yearColor = getYearColor(year);
 
   // Count feedback by type
   const positiveFeedbackCount = filteredFeedbackHistory.filter(
@@ -217,7 +186,6 @@ export default function StudentFeedbackHistoryPage() {
     (entry) => entry.feedback_type === "negative",
   ).length;
 
-  // Calculate percentages
   const totalFeedback =
     positiveFeedbackCount + neutralFeedbackCount + negativeFeedbackCount;
   const positivePercentage =
@@ -251,24 +219,19 @@ export default function StudentFeedbackHistoryPage() {
     );
   }
 
-  const timeRangeOptions = [
-    { key: "all", label: "Alle" },
-    { key: "today", label: "Heute" },
-    { key: "week", label: "Diese Woche" },
-    { key: "7days", label: "Letzte 7 Tage" },
-    { key: "month", label: "Diesen Monat" },
-  ];
-
   return (
     <div className="mx-auto max-w-7xl">
-      {/* Back Button */}
-      <div className="mb-6">
-        <button
-          onClick={() => router.push(`/students/${studentId}?from=${referrer}`)}
-          className="flex items-center text-gray-600 transition-colors hover:text-blue-600"
-        >
+      <BackButton referrer={`/students/${studentId}?from=${referrer}`} />
+
+      {/* Page Header — flat style matching student detail page */}
+      <div className="mb-6 ml-6">
+        <h1 className="text-2xl font-bold text-gray-900 md:text-3xl">
+          {student.name}
+        </h1>
+        <p className="mt-1 text-sm text-gray-500">Feedbackhistorie</p>
+        <div className="mt-2 flex items-center gap-2 text-sm text-gray-600">
           <svg
-            className="mr-1 h-5 w-5"
+            className="h-4 w-4 text-gray-400"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -277,54 +240,42 @@ export default function StudentFeedbackHistoryPage() {
               strokeLinecap="round"
               strokeLinejoin="round"
               strokeWidth={2}
-              d="M10 19l-7-7m0 0l7-7m-7 7h18"
+              d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
             />
           </svg>
-          Zurück zum Schülerprofil
-        </button>
-      </div>
-
-      {/* Student Profile Header */}
-      <div className="relative mb-8 overflow-hidden rounded-xl bg-gradient-to-r from-teal-500 to-blue-600 p-6 text-white shadow-md">
-        <div className="flex items-center">
-          <div className="mr-6 flex h-24 w-24 items-center justify-center rounded-full bg-white/30 text-4xl font-bold">
-            {student.first_name?.[0] ?? ""}
-            {student.second_name?.[0] ?? ""}
-          </div>
-          <div>
-            <h1 className="text-3xl font-bold">{student.name}</h1>
-            <div className="mt-1 flex items-center">
-              <span className="opacity-90">Klasse {student.school_class}</span>
-              <span
-                className={`ml-2 inline-block h-3 w-3 rounded-full ${yearColor}`}
-                title={`Jahrgang ${year}`}
-              ></span>
-              <span className="mx-2">·</span>
-              <span className="opacity-90">Gruppe: {student.group_name}</span>
-            </div>
-            <div className="mt-4">
-              <h2 className="text-2xl font-semibold text-white">
-                Feedbackhistorie
-              </h2>
-            </div>
-          </div>
+          <span>
+            Klasse {student.school_class} · Gruppe: {student.group_name}
+          </span>
         </div>
       </div>
 
-      {/* Filter Controls and Feedback Overview */}
-      <div className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Time Range Filter */}
-        <div className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm sm:p-6">
-          <h2 className="mb-3 text-base font-semibold text-gray-900 sm:text-lg">
-            Filter
-          </h2>
+      {/* Filter + Overview */}
+      <div className="mb-6 space-y-4 sm:space-y-6">
+        <InfoCard
+          title="Filter"
+          icon={
+            <svg
+              className="h-5 w-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
+              />
+            </svg>
+          }
+        >
           <div className="flex flex-wrap gap-2">
             {timeRangeOptions.map((option) => (
               <button
                 key={option.key}
-                className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
                   timeRange === option.key
-                    ? "bg-blue-500 text-white"
+                    ? "bg-[#5080D8] text-white"
                     : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                 }`}
                 onClick={() => setTimeRange(option.key)}
@@ -333,9 +284,8 @@ export default function StudentFeedbackHistoryPage() {
               </button>
             ))}
           </div>
-        </div>
+        </InfoCard>
 
-        {/* Feedback Overview */}
         <InfoCard
           title="Feedback-Übersicht"
           icon={
@@ -354,7 +304,7 @@ export default function StudentFeedbackHistoryPage() {
             </svg>
           }
         >
-          <div className="flex flex-wrap gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <StatBlock
               label="Positiv"
               count={positiveFeedbackCount}
@@ -389,79 +339,78 @@ export default function StudentFeedbackHistoryPage() {
         </InfoCard>
       </div>
 
-      {/* Feedback History */}
-      <div className="space-y-6">
-        {filteredFeedbackHistory.length === 0 ? (
-          <div className="rounded-lg bg-white p-8 text-center shadow-sm">
-            <p className="text-gray-500">
-              Kein Feedback für den ausgewählten Zeitraum verfügbar.
-            </p>
-          </div>
-        ) : (
-          <div>
-            {sortedDates.map((dateString) => {
-              const feedbackForDate = groupedFeedbackHistory[dateString] ?? [];
-              const dateObj = new Date(
-                feedbackForDate[0]?.timestamp ?? dateString,
-              );
+      {/* Feedback Timeline */}
+      {filteredFeedbackHistory.length === 0 ? (
+        <div className="rounded-2xl border border-gray-100 bg-white/50 p-8 text-center backdrop-blur-sm">
+          <p className="text-gray-500">
+            Kein Feedback für den ausgewählten Zeitraum verfügbar.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {sortedDates.map((dateString) => {
+            const feedbackForDate = groupedFeedbackHistory[dateString] ?? [];
+            const dateObj = new Date(
+              feedbackForDate[0]?.timestamp ?? dateString,
+            );
 
-              return (
-                <div
-                  key={dateString}
-                  className="mb-4 overflow-hidden rounded-lg bg-white shadow-sm"
-                >
-                  <div className="border-b border-blue-100 bg-blue-50 px-6 py-3">
-                    <h3 className="font-medium text-blue-800">
-                      {dateObj.toLocaleDateString("de-DE", {
-                        weekday: "long",
-                        year: "numeric",
-                        month: "long",
-                        day: "numeric",
-                      })}
-                    </h3>
-                  </div>
-                  <div className="divide-y divide-gray-50 px-6 py-2">
-                    {feedbackForDate.map((feedback) => {
-                      const config = feedbackTypeConfig[feedback.feedback_type];
-                      return (
+            return (
+              <div
+                key={dateString}
+                className="overflow-hidden rounded-2xl border border-gray-100 bg-white/50 backdrop-blur-sm"
+              >
+                <div className="border-b border-gray-100 px-4 py-3 sm:px-6">
+                  <h3 className="text-sm font-semibold text-gray-900">
+                    {dateObj.toLocaleDateString("de-DE", {
+                      weekday: "long",
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    })}
+                  </h3>
+                </div>
+                <div className="divide-y divide-gray-50 px-4 sm:px-6">
+                  {feedbackForDate.map((feedback) => {
+                    const config = feedbackTypeConfig[feedback.feedback_type];
+                    return (
+                      <div
+                        key={feedback.id}
+                        className="flex items-center gap-3 py-3"
+                        data-testid={`feedback-indicator-${feedback.feedback_type}`}
+                      >
                         <div
-                          key={feedback.id}
-                          className="flex items-center gap-3 py-3"
-                          data-testid={`feedback-indicator-${feedback.feedback_type}`}
+                          className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full ${config.bgColor} ${config.iconColor}`}
                         >
-                          <div
-                            className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full ${config.bgColor} ${config.iconColor}`}
-                          >
-                            {config.icon}
-                          </div>
-                          <div className="flex flex-col">
-                            <span className="font-medium text-gray-900">
-                              {feedbackTypeLabels[feedback.feedback_type]}
-                              <span className="ml-2 text-sm text-gray-500">
-                                {formatTime(feedback.timestamp)}
-                              </span>
+                          {config.icon}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-gray-900">
+                            {feedbackTypeLabels[feedback.feedback_type]}
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-gray-500">
+                              {formatTime(feedback.timestamp)}
                             </span>
                             {feedback.is_mensa_feedback && (
-                              <span className="mt-1 text-sm text-blue-500">
+                              <span className="inline-flex items-center rounded-full bg-[#5080D8]/10 px-2 py-0.5 text-xs font-medium text-[#5080D8]">
                                 Mensa-Feedback
                               </span>
                             )}
                           </div>
                         </div>
-                      );
-                    })}
-                  </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
 
-// Stat block for the feedback overview
 function StatBlock({
   label,
   count,
@@ -482,17 +431,18 @@ function StatBlock({
   indicator: { bgColor: string; iconColor: string; icon: React.ReactNode };
 }>) {
   return (
-    <div className={`flex-1 rounded-lg border ${borderColor} ${bgColor} p-3`}>
-      <div className="flex items-center">
+    <div className={`rounded-lg border ${borderColor} ${bgColor} p-3`}>
+      <div className="flex items-center gap-2">
         <div
-          className={`mr-2 flex h-8 w-8 items-center justify-center rounded-full ${indicator.bgColor} ${indicator.iconColor}`}
+          className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full ${indicator.bgColor} ${indicator.iconColor}`}
         >
           {indicator.icon}
         </div>
-        <div>
-          <h3 className={`text-sm font-medium ${labelColor}`}>{label}</h3>
-          <p className={`text-xl font-bold ${valueColor}`}>
-            {count} <span className="text-sm font-normal">({percentage}%)</span>
+        <div className="min-w-0">
+          <p className={`text-xs font-medium ${labelColor}`}>{label}</p>
+          <p className={`text-lg leading-tight font-bold ${valueColor}`}>
+            {count}
+            <span className="ml-1 text-xs font-normal">({percentage}%)</span>
           </p>
         </div>
       </div>
