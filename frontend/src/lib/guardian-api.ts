@@ -140,8 +140,6 @@ interface PartialGuardianUpdateRequest {
   address_postal_code?: string | null;
   preferred_contact_method?: string;
   language_preference?: string;
-  occupation?: string | null;
-  employer?: string | null;
   notes?: string | null;
 }
 
@@ -166,8 +164,6 @@ function mapGuardianFormToBackend(
     result.preferred_contact_method = data.preferredContactMethod;
   if (data.languagePreference)
     result.language_preference = data.languagePreference;
-  if (data.occupation !== undefined) result.occupation = data.occupation;
-  if (data.employer !== undefined) result.employer = data.employer;
   if (data.notes !== undefined) result.notes = data.notes;
 
   return result;
