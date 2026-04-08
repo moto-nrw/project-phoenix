@@ -190,7 +190,53 @@ func TestBuildAttendanceHistoryDays_MultipleDays(t *testing.T) {
 		{TenantModel: base.TenantModel{TenantID: 1}, StudentID: 10, Date: yesterday, CheckInTime: yesterday.Add(8 * time.Hour), CheckedInBy: 42, DeviceID: 7},
 	}
 	days := buildAttendanceHistoryDays(rows, map[string][]*active.Visit{}, roomCutoff, false)
-	assert.Len(t, days, 2, "should return one day entry per attendance row")
+	assert.Len(t, days, 2, "should return one day entry per unique date")
+}
+
+func TestBuildAttendanceHistoryDays_MultipleRowsSameDay_Consolidated(t *testing.T) {
+	today := timezone.Today()
+	roomCutoff := today.AddDate(0, 0, -6)
+
+	// Two attendance rows on the same day: morning session + afternoon re-check-in.
+	morningIn := today.Add(8 * time.Hour)
+	morningOut := today.Add(12 * time.Hour)
+	afternoonIn := today.Add(13 * time.Hour)
+	afternoonOut := today.Add(16 * time.Hour)
+
+	rows := []*active.Attendance{
+		{TenantModel: base.TenantModel{TenantID: 1}, StudentID: 10, Date: today, CheckInTime: morningIn, CheckOutTime: &morningOut, CheckedInBy: 42, DeviceID: 7},
+		{TenantModel: base.TenantModel{TenantID: 1}, StudentID: 10, Date: today, CheckInTime: afternoonIn, CheckOutTime: &afternoonOut, CheckedInBy: 43, DeviceID: 8},
+	}
+	days := buildAttendanceHistoryDays(rows, map[string][]*active.Visit{}, roomCutoff, false)
+
+	require.Len(t, days, 1, "two rows on same day must consolidate into one entry")
+	day := days[0]
+	assert.Equal(t, morningIn, day.Attendance.CheckInTime, "earliest check-in wins")
+	require.NotNil(t, day.Attendance.CheckOutTime)
+	assert.Equal(t, afternoonOut, *day.Attendance.CheckOutTime, "latest check-out wins")
+	assert.Equal(t, int64(42), day.Attendance.CheckedInBy, "checked_in_by from earliest row")
+	require.NotNil(t, day.Attendance.DurationMinutes)
+	assert.Equal(t, 480, *day.Attendance.DurationMinutes, "duration spans earliest check-in to latest check-out")
+}
+
+func TestBuildAttendanceHistoryDays_MultipleRowsSameDay_OneOpenSession(t *testing.T) {
+	today := timezone.Today()
+	roomCutoff := today.AddDate(0, 0, -6)
+
+	morningIn := today.Add(8 * time.Hour)
+	morningOut := today.Add(12 * time.Hour)
+	afternoonIn := today.Add(13 * time.Hour)
+	// Second session still open (no check-out).
+
+	rows := []*active.Attendance{
+		{TenantModel: base.TenantModel{TenantID: 1}, StudentID: 10, Date: today, CheckInTime: morningIn, CheckOutTime: &morningOut, CheckedInBy: 42, DeviceID: 7},
+		{TenantModel: base.TenantModel{TenantID: 1}, StudentID: 10, Date: today, CheckInTime: afternoonIn, CheckedInBy: 43, DeviceID: 8},
+	}
+	days := buildAttendanceHistoryDays(rows, map[string][]*active.Visit{}, roomCutoff, false)
+
+	require.Len(t, days, 1)
+	assert.Nil(t, days[0].Attendance.CheckOutTime, "nil check-out (still present) takes precedence")
+	assert.Nil(t, days[0].Attendance.DurationMinutes, "no duration when session is still open")
 }
 
 func TestBuildAttendanceHistoryDays_OutsideRoomCap_HidesVisits(t *testing.T) {

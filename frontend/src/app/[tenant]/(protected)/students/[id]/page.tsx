@@ -418,6 +418,8 @@ export default function StudentDetailPage() {
         ) : (
           <LimitedAccessView
             student={student}
+            studentId={studentId}
+            attendanceLogEnabled={attendanceLogEnabled}
             supervisors={supervisors}
             showCheckout={showCheckout}
             showCheckin={showCheckin}
@@ -505,6 +507,8 @@ export default function StudentDetailPage() {
 
 interface LimitedAccessViewProps {
   student: ExtendedStudent;
+  studentId: string;
+  attendanceLogEnabled: boolean;
   supervisors: SupervisorContact[];
   showCheckout: boolean;
   showCheckin: boolean;
@@ -514,12 +518,15 @@ interface LimitedAccessViewProps {
 
 function LimitedAccessView({
   student,
+  studentId,
+  attendanceLogEnabled,
   supervisors,
   showCheckout,
   showCheckin,
   onCheckoutClick,
   onCheckinClick,
 }: Readonly<LimitedAccessViewProps>) {
+  const historyRouter = useTenantRouter();
   return (
     <div className="space-y-4 sm:space-y-6">
       {(showCheckout || showCheckin) && (
@@ -544,6 +551,12 @@ function LimitedAccessView({
       <PersonalInfoReadOnly student={student} />
 
       <StudentGuardianManager studentId={student.id} readOnly={true} />
+
+      <StudentHistorySection
+        studentId={studentId}
+        attendanceLogEnabled={attendanceLogEnabled}
+        onNavigate={(path) => historyRouter.push(path)}
+      />
     </div>
   );
 }

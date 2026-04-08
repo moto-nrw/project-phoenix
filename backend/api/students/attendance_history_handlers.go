@@ -164,8 +164,12 @@ func (rs *Resource) getStudentAttendanceHistory(w http.ResponseWriter, r *http.R
 		Caps:      attendanceHistoryCaps{AttendanceDays: attendanceCap, RoomDetailDays: roomCap},
 	}
 
-	// 8. Audit write (synchronous — errors are logged but never block the response)
-	rs.writeAttendanceHistoryAudit(r, student.ID, start, end, logger)
+	// 8. Audit write — GDPR requires a trace for every data access.
+	// If we cannot write the audit log, we must not expose the data.
+	if err := rs.writeAttendanceHistoryAudit(r, student.ID, start, end, logger); err != nil {
+		renderError(w, r, ErrorInternalServer(errors.New("failed to record audit trail")))
+		return
+	}
 
 	common.Respond(w, r, http.StatusOK, resp, "Attendance history retrieved successfully")
 }
@@ -222,36 +226,70 @@ func parseAttendanceHistoryRange(r *http.Request, defaultStart, defaultEnd time.
 	return start, end, nil
 }
 
-// buildAttendanceHistoryDays groups attendance rows by date and merges matching
-// visit timelines. Days older than roomCutoff have RoomDetailAvailable=false.
+// buildAttendanceHistoryDays groups attendance rows by calendar date and merges
+// matching visit timelines. Multiple attendance rows on the same day (e.g. a
+// checkout followed by a re-check-in) are consolidated into one day entry with
+// the earliest check-in, latest check-out, and total duration.
+// Days older than roomCutoff have RoomDetailAvailable=false.
 // If visitQueryFailed is true, all days are marked as RoomDetailAvailable=false
 // because the visit data could not be loaded.
 func buildAttendanceHistoryDays(rows []*active.Attendance, visitsByDate map[string][]*active.Visit, roomCutoff time.Time, visitQueryFailed bool) []attendanceHistoryDay {
-	days := make([]attendanceHistoryDay, 0, len(rows))
+	// Preserve insertion order while grouping by date.
+	dayOrder := make([]string, 0, len(rows))
+	dayMap := make(map[string]*attendanceHistoryDay, len(rows))
+
 	for _, row := range rows {
 		dateKey := timezone.DateOf(row.Date).Format("2006-01-02")
 
-		attendance := &attendanceDayRecord{
-			CheckInTime:  row.CheckInTime,
-			CheckOutTime: row.CheckOutTime,
-			CheckedInBy:  row.CheckedInBy,
-			CheckedOutBy: row.CheckedOutBy,
-			DeviceID:     row.DeviceID,
+		existing, seen := dayMap[dateKey]
+		if !seen {
+			day := &attendanceHistoryDay{
+				Date: dateKey,
+				Attendance: &attendanceDayRecord{
+					CheckInTime:  row.CheckInTime,
+					CheckOutTime: row.CheckOutTime,
+					CheckedInBy:  row.CheckedInBy,
+					CheckedOutBy: row.CheckedOutBy,
+					DeviceID:     row.DeviceID,
+				},
+				Visits: []attendanceVisitEntry{},
+			}
+			dayMap[dateKey] = day
+			dayOrder = append(dayOrder, dateKey)
+		} else {
+			// Consolidate: earliest check-in wins.
+			if row.CheckInTime.Before(existing.Attendance.CheckInTime) {
+				existing.Attendance.CheckInTime = row.CheckInTime
+				existing.Attendance.CheckedInBy = row.CheckedInBy
+				existing.Attendance.DeviceID = row.DeviceID
+			}
+			// Latest check-out wins (nil means still checked in, which takes precedence).
+			if existing.Attendance.CheckOutTime != nil {
+				if row.CheckOutTime == nil {
+					existing.Attendance.CheckOutTime = nil
+					existing.Attendance.CheckedOutBy = nil
+				} else if row.CheckOutTime.After(*existing.Attendance.CheckOutTime) {
+					existing.Attendance.CheckOutTime = row.CheckOutTime
+					existing.Attendance.CheckedOutBy = row.CheckedOutBy
+				}
+			}
 		}
-		if row.CheckOutTime != nil {
-			mins := int(row.CheckOutTime.Sub(row.CheckInTime).Minutes())
-			attendance.DurationMinutes = &mins
-		}
+	}
 
-		day := attendanceHistoryDay{
-			Date:       dateKey,
-			Attendance: attendance,
-			Visits:     []attendanceVisitEntry{},
+	// Calculate durations and attach visits.
+	days := make([]attendanceHistoryDay, 0, len(dayOrder))
+	for _, dateKey := range dayOrder {
+		day := dayMap[dateKey]
+
+		if day.Attendance.CheckOutTime != nil {
+			mins := int(day.Attendance.CheckOutTime.Sub(day.Attendance.CheckInTime).Minutes())
+			day.Attendance.DurationMinutes = &mins
 		}
 
 		// Room detail cap: only include visits if this day is on/after the cutoff
 		// and the visit query succeeded.
-		if !visitQueryFailed && !timezone.DateOf(row.Date).Before(timezone.DateOf(roomCutoff)) {
+		date, _ := time.Parse("2006-01-02", dateKey)
+		if !visitQueryFailed && !timezone.DateOf(date).Before(timezone.DateOf(roomCutoff)) {
 			day.RoomDetailAvailable = true
 			if vs, ok := visitsByDate[dateKey]; ok {
 				for _, v := range vs {
@@ -275,16 +313,20 @@ func buildAttendanceHistoryDays(rows []*active.Attendance, visitsByDate map[stri
 			}
 		}
 
-		days = append(days, day)
+		days = append(days, *day)
 	}
 	return days
 }
 
 // writeAttendanceHistoryAudit records a view event to audit.data_access_log.
-// Errors are logged but never block the response.
-func (rs *Resource) writeAttendanceHistoryAudit(r *http.Request, studentID int64, start, end time.Time, logger *slog.Logger) {
+// Returns an error if the audit trail cannot be written — callers must not
+// expose the requested data without a successful audit record.
+func (rs *Resource) writeAttendanceHistoryAudit(r *http.Request, studentID int64, start, end time.Time, logger *slog.Logger) error {
 	if rs.DataAccessLogRepo == nil {
-		return
+		logger.Error("audit log repo not configured, refusing to serve attendance history",
+			slog.Int64("student_id", studentID),
+		)
+		return errors.New("audit log repository not configured")
 	}
 
 	claims := jwt.ClaimsFromCtx(r.Context())
@@ -306,10 +348,12 @@ func (rs *Resource) writeAttendanceHistoryAudit(r *http.Request, studentID int64
 	}
 
 	if err := rs.DataAccessLogRepo.Create(r.Context(), entry); err != nil {
-		logger.Warn("audit log write failed",
+		logger.Error("audit log write failed, refusing to serve attendance history",
 			slog.Int64("student_id", studentID),
 			slog.String("resource_type", auditModels.ResourceTypeAttendanceHistory),
 			slog.String("error", err.Error()),
 		)
+		return err
 	}
+	return nil
 }
