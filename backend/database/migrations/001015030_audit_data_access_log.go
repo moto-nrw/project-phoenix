@@ -18,7 +18,7 @@ func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     auditDataAccessLogVersion,
 		Description: auditDataAccessLogDescription,
-		DependsOn:   []string{"1.15.28"},
+		DependsOn:   []string{"1.15.29"},
 	})
 
 	Migrations.MustRegister(
