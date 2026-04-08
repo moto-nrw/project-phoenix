@@ -140,12 +140,20 @@ function HistoryCharts({ days }: { readonly days: AttendanceHistoryDay[] }) {
       .map((day) => ({
         date: formatDateShort(day.date),
         isToday: day.date === todayKey,
+        roomDetailAvailable: day.roomDetailAvailable,
         duration: day.attendance
           ? Math.round(((day.attendance.durationMinutes ?? 0) / 60) * 10) / 10
           : 0,
         visits: day.visits.length,
       }));
   }, [days, todayKey]);
+
+  // Filter out days where room details are unavailable (retention cap),
+  // so the activity chart doesn't show misleading zero-height bars.
+  const activityChartData = useMemo(
+    () => chartData.filter((d) => d.roomDetailAvailable),
+    [chartData],
+  );
 
   if (chartData.length === 0) return null;
 
@@ -219,51 +227,59 @@ function HistoryCharts({ days }: { readonly days: AttendanceHistoryDay[] }) {
             </h2>
             <p className="mt-0.5 text-xs text-gray-500">Raumwechsel pro Tag</p>
           </div>
-          <ChartContainer
-            config={activityChartConfig}
-            className="h-[180px] w-full sm:h-[200px]"
-          >
-            <BarChart
-              data={chartData}
-              margin={{ top: 4, right: 4, bottom: 0, left: -20 }}
-              barCategoryGap="20%"
+          {activityChartData.length === 0 ? (
+            <div className="flex h-[180px] items-center justify-center sm:h-[200px]">
+              <p className="text-sm text-gray-400">
+                Keine Raumdetails verfügbar (Aufbewahrungsfrist überschritten).
+              </p>
+            </div>
+          ) : (
+            <ChartContainer
+              config={activityChartConfig}
+              className="h-[180px] w-full sm:h-[200px]"
             >
-              <CartesianGrid vertical={false} />
-              <XAxis
-                dataKey="date"
-                tickLine={false}
-                axisLine={false}
-                tickMargin={8}
-                fontSize={11}
-                interval={0}
-                tick={(p: Record<string, unknown>) => (
-                  <TodayTick chartData={chartData} props={p} />
-                )}
-              />
-              <YAxis
-                tickLine={false}
-                axisLine={false}
-                tickMargin={4}
-                fontSize={12}
-                allowDecimals={false}
-              />
-              <ChartTooltip
-                content={
-                  <ChartTooltipContent
-                    labelFormatter={(label) => `Tag: ${label}`}
-                    formatter={(value) => (
-                      <span className="font-medium">{value} Wechsel</span>
-                    )}
-                  />
-                }
-              />
-              <Bar
-                dataKey="visits"
-                fill="var(--color-visits)"
-                radius={[6, 6, 6, 6]}
-              />
-            </BarChart>
-          </ChartContainer>
+              <BarChart
+                data={activityChartData}
+                margin={{ top: 4, right: 4, bottom: 0, left: -20 }}
+                barCategoryGap="20%"
+              >
+                <CartesianGrid vertical={false} />
+                <XAxis
+                  dataKey="date"
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={8}
+                  fontSize={11}
+                  interval={0}
+                  tick={(p: Record<string, unknown>) => (
+                    <TodayTick chartData={activityChartData} props={p} />
+                  )}
+                />
+                <YAxis
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={4}
+                  fontSize={12}
+                  allowDecimals={false}
+                />
+                <ChartTooltip
+                  content={
+                    <ChartTooltipContent
+                      labelFormatter={(label) => `Tag: ${label}`}
+                      formatter={(value) => (
+                        <span className="font-medium">{value} Wechsel</span>
+                      )}
+                    />
+                  }
+                />
+                <Bar
+                  dataKey="visits"
+                  fill="var(--color-visits)"
+                  radius={[6, 6, 6, 6]}
+                />
+              </BarChart>
+            </ChartContainer>
+          )}
         </div>
       </div>
     </div>
