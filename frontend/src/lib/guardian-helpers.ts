@@ -41,8 +41,6 @@ export interface Guardian {
   addressPostalCode?: string;
   preferredContactMethod: string;
   languagePreference: string;
-  occupation?: string;
-  employer?: string;
   notes?: string;
   hasAccount: boolean;
   accountId?: string;
@@ -60,8 +58,6 @@ export interface BackendGuardianProfile {
   address_postal_code?: string;
   preferred_contact_method: string;
   language_preference: string;
-  occupation?: string;
-  employer?: string;
   notes?: string;
   has_account: boolean;
   account_id?: number;
@@ -124,8 +120,6 @@ export interface GuardianFormData {
   addressPostalCode?: string;
   preferredContactMethod?: string;
   languagePreference?: string;
-  occupation?: string;
-  employer?: string;
   notes?: string;
 }
 
@@ -141,8 +135,6 @@ export interface BackendGuardianCreateRequest {
   address_postal_code?: string;
   preferred_contact_method?: string;
   language_preference?: string;
-  occupation?: string;
-  employer?: string;
   notes?: string;
 }
 
@@ -194,8 +186,6 @@ export function mapGuardianResponse(data: BackendGuardianProfile): Guardian {
     addressPostalCode: data.address_postal_code,
     preferredContactMethod: data.preferred_contact_method,
     languagePreference: data.language_preference,
-    occupation: data.occupation,
-    employer: data.employer,
     notes: data.notes,
     hasAccount: data.has_account,
     accountId: data.account_id?.toString(),
@@ -229,8 +219,6 @@ export function mapGuardianFormDataToBackend(
     address_postal_code: data.addressPostalCode,
     preferred_contact_method: data.preferredContactMethod,
     language_preference: data.languagePreference,
-    occupation: data.occupation,
-    employer: data.employer,
     notes: data.notes,
   };
 }

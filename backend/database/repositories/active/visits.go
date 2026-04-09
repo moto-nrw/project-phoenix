@@ -106,6 +106,65 @@ func (r *VisitRepository) FindByTimeRange(ctx context.Context, start, end time.T
 	return visits, nil
 }
 
+// visitWithGroupRoom is a result struct for FindByStudentAndTimeRange that
+// captures active-group + room columns via explicit JOINs. BUN's Relation()
+// does not resolve `schema:active` / `schema:facilities` tags for relation
+// sub-queries, so we must load them manually (see line 245 of this file).
+type visitWithGroupRoom struct {
+	active.Visit
+	GroupRoomID   int64  `bun:"group__room_id"`
+	GroupRoomName string `bun:"room__name"`
+}
+
+// FindByStudentAndTimeRange finds all visits (active or ended) for a specific
+// student whose entry_time falls within [start, end], ordered by entry_time desc.
+// Eagerly loads the active group's room_id and room name via explicit JOINs
+// (not BUN Relation — see comment above).
+func (r *VisitRepository) FindByStudentAndTimeRange(ctx context.Context, studentID int64, start, end time.Time) ([]*active.Visit, error) {
+	var results []visitWithGroupRoom
+
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&results).
+		ModelTableExpr(tableExprActiveVisitsAsVisit).
+		ColumnExpr(`"visit".*`).
+		ColumnExpr(`"group".room_id AS "group__room_id"`).
+		ColumnExpr(`"room".name AS "room__name"`).
+		Join(`LEFT JOIN active.groups AS "group" ON "group".id = "visit".active_group_id`).
+		Join(`LEFT JOIN facilities.rooms AS "room" ON "room".id = "group".room_id`).
+		Where(`"visit".student_id = ?`, studentID).
+		Where(`"visit".entry_time >= ?`, start).
+		Where(`"visit".entry_time <= ?`, end).
+		OrderExpr(`"visit".entry_time ASC`)
+
+	if where, val, ok := base.TenantWhere(ctx, "visit"); ok {
+		query = query.Where(where, val)
+	}
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by student and time range",
+			Err: err,
+		}
+	}
+
+	// Materialize into []*active.Visit with ActiveGroup + Room populated.
+	// When the LEFT JOIN finds no group, GroupRoomID is 0 — leave ActiveGroup nil.
+	visits := make([]*active.Visit, 0, len(results))
+	for i := range results {
+		v := results[i].Visit
+		if results[i].GroupRoomID != 0 {
+			v.ActiveGroup = &active.Group{
+				RoomID: results[i].GroupRoomID,
+				Room: &facilities.Room{
+					Name: results[i].GroupRoomName,
+				},
+			}
+		}
+		visits = append(visits, &v)
+	}
+	return visits, nil
+}
+
 // EndVisit marks a visit as ended at the current time
 func (r *VisitRepository) EndVisit(ctx context.Context, id int64) error {
 	query := base.GetDB(ctx, r.db).NewUpdate().

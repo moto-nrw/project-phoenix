@@ -2,12 +2,21 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import type { ResolvedSetting } from "~/lib/settings-api";
+import { ConfirmationModal } from "~/components/ui/modal";
 import { BooleanField } from "./fields/boolean-field";
 import { NumberField } from "./fields/number-field";
 import { TimeField } from "./fields/time-field";
 import { TextField } from "./fields/text-field";
 import { PasswordField } from "./fields/password-field";
 import { SelectField } from "./fields/select-field";
+
+/** Settings keys that require a confirmation dialog before enabling. */
+const CONFIRM_ON_ENABLE: Record<string, { title: string; body: string }> = {
+  "gdpr.attendance_log_enabled": {
+    title: "Anwesenheitshistorie aktivieren",
+    body: "Die Aktivierung erfordert die datenschutzrechtliche Einwilligung der Erziehungsberechtigten gem. § 120 Abs. 2 SchulG NRW i.V.m. Art. 6 Abs. 1 lit. a DSGVO.",
+  },
+};
 
 function toStr(v: unknown): string {
   if (v == null) return "";
@@ -53,6 +62,7 @@ export function SettingsField({
   const [isDirty, setIsDirty] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const feedbackRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -120,13 +130,30 @@ export function SettingsField({
     [setting, onSave, showFeedback],
   );
 
-  // Immediate save — for booleans and selects
+  // Immediate save — for booleans and selects.
+  // If the setting requires confirmation before enabling, show the modal first.
+  const confirmConfig = CONFIRM_ON_ENABLE[setting.key];
+  const pendingValueRef = useRef<unknown>(null);
+
   const handleImmediateSave = useCallback(
     async (value: unknown) => {
+      if (confirmConfig && value === true) {
+        pendingValueRef.current = value;
+        setConfirmOpen(true);
+        return;
+      }
       await doSave(value);
     },
-    [doSave],
+    [doSave, confirmConfig],
   );
+
+  const handleConfirm = useCallback(async () => {
+    setConfirmOpen(false);
+    if (pendingValueRef.current != null) {
+      await doSave(pendingValueRef.current);
+      pendingValueRef.current = null;
+    }
+  }, [doSave]);
 
   // Local change — for text/number/time (debounce auto-save)
   const handleLocalChange = useCallback(
@@ -247,6 +274,22 @@ export function SettingsField({
           </button>
         )}
       </div>
+
+      {confirmConfig && (
+        <ConfirmationModal
+          isOpen={confirmOpen}
+          onClose={() => {
+            setConfirmOpen(false);
+            pendingValueRef.current = null;
+          }}
+          onConfirm={handleConfirm}
+          title={confirmConfig.title}
+          confirmText="Aktivieren"
+          cancelText="Abbrechen"
+        >
+          <p className="text-sm text-gray-600">{confirmConfig.body}</p>
+        </ConfirmationModal>
+      )}
     </div>
   );
 }

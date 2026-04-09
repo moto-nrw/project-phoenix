@@ -57,6 +57,7 @@ export default function StudentDetailPage() {
     loading,
     error,
     hasFullAccess,
+    attendanceLogEnabled,
     supervisors,
     myGroups,
     myGroupRooms,
@@ -401,6 +402,7 @@ export default function StudentDetailPage() {
           <FullAccessView
             student={student}
             studentId={studentId}
+            attendanceLogEnabled={attendanceLogEnabled}
             showCheckout={showCheckout}
             showCheckin={showCheckin}
             showPersonalInfoModal={showPersonalInfoModal}
@@ -416,6 +418,8 @@ export default function StudentDetailPage() {
         ) : (
           <LimitedAccessView
             student={student}
+            studentId={studentId}
+            attendanceLogEnabled={attendanceLogEnabled}
             supervisors={supervisors}
             showCheckout={showCheckout}
             showCheckin={showCheckin}
@@ -503,6 +507,8 @@ export default function StudentDetailPage() {
 
 interface LimitedAccessViewProps {
   student: ExtendedStudent;
+  studentId: string;
+  attendanceLogEnabled: boolean;
   supervisors: SupervisorContact[];
   showCheckout: boolean;
   showCheckin: boolean;
@@ -512,12 +518,15 @@ interface LimitedAccessViewProps {
 
 function LimitedAccessView({
   student,
+  studentId,
+  attendanceLogEnabled,
   supervisors,
   showCheckout,
   showCheckin,
   onCheckoutClick,
   onCheckinClick,
 }: Readonly<LimitedAccessViewProps>) {
+  const historyRouter = useTenantRouter();
   return (
     <div className="space-y-4 sm:space-y-6">
       {(showCheckout || showCheckin) && (
@@ -542,6 +551,12 @@ function LimitedAccessView({
       <PersonalInfoReadOnly student={student} />
 
       <StudentGuardianManager studentId={student.id} readOnly={true} />
+
+      <StudentHistorySection
+        studentId={studentId}
+        attendanceLogEnabled={attendanceLogEnabled}
+        onNavigate={(path) => historyRouter.push(path)}
+      />
     </div>
   );
 }
@@ -553,6 +568,7 @@ function LimitedAccessView({
 interface FullAccessViewProps {
   student: ExtendedStudent;
   studentId: string;
+  attendanceLogEnabled: boolean;
   showCheckout: boolean;
   showCheckin: boolean;
   showPersonalInfoModal: boolean;
@@ -569,6 +585,7 @@ interface FullAccessViewProps {
 function FullAccessView({
   student,
   studentId,
+  attendanceLogEnabled,
   showCheckout,
   showCheckin,
   showPersonalInfoModal,
@@ -621,6 +638,7 @@ function FullAccessView({
 
         <StudentHistorySection
           studentId={studentId}
+          attendanceLogEnabled={attendanceLogEnabled}
           onNavigate={(path) => historyRouter.push(path)}
         />
       </div>

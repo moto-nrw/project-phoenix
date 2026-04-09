@@ -16,10 +16,14 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/models/active"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
+	configService "github.com/moto-nrw/project-phoenix/services/config"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -47,6 +51,11 @@ type Resource struct {
 	PrivacyConsentRepo    users.PrivacyConsentRepository
 	PickupScheduleService scheduleService.PickupScheduleService
 	SchoolRepo            platform.SchoolRepository
+	SettingsService       configService.SettingsService
+	AttendanceRepo        active.AttendanceRepository
+	VisitRepo             active.VisitRepository
+	DataAccessLogRepo     auditModels.DataAccessLogRepository
+	Logger                *slog.Logger
 	db                    *bun.DB
 }
 
@@ -62,6 +71,11 @@ type ResourceConfig struct {
 	PrivacyConsentRepo    users.PrivacyConsentRepository
 	PickupScheduleService scheduleService.PickupScheduleService
 	SchoolRepo            platform.SchoolRepository
+	SettingsService       configService.SettingsService
+	AttendanceRepo        active.AttendanceRepository
+	VisitRepo             active.VisitRepository
+	DataAccessLogRepo     auditModels.DataAccessLogRepository
+	Logger                *slog.Logger
 	DB                    *bun.DB
 }
 
@@ -77,6 +91,11 @@ func NewResource(cfg ResourceConfig) *Resource {
 		PrivacyConsentRepo:    cfg.PrivacyConsentRepo,
 		PickupScheduleService: cfg.PickupScheduleService,
 		SchoolRepo:            cfg.SchoolRepo,
+		SettingsService:       cfg.SettingsService,
+		AttendanceRepo:        cfg.AttendanceRepo,
+		VisitRepo:             cfg.VisitRepo,
+		DataAccessLogRepo:     cfg.DataAccessLogRepo,
+		Logger:                cfg.Logger,
 		db:                    cfg.DB,
 	}
 }
@@ -103,6 +122,7 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/current-location", rs.getStudentCurrentLocation)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/current-visit", rs.getStudentCurrentVisit)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/visit-history", rs.getStudentVisitHistory)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/attendance-history", rs.getStudentAttendanceHistory)
 
 		// Routes requiring users:create permission
 		r.With(authorize.RequiresPermission(permissions.UsersCreate), withTx).Post("/", rs.createStudent)
@@ -375,6 +395,8 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 	group := rs.getStudentGroup(r.Context(), student)
 	hasFullAccess := rs.checkStudentFullAccess(r, student)
 
+	attendanceLogEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyAttendanceLogEnabled, false, rs.Logger)
+
 	response := StudentDetailResponse{
 		StudentResponse: newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
 			Student:       student,
@@ -385,7 +407,8 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 			ActiveService: rs.ActiveService,
 			PersonService: rs.PersonService,
 		}),
-		HasFullAccess: hasFullAccess,
+		HasFullAccess:        hasFullAccess,
+		AttendanceLogEnabled: attendanceLogEnabled,
 	}
 
 	// Add supervisor contacts for users without full access
@@ -828,6 +851,12 @@ func (rs *Resource) GetStudentCurrentVisitHandler() http.HandlerFunc {
 // GetStudentVisitHistoryHandler returns the handler for getting a student's visit history.
 func (rs *Resource) GetStudentVisitHistoryHandler() http.HandlerFunc {
 	return rs.getStudentVisitHistory
+}
+
+// GetStudentAttendanceHistoryHandler returns the handler for getting a student's
+// attendance history (daily presence + per-day room movement).
+func (rs *Resource) GetStudentAttendanceHistoryHandler() http.HandlerFunc {
+	return rs.getStudentAttendanceHistory
 }
 
 // GetStudentPrivacyConsentHandler returns the handler for getting a student's privacy consent.

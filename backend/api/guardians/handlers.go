@@ -52,8 +52,6 @@ type GuardianResponse struct {
 	AddressPostalCode      *string                `json:"address_postal_code,omitempty"`
 	PreferredContactMethod string                 `json:"preferred_contact_method"`
 	LanguagePreference     string                 `json:"language_preference"`
-	Occupation             *string                `json:"occupation,omitempty"`
-	Employer               *string                `json:"employer,omitempty"`
 	Notes                  *string                `json:"notes,omitempty"`
 	HasAccount             bool                   `json:"has_account"`
 	AccountID              *int64                 `json:"account_id,omitempty"`
@@ -70,8 +68,6 @@ type GuardianCreateRequest struct {
 	AddressPostalCode      *string `json:"address_postal_code,omitempty"`
 	PreferredContactMethod string  `json:"preferred_contact_method"`
 	LanguagePreference     string  `json:"language_preference"`
-	Occupation             *string `json:"occupation,omitempty"`
-	Employer               *string `json:"employer,omitempty"`
 	Notes                  *string `json:"notes,omitempty"`
 }
 
@@ -86,8 +82,6 @@ type GuardianUpdateRequest struct {
 	AddressPostalCode      *string `json:"address_postal_code,omitempty"`
 	PreferredContactMethod *string `json:"preferred_contact_method,omitempty"`
 	LanguagePreference     *string `json:"language_preference,omitempty"`
-	Occupation             *string `json:"occupation,omitempty"`
-	Employer               *string `json:"employer,omitempty"`
 	Notes                  *string `json:"notes,omitempty"`
 }
 
@@ -238,8 +232,6 @@ func newGuardianResponse(profile *users.GuardianProfile) *GuardianResponse {
 		AddressPostalCode:      profile.AddressPostalCode,
 		PreferredContactMethod: profile.PreferredContactMethod,
 		LanguagePreference:     profile.LanguagePreference,
-		Occupation:             profile.Occupation,
-		Employer:               profile.Employer,
 		Notes:                  profile.Notes,
 		HasAccount:             profile.HasAccount,
 		AccountID:              profile.AccountID,
@@ -461,8 +453,6 @@ func (rs *Resource) createGuardian(w http.ResponseWriter, r *http.Request) {
 		AddressPostalCode:      req.AddressPostalCode,
 		PreferredContactMethod: req.PreferredContactMethod,
 		LanguagePreference:     req.LanguagePreference,
-		Occupation:             req.Occupation,
-		Employer:               req.Employer,
 		Notes:                  req.Notes,
 	}
 
@@ -538,8 +528,6 @@ func buildGuardianUpdateRequest(guardian *users.GuardianProfile, req *GuardianUp
 		AddressPostalCode:      guardian.AddressPostalCode,
 		PreferredContactMethod: guardian.PreferredContactMethod,
 		LanguagePreference:     guardian.LanguagePreference,
-		Occupation:             guardian.Occupation,
-		Employer:               guardian.Employer,
 		Notes:                  guardian.Notes,
 	}
 
@@ -573,12 +561,6 @@ func applyGuardianUpdates(updateReq *guardianSvc.GuardianCreateRequest, req *Gua
 	}
 	if req.LanguagePreference != nil {
 		updateReq.LanguagePreference = *req.LanguagePreference
-	}
-	if req.Occupation != nil {
-		updateReq.Occupation = req.Occupation
-	}
-	if req.Employer != nil {
-		updateReq.Employer = req.Employer
 	}
 	if req.Notes != nil {
 		updateReq.Notes = req.Notes

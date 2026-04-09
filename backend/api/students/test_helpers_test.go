@@ -47,6 +47,12 @@ func setupTestContext(t *testing.T) *testContext {
 		IoTService:            svc.IoT,
 		PrivacyConsentRepo:    repoFactory.PrivacyConsent,
 		PickupScheduleService: svc.PickupSchedule,
+		SchoolRepo:            repoFactory.School,
+		SettingsService:       svc.Settings,
+		AttendanceRepo:        repoFactory.Attendance,
+		VisitRepo:             repoFactory.ActiveVisit,
+		DataAccessLogRepo:     repoFactory.DataAccessLog,
+		Logger:                slog.Default(),
 		DB:                    db,
 	})
 

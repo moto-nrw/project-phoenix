@@ -66,12 +66,18 @@ func (assignRFIDsAction) Name() string { return "assign RFID tags" }
 
 func (assignRFIDsAction) Run(_ context.Context, rt *Runtime) error {
 	fmt.Printf("\nPhase 2: Assigning RFID tags to %d students...\n", len(rt.State.Students))
+	deviceKeysForRFID := sortedDeviceKeys(rt.State.Devices)
+	if len(deviceKeysForRFID) == 0 {
+		return fmt.Errorf("no devices in seed state for RFID assignment")
+	}
+	rfidDevice := rt.State.Devices[deviceKeysForRFID[0]]
+
 	for _, student := range rt.State.Students {
 		rfidTag := fmt.Sprintf("DE%06X", student.ID)
 		rt.RFIDTags[student.ID] = rfidTag
 
 		body := map[string]string{"rfid_tag": rfidTag}
-		_, err := rt.Client.AdminPost(fmt.Sprintf("/api/students/%d/rfid-tag", student.ID), body)
+		_, err := rt.Client.DevicePost(fmt.Sprintf("/api/students/%d/rfid", student.ID), body, rfidDevice.APIKey, rt.State.DevicePIN)
 		if err != nil {
 			fmt.Printf("  WARNING: failed to assign RFID to student %d (%s %s): %v\n",
 				student.ID, student.FirstName, student.LastName, err)

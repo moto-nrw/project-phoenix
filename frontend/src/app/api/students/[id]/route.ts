@@ -107,6 +107,8 @@ export const GET = createGetHandler(
       // Extract access control fields from response data
       const hasFullAccess = studentData.has_full_access ?? false;
       const groupSupervisors = studentData.group_supervisors ?? [];
+      const attendanceLogEnabled =
+        (studentData.attendance_log_enabled as boolean) ?? false;
 
       // Check if we need to extract last_name from the name field
       if (!studentData.last_name && studentData.name) {
@@ -132,6 +134,7 @@ export const GET = createGetHandler(
         ...consentData,
         has_full_access: hasFullAccess,
         group_supervisors: groupSupervisors,
+        attendance_log_enabled: attendanceLogEnabled,
       };
     } catch (error) {
       logger.error("student fetch failed", {
