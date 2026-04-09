@@ -164,7 +164,7 @@ export const rolesConfig = defineEntityConfig<Role>({
     mapRequest: (data: Partial<Role>): Record<string, unknown> => ({
       name: data.name,
       description: data.description,
-      base_role: data.baseRole,
+      ...(!data.isSystem && { base_role: data.baseRole }),
     }),
     mapResponse: (data: unknown): Role => {
       // Handle wrapped response format

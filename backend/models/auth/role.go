@@ -18,11 +18,13 @@ const (
 	BaseRoleGuardian = "guardian"
 )
 
-// ValidBaseRoles lists the system roles that custom roles can map to.
+// ValidBaseRoles returns the system roles that custom roles can map to.
 // When adding a new base role, also update:
 //   - DB CHECK constraint in migration 001015030_roles_base_role.go
 //   - Frontend options in roles.config.tsx and role-detail-modal.tsx
-var ValidBaseRoles = []string{BaseRoleAdmin, BaseRoleUser, BaseRoleGuardian}
+func ValidBaseRoles() []string {
+	return []string{BaseRoleAdmin, BaseRoleUser, BaseRoleGuardian}
+}
 
 // Role represents a user role
 type Role struct {
@@ -70,8 +72,8 @@ func (r *Role) Validate() error {
 		}
 	}
 	if r.BaseRole != nil {
-		if !slices.Contains(ValidBaseRoles, *r.BaseRole) {
-			return fmt.Errorf("base_role must be one of %v", ValidBaseRoles)
+		if !slices.Contains(ValidBaseRoles(), *r.BaseRole) {
+			return fmt.Errorf("base_role must be one of %v", ValidBaseRoles())
 		}
 	}
 

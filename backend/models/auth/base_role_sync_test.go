@@ -18,8 +18,9 @@ func TestBaseRoleSyncAcrossLayers(t *testing.T) {
 		t.Skipf("Cannot locate project root: %v", err)
 	}
 
-	goRoles := make([]string, len(ValidBaseRoles))
-	copy(goRoles, ValidBaseRoles)
+	validRoles := ValidBaseRoles()
+	goRoles := make([]string, len(validRoles))
+	copy(goRoles, validRoles)
 	sort.Strings(goRoles)
 
 	t.Run("Go ValidBaseRoles matches DB CHECK constraint", func(t *testing.T) {
