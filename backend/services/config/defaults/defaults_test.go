@@ -31,6 +31,9 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"gdpr.room_detail_visible_days",
 		"gdpr.attendance_log_scope",
 		"security.ogs_device_pin",
+		"checkout.raumwechsel_enabled",
+		"checkout.schulhof_enabled",
+		"checkout.wc_enabled",
 	}
 
 	for _, key := range expectedKeys {
@@ -41,7 +44,7 @@ func TestAllSettingsRegistered(t *testing.T) {
 		assert.NotEmpty(t, def.Category, "setting %q should have a category", key)
 	}
 
-	assert.GreaterOrEqual(t, len(all), 15, "at least 15 settings should be registered")
+	assert.GreaterOrEqual(t, len(all), 18, "at least 18 settings should be registered")
 }
 
 func TestOperationsSettings_Types(t *testing.T) {
@@ -161,6 +164,29 @@ func TestAttendanceLogScope_Options(t *testing.T) {
 	assert.Contains(t, values, config.AttendanceLogScopeAllStaff)
 }
 
+func TestDevicesSettings(t *testing.T) {
+	keys := []string{
+		"checkout.raumwechsel_enabled",
+		"checkout.schulhof_enabled",
+		"checkout.wc_enabled",
+	}
+	for _, key := range keys {
+		def := config.GetDefinition(key)
+		require.NotNilf(t, def, "setting %q should exist", key)
+		assert.Equal(t, config.FieldBoolean, def.Type, "setting %q should be boolean", key)
+		assert.Equal(t, "devices", def.Tab, "setting %q should be in devices tab", key)
+		assert.Equal(t, "checkout", def.Category, "setting %q should be in checkout category", key)
+		assert.Equal(t, true, def.Default, "setting %q should default to true", key)
+		assert.Equal(t, "config:update", def.WritePermission, "setting %q should use config:update", key)
+	}
+}
+
+func TestStudentDailyCheckoutTime_OptionalDefault(t *testing.T) {
+	def := config.GetDefinition("operations.student_daily_checkout_time")
+	require.NotNil(t, def)
+	assert.Equal(t, "", def.Default, "daily checkout time should default to empty (always available)")
+}
+
 func TestValidation_NumberFields(t *testing.T) {
 	// All number fields should have min/max validation
 	numberKeys := []string{
@@ -189,7 +215,7 @@ func TestDefaults_HaveReasonableValues(t *testing.T) {
 		{"operations.session_end_enabled", true},
 		{"operations.session_end_time", "18:00"},
 		{"operations.session_end_timeout_minutes", 10},
-		{"operations.student_daily_checkout_time", "15:00"},
+		{"operations.student_daily_checkout_time", ""},
 		{"operations.session_cleanup_enabled", true},
 		{"operations.session_cleanup_interval_minutes", 15},
 		{"operations.session_abandoned_threshold_minutes", 60},
@@ -201,6 +227,9 @@ func TestDefaults_HaveReasonableValues(t *testing.T) {
 		{"gdpr.room_detail_visible_days", 7},
 		{"gdpr.attendance_log_scope", config.AttendanceLogScopeGroupSupervisorsOnly},
 		{"security.ogs_device_pin", ""},
+		{"checkout.raumwechsel_enabled", true},
+		{"checkout.schulhof_enabled", true},
+		{"checkout.wc_enabled", true},
 	}
 
 	for _, tc := range tests {

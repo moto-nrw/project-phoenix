@@ -35,6 +35,13 @@ const (
 	KeyFeedbackDataRetentionDays = "feedback.data_retention_days"
 )
 
+// Checkout button settings (devices tab).
+const (
+	KeyCheckoutRaumwechselEnabled = "checkout.raumwechsel_enabled"
+	KeyCheckoutSchulhofEnabled    = "checkout.schulhof_enabled"
+	KeyCheckoutWCEnabled          = "checkout.wc_enabled"
+)
+
 // Operations settings.
 const (
 	KeySessionEndEnabled             = "operations.session_end_enabled"

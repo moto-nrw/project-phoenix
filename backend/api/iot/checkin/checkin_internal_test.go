@@ -39,7 +39,7 @@ func helperResource() *Resource {
 	return &Resource{}
 }
 
-func TestGetStudentDailyCheckoutTime_Default(t *testing.T) {
+func TestGetStudentDailyCheckoutTime_NoConfig_ReturnsNil(t *testing.T) {
 	// Clear any existing env var
 	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
 
@@ -47,9 +47,8 @@ func TestGetStudentDailyCheckoutTime_Default(t *testing.T) {
 	checkoutTime, err := rs.getStudentDailyCheckoutTime(context.Background())
 	require.NoError(t, err)
 
-	// Default should be 15:00
-	assert.Equal(t, 15, checkoutTime.Hour())
-	assert.Equal(t, 0, checkoutTime.Minute())
+	// No time configured — daily checkout is always available
+	assert.Nil(t, checkoutTime, "should return nil when no checkout time is configured")
 }
 
 func TestGetStudentDailyCheckoutTime_CustomValid(t *testing.T) {
@@ -59,6 +58,7 @@ func TestGetStudentDailyCheckoutTime_CustomValid(t *testing.T) {
 	rs := helperResource()
 	checkoutTime, err := rs.getStudentDailyCheckoutTime(context.Background())
 	require.NoError(t, err)
+	require.NotNil(t, checkoutTime)
 
 	assert.Equal(t, 14, checkoutTime.Hour())
 	assert.Equal(t, 30, checkoutTime.Minute())
@@ -138,6 +138,7 @@ func TestGetStudentDailyCheckoutTime_EdgeCases(t *testing.T) {
 				assert.Error(t, err)
 			} else {
 				require.NoError(t, err)
+				require.NotNil(t, checkoutTime)
 				assert.Equal(t, tt.wantH, checkoutTime.Hour())
 				assert.Equal(t, tt.wantM, checkoutTime.Minute())
 			}
@@ -203,6 +204,7 @@ func TestGetStudentDailyCheckoutTime_UsesSettingsService(t *testing.T) {
 
 	checkoutTime, err := rs.getStudentDailyCheckoutTime(context.Background())
 	require.NoError(t, err)
+	require.NotNil(t, checkoutTime)
 	assert.Equal(t, 16, checkoutTime.Hour())
 	assert.Equal(t, 45, checkoutTime.Minute())
 }
@@ -220,6 +222,7 @@ func TestGetStudentDailyCheckoutTime_SettingsServiceFallsBackToEnv(t *testing.T)
 
 	checkoutTime, err := rs.getStudentDailyCheckoutTime(context.Background())
 	require.NoError(t, err)
+	require.NotNil(t, checkoutTime)
 	assert.Equal(t, 13, checkoutTime.Hour())
 	assert.Equal(t, 15, checkoutTime.Minute())
 }
@@ -234,8 +237,24 @@ func TestGetStudentDailyCheckoutTime_NilSettingsServiceUsesEnv(t *testing.T) {
 
 	checkoutTime, err := rs.getStudentDailyCheckoutTime(context.Background())
 	require.NoError(t, err)
+	require.NotNil(t, checkoutTime)
 	assert.Equal(t, 17, checkoutTime.Hour())
 	assert.Equal(t, 0, checkoutTime.Minute())
+}
+
+func TestGetStudentDailyCheckoutTime_NoConfigAnywhere_ReturnsNil(t *testing.T) {
+	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
+
+	// Settings service exists but has no override
+	rs := &Resource{
+		SettingsService: &mockSettingsService{
+			values: map[string]string{},
+		},
+	}
+
+	checkoutTime, err := rs.getStudentDailyCheckoutTime(context.Background())
+	require.NoError(t, err)
+	assert.Nil(t, checkoutTime, "should return nil when no time is configured anywhere")
 }
 
 // =============================================================================
@@ -1596,7 +1615,21 @@ func TestGetStudentDailyCheckoutTime_HasTenantOverrideError(t *testing.T) {
 
 	checkoutTime, err := rs.getStudentDailyCheckoutTime(context.Background())
 	require.NoError(t, err)
-	// Should fall back to default "15:00"
+	// Should fall back to nil (no time configured) since env var is also unset
+	assert.Nil(t, checkoutTime, "should return nil when HasTenantOverride errors and no env var")
+}
+
+func TestGetStudentDailyCheckoutTime_HasTenantOverrideError_FallsBackToEnv(t *testing.T) {
+	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "15:00"))
+	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
+
+	rs := &Resource{
+		SettingsService: &mockErrorSettingsService{},
+	}
+
+	checkoutTime, err := rs.getStudentDailyCheckoutTime(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, checkoutTime)
 	assert.Equal(t, 15, checkoutTime.Hour())
 	assert.Equal(t, 0, checkoutTime.Minute())
 }

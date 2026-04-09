@@ -64,9 +64,9 @@ func init() {
 	config.Register(config.Definition{
 		Key:             config.KeyStudentDailyCheckoutTime,
 		Label:           "Tägliche Abmeldezeit",
-		Description:     "Uhrzeit, ab der Schüler aus dem Heimraum abgemeldet werden können",
+		Description:     "Uhrzeit, ab der Schüler aus dem Heimraum abgemeldet werden können. Wenn leer, ist die Abmeldung jederzeit möglich.",
 		Type:            config.FieldTime,
-		Default:         "15:00",
+		Default:         "",
 		ReadPermission:  "config:read",
 		WritePermission: "config:update",
 		Tab:             "operations",
