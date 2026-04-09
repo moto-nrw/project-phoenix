@@ -2,31 +2,61 @@
 "use client";
 
 import { InfoCard } from "~/components/ui/info-card";
+import { useTenantRouter } from "~/lib/tenant-router";
+
+interface HistoryLinksProps {
+  readonly studentId: string;
+  /**
+   * When true, the Raumverlauf (attendance history) button is active and
+   * navigates to the attendance log page. Should mirror the tenant's
+   * `gdpr.attendance_log_enabled` setting.
+   */
+  readonly attendanceLogEnabled: boolean;
+}
 
 /**
- * History links section with disabled buttons for room, feedback, and mensa history
+ * History links section. The Raumverlauf button is gated by the tenant's
+ * GDPR setting; feedback and mensa history are future features and remain
+ * disabled as visual placeholders.
  */
-export function HistoryLinks() {
+export function HistoryLinks({
+  studentId,
+  attendanceLogEnabled,
+}: HistoryLinksProps) {
+  const router = useTenantRouter();
+
   return (
     <InfoCard title="Historien" icon={<ClockIcon />}>
       <div className="grid grid-cols-1 gap-2">
         <HistoryLinkButton
           icon={<BuildingIcon />}
           iconBgColor="bg-[#5080D8]"
-          title="Raumverlauf"
-          subtitle="Verlauf der Raumbesuche"
+          title="Anwesenheitsprotokoll"
+          subtitle={
+            attendanceLogEnabled
+              ? "Anwesenheit und besuchte Räume"
+              : "Für Ihre Schule deaktiviert"
+          }
+          disabled={!attendanceLogEnabled}
+          onClick={
+            attendanceLogEnabled
+              ? () => router.push(`/students/${studentId}/room-history`)
+              : undefined
+          }
         />
         <HistoryLinkButton
           icon={<ChatIcon />}
           iconBgColor="bg-[#83CD2D]"
           title="Feedbackhistorie"
           subtitle="Feedback und Bewertungen"
+          disabled
         />
         <HistoryLinkButton
           icon={<ForkKnifeIcon />}
           iconBgColor="bg-[#F78C10]"
           title="Mensaverlauf"
           subtitle="Mahlzeiten und Bestellungen"
+          disabled
         />
       </div>
     </InfoCard>
@@ -38,6 +68,8 @@ interface HistoryLinkButtonProps {
   readonly iconBgColor: string;
   readonly title: string;
   readonly subtitle: string;
+  readonly disabled?: boolean;
+  readonly onClick?: () => void;
 }
 
 function HistoryLinkButton({
@@ -45,12 +77,20 @@ function HistoryLinkButton({
   iconBgColor,
   title,
   subtitle,
+  disabled = false,
+  onClick,
 }: HistoryLinkButtonProps) {
+  const baseClasses = "flex items-center justify-between rounded-lg border p-3";
+  const stateClasses = disabled
+    ? "cursor-not-allowed border-gray-100 bg-gray-50 opacity-60"
+    : "cursor-pointer border-gray-200 bg-white transition-colors hover:bg-gray-50";
+
   return (
     <button
       type="button"
-      disabled
-      className="flex cursor-not-allowed items-center justify-between rounded-lg border border-gray-100 bg-gray-50 p-3 opacity-60"
+      disabled={disabled}
+      onClick={onClick}
+      className={`${baseClasses} ${stateClasses}`}
     >
       <div className="flex items-center gap-3">
         <div
@@ -59,7 +99,11 @@ function HistoryLinkButton({
           {icon}
         </div>
         <div className="min-w-0 flex-1 text-left">
-          <p className="text-sm font-medium text-gray-400 sm:text-base">
+          <p
+            className={`text-sm font-medium sm:text-base ${
+              disabled ? "text-gray-400" : "text-gray-900"
+            }`}
+          >
             {title}
           </p>
           <p className="text-xs text-gray-400">{subtitle}</p>

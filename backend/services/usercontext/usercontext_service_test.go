@@ -54,6 +54,15 @@ func contextWithTenantClaims(userID int, tenantID int64) context.Context {
 	return context.WithValue(testpkg.TenantContext(tenantID), jwt.CtxClaims, claims)
 }
 
+func contextWithTenantClaimsAndRoles(userID int, tenantID int64, roles ...string) context.Context {
+	claims := jwt.AppClaims{
+		ID:       userID,
+		TenantID: tenantID,
+		Roles:    roles,
+	}
+	return context.WithValue(testpkg.TenantContext(tenantID), jwt.CtxClaims, claims)
+}
+
 // ============================================================================
 // Core Operations Tests
 // ============================================================================
@@ -166,6 +175,19 @@ func TestUserContextService_GetCurrentStaff(t *testing.T) {
 		// ASSERT
 		require.Error(t, err)
 	})
+
+	t.Run("retrieves current staff for tenant custom role after permission checks", func(t *testing.T) {
+		staff, account := testpkg.CreateTestStaffWithAccount(t, db, "CustomRole", "Staff")
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		ctx := contextWithTenantClaimsAndRoles(int(account.ID), 1, "betreuung-plus")
+
+		result, err := service.GetCurrentStaff(ctx)
+
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Equal(t, staff.ID, result.ID)
+	})
 }
 
 func TestUserContextService_GetCurrentTeacher(t *testing.T) {
@@ -185,6 +207,19 @@ func TestUserContextService_GetCurrentTeacher(t *testing.T) {
 		result, err := service.GetCurrentTeacher(ctx)
 
 		// ASSERT
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Equal(t, teacher.ID, result.ID)
+	})
+
+	t.Run("retrieves current teacher for explicit teacher-only role", func(t *testing.T) {
+		teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "RoleScoped", "Teacher")
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		ctx := contextWithTenantClaimsAndRoles(int(account.ID), 1, "teacher")
+
+		result, err := service.GetCurrentTeacher(ctx)
+
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		assert.Equal(t, teacher.ID, result.ID)
@@ -813,6 +848,23 @@ func TestUserContextService_GetMyGroups_TeacherGroups(t *testing.T) {
 		// ASSERT
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, len(groups), 1, "Substitute should have at least 1 group")
+	})
+
+	t.Run("returns groups for explicit teacher-only role", func(t *testing.T) {
+		teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "Explicit", "TeacherRole")
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		educationGroup := testpkg.CreateTestEducationGroup(t, db, "Teacher Role Class")
+		defer testpkg.CleanupActivityFixtures(t, db, educationGroup.ID, teacher.Staff.ID, teacher.ID)
+
+		testpkg.CreateTestGroupTeacher(t, db, educationGroup.ID, teacher.ID)
+
+		ctx := contextWithTenantClaimsAndRoles(int(account.ID), 1, "teacher")
+
+		groups, err := service.GetMyGroups(ctx)
+
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, len(groups), 1, "Teacher-only role should have at least 1 group")
 	})
 }
 

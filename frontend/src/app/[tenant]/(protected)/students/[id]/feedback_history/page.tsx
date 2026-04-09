@@ -1,54 +1,56 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { Alert } from "~/components/ui/alert";
 import { useSession } from "next-auth/react";
 import { getStartDateForTimeRange } from "~/lib/date-helpers";
 import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
-
+import { BackButton } from "~/components/ui/back-button";
 import { Loading } from "~/components/ui/loading";
 import { createLogger } from "~/lib/logger";
+import { fetchStudent } from "~/lib/student-api";
+import type { Student } from "~/lib/student-helpers";
+import { fetchStudentFeedback, type FeedbackEntry } from "~/lib/feedback-api";
+import { Bar, BarChart, XAxis, YAxis, CartesianGrid } from "recharts";
+import { ChevronDown, ChevronUp } from "lucide-react";
+import {
+  type ChartConfig,
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
+} from "~/components/ui/chart";
 
 const logger = createLogger({ component: "StudentFeedbackHistoryPage" });
-// Student type (reused from student page)
-interface Student {
-  id: string;
-  first_name: string;
-  second_name: string;
-  name?: string;
-  school_class: string;
-  group_id: string;
-  group_name?: string;
-  bus: boolean;
-  current_room?: string;
-  current_location?: string;
-  guardian_name: string;
-  guardian_contact: string;
-  guardian_phone?: string;
-  birthday?: string;
-  notes?: string;
-  buskind?: boolean;
-  attendance_rate?: number;
-}
 
-// Feedback History interface
-interface FeedbackEntry {
-  id: string;
-  timestamp: string;
-  feedback_type: "positive" | "neutral" | "negative";
-  is_mensa_feedback: boolean;
-  comment?: string;
-  is_valid?: boolean; // Neue Eigenschaft für die Validität
-}
-
-// Feedback type display labels
 const feedbackTypeLabels: Record<FeedbackEntry["feedback_type"], string> = {
   positive: "Positives Feedback",
   neutral: "Neutrales Feedback",
   negative: "Negatives Feedback",
 };
+
+const feedbackChartConfig = {
+  positive: { label: "Positiv", color: "#22c55e" },
+  neutral: { label: "Neutral", color: "#eab308" },
+  negative: { label: "Negativ", color: "#ef4444" },
+} satisfies ChartConfig;
+
+const timeRangeOptions = [
+  { key: "all", label: "Alle" },
+  { key: "today", label: "Heute" },
+  { key: "week", label: "Diese Woche" },
+  { key: "7days", label: "Letzte 7 Tage" },
+  { key: "month", label: "Diesen Monat" },
+];
+
+const DAY_NAMES = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
+
+function formatDateShort(date: Date): string {
+  return date.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" });
+}
 
 export default function StudentFeedbackHistoryPage() {
   const router = useTenantRouter();
@@ -56,169 +58,109 @@ export default function StudentFeedbackHistoryPage() {
   const searchParams = useSearchParams();
   const studentId = params.id as string;
   const referrer = searchParams.get("from") ?? "/students/search";
-  useSession(); // Ensure session is active
+  useSession();
 
   const [student, setStudent] = useState<Student | null>(null);
   const [feedbackHistory, setFeedbackHistory] = useState<FeedbackEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [timeRange, setTimeRange] = useState<string>("7days"); // Default to last 7 days
+  const [timeRange, setTimeRange] = useState<string>("7days");
+  const [showDetails, setShowDetails] = useState(false);
 
   useStudentHistoryBreadcrumb({ studentName: student?.name, referrer });
 
-  // Fetch student data and feedback history
   useEffect(() => {
+    let cancelled = false;
     setLoading(true);
     setError(null);
 
-    // Simulate API request with timeout
-    const timer = setTimeout(() => {
+    async function loadData() {
       try {
-        // Mock student data (same as in student detail page)
-        const mockStudent: Student = {
-          id: studentId,
-          first_name: "Emma",
-          second_name: "Müller",
-          name: "Emma Müller",
-          school_class: "3b",
-          group_id: "g3",
-          group_name: "Eulen",
-          bus: false,
-          current_room: "Raum 1.2",
-          current_location: "Anwesend - Raum 1.2",
-          guardian_name: "Maria Müller",
-          guardian_contact: "muellers@example.com",
-          guardian_phone: "+49 176 12345678",
-          birthday: "2016-06-15",
-          notes: "Nimmt an der Musik-AG teil. Liebt Kunst und Lesen.",
-          buskind: true,
-          attendance_rate: 92.5,
-        };
-
-        // Mock feedback history data - Jetzt mit aufeinanderfolgenden Daten und den ersten beiden als ungültig markiert
-        const mockFeedbackHistory: FeedbackEntry[] = [
-          {
-            id: "1",
-            timestamp: "2025-05-14T15:30:23",
-            feedback_type: "positive",
-            is_mensa_feedback: false,
-            comment: "",
-            is_valid: false, // Als ungültig markiert
-          },
-          {
-            id: "2",
-            timestamp: "2025-05-13T15:45:12",
-            feedback_type: "negative",
-            is_mensa_feedback: false,
-            comment: "",
-            is_valid: false, // Als ungültig markiert
-          },
-          {
-            id: "3",
-            timestamp: "2025-05-12T15:25:18",
-            feedback_type: "positive",
-            is_mensa_feedback: false,
-            comment: "",
-          },
-          {
-            id: "4",
-            timestamp: "2025-05-11T15:10:09",
-            feedback_type: "neutral",
-            is_mensa_feedback: false,
-            comment: "",
-          },
-          {
-            id: "5",
-            timestamp: "2025-05-10T12:30:22",
-            feedback_type: "negative",
-            is_mensa_feedback: false,
-            comment: "",
-          },
-          {
-            id: "6",
-            timestamp: "2025-05-09T15:50:37",
-            feedback_type: "positive",
-            is_mensa_feedback: false,
-            comment: "",
-          },
-          {
-            id: "7",
-            timestamp: "2025-05-08T16:15:54",
-            feedback_type: "neutral",
-            is_mensa_feedback: false,
-            comment: "",
-          },
-        ];
-
-        setStudent(mockStudent);
-        setFeedbackHistory(mockFeedbackHistory);
-        setLoading(false);
+        const [studentData, feedbackData] = await Promise.all([
+          fetchStudent(studentId),
+          fetchStudentFeedback(studentId),
+        ]);
+        if (cancelled) return;
+        setStudent(studentData);
+        setFeedbackHistory(feedbackData);
       } catch (err) {
-        logger.error("failed to fetch feedback history", {
+        if (cancelled) return;
+        logger.error("failed_to_fetch_feedback_history", {
           error: err instanceof Error ? err.message : String(err),
         });
         setError("Fehler beim Laden der Daten.");
-        setLoading(false);
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-    }, 800);
-
-    return () => clearTimeout(timer);
-  }, [studentId, timeRange]);
-
-  // Time range filtering implementation
-  const getFilteredFeedbackHistory = (): FeedbackEntry[] => {
-    // Wenn "all" ausgewählt ist, geben wir die gesamte Historie zurück
-    if (timeRange === "all") {
-      return feedbackHistory;
     }
 
+    void loadData();
+    return () => {
+      cancelled = true;
+    };
+  }, [studentId]);
+
+  const filteredFeedbackHistory = useMemo(() => {
+    if (timeRange === "all") return feedbackHistory;
     const now = new Date();
     const startDate = getStartDateForTimeRange(timeRange, now);
-
     return feedbackHistory.filter((entry) => {
       const entryDate = new Date(entry.timestamp);
-      return entryDate >= startDate && entryDate <= now;
+      return entryDate >= startDate;
     });
-  };
+  }, [feedbackHistory, timeRange]);
 
-  // Apply filtering
-  const filteredFeedbackHistory = getFilteredFeedbackHistory();
+  // Counts
+  const positiveFeedbackCount = filteredFeedbackHistory.filter(
+    (e) => e.feedback_type === "positive",
+  ).length;
+  const neutralFeedbackCount = filteredFeedbackHistory.filter(
+    (e) => e.feedback_type === "neutral",
+  ).length;
+  const negativeFeedbackCount = filteredFeedbackHistory.filter(
+    (e) => e.feedback_type === "negative",
+  ).length;
+  const totalFeedback =
+    positiveFeedbackCount + neutralFeedbackCount + negativeFeedbackCount;
 
-  // Get year from class
-  const getYear = (schoolClass: string): number => {
-    const yearMatch = /^(\d)/.exec(schoolClass);
-    return yearMatch?.[1] ? Number.parseInt(yearMatch[1], 10) : 0;
-  };
+  // Chart data: aggregate per day
+  const chartData = useMemo(() => {
+    const dayMap = new Map<
+      string,
+      { date: Date; positive: number; neutral: number; negative: number }
+    >();
 
-  // Determine color for year indicator
-  const getYearColor = (year: number): string => {
-    switch (year) {
-      case 1:
-        return "bg-blue-500";
-      case 2:
-        return "bg-green-500";
-      case 3:
-        return "bg-yellow-500";
-      case 4:
-        return "bg-purple-500";
-      default:
-        return "bg-gray-400";
+    for (const entry of filteredFeedbackHistory) {
+      const d = new Date(entry.timestamp);
+      const key = d.toISOString().slice(0, 10);
+      const existing = dayMap.get(key) ?? {
+        date: d,
+        positive: 0,
+        neutral: 0,
+        negative: 0,
+      };
+      existing[entry.feedback_type]++;
+      dayMap.set(key, existing);
     }
-  };
 
-  // Format date function is actually used in the dateObj.toLocaleDateString call
-  // Format time for display
-  const formatTime = (dateString: string): string => {
-    const date = new Date(dateString);
-    return date.toLocaleTimeString("de-DE", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
+    return Array.from(dayMap.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([, v]) => {
+        const dayIndex = (v.date.getDay() + 6) % 7;
+        return {
+          day: DAY_NAMES[dayIndex] ?? "",
+          label: `${DAY_NAMES[dayIndex] ?? ""} ${formatDateShort(v.date)}`,
+          positive: v.positive,
+          neutral: v.neutral,
+          negative: v.negative,
+        };
+      });
+  }, [filteredFeedbackHistory]);
 
-  // Group feedback history by date
-  const groupedFeedbackHistory = filteredFeedbackHistory.reduce(
-    (groups, entry) => {
+  // Group for detail list
+  const groupedFeedbackHistory = useMemo(() => {
+    const groups: Record<string, FeedbackEntry[]> = {};
+    for (const entry of filteredFeedbackHistory) {
       const date = new Date(entry.timestamp).toLocaleDateString("de-DE", {
         day: "2-digit",
         month: "2-digit",
@@ -226,71 +168,25 @@ export default function StudentFeedbackHistoryPage() {
       });
       groups[date] ??= [];
       groups[date].push(entry);
-      return groups;
-    },
-    {} as Record<string, FeedbackEntry[]>,
+    }
+    return groups;
+  }, [filteredFeedbackHistory]);
+
+  const sortedDates = useMemo(
+    () =>
+      Object.keys(groupedFeedbackHistory).sort(
+        (a, b) => new Date(b).getTime() - new Date(a).getTime(),
+      ),
+    [groupedFeedbackHistory],
   );
 
-  // Sort dates in descending order (most recent first)
-  const sortedDates = Object.keys(groupedFeedbackHistory).sort((a, b) => {
-    return new Date(b).getTime() - new Date(a).getTime();
-  });
-
-  // Render the appropriate emoji based on feedback type
-  const renderFeedbackEmoji = (type: string) => {
-    switch (type) {
-      case "positive":
-        return (
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100 text-2xl text-green-500">
-            😊
-          </div>
-        );
-      case "neutral":
-        return (
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-yellow-100 text-2xl text-yellow-500">
-            😐
-          </div>
-        );
-      case "negative":
-        return (
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100 text-2xl text-red-500">
-            😔
-          </div>
-        );
-      default:
-        return null;
-    }
+  const formatTime = (dateString: string): string => {
+    const date = new Date(dateString);
+    return date.toLocaleTimeString("de-DE", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   };
-
-  const year = student ? getYear(student.school_class) : 0;
-  const yearColor = getYearColor(year);
-
-  // Count feedback by type (zähle nur gültige Feedbacks)
-  const positiveFeedbackCount = filteredFeedbackHistory.filter(
-    (entry) => entry.feedback_type === "positive" && entry.is_valid !== false,
-  ).length;
-  const neutralFeedbackCount = filteredFeedbackHistory.filter(
-    (entry) => entry.feedback_type === "neutral" && entry.is_valid !== false,
-  ).length;
-  const negativeFeedbackCount = filteredFeedbackHistory.filter(
-    (entry) => entry.feedback_type === "negative" && entry.is_valid !== false,
-  ).length;
-
-  // Calculate percentages
-  const totalFeedback =
-    positiveFeedbackCount + neutralFeedbackCount + negativeFeedbackCount;
-  const positivePercentage =
-    totalFeedback > 0
-      ? Math.round((positiveFeedbackCount / totalFeedback) * 100)
-      : 0;
-  const neutralPercentage =
-    totalFeedback > 0
-      ? Math.round((neutralFeedbackCount / totalFeedback) * 100)
-      : 0;
-  const negativePercentage =
-    totalFeedback > 0
-      ? Math.round((negativeFeedbackCount / totalFeedback) * 100)
-      : 0;
 
   if (loading) {
     return <Loading fullPage={false} />;
@@ -312,15 +208,17 @@ export default function StudentFeedbackHistoryPage() {
 
   return (
     <div className="mx-auto max-w-7xl">
-      {/* Back Button */}
-      <div className="mb-6">
-        <button
-          onClick={() => router.push(`/students/${studentId}?from=${referrer}`)}
-          className="flex items-center text-gray-600 transition-colors hover:text-blue-600"
-        >
+      <BackButton referrer={`/students/${studentId}?from=${referrer}`} />
+
+      {/* Header */}
+      <div className="mb-6 ml-6">
+        <h1 className="text-2xl font-bold text-gray-900 md:text-3xl">
+          {student.name}
+        </h1>
+        <p className="mt-1 text-sm text-gray-500">Feedbackhistorie</p>
+        <div className="mt-2 flex items-center gap-2 text-sm text-gray-600">
           <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="mr-1 h-5 w-5"
+            className="h-4 w-4 text-gray-400"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -329,215 +227,247 @@ export default function StudentFeedbackHistoryPage() {
               strokeLinecap="round"
               strokeLinejoin="round"
               strokeWidth={2}
-              d="M10 19l-7-7m0 0l7-7m-7 7h18"
+              d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
             />
           </svg>
-          Zurück zum Schülerprofil
-        </button>
-      </div>
-
-      {/* Student Profile Header with Status */}
-      <div className="relative mb-8 overflow-hidden rounded-xl bg-gradient-to-r from-teal-500 to-blue-600 p-6 text-white shadow-md">
-        <div className="flex items-center">
-          <div className="mr-6 flex h-24 w-24 items-center justify-center rounded-full bg-white/30 text-4xl font-bold">
-            {student.first_name[0]}
-            {student.second_name[0]}
-          </div>
-          <div>
-            <h1 className="text-3xl font-bold">{student.name}</h1>
-            <div className="mt-1 flex items-center">
-              <span className="opacity-90">Klasse {student.school_class}</span>
-              <span
-                className={`ml-2 inline-block h-3 w-3 rounded-full ${yearColor}`}
-                title={`Jahrgang ${year}`}
-              ></span>
-              <span className="mx-2">•</span>
-              <span className="opacity-90">Gruppe: {student.group_name}</span>
-            </div>
-            <div className="mt-4">
-              <h2 className="text-2xl font-semibold text-white">
-                Feedbackhistorie
-              </h2>
-            </div>
-          </div>
+          <span>
+            {student.school_class} · Gruppe: {student.group_name}
+          </span>
         </div>
       </div>
 
-      {/* Filter Controls and Feedback Overview */}
-      <div className="mb-8">
-        <div className="rounded-lg bg-white p-4 shadow-sm">
-          <div className="flex flex-col md:flex-row md:justify-between">
-            {/* Time Range Filter */}
-            <div className="mb-4 md:mb-0">
-              <h2 className="mb-3 text-lg font-medium text-gray-800">Filter</h2>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  className={`rounded-lg px-4 py-2 transition-colors ${timeRange === "all" ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
-                  onClick={() => setTimeRange("all")}
-                >
-                  Alle
-                </button>
-                <button
-                  className={`rounded-lg px-4 py-2 transition-colors ${timeRange === "today" ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
-                  onClick={() => setTimeRange("today")}
-                >
-                  Heute
-                </button>
-                <button
-                  className={`rounded-lg px-4 py-2 transition-colors ${timeRange === "week" ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
-                  onClick={() => setTimeRange("week")}
-                >
-                  Diese Woche
-                </button>
-                <button
-                  className={`rounded-lg px-4 py-2 transition-colors ${timeRange === "7days" ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
-                  onClick={() => setTimeRange("7days")}
-                >
-                  Letzte 7 Tage
-                </button>
-                <button
-                  className={`rounded-lg px-4 py-2 transition-colors ${timeRange === "month" ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
-                  onClick={() => setTimeRange("month")}
-                >
-                  Diesen Monat
-                </button>
-              </div>
-            </div>
-
-            {/* Feedback Overview - now placed beside the filter */}
-            <div>
-              <h2 className="mb-3 text-lg font-medium text-gray-800">
-                Feedback-Übersicht
-              </h2>
-              <div className="flex gap-4">
-                {/* Positive Feedback */}
-                <div className="rounded-lg border border-green-100 bg-green-50 p-3">
-                  <div className="flex items-center">
-                    <div className="mr-2 text-2xl">😊</div>
-                    <div>
-                      <h3 className="text-sm font-medium text-green-800">
-                        Positiv
-                      </h3>
-                      <p className="text-xl font-bold text-green-600">
-                        {positiveFeedbackCount}{" "}
-                        <span className="text-sm font-normal">
-                          ({positivePercentage}%)
-                        </span>
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Neutral Feedback */}
-                <div className="rounded-lg border border-yellow-100 bg-yellow-50 p-3">
-                  <div className="flex items-center">
-                    <div className="mr-2 text-2xl">😐</div>
-                    <div>
-                      <h3 className="text-sm font-medium text-yellow-800">
-                        Neutral
-                      </h3>
-                      <p className="text-xl font-bold text-yellow-600">
-                        {neutralFeedbackCount}{" "}
-                        <span className="text-sm font-normal">
-                          ({neutralPercentage}%)
-                        </span>
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Negative Feedback */}
-                <div className="rounded-lg border border-red-100 bg-red-50 p-3">
-                  <div className="flex items-center">
-                    <div className="mr-2 text-2xl">😔</div>
-                    <div>
-                      <h3 className="text-sm font-medium text-red-800">
-                        Negativ
-                      </h3>
-                      <p className="text-xl font-bold text-red-600">
-                        {negativeFeedbackCount}{" "}
-                        <span className="text-sm font-normal">
-                          ({negativePercentage}%)
-                        </span>
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+      {/* Filter pills — compact, no card wrapper */}
+      <div className="mb-6 flex flex-wrap gap-2">
+        {timeRangeOptions.map((option) => (
+          <button
+            key={option.key}
+            className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
+              timeRange === option.key
+                ? "bg-gray-900 text-white"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+            }`}
+            onClick={() => setTimeRange(option.key)}
+          >
+            {option.label}
+          </button>
+        ))}
       </div>
 
-      {/* Feedback History */}
-      <div className="space-y-6">
-        {filteredFeedbackHistory.length === 0 ? (
-          <div className="rounded-lg bg-white p-8 text-center shadow-sm">
-            <p className="text-gray-500">
+      {/* Main visual card */}
+      <div className="overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
+        <div className="p-4 sm:p-6 md:p-8">
+          <h2 className="mb-1 text-base font-bold text-gray-900 sm:text-lg">
+            Feedback-Übersicht
+          </h2>
+
+          {totalFeedback === 0 ? (
+            <p className="py-8 text-center text-sm text-gray-400">
               Kein Feedback für den ausgewählten Zeitraum verfügbar.
             </p>
-          </div>
-        ) : (
-          <div>
-            {sortedDates.map((dateString) => {
-              const feedbackForDate = groupedFeedbackHistory[dateString] ?? [];
-              const dateObj = new Date(
-                feedbackForDate[0]?.timestamp ?? dateString,
-              );
+          ) : (
+            <>
+              {/* Proportion bar */}
+              <div className="mt-4 flex h-3 overflow-hidden rounded-full">
+                {positiveFeedbackCount > 0 && (
+                  <div
+                    className="bg-green-500 transition-all duration-300"
+                    style={{
+                      width: `${(positiveFeedbackCount / totalFeedback) * 100}%`,
+                    }}
+                  />
+                )}
+                {neutralFeedbackCount > 0 && (
+                  <div
+                    className="bg-yellow-400 transition-all duration-300"
+                    style={{
+                      width: `${(neutralFeedbackCount / totalFeedback) * 100}%`,
+                    }}
+                  />
+                )}
+                {negativeFeedbackCount > 0 && (
+                  <div
+                    className="bg-red-500 transition-all duration-300"
+                    style={{
+                      width: `${(negativeFeedbackCount / totalFeedback) * 100}%`,
+                    }}
+                  />
+                )}
+              </div>
 
-              return (
-                <div
-                  key={dateString}
-                  className="mb-4 overflow-hidden rounded-lg bg-white shadow-sm"
-                >
-                  <div className="border-b border-blue-100 bg-blue-50 px-6 py-3">
-                    <h3 className="font-medium text-blue-800">
-                      {dateObj.toLocaleDateString("de-DE", {
-                        weekday: "long",
-                        year: "numeric",
-                        month: "long",
-                        day: "numeric",
-                      })}
-                    </h3>
-                  </div>
-                  <div className="px-6 py-4">
-                    {feedbackForDate.length > 0 ? (
-                      feedbackForDate.map((feedback) => (
-                        <div
-                          key={feedback.id}
-                          className="mb-3 flex items-center gap-3 last:mb-0"
-                        >
-                          {renderFeedbackEmoji(feedback.feedback_type)}
-                          <div className="flex flex-col">
-                            <span className="font-medium text-gray-900">
+              {/* Inline stats */}
+              <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm">
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block h-2.5 w-2.5 rounded-full bg-green-500" />
+                  <span className="font-medium text-gray-900">
+                    {positiveFeedbackCount}
+                  </span>
+                  <span className="text-gray-500">Positiv</span>
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block h-2.5 w-2.5 rounded-full bg-yellow-400" />
+                  <span className="font-medium text-gray-900">
+                    {neutralFeedbackCount}
+                  </span>
+                  <span className="text-gray-500">Neutral</span>
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block h-2.5 w-2.5 rounded-full bg-red-500" />
+                  <span className="font-medium text-gray-900">
+                    {negativeFeedbackCount}
+                  </span>
+                  <span className="text-gray-500">Negativ</span>
+                </span>
+              </div>
+
+              {/* Stacked bar chart */}
+              {chartData.length > 1 && (
+                <div className="mt-6">
+                  <ChartContainer
+                    config={feedbackChartConfig}
+                    className="!aspect-auto h-[180px] w-full sm:h-[220px]"
+                  >
+                    <BarChart
+                      accessibilityLayer
+                      data={chartData}
+                      margin={{ top: 4, right: 4, bottom: 0, left: -24 }}
+                      barCategoryGap={chartData.length > 14 ? 1 : 4}
+                    >
+                      <CartesianGrid vertical={false} />
+                      <XAxis
+                        dataKey="day"
+                        tickLine={false}
+                        axisLine={false}
+                        tickMargin={8}
+                        fontSize={11}
+                        interval={
+                          chartData.length > 14
+                            ? Math.floor(chartData.length / 7)
+                            : 0
+                        }
+                      />
+                      <YAxis
+                        tickLine={false}
+                        axisLine={false}
+                        tickMargin={4}
+                        fontSize={11}
+                        allowDecimals={false}
+                      />
+                      <ChartTooltip
+                        content={
+                          <ChartTooltipContent
+                            labelFormatter={(
+                              _value: unknown,
+                              payload: ReadonlyArray<{
+                                payload?: { label?: string };
+                              }>,
+                            ) => payload[0]?.payload?.label ?? ""}
+                          />
+                        }
+                      />
+                      <ChartLegend content={<ChartLegendContent />} />
+                      <Bar
+                        dataKey="negative"
+                        stackId="fb"
+                        fill="var(--color-negative)"
+                        radius={[0, 0, 4, 4]}
+                      />
+                      <Bar
+                        dataKey="neutral"
+                        stackId="fb"
+                        fill="var(--color-neutral)"
+                        radius={[0, 0, 0, 0]}
+                      />
+                      <Bar
+                        dataKey="positive"
+                        stackId="fb"
+                        fill="var(--color-positive)"
+                        radius={[4, 4, 0, 0]}
+                      />
+                    </BarChart>
+                  </ChartContainer>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Expandable detail list */}
+        {totalFeedback > 0 && (
+          <>
+            <button
+              onClick={() => setShowDetails((prev) => !prev)}
+              className="flex w-full items-center justify-center gap-2 border-t border-gray-100 px-4 py-3 text-sm font-medium text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-700"
+            >
+              {showDetails ? (
+                <>
+                  Einträge ausblenden
+                  <ChevronUp className="h-4 w-4" />
+                </>
+              ) : (
+                <>
+                  Alle Einträge anzeigen ({totalFeedback})
+                  <ChevronDown className="h-4 w-4" />
+                </>
+              )}
+            </button>
+
+            {showDetails && (
+              <div className="border-t border-gray-100">
+                {sortedDates.map((dateString) => {
+                  const feedbackForDate =
+                    groupedFeedbackHistory[dateString] ?? [];
+                  const dateObj = new Date(
+                    feedbackForDate[0]?.timestamp ?? dateString,
+                  );
+
+                  return (
+                    <div key={dateString}>
+                      <div className="border-b border-gray-50 bg-gray-50/50 px-4 py-2 sm:px-6">
+                        <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                          {dateObj.toLocaleDateString("de-DE", {
+                            weekday: "long",
+                            day: "numeric",
+                            month: "long",
+                            year: "numeric",
+                          })}
+                        </h3>
+                      </div>
+                      <div className="divide-y divide-gray-50 px-4 sm:px-6">
+                        {feedbackForDate.map((feedback) => (
+                          <div
+                            key={feedback.id}
+                            className="flex items-center gap-3 py-2.5"
+                            data-testid={`feedback-indicator-${feedback.feedback_type}`}
+                          >
+                            <span
+                              className={`inline-block h-2.5 w-2.5 flex-shrink-0 rounded-full ${
+                                feedback.feedback_type === "positive"
+                                  ? "bg-green-500"
+                                  : feedback.feedback_type === "neutral"
+                                    ? "bg-yellow-400"
+                                    : "bg-red-500"
+                              }`}
+                            />
+                            <span className="text-sm text-gray-900">
                               {feedbackTypeLabels[feedback.feedback_type]}
-                              <span className="ml-2 text-sm text-gray-500">
-                                {formatTime(feedback.timestamp)}
-                              </span>
                             </span>
-                            {feedback.is_valid === false && (
-                              <span className="mt-1 text-sm text-red-500">
-                                Ungültiges Feedback
+                            <span className="text-xs text-gray-400">
+                              {formatTime(feedback.timestamp)}
+                            </span>
+                            {feedback.is_mensa_feedback && (
+                              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
+                                Mensa
                               </span>
-                            )}
-                            {feedback.comment && (
-                              <p className="mt-1 text-sm text-gray-600">
-                                {feedback.comment}
-                              </p>
                             )}
                           </div>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-gray-500 italic">
-                        Kein Feedback an diesem Tag
-                      </p>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

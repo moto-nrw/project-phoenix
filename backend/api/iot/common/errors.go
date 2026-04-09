@@ -3,7 +3,6 @@ package common
 import (
 	"errors"
 	"fmt"
-	"log/slog"
 	"net/http"
 
 	"github.com/go-chi/render"
@@ -14,15 +13,11 @@ import (
 )
 
 // RenderError renders an error response and logs any render failures.
-// This helper consolidates the common pattern of rendering errors and
-// logging render failures, addressing DRY and error handling concerns.
+// For server errors (5xx), it delegates to common.RenderError which handles
+// slog logging and Sentry capture. For non-5xx errors, it renders directly.
 // Exported for use by sub-packages (devices, checkin, etc.)
 func RenderError(w http.ResponseWriter, r *http.Request, renderer render.Renderer) {
-	if err := render.Render(w, r, renderer); err != nil {
-		slog.Default().ErrorContext(r.Context(), "failed to render error response",
-			slog.String("error", err.Error()),
-		)
-	}
+	common.RenderError(w, r, renderer)
 }
 
 // Common error variables

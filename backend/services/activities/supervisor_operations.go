@@ -275,7 +275,7 @@ func (s *Service) handlePrimaryDeletionInTx(ctx context.Context, txService Activ
 
 	newPrimary := s.findNewPrimarySupervisor(allSupervisors, supervisorID)
 	if newPrimary == nil {
-		return &ActivityError{Op: opDeleteSupervisor, Err: errors.New("cannot delete the only supervisor for an activity")}
+		return &ActivityError{Op: opDeleteSupervisor, Err: ErrOnlySupervisorRequiresReplacement}
 	}
 
 	newPrimary.IsPrimary = true
@@ -382,7 +382,7 @@ func (s *Service) buildSupervisorMaps(supervisors []*activities.SupervisorPlanne
 // removeUnwantedSupervisorsInTx removes supervisors that are no longer assigned
 func (s *Service) removeUnwantedSupervisorsInTx(ctx context.Context, txService ActivityService, currentStaffIDs map[int64]int64, newStaffIDs map[int64]bool, staffIDs []int64) error {
 	if len(currentStaffIDs) == 1 && len(staffIDs) == 0 {
-		return &ActivityError{Op: "update supervisors", Err: errors.New("cannot remove all supervisors from an activity")}
+		return &ActivityError{Op: "update supervisors", Err: ErrOnlySupervisorRequiresReplacement}
 	}
 
 	for staffID, supervisorID := range currentStaffIDs {

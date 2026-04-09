@@ -14,6 +14,11 @@ type CheckinRequest struct {
 	RoomID      *int64 `json:"room_id,omitempty"`
 }
 
+// PickupQueryRequest represents a read-only pickup info request from RFID devices.
+type PickupQueryRequest struct {
+	StudentRFID string `json:"student_rfid"`
+}
+
 // CheckinResponse represents the response to a student check-in request
 type CheckinResponse struct {
 	StudentID   int64     `json:"student_id"`
@@ -32,5 +37,12 @@ func (req *CheckinRequest) Bind(_ *http.Request) error {
 		validation.Field(&req.StudentRFID, validation.Required),
 		// Note: Action field is ignored in logic but still required for API compatibility
 		validation.Field(&req.Action, validation.Required, validation.In("checkin", "checkout")),
+	)
+}
+
+// Bind validates the pickup query request.
+func (req *PickupQueryRequest) Bind(_ *http.Request) error {
+	return validation.ValidateStruct(req,
+		validation.Field(&req.StudentRFID, validation.Required),
 	)
 }

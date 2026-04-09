@@ -178,6 +178,7 @@ func (m *mockDeviceRepo) FindByRegisteredBy(context.Context, int64) ([]*iotModel
 	return nil, nil
 }
 func (m *mockDeviceRepo) UpdateLastSeen(context.Context, int64, time.Time) error { return nil }
+func (m *mockDeviceRepo) UpdateRoomID(context.Context, int64, int64) error       { return nil }
 func (m *mockDeviceRepo) UpdateStatus(context.Context, string, iotModels.DeviceStatus) error {
 	return nil
 }
@@ -361,6 +362,9 @@ func (m *mockAuthService) GetAccountRoleNames(context.Context, []int64) (map[int
 func (m *mockAuthService) GetAccountEmailsByIDs(context.Context, []int64) (map[int64]string, error) {
 	return nil, nil
 }
+func (m *mockAuthService) GetAccountAvatarsByIDs(context.Context, []int64) (map[int64]string, error) {
+	return nil, nil
+}
 func (m *mockAuthService) CreatePermission(context.Context, string, string, string, string) (*authModels.Permission, error) {
 	return nil, nil
 }
@@ -519,6 +523,12 @@ func (m *mockStaffRepo) ListAllWithPerson(context.Context) ([]*userModels.Staff,
 }
 func (m *mockStaffRepo) UpdateNotes(context.Context, int64, string) error { return nil }
 func (m *mockStaffRepo) FindWithPerson(context.Context, int64) (*userModels.Staff, error) {
+	return nil, nil
+}
+func (m *mockStaffRepo) FindByIDs(context.Context, []int64) (map[int64]*userModels.Staff, error) {
+	return nil, nil
+}
+func (m *mockStaffRepo) FindWithPersonByIDs(context.Context, []int64) (map[int64]*userModels.Staff, error) {
 	return nil, nil
 }
 func (m *mockStaffRepo) ListStaffByRoles(context.Context, []string) ([]*userModels.StaffWithRoleInfo, error) {
@@ -1887,7 +1897,7 @@ func TestCreateSchoolAccount_Success(t *testing.T) {
 			findByIDFn: func(_ context.Context, id interface{}) (*authModels.Role, error) {
 				return &authModels.Role{
 					Model:    base.Model{ID: roleID},
-					Name:     "teacher",
+					Name:     "user",
 					IsSystem: true,
 				}, nil
 			},
@@ -2258,7 +2268,7 @@ func TestCreateSchoolAccount_StaffCreateFails(t *testing.T) {
 			findByIDFn: func(_ context.Context, id interface{}) (*authModels.Role, error) {
 				return &authModels.Role{
 					Model:    base.Model{ID: roleID},
-					Name:     "teacher",
+					Name:     "user",
 					IsSystem: true,
 				}, nil
 			},
@@ -2324,7 +2334,7 @@ func TestCreateSchoolAccount_TeacherCreateFails(t *testing.T) {
 			findByIDFn: func(_ context.Context, id interface{}) (*authModels.Role, error) {
 				return &authModels.Role{
 					Model:    base.Model{ID: roleID},
-					Name:     "teacher",
+					Name:     "user",
 					IsSystem: true,
 				}, nil
 			},
@@ -2437,6 +2447,42 @@ func TestCreateSchoolAccount_GuardianRole_Rejected(t *testing.T) {
 	var invalidErr *platformSvc.InvalidDataError
 	require.ErrorAs(t, err, &invalidErr)
 	assert.Contains(t, err.Error(), "guardian")
+}
+
+func TestCreateSchoolAccount_TeacherRole_Rejected(t *testing.T) {
+	roleID := int64(7)
+
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SchoolRepo: &mockSchoolRepo{
+			findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+				return &platformModels.School{
+					Model: base.Model{ID: 9}, OrganizationID: 3, Name: "School", Slug: "school", Subdomain: "school", Active: true,
+				}, nil
+			},
+		},
+		RoleRepo: &mockRoleRepo{
+			findByIDFn: func(_ context.Context, id interface{}) (*authModels.Role, error) {
+				return &authModels.Role{
+					Model:    base.Model{ID: roleID},
+					Name:     "teacher",
+					IsSystem: true,
+				}, nil
+			},
+		},
+	})
+
+	account, err := service.CreateSchoolAccount(context.Background(), 9, 7, net.IPv4(127, 0, 0, 1), platformSvc.CreateSchoolAccountRequest{
+		Email:     "teacher@example.com",
+		Password:  "SecureP@ss1",
+		FirstName: "Legacy",
+		LastName:  "Teacher",
+		RoleID:    &roleID,
+	})
+	require.Nil(t, account)
+	require.Error(t, err)
+	var invalidErr *platformSvc.InvalidDataError
+	require.ErrorAs(t, err, &invalidErr)
+	assert.Contains(t, err.Error(), "legacy teacher role is no longer assignable")
 }
 
 func TestCreateSchoolAccount_RoleNotFound_Rejected(t *testing.T) {

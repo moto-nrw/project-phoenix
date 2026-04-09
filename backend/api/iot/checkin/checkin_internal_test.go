@@ -24,6 +24,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	configSvc "github.com/moto-nrw/project-phoenix/services/config"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -32,11 +34,17 @@ import (
 // getStudentDailyCheckoutTime TESTS
 // =============================================================================
 
+// helperResource creates a Resource with nil services for testing helper methods.
+func helperResource() *Resource {
+	return &Resource{}
+}
+
 func TestGetStudentDailyCheckoutTime_Default(t *testing.T) {
 	// Clear any existing env var
 	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
 
-	checkoutTime, err := getStudentDailyCheckoutTime()
+	rs := helperResource()
+	checkoutTime, err := rs.getStudentDailyCheckoutTime(context.Background())
 	require.NoError(t, err)
 
 	// Default should be 15:00
@@ -48,7 +56,8 @@ func TestGetStudentDailyCheckoutTime_CustomValid(t *testing.T) {
 	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "14:30"))
 	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
 
-	checkoutTime, err := getStudentDailyCheckoutTime()
+	rs := helperResource()
+	checkoutTime, err := rs.getStudentDailyCheckoutTime(context.Background())
 	require.NoError(t, err)
 
 	assert.Equal(t, 14, checkoutTime.Hour())
@@ -59,7 +68,8 @@ func TestGetStudentDailyCheckoutTime_InvalidFormat(t *testing.T) {
 	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "invalid"))
 	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
 
-	_, err := getStudentDailyCheckoutTime()
+	rs := helperResource()
+	_, err := rs.getStudentDailyCheckoutTime(context.Background())
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid checkout time format")
 }
@@ -68,7 +78,8 @@ func TestGetStudentDailyCheckoutTime_InvalidHour(t *testing.T) {
 	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "25:00"))
 	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
 
-	_, err := getStudentDailyCheckoutTime()
+	rs := helperResource()
+	_, err := rs.getStudentDailyCheckoutTime(context.Background())
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid hour")
 }
@@ -77,7 +88,8 @@ func TestGetStudentDailyCheckoutTime_InvalidMinute(t *testing.T) {
 	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "12:99"))
 	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
 
-	_, err := getStudentDailyCheckoutTime()
+	rs := helperResource()
+	_, err := rs.getStudentDailyCheckoutTime(context.Background())
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid minute")
 }
@@ -86,7 +98,8 @@ func TestGetStudentDailyCheckoutTime_NegativeHour(t *testing.T) {
 	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "-1:00"))
 	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
 
-	_, err := getStudentDailyCheckoutTime()
+	rs := helperResource()
+	_, err := rs.getStudentDailyCheckoutTime(context.Background())
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid hour")
 }
@@ -95,7 +108,8 @@ func TestGetStudentDailyCheckoutTime_NegativeMinute(t *testing.T) {
 	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "12:-5"))
 	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
 
-	_, err := getStudentDailyCheckoutTime()
+	rs := helperResource()
+	_, err := rs.getStudentDailyCheckoutTime(context.Background())
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid minute")
 }
@@ -118,7 +132,8 @@ func TestGetStudentDailyCheckoutTime_EdgeCases(t *testing.T) {
 			require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", tt.envVar))
 			defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
 
-			checkoutTime, err := getStudentDailyCheckoutTime()
+			rs := helperResource()
+			checkoutTime, err := rs.getStudentDailyCheckoutTime(context.Background())
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
@@ -128,6 +143,99 @@ func TestGetStudentDailyCheckoutTime_EdgeCases(t *testing.T) {
 			}
 		})
 	}
+}
+
+// =============================================================================
+// Settings service wiring tests
+// =============================================================================
+
+// mockSettingsService is a minimal mock that only supports ResolveString.
+type mockSettingsService struct {
+	values map[string]string
+}
+
+func (m *mockSettingsService) GetSchema(_ context.Context, _ []string) (*configSvc.SettingsSchema, error) {
+	return nil, nil
+}
+func (m *mockSettingsService) Resolve(_ context.Context, key string) (any, error) {
+	if v, ok := m.values[key]; ok {
+		return v, nil
+	}
+	return nil, fmt.Errorf("not found")
+}
+func (m *mockSettingsService) ResolveString(_ context.Context, key string) (string, error) {
+	if v, ok := m.values[key]; ok {
+		return v, nil
+	}
+	return "", fmt.Errorf("not found")
+}
+func (m *mockSettingsService) ResolveStringForTenant(_ context.Context, _ int64, key string) (string, error) {
+	return m.ResolveString(context.Background(), key)
+}
+func (m *mockSettingsService) ResolveBool(_ context.Context, _ string) (bool, error) {
+	return false, nil
+}
+func (m *mockSettingsService) ResolveInt(_ context.Context, _ string) (int, error) {
+	return 0, nil
+}
+func (m *mockSettingsService) HasTenantOverride(_ context.Context, key string) (bool, error) {
+	_, exists := m.values[key]
+	return exists, nil
+}
+func (m *mockSettingsService) SetValue(_ context.Context, _ string, _ any, _ *int64, _ []string) error {
+	return nil
+}
+func (m *mockSettingsService) ResetValue(_ context.Context, _ string, _ *int64, _ []string) error {
+	return nil
+}
+
+func TestGetStudentDailyCheckoutTime_UsesSettingsService(t *testing.T) {
+	// Clear env var so only the settings service provides the value
+	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
+
+	rs := &Resource{
+		SettingsService: &mockSettingsService{
+			values: map[string]string{
+				"operations.student_daily_checkout_time": "16:45",
+			},
+		},
+	}
+
+	checkoutTime, err := rs.getStudentDailyCheckoutTime(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 16, checkoutTime.Hour())
+	assert.Equal(t, 45, checkoutTime.Minute())
+}
+
+func TestGetStudentDailyCheckoutTime_SettingsServiceFallsBackToEnv(t *testing.T) {
+	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "13:15"))
+	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
+
+	// Settings service returns empty — should fall back to env var
+	rs := &Resource{
+		SettingsService: &mockSettingsService{
+			values: map[string]string{},
+		},
+	}
+
+	checkoutTime, err := rs.getStudentDailyCheckoutTime(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 13, checkoutTime.Hour())
+	assert.Equal(t, 15, checkoutTime.Minute())
+}
+
+func TestGetStudentDailyCheckoutTime_NilSettingsServiceUsesEnv(t *testing.T) {
+	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "17:00"))
+	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
+
+	rs := &Resource{
+		SettingsService: nil,
+	}
+
+	checkoutTime, err := rs.getStudentDailyCheckoutTime(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 17, checkoutTime.Hour())
+	assert.Equal(t, 0, checkoutTime.Minute())
 }
 
 // =============================================================================
@@ -200,6 +308,144 @@ func TestShouldSkipCheckin_DifferentRoom(t *testing.T) {
 	roomID := int64(2)
 	result := shouldSkipCheckin(&roomID, true, &active.Visit{ActiveGroup: &active.Group{RoomID: 1}})
 	assert.False(t, result)
+}
+
+func TestSelectPickupNote_PreservesDayNoteOrder(t *testing.T) {
+	effectivePickup := &scheduleSvc.EffectivePickupTime{
+		Notes: "Recurring note should be ignored when day notes exist",
+		DayNotes: []scheduleSvc.NoteData{
+			{ID: 42, Content: "Ring bell at side entrance"},
+			{ID: 7, Content: "Grandma is picking up today"},
+		},
+	}
+
+	result := selectPickupNote(effectivePickup)
+
+	assert.Equal(t, "Ring bell at side entrance\nGrandma is picking up today", result)
+}
+
+func TestSelectPickupNote_FallsBackToEffectiveNotes(t *testing.T) {
+	effectivePickup := &scheduleSvc.EffectivePickupTime{
+		Notes: "Wait at the side entrance",
+	}
+
+	result := selectPickupNote(effectivePickup)
+
+	assert.Equal(t, "Wait at the side entrance", result)
+}
+
+func TestSelectPickupNote_NilInput(t *testing.T) {
+	result := selectPickupNote(nil)
+	assert.Equal(t, "", result)
+}
+
+func TestSelectPickupNote_AllWhitespaceDayNotesFallsBackToRecurring(t *testing.T) {
+	effectivePickup := &scheduleSvc.EffectivePickupTime{
+		Notes: "Recurring fallback note",
+		DayNotes: []scheduleSvc.NoteData{
+			{ID: 1, Content: "   "},
+			{ID: 2, Content: "\t"},
+		},
+	}
+
+	result := selectPickupNote(effectivePickup)
+
+	assert.Equal(t, "Recurring fallback note", result)
+}
+
+func TestSelectPickupNote_EmptyDayNotesAndEmptyRecurring(t *testing.T) {
+	effectivePickup := &scheduleSvc.EffectivePickupTime{
+		Notes:    "  ",
+		DayNotes: []scheduleSvc.NoteData{},
+	}
+
+	result := selectPickupNote(effectivePickup)
+
+	assert.Equal(t, "", result)
+}
+
+// =============================================================================
+// attachPickupInfoToResponse TESTS
+// =============================================================================
+
+func TestAttachPickupInfoToResponse_NilPickup(t *testing.T) {
+	response := map[string]interface{}{}
+	attachPickupInfoToResponse(response, nil)
+
+	_, hasTime := response["pickup_time"]
+	_, hasNote := response["pickup_note"]
+	assert.False(t, hasTime, "Should not set pickup_time for nil pickup")
+	assert.False(t, hasNote, "Should not set pickup_note for nil pickup")
+}
+
+func TestAttachPickupInfoToResponse_WithPickupTimeOnly(t *testing.T) {
+	pickupTime := time.Date(2024, 1, 1, 15, 30, 0, 0, time.UTC)
+	effectivePickup := &scheduleSvc.EffectivePickupTime{
+		PickupTime: &pickupTime,
+	}
+
+	response := map[string]interface{}{}
+	attachPickupInfoToResponse(response, effectivePickup)
+
+	assert.Equal(t, "15:30", response["pickup_time"])
+	_, hasNote := response["pickup_note"]
+	assert.False(t, hasNote, "Should not set pickup_note when no notes exist")
+}
+
+func TestAttachPickupInfoToResponse_WithPickupNoteOnly(t *testing.T) {
+	effectivePickup := &scheduleSvc.EffectivePickupTime{
+		Notes: "Bitte klingeln",
+	}
+
+	response := map[string]interface{}{}
+	attachPickupInfoToResponse(response, effectivePickup)
+
+	_, hasTime := response["pickup_time"]
+	assert.False(t, hasTime, "Should not set pickup_time when nil")
+	assert.Equal(t, "Bitte klingeln", response["pickup_note"])
+}
+
+func TestAttachPickupInfoToResponse_WithPickupTimeAndNote(t *testing.T) {
+	pickupTime := time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC)
+	effectivePickup := &scheduleSvc.EffectivePickupTime{
+		PickupTime: &pickupTime,
+		Notes:      "Seiteneingang",
+	}
+
+	response := map[string]interface{}{}
+	attachPickupInfoToResponse(response, effectivePickup)
+
+	assert.Equal(t, "14:00", response["pickup_time"])
+	assert.Equal(t, "Seiteneingang", response["pickup_note"])
+}
+
+func TestAttachPickupInfoToResponse_WithDayNotes(t *testing.T) {
+	pickupTime := time.Date(2024, 1, 1, 16, 0, 0, 0, time.UTC)
+	effectivePickup := &scheduleSvc.EffectivePickupTime{
+		PickupTime: &pickupTime,
+		Notes:      "Should be ignored",
+		DayNotes: []scheduleSvc.NoteData{
+			{ID: 1, Content: "Day-specific note"},
+		},
+	}
+
+	response := map[string]interface{}{}
+	attachPickupInfoToResponse(response, effectivePickup)
+
+	assert.Equal(t, "16:00", response["pickup_time"])
+	assert.Equal(t, "Day-specific note", response["pickup_note"])
+}
+
+func TestAttachPickupInfoToResponse_EmptyNotesOmitsKey(t *testing.T) {
+	effectivePickup := &scheduleSvc.EffectivePickupTime{
+		Notes: "",
+	}
+
+	response := map[string]interface{}{}
+	attachPickupInfoToResponse(response, effectivePickup)
+
+	_, hasNote := response["pickup_note"]
+	assert.False(t, hasNote, "Should not set pickup_note for empty notes")
 }
 
 // =============================================================================
@@ -1330,4 +1576,27 @@ func TestSchulhofActivityGroup_NoStaffContext(t *testing.T) {
 	assert.Equal(t, constants.SchulhofActivityName, group.Name)
 	assert.NotZero(t, group.ID)
 	assert.Nil(t, group.CreatedBy, "system-created Schulhof group should have NULL created_by")
+}
+
+// mockErrorSettingsService returns errors from HasTenantOverride.
+type mockErrorSettingsService struct {
+	mockSettingsService
+}
+
+func (m *mockErrorSettingsService) HasTenantOverride(_ context.Context, _ string) (bool, error) {
+	return false, fmt.Errorf("db connection failed")
+}
+
+func TestGetStudentDailyCheckoutTime_HasTenantOverrideError(t *testing.T) {
+	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
+
+	rs := &Resource{
+		SettingsService: &mockErrorSettingsService{},
+	}
+
+	checkoutTime, err := rs.getStudentDailyCheckoutTime(context.Background())
+	require.NoError(t, err)
+	// Should fall back to default "15:00"
+	assert.Equal(t, 15, checkoutTime.Hour())
+	assert.Equal(t, 0, checkoutTime.Minute())
 }

@@ -41,17 +41,23 @@ func RunFullDay(ctx context.Context, opts FullDayOptions) error {
 	}
 	fmt.Printf("  Logged in as %s\n", admin.Email)
 
-	// Phase 2: Assign RFID tags to all students
+	// Phase 2: Assign RFID tags to all students via device auth
 	fmt.Printf("\nPhase 2: Assigning RFID tags to %d students...\n", len(state.Students))
 	rfidAssigned := 0
 	rfidTags := make(map[int64]string) // studentID -> rfid tag
+
+	deviceKeysForRFID := sortedDeviceKeys(state.Devices)
+	if len(deviceKeysForRFID) == 0 {
+		return fmt.Errorf("no devices in seed state for RFID assignment")
+	}
+	rfidDevice := state.Devices[deviceKeysForRFID[0]]
 
 	for _, student := range state.Students {
 		rfidTag := fmt.Sprintf("DE%06X", student.ID)
 		rfidTags[student.ID] = rfidTag
 
 		body := map[string]string{"rfid_tag": rfidTag}
-		_, err := client.AdminPost(fmt.Sprintf("/api/students/%d/rfid-tag", student.ID), body)
+		_, err := client.DevicePost(fmt.Sprintf("/api/students/%d/rfid", student.ID), body, rfidDevice.APIKey, state.DevicePIN)
 		if err != nil {
 			fmt.Printf("  WARNING: failed to assign RFID to student %d (%s %s): %v\n",
 				student.ID, student.FirstName, student.LastName, err)

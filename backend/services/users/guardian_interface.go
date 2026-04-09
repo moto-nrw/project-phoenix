@@ -19,8 +19,6 @@ type GuardianCreateRequest struct {
 	AddressPostalCode      *string
 	PreferredContactMethod string
 	LanguagePreference     string
-	Occupation             *string
-	Employer               *string
 	Notes                  *string
 }
 

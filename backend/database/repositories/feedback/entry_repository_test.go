@@ -413,6 +413,82 @@ func TestEntryRepository_FindByStudentAndDateRange(t *testing.T) {
 }
 
 // ============================================================================
+// Cleanup Tests
+// ============================================================================
+
+func TestEntryRepository_DeleteOlderThan(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).FeedbackEntry
+	ctx := testpkg.TenantContext(1)
+
+	student := testpkg.CreateTestStudent(t, db, "Cleanup", "Student", "14a")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+	t.Run("deletes entries older than N days", func(t *testing.T) {
+		// ARRANGE: old entry (100 days ago) + recent entry (today)
+		oldDay := time.Now().AddDate(0, 0, -100)
+		today := timezone.Today()
+
+		oldEntry := &feedback.Entry{
+			Value:     feedback.ValuePositive,
+			Day:       oldDay,
+			Time:      time.Now(),
+			StudentID: student.ID,
+		}
+		recentEntry := &feedback.Entry{
+			Value:     feedback.ValueNeutral,
+			Day:       today,
+			Time:      time.Now(),
+			StudentID: student.ID,
+		}
+
+		err := repo.Create(ctx, oldEntry)
+		require.NoError(t, err)
+		err = repo.Create(ctx, recentEntry)
+		require.NoError(t, err)
+		defer testpkg.CleanupTableRecords(t, db, "feedback.entries", oldEntry.ID, recentEntry.ID)
+
+		// Count entries for this student before delete
+		countBefore, err := repo.CountByStudentID(ctx, student.ID)
+		require.NoError(t, err)
+
+		// ACT: delete entries older than 30 days
+		deleted, err := repo.DeleteOlderThan(ctx, 30)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, deleted, 1)
+
+		// Count entries for this student after delete — should have fewer
+		countAfter, err := repo.CountByStudentID(ctx, student.ID)
+		require.NoError(t, err)
+		assert.Less(t, countAfter, countBefore, "should have fewer entries after cleanup")
+	})
+
+	t.Run("returns zero when nothing to delete", func(t *testing.T) {
+		// ARRANGE: only a recent entry
+		recentEntry := &feedback.Entry{
+			Value:     feedback.ValueNegative,
+			Day:       timezone.Today(),
+			Time:      time.Now(),
+			StudentID: student.ID,
+		}
+		err := repo.Create(ctx, recentEntry)
+		require.NoError(t, err)
+		defer testpkg.CleanupTableRecords(t, db, "feedback.entries", recentEntry.ID)
+
+		// ACT
+		deleted, err := repo.DeleteOlderThan(ctx, 365)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.Equal(t, 0, deleted)
+	})
+}
+
+// ============================================================================
 // Count Tests
 // ============================================================================
 

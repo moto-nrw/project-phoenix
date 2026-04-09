@@ -1,0 +1,290 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, fireEvent, waitFor } from "@testing-library/react";
+import { SettingsField } from "./settings-field";
+import type { ResolvedSetting } from "~/lib/settings-api";
+
+function makeSetting(
+  overrides: Partial<ResolvedSetting> = {},
+): ResolvedSetting {
+  return {
+    key: "test.setting",
+    label: "Test Setting",
+    description: "A test setting",
+    type: "text",
+    default: "default",
+    value: "current",
+    is_default: false,
+    writable: true,
+    visible: true,
+    sort_order: 1,
+    validation: null,
+    depends_on: null,
+    options: null,
+    ...overrides,
+  };
+}
+
+describe("SettingsField", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("renders label and description", () => {
+    const { getByText } = render(
+      <SettingsField
+        setting={makeSetting()}
+        onSave={vi.fn().mockResolvedValue(null)}
+        onReset={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+    expect(getByText("Test Setting")).toBeDefined();
+    expect(getByText("A test setting")).toBeDefined();
+  });
+
+  it("shows Standard badge when is_default", () => {
+    const { getByText } = render(
+      <SettingsField
+        setting={makeSetting({ is_default: true })}
+        onSave={vi.fn().mockResolvedValue(null)}
+        onReset={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+    expect(getByText("Standard")).toBeDefined();
+  });
+
+  it("shows Nur Lesen badge when not writable", () => {
+    const { getByText } = render(
+      <SettingsField
+        setting={makeSetting({ writable: false })}
+        onSave={vi.fn().mockResolvedValue(null)}
+        onReset={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+    expect(getByText("Nur Lesen")).toBeDefined();
+  });
+
+  it("renders nothing when not visible", () => {
+    const { container } = render(
+      <SettingsField
+        setting={makeSetting({ visible: false })}
+        onSave={vi.fn().mockResolvedValue(null)}
+        onReset={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+    expect(container.innerHTML).toBe("");
+  });
+
+  it("shows reset button when not default", () => {
+    const { container } = render(
+      <SettingsField
+        setting={makeSetting({ is_default: false })}
+        onSave={vi.fn().mockResolvedValue(null)}
+        onReset={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+    const resetBtn = container.querySelector("button[title]");
+    expect(resetBtn).toBeDefined();
+  });
+
+  it("hides reset button when is_default", () => {
+    const { container } = render(
+      <SettingsField
+        setting={makeSetting({ is_default: true })}
+        onSave={vi.fn().mockResolvedValue(null)}
+        onReset={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+    const resetBtn = container.querySelector(
+      "button[title='Auf Standard zurücksetzen']",
+    );
+    expect(resetBtn).toBeNull();
+  });
+
+  it("renders boolean field as toggle", () => {
+    const { getByRole } = render(
+      <SettingsField
+        setting={makeSetting({ type: "boolean", value: true })}
+        onSave={vi.fn().mockResolvedValue(null)}
+        onReset={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+    expect(getByRole("switch")).toBeDefined();
+  });
+
+  it("renders number field", () => {
+    const { getByRole } = render(
+      <SettingsField
+        setting={makeSetting({ type: "number", value: 42 })}
+        onSave={vi.fn().mockResolvedValue(null)}
+        onReset={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+    expect((getByRole("spinbutton") as HTMLInputElement).value).toBe("42");
+  });
+
+  it("renders time field", () => {
+    const { container } = render(
+      <SettingsField
+        setting={makeSetting({ type: "time", value: "18:00" })}
+        onSave={vi.fn().mockResolvedValue(null)}
+        onReset={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+    const input = container.querySelector(
+      "input[type='time']",
+    ) as HTMLInputElement;
+    expect(input.value).toBe("18:00");
+  });
+
+  it("renders password field with masked display", () => {
+    const { getByText } = render(
+      <SettingsField
+        setting={makeSetting({ type: "password", value: "secret" })}
+        onSave={vi.fn().mockResolvedValue(null)}
+        onReset={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+    expect(getByText("••••••")).toBeDefined();
+  });
+
+  it("renders select field", () => {
+    const { container } = render(
+      <SettingsField
+        setting={makeSetting({
+          type: "select",
+          value: "de",
+          options: {
+            static: [
+              { label: "Deutsch", value: "de" },
+              { label: "English", value: "en" },
+            ],
+          },
+        })}
+        onSave={vi.fn().mockResolvedValue(null)}
+        onReset={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+    expect(container.querySelector("select")).toBeDefined();
+  });
+
+  it("saves boolean immediately on toggle", async () => {
+    const onSave = vi.fn().mockResolvedValue(null);
+    const { getByRole } = render(
+      <SettingsField
+        setting={makeSetting({ type: "boolean", value: false })}
+        onSave={onSave}
+        onReset={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+
+    fireEvent.click(getByRole("switch"));
+    await waitFor(() => {
+      expect(onSave).toHaveBeenCalledWith("test.setting", true);
+    });
+  });
+
+  it("saves text on blur (not on keystroke)", async () => {
+    const onSave = vi.fn().mockResolvedValue(null);
+    const { container } = render(
+      <SettingsField
+        setting={makeSetting({ type: "text", value: "old" })}
+        onSave={onSave}
+        onReset={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+
+    const input = container.querySelector(
+      "input[type='text']",
+    ) as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "new" } });
+
+    // Should NOT have saved yet (no blur, no debounce timeout)
+    expect(onSave).not.toHaveBeenCalled();
+
+    // Blur triggers save
+    fireEvent.blur(input);
+    await waitFor(() => {
+      expect(onSave).toHaveBeenCalledWith("test.setting", "new");
+    });
+  });
+
+  it("does not save on keystroke (only on blur or debounce)", () => {
+    const onSave = vi.fn().mockResolvedValue(null);
+    const { container } = render(
+      <SettingsField
+        setting={makeSetting({ type: "number", value: 10 })}
+        onSave={onSave}
+        onReset={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+
+    const input = container.querySelector(
+      "input[type='number']",
+    ) as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "20" } });
+
+    // Should NOT have saved immediately
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it("calls onReset when reset button clicked", async () => {
+    const onReset = vi.fn().mockResolvedValue(null);
+    const { container } = render(
+      <SettingsField
+        setting={makeSetting({ is_default: false })}
+        onSave={vi.fn().mockResolvedValue(null)}
+        onReset={onReset}
+      />,
+    );
+
+    const resetBtn = container.querySelector(
+      "button[title='Auf Standard zurücksetzen']",
+    );
+    expect(resetBtn).not.toBeNull();
+    fireEvent.click(resetBtn!);
+
+    await waitFor(() => {
+      expect(onReset).toHaveBeenCalledWith("test.setting");
+    });
+  });
+
+  it("shows validation error for invalid number", async () => {
+    const onSave = vi.fn().mockResolvedValue(null);
+    const { container, getByText } = render(
+      <SettingsField
+        setting={makeSetting({
+          type: "number",
+          value: 50,
+          validation: { min: 10, max: 100 },
+        })}
+        onSave={onSave}
+        onReset={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+
+    const input = container.querySelector(
+      "input[type='number']",
+    ) as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "5" } });
+    fireEvent.blur(input);
+
+    await waitFor(() => {
+      expect(getByText("Minimum: 10")).toBeDefined();
+    });
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it("shows error message from failed save", async () => {
+    const onSave = vi.fn().mockResolvedValue("Ungültiger Wert.");
+    const { getByRole, findByText } = render(
+      <SettingsField
+        setting={makeSetting({ type: "boolean", value: false })}
+        onSave={onSave}
+        onReset={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+
+    fireEvent.click(getByRole("switch"));
+    expect(await findByText("Ungültiger Wert.")).toBeDefined();
+  });
+});

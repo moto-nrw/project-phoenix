@@ -4,6 +4,27 @@ import { apiGet } from "~/lib/api-helpers";
 import { createGetHandler } from "~/lib/route-wrapper";
 import { mapSupervisorResponse } from "~/lib/activity-helpers";
 
+interface FallbackSupervisor {
+  id: number | string;
+  first_name?: string;
+  last_name?: string;
+  person?: {
+    first_name?: string;
+    last_name?: string;
+  };
+}
+
+function getFallbackSupervisorName(supervisor: FallbackSupervisor): string {
+  const firstName = supervisor.first_name ?? supervisor.person?.first_name;
+  const lastName = supervisor.last_name ?? supervisor.person?.last_name;
+
+  if (firstName && lastName) {
+    return `${firstName} ${lastName}`;
+  }
+
+  return `Teacher ${supervisor.id}`;
+}
+
 /**
  * Handler for GET /api/activities/supervisors
  * Returns a list of available supervisors (teachers/staff)
@@ -42,19 +63,11 @@ export const GET = createGetHandler(
       // Fall through to try the staff endpoint
     }
 
-    // Try fetching from staff endpoint as a fallback
+    // Try fetching from the canonical caregiver pool as a fallback
     try {
-      interface StaffMember {
-        id: number | string;
-        person?: {
-          first_name: string;
-          last_name: string;
-        };
-      }
-      const response = await apiGet<{ data?: StaffMember[] } | StaffMember[]>(
-        "/api/staff?teachers_only=true",
-        token,
-      );
+      const response = await apiGet<
+        { data?: FallbackSupervisor[] } | FallbackSupervisor[]
+      >("/api/staff/by-role?role=user", token);
 
       // Handle response structure with more flexible checking
       if (response) {
@@ -66,9 +79,7 @@ export const GET = createGetHandler(
         ) {
           const mapped = response.data.map((supervisor) => ({
             id: String(supervisor.id),
-            name: supervisor.person
-              ? `${supervisor.person.first_name} ${supervisor.person.last_name}`
-              : `Teacher ${supervisor.id}`,
+            name: getFallbackSupervisorName(supervisor),
           }));
           return mapped;
         }
@@ -76,9 +87,7 @@ export const GET = createGetHandler(
         else if (Array.isArray(response)) {
           const mapped = response.map((supervisor) => ({
             id: String(supervisor.id),
-            name: supervisor.person
-              ? `${supervisor.person.first_name} ${supervisor.person.last_name}`
-              : `Teacher ${supervisor.id}`,
+            name: getFallbackSupervisorName(supervisor),
           }));
           return mapped;
         }

@@ -81,6 +81,10 @@ type VisitRepository interface {
 	// FindByTimeRange finds all visits active during a specific time range
 	FindByTimeRange(ctx context.Context, start, end time.Time) ([]*Visit, error)
 
+	// FindByStudentAndTimeRange finds all visits (active or ended) for a specific
+	// student whose entry_time falls within [start, end], ordered by entry_time desc.
+	FindByStudentAndTimeRange(ctx context.Context, studentID int64, start, end time.Time) ([]*Visit, error)
+
 	// EndVisit marks a visit as ended at the current time
 	EndVisit(ctx context.Context, id int64) error
 
@@ -150,6 +154,10 @@ type GroupSupervisorRepository interface {
 	// EndAllActiveByStaffID ends all active supervisions for a staff member (sets end_date = CURRENT_DATE)
 	// Returns the number of supervisions that were ended
 	EndAllActiveByStaffID(ctx context.Context, staffID int64) (int, error)
+
+	// CreateBulk inserts multiple supervisors in a single query.
+	// All supervisors must have valid fields and tenant IDs set before calling.
+	CreateBulk(ctx context.Context, supervisors []*GroupSupervisor) error
 
 	// EndSupervisionsByActiveGroupIDs ends all active supervisions for multiple group IDs in a single query.
 	// Returns the number of supervisions ended.

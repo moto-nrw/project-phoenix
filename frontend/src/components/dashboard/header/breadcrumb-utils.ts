@@ -32,7 +32,7 @@ export function getPageTitle(pathname: string): string {
 function getStudentPageTitle(pathname: string): string {
   if (pathname.includes("/feedback_history")) return "Feedback Historie";
   if (pathname.includes("/mensa_history")) return "Mensa Historie";
-  if (pathname.includes("/room_history")) return "Raum Historie";
+  if (pathname.includes("/room-history")) return "Anwesenheitsprotokoll";
   return "Schüler Details";
 }
 
@@ -68,6 +68,7 @@ function getMainRouteTitle(pathname: string): string {
     "/substitutions": "Vertretungen",
     "/database": "Datenverwaltung",
     "/settings": "Einstellungen",
+    "/profile": "Profil",
     "/invitations": "Einladungen",
     "/time-tracking": "Zeiterfassung",
     "/borndal_feedback": "Borndal Feedback",
@@ -115,7 +116,7 @@ export function getBreadcrumbLabel(referrer: string): string {
 export function getHistoryType(pathname: string): string {
   if (pathname.includes("/feedback_history")) return "Feedback Historie";
   if (pathname.includes("/mensa_history")) return "Mensa Historie";
-  if (pathname.includes("/room_history")) return "Raum Historie";
+  if (pathname.includes("/room-history")) return "Anwesenheitsprotokoll";
   return "";
 }
 
@@ -139,13 +140,13 @@ export function getPageTypeInfo(pathname: string): PageTypeInfo {
     pathname !== "/students/search" &&
     !pathname.includes("/feedback_history") &&
     !pathname.includes("/mensa_history") &&
-    !pathname.includes("/room_history");
+    !pathname.includes("/room-history");
 
   const isStudentHistoryPage =
     isStudentPath &&
     (pathname.includes("/feedback_history") ||
       pathname.includes("/mensa_history") ||
-      pathname.includes("/room_history"));
+      pathname.includes("/room-history"));
 
   const isRoomDetailPage =
     pathname.startsWith("/rooms/") && pathname !== "/rooms";

@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"sync"
@@ -78,7 +79,7 @@ func TestNewScheduler(t *testing.T) {
 	auth := &fakeAuthCleanup{}
 	invitations := &fakeInvitationCleaner{}
 
-	s := NewScheduler(nil, nil, auth, invitations, slog.Default())
+	s := NewScheduler(nil, nil, auth, invitations, nil, nil, slog.Default())
 
 	require.NotNil(t, s)
 	assert.NotNil(t, s.tasks)
@@ -87,7 +88,7 @@ func TestNewScheduler(t *testing.T) {
 }
 
 func TestNewScheduler_NilServices(t *testing.T) {
-	s := NewScheduler(nil, nil, nil, nil, slog.Default())
+	s := NewScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
 
 	require.NotNil(t, s)
 	assert.Empty(t, s.cleanupJobs)
@@ -96,7 +97,7 @@ func TestNewScheduler_NilServices(t *testing.T) {
 func TestNewScheduler_OnlyAuthService(t *testing.T) {
 	auth := &fakeAuthCleanup{}
 
-	s := NewScheduler(nil, nil, auth, nil, slog.Default())
+	s := NewScheduler(nil, nil, auth, nil, nil, nil, slog.Default())
 
 	require.NotNil(t, s)
 	assert.Len(t, s.cleanupJobs, 3) // 3 auth jobs only
@@ -105,7 +106,7 @@ func TestNewScheduler_OnlyAuthService(t *testing.T) {
 func TestNewScheduler_OnlyInvitationService(t *testing.T) {
 	invitations := &fakeInvitationCleaner{}
 
-	s := NewScheduler(nil, nil, nil, invitations, slog.Default())
+	s := NewScheduler(nil, nil, nil, invitations, nil, nil, slog.Default())
 
 	require.NotNil(t, s)
 	assert.Len(t, s.cleanupJobs, 1) // 1 invitation job only
@@ -126,7 +127,7 @@ func TestScheduler_StartStop(t *testing.T) {
 		_ = os.Unsetenv("SESSION_CLEANUP_ENABLED")
 	}()
 
-	s := NewScheduler(nil, nil, nil, nil, slog.Default())
+	s := NewScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
 
 	// Start should not panic
 	assert.NotPanics(t, func() {
@@ -149,7 +150,7 @@ func TestScheduler_StartStop(t *testing.T) {
 }
 
 func TestScheduler_StopWithoutStart(t *testing.T) {
-	s := NewScheduler(nil, nil, nil, nil, slog.Default())
+	s := NewScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
 
 	// Stop without start should not panic
 	assert.NotPanics(t, func() {
@@ -175,7 +176,7 @@ func TestScheduler_StartWithTokenCleanupOnly(t *testing.T) {
 			rateLimitResult: 3,
 		}
 
-		s := NewScheduler(nil, nil, auth, nil, slog.Default())
+		s := NewScheduler(nil, nil, auth, nil, nil, nil, slog.Default())
 		s.Start()
 
 		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
@@ -204,7 +205,7 @@ func TestRunCleanupJobsExecutesAllJobs(t *testing.T) {
 	}
 	invitations := &fakeInvitationCleaner{result: 4}
 
-	s := NewScheduler(nil, nil, auth, invitations, slog.Default())
+	s := NewScheduler(nil, nil, auth, invitations, nil, nil, slog.Default())
 
 	if err := s.RunCleanupJobs(); err != nil {
 		t.Fatalf("RunCleanupJobs() returned error: %v", err)
@@ -228,7 +229,7 @@ func TestRunCleanupJobsReturnsFirstErrorAndContinues(t *testing.T) {
 	}
 	invitations := &fakeInvitationCleaner{}
 
-	s := NewScheduler(nil, nil, auth, invitations, slog.Default())
+	s := NewScheduler(nil, nil, auth, invitations, nil, nil, slog.Default())
 
 	err := s.RunCleanupJobs()
 	if !errors.Is(err, expectedErr) {
@@ -246,7 +247,7 @@ func TestRunCleanupJobsReturnsFirstErrorAndContinues(t *testing.T) {
 }
 
 func TestRunCleanupJobs_NoJobs(t *testing.T) {
-	s := NewScheduler(nil, nil, nil, nil, slog.Default())
+	s := NewScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
 
 	// Should not error when no jobs
 	err := s.RunCleanupJobs()
@@ -273,7 +274,7 @@ func TestRunCleanupJobs_MultipleErrors(t *testing.T) {
 		rateLimitErr: errors.New("rate limit error"),
 	}
 
-	s := NewScheduler(nil, nil, auth, nil, slog.Default())
+	s := NewScheduler(nil, nil, auth, nil, nil, nil, slog.Default())
 
 	err := s.RunCleanupJobs()
 
@@ -294,7 +295,7 @@ func TestRunCleanupJobs_Concurrent(t *testing.T) {
 		rateLimitResult: 3,
 	}
 
-	s := NewScheduler(nil, nil, auth, nil, slog.Default())
+	s := NewScheduler(nil, nil, auth, nil, nil, nil, slog.Default())
 
 	// Run cleanup jobs concurrently
 	var wg sync.WaitGroup
@@ -324,7 +325,7 @@ func TestBuildCleanupJobs_AllServices(t *testing.T) {
 	auth := &fakeAuthCleanup{}
 	invitations := &fakeInvitationCleaner{}
 
-	jobs := buildCleanupJobs(auth, invitations)
+	jobs := buildCleanupJobs(auth, invitations, nil, nil)
 
 	assert.Len(t, jobs, 4)
 	assert.Equal(t, "Auth token cleanup", jobs[0].Description)
@@ -334,14 +335,14 @@ func TestBuildCleanupJobs_AllServices(t *testing.T) {
 }
 
 func TestBuildCleanupJobs_NoServices(t *testing.T) {
-	jobs := buildCleanupJobs(nil, nil)
+	jobs := buildCleanupJobs(nil, nil, nil, nil)
 	assert.Empty(t, jobs)
 }
 
 func TestBuildCleanupJobs_OnlyAuth(t *testing.T) {
 	auth := &fakeAuthCleanup{}
 
-	jobs := buildCleanupJobs(auth, nil)
+	jobs := buildCleanupJobs(auth, nil, nil, nil)
 
 	assert.Len(t, jobs, 3)
 }
@@ -349,7 +350,7 @@ func TestBuildCleanupJobs_OnlyAuth(t *testing.T) {
 func TestBuildCleanupJobs_OnlyInvitations(t *testing.T) {
 	invitations := &fakeInvitationCleaner{}
 
-	jobs := buildCleanupJobs(nil, invitations)
+	jobs := buildCleanupJobs(nil, invitations, nil, nil)
 
 	assert.Len(t, jobs, 1)
 	assert.Equal(t, "Invitation cleanup", jobs[0].Description)
@@ -359,7 +360,7 @@ func TestBuildCleanupJobs_JobsAreCallable(t *testing.T) {
 	auth := &fakeAuthCleanup{tokenResult: 5}
 	invitations := &fakeInvitationCleaner{result: 3}
 
-	jobs := buildCleanupJobs(auth, invitations)
+	jobs := buildCleanupJobs(auth, invitations, nil, nil)
 	ctx := context.Background()
 
 	// All jobs should be callable
@@ -465,7 +466,7 @@ func TestScheduler_DisabledByEnvVars(t *testing.T) {
 	}()
 
 	synctest.Test(t, func(t *testing.T) {
-		s := NewScheduler(nil, nil, nil, nil, slog.Default())
+		s := NewScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
 		s.Start()
 
 		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
@@ -498,7 +499,7 @@ func TestScheduler_DefaultEnvValues(t *testing.T) {
 	_ = os.Unsetenv("SESSION_CLEANUP_INTERVAL_MINUTES")
 	_ = os.Unsetenv("SESSION_ABANDONED_THRESHOLD_MINUTES")
 
-	s := NewScheduler(nil, nil, nil, nil, slog.Default())
+	s := NewScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
 
 	// Default values should be set
 	assert.Equal(t, 0, s.sessionCleanupIntervalMinutes) // Not set until Start()
@@ -1548,7 +1549,7 @@ func TestExecuteTokenCleanup_Success(t *testing.T) {
 		rateLimitResult: 2,
 	}
 
-	s := NewScheduler(nil, nil, auth, nil, slog.Default())
+	s := NewScheduler(nil, nil, auth, nil, nil, nil, slog.Default())
 
 	task := &ScheduledTask{Name: "token-cleanup"}
 
@@ -1571,7 +1572,7 @@ func TestExecuteTokenCleanup_Success(t *testing.T) {
 func TestExecuteTokenCleanup_AlreadyRunning(t *testing.T) {
 	auth := &fakeAuthCleanup{}
 
-	s := NewScheduler(nil, nil, auth, nil, slog.Default())
+	s := NewScheduler(nil, nil, auth, nil, nil, nil, slog.Default())
 
 	task := &ScheduledTask{Name: "token-cleanup", Running: true}
 
@@ -1589,7 +1590,7 @@ func TestExecuteTokenCleanup_Error(t *testing.T) {
 		tokenErr: errors.New("token cleanup failed"),
 	}
 
-	s := NewScheduler(nil, nil, auth, nil, slog.Default())
+	s := NewScheduler(nil, nil, auth, nil, nil, nil, slog.Default())
 
 	task := &ScheduledTask{Name: "token-cleanup"}
 
@@ -1840,7 +1841,8 @@ func TestScheduleCleanupTask_CustomTime(t *testing.T) {
 		task, hasTask := s.tasks["visit-cleanup"]
 		s.mu.RUnlock()
 		assert.True(t, hasTask)
-		assert.Equal(t, "03:30", task.Schedule)
+		// With per-tenant minute-polling, the schedule is now descriptive (not HH:MM)
+		assert.Equal(t, "1m-poll", task.Schedule)
 
 		// Stop scheduler
 		close(s.done)
@@ -1873,7 +1875,8 @@ func TestScheduleSessionEndTask_CustomTime(t *testing.T) {
 		task, hasTask := s.tasks["session-end"]
 		s.mu.RUnlock()
 		assert.True(t, hasTask)
-		assert.Equal(t, "17:00", task.Schedule)
+		// With per-tenant minute-polling, the schedule is now descriptive (not HH:MM)
+		assert.Equal(t, "1m-poll", task.Schedule)
 
 		// Stop scheduler
 		close(s.done)
@@ -1986,7 +1989,8 @@ func TestRunCleanupTask_DefaultScheduleTime(t *testing.T) {
 		task, hasTask := s.tasks["visit-cleanup"]
 		s.mu.RUnlock()
 		assert.True(t, hasTask)
-		assert.Equal(t, "02:00", task.Schedule, "Should use default schedule when env var is not set")
+		// With per-tenant minute-polling, the schedule is now descriptive (not HH:MM)
+		assert.Equal(t, "1m-poll", task.Schedule, "Should use polling schedule for per-tenant support")
 
 		// Stop scheduler
 		close(s.done)
@@ -2206,7 +2210,7 @@ func TestRunTokenCleanupTask_TickerRepeat(t *testing.T) {
 			rateLimitResult: 3,
 		}
 
-		s := NewScheduler(nil, nil, auth, nil, slog.Default())
+		s := NewScheduler(nil, nil, auth, nil, nil, nil, slog.Default())
 
 		// Schedule token cleanup task (runs immediately, then every hour)
 		s.scheduleTokenCleanupTask()
@@ -2284,4 +2288,264 @@ func TestRunSessionCleanupTask_StopsOnDoneAfterSleep(t *testing.T) {
 			t.Fatal("Goroutine did not exit after done channel closed")
 		}
 	})
+}
+
+type mockBreakAutoEnder struct{}
+
+func (m *mockBreakAutoEnder) AutoEndExpiredBreaks(_ context.Context) (int, error) {
+	return 0, nil
+}
+
+func TestWaitUntilNextMinute_ShutdownDuringWait(t *testing.T) {
+	s := &Scheduler{done: make(chan struct{}), logger: slog.Default()}
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		close(s.done)
+	}()
+	result := s.waitUntilNextMinute()
+	assert.False(t, result, "should return false when shutdown signal fires during wait")
+}
+
+func TestScheduleCleanupTask_DisabledByEnv(t *testing.T) {
+	t.Setenv("CLEANUP_SCHEDULER_ENABLED", "false")
+	s := &Scheduler{
+		done:   make(chan struct{}),
+		logger: slog.Default(),
+		tasks:  make(map[string]*ScheduledTask),
+	}
+	s.scheduleCleanupTask()
+	assert.Empty(t, s.tasks, "cleanup task should not be registered when disabled")
+}
+
+func TestScheduleSessionEndTask_DisabledByEnv(t *testing.T) {
+	t.Setenv("SESSION_END_SCHEDULER_ENABLED", "false")
+	s := &Scheduler{
+		done:   make(chan struct{}),
+		logger: slog.Default(),
+		tasks:  make(map[string]*ScheduledTask),
+	}
+	s.scheduleSessionEndTask()
+	assert.Empty(t, s.tasks, "session end task should not be registered when disabled")
+}
+
+func TestScheduleBreakAutoEndTask_DisabledByEnv(t *testing.T) {
+	t.Setenv("BREAK_AUTO_END_ENABLED", "false")
+	s := &Scheduler{
+		done:           make(chan struct{}),
+		logger:         slog.Default(),
+		tasks:          make(map[string]*ScheduledTask),
+		breakAutoEnder: &mockBreakAutoEnder{},
+	}
+	s.scheduleBreakAutoEndTask()
+	assert.Empty(t, s.tasks, "break auto-end task should not be registered when disabled")
+}
+
+func TestExecuteCleanupForTenant_ReturnsFalseOnError(t *testing.T) {
+	s := &Scheduler{
+		cleanupService: &mockCleanupService{
+			cleanupErr: errors.New("db error"),
+		},
+		logger: slog.Default(),
+	}
+	result := s.executeCleanupForTenant(context.Background(), 1)
+	assert.False(t, result)
+}
+
+func TestExecuteCleanupForTenant_ReturnsTrueOnSuccess(t *testing.T) {
+	s := &Scheduler{
+		cleanupService: &mockCleanupService{
+			cleanupResult: &activeService.CleanupResult{},
+		},
+		logger: slog.Default(),
+	}
+	result := s.executeCleanupForTenant(context.Background(), 1)
+	assert.True(t, result)
+}
+
+func TestTimeMatchesNow(t *testing.T) {
+	now := time.Now()
+	nowStr := now.Format("15:04")
+	assert.True(t, timeMatchesNow(nowStr))
+	assert.False(t, timeMatchesNow("99:99"))
+	assert.False(t, timeMatchesNow("invalid"))
+	assert.False(t, timeMatchesNow("25:00"))
+	assert.False(t, timeMatchesNow("12:60"))
+}
+
+func TestWasRunToday_NotRun(t *testing.T) {
+	var m sync.Map
+	assert.False(t, wasRunToday(&m, 1))
+}
+
+func TestWasRunToday_RanToday(t *testing.T) {
+	var m sync.Map
+	markRunToday(&m, 1)
+	assert.True(t, wasRunToday(&m, 1))
+}
+
+func TestWasRunToday_RanYesterday(t *testing.T) {
+	var m sync.Map
+	tenantID := int64(100)
+	m.Store(tenantID, time.Now().Add(-25*time.Hour))
+	assert.False(t, wasRunToday(&m, tenantID))
+}
+
+func TestWasRunToday_InvalidType(t *testing.T) {
+	var m sync.Map
+	tenantID := int64(100)
+	m.Store(tenantID, "not a time")
+	assert.False(t, wasRunToday(&m, tenantID))
+}
+
+func TestWasRunToday_DifferentTenant(t *testing.T) {
+	var m sync.Map
+	markRunToday(&m, 1)
+	assert.False(t, wasRunToday(&m, 2))
+}
+
+func TestResolveStringSetting_NoSettings(t *testing.T) {
+	s := &Scheduler{logger: slog.Default()}
+	val := s.resolveStringSetting(context.Background(), "key", "NONEXISTENT_ENV", "fallback")
+	assert.Equal(t, "fallback", val)
+}
+
+func TestResolveBoolSetting_NoSettings(t *testing.T) {
+	s := &Scheduler{logger: slog.Default()}
+	val := s.resolveBoolSetting(context.Background(), "key", "NONEXISTENT_ENV", true)
+	assert.True(t, val)
+}
+
+func TestResolveIntSetting_NoSettings(t *testing.T) {
+	s := &Scheduler{logger: slog.Default()}
+	val := s.resolveIntSetting(context.Background(), "key", "NONEXISTENT_ENV", 42)
+	assert.Equal(t, 42, val)
+}
+
+func TestResolveStringSetting_FromEnv(t *testing.T) {
+	t.Setenv("TEST_RESOLVE_STR", "from_env")
+	s := &Scheduler{logger: slog.Default()}
+	val := s.resolveStringSetting(context.Background(), "key", "TEST_RESOLVE_STR", "default")
+	assert.Equal(t, "from_env", val)
+}
+
+func TestResolveBoolSetting_FromEnv(t *testing.T) {
+	t.Setenv("TEST_RESOLVE_BOOL", "true")
+	s := &Scheduler{logger: slog.Default()}
+	val := s.resolveBoolSetting(context.Background(), "key", "TEST_RESOLVE_BOOL", false)
+	assert.True(t, val)
+}
+
+func TestResolveIntSetting_FromEnv(t *testing.T) {
+	t.Setenv("TEST_RESOLVE_INT", "99")
+	s := &Scheduler{logger: slog.Default()}
+	val := s.resolveIntSetting(context.Background(), "key", "TEST_RESOLVE_INT", 10)
+	assert.Equal(t, 99, val)
+}
+
+func TestResolveIntSetting_InvalidEnv(t *testing.T) {
+	t.Setenv("TEST_RESOLVE_INT_BAD", "notanumber")
+	s := &Scheduler{logger: slog.Default()}
+	val := s.resolveIntSetting(context.Background(), "key", "TEST_RESOLVE_INT_BAD", 10)
+	assert.Equal(t, 10, val)
+}
+
+func TestScheduleBreakAutoEndTask_NilBreakAutoEnder(t *testing.T) {
+	s := &Scheduler{
+		done:   make(chan struct{}),
+		logger: slog.Default(),
+		tasks:  make(map[string]*ScheduledTask),
+	}
+	s.scheduleBreakAutoEndTask()
+	assert.Empty(t, s.tasks, "should not register task without break auto-ender")
+}
+
+func TestScheduleBreakAutoEndTask_CustomInterval(t *testing.T) {
+	t.Setenv("BREAK_AUTO_END_INTERVAL_SECONDS", "30")
+	s := &Scheduler{
+		done:           make(chan struct{}),
+		logger:         slog.Default(),
+		tasks:          make(map[string]*ScheduledTask),
+		wg:             sync.WaitGroup{},
+		breakAutoEnder: &mockBreakAutoEnder{},
+	}
+	s.scheduleBreakAutoEndTask()
+	defer close(s.done)
+	assert.Equal(t, 30, s.breakAutoEndIntervalSeconds)
+}
+
+// =============================================================================
+// buildCleanupJobs with EmailChangeTokenCleaner tests
+// =============================================================================
+
+type fakeEmailChangeCleaner struct {
+	result int
+	err    error
+	called bool
+}
+
+func (f *fakeEmailChangeCleaner) CleanupExpiredEmailChangeTokens(ctx context.Context) (int, error) {
+	f.called = true
+	return f.result, f.err
+}
+
+func TestEmailChangeTokenCleaner_InterfaceCompliance(_ *testing.T) {
+	var _ EmailChangeTokenCleaner = &fakeEmailChangeCleaner{}
+}
+
+func TestBuildCleanupJobs_WithEmailChangeCleaner(t *testing.T) {
+	auth := &fakeAuthCleanup{}
+	invitations := &fakeInvitationCleaner{}
+	cleaner := &fakeEmailChangeCleaner{result: 7}
+
+	jobs := buildCleanupJobs(auth, invitations, cleaner, nil)
+
+	assert.Len(t, jobs, 5)
+	assert.Equal(t, "Email change token cleanup", jobs[4].Description)
+
+	count, err := jobs[4].Run(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 7, count)
+	assert.True(t, cleaner.called)
+}
+
+func TestBuildCleanupJobs_EmailChangeCleanerPropagatesError(t *testing.T) {
+	cleaner := &fakeEmailChangeCleaner{err: fmt.Errorf("cleanup failed")}
+
+	jobs := buildCleanupJobs(nil, nil, cleaner, nil)
+
+	assert.Len(t, jobs, 1)
+	_, err := jobs[0].Run(context.Background())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "cleanup failed")
+}
+
+// =============================================================================
+// FeedbackCleaner Tests
+// =============================================================================
+
+type fakeFeedbackCleaner struct {
+	mu       sync.Mutex
+	calls    int
+	result   int
+	callErr  error
+	lastDays int
+}
+
+func (f *fakeFeedbackCleaner) DeleteEntriesOlderThan(_ context.Context, days int) (int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls++
+	f.lastDays = days
+	return f.result, f.callErr
+}
+
+func TestSetFeedbackCleaner(t *testing.T) {
+	s := NewScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
+
+	assert.Nil(t, s.feedbackCleaner)
+
+	fc := &fakeFeedbackCleaner{}
+	s.SetFeedbackCleaner(fc)
+
+	assert.NotNil(t, s.feedbackCleaner)
 }

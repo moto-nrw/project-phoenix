@@ -9,6 +9,7 @@ import {
   getDeviceStatusDisplayName,
   getDeviceStatusColor,
   formatLastSeen,
+  formatRelativeLastSeen,
   getDeviceTypeEmoji,
   generateDefaultDeviceName,
   DEVICE_TYPE_OPTIONS,
@@ -111,6 +112,28 @@ export const devicesConfig = defineEntityConfig<Device>({
             value: (device) => device.name ?? "Nicht gesetzt",
           },
           {
+            label: "Verbindung",
+            value: (device) => (
+              <span className="inline-flex items-center gap-1.5">
+                <span
+                  className={`inline-block h-2 w-2 rounded-full ${device.is_online ? "bg-green-500" : "bg-gray-400"}`}
+                />
+                <span className="font-medium">
+                  {device.is_online ? "Online" : "Offline"}
+                </span>
+                {!device.is_online && (
+                  <span className="text-gray-500">
+                    · {formatRelativeLastSeen(device.last_seen)}
+                  </span>
+                )}
+              </span>
+            ),
+          },
+          {
+            label: "Letzter Standort",
+            value: (device) => device.room_name ?? "Noch nicht verwendet",
+          },
+          {
             label: "Status",
             value: (device) => (
               <span
@@ -119,10 +142,6 @@ export const devicesConfig = defineEntityConfig<Device>({
                 {getDeviceStatusDisplayName(device.status)}
               </span>
             ),
-          },
-          {
-            label: "Zuletzt gesehen",
-            value: (device) => formatLastSeen(device.last_seen),
           },
         ],
       },

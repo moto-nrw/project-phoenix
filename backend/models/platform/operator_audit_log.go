@@ -13,20 +13,26 @@ const tablePlatformOperatorAuditLog = "platform.operator_audit_log"
 
 // Common audit action constants
 const (
-	ActionCreate        = "create"
-	ActionUpdate        = "update"
-	ActionDelete        = "delete"
-	ActionStatusChange  = "status_change"
-	ActionPublish       = "publish"
-	ActionLogin         = "login"
-	ActionAddComment    = "add_comment"
-	ActionDeleteComment = "delete_comment"
-	ActionRotateAPIKey  = "rotate_api_key"
-	ActionHidePost      = "hide_post"
-	ActionUnhidePost    = "unhide_post"
-	ActionDeletePost    = "delete_post"
-	ActionSoftDelete    = "soft_delete"
-	ActionRestore       = "restore"
+	ActionCreate               = "create"
+	ActionUpdate               = "update"
+	ActionDelete               = "delete"
+	ActionStatusChange         = "status_change"
+	ActionPublish              = "publish"
+	ActionLogin                = "login"
+	ActionAddComment           = "add_comment"
+	ActionDeleteComment        = "delete_comment"
+	ActionRotateAPIKey         = "rotate_api_key"
+	ActionHidePost             = "hide_post"
+	ActionUnhidePost           = "unhide_post"
+	ActionDeletePost           = "delete_post"
+	ActionSoftDelete           = "soft_delete"
+	ActionRestore              = "restore"
+	ActionEmailChangeInitiated = "email_change_initiated"
+	ActionEmailChangeConfirmed = "email_change_confirmed"
+	ActionInvitationCreated    = "invitation_created"
+	ActionInvitationAccepted   = "invitation_accepted"
+	ActionInvitationRevoked    = "invitation_revoked"
+	ActionInvitationResent     = "invitation_resent"
 )
 
 // Common resource type constants
@@ -51,7 +57,7 @@ type OperatorAuditLog struct {
 	ResourceType string          `bun:"resource_type,notnull" json:"resource_type"`
 	ResourceID   *int64          `bun:"resource_id" json:"resource_id,omitempty"`
 	Changes      json.RawMessage `bun:"changes,type:jsonb" json:"changes,omitempty"`
-	RequestIP    net.IP          `bun:"request_ip,type:inet" json:"request_ip,omitempty"`
+	RequestIP    net.IP          `bun:"request_ip,type:inet,nullzero" json:"request_ip,omitempty"`
 	CreatedAt    time.Time       `bun:"created_at,notnull,default:current_timestamp" json:"created_at"`
 
 	// Relations

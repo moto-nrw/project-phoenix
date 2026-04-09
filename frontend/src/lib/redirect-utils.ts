@@ -3,7 +3,7 @@
  */
 
 import type { Session } from "next-auth";
-import { isAdmin } from "~/lib/auth-utils";
+import { hasRole, isCaregiver } from "~/lib/auth-utils";
 
 export interface SupervisionState {
   hasGroups: boolean;
@@ -15,40 +15,43 @@ export interface SupervisionState {
 /**
  * Determines the best redirect path for a user based on their permissions and supervision state
  * Priority order:
- * 1. Admins → /dashboard
- * 2. Users with groups → /ogs-groups
- * 3. Users actively supervising → /active-supervisions
- * 4. Regular users → /ogs-groups
+ * 1. Caregivers with groups → /ogs-groups
+ * 2. Caregivers actively supervising → /active-supervisions
+ * 3. Other caregivers → /ogs-groups
+ * 4. Admin-only users → /dashboard
  */
 export function getSmartRedirectPath(
   session: Session | null,
   supervisionState: SupervisionState,
 ): string {
-  // If still loading supervision state, use ogs-groups as fallback
-  if (
-    supervisionState.isLoadingGroups ||
-    supervisionState.isLoadingSupervision
-  ) {
+  const canUseCaregiverFlows = isCaregiver(session);
+  const canUseAdminFlows = hasRole(session, "admin");
+
+  if (canUseCaregiverFlows) {
+    // If still loading supervision state, use ogs-groups as caregiver fallback
+    if (
+      supervisionState.isLoadingGroups ||
+      supervisionState.isLoadingSupervision
+    ) {
+      return "/ogs-groups";
+    }
+
+    if (supervisionState.hasGroups) {
+      return "/ogs-groups";
+    }
+
+    if (supervisionState.isSupervising) {
+      return "/active-supervisions";
+    }
+
     return "/ogs-groups";
   }
 
-  // Admins always go to dashboard
-  if (isAdmin(session)) {
+  if (canUseAdminFlows) {
     return "/dashboard";
   }
 
-  // Users with groups go to their groups page
-  if (supervisionState.hasGroups) {
-    return "/ogs-groups";
-  }
-
-  // Users actively supervising a room go to room page
-  if (supervisionState.isSupervising) {
-    return "/active-supervisions";
-  }
-
-  // Regular users default to ogs-groups (shows empty state on page)
-  return "/ogs-groups";
+  return "/dashboard";
 }
 
 /**

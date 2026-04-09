@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"time"
 
+	"github.com/getsentry/sentry-go"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/jwtauth/v5"
 	"github.com/go-chi/render"
@@ -64,7 +66,7 @@ func (rs *Resource) Router() chi.Router {
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
 	// Create JWT auth instance for middleware
-	tokenAuth, _ := jwt.NewTokenAuth()
+	tokenAuth := jwt.MustNewTokenAuth()
 
 	// Protected routes - require UsersCreate permission
 	r.Group(func(r chi.Router) {
@@ -538,6 +540,14 @@ func (rs *Resource) getStaffIDFromJWT(ctx context.Context) (int64, error) {
 // logImportAudit creates an audit record for import operations (GDPR compliance)
 func (rs *Resource) logImportAudit(filename string, result *importModels.ImportResult[importModels.StudentImportRow], userID int64, dryRun bool, tenantID int64) {
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				err := fmt.Errorf("panic in import audit logging: %v", r)
+				slog.Default().Error("goroutine panic recovered", slog.String("error", err.Error()))
+				sentry.CurrentHub().Recover(r)
+				sentry.Flush(2 * time.Second)
+			}
+		}()
 		auditCtx := context.Background()
 		auditRecord := &audit.DataImport{
 			EntityType:   "student",

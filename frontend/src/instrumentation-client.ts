@@ -1,3 +1,4 @@
+import "./sentry.client.config";
 import posthog from "posthog-js";
 
 if (process.env.NEXT_PUBLIC_POSTHOG_KEY) {

@@ -1,6 +1,25 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { createElement } from "react";
 import { describe, it, expect, vi } from "vitest";
 import { TeacherDetailModal } from "./teacher-detail-modal";
+
+const { mockLoggerError } = vi.hoisted(() => ({
+  mockLoggerError: vi.fn(),
+}));
+
+vi.mock("next/image", () => ({
+  default: (props: React.ImgHTMLAttributes<HTMLImageElement>) =>
+    createElement("img", {
+      ...props,
+      alt: props.alt ?? "",
+    }),
+}));
+
+vi.mock("~/lib/logger", () => ({
+  createLogger: () => ({
+    error: mockLoggerError,
+  }),
+}));
 
 vi.mock("~/components/ui/modal", () => ({
   Modal: ({
@@ -155,6 +174,20 @@ describe("TeacherDetailModal", () => {
     expect(screen.getByText("JD")).toBeInTheDocument();
   });
 
+  it("renders the avatar image when the teacher has an avatar", () => {
+    render(
+      <TeacherDetailModal
+        {...defaultProps}
+        teacher={{ ...mockTeacher, avatar: "/uploads/avatars/global/john.jpg" }}
+      />,
+    );
+
+    expect(screen.getByAltText("John Doe")).toHaveAttribute(
+      "src",
+      "/api/staff/100/avatar",
+    );
+  });
+
   it("shows loading state when loading is true", () => {
     render(<TeacherDetailModal {...defaultProps} loading={true} />);
 
@@ -178,7 +211,7 @@ describe("TeacherDetailModal", () => {
   it("displays email when provided", () => {
     render(<TeacherDetailModal {...defaultProps} />);
 
-    expect(screen.getByTestId("field-e-mail")).toBeInTheDocument();
+    expect(screen.getByTestId("section-e-mail")).toBeInTheDocument();
     expect(screen.getByText("john@example.com")).toBeInTheDocument();
   });
 
@@ -201,6 +234,19 @@ describe("TeacherDetailModal", () => {
   it("hides professional section when no role or qualifications", () => {
     const teacherNoRole = { ...mockTeacher, role: "", qualifications: "" };
     render(<TeacherDetailModal {...defaultProps} teacher={teacherNoRole} />);
+
+    expect(
+      screen.queryByTestId("section-berufliche-informationen"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides professional section when only a role is present", () => {
+    const teacherRoleOnly = {
+      ...mockTeacher,
+      role: "Gruppenleitung",
+      qualifications: "",
+    };
+    render(<TeacherDetailModal {...defaultProps} teacher={teacherRoleOnly} />);
 
     expect(
       screen.queryByTestId("section-berufliche-informationen"),
@@ -245,6 +291,145 @@ describe("TeacherDetailModal", () => {
     fireEvent.click(screen.getByTestId("delete-btn"));
 
     expect(onDeleteClick).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the caregiver management action when provided", () => {
+    const onManageCaregiver = vi.fn();
+
+    render(
+      <TeacherDetailModal
+        {...defaultProps}
+        onManageCaregiver={onManageCaregiver}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Betreuung verwalten"));
+    expect(onManageCaregiver).toHaveBeenCalledTimes(1);
+  });
+
+  it("supports inline note editing when onUpdateNotes is provided", async () => {
+    const onUpdateNotes = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <TeacherDetailModal
+        {...defaultProps}
+        onUpdateNotes={onUpdateNotes}
+        teacher={{ ...mockTeacher, staff_notes: "Existing notes" }}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Existing notes"));
+    fireEvent.change(screen.getByPlaceholderText("Notizen hinzufügen..."), {
+      target: { value: "Updated notes" },
+    });
+    fireEvent.click(screen.getByText("Speichern"));
+
+    expect(onUpdateNotes).toHaveBeenCalledWith("Updated notes");
+  });
+
+  it("logs note save failures without closing the editor", async () => {
+    const onUpdateNotes = vi.fn().mockRejectedValue(new Error("save failed"));
+
+    render(
+      <TeacherDetailModal
+        {...defaultProps}
+        onUpdateNotes={onUpdateNotes}
+        teacher={{ ...mockTeacher, staff_notes: "Existing notes" }}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Existing notes"));
+    fireEvent.click(screen.getByText("Speichern"));
+
+    await waitFor(() => {
+      expect(mockLoggerError).toHaveBeenCalledWith(
+        "notes_save_failed",
+        expect.objectContaining({ error: "save failed" }),
+      );
+    });
+    expect(
+      screen.getByPlaceholderText("Notizen hinzufügen..."),
+    ).toBeInTheDocument();
+  });
+
+  it("resyncs inline notes when parent props change after cancel", () => {
+    const onUpdateNotes = vi.fn().mockResolvedValue(undefined);
+    const { rerender } = render(
+      <TeacherDetailModal
+        {...defaultProps}
+        onUpdateNotes={onUpdateNotes}
+        teacher={{ ...mockTeacher, staff_notes: "Initial notes" }}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Initial notes"));
+    fireEvent.change(screen.getByPlaceholderText("Notizen hinzufügen..."), {
+      target: { value: "Unsaved local edit" },
+    });
+    fireEvent.click(screen.getByText("Abbrechen"));
+
+    rerender(
+      <TeacherDetailModal
+        {...defaultProps}
+        onUpdateNotes={onUpdateNotes}
+        teacher={{ ...mockTeacher, staff_notes: "Fresh notes from parent" }}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Fresh notes from parent"));
+    expect(
+      screen.getByDisplayValue("Fresh notes from parent"),
+    ).toBeInTheDocument();
+  });
+
+  it("starts an email draft when clicking Schreiben", () => {
+    const originalHref = window.location.href;
+
+    render(<TeacherDetailModal {...defaultProps} />);
+
+    fireEvent.click(screen.getByTitle("E-Mail schreiben"));
+
+    expect(window.location.href).toContain(
+      "mailto:john@example.com?subject=Betreff%3A%20John%20Doe",
+    );
+    window.location.href = originalHref;
+  });
+
+  it("copies the email address through the clipboard API", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+
+    render(<TeacherDetailModal {...defaultProps} />);
+
+    fireEvent.click(screen.getByTitle("E-Mail kopieren"));
+
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith("john@example.com");
+    });
+  });
+
+  it("falls back to document.execCommand when clipboard access fails", async () => {
+    const writeText = vi.fn().mockRejectedValue(new Error("no clipboard"));
+    const execCommand = vi.fn(() => true);
+    Object.defineProperty(document, "execCommand", {
+      configurable: true,
+      value: execCommand,
+    });
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+
+    render(<TeacherDetailModal {...defaultProps} />);
+
+    fireEvent.click(screen.getByTitle("E-Mail kopieren"));
+
+    await waitFor(() => {
+      expect(execCommand).toHaveBeenCalledWith("copy");
+    });
   });
 
   it("passes correct entity info to DetailModalActions", () => {

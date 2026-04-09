@@ -171,6 +171,24 @@ vi.mock("./create-account-modal", () => ({
     ) : null,
 }));
 
+vi.mock("~/components/teachers", () => ({
+  CaregiverCapabilityModal: ({
+    isOpen,
+    accountId,
+    accountLabel,
+    schoolName,
+    onClose,
+  }: any) =>
+    isOpen ? (
+      <div data-testid="caregiver-capability-modal">
+        <span>{accountId}</span>
+        <span>{accountLabel}</span>
+        <span>{schoolName}</span>
+        <button onClick={onClose}>Schließen</button>
+      </div>
+    ) : null,
+}));
+
 import OperatorProvisioningPage from "./page";
 
 const mockOrg = {
@@ -1606,6 +1624,10 @@ describe("OperatorProvisioningPage", () => {
       roleName: string;
       pedagogicRole: string;
       status: string;
+      isActiveCaregiver?: boolean;
+      hasAdminRole?: boolean;
+      hasUserRole?: boolean;
+      hasCaregiverProfile?: boolean;
     } = {
       accountId: "100",
       email: "teacher@school.de",
@@ -1865,6 +1887,129 @@ describe("OperatorProvisioningPage", () => {
       expect(screen.getByText("Admin")).toBeInTheDocument();
     });
 
+    it("shows combined admin and caregiver capability badge", () => {
+      const capabilityAccount = {
+        ...mockOrgAccount,
+        isActiveCaregiver: true,
+        hasAdminRole: true,
+        hasUserRole: true,
+        hasCaregiverProfile: true,
+      };
+      setupSWRWithAccounts("operator-all-accounts", [capabilityAccount]);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-accounts"));
+
+      expect(screen.getByText("Verwaltung + Betreuung")).toBeInTheDocument();
+    });
+
+    it("shows incomplete caregiver badge when only the user role exists", () => {
+      const incompleteAccount = {
+        ...mockOrgAccount,
+        isActiveCaregiver: false,
+        hasAdminRole: false,
+        hasUserRole: true,
+        hasCaregiverProfile: false,
+      };
+      setupSWRWithAccounts("operator-all-accounts", [incompleteAccount]);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-accounts"));
+
+      expect(screen.getByText("Betreuung unvollständig")).toBeInTheDocument();
+    });
+
+    it("shows inactive caregiver profile badge when user role is missing", () => {
+      const inactiveProfileAccount = {
+        ...mockOrgAccount,
+        isActiveCaregiver: false,
+        hasAdminRole: false,
+        hasUserRole: false,
+        hasCaregiverProfile: true,
+      };
+      setupSWRWithAccounts("operator-all-accounts", [inactiveProfileAccount]);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-accounts"));
+
+      expect(screen.getByText("Betreuungsprofil inaktiv")).toBeInTheDocument();
+    });
+
+    it("shows admin-only capability badge", () => {
+      const adminOnlyAccount = {
+        ...mockOrgAccount,
+        isActiveCaregiver: false,
+        hasAdminRole: true,
+        hasUserRole: false,
+        hasCaregiverProfile: false,
+      };
+      setupSWRWithAccounts("operator-all-accounts", [adminOnlyAccount]);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-accounts"));
+
+      expect(screen.getByText("Nur Verwaltung")).toBeInTheDocument();
+    });
+
+    it("shows active caregiver badge without admin role", () => {
+      const caregiverAccount = {
+        ...mockOrgAccount,
+        isActiveCaregiver: true,
+        hasAdminRole: false,
+        hasUserRole: true,
+        hasCaregiverProfile: true,
+      };
+      setupSWRWithAccounts("operator-all-accounts", [caregiverAccount]);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-accounts"));
+
+      expect(screen.getByText("Betreuung aktiv")).toBeInTheDocument();
+    });
+
+    it("opens and closes caregiver capability modal from the accounts table", async () => {
+      const capabilityAccount = {
+        ...mockAccount,
+        hasAdminRole: true,
+        hasUserRole: true,
+        hasCaregiverProfile: true,
+        isActiveCaregiver: true,
+      };
+      setupSWRWithAccounts(`operator-school-accounts-10`, [capabilityAccount]);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-accounts"));
+
+      fireEvent.change(screen.getByLabelText("Träger"), {
+        target: { value: "1" },
+      });
+      fireEvent.change(screen.getByLabelText("Schule"), {
+        target: { value: "10" },
+      });
+      fireEvent.click(screen.getByText("Betreuung verwalten"));
+
+      await waitFor(() => {
+        const modal = screen.getByTestId("caregiver-capability-modal");
+        expect(modal).toHaveTextContent("100");
+        expect(modal).toHaveTextContent("Anna Schmidt");
+        expect(modal).toHaveTextContent("Test School");
+      });
+
+      fireEvent.click(screen.getByText("Schließen"));
+
+      await waitFor(() => {
+        expect(
+          screen.queryByTestId("caregiver-capability-modal"),
+        ).not.toBeInTheDocument();
+      });
+    });
+
     it("sorts accounts by clicking column header", () => {
       const account1 = { ...mockOrgAccount, email: "a@school.de" };
       const account2 = {
@@ -1891,6 +2036,29 @@ describe("OperatorProvisioningPage", () => {
       const rowsReversed = screen.getAllByText(/@school.de/);
       expect(rowsReversed[0]!.textContent).toBe("z@school.de");
       expect(rowsReversed[1]!.textContent).toBe("a@school.de");
+    });
+
+    it("sorts accounts by status", () => {
+      const activeAccount = { ...mockOrgAccount, status: "active" };
+      const pendingAccount = {
+        ...mockOrgAccount,
+        accountId: "101",
+        email: "pending@school.de",
+        status: "pending",
+      };
+      setupSWRWithAccounts("operator-all-accounts", [
+        pendingAccount,
+        activeAccount,
+      ]);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-accounts"));
+      fireEvent.click(screen.getByText("Status"));
+
+      const rows = screen.getAllByText(/teacher@school.de|pending@school.de/);
+      expect(rows[0]!.textContent).toBe("teacher@school.de");
+      expect(rows[1]!.textContent).toBe("pending@school.de");
     });
 
     it("navigates to accounts tab via school card Konten button", () => {
@@ -2332,6 +2500,73 @@ describe("OperatorProvisioningPage", () => {
       const apiKeyButtons = screen.getAllByTitle("API-Key kopieren");
       expect(apiKeyButtons[0]).toHaveTextContent("aaaa-key");
       expect(apiKeyButtons[1]).toHaveTextContent("zzzz-key");
+    });
+
+    it("sorts devices by name column", () => {
+      const device1 = { ...mockDevice, id: "201", name: "Alpha" };
+      const device2 = { ...mockDevice, id: "202", name: "Zulu" };
+      setupSWRWithDevices("operator-all-devices", [device2, device1]);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-devices"));
+      fireEvent.click(screen.getByText("Name"));
+
+      const names = screen.getAllByText(/Alpha|Zulu/);
+      expect(names[0]!.textContent).toBe("Alpha");
+      expect(names[1]!.textContent).toBe("Zulu");
+    });
+
+    it("sorts devices by type, status, and last seen", () => {
+      const olderDevice = {
+        ...mockDevice,
+        id: "201",
+        deviceType: "info_point",
+        status: "offline",
+        lastSeen: "2025-01-01T00:00:00Z",
+      };
+      const newerDevice = {
+        ...mockDevice,
+        id: "202",
+        deviceId: "DEV-999",
+        deviceType: "terminal",
+        status: "maintenance",
+        lastSeen: "2025-02-01T00:00:00Z",
+      };
+      setupSWRWithDevices("operator-all-devices", [newerDevice, olderDevice]);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-devices"));
+
+      fireEvent.click(screen.getByText("Typ"));
+      let rows = screen.getAllByText(/DEV-001|DEV-999/);
+      expect(rows[0]!.textContent).toBe("DEV-001");
+      expect(rows[1]!.textContent).toBe("DEV-999");
+
+      fireEvent.click(screen.getByText("Status"));
+      rows = screen.getAllByText(/DEV-001|DEV-999/);
+      expect(rows[0]!.textContent).toBe("DEV-999");
+      expect(rows[1]!.textContent).toBe("DEV-001");
+
+      fireEvent.click(screen.getByText("Zuletzt online"));
+      rows = screen.getAllByText(/DEV-001|DEV-999/);
+      expect(rows[0]!.textContent).toBe("DEV-001");
+      expect(rows[1]!.textContent).toBe("DEV-999");
+    });
+
+    it("opens the delete device confirmation dialog", async () => {
+      setupSWRWithDevices("operator-all-devices", [mockDevice]);
+
+      render(<OperatorProvisioningPage />);
+
+      fireEvent.click(screen.getByTestId("tab-devices"));
+      fireEvent.click(screen.getByTitle("Gerät löschen"));
+
+      await waitFor(() => {
+        expect(screen.getByText("Gerät löschen")).toBeInTheDocument();
+        expect(screen.getByText(/wirklich löschen\?/)).toBeInTheDocument();
+      });
     });
 
     it("shows school column in all-devices view", () => {

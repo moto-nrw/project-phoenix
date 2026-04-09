@@ -72,20 +72,24 @@ export const groupsConfig = defineEntityConfig<Group>({
             colSpan: 2,
             options: async () => {
               try {
-                // Fetch teachers from staff API (filtered for teachers only)
-                const response = await fetch("/api/staff?teachers_only=true");
+                // Fetch active caregivers from the canonical caregiver pool.
+                const response = await fetch("/api/staff/by-role?role=user");
                 const result = (await response.json()) as
                   | {
                       data?: Array<{
                         id: string;
-                        name: string;
+                        full_name: string;
+                        first_name: string;
+                        last_name: string;
                         specialization?: string;
                         teacher_id?: string;
                       }>;
                     }
                   | Array<{
                       id: string;
-                      name: string;
+                      full_name: string;
+                      first_name: string;
+                      last_name: string;
                       specialization?: string;
                       teacher_id?: string;
                     }>;
@@ -98,12 +102,17 @@ export const groupsConfig = defineEntityConfig<Group>({
                 // Use teacher_id (not staff id) to match backend group teacher assignments
                 return teachers
                   .filter((teacher) => teacher.teacher_id)
-                  .map((teacher) => ({
-                    value: teacher.teacher_id!,
-                    label: teacher.specialization
-                      ? `${teacher.name} (${teacher.specialization})`
-                      : teacher.name,
-                  }));
+                  .map((teacher) => {
+                    const name =
+                      teacher.full_name ||
+                      `${teacher.first_name} ${teacher.last_name}`.trim();
+                    return {
+                      value: String(teacher.teacher_id!),
+                      label: teacher.specialization
+                        ? `${name} (${teacher.specialization})`
+                        : name,
+                    };
+                  });
               } catch (error) {
                 logger.error("failed to fetch teachers", {
                   error: String(error),

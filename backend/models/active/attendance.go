@@ -76,6 +76,10 @@ type AttendanceRepository interface {
 	// FindByStudentAndDate finds all attendance records for a student on a specific date
 	FindByStudentAndDate(ctx context.Context, studentID int64, date time.Time) ([]*Attendance, error)
 
+	// FindByStudentAndDateRange finds all attendance records for a student between two
+	// dates (inclusive), ordered by date descending then check_in_time descending.
+	FindByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate time.Time) ([]*Attendance, error)
+
 	// FindLatestByStudent finds the most recent attendance record for a student
 	FindLatestByStudent(ctx context.Context, studentID int64) (*Attendance, error)
 

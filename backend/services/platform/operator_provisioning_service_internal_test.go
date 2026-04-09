@@ -3,6 +3,7 @@ package platform
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"log/slog"
 	"net"
 	"reflect"
@@ -34,6 +35,8 @@ type internalSchoolRepoStub struct {
 	findByIDFn         func(context.Context, int64) (*platformModels.School, error)
 	findByOrgAndSlugFn func(context.Context, int64, string) (*platformModels.School, error)
 	findBySubdomainFn  func(context.Context, string) (*platformModels.School, error)
+	softDeleteFn       func(context.Context, int64) error
+	restoreFn          func(context.Context, int64) error
 }
 
 func (s *internalSchoolRepoStub) Create(ctx context.Context, school *platformModels.School) error {
@@ -84,8 +87,18 @@ func (s *internalSchoolRepoStub) Update(context.Context, *platformModels.School)
 func (s *internalSchoolRepoStub) CountByIDs(context.Context, []int64) (int, error) {
 	return 0, nil
 }
-func (s *internalSchoolRepoStub) SoftDelete(context.Context, int64) error { return nil }
-func (s *internalSchoolRepoStub) Restore(context.Context, int64) error    { return nil }
+func (s *internalSchoolRepoStub) SoftDelete(ctx context.Context, id int64) error {
+	if s.softDeleteFn != nil {
+		return s.softDeleteFn(ctx, id)
+	}
+	return nil
+}
+func (s *internalSchoolRepoStub) Restore(ctx context.Context, id int64) error {
+	if s.restoreFn != nil {
+		return s.restoreFn(ctx, id)
+	}
+	return nil
+}
 
 type internalOrgRepoStub struct {
 	findByIDFn   func(context.Context, int64) (*platformModels.Organization, error)
@@ -129,6 +142,7 @@ type internalDeviceRepoStub struct {
 	createFn   func(context.Context, *iotModels.Device) error
 	findByIDFn func(context.Context, interface{}) (*iotModels.Device, error)
 	updateFn   func(context.Context, *iotModels.Device) error
+	deleteFn   func(context.Context, interface{}) error
 }
 
 func (s *internalDeviceRepoStub) Create(ctx context.Context, device *iotModels.Device) error {
@@ -149,7 +163,12 @@ func (s *internalDeviceRepoStub) Update(ctx context.Context, device *iotModels.D
 	}
 	return nil
 }
-func (s *internalDeviceRepoStub) Delete(context.Context, interface{}) error { return nil }
+func (s *internalDeviceRepoStub) Delete(ctx context.Context, id interface{}) error {
+	if s.deleteFn != nil {
+		return s.deleteFn(ctx, id)
+	}
+	return nil
+}
 func (s *internalDeviceRepoStub) List(context.Context, map[string]interface{}) ([]*iotModels.Device, error) {
 	return nil, nil
 }
@@ -169,6 +188,9 @@ func (s *internalDeviceRepoStub) FindByRegisteredBy(context.Context, int64) ([]*
 	return nil, nil
 }
 func (s *internalDeviceRepoStub) UpdateLastSeen(context.Context, int64, time.Time) error {
+	return nil
+}
+func (s *internalDeviceRepoStub) UpdateRoomID(context.Context, int64, int64) error {
 	return nil
 }
 func (s *internalDeviceRepoStub) UpdateStatus(context.Context, string, iotModels.DeviceStatus) error {
@@ -588,6 +610,20 @@ func TestResolveSystemRoleByName_Success(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, role)
 	assert.Equal(t, int64(7), role.ID)
+}
+
+func TestListSystemRoles_Error(t *testing.T) {
+	svc := &operatorProvisioningService{
+		roleRepo: &internalRoleRepoStub{
+			listFn: func(context.Context, map[string]interface{}) ([]*authModels.Role, error) {
+				return nil, assert.AnError
+			},
+		},
+	}
+
+	roles, err := svc.ListSystemRoles(context.Background())
+	require.Nil(t, roles)
+	require.ErrorIs(t, err, assert.AnError)
 }
 
 // ---------------------------------------------------------------------------
@@ -2016,6 +2052,307 @@ func TestSetDeviceAPIKey_ManualKeyConflict(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// queryDeviceSingle
+// ---------------------------------------------------------------------------
+
+func TestQueryDeviceSingle_RequeryFailure(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+	})
+
+	mock.ExpectQuery("SELECT").WillReturnError(assert.AnError)
+
+	svc := &operatorProvisioningService{
+		txHandler: modelBase.NewTxHandler(bunDB),
+	}
+
+	result, err := svc.queryDeviceSingle(context.Background(), "CreateDevice", `"d".id = ?`, int64(10))
+	require.Nil(t, result)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, assert.AnError)
+	assert.Contains(t, err.Error(), "CreateDevice: re-query failed")
+}
+
+func TestQueryDeviceSingle_NoRows(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+	})
+
+	mock.ExpectQuery("SELECT").WillReturnRows(sqlmock.NewRows([]string{
+		"id", "device_id", "device_type", "name", "status", "api_key",
+		"last_seen", "created_at", "updated_at",
+		"school_id", "school_name", "organization_id", "organization_name",
+	}))
+
+	svc := &operatorProvisioningService{
+		txHandler: modelBase.NewTxHandler(bunDB),
+		logger:    slog.Default(),
+	}
+
+	result, err := svc.queryDeviceSingle(context.Background(), "SetDeviceAPIKey", `"d".id = ?`, int64(10))
+	require.Nil(t, result)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "SetDeviceAPIKey: device not found after write")
+}
+
+// ---------------------------------------------------------------------------
+// DeleteDevice
+// ---------------------------------------------------------------------------
+
+func TestDeleteDevice_InvalidID(t *testing.T) {
+	svc := &operatorProvisioningService{}
+
+	err := svc.DeleteDevice(context.Background(), 0, 1, net.IPv4(127, 0, 0, 1))
+	var invalidErr *InvalidDataError
+	require.ErrorAs(t, err, &invalidErr)
+	assert.Contains(t, err.Error(), "device id is required")
+}
+
+func TestDeleteDevice_NotFound(t *testing.T) {
+	tests := []struct {
+		name     string
+		findByID func(context.Context, interface{}) (*iotModels.Device, error)
+	}{
+		{
+			name: "nil device returned",
+			findByID: func(context.Context, interface{}) (*iotModels.Device, error) {
+				return nil, nil
+			},
+		},
+		{
+			name: "sql.ErrNoRows",
+			findByID: func(context.Context, interface{}) (*iotModels.Device, error) {
+				return nil, sql.ErrNoRows
+			},
+		},
+		{
+			name: "DatabaseError wrapping sql.ErrNoRows",
+			findByID: func(context.Context, interface{}) (*iotModels.Device, error) {
+				return nil, &modelBase.DatabaseError{Op: "find", Err: sql.ErrNoRows}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &operatorProvisioningService{
+				deviceRepo: &internalDeviceRepoStub{
+					findByIDFn: tt.findByID,
+				},
+			}
+
+			err := svc.DeleteDevice(context.Background(), 99, 1, net.IPv4(127, 0, 0, 1))
+			var notFoundErr *OperatorDeviceNotFoundError
+			require.ErrorAs(t, err, &notFoundErr)
+			assert.Equal(t, int64(99), notFoundErr.DeviceID)
+		})
+	}
+}
+
+func TestDeleteDevice_ProtectedDevice(t *testing.T) {
+	svc := &operatorProvisioningService{
+		deviceRepo: &internalDeviceRepoStub{
+			findByIDFn: func(context.Context, interface{}) (*iotModels.Device, error) {
+				return &iotModels.Device{
+					Model:      modelBase.Model{ID: 10},
+					DeviceID:   iotModels.WebManualDeviceID,
+					DeviceType: iotModels.DeviceTypeVirtual,
+				}, nil
+			},
+		},
+	}
+
+	err := svc.DeleteDevice(context.Background(), 10, 1, net.IPv4(127, 0, 0, 1))
+	var protectedErr *DeviceProtectedError
+	require.ErrorAs(t, err, &protectedErr)
+	assert.Equal(t, int64(10), protectedErr.DeviceID)
+}
+
+func TestDeleteDevice_DeleteErrors(t *testing.T) {
+	t.Run("foreign key violation becomes device in use", func(t *testing.T) {
+		device := &iotModels.Device{
+			Model:      modelBase.Model{ID: 10},
+			DeviceID:   "reader-10",
+			DeviceType: "rfid",
+		}
+		device.SetTenantID(42)
+
+		svc := &operatorProvisioningService{
+			deviceRepo: &internalDeviceRepoStub{
+				findByIDFn: func(context.Context, interface{}) (*iotModels.Device, error) {
+					return device, nil
+				},
+				deleteFn: func(context.Context, interface{}) error {
+					return newPgError("23503")
+				},
+			},
+		}
+
+		err := svc.DeleteDevice(context.Background(), 10, 1, net.IPv4(127, 0, 0, 1))
+		var inUseErr *DeviceInUseError
+		require.ErrorAs(t, err, &inUseErr)
+		assert.Equal(t, int64(10), inUseErr.DeviceID)
+	})
+
+	t.Run("generic delete error is wrapped", func(t *testing.T) {
+		device := &iotModels.Device{
+			Model:      modelBase.Model{ID: 10},
+			DeviceID:   "reader-10",
+			DeviceType: "rfid",
+		}
+		device.SetTenantID(42)
+
+		svc := &operatorProvisioningService{
+			deviceRepo: &internalDeviceRepoStub{
+				findByIDFn: func(context.Context, interface{}) (*iotModels.Device, error) {
+					return device, nil
+				},
+				deleteFn: func(context.Context, interface{}) error {
+					return assert.AnError
+				},
+			},
+		}
+
+		err := svc.DeleteDevice(context.Background(), 10, 1, net.IPv4(127, 0, 0, 1))
+		require.Error(t, err)
+		assert.ErrorIs(t, err, assert.AnError)
+		assert.Contains(t, err.Error(), "DeleteDevice")
+	})
+}
+
+func TestDeleteDevice_Success(t *testing.T) {
+	var deletedID interface{}
+	var auditEntry *platformModels.OperatorAuditLog
+	device := &iotModels.Device{
+		Model:      modelBase.Model{ID: 10},
+		DeviceID:   "reader-10",
+		DeviceType: "rfid",
+	}
+	device.SetTenantID(42)
+
+	svc := &operatorProvisioningService{
+		deviceRepo: &internalDeviceRepoStub{
+			findByIDFn: func(context.Context, interface{}) (*iotModels.Device, error) {
+				return device, nil
+			},
+			deleteFn: func(_ context.Context, id interface{}) error {
+				deletedID = id
+				return nil
+			},
+		},
+		auditLogRepo: &internalAuditLogRepoStub{
+			createFn: func(_ context.Context, entry *platformModels.OperatorAuditLog) error {
+				auditEntry = entry
+				return nil
+			},
+		},
+	}
+
+	err := svc.DeleteDevice(context.Background(), 10, 7, net.IPv4(127, 0, 0, 1))
+	require.NoError(t, err)
+	assert.Equal(t, int64(10), deletedID)
+	require.NotNil(t, auditEntry)
+	assert.Equal(t, platformModels.ActionDelete, auditEntry.Action)
+	assert.Equal(t, platformModels.ResourceDevice, auditEntry.ResourceType)
+}
+
+// ---------------------------------------------------------------------------
+// SoftDeleteSchool / RestoreSchool
+// ---------------------------------------------------------------------------
+
+func TestSoftDeleteSchool_FindByIDError(t *testing.T) {
+	svc := &operatorProvisioningService{
+		schoolRepo: &internalSchoolRepoStub{
+			findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+				return nil, assert.AnError
+			},
+		},
+	}
+
+	err := svc.SoftDeleteSchool(context.Background(), 42, 7, net.IPv4(127, 0, 0, 1))
+	require.ErrorIs(t, err, assert.AnError)
+}
+
+func TestSoftDeleteSchool_RowsAffectedMismatch(t *testing.T) {
+	svc := &operatorProvisioningService{
+		schoolRepo: &internalSchoolRepoStub{
+			findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+				return &platformModels.School{
+					Model:          modelBase.Model{ID: 42},
+					OrganizationID: 1,
+					Name:           "School",
+					Slug:           "school",
+					Subdomain:      "school",
+					Active:         true,
+				}, nil
+			},
+			softDeleteFn: func(context.Context, int64) error {
+				return &modelBase.DatabaseError{
+					Op:  "soft delete school",
+					Err: errors.New("expected 1 rows affected, got 0"),
+				}
+			},
+		},
+	}
+
+	err := svc.SoftDeleteSchool(context.Background(), 42, 7, net.IPv4(127, 0, 0, 1))
+	var alreadyDeletedErr *SchoolAlreadyDeletedError
+	require.ErrorAs(t, err, &alreadyDeletedErr)
+}
+
+func TestRestoreSchool_FindByIDError(t *testing.T) {
+	svc := &operatorProvisioningService{
+		schoolRepo: &internalSchoolRepoStub{
+			findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+				return nil, assert.AnError
+			},
+		},
+	}
+
+	err := svc.RestoreSchool(context.Background(), 42, 7, net.IPv4(127, 0, 0, 1))
+	require.ErrorIs(t, err, assert.AnError)
+}
+
+func TestRestoreSchool_ConcurrentRestoreMapsToNotDeleted(t *testing.T) {
+	deletedAt := time.Now()
+	svc := &operatorProvisioningService{
+		schoolRepo: &internalSchoolRepoStub{
+			findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+				return &platformModels.School{
+					Model:          modelBase.Model{ID: 42},
+					OrganizationID: 1,
+					Name:           "School",
+					Slug:           "school",
+					Subdomain:      "school",
+					Active:         true,
+					DeletedAt:      &deletedAt,
+				}, nil
+			},
+			restoreFn: func(context.Context, int64) error {
+				return &modelBase.DatabaseError{
+					Op:  "restore school",
+					Err: errors.New("expected 1 rows affected, got 0"),
+				}
+			},
+		},
+	}
+
+	err := svc.RestoreSchool(context.Background(), 42, 7, net.IPv4(127, 0, 0, 1))
+	var notDeletedErr *SchoolNotDeletedError
+	require.ErrorAs(t, err, &notDeletedErr)
+}
+
+// ---------------------------------------------------------------------------
 // shouldCreateTeacher
 // ---------------------------------------------------------------------------
 
@@ -2026,9 +2363,9 @@ func TestShouldCreateTeacher(t *testing.T) {
 		want     bool
 	}{
 		{"user role", "user", true},
-		{"teacher role", "teacher", true},
+		{"teacher role", "teacher", false},
 		{"admin role", "admin", false},
-		{"uppercase Teacher", "Teacher", true},
+		{"uppercase Teacher", "Teacher", false},
 		{"whitespace user", " user ", true},
 		{"mixed case USER", "USER", true},
 		{"empty string", "", false},

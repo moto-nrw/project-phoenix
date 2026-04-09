@@ -7,20 +7,56 @@ package feedback_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	feedbackAPI "github.com/moto-nrw/project-phoenix/api/iot/feedback"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/device"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/services"
+	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
+
+// fakeSettingsService implements configSvc.SettingsService for testing.
+type fakeSettingsService struct {
+	boolValues map[string]bool
+}
+
+func (f *fakeSettingsService) GetSchema(_ context.Context, _ []string) (*configSvc.SettingsSchema, error) {
+	return nil, nil
+}
+func (f *fakeSettingsService) Resolve(_ context.Context, _ string) (any, error) { return nil, nil }
+func (f *fakeSettingsService) ResolveString(_ context.Context, _ string) (string, error) {
+	return "", nil
+}
+func (f *fakeSettingsService) ResolveStringForTenant(_ context.Context, _ int64, _ string) (string, error) {
+	return "", nil
+}
+func (f *fakeSettingsService) ResolveBool(_ context.Context, key string) (bool, error) {
+	if val, ok := f.boolValues[key]; ok {
+		return val, nil
+	}
+	return true, nil
+}
+func (f *fakeSettingsService) ResolveInt(_ context.Context, _ string) (int, error) { return 0, nil }
+func (f *fakeSettingsService) HasTenantOverride(_ context.Context, _ string) (bool, error) {
+	return false, nil
+}
+func (f *fakeSettingsService) SetValue(_ context.Context, _ string, _ any, _ *int64, _ []string) error {
+	return nil
+}
+func (f *fakeSettingsService) ResetValue(_ context.Context, _ string, _ *int64, _ []string) error {
+	return nil
+}
 
 // testContext holds shared test dependencies.
 type testContext struct {
@@ -40,6 +76,7 @@ func setupTestContext(t *testing.T) *testContext {
 		svc.IoT,
 		svc.Users,
 		svc.Feedback,
+		nil,
 	)
 
 	return &testContext{
@@ -279,4 +316,96 @@ func TestSubmitFeedback_InvalidValue(t *testing.T) {
 
 	// Should return error for invalid value (validation happens in service)
 	assert.Contains(t, []int{http.StatusBadRequest, http.StatusUnprocessableEntity}, rr.Code)
+}
+
+// =============================================================================
+// FEEDBACK DISABLED (SETTINGS GUARD) TESTS
+// =============================================================================
+
+func TestSubmitFeedback_FeedbackDisabled(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-disabled")
+	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "DisabledStudent", "2a")
+
+	// Create resource with fake SettingsService that returns feedback.enabled = false
+	disabledSettings := &fakeSettingsService{
+		boolValues: map[string]bool{
+			configModel.KeyFeedbackEnabled: false,
+		},
+	}
+	resource := feedbackAPI.NewResource(
+		ctx.services.IoT,
+		ctx.services.Users,
+		ctx.services.Feedback,
+		disabledSettings,
+	)
+
+	router := chi.NewRouter()
+	router.Post("/feedback", resource.SubmitFeedbackHandler())
+
+	body := map[string]interface{}{
+		"student_id": student.ID,
+		"value":      "positive",
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/feedback", body,
+		testutil.WithDeviceContext(testDevice),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	// Should return 200 with status "skipped"
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	var response struct {
+		Status string `json:"status"`
+		Data   struct {
+			Status string `json:"status"`
+			Reason string `json:"reason"`
+		} `json:"data"`
+	}
+	err := json.NewDecoder(rr.Body).Decode(&response)
+	require.NoError(t, err)
+	assert.Equal(t, "skipped", response.Data.Status)
+	assert.Equal(t, "feedback_disabled", response.Data.Reason)
+}
+
+func TestSubmitFeedback_FeedbackEnabled(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-enabled")
+	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "EnabledStudent", "2b")
+
+	// Create resource with fake SettingsService that returns feedback.enabled = true
+	enabledSettings := &fakeSettingsService{
+		boolValues: map[string]bool{
+			configModel.KeyFeedbackEnabled: true,
+		},
+	}
+	resource := feedbackAPI.NewResource(
+		ctx.services.IoT,
+		ctx.services.Users,
+		ctx.services.Feedback,
+		enabledSettings,
+	)
+
+	router := chi.NewRouter()
+	router.Post("/feedback", resource.SubmitFeedbackHandler())
+
+	body := map[string]interface{}{
+		"student_id": student.ID,
+		"value":      "positive",
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/feedback", body,
+		testutil.WithDeviceContext(testDevice),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	// Should proceed normally and create the entry
+	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
 }

@@ -105,7 +105,9 @@ type Factory struct {
 	Device iotModels.DeviceRepository
 
 	// Config domain
-	Setting configModels.SettingRepository
+	Setting      configModels.SettingRepository
+	SettingValue configModels.SettingValueRepository
+	SettingAudit configModels.SettingAuditRepository
 
 	// Suggestions domain
 	SuggestionPost        suggestionsModels.PostRepository
@@ -116,17 +118,20 @@ type Factory struct {
 
 	// Audit domain
 	DataDeletion    auditModels.DataDeletionRepository
+	DataAccessLog   auditModels.DataAccessLogRepository
 	AuthEvent       auditModels.AuthEventRepository
 	DataImport      auditModels.DataImportRepository
 	WorkSessionEdit auditModels.WorkSessionEditRepository
 
 	// Platform domain (operator dashboard)
-	Organization     platformModels.OrganizationRepository
-	Operator         platformModels.OperatorRepository
-	Announcement     platformModels.AnnouncementRepository
-	AnnouncementView platformModels.AnnouncementViewRepository
-	OperatorAuditLog platformModels.OperatorAuditLogRepository
-	School           platformModels.SchoolRepository
+	Organization             platformModels.OrganizationRepository
+	Operator                 platformModels.OperatorRepository
+	Announcement             platformModels.AnnouncementRepository
+	AnnouncementView         platformModels.AnnouncementViewRepository
+	OperatorAuditLog         platformModels.OperatorAuditLogRepository
+	OperatorEmailChangeToken platformModels.OperatorEmailChangeTokenRepository
+	OperatorInvitationToken  platformModels.OperatorInvitationTokenRepository
+	School                   platformModels.SchoolRepository
 }
 
 // NewFactory creates a new repository factory with all repositories
@@ -203,7 +208,9 @@ func NewFactory(db *bun.DB) *Factory {
 		Device: iot.NewDeviceRepository(db),
 
 		// Config repositories
-		Setting: config.NewSettingRepository(db),
+		Setting:      config.NewSettingRepository(db),
+		SettingValue: config.NewSettingValueRepository(db),
+		SettingAudit: config.NewSettingAuditRepository(db),
 
 		// Suggestions repositories
 		SuggestionPost:        suggestionsRepo.NewPostRepository(db),
@@ -214,16 +221,19 @@ func NewFactory(db *bun.DB) *Factory {
 
 		// Audit repositories
 		DataDeletion:    audit.NewDataDeletionRepository(db),
+		DataAccessLog:   audit.NewDataAccessLogRepository(db),
 		AuthEvent:       audit.NewAuthEventRepository(db),
 		DataImport:      audit.NewDataImportRepository(db),
 		WorkSessionEdit: audit.NewWorkSessionEditRepository(db),
 
 		// Platform repositories
-		Organization:     platformRepo.NewOrganizationRepository(db),
-		Operator:         platformRepo.NewOperatorRepository(db),
-		Announcement:     platformRepo.NewAnnouncementRepository(db),
-		AnnouncementView: platformRepo.NewAnnouncementViewRepository(db),
-		OperatorAuditLog: platformRepo.NewOperatorAuditLogRepository(db),
-		School:           platformRepo.NewSchoolRepository(db),
+		Organization:             platformRepo.NewOrganizationRepository(db),
+		Operator:                 platformRepo.NewOperatorRepository(db),
+		Announcement:             platformRepo.NewAnnouncementRepository(db),
+		AnnouncementView:         platformRepo.NewAnnouncementViewRepository(db),
+		OperatorAuditLog:         platformRepo.NewOperatorAuditLogRepository(db),
+		OperatorEmailChangeToken: platformRepo.NewOperatorEmailChangeTokenRepository(db),
+		OperatorInvitationToken:  platformRepo.NewOperatorInvitationTokenRepository(db),
+		School:                   platformRepo.NewSchoolRepository(db),
 	}
 }

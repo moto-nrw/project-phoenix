@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -119,6 +120,102 @@ func TestGroupSupervisorRepository_Create(t *testing.T) {
 		err := repo.Create(ctx, nil)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "cannot be nil")
+	})
+}
+
+func TestGroupSupervisorRepository_CreateBulk(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).GroupSupervisor
+	ctx := testpkg.TenantContext(1)
+	data := createSupervisorTestData(t, db)
+	defer cleanupSupervisorTestData(t, db, data)
+
+	t.Run("creates multiple supervisors and assigns tenant from context", func(t *testing.T) {
+		today := timezone.DateOfUTC(time.Now())
+		supervisors := []*active.GroupSupervisor{
+			{
+				GroupID:   data.ActiveGroup.ID,
+				StaffID:   data.Staff1.ID,
+				StartDate: today,
+				Role:      "supervisor",
+			},
+			{
+				GroupID:   data.ActiveGroup.ID,
+				StaffID:   data.Staff2.ID,
+				StartDate: today,
+				Role:      "assistant",
+			},
+		}
+
+		err := repo.CreateBulk(ctx, supervisors)
+		require.NoError(t, err)
+		defer func() {
+			testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisors[0].ID)
+			testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisors[1].ID)
+		}()
+
+		require.NotZero(t, supervisors[0].ID)
+		require.NotZero(t, supervisors[1].ID)
+		assert.Equal(t, tenant.FromContext(ctx), supervisors[0].TenantID)
+		assert.Equal(t, tenant.FromContext(ctx), supervisors[1].TenantID)
+
+		found, err := repo.FindByActiveGroupID(ctx, data.ActiveGroup.ID, false)
+		require.NoError(t, err)
+
+		var foundFirst, foundSecond bool
+		for _, supervisor := range found {
+			if supervisor.ID == supervisors[0].ID {
+				foundFirst = true
+			}
+			if supervisor.ID == supervisors[1].ID {
+				foundSecond = true
+			}
+		}
+
+		assert.True(t, foundFirst, "first supervisor should be persisted")
+		assert.True(t, foundSecond, "second supervisor should be persisted")
+	})
+
+	t.Run("returns nil for empty input", func(t *testing.T) {
+		err := repo.CreateBulk(ctx, []*active.GroupSupervisor{})
+		require.NoError(t, err)
+	})
+
+	t.Run("fails when one supervisor is nil", func(t *testing.T) {
+		today := timezone.DateOfUTC(time.Now())
+		err := repo.CreateBulk(ctx, []*active.GroupSupervisor{
+			{
+				GroupID:   data.ActiveGroup.ID,
+				StaffID:   data.Staff1.ID,
+				StartDate: today,
+				Role:      "supervisor",
+			},
+			nil,
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot be nil")
+	})
+
+	t.Run("fails validation before inserting anything", func(t *testing.T) {
+		today := timezone.DateOfUTC(time.Now())
+		err := repo.CreateBulk(ctx, []*active.GroupSupervisor{
+			{
+				GroupID:   data.ActiveGroup.ID,
+				StaffID:   data.Staff1.ID,
+				StartDate: today,
+				Role:      "supervisor",
+			},
+			{
+				GroupID:   data.ActiveGroup.ID,
+				StaffID:   data.Staff2.ID,
+				StartDate: today,
+				Role:      "",
+			},
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "role is required")
 	})
 }
 

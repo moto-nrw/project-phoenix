@@ -1,6 +1,7 @@
 package auth_test
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -274,6 +275,32 @@ func TestRoleRepository_FindByAccountID(t *testing.T) {
 		roles, err := repo.FindByAccountID(ctx, account.ID)
 		require.NoError(t, err)
 		assert.Empty(t, roles)
+	})
+
+	t.Run("respects tenant scoping", func(t *testing.T) {
+		account := testpkg.CreateTestAccount(t, db, "tenantroles")
+		roleTenant1 := testpkg.CreateTestRole(t, db, fmt.Sprintf("TenantOne_%d", time.Now().UnixNano()))
+		roleTenant2 := testpkg.CreateTestRole(t, db, fmt.Sprintf("TenantTwo_%d", time.Now().UnixNano()))
+		defer cleanupRoleRecords(t, db, roleTenant1.ID, roleTenant2.ID)
+		defer cleanupAccountRecords(t, db, account.ID)
+
+		testpkg.EnsureAccountTenant(t, db, account.ID, 1)
+		testpkg.EnsureAccountTenant(t, db, account.ID, 2)
+
+		_, err := db.ExecContext(context.Background(),
+			"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, 1), (?, ?, 2)",
+			account.ID, roleTenant1.ID, account.ID, roleTenant2.ID)
+		require.NoError(t, err)
+
+		rolesTenant1, err := repo.FindByAccountID(testpkg.TenantContext(1), account.ID)
+		require.NoError(t, err)
+		require.Len(t, rolesTenant1, 1)
+		assert.Equal(t, roleTenant1.ID, rolesTenant1[0].ID)
+
+		rolesTenant2, err := repo.FindByAccountID(testpkg.TenantContext(2), account.ID)
+		require.NoError(t, err)
+		require.Len(t, rolesTenant2, 1)
+		assert.Equal(t, roleTenant2.ID, rolesTenant2[0].ID)
 	})
 }
 

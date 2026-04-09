@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/render"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
+	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	facilitiesSvc "github.com/moto-nrw/project-phoenix/services/facilities"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
@@ -24,6 +25,7 @@ type Resource struct {
 	ActivitiesService     activitiesSvc.ActivityService
 	EducationService      educationSvc.Service
 	PickupScheduleService scheduleSvc.PickupScheduleService
+	SettingsService       configSvc.SettingsService
 	logger                *slog.Logger
 }
 
@@ -44,6 +46,7 @@ func NewResource(
 	activitiesService activitiesSvc.ActivityService,
 	educationService educationSvc.Service,
 	pickupScheduleService scheduleSvc.PickupScheduleService,
+	settingsService configSvc.SettingsService,
 	logger *slog.Logger,
 ) *Resource {
 	return &Resource{
@@ -54,6 +57,7 @@ func NewResource(
 		ActivitiesService:     activitiesService,
 		EducationService:      educationService,
 		PickupScheduleService: pickupScheduleService,
+		SettingsService:       settingsService,
 		logger:                logger,
 	}
 }
@@ -67,6 +71,7 @@ func (rs *Resource) Router() chi.Router {
 
 	// Check-in workflow endpoints
 	r.Post("/checkin", rs.deviceCheckin)
+	r.Post("/pickup-query", rs.devicePickupQuery)
 	r.Post("/ping", rs.devicePing)
 	r.Get("/status", rs.deviceStatus)
 
@@ -85,3 +90,6 @@ func (rs *Resource) DevicePingHandler() http.HandlerFunc { return rs.devicePing 
 
 // DeviceStatusHandler returns the deviceStatus handler for testing.
 func (rs *Resource) DeviceStatusHandler() http.HandlerFunc { return rs.deviceStatus }
+
+// DevicePickupQueryHandler returns the devicePickupQuery handler for testing.
+func (rs *Resource) DevicePickupQueryHandler() http.HandlerFunc { return rs.devicePickupQuery }

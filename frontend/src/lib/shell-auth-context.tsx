@@ -33,7 +33,7 @@ export interface ShellAuthContextType {
   logout: () => Promise<void>;
   mode: ShellMode;
   homeUrl: string;
-  settingsUrl: string | null;
+  profileUrl: string | null;
 }
 
 const ShellAuthContext = createContext<ShellAuthContextType | undefined>(
@@ -111,7 +111,7 @@ export function TeacherShellProvider({
       },
       mode: "teacher" as const,
       homeUrl: "/dashboard",
-      settingsUrl: "/settings",
+      profileUrl: "/profile",
     };
   }, [session, sessionStatus, profile]);
 
@@ -169,7 +169,7 @@ export function OperatorShellProvider({
       },
       mode: "operator" as const,
       homeUrl: operatorPath("/operator/suggestions"),
-      settingsUrl: operatorPath("/operator/settings"),
+      profileUrl: null,
     };
   }, [session, sessionStatus]);
 

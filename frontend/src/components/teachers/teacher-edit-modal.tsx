@@ -12,6 +12,7 @@ interface TeacherEditModalProps {
     data: Partial<Teacher> & { password?: string },
   ) => Promise<void>;
   readonly loading?: boolean;
+  readonly existingPositions?: readonly string[];
 }
 
 export function TeacherEditModal({
@@ -20,6 +21,7 @@ export function TeacherEditModal({
   teacher,
   onSave,
   loading = false,
+  existingPositions = [],
 }: TeacherEditModalProps) {
   if (!teacher) return null;
 
@@ -41,6 +43,7 @@ export function TeacherEditModal({
           formTitle=""
           wrapInCard={false}
           submitLabel="Speichern"
+          existingPositions={existingPositions}
         />
       )}
     </Modal>

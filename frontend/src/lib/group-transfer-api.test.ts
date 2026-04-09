@@ -70,6 +70,7 @@ describe("groupTransferService", () => {
               {
                 id: 1,
                 person_id: 10,
+                teacher_id: 101,
                 first_name: "Teacher",
                 last_name: "One",
                 full_name: "Teacher One",
@@ -103,10 +104,10 @@ describe("groupTransferService", () => {
       expect(result).toHaveLength(3);
       expect(result.map((s) => s.id)).toEqual(["1", "2", "3"]);
 
-      // Single request with all roles combined
+      // Single request against the canonical caregiver pool
       expect(fetchMock).toHaveBeenCalledTimes(1);
       expect(fetchMock).toHaveBeenCalledWith(
-        "/api/staff/by-role?roles=teacher,staff,user",
+        "/api/staff/by-role?role=user",
         expect.anything(),
       );
     });
@@ -120,6 +121,7 @@ describe("groupTransferService", () => {
               {
                 id: 1,
                 person_id: 10,
+                teacher_id: 101,
                 first_name: "Multi",
                 last_name: "Role",
                 full_name: "Multi Role",
@@ -173,6 +175,7 @@ describe("groupTransferService", () => {
         {
           id: 1,
           person_id: 10,
+          teacher_id: 11,
           first_name: "Max",
           last_name: "Mustermann",
           full_name: "Max Mustermann",
@@ -201,6 +204,7 @@ describe("groupTransferService", () => {
       expect(result[0]).toEqual<StaffWithRole>({
         id: "1",
         personId: "10",
+        teacherId: "11",
         firstName: "Max",
         lastName: "Mustermann",
         fullName: "Max Mustermann",

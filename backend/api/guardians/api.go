@@ -49,7 +49,7 @@ func (rs *Resource) Router() chi.Router {
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
 	// Create JWT auth instance for middleware
-	tokenAuth, _ := jwt.NewTokenAuth()
+	tokenAuth := jwt.MustNewTokenAuth()
 
 	// Public routes for guardian invitations (no authentication required)
 	r.Get("/invitations/{token}", rs.validateGuardianInvitation)

@@ -1,15 +1,22 @@
 package checkin
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	iotCommon "github.com/moto-nrw/project-phoenix/api/iot/common"
 	"github.com/moto-nrw/project-phoenix/auth/device"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
+
+const errStudentRFIDRequiredForPickupQuery = "student RFID tag required for pickup query"
 
 // devicePing handles ping requests from RFID devices
 // This endpoint keeps both the device AND any active session alive
@@ -18,6 +25,7 @@ func (rs *Resource) devicePing(w http.ResponseWriter, r *http.Request) {
 	deviceCtx := device.DeviceFromCtx(r.Context())
 
 	if deviceCtx == nil {
+		slog.WarnContext(r.Context(), "device auth missing API key", slog.String("path", r.URL.Path))
 		if render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)) != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
@@ -63,6 +71,7 @@ func (rs *Resource) deviceStatus(w http.ResponseWriter, r *http.Request) {
 	deviceCtx := device.DeviceFromCtx(r.Context())
 
 	if deviceCtx == nil {
+		slog.WarnContext(r.Context(), "device auth missing API key", slog.String("path", r.URL.Path))
 		if render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)) != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
@@ -85,6 +94,113 @@ func (rs *Resource) deviceStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, response, "Device status retrieved")
+}
+
+// devicePickupQuery handles read-only pickup information lookups for students.
+func (rs *Resource) devicePickupQuery(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	now := time.Now()
+
+	deviceCtx := validateDeviceContext(w, r)
+	if deviceCtx == nil {
+		return
+	}
+
+	req := &PickupQueryRequest{}
+	if err := render.Bind(r, req); err != nil {
+		rs.getLogger().ErrorContext(ctx, "invalid pickup query request",
+			slog.String("device_id", deviceCtx.DeviceID),
+			slog.String("error", err.Error()),
+		)
+		iotCommon.RenderError(w, r, iotCommon.ErrorInvalidRequest(err))
+		return
+	}
+
+	person, err := rs.resolvePersonByRFID(ctx, req.StudentRFID)
+	if err != nil {
+		if errors.Is(err, usersSvc.ErrPersonNotFound) {
+			rs.getLogger().WarnContext(ctx, "RFID tag not found during pickup query",
+				slog.String("rfid", req.StudentRFID),
+			)
+			iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New(iotCommon.ErrMsgRFIDTagNotFound)))
+			return
+		}
+		rs.getLogger().ErrorContext(ctx, "failed to lookup RFID tag during pickup query",
+			slog.String("rfid", req.StudentRFID),
+			slog.String("error", err.Error()),
+		)
+		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
+		return
+	}
+
+	if person == nil || person.TagID == nil {
+		rs.getLogger().WarnContext(ctx, "RFID tag not assigned to any person during pickup query",
+			slog.String("rfid", req.StudentRFID),
+		)
+		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New("RFID tag not assigned to any person")))
+		return
+	}
+
+	student, err := rs.resolveStudentFromPerson(ctx, person.ID)
+	if err != nil {
+		rs.getLogger().ErrorContext(ctx, "failed to lookup student during pickup query",
+			slog.Int64("person_id", person.ID),
+			slog.String("error", err.Error()),
+		)
+		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
+		return
+	}
+
+	if student == nil {
+		staff, err := rs.resolveStaffFromPerson(ctx, person.ID)
+		if err != nil {
+			rs.getLogger().ErrorContext(ctx, "failed to lookup staff during pickup query",
+				slog.Int64("person_id", person.ID),
+				slog.String("error", err.Error()),
+			)
+			iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
+			return
+		}
+		if staff != nil {
+			iotCommon.RenderError(w, r, iotCommon.ErrorInvalidRequest(errors.New(errStudentRFIDRequiredForPickupQuery)))
+			return
+		}
+		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New("RFID tag not assigned to student or staff")))
+		return
+	}
+
+	response := map[string]interface{}{
+		"student_id":   student.ID,
+		"student_name": person.FirstName + " " + person.LastName,
+		"action":       "pickup_info",
+		"processed_at": now,
+		"status":       "success",
+	}
+
+	if rs.PickupScheduleService != nil {
+		effectivePickup, err := rs.PickupScheduleService.GetEffectivePickupTimeForDate(ctx, student.ID, now)
+		if err != nil {
+			rs.getLogger().ErrorContext(ctx, "failed to get pickup info during pickup query",
+				slog.Int64("student_id", student.ID),
+				slog.String("error", err.Error()),
+			)
+			iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
+			return
+		} else {
+			attachPickupInfoToResponse(response, effectivePickup)
+		}
+	}
+
+	if session, err := rs.ActiveService.GetDeviceCurrentSession(ctx, deviceCtx.ID); err == nil && session != nil {
+		if err := rs.ActiveService.UpdateSessionActivity(ctx, session.ID); err != nil {
+			rs.getLogger().WarnContext(ctx, "failed to update session activity during pickup query",
+				slog.Int64("session_id", session.ID),
+				slog.String("error", err.Error()),
+			)
+		}
+	}
+
+	common.Respond(w, r, http.StatusOK, response, "Pickup information retrieved successfully")
 }
 
 // deviceCheckin handles student check-in/check-out requests from RFID devices
@@ -201,8 +317,17 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Compute daily_checkout_available flag for frontend "nach Hause" button
+	// and feedback_enabled setting — only relevant for checkout actions
 	if currentVisit != nil && (result.Action == "checked_out" || result.Action == "checked_out_daily") {
 		result.DailyCheckoutAvailable = rs.shouldShowDailyCheckoutWithGroup(ctx, student, currentVisit)
+
+		// Resolve feedback_enabled so PyrePortal knows whether to show the feedback modal
+		result.FeedbackEnabled = true // default
+		if rs.SettingsService != nil {
+			if val, err := rs.SettingsService.ResolveBool(ctx, configModel.KeyFeedbackEnabled); err == nil {
+				result.FeedbackEnabled = val
+			}
+		}
 	}
 
 	// Step 11: Keep heartbeat and active_students scoped to the scanning device session.
@@ -250,4 +375,40 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	)
 
 	sendCheckinResponse(w, r, response, result.Action)
+}
+
+func attachPickupInfoToResponse(response map[string]interface{}, effectivePickup *scheduleSvc.EffectivePickupTime) {
+	if effectivePickup == nil {
+		return
+	}
+
+	if effectivePickup.PickupTime != nil {
+		response["pickup_time"] = effectivePickup.PickupTime.Format("15:04")
+	}
+
+	if pickupNote := selectPickupNote(effectivePickup); pickupNote != "" {
+		response["pickup_note"] = pickupNote
+	}
+}
+
+func selectPickupNote(effectivePickup *scheduleSvc.EffectivePickupTime) string {
+	if effectivePickup == nil {
+		return ""
+	}
+
+	// Day-specific notes are an override for the recurring weekday note in the kiosk flow.
+	// If no usable day note exists, fall back to the recurring note text.
+	if len(effectivePickup.DayNotes) > 0 {
+		contents := make([]string, 0, len(effectivePickup.DayNotes))
+		for _, note := range effectivePickup.DayNotes {
+			if trimmed := strings.TrimSpace(note.Content); trimmed != "" {
+				contents = append(contents, trimmed)
+			}
+		}
+		if len(contents) > 0 {
+			return strings.Join(contents, "\n")
+		}
+	}
+
+	return strings.TrimSpace(effectivePickup.Notes)
 }

@@ -88,16 +88,18 @@ func (m *SMTPMailer) Send(email Message) error {
 	}
 
 	msg := mail.NewMsg()
-	// Format addresses in RFC 5322 format: "Name <email@example.com>"
-	fromAddr := fmt.Sprintf("%s <%s>", email.From.Name, email.From.Address)
-	if err := msg.SetAddrHeader("From", fromAddr); err != nil {
+	// Use go-mail's typed setters so RFC 5322 special characters in the
+	// display name (e.g. "@", ",", quotes) and non-ASCII names are encoded
+	// correctly instead of producing a malformed header.
+	if err := msg.FromFormat(email.From.Name, email.From.Address); err != nil {
 		return fmt.Errorf("failed to set from address: %w", err)
 	}
-	toAddr := fmt.Sprintf("%s <%s>", email.To.Name, email.To.Address)
-	if err := msg.SetAddrHeader("To", toAddr); err != nil {
+	if err := msg.AddToFormat(email.To.Name, email.To.Address); err != nil {
 		return fmt.Errorf("failed to set to address: %w", err)
 	}
 	msg.Subject(email.Subject)
+	msg.SetGenHeader(mail.HeaderListUnsubscribe, fmt.Sprintf("<mailto:%s?subject=unsubscribe>", email.From.Address))
+	msg.SetGenHeader(mail.HeaderListUnsubscribePost, "List-Unsubscribe=One-Click")
 	msg.SetBodyString(mail.TypeTextPlain, email.text)
 	msg.AddAlternativeString(mail.TypeTextHTML, email.html)
 

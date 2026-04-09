@@ -6,15 +6,24 @@ import (
 	"log/slog"
 	"net"
 	"strings"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/auth/userpass"
+	emailpkg "github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
-// OperatorAuthService handles operator authentication
+// OperatorAuthService handles operator authentication, session management,
+// profile updates, password changes, and email-change verification.
+//
+// Invitation operations (invite, validate, accept, list, resend, revoke,
+// cleanup) and ListOperators live on the narrower OperatorInvitationService
+// interface (see operator_invitation_interface.go). The concrete
+// operatorAuthService struct satisfies both interfaces.
 type OperatorAuthService interface {
 	// Login authenticates an operator and returns JWT tokens
 	Login(ctx context.Context, email, password string, clientIP net.IP) (accessToken, refreshToken string, operator *platform.Operator, err error)
@@ -28,45 +37,79 @@ type OperatorAuthService interface {
 	// GetOperator retrieves an operator by ID
 	GetOperator(ctx context.Context, id int64) (*platform.Operator, error)
 
-	// ListOperators retrieves all operators
-	ListOperators(ctx context.Context) ([]*platform.Operator, error)
-
 	// UpdateProfile updates an operator's display name
 	UpdateProfile(ctx context.Context, operatorID int64, displayName string) (*platform.Operator, error)
 
 	// ChangePassword changes an operator's password after verifying the current one
 	ChangePassword(ctx context.Context, operatorID int64, currentPassword, newPassword string) error
+
+	// InitiateEmailChange starts the email change verification flow.
+	// clientIP is recorded in the audit log for incident investigation.
+	InitiateEmailChange(ctx context.Context, operatorID int64, newEmail, currentPassword string, clientIP net.IP) error
+
+	// ConfirmEmailChange completes the email change using a verification token.
+	// Returns the new email address on success. clientIP is recorded in the audit log.
+	ConfirmEmailChange(ctx context.Context, token string, clientIP net.IP) (string, error)
+
+	// CleanupExpiredEmailChangeTokens removes expired and used email change tokens
+	CleanupExpiredEmailChangeTokens(ctx context.Context) (int, error)
 }
 
 type operatorAuthService struct {
-	operatorRepo platform.OperatorRepository
-	auditLogRepo platform.OperatorAuditLogRepository
-	tokenAuth    *jwt.TokenAuth
-	db           *bun.DB
-	logger       *slog.Logger
+	operatorRepo         platform.OperatorRepository
+	auditLogRepo         platform.OperatorAuditLogRepository
+	emailChangeTokenRepo platform.OperatorEmailChangeTokenRepository
+	invitationTokenRepo  platform.OperatorInvitationTokenRepository
+	tokenAuth            *jwt.TokenAuth
+	db                   *bun.DB
+	logger               *slog.Logger
+	dispatcher           *emailpkg.Dispatcher
+	defaultFrom          emailpkg.Email
+	frontendURL          string
+	operatorFrontendURL  string
+	emailChangeExpiry    time.Duration
+	invitationExpiry     time.Duration
 }
 
 // OperatorAuthServiceConfig holds configuration for the operator auth service
 type OperatorAuthServiceConfig struct {
-	OperatorRepo platform.OperatorRepository
-	AuditLogRepo platform.OperatorAuditLogRepository
-	DB           *bun.DB
-	Logger       *slog.Logger
+	OperatorRepo         platform.OperatorRepository
+	AuditLogRepo         platform.OperatorAuditLogRepository
+	EmailChangeTokenRepo platform.OperatorEmailChangeTokenRepository
+	InvitationTokenRepo  platform.OperatorInvitationTokenRepository
+	DB                   *bun.DB
+	Logger               *slog.Logger
+	Dispatcher           *emailpkg.Dispatcher
+	DefaultFrom          emailpkg.Email
+	FrontendURL          string
+	OperatorFrontendURL  string
+	EmailChangeExpiry    time.Duration
+	InvitationExpiry     time.Duration
 }
 
-// NewOperatorAuthService creates a new operator auth service
-func NewOperatorAuthService(cfg OperatorAuthServiceConfig) (OperatorAuthService, error) {
+// NewOperatorAuthService creates a new operator auth service. Returns the
+// combined interface so the factory can expose it through both the narrow
+// OperatorAuthService and OperatorInvitationService at the same time.
+func NewOperatorAuthService(cfg OperatorAuthServiceConfig) (OperatorAuthAndInvitationService, error) {
 	tokenAuth, err := jwt.NewTokenAuth()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create token auth: %w", err)
 	}
 
 	return &operatorAuthService{
-		operatorRepo: cfg.OperatorRepo,
-		auditLogRepo: cfg.AuditLogRepo,
-		tokenAuth:    tokenAuth,
-		db:           cfg.DB,
-		logger:       cfg.Logger,
+		operatorRepo:         cfg.OperatorRepo,
+		auditLogRepo:         cfg.AuditLogRepo,
+		emailChangeTokenRepo: cfg.EmailChangeTokenRepo,
+		invitationTokenRepo:  cfg.InvitationTokenRepo,
+		tokenAuth:            tokenAuth,
+		db:                   cfg.DB,
+		logger:               cfg.Logger,
+		dispatcher:           cfg.Dispatcher,
+		defaultFrom:          cfg.DefaultFrom,
+		frontendURL:          cfg.FrontendURL,
+		operatorFrontendURL:  cfg.OperatorFrontendURL,
+		emailChangeExpiry:    cfg.EmailChangeExpiry,
+		invitationExpiry:     cfg.InvitationExpiry,
 	}, nil
 }
 
@@ -286,9 +329,19 @@ func (s *operatorAuthService) ChangePassword(ctx context.Context, operatorID int
 	}
 
 	operator.PasswordHash = hash
-	if err := s.operatorRepo.Update(ctx, operator); err != nil {
-		return fmt.Errorf("failed to update password: %w", err)
-	}
 
-	return nil
+	// Atomically update the password and invalidate any outstanding email-change
+	// tokens. A surviving link after a password rotation would let an attacker
+	// re-take the account.
+	return tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
+		if err := s.operatorRepo.Update(txCtx, operator); err != nil {
+			return fmt.Errorf("failed to update password: %w", err)
+		}
+		if s.emailChangeTokenRepo != nil {
+			if err := s.emailChangeTokenRepo.InvalidateByOperatorID(txCtx, operatorID); err != nil {
+				return fmt.Errorf("failed to invalidate email change tokens after password change: %w", err)
+			}
+		}
+		return nil
+	})
 }

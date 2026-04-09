@@ -2,7 +2,9 @@ import { describe, it, expect } from "vitest";
 import type { Session } from "next-auth";
 import {
   hasRole,
+  hasAnyRole,
   isAdmin,
+  isCaregiver,
   isAuthenticated,
   getUserDisplayName,
   getUserRolesDisplay,
@@ -82,13 +84,30 @@ describe("auth-utils", () => {
     });
   });
 
+  describe("hasAnyRole", () => {
+    it("should return true when at least one role matches", () => {
+      const session: Session = {
+        user: {
+          id: "1",
+          email: "test@example.com",
+          roles: ["admin", "user"],
+          token: "token",
+        },
+        expires: "2024-12-31",
+      };
+
+      expect(hasAnyRole(session, ["user", "teacher"])).toBe(true);
+      expect(hasAnyRole(session, ["teacher", "moderator"])).toBe(false);
+    });
+  });
+
   describe("isAdmin", () => {
     it("should return true when user is admin", () => {
       const session: Session = {
         user: {
           id: "1",
           email: "admin@example.com",
-          isAdmin: true,
+          roles: ["admin"],
           token: "token",
         },
         expires: "2024-12-31",
@@ -102,7 +121,7 @@ describe("auth-utils", () => {
         user: {
           id: "1",
           email: "teacher@example.com",
-          isAdmin: false,
+          roles: ["user"],
           token: "token",
         },
         expires: "2024-12-31",
@@ -120,17 +139,62 @@ describe("auth-utils", () => {
       expect(isAdmin(session)).toBe(false);
     });
 
-    it("should return false when isAdmin is undefined", () => {
+    it("should return false when admin role is missing", () => {
       const session: Session = {
         user: {
           id: "1",
           email: "test@example.com",
+          roles: ["user"],
           token: "token",
         },
         expires: "2024-12-31",
       };
 
       expect(isAdmin(session)).toBe(false);
+    });
+  });
+
+  describe("isCaregiver", () => {
+    it('should return true when user has the "user" role', () => {
+      const session: Session = {
+        user: {
+          id: "1",
+          email: "caregiver@example.com",
+          roles: ["user"],
+          token: "token",
+        },
+        expires: "2024-12-31",
+      };
+
+      expect(isCaregiver(session)).toBe(true);
+    });
+
+    it('should return true when user has the "teacher" role', () => {
+      const session: Session = {
+        user: {
+          id: "1",
+          email: "teacher@example.com",
+          roles: ["teacher"],
+          token: "token",
+        },
+        expires: "2024-12-31",
+      };
+
+      expect(isCaregiver(session)).toBe(true);
+    });
+
+    it("should return false when caregiver role is missing", () => {
+      const session: Session = {
+        user: {
+          id: "1",
+          email: "admin@example.com",
+          roles: ["admin"],
+          token: "token",
+        },
+        expires: "2024-12-31",
+      };
+
+      expect(isCaregiver(session)).toBe(false);
     });
   });
 

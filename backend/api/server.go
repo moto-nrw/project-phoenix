@@ -54,12 +54,22 @@ func NewServer(logger *slog.Logger) (*Server, error) {
 	// Initialize scheduler if cleanup is enabled
 	// Note: Session cleanup is now handled by the scheduler's scheduleSessionCleanupTask()
 	if api.Services != nil && api.Services.ActiveCleanup != nil && api.Services.Active != nil {
-		srv.scheduler = scheduler.NewScheduler(api.Services.Active, api.Services.ActiveCleanup, api.Services.Auth, api.Services.Invitation, logger.With("service", "scheduler"))
+		// OperatorAuth implements EmailChangeTokenCleaner (5th arg).
+		// OperatorInvitation implements OperatorInvitationCleaner (6th arg).
+		// Both are backed by the same concrete struct exposed through the
+		// two narrower interfaces defined in services/platform.
+		srv.scheduler = scheduler.NewScheduler(api.Services.Active, api.Services.ActiveCleanup, api.Services.Auth, api.Services.Invitation, api.Services.OperatorAuth, api.Services.OperatorInvitation, logger.With("service", "scheduler"))
 		srv.scheduler.SetDB(api.db)
 		srv.scheduler.SetSchoolRepo(api.repos.School)
+		if api.Services.Settings != nil {
+			srv.scheduler.SetSettingsService(api.Services.Settings)
+		}
 		if api.Services.WorkSession != nil {
 			srv.scheduler.SetWorkSessionCleaner(api.Services.WorkSession)
 			srv.scheduler.SetBreakAutoEnder(api.Services.WorkSession)
+		}
+		if api.Services.Feedback != nil {
+			srv.scheduler.SetFeedbackCleaner(api.Services.Feedback)
 		}
 	}
 

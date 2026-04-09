@@ -35,12 +35,42 @@ func NewDeviceRepository(db *bun.DB) iot.DeviceRepository {
 	}
 }
 
+// FindByID retrieves a device by its primary key, including room name via JOIN.
+// Overrides base.Repository.FindByID which doesn't include the room JOIN.
+func (r *DeviceRepository) FindByID(ctx context.Context, id interface{}) (*iot.Device, error) {
+	device := new(iot.Device)
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(device).
+		ModelTableExpr(`iot.devices AS "device"`).
+		ColumnExpr(`"device".*`).
+		ColumnExpr(`"room".name AS room_name`).
+		Join(`LEFT JOIN facilities.rooms AS "room" ON "room".id = "device".room_id AND "room".tenant_id = "device".tenant_id`).
+		Where(`"device".id = ?`, id)
+
+	if where, val, ok := base.TenantWhere(ctx, "device"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by id",
+			Err: err,
+		}
+	}
+
+	return device, nil
+}
+
 // FindByDeviceID retrieves a device by its deviceID
 func (r *DeviceRepository) FindByDeviceID(ctx context.Context, deviceID string) (*iot.Device, error) {
 	device := new(iot.Device)
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(device).
 		ModelTableExpr(`iot.devices AS "device"`).
+		ColumnExpr(`"device".*`).
+		ColumnExpr(`"room".name AS room_name`).
+		Join(`LEFT JOIN facilities.rooms AS "room" ON "room".id = "device".room_id AND "room".tenant_id = "device".tenant_id`).
 		Where(whereDeviceIDEqual, deviceID)
 
 	if where, val, ok := base.TenantWhere(ctx, "device"); ok {
@@ -175,6 +205,27 @@ func (r *DeviceRepository) UpdateLastSeen(ctx context.Context, id int64, lastSee
 	}
 
 	return base.AssertRowsAffected(result, 1, "update last seen")
+}
+
+// UpdateRoomID updates the room_id for a device by its primary key.
+func (r *DeviceRepository) UpdateRoomID(ctx context.Context, id int64, roomID int64) error {
+	query := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*iot.Device)(nil)).
+		ModelTableExpr(tableIoTDevices).
+		Set("room_id = ?", roomID).
+		Set("updated_at = ?", time.Now()).
+		Where("id = ?", id)
+
+	result, err := query.Exec(ctx)
+
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "update room id",
+			Err: err,
+		}
+	}
+
+	return base.AssertRowsAffected(result, 1, "update room id")
 }
 
 // UpdateStatus updates the status for a device
@@ -347,7 +398,12 @@ func (r *DeviceRepository) Update(ctx context.Context, device *iot.Device) error
 // List retrieves devices matching the provided filters
 func (r *DeviceRepository) List(ctx context.Context, filters map[string]interface{}) ([]*iot.Device, error) {
 	var devices []*iot.Device
-	query := base.GetDB(ctx, r.db).NewSelect().Model(&devices).ModelTableExpr(`iot.devices AS "device"`)
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&devices).
+		ModelTableExpr(`iot.devices AS "device"`).
+		ColumnExpr(`"device".*`).
+		ColumnExpr(`"room".name AS room_name`).
+		Join(`LEFT JOIN facilities.rooms AS "room" ON "room".id = "device".room_id AND "room".tenant_id = "device".tenant_id`)
 
 	if where, val, ok := base.TenantWhere(ctx, "device"); ok {
 		query = query.Where(where, val)
@@ -377,7 +433,7 @@ func applyDeviceFilter(query *bun.SelectQuery, field string, value interface{}) 
 	case "device_id_like":
 		return applyDeviceStringLikeFilter(query, "device_id", value)
 	case "name_like":
-		return applyDeviceStringLikeFilter(query, "name", value)
+		return applyDeviceStringLikeFilter(query, `"device".name`, value)
 	case "status":
 		return query.Where(whereStatusEqual, value)
 	case "device_type":
@@ -390,6 +446,8 @@ func applyDeviceFilter(query *bun.SelectQuery, field string, value interface{}) 
 		return applyDeviceTimeFilter(query, "last_seen", ">", value)
 	case "seen_before":
 		return applyDeviceTimeFilter(query, "last_seen", "<", value)
+	case "room_id":
+		return query.Where(`"device".room_id = ?`, value)
 	case "has_name":
 		return applyHasNameFilter(query, value)
 	default:
@@ -417,9 +475,9 @@ func applyDeviceTimeFilter(query *bun.SelectQuery, column, operator string, valu
 func applyHasNameFilter(query *bun.SelectQuery, value interface{}) *bun.SelectQuery {
 	if boolValue, ok := value.(bool); ok {
 		if boolValue {
-			return query.Where("name IS NOT NULL")
+			return query.Where(`"device".name IS NOT NULL`)
 		}
-		return query.Where("name IS NULL")
+		return query.Where(`"device".name IS NULL`)
 	}
 	return query
 }

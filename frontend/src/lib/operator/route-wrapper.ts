@@ -240,4 +240,211 @@ export function createOperatorProxyGetHandler<T>(backendEndpoint: string) {
   );
 }
 
+/**
+ * Forwards a backend Response to a NextResponse verbatim:
+ * - 204 → empty-body NextResponse with status 204
+ * - JSON content-type → pass-through with original status
+ * - Non-JSON → { message } envelope (429 gets a friendly German message)
+ *
+ * Shared by all proxy helpers below so their response-forwarding behavior
+ * stays identical.
+ *
+ * Error-key convention: the operator backend's ErrResponse struct serializes
+ * with `json:"message"` (backend/api/operator/middleware.go), so operator API
+ * errors natively ship as { status, message } — distinct from the main/tenant
+ * backend which uses `json:"error"`. This helper keeps the operator-native
+ * `message` key intact on both forwarded JSON and the synthetic non-JSON
+ * envelope so that proxy output stays consistent with what the operator
+ * backend itself emits. Operator-side consumers should dual-read
+ * `data.message ?? data.error` (see frontend/src/lib/operator/api-helpers.ts)
+ * to stay robust against any intermediate layer that normalizes to `error`.
+ */
+async function forwardBackendResponse(
+  response: Response,
+): Promise<NextResponse> {
+  if (response.status === 204) {
+    return new NextResponse(null, { status: 204 });
+  }
+
+  const contentType = response.headers.get("content-type");
+  if (!contentType?.includes("application/json")) {
+    const message =
+      response.status === 429
+        ? "Zu viele Anfragen. Bitte versuchen Sie es später erneut."
+        : (await response.text()) || response.statusText;
+    return NextResponse.json({ message }, { status: response.status });
+  }
+
+  const data: unknown = await response.json();
+  return NextResponse.json(data, { status: response.status });
+}
+
+/**
+ * Creates a POST route handler that proxies the backend response verbatim
+ * (preserving status codes and error messages) while adding 401 retry logic.
+ * Mirrors createOperatorProxyGetHandler but for POST with a JSON body.
+ */
+export function createOperatorProxyPostHandler(backendEndpoint: string) {
+  return async (
+    request: NextRequest,
+    _context: RouteContext,
+  ): Promise<NextResponse> => {
+    try {
+      const { operatorAuth: auth } = await import("~/server/auth/operator");
+      const session = await auth();
+      if (!session?.user?.token) return createUnauthorizedResponse();
+
+      let body: unknown;
+      try {
+        body = await parseRequestBody(request);
+      } catch {
+        return NextResponse.json(
+          { message: "Ungültige Anfrage" },
+          { status: 400 },
+        );
+      }
+      const { getServerApiUrl } = await import("~/lib/server-api-url");
+      const { getClientForwardHeaders } = await import("~/lib/client-headers");
+      const url = `${getServerApiUrl()}${backendEndpoint}`;
+      const forwardHeaders = getClientForwardHeaders(request);
+
+      const makeRequest = async (token: string) =>
+        fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+            ...forwardHeaders,
+          },
+          body: JSON.stringify(body),
+        });
+
+      let response = await makeRequest(session.user.token);
+
+      if (response.status === 401) {
+        const retried = await tryRetryWithRefreshedToken(
+          session.user.token,
+          async (newToken) => makeRequest(newToken),
+        );
+        if (retried) response = retried;
+      }
+
+      return forwardBackendResponse(response);
+    } catch (error) {
+      return handleApiError(error);
+    }
+  };
+}
+
+/**
+ * Creates an UNAUTHENTICATED POST route handler that parses a JSON body and
+ * proxies it to a backend endpoint. For public invitation flows where the
+ * token is carried in the request body, not the session.
+ *
+ * On parse failure: 400 with a German "Ungültige Anfrage" message.
+ * On fetch failure: 500 with a generic German internal-error message
+ *                   (no error detail to prevent information leakage on public routes).
+ */
+export function createOperatorPublicProxyPostHandler(backendEndpoint: string) {
+  return async (request: NextRequest): Promise<NextResponse> => {
+    let body: unknown;
+    try {
+      body = await parseRequestBody(request);
+    } catch {
+      return NextResponse.json(
+        { message: "Ungültige Anfrage" },
+        { status: 400 },
+      );
+    }
+
+    try {
+      const { getServerApiUrl } = await import("~/lib/server-api-url");
+      const { getClientForwardHeaders } = await import("~/lib/client-headers");
+      const response = await fetch(`${getServerApiUrl()}${backendEndpoint}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...getClientForwardHeaders(request),
+        },
+        body: JSON.stringify(body),
+      });
+
+      return forwardBackendResponse(response);
+    } catch {
+      return NextResponse.json(
+        { message: "Ein interner Fehler ist aufgetreten" },
+        { status: 500 },
+      );
+    }
+  };
+}
+
+/**
+ * Creates an authenticated route handler for an arbitrary HTTP method against
+ * a dynamic backend endpoint resolved from route params. Handles 401 → token
+ * refresh → retry, and returns a TOKEN_EXPIRED envelope if refresh fails
+ * (unlike createOperatorProxyPostHandler which forwards the backend 401
+ * verbatim — these handlers are used where the client needs a reliable
+ * sentinel to trigger a login redirect).
+ *
+ * Intended for methods without a request body (DELETE, parameterless POST).
+ */
+export function createOperatorProxyMethodHandler(
+  method: string,
+  endpointBuilder: (params: Record<string, unknown>) => string,
+) {
+  return async (
+    request: NextRequest,
+    context: RouteContext,
+  ): Promise<NextResponse> => {
+    try {
+      const { operatorAuth: auth } = await import("~/server/auth/operator");
+      const session = await auth();
+      if (!session?.user?.token) {
+        return NextResponse.json(
+          { error: "Unauthorized", code: "TOKEN_EXPIRED" },
+          { status: 401 },
+        );
+      }
+
+      const params = await extractParams(request, context);
+      const { getServerApiUrl } = await import("~/lib/server-api-url");
+      const { getClientForwardHeaders } = await import("~/lib/client-headers");
+      const url = `${getServerApiUrl()}${endpointBuilder(params)}`;
+      const forwardHeaders = getClientForwardHeaders(request);
+
+      const makeRequest = async (token: string) =>
+        fetch(url, {
+          method,
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+            ...forwardHeaders,
+          },
+        });
+
+      let response = await makeRequest(session.user.token);
+
+      if (response.status === 401) {
+        const retried = await tryRetryWithRefreshedToken(
+          session.user.token,
+          async (newToken) => makeRequest(newToken),
+        );
+        if (retried) response = retried;
+      }
+
+      if (response.status === 401) {
+        return NextResponse.json(
+          { error: "Token expired", code: "TOKEN_EXPIRED" },
+          { status: 401 },
+        );
+      }
+
+      return forwardBackendResponse(response);
+    } catch (error) {
+      return handleApiError(error);
+    }
+  };
+}
+
 export { isStringParam } from "../route-wrapper-utils";

@@ -45,11 +45,12 @@ const CSP_HEADER = [
   "form-action 'self'",
 ].join("; ");
 
-/** Attach security headers (CSP, X-Content-Type-Options, X-Frame-Options) to a response. */
+/** Attach security headers (CSP, X-Content-Type-Options, X-Frame-Options, Referrer-Policy) to a response. */
 function withSecurityHeaders(response: NextResponse): NextResponse {
   response.headers.set("Content-Security-Policy", CSP_HEADER);
   response.headers.set("X-Content-Type-Options", "nosniff");
   response.headers.set("X-Frame-Options", "DENY");
+  response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   return response;
 }
 
@@ -58,10 +59,13 @@ function withSecurityHeaders(response: NextResponse): NextResponse {
 /** Paths that the operator subdomain serves (without /operator prefix) */
 const OPERATOR_PUBLIC_PATHS = [
   "/login",
+  "/email-confirm",
   "/suggestions",
   "/announcements",
   "/settings",
   "/provisioning",
+  "/operators",
+  "/invite",
 ];
 
 function getHostname(request: NextRequest): string {
@@ -84,10 +88,14 @@ function handleOperatorSubdomain(request: NextRequest): NextResponse {
     return withSecurityHeaders(new NextResponse(null, { status: 404 }));
   }
 
-  // Pass through: operator API routes, static assets
+  // Pass through: operator API routes, static assets, Sentry tunnel
   // Note: favicon.ico, favicon.png, apple-touch-icon.png, site.webmanifest,
   // icons/, and images/ are excluded from the proxy matcher entirely.
-  if (pathname.startsWith("/api/") || pathname.startsWith("/_next")) {
+  if (
+    pathname.startsWith("/api/") ||
+    pathname.startsWith("/_next") ||
+    pathname.startsWith("/monitoring")
+  ) {
     return withSecurityHeaders(NextResponse.next());
   }
 
@@ -162,8 +170,8 @@ export function proxy(request: NextRequest): NextResponse {
     return handleOperatorSubdomain(request);
   }
 
-  // 2. /api/* — Next.js API proxy routes; still attach security headers.
-  if (pathname.startsWith("/api")) {
+  // 2. /api/* and /monitoring (Sentry tunnel) — pass through with security headers.
+  if (pathname.startsWith("/api") || pathname.startsWith("/monitoring")) {
     return withSecurityHeaders(NextResponse.next());
   }
 
@@ -173,8 +181,9 @@ export function proxy(request: NextRequest): NextResponse {
   if (pathname.startsWith("/operator")) {
     const cleanPath = pathname.replace(/^\/operator/, "") || "/";
     const protocol = request.nextUrl.protocol;
-    const redirectUrl = `${protocol}//${OPERATOR_HOSTNAME}${cleanPath}`;
-    return NextResponse.redirect(redirectUrl);
+    const search = request.nextUrl.search;
+    const redirectUrl = `${protocol}//${OPERATOR_HOSTNAME}${cleanPath}${search}`;
+    return withSecurityHeaders(NextResponse.redirect(redirectUrl));
   }
 
   // 4. Tenant subdomain routing

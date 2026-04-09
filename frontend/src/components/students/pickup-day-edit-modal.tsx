@@ -10,6 +10,7 @@ import {
   getWeekdayLabel,
   formatShortDate,
 } from "@/lib/pickup-schedule-helpers";
+import { Alert } from "~/components/ui/alert";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "PickupDayEdit" });
@@ -315,6 +316,13 @@ export function PickupDayEditModal({
                 Notiz hinzufügen
               </button>
             )}
+          </div>
+
+          <div className="mb-3">
+            <Alert
+              type="info"
+              message="Diese Notiz wird auch auf den NFC-Tablets angezeigt und ist für Kinder einsehbar."
+            />
           </div>
 
           {/* Existing notes */}
