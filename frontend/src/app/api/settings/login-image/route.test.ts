@@ -120,7 +120,7 @@ describe("POST /api/settings/login-image", () => {
     );
     const response = await POST(request, createMockContext());
 
-    expect(response.status).toBe(500);
+    expect(response.status).toBe(400);
     const json = (await response.json()) as { error: string };
     expect(json.error).toContain("No image file provided");
   });
