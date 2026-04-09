@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	seedapi "github.com/moto-nrw/project-phoenix/seed/api"
 	"github.com/moto-nrw/project-phoenix/simulate"
@@ -111,10 +112,43 @@ var simulateStatusCmd = &cobra.Command{
 	},
 }
 
+var simulateLiveCmd = &cobra.Command{
+	Use:   "live",
+	Short: "Run continuous live simulation",
+	Long:  `Continuously generates random events (room moves, unterwegs, sick toggles) at a configurable interval. Requires simulate full-day to have run first. Ctrl+C to stop.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+
+		statePath, _ := cmd.Flags().GetString("state")
+		interval, _ := cmd.Flags().GetDuration("interval")
+		verbose, _ := cmd.Flags().GetBool("verbose")
+
+		state, err := seedapi.LoadSeedState(statePath)
+		if err != nil {
+			log.Fatalf("Failed to load seed state: %v", err)
+		}
+		if err := assertNonProductionURL(state.BaseURL); err != nil {
+			log.Fatal(err)
+		}
+
+		opts := simulate.LiveOptions{
+			StatePath: statePath,
+			Interval:  interval,
+			Verbose:   verbose,
+		}
+
+		if err := simulate.RunLive(ctx, opts); err != nil {
+			log.Fatalf("Live simulation failed: %v", err)
+		}
+	},
+}
+
 func init() {
 	RootCmd.AddCommand(simulateCmd)
 	simulateCmd.AddCommand(simulateFullDayCmd)
 	simulateCmd.AddCommand(simulateStatusCmd)
+	simulateCmd.AddCommand(simulateLiveCmd)
 
 	// full-day flags
 	simulateFullDayCmd.Flags().String("state", seedapi.DefaultSeedStatePath, "Path to .seed-state.json")
@@ -124,6 +158,11 @@ func init() {
 	// status flags
 	simulateStatusCmd.Flags().String("state", seedapi.DefaultSeedStatePath, "Path to .seed-state.json")
 	simulateStatusCmd.Flags().Bool("verbose", false, "Verbose output")
+
+	// live flags
+	simulateLiveCmd.Flags().String("state", seedapi.DefaultSeedStatePath, "Path to .seed-state.json")
+	simulateLiveCmd.Flags().Duration("interval", 10*time.Second, "Time between actions")
+	simulateLiveCmd.Flags().Bool("verbose", false, "Verbose output")
 }
 
 func resolveSimulatorConfigPath() string {
