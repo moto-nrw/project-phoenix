@@ -62,3 +62,29 @@ func TestSeedCmd_UsageOutput(t *testing.T) {
 	assert.Contains(t, output, "--pin")
 	assert.Contains(t, output, "--url")
 }
+
+func TestSeedCmd_LongDescription(t *testing.T) {
+	assert.Contains(t, seedCmd.Long, "HTTP API")
+	assert.Contains(t, seedCmd.Long, "REQUIRES")
+	assert.Contains(t, seedCmd.Long, ".seed-state.json")
+}
+
+func TestSeedCmd_FlagTypes(t *testing.T) {
+	f := seedCmd.Flags()
+
+	emailFlag := f.Lookup("email")
+	require.NotNil(t, emailFlag)
+	assert.Equal(t, "", emailFlag.DefValue)
+
+	passwordFlag := f.Lookup("password")
+	require.NotNil(t, passwordFlag)
+	assert.Equal(t, "", passwordFlag.DefValue)
+
+	pinFlag := f.Lookup("pin")
+	require.NotNil(t, pinFlag)
+	assert.Equal(t, "", pinFlag.DefValue)
+
+	verboseFlag := f.Lookup("verbose")
+	require.NotNil(t, verboseFlag)
+	assert.Equal(t, "false", verboseFlag.DefValue)
+}

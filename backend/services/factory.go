@@ -253,6 +253,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	settingsService := config.NewSettingsService(
 		repos.SettingValue,
 		repos.SettingAudit,
+		repos.School,
 		db,
 		logger,
 	)

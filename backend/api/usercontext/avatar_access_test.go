@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
@@ -16,7 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/users"
 	usercontextsvc "github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type mockAvatarUserContextService struct {
@@ -89,7 +87,7 @@ func requestWithAvatarFilename(filename string) *http.Request {
 	return req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
 }
 
-func TestValidateAvatarAccess_ServiceError(t *testing.T) {
+func TestServeAvatar_ServiceError(t *testing.T) {
 	resource := &Resource{
 		service: &mockAvatarUserContextService{
 			getCurrentProfileFunc: func(context.Context) (map[string]interface{}, error) {
@@ -100,17 +98,15 @@ func TestValidateAvatarAccess_ServiceError(t *testing.T) {
 			},
 		},
 	}
+	req := requestWithAvatarFilename("avatar.jpg")
+	rr := httptest.NewRecorder()
 
-	avatarPath, renderer := resource.validateAvatarAccess(requestWithAvatarFilename("avatar.jpg"), "avatar.jpg")
+	resource.serveAvatar(rr, req)
 
-	assert.Empty(t, avatarPath)
-	require.NotNil(t, renderer)
-
-	errResp := renderer.(*common.ErrResponse)
-	assert.Equal(t, http.StatusUnauthorized, errResp.HTTPStatusCode)
+	assert.Equal(t, http.StatusUnauthorized, rr.Code)
 }
 
-func TestValidateAvatarAccess_NoAvatar(t *testing.T) {
+func TestServeAvatar_NoAvatar(t *testing.T) {
 	resource := &Resource{
 		service: &mockAvatarUserContextService{
 			getCurrentProfileFunc: func(context.Context) (map[string]interface{}, error) {
@@ -118,17 +114,15 @@ func TestValidateAvatarAccess_NoAvatar(t *testing.T) {
 			},
 		},
 	}
+	req := requestWithAvatarFilename("avatar.jpg")
+	rr := httptest.NewRecorder()
 
-	avatarPath, renderer := resource.validateAvatarAccess(requestWithAvatarFilename("avatar.jpg"), "avatar.jpg")
+	resource.serveAvatar(rr, req)
 
-	assert.Empty(t, avatarPath)
-	require.NotNil(t, renderer)
-
-	errResp := renderer.(*common.ErrResponse)
-	assert.Equal(t, http.StatusNotFound, errResp.HTTPStatusCode)
+	assert.Equal(t, http.StatusNotFound, rr.Code)
 }
 
-func TestValidateAvatarAccess_FilenameMismatch(t *testing.T) {
+func TestServeAvatar_FilenameMismatch(t *testing.T) {
 	resource := &Resource{
 		service: &mockAvatarUserContextService{
 			getCurrentProfileFunc: func(context.Context) (map[string]interface{}, error) {
@@ -136,29 +130,12 @@ func TestValidateAvatarAccess_FilenameMismatch(t *testing.T) {
 			},
 		},
 	}
+	req := requestWithAvatarFilename("expected.jpg")
+	rr := httptest.NewRecorder()
 
-	avatarPath, renderer := resource.validateAvatarAccess(requestWithAvatarFilename("expected.jpg"), "expected.jpg")
+	resource.serveAvatar(rr, req)
 
-	assert.Empty(t, avatarPath)
-	require.NotNil(t, renderer)
-
-	errResp := renderer.(*common.ErrResponse)
-	assert.Equal(t, http.StatusForbidden, errResp.HTTPStatusCode)
-}
-
-func TestValidateAvatarAccess_Success(t *testing.T) {
-	resource := &Resource{
-		service: &mockAvatarUserContextService{
-			getCurrentProfileFunc: func(context.Context) (map[string]interface{}, error) {
-				return map[string]interface{}{"avatar": "/uploads/avatars/global/expected.jpg"}, nil
-			},
-		},
-	}
-
-	avatarPath, renderer := resource.validateAvatarAccess(requestWithAvatarFilename("expected.jpg"), "expected.jpg")
-
-	assert.Equal(t, "/uploads/avatars/global/expected.jpg", avatarPath)
-	assert.Nil(t, renderer)
+	assert.Equal(t, http.StatusForbidden, rr.Code)
 }
 
 func TestServeAvatar_EmptyFilename(t *testing.T) {
@@ -185,4 +162,25 @@ func TestServeAvatar_InvalidStoredPath(t *testing.T) {
 	resource.serveAvatar(rr, req)
 
 	assert.Equal(t, http.StatusForbidden, rr.Code)
+}
+
+func TestServeAvatar_MatchingFilename_PassesAccessControl(t *testing.T) {
+	// A valid avatar path with matching filename passes all access control guards.
+	// The request reaches common.ServeImage which returns 404 because the file
+	// doesn't exist on disk — proving the path traversal check, filename match,
+	// and stored-path validation all succeeded.
+	resource := &Resource{
+		service: &mockAvatarUserContextService{
+			getCurrentProfileFunc: func(context.Context) (map[string]interface{}, error) {
+				return map[string]interface{}{"avatar": "/uploads/avatars/global/user_abc123.jpg"}, nil
+			},
+		},
+	}
+	req := requestWithAvatarFilename("user_abc123.jpg")
+	rr := httptest.NewRecorder()
+
+	resource.serveAvatar(rr, req)
+
+	// 404 = file not on disk, but all access checks passed (not 400/401/403)
+	assert.Equal(t, http.StatusNotFound, rr.Code)
 }

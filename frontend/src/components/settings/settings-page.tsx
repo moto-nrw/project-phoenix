@@ -10,6 +10,7 @@ import {
 } from "~/lib/settings-api";
 import type { SettingsSchema, SchemaTab } from "~/lib/settings-api";
 import { SettingsCategory } from "./settings-category";
+import { PersonalizationTab } from "./personalization-tab";
 
 const logger = createLogger({ component: "SettingsPage" });
 
@@ -241,6 +242,8 @@ export function useSettingsTabs(): {
 } | null {
   const { status: sessionStatus } = useSession();
   const [schema, setSchema] = useState<SettingsSchema | null>(null);
+  const [schemaFetchFailed, setSchemaFetchFailed] = useState(false);
+  const [schemaLoaded, setSchemaLoaded] = useState(false);
 
   useEffect(() => {
     if (sessionStatus === "authenticated") {
@@ -249,13 +252,15 @@ export function useSettingsTabs(): {
           if (data) setSchema(data);
         })
         .catch(() => {
-          // Schema fetch failed — tabs won't render, inner SettingsContent
-          // has its own fetch with error display and retry button.
-        });
+          // Schema fetch failed — mark so we still render placeholder tabs.
+          // Inner SettingsContent has its own fetch with error display and retry button.
+          setSchemaFetchFailed(true);
+        })
+        .finally(() => setSchemaLoaded(true));
     }
   }, [sessionStatus]);
 
-  if (!schema?.tabs || schema.tabs.length === 0) {
+  if (!schemaLoaded) {
     return null;
   }
 
@@ -283,13 +288,36 @@ export function useSettingsTabs(): {
       "M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4",
   };
 
-  const tabs = schema.tabs.map((tab) => ({
-    id: `settings-${tab.key}`,
-    label: tabLabels[tab.key] ?? tab.label,
-    icon: tabIcons[tab.key] ?? defaultTabIcon,
-  }));
+  // Schema-driven tabs (may be empty if user has no config:read permission).
+  // When the schema fetch failed, render placeholder tabs so SettingsContent
+  // mounts and can show its own error/retry UI instead of silently dropping
+  // all schema tabs.
+  const fallbackTabKeys = ["operations", "gdpr", "security"];
+  const schemaTabs = schemaFetchFailed
+    ? fallbackTabKeys.map((key) => ({
+        id: `settings-${key}`,
+        label: tabLabels[key] ?? key,
+        icon: tabIcons[key] ?? defaultTabIcon,
+      }))
+    : (schema?.tabs ?? []).map((tab) => ({
+        id: `settings-${tab.key}`,
+        label: tabLabels[tab.key] ?? tab.label,
+        icon: tabIcons[tab.key] ?? defaultTabIcon,
+      }));
+
+  // Personalisierung is always available (permission-gated inside the component)
+  const personalizationTab = {
+    id: "settings-personalisierung",
+    label: "Personalisierung",
+    icon: "M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z",
+  };
+
+  const tabs = [...schemaTabs, personalizationTab];
 
   const renderTab = (tabId: string) => {
+    if (tabId === "settings-personalisierung") {
+      return <PersonalizationTab />;
+    }
     const settingsKey = tabId.replace("settings-", "");
     return <SettingsContent tabKey={settingsKey} />;
   };

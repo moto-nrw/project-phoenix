@@ -54,6 +54,9 @@ func (s *internalSchoolRepoStub) FindByID(ctx context.Context, id int64) (*platf
 func (s *internalSchoolRepoStub) FindByIDForShare(ctx context.Context, id int64) (*platformModels.School, error) {
 	return s.FindByID(ctx, id)
 }
+func (s *internalSchoolRepoStub) FindByIDForUpdate(ctx context.Context, id int64) (*platformModels.School, error) {
+	return s.FindByID(ctx, id)
+}
 func (s *internalSchoolRepoStub) FindBySlug(context.Context, string) (*platformModels.School, error) {
 	return nil, nil
 }

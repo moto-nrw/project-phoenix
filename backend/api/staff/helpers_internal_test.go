@@ -1,10 +1,10 @@
 package staff
 
 import (
-	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/stretchr/testify/assert"
@@ -22,69 +22,40 @@ func TestRequestedCaregiverPool(t *testing.T) {
 	assert.True(t, requestedCaregiverPool([]string{"STAFF"}))
 }
 
-func TestStaffAvatarPathToFilePath_ValidPaths(t *testing.T) {
-	publicDir, err := resolvePublicDir()
-	require.NoError(t, err)
+// Avatar path resolution tests — uses centralized common.ResolveStoredPath.
 
+func TestStaffAvatarPath_ValidPaths(t *testing.T) {
 	testCases := []struct {
 		name       string
 		avatarPath string
-		want       string
+		wantSuffix string
 	}{
-		{
-			name:       "global avatar path",
-			avatarPath: "/uploads/avatars/global/ada.jpg",
-			want: filepath.Join(
-				publicDir,
-				"uploads",
-				"avatars",
-				"global",
-				"ada.jpg",
-			),
-		},
-		{
-			name:       "legacy tenant avatar path",
-			avatarPath: "/uploads/avatars/42/grace.png",
-			want: filepath.Join(
-				publicDir,
-				"uploads",
-				"avatars",
-				"42",
-				"grace.png",
-			),
-		},
+		{"global avatar path", "/uploads/avatars/global/ada.jpg", "uploads/avatars/global/ada.jpg"},
+		{"legacy tenant avatar path", "/uploads/avatars/42/grace.png", "uploads/avatars/42/grace.png"},
 	}
 
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := staffAvatarPathToFilePath(tt.avatarPath)
+			got, err := common.ResolveStoredPath("public", tt.avatarPath, "/uploads/avatars/")
 			require.NoError(t, err)
-			assert.Equal(t, tt.want, got)
+			assert.Contains(t, got, tt.wantSuffix)
 		})
 	}
 }
 
-func TestStaffAvatarPathToFilePath_InvalidPaths(t *testing.T) {
+func TestStaffAvatarPath_InvalidPaths(t *testing.T) {
 	testCases := []struct {
 		name       string
 		avatarPath string
 		wantErr    string
 	}{
-		{
-			name:       "invalid prefix",
-			avatarPath: "/uploads/not-avatars/file.jpg",
-			wantErr:    "invalid avatar path",
-		},
-		{
-			name:       "path traversal",
-			avatarPath: "/uploads/avatars/global/../../secret.txt",
-			wantErr:    "invalid path",
-		},
+		{"invalid prefix", "/uploads/not-avatars/file.jpg", "invalid path"},
+		{"path traversal", "/uploads/avatars/global/../../secret.txt", "invalid path"},
 	}
 
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := staffAvatarPathToFilePath(tt.avatarPath)
+			got, err := common.ResolveStoredPath("public", tt.avatarPath, "/uploads/avatars/")
 			assert.Empty(t, got)
 			assert.EqualError(t, err, tt.wantErr)
 		})

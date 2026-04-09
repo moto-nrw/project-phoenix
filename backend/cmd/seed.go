@@ -48,6 +48,10 @@ Usage:
 			log.Fatal("--email, --password, and --pin are required")
 		}
 
+		if err := assertNonProductionURL(url); err != nil {
+			log.Fatal(err)
+		}
+
 		seeder := seedapi.NewSeeder(url, verbose)
 		result, err := seeder.Seed(ctx, email, password, pin)
 		if err != nil {

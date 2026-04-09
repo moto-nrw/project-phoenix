@@ -102,17 +102,19 @@ describe("useSettingsTabs", () => {
     mockResetSettingValue.mockResolvedValue(null);
   });
 
-  it("returns null when schema is null (no access)", async () => {
+  it("returns only personalisierung tab when schema is null (no access)", async () => {
     mockFetchSchema.mockResolvedValue(null);
     let captured: TabsResult | null = null;
 
     render(<HookWrapper onResult={(r) => (captured = r)} />);
     await waitFor(() => {
-      expect(captured).toBeNull();
+      expect(captured).not.toBeNull();
     });
+    expect(captured!.tabs).toHaveLength(1);
+    expect(captured!.tabs[0]!.id).toBe("settings-personalisierung");
   });
 
-  it("returns tabs from schema with German labels", async () => {
+  it("returns schema tabs + personalisierung with German labels", async () => {
     mockFetchSchema.mockResolvedValue(mockSchema);
     let captured: TabsResult | null = null;
 
@@ -120,9 +122,10 @@ describe("useSettingsTabs", () => {
     await waitFor(() => {
       expect(captured).not.toBeNull();
     });
-    expect(captured!.tabs).toHaveLength(2);
+    expect(captured!.tabs).toHaveLength(3);
     expect(captured!.tabs[0]!.label).toBe("Betrieb");
     expect(captured!.tabs[1]!.label).toBe("Datenschutz");
+    expect(captured!.tabs[2]!.label).toBe("Personalisierung");
   });
 
   it("returns tabs with settings- prefix IDs", async () => {
@@ -134,16 +137,19 @@ describe("useSettingsTabs", () => {
       expect(captured).not.toBeNull();
     });
     expect(captured!.tabs[0]!.id).toBe("settings-operations");
+    expect(captured!.tabs[2]!.id).toBe("settings-personalisierung");
   });
 
-  it("returns null when schema has empty tabs", async () => {
+  it("returns only personalisierung when schema has empty tabs", async () => {
     mockFetchSchema.mockResolvedValue({ tabs: [] });
     let captured: TabsResult | null = null;
 
     render(<HookWrapper onResult={(r) => (captured = r)} />);
     await waitFor(() => {
-      expect(captured).toBeNull();
+      expect(captured).not.toBeNull();
     });
+    expect(captured!.tabs).toHaveLength(1);
+    expect(captured!.tabs[0]!.id).toBe("settings-personalisierung");
   });
 
   it("tabs have icon paths", async () => {
