@@ -58,6 +58,41 @@ func (r *AttendanceRepository) FindByStudentAndDate(ctx context.Context, student
 	return attendance, nil
 }
 
+// FindByStudentAndDateRange finds all attendance records for a student between two
+// dates (inclusive), ordered by date descending then check_in_time descending.
+//
+// Uses DateOfUTC (not DateOf) when binding to the PostgreSQL DATE column: the
+// PG session runs in UTC, so a Berlin-midnight timestamptz gets cast to the
+// previous UTC day, silently excluding today's row. DateOfUTC yields UTC
+// midnight of the Berlin calendar date, which round-trips correctly.
+func (r *AttendanceRepository) FindByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate time.Time) ([]*active.Attendance, error) {
+	var attendance []*active.Attendance
+
+	startOnly := timezone.DateOfUTC(startDate)
+	endOnly := timezone.DateOfUTC(endDate)
+
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&attendance).
+		ModelTableExpr(`active.attendance AS "attendance"`).
+		Where(`"attendance".student_id = ?`, studentID).
+		Where(`"attendance".date >= ?`, startOnly).
+		Where(`"attendance".date <= ?`, endOnly).
+		OrderExpr(`"attendance".date DESC`).
+		OrderExpr(`"attendance".check_in_time DESC`)
+
+	if where, val, ok := base.TenantWhere(ctx, "attendance"); ok {
+		query = query.Where(where, val)
+	}
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by student and date range",
+			Err: err,
+		}
+	}
+	return attendance, nil
+}
+
 // FindLatestByStudent finds the most recent attendance record for a student
 func (r *AttendanceRepository) FindLatestByStudent(ctx context.Context, studentID int64) (*active.Attendance, error) {
 	attendance := new(active.Attendance)

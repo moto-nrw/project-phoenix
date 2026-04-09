@@ -32,6 +32,7 @@ interface StudentDataState {
   loading: boolean;
   error: string | null;
   hasFullAccess: boolean;
+  attendanceLogEnabled: boolean;
   supervisors: SupervisorContact[];
   myGroups: string[];
   myGroupRooms: string[];
@@ -101,6 +102,7 @@ function extractRoomNames(
 interface StudentDetailResponse {
   student: ExtendedStudent;
   hasFullAccess: boolean;
+  attendanceLogEnabled: boolean;
   supervisors: SupervisorContact[];
   myGroups: string[];
   myGroupRooms: string[];
@@ -150,9 +152,12 @@ export function useStudentData(studentId: string): UseStudentDataResult {
       const mappedStudent = rawStudentData as Student & {
         has_full_access?: boolean;
         group_supervisors?: SupervisorContact[];
+        attendance_log_enabled?: boolean;
       };
 
       const hasAccess = mappedStudent.has_full_access ?? false;
+      const attendanceLogEnabled =
+        mappedStudent.attendance_log_enabled ?? false;
       const groupSupervisors = mappedStudent.group_supervisors ?? [];
       const extendedStudent = mapStudentResponse(studentResponse, hasAccess);
 
@@ -163,6 +168,7 @@ export function useStudentData(studentId: string): UseStudentDataResult {
       return {
         student: extendedStudent,
         hasFullAccess: hasAccess,
+        attendanceLogEnabled,
         supervisors: groupSupervisors,
         myGroups: groupIds,
         myGroupRooms: ogsGroupRoomNames,
@@ -198,6 +204,7 @@ export function useStudentData(studentId: string): UseStudentDataResult {
     loading,
     error,
     hasFullAccess: studentData?.hasFullAccess ?? true,
+    attendanceLogEnabled: studentData?.attendanceLogEnabled ?? false,
     supervisors: studentData?.supervisors ?? [],
     myGroups: studentData?.myGroups ?? [],
     myGroupRooms: studentData?.myGroupRooms ?? [],

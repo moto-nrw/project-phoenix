@@ -211,15 +211,15 @@ describe("StudentHistoryBreadcrumb", () => {
       <StudentHistoryBreadcrumb
         referrer="/ogs-groups"
         breadcrumbLabel="Meine Gruppe"
-        pathname="/students/123/room_history"
+        pathname="/students/123/room-history"
         studentName="Max"
-        historyType="Raumverlauf"
+        historyType="Anwesenheitsprotokoll"
         subSectionName="Eulen"
       />,
     );
     expect(screen.getByText("Eulen")).toBeInTheDocument();
     expect(screen.getByText("Max")).toBeInTheDocument();
-    expect(screen.getByText("Raumverlauf")).toBeInTheDocument();
+    expect(screen.getByText("Anwesenheitsprotokoll")).toBeInTheDocument();
   });
 
   it("links correctly", () => {

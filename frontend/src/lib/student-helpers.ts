@@ -74,6 +74,7 @@ export interface SupervisorContact {
 export interface BackendStudentDetail extends BackendStudent {
   has_full_access: boolean;
   group_supervisors?: SupervisorContact[];
+  attendance_log_enabled: boolean;
 }
 
 // Privacy consent types
@@ -145,6 +146,8 @@ export interface Student {
   // Additional fields for access control
   has_full_access?: boolean;
   group_supervisors?: SupervisorContact[];
+  // Feature flag: tenant has attendance log enabled
+  attendance_log_enabled?: boolean;
   // Extra information visible only to supervisors
   extra_info?: string;
   birthday?: string;
@@ -231,6 +234,7 @@ export function mapStudentDetailResponse(
   // Then add the additional fields
   student.has_full_access = backendStudent.has_full_access;
   student.group_supervisors = backendStudent.group_supervisors;
+  student.attendance_log_enabled = backendStudent.attendance_log_enabled;
 
   return student;
 }

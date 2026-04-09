@@ -15,6 +15,20 @@ const (
 	KeyDataCleanupTimeoutMinutes = "gdpr.data_cleanup_timeout_minutes"
 )
 
+// Attendance log / Raumverlauf (student attendance history) settings.
+const (
+	KeyAttendanceLogEnabled  = "gdpr.attendance_log_enabled"
+	KeyAttendanceVisibleDays = "gdpr.attendance_visible_days"
+	KeyRoomDetailVisibleDays = "gdpr.room_detail_visible_days"
+	KeyAttendanceLogScope    = "gdpr.attendance_log_scope"
+)
+
+// AttendanceLogScope option values for KeyAttendanceLogScope.
+const (
+	AttendanceLogScopeGroupSupervisorsOnly = "group_supervisors_only"
+	AttendanceLogScopeAllStaff             = "all_staff"
+)
+
 // Feedback settings.
 const (
 	KeyFeedbackEnabled           = "feedback.enabled"
