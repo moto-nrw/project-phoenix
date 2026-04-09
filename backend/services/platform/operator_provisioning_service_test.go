@@ -337,7 +337,7 @@ func (m *mockAuthService) GetAccountByID(context.Context, int) (*authModels.Acco
 func (m *mockAuthService) GetAccountByEmail(context.Context, string) (*authModels.Account, error) {
 	return nil, nil
 }
-func (m *mockAuthService) CreateRole(context.Context, string, string) (*authModels.Role, error) {
+func (m *mockAuthService) CreateRole(context.Context, string, string, *string) (*authModels.Role, error) {
 	return nil, nil
 }
 func (m *mockAuthService) GetRoleByID(context.Context, int) (*authModels.Role, error) {

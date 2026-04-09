@@ -11,11 +11,13 @@ import (
 
 // Role Management
 
-// CreateRole creates a new tenant-scoped role
-func (s *Service) CreateRole(ctx context.Context, name, description string) (*auth.Role, error) {
+// CreateRole creates a new tenant-scoped role.
+// baseRole is required — it maps this custom role to a system role for announcement targeting.
+func (s *Service) CreateRole(ctx context.Context, name, description string, baseRole *string) (*auth.Role, error) {
 	role := &auth.Role{
 		Name:        name,
 		Description: description,
+		BaseRole:    baseRole,
 	}
 
 	// tenant_id is auto-set by base.Repository.Create via TenantScoped interface

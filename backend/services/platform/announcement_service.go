@@ -263,7 +263,9 @@ func (s *announcementService) UnpublishAnnouncement(ctx context.Context, id int6
 	return nil
 }
 
-// GetUnreadForUser retrieves unread announcements for a user scoped to the current session tenant/org
+// GetUnreadForUser retrieves unread announcements for a user scoped to the current session tenant/org.
+// Base-role expansion (custom role → system role matching) is handled at the SQL level
+// via an EXISTS subquery in the repository, consistent with the GetStats query strategy.
 func (s *announcementService) GetUnreadForUser(ctx context.Context, userID int64, userRoles []string, tenantID int64, orgID int64) ([]*platform.Announcement, error) {
 	return s.announcementViewRepo.GetUnreadForUser(ctx, userID, userRoles, tenantID, orgID)
 }
