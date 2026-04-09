@@ -20,7 +20,7 @@ const (
 
 // ValidBaseRoles returns the system roles that custom roles can map to.
 // When adding a new base role, also update:
-//   - DB CHECK constraint in migration 001015030_roles_base_role.go
+//   - DB CHECK constraint in migration 001015031_roles_base_role.go
 //   - Frontend options in roles.config.tsx and role-detail-modal.tsx
 func ValidBaseRoles() []string {
 	return []string{BaseRoleAdmin, BaseRoleUser, BaseRoleGuardian}

@@ -24,7 +24,7 @@ func TestBaseRoleSyncAcrossLayers(t *testing.T) {
 	sort.Strings(goRoles)
 
 	t.Run("Go ValidBaseRoles matches DB CHECK constraint", func(t *testing.T) {
-		migrationPath := filepath.Join(projectRoot, "backend/database/migrations/001015030_roles_base_role.go")
+		migrationPath := filepath.Join(projectRoot, "backend/database/migrations/001015031_roles_base_role.go")
 		content, err := os.ReadFile(migrationPath)
 		if err != nil {
 			t.Skipf("Cannot read migration file: %v", err)
