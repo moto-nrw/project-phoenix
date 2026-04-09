@@ -227,7 +227,19 @@ if has, err := settingsService.HasTenantOverride(ctx, configModel.KeyMyNewSettin
 }
 ```
 
-**Full guide:** `.claude/rules/settings-system.md` — step-by-step for adding, editing, and deleting settings, field types, permissions, and validation.
+**Where settings are consumed:**
+- **Scheduler** (`services/scheduler/scheduler.go`) — `resolveStringSetting`, `resolveBoolSetting`, `resolveIntSetting` helpers wrap the HasTenantOverride pattern. Iterates all active schools via `forEachTenantSettings()`.
+- **IoT Checkin** (`api/iot/checkin/helpers.go`) — `getStudentDailyCheckoutTime()` resolves per-tenant checkout time with env var fallback.
+- **Device Auth** (`api/iot/api.go`) — Resolves `security.ogs_device_pin` for PIN validation.
+
+**ResolveString vs ResolveStringForTenant:**
+
+| Method | When to use |
+|--------|-------------|
+| `ResolveString(ctx, key)` | Inside tenant middleware (ctx has tenant from JWT) |
+| `ResolveStringForTenant(ctx, tenantID, key)` | Outside tenant middleware (device auth, scheduler per-tenant loops) — wraps in its own `tenant.WithTenantTx` |
+
+**Full guide:** `.claude/rules/settings-system.md` — step-by-step for adding, editing, and deleting settings, all 11 registered settings, field types, permissions, frontend behavior, and DB schema.
 
 ## Domain Knowledge
 

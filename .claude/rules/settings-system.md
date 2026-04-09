@@ -27,8 +27,37 @@ SettingAuditRepository → config.setting_audit (append-only)
 | `services/config/schema_builder.go` | Builds schema response for frontend |
 | `database/repositories/config/` | DB access (setting_values + setting_audit) |
 | `api/config/settings_api.go` | HTTP handlers (GET /schema, PUT/DELETE /values/{key}) |
-| `frontend/src/lib/settings-api.ts` | Frontend API client |
+| `frontend/src/lib/settings-api.ts` | Frontend API client + TypeScript types |
 | `frontend/src/components/settings/` | Settings page, field components, auto-save |
+| `frontend/src/app/api/settings/` | Next.js proxy routes to backend |
+
+### Registered Settings (11 total)
+
+**Operations Tab** (7 settings) — WritePermission: `config:update`
+
+| Key | Type | Default | DependsOn |
+|-----|------|---------|-----------|
+| `operations.session_end_enabled` | boolean | `true` | — |
+| `operations.session_end_time` | time | `"18:00"` | session_end_enabled eq true |
+| `operations.session_end_timeout_minutes` | number | `10` (min:1, max:60) | session_end_enabled eq true |
+| `operations.student_daily_checkout_time` | time | `"15:00"` | — |
+| `operations.session_cleanup_enabled` | boolean | `true` | — |
+| `operations.session_cleanup_interval_minutes` | number | `15` (min:5, max:120) | session_cleanup_enabled eq true |
+| `operations.session_abandoned_threshold_minutes` | number | `60` (min:10, max:480) | session_cleanup_enabled eq true |
+
+**GDPR Tab** (3 settings) — WritePermission: `config:manage`
+
+| Key | Type | Default | DependsOn |
+|-----|------|---------|-----------|
+| `gdpr.data_cleanup_enabled` | boolean | `true` | — |
+| `gdpr.data_cleanup_time` | time | `"02:00"` | data_cleanup_enabled eq true |
+| `gdpr.data_cleanup_timeout_minutes` | number | `30` (min:5, max:120) | data_cleanup_enabled eq true |
+
+**Security Tab** (1 setting) — WritePermission: `config:manage`
+
+| Key | Type | Default | Validation |
+|-----|------|---------|------------|
+| `security.ogs_device_pin` | password | `""` | Pattern: `^\d{4}$` (4-digit PIN) |
 
 ### Value Resolution
 
@@ -40,6 +69,20 @@ The settings service resolves values in **two tiers**:
 ```
 
 The service does **not** check environment variables. `Resolve*()` returns the registry default when no tenant override exists. Consumers that need env var backward compatibility must implement a three-step pattern manually: `HasTenantOverride()` → `Resolve*()` → `os.Getenv()`. See [Step 3](#step-3-add-consuming-code) for the correct pattern.
+
+### SettingsService Interface
+
+```go
+Resolve(ctx, key) → any                              // Tenant override or registry default
+ResolveString(ctx, key) → string                      // Type-safe string
+ResolveBool(ctx, key) → bool                          // Type-safe bool
+ResolveInt(ctx, key) → int                            // Type-safe int (rejects fractions, checks overflow)
+ResolveStringForTenant(ctx, tenantID, key) → string   // Explicit tenant + wraps in own TenantTx
+HasTenantOverride(ctx, key) → bool                    // Check if DB override exists
+SetValue(ctx, key, value, changedBy, permissions)     // Upsert + audit + permission check
+ResetValue(ctx, key, changedBy, permissions)           // Delete override + audit
+GetSchema(ctx, permissions) → SettingsSchema           // Filtered by read permissions
+```
 
 ### Tabs and Permissions
 
@@ -161,6 +204,30 @@ cd backend && go build ./... && go test ./services/config/... -v
 - [ ] Add data migration to delete orphaned rows: `DELETE FROM config.setting_values WHERE setting_key = 'old.key'`
 - [ ] Add data migration to delete audit rows: `DELETE FROM config.setting_audit WHERE setting_key = 'old.key'`
 
+## Consuming Code Patterns
+
+### Scheduler (`services/scheduler/scheduler.go`)
+
+The scheduler has helper methods that wrap the HasTenantOverride pattern for per-tenant iteration:
+
+- `resolveStringSetting(ctx, key, envVarName, fallback)` — HasTenantOverride → ResolveString → os.Getenv → fallback
+- `resolveBoolSetting(ctx, key, envVarName, fallback)` — same chain for booleans
+- `resolveIntSetting(ctx, key, envVarName, fallback)` — same chain for integers
+
+The scheduler uses `forEachTenantSettings()` to iterate all active schools and execute per-tenant logic with settings context.
+
+### IoT Checkin (`api/iot/checkin/helpers.go`)
+
+`getStudentDailyCheckoutTime()` follows the same pattern:
+1. `HasTenantOverride(ctx, KeyStudentDailyCheckoutTime)`
+2. If override: `ResolveString` → parse HH:MM
+3. If no override: fall back to env var `STUDENT_DAILY_CHECKOUT_TIME`
+4. If no env var: hardcoded default `"15:00"`
+
+### Device PIN Authentication (`api/iot/api.go`)
+
+Creates a PIN resolver from the settings service to validate the OGS device PIN (`security.ogs_device_pin`).
+
 ## Key Rules
 
 - **NEVER add new env vars for per-tenant runtime config** — use the settings system instead. Env vars are for infrastructure (DB DSN, SMTP host, JWT secret). If a school admin should be able to change it, it's a setting. Existing env vars are kept for backward compatibility only.
@@ -203,3 +270,66 @@ DependsOn: &config.Dependency{
 ```
 
 The child setting is hidden in the UI when the condition is not met. The backend still accepts writes regardless of visibility — DependsOn is UI-only.
+
+## Error Types
+
+| Error | HTTP Status | When |
+|-------|-------------|------|
+| `DefinitionNotFoundError` | 404 | Key not in registry |
+| `InvalidValueError` | 400 | Value fails type/validation checks |
+| `PermissionDeniedError` | 403 | User lacks WritePermission for the setting |
+
+## Frontend Behavior
+
+### Proxy Routes
+
+- `GET /api/settings/schema` → proxies to backend `/api/settings/schema`
+- `PUT /api/settings/values/[key]` → proxies to backend `/api/settings/values/{key}`
+- `DELETE /api/settings/values/[key]` → proxies to backend `/api/settings/values/{key}`
+- Key validation: `/^[a-z0-9_.]{1,255}$/`
+
+### Auto-Generated Settings Page
+
+The settings page (`frontend/src/app/[tenant]/(protected)/settings/page.tsx`) is fully auto-generated from the backend schema. No frontend changes needed when adding new settings.
+
+- **Auto-save**: Debounced 3s for text/number/time, immediate for boolean/select, explicit save button for password
+- **Save feedback**: Green border on success, red on error (4s fade)
+- **Reset button**: Visible only when setting has tenant override and user is writable
+- **Permissions**: `writable: false` → input disabled, shows "Nur Lesen" badge
+- **Conditional visibility**: Client re-evaluates `depends_on` conditions after each save
+- **Optimistic updates**: UI updates locally, background re-fetch at 6s
+- **Mobile-responsive**: Tab layout adapts below 768px (tabs become cards)
+- **Error messages**: Translated to German in `settings-api.ts`
+
+### `useSettingsTabs()` Hook
+
+Exported from `settings-page.tsx` for reusable tab integration. Returns `null` if user has no settings access (graceful degradation). Returns `{ tabs, renderTab(tabId) }` for embedding in layouts.
+
+## Database Tables
+
+### `config.setting_values` (Migration 1.15.25)
+
+Tenant-scoped overrides. UNIQUE(tenant_id, setting_key). RLS policy for tenant isolation.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint PK | |
+| tenant_id | bigint FK | → platform.schools |
+| setting_key | text | Must match a registered key |
+| value | jsonb | Marshaled setting value |
+| updated_by | bigint FK | → auth.accounts |
+| created_at, updated_at | timestamp | |
+
+### `config.setting_audit` (Migration 1.15.25)
+
+Append-only change log. RLS policy for tenant isolation.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint PK | |
+| tenant_id | bigint FK | |
+| setting_key | text | |
+| old_value, new_value | jsonb | Passwords redacted to `[REDACTED]` |
+| action | text | `set`, `reset`, or `delete` |
+| changed_by | bigint FK | → auth.accounts |
+| changed_at | timestamp | |
