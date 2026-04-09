@@ -1050,6 +1050,7 @@ func TestRoleManagement(t *testing.T) {
 		body := map[string]string{
 			"name":        roleName,
 			"description": "A test role",
+			"base_role":   "user",
 		}
 
 		req := testutil.NewJSONRequest(t, "POST", "/auth/roles", body)
@@ -1088,6 +1089,7 @@ func TestRoleManagement(t *testing.T) {
 		body := map[string]string{
 			"name":        roleName,
 			"description": "A test role for get",
+			"base_role":   "user",
 		}
 
 		createReq := testutil.NewJSONRequest(t, "POST", "/auth/roles", body)
