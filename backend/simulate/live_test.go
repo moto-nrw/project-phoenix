@@ -466,7 +466,7 @@ func TestRunLive_NoAdminAccounts(t *testing.T) {
 	}
 	require.NoError(t, seedapi.WriteSeedState(state, statePath))
 
-	err := RunLive(context.Background(), LiveOptions{StatePath: statePath})
+	err := RunLive(context.Background(), LiveOptions{StatePath: statePath, Interval: time.Second})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "no admin accounts")
 }
@@ -491,7 +491,7 @@ func TestRunLive_LoginFails(t *testing.T) {
 	}
 	require.NoError(t, seedapi.WriteSeedState(state, statePath))
 
-	err := RunLive(context.Background(), LiveOptions{StatePath: statePath})
+	err := RunLive(context.Background(), LiveOptions{StatePath: statePath, Interval: time.Second})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "admin login")
 }
@@ -510,7 +510,7 @@ func TestRunLive_NoDevices(t *testing.T) {
 	}
 	require.NoError(t, seedapi.WriteSeedState(state, statePath))
 
-	err := RunLive(context.Background(), LiveOptions{StatePath: statePath})
+	err := RunLive(context.Background(), LiveOptions{StatePath: statePath, Interval: time.Second})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "no devices")
 }
@@ -531,9 +531,68 @@ func TestRunLive_NoRooms(t *testing.T) {
 	}
 	require.NoError(t, seedapi.WriteSeedState(state, statePath))
 
-	err := RunLive(context.Background(), LiveOptions{StatePath: statePath})
+	err := RunLive(context.Background(), LiveOptions{StatePath: statePath, Interval: time.Second})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "no rooms")
+}
+
+func TestRunLive_RejectsNonPositiveInterval(t *testing.T) {
+	srv := liveAPIMock(t)
+	defer srv.Close()
+
+	dir := t.TempDir()
+	statePath := filepath.Join(dir, "state.json")
+	state := &seedapi.SeedState{
+		BaseURL:   srv.URL,
+		DevicePIN: "1234",
+		Accounts:  seedapi.SeedStateAccounts{Admin: []seedapi.AccountCredentials{{Email: "a@t.de", Password: "p"}}},
+		Devices:   map[string]seedapi.SeedDevice{"d1": {APIKey: "k1"}},
+		Students:  []seedapi.SeedStudent{{ID: 1, FirstName: "F", LastName: "L"}},
+		Rooms:     map[string]int64{"OGS-Raum 1": 10},
+	}
+	require.NoError(t, seedapi.WriteSeedState(state, statePath))
+
+	err := RunLive(context.Background(), LiveOptions{
+		StatePath: statePath,
+		Interval:  0,
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "interval must be greater than 0")
+}
+
+func TestRunLive_NoActiveVisits(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/auth/login":
+			_ = json.NewEncoder(w).Encode(map[string]string{"access_token": "jwt"})
+		case "/api/active/visits":
+			_ = json.NewEncoder(w).Encode(map[string]any{"data": []any{}})
+		default:
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success"})
+		}
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	statePath := filepath.Join(dir, "state.json")
+	state := &seedapi.SeedState{
+		BaseURL:   srv.URL,
+		DevicePIN: "1234",
+		Accounts:  seedapi.SeedStateAccounts{Admin: []seedapi.AccountCredentials{{Email: "a@t.de", Password: "p"}}},
+		Devices:   map[string]seedapi.SeedDevice{"d1": {APIKey: "k1"}},
+		Students:  []seedapi.SeedStudent{{ID: 1, FirstName: "F", LastName: "L"}},
+		Rooms:     map[string]int64{"OGS-Raum 1": 10},
+	}
+	require.NoError(t, seedapi.WriteSeedState(state, statePath))
+
+	err := RunLive(context.Background(), LiveOptions{
+		StatePath: statePath,
+		Interval:  time.Second,
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no active visits found")
 }
 
 func TestRunLive_CancelledContext(t *testing.T) {

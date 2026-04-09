@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"net"
 	"net/url"
 	"strings"
 )
@@ -27,20 +28,25 @@ func assertNonProductionURL(rawURL string) error {
 }
 
 func isLocalHostname(hostname string) bool {
-	// Loopback addresses
-	if hostname == "localhost" || hostname == "127.0.0.1" || hostname == "::1" {
+	if hostname == "localhost" {
 		return true
 	}
 
-	// Bare hostnames without dots are Docker service names (e.g. "server", "postgres")
-	if !strings.Contains(hostname, ".") {
+	// Allow any loopback IP, not just 127.0.0.1 / ::1.
+	if ip := net.ParseIP(hostname); ip != nil && ip.IsLoopback() {
 		return true
 	}
 
-	// Common local suffixes
-	if strings.HasSuffix(hostname, ".local") || strings.HasSuffix(hostname, ".internal") {
+	// Only allow explicit local Docker hostnames used in development.
+	if localDockerHostnames[hostname] {
 		return true
 	}
 
 	return false
+}
+
+var localDockerHostnames = map[string]bool{
+	"server":                  true,
+	"host.docker.internal":    true,
+	"gateway.docker.internal": true,
 }

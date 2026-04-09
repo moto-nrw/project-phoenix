@@ -90,6 +90,12 @@ func RunLive(ctx context.Context, opts LiveOptions) error {
 				ls.checkedIn[s.ID] = true
 			}
 		}
+	} else if len(ls.checkedIn) == 0 {
+		return fmt.Errorf("no active visits found; run simulate full-day first and do not close sessions before starting live mode")
+	}
+
+	if opts.Interval <= 0 {
+		return fmt.Errorf("interval must be greater than 0")
 	}
 
 	fmt.Printf("Live simulation started (interval: %s, Ctrl+C to stop)\n", opts.Interval)

@@ -8,11 +8,10 @@ func TestAssertNonProductionURL(t *testing.T) {
 	allowed := []string{
 		"http://localhost:8080",
 		"http://127.0.0.1:8080",
+		"http://127.0.0.2:8080",
 		"http://[::1]:8080",
-		"http://server:8080",       // Docker service name
-		"http://postgres:5432",     // Docker service name
-		"http://myhost.local:8080", // .local suffix
-		"http://app.internal:8080", // .internal suffix
+		"http://server:8080",               // Docker service name
+		"http://host.docker.internal:8080", // Docker desktop loopback bridge
 	}
 
 	blocked := []string{
@@ -24,6 +23,10 @@ func TestAssertNonProductionURL(t *testing.T) {
 		"https://example.com",
 		"https://my-server.cloud.provider.com:8080",
 		"https://staging.some-domain.de",
+		"http://staging:8080",
+		"https://api.prod.internal",
+		"http://postgres:5432",
+		"http://myhost.local:8080",
 	}
 
 	for _, u := range allowed {
