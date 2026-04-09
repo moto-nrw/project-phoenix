@@ -44,7 +44,7 @@ func ParseImage(w http.ResponseWriter, r *http.Request, fieldName string, maxSiz
 
 	contentType, err := detectContentType(file)
 	if err != nil {
-		file.Close()
+		_ = file.Close()
 		return nil, err
 	}
 
@@ -108,7 +108,7 @@ func SaveImage(file io.Reader, targetDir, prefix, contentType string) (string, e
 
 	if _, err := io.Copy(dst, file); err != nil {
 		// Clean up the partially written file
-		os.Remove(filePath)
+		_ = os.Remove(filePath)
 		return "", errors.New("failed to save file")
 	}
 

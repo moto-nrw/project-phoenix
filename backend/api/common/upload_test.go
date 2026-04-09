@@ -184,7 +184,7 @@ func TestParseImage_ValidJPEG(t *testing.T) {
 
 	uploaded, err := ParseImage(w, req, "image", 10<<20)
 	require.NoError(t, err)
-	defer uploaded.File.Close()
+	defer func() { _ = uploaded.File.Close() }()
 
 	assert.Equal(t, "image/jpeg", uploaded.ContentType)
 	assert.NotEmpty(t, uploaded.Filename)
@@ -337,7 +337,7 @@ func TestModTime_ValidFile(t *testing.T) {
 
 	f, err := os.Open(filePath)
 	require.NoError(t, err)
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	mt := modTime(f)
 	assert.False(t, mt.IsZero(), "modification time should be non-zero for a real file")
@@ -352,7 +352,7 @@ func TestModTime_NilHandling(t *testing.T) {
 
 	f, err := os.Open(filePath)
 	require.NoError(t, err)
-	f.Close() // intentionally close before calling modTime
+	_ = f.Close() // intentionally close before calling modTime
 
 	mt := modTime(f)
 	assert.True(t, mt.IsZero(), "should return zero time for closed file descriptor")

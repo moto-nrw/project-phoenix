@@ -1442,11 +1442,11 @@ func (m *mockSchoolRepo) FindByID(_ context.Context, id int64) (*platform.School
 }
 
 func (m *mockSchoolRepo) FindByIDForShare(_ context.Context, id int64) (*platform.School, error) {
-	return m.FindByID(nil, id)
+	return m.FindByID(context.Background(), id)
 }
 
 func (m *mockSchoolRepo) FindByIDForUpdate(_ context.Context, id int64) (*platform.School, error) {
-	return m.FindByID(nil, id)
+	return m.FindByID(context.Background(), id)
 }
 
 func (m *mockSchoolRepo) FindBySlug(_ context.Context, _ string) (*platform.School, error) {
