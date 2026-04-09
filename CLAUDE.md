@@ -359,6 +359,14 @@ Existing snake_case routes (`feedback_history`, `mensa_history`) are legacy. Whe
 
 `platform` · `auth` · `users` · `education` · `facilities` · `activities` · `active` · `schedule` · `iot` · `feedback` · `config` · `suggestions` · `meta` · `audit`
 
+## Tenant-Scoped Settings System
+
+Per-school configuration via a registry-driven system. Schools configure settings in the admin UI; the backend resolves values as tenant DB override → registry default. The service does **not** check env vars — consumers that need env var fallback must use `HasTenantOverride()` first, then fall back to `os.Getenv()` manually. See `.claude/rules/settings-system.md` for the correct pattern.
+
+**RULE: New per-tenant runtime configuration MUST use the settings system, not environment variables.** Env vars are for infrastructure (DB DSN, JWT secret, SMTP host). If a school admin should be able to configure it, it's a setting.
+
+**For architecture, step-by-step guides, and field type reference, see `.claude/rules/settings-system.md`.**
+
 ---
 
 @CLAUDE.local.md
