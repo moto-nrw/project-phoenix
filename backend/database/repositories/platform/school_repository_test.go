@@ -115,6 +115,19 @@ func TestSchoolRepository_QueryMethods(t *testing.T) {
 		assert.Nil(t, found)
 	})
 
+	t.Run("find by id for update returns school", func(t *testing.T) {
+		found, err := repo.FindByIDForUpdate(ctx, schoolA.ID)
+		require.NoError(t, err)
+		require.NotNil(t, found)
+		assert.Equal(t, schoolA.Subdomain, found.Subdomain)
+	})
+
+	t.Run("find by id for update wraps not found", func(t *testing.T) {
+		found, err := repo.FindByIDForUpdate(ctx, 999999999)
+		require.Error(t, err)
+		assert.Nil(t, found)
+	})
+
 	t.Run("find by slug returns first matching scoped row", func(t *testing.T) {
 		found, err := repo.FindBySlug(ctx, schoolA.Slug)
 		require.NoError(t, err)

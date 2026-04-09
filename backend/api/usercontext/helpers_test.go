@@ -3,7 +3,6 @@ package usercontext
 import (
 	"errors"
 	"net/http"
-	"path/filepath"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
@@ -126,177 +125,11 @@ func TestErrorRenderer_NonUserContextError(t *testing.T) {
 }
 
 // =============================================================================
-// getFileExtension Tests
+// Upload helper tests moved to api/common/ (shared upload package)
 // =============================================================================
 
-func TestGetFileExtension_WithExtension(t *testing.T) {
-	tests := []struct {
-		filename    string
-		contentType string
-		expected    string
-	}{
-		{"image.jpg", "image/jpeg", ".jpg"},
-		{"photo.png", "image/png", ".png"},
-		{"pic.webp", "image/webp", ".webp"},
-		{"file.JPEG", "image/jpeg", ".JPEG"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.filename, func(t *testing.T) {
-			result := getFileExtension(tt.filename, tt.contentType)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
-func TestGetFileExtension_WithoutExtension(t *testing.T) {
-	tests := []struct {
-		name        string
-		filename    string
-		contentType string
-		expected    string
-	}{
-		{"jpeg", "image", "image/jpeg", ".jpg"},
-		{"jpg", "image", "image/jpg", ".jpg"},
-		{"png", "image", "image/png", ".png"},
-		{"webp", "image", "image/webp", ".webp"},
-		{"unknown", "image", "application/octet-stream", ""},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := getFileExtension(tt.filename, tt.contentType)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
 // =============================================================================
-// generateRandomString Tests
-// =============================================================================
-
-func TestGenerateRandomString_ReturnsCorrectLength(t *testing.T) {
-	lengths := []int{4, 8, 16, 32}
-
-	for _, length := range lengths {
-		result, err := generateRandomString(length)
-		assert.NoError(t, err)
-		assert.Equal(t, length, len(result))
-	}
-}
-
-func TestGenerateRandomString_ReturnsUnique(t *testing.T) {
-	results := make(map[string]bool)
-	for i := 0; i < 100; i++ {
-		result, err := generateRandomString(16)
-		assert.NoError(t, err)
-		assert.False(t, results[result], "Generated duplicate string")
-		results[result] = true
-	}
-}
-
-func TestGenerateRandomString_ZeroLength(t *testing.T) {
-	result, err := generateRandomString(0)
-	assert.NoError(t, err)
-	assert.Equal(t, "", result)
-}
-
-// =============================================================================
-// validateAvatarPath Tests
-// =============================================================================
-
-func TestValidateAvatarPath_ValidPath(t *testing.T) {
-	validPaths := []string{
-		"/uploads/avatars/global/12345_abc123.jpg",
-		"/uploads/avatars/1/1_x.png",
-		"/uploads/avatars/99999999/99999999_abcdefgh.webp",
-	}
-
-	for _, path := range validPaths {
-		t.Run(path, func(t *testing.T) {
-			filePath, errRenderer := validateAvatarPath(path)
-			assert.Nil(t, errRenderer, "Expected no error for valid path")
-			assert.NotEmpty(t, filePath, "Expected non-empty file path")
-		})
-	}
-}
-
-func TestValidateAvatarPath_InvalidPath(t *testing.T) {
-	// Test path traversal attacks - these should be rejected
-	invalidPaths := []struct {
-		name string
-		path string
-	}{
-		{"path traversal up", "/uploads/avatars/../etc/passwd"},
-		{"double dot", ".."},
-		{"path traversal up2", "/uploads/avatars/global/../../secret.txt"},
-		{"wrong base path", "/uploads/not-avatars/file.jpg"},
-	}
-
-	for _, tt := range invalidPaths {
-		t.Run(tt.name, func(t *testing.T) {
-			_, errRenderer := validateAvatarPath(tt.path)
-			assert.NotNil(t, errRenderer, "Expected error for invalid path: %s", tt.path)
-		})
-	}
-}
-
-func TestAvatarPathToFilePath_ValidPaths(t *testing.T) {
-	testCases := []struct {
-		name       string
-		avatarPath string
-		want       string
-	}{
-		{
-			name:       "global avatar path",
-			avatarPath: "/uploads/avatars/global/12345_abc123.jpg",
-			want:       filepath.Join("public", "uploads", "avatars", "global", "12345_abc123.jpg"),
-		},
-		{
-			name:       "legacy tenant avatar path",
-			avatarPath: "/uploads/avatars/1/1_x.png",
-			want:       filepath.Join("public", "uploads", "avatars", "1", "1_x.png"),
-		},
-	}
-
-	for _, tt := range testCases {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := avatarPathToFilePath(tt.avatarPath)
-			assert.NoError(t, err)
-			assert.Equal(t, tt.want, got)
-		})
-	}
-}
-
-func TestAvatarPathToFilePath_InvalidPaths(t *testing.T) {
-	testCases := []struct {
-		name       string
-		avatarPath string
-		wantErr    string
-	}{
-		{
-			name:       "invalid prefix",
-			avatarPath: "/uploads/not-avatars/file.jpg",
-			wantErr:    "invalid avatar path",
-		},
-		{
-			name:       "path traversal",
-			avatarPath: "/uploads/avatars/global/../../secret.txt",
-			wantErr:    "invalid path",
-		},
-	}
-
-	for _, tt := range testCases {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := avatarPathToFilePath(tt.avatarPath)
-			assert.Empty(t, got)
-			assert.EqualError(t, err, tt.wantErr)
-		})
-	}
-}
-
-// =============================================================================
-// AllowedImageTypes Tests
+// AllowedImageTypes Tests (now in common package)
 // =============================================================================
 
 func TestAllowedImageTypes(t *testing.T) {
@@ -304,10 +137,10 @@ func TestAllowedImageTypes(t *testing.T) {
 	notAllowed := []string{"image/gif", "image/bmp", "application/pdf", "text/html"}
 
 	for _, ct := range allowed {
-		assert.True(t, allowedImageTypes[ct], "%s should be allowed", ct)
+		assert.True(t, common.AllowedImageTypes[ct], "%s should be allowed", ct)
 	}
 
 	for _, ct := range notAllowed {
-		assert.False(t, allowedImageTypes[ct], "%s should not be allowed", ct)
+		assert.False(t, common.AllowedImageTypes[ct], "%s should not be allowed", ct)
 	}
 }

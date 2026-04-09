@@ -51,6 +51,15 @@ func (f *fakeSettingsService) SetValue(context.Context, string, any, *int64, []s
 func (f *fakeSettingsService) ResetValue(context.Context, string, *int64, []string) error {
 	return nil
 }
+func (f *fakeSettingsService) GetLoginImageURL(context.Context, int64) (string, error) {
+	return "", nil
+}
+func (f *fakeSettingsService) SetLoginImageURL(context.Context, int64, string) (string, error) {
+	return "", nil
+}
+func (f *fakeSettingsService) ClearLoginImageURL(context.Context, int64) (string, error) {
+	return "", nil
+}
 
 func TestResolveBoolOrDefault_NilService_ReturnsFallback(t *testing.T) {
 	got := configSvc.ResolveBoolOrDefault(context.Background(), nil, "any.key", true, nil)

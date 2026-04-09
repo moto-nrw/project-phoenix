@@ -12,6 +12,7 @@ import { PasswordResetModal } from "~/components/ui/password-reset-modal";
 import { launchConfetti, clearConfetti } from "~/lib/confetti";
 import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import { useTenant } from "~/components/tenant/tenant-provider";
+import { loginImageSrc } from "~/lib/tenant-api";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { env } from "~/env";
 import { DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
@@ -214,13 +215,25 @@ function LoginForm() {
 
         {/* Logo Section */}
         <div className="mb-8 flex justify-center">
-          <Image
-            src="/images/moto_transparent.png"
-            alt="MOTO Logo"
-            width={200}
-            height={80}
-            priority
-          />
+          {tenant?.settings?.loginImageUrl ? (
+            <Image
+              src={loginImageSrc(tenant.settings.loginImageUrl)}
+              alt={`${tenant.name} Logo`}
+              width={200}
+              height={142}
+              className="max-h-[142px] w-auto object-contain"
+              priority
+              unoptimized
+            />
+          ) : (
+            <Image
+              src="/images/moto_transparent.png"
+              alt="MOTO Logo"
+              width={200}
+              height={80}
+              priority
+            />
+          )}
         </div>
 
         {/* Welcome Text */}

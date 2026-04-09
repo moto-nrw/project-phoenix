@@ -92,6 +92,9 @@ func (m *mockSchoolRepo) FindByID(ctx context.Context, id int64) (*platformModel
 func (m *mockSchoolRepo) FindByIDForShare(ctx context.Context, id int64) (*platformModels.School, error) {
 	return m.FindByID(ctx, id)
 }
+func (m *mockSchoolRepo) FindByIDForUpdate(ctx context.Context, id int64) (*platformModels.School, error) {
+	return m.FindByID(ctx, id)
+}
 func (m *mockSchoolRepo) FindBySlug(context.Context, string) (*platformModels.School, error) {
 	return nil, nil
 }

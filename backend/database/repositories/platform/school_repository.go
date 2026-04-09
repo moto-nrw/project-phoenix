@@ -99,6 +99,27 @@ func (r *SchoolRepository) FindByIDForShare(ctx context.Context, id int64) (*pla
 	return school, nil
 }
 
+// FindByIDForUpdate returns a school by ID while acquiring a FOR UPDATE lock on the row.
+// This serializes concurrent read-modify-write cycles (e.g., JSONB settings updates)
+// by blocking other transactions from reading or writing the same row until the calling
+// transaction completes. Must be called within a transaction.
+func (r *SchoolRepository) FindByIDForUpdate(ctx context.Context, id int64) (*platform.School, error) {
+	school := new(platform.School)
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(school).
+		ModelTableExpr(schoolTableAlias).
+		Where(`"school".id = ?`, id).
+		For("UPDATE").
+		Scan(ctx)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, &modelBase.DatabaseError{Op: "find school by id for update", Err: err}
+		}
+		return nil, err
+	}
+	return school, nil
+}
+
 // FindBySlug returns a non-deleted school by its slug.
 // Soft-deleted schools are filtered out (returns nil, nil). Callers that need to
 // distinguish "doesn't exist" from "exists but deleted" should use FindBySubdomain,

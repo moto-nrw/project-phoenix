@@ -1279,6 +1279,10 @@ func (r *stubSchoolRepository) FindByIDForShare(ctx context.Context, id int64) (
 	return r.FindByID(ctx, id)
 }
 
+func (r *stubSchoolRepository) FindByIDForUpdate(ctx context.Context, id int64) (*platformModel.School, error) {
+	return r.FindByID(ctx, id)
+}
+
 func (r *stubSchoolRepository) FindBySlug(context.Context, string) (*platformModel.School, error) {
 	return nil, fmt.Errorf("not found")
 }
