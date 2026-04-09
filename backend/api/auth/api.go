@@ -1174,7 +1174,8 @@ func (rs *Resource) updateRole(w http.ResponseWriter, r *http.Request) {
 	role.Name = req.Name
 	role.Description = req.Description
 	// Preserve existing base_role when the caller omits the field.
-	if req.BaseRole != nil {
+	// System roles must never carry a base_role — ignore silently.
+	if req.BaseRole != nil && !role.IsSystem {
 		role.BaseRole = req.BaseRole
 	}
 
