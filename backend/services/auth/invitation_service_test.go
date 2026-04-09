@@ -434,10 +434,12 @@ func TestResendInvitationSendsEmail(t *testing.T) {
 		if findErr != nil {
 			return false
 		}
-		return updated.EmailSentAt != nil && updated.EmailError == nil && updated.EmailRetryCount == 1
-	}, time.Second, 10*time.Millisecond)
-
-	require.NoError(t, mock.ExpectationsWereMet())
+		// Wait for both the stub update AND the sqlmock admin tx (BEGIN → SET LOCAL ROLE → COMMIT)
+		// to complete. The dispatcher callback updates the stub inside withAdminTx, so the stub
+		// can reflect the new state before COMMIT is consumed by sqlmock.
+		return updated.EmailSentAt != nil && updated.EmailError == nil && updated.EmailRetryCount == 1 &&
+			mock.ExpectationsWereMet() == nil
+	}, 2*time.Second, 10*time.Millisecond)
 	require.True(t, token.UpdatedAt.After(time.Now().Add(-30*time.Second)), "updated_at should be refreshed")
 }
 

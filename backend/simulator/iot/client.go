@@ -1,59 +1,37 @@
 package iot
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
-	"log"
 	"net/http"
 	"net/url"
-	"strings"
 
 	"github.com/moto-nrw/project-phoenix/api/iot/attendance"
 	"github.com/moto-nrw/project-phoenix/api/iot/checkin"
 	"github.com/moto-nrw/project-phoenix/api/iot/data"
 	sessionsapi "github.com/moto-nrw/project-phoenix/api/iot/sessions"
+	"github.com/moto-nrw/project-phoenix/integration/phoenixapi"
 )
 
 // Client wraps HTTP interactions with the IoT API on behalf of devices.
 type Client struct {
-	baseURL    string
-	pin        string
-	httpClient *http.Client
+	adapter *phoenixapi.Adapter
+	pin     string
 }
 
 // NewClient creates a new API client.
 func NewClient(baseURL, pin string, httpClient *http.Client) *Client {
 	return &Client{
-		baseURL:    strings.TrimSuffix(baseURL, "/"),
-		pin:        pin,
-		httpClient: httpClient,
+		adapter: phoenixapi.NewWithHTTPClient(baseURL, false, httpClient),
+		pin:     pin,
 	}
 }
 
 // Authenticate validates a device's API key + PIN combination.
 func (c *Client) Authenticate(ctx context.Context, device DeviceConfig) error {
-	req, err := c.newRequest(ctx, device, http.MethodGet, "/api/iot/status", nil, nil)
-	if err != nil {
-		return fmt.Errorf("build status request: %w", err)
-	}
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
+	if _, _, err := c.adapter.Raw(ctx, c.deviceAuth(device), http.MethodGet, "/api/iot/status", nil, nil); err != nil {
 		return fmt.Errorf("call status endpoint: %w", err)
 	}
-	defer func() {
-		if cerr := resp.Body.Close(); cerr != nil {
-			log.Printf("[client] closing status response body failed: %v", cerr)
-		}
-	}()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("unexpected status %d from /api/iot/status", resp.StatusCode)
-	}
-
 	return nil
 }
 
@@ -118,47 +96,10 @@ type CheckActionPayload struct {
 
 // PerformCheckAction submits a checkin/checkout action for a student.
 func (c *Client) PerformCheckAction(ctx context.Context, device DeviceConfig, payload CheckActionPayload) (*checkin.CheckinResponse, error) {
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return nil, fmt.Errorf("marshal check action payload: %w", err)
-	}
-
-	req, err := c.newRequest(ctx, device, http.MethodPost, "/api/iot/checkin", nil, bytes.NewReader(body))
-	if err != nil {
-		return nil, fmt.Errorf("build checkin request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
+	var result checkin.CheckinResponse
+	if err := c.adapter.Envelope(ctx, c.deviceAuth(device), http.MethodPost, "/api/iot/checkin", payload, &result); err != nil {
 		return nil, fmt.Errorf("call checkin endpoint: %w", err)
 	}
-	defer func() {
-		if cerr := resp.Body.Close(); cerr != nil {
-			log.Printf("[client] closing checkin response body failed: %v", cerr)
-		}
-	}()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return nil, fmt.Errorf("unexpected status %d from /api/iot/checkin: %s", resp.StatusCode, strings.TrimSpace(string(body)))
-	}
-
-	var envelope apiResponse
-	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
-		return nil, fmt.Errorf("decode response from /api/iot/checkin: %w", err)
-	}
-	if envelope.Status != "success" {
-		return nil, fmt.Errorf("checkin action failed: %s", envelope.Message)
-	}
-
-	var result checkin.CheckinResponse
-	if len(envelope.Data) > 0 && string(envelope.Data) != "null" {
-		if err := json.Unmarshal(envelope.Data, &result); err != nil {
-			return nil, fmt.Errorf("decode checkin payload: %w", err)
-		}
-	}
-
 	return &result, nil
 }
 
@@ -170,95 +111,21 @@ type AttendanceTogglePayload struct {
 
 // ToggleAttendance toggles a student's attendance state.
 func (c *Client) ToggleAttendance(ctx context.Context, device DeviceConfig, payload AttendanceTogglePayload) (*attendance.AttendanceToggleResponse, error) {
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return nil, fmt.Errorf("marshal attendance payload: %w", err)
-	}
-
-	req, err := c.newRequest(ctx, device, http.MethodPost, "/api/iot/attendance/toggle", nil, bytes.NewReader(body))
-	if err != nil {
-		return nil, fmt.Errorf("build attendance toggle request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
+	var result attendance.AttendanceToggleResponse
+	if err := c.adapter.Envelope(ctx, c.deviceAuth(device), http.MethodPost, "/api/iot/attendance/toggle", payload, &result); err != nil {
 		return nil, fmt.Errorf("call attendance toggle endpoint: %w", err)
 	}
-	defer func() {
-		if cerr := resp.Body.Close(); cerr != nil {
-			log.Printf("[client] closing attendance response body failed: %v", cerr)
-		}
-	}()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return nil, fmt.Errorf("unexpected status %d from /api/iot/attendance/toggle: %s", resp.StatusCode, strings.TrimSpace(string(body)))
-	}
-
-	var envelope apiResponse
-	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
-		return nil, fmt.Errorf("decode attendance toggle response: %w", err)
-	}
-	if envelope.Status != "success" {
-		return nil, fmt.Errorf("attendance toggle failed: %s", envelope.Message)
-	}
-
-	var result attendance.AttendanceToggleResponse
-	if len(envelope.Data) > 0 && string(envelope.Data) != "null" {
-		if err := json.Unmarshal(envelope.Data, &result); err != nil {
-			return nil, fmt.Errorf("decode attendance payload: %w", err)
-		}
-	}
-
 	return &result, nil
 }
 
 // UpdateSessionSupervisors updates the supervisors assigned to a session.
 func (c *Client) UpdateSessionSupervisors(ctx context.Context, device DeviceConfig, sessionID int64, supervisorIDs []int64) (*sessionsapi.UpdateSupervisorsResponse, error) {
 	payload := &sessionsapi.UpdateSupervisorsRequest{SupervisorIDs: supervisorIDs}
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return nil, fmt.Errorf("marshal supervisor payload: %w", err)
-	}
-
 	path := fmt.Sprintf("/api/iot/session/%d/supervisors", sessionID)
-	req, err := c.newRequest(ctx, device, http.MethodPut, path, nil, bytes.NewReader(body))
-	if err != nil {
-		return nil, fmt.Errorf("build supervisor update request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
+	var result sessionsapi.UpdateSupervisorsResponse
+	if err := c.adapter.Envelope(ctx, c.deviceAuth(device), http.MethodPut, path, payload, &result); err != nil {
 		return nil, fmt.Errorf("call supervisor update endpoint: %w", err)
 	}
-	defer func() {
-		if cerr := resp.Body.Close(); cerr != nil {
-			log.Printf("[client] closing supervisor response body failed: %v", cerr)
-		}
-	}()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return nil, fmt.Errorf("unexpected status %d from %s: %s", resp.StatusCode, path, strings.TrimSpace(string(body)))
-	}
-
-	var envelope apiResponse
-	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
-		return nil, fmt.Errorf("decode supervisor update response: %w", err)
-	}
-	if envelope.Status != "success" {
-		return nil, fmt.Errorf("supervisor update failed: %s", envelope.Message)
-	}
-
-	var result sessionsapi.UpdateSupervisorsResponse
-	if len(envelope.Data) > 0 && string(envelope.Data) != "null" {
-		if err := json.Unmarshal(envelope.Data, &result); err != nil {
-			return nil, fmt.Errorf("decode supervisor payload: %w", err)
-		}
-	}
-
 	return &result, nil
 }
 
@@ -276,118 +143,21 @@ func (c *Client) StartSession(ctx context.Context, device DeviceConfig, session 
 		payload["supervisor_ids"] = session.SupervisorIDs
 	}
 
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return nil, fmt.Errorf("marshal session payload: %w", err)
-	}
-
-	req, err := c.newRequest(ctx, device, http.MethodPost, "/api/iot/session/start", nil, bytes.NewReader(body))
-	if err != nil {
-		return nil, fmt.Errorf("build session start request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("call session start endpoint: %w", err)
-	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return nil, fmt.Errorf("unexpected status %d from /api/iot/session/start: %s", resp.StatusCode, strings.TrimSpace(string(body)))
-	}
-
-	var envelope apiResponse
-	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
-		return nil, fmt.Errorf("decode response from /api/iot/session/start: %w", err)
-	}
-
-	if envelope.Status != "success" {
-		return nil, fmt.Errorf("session start failed: %s", envelope.Message)
-	}
-
-	if len(envelope.Data) == 0 || string(envelope.Data) == "null" {
-		return nil, fmt.Errorf("session start returned empty payload")
-	}
-
 	var result sessionsapi.SessionStartResponse
-	if err := json.Unmarshal(envelope.Data, &result); err != nil {
-		return nil, fmt.Errorf("decode session start payload: %w", err)
+	if err := c.adapter.Envelope(ctx, c.deviceAuth(device), http.MethodPost, "/api/iot/session/start", payload, &result); err != nil {
+		return nil, fmt.Errorf("call session start endpoint: %w", err)
 	}
 
 	return &result, nil
 }
 
 func (c *Client) get(ctx context.Context, device DeviceConfig, path string, query url.Values, out interface{}) error {
-	req, err := c.newRequest(ctx, device, http.MethodGet, path, query, nil)
-	if err != nil {
-		return err
-	}
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return fmt.Errorf("unexpected status %d from %s: %s", resp.StatusCode, path, strings.TrimSpace(string(body)))
-	}
-
-	var envelope apiResponse
-	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
-		return fmt.Errorf("decode response from %s: %w", path, err)
-	}
-
-	if envelope.Status != "success" {
-		return fmt.Errorf("api returned status %q for %s: %s", envelope.Status, path, envelope.Message)
-	}
-
-	if out == nil {
-		return nil
-	}
-
-	if len(envelope.Data) == 0 || string(envelope.Data) == "null" {
-		return nil
-	}
-
-	if err := json.Unmarshal(envelope.Data, out); err != nil {
-		return fmt.Errorf("decode data payload from %s: %w", path, err)
-	}
-	return nil
-}
-
-func (c *Client) newRequest(ctx context.Context, device DeviceConfig, method, path string, query url.Values, body io.Reader) (*http.Request, error) {
-	if !strings.HasPrefix(path, "/") {
-		path = "/" + path
-	}
-
-	fullURL := c.baseURL + path
 	if query != nil {
-		fullURL = fullURL + "?" + query.Encode()
+		path = path + "?" + query.Encode()
 	}
-
-	req, err := http.NewRequestWithContext(ctx, method, fullURL, body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+device.APIKey)
-	req.Header.Set("X-Staff-PIN", c.pin)
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("User-Agent", "project-phoenix-simulator/0.1")
-
-	return req, nil
+	return c.adapter.Envelope(ctx, c.deviceAuth(device), http.MethodGet, path, nil, out)
 }
 
-type apiResponse struct {
-	Status  string          `json:"status"`
-	Data    json.RawMessage `json:"data"`
-	Message string          `json:"message"`
+func (c *Client) deviceAuth(device DeviceConfig) phoenixapi.AuthRef {
+	return phoenixapi.DeviceAuth(device.APIKey, c.pin, device.DeviceID)
 }

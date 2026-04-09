@@ -1,70 +1,49 @@
 package simulate
 
 import (
-	"bytes"
-	"encoding/json"
+	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
-	"time"
+
+	"github.com/moto-nrw/project-phoenix/integration/phoenixapi"
 )
 
 // Client is a multi-auth HTTP client that supports both JWT and device API key authentication.
 type Client struct {
 	baseURL    string
+	adapter    *phoenixapi.Adapter
 	httpClient *http.Client
+	auth       phoenixapi.AuthRef
 	jwtToken   string
 	verbose    bool
 }
 
 // NewClient creates a new simulation client.
 func NewClient(baseURL string, verbose bool) *Client {
+	adapter := phoenixapi.New(baseURL, verbose)
 	return &Client{
 		baseURL:    strings.TrimSuffix(baseURL, "/"),
-		httpClient: &http.Client{Timeout: 30 * time.Second},
+		adapter:    adapter,
+		httpClient: adapter.HTTPClient(),
 		verbose:    verbose,
 	}
 }
 
 // Login authenticates with the backend and stores the JWT token.
 func (c *Client) Login(email, password string) error {
-	body := map[string]string{
-		"email":    email,
-		"password": password,
-	}
-
-	respBody, err := c.doRequest("POST", "/auth/login", body, "", "")
+	auth, err := c.adapter.LoginTenant(context.Background(), email, password, "")
 	if err != nil {
 		return fmt.Errorf("login failed: %w", err)
 	}
-
-	var loginResp struct {
-		AccessToken string `json:"access_token"`
-	}
-	if err := json.Unmarshal(respBody, &loginResp); err != nil {
-		return fmt.Errorf("parse login response: %w", err)
-	}
-	if loginResp.AccessToken == "" {
-		return fmt.Errorf("no access token in login response")
-	}
-
-	c.jwtToken = loginResp.AccessToken
+	c.auth = auth
+	c.jwtToken = auth.Token
 	return nil
 }
 
 // CheckHealth verifies the server is reachable.
 func (c *Client) CheckHealth() error {
-	resp, err := c.httpClient.Get(c.baseURL + "/health")
-	if err != nil {
-		return fmt.Errorf("server not reachable at %s: %w", c.baseURL, err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("health check failed: status %d", resp.StatusCode)
-	}
-	return nil
+	return c.adapter.CheckHealth(context.Background())
 }
 
 // AdminGet makes a JWT-authenticated GET request.
@@ -95,65 +74,24 @@ func (c *Client) doJWTRequest(method, path string, body any) ([]byte, error) {
 }
 
 func (c *Client) doRequest(method, path string, body any, deviceAPIKey, devicePIN string) ([]byte, error) {
-	var bodyReader io.Reader
-	if body != nil {
-		jsonBody, err := json.Marshal(body)
-		if err != nil {
-			return nil, fmt.Errorf("marshal request body: %w", err)
-		}
-		bodyReader = bytes.NewReader(jsonBody)
+	auth := c.auth
+	headers := map[string]string{
+		"User-Agent": "project-phoenix-simulate/0.1",
 	}
-
-	req, err := http.NewRequest(method, c.baseURL+path, bodyReader)
-	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
-	}
-
-	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
-	}
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("User-Agent", "project-phoenix-simulate/0.1")
-
-	// Auth: device key+PIN takes precedence, otherwise use JWT
 	if deviceAPIKey != "" {
-		req.Header.Set("Authorization", "Bearer "+deviceAPIKey)
-		req.Header.Set("X-Staff-PIN", devicePIN)
-	} else if c.jwtToken != "" {
-		req.Header.Set("Authorization", "Bearer "+c.jwtToken)
-	}
-
-	if c.verbose {
-		authCtx := "jwt"
-		if deviceAPIKey != "" {
-			authCtx = "device"
+		auth = phoenixapi.DeviceAuth(deviceAPIKey, devicePIN, deviceAPIKey)
+	} else if auth.Token == "" && c.jwtToken != "" {
+		auth = phoenixapi.AuthRef{
+			Kind:  phoenixapi.AuthBearer,
+			Label: "tenant",
+			Token: c.jwtToken,
 		}
-		fmt.Printf("  -> %s %s (%s)\n", method, path, authCtx)
 	}
 
-	resp, err := c.httpClient.Do(req)
+	respBody, _, err := c.adapter.Raw(context.Background(), auth, method, path, body, headers)
 	if err != nil {
-		return nil, fmt.Errorf("execute request: %w", err)
+		return nil, err
 	}
-	defer func() { _ = resp.Body.Close() }()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("read response: %w", err)
-	}
-
-	if c.verbose {
-		statusIcon := "ok"
-		if resp.StatusCode >= 400 {
-			statusIcon = "FAIL"
-		}
-		fmt.Printf("  <- %d %s\n", resp.StatusCode, statusIcon)
-	}
-
-	if resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("%s %s: status %d: %s", method, path, resp.StatusCode, truncate(string(respBody), 200))
-	}
-
 	return respBody, nil
 }
 
