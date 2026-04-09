@@ -36,6 +36,10 @@ collects session/room/student/activity information, and keeps that snapshot fres
 			log.Fatalf("Failed to load simulator config: %v", err)
 		}
 
+		if err := assertNonProductionURL(cfg.BaseURL); err != nil {
+			log.Fatal(err)
+		}
+
 		if err := iotSimulator.Run(ctx, cfg); err != nil {
 			if errors.Is(err, iotSimulator.ErrPartialAuthentication) {
 				log.Fatalf("Simulator completed with authentication errors: %v", err)
@@ -56,6 +60,14 @@ var simulateFullDayCmd = &cobra.Command{
 		statePath, _ := cmd.Flags().GetString("state")
 		closeSessions, _ := cmd.Flags().GetBool("close")
 		verbose, _ := cmd.Flags().GetBool("verbose")
+
+		state, err := seedapi.LoadSeedState(statePath)
+		if err != nil {
+			log.Fatalf("Failed to load seed state: %v", err)
+		}
+		if err := assertNonProductionURL(state.BaseURL); err != nil {
+			log.Fatal(err)
+		}
 
 		opts := simulate.FullDayOptions{
 			StatePath: statePath,
@@ -79,6 +91,14 @@ var simulateStatusCmd = &cobra.Command{
 
 		statePath, _ := cmd.Flags().GetString("state")
 		verbose, _ := cmd.Flags().GetBool("verbose")
+
+		state, err := seedapi.LoadSeedState(statePath)
+		if err != nil {
+			log.Fatalf("Failed to load seed state: %v", err)
+		}
+		if err := assertNonProductionURL(state.BaseURL); err != nil {
+			log.Fatal(err)
+		}
 
 		opts := simulate.StatusOptions{
 			StatePath: statePath,
