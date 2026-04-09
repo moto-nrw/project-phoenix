@@ -5,8 +5,12 @@ package auth
 import (
 	"net/http/httptest"
 	"testing"
+	"time"
 
+	authModel "github.com/moto-nrw/project-phoenix/models/auth"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // =============================================================================
@@ -155,23 +159,29 @@ func TestChangePasswordRequest_Fields(t *testing.T) {
 }
 
 func TestCreateRoleRequest_Fields(t *testing.T) {
+	baseRole := "user"
 	req := CreateRoleRequest{
 		Name:        "admin",
 		Description: "Administrator role",
+		BaseRole:    &baseRole,
 	}
 
 	assert.Equal(t, "admin", req.Name)
 	assert.Equal(t, "Administrator role", req.Description)
+	assert.Equal(t, "user", *req.BaseRole)
 }
 
 func TestUpdateRoleRequest_Fields(t *testing.T) {
+	baseRole := "admin"
 	req := UpdateRoleRequest{
 		Name:        "updated_role",
 		Description: "Updated description",
+		BaseRole:    &baseRole,
 	}
 
 	assert.Equal(t, "updated_role", req.Name)
 	assert.Equal(t, "Updated description", req.Description)
+	assert.Equal(t, "admin", *req.BaseRole)
 }
 
 func TestCreatePermissionRequest_Fields(t *testing.T) {
@@ -282,4 +292,200 @@ func TestNewResource_ReturnsResource(t *testing.T) {
 	resource := NewResource(nil, nil, nil, nil)
 
 	assert.NotNil(t, resource)
+}
+
+// =============================================================================
+// normalizeBaseRole Tests
+// =============================================================================
+
+func TestNormalizeBaseRole(t *testing.T) {
+	t.Run("nil input returns nil", func(t *testing.T) {
+		assert.Nil(t, normalizeBaseRole(nil))
+	})
+
+	t.Run("empty string returns nil", func(t *testing.T) {
+		empty := ""
+		assert.Nil(t, normalizeBaseRole(&empty))
+	})
+
+	t.Run("whitespace-only returns nil", func(t *testing.T) {
+		spaces := "   "
+		assert.Nil(t, normalizeBaseRole(&spaces))
+	})
+
+	t.Run("trims whitespace", func(t *testing.T) {
+		padded := "  admin  "
+		result := normalizeBaseRole(&padded)
+		require.NotNil(t, result)
+		assert.Equal(t, "admin", *result)
+	})
+
+	t.Run("passes through clean value", func(t *testing.T) {
+		clean := "guardian"
+		result := normalizeBaseRole(&clean)
+		require.NotNil(t, result)
+		assert.Equal(t, "guardian", *result)
+	})
+}
+
+// =============================================================================
+// validateBaseRole / validateBaseRoleValue Tests
+// =============================================================================
+
+func TestValidateBaseRole(t *testing.T) {
+	t.Run("nil is rejected", func(t *testing.T) {
+		err := validateBaseRole(nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "base_role is required")
+	})
+
+	t.Run("valid values accepted", func(t *testing.T) {
+		for _, role := range []string{"admin", "user", "guardian"} {
+			r := role
+			assert.NoError(t, validateBaseRole(&r), "expected %q to be valid", role)
+		}
+	})
+
+	t.Run("invalid value rejected", func(t *testing.T) {
+		bad := "superadmin"
+		err := validateBaseRole(&bad)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "base_role must be one of")
+	})
+
+	t.Run("case sensitive", func(t *testing.T) {
+		upper := "Admin"
+		err := validateBaseRole(&upper)
+		require.Error(t, err, "base_role validation must be case-sensitive")
+	})
+}
+
+func TestValidateBaseRoleValue(t *testing.T) {
+	t.Run("empty string rejected", func(t *testing.T) {
+		assert.Error(t, validateBaseRoleValue(""))
+	})
+
+	t.Run("unknown role rejected", func(t *testing.T) {
+		assert.Error(t, validateBaseRoleValue("staff"))
+	})
+
+	t.Run("all valid roles accepted", func(t *testing.T) {
+		for _, role := range authModel.ValidBaseRoles() {
+			assert.NoError(t, validateBaseRoleValue(role))
+		}
+	})
+}
+
+// =============================================================================
+// toRoleResponse Tests
+// =============================================================================
+
+func TestToRoleResponse(t *testing.T) {
+	now := time.Date(2026, 1, 15, 10, 30, 0, 0, time.UTC)
+	baseRole := "admin"
+
+	t.Run("maps all fields including base_role", func(t *testing.T) {
+		role := &authModel.Role{
+			Model:       base.Model{ID: 42, CreatedAt: now, UpdatedAt: now},
+			Name:        "custom-admin",
+			Description: "A custom admin role",
+			IsSystem:    false,
+			BaseRole:    &baseRole,
+		}
+
+		resp := toRoleResponse(role)
+
+		assert.Equal(t, int64(42), resp.ID)
+		assert.Equal(t, "custom-admin", resp.Name)
+		assert.Equal(t, "A custom admin role", resp.Description)
+		assert.False(t, resp.IsSystem)
+		require.NotNil(t, resp.BaseRole)
+		assert.Equal(t, "admin", *resp.BaseRole)
+		assert.Equal(t, "2026-01-15T10:30:00Z", resp.CreatedAt)
+		assert.Equal(t, "2026-01-15T10:30:00Z", resp.UpdatedAt)
+		assert.Nil(t, resp.Permissions, "Permissions not set by toRoleResponse")
+	})
+
+	t.Run("nil base_role preserved", func(t *testing.T) {
+		role := &authModel.Role{
+			Model:    base.Model{ID: 1, CreatedAt: now, UpdatedAt: now},
+			Name:     "legacy-role",
+			BaseRole: nil,
+		}
+
+		resp := toRoleResponse(role)
+		assert.Nil(t, resp.BaseRole)
+	})
+
+	t.Run("system role flag preserved", func(t *testing.T) {
+		role := &authModel.Role{
+			Model:    base.Model{ID: 1, CreatedAt: now, UpdatedAt: now},
+			Name:     "admin",
+			IsSystem: true,
+			BaseRole: nil,
+		}
+
+		resp := toRoleResponse(role)
+		assert.True(t, resp.IsSystem)
+		assert.Nil(t, resp.BaseRole)
+	})
+}
+
+// =============================================================================
+// CreateRoleRequest.Bind / UpdateRoleRequest.Bind Tests
+// =============================================================================
+
+func TestCreateRoleRequest_Bind_BaseRoleValidation(t *testing.T) {
+	t.Run("missing base_role rejected", func(t *testing.T) {
+		req := &CreateRoleRequest{Name: "test", Description: "desc"}
+		err := req.Bind(nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "base_role is required")
+	})
+
+	t.Run("invalid base_role rejected", func(t *testing.T) {
+		bad := "manager"
+		req := &CreateRoleRequest{Name: "test", Description: "desc", BaseRole: &bad}
+		err := req.Bind(nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "base_role must be one of")
+	})
+
+	t.Run("valid base_role accepted", func(t *testing.T) {
+		valid := "guardian"
+		req := &CreateRoleRequest{Name: "test", Description: "desc", BaseRole: &valid}
+		err := req.Bind(nil)
+		assert.NoError(t, err)
+	})
+
+	t.Run("whitespace base_role normalized then rejected as nil", func(t *testing.T) {
+		spaces := "   "
+		req := &CreateRoleRequest{Name: "test", Description: "desc", BaseRole: &spaces}
+		err := req.Bind(nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "base_role is required")
+	})
+}
+
+func TestUpdateRoleRequest_Bind_BaseRoleValidation(t *testing.T) {
+	t.Run("nil base_role accepted on update", func(t *testing.T) {
+		req := &UpdateRoleRequest{Name: "test", Description: "desc"}
+		err := req.Bind(nil)
+		assert.NoError(t, err)
+	})
+
+	t.Run("valid base_role accepted on update", func(t *testing.T) {
+		valid := "admin"
+		req := &UpdateRoleRequest{Name: "test", Description: "desc", BaseRole: &valid}
+		err := req.Bind(nil)
+		assert.NoError(t, err)
+	})
+
+	t.Run("invalid base_role rejected on update", func(t *testing.T) {
+		bad := "owner"
+		req := &UpdateRoleRequest{Name: "test", Description: "desc", BaseRole: &bad}
+		err := req.Bind(nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "base_role must be one of")
+	})
 }
