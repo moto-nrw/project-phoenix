@@ -63,6 +63,15 @@ func (m *configMockSettings) SetValue(_ context.Context, _ string, _ any, _ *int
 func (m *configMockSettings) ResetValue(_ context.Context, _ string, _ *int64, _ []string) error {
 	return nil
 }
+func (m *configMockSettings) GetLoginImageURL(_ context.Context, _ int64) (string, error) {
+	return "", nil
+}
+func (m *configMockSettings) SetLoginImageURL(_ context.Context, _ int64, _ string) (string, error) {
+	return "", nil
+}
+func (m *configMockSettings) ClearLoginImageURL(_ context.Context, _ int64) (string, error) {
+	return "", nil
+}
 
 func TestGetDeviceConfig_AllDefaults(t *testing.T) {
 	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
