@@ -121,6 +121,9 @@ func RunLive(ctx context.Context, opts LiveOptions) error {
 func runLiveTick(client *Client, ls *liveState, state *seedapi.SeedState, device seedapi.SeedDevice, counts *liveCounts) {
 	now := time.Now().Format("15:04:05")
 
+	// Keep session alive (mirrors PyrePortal's periodic ping)
+	_, _ = client.DevicePost("/api/iot/ping", nil, device.APIKey, state.DevicePIN)
+
 	// Weighted random action selection
 	roll := rand.Intn(100)
 	switch {

@@ -270,6 +270,11 @@ func (endOfDayAction) Run(_ context.Context, rt *Runtime) error {
 		if !ok {
 			continue
 		}
+		// Query pickup info first (mirrors PyrePortal flow)
+		_, _ = rt.Client.DevicePost("/api/iot/pickup-query", map[string]any{
+			"student_rfid": rfidTag,
+		}, primaryDevice.APIKey, rt.State.DevicePIN)
+
 		body := map[string]any{
 			"rfid":        rfidTag,
 			"action":      "confirm_daily_checkout",
