@@ -22,9 +22,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
+	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -732,6 +734,94 @@ func TestShouldShowDailyCheckoutWithGroup_BeforeCheckoutTime(t *testing.T) {
 	visit := &active.Visit{ActiveGroup: &active.Group{RoomID: 1}}
 	result := rs.shouldShowDailyCheckoutWithGroup(context.Background(), student, visit)
 	assert.False(t, result, "Should return false before daily checkout time")
+}
+
+func TestShouldShowDailyCheckoutWithGroup_NilCheckoutTime_AlwaysAvailable(t *testing.T) {
+	// No env var, no settings override → nil checkout time → time check skipped
+	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
+
+	// Education group has no room → daily checkout available from any room
+	rs := &Resource{
+		SettingsService:  &mockSettingsService{values: map[string]string{}},
+		EducationService: &mockEducationService{group: &education.Group{Model: base.Model{ID: 1}}},
+	}
+	groupID := int64(1)
+	student := &users.Student{Model: base.Model{ID: 1}, GroupID: &groupID}
+	visit := &active.Visit{ActiveGroup: &active.Group{RoomID: 1}}
+	result := rs.shouldShowDailyCheckoutWithGroup(context.Background(), student, visit)
+	assert.True(t, result, "Should return true when no checkout time is configured and group has no room")
+}
+
+func TestShouldShowDailyCheckoutWithGroup_NilCheckoutTime_MatchingRoom(t *testing.T) {
+	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
+
+	roomID := int64(42)
+	rs := &Resource{
+		SettingsService:  &mockSettingsService{values: map[string]string{}},
+		EducationService: &mockEducationService{group: &education.Group{Model: base.Model{ID: 1}, RoomID: &roomID}},
+	}
+	groupID := int64(1)
+	student := &users.Student{Model: base.Model{ID: 1}, GroupID: &groupID}
+	visit := &active.Visit{ActiveGroup: &active.Group{RoomID: 42}}
+	result := rs.shouldShowDailyCheckoutWithGroup(context.Background(), student, visit)
+	assert.True(t, result, "Should return true when rooms match and no time gate")
+}
+
+func TestShouldShowDailyCheckoutWithGroup_NilCheckoutTime_DifferentRoom(t *testing.T) {
+	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
+
+	roomID := int64(42)
+	rs := &Resource{
+		SettingsService:  &mockSettingsService{values: map[string]string{}},
+		EducationService: &mockEducationService{group: &education.Group{Model: base.Model{ID: 1}, RoomID: &roomID}},
+	}
+	groupID := int64(1)
+	student := &users.Student{Model: base.Model{ID: 1}, GroupID: &groupID}
+	visit := &active.Visit{ActiveGroup: &active.Group{RoomID: 99}}
+	result := rs.shouldShowDailyCheckoutWithGroup(context.Background(), student, visit)
+	assert.False(t, result, "Should return false when student is in wrong room")
+}
+
+func TestShouldShowDailyCheckoutWithGroup_GetCheckoutTimeError(t *testing.T) {
+	// Set an invalid time format to trigger a parse error
+	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "not-a-time"))
+	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
+
+	rs := &Resource{}
+	groupID := int64(1)
+	student := &users.Student{Model: base.Model{ID: 1}, GroupID: &groupID}
+	visit := &active.Visit{ActiveGroup: &active.Group{RoomID: 1}}
+	result := rs.shouldShowDailyCheckoutWithGroup(context.Background(), student, visit)
+	assert.False(t, result, "Should return false when checkout time parse fails")
+}
+
+func TestShouldShowDailyCheckoutWithGroup_EducationServiceError(t *testing.T) {
+	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
+
+	rs := &Resource{
+		SettingsService:  &mockSettingsService{values: map[string]string{}},
+		EducationService: &mockEducationService{err: fmt.Errorf("db error")},
+	}
+	groupID := int64(1)
+	student := &users.Student{Model: base.Model{ID: 1}, GroupID: &groupID}
+	visit := &active.Visit{ActiveGroup: &active.Group{RoomID: 1}}
+	result := rs.shouldShowDailyCheckoutWithGroup(context.Background(), student, visit)
+	assert.False(t, result, "Should return false when education service errors")
+}
+
+func TestShouldUpgradeToDailyCheckout_CheckedOut_NoTimeGate(t *testing.T) {
+	// No checkout time configured → time check should pass
+	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
+
+	rs := &Resource{
+		SettingsService:  &mockSettingsService{values: map[string]string{}},
+		EducationService: &mockEducationService{group: &education.Group{Model: base.Model{ID: 1}}},
+	}
+	groupID := int64(1)
+	student := &users.Student{Model: base.Model{ID: 1}, GroupID: &groupID}
+	visit := &active.Visit{ActiveGroup: &active.Group{RoomID: 1}}
+	result := rs.shouldUpgradeToDailyCheckout(context.Background(), "checked_out", student, visit)
+	assert.True(t, result, "Should upgrade when no time gate and group has no room")
 }
 
 // =============================================================================
@@ -1595,6 +1685,17 @@ func TestSchulhofActivityGroup_NoStaffContext(t *testing.T) {
 	assert.Equal(t, constants.SchulhofActivityName, group.Name)
 	assert.NotZero(t, group.ID)
 	assert.Nil(t, group.CreatedBy, "system-created Schulhof group should have NULL created_by")
+}
+
+// mockEducationService is a minimal mock for testing shouldShowDailyCheckoutWithGroup.
+type mockEducationService struct {
+	educationSvc.Service
+	group *education.Group
+	err   error
+}
+
+func (m *mockEducationService) GetGroup(_ context.Context, _ int64) (*education.Group, error) {
+	return m.group, m.err
 }
 
 // mockErrorSettingsService returns errors from HasTenantOverride.
