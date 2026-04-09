@@ -22,6 +22,7 @@ interface BackendStaffResponse {
   specialization?: string;
   role?: string;
   qualifications?: string;
+  employment_type?: string;
   person?: {
     id: number;
     first_name: string;
@@ -112,6 +113,8 @@ export const GET = createGetHandler(
         // Include both IDs for debugging
         staff_id: String(staff.id),
         teacher_id: staff.teacher_id ? String(staff.teacher_id) : undefined,
+        // Include employment type
+        employment_type: staff.employment_type ?? null,
         // Include person object if available
         person: staff.person,
       };

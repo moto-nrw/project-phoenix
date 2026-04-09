@@ -300,3 +300,24 @@ export function StudentDetailBreadcrumb({
     </BreadcrumbNav>
   );
 }
+
+/**
+ * Staff detail breadcrumb (2-level: Mitarbeiter / Name)
+ */
+interface StaffDetailBreadcrumbProps {
+  readonly staffName: string;
+  readonly isScrolled?: boolean;
+}
+
+export function StaffDetailBreadcrumb({
+  staffName,
+  isScrolled = false,
+}: StaffDetailBreadcrumbProps) {
+  return (
+    <BreadcrumbNav isScrolled={isScrolled}>
+      <BreadcrumbLink href="/staff">Mitarbeiter</BreadcrumbLink>
+      <BreadcrumbSeparator />
+      <BreadcrumbCurrent>{staffName}</BreadcrumbCurrent>
+    </BreadcrumbNav>
+  );
+}

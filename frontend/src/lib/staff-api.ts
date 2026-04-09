@@ -64,6 +64,7 @@ export interface Staff {
   specialization?: string;
   qualifications?: string;
   staffNotes?: string;
+  employmentType?: string; // full_time, part_time, minijob
   hasRfid: boolean;
   isTeacher: boolean;
   // Supervision status
@@ -376,6 +377,48 @@ class StaffService {
     return applyStaffFilters(mappedStaff, filters);
   }
 
+  // Get a single staff member by ID
+  async getStaffById(id: string): Promise<Staff> {
+    const response = await sessionFetch(`/api/staff/${id}`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch staff member: ${response.statusText}`);
+    }
+    const json = (await response.json()) as {
+      data: BackendStaffResponse & { employment_type?: string | null };
+    };
+    const staff = json.data;
+    const { currentLocation, supervisionRole } = getSupervisionInfo(
+      staff.staff_id,
+      {},
+      staff.was_present_today,
+      staff.work_status,
+      staff.absence_type,
+    );
+    return {
+      id: staff.id,
+      name: staff.name,
+      firstName: staff.firstName ?? staff.name?.split(" ")[0] ?? "",
+      lastName:
+        staff.lastName ?? staff.name?.split(" ").slice(1).join(" ") ?? "",
+      email: undefined,
+      role: staff.role ?? undefined,
+      accountRole: staff.account_role ?? undefined,
+      specialization: staff.specialization?.trim() ?? undefined,
+      qualifications: staff.qualifications ?? undefined,
+      staffNotes: staff.staff_notes ?? undefined,
+      employmentType: staff.employment_type ?? undefined,
+      hasRfid: !!staff.tag_id,
+      isTeacher: !!staff.teacher_id,
+      isSupervising: false,
+      currentLocation,
+      supervisionRole,
+      supervisions: [],
+      wasPresentToday: staff.was_present_today,
+      workStatus: staff.work_status,
+      absenceType: staff.absence_type,
+    };
+  }
+
   // Get active supervisions for a specific staff member
   async getStaffSupervisions(
     staffId: string,
@@ -485,5 +528,39 @@ export class StaffScheduleService {
   }
 }
 
+// Staff history types (reuses time-tracking-helpers types)
+export interface StaffHistorySession {
+  date: string;
+  net_minutes: number;
+  check_in_time: string;
+  check_out_time: string | null;
+  break_minutes: number;
+}
+
+export interface StaffHistoryResponse {
+  sessions: StaffHistorySession[];
+}
+
+class StaffHistoryService {
+  async getHistory(
+    staffId: string,
+    from: string,
+    to: string,
+  ): Promise<StaffHistorySession[]> {
+    const params = new URLSearchParams({ from, to });
+    const response = await sessionFetch(
+      `/api/staff/${staffId}/time-tracking/history?${params}`,
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to fetch staff history: ${response.statusText}`);
+    }
+    const json = (await response.json()) as {
+      data: { sessions: StaffHistorySession[] };
+    };
+    return json.data.sessions ?? [];
+  }
+}
+
 export const staffService = new StaffService();
 export const staffScheduleService = new StaffScheduleService();
+export const staffHistoryService = new StaffHistoryService();

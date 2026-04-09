@@ -23,6 +23,7 @@ import {
   RoomBreadcrumb,
   StudentHistoryBreadcrumb,
   StudentDetailBreadcrumb,
+  StaffDetailBreadcrumb,
   PageTitleDisplay,
 } from "./header/breadcrumb-components";
 import {
@@ -37,6 +38,7 @@ export function Header() {
   const { breadcrumb } = useBreadcrumb();
   const {
     studentName,
+    staffName,
     roomName,
     activityName,
     referrerPage,
@@ -117,6 +119,7 @@ export function Header() {
               subPageLabel={subPageLabel}
               isScrolled={isScrolled}
               studentName={studentName}
+              staffName={staffName}
               roomName={roomName}
               activityName={activityName}
               referrer={referrer}
@@ -203,6 +206,7 @@ interface HeaderBreadcrumbProps {
   readonly subPageLabel: string;
   readonly isScrolled: boolean;
   readonly studentName?: string;
+  readonly staffName?: string;
   readonly roomName?: string;
   readonly activityName?: string;
   readonly referrer: string;
@@ -219,6 +223,7 @@ function HeaderBreadcrumb({
   subPageLabel,
   isScrolled,
   studentName,
+  staffName,
   roomName,
   activityName,
   referrer,
@@ -282,6 +287,16 @@ function HeaderBreadcrumb({
         historyType={historyType}
         isScrolled={isScrolled}
         subSectionName={subSectionName}
+      />
+    );
+  }
+
+  // Staff detail page (2 levels: Mitarbeiter / Name)
+  if (pageTypeInfo.isStaffDetailPage) {
+    return (
+      <StaffDetailBreadcrumb
+        staffName={staffName ?? "…"}
+        isScrolled={isScrolled}
       />
     );
   }

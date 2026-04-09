@@ -109,6 +109,9 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/schedule", rs.getSchedule)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/schedule", rs.updateSchedule)
 
+		// Time tracking history for a specific staff member (admin read)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/time-tracking/history", rs.getStaffHistory)
+
 		// PIN management endpoints - staff can manage their own PIN
 		r.With(withTx).Get("/pin", rs.getPINStatus)
 		r.With(withTx).Put("/pin", rs.updatePIN)
@@ -1402,4 +1405,51 @@ func (rs *Resource) updateSchedule(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, resp, "Schedule updated successfully")
+}
+
+// getStaffHistory handles GET /api/staff/{id}/time-tracking/history?from=YYYY-MM-DD&to=YYYY-MM-DD
+func (rs *Resource) getStaffHistory(w http.ResponseWriter, r *http.Request) {
+	staffID, err := common.ParseID(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
+	// Verify staff exists
+	if _, err := rs.StaffRepo.FindByID(r.Context(), staffID); err != nil {
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("staff not found")))
+		return
+	}
+
+	// Parse date range from query parameters
+	fromStr := r.URL.Query().Get("from")
+	toStr := r.URL.Query().Get("to")
+	if fromStr == "" || toStr == "" {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("from and to query parameters are required")))
+		return
+	}
+
+	from, err := time.Parse(common.DateFormatISO, fromStr)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid from date format, expected YYYY-MM-DD")))
+		return
+	}
+
+	to, err := time.Parse(common.DateFormatISO, toStr)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid to date format, expected YYYY-MM-DD")))
+		return
+	}
+
+	historyResp, err := rs.WorkSessionService.GetHistory(r.Context(), staffID, from, to)
+	if err != nil {
+		rs.getLogger().Error("failed to get staff history",
+			"staff_id", staffID,
+			"error", err.Error(),
+		)
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, historyResp, "Staff session history retrieved successfully")
 }

@@ -15,15 +15,20 @@ import {
   getStaffLocationStatus,
 } from "~/lib/staff-helpers";
 import { useSWRAuth } from "~/lib/swr";
+import { useTenantRouter } from "~/lib/tenant-router";
+import { isAdmin } from "~/lib/auth-utils";
 
 import { Loading } from "~/components/ui/loading";
 function StaffPageContent() {
-  const { status } = useSession({
+  const { data: session, status } = useSession({
     required: true,
     onUnauthenticated() {
       redirect("/");
     },
   });
+
+  const router = useTenantRouter();
+  const userIsAdmin = isAdmin(session);
 
   // State variables for filters
   const [searchTerm, setSearchTerm] = useState("");
@@ -273,10 +278,27 @@ function StaffPageContent() {
               const notes = formatStaffNotes(staffMember.staffNotes, 80);
               const supervisions = staffMember.supervisions ?? [];
 
+              const cardClassName = `group relative overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150 ${userIsAdmin ? "cursor-pointer hover:shadow-[0_8px_30px_rgb(0,0,0,0.18)]" : ""}`;
+              const navigateToStaff = () =>
+                router.push(`/staff/${staffMember.id}`);
+
               return (
                 <div
                   key={staffMember.id}
-                  className={`group relative overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150`}
+                  {...(userIsAdmin
+                    ? {
+                        role: "button" as const,
+                        tabIndex: 0,
+                        onClick: navigateToStaff,
+                        onKeyDown: (e: React.KeyboardEvent) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            navigateToStaff();
+                          }
+                        },
+                      }
+                    : {})}
+                  className={cardClassName}
                 >
                   {/* Modern gradient overlay */}
                   <div

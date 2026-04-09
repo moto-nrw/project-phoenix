@@ -28,7 +28,7 @@ func (r *StaffWorkScheduleRepository) GetCurrentByStaffID(ctx context.Context, s
 	var entries []*config.StaffWorkSchedule
 	query := repoBase.GetDB(ctx, r.db).NewSelect().
 		Model(&entries).
-		ModelTableExpr(tableStaffWorkSchedules).
+		ModelTableExpr(tableStaffWorkSchedules+` AS "staff_work_schedule"`).
 		Where("staff_id = ?", staffID).
 		Where("valid_until IS NULL").
 		OrderExpr("day_of_week ASC")
@@ -50,7 +50,7 @@ func (r *StaffWorkScheduleRepository) GetByStaffIDAndDate(ctx context.Context, s
 	var entries []*config.StaffWorkSchedule
 	query := repoBase.GetDB(ctx, r.db).NewSelect().
 		Model(&entries).
-		ModelTableExpr(tableStaffWorkSchedules).
+		ModelTableExpr(tableStaffWorkSchedules+` AS "staff_work_schedule"`).
 		Where("staff_id = ?", staffID).
 		Where("valid_from <= ?", date).
 		Where("valid_until IS NULL OR valid_until >= ?", date).
