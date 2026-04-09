@@ -1,110 +1,77 @@
 package api
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
-	"io"
+
+	"context"
+	"encoding/json"
 	"net/http"
-	"time"
+
+	"github.com/moto-nrw/project-phoenix/integration/phoenixapi"
 )
 
 // Client handles HTTP communication with the backend API
 type Client struct {
 	baseURL    string
+	adapter    *phoenixapi.Adapter
 	httpClient *http.Client
+	auth       phoenixapi.AuthRef
 	token      string
 	verbose    bool
 }
 
 // NewClient creates a new API client
 func NewClient(baseURL string, verbose bool) *Client {
+	adapter := phoenixapi.New(baseURL, verbose)
 	return &Client{
-		baseURL: baseURL,
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
-		},
-		verbose: verbose,
+		baseURL:    baseURL,
+		adapter:    adapter,
+		httpClient: adapter.HTTPClient(),
+		verbose:    verbose,
 	}
+}
+
+// NewClientWithAdapter creates a client that reuses a shared adapter.
+func NewClientWithAdapter(adapter *phoenixapi.Adapter, verbose bool) *Client {
+	return &Client{
+		baseURL:    adapter.BaseURL(),
+		adapter:    adapter,
+		httpClient: adapter.HTTPClient(),
+		verbose:    verbose,
+	}
+}
+
+func (c *Client) BindAuth(auth phoenixapi.AuthRef) {
+	c.auth = auth
+	c.token = auth.Token
+}
+
+// CheckHealth verifies the server is reachable
+func (c *Client) CheckHealth() error {
+	return c.adapter.CheckHealth(context.Background())
 }
 
 // Login authenticates with the tenant API and stores the JWT token.
 func (c *Client) Login(email, password string, tenantSlug ...string) error {
-	body := map[string]string{
-		"email":    email,
-		"password": password,
+	slug := ""
+	if len(tenantSlug) > 0 {
+		slug = tenantSlug[0]
 	}
-	if len(tenantSlug) > 0 && tenantSlug[0] != "" {
-		body["tenant_slug"] = tenantSlug[0]
-	}
-
-	resp, err := c.doRequest("POST", "/auth/login", body, false)
+	auth, err := c.adapter.LoginTenant(context.Background(), email, password, slug)
 	if err != nil {
-		return fmt.Errorf("login request failed: %w", err)
+		return err
 	}
-
-	// Extract token from response - login returns token at root level
-	var loginResp struct {
-		AccessToken  string `json:"access_token"`
-		RefreshToken string `json:"refresh_token"`
-	}
-
-	if err := json.Unmarshal(resp, &loginResp); err != nil {
-		return fmt.Errorf("failed to parse login response: %w", err)
-	}
-
-	if loginResp.AccessToken == "" {
-		return fmt.Errorf("no access token in response")
-	}
-
-	c.token = loginResp.AccessToken
+	c.BindAuth(auth)
 	return nil
 }
 
 // LoginOperator authenticates against the operator API and stores the JWT token.
 func (c *Client) LoginOperator(email, password string) error {
-	body := map[string]string{
-		"email":    email,
-		"password": password,
-	}
-
-	resp, err := c.doRequest("POST", "/operator/auth/login", body, false)
+	auth, err := c.adapter.LoginOperator(context.Background(), email, password)
 	if err != nil {
-		return fmt.Errorf("operator login request failed: %w", err)
+		return err
 	}
-
-	var loginResp struct {
-		Status string `json:"status"`
-		Data   struct {
-			AccessToken string `json:"access_token"`
-		} `json:"data"`
-		AccessToken string `json:"access_token"`
-	}
-	if err := json.Unmarshal(resp, &loginResp); err != nil {
-		return fmt.Errorf("failed to parse operator login response: %w", err)
-	}
-	if loginResp.Data.AccessToken != "" {
-		c.token = loginResp.Data.AccessToken
-		return nil
-	}
-	if loginResp.AccessToken == "" {
-		return fmt.Errorf("no access token in operator login response")
-	}
-	c.token = loginResp.AccessToken
-	return nil
-}
-
-// CheckHealth verifies the server is reachable
-func (c *Client) CheckHealth() error {
-	resp, err := c.httpClient.Get(c.baseURL + "/health")
-	if err != nil {
-		return fmt.Errorf("server not reachable at %s: %w", c.baseURL, err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("server health check failed: status %d", resp.StatusCode)
-	}
+	c.BindAuth(auth)
 	return nil
 }
 
@@ -139,61 +106,26 @@ func (c *Client) doRequest(method, path string, body any, auth bool) ([]byte, er
 }
 
 func (c *Client) doRequestWithHeaders(method, path string, body any, auth bool, headers map[string]string) ([]byte, error) {
-	var jsonBody []byte
-	var err error
-
-	if body != nil {
-		jsonBody, err = json.Marshal(body)
-		if err != nil {
-			return nil, err
+	authRef := phoenixapi.AuthRef{}
+	if auth {
+		authRef = c.auth
+		if authRef.Token == "" && c.token != "" {
+			authRef = phoenixapi.AuthRef{
+				Kind:  phoenixapi.AuthBearer,
+				Label: "seed",
+				Token: c.token,
+			}
 		}
 	}
-
-	var req *http.Request
-	if jsonBody != nil {
-		req, err = http.NewRequest(method, c.baseURL+path, bytes.NewBuffer(jsonBody))
-	} else {
-		req, err = http.NewRequest(method, c.baseURL+path, nil)
-	}
+	respBody, statusCode, err := c.adapter.Raw(context.Background(), authRef, method, path, body, headers)
 	if err != nil {
 		return nil, err
 	}
 
-	if jsonBody != nil {
-		req.Header.Set("Content-Type", "application/json")
-	}
-	if auth && c.token != "" {
-		req.Header.Set("Authorization", "Bearer "+c.token)
-	}
-	for key, value := range headers {
-		req.Header.Set(key, value)
-	}
-
-	// Log request in verbose mode
 	if c.verbose {
 		c.logRequest(method, path, body)
+		c.logResponse(statusCode, respBody)
 	}
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	// Log response in verbose mode
-	if c.verbose {
-		c.logResponse(resp.StatusCode, respBody)
-	}
-
-	if resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("%s %s failed: %d - %s", method, path, resp.StatusCode, string(respBody))
-	}
-
 	return respBody, nil
 }
 

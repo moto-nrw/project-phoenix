@@ -59,6 +59,7 @@ func TestWriteAndLoadSeedState_Roundtrip(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, original.BaseURL, loaded.BaseURL)
+	assert.Equal(t, CurrentSeedStateVersion, loaded.Version)
 	assert.Equal(t, original.DevicePIN, loaded.DevicePIN)
 	assert.Equal(t, original.CreatedAt, loaded.CreatedAt)
 	assert.Equal(t, original.Bootstrap.OrganizationSlug, loaded.Bootstrap.OrganizationSlug)
@@ -123,5 +124,6 @@ func TestLoadSeedState_EmptyState(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, state.BaseURL)
 	assert.Empty(t, state.Students)
-	assert.Nil(t, state.Devices)
+	assert.NotNil(t, state.Devices)
+	assert.Equal(t, CurrentSeedStateVersion, state.Version)
 }
