@@ -100,11 +100,6 @@ func (c *Client) Put(path string, body any) ([]byte, error) {
 	return c.doRequestWithHeaders("PUT", path, body, true, nil)
 }
 
-// doRequest is the central method for all HTTP requests with verbose logging
-func (c *Client) doRequest(method, path string, body any, auth bool) ([]byte, error) {
-	return c.doRequestWithHeaders(method, path, body, auth, nil)
-}
-
 func (c *Client) doRequestWithHeaders(method, path string, body any, auth bool, headers map[string]string) ([]byte, error) {
 	authRef := phoenixapi.AuthRef{}
 	if auth {
