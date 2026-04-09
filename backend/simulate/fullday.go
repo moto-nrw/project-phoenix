@@ -3,10 +3,13 @@ package simulate
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"sort"
 
 	seedapi "github.com/moto-nrw/project-phoenix/seed/api"
 )
+
+var feedbackValues = []string{"positive", "neutral", "negative"}
 
 // FullDayOptions configures a full-day simulation run.
 type FullDayOptions struct {
@@ -280,8 +283,22 @@ func (endOfDayAction) Run(_ context.Context, rt *Runtime) error {
 			continue
 		}
 		rt.Counts.DailyCheckouts++
+
+		// Submit feedback (like the PyrePortal smiley picker after checkout)
+		feedbackBody := map[string]any{
+			"student_id": student.ID,
+			"value":      feedbackValues[rand.Intn(len(feedbackValues))],
+		}
+		_, err = rt.Client.DevicePost("/api/iot/feedback", feedbackBody, primaryDevice.APIKey, rt.State.DevicePIN)
+		if err != nil {
+			if rt.Options.Verbose {
+				fmt.Printf("  WARNING: feedback failed for student %d: %v\n", student.ID, err)
+			}
+			continue
+		}
+		rt.Counts.FeedbackSubmitted++
 	}
-	fmt.Printf("  %d daily checkouts\n", rt.Counts.DailyCheckouts)
+	fmt.Printf("  %d daily checkouts, %d feedback submitted\n", rt.Counts.DailyCheckouts, rt.Counts.FeedbackSubmitted)
 
 	for i := 0; i < rt.Counts.SessionsStarted && i < len(rt.DeviceKeys); i++ {
 		device := rt.State.Devices[rt.DeviceKeys[i]]
@@ -311,6 +328,7 @@ func (printSummaryAction) Run(_ context.Context, rt *Runtime) error {
 	fmt.Printf("  Students sick:       %d\n", rt.Counts.StudentsSick)
 	fmt.Printf("  Students checked out:%d\n", rt.Counts.StudentsCheckedOut)
 	if rt.Options.Close {
+		fmt.Printf("  Feedback submitted:  %d\n", rt.Counts.FeedbackSubmitted)
 		fmt.Println("  End-of-day:          completed")
 	}
 	fmt.Println("--------------------------")
