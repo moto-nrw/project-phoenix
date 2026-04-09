@@ -19,6 +19,7 @@ import (
 	activitiesAPI "github.com/moto-nrw/project-phoenix/api/activities"
 	adminAPI "github.com/moto-nrw/project-phoenix/api/admin"
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
+	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	configAPI "github.com/moto-nrw/project-phoenix/api/config"
 	databaseAPI "github.com/moto-nrw/project-phoenix/api/database"
 	feedbackAPI "github.com/moto-nrw/project-phoenix/api/feedback"
@@ -386,6 +387,12 @@ func (a *API) registerRoutesWithRateLimiting() {
 
 	// Note: Avatar files are served through authenticated endpoints, not as static files
 	// This prevents unauthorized access to user avatars
+
+	// Public login image serving (no auth — displayed on the login page before authentication)
+	a.Router.Get("/public/login-image/{filename}", func(w http.ResponseWriter, r *http.Request) {
+		filename := chi.URLParam(r, "filename")
+		apiCommon.ServeImage(w, r, "public/uploads/login-images", filename, "public, max-age=86400")
+	})
 
 	// Mount API resources
 	// Auth routes mounted at root level to match frontend expectations

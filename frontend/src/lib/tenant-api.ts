@@ -11,8 +11,15 @@ const TENANT_ACCESS_DENIED_MESSAGE =
 
 export interface TenantSettings {
   logoUrl?: string;
+  loginImageUrl?: string;
   primaryColor?: string;
   [key: string]: unknown;
+}
+
+/** Convert a stored login image URL path to the public-serving proxy URL. */
+export function loginImageSrc(storedPath: string): string {
+  const filename = storedPath.split("/").pop() ?? "";
+  return `/api/public/login-image/${filename}`;
 }
 
 export interface TenantInfo {

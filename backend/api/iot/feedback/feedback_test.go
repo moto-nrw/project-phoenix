@@ -57,6 +57,15 @@ func (f *fakeSettingsService) SetValue(_ context.Context, _ string, _ any, _ *in
 func (f *fakeSettingsService) ResetValue(_ context.Context, _ string, _ *int64, _ []string) error {
 	return nil
 }
+func (f *fakeSettingsService) GetLoginImageURL(_ context.Context, _ int64) (string, error) {
+	return "", nil
+}
+func (f *fakeSettingsService) SetLoginImageURL(_ context.Context, _ int64, _ string) (string, error) {
+	return "", nil
+}
+func (f *fakeSettingsService) ClearLoginImageURL(_ context.Context, _ int64) (string, error) {
+	return "", nil
+}
 
 // testContext holds shared test dependencies.
 type testContext struct {

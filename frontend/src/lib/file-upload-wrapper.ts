@@ -10,8 +10,23 @@ interface FileUploadOptions {
   allowedExtensions?: string[];
 }
 
+/** Error thrown by file validation with the appropriate HTTP status code. */
+class FileValidationError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "FileValidationError";
+    this.status = status;
+  }
+}
+
 /**
- * Validates uploaded file against security constraints
+ * Validates uploaded file against security constraints.
+ * Throws FileValidationError with a semantically correct HTTP status:
+ *   413 — file too large
+ *   415 — wrong MIME type or extension
+ *   422 — suspicious filename (double extensions, path traversal)
  */
 function validateFile(file: File, options: FileUploadOptions): void {
   const {
@@ -29,13 +44,17 @@ function validateFile(file: File, options: FileUploadOptions): void {
   // Check file size
   const maxSizeInBytes = maxSizeInMB * 1024 * 1024;
   if (file.size > maxSizeInBytes) {
-    throw new Error(`File size exceeds ${maxSizeInMB}MB limit`);
+    throw new FileValidationError(
+      `File size exceeds ${maxSizeInMB}MB limit`,
+      413,
+    );
   }
 
   // Check MIME type
   if (!allowedMimeTypes.includes(file.type)) {
-    throw new Error(
+    throw new FileValidationError(
       `File type ${file.type} is not allowed. Allowed types: ${allowedMimeTypes.join(", ")}`,
+      415,
     );
   }
 
@@ -45,8 +64,9 @@ function validateFile(file: File, options: FileUploadOptions): void {
     fileName.endsWith(ext),
   );
   if (!hasValidExtension) {
-    throw new Error(
+    throw new FileValidationError(
       `File extension not allowed. Allowed extensions: ${allowedExtensions.join(", ")}`,
+      415,
     );
   }
 
@@ -54,7 +74,10 @@ function validateFile(file: File, options: FileUploadOptions): void {
   // Check for double extensions
   const extensionCount = (fileName.match(/\./g) ?? []).length;
   if (extensionCount > 1) {
-    throw new Error("Files with multiple extensions are not allowed");
+    throw new FileValidationError(
+      "Files with multiple extensions are not allowed",
+      422,
+    );
   }
 
   // Check for suspicious patterns in filename
@@ -63,7 +86,7 @@ function validateFile(file: File, options: FileUploadOptions): void {
     fileName.includes("/") ||
     fileName.includes("\\")
   ) {
-    throw new Error("Invalid filename");
+    throw new FileValidationError("Invalid filename", 422);
   }
 }
 
@@ -105,11 +128,23 @@ export function createFileUploadHandler<T>(
       // Get form data
       const formData = await request.formData();
 
-      // Validate all files in the form data
-      for (const [, value] of formData.entries()) {
-        if (value instanceof File) {
-          validateFile(value, options ?? {});
+      // Validate all files in the form data — return the semantically correct
+      // HTTP status (413/415/422) instead of letting validation errors fall
+      // through to the generic 500 handler.
+      try {
+        for (const [, value] of formData.entries()) {
+          if (value instanceof File) {
+            validateFile(value, options ?? {});
+          }
         }
+      } catch (validationError) {
+        if (validationError instanceof FileValidationError) {
+          return NextResponse.json(
+            { error: validationError.message },
+            { status: validationError.status },
+          );
+        }
+        throw validationError;
       }
 
       const data = await handler(

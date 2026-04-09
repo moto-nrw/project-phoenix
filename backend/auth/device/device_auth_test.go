@@ -955,6 +955,9 @@ func (m *mockSchoolRepo) FindByID(_ context.Context, _ int64) (*platform.School,
 func (m *mockSchoolRepo) FindByIDForShare(_ context.Context, _ int64) (*platform.School, error) {
 	return m.school, m.err
 }
+func (m *mockSchoolRepo) FindByIDForUpdate(_ context.Context, _ int64) (*platform.School, error) {
+	return m.school, m.err
+}
 func (m *mockSchoolRepo) Create(_ context.Context, _ *platform.School) error { return nil }
 func (m *mockSchoolRepo) FindBySlug(_ context.Context, _ string) (*platform.School, error) {
 	return nil, nil

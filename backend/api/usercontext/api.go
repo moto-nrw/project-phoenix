@@ -2,17 +2,10 @@ package usercontext
 
 import (
 	"context"
-	"crypto/rand"
 	"errors"
 	"fmt"
-	"io"
-	"log/slog"
-	"mime/multipart"
 	"net/http"
-	"os"
 	"path/filepath"
-	"strconv"
-	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -313,28 +306,17 @@ const (
 	maxUploadSize   = 5 * 1024 * 1024 // 5MB
 	avatarDir       = "public/uploads/avatars"
 	globalAvatarDir = "global"
-	errCloseFileFmt = "Error closing file: %v"
 )
-
-// Allowed image types
-var allowedImageTypes = map[string]bool{
-	"image/jpeg": true,
-	"image/jpg":  true,
-	"image/png":  true,
-	"image/webp": true,
-}
 
 // uploadAvatar handles avatar image upload
 func (res *Resource) uploadAvatar(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, maxUploadSize)
-
-	file, header, contentType, err := res.parseAndValidateUpload(r)
+	uploaded, err := common.ParseImage(w, r, "avatar", maxUploadSize)
 	if err != nil {
 		render.Status(r, http.StatusBadRequest)
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	defer closeFile(file)
+	defer common.CloseFile(uploaded.File)
 
 	user, err := res.service.GetCurrentUser(r.Context())
 	if err != nil {
@@ -343,7 +325,9 @@ func (res *Resource) uploadAvatar(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tenantID := tenant.FromContext(r.Context())
-	filePath, err := res.saveAvatarFile(file, header, contentType, user.ID)
+	targetDir := filepath.Join(avatarDir, globalAvatarDir)
+	prefix := fmt.Sprintf("%d", user.ID)
+	filePath, err := common.SaveImage(uploaded.File, targetDir, prefix, uploaded.ContentType)
 	if err != nil {
 		render.Status(r, http.StatusInternalServerError)
 		common.RenderError(w, r, common.ErrorInternalServer(err))
@@ -357,123 +341,13 @@ func (res *Resource) uploadAvatar(w http.ResponseWriter, r *http.Request) {
 		updatedProfile, txErr = res.service.UpdateAvatar(ctx, avatarURL)
 		return txErr
 	}); err != nil {
-		removeFile(filePath)
+		common.RemoveImage(filePath)
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
 	render.Status(r, http.StatusOK)
 	common.RenderError(w, r, common.NewResponse(updatedProfile, "Avatar uploaded successfully"))
-}
-
-// parseAndValidateUpload validates the multipart upload and returns the file and content type
-func (res *Resource) parseAndValidateUpload(r *http.Request) (file io.ReadSeekCloser, header *multipart.FileHeader, contentType string, err error) {
-	if r.ParseMultipartForm(maxUploadSize) != nil {
-		return nil, nil, "", errors.New("file too large")
-	}
-
-	file, header, err = r.FormFile("avatar")
-	if err != nil {
-		return nil, nil, "", errors.New("no file uploaded")
-	}
-
-	contentType, err = detectAndValidateContentType(file)
-	if err != nil {
-		closeFile(file)
-		return nil, nil, "", err
-	}
-
-	return file, header, contentType, nil
-}
-
-// detectAndValidateContentType reads file header and validates content type
-func detectAndValidateContentType(file io.ReadSeeker) (string, error) {
-	buffer := make([]byte, 512)
-	if _, err := file.Read(buffer); err != nil {
-		return "", errors.New("cannot read file")
-	}
-
-	contentType := http.DetectContentType(buffer)
-	if !allowedImageTypes[contentType] {
-		return "", errors.New("invalid file type. Only JPEG, PNG, and WebP images are allowed")
-	}
-
-	if _, err := file.Seek(0, 0); err != nil {
-		return "", errors.New("failed to process file")
-	}
-
-	return contentType, nil
-}
-
-// saveAvatarFile saves the uploaded file and returns the file path
-func (res *Resource) saveAvatarFile(file io.Reader, header *multipart.FileHeader, contentType string, userID int64) (string, error) {
-	fileExt := getFileExtension(header.Filename, contentType)
-	randomStr, err := generateRandomString(8)
-	if err != nil {
-		return "", errors.New("failed to generate filename")
-	}
-
-	filename := fmt.Sprintf("%d_%s%s", userID, randomStr, fileExt)
-	targetDir := filepath.Join(avatarDir, globalAvatarDir)
-	filePath := filepath.Join(targetDir, filename)
-
-	if os.MkdirAll(targetDir, 0755) != nil {
-		return "", errors.New("failed to create upload directory")
-	}
-
-	dst, err := os.Create(filePath)
-	if err != nil {
-		return "", errors.New("failed to save file")
-	}
-	defer closeFileHandle(dst)
-
-	if _, err := io.Copy(dst, file); err != nil {
-		return "", errors.New("failed to save file")
-	}
-
-	return filePath, nil
-}
-
-// getFileExtension returns the file extension, inferring from content type if needed
-func getFileExtension(filename, contentType string) string {
-	ext := filepath.Ext(filename)
-	if ext != "" {
-		return ext
-	}
-
-	switch contentType {
-	case "image/jpeg", "image/jpg":
-		return ".jpg"
-	case "image/png":
-		return ".png"
-	case "image/webp":
-		return ".webp"
-	default:
-		return ""
-	}
-}
-
-// closeFile safely closes a file
-func closeFile(file io.Closer) {
-	if err := file.Close(); err != nil {
-		slog.Default().Error("file close error", slog.String("error", err.Error()))
-	}
-}
-
-// closeFileHandle safely closes an os.File
-func closeFileHandle(f *os.File) {
-	if err := f.Close(); err != nil {
-		slog.Default().Error("file close error", slog.String("error", err.Error()))
-	}
-}
-
-// removeFile attempts to remove a file, logging any error
-func removeFile(path string) {
-	if err := os.Remove(path); err != nil {
-		slog.Default().Error("failed to remove file",
-			slog.String("path", path),
-			slog.String("error", err.Error()))
-	}
 }
 
 // deleteAvatar removes the current user's avatar
@@ -511,7 +385,6 @@ func (res *Resource) deleteAvatar(w http.ResponseWriter, r *http.Request) {
 
 // serveAvatar serves avatar images with authentication
 func (res *Resource) serveAvatar(w http.ResponseWriter, r *http.Request) {
-	// Get filename from URL
 	filename := chi.URLParam(r, "filename")
 	if filename == "" {
 		render.Status(r, http.StatusBadRequest)
@@ -520,135 +393,34 @@ func (res *Resource) serveAvatar(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate avatar access for current user
-	avatarPath, err := res.validateAvatarAccess(r, filename)
-	if err != nil {
-		common.RenderError(w, r, err)
-		return
-	}
-
-	// Construct and validate file path from the stored avatar path
-	filePath, rendErr := validateAvatarPath(avatarPath)
-	if rendErr != nil {
-		common.RenderError(w, r, rendErr)
-		return
-	}
-
-	// Open and serve the file
-	res.serveAvatarFile(w, r, filePath, filename)
-}
-
-// validateAvatarAccess checks if the current user can access the requested avatar
-func (res *Resource) validateAvatarAccess(r *http.Request, filename string) (string, render.Renderer) {
 	profile, err := res.service.GetCurrentProfile(r.Context())
 	if err != nil {
-		return "", ErrorRenderer(err)
+		common.RenderError(w, r, ErrorRenderer(err))
+		return
 	}
 
 	avatarPath, ok := profile["avatar"].(string)
 	if !ok || avatarPath == "" {
 		render.Status(r, http.StatusNotFound)
-		return "", common.ErrorNotFound(errors.New("no avatar found"))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("no avatar found")))
+		return
 	}
 
 	if filepath.Base(avatarPath) != filename {
 		render.Status(r, http.StatusForbidden)
-		return "", common.ErrorForbidden(errors.New("access denied"))
-	}
-
-	return avatarPath, nil
-}
-
-// validateAvatarPath validates the stored avatar path and converts it to a filesystem path.
-func validateAvatarPath(avatarPath string) (string, render.Renderer) {
-	filePath, err := avatarPathToFilePath(avatarPath)
-	if err != nil {
-		return "", common.ErrorForbidden(err)
-	}
-
-	return filePath, nil
-}
-
-func avatarPathToFilePath(avatarPath string) (string, error) {
-	if !strings.HasPrefix(avatarPath, "/uploads/avatars/") {
-		return "", errors.New("invalid avatar path")
-	}
-
-	absAvatarDir, err := filepath.Abs(avatarDir)
-	if err != nil {
-		return "", errors.New("failed to process avatar directory")
-	}
-
-	filePath := filepath.Join("public", strings.TrimPrefix(avatarPath, "/"))
-	absPath, err := filepath.Abs(filePath)
-	if err != nil {
-		return "", errors.New("failed to process path")
-	}
-
-	avatarPrefix := absAvatarDir + string(os.PathSeparator)
-	if absPath != absAvatarDir && !strings.HasPrefix(absPath, avatarPrefix) {
-		return "", errors.New("invalid path")
-	}
-
-	return filePath, nil
-}
-
-// serveAvatarFile opens and serves the avatar file
-func (res *Resource) serveAvatarFile(w http.ResponseWriter, r *http.Request, filePath, filename string) {
-	file, err := os.Open(filePath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			render.Status(r, http.StatusNotFound)
-			common.RenderError(w, r, common.ErrorNotFound(errors.New("avatar not found")))
-		} else {
-			render.Status(r, http.StatusInternalServerError)
-			common.RenderError(w, r, common.ErrorInternalServer(errors.New("failed to read avatar")))
-		}
-		return
-	}
-	defer func() {
-		if err := file.Close(); err != nil {
-			slog.Default().Error("file close error", slog.String("error", err.Error()))
-		}
-	}()
-
-	fileInfo, err := file.Stat()
-	if err != nil {
-		render.Status(r, http.StatusInternalServerError)
-		common.RenderError(w, r, common.ErrorInternalServer(errors.New("failed to read avatar info")))
+		common.RenderError(w, r, common.ErrorForbidden(errors.New("access denied")))
 		return
 	}
 
-	// Detect content type
-	buffer := make([]byte, 512)
-	n, _ := file.Read(buffer[:])
-	contentType := http.DetectContentType(buffer[:n])
-
-	if _, err := file.Seek(0, 0); err != nil {
-		slog.Default().ErrorContext(r.Context(), "failed to seek avatar file", slog.String("error", err.Error()))
-		http.Error(w, "Failed to read file", http.StatusInternalServerError)
+	// Resolve and serve
+	filePath, err := common.ResolveStoredPath("public", avatarPath, "/uploads/avatars/")
+	if err != nil {
+		render.Status(r, http.StatusForbidden)
+		common.RenderError(w, r, common.ErrorForbidden(err))
 		return
 	}
 
-	w.Header().Set("Content-Type", contentType)
-	w.Header().Set("Content-Length", strconv.FormatInt(fileInfo.Size(), 10))
-	w.Header().Set("Cache-Control", "private, max-age=86400")
-
-	http.ServeContent(w, r, filename, fileInfo.ModTime(), file)
-}
-
-// generateRandomString generates a cryptographically secure random string of specified length
-func generateRandomString(length int) (string, error) {
-	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	b := make([]byte, length)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
-	}
-
-	// Map random bytes to charset
-	for i := range b {
-		b[i] = charset[b[i]%byte(len(charset))]
-	}
-	return string(b), nil
+	common.ServeImage(w, r, filepath.Dir(filePath), filepath.Base(filePath), "private, max-age=86400")
 }
 
 // =============================================================================

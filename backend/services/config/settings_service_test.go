@@ -6,10 +6,15 @@ import (
 	"fmt"
 	"log/slog"
 	"testing"
+	"time"
 
+	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/models/platform"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -110,7 +115,7 @@ func tenantCtx(tenantID int64) context.Context {
 }
 
 func createService(valueRepo config.SettingValueRepository, auditRepo config.SettingAuditRepository) configSvc.SettingsService {
-	return configSvc.NewSettingsService(valueRepo, auditRepo, nil, slog.Default())
+	return configSvc.NewSettingsService(valueRepo, auditRepo, nil, nil, slog.Default())
 }
 
 // --- Tests ---
@@ -1413,4 +1418,333 @@ func TestResolveString_UnknownKey(t *testing.T) {
 	svc := createService(newMockValueRepo(), &mockAuditRepo{})
 	_, err := svc.ResolveString(tenantCtx(1), "nonexistent.key")
 	require.Error(t, err)
+}
+
+// --- Mock school repository for login image tests ---
+
+type mockSchoolRepo struct {
+	school *platform.School
+	err    error
+}
+
+func (m *mockSchoolRepo) Create(_ context.Context, _ *platform.School) error {
+	return m.err
+}
+
+func (m *mockSchoolRepo) FindByID(_ context.Context, id int64) (*platform.School, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	if m.school == nil || m.school.ID != id {
+		return nil, fmt.Errorf("school not found")
+	}
+	return m.school, nil
+}
+
+func (m *mockSchoolRepo) FindByIDForShare(_ context.Context, id int64) (*platform.School, error) {
+	return m.FindByID(nil, id)
+}
+
+func (m *mockSchoolRepo) FindByIDForUpdate(_ context.Context, id int64) (*platform.School, error) {
+	return m.FindByID(nil, id)
+}
+
+func (m *mockSchoolRepo) FindBySlug(_ context.Context, _ string) (*platform.School, error) {
+	return nil, nil
+}
+
+func (m *mockSchoolRepo) FindByOrganizationAndSlug(_ context.Context, _ int64, _ string) (*platform.School, error) {
+	return nil, nil
+}
+
+func (m *mockSchoolRepo) FindBySubdomain(_ context.Context, _ string) (*platform.School, error) {
+	return nil, nil
+}
+
+func (m *mockSchoolRepo) List(_ context.Context) ([]*platform.School, error) {
+	return nil, nil
+}
+
+func (m *mockSchoolRepo) ListActive(_ context.Context) ([]platform.School, error) {
+	return nil, nil
+}
+
+func (m *mockSchoolRepo) ListPublic(_ context.Context) ([]platform.School, error) {
+	return nil, nil
+}
+
+func (m *mockSchoolRepo) FindActiveByAccountID(_ context.Context, _ int64) ([]platform.School, error) {
+	return nil, nil
+}
+
+func (m *mockSchoolRepo) Update(_ context.Context, school *platform.School) error {
+	if m.err != nil {
+		return m.err
+	}
+	m.school = school
+	return nil
+}
+
+func (m *mockSchoolRepo) SoftDelete(_ context.Context, _ int64) error {
+	return nil
+}
+
+func (m *mockSchoolRepo) Restore(_ context.Context, _ int64) error {
+	return nil
+}
+
+func (m *mockSchoolRepo) CountByIDs(_ context.Context, _ []int64) (int, error) {
+	return 0, nil
+}
+
+func createServiceWithSchoolRepo(
+	valueRepo config.SettingValueRepository,
+	auditRepo config.SettingAuditRepository,
+	schoolRepo platform.SchoolRepository,
+) configSvc.SettingsService {
+	return configSvc.NewSettingsService(valueRepo, auditRepo, schoolRepo, nil, slog.Default())
+}
+
+func newSchool(id int64, settings string) *platform.School {
+	s := &platform.School{Settings: settings}
+	s.ID = id
+	return s
+}
+
+// --- Login image tests ---
+
+func TestGetLoginImageURL_NoImage(t *testing.T) {
+	setupTest(t)
+
+	schoolRepo := &mockSchoolRepo{school: newSchool(42, "")}
+	svc := createServiceWithSchoolRepo(newMockValueRepo(), &mockAuditRepo{}, schoolRepo)
+
+	url, err := svc.GetLoginImageURL(context.Background(), 42)
+	require.NoError(t, err)
+	assert.Equal(t, "", url)
+}
+
+func TestGetLoginImageURL_EmptyObject(t *testing.T) {
+	setupTest(t)
+
+	schoolRepo := &mockSchoolRepo{school: newSchool(42, "{}")}
+	svc := createServiceWithSchoolRepo(newMockValueRepo(), &mockAuditRepo{}, schoolRepo)
+
+	url, err := svc.GetLoginImageURL(context.Background(), 42)
+	require.NoError(t, err)
+	assert.Equal(t, "", url)
+}
+
+func TestGetLoginImageURL_NullLiteral(t *testing.T) {
+	setupTest(t)
+
+	schoolRepo := &mockSchoolRepo{school: newSchool(42, "null")}
+	svc := createServiceWithSchoolRepo(newMockValueRepo(), &mockAuditRepo{}, schoolRepo)
+
+	url, err := svc.GetLoginImageURL(context.Background(), 42)
+	require.NoError(t, err)
+	assert.Equal(t, "", url)
+}
+
+func TestGetLoginImageURL_WithImage(t *testing.T) {
+	setupTest(t)
+
+	settings := `{"loginImageUrl":"/uploads/tenant/42/login.jpg","other":"value"}`
+	schoolRepo := &mockSchoolRepo{school: newSchool(42, settings)}
+	svc := createServiceWithSchoolRepo(newMockValueRepo(), &mockAuditRepo{}, schoolRepo)
+
+	url, err := svc.GetLoginImageURL(context.Background(), 42)
+	require.NoError(t, err)
+	assert.Equal(t, "/uploads/tenant/42/login.jpg", url)
+}
+
+func TestGetLoginImageURL_InvalidTenantID(t *testing.T) {
+	setupTest(t)
+
+	schoolRepo := &mockSchoolRepo{school: newSchool(42, `{"loginImageUrl":"/img.jpg"}`)}
+	svc := createServiceWithSchoolRepo(newMockValueRepo(), &mockAuditRepo{}, schoolRepo)
+
+	url, err := svc.GetLoginImageURL(context.Background(), 0)
+	require.NoError(t, err)
+	assert.Equal(t, "", url)
+}
+
+func TestGetLoginImageURL_NegativeTenantID(t *testing.T) {
+	setupTest(t)
+
+	schoolRepo := &mockSchoolRepo{school: newSchool(42, `{"loginImageUrl":"/img.jpg"}`)}
+	svc := createServiceWithSchoolRepo(newMockValueRepo(), &mockAuditRepo{}, schoolRepo)
+
+	url, err := svc.GetLoginImageURL(context.Background(), -1)
+	require.NoError(t, err)
+	assert.Equal(t, "", url)
+}
+
+func TestGetLoginImageURL_CorruptJSON(t *testing.T) {
+	setupTest(t)
+
+	schoolRepo := &mockSchoolRepo{school: newSchool(42, "not json")}
+	svc := createServiceWithSchoolRepo(newMockValueRepo(), &mockAuditRepo{}, schoolRepo)
+
+	_, err := svc.GetLoginImageURL(context.Background(), 42)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "corrupt school settings JSON")
+}
+
+func TestGetLoginImageURL_RepoError(t *testing.T) {
+	setupTest(t)
+
+	schoolRepo := &mockSchoolRepo{err: fmt.Errorf("database connection lost")}
+	svc := createServiceWithSchoolRepo(newMockValueRepo(), &mockAuditRepo{}, schoolRepo)
+
+	_, err := svc.GetLoginImageURL(context.Background(), 42)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "find school")
+}
+
+func TestGetLoginImageURL_SettingsWithOtherKeysButNoImage(t *testing.T) {
+	setupTest(t)
+
+	schoolRepo := &mockSchoolRepo{school: newSchool(42, `{"theme":"dark","lang":"de"}`)}
+	svc := createServiceWithSchoolRepo(newMockValueRepo(), &mockAuditRepo{}, schoolRepo)
+
+	url, err := svc.GetLoginImageURL(context.Background(), 42)
+	require.NoError(t, err)
+	assert.Equal(t, "", url)
+}
+
+// --- SetLoginImageURL / ClearLoginImageURL integration tests ---
+// These require a real DB because updateSchoolSetting uses tenant.WithAdminTx.
+
+func setupLoginImageIntegrationTest(t *testing.T) (configSvc.SettingsService, *platform.School, func()) {
+	t.Helper()
+
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.TenantContext(1)
+
+	// Create a dedicated org + school to avoid polluting shared test state.
+	now := time.Now().UnixNano()
+	orgRepo := platformRepo.NewOrganizationRepository(db)
+	org := &platform.Organization{
+		Model:  modelBase.Model{ID: now},
+		Name:   fmt.Sprintf("LoginImgOrg %d", now),
+		Slug:   fmt.Sprintf("loginimg-org-%d", now),
+		Active: true,
+	}
+	require.NoError(t, orgRepo.Create(ctx, org))
+
+	schoolRepo := platformRepo.NewSchoolRepository(db)
+	school := &platform.School{
+		Model:          modelBase.Model{ID: now + 1},
+		OrganizationID: org.ID,
+		Name:           fmt.Sprintf("LoginImgSchool %d", now),
+		Slug:           fmt.Sprintf("loginimg-%d", now),
+		Subdomain:      fmt.Sprintf("loginimg-%d", now),
+		Active:         true,
+	}
+	require.NoError(t, schoolRepo.Create(ctx, school))
+
+	svc := configSvc.NewSettingsService(
+		newMockValueRepo(), &mockAuditRepo{}, schoolRepo, db, slog.Default(),
+	)
+
+	cleanup := func() {
+		_, _ = db.ExecContext(ctx, `DELETE FROM platform.schools WHERE id = ?`, school.ID)
+		_, _ = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id = ?`, org.ID)
+		_ = db.Close()
+	}
+
+	return svc, school, cleanup
+}
+
+func TestSetLoginImageURL_Success(t *testing.T) {
+	svc, school, cleanup := setupLoginImageIntegrationTest(t)
+	defer cleanup()
+
+	imageURL := "/uploads/login-images/test_abc.jpg"
+	oldURL, err := svc.SetLoginImageURL(context.Background(), school.ID, imageURL)
+	require.NoError(t, err)
+	assert.Equal(t, "", oldURL, "first set should return empty old URL")
+
+	// Verify it was persisted
+	got, err := svc.GetLoginImageURL(context.Background(), school.ID)
+	require.NoError(t, err)
+	assert.Equal(t, imageURL, got)
+}
+
+func TestSetLoginImageURL_ReplacesExisting(t *testing.T) {
+	svc, school, cleanup := setupLoginImageIntegrationTest(t)
+	defer cleanup()
+
+	first := "/uploads/login-images/first.jpg"
+	second := "/uploads/login-images/second.jpg"
+
+	_, err := svc.SetLoginImageURL(context.Background(), school.ID, first)
+	require.NoError(t, err)
+
+	oldURL, err := svc.SetLoginImageURL(context.Background(), school.ID, second)
+	require.NoError(t, err)
+	assert.Equal(t, first, oldURL, "should return previous URL for cleanup")
+
+	got, err := svc.GetLoginImageURL(context.Background(), school.ID)
+	require.NoError(t, err)
+	assert.Equal(t, second, got)
+}
+
+func TestSetLoginImageURL_PreservesOtherSettings(t *testing.T) {
+	svc, school, cleanup := setupLoginImageIntegrationTest(t)
+	defer cleanup()
+
+	// Pre-populate the school with other settings via direct SQL
+	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	_, err := db.ExecContext(ctx,
+		`UPDATE platform.schools SET settings = '{"theme":"dark","lang":"de"}' WHERE id = ?`,
+		school.ID)
+	require.NoError(t, err)
+
+	imageURL := "/uploads/login-images/preserve.jpg"
+	_, err = svc.SetLoginImageURL(context.Background(), school.ID, imageURL)
+	require.NoError(t, err)
+
+	// Verify other keys survived the update
+	got, err := svc.GetLoginImageURL(context.Background(), school.ID)
+	require.NoError(t, err)
+	assert.Equal(t, imageURL, got)
+}
+
+func TestClearLoginImageURL_Success(t *testing.T) {
+	svc, school, cleanup := setupLoginImageIntegrationTest(t)
+	defer cleanup()
+
+	imageURL := "/uploads/login-images/to-clear.jpg"
+	_, err := svc.SetLoginImageURL(context.Background(), school.ID, imageURL)
+	require.NoError(t, err)
+
+	oldURL, err := svc.ClearLoginImageURL(context.Background(), school.ID)
+	require.NoError(t, err)
+	assert.Equal(t, imageURL, oldURL, "should return removed URL for cleanup")
+
+	got, err := svc.GetLoginImageURL(context.Background(), school.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "", got, "image should be removed")
+}
+
+func TestClearLoginImageURL_NoExistingImage(t *testing.T) {
+	svc, school, cleanup := setupLoginImageIntegrationTest(t)
+	defer cleanup()
+
+	oldURL, err := svc.ClearLoginImageURL(context.Background(), school.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "", oldURL, "clearing when no image exists should return empty")
+}
+
+func TestSetLoginImageURL_NonexistentSchool(t *testing.T) {
+	svc, _, cleanup := setupLoginImageIntegrationTest(t)
+	defer cleanup()
+
+	_, err := svc.SetLoginImageURL(context.Background(), 999999999, "/uploads/test.jpg")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "find school")
 }
