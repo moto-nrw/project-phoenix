@@ -11,7 +11,7 @@ interface FileUploadOptions {
 }
 
 /** Error thrown by file validation with the appropriate HTTP status code. */
-class FileValidationError extends Error {
+export class FileValidationError extends Error {
   readonly status: number;
 
   constructor(message: string, status: number) {
@@ -162,6 +162,12 @@ export function createFileUploadHandler<T>(
 
       return NextResponse.json(response);
     } catch (error) {
+      if (error instanceof FileValidationError) {
+        return NextResponse.json(
+          { error: error.message },
+          { status: error.status },
+        );
+      }
       return handleApiError(error);
     }
   };

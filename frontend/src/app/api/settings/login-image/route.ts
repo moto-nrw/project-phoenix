@@ -1,6 +1,9 @@
 import { revalidateTag } from "next/cache";
 import type { NextRequest } from "next/server";
-import { createFileUploadHandler } from "~/lib/file-upload-wrapper";
+import {
+  createFileUploadHandler,
+  FileValidationError,
+} from "~/lib/file-upload-wrapper";
 import { createDeleteHandler, createGetHandler } from "~/lib/route-wrapper";
 import { createLogger } from "~/lib/logger";
 import { uncachedAuth } from "~/server/auth";
@@ -79,7 +82,7 @@ export const POST = createFileUploadHandler<LoginImageResponse>(
   async (request: NextRequest, formData: FormData, token: string) => {
     const file = formData.get("login_image");
     if (!file || !(file instanceof File)) {
-      throw new Error("No image file provided");
+      throw new FileValidationError("No image file provided", 400);
     }
 
     const validatedFormData = new FormData();
@@ -111,7 +114,7 @@ export const POST = createFileUploadHandler<LoginImageResponse>(
   {
     maxSizeInMB: 2,
     allowedMimeTypes: ["image/jpeg", "image/jpg", "image/png", "image/webp"],
-    allowedExtensions: [".jpg", ".jpeg", ".png", ".webp"],
+    allowedExtensions: [".jpg", ".jpeg", ".jfif", ".png", ".webp"],
   },
 );
 

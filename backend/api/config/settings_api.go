@@ -146,6 +146,12 @@ type loginImageResponse struct {
 // getLoginImage returns the current login image URL and edit permission for the tenant.
 func (rs *SettingsResource) getLoginImage(w http.ResponseWriter, r *http.Request) {
 	tenantID := tenant.FromContext(r.Context())
+	if tenantID <= 0 {
+		render.Status(r, http.StatusBadRequest)
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("no tenant context")))
+		return
+	}
+
 	claims := jwt.ClaimsFromCtx(r.Context())
 
 	canEdit := authorize.HasPermission(permissions.ConfigUpdate, claims.Permissions) ||
