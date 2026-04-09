@@ -349,81 +349,11 @@ CI (`build.yml`) runs on push/merge:
 
 ## Tenant-Scoped Settings System
 
-Per-school configuration that replaces hardcoded defaults and environment variables. Schools configure settings via the admin UI; the backend resolves values with a three-tier fallback chain.
+Per-school configuration via a registry-driven system. Schools configure settings in the admin UI; the backend resolves values as tenant DB override → registry default. The service does **not** check env vars — consumers that need env var fallback must use `HasTenantOverride()` first, then fall back to `os.Getenv()` manually. See `.claude/rules/settings-system.md` for the correct pattern.
 
-### Architecture
+**RULE: New per-tenant runtime configuration MUST use the settings system, not environment variables.** Env vars are for infrastructure (DB DSN, JWT secret, SMTP host). If a school admin should be able to configure it, it's a setting.
 
-```
-Registry (init-time definitions)
-  ↓
-Schema Builder → Frontend settings page (auto-generated)
-  ↓
-SettingsService → Resolve/Set/Reset per tenant
-  ↓
-SettingValueRepository → config.setting_values (RLS-enforced)
-  ↓
-SettingAuditRepository → config.setting_audit (append-only)
-```
-
-### Key Files
-
-| File | Role |
-|------|------|
-| `models/config/keys.go` | Key constants (`KeySessionEndTime`, etc.) |
-| `models/config/registry.go` | `Definition` struct, `Register()`, field types |
-| `services/config/defaults/*.go` | Registry definitions grouped by category |
-| `services/config/settings_service.go` | Resolve, SetValue, ResetValue, validation |
-| `services/config/schema_builder.go` | Builds schema response for frontend |
-| `database/repositories/config/` | DB access (setting_values + setting_audit) |
-| `api/config/settings_api.go` | HTTP handlers (GET /schema, PUT/DELETE /values/{key}) |
-| `frontend/src/lib/settings-api.ts` | Frontend API client |
-| `frontend/src/components/settings/` | Settings page, field components, auto-save |
-
-### Value Resolution — Three-Tier Fallback
-
-```
-1. Tenant DB override  (config.setting_values row exists)
-2. Environment variable (os.Getenv)
-3. Registry default    (Definition.Default)
-```
-
-**CRITICAL**: `Resolve*()` returns the registry default when no tenant override exists — it skips env vars. Backend consumers MUST use `HasTenantOverride()` first to distinguish "no override" from "override exists". See the rule in `.claude/rules/settings-system.md` for the correct pattern.
-
-### Field Types
-
-`boolean` · `number` · `time` · `text` · `password` · `select`
-
-### Tabs and Permissions
-
-| Tab | WritePermission | Who can edit |
-|-----|-----------------|-------------|
-| `operations` | `config:update` | Admin |
-| `gdpr` | `config:manage` | Admin |
-| `security` | `config:manage` | Admin |
-
-Route-level auth accepts `config:update` OR `config:manage`. Service-level `checkWritePermission` uses wildcard-aware matching (`admin:*` works).
-
-### Frontend
-
-The settings page is fully auto-generated from the backend schema. Field components render based on `type`, with:
-- Auto-save on blur (debounced for text/number/time)
-- Immediate save for boolean/select
-- Green/red border feedback
-- Conditional visibility via `depends_on`
-- Password fields masked as `••••••`
-
-### When to Use Settings vs Environment Variables
-
-| Use a **setting** when... | Use an **env var** when... |
-|---------------------------|---------------------------|
-| Value differs per school/tenant | Value is the same across all tenants |
-| Admins should be able to change it at runtime | Only infrastructure operators should change it |
-| It's a business rule (times, thresholds, toggles) | It's infrastructure config (DB DSN, JWT secret, SMTP host) |
-| It affects end-user behavior | It affects how the server connects to external services |
-
-**RULE: New per-tenant runtime configuration MUST use the settings system, not environment variables.** Env vars are for infrastructure. If a school admin should be able to configure it, it's a setting.
-
-**For step-by-step instructions on adding, editing, or deleting settings, see `.claude/rules/settings-system.md`.**
+**For architecture, step-by-step guides, and field type reference, see `.claude/rules/settings-system.md`.**
 
 ---
 

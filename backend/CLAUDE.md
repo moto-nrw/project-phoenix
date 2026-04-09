@@ -203,7 +203,31 @@ PostgreSQL schemas separate domain concerns:
 - `schedule`: Timeframes, dateframes, recurrence
 - `iot`: RFID devices
 - `feedback`: User feedback entries
-- `config`: System settings
+- `config`: Tenant-scoped settings (see below)
+
+## Tenant-Scoped Settings System
+
+Registry-driven per-school configuration. Definitions are declared at init time in `services/config/defaults/*.go`, validated at startup, and served to the frontend as an auto-generated schema.
+
+**Key packages:**
+- `models/config/` — Key constants (`keys.go`) and `Definition` struct (`registry.go`)
+- `services/config/` — `SettingsService` (resolve/set/reset), `SchemaBuilder`, defaults registration
+- `database/repositories/config/` — `SettingValueRepository` + `SettingAuditRepository`
+- `api/config/` — HTTP handlers (GET /schema, PUT/DELETE /values/{key})
+
+**Critical pattern** — The service resolves as DB override → registry default only. It does **not** check env vars. Consumers needing env var backward compatibility must check `HasTenantOverride()` first, then fall back manually:
+
+```go
+if has, err := settingsService.HasTenantOverride(ctx, configModel.KeyMyNewSetting); err != nil {
+    slog.Warn("settings check failed", "key", configModel.KeyMyNewSetting, "error", err.Error())
+} else if has {
+    if val, err := settingsService.ResolveString(ctx, configModel.KeyMyNewSetting); err == nil && val != "" {
+        value = val
+    }
+}
+```
+
+**Full guide:** `.claude/rules/settings-system.md` — step-by-step for adding, editing, and deleting settings, field types, permissions, and validation.
 
 ## Domain Knowledge
 

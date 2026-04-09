@@ -2,6 +2,71 @@
 
 **RULE: When adding, editing, or deleting settings, follow the patterns below.** The settings system is registry-driven — all definitions are declared at init time, validated at startup, and served to the frontend as an auto-generated schema.
 
+## Architecture
+
+```
+Registry (init-time definitions)
+  ↓
+Schema Builder → Frontend settings page (auto-generated)
+  ↓
+SettingsService → Resolve/Set/Reset per tenant
+  ↓
+SettingValueRepository → config.setting_values (RLS-enforced)
+  ↓
+SettingAuditRepository → config.setting_audit (append-only)
+```
+
+### Key Files
+
+| File | Role |
+|------|------|
+| `models/config/keys.go` | Key constants (`KeySessionEndTime`, etc.) |
+| `models/config/registry.go` | `Definition` struct, `Register()`, field types |
+| `services/config/defaults/*.go` | Registry definitions grouped by category |
+| `services/config/settings_service.go` | Resolve, SetValue, ResetValue, validation |
+| `services/config/schema_builder.go` | Builds schema response for frontend |
+| `database/repositories/config/` | DB access (setting_values + setting_audit) |
+| `api/config/settings_api.go` | HTTP handlers (GET /schema, PUT/DELETE /values/{key}) |
+| `frontend/src/lib/settings-api.ts` | Frontend API client |
+| `frontend/src/components/settings/` | Settings page, field components, auto-save |
+
+### Value Resolution
+
+The settings service resolves values in **two tiers**:
+
+```
+1. Tenant DB override  (config.setting_values row exists)
+2. Registry default    (Definition.Default)
+```
+
+The service does **not** check environment variables. `Resolve*()` returns the registry default when no tenant override exists. Consumers that need env var backward compatibility must implement a three-step pattern manually: `HasTenantOverride()` → `Resolve*()` → `os.Getenv()`. See [Step 3](#step-3-add-consuming-code) for the correct pattern.
+
+### Tabs and Permissions
+
+| Tab | WritePermission | Who can edit |
+|-----|-----------------|-------------|
+| `operations` | `config:update` | Admin |
+| `gdpr` | `config:manage` | Admin |
+| `security` | `config:manage` | Admin |
+| `general` | (varies) | Admin |
+
+Route-level auth accepts `config:update` OR `config:manage`. Service-level `checkWritePermission` uses wildcard-aware matching (`admin:*` works).
+
+### Frontend
+
+The settings page is fully auto-generated from the backend schema. Field components render based on `type`, with auto-save on blur (debounced for text/number/time), immediate save for boolean/select, green/red border feedback, conditional visibility via `depends_on`, and password fields masked as `••••••`.
+
+### When to Use Settings vs Environment Variables
+
+| Use a **setting** when... | Use an **env var** when... |
+|---------------------------|---------------------------|
+| Value differs per school/tenant | Value is the same across all tenants |
+| Admins should be able to change it at runtime | Only infrastructure operators should change it |
+| It's a business rule (times, thresholds, toggles) | It's infrastructure config (DB DSN, JWT secret, SMTP host) |
+| It affects end-user behavior | It affects how the server connects to external services |
+
+**RULE: New per-tenant runtime configuration MUST use the settings system, not environment variables.** Env vars are for infrastructure. If a school admin should be able to configure it, it's a setting. Existing env vars are kept for backward compatibility only.
+
 ## Adding a New Setting
 
 ### Step 1: Add Key Constant
@@ -68,7 +133,7 @@ if value == defaultValue {
 
 ### Step 4: Update Tests
 
-- Add to `services/config/defaults/defaults_test.go` — all four test functions
+- Add to `services/config/defaults/defaults_test.go` — update relevant test functions (currently 9 tests covering registration, types, dependencies, validation, and defaults)
 - Add consuming code tests with mock that returns the setting value
 
 ### Step 5: Verify
@@ -99,7 +164,7 @@ cd backend && go build ./... && go test ./services/config/... -v
 ## Key Rules
 
 - **NEVER add new env vars for per-tenant runtime config** — use the settings system instead. Env vars are for infrastructure (DB DSN, SMTP host, JWT secret). If a school admin should be able to change it, it's a setting. Existing env vars are kept for backward compatibility only.
-- **NEVER call `Resolve*()` directly for fallback** — use `HasTenantOverride()` first, or the resolved value will be the registry default, not the env var
+- **NEVER call `Resolve*()` alone when env var fallback is needed** — the service returns the registry default, not the env var. Use `HasTenantOverride()` first to distinguish "no override" from "override exists"
 - **NEVER hardcode key strings** — use constants from `models/config/keys.go`
 - **ALWAYS use `config:manage`** for sensitive settings (GDPR, security)
 - **ALWAYS use `config:update`** for operational settings
@@ -122,7 +187,7 @@ cd backend && go build ./... && go test ./services/config/... -v
 |------|-----------|-------------------|-------|
 | `boolean` | `true`/`false` | Toggle switch | Immediate save on change |
 | `number` | `int` | Number input with min/max | Must be whole integer |
-| `time` | `"HH:MM"` | Time picker | Validated via `time.Parse("15:04")` |
+| `time` | `"HH:MM"` | Time picker | Validated via `time.Parse("15:04")`, resolved via `ResolveString` |
 | `text` | `string` | Text input | Debounced auto-save |
 | `password` | `""` | Masked input with edit button | Value masked in schema + audit |
 | `select` | option value | Dropdown | Requires `Options.Static` |
