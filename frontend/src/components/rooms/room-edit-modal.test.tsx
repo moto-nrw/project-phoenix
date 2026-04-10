@@ -247,7 +247,7 @@ describe("RoomEditModal", () => {
     await waitFor(() => {
       const nameDisabled = screen.getByTestId("name-disabled");
       expect(nameDisabled).toBeInTheDocument();
-      expect(nameDisabled).toHaveTextContent("Systemraum");
+      expect(nameDisabled).toHaveTextContent("Systemraum:");
     });
   });
 

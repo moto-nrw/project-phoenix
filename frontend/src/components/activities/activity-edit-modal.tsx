@@ -37,7 +37,7 @@ export function ActivityEditModal({
           ? {
               ...field,
               disabled: true,
-              helperText: "Systemaktivität — Name kann nicht geändert werden",
+              helperText: "Systemaktivität: Name kann nicht geändert werden",
             }
           : field,
       ),

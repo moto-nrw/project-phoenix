@@ -205,7 +205,7 @@ describe("ActivityEditModal", () => {
     await waitFor(() => {
       const nameDisabled = screen.getByTestId("name-disabled");
       expect(nameDisabled).toBeInTheDocument();
-      expect(nameDisabled).toHaveTextContent("Systemaktivität");
+      expect(nameDisabled).toHaveTextContent("Systemaktivität:");
     });
   });
 

@@ -66,7 +66,7 @@ export function RoomEditModal({
             ? {
                 ...field,
                 disabled: true,
-                helperText: "Systemraum — Name kann nicht geändert werden",
+                helperText: "Systemraum: Name kann nicht geändert werden",
               }
             : field,
         ),
