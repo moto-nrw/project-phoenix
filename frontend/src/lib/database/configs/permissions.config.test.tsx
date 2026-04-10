@@ -13,6 +13,9 @@ vi.mock("@/lib/auth-helpers", () => ({
 
 vi.mock("@/lib/permission-labels", () => ({
   formatPermissionDisplay: vi.fn((resource, action) => `${resource}:${action}`),
+  localizeResource: vi.fn((resource) => resource),
+  localizeAction: vi.fn((action) => action),
+  localizeDescription: vi.fn((_resource, _action, dbDesc) => dbDesc ?? ""),
 }));
 
 vi.mock("@/components/permissions/permission-selector", () => ({
