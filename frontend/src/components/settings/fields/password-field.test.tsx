@@ -1,74 +1,66 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, fireEvent } from "@testing-library/react";
+import { render, fireEvent, screen } from "@testing-library/react";
 import { PasswordField } from "./password-field";
 
 describe("PasswordField", () => {
   it("shows masked text when value exists", () => {
-    const { getByText } = render(
+    render(<PasswordField hasValue={true} onChange={vi.fn()} />);
+    expect(screen.getByText("••••••")).toBeInTheDocument();
+  });
+
+  it("shows Nicht gesetzt when no value", () => {
+    render(<PasswordField hasValue={false} onChange={vi.fn()} />);
+    expect(screen.getByText("Nicht gesetzt")).toBeInTheDocument();
+  });
+
+  it("shows 4-dot mask for PIN pattern", () => {
+    render(
+      <PasswordField hasValue={true} onChange={vi.fn()} pattern="^\d{4}$" />,
+    );
+    expect(screen.getByText("••••")).toBeInTheDocument();
+  });
+
+  it("switches to edit mode on pill click", () => {
+    const { container } = render(
       <PasswordField hasValue={true} onChange={vi.fn()} />,
     );
-    expect(getByText("••••••")).toBeDefined();
-  });
-
-  it("shows 'Nicht gesetzt' when no value", () => {
-    const { getByText } = render(
-      <PasswordField hasValue={false} onChange={vi.fn()} />,
-    );
-    expect(getByText("Nicht gesetzt")).toBeDefined();
-  });
-
-  it("shows 'Ändern' button when value exists", () => {
-    const { getByText } = render(
-      <PasswordField hasValue={true} onChange={vi.fn()} />,
-    );
-    expect(getByText("Ändern")).toBeDefined();
-  });
-
-  it("shows 'Setzen' button when no value", () => {
-    const { getByText } = render(
-      <PasswordField hasValue={false} onChange={vi.fn()} />,
-    );
-    expect(getByText("Setzen")).toBeDefined();
-  });
-
-  it("switches to edit mode on button click", () => {
-    const { getByText, container } = render(
-      <PasswordField hasValue={true} onChange={vi.fn()} />,
-    );
-    fireEvent.click(getByText("Ändern"));
-    expect(container.querySelector("input[type='password']")).toBeDefined();
+    fireEvent.click(screen.getByText("••••••"));
+    expect(
+      container.querySelector("input[type='password']"),
+    ).toBeInTheDocument();
   });
 
   it("calls onChange and exits edit mode on save", () => {
     const onChange = vi.fn();
-    const { getByText, container } = render(
+    const { container } = render(
       <PasswordField hasValue={false} onChange={onChange} />,
     );
 
-    // Enter edit mode
-    fireEvent.click(getByText("Setzen"));
+    fireEvent.click(screen.getByText("Nicht gesetzt"));
 
-    // Type value
     const input = container.querySelector(
       "input[type='password']",
     ) as HTMLInputElement;
-    fireEvent.change(input, { target: { value: "1234" } });
+    fireEvent.change(input, { target: { value: "secret" } });
 
-    // Save
-    fireEvent.click(getByText("Speichern"));
-    expect(onChange).toHaveBeenCalledWith("1234");
+    fireEvent.click(screen.getByText("Speichern"));
+    expect(onChange).toHaveBeenCalledWith("secret");
   });
 
   it("cancels edit mode without saving", () => {
     const onChange = vi.fn();
-    const { getByText } = render(
-      <PasswordField hasValue={true} onChange={onChange} />,
-    );
+    render(<PasswordField hasValue={true} onChange={onChange} />);
 
-    fireEvent.click(getByText("Ändern"));
-    fireEvent.click(getByText("Abbrechen"));
+    fireEvent.click(screen.getByText("••••••"));
+    fireEvent.click(screen.getByText("Abbrechen"));
 
     expect(onChange).not.toHaveBeenCalled();
-    expect(getByText("••••••")).toBeDefined();
+    expect(screen.getByText("••••••")).toBeInTheDocument();
+  });
+
+  it("shows eye toggle in edit mode", () => {
+    render(<PasswordField hasValue={true} onChange={vi.fn()} />);
+    fireEvent.click(screen.getByText("••••••"));
+    expect(screen.getByLabelText("Wert anzeigen")).toBeInTheDocument();
   });
 });
