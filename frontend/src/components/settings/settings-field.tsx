@@ -323,6 +323,7 @@ function renderField(
           hasValue={localValue !== "" && localValue !== null}
           onChange={onImmediateSave}
           disabled={disabled}
+          pattern={setting.validation?.pattern}
         />
       );
     case "select":

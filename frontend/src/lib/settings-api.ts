@@ -36,6 +36,7 @@ export interface ResolvedSetting {
     required?: boolean;
     min?: number;
     max?: number;
+    pattern?: string;
   } | null;
   depends_on?: {
     key: string;
