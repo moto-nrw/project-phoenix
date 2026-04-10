@@ -368,6 +368,23 @@ func TestActivityService_UpdateGroup(t *testing.T) {
 		assert.Equal(t, 30, result.MaxParticipants)
 		assert.Equal(t, "WC", result.Name)
 	})
+
+	t.Run("returns not found when updating non-existent group", func(t *testing.T) {
+		// ARRANGE
+		group := testpkg.CreateTestActivityGroup(t, db, "temp-for-id")
+		staffID := *group.CreatedBy
+		defer testpkg.CleanupActivityFixtures(t, db, group.ID)
+
+		nonExistentGroup := *group
+		nonExistentGroup.ID = 999999999
+
+		// ACT
+		_, err := service.UpdateGroup(ctx, &nonExistentGroup, staffID, true)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "not found")
+	})
 }
 
 func TestActivityService_DeleteGroup(t *testing.T) {
