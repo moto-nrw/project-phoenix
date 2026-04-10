@@ -62,6 +62,13 @@ vi.mock("~/components/ui/detail-modal-actions", () => ({
 vi.mock("@/lib/permission-labels", () => ({
   formatPermissionDisplay: (resource: string, action: string) =>
     `${resource}: ${action}`,
+  localizeResource: (resource: string) =>
+    resource === "users" ? "Benutzer" : resource,
+  localizeAction: (action: string) => (action === "read" ? "Lesen" : action),
+  localizeDescription: (resource: string, action: string, dbDesc?: string) =>
+    resource === "users" && action === "read"
+      ? "Benutzerinformationen ansehen"
+      : (dbDesc ?? ""),
 }));
 
 describe("PermissionDetailModal", () => {
@@ -128,7 +135,7 @@ describe("PermissionDetailModal", () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it("displays permission resource", async () => {
+  it("displays localized permission resource", async () => {
     render(
       <PermissionDetailModal
         isOpen={true}
@@ -140,11 +147,11 @@ describe("PermissionDetailModal", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText("users")).toBeInTheDocument();
+      expect(screen.getByText("Benutzer")).toBeInTheDocument();
     });
   });
 
-  it("displays permission action", async () => {
+  it("displays localized permission action", async () => {
     render(
       <PermissionDetailModal
         isOpen={true}
@@ -156,11 +163,11 @@ describe("PermissionDetailModal", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText("read")).toBeInTheDocument();
+      expect(screen.getByText("Lesen")).toBeInTheDocument();
     });
   });
 
-  it("displays permission name", async () => {
+  it("displays technical permission name", async () => {
     render(
       <PermissionDetailModal
         isOpen={true}
@@ -176,7 +183,7 @@ describe("PermissionDetailModal", () => {
     });
   });
 
-  it("displays permission description", async () => {
+  it("displays localized permission description", async () => {
     render(
       <PermissionDetailModal
         isOpen={true}
@@ -188,7 +195,9 @@ describe("PermissionDetailModal", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText("Allows reading user data")).toBeInTheDocument();
+      expect(
+        screen.getByText("Benutzerinformationen ansehen"),
+      ).toBeInTheDocument();
     });
   });
 
