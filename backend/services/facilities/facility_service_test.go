@@ -303,6 +303,41 @@ func TestFacilitiesService_UpdateRoom(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 100, *updated.Capacity)
 	})
+
+	t.Run("blocks renaming system room Schulhof", func(t *testing.T) {
+		// ARRANGE
+		room := testpkg.CreateTestRoom(t, db, "Schulhof")
+		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
+
+		room.Name = "Spielplatz"
+
+		// ACT
+		err := service.UpdateRoom(ctx, room)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Systemraum")
+	})
+
+	t.Run("allows updating other properties of system room", func(t *testing.T) {
+		// ARRANGE
+		room := testpkg.CreateTestRoom(t, db, "WC")
+		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
+
+		newCapacity := 25
+		room.Capacity = &newCapacity
+
+		// ACT
+		err := service.UpdateRoom(ctx, room)
+
+		// ASSERT
+		require.NoError(t, err)
+
+		updated, err := service.GetRoom(ctx, room.ID)
+		require.NoError(t, err)
+		assert.Equal(t, 25, *updated.Capacity)
+		assert.Equal(t, "WC", updated.Name)
+	})
 }
 
 // ============================================================================
@@ -381,6 +416,32 @@ func TestFacilitiesService_DeleteRoom(t *testing.T) {
 		// ASSERT
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "not found")
+	})
+
+	t.Run("blocks deletion of system room Schulhof", func(t *testing.T) {
+		// ARRANGE
+		room := testpkg.CreateTestRoom(t, db, "Schulhof")
+		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
+
+		// ACT
+		err := service.DeleteRoom(ctx, room.ID)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Systemraum")
+	})
+
+	t.Run("blocks deletion of system room WC", func(t *testing.T) {
+		// ARRANGE
+		room := testpkg.CreateTestRoom(t, db, "WC")
+		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
+
+		// ACT
+		err := service.DeleteRoom(ctx, room.ID)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Systemraum")
 	})
 }
 

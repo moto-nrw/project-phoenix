@@ -27,6 +27,7 @@ func TestActivitiesErrorVariables(t *testing.T) {
 		{"ErrGroupClosed", ErrGroupClosed, "activity group is not open for enrollment"},
 		{"ErrCannotDeletePrimary", ErrCannotDeletePrimary, "cannot delete primary supervisor"},
 		{"ErrStaffNotFound", ErrStaffNotFound, "staff not found"},
+		{"ErrSystemActivityProtected", ErrSystemActivityProtected, "Systemaktivität kann nicht gelöscht oder umbenannt werden"},
 	}
 
 	for _, tt := range tests {
@@ -51,6 +52,7 @@ func TestActivitiesErrorsAreDistinct(t *testing.T) {
 		ErrGroupClosed,
 		ErrCannotDeletePrimary,
 		ErrStaffNotFound,
+		ErrSystemActivityProtected,
 	}
 
 	for i, err1 := range errorVars {

@@ -337,6 +337,37 @@ func TestActivityService_UpdateGroup(t *testing.T) {
 		assert.NotNil(t, result)
 		assert.Equal(t, "Updated Group Name", result.Name)
 	})
+
+	t.Run("blocks renaming system activity Schulhof Freispiel", func(t *testing.T) {
+		// ARRANGE
+		group := testpkg.CreateTestActivityGroup(t, db, "Schulhof Freispiel")
+		defer testpkg.CleanupActivityFixtures(t, db, group.ID)
+
+		group.Name = "Renamed Activity"
+
+		// ACT
+		_, err := service.UpdateGroup(ctx, group, *group.CreatedBy, true)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Systemaktivität")
+	})
+
+	t.Run("allows updating other properties of system activity", func(t *testing.T) {
+		// ARRANGE
+		group := testpkg.CreateTestActivityGroup(t, db, "WC")
+		defer testpkg.CleanupActivityFixtures(t, db, group.ID)
+
+		group.MaxParticipants = 30
+
+		// ACT
+		result, err := service.UpdateGroup(ctx, group, *group.CreatedBy, true)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.Equal(t, 30, result.MaxParticipants)
+		assert.Equal(t, "WC", result.Name)
+	})
 }
 
 func TestActivityService_DeleteGroup(t *testing.T) {
@@ -360,6 +391,32 @@ func TestActivityService_DeleteGroup(t *testing.T) {
 		result, err := service.GetGroup(ctx, group.ID)
 		require.Error(t, err)
 		assert.Nil(t, result)
+	})
+
+	t.Run("blocks deletion of system activity Schulhof Freispiel", func(t *testing.T) {
+		// ARRANGE
+		group := testpkg.CreateTestActivityGroup(t, db, "Schulhof Freispiel")
+		defer testpkg.CleanupActivityFixtures(t, db, group.ID)
+
+		// ACT
+		err := service.DeleteGroup(ctx, group.ID, *group.CreatedBy, true)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Systemaktivität")
+	})
+
+	t.Run("blocks deletion of system activity WC", func(t *testing.T) {
+		// ARRANGE
+		group := testpkg.CreateTestActivityGroup(t, db, "WC")
+		defer testpkg.CleanupActivityFixtures(t, db, group.ID)
+
+		// ACT
+		err := service.DeleteGroup(ctx, group.ID, *group.CreatedBy, true)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Systemaktivität")
 	})
 }
 

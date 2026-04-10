@@ -11,6 +11,7 @@ import {
   formatRoomCapacity,
   getRoomUtilization,
   getRoomStatusColor,
+  isSystemRoom,
 } from "./room-helpers";
 import { suppressConsole } from "~/test/helpers/console";
 import { buildBackendRoom } from "~/test/fixtures";
@@ -556,5 +557,30 @@ describe("getRoomStatusColor", () => {
 
     // No capacity = 0 utilization = green
     expect(result).toBe("green");
+  });
+});
+
+describe("isSystemRoom", () => {
+  it("returns true for Schulhof", () => {
+    const room: Room = { id: "1", name: "Schulhof", isOccupied: false };
+    expect(isSystemRoom(room)).toBe(true);
+  });
+
+  it("returns true for WC", () => {
+    const room: Room = { id: "2", name: "WC", isOccupied: false };
+    expect(isSystemRoom(room)).toBe(true);
+  });
+
+  it("returns false for regular room", () => {
+    const room: Room = { id: "3", name: "Gruppenraum 1", isOccupied: false };
+    expect(isSystemRoom(room)).toBe(false);
+  });
+
+  it("returns false for null", () => {
+    expect(isSystemRoom(null)).toBe(false);
+  });
+
+  it("returns false for undefined", () => {
+    expect(isSystemRoom(undefined)).toBe(false);
   });
 });
