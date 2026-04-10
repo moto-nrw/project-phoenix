@@ -194,7 +194,7 @@ export function FormModal({
 
         {/* Footer if provided - now sticky at bottom */}
         {footer && (
-          <div className="sticky bottom-0 flex justify-end gap-3 border-t border-gray-100 bg-gray-50/95 p-4 backdrop-blur-sm md:p-6">
+          <div className="sticky bottom-0 flex flex-wrap justify-end gap-3 border-t border-gray-100 bg-gray-50/95 p-4 backdrop-blur-sm md:p-6">
             {footer}
           </div>
         )}
