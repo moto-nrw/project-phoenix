@@ -14,6 +14,10 @@ import (
 // CreateRole creates a new tenant-scoped role.
 // baseRole is required — it maps this custom role to a system role for announcement targeting.
 func (s *Service) CreateRole(ctx context.Context, name, description string, baseRole *string) (*auth.Role, error) {
+	if baseRole == nil || *baseRole == "" {
+		return nil, &AuthError{Op: "create role", Err: errors.New("base_role is required for custom roles")}
+	}
+
 	role := &auth.Role{
 		Name:        name,
 		Description: description,

@@ -17,7 +17,7 @@ func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     rolesBaseRoleVersion,
 		Description: rolesBaseRoleDescription,
-		DependsOn:   []string{"1.15.30", "1.0.4"},
+		DependsOn:   []string{"1.15.29", "1.0.4"},
 	})
 
 	Migrations.MustRegister(

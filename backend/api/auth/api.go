@@ -894,6 +894,9 @@ func (req *UpdateRoleRequest) Bind(_ *http.Request) error {
 }
 
 // normalizeBaseRole trims whitespace and converts empty strings to nil.
+// Intentionally: once a base_role is set, it cannot be cleared back to NULL via the API.
+// Empty string is treated as "field not sent" (preserve existing value), because every
+// custom role should have a base_role for announcement targeting to work correctly.
 func normalizeBaseRole(br *string) *string {
 	if br == nil {
 		return nil
