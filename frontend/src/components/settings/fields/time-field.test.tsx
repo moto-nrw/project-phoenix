@@ -9,9 +9,21 @@ describe("TimeField", () => {
     expect(input.value).toBe("18:00");
   });
 
+  it("shows Jederzeit label when value is empty", () => {
+    render(<TimeField value="" onChange={vi.fn()} />);
+    expect(screen.getByText("Jederzeit")).toBeInTheDocument();
+    expect(screen.getByText("Ändern")).toBeInTheDocument();
+  });
+
+  it("switches to input when Ändern is clicked", () => {
+    render(<TimeField value="" onChange={vi.fn()} />);
+    fireEvent.click(screen.getByText("Ändern"));
+    expect(screen.getByPlaceholderText("HH:MM")).toBeInTheDocument();
+  });
+
   it("calls onChange with valid HH:MM", () => {
     const onChange = vi.fn();
-    render(<TimeField value="" onChange={onChange} />);
+    render(<TimeField value="18:00" onChange={onChange} />);
     const input = screen.getByPlaceholderText("HH:MM");
     fireEvent.change(input, { target: { value: "1630" } });
     expect(onChange).toHaveBeenCalledWith("16:30");
@@ -49,15 +61,33 @@ describe("TimeField", () => {
     expect(onBlur).toHaveBeenCalled();
   });
 
+  it("shows Entfernen button when value is set", () => {
+    render(<TimeField value="18:00" onChange={vi.fn()} />);
+    expect(screen.getByText("Entfernen")).toBeInTheDocument();
+  });
+
+  it("clears value and shows Jederzeit when Entfernen is clicked", () => {
+    const onChange = vi.fn();
+    render(<TimeField value="18:00" onChange={onChange} />);
+    fireEvent.click(screen.getByText("Entfernen"));
+    expect(onChange).toHaveBeenCalledWith("");
+  });
+
+  it("hides Ändern button when disabled", () => {
+    render(<TimeField value="" onChange={vi.fn()} disabled />);
+    expect(screen.getByText("Jederzeit")).toBeInTheDocument();
+    expect(screen.queryByText("Ändern")).not.toBeInTheDocument();
+  });
+
   it("auto-inserts colon when typing digits", () => {
-    render(<TimeField value="" onChange={vi.fn()} />);
+    render(<TimeField value="12:00" onChange={vi.fn()} />);
     const input = screen.getByPlaceholderText("HH:MM") as HTMLInputElement;
     fireEvent.change(input, { target: { value: "183" } });
     expect(input.value).toBe("18:3");
   });
 
   it("strips non-digit characters", () => {
-    render(<TimeField value="" onChange={vi.fn()} />);
+    render(<TimeField value="12:00" onChange={vi.fn()} />);
     const input = screen.getByPlaceholderText("HH:MM") as HTMLInputElement;
     fireEvent.change(input, { target: { value: "1a8b:3c0" } });
     expect(input.value).toBe("18:30");
