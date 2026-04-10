@@ -24,6 +24,7 @@ export function PersonalizationTab() {
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
 
   // Fetch current login image + edit permission on mount.
   // On failure, keep the existing preview from tenant context instead of clearing it.
@@ -54,10 +55,19 @@ export function PersonalizationTab() {
       .finally(() => setIsLoading(false));
   }, []);
 
-  const handleUpload = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
+  const processFile = useCallback(
+    async (file: File) => {
+      const maxSize = 2 * 1024 * 1024;
+      if (file.size > maxSize) {
+        toastError("Datei ist zu groß (max. 2 MB)");
+        return;
+      }
+
+      const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+      if (!allowedTypes.includes(file.type)) {
+        toastError("Nur JPG, PNG oder WebP erlaubt");
+        return;
+      }
 
       setIsUploading(true);
       try {
@@ -97,6 +107,14 @@ export function PersonalizationTab() {
     [toastSuccess, toastError, router],
   );
 
+  const handleUpload = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) void processFile(file);
+    },
+    [processFile],
+  );
+
   const handleDelete = useCallback(async () => {
     setIsDeleting(true);
     try {
@@ -123,76 +141,167 @@ export function PersonalizationTab() {
     }
   }, [toastSuccess, toastError, router]);
 
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragging(false);
+
+      const file = e.dataTransfer.files[0];
+      if (file) void processFile(file);
+    },
+    [processFile],
+  );
+
+  const handleZoneClick = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      fileInputRef.current?.click();
+    }
+  }, []);
+
   return (
     <div className="space-y-6">
-      <div>
-        <h3 className="text-base font-medium text-gray-900">Login-Seite</h3>
-        <p className="mt-1 text-sm text-gray-500">
+      <div className="rounded-2xl border border-gray-100 bg-white/50 p-6 backdrop-blur-sm">
+        <h3 className="mb-1 text-base font-semibold text-gray-900">
+          Login-Seite
+        </h3>
+        <p className="mb-4 text-sm text-gray-500">
           {canEdit
-            ? "Laden Sie ein eigenes Bild hoch, das auf der Login-Seite Ihrer Einrichtung angezeigt wird. Ohne eigenes Bild wird das Standard-moto-Logo verwendet."
+            ? "Laden Sie ein eigenes Bild hoch, das auf der Login-Seite Ihrer Einrichtung angezeigt wird."
             : "Das aktuelle Bild wird auf der Login-Seite Ihrer Einrichtung angezeigt."}
         </p>
-      </div>
 
-      {/* Preview */}
-      <div className="flex flex-col items-center gap-4 rounded-lg border border-dashed border-gray-300 bg-gray-50 p-6">
+        {/* Current image preview */}
         {isLoading ? (
-          <div className="flex h-[120px] w-[200px] items-center justify-center">
+          <div className="flex h-[120px] items-center justify-center rounded-xl border border-gray-100 bg-gray-50">
             <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600" />
           </div>
         ) : currentImageUrl ? (
-          <Image
-            src={loginImageSrc(currentImageUrl)}
-            alt="Login-Bild"
-            width={300}
-            height={200}
-            className="max-h-[200px] w-auto rounded object-contain"
-            unoptimized
-          />
-        ) : (
-          <div className="flex h-[120px] w-[200px] items-center justify-center rounded bg-gray-200 text-sm text-gray-400">
-            Kein Bild hochgeladen
+          <div className="flex flex-col items-center gap-4 rounded-xl border border-gray-100 bg-gray-50 p-6">
+            <Image
+              src={loginImageSrc(currentImageUrl)}
+              alt="Login-Bild"
+              width={300}
+              height={200}
+              className="max-h-[200px] w-auto rounded object-contain"
+              unoptimized
+            />
+            {canEdit && (
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={isDeleting}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-sm font-medium text-red-600 shadow-sm transition-colors hover:bg-red-50 disabled:opacity-50"
+              >
+                {isDeleting ? "Wird entfernt…" : "Bild entfernen"}
+              </button>
+            )}
           </div>
-        )}
+        ) : null}
 
+        {/* Upload dropzone — shown when editable */}
         {canEdit && (
-          <p className="text-xs text-gray-400">
-            Max. 2 MB · JPG, PNG oder WebP · Empfohlen: ca. 900 × 650 px
-          </p>
-        )}
-      </div>
-
-      {/* Actions — only shown for users with write permission */}
-      {canEdit && (
-        <div className="flex gap-3">
-          <label
-            className={`inline-flex cursor-pointer items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 ${
-              isUploading ? "pointer-events-none opacity-50" : ""
-            }`}
-          >
-            {isUploading ? "Wird hochgeladen…" : "Bild hochladen"}
+          <div className={currentImageUrl ? "mt-4" : ""}>
+            {/* Hidden file input */}
             <input
               ref={fileInputRef}
               type="file"
               accept="image/jpeg,image/png,image/webp"
-              className="hidden"
+              tabIndex={-1}
               onChange={handleUpload}
               disabled={isUploading}
+              className="sr-only"
+              aria-label="Bild auswählen"
             />
-          </label>
 
-          {currentImageUrl && (
-            <button
-              type="button"
-              onClick={handleDelete}
-              disabled={isDeleting}
-              className="inline-flex items-center rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 shadow-sm hover:bg-red-50 disabled:opacity-50"
+            <fieldset
+              className={`relative m-0 rounded-xl border-2 border-dashed p-8 text-center transition-all duration-300 ${
+                isDragging
+                  ? "border-green-500 bg-green-50"
+                  : "border-gray-300 bg-gray-50 hover:border-gray-400"
+              }`}
+              onDragEnter={handleDragEnter}
+              onDragLeave={handleDragLeave}
+              onDragOver={handleDragOver}
+              onDrop={handleDrop}
             >
-              {isDeleting ? "Wird entfernt…" : "Bild entfernen"}
-            </button>
-          )}
-        </div>
-      )}
+              <legend className="sr-only">
+                Bild-Upload-Bereich für Drag-and-Drop
+              </legend>
+              <button
+                type="button"
+                onClick={handleZoneClick}
+                onKeyDown={handleKeyDown}
+                aria-label="Bild hochladen — ziehen Sie eine Datei hierher oder klicken Sie zum Auswählen"
+                className="absolute inset-0 z-10 cursor-pointer rounded-xl bg-transparent focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:outline-none"
+              />
+
+              {isUploading ? (
+                <div className="pointer-events-none flex flex-col items-center gap-3">
+                  <div className="h-10 w-10 animate-spin rounded-full border-4 border-gray-300 border-t-green-600" />
+                  <p className="text-sm text-gray-600">
+                    Bild wird hochgeladen…
+                  </p>
+                </div>
+              ) : (
+                <div className="pointer-events-none flex flex-col items-center gap-3">
+                  <svg
+                    className={`h-12 w-12 transition-colors ${isDragging ? "text-green-500" : "text-gray-400"}`}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1.5}
+                      d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                    />
+                  </svg>
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">
+                      {isDragging
+                        ? "Bild hier ablegen…"
+                        : currentImageUrl
+                          ? "Neues Bild hierher ziehen"
+                          : "Bild hierher ziehen"}
+                    </p>
+                    <p className="mt-0.5 text-xs text-gray-500">oder</p>
+                  </div>
+                  <span className="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm text-white">
+                    Bild auswählen
+                  </span>
+                  <p className="text-xs text-gray-400">
+                    Max. 2 MB · JPG, PNG oder WebP · Empfohlen: ca. 900 × 650 px
+                  </p>
+                </div>
+              )}
+            </fieldset>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

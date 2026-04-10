@@ -42,7 +42,7 @@ export function PasswordField({
         onChange={(e) => setNewValue(e.target.value)}
         placeholder="Neuen Wert eingeben"
         autoFocus
-        className="block w-48 rounded-lg border-0 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:ring-2 focus:ring-gray-900 focus:outline-none focus:ring-inset"
+        className="block w-48 rounded-lg border-0 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400"
       />
       <button
         type="button"

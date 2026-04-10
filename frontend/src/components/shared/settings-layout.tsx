@@ -148,6 +148,19 @@ export function SettingsLayout({ tabs, renderTab }: SettingsLayoutProps) {
             <TabsList variant="line">
               {tabs.map((tab) => (
                 <TabsTrigger key={tab.id} value={tab.id}>
+                  <svg
+                    className="h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d={tab.icon}
+                    />
+                  </svg>
                   {tab.label}
                   {tab.adminOnly && (
                     <span className="ml-1 rounded bg-gray-200 px-1.5 py-0.5 text-xs">
