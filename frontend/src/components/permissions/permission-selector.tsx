@@ -5,6 +5,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
 // Resource definitions with German labels
 const RESOURCES = [
   { value: "users", label: "Benutzer" },
+  { value: "roles", label: "Rollen" },
+  { value: "permissions", label: "Berechtigungen" },
   { value: "activities", label: "Aktivitäten" },
   { value: "rooms", label: "Räume" },
   { value: "groups", label: "Gruppen" },
@@ -15,6 +17,11 @@ const RESOURCES = [
   { value: "config", label: "Konfiguration" },
   { value: "iot", label: "IoT-Geräte" },
   { value: "auth", label: "Authentifizierung" },
+  { value: "suggestions", label: "Vorschläge" },
+  { value: "time_tracking", label: "Zeiterfassung" },
+  { value: "grade_transitions", label: "Klassenwechsel" },
+  { value: "system", label: "System" },
+  { value: "admin", label: "Administration" },
 ] as const;
 
 // Action labels in German
@@ -27,11 +34,15 @@ const ACTION_LABELS: Record<string, string> = {
   manage: "Verwalten",
   enroll: "Einschreiben",
   assign: "Zuweisen",
+  own: "Eigene",
+  apply: "Anwenden",
 };
 
 // Actions available per resource (matching Go backend constants)
 const RESOURCE_ACTIONS: Record<string, string[]> = {
   users: ["create", "read", "update", "delete", "list", "manage"],
+  roles: ["create", "read", "update", "delete"],
+  permissions: ["create", "read", "update", "delete"],
   activities: [
     "create",
     "read",
@@ -47,10 +58,15 @@ const RESOURCE_ACTIONS: Record<string, string[]> = {
   substitutions: ["create", "read", "update", "delete", "list", "manage"],
   schedules: ["create", "read", "update", "delete", "list", "manage"],
   visits: ["create", "read", "update", "delete", "list", "manage"],
-  feedback: ["create", "read", "delete", "list", "manage"], // no update
-  config: ["read", "update", "manage"], // no create/delete/list
-  iot: ["read", "update", "manage"], // no create/delete/list
-  auth: ["manage"], // only manage
+  feedback: ["create", "read", "delete", "list", "manage"],
+  config: ["read", "update", "manage"],
+  iot: ["read", "update", "manage"],
+  auth: ["manage"],
+  suggestions: ["create", "read", "update", "delete", "list", "manage"],
+  time_tracking: ["own"],
+  grade_transitions: ["read", "create", "update", "delete", "apply"],
+  system: ["manage"],
+  admin: ["*"],
 };
 
 export interface PermissionSelectorValue {
@@ -229,7 +245,7 @@ export function PermissionSelector({
       {resource && action && (
         <div className="md:col-span-2">
           <p className="text-xs text-gray-500">
-            Permission-Name:{" "}
+            Berechtigungsname:{" "}
             <code className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-pink-600">
               {resource}:{action}
             </code>

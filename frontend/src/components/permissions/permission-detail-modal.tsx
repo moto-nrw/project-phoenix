@@ -4,7 +4,12 @@ import React from "react";
 import { Modal } from "~/components/ui/modal";
 import { DetailModalActions } from "~/components/ui/detail-modal-actions";
 import type { Permission } from "@/lib/auth-helpers";
-import { formatPermissionDisplay } from "@/lib/permission-labels";
+import {
+  formatPermissionDisplay,
+  localizeAction,
+  localizeDescription,
+  localizeResource,
+} from "@/lib/permission-labels";
 
 interface Props {
   readonly isOpen: boolean;
@@ -86,25 +91,32 @@ export function PermissionDetailModal({
                 <div>
                   <dt className="text-xs text-gray-500">Ressource</dt>
                   <dd className="mt-0.5 text-sm font-medium break-words text-gray-900">
-                    {permission.resource}
+                    {localizeResource(permission.resource)}
                   </dd>
                 </div>
                 <div>
                   <dt className="text-xs text-gray-500">Aktion</dt>
                   <dd className="mt-0.5 text-sm font-medium break-words text-gray-900">
-                    {permission.action}
+                    {localizeAction(permission.action)}
                   </dd>
                 </div>
                 <div className="sm:col-span-2">
-                  <dt className="text-xs text-gray-500">Anzeigename</dt>
+                  <dt className="text-xs text-gray-500">Technischer Name</dt>
                   <dd className="mt-0.5 text-sm font-medium break-words text-gray-900">
-                    {permission.name || "—"}
+                    <code className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-sm">
+                      {permission.name ||
+                        permission.resource + ":" + permission.action}
+                    </code>
                   </dd>
                 </div>
                 <div className="sm:col-span-2">
                   <dt className="text-xs text-gray-500">Beschreibung</dt>
                   <dd className="mt-0.5 text-xs break-words whitespace-pre-wrap text-gray-700 md:text-sm">
-                    {permission.description || "Keine Beschreibung"}
+                    {localizeDescription(
+                      permission.resource,
+                      permission.action,
+                      permission.description,
+                    ) || "Keine Beschreibung"}
                   </dd>
                 </div>
               </dl>
