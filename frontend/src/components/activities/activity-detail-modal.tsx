@@ -2,7 +2,7 @@
 
 import { Modal } from "~/components/ui/modal";
 import { DetailModalActions } from "~/components/ui/detail-modal-actions";
-import type { Activity } from "@/lib/activity-helpers";
+import { isSystemActivity, type Activity } from "@/lib/activity-helpers";
 
 interface ActivityDetailModalProps {
   readonly isOpen: boolean;
@@ -108,6 +108,7 @@ export function ActivityDetailModal({
             entityName={activity.name}
             entityType="Aktivität"
             onDeleteClick={onDeleteClick}
+            hideDelete={isSystemActivity(activity)}
           />
         </div>
       )}

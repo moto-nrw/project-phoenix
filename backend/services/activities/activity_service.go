@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 
+	"github.com/moto-nrw/project-phoenix/constants"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -255,6 +256,15 @@ func (s *Service) UpdateGroup(ctx context.Context, group *activities.Group, requ
 		return nil, &ActivityError{Op: "validate group", Err: err}
 	}
 
+	// Block renaming system activities (Schulhof Freispiel, WC)
+	existingGroup, err := s.groupRepo.FindByID(ctx, group.ID)
+	if err != nil {
+		return nil, &ActivityError{Op: "update group", Err: ErrGroupNotFound}
+	}
+	if constants.IsSystemActivityName(existingGroup.Name) && group.Name != existingGroup.Name {
+		return nil, &ActivityError{Op: "update group", Err: ErrSystemActivityProtected}
+	}
+
 	// Check if user can modify this activity
 	canModify, err := s.CanModifyActivity(ctx, group.ID, requestingStaffID, hasManagePermission)
 	if err != nil {
@@ -274,6 +284,15 @@ func (s *Service) UpdateGroup(ctx context.Context, group *activities.Group, requ
 // DeleteGroup deletes an activity group and all related records with ownership verification
 // Only the creator, supervisors, or users with manage permission can delete
 func (s *Service) DeleteGroup(ctx context.Context, id int64, requestingStaffID int64, hasManagePermission bool) error {
+	// Block deletion of system activities (Schulhof Freispiel, WC)
+	existingGroup, err := s.groupRepo.FindByID(ctx, id)
+	if err != nil {
+		return &ActivityError{Op: "delete group", Err: ErrGroupNotFound}
+	}
+	if constants.IsSystemActivityName(existingGroup.Name) {
+		return &ActivityError{Op: "delete group", Err: ErrSystemActivityProtected}
+	}
+
 	// Check if user can modify this activity before starting transaction
 	canModify, err := s.CanModifyActivity(ctx, id, requestingStaffID, hasManagePermission)
 	if err != nil {

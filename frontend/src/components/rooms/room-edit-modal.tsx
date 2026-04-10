@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { Modal } from "~/components/ui/modal";
 import { DatabaseForm } from "~/components/ui/database/database-form";
-import type { Room } from "@/lib/room-helpers";
+import { isSystemRoom, type Room } from "@/lib/room-helpers";
 import { roomsConfig } from "@/lib/database/configs/rooms.config";
 import { configToFormSection } from "@/lib/database/types";
 
@@ -30,14 +30,17 @@ export function RoomEditModal({
   onSave,
   loading = false,
 }: RoomEditModalProps) {
+  const isSystem = isSystemRoom(room);
+
   // Dynamically add legacy category if room has one not in standard list
+  // and disable name field for system rooms
   const sections = useMemo(() => {
-    const baseSections = roomsConfig.form.sections.map(configToFormSection);
+    let baseSections = roomsConfig.form.sections.map(configToFormSection);
 
     // Check if room has a legacy category
     if (room?.category && !STANDARD_CATEGORIES.has(room.category)) {
       // Find the category field and add the legacy option
-      return baseSections.map((section) => ({
+      baseSections = baseSections.map((section) => ({
         ...section,
         fields: section.fields.map((field) => {
           if (field.name === "category" && Array.isArray(field.options)) {
@@ -54,8 +57,24 @@ export function RoomEditModal({
       }));
     }
 
+    // Disable name field for system rooms (Schulhof, WC)
+    if (isSystem) {
+      baseSections = baseSections.map((section) => ({
+        ...section,
+        fields: section.fields.map((field) =>
+          field.name === "name"
+            ? {
+                ...field,
+                disabled: true,
+                helperText: "Systemraum — Name kann nicht geändert werden",
+              }
+            : field,
+        ),
+      }));
+    }
+
     return baseSections;
-  }, [room?.category]);
+  }, [room?.category, isSystem]);
 
   if (!room) return null;
 

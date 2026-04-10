@@ -221,6 +221,8 @@ export interface FormField {
   min?: number;
   max?: number;
   maxLength?: number;
+  /** When true, the field is rendered as read-only and cannot be edited. */
+  disabled?: boolean;
 }
 
 export interface FormSection {
@@ -731,6 +733,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
               placeholder={field.placeholder}
               autoComplete={field.autoComplete}
               maxLength={field.maxLength ?? getDefaultMaxLength(field.type)}
+              disabled={field.disabled}
               className={baseInputClasses}
             />
             {field.helperText && (

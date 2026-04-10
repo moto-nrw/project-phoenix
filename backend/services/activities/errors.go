@@ -54,6 +54,9 @@ var (
 	// ErrOnlySupervisorRequiresReplacement is returned when removing the last
 	// remaining supervisor would leave an activity without any supervisor.
 	ErrOnlySupervisorRequiresReplacement = errors.New("cannot remove the only supervisor from an activity without a replacement")
+
+	// ErrSystemActivityProtected is returned when trying to delete or rename a system activity (Schulhof Freispiel, WC).
+	ErrSystemActivityProtected = errors.New("Systemaktivität kann nicht gelöscht oder umbenannt werden") //nolint:staticcheck // ST1005: user-facing German message
 )
 
 // ActivityError represents an activity-related error

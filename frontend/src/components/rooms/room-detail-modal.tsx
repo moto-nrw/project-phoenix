@@ -9,7 +9,7 @@ import {
   InfoSection,
   DetailIcons,
 } from "~/components/ui/detail-modal-components";
-import { formatFloor, type Room } from "@/lib/room-helpers";
+import { formatFloor, isSystemRoom, type Room } from "@/lib/room-helpers";
 
 interface RoomDetailModalProps {
   readonly isOpen: boolean;
@@ -108,6 +108,7 @@ export function RoomDetailModal({
           onDeleteClick={onDeleteClick}
           entityName={room.name}
           entityType="Raum"
+          hideDelete={isSystemRoom(room)}
         />
       </div>
     );
