@@ -5,6 +5,7 @@ import {
   localizeResource,
   localizeAction,
   formatPermissionDisplay,
+  localizeDescription,
 } from "./permission-labels";
 
 describe("permission-labels", () => {
@@ -17,25 +18,31 @@ describe("permission-labels", () => {
       expect(resourceLabels.rooms).toBe("Räume");
       expect(resourceLabels.groups).toBe("Gruppen");
       expect(resourceLabels.visits).toBe("Besuche");
+      expect(resourceLabels.substitutions).toBe("Vertretungen");
       expect(resourceLabels.schedules).toBe("Zeitpläne");
       expect(resourceLabels.config).toBe("Konfiguration");
       expect(resourceLabels.feedback).toBe("Feedback");
       expect(resourceLabels.iot).toBe("Geräte");
       expect(resourceLabels.system).toBe("System");
       expect(resourceLabels.admin).toBe("Administration");
+      expect(resourceLabels.suggestions).toBe("Vorschläge");
+      expect(resourceLabels.time_tracking).toBe("Zeiterfassung");
+      expect(resourceLabels.grade_transitions).toBe("Klassenwechsel");
     });
   });
 
   describe("actionLabels", () => {
     it("should contain expected action mappings", () => {
       expect(actionLabels.create).toBe("Erstellen");
-      expect(actionLabels.read).toBe("Ansehen");
+      expect(actionLabels.read).toBe("Lesen");
       expect(actionLabels.update).toBe("Bearbeiten");
       expect(actionLabels.delete).toBe("Löschen");
       expect(actionLabels.list).toBe("Auflisten");
       expect(actionLabels.manage).toBe("Verwalten");
       expect(actionLabels.assign).toBe("Zuweisen");
-      expect(actionLabels.enroll).toBe("Anmelden");
+      expect(actionLabels.enroll).toBe("Einschreiben");
+      expect(actionLabels.own).toBe("Eigene");
+      expect(actionLabels.apply).toBe("Anwenden");
       expect(actionLabels["*"]).toBe("Alle");
     });
   });
@@ -69,7 +76,7 @@ describe("permission-labels", () => {
   describe("localizeAction", () => {
     it("should return German label for known actions", () => {
       expect(localizeAction("create")).toBe("Erstellen");
-      expect(localizeAction("read")).toBe("Ansehen");
+      expect(localizeAction("read")).toBe("Lesen");
       expect(localizeAction("update")).toBe("Bearbeiten");
       expect(localizeAction("delete")).toBe("Löschen");
       expect(localizeAction("*")).toBe("Alle");
@@ -98,7 +105,7 @@ describe("permission-labels", () => {
       expect(formatPermissionDisplay("users", "create")).toBe(
         "Benutzer: Erstellen",
       );
-      expect(formatPermissionDisplay("rooms", "read")).toBe("Räume: Ansehen");
+      expect(formatPermissionDisplay("rooms", "read")).toBe("Räume: Lesen");
       expect(formatPermissionDisplay("activities", "update")).toBe(
         "Aktivitäten: Bearbeiten",
       );
@@ -118,7 +125,7 @@ describe("permission-labels", () => {
       expect(formatPermissionDisplay("unknown_resource", "create")).toBe(
         "unknown_resource: Erstellen",
       );
-      expect(formatPermissionDisplay("custom", "read")).toBe("custom: Ansehen");
+      expect(formatPermissionDisplay("custom", "read")).toBe("custom: Lesen");
     });
 
     it("should handle known resources with unknown actions", () => {
@@ -154,6 +161,87 @@ describe("permission-labels", () => {
       expect(formatPermissionDisplay("xyz", "create")).toBe("xyz: Erstellen");
       // Both unknown
       expect(formatPermissionDisplay("xyz", "abc")).toBe("xyz: abc");
+    });
+  });
+
+  describe("localizeDescription", () => {
+    it("should return German description for known permissions", () => {
+      expect(localizeDescription("users", "create")).toBe(
+        "Neue Benutzer erstellen",
+      );
+      expect(localizeDescription("activities", "assign")).toBe(
+        "Betreuer zu Aktivitäten zuweisen",
+      );
+      expect(localizeDescription("rooms", "manage")).toBe(
+        "Raumverwaltung (Vollzugriff)",
+      );
+      expect(localizeDescription("time_tracking", "own")).toBe(
+        "Eigene Arbeitszeiten erfassen",
+      );
+      expect(localizeDescription("grade_transitions", "apply")).toBe(
+        "Klassenwechsel anwenden/zurücksetzen",
+      );
+    });
+
+    it("should return German description for legacy permission names", () => {
+      expect(localizeDescription("user", "create")).toBe(
+        "Neue Benutzer erstellen",
+      );
+      expect(localizeDescription("role", "read")).toBe(
+        "Rolleninformationen ansehen",
+      );
+      expect(localizeDescription("permission", "delete")).toBe(
+        "Berechtigungen löschen",
+      );
+    });
+
+    it("should fall back to DB description for unknown permissions", () => {
+      expect(localizeDescription("unknown", "action", "DB description")).toBe(
+        "DB description",
+      );
+    });
+
+    it("should return empty string when no translation and no DB description", () => {
+      expect(localizeDescription("unknown", "action")).toBe("");
+      expect(localizeDescription("unknown", "action", undefined)).toBe("");
+    });
+
+    it("should prefer German translation over DB description", () => {
+      expect(localizeDescription("users", "create", "Create new users")).toBe(
+        "Neue Benutzer erstellen",
+      );
+    });
+
+    it("should cover all major resource categories", () => {
+      // Verify each resource category has at least one description
+      expect(localizeDescription("substitutions", "manage")).toBe(
+        "Vertretungsverwaltung (Vollzugriff)",
+      );
+      expect(localizeDescription("schedules", "create")).toBe(
+        "Neue Stundenpläne erstellen",
+      );
+      expect(localizeDescription("visits", "read")).toBe("Besuche ansehen");
+      expect(localizeDescription("feedback", "list")).toBe(
+        "Feedback auflisten",
+      );
+      expect(localizeDescription("config", "update")).toBe(
+        "Konfiguration bearbeiten",
+      );
+      expect(localizeDescription("iot", "manage")).toBe(
+        "IoT-Geräteverwaltung (Vollzugriff)",
+      );
+      expect(localizeDescription("auth", "manage")).toBe(
+        "Authentifizierungsverwaltung (Vollzugriff)",
+      );
+      expect(localizeDescription("suggestions", "create")).toBe(
+        "Neue Vorschläge erstellen",
+      );
+      expect(localizeDescription("system", "manage")).toBe(
+        "Systemeinstellungen verwalten",
+      );
+      expect(localizeDescription("admin", "*")).toBe(
+        "Vollzugriff auf alle Ressourcen",
+      );
     });
   });
 });
