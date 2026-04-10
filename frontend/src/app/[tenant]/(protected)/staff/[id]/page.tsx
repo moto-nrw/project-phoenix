@@ -1,38 +1,23 @@
 "use client";
 
-import {
-  useState,
-  useMemo,
-  useCallback,
-  useEffect,
-  useRef,
-  Suspense,
-} from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useParams, redirect } from "next/navigation";
 import { useSession } from "next-auth/react";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
-import {
-  staffService,
-  staffScheduleService,
-  staffHistoryService,
-} from "~/lib/staff-api";
-import type { Staff, StaffHistorySession } from "~/lib/staff-api";
+import { staffService } from "~/lib/staff-api";
+import type { Staff } from "~/lib/staff-api";
 import {
   getStaffDisplayType,
   getStaffLocationStatus,
 } from "~/lib/staff-helpers";
-import { formatDuration, getWeekDays } from "~/lib/time-tracking-helpers";
 import { getInitials } from "~/lib/format-utils";
 import { useSWRAuth } from "~/lib/swr";
-import { useToast } from "~/contexts/ToastContext";
 import { isAdmin } from "~/lib/auth-utils";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Loading } from "~/components/ui/loading";
-import { createLogger } from "~/lib/logger";
-
-const logger = createLogger({ component: "StaffDetailPage" });
+import { DienstplanTab } from "~/components/staff/dienstplan-tab";
 
 // ─── Labels & constants ──────────────────────────────────────────────────────
 
@@ -41,8 +26,6 @@ const employmentTypeLabels: Record<string, string> = {
   part_time: "Teilzeit",
   minijob: "Minijob",
 };
-
-const dayLabels = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 
 // ─── Rich Header ─────────────────────────────────────────────────────────────
 
@@ -206,254 +189,6 @@ function OverflowMenu({
         })}
       </div>
     </>
-  );
-}
-
-// ─── Dienstplan Tab ──────────────────────────────────────────────────────────
-
-function DienstplanTab({
-  staffId,
-  canEdit,
-}: {
-  readonly staffId: string;
-  readonly canEdit: boolean;
-}) {
-  const toast = useToast();
-  const {
-    data: schedule,
-    isLoading: scheduleLoading,
-    mutate: mutateSchedule,
-  } = useSWRAuth(`staff-schedule-${staffId}`, () =>
-    staffScheduleService.getSchedule(staffId),
-  );
-
-  // Current week's actual hours from time-tracking history
-  const weekDays = useMemo(() => getWeekDays(new Date()), []);
-  const monday = weekDays[0];
-  const sunday = weekDays[6];
-  const fromDate = monday ? (monday.toISOString().split("T")[0] ?? "") : "";
-  const toDate = sunday ? (sunday.toISOString().split("T")[0] ?? "") : "";
-
-  const { data: historySessions, isLoading: historyLoading } = useSWRAuth<
-    StaffHistorySession[]
-  >(
-    fromDate && toDate
-      ? `staff-history-${staffId}-${fromDate}-${toDate}`
-      : null,
-    () => staffHistoryService.getHistory(staffId, fromDate, toDate),
-  );
-
-  const actualMinutesByDay = useMemo(() => {
-    const map = new Map<number, number>();
-    if (!historySessions) return map;
-    for (const session of historySessions) {
-      const date = new Date(session.date + "T00:00:00");
-      const jsDay = date.getDay();
-      const dayOfWeek = jsDay === 0 ? 6 : jsDay - 1;
-      const current = map.get(dayOfWeek) ?? 0;
-      map.set(dayOfWeek, current + (session.net_minutes ?? 0));
-    }
-    return map;
-  }, [historySessions]);
-
-  const isLoading = scheduleLoading || historyLoading;
-
-  const [localEntries, setLocalEntries] = useState<
-    Array<{ dayOfWeek: number; targetMinutes: number }>
-  >([]);
-  const [isDirty, setIsDirty] = useState(false);
-  const [saving, setSaving] = useState(false);
-
-  const serverEntries = useMemo(() => {
-    const result: Array<{ dayOfWeek: number; targetMinutes: number }> = [];
-    for (let d = 0; d < 7; d++) {
-      const existing = schedule?.entries.find((e) => e.dayOfWeek === d);
-      result.push({
-        dayOfWeek: d,
-        targetMinutes: existing?.targetMinutes ?? 0,
-      });
-    }
-    return result;
-  }, [schedule]);
-
-  const entries = isDirty ? localEntries : serverEntries;
-  const weeklyTotal = entries.reduce((sum, e) => sum + e.targetMinutes, 0);
-  const actualTotal = Array.from(actualMinutesByDay.values()).reduce(
-    (a, b) => a + b,
-    0,
-  );
-
-  const updateDay = useCallback(
-    (dayOfWeek: number, minutes: number) => {
-      const clamped = Math.max(0, Math.min(720, minutes));
-      const next = (isDirty ? localEntries : serverEntries).map((e) =>
-        e.dayOfWeek === dayOfWeek ? { ...e, targetMinutes: clamped } : e,
-      );
-      setLocalEntries(next);
-      setIsDirty(true);
-    },
-    [isDirty, localEntries, serverEntries],
-  );
-
-  const handleSave = useCallback(async () => {
-    setSaving(true);
-    try {
-      const nonZero = entries.filter((e) => e.targetMinutes > 0);
-      await staffScheduleService.updateSchedule(staffId, nonZero);
-      toast.success("Dienstplan gespeichert");
-      setIsDirty(false);
-      await mutateSchedule();
-    } catch (error) {
-      logger.error("schedule_save_failed", {
-        error: error instanceof Error ? error.message : String(error),
-        staff_id: staffId,
-      });
-      toast.error("Fehler beim Speichern");
-    } finally {
-      setSaving(false);
-    }
-  }, [entries, staffId, toast, mutateSchedule]);
-
-  if (isLoading) {
-    return <Loading fullPage={false} />;
-  }
-
-  return (
-    <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
-      <div className="mb-5 flex items-center justify-between">
-        <h3 className="text-sm font-semibold tracking-wide text-gray-400 uppercase">
-          Wochenplan
-        </h3>
-        <div className="flex items-center gap-4 text-sm">
-          <span className="font-bold text-gray-700">
-            Soll: {formatDuration(weeklyTotal)}
-          </span>
-          {actualMinutesByDay.size > 0 && (
-            <span className="text-gray-500">
-              Ist:{" "}
-              <span className="font-bold text-gray-700">
-                {formatDuration(actualTotal)}
-              </span>
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* Column headers */}
-      <div className="mb-2 flex items-center gap-4 text-xs font-medium tracking-wide text-gray-400 uppercase">
-        <span className="w-8 shrink-0">Tag</span>
-        <span className="w-[7.5rem] shrink-0 text-center">Soll</span>
-        <span className="w-20 shrink-0 text-center">Ist</span>
-        <span className="hidden flex-1 md:block" />
-      </div>
-
-      <div className="space-y-2">
-        {entries.map((entry) => {
-          const hours = Math.floor(entry.targetMinutes / 60);
-          const mins = entry.targetMinutes % 60;
-          const maxMinutes = 720;
-          const pct = Math.min(100, (entry.targetMinutes / maxMinutes) * 100);
-          const actual = actualMinutesByDay.get(entry.dayOfWeek);
-
-          return (
-            <div
-              key={entry.dayOfWeek}
-              className="flex items-center gap-4 rounded-lg py-1.5"
-            >
-              <span className="w-8 shrink-0 text-sm font-medium text-gray-600">
-                {dayLabels[entry.dayOfWeek]}
-              </span>
-
-              {/* Soll: Hours + Minutes inputs */}
-              <div className="flex w-[7.5rem] shrink-0 items-center justify-center gap-1">
-                <input
-                  type="number"
-                  min={0}
-                  max={12}
-                  value={hours}
-                  disabled={!canEdit}
-                  onChange={(e) => {
-                    const h = Math.max(
-                      0,
-                      Math.min(12, parseInt(e.target.value) || 0),
-                    );
-                    updateDay(entry.dayOfWeek, h * 60 + mins);
-                  }}
-                  className="w-12 rounded-lg border border-gray-200 px-1.5 py-1 text-center text-sm text-gray-700 tabular-nums focus:border-gray-400 focus:outline-none disabled:bg-gray-50 disabled:text-gray-400"
-                />
-                <span className="text-xs text-gray-400">h</span>
-                <select
-                  value={mins}
-                  disabled={!canEdit}
-                  onChange={(e) => {
-                    const m = parseInt(e.target.value) || 0;
-                    updateDay(entry.dayOfWeek, hours * 60 + m);
-                  }}
-                  className="w-14 rounded-lg border border-gray-200 px-1 py-1 text-center text-sm text-gray-700 tabular-nums focus:border-gray-400 focus:outline-none disabled:bg-gray-50 disabled:text-gray-400"
-                >
-                  <option value={0}>00</option>
-                  <option value={15}>15</option>
-                  <option value={30}>30</option>
-                  <option value={45}>45</option>
-                </select>
-                <span className="text-xs text-gray-400">m</span>
-              </div>
-
-              {/* Ist: actual hours */}
-              {(() => {
-                if (actual === undefined) {
-                  return (
-                    <span className="w-20 shrink-0 text-center text-sm text-gray-300">
-                      –
-                    </span>
-                  );
-                }
-                const isOver =
-                  entry.targetMinutes > 0 && actual > entry.targetMinutes;
-                const isUnder =
-                  entry.targetMinutes > 0 && actual < entry.targetMinutes;
-                const color = isOver
-                  ? "text-amber-600"
-                  : isUnder
-                    ? "text-gray-500"
-                    : "text-green-600";
-                return (
-                  <span
-                    className={`w-20 shrink-0 text-center text-sm font-medium ${color}`}
-                  >
-                    {formatDuration(actual)}
-                  </span>
-                );
-              })()}
-
-              {/* Progress bar (Soll) */}
-              <div className="hidden flex-1 md:block">
-                <div className="h-2 overflow-hidden rounded-full bg-gray-100">
-                  <div
-                    className="h-full rounded-full bg-gray-300 transition-all"
-                    style={{ width: `${pct}%` }}
-                  />
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Save button (admin only) */}
-      {canEdit && (
-        <div className="mt-6 flex justify-end">
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={!isDirty || saving}
-            className="rounded-full bg-gray-900 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {saving ? "Speichern..." : "Aenderungen speichern"}
-          </button>
-        </div>
-      )}
-    </div>
   );
 }
 
