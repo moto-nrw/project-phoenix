@@ -17,7 +17,7 @@ For reference, these settings already exist in the registry (`services/config/de
 | `operations.session_end_enabled` | boolean | `true` | operations | `defaults/operations.go` |
 | `operations.session_end_time` | time | `"18:00"` | operations | `defaults/operations.go` |
 | `operations.session_end_timeout_minutes` | number | `10` | operations | `defaults/operations.go` |
-| `operations.student_daily_checkout_time` | time | `"15:00"` | operations | `defaults/operations.go` |
+| `operations.student_daily_checkout_time` | time | `""` (optional — empty = always available) | operations | `defaults/operations.go` |
 | `operations.session_cleanup_enabled` | boolean | `true` | operations | `defaults/operations.go` |
 | `operations.session_cleanup_interval_minutes` | number | `15` | operations | `defaults/operations.go` |
 | `operations.session_abandoned_threshold_minutes` | number | `60` | operations | `defaults/operations.go` |

@@ -3,10 +3,10 @@ package iot
 import (
 	"log/slog"
 	"net/http"
-	"os"
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	checkinAPI "github.com/moto-nrw/project-phoenix/api/iot/checkin"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 )
@@ -35,9 +35,9 @@ type deviceConfigResponse struct {
 func (rs *Resource) getDeviceConfig(w http.ResponseWriter, r *http.Request) {
 	deviceCtx := device.DeviceFromCtx(r.Context())
 	if deviceCtx == nil {
-		slog.WarnContext(r.Context(), "device auth missing API key", slog.String("path", r.URL.Path))
+		rs.getLogger().WarnContext(r.Context(), "device auth missing API key", slog.String("path", r.URL.Path))
 		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
-			slog.Error("failed to render device auth error", slog.String("error", err.Error()))
+			rs.getLogger().ErrorContext(r.Context(), "failed to render device auth error", slog.String("error", err.Error()))
 		}
 		return
 	}
@@ -63,23 +63,11 @@ func (rs *Resource) getDeviceConfig(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Resolve daily checkout time using the same fallback chain as getStudentDailyCheckoutTime:
-	// tenant DB override → env var → nil (always available).
+	// Resolve daily checkout time via the shared helper so the fallback chain
+	// (tenant DB override → env var → nil) lives in a single place.
 	var dailyCheckoutTime *string
-	dailyCheckoutTimeStr := ""
-
-	if rs.SettingsService != nil {
-		if has, err := rs.SettingsService.HasTenantOverride(r.Context(), configModel.KeyStudentDailyCheckoutTime); err == nil && has {
-			if val, err := rs.SettingsService.ResolveString(r.Context(), configModel.KeyStudentDailyCheckoutTime); err == nil && val != "" {
-				dailyCheckoutTimeStr = val
-			}
-		}
-	}
-	if dailyCheckoutTimeStr == "" {
-		dailyCheckoutTimeStr = os.Getenv("STUDENT_DAILY_CHECKOUT_TIME")
-	}
-	if dailyCheckoutTimeStr != "" {
-		dailyCheckoutTime = &dailyCheckoutTimeStr
+	if rawTime := checkinAPI.ResolveRawDailyCheckoutTime(r.Context(), rs.SettingsService); rawTime != "" {
+		dailyCheckoutTime = &rawTime
 	}
 
 	response := deviceConfigResponse{
