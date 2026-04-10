@@ -21,14 +21,14 @@ function MobileBackHeader({
   readonly activeTab: string | null;
 }) {
   return (
-    <div className="mb-4 flex items-center gap-3 pb-4">
+    <div className="mb-4 flex items-center gap-2 pb-4">
       <button
         onClick={onBack}
-        className="-ml-3 rounded-lg p-3 transition-all hover:bg-gray-100 active:bg-gray-200"
+        className="-ml-2 rounded-xl p-2 transition-all active:bg-gray-100"
         aria-label="Zurück"
       >
         <svg
-          className="h-5 w-5 text-gray-700"
+          className="h-5 w-5 text-gray-900"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -48,55 +48,58 @@ function MobileBackHeader({
   );
 }
 
-interface MobileTabCardProps {
-  readonly tab: Tab;
-  readonly onSelect: () => void;
-}
-
-function MobileTabCard({ tab, onSelect }: MobileTabCardProps) {
+/** iOS-style grouped list for mobile settings navigation */
+function MobileTabList({
+  tabs,
+  onSelect,
+}: {
+  readonly tabs: Tab[];
+  readonly onSelect: (id: string) => void;
+}) {
   return (
-    <div className="mx-4">
-      <button
-        onClick={onSelect}
-        className="flex w-full items-center justify-between rounded-2xl bg-white px-4 py-4 shadow-sm transition-colors hover:bg-gray-50 active:bg-gray-100"
-      >
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100">
-            <svg
-              className="h-5 w-5 text-gray-600"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d={tab.icon}
-              />
-            </svg>
-          </div>
-          <p className="text-base text-gray-900">{tab.label}</p>
+    <div className="mx-4 overflow-hidden rounded-xl bg-white shadow-sm">
+      {tabs.map((tab, idx) => (
+        <button
+          key={tab.id}
+          onClick={() => onSelect(tab.id)}
+          className={`flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors active:bg-gray-50 ${
+            idx < tabs.length - 1 ? "border-b border-gray-100" : ""
+          }`}
+        >
+          <svg
+            className="h-[18px] w-[18px] shrink-0 text-gray-400"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1.5}
+              d={tab.icon}
+            />
+          </svg>
+          <span className="flex-1 text-[15px] text-gray-900">{tab.label}</span>
           {tab.adminOnly && (
-            <span className="rounded bg-gray-200 px-1.5 py-0.5 text-xs">
+            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-500">
               Admin
             </span>
           )}
-        </div>
-        <svg
-          className="h-5 w-5 text-gray-400"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M9 5l7 7-7 7"
-          />
-        </svg>
-      </button>
+          <svg
+            className="h-4 w-4 shrink-0 text-gray-300"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M9 5l7 7-7 7"
+            />
+          </svg>
+        </button>
+      ))}
     </div>
   );
 }
@@ -177,14 +180,8 @@ export function SettingsLayout({ tabs, renderTab }: SettingsLayoutProps) {
       {isMobile && (
         <>
           {activeTab === null ? (
-            <div className="flex flex-col space-y-2 pb-6">
-              {tabs.map((tab) => (
-                <MobileTabCard
-                  key={tab.id}
-                  tab={tab}
-                  onSelect={() => setActiveTab(tab.id)}
-                />
-              ))}
+            <div className="pb-6">
+              <MobileTabList tabs={tabs} onSelect={(id) => setActiveTab(id)} />
             </div>
           ) : (
             <div className="flex h-[calc(100vh-120px)] flex-col">
