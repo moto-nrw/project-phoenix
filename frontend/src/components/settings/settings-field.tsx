@@ -224,8 +224,7 @@ export function SettingsField({
 
         {!setting.is_default &&
           setting.writable &&
-          setting.type !== "boolean" &&
-          !(setting.type === "time" && setting.default === "") && (
+          setting.type !== "boolean" && (
             <button
               type="button"
               onClick={handleReset}

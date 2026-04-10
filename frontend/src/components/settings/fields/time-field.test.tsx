@@ -66,29 +66,6 @@ describe("TimeField", () => {
     expect(onBlur).toHaveBeenCalled();
   });
 
-  it("shows clear button when emptyLabel set and value exists", () => {
-    render(
-      <TimeField value="18:00" onChange={vi.fn()} emptyLabel="Jederzeit" />,
-    );
-    expect(screen.getByLabelText("Uhrzeit entfernen")).toBeInTheDocument();
-  });
-
-  it("does not show clear button without emptyLabel", () => {
-    render(<TimeField value="18:00" onChange={vi.fn()} />);
-    expect(
-      screen.queryByLabelText("Uhrzeit entfernen"),
-    ).not.toBeInTheDocument();
-  });
-
-  it("clears value when clear button is clicked", () => {
-    const onChange = vi.fn();
-    render(
-      <TimeField value="18:00" onChange={onChange} emptyLabel="Jederzeit" />,
-    );
-    fireEvent.click(screen.getByLabelText("Uhrzeit entfernen"));
-    expect(onChange).toHaveBeenCalledWith("");
-  });
-
   it("disables emptyLabel pill when disabled", () => {
     render(
       <TimeField value="" onChange={vi.fn()} emptyLabel="Jederzeit" disabled />,

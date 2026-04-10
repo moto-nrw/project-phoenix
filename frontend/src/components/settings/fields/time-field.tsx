@@ -73,12 +73,6 @@ export function TimeField({
     onBlur?.();
   }, [display, value, onBlur]);
 
-  const handleClear = useCallback(() => {
-    setDisplay("");
-    setIsEditing(false);
-    onChange("");
-  }, [onChange]);
-
   const handleStartEditing = useCallback(() => {
     setIsEditing(true);
     setTimeout(() => inputRef.current?.focus(), 0);
@@ -128,29 +122,6 @@ export function TimeField({
         maxLength={5}
         className="block w-24 rounded-lg border-0 bg-white px-3 py-2 text-center text-sm text-gray-900 tabular-nums shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
       />
-      {value && !disabled && emptyLabel && (
-        <button
-          type="button"
-          onClick={handleClear}
-          className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
-          title="Uhrzeit entfernen"
-          aria-label="Uhrzeit entfernen"
-        >
-          <svg
-            className="h-4 w-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M6 18L18 6M6 6l12 12"
-            />
-          </svg>
-        </button>
-      )}
     </div>
   );
 }
