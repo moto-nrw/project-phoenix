@@ -305,6 +305,7 @@ function renderField(
           onChange={onLocalChange}
           onBlur={onBlur}
           disabled={disabled}
+          emptyLabel={setting.default === "" ? "Jederzeit" : undefined}
         />
       );
     case "text":

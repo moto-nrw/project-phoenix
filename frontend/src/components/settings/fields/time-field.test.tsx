@@ -9,13 +9,19 @@ describe("TimeField", () => {
     expect(input.value).toBe("18:00");
   });
 
-  it("shows Jederzeit pill when value is empty", () => {
-    render(<TimeField value="" onChange={vi.fn()} />);
+  it("shows emptyLabel pill when value is empty and emptyLabel set", () => {
+    render(<TimeField value="" onChange={vi.fn()} emptyLabel="Jederzeit" />);
     expect(screen.getByText("Jederzeit")).toBeInTheDocument();
   });
 
-  it("switches to input when Jederzeit pill is clicked", () => {
+  it("shows HH:MM input when value is empty and no emptyLabel", () => {
     render(<TimeField value="" onChange={vi.fn()} />);
+    const input = screen.getByPlaceholderText("HH:MM") as HTMLInputElement;
+    expect(input.value).toBe("");
+  });
+
+  it("switches to input when emptyLabel pill is clicked", () => {
+    render(<TimeField value="" onChange={vi.fn()} emptyLabel="Jederzeit" />);
     fireEvent.click(screen.getByText("Jederzeit"));
     expect(screen.getByPlaceholderText("HH:MM")).toBeInTheDocument();
   });
@@ -60,24 +66,34 @@ describe("TimeField", () => {
     expect(onBlur).toHaveBeenCalled();
   });
 
-  it("shows clear button when value is set", () => {
-    render(<TimeField value="18:00" onChange={vi.fn()} />);
+  it("shows clear button when emptyLabel set and value exists", () => {
+    render(
+      <TimeField value="18:00" onChange={vi.fn()} emptyLabel="Jederzeit" />,
+    );
     expect(screen.getByLabelText("Uhrzeit entfernen")).toBeInTheDocument();
+  });
+
+  it("does not show clear button without emptyLabel", () => {
+    render(<TimeField value="18:00" onChange={vi.fn()} />);
+    expect(
+      screen.queryByLabelText("Uhrzeit entfernen"),
+    ).not.toBeInTheDocument();
   });
 
   it("clears value when clear button is clicked", () => {
     const onChange = vi.fn();
-    render(<TimeField value="18:00" onChange={onChange} />);
+    render(
+      <TimeField value="18:00" onChange={onChange} emptyLabel="Jederzeit" />,
+    );
     fireEvent.click(screen.getByLabelText("Uhrzeit entfernen"));
     expect(onChange).toHaveBeenCalledWith("");
   });
 
-  it("hides edit affordance when disabled", () => {
-    const { container } = render(
-      <TimeField value="" onChange={vi.fn()} disabled />,
+  it("disables emptyLabel pill when disabled", () => {
+    render(
+      <TimeField value="" onChange={vi.fn()} emptyLabel="Jederzeit" disabled />,
     );
-    const button = container.querySelector("button");
-    expect(button).toBeDisabled();
+    expect(screen.getByText("Jederzeit")).toBeDisabled();
   });
 
   it("auto-inserts colon when typing digits", () => {
