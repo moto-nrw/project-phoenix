@@ -43,20 +43,20 @@ function SettingsSkeleton() {
       {Array.from({ length: 2 }).map((_, catIdx) => (
         <div
           key={catIdx}
-          className="rounded-2xl border border-gray-100 bg-white/50 p-6 backdrop-blur-sm"
+          className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm sm:p-6"
         >
           <Skeleton className="mb-4 h-5 w-32 rounded" />
           <div className="divide-y divide-gray-100">
             {Array.from({ length: catIdx === 0 ? 3 : 2 }).map((_, i) => (
               <div
                 key={i}
-                className="flex items-start justify-between gap-4 py-4"
+                className="flex flex-col gap-3 py-4 sm:flex-row sm:items-start sm:justify-between sm:gap-4"
               >
                 <div className="flex-1 space-y-2">
-                  <Skeleton className="h-4 w-48 rounded" />
-                  <Skeleton className="h-3.5 w-72 rounded" />
+                  <Skeleton className="h-4 w-3/4 rounded sm:w-48" />
+                  <Skeleton className="h-3.5 w-full rounded sm:w-72" />
                 </div>
-                <Skeleton className="h-9 w-32 rounded-lg" />
+                <Skeleton className="h-10 w-24 rounded-lg sm:w-32" />
               </div>
             ))}
           </div>

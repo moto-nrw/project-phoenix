@@ -24,7 +24,7 @@ function MobileBackHeader({
     <div className="mb-4 flex items-center gap-3 pb-4">
       <button
         onClick={onBack}
-        className="-ml-2 rounded-lg p-2 transition-all hover:bg-gray-100 active:bg-gray-200"
+        className="-ml-3 rounded-lg p-3 transition-all hover:bg-gray-100 active:bg-gray-200"
         aria-label="Zurück"
       >
         <svg
@@ -58,12 +58,12 @@ function MobileTabCard({ tab, onSelect }: MobileTabCardProps) {
     <div className="mx-4">
       <button
         onClick={onSelect}
-        className="flex w-full items-center justify-between rounded-2xl bg-white px-4 py-3.5 shadow-sm transition-colors hover:bg-gray-50 active:bg-gray-100"
+        className="flex w-full items-center justify-between rounded-2xl bg-white px-4 py-4 shadow-sm transition-colors hover:bg-gray-50 active:bg-gray-100"
       >
         <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100">
             <svg
-              className="h-4 w-4 text-gray-600"
+              className="h-5 w-5 text-gray-600"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"

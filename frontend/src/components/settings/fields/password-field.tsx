@@ -156,7 +156,7 @@ export function PasswordField({
               setShowValue(false);
               setRevealedValue(null);
             }}
-            className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+            className="rounded-lg p-2.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
             aria-label="Wert ändern"
           >
             <svg
@@ -180,7 +180,7 @@ export function PasswordField({
 
   // Edit mode
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       <div className="relative">
         <input
           type={showValue ? "text" : "password"}
@@ -206,10 +206,10 @@ export function PasswordField({
           }}
           placeholder={hints.placeholder}
           autoFocus
-          className={`block rounded-lg border-0 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 ${
+          className={`block rounded-lg border-0 bg-white px-3 py-2.5 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 ${
             isPin
               ? "w-28 pr-9 text-center tracking-widest tabular-nums"
-              : "w-48 pr-9"
+              : "w-full pr-9 sm:w-48"
           }`}
         />
         <button
@@ -264,7 +264,7 @@ export function PasswordField({
             setIsEditing(false);
           }
         }}
-        className="rounded-lg bg-gray-900 px-3 py-2 text-sm font-medium text-white transition-all hover:bg-gray-700"
+        className="min-h-[44px] rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-medium text-white transition-all hover:bg-gray-700"
       >
         Speichern
       </button>
@@ -274,7 +274,7 @@ export function PasswordField({
           setNewValue("");
           setIsEditing(false);
         }}
-        className="text-sm text-gray-500 hover:text-gray-700"
+        className="min-h-[44px] px-2 text-sm text-gray-500 hover:text-gray-700"
       >
         Abbrechen
       </button>

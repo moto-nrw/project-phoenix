@@ -85,7 +85,7 @@ export function TimeField({
         type="button"
         onClick={handleStartEditing}
         disabled={disabled}
-        className="inline-flex items-center gap-1.5 rounded-lg bg-gray-100 px-3 py-2 text-sm text-gray-500 transition-colors hover:bg-gray-200 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+        className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg bg-gray-100 px-3 py-2.5 text-sm text-gray-500 transition-colors hover:bg-gray-200 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
       >
         {emptyLabel}
         {!disabled && (
@@ -125,7 +125,7 @@ export function TimeField({
         }}
         disabled={disabled}
         maxLength={5}
-        className="block w-24 rounded-lg border-0 bg-white px-3 py-2 text-center text-sm text-gray-900 tabular-nums shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
+        className="block w-24 rounded-lg border-0 bg-white px-3 py-2.5 text-center text-sm text-gray-900 tabular-nums shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
       />
     </div>
   );

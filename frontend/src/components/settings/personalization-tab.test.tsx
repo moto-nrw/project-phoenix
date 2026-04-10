@@ -74,7 +74,7 @@ describe("PersonalizationTab", () => {
 
     render(<PersonalizationTab />);
     await waitFor(() => {
-      expect(screen.getByText("Kein Bild hochgeladen")).toBeDefined();
+      expect(screen.getByText("Bild hierher ziehen")).toBeDefined();
     });
   });
 
@@ -110,7 +110,7 @@ describe("PersonalizationTab", () => {
       expect(screen.getByAltText("Login-Bild")).toBeDefined();
     });
 
-    expect(screen.queryByText("Bild hochladen")).toBeNull();
+    expect(screen.queryByText("Bild auswählen")).toBeNull();
     expect(screen.queryByText("Bild entfernen")).toBeNull();
   });
 
@@ -121,7 +121,7 @@ describe("PersonalizationTab", () => {
 
     render(<PersonalizationTab />);
     await waitFor(() => {
-      expect(screen.getByText("Bild hochladen")).toBeDefined();
+      expect(screen.getByText("Bild auswählen")).toBeDefined();
     });
   });
 
@@ -148,7 +148,7 @@ describe("PersonalizationTab", () => {
 
     render(<PersonalizationTab />);
     await waitFor(() => {
-      expect(screen.getByText("Bild hochladen")).toBeDefined();
+      expect(screen.getByText("Bild auswählen")).toBeDefined();
     });
 
     // Mock the upload POST
@@ -179,7 +179,7 @@ describe("PersonalizationTab", () => {
 
     render(<PersonalizationTab />);
     await waitFor(() => {
-      expect(screen.getByText("Bild hochladen")).toBeDefined();
+      expect(screen.getByText("Bild auswählen")).toBeDefined();
     });
 
     vi.mocked(globalThis.fetch).mockResolvedValueOnce(
@@ -269,9 +269,11 @@ describe("PersonalizationTab", () => {
 
     render(<PersonalizationTab />);
     // Before the fetch resolves, the component should render with the tenant's initial value
-    // After fetch resolves with null, it updates to null
+    // After fetch resolves with null, it updates to null — read-only description is shown
     await waitFor(() => {
-      expect(screen.getByText("Kein Bild hochgeladen")).toBeDefined();
+      expect(
+        screen.getByText(/Das aktuelle Bild wird auf der Login-Seite/),
+      ).toBeDefined();
     });
   });
 

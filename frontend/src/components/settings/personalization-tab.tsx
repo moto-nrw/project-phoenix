@@ -183,7 +183,7 @@ export function PersonalizationTab() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl border border-gray-100 bg-white/50 p-6 backdrop-blur-sm">
+      <div className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm sm:p-6">
         <h3 className="mb-1 text-base font-semibold text-gray-900">
           Login-Seite
         </h3>
@@ -237,7 +237,7 @@ export function PersonalizationTab() {
             />
 
             <fieldset
-              className={`relative m-0 rounded-xl border-2 border-dashed p-8 text-center transition-all duration-300 ${
+              className={`relative m-0 rounded-xl border-2 border-dashed p-4 text-center transition-all duration-300 sm:p-8 ${
                 isDragging
                   ? "border-green-500 bg-green-50"
                   : "border-gray-300 bg-gray-50 hover:border-gray-400"

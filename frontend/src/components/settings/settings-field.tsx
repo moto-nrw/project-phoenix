@@ -192,9 +192,9 @@ export function SettingsField({
   }
 
   return (
-    <div className="flex items-start justify-between gap-4 py-4">
+    <div className="flex flex-col gap-3 py-4 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <h4 className="text-sm font-medium text-gray-900">{setting.label}</h4>
           {setting.is_default && (
             <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-500">
@@ -228,7 +228,7 @@ export function SettingsField({
             <button
               type="button"
               onClick={handleReset}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-600 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-900 active:bg-gray-100"
+              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-600 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-900 active:bg-gray-100"
               title="Auf Standard zurücksetzen"
             >
               <svg
