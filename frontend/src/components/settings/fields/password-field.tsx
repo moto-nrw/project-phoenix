@@ -53,8 +53,10 @@ export function PasswordField({
       setRevealedValue(null);
       return;
     }
-    setIsRevealing(true);
+    // Only show spinner if the fetch takes longer than 150ms (avoids flicker)
+    const spinnerTimeout = setTimeout(() => setIsRevealing(true), 150);
     const value = await revealSettingValue(settingKey);
+    clearTimeout(spinnerTimeout);
     setRevealedValue(value);
     setShowValue(true);
     setIsRevealing(false);

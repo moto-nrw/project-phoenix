@@ -214,8 +214,11 @@ export async function revealSettingValue(key: string): Promise<string | null> {
       return null;
     }
 
-    const result = (await response.json()) as ApiResponse<{ value: string }>;
-    return typeof result.data?.value === "string" ? result.data.value : null;
+    // The Next.js proxy wraps the backend response, so the structure is:
+    // { status, data: { status, data: { value }, message } }
+    const json = await response.json();
+    const value = json?.data?.data?.value ?? json?.data?.value;
+    return typeof value === "string" ? value : null;
   } catch (error) {
     logger.warn("reveal_setting_value_error", {
       key,
