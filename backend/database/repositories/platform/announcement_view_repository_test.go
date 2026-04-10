@@ -3,6 +3,7 @@ package platform_test
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -13,6 +14,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
+
+// schoolCounter ensures unique school slugs/subdomains across concurrent test runs.
+var schoolCounter int64
 
 func TestAnnouncementViewRepository_GetViewDetails(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
@@ -163,7 +167,7 @@ func createTestOrganization(t *testing.T, db *bun.DB, name string) int64 {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	suffix := fmt.Sprintf("%d", time.Now().UnixNano())
+	suffix := fmt.Sprintf("%d-%d", time.Now().UnixNano(), atomic.AddInt64(&schoolCounter, 1))
 	var id int64
 	_, err := db.NewRaw(`
 		INSERT INTO platform.organizations (name, slug, active, created_at, updated_at)
@@ -188,7 +192,7 @@ func createTestSchool(t *testing.T, db *bun.DB, name string, orgID int64) int64 
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	suffix := fmt.Sprintf("%d", time.Now().UnixNano())
+	suffix := fmt.Sprintf("%d-%d", time.Now().UnixNano(), atomic.AddInt64(&schoolCounter, 1))
 	var id int64
 	_, err := db.NewRaw(`
 		INSERT INTO platform.schools (name, slug, subdomain, organization_id, active, created_at, updated_at)
