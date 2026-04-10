@@ -9,15 +9,14 @@ describe("TimeField", () => {
     expect(input.value).toBe("18:00");
   });
 
-  it("shows Jederzeit label when value is empty", () => {
+  it("shows Jederzeit pill when value is empty", () => {
     render(<TimeField value="" onChange={vi.fn()} />);
     expect(screen.getByText("Jederzeit")).toBeInTheDocument();
-    expect(screen.getByText("Ändern")).toBeInTheDocument();
   });
 
-  it("switches to input when Ändern is clicked", () => {
+  it("switches to input when Jederzeit pill is clicked", () => {
     render(<TimeField value="" onChange={vi.fn()} />);
-    fireEvent.click(screen.getByText("Ändern"));
+    fireEvent.click(screen.getByText("Jederzeit"));
     expect(screen.getByPlaceholderText("HH:MM")).toBeInTheDocument();
   });
 
@@ -61,22 +60,24 @@ describe("TimeField", () => {
     expect(onBlur).toHaveBeenCalled();
   });
 
-  it("shows Entfernen button when value is set", () => {
+  it("shows clear button when value is set", () => {
     render(<TimeField value="18:00" onChange={vi.fn()} />);
-    expect(screen.getByText("Entfernen")).toBeInTheDocument();
+    expect(screen.getByLabelText("Uhrzeit entfernen")).toBeInTheDocument();
   });
 
-  it("clears value and shows Jederzeit when Entfernen is clicked", () => {
+  it("clears value when clear button is clicked", () => {
     const onChange = vi.fn();
     render(<TimeField value="18:00" onChange={onChange} />);
-    fireEvent.click(screen.getByText("Entfernen"));
+    fireEvent.click(screen.getByLabelText("Uhrzeit entfernen"));
     expect(onChange).toHaveBeenCalledWith("");
   });
 
-  it("hides Ändern button when disabled", () => {
-    render(<TimeField value="" onChange={vi.fn()} disabled />);
-    expect(screen.getByText("Jederzeit")).toBeInTheDocument();
-    expect(screen.queryByText("Ändern")).not.toBeInTheDocument();
+  it("hides edit affordance when disabled", () => {
+    const { container } = render(
+      <TimeField value="" onChange={vi.fn()} disabled />,
+    );
+    const button = container.querySelector("button");
+    expect(button).toBeDisabled();
   });
 
   it("auto-inserts colon when typing digits", () => {
