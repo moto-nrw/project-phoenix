@@ -15,6 +15,34 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// createRoomWithExactName creates a room with the exact given name (no timestamp suffix).
+// Use this for system room tests where the name must match constants exactly.
+func createRoomWithExactName(t *testing.T, db *bun.DB, name string) *facilities.Room {
+	t.Helper()
+	ctx := testpkg.TenantContext(1)
+	room := &facilities.Room{
+		Name:     name,
+		Building: "Test Building",
+	}
+	room.SetTenantID(1)
+	err := db.NewInsert().
+		Model(room).
+		ModelTableExpr(`facilities.rooms`).
+		Scan(ctx)
+	require.NoError(t, err, "Failed to create room with exact name %q", name)
+	return room
+}
+
+// cleanupRoom removes a room by ID.
+func cleanupRoom(t *testing.T, db *bun.DB, roomID int64) {
+	t.Helper()
+	ctx := testpkg.TenantContext(1)
+	_, _ = db.NewDelete().
+		TableExpr("facilities.rooms").
+		Where("id = ?", roomID).
+		Exec(ctx)
+}
+
 // setupFacilitiesService creates a facilities service with real database connection.
 func setupFacilitiesService(t *testing.T, db *bun.DB) facilitiesSvc.Service {
 	t.Helper()
@@ -305,9 +333,9 @@ func TestFacilitiesService_UpdateRoom(t *testing.T) {
 	})
 
 	t.Run("blocks renaming system room Schulhof", func(t *testing.T) {
-		// ARRANGE
-		room := testpkg.CreateTestRoom(t, db, "Schulhof")
-		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
+		// ARRANGE — exact name required to match constants.SchulhofRoomName
+		room := createRoomWithExactName(t, db, "Schulhof")
+		defer cleanupRoom(t, db, room.ID)
 
 		room.Name = "Spielplatz"
 
@@ -320,9 +348,9 @@ func TestFacilitiesService_UpdateRoom(t *testing.T) {
 	})
 
 	t.Run("allows updating other properties of system room", func(t *testing.T) {
-		// ARRANGE
-		room := testpkg.CreateTestRoom(t, db, "WC")
-		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
+		// ARRANGE — exact name required to match constants.WCRoomName
+		room := createRoomWithExactName(t, db, "WC")
+		defer cleanupRoom(t, db, room.ID)
 
 		newCapacity := 25
 		room.Capacity = &newCapacity
@@ -419,9 +447,9 @@ func TestFacilitiesService_DeleteRoom(t *testing.T) {
 	})
 
 	t.Run("blocks deletion of system room Schulhof", func(t *testing.T) {
-		// ARRANGE
-		room := testpkg.CreateTestRoom(t, db, "Schulhof")
-		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
+		// ARRANGE — exact name required to match constants.SchulhofRoomName
+		room := createRoomWithExactName(t, db, "Schulhof")
+		defer cleanupRoom(t, db, room.ID)
 
 		// ACT
 		err := service.DeleteRoom(ctx, room.ID)
@@ -432,9 +460,9 @@ func TestFacilitiesService_DeleteRoom(t *testing.T) {
 	})
 
 	t.Run("blocks deletion of system room WC", func(t *testing.T) {
-		// ARRANGE
-		room := testpkg.CreateTestRoom(t, db, "WC")
-		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
+		// ARRANGE — exact name required to match constants.WCRoomName
+		room := createRoomWithExactName(t, db, "WC")
+		defer cleanupRoom(t, db, room.ID)
 
 		// ACT
 		err := service.DeleteRoom(ctx, room.ID)
