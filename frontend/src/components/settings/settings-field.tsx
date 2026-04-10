@@ -321,6 +321,7 @@ function renderField(
       return (
         <PasswordField
           hasValue={localValue !== "" && localValue !== null}
+          settingKey={setting.key}
           onChange={onImmediateSave}
           disabled={disabled}
           pattern={setting.validation?.pattern}

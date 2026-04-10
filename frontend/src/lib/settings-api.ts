@@ -195,3 +195,32 @@ export async function resetSettingValue(key: string): Promise<string | null> {
     return "Netzwerkfehler beim Zurücksetzen der Einstellung.";
   }
 }
+
+/**
+ * Reveal the unmasked value of a password/PIN setting.
+ * Returns the raw value on success, or null on failure.
+ */
+export async function revealSettingValue(key: string): Promise<string | null> {
+  try {
+    const response = await sessionFetch(`/api/settings/values/${key}/reveal`, {
+      method: "GET",
+    });
+
+    if (!response.ok) {
+      logger.warn("reveal_setting_value_failed", {
+        key,
+        status: response.status,
+      });
+      return null;
+    }
+
+    const result = (await response.json()) as ApiResponse<{ value: string }>;
+    return typeof result.data?.value === "string" ? result.data.value : null;
+  } catch (error) {
+    logger.warn("reveal_setting_value_error", {
+      key,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
+}
