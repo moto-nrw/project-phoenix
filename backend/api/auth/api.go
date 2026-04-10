@@ -4,9 +4,11 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -843,14 +845,20 @@ func (rs *Resource) getAccount(w http.ResponseWriter, r *http.Request) {
 
 // CreateRoleRequest represents the create role request payload
 type CreateRoleRequest struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
+	Name        string  `json:"name"`
+	Description string  `json:"description"`
+	BaseRole    *string `json:"base_role,omitempty"`
 }
 
 // Bind validates the create role request
 func (req *CreateRoleRequest) Bind(_ *http.Request) error {
 	req.Name = strings.TrimSpace(req.Name)
 	req.Description = strings.TrimSpace(req.Description)
+	req.BaseRole = normalizeBaseRole(req.BaseRole)
+
+	if err := validateBaseRole(req.BaseRole); err != nil {
+		return err
+	}
 
 	return validation.ValidateStruct(req,
 		validation.Field(&req.Name, validation.Required, validation.Length(1, 100)),
@@ -860,19 +868,61 @@ func (req *CreateRoleRequest) Bind(_ *http.Request) error {
 
 // UpdateRoleRequest represents the update role request payload
 type UpdateRoleRequest struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
+	Name        string  `json:"name"`
+	Description string  `json:"description"`
+	BaseRole    *string `json:"base_role,omitempty"`
 }
 
-// Bind validates the update role request
+// Bind validates the update role request.
+// BaseRole is optional on update — if omitted, the handler preserves the existing value.
 func (req *UpdateRoleRequest) Bind(_ *http.Request) error {
 	req.Name = strings.TrimSpace(req.Name)
 	req.Description = strings.TrimSpace(req.Description)
+	req.BaseRole = normalizeBaseRole(req.BaseRole)
+
+	// Only validate base_role if the caller explicitly sent one.
+	if req.BaseRole != nil {
+		if err := validateBaseRoleValue(*req.BaseRole); err != nil {
+			return err
+		}
+	}
 
 	return validation.ValidateStruct(req,
 		validation.Field(&req.Name, validation.Required, validation.Length(1, 100)),
 		validation.Field(&req.Description, validation.Length(0, 500)),
 	)
+}
+
+// normalizeBaseRole trims whitespace and converts empty strings to nil.
+// Intentionally: once a base_role is set, it cannot be cleared back to NULL via the API.
+// Empty string is treated as "field not sent" (preserve existing value), because every
+// custom role should have a base_role for announcement targeting to work correctly.
+func normalizeBaseRole(br *string) *string {
+	if br == nil {
+		return nil
+	}
+	trimmed := strings.TrimSpace(*br)
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
+}
+
+// validateBaseRoleValue checks that a non-nil base_role value is one of the allowed system roles.
+func validateBaseRoleValue(value string) error {
+	if !slices.Contains(authModel.ValidBaseRoles(), value) {
+		return fmt.Errorf("base_role must be one of: %v", authModel.ValidBaseRoles())
+	}
+	return nil
+}
+
+// validateBaseRole checks that base_role is provided and is one of the allowed system roles.
+// This runs at the request layer to return 400 (not 500) for invalid payloads.
+func validateBaseRole(br *string) error {
+	if br == nil {
+		return fmt.Errorf("base_role is required; must be one of: %v", authModel.ValidBaseRoles())
+	}
+	return validateBaseRoleValue(*br)
 }
 
 // RoleResponse represents a role response
@@ -881,9 +931,23 @@ type RoleResponse struct {
 	Name        string   `json:"name"`
 	Description string   `json:"description"`
 	IsSystem    bool     `json:"is_system"`
+	BaseRole    *string  `json:"base_role,omitempty"`
 	CreatedAt   string   `json:"created_at"`
 	UpdatedAt   string   `json:"updated_at"`
 	Permissions []string `json:"permissions,omitempty"`
+}
+
+// toRoleResponse maps a domain Role to its API response representation.
+func toRoleResponse(role *authModel.Role) *RoleResponse {
+	return &RoleResponse{
+		ID:          role.ID,
+		Name:        role.Name,
+		Description: role.Description,
+		IsSystem:    role.IsSystem,
+		BaseRole:    role.BaseRole,
+		CreatedAt:   role.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:   role.UpdatedAt.Format(time.RFC3339),
+	}
 }
 
 // Permission Management Request/Response Types
@@ -1056,22 +1120,13 @@ func (rs *Resource) createRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	role, err := rs.AuthService.CreateRole(r.Context(), req.Name, req.Description)
+	role, err := rs.AuthService.CreateRole(r.Context(), req.Name, req.Description, req.BaseRole)
 	if err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
-	resp := &RoleResponse{
-		ID:          role.ID,
-		Name:        role.Name,
-		Description: role.Description,
-		IsSystem:    role.IsSystem,
-		CreatedAt:   role.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:   role.UpdatedAt.Format(time.RFC3339),
-	}
-
-	common.Respond(w, r, http.StatusCreated, resp, "Role created successfully")
+	common.Respond(w, r, http.StatusCreated, toRoleResponse(role), "Role created successfully")
 }
 
 // getRoleByID handles getting a role by ID
@@ -1094,15 +1149,8 @@ func (rs *Resource) getRoleByID(w http.ResponseWriter, r *http.Request) {
 		permissionNames = append(permissionNames, perm.GetFullName())
 	}
 
-	resp := &RoleResponse{
-		ID:          role.ID,
-		Name:        role.Name,
-		Description: role.Description,
-		IsSystem:    role.IsSystem,
-		CreatedAt:   role.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:   role.UpdatedAt.Format(time.RFC3339),
-		Permissions: permissionNames,
-	}
+	resp := toRoleResponse(role)
+	resp.Permissions = permissionNames
 
 	common.Respond(w, r, http.StatusOK, resp, "Role retrieved successfully")
 }
@@ -1128,6 +1176,11 @@ func (rs *Resource) updateRole(w http.ResponseWriter, r *http.Request) {
 
 	role.Name = req.Name
 	role.Description = req.Description
+	// Preserve existing base_role when the caller omits the field.
+	// System roles must never carry a base_role — ignore silently.
+	if req.BaseRole != nil && !role.IsSystem {
+		role.BaseRole = req.BaseRole
+	}
 
 	if err := rs.AuthService.UpdateRole(r.Context(), role); err != nil {
 		common.RenderError(w, r, renderRoleMutationError(err))
@@ -1191,15 +1244,7 @@ func (rs *Resource) listRoles(w http.ResponseWriter, r *http.Request) {
 
 	responses := make([]*RoleResponse, 0, len(roles))
 	for _, role := range roles {
-		resp := &RoleResponse{
-			ID:          role.ID,
-			Name:        role.Name,
-			Description: role.Description,
-			IsSystem:    role.IsSystem,
-			CreatedAt:   role.CreatedAt.Format(time.RFC3339),
-			UpdatedAt:   role.UpdatedAt.Format(time.RFC3339),
-		}
-		responses = append(responses, resp)
+		responses = append(responses, toRoleResponse(role))
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Roles retrieved successfully")
@@ -1260,15 +1305,7 @@ func (rs *Resource) getAccountRoles(w http.ResponseWriter, r *http.Request) {
 
 	responses := make([]*RoleResponse, 0, len(roles))
 	for _, role := range roles {
-		resp := &RoleResponse{
-			ID:          role.ID,
-			Name:        role.Name,
-			Description: role.Description,
-			IsSystem:    role.IsSystem,
-			CreatedAt:   role.CreatedAt.Format(time.RFC3339),
-			UpdatedAt:   role.UpdatedAt.Format(time.RFC3339),
-		}
-		responses = append(responses, resp)
+		responses = append(responses, toRoleResponse(role))
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Account roles retrieved successfully")

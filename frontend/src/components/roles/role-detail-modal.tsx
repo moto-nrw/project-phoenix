@@ -6,6 +6,7 @@ import type { Role } from "@/lib/auth-helpers";
 import {
   getRoleDisplayName,
   getRoleDisplayDescription,
+  getBaseRoleLabel,
 } from "@/lib/auth-helpers";
 
 interface Props {
@@ -100,6 +101,12 @@ export function RoleDetailModal({
                     <dt className="text-xs text-gray-500">Berechtigungen</dt>
                     <dd className="mt-0.5 text-sm font-medium break-words text-gray-900">
                       {role.permissions?.length ?? 0}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-gray-500">Systemrolle</dt>
+                    <dd className="mt-0.5 text-sm font-medium break-words text-gray-900">
+                      {getBaseRoleLabel(role.baseRole)}
                     </dd>
                   </div>
                   <div className="sm:col-span-2">

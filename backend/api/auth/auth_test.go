@@ -1050,6 +1050,7 @@ func TestRoleManagement(t *testing.T) {
 		body := map[string]string{
 			"name":        roleName,
 			"description": "A test role",
+			"base_role":   "user",
 		}
 
 		req := testutil.NewJSONRequest(t, "POST", "/auth/roles", body)
@@ -1088,6 +1089,7 @@ func TestRoleManagement(t *testing.T) {
 		body := map[string]string{
 			"name":        roleName,
 			"description": "A test role for get",
+			"base_role":   "user",
 		}
 
 		createReq := testutil.NewJSONRequest(t, "POST", "/auth/roles", body)
@@ -1103,6 +1105,145 @@ func TestRoleManagement(t *testing.T) {
 		rr := executeWithAuth(router, req, adminClaims, []string{"roles:read"})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+	})
+}
+
+// TestRoleManagement_BaseRole tests base_role validation on role endpoints.
+func TestRoleManagement_BaseRole(t *testing.T) {
+	tc, router := setupExtendedProtectedRouter(t)
+	adminClaims := testutil.AdminTestClaims(1)
+
+	t.Run("create without base_role returns 400", func(t *testing.T) {
+		body := map[string]string{
+			"name":        fmt.Sprintf("no-base-%d", time.Now().UnixNano()),
+			"description": "Missing base_role",
+		}
+		req := testutil.NewJSONRequest(t, "POST", "/auth/roles", body)
+		rr := executeWithAuth(router, req, adminClaims, []string{"roles:create"})
+
+		testutil.AssertBadRequest(t, rr)
+	})
+
+	t.Run("create with invalid base_role returns 400", func(t *testing.T) {
+		body := map[string]string{
+			"name":        fmt.Sprintf("bad-base-%d", time.Now().UnixNano()),
+			"description": "Invalid base_role",
+			"base_role":   "superadmin",
+		}
+		req := testutil.NewJSONRequest(t, "POST", "/auth/roles", body)
+		rr := executeWithAuth(router, req, adminClaims, []string{"roles:create"})
+
+		testutil.AssertBadRequest(t, rr)
+	})
+
+	t.Run("create with valid base_role succeeds and returns it", func(t *testing.T) {
+		roleName := fmt.Sprintf("base-role-test-%d", time.Now().UnixNano())
+		body := map[string]string{
+			"name":        roleName,
+			"description": "Has base_role",
+			"base_role":   "guardian",
+		}
+		req := testutil.NewJSONRequest(t, "POST", "/auth/roles", body)
+		rr := executeWithAuth(router, req, adminClaims, []string{"roles:create"})
+
+		testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
+
+		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+		data, ok := response["data"].(map[string]interface{})
+		require.True(t, ok)
+		assert.Equal(t, "guardian", data["base_role"])
+
+		// Cleanup
+		roleID := int64(data["id"].(float64))
+		defer cleanupRoleRecords(t, tc.db, roleID)
+	})
+
+	t.Run("update preserves base_role when omitted", func(t *testing.T) {
+		// Create a role with base_role via DB fixture, then update without sending base_role
+		role := testpkg.CreateTestRole(t, tc.db, "preserve-base")
+		defer cleanupRoleRecords(t, tc.db, role.ID)
+
+		// Set base_role directly in DB
+		_, err := tc.db.NewUpdate().
+			TableExpr("auth.roles").
+			Set("base_role = ?", "admin").
+			Where("id = ?", role.ID).
+			Exec(testpkg.TenantContext(1))
+		require.NoError(t, err)
+
+		// Update name only — no base_role in payload
+		body := map[string]string{
+			"name":        fmt.Sprintf("renamed-%d", time.Now().UnixNano()),
+			"description": "Updated desc",
+		}
+		req := testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/auth/roles/%d", role.ID), body)
+		rr := executeWithAuth(router, req, adminClaims, []string{"roles:update"})
+		assert.Equal(t, http.StatusNoContent, rr.Code, "Body: %s", rr.Body.String())
+
+		// Verify base_role was preserved
+		getReq := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/auth/roles/%d", role.ID), nil)
+		getRr := executeWithAuth(router, getReq, adminClaims, []string{"roles:read"})
+		testutil.AssertSuccessResponse(t, getRr, http.StatusOK)
+
+		getResp := testutil.ParseJSONResponse(t, getRr.Body.Bytes())
+		getData := getResp["data"].(map[string]interface{})
+		assert.Equal(t, "admin", getData["base_role"], "base_role should be preserved when not sent in update")
+	})
+
+	t.Run("update system role is rejected", func(t *testing.T) {
+		// System roles cannot be updated at all — the service returns 403
+		var systemRole authModel.Role
+		err := tc.db.NewSelect().
+			Model(&systemRole).
+			ModelTableExpr(`auth.roles AS "role"`).
+			Where(`"role".is_system = true`).
+			Where(`"role".tenant_id IS NULL`).
+			Limit(1).
+			Scan(testpkg.TenantContext(1))
+		require.NoError(t, err, "Expected at least one system role in test DB")
+
+		body := map[string]string{
+			"name":        systemRole.Name,
+			"description": systemRole.Description,
+			"base_role":   "guardian",
+		}
+		req := testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/auth/roles/%d", systemRole.ID), body)
+		rr := executeWithAuth(router, req, adminClaims, []string{"roles:update"})
+
+		assert.Equal(t, http.StatusForbidden, rr.Code,
+			"system roles must not accept updates including base_role")
+	})
+
+	t.Run("update changes base_role value", func(t *testing.T) {
+		role := testpkg.CreateTestRole(t, tc.db, "change-base")
+		defer cleanupRoleRecords(t, tc.db, role.ID)
+
+		// Set initial base_role
+		_, err := tc.db.NewUpdate().
+			TableExpr("auth.roles").
+			Set("base_role = ?", "user").
+			Where("id = ?", role.ID).
+			Exec(testpkg.TenantContext(1))
+		require.NoError(t, err)
+
+		// Update to a different base_role
+		body := map[string]string{
+			"name":        fmt.Sprintf("changed-%d", time.Now().UnixNano()),
+			"description": "Changed base_role",
+			"base_role":   "guardian",
+		}
+		req := testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/auth/roles/%d", role.ID), body)
+		rr := executeWithAuth(router, req, adminClaims, []string{"roles:update"})
+		assert.Equal(t, http.StatusNoContent, rr.Code, "Body: %s", rr.Body.String())
+
+		// Verify base_role was changed
+		getReq := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/auth/roles/%d", role.ID), nil)
+		getRr := executeWithAuth(router, getReq, adminClaims, []string{"roles:read"})
+		testutil.AssertSuccessResponse(t, getRr, http.StatusOK)
+
+		getResp := testutil.ParseJSONResponse(t, getRr.Body.Bytes())
+		getData := getResp["data"].(map[string]interface{})
+		assert.Equal(t, "guardian", getData["base_role"], "base_role should be updated to new value")
 	})
 }
 

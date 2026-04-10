@@ -18,6 +18,7 @@ export interface BackendRole {
   Name: string;
   Description: string;
   IsSystem: boolean;
+  BaseRole?: string;
   CreatedAt: string;
   UpdatedAt: string;
   Permissions?: BackendPermission[];
@@ -64,11 +65,25 @@ export interface Account {
   updatedAt: string;
 }
 
+/** German display labels for system base roles used in announcement targeting. */
+export const BASE_ROLE_LABELS: Record<string, string> = {
+  admin: "Administrator",
+  user: "Betreuer",
+  guardian: "Erziehungsberechtigte",
+};
+
+/** Returns the German display label for a base role, or a fallback for unmapped/missing values. */
+export function getBaseRoleLabel(baseRole?: string): string {
+  if (!baseRole) return "Keine Zuordnung";
+  return BASE_ROLE_LABELS[baseRole] ?? baseRole;
+}
+
 export interface Role {
   id: string;
   name: string;
   description: string;
   isSystem: boolean;
+  baseRole?: string;
   createdAt: string;
   updatedAt: string;
   permissions?: Permission[];
@@ -127,6 +142,8 @@ interface FlexibleRoleData {
   description?: string;
   IsSystem?: boolean;
   is_system?: boolean;
+  BaseRole?: string;
+  base_role?: string;
   CreatedAt?: string;
   created_at?: string;
   UpdatedAt?: string;
@@ -145,6 +162,7 @@ export function mapRoleResponse(
     name: roleData.Name ?? roleData.name ?? "",
     description: roleData.Description ?? roleData.description ?? "",
     isSystem: roleData.IsSystem ?? roleData.is_system ?? false,
+    baseRole: roleData.BaseRole ?? roleData.base_role,
     createdAt: roleData.CreatedAt ?? roleData.created_at ?? "",
     updatedAt: roleData.UpdatedAt ?? roleData.updated_at ?? "",
     permissions:

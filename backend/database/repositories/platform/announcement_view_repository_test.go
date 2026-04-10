@@ -227,6 +227,20 @@ func createTestRole(t *testing.T, db *bun.DB, roleName string) int64 {
 	return id
 }
 
+func createTestRoleWithBaseRole(t *testing.T, db *bun.DB, roleName, baseRole string, tenantID int64) int64 {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	var id int64
+	_, err := db.NewRaw(`
+		INSERT INTO auth.roles (name, tenant_id, base_role, created_at, updated_at)
+		VALUES (?, ?, ?, NOW(), NOW())
+		RETURNING id
+	`, roleName, tenantID, baseRole).Exec(ctx, &id)
+	require.NoError(t, err)
+	return id
+}
+
 func cleanupTestRole(t *testing.T, db *bun.DB, roleID int64) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -560,6 +574,57 @@ func TestAnnouncementViewRepository_GetUnreadForUser(t *testing.T) {
 
 		for _, a := range results {
 			assert.NotEqual(t, annoID, a.ID, "role-targeted announcement should NOT match user with different role")
+		}
+	})
+
+	t.Run("base_role maps custom role to system role for targeting", func(t *testing.T) {
+		// Create a custom role with base_role = "user" in the test tenant
+		customRoleID := createTestRoleWithBaseRole(t, db, "gruppenleitung-base-test", "user", schoolID)
+		defer cleanupTestRole(t, db, customRoleID)
+
+		// Assign the custom role to the user
+		assignTestRole(t, db, accountID, customRoleID, schoolID)
+		defer cleanupTestAccountRole(t, db, accountID, customRoleID)
+
+		// Create announcement targeting system role "user"
+		annoID := createTestAnnouncementWithTargeting(t, db, "base-role-match", operator.ID, []string{"user"}, []int64{}, []int64{})
+		defer cleanupTestAnnouncement(t, db, annoID)
+		publishTestAnnouncement(t, db, annoID)
+
+		// User's JWT roles don't include "user" — only the custom name
+		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"gruppenleitung-base-test"}, schoolID, orgID)
+		require.NoError(t, err)
+
+		found := false
+		for _, a := range results {
+			if a.ID == annoID {
+				found = true
+			}
+		}
+		assert.True(t, found, "announcement targeting 'user' should be visible to user with custom role base_role='user'")
+	})
+
+	t.Run("base_role does not leak across tenants", func(t *testing.T) {
+		// Create a custom role with base_role = "admin" in a DIFFERENT tenant
+		otherRoleID := createTestRoleWithBaseRole(t, db, "other-tenant-admin-test", "admin", otherSchoolID)
+		defer cleanupTestRole(t, db, otherRoleID)
+
+		// Assign it in the other tenant
+		assignTestRole(t, db, accountID, otherRoleID, otherSchoolID)
+		defer cleanupTestAccountRole(t, db, accountID, otherRoleID)
+
+		// Create announcement targeting "admin" — should NOT match because the
+		// base_role="admin" assignment is in otherSchoolID, not schoolID
+		annoID := createTestAnnouncementWithTargeting(t, db, "base-role-cross-tenant", operator.ID, []string{"admin"}, []int64{}, []int64{})
+		defer cleanupTestAnnouncement(t, db, annoID)
+		publishTestAnnouncement(t, db, annoID)
+
+		// Query with the user's actual tenant (schoolID) — the other-tenant role should not match
+		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{"gruppenleitung-base-test"}, schoolID, orgID)
+		require.NoError(t, err)
+
+		for _, a := range results {
+			assert.NotEqual(t, annoID, a.ID, "base_role from a different tenant should NOT cause announcement match")
 		}
 	})
 
@@ -962,6 +1027,32 @@ func TestAnnouncementViewRepository_GetStats(t *testing.T) {
 		assert.Equal(t, 2, stats.TargetCount, "should count exactly the 2 accounts with this role")
 	})
 
+	t.Run("base_role-mapped custom role counted in stats", func(t *testing.T) {
+		bOrgID := createTestOrganization(t, db, "stats-base-role-org")
+		defer cleanupTestOrganization(t, db, bOrgID)
+		bSchoolID := createTestSchool(t, db, "stats-base-role-school", bOrgID)
+		defer cleanupTestSchool(t, db, bSchoolID)
+
+		// Create a custom role with base_role = "user"
+		customRoleID := createTestRoleWithBaseRole(t, db, "stats-gruppenleitung", "user", bSchoolID)
+		defer cleanupTestRole(t, db, customRoleID)
+
+		acc := createTestAccount(t, db, "stats-base-role-acc@test.com")
+		defer cleanupTestAccount(t, db, acc)
+		assignTestRole(t, db, acc, customRoleID, bSchoolID)
+		defer cleanupTestAccountRole(t, db, acc, customRoleID)
+		createTestAccountTenant(t, db, acc, bSchoolID)
+		defer cleanupTestAccountTenant(t, db, acc, bSchoolID)
+
+		// Announcement targets system role "user"
+		annoID := createTestAnnouncementWithTargeting(t, db, "stats-base-role", operator.ID, []string{"user"}, []int64{}, []int64{})
+		defer cleanupTestAnnouncement(t, db, annoID)
+
+		stats, err := viewRepo.GetStats(ctx, annoID)
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, stats.TargetCount, 1, "stats should count user with custom role base_role='user'")
+	})
+
 	t.Run("org-filtered announcement counts org-matching accounts", func(t *testing.T) {
 		orgID := createTestOrganization(t, db, "stats-org")
 		defer cleanupTestOrganization(t, db, orgID)
@@ -1223,6 +1314,42 @@ func TestAnnouncementViewRepository_GetStats(t *testing.T) {
 
 		assert.GreaterOrEqual(t, stats.TargetCount, 1,
 			"global stats should include at least the active-school account")
+	})
+
+	t.Run("account with both direct role and base_role-mapped role counted once", func(t *testing.T) {
+		// Regression test: if an account has BOTH a direct role name match
+		// AND a custom role with matching base_role, the COUNT(DISTINCT at.account_id)
+		// must still return 1, not 2. Protects the DISTINCT keyword in GetStats.
+		dOrgID := createTestOrganization(t, db, "stats-dual-role-org")
+		defer cleanupTestOrganization(t, db, dOrgID)
+		dSchoolID := createTestSchool(t, db, "stats-dual-role-school", dOrgID)
+		defer cleanupTestSchool(t, db, dSchoolID)
+
+		// Role with name "user" (direct name match on target_roles)
+		directRoleID := createTestRoleWithBaseRole(t, db, "user", "user", dSchoolID)
+		defer cleanupTestRole(t, db, directRoleID)
+
+		// Custom role with base_role = "user" (base_role match on target_roles)
+		customRoleID := createTestRoleWithBaseRole(t, db, "gruppenleitung-dual-test", "user", dSchoolID)
+		defer cleanupTestRole(t, db, customRoleID)
+
+		// Single account has BOTH roles assigned
+		acc := createTestAccount(t, db, "stats-dual-role@test.com")
+		defer cleanupTestAccount(t, db, acc)
+		assignTestRole(t, db, acc, directRoleID, dSchoolID)
+		defer cleanupTestAccountRole(t, db, acc, directRoleID)
+		assignTestRole(t, db, acc, customRoleID, dSchoolID)
+		defer cleanupTestAccountRole(t, db, acc, customRoleID)
+		createTestAccountTenant(t, db, acc, dSchoolID)
+		defer cleanupTestAccountTenant(t, db, acc, dSchoolID)
+
+		// Scope to this tenant so we only count accounts in dSchoolID
+		annoID := createTestAnnouncementWithTargeting(t, db, "stats-dual-role", operator.ID, []string{"user"}, []int64{}, []int64{dSchoolID})
+		defer cleanupTestAnnouncement(t, db, annoID)
+
+		stats, err := viewRepo.GetStats(ctx, annoID)
+		require.NoError(t, err)
+		assert.Equal(t, 1, stats.TargetCount, "account with both direct and base_role match must be counted exactly once")
 	})
 
 	t.Run("seen and dismissed counts", func(t *testing.T) {
