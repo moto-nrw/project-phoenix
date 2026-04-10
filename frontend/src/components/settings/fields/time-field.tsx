@@ -118,6 +118,11 @@ export function TimeField({
         value={display}
         onChange={handleChange}
         onBlur={handleBlur}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.currentTarget.blur();
+          }
+        }}
         disabled={disabled}
         maxLength={5}
         className="block w-24 rounded-lg border-0 bg-white px-3 py-2 text-center text-sm text-gray-900 tabular-nums shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"

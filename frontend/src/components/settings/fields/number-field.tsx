@@ -40,12 +40,16 @@ export function NumberField({
         }
       }}
       onBlur={() => {
-        // On blur, if empty or invalid, reset to current value
         const num = parseFloat(text);
         if (isNaN(num)) {
           setText(value.toString());
         }
         onBlur?.();
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.currentTarget.blur();
+        }
       }}
       min={min}
       max={max}
