@@ -528,19 +528,29 @@ interface HistoryButtonProps {
   title: string;
   description: string;
   bgColor: string;
+  disabled?: boolean;
+  onClick?: () => void;
 }
 
-function DisabledHistoryButton({
+function HistoryButton({
   icon,
   title,
   description,
   bgColor,
+  disabled = false,
+  onClick,
 }: Readonly<HistoryButtonProps>) {
+  const baseClasses = "flex items-center justify-between rounded-lg border p-3";
+  const stateClasses = disabled
+    ? "cursor-not-allowed border-gray-100 bg-gray-50 opacity-60"
+    : "cursor-pointer border-gray-200 bg-white transition-colors hover:bg-gray-50";
+
   return (
     <button
       type="button"
-      disabled
-      className="flex cursor-not-allowed items-center justify-between rounded-lg border border-gray-100 bg-gray-50 p-3 opacity-60"
+      disabled={disabled}
+      onClick={onClick}
+      className={`${baseClasses} ${stateClasses}`}
     >
       <div className="flex items-center gap-3">
         <div
@@ -549,7 +559,11 @@ function DisabledHistoryButton({
           {icon}
         </div>
         <div className="min-w-0 flex-1 text-left">
-          <p className="text-sm font-medium text-gray-400 sm:text-base">
+          <p
+            className={`text-sm font-medium sm:text-base ${
+              disabled ? "text-gray-400" : "text-gray-900"
+            }`}
+          >
             {title}
           </p>
           <p className="text-xs text-gray-400">{description}</p>
@@ -560,27 +574,55 @@ function DisabledHistoryButton({
   );
 }
 
-export function StudentHistorySection() {
+interface StudentHistorySectionProps {
+  studentId: string;
+  attendanceLogEnabled: boolean;
+  onNavigate: (path: string) => void;
+}
+
+/**
+ * History section on the student detail page. The Anwesenheitsprotokoll button
+ * is gated by the tenant's `gdpr.attendance_log_enabled` setting. Scope checks
+ * (group supervisor) are handled by the destination page. Mensa history remains
+ * a disabled placeholder (future feature).
+ */
+export function StudentHistorySection({
+  studentId,
+  attendanceLogEnabled,
+  onNavigate,
+}: Readonly<StudentHistorySectionProps>) {
   return (
     <InfoCard title="Historien" icon={<ClockIcon />}>
       <div className="grid grid-cols-1 gap-2">
-        <DisabledHistoryButton
+        <HistoryButton
           icon={<BuildingIcon />}
-          title="Raumverlauf"
-          description="Verlauf der Raumbesuche"
+          title="Anwesenheitsprotokoll"
+          description={
+            attendanceLogEnabled
+              ? "Anwesenheit und besuchte Räume"
+              : "Für Ihre Schule deaktiviert"
+          }
           bgColor="bg-[#5080D8]"
+          disabled={!attendanceLogEnabled}
+          onClick={
+            attendanceLogEnabled
+              ? () => onNavigate(`/students/${studentId}/room-history`)
+              : undefined
+          }
         />
-        <DisabledHistoryButton
+        <HistoryButton
           icon={<ChatIcon />}
           title="Feedbackhistorie"
           description="Feedback und Bewertungen"
           bgColor="bg-[#83CD2D]"
+          onClick={() => onNavigate(`/students/${studentId}/feedback_history`)}
         />
-        <DisabledHistoryButton
+        <HistoryButton
           icon={<ForkKnifeIcon />}
           title="Mensaverlauf"
           description="Mahlzeiten und Bestellungen"
           bgColor="bg-[#F78C10]"
+          disabled
         />
       </div>
     </InfoCard>

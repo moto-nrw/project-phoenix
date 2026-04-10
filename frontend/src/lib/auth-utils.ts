@@ -7,12 +7,25 @@ export function hasRole(session: Session | null, role: string): boolean {
   return session?.user?.roles?.includes(role) ?? false;
 }
 
+export function hasAnyRole(
+  session: Session | null,
+  roles: readonly string[],
+): boolean {
+  return roles.some((role) => hasRole(session, role));
+}
+
 /**
  * Check if the user is an admin
- * Uses the static isAdmin flag from JWT for performance
  */
 export function isAdmin(session: Session | null): boolean {
-  return session?.user?.isAdmin ?? false;
+  return hasRole(session, "admin");
+}
+
+/**
+ * Check if the user can access caregiver workflows.
+ */
+export function isCaregiver(session: Session | null): boolean {
+  return hasAnyRole(session, ["user", "teacher"]);
 }
 
 /**

@@ -188,6 +188,15 @@ func (m *mockSettingsService) SetValue(_ context.Context, _ string, _ any, _ *in
 func (m *mockSettingsService) ResetValue(_ context.Context, _ string, _ *int64, _ []string) error {
 	return nil
 }
+func (m *mockSettingsService) GetLoginImageURL(_ context.Context, _ int64) (string, error) {
+	return "", nil
+}
+func (m *mockSettingsService) SetLoginImageURL(_ context.Context, _ int64, _ string) (string, error) {
+	return "", nil
+}
+func (m *mockSettingsService) ClearLoginImageURL(_ context.Context, _ int64) (string, error) {
+	return "", nil
+}
 
 func TestGetStudentDailyCheckoutTime_UsesSettingsService(t *testing.T) {
 	// Clear env var so only the settings service provides the value

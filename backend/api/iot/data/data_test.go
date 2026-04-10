@@ -88,6 +88,68 @@ func TestGetAvailableTeachers_Success(t *testing.T) {
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
 
+func TestGetAvailableTeachers_ReturnsTeacherRosterIndependentOfCaregiverState(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-caregiver")
+	linkedTeacher, linkedAccount := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Ada", "Caregiver")
+	legacyTeacher, legacyAccount := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Legacy", "Teacher")
+	unmappedTeacher, unmappedAccount := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Unmapped", "Teacher")
+	inactiveTeacher, inactiveAccount := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Inactive", "Teacher")
+	defer testpkg.CleanupTeacherFixtures(t, ctx.db, linkedTeacher.ID)
+	defer testpkg.CleanupTeacherFixtures(t, ctx.db, legacyTeacher.ID)
+	defer testpkg.CleanupTeacherFixtures(t, ctx.db, unmappedTeacher.ID)
+	defer testpkg.CleanupTeacherFixtures(t, ctx.db, inactiveTeacher.ID)
+	defer testpkg.CleanupAuthFixtures(t, ctx.db, linkedAccount.ID)
+	defer testpkg.CleanupAuthFixtures(t, ctx.db, legacyAccount.ID)
+	defer testpkg.CleanupAuthFixtures(t, ctx.db, unmappedAccount.ID)
+	defer testpkg.CleanupAuthFixtures(t, ctx.db, inactiveAccount.ID)
+
+	tenantID := linkedTeacher.GetTenantID()
+	testpkg.EnsureAccountTenant(t, ctx.db, linkedAccount.ID, tenantID)
+	testpkg.EnsureAccountTenant(t, ctx.db, inactiveAccount.ID, tenantID)
+
+	_, err := ctx.db.ExecContext(
+		context.Background(),
+		`UPDATE auth.account_tenants
+		 SET status = 'inactive', updated_at = NOW()
+		 WHERE account_id = ? AND tenant_id = ?`,
+		inactiveAccount.ID,
+		tenantID,
+	)
+	require.NoError(t, err)
+
+	router := chi.NewRouter()
+	router.Get("/teachers", ctx.resource.GetAvailableTeachersHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/teachers", nil,
+		testutil.WithDeviceContext(testDevice),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data, ok := response["data"].([]interface{})
+	require.True(t, ok)
+
+	displayNames := make([]string, 0, len(data))
+	for _, item := range data {
+		teacher, ok := item.(map[string]interface{})
+		require.True(t, ok)
+		displayName, ok := teacher["display_name"].(string)
+		require.True(t, ok)
+		displayNames = append(displayNames, displayName)
+	}
+
+	assert.Contains(t, displayNames, "Ada Caregiver")
+	assert.Contains(t, displayNames, "Legacy Teacher")
+	assert.Contains(t, displayNames, "Unmapped Teacher")
+	assert.Contains(t, displayNames, "Inactive Teacher")
+}
+
 // =============================================================================
 // GET TEACHER STUDENTS TESTS
 // =============================================================================

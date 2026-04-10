@@ -1,7 +1,7 @@
 package database
 
 import (
-	"log"
+	"log/slog"
 	"net/url"
 	"os"
 
@@ -39,7 +39,8 @@ func GetDatabaseDSN() string {
 		return "postgres://postgres:postgres@localhost:5432/postgres?sslmode=require"
 	case "production":
 		// Production requires explicit DB_DSN (fail fast if missing)
-		log.Fatal("APP_ENV=production requires explicit DB_DSN environment variable")
+		slog.Error("APP_ENV=production requires explicit DB_DSN environment variable")
+		os.Exit(1)
 	}
 
 	// 3. Legacy TEST_DB_DSN support (backwards compatibility)
@@ -67,13 +68,14 @@ func GetServeDSN() string {
 		password = viper.GetString("phoenix_auth_password")
 	}
 	if password == "" {
-		log.Fatal("PHOENIX_AUTH_PASSWORD is required for serve. " +
-			"Set it in your env file after running migration V1.14.1.")
+		slog.Error("PHOENIX_AUTH_PASSWORD is required for serve — set it in your env file after running migration V1.14.1")
+		os.Exit(1)
 	}
 
 	parsed, err := url.Parse(baseDSN)
 	if err != nil {
-		log.Fatalf("failed to parse DB_DSN for phoenix_auth substitution: %v", err)
+		slog.Error("failed to parse DB_DSN for phoenix_auth substitution", slog.String("error", err.Error()))
+		os.Exit(1)
 	}
 
 	parsed.User = url.UserPassword("phoenix_auth", password)

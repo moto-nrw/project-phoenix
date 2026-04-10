@@ -1,6 +1,7 @@
 package operator
 
 import (
+	"log/slog"
 	"net/http"
 
 	"github.com/go-chi/render"
@@ -15,6 +16,9 @@ func RequiresOperatorScope(next http.Handler) http.Handler {
 
 		// Check if this is a platform scope token
 		if !claims.IsPlatformScope() {
+			slog.WarnContext(r.Context(), "operator scope required but not present",
+				slog.String("path", r.URL.Path),
+			)
 			w.WriteHeader(http.StatusForbidden)
 			if err := render.Render(w, r, &ErrResponse{
 				HTTPStatusCode: http.StatusForbidden,

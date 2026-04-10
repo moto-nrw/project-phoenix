@@ -2,9 +2,11 @@ package auth
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"time"
 
+	"github.com/getsentry/sentry-go"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -99,6 +101,14 @@ func (s *Service) logAuthEvent(ctx context.Context, accountID int64, eventType s
 
 	// Log asynchronously to avoid blocking auth operations
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				err := fmt.Errorf("panic in auth event logging: %v", r)
+				s.getLogger().Error("goroutine panic recovered", slog.String("error", err.Error()))
+				sentry.CurrentHub().Recover(r)
+				sentry.Flush(2 * time.Second)
+			}
+		}()
 		if tenantID == 0 {
 			s.getLogger().Warn("skipping auth event logging: no tenant context",
 				"account_id", accountID,

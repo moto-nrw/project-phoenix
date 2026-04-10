@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// These tests verify that all 11 settings are properly registered at init time.
+// These tests verify that all settings are properly registered at init time.
 // They run AFTER the defaults package init() functions execute (via blank import).
 
 func TestAllSettingsRegistered(t *testing.T) {
@@ -26,6 +26,10 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"gdpr.data_cleanup_enabled",
 		"gdpr.data_cleanup_time",
 		"gdpr.data_cleanup_timeout_minutes",
+		"gdpr.attendance_log_enabled",
+		"gdpr.attendance_visible_days",
+		"gdpr.room_detail_visible_days",
+		"gdpr.attendance_log_scope",
 		"security.ogs_device_pin",
 	}
 
@@ -37,7 +41,7 @@ func TestAllSettingsRegistered(t *testing.T) {
 		assert.NotEmpty(t, def.Category, "setting %q should have a category", key)
 	}
 
-	assert.GreaterOrEqual(t, len(all), 11, "at least 11 settings should be registered")
+	assert.GreaterOrEqual(t, len(all), 15, "at least 15 settings should be registered")
 }
 
 func TestOperationsSettings_Types(t *testing.T) {
@@ -69,6 +73,10 @@ func TestGDPRSettings_Types(t *testing.T) {
 		{"gdpr.data_cleanup_enabled", config.FieldBoolean},
 		{"gdpr.data_cleanup_time", config.FieldTime},
 		{"gdpr.data_cleanup_timeout_minutes", config.FieldNumber},
+		{"gdpr.attendance_log_enabled", config.FieldBoolean},
+		{"gdpr.attendance_visible_days", config.FieldNumber},
+		{"gdpr.room_detail_visible_days", config.FieldNumber},
+		{"gdpr.attendance_log_scope", config.FieldSelect},
 	}
 
 	for _, tc := range tests {
@@ -127,6 +135,32 @@ func TestDependsOn_GDPRGroup(t *testing.T) {
 	assert.Equal(t, "gdpr.data_cleanup_enabled", timeoutDef.DependsOn.Key)
 }
 
+func TestDependsOn_AttendanceLogGroup(t *testing.T) {
+	dependentKeys := []string{
+		"gdpr.attendance_visible_days",
+		"gdpr.room_detail_visible_days",
+		"gdpr.attendance_log_scope",
+	}
+	for _, key := range dependentKeys {
+		def := config.GetDefinition(key)
+		require.NotNilf(t, def, "setting %q should exist", key)
+		require.NotNilf(t, def.DependsOn, "setting %q should have DependsOn", key)
+		assert.Equalf(t, "gdpr.attendance_log_enabled", def.DependsOn.Key, "setting %q should depend on attendance_log_enabled", key)
+		assert.Equal(t, "eq", def.DependsOn.Condition)
+		assert.Equal(t, true, def.DependsOn.Value)
+	}
+}
+
+func TestAttendanceLogScope_Options(t *testing.T) {
+	def := config.GetDefinition("gdpr.attendance_log_scope")
+	require.NotNil(t, def)
+	require.NotNil(t, def.Options)
+	require.Len(t, def.Options.Static, 2)
+	values := []any{def.Options.Static[0].Value, def.Options.Static[1].Value}
+	assert.Contains(t, values, config.AttendanceLogScopeGroupSupervisorsOnly)
+	assert.Contains(t, values, config.AttendanceLogScopeAllStaff)
+}
+
 func TestValidation_NumberFields(t *testing.T) {
 	// All number fields should have min/max validation
 	numberKeys := []string{
@@ -134,6 +168,8 @@ func TestValidation_NumberFields(t *testing.T) {
 		"operations.session_cleanup_interval_minutes",
 		"operations.session_abandoned_threshold_minutes",
 		"gdpr.data_cleanup_timeout_minutes",
+		"gdpr.attendance_visible_days",
+		"gdpr.room_detail_visible_days",
 	}
 
 	for _, key := range numberKeys {
@@ -160,6 +196,10 @@ func TestDefaults_HaveReasonableValues(t *testing.T) {
 		{"gdpr.data_cleanup_enabled", true},
 		{"gdpr.data_cleanup_time", "02:00"},
 		{"gdpr.data_cleanup_timeout_minutes", 30},
+		{"gdpr.attendance_log_enabled", false},
+		{"gdpr.attendance_visible_days", 30},
+		{"gdpr.room_detail_visible_days", 7},
+		{"gdpr.attendance_log_scope", config.AttendanceLogScopeGroupSupervisorsOnly},
 		{"security.ogs_device_pin", ""},
 	}
 

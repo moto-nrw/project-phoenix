@@ -283,7 +283,8 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 		// Skip files that reference DB types but don't perform real DB operations
 		normalizedPath := filepath.ToSlash(path)
 		skipFiles := []string{
-			"http_middleware_test.go", // Uses nil *bun.DB for unit testing middleware
+			"http_middleware_test.go",          // Uses nil *bun.DB for unit testing middleware
+			"role_management_internal_test.go", // Uses hand-rolled stub repos injected via repositories.Factory, no real DB
 		}
 		skip := false
 		for _, sf := range skipFiles {

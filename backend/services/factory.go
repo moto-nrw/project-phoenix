@@ -56,6 +56,7 @@ type Factory struct {
 	Schedule                 schedule.Service
 	PickupSchedule           schedule.PickupScheduleService
 	Users                    users.PersonService
+	CaregiverCapability      users.CaregiverCapabilityService
 	Guardian                 users.GuardianService
 	UserContext              usercontext.UserContextService
 	Database                 database.DatabaseService
@@ -252,6 +253,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	settingsService := config.NewSettingsService(
 		repos.SettingValue,
 		repos.SettingAudit,
+		repos.School,
 		db,
 		logger,
 	)
@@ -334,6 +336,21 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		InvitationExpiry:  invitationTokenExpiry,
 		DB:                db,
 		Logger:            authLogger,
+	})
+
+	caregiverCapabilityService := users.NewCaregiverCapabilityService(users.CaregiverCapabilityServiceDependencies{
+		AccountRepo:            repos.Account,
+		AccountTenantRepo:      repos.AccountTenant,
+		AuthEventRepo:          repos.AuthEvent,
+		RoleRepo:               repos.Role,
+		PersonRepo:             repos.Person,
+		StaffRepo:              repos.Staff,
+		TeacherRepo:            repos.Teacher,
+		GroupTeacherRepo:       repos.GroupTeacher,
+		GroupSubstitutionRepo:  repos.GroupSubstitution,
+		ActivitySupervisorRepo: repos.ActivitySupervisor,
+		AuthService:            authService,
+		DB:                     db,
 	})
 
 	// Initialize authorization
@@ -505,6 +522,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Schedule:                 scheduleService,
 		PickupSchedule:           pickupScheduleService,
 		Users:                    usersService,
+		CaregiverCapability:      caregiverCapabilityService,
 		Guardian:                 guardianService,
 		UserContext:              userContextService,
 		Database:                 databaseService,

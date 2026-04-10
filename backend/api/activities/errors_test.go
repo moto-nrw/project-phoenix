@@ -44,6 +44,7 @@ func TestErrorRenderer_ConflictErrors(t *testing.T) {
 	}{
 		{"ErrGroupFull", activities.ErrGroupFull},
 		{"ErrAlreadyEnrolled", activities.ErrAlreadyEnrolled},
+		{"ErrOnlySupervisorRequiresReplacement", activities.ErrOnlySupervisorRequiresReplacement},
 	}
 
 	for _, tt := range tests {
@@ -54,6 +55,9 @@ func TestErrorRenderer_ConflictErrors(t *testing.T) {
 			assert.True(t, ok)
 			assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
 			assert.Equal(t, "error", resp.Status)
+			if tt.baseErr == activities.ErrOnlySupervisorRequiresReplacement {
+				assert.Equal(t, "ONLY_SUPERVISOR_REPLACEMENT_REQUIRED", resp.Code)
+			}
 		})
 	}
 }

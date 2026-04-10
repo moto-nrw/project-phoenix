@@ -11,29 +11,33 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
 type settingsService struct {
-	valueRepo config.SettingValueRepository
-	auditRepo config.SettingAuditRepository
-	db        *bun.DB
-	logger    *slog.Logger
+	valueRepo  config.SettingValueRepository
+	auditRepo  config.SettingAuditRepository
+	schoolRepo platform.SchoolRepository
+	db         *bun.DB
+	logger     *slog.Logger
 }
 
 // NewSettingsService creates a new SettingsService.
 func NewSettingsService(
 	valueRepo config.SettingValueRepository,
 	auditRepo config.SettingAuditRepository,
+	schoolRepo platform.SchoolRepository,
 	db *bun.DB,
 	logger *slog.Logger,
 ) SettingsService {
 	return &settingsService{
-		valueRepo: valueRepo,
-		auditRepo: auditRepo,
-		db:        db,
-		logger:    logger.With("service", "settings"),
+		valueRepo:  valueRepo,
+		auditRepo:  auditRepo,
+		schoolRepo: schoolRepo,
+		db:         db,
+		logger:     logger.With("service", "settings"),
 	}
 }
 
@@ -423,4 +427,94 @@ func toFloat64(v any) (float64, bool) {
 	default:
 		return 0, false
 	}
+}
+
+// --- Login image settings (stored in platform.schools.settings JSONB) ---
+
+const loginImageKey = "loginImageUrl"
+
+// GetLoginImageURL returns the loginImageUrl from the school's settings JSONB.
+func (s *settingsService) GetLoginImageURL(ctx context.Context, tenantID int64) (string, error) {
+	if tenantID <= 0 {
+		return "", nil
+	}
+
+	school, err := s.schoolRepo.FindByID(ctx, tenantID)
+	if err != nil {
+		return "", fmt.Errorf("find school: %w", err)
+	}
+
+	settings, err := unmarshalSchoolSettings(school.Settings)
+	if err != nil {
+		return "", err
+	}
+
+	url, _ := settings[loginImageKey].(string)
+	return url, nil
+}
+
+// SetLoginImageURL sets the loginImageUrl in the school's settings JSONB.
+func (s *settingsService) SetLoginImageURL(ctx context.Context, tenantID int64, imageURL string) (oldURL string, err error) {
+	return s.updateSchoolSetting(ctx, tenantID, &imageURL)
+}
+
+// ClearLoginImageURL removes the loginImageUrl from the school's settings JSONB.
+func (s *settingsService) ClearLoginImageURL(ctx context.Context, tenantID int64) (oldURL string, err error) {
+	return s.updateSchoolSetting(ctx, tenantID, nil)
+}
+
+// updateSchoolSetting updates the loginImageUrl in the school's settings JSONB.
+// Uses WithAdminTx because platform.schools requires the phoenix_admin role.
+// Pass nil imageURL to remove the key.
+func (s *settingsService) updateSchoolSetting(ctx context.Context, tenantID int64, imageURL *string) (oldURL string, err error) {
+	err = tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
+		// Use FOR UPDATE lock to serialize concurrent read-modify-write on the JSONB settings.
+		// FOR SHARE is insufficient here: two transactions could both acquire the shared lock,
+		// read the same JSONB, and then deadlock when both try to UPDATE the row.
+		school, findErr := s.schoolRepo.FindByIDForUpdate(adminCtx, tenantID)
+		if findErr != nil {
+			return fmt.Errorf("find school: %w", findErr)
+		}
+
+		settings, unmarshalErr := unmarshalSchoolSettings(school.Settings)
+		if unmarshalErr != nil {
+			return unmarshalErr
+		}
+
+		oldURL, _ = settings[loginImageKey].(string)
+
+		if imageURL != nil {
+			settings[loginImageKey] = *imageURL
+		} else {
+			delete(settings, loginImageKey)
+		}
+
+		settingsJSON, marshalErr := json.Marshal(settings)
+		if marshalErr != nil {
+			return fmt.Errorf("marshal settings: %w", marshalErr)
+		}
+		school.Settings = string(settingsJSON)
+
+		return s.schoolRepo.Update(adminCtx, school)
+	})
+	return oldURL, err
+}
+
+// unmarshalSchoolSettings parses the school's settings JSONB string into a map.
+// Empty or missing settings return an empty map. Corrupt JSON returns an error
+// to prevent silent data loss on subsequent writes.
+func unmarshalSchoolSettings(raw string) (map[string]interface{}, error) {
+	if raw == "" || raw == "{}" || raw == "null" {
+		return make(map[string]interface{}), nil
+	}
+	var settings map[string]interface{}
+	if err := json.Unmarshal([]byte(raw), &settings); err != nil {
+		return nil, fmt.Errorf("corrupt school settings JSON: %w", err)
+	}
+	// json.Unmarshal into map returns nil for the JSON literal "null".
+	// Coerce to an empty map so callers can safely assign keys.
+	if settings == nil {
+		return make(map[string]interface{}), nil
+	}
+	return settings, nil
 }

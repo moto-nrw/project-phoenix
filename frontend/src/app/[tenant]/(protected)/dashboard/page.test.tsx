@@ -35,6 +35,13 @@ vi.mock("next-auth/react", () => ({
 
 vi.mock("~/lib/auth-utils", () => ({
   isAdmin: vi.fn((session) => session?.user?.isAdmin ?? false),
+  hasRole: vi.fn(
+    (session: { user?: { isAdmin?: boolean } } | null, role: string) => {
+      if (role === "admin") return session?.user?.isAdmin ?? false;
+      if (role === "user") return !(session?.user?.isAdmin ?? false);
+      return false;
+    },
+  ),
 }));
 
 vi.mock("~/lib/breadcrumb-context", () => ({

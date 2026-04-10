@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -58,7 +59,7 @@ func (rs *Resource) Router() chi.Router {
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
 	// Create JWT auth instance for middleware
-	tokenAuth, _ := jwt.NewTokenAuth()
+	tokenAuth := jwt.MustNewTokenAuth()
 
 	// Protected routes that require authentication and permissions
 	r.Group(func(r chi.Router) {
@@ -760,7 +761,9 @@ func (rs *Resource) fetchSupervisorsBySpecialization(ctx context.Context, specia
 
 		if fullTeacher.Staff != nil && fullTeacher.Staff.Person != nil {
 			supervisors = append(supervisors, SupervisorResponse{
-				ID:        teacher.ID,
+				// Available supervisor selections are persisted back as supervisor_ids,
+				// so this identifier must remain the staff ID for safe round-tripping.
+				ID:        fullTeacher.Staff.ID,
 				StaffID:   teacher.StaffID,
 				FirstName: fullTeacher.Staff.Person.FirstName,
 				LastName:  fullTeacher.Staff.Person.LastName,
@@ -774,7 +777,7 @@ func (rs *Resource) fetchSupervisorsBySpecialization(ctx context.Context, specia
 
 // fetchAllSupervisors retrieves all staff members as potential supervisors.
 func (rs *Resource) fetchAllSupervisors(ctx context.Context) ([]SupervisorResponse, error) {
-	// Use batch query to avoid N+1 (fetches staff with person in single query)
+	// Use batch query to avoid N+1 (fetches staff with person in single query).
 	staffMembers, err := rs.UserService.StaffRepository().ListAllWithPerson(ctx)
 	if err != nil {
 		return nil, err
@@ -788,6 +791,7 @@ func (rs *Resource) fetchAllSupervisors(ctx context.Context) ([]SupervisorRespon
 		}
 
 		supervisors = append(supervisors, SupervisorResponse{
+			// Keep the public ID aligned with the staff ID expected by activity writes.
 			ID:        staffMember.ID,
 			StaffID:   staffMember.ID,
 			FirstName: staffMember.Person.FirstName,
@@ -1755,12 +1759,93 @@ type SupervisorRequest struct {
 	IsPrimary bool  `json:"is_primary"`
 }
 
+type activitySupervisorReplacement struct {
+	ReplacementStaffID *int64
+}
+
 // Bind validates the supervisor request
 func (req *SupervisorRequest) Bind(_ *http.Request) error {
 	if req.StaffID <= 0 {
 		return errors.New("staff ID is required and must be greater than 0")
 	}
 	return nil
+}
+
+func parseSupervisorReplacement(r *http.Request) (*activitySupervisorReplacement, error) {
+	rawReplacement := strings.TrimSpace(r.URL.Query().Get("replacement_staff_id"))
+	if rawReplacement == "" {
+		return &activitySupervisorReplacement{}, nil
+	}
+
+	replacementStaffID, err := strconv.ParseInt(rawReplacement, 10, 64)
+	if err != nil || replacementStaffID <= 0 {
+		return nil, errors.New("replacement_staff_id must be a positive integer")
+	}
+
+	return &activitySupervisorReplacement{ReplacementStaffID: &replacementStaffID}, nil
+}
+
+func buildReplacementSupervisorIDs(
+	supervisors []*activities.SupervisorPlanned,
+	supervisorID int64,
+	replacementStaffID *int64,
+) ([]int64, error) {
+	if len(supervisors) == 0 {
+		return nil, activitiesSvc.ErrSupervisorNotFound
+	}
+
+	var (
+		targetSupervisor  *activities.SupervisorPlanned
+		nextSupervisorIDs []int64
+	)
+	replacementAlreadyAssigned := false
+
+	for _, supervisor := range supervisors {
+		if supervisor == nil {
+			continue
+		}
+
+		if supervisor.ID == supervisorID {
+			targetSupervisor = supervisor
+			continue
+		}
+
+		if replacementStaffID != nil && supervisor.StaffID == *replacementStaffID {
+			replacementAlreadyAssigned = true
+		}
+
+		nextSupervisorIDs = append(nextSupervisorIDs, supervisor.StaffID)
+	}
+
+	if targetSupervisor == nil {
+		return nil, activitiesSvc.ErrSupervisorNotFound
+	}
+
+	if replacementStaffID == nil {
+		return nextSupervisorIDs, nil
+	}
+
+	if targetSupervisor.IsPrimary {
+		if replacementAlreadyAssigned {
+			reordered := make([]int64, 0, len(nextSupervisorIDs))
+			reordered = append(reordered, *replacementStaffID)
+			for _, staffID := range nextSupervisorIDs {
+				if staffID == *replacementStaffID {
+					continue
+				}
+				reordered = append(reordered, staffID)
+			}
+			return reordered, nil
+		}
+
+		return append([]int64{*replacementStaffID}, nextSupervisorIDs...), nil
+	}
+
+	if replacementAlreadyAssigned {
+		return nextSupervisorIDs, nil
+	}
+
+	return append(nextSupervisorIDs, *replacementStaffID), nil
 }
 
 // assignSupervisor assigns a supervisor to an activity
@@ -1881,10 +1966,34 @@ func (rs *Resource) removeSupervisor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	replacement, err := parseSupervisorReplacement(r)
+	if err != nil {
+		common.RenderError(w, r, ErrorInvalidRequest(err))
+		return
+	}
+
 	// Delete supervisor
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		return rs.ActivityService.DeleteSupervisor(ctx, supervisorID)
+		if replacement.ReplacementStaffID == nil {
+			return rs.ActivityService.DeleteSupervisor(ctx, supervisorID)
+		}
+
+		supervisors, txErr := rs.ActivityService.GetGroupSupervisors(ctx, activity.ID)
+		if txErr != nil {
+			return txErr
+		}
+
+		nextSupervisorIDs, txErr := buildReplacementSupervisorIDs(
+			supervisors,
+			supervisorID,
+			replacement.ReplacementStaffID,
+		)
+		if txErr != nil {
+			return txErr
+		}
+
+		return rs.ActivityService.UpdateGroupSupervisors(ctx, activity.ID, nextSupervisorIDs)
 	}); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return

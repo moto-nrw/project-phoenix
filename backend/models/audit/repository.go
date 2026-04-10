@@ -31,6 +31,12 @@ type AuthEventRepository interface {
 	List(ctx context.Context, filters map[string]interface{}) ([]*AuthEvent, error)
 }
 
+// DataAccessLogRepository is an insert-only repository for audit.data_access_log.
+// Access-log rows are append-only and are never updated or deleted by the application.
+type DataAccessLogRepository interface {
+	Create(ctx context.Context, entry *DataAccessLog) error
+}
+
 // DataImportRepository defines operations for managing data import audit records
 type DataImportRepository interface {
 	Create(ctx context.Context, dataImport *DataImport) error

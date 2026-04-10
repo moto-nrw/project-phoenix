@@ -68,6 +68,9 @@ func NewServer(logger *slog.Logger) (*Server, error) {
 			srv.scheduler.SetWorkSessionCleaner(api.Services.WorkSession)
 			srv.scheduler.SetBreakAutoEnder(api.Services.WorkSession)
 		}
+		if api.Services.Feedback != nil {
+			srv.scheduler.SetFeedbackCleaner(api.Services.Feedback)
+		}
 	}
 
 	return srv, nil

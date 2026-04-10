@@ -31,9 +31,9 @@ describe("breadcrumb-utils", () => {
         );
       });
 
-      it("should return 'Raum Historie' for room history page", () => {
-        expect(getPageTitle("/students/123/room_history")).toBe(
-          "Raum Historie",
+      it("should return 'Anwesenheitsprotokoll' for room history page", () => {
+        expect(getPageTitle("/students/123/room-history")).toBe(
+          "Anwesenheitsprotokoll",
         );
       });
 
@@ -232,9 +232,9 @@ describe("breadcrumb-utils", () => {
       );
     });
 
-    it("should return 'Raum Historie' for room history path", () => {
-      expect(getHistoryType("/students/123/room_history")).toBe(
-        "Raum Historie",
+    it("should return 'Anwesenheitsprotokoll' for room history path", () => {
+      expect(getHistoryType("/students/123/room-history")).toBe(
+        "Anwesenheitsprotokoll",
       );
     });
 
@@ -289,7 +289,7 @@ describe("breadcrumb-utils", () => {
       });
 
       it("should identify room history page", () => {
-        const result = getPageTypeInfo("/students/123/room_history");
+        const result = getPageTypeInfo("/students/123/room-history");
         expect(result.isStudentHistoryPage).toBe(true);
       });
 

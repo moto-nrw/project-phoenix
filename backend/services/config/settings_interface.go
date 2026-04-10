@@ -42,6 +42,20 @@ type SettingsService interface {
 	// userPermissions is checked against the definition's WritePermission.
 	// Pass nil to skip permission checks (for system-level callers).
 	ResetValue(ctx context.Context, key string, changedBy *int64, userPermissions []string) error
+
+	// GetLoginImageURL returns the loginImageUrl from the school's settings JSONB.
+	// Returns empty string if no login image is set.
+	GetLoginImageURL(ctx context.Context, tenantID int64) (string, error)
+
+	// SetLoginImageURL sets the loginImageUrl in the school's settings JSONB.
+	// Uses WithAdminTx because platform.schools requires the phoenix_admin role.
+	// Returns the previous loginImageUrl (if any) so the caller can clean up the old file.
+	SetLoginImageURL(ctx context.Context, tenantID int64, imageURL string) (oldURL string, err error)
+
+	// ClearLoginImageURL removes the loginImageUrl from the school's settings JSONB.
+	// Uses WithAdminTx because platform.schools requires the phoenix_admin role.
+	// Returns the previous loginImageUrl (if any) so the caller can clean up the old file.
+	ClearLoginImageURL(ctx context.Context, tenantID int64) (oldURL string, err error)
 }
 
 // --- Response types ---

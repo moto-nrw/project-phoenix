@@ -3,8 +3,10 @@ package staff
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -82,7 +84,7 @@ func (rs *Resource) Router() chi.Router {
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
 	// Create JWT auth instance for middleware
-	tokenAuth, _ := jwt.NewTokenAuth()
+	tokenAuth := jwt.MustNewTokenAuth()
 
 	// Protected routes that require authentication and permissions
 	r.Group(func(r chi.Router) {
@@ -94,6 +96,7 @@ func (rs *Resource) Router() chi.Router {
 		// Read operations only require users:read permission
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/", rs.listStaff)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}", rs.getStaff)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/avatar", rs.serveStaffAvatar)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/groups", rs.getStaffGroups)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/substitutions", rs.getStaffSubstitutions)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/available", rs.getAvailableStaff)
@@ -126,6 +129,7 @@ type PersonResponse struct {
 	FirstName string    `json:"first_name"`
 	LastName  string    `json:"last_name"`
 	Email     string    `json:"email,omitempty"`
+	Avatar    string    `json:"avatar,omitempty"`
 	TagID     string    `json:"tag_id,omitempty"`
 	AccountID *int64    `json:"account_id,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
@@ -220,7 +224,7 @@ func (req *PINUpdateRequest) Bind(_ *http.Request) error {
 }
 
 // newPersonResponse creates a simplified person response
-func newPersonResponse(person *users.Person, email string) *PersonResponse {
+func newPersonResponse(person *users.Person, email string, avatar string) *PersonResponse {
 	if person == nil {
 		return nil
 	}
@@ -230,6 +234,7 @@ func newPersonResponse(person *users.Person, email string) *PersonResponse {
 		FirstName: person.FirstName,
 		LastName:  person.LastName,
 		Email:     email,
+		Avatar:    avatar,
 		AccountID: person.AccountID,
 		CreatedAt: person.CreatedAt,
 		UpdatedAt: person.UpdatedAt,
@@ -264,12 +269,42 @@ func (rs *Resource) parseAndGetStaff(w http.ResponseWriter, r *http.Request) (*u
 	return staff, true
 }
 
+func (rs *Resource) listActiveCaregivers(ctx context.Context) ([]*users.ActiveCaregiver, error) {
+	directory, err := usersSvc.CaregiverDirectoryFromPersonService(rs.PersonService)
+	if err != nil {
+		return nil, fmt.Errorf("resolve caregiver directory: %w", err)
+	}
+
+	return directory.ListActiveCaregivers(ctx)
+}
+
+func caregiverStaffIDSet(caregivers []*users.ActiveCaregiver) map[int64]struct{} {
+	result := make(map[int64]struct{}, len(caregivers))
+	for _, caregiver := range caregivers {
+		result[caregiver.StaffID] = struct{}{}
+	}
+	return result
+}
+
+func requestedCaregiverPool(roles []string) bool {
+	if len(roles) != 1 {
+		return false
+	}
+
+	switch strings.ToLower(strings.TrimSpace(roles[0])) {
+	case "user", "staff":
+		return true
+	default:
+		return false
+	}
+}
+
 // =============================================================================
 // RESPONSE HELPERS
 // =============================================================================
 
 // newStaffResponse creates a staff response
-func newStaffResponse(staff *users.Staff, isTeacher bool, wasPresentToday bool, workStatus string, absenceType string, accountRole string, email string) StaffResponse {
+func newStaffResponse(staff *users.Staff, isTeacher bool, wasPresentToday bool, workStatus string, absenceType string, accountRole string, email string, avatar string) StaffResponse {
 	response := StaffResponse{
 		ID:              staff.ID,
 		PersonID:        staff.PersonID,
@@ -284,15 +319,15 @@ func newStaffResponse(staff *users.Staff, isTeacher bool, wasPresentToday bool, 
 	}
 
 	if staff.Person != nil {
-		response.Person = newPersonResponse(staff.Person, email)
+		response.Person = newPersonResponse(staff.Person, email, avatar)
 	}
 
 	return response
 }
 
 // newTeacherResponse creates a teacher response
-func newTeacherResponse(staff *users.Staff, teacher *users.Teacher, wasPresentToday bool, workStatus string, absenceType string, accountRole string, email string) TeacherResponse {
-	staffResponse := newStaffResponse(staff, true, wasPresentToday, workStatus, absenceType, accountRole, email)
+func newTeacherResponse(staff *users.Staff, teacher *users.Teacher, wasPresentToday bool, workStatus string, absenceType string, accountRole string, email string, avatar string) TeacherResponse {
+	staffResponse := newStaffResponse(staff, true, wasPresentToday, workStatus, absenceType, accountRole, email, avatar)
 
 	response := TeacherResponse{
 		StaffResponse:  staffResponse,
@@ -383,6 +418,32 @@ func (rs *Resource) loadAccountEmailMap(ctx context.Context, staffMembers []*use
 	return emailMap
 }
 
+// loadAccountAvatarMap batch-loads avatar paths for all staff members (non-critical, returns empty map on error)
+func (rs *Resource) loadAccountAvatarMap(ctx context.Context, staffMembers []*users.Staff) map[int64]string {
+	if rs.AuthService == nil {
+		return make(map[int64]string)
+	}
+
+	// Collect account IDs from staff members
+	accountIDs := make([]int64, 0, len(staffMembers))
+	for _, s := range staffMembers {
+		if s.Person != nil && s.Person.AccountID != nil {
+			accountIDs = append(accountIDs, *s.Person.AccountID)
+		}
+	}
+
+	if len(accountIDs) == 0 {
+		return make(map[int64]string)
+	}
+
+	avatarMap, err := rs.AuthService.GetAccountAvatarsByIDs(ctx, accountIDs)
+	if err != nil {
+		rs.getLogger().Warn("failed to fetch account avatar map", slog.String("error", err.Error()))
+		return make(map[int64]string)
+	}
+	return avatarMap
+}
+
 // listStaff handles listing all staff members with optional filtering
 // Optimized to avoid N+1 queries by batch-loading Person and Teacher data
 func (rs *Resource) listStaff(w http.ResponseWriter, r *http.Request) {
@@ -427,14 +488,15 @@ func (rs *Resource) listStaff(w http.ResponseWriter, r *http.Request) {
 	workStatusMap := rs.loadWorkStatusMap(ctx)
 	absenceMap := rs.loadAbsenceMap(ctx)
 
-	// Batch-load account roles and emails for all staff members (non-critical)
+	// Batch-load account roles, emails, and avatars for all staff members (non-critical)
 	accountRoleMap := rs.loadAccountRoleMap(ctx, staffMembers)
 	accountEmailMap := rs.loadAccountEmailMap(ctx, staffMembers)
+	accountAvatarMap := rs.loadAccountAvatarMap(ctx, staffMembers)
 
 	// Build response objects using pre-loaded data
 	responses := make([]interface{}, 0, len(staffMembers))
 	for _, staff := range staffMembers {
-		if response, include := rs.processStaffForListOptimized(ctx, staff, teacherMap, presentMap, workStatusMap, absenceMap, accountRoleMap, accountEmailMap, filters); include {
+		if response, include := rs.processStaffForListOptimized(ctx, staff, teacherMap, presentMap, workStatusMap, absenceMap, accountRoleMap, accountEmailMap, accountAvatarMap, filters); include {
 			responses = append(responses, response)
 		}
 	}
@@ -469,9 +531,10 @@ func (rs *Resource) getStaff(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Load account role and email with tenant scoping (non-critical)
+	// Load account role, email, and avatar with tenant scoping (non-critical)
 	var accountRole string
 	var accountEmail string
+	var accountAvatar string
 	if staff.Person != nil && staff.Person.AccountID != nil && rs.AuthService != nil {
 		accountID := *staff.Person.AccountID
 		roleMap, roleErr := rs.AuthService.GetAccountRoleNames(r.Context(), []int64{accountID})
@@ -482,6 +545,10 @@ func (rs *Resource) getStaff(w http.ResponseWriter, r *http.Request) {
 		if emailErr == nil {
 			accountEmail = emailMap[accountID]
 		}
+		avatarMap, avatarErr := rs.AuthService.GetAccountAvatarsByIDs(r.Context(), []int64{accountID})
+		if avatarErr == nil {
+			accountAvatar = avatarMap[accountID]
+		}
 	}
 
 	// Check if this staff member is also a teacher
@@ -490,12 +557,12 @@ func (rs *Resource) getStaff(w http.ResponseWriter, r *http.Request) {
 
 	teacher, err = rs.TeacherRepo.FindByStaffID(r.Context(), staff.ID)
 	if err == nil && teacher != nil {
-		response := newTeacherResponse(staff, teacher, false, "", "", accountRole, accountEmail)
+		response := newTeacherResponse(staff, teacher, false, "", "", accountRole, accountEmail, accountAvatar)
 		common.Respond(w, r, http.StatusOK, response, "Teacher retrieved successfully")
 		return
 	}
 
-	response := newStaffResponse(staff, isTeacher, false, "", "", accountRole, accountEmail)
+	response := newStaffResponse(staff, isTeacher, false, "", "", accountRole, accountEmail, accountAvatar)
 	common.Respond(w, r, http.StatusOK, response, "Staff member retrieved successfully")
 }
 
@@ -586,20 +653,20 @@ func (rs *Resource) createStaff(w http.ResponseWriter, r *http.Request) {
 	staff.Person = person
 
 	if teacherCreationFailed {
-		response := newStaffResponse(staff, false, false, "", "", "", "")
+		response := newStaffResponse(staff, false, false, "", "", "", "", "")
 		common.Respond(w, r, http.StatusCreated, response, "Staff member created successfully, but failed to create teacher record")
 		return
 	}
 
 	if isTeacher {
 		// Return teacher response
-		response := newTeacherResponse(staff, teacher, false, "", "", "", "")
+		response := newTeacherResponse(staff, teacher, false, "", "", "", "", "")
 		common.Respond(w, r, http.StatusCreated, response, "Teacher created successfully")
 		return
 	}
 
 	// Return staff response
-	response := newStaffResponse(staff, isTeacher, false, "", "", "", "")
+	response := newStaffResponse(staff, isTeacher, false, "", "", "", "", "")
 	common.Respond(w, r, http.StatusCreated, response, "Staff member created successfully")
 }
 
@@ -699,10 +766,10 @@ func (rs *Resource) buildUpdateStaffResponse(
 
 	// Return existing teacher response if they have a teacher record
 	if existingTeacher != nil {
-		return newTeacherResponse(staff, existingTeacher, false, "", "", "", ""), "Teacher updated successfully"
+		return newTeacherResponse(staff, existingTeacher, false, "", "", "", "", ""), "Teacher updated successfully"
 	}
 
-	return newStaffResponse(staff, false, false, "", "", "", ""), "Staff member updated successfully"
+	return newStaffResponse(staff, false, false, "", "", "", "", ""), "Staff member updated successfully"
 }
 
 // deleteStaff handles deleting a staff member
@@ -729,6 +796,42 @@ func (rs *Resource) deleteStaff(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, nil, "Staff member deleted successfully")
+}
+
+// serveStaffAvatar serves the avatar image for a staff member.
+// Requires users:read permission — any authenticated user in the same tenant can view staff avatars.
+func (rs *Resource) serveStaffAvatar(w http.ResponseWriter, r *http.Request) {
+	id, ok := common.ParseInt64IDWithError(w, r, "id", common.MsgInvalidStaffID)
+	if !ok {
+		return
+	}
+
+	staff, err := rs.StaffRepo.FindWithPerson(r.Context(), id)
+	if err != nil || staff == nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	if staff.Person == nil || staff.Person.AccountID == nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	accountID := *staff.Person.AccountID
+	avatarMap, err := rs.AuthService.GetAccountAvatarsByIDs(r.Context(), []int64{accountID})
+	if err != nil || avatarMap[accountID] == "" {
+		http.NotFound(w, r)
+		return
+	}
+
+	avatarPath := avatarMap[accountID]
+	filePath, err := common.ResolveStoredPath("public", avatarPath, "/uploads/avatars/")
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	common.ServeImage(w, r, filepath.Dir(filePath), filepath.Base(filePath), "private, max-age=86400")
 }
 
 // getStaffGroups handles getting groups for a staff member
@@ -795,7 +898,7 @@ func (rs *Resource) getAvailableStaff(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Create teacher response using pre-loaded data (false for wasPresentToday - not needed here)
-		responses = append(responses, newTeacherResponse(teacher.Staff, teacher, false, "", "", "", ""))
+		responses = append(responses, newTeacherResponse(teacher.Staff, teacher, false, "", "", "", "", ""))
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Available staff members retrieved successfully")
@@ -878,7 +981,7 @@ func (rs *Resource) buildStaffSubstitutionStatus(
 	teacher *users.Teacher,
 	subs []*education.GroupSubstitution,
 ) StaffWithSubstitutionStatus {
-	staffResp := newStaffResponse(staff, false, false, "", "", "", "")
+	staffResp := newStaffResponse(staff, false, false, "", "", "", "", "")
 	result := StaffWithSubstitutionStatus{
 		StaffResponse:     &staffResp,
 		IsSubstituting:    len(subs) > 0,
@@ -931,15 +1034,22 @@ func (rs *Resource) getAvailableForSubstitution(w http.ResponseWriter, r *http.R
 		}
 	}
 
-	// Get all teachers with staff and person data in a single query (avoids N+1)
+	caregivers, err := rs.listActiveCaregivers(ctx)
+	if err != nil {
+		common.RenderError(w, r, ErrorInternalServer(err))
+		return
+	}
+
+	// Keep the richer teacher payload, but only for canonical caregivers.
 	teachers, err := rs.TeacherRepo.ListAllWithStaffAndPerson(ctx)
 	if err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
+	activeCaregiverStaffIDs := caregiverStaffIDSet(caregivers)
 	substitutingStaffMap := rs.buildSubstitutionMap(ctx, date)
-	results := rs.filterAndBuildTeacherResults(ctx, teachers, substitutingStaffMap, searchTerm)
+	results := rs.filterAndBuildTeacherResults(ctx, teachers, activeCaregiverStaffIDs, substitutingStaffMap, searchTerm)
 
 	common.Respond(w, r, http.StatusOK, results, "Available staff for substitution retrieved successfully")
 }
@@ -963,13 +1073,14 @@ func (rs *Resource) buildSubstitutionMap(ctx context.Context, date time.Time) ma
 func (rs *Resource) filterAndBuildTeacherResults(
 	ctx context.Context,
 	teachers []*users.Teacher,
+	activeCaregiverStaffIDs map[int64]struct{},
 	subsMap map[int64][]*education.GroupSubstitution,
 	searchTerm string,
 ) []StaffWithSubstitutionStatus {
 	results := make([]StaffWithSubstitutionStatus, 0, len(teachers))
 
 	for _, teacher := range teachers {
-		result := rs.processTeacherForSubstitution(ctx, teacher, subsMap, searchTerm)
+		result := rs.processTeacherForSubstitution(ctx, teacher, activeCaregiverStaffIDs, subsMap, searchTerm)
 		if result != nil {
 			results = append(results, *result)
 		}
@@ -982,11 +1093,15 @@ func (rs *Resource) filterAndBuildTeacherResults(
 func (rs *Resource) processTeacherForSubstitution(
 	ctx context.Context,
 	teacher *users.Teacher,
+	activeCaregiverStaffIDs map[int64]struct{},
 	subsMap map[int64][]*education.GroupSubstitution,
 	searchTerm string,
 ) *StaffWithSubstitutionStatus {
 	// Skip if staff or person data is missing
 	if teacher.Staff == nil || teacher.Staff.Person == nil {
+		return nil
+	}
+	if _, ok := activeCaregiverStaffIDs[teacher.Staff.ID]; !ok {
 		return nil
 	}
 
@@ -1163,15 +1278,17 @@ func verifyCurrentPIN(account interface {
 
 // StaffWithRoleResponse represents a staff member with role information
 type StaffWithRoleResponse struct {
-	ID        int64     `json:"id"`
-	PersonID  int64     `json:"person_id"`
-	FirstName string    `json:"first_name"`
-	LastName  string    `json:"last_name"`
-	FullName  string    `json:"full_name"`
-	AccountID int64     `json:"account_id"`
-	Email     string    `json:"email"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID                int64     `json:"id"`
+	PersonID          int64     `json:"person_id"`
+	TeacherID         int64     `json:"teacher_id,omitempty"`
+	FirstName         string    `json:"first_name"`
+	LastName          string    `json:"last_name"`
+	FullName          string    `json:"full_name"`
+	AccountID         int64     `json:"account_id"`
+	Email             string    `json:"email"`
+	IsActiveCaregiver bool      `json:"is_active_caregiver"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
 }
 
 // getStaffByRole handles GET /api/staff/by-role?role=user or ?roles=teacher,staff,user
@@ -1200,6 +1317,34 @@ func (rs *Resource) getStaffByRole(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
+
+	if requestedCaregiverPool(roles) {
+		caregivers, err := rs.listActiveCaregivers(ctx)
+		if err != nil {
+			common.RenderError(w, r, ErrorInternalServer(err))
+			return
+		}
+
+		results := make([]StaffWithRoleResponse, 0, len(caregivers))
+		for _, caregiver := range caregivers {
+			results = append(results, StaffWithRoleResponse{
+				ID:                caregiver.StaffID,
+				PersonID:          caregiver.PersonID,
+				TeacherID:         caregiver.TeacherID,
+				FirstName:         caregiver.FirstName,
+				LastName:          caregiver.LastName,
+				FullName:          caregiver.FullName(),
+				AccountID:         caregiver.AccountID,
+				Email:             caregiver.Email,
+				IsActiveCaregiver: true,
+				CreatedAt:         caregiver.CreatedAt,
+				UpdatedAt:         caregiver.UpdatedAt,
+			})
+		}
+
+		common.Respond(w, r, http.StatusOK, results, "Active caregivers retrieved successfully")
+		return
+	}
 
 	staffByRoles, err := rs.StaffRepo.ListStaffByRoles(ctx, roles)
 	if err != nil {

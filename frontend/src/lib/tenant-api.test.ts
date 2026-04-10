@@ -20,6 +20,7 @@ import {
   listAvailableTenants,
   switchTenant,
   performTenantSwitch,
+  loginImageSrc,
 } from "./tenant-api";
 
 // ============================================================================
@@ -36,6 +37,32 @@ describe("tenant-api", () => {
 
   afterEach(() => {
     global.fetch = originalFetch;
+  });
+
+  // --------------------------------------------------------------------------
+  // loginImageSrc (pure helper, no fetch)
+  // --------------------------------------------------------------------------
+
+  describe("loginImageSrc", () => {
+    it("extracts filename from stored path", () => {
+      expect(loginImageSrc("/uploads/login-images/123_abcdef.png")).toBe(
+        "/api/public/login-image/123_abcdef.png",
+      );
+    });
+
+    it("handles filename without directory prefix", () => {
+      expect(loginImageSrc("myfile.jpg")).toBe(
+        "/api/public/login-image/myfile.jpg",
+      );
+    });
+
+    it("returns base path for empty string", () => {
+      expect(loginImageSrc("")).toBe("/api/public/login-image/");
+    });
+
+    it("returns base path for trailing slash", () => {
+      expect(loginImageSrc("/")).toBe("/api/public/login-image/");
+    });
   });
 
   // --------------------------------------------------------------------------

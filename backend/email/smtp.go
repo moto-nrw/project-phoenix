@@ -98,6 +98,8 @@ func (m *SMTPMailer) Send(email Message) error {
 		return fmt.Errorf("failed to set to address: %w", err)
 	}
 	msg.Subject(email.Subject)
+	msg.SetGenHeader(mail.HeaderListUnsubscribe, fmt.Sprintf("<mailto:%s?subject=unsubscribe>", email.From.Address))
+	msg.SetGenHeader(mail.HeaderListUnsubscribePost, "List-Unsubscribe=One-Click")
 	msg.SetBodyString(mail.TypeTextPlain, email.text)
 	msg.AddAlternativeString(mail.TypeTextHTML, email.html)
 

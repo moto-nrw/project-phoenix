@@ -607,6 +607,79 @@ func TestDeviceRepository_CountDevicesByType(t *testing.T) {
 	})
 }
 
+func TestDeviceRepository_UpdateRoomID(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).Device
+	ctx := testpkg.TenantContext(1)
+
+	t.Run("updates room_id on existing device", func(t *testing.T) {
+		device := testpkg.CreateTestDevice(t, db, "updateroomid")
+		room := testpkg.CreateTestRoom(t, db, "UpdateRoomID-Room")
+		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, device.ID, 0, room.ID)
+
+		err := repo.UpdateRoomID(ctx, device.ID, room.ID)
+		require.NoError(t, err)
+
+		// Verify the update persisted
+		updated, err := repo.FindByID(ctx, device.ID)
+		require.NoError(t, err)
+		require.NotNil(t, updated.RoomID)
+		assert.Equal(t, room.ID, *updated.RoomID)
+	})
+
+	t.Run("updates updated_at timestamp", func(t *testing.T) {
+		device := testpkg.CreateTestDevice(t, db, "updateroomid-ts")
+		room := testpkg.CreateTestRoom(t, db, "UpdateRoomID-Timestamp")
+		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, device.ID, 0, room.ID)
+
+		beforeUpdate, err := repo.FindByID(ctx, device.ID)
+		require.NoError(t, err)
+		originalUpdatedAt := beforeUpdate.UpdatedAt
+
+		// Small delay to ensure timestamps differ
+		time.Sleep(10 * time.Millisecond)
+
+		err = repo.UpdateRoomID(ctx, device.ID, room.ID)
+		require.NoError(t, err)
+
+		afterUpdate, err := repo.FindByID(ctx, device.ID)
+		require.NoError(t, err)
+		assert.True(t, afterUpdate.UpdatedAt.After(originalUpdatedAt),
+			"updated_at should be later than original; got %v vs %v", afterUpdate.UpdatedAt, originalUpdatedAt)
+	})
+
+	t.Run("overwrites existing room_id", func(t *testing.T) {
+		device := testpkg.CreateTestDevice(t, db, "updateroomid-overwrite")
+		room1 := testpkg.CreateTestRoom(t, db, "UpdateRoomID-First")
+		room2 := testpkg.CreateTestRoom(t, db, "UpdateRoomID-Second")
+		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, device.ID, 0, room1.ID)
+		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room2.ID)
+
+		// Set initial room
+		err := repo.UpdateRoomID(ctx, device.ID, room1.ID)
+		require.NoError(t, err)
+
+		// Overwrite with second room
+		err = repo.UpdateRoomID(ctx, device.ID, room2.ID)
+		require.NoError(t, err)
+
+		updated, err := repo.FindByID(ctx, device.ID)
+		require.NoError(t, err)
+		require.NotNil(t, updated.RoomID)
+		assert.Equal(t, room2.ID, *updated.RoomID)
+	})
+
+	t.Run("returns error for non-existent device", func(t *testing.T) {
+		room := testpkg.CreateTestRoom(t, db, "UpdateRoomID-NoDevice")
+		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
+
+		err := repo.UpdateRoomID(ctx, int64(999999), room.ID)
+		require.Error(t, err)
+	})
+}
+
 // ============================================================================
 // Filter Tests
 // ============================================================================

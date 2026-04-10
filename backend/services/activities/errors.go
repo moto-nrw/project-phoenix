@@ -50,6 +50,10 @@ var (
 
 	// ErrUnauthorized returned when user doesn't have permission to perform the action
 	ErrUnauthorized = errors.New("you are not authorized to perform this action")
+
+	// ErrOnlySupervisorRequiresReplacement is returned when removing the last
+	// remaining supervisor would leave an activity without any supervisor.
+	ErrOnlySupervisorRequiresReplacement = errors.New("cannot remove the only supervisor from an activity without a replacement")
 )
 
 // ActivityError represents an activity-related error

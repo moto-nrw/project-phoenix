@@ -28,6 +28,9 @@ func (m *mockSchoolRepo) FindByID(ctx context.Context, id int64) (*platform.Scho
 func (m *mockSchoolRepo) FindByIDForShare(_ context.Context, _ int64) (*platform.School, error) {
 	return nil, nil
 }
+func (m *mockSchoolRepo) FindByIDForUpdate(_ context.Context, _ int64) (*platform.School, error) {
+	return nil, nil
+}
 func (m *mockSchoolRepo) FindBySlug(_ context.Context, _ string) (*platform.School, error) {
 	return nil, nil
 }

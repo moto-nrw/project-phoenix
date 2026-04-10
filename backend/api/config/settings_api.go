@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
+	"path/filepath"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -15,6 +17,16 @@ import (
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
+)
+
+// Login image upload constants
+const (
+	maxLoginImageSize = 2 * 1024 * 1024 // 2MB — advertised file limit
+	// MaxBytesReader limits the entire multipart body, not just the file.
+	// Add 1 KiB headroom for multipart boundaries, headers, and CRLF padding
+	// so files at exactly the advertised limit are not rejected.
+	maxLoginImageBody = maxLoginImageSize + 1024
+	loginImageDir     = "public/uploads/login-images"
 )
 
 // SettingsResource defines the settings API resource.
@@ -31,12 +43,12 @@ func NewSettingsResource(svc configSvc.SettingsService, db *bun.DB) *SettingsRes
 	}
 }
 
-// SettingsRouter returns a configured router for the 3 settings endpoints.
+// SettingsRouter returns a configured router for settings endpoints.
 func (rs *SettingsResource) SettingsRouter() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	tokenAuth, _ := jwt.NewTokenAuth()
+	tokenAuth := jwt.MustNewTokenAuth()
 
 	r.Group(func(r chi.Router) {
 		r.Use(tokenAuth.Verifier())
@@ -49,6 +61,16 @@ func (rs *SettingsResource) SettingsRouter() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.ConfigRead), withTx).Get("/schema", rs.getSchema)
 		r.With(settingsWrite, withTx).Put("/values/{key}", rs.setValue)
 		r.With(settingsWrite, withTx).Delete("/values/{key}", rs.resetValue)
+
+		// Login image — reads use withTx (tenant role), writes use WithAdminTx internally
+		// because platform.schools requires the phoenix_admin role for UPDATE.
+		// withTx is intentionally omitted on POST/DELETE to avoid conflicting role contexts.
+		// GET uses settingsWrite (not ConfigRead) so write-capable roles can also read the
+		// login-image metadata — the frontend depends on this GET to enable upload/delete controls.
+		settingsReadOrWrite := authorize.RequiresAnyPermission(permissions.ConfigRead, permissions.ConfigUpdate, permissions.ConfigManage)
+		r.With(settingsReadOrWrite, withTx).Get("/login-image", rs.getLoginImage)
+		r.With(settingsWrite).Post("/login-image", rs.uploadLoginImage)
+		r.With(settingsWrite).Delete("/login-image", rs.deleteLoginImage)
 	})
 
 	return r
@@ -114,6 +136,112 @@ func (rs *SettingsResource) resetValue(w http.ResponseWriter, r *http.Request) {
 	common.RespondNoContent(w, r)
 }
 
+// --- Login image handlers ---
+
+type loginImageResponse struct {
+	LoginImageURL *string `json:"login_image_url"`
+	CanEdit       bool    `json:"can_edit"`
+}
+
+// getLoginImage returns the current login image URL and edit permission for the tenant.
+func (rs *SettingsResource) getLoginImage(w http.ResponseWriter, r *http.Request) {
+	tenantID := tenant.FromContext(r.Context())
+	if tenantID <= 0 {
+		render.Status(r, http.StatusBadRequest)
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("no tenant context")))
+		return
+	}
+
+	claims := jwt.ClaimsFromCtx(r.Context())
+
+	canEdit := authorize.HasPermission(permissions.ConfigUpdate, claims.Permissions) ||
+		authorize.HasPermission(permissions.ConfigManage, claims.Permissions)
+
+	url, err := rs.settingsService.GetLoginImageURL(r.Context(), tenantID)
+	if err != nil {
+		render.Status(r, http.StatusInternalServerError)
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	resp := loginImageResponse{CanEdit: canEdit}
+	if url != "" {
+		resp.LoginImageURL = &url
+	}
+
+	common.Respond(w, r, http.StatusOK, resp, "")
+}
+
+// uploadLoginImage handles uploading a custom login page image for the tenant.
+func (rs *SettingsResource) uploadLoginImage(w http.ResponseWriter, r *http.Request) {
+	uploaded, err := common.ParseImage(w, r, "login_image", maxLoginImageBody)
+	if err != nil {
+		render.Status(r, http.StatusBadRequest)
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	defer common.CloseFile(uploaded.File)
+
+	tenantID := tenant.FromContext(r.Context())
+	if tenantID <= 0 {
+		render.Status(r, http.StatusBadRequest)
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("no tenant context")))
+		return
+	}
+
+	prefix := fmt.Sprintf("%d", tenantID)
+	filePath, err := common.SaveImage(uploaded.File, loginImageDir, prefix, uploaded.ContentType)
+	if err != nil {
+		render.Status(r, http.StatusInternalServerError)
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	imageURL := "/uploads/login-images/" + filepath.Base(filePath)
+	oldURL, err := rs.settingsService.SetLoginImageURL(r.Context(), tenantID, imageURL)
+	if err != nil {
+		common.RemoveImage(filePath)
+		render.Status(r, http.StatusInternalServerError)
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	// Clean up old file only after DB commit succeeded
+	if oldURL != "" {
+		if oldPath, resolveErr := common.ResolveStoredPath("public", oldURL, "/uploads/login-images/"); resolveErr == nil {
+			common.RemoveImage(oldPath)
+		}
+	}
+
+	common.Respond(w, r, http.StatusOK, map[string]string{"login_image_url": imageURL}, "Login image uploaded successfully")
+}
+
+// deleteLoginImage removes the custom login page image for the tenant.
+func (rs *SettingsResource) deleteLoginImage(w http.ResponseWriter, r *http.Request) {
+	tenantID := tenant.FromContext(r.Context())
+	if tenantID <= 0 {
+		render.Status(r, http.StatusBadRequest)
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("no tenant context")))
+		return
+	}
+
+	oldURL, err := rs.settingsService.ClearLoginImageURL(r.Context(), tenantID)
+	if err != nil {
+		render.Status(r, http.StatusInternalServerError)
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	// Clean up old file only after DB commit succeeded
+	if oldURL != "" {
+		if oldPath, resolveErr := common.ResolveStoredPath("public", oldURL, "/uploads/login-images/"); resolveErr == nil {
+			common.RemoveImage(oldPath)
+		}
+	}
+
+	common.RespondNoContent(w, r)
+}
+
 // --- Handler accessors for testing ---
 
 // GetSchema returns the getSchema handler for external test access.
@@ -124,6 +252,15 @@ func (rs *SettingsResource) SetValue() http.HandlerFunc { return rs.setValue }
 
 // ResetValue returns the resetValue handler for external test access.
 func (rs *SettingsResource) ResetValue() http.HandlerFunc { return rs.resetValue }
+
+// GetLoginImage returns the getLoginImage handler for external test access.
+func (rs *SettingsResource) GetLoginImage() http.HandlerFunc { return rs.getLoginImage }
+
+// UploadLoginImage returns the uploadLoginImage handler for external test access.
+func (rs *SettingsResource) UploadLoginImage() http.HandlerFunc { return rs.uploadLoginImage }
+
+// DeleteLoginImage returns the deleteLoginImage handler for external test access.
+func (rs *SettingsResource) DeleteLoginImage() http.HandlerFunc { return rs.deleteLoginImage }
 
 // --- Error rendering ---
 

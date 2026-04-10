@@ -127,7 +127,7 @@ func (rs *Resource) Router() chi.Router {
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
 	// Create JWT auth instance for middleware
-	tokenAuth, _ := jwt.NewTokenAuth()
+	tokenAuth := jwt.MustNewTokenAuth()
 
 	// Public routes (if any device endpoints should be public)
 	r.Group(func(r chi.Router) {
@@ -192,7 +192,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Get("/status", checkinHandler)
 
 		// Feedback endpoint (device-based feedback submission)
-		feedbackResource := feedbackAPI.NewResource(rs.IoTService, rs.UsersService, rs.FeedbackService)
+		feedbackResource := feedbackAPI.NewResource(rs.IoTService, rs.UsersService, rs.FeedbackService, rs.SettingsService)
 		r.Post("/feedback", delegateHandler(feedbackResource.Router()))
 
 		// Data query endpoints (device + PIN auth)
@@ -204,7 +204,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Get("/rfid/{tagId}", dataHandler)
 
 		// Mount attendance sub-router (handles daily attendance tracking)
-		attendanceResource := attendance.NewResource(rs.UsersService, rs.ActiveService, rs.EducationService)
+		attendanceResource := attendance.NewResource(rs.UsersService, rs.ActiveService, rs.EducationService, rs.SettingsService)
 		r.Mount("/attendance", attendanceResource.Router())
 
 		// Mount sessions sub-router (handles activity session management and timeout)
@@ -236,7 +236,10 @@ type schoolNameResponse struct {
 func (rs *Resource) getSchoolName(w http.ResponseWriter, r *http.Request) {
 	deviceCtx := device.DeviceFromCtx(r.Context())
 	if deviceCtx == nil {
-		_ = render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey))
+		slog.WarnContext(r.Context(), "device auth missing API key", slog.String("path", r.URL.Path))
+		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
+			slog.Error("failed to render device auth error", slog.String("error", err.Error()))
+		}
 		return
 	}
 

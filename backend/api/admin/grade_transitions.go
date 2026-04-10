@@ -46,7 +46,7 @@ func (rs *GradeTransitionResource) Router() chi.Router {
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
 	// Create JWT auth instance for middleware
-	tokenAuth, _ := jwt.NewTokenAuth()
+	tokenAuth := jwt.MustNewTokenAuth()
 
 	// All routes require authentication
 	r.Group(func(r chi.Router) {

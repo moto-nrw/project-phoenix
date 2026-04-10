@@ -3,9 +3,12 @@ package api
 import (
 	"context"
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/integration/phoenixapi"
 )
 
 const (
@@ -21,6 +24,7 @@ const (
 
 // Seeder orchestrates the complete API-based seeding process
 type Seeder struct {
+	adapter *phoenixapi.Adapter
 	client  *Client
 	verbose bool
 }
@@ -46,76 +50,26 @@ type bootstrapSeedState struct {
 
 // NewSeeder creates a new API seeder
 func NewSeeder(baseURL string, verbose bool) *Seeder {
+	adapter := phoenixapi.New(baseURL, verbose)
 	return &Seeder{
-		client:  NewClient(baseURL, verbose),
+		adapter: adapter,
+		client:  NewClientWithAdapter(adapter, verbose),
 		verbose: verbose,
 	}
 }
 
 // Seed executes the complete seeding workflow
 func (s *Seeder) Seed(ctx context.Context, email, password, staffPIN string) (*SeedResult, error) {
-	result := &SeedResult{}
-
-	// 1. Check server health
-	fmt.Printf("Connecting to %s...\n", s.client.baseURL)
-	if err := s.client.CheckHealth(); err != nil {
-		return nil, s.formatError("Server health check", err)
+	runtime := newRuntime(s, email, password, staffPIN)
+	workflow := fullDemoWorkflow(s)
+	if err := workflow.Run(ctx, runtime); err != nil {
+		var stepErr *StepError
+		if errors.As(err, &stepErr) {
+			return nil, s.formatError(stepErr.Step, stepErr.Err)
+		}
+		return nil, s.formatError(workflow.Name, err)
 	}
-
-	// 2. Authenticate as operator
-	fmt.Printf("Logging in as operator %s...\n", email)
-	if err := s.client.LoginOperator(email, password); err != nil {
-		return nil, s.formatError("Login", err)
-	}
-	fmt.Println("Operator authenticated")
-	fmt.Println()
-
-	bootstrapState, err := s.bootstrapTenant(ctx)
-	if err != nil {
-		return nil, s.formatError("Tenant bootstrap", err)
-	}
-
-	fmt.Printf("Logging in as invited school admin %s...\n", bootstrapState.AdminEmail)
-	if err := s.client.Login(bootstrapState.AdminEmail, bootstrapState.AdminPassword, bootstrapState.TenantSlug); err != nil {
-		return nil, s.formatError("Login", err)
-	}
-	fmt.Println("School admin authenticated")
-	fmt.Println()
-
-	// 3. Create Stammdaten (fixed/master data)
-	fixedSeeder := NewFixedSeeder(s.client, s.verbose)
-	fixedResult, err := fixedSeeder.Seed(ctx)
-	if err != nil {
-		return nil, s.formatError("Stammdaten seeding", err)
-	}
-	result.Fixed = fixedResult
-	fmt.Println()
-
-	// 4. Mark some students as sick
-	if err := fixedSeeder.MarkStudentsSick(ctx, fixedResult); err != nil {
-		return nil, s.formatError("Marking students sick", err)
-	}
-
-	// 5. Collect seed state and write .seed-state.json
-	state := s.collectSeedState(fixedSeeder, staffPIN, bootstrapState)
-	statePath := DefaultSeedStatePath
-	if err := WriteSeedState(state, statePath); err != nil {
-		return nil, s.formatError("Writing seed state", err)
-	}
-	fmt.Printf("Seed state written to %s\n", statePath)
-
-	// 6. Generate simulator.yaml
-	simPath := "simulator/iot/simulator.yaml"
-	if err := WriteSimulatorConfig(state, simPath); err != nil {
-		return nil, s.formatError("Generating simulator config", err)
-	}
-	fmt.Printf("Simulator config written to %s\n", simPath)
-	fmt.Println()
-
-	// 7. Print success summary
-	s.printSuccessSummary(bootstrapState.AdminEmail, bootstrapState.AdminPassword, result)
-
-	return result, nil
+	return runtime.Result, nil
 }
 
 func (s *Seeder) bootstrapTenant(ctx context.Context) (*bootstrapSeedState, error) {
@@ -283,6 +237,7 @@ func truncateSeedSubdomain(subdomain string) string {
 // collectSeedState builds SeedState from the FixedSeeder's internal maps
 func (s *Seeder) collectSeedState(fs *FixedSeeder, staffPIN string, bootstrap *bootstrapSeedState) *SeedState {
 	state := &SeedState{
+		Version:    CurrentSeedStateVersion,
 		CreatedAt:  time.Now().UTC(),
 		BaseURL:    s.client.baseURL,
 		DevicePIN:  staffPIN,
@@ -299,6 +254,7 @@ func (s *Seeder) collectSeedState(fs *FixedSeeder, staffPIN string, bootstrap *b
 	copySeedIDMap(state.Rooms, fs.roomIDs)
 	copySeedIDMap(state.Activities, fs.activityIDs)
 	copySeedIDMap(state.Groups, fs.groupIDs)
+	state.Normalize()
 
 	return state
 }
@@ -420,15 +376,16 @@ func (s *Seeder) printSuccessSummary(email, adminPassword string, result *SeedRe
 
 	// Statistics
 	fmt.Println("CREATED DATA:")
-	fmt.Printf("  Rooms:       %d\n", result.Fixed.RoomCount)
-	fmt.Printf("  Staff:       %d\n", result.Fixed.StaffCount)
-	fmt.Printf("  Accounts:    %d\n", result.Fixed.AccountCount)
-	fmt.Printf("  Groups:      %d\n", result.Fixed.GroupCount)
-	fmt.Printf("  Students:    %d\n", result.Fixed.StudentCount)
-	fmt.Printf("  Sick:        %d\n", result.Fixed.SickStudentCount)
-	fmt.Printf("  Guardians:   %d\n", result.Fixed.GuardianCount)
-	fmt.Printf("  Activities:  %d\n", result.Fixed.ActivityCount)
-	fmt.Printf("  IoT Devices: %d\n", result.Fixed.DeviceCount)
+	fmt.Printf("  Rooms:            %d\n", result.Fixed.RoomCount)
+	fmt.Printf("  Staff:            %d\n", result.Fixed.StaffCount)
+	fmt.Printf("  Accounts:         %d\n", result.Fixed.AccountCount)
+	fmt.Printf("  Groups:           %d\n", result.Fixed.GroupCount)
+	fmt.Printf("  Students:         %d\n", result.Fixed.StudentCount)
+	fmt.Printf("  Sick:             %d\n", result.Fixed.SickStudentCount)
+	fmt.Printf("  Guardians:        %d\n", result.Fixed.GuardianCount)
+	fmt.Printf("  Pickup schedules: %d\n", result.Fixed.PickupScheduleCount)
+	fmt.Printf("  Activities:       %d\n", result.Fixed.ActivityCount)
+	fmt.Printf("  IoT Devices:      %d\n", result.Fixed.DeviceCount)
 	fmt.Println()
 
 	fmt.Println("OUTPUT FILES:")

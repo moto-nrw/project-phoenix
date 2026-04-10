@@ -57,7 +57,9 @@ func Authenticator(next http.Handler) http.Handler {
 
 		if err != nil {
 			slog.Warn("JWT error", slog.String("error", err.Error()))
-			_ = render.Render(w, r, ErrUnauthorized(ErrTokenUnauthorized))
+			if err := render.Render(w, r, ErrUnauthorized(ErrTokenUnauthorized)); err != nil {
+				slog.Error("failed to render unauthorized response", slog.String("error", err.Error()))
+			}
 			return
 		}
 
@@ -91,6 +93,10 @@ func Authenticator(next http.Handler) http.Handler {
 
 // renderUnauthorized renders an unauthorized response with fallback to http.Error
 func renderUnauthorized(w http.ResponseWriter, r *http.Request, err error) {
+	slog.WarnContext(r.Context(), "unauthorized request",
+		slog.String("error", err.Error()),
+		slog.String("path", r.URL.Path),
+	)
 	if render.Render(w, r, ErrUnauthorized(err)) != nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 	}

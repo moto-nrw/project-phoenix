@@ -97,8 +97,10 @@ export interface Teacher {
   first_name: string;
   last_name: string;
   email?: string; // Email address for authentication
+  avatar?: string | null; // Avatar path from account
   specialization?: string | null;
   role?: string | null;
+  account_role?: string | null;
   qualifications?: string | null;
   tag_id?: string | null;
   staff_notes?: string | null;

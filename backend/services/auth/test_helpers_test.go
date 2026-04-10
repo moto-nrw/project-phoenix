@@ -242,6 +242,10 @@ func (noopAccountRepository) FindEmailsByAccountIDs(context.Context, []int64) (m
 	panic("FindEmailsByAccountIDs not implemented")
 }
 
+func (noopAccountRepository) FindAvatarsByAccountIDs(context.Context, []int64) (map[int64]string, error) {
+	panic("FindAvatarsByAccountIDs not implemented")
+}
+
 // stubAccountRepository implements a minimal in-memory account store.
 type stubAccountRepository struct {
 	noopAccountRepository
@@ -1272,6 +1276,10 @@ func (r *stubSchoolRepository) FindByID(_ context.Context, id int64) (*platformM
 }
 
 func (r *stubSchoolRepository) FindByIDForShare(ctx context.Context, id int64) (*platformModel.School, error) {
+	return r.FindByID(ctx, id)
+}
+
+func (r *stubSchoolRepository) FindByIDForUpdate(ctx context.Context, id int64) (*platformModel.School, error) {
 	return r.FindByID(ctx, id)
 }
 

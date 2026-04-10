@@ -105,6 +105,10 @@ export interface BackendSchoolAccount {
   role_name: string;
   pedagogic_role: string;
   status: string;
+  has_admin_role?: boolean;
+  has_user_role?: boolean;
+  has_caregiver_profile?: boolean;
+  is_active_caregiver?: boolean;
 }
 
 export interface SchoolAccount {
@@ -116,6 +120,10 @@ export interface SchoolAccount {
   roleName: string;
   pedagogicRole: string;
   status: string;
+  hasAdminRole: boolean;
+  hasUserRole: boolean;
+  hasCaregiverProfile: boolean;
+  isActiveCaregiver: boolean;
 }
 
 export function mapSchoolAccount(data: BackendSchoolAccount): SchoolAccount {
@@ -128,6 +136,10 @@ export function mapSchoolAccount(data: BackendSchoolAccount): SchoolAccount {
     roleName: data.role_name,
     pedagogicRole: data.pedagogic_role,
     status: data.status,
+    hasAdminRole: data.has_admin_role ?? false,
+    hasUserRole: data.has_user_role ?? false,
+    hasCaregiverProfile: data.has_caregiver_profile ?? false,
+    isActiveCaregiver: data.is_active_caregiver ?? false,
   };
 }
 
@@ -186,6 +198,7 @@ export interface CreateAccountRequest {
   confirm_password: string;
   role_id?: number;
   position?: string;
+  caregiver_enabled?: boolean;
 }
 
 // Mapping functions

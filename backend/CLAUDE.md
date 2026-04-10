@@ -203,7 +203,43 @@ PostgreSQL schemas separate domain concerns:
 - `schedule`: Timeframes, dateframes, recurrence
 - `iot`: RFID devices
 - `feedback`: User feedback entries
-- `config`: System settings
+- `config`: Tenant-scoped settings (see below)
+
+## Tenant-Scoped Settings System
+
+Registry-driven per-school configuration. Definitions are declared at init time in `services/config/defaults/*.go`, validated at startup, and served to the frontend as an auto-generated schema.
+
+**Key packages:**
+- `models/config/` — Key constants (`keys.go`) and `Definition` struct (`registry.go`)
+- `services/config/` — `SettingsService` (resolve/set/reset), `SchemaBuilder`, defaults registration
+- `database/repositories/config/` — `SettingValueRepository` + `SettingAuditRepository`
+- `api/config/` — HTTP handlers (GET /schema, PUT/DELETE /values/{key})
+
+**Critical pattern** — The service resolves as DB override → registry default only. It does **not** check env vars. Consumers needing env var backward compatibility must check `HasTenantOverride()` first, then fall back manually:
+
+```go
+if has, err := settingsService.HasTenantOverride(ctx, configModel.KeyMyNewSetting); err != nil {
+    slog.Warn("settings check failed", "key", configModel.KeyMyNewSetting, "error", err.Error())
+} else if has {
+    if val, err := settingsService.ResolveString(ctx, configModel.KeyMyNewSetting); err == nil && val != "" {
+        value = val
+    }
+}
+```
+
+**Where settings are consumed:**
+- **Scheduler** (`services/scheduler/scheduler.go`) — `resolveStringSetting`, `resolveBoolSetting`, `resolveIntSetting` helpers wrap the HasTenantOverride pattern. Iterates all active schools via `forEachTenantSettings()`.
+- **IoT Checkin** (`api/iot/checkin/helpers.go`) — `getStudentDailyCheckoutTime()` resolves per-tenant checkout time with env var fallback.
+- **Device Auth** (`api/iot/api.go`) — Resolves `security.ogs_device_pin` for PIN validation.
+
+**ResolveString vs ResolveStringForTenant:**
+
+| Method | When to use |
+|--------|-------------|
+| `ResolveString(ctx, key)` | Inside tenant middleware (ctx has tenant from JWT) |
+| `ResolveStringForTenant(ctx, tenantID, key)` | Outside tenant middleware (device auth, scheduler per-tenant loops) — wraps in its own `tenant.WithTenantTx` |
+
+**Full guide:** `.claude/rules/settings-system.md` — step-by-step for adding, editing, and deleting settings, all 11 registered settings, field types, permissions, frontend behavior, and DB schema.
 
 ## Domain Knowledge
 

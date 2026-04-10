@@ -14,7 +14,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { useShellAuth } from "~/lib/shell-auth-context";
-import { isAdmin } from "~/lib/auth-utils";
+import { hasRole, isCaregiver } from "~/lib/auth-utils";
 import { navigationIcons } from "~/lib/navigation-icons";
 import { operatorPath } from "~/lib/operator-url";
 import {
@@ -275,20 +275,23 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   const baseMain =
     mode === "operator"
       ? resolvedOperatorMainItems
-      : isAdmin(session)
-        ? ADMIN_MAIN_ITEMS
-        : STAFF_MAIN_ITEMS;
+      : isCaregiver(session)
+        ? STAFF_MAIN_ITEMS
+        : hasRole(session, "admin")
+          ? ADMIN_MAIN_ITEMS
+          : STAFF_MAIN_ITEMS;
   const filteredMainItems = baseMain;
 
   // Pre-compute permission flags to reduce complexity in filter
-  const userIsAdmin = isAdmin(session);
+  const userIsAdmin = hasRole(session, "admin");
+  const userIsCaregiver = isCaregiver(session);
   const hasGroupSupervision = !isLoadingGroups && hasGroups;
   const hasRoomSupervision = !isLoadingSupervision && isSupervising;
 
   // Filter additional navigation items based on permissions
   const filteredAdditionalItems = additionalNavItems.filter((item) => {
     // Hide items marked as hideForAdmin for admin users
-    if (item.hideForAdmin && userIsAdmin) {
+    if (item.hideForAdmin && userIsAdmin && !userIsCaregiver) {
       return false;
     }
     if (item.alwaysShow) return true;

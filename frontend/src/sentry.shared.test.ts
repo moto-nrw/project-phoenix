@@ -1,0 +1,85 @@
+import type { ErrorEvent } from "@sentry/nextjs";
+import { describe, it, expect } from "vitest";
+import { scrubEvent } from "./sentry.shared";
+
+function makeEvent(overrides: Partial<ErrorEvent> = {}): ErrorEvent {
+  return {
+    event_id: "test-id",
+    ...overrides,
+  } as ErrorEvent;
+}
+
+describe("scrubEvent", () => {
+  it("strips Authorization and Cookie headers (case-sensitive variants)", () => {
+    const event = makeEvent({
+      request: {
+        headers: {
+          Authorization: "Bearer secret-token",
+          authorization: "Bearer secret-token",
+          Cookie: "session=abc123",
+          cookie: "session=abc123",
+          "Content-Type": "application/json",
+        },
+      },
+    });
+
+    const result = scrubEvent(event);
+
+    expect(result.request?.headers).toStrictEqual({
+      "Content-Type": "application/json",
+    });
+  });
+
+  it("clears request cookies", () => {
+    const event = makeEvent({
+      request: {
+        cookies: { session: "abc123", token: "xyz" },
+      },
+    });
+
+    const result = scrubEvent(event);
+
+    expect(result.request?.cookies).toStrictEqual({});
+  });
+
+  it("strips PII from user context", () => {
+    const event = makeEvent({
+      user: {
+        id: "42",
+        ip_address: "192.168.1.1",
+        email: "test@example.com",
+        username: "testuser",
+      },
+    });
+
+    const result = scrubEvent(event);
+
+    expect(result.user).toStrictEqual({ id: "42" });
+  });
+
+  it("handles events with no request or user context", () => {
+    const event = makeEvent({});
+
+    const result = scrubEvent(event);
+
+    expect(result.event_id).toBe("test-id");
+  });
+
+  it("handles request with no headers or cookies", () => {
+    const event = makeEvent({
+      request: { url: "https://example.com" },
+    });
+
+    const result = scrubEvent(event);
+
+    expect(result.request?.url).toBe("https://example.com");
+  });
+
+  it("returns the same event reference (mutates in place)", () => {
+    const event = makeEvent({ user: { id: "1", email: "a@b.com" } });
+
+    const result = scrubEvent(event);
+
+    expect(result).toBe(event);
+  });
+});

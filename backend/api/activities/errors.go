@@ -1,6 +1,7 @@
 package activities
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/go-chi/render"
@@ -14,7 +15,10 @@ type ErrorResponse struct {
 
 	Status    string `json:"status"`
 	ErrorText string `json:"error,omitempty"`
+	Code      string `json:"code,omitempty"`
 }
+
+const errorCodeOnlySupervisorReplacementRequired = "ONLY_SUPERVISOR_REPLACEMENT_REQUIRED"
 
 // Render implements the render.Renderer interface
 func (e *ErrorResponse) Render(_ http.ResponseWriter, r *http.Request) error {
@@ -27,28 +31,30 @@ func ErrorRenderer(err error) render.Renderer {
 	// Check if the error is a specific activity service error
 	if actErr, ok := err.(*activities.ActivityError); ok {
 		// Map specific activity service errors to appropriate HTTP status codes
-		switch actErr.Unwrap() {
-		case activities.ErrCategoryNotFound:
+		switch {
+		case errors.Is(actErr, activities.ErrCategoryNotFound):
 			return ErrorNotFound(actErr)
-		case activities.ErrGroupNotFound:
+		case errors.Is(actErr, activities.ErrGroupNotFound):
 			return ErrorNotFound(actErr)
-		case activities.ErrScheduleNotFound:
+		case errors.Is(actErr, activities.ErrScheduleNotFound):
 			return ErrorNotFound(actErr)
-		case activities.ErrSupervisorNotFound:
+		case errors.Is(actErr, activities.ErrSupervisorNotFound):
 			return ErrorNotFound(actErr)
-		case activities.ErrEnrollmentNotFound:
+		case errors.Is(actErr, activities.ErrEnrollmentNotFound):
 			return ErrorNotFound(actErr)
-		case activities.ErrGroupFull:
+		case errors.Is(actErr, activities.ErrGroupFull):
 			return ErrorConflict(actErr)
-		case activities.ErrAlreadyEnrolled:
+		case errors.Is(actErr, activities.ErrAlreadyEnrolled):
 			return ErrorConflict(actErr)
-		case activities.ErrNotEnrolled:
+		case errors.Is(actErr, activities.ErrOnlySupervisorRequiresReplacement):
+			return ErrorConflictWithCode(actErr, errorCodeOnlySupervisorReplacementRequired)
+		case errors.Is(actErr, activities.ErrNotEnrolled):
 			return ErrorNotFound(actErr)
-		case activities.ErrGroupClosed:
+		case errors.Is(actErr, activities.ErrGroupClosed):
 			return ErrorForbidden(actErr)
-		case activities.ErrInvalidAttendanceStatus:
+		case errors.Is(actErr, activities.ErrInvalidAttendanceStatus):
 			return ErrorInvalidRequest(actErr)
-		case activities.ErrStaffNotFound:
+		case errors.Is(actErr, activities.ErrStaffNotFound):
 			return ErrorNotFound(actErr)
 		default:
 			return ErrorInternalServer(actErr)
@@ -96,6 +102,17 @@ func ErrorConflict(err error) render.Renderer {
 		HTTPStatusCode: http.StatusConflict,
 		Status:         "error",
 		ErrorText:      err.Error(),
+	}
+}
+
+// ErrorConflictWithCode returns a 409 Conflict error with a stable error code.
+func ErrorConflictWithCode(err error, code string) render.Renderer {
+	return &ErrorResponse{
+		Err:            err,
+		HTTPStatusCode: http.StatusConflict,
+		Status:         "error",
+		ErrorText:      err.Error(),
+		Code:           code,
 	}
 }
 

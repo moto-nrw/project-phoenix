@@ -3,6 +3,7 @@ package tenant
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"github.com/uptrace/bun"
@@ -45,6 +46,12 @@ func TenantTxMiddleware(db *bun.DB) func(http.Handler) http.Handler {
 			// If WithTenantTx itself failed (e.g. DB connection error) and
 			// the handler never wrote a response, send a generic 500.
 			if err != nil && !sw.wroteHeader {
+				slog.ErrorContext(r.Context(), "tenant transaction failed",
+					slog.Int64("tenant_id", tenantID),
+					slog.String("method", r.Method),
+					slog.String("path", r.URL.Path),
+					slog.String("error", err.Error()),
+				)
 				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			}
 		})
