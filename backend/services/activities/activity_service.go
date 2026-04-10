@@ -284,12 +284,11 @@ func (s *Service) UpdateGroup(ctx context.Context, group *activities.Group, requ
 // DeleteGroup deletes an activity group and all related records with ownership verification
 // Only the creator, supervisors, or users with manage permission can delete
 func (s *Service) DeleteGroup(ctx context.Context, id int64, requestingStaffID int64, hasManagePermission bool) error {
-	// Block deletion of system activities (Schulhof Freispiel, WC)
+	// Block deletion of system activities (Schulhof Freispiel, WC).
+	// Only block if the group exists and is a system activity — if it doesn't exist,
+	// fall through to CanModifyActivity which handles admin idempotent deletes.
 	existingGroup, err := s.groupRepo.FindByID(ctx, id)
-	if err != nil {
-		return &ActivityError{Op: "delete group", Err: ErrGroupNotFound}
-	}
-	if constants.IsSystemActivityName(existingGroup.Name) {
+	if err == nil && constants.IsSystemActivityName(existingGroup.Name) {
 		return &ActivityError{Op: "delete group", Err: ErrSystemActivityProtected}
 	}
 
