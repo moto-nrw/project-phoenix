@@ -339,9 +339,8 @@ func TestActivityService_UpdateGroup(t *testing.T) {
 	})
 
 	t.Run("blocks renaming system activity Schulhof Freispiel", func(t *testing.T) {
-		// ARRANGE
+		// ARRANGE — cleanup immediately after test to avoid cross-package interference
 		group := testpkg.CreateTestActivityGroup(t, db, "Schulhof Freispiel")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID)
 
 		group.Name = "Renamed Activity"
 
@@ -351,12 +350,14 @@ func TestActivityService_UpdateGroup(t *testing.T) {
 		// ASSERT
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "Systemaktivität")
+
+		// Immediate cleanup — do not defer, to prevent cross-package test interference
+		testpkg.CleanupActivityFixtures(t, db, group.ID)
 	})
 
 	t.Run("allows updating other properties of system activity", func(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestActivityGroup(t, db, "WC")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID)
 
 		group.MaxParticipants = 30
 
@@ -367,6 +368,9 @@ func TestActivityService_UpdateGroup(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 30, result.MaxParticipants)
 		assert.Equal(t, "WC", result.Name)
+
+		// Immediate cleanup
+		testpkg.CleanupActivityFixtures(t, db, group.ID)
 	})
 
 	t.Run("returns not found when updating non-existent group", func(t *testing.T) {
@@ -413,7 +417,6 @@ func TestActivityService_DeleteGroup(t *testing.T) {
 	t.Run("blocks deletion of system activity Schulhof Freispiel", func(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestActivityGroup(t, db, "Schulhof Freispiel")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID)
 
 		// ACT
 		err := service.DeleteGroup(ctx, group.ID, *group.CreatedBy, true)
@@ -421,12 +424,14 @@ func TestActivityService_DeleteGroup(t *testing.T) {
 		// ASSERT
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "Systemaktivität")
+
+		// Immediate cleanup — do not defer, to prevent cross-package test interference
+		testpkg.CleanupActivityFixtures(t, db, group.ID)
 	})
 
 	t.Run("blocks deletion of system activity WC", func(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestActivityGroup(t, db, "WC")
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID)
 
 		// ACT
 		err := service.DeleteGroup(ctx, group.ID, *group.CreatedBy, true)
@@ -434,6 +439,9 @@ func TestActivityService_DeleteGroup(t *testing.T) {
 		// ASSERT
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "Systemaktivität")
+
+		// Immediate cleanup
+		testpkg.CleanupActivityFixtures(t, db, group.ID)
 	})
 }
 

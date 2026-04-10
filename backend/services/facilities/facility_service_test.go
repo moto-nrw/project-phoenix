@@ -17,9 +17,17 @@ import (
 
 // createRoomWithExactName creates a room with the exact given name (no timestamp suffix).
 // Use this for system room tests where the name must match constants exactly.
+// Cleans up any pre-existing room with the same name first to avoid unique constraint violations.
 func createRoomWithExactName(t *testing.T, db *bun.DB, name string) *facilities.Room {
 	t.Helper()
 	ctx := testpkg.TenantContext(1)
+
+	// Clean up any pre-existing room with this exact name (from crashed tests or seed data)
+	_, _ = db.NewDelete().
+		TableExpr("facilities.rooms").
+		Where("name = ? AND tenant_id = 1", name).
+		Exec(ctx)
+
 	room := &facilities.Room{
 		Name:     name,
 		Building: "Test Building",
