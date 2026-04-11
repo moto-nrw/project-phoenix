@@ -604,10 +604,10 @@ func TestDemoData_GuardiansHaveRequiredFields(t *testing.T) {
 }
 
 func TestDemoData_Counts(t *testing.T) {
-	assert.Equal(t, 12, len(DemoRooms))
+	assert.Equal(t, 11, len(DemoRooms))
 	assert.Equal(t, 20, len(DemoStaff))
 	assert.Equal(t, 100, len(DemoStudents))
-	assert.Equal(t, 10, len(DemoActivities))
+	assert.Equal(t, 8, len(DemoActivities))
 	assert.Equal(t, 10, len(DemoDevices))
 }
 
