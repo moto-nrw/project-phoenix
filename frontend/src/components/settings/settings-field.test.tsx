@@ -300,4 +300,22 @@ describe("SettingsField", () => {
       expect(errorText!.textContent).toBe("Ungültiger Wert.");
     });
   });
+
+  it("renders a text field as fallback for unknown type", () => {
+    const { container } = renderWithProviders(
+      <SettingsField
+        setting={makeSetting({
+          type: "unknown-type" as ResolvedSetting["type"],
+          value: "fallback",
+        })}
+        onSave={vi.fn().mockResolvedValue(null)}
+        onReset={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+    const input = container.querySelector(
+      "input[type='text']",
+    ) as HTMLInputElement;
+    expect(input).not.toBeNull();
+    expect(input.value).toBe("fallback");
+  });
 });

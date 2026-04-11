@@ -86,4 +86,50 @@ describe("TimeField", () => {
     fireEvent.change(input, { target: { value: "1a8b:3c0" } });
     expect(input.value).toBe("18:30");
   });
+
+  it("blurs input on Enter key", () => {
+    const onBlur = vi.fn();
+    render(<TimeField value="18:00" onChange={vi.fn()} onBlur={onBlur} />);
+    const input = screen.getByPlaceholderText("HH:MM") as HTMLInputElement;
+    input.focus();
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onBlur).toHaveBeenCalled();
+  });
+
+  it("reverts to value and exits editing when blur with invalid time on empty value", () => {
+    const onBlur = vi.fn();
+    render(
+      <TimeField
+        value=""
+        onChange={vi.fn()}
+        onBlur={onBlur}
+        emptyLabel="Jederzeit"
+      />,
+    );
+    // Switch to input mode by clicking the pill
+    fireEvent.click(screen.getByText("Jederzeit"));
+    const input = screen.getByPlaceholderText("HH:MM") as HTMLInputElement;
+    // Type an invalid time (hours > 23)
+    fireEvent.change(input, { target: { value: "2500" } });
+    fireEvent.blur(input);
+    // Should revert to empty and exit editing (show pill again)
+    expect(screen.getByText("Jederzeit")).toBeInTheDocument();
+  });
+
+  it("reverts display to value on blur with out-of-range time", () => {
+    render(<TimeField value="18:00" onChange={vi.fn()} />);
+    const input = screen.getByPlaceholderText("HH:MM") as HTMLInputElement;
+    // Type a time with hours > 23
+    fireEvent.change(input, { target: { value: "2500" } });
+    fireEvent.blur(input);
+    expect(input.value).toBe("18:00");
+  });
+
+  it("hides edit icon when disabled with emptyLabel", () => {
+    const { container } = render(
+      <TimeField value="" onChange={vi.fn()} emptyLabel="Jederzeit" disabled />,
+    );
+    // Should not have the SVG pencil icon when disabled
+    expect(container.querySelector("svg")).toBeNull();
+  });
 });
