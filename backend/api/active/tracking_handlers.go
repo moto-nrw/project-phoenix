@@ -10,8 +10,6 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 )
 
-const maxTrackingStudentIDs = 200
-
 // getTrackingIndicators handles POST /tracking-indicators
 // Returns per-student match results for configured tracking indicator labels.
 func (rs *Resource) getTrackingIndicators(w http.ResponseWriter, r *http.Request) {
@@ -26,11 +24,6 @@ func (rs *Resource) getTrackingIndicators(w http.ResponseWriter, r *http.Request
 			Labels:  []string{},
 			Results: map[int64][]bool{},
 		}, "")
-		return
-	}
-
-	if len(req.StudentIDs) > maxTrackingStudentIDs {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("too many student IDs (max 200)")))
 		return
 	}
 

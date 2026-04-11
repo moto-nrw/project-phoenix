@@ -759,7 +759,7 @@ func (r *VisitRepository) GetTodayVisitNamesForStudents(ctx context.Context, stu
 
 	var results []visitGroupNames
 
-	today := timezone.TodayUTC()
+	today := timezone.Today()
 
 	query := base.GetDB(ctx, r.db).NewSelect().
 		ModelTableExpr(tableExprActiveVisitsAsVisit).

@@ -348,22 +348,6 @@ func TestGetTrackingIndicators_EmptyStudentIDs(t *testing.T) {
 	assert.Empty(t, resp.Data.Results)
 }
 
-func TestGetTrackingIndicators_TooManyStudentIDs(t *testing.T) {
-	rs := &Resource{}
-
-	ids := make([]int64, 201)
-	for i := range ids {
-		ids[i] = int64(i + 1)
-	}
-
-	req := createTrackingRequest(t, TrackingIndicatorsRequest{StudentIDs: ids})
-	rr := httptest.NewRecorder()
-
-	rs.getTrackingIndicators(rr, req)
-
-	assert.Equal(t, http.StatusBadRequest, rr.Code)
-}
-
 func TestGetTrackingIndicators_InvalidStudentID(t *testing.T) {
 	rs := &Resource{}
 
@@ -615,44 +599,5 @@ func TestGetTrackingIndicators_PartialLabelsConfigured(t *testing.T) {
 
 	rs.getTrackingIndicators(rr, req)
 
-	assert.Equal(t, http.StatusOK, rr.Code)
-}
-
-func TestGetTrackingIndicators_ExactlyMaxStudentIDs(t *testing.T) {
-	settings := &trackingMockSettingsService{
-		resolveBoolFunc: func(ctx context.Context, key string) (bool, error) {
-			return true, nil
-		},
-		resolveStringFunc: func(ctx context.Context, key string) (string, error) {
-			return "Mensa", nil
-		},
-	}
-
-	mockSvc := &trackingMockActiveService{
-		getTrackingIndicatorsFunc: func(ctx context.Context, studentIDs []int64, labels []string) (map[int64][]bool, error) {
-			result := make(map[int64][]bool, len(studentIDs))
-			for _, id := range studentIDs {
-				result[id] = []bool{false}
-			}
-			return result, nil
-		},
-	}
-
-	rs := &Resource{
-		SettingsService: settings,
-		ActiveService:   mockSvc,
-	}
-
-	ids := make([]int64, 200)
-	for i := range ids {
-		ids[i] = int64(i + 1)
-	}
-
-	req := createTrackingRequest(t, TrackingIndicatorsRequest{StudentIDs: ids})
-	rr := httptest.NewRecorder()
-
-	rs.getTrackingIndicators(rr, req)
-
-	// 200 IDs is exactly at the limit, should succeed
 	assert.Equal(t, http.StatusOK, rr.Code)
 }
