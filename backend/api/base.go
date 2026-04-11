@@ -316,7 +316,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 			return nil
 		}
 	})
-	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, api.Services.Schulhof, api.Services.UserContext, db, logger.With("handler", "active"))
+	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, api.Services.Schulhof, api.Services.UserContext, api.Services.Settings, db, logger.With("handler", "active"))
 	api.IoT = iotAPI.NewResource(iotAPI.ServiceDependencies{
 		IoTService:            api.Services.IoT,
 		UsersService:          api.Services.Users,

@@ -1147,6 +1147,9 @@ func (m *mockActiveService) ClaimActiveGroup(_ context.Context, _, _ int64, _ st
 func (m *mockActiveService) GetCrossTenantStudents(_ context.Context, _ int64) ([]active.CrossTenantStudent, error) {
 	return nil, nil
 }
+func (m *mockActiveService) GetTrackingIndicators(_ context.Context, _ []int64, _ []string) (map[int64][]bool, error) {
+	return nil, nil
+}
 
 // =============================================================================
 // Mock Cleanup Service for Execute Tests

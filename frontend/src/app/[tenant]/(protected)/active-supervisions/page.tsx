@@ -28,6 +28,8 @@ import {
 } from "~/components/students/student-card";
 import { createLogger } from "~/lib/logger";
 import { activeService } from "~/lib/active-api";
+import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
+import { TrackingIndicators } from "~/components/students/tracking-indicators";
 import type { Student } from "~/lib/student-helpers";
 import { UnclaimedRooms } from "~/components/active";
 import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
@@ -815,6 +817,19 @@ function MeinRaumPageContent() {
     }
   }, [swrVisitsData, currentRoomId, updateRoomStudentCount]);
 
+  // Tracking indicators: fetch when student list changes (SSE-driven via SWR revalidation)
+  const trackingStudentIds = useMemo(
+    () => students.map((s) => s.id),
+    [students],
+  );
+  const { data: trackingData } = useSWRAuth<TrackingIndicatorsResponse>(
+    trackingStudentIds.length > 0
+      ? `tracking-supervisions-${currentRoomId}-${trackingStudentIds.join(",")}`
+      : null,
+    async () => activeService.getTrackingIndicators(trackingStudentIds),
+    { keepPreviousData: true, revalidateOnFocus: false },
+  );
+
   // Handle dashboard error
   useEffect(() => {
     if (dashboardError) {
@@ -1142,6 +1157,14 @@ function MeinRaumPageContent() {
                       </StudentInfoRow>
                     )}
                   </>
+                }
+                trackingIndicators={
+                  trackingData?.labels.length ? (
+                    <TrackingIndicators
+                      labels={trackingData.labels}
+                      results={trackingData.results[student.id] ?? []}
+                    />
+                  ) : undefined
                 }
               />
             ))}
