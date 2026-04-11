@@ -34,12 +34,13 @@ const (
 type SettingsResource struct {
 	settingsService configSvc.SettingsService
 	db              *bun.DB
-	onValueSet      func(ctx context.Context, tenantID int64, key string, value any)
+	onValueSet      func(ctx context.Context, tenantID int64, key string, value any) error
 }
 
-// OnValueSet registers a callback that fires after a setting value is successfully saved.
-// The callback runs best-effort: errors are logged but do not affect the HTTP response.
-func (rs *SettingsResource) OnValueSet(fn func(ctx context.Context, tenantID int64, key string, value any)) {
+// OnValueSet registers a callback that runs after a setting value is validated and saved.
+// The callback executes inside the same tenant transaction as the setting write, so
+// returning an error aborts the request and rolls back the update.
+func (rs *SettingsResource) OnValueSet(fn func(ctx context.Context, tenantID int64, key string, value any) error) {
 	rs.onValueSet = fn
 }
 
@@ -144,16 +145,17 @@ func (rs *SettingsResource) setValue(w http.ResponseWriter, r *http.Request) {
 
 	tenantID := tenant.FromContext(r.Context())
 	err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		return rs.settingsService.SetValue(ctx, key, req.Value, &changedBy, claims.Permissions)
+		if err := rs.settingsService.SetValue(ctx, key, req.Value, &changedBy, claims.Permissions); err != nil {
+			return err
+		}
+		if rs.onValueSet != nil {
+			return rs.onValueSet(ctx, tenantID, key, req.Value)
+		}
+		return nil
 	})
 	if err != nil {
 		renderSettingsError(w, r, err)
 		return
-	}
-
-	// Fire post-save hook (best-effort, does not affect the response)
-	if rs.onValueSet != nil {
-		rs.onValueSet(r.Context(), tenantID, key, req.Value)
 	}
 
 	common.Respond(w, r, http.StatusOK, nil, "Value updated successfully")

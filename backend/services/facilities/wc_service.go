@@ -4,6 +4,7 @@ package facilities
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -33,6 +34,8 @@ type wcService struct {
 	logger          *slog.Logger
 }
 
+var errWCActivityNotFound = errors.New("WC activity not found")
+
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil.
 func (s *wcService) getLogger() *slog.Logger {
 	if s.logger != nil {
@@ -60,6 +63,9 @@ func (s *wcService) EnsureInfrastructure(ctx context.Context) (*activityModels.G
 	activityGroup, err := s.findWCActivity(ctx)
 	if err == nil && activityGroup != nil {
 		return activityGroup, nil
+	}
+	if err != nil && !errors.Is(err, errWCActivityNotFound) {
+		return nil, fmt.Errorf("failed to look up WC activity: %w", err)
 	}
 
 	s.getLogger().Info("WC infrastructure not found, auto-creating...",
@@ -118,7 +124,7 @@ func (s *wcService) findWCActivity(ctx context.Context) (*activityModels.Group, 
 	}
 
 	if len(groups) == 0 {
-		return nil, fmt.Errorf("WC activity not found")
+		return nil, errWCActivityNotFound
 	}
 
 	return groups[0], nil
@@ -133,6 +139,9 @@ func (s *wcService) ensureWCRoom(ctx context.Context) (*facilities.Room, error) 
 			slog.String("component", "wc"),
 			slog.Int64("room_id", room.ID))
 		return room, nil
+	}
+	if err != nil && !errors.Is(err, ErrRoomNotFound) {
+		return nil, fmt.Errorf("failed to look up WC room: %w", err)
 	}
 
 	// Room not found - create it
