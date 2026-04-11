@@ -75,3 +75,13 @@ func ErrorInternalServer(err error) render.Renderer {
 		ErrorText:      err.Error(),
 	}
 }
+
+// ErrorForbidden returns an ErrResponse for forbidden requests
+func ErrorForbidden(err error) render.Renderer {
+	return &ErrResponse{
+		Err:            err,
+		HTTPStatusCode: http.StatusForbidden,
+		StatusText:     "Forbidden",
+		ErrorText:      err.Error(),
+	}
+}

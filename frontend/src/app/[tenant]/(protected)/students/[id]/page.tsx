@@ -58,6 +58,7 @@ export default function StudentDetailPage() {
     error,
     hasFullAccess,
     attendanceLogEnabled,
+    feedbackEnabled,
     supervisors,
     myGroups,
     myGroupRooms,
@@ -403,6 +404,7 @@ export default function StudentDetailPage() {
             student={student}
             studentId={studentId}
             attendanceLogEnabled={attendanceLogEnabled}
+            feedbackEnabled={feedbackEnabled}
             showCheckout={showCheckout}
             showCheckin={showCheckin}
             showPersonalInfoModal={showPersonalInfoModal}
@@ -420,6 +422,7 @@ export default function StudentDetailPage() {
             student={student}
             studentId={studentId}
             attendanceLogEnabled={attendanceLogEnabled}
+            feedbackEnabled={feedbackEnabled}
             supervisors={supervisors}
             showCheckout={showCheckout}
             showCheckin={showCheckin}
@@ -509,6 +512,7 @@ interface LimitedAccessViewProps {
   student: ExtendedStudent;
   studentId: string;
   attendanceLogEnabled: boolean;
+  feedbackEnabled: boolean;
   supervisors: SupervisorContact[];
   showCheckout: boolean;
   showCheckin: boolean;
@@ -520,6 +524,7 @@ function LimitedAccessView({
   student,
   studentId,
   attendanceLogEnabled,
+  feedbackEnabled,
   supervisors,
   showCheckout,
   showCheckin,
@@ -555,6 +560,7 @@ function LimitedAccessView({
       <StudentHistorySection
         studentId={studentId}
         attendanceLogEnabled={attendanceLogEnabled}
+        feedbackEnabled={feedbackEnabled}
         onNavigate={(path) => historyRouter.push(path)}
       />
     </div>
@@ -569,6 +575,7 @@ interface FullAccessViewProps {
   student: ExtendedStudent;
   studentId: string;
   attendanceLogEnabled: boolean;
+  feedbackEnabled: boolean;
   showCheckout: boolean;
   showCheckin: boolean;
   showPersonalInfoModal: boolean;
@@ -586,6 +593,7 @@ function FullAccessView({
   student,
   studentId,
   attendanceLogEnabled,
+  feedbackEnabled,
   showCheckout,
   showCheckin,
   showPersonalInfoModal,
@@ -639,6 +647,7 @@ function FullAccessView({
         <StudentHistorySection
           studentId={studentId}
           attendanceLogEnabled={attendanceLogEnabled}
+          feedbackEnabled={feedbackEnabled}
           onNavigate={(path) => historyRouter.push(path)}
         />
       </div>

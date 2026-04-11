@@ -253,12 +253,13 @@ func TestGetDeviceConfig_NilSettingsService(t *testing.T) {
 	data := response["data"].(map[string]any)
 	checkout := data["checkout"].(map[string]any)
 
-	// All defaults to true when no settings service
+	// Checkout buttons default to true when no settings service
 	assert.Equal(t, true, checkout["raumwechsel_enabled"])
 	assert.Equal(t, true, checkout["schulhof_enabled"])
 	assert.Equal(t, true, checkout["wc_enabled"])
 	assert.Nil(t, checkout["daily_checkout_time"])
 
+	// Feedback defaults to false (opt-in / GDPR) when no settings service
 	feedback := data["feedback"].(map[string]any)
-	assert.Equal(t, true, feedback["enabled"])
+	assert.Equal(t, false, feedback["enabled"])
 }

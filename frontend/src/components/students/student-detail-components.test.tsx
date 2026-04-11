@@ -549,6 +549,7 @@ describe("StudentHistorySection", () => {
   const defaultProps = {
     studentId: "123",
     attendanceLogEnabled: true,
+    feedbackEnabled: true,
     onNavigate: vi.fn(),
   };
 
@@ -573,13 +574,12 @@ describe("StudentHistorySection", () => {
       <StudentHistorySection {...defaultProps} attendanceLogEnabled={false} />,
     );
     expect(screen.getByText("Anwesenheitsprotokoll")).toBeInTheDocument();
-    expect(screen.getByText("Für Ihre Schule deaktiviert")).toBeInTheDocument();
     expect(
       screen.getByText("Anwesenheitsprotokoll").closest("button"),
     ).toBeDisabled();
   });
 
-  it("renders feedback history button as enabled", () => {
+  it("renders feedback history button as enabled when feature is on", () => {
     render(<StudentHistorySection {...defaultProps} />);
     expect(screen.getByText("Feedbackhistorie")).toBeInTheDocument();
     expect(screen.getByText("Feedback und Bewertungen")).toBeInTheDocument();
@@ -587,6 +587,14 @@ describe("StudentHistorySection", () => {
       .getByText("Feedbackhistorie")
       .closest("button");
     expect(feedbackButton).not.toBeDisabled();
+  });
+
+  it("renders feedback history button as disabled when feature is off", () => {
+    render(<StudentHistorySection {...defaultProps} feedbackEnabled={false} />);
+    expect(screen.getByText("Feedbackhistorie")).toBeInTheDocument();
+    expect(
+      screen.getByText("Feedbackhistorie").closest("button"),
+    ).toBeDisabled();
   });
 
   it("renders meal history button as disabled", () => {
@@ -602,6 +610,7 @@ describe("StudentHistorySection", () => {
       <StudentHistorySection
         studentId="456"
         attendanceLogEnabled={true}
+        feedbackEnabled={true}
         onNavigate={onNavigate}
       />,
     );
@@ -618,6 +627,7 @@ describe("StudentHistorySection", () => {
       <StudentHistorySection
         studentId="456"
         attendanceLogEnabled={false}
+        feedbackEnabled={true}
         onNavigate={onNavigate}
       />,
     );
@@ -628,12 +638,13 @@ describe("StudentHistorySection", () => {
     expect(onNavigate).not.toHaveBeenCalled();
   });
 
-  it("feedback button navigates on click", () => {
+  it("feedback button navigates on click when enabled", () => {
     const onNavigate = vi.fn();
     render(
       <StudentHistorySection
         studentId="456"
         attendanceLogEnabled={true}
+        feedbackEnabled={true}
         onNavigate={onNavigate}
       />,
     );

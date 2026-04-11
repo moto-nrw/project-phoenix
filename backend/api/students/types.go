@@ -55,6 +55,7 @@ type StudentDetailResponse struct {
 	HasFullAccess        bool                `json:"has_full_access"`
 	GroupSupervisors     []SupervisorContact `json:"group_supervisors,omitempty"`
 	AttendanceLogEnabled bool                `json:"attendance_log_enabled"`
+	FeedbackEnabled      bool                `json:"feedback_enabled"`
 }
 
 // StudentRequest represents a student creation request with person details

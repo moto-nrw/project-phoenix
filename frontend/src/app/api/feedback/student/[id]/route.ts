@@ -1,5 +1,10 @@
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 import { apiGet } from "~/lib/api-helpers";
-import { createGetHandler } from "~/lib/route-wrapper";
+import { createLogger } from "~/lib/logger";
+import { auth } from "~/server/auth";
+
+const logger = createLogger({ component: "StudentFeedbackRoute" });
 
 interface BackendFeedbackEntry {
   id: number;
@@ -23,11 +28,61 @@ interface BackendFeedbackResponse {
   message: string;
 }
 
-export const GET = createGetHandler(async (_request, token: string, params) => {
-  const studentId = params.id as string;
-  const response = await apiGet<BackendFeedbackResponse>(
-    `/api/feedback/student/${studentId}`,
-    token,
-  );
-  return response.data;
-});
+/**
+ * Proxy for GET /api/feedback/student/[id].
+ *
+ * The backend enforces the feature flag (`feedback.enabled`). When the
+ * feature is disabled, it returns 403 with "feature_disabled". We forward
+ * this error code so the frontend page can show the appropriate message.
+ */
+export async function GET(request: NextRequest): Promise<NextResponse> {
+  const session = await auth();
+
+  if (!session?.user?.token) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const pathParts = request.nextUrl.pathname.split("/");
+  const studentIndex = pathParts.indexOf("student");
+  const studentId = studentIndex >= 0 ? pathParts[studentIndex + 1] : undefined;
+
+  if (!studentId) {
+    return NextResponse.json(
+      { error: "Invalid id parameter" },
+      { status: 400 },
+    );
+  }
+
+  try {
+    const response = await apiGet<BackendFeedbackResponse>(
+      `/api/feedback/student/${studentId}`,
+      session.user.token,
+    );
+    return NextResponse.json(
+      { status: "success", data: response.data },
+      { headers: { "Cache-Control": "no-store" } },
+    );
+  } catch (apiError) {
+    const message =
+      apiError instanceof Error ? apiError.message : String(apiError);
+
+    const statusMatch = message.match(/API error \((\d+)\)/);
+    const status = statusMatch?.[1] ? Number.parseInt(statusMatch[1], 10) : 500;
+
+    if (status === 403) {
+      return NextResponse.json({ error: "feature_disabled" }, { status: 403 });
+    }
+    if (status === 404) {
+      return NextResponse.json({ error: "not_found" }, { status: 404 });
+    }
+
+    logger.error("feedback_fetch_failed", {
+      student_id: studentId,
+      error: message,
+    });
+    return NextResponse.json(
+      { error: `Backend API error: ${message}` },
+      { status },
+    );
+  }
+}

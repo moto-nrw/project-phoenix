@@ -3,6 +3,7 @@ package feedback
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -13,7 +14,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/feedback"
+	configService "github.com/moto-nrw/project-phoenix/services/config"
 	feedbackSvc "github.com/moto-nrw/project-phoenix/services/feedback"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -27,13 +30,15 @@ const (
 // Resource defines the feedback API resource
 type Resource struct {
 	FeedbackService feedbackSvc.Service
+	SettingsService configService.SettingsService
 	db              *bun.DB
 }
 
 // NewResource creates a new feedback resource
-func NewResource(feedbackService feedbackSvc.Service, db *bun.DB) *Resource {
+func NewResource(feedbackService feedbackSvc.Service, settingsService configService.SettingsService, db *bun.DB) *Resource {
 	return &Resource{
 		FeedbackService: feedbackService,
+		SettingsService: settingsService,
 		db:              db,
 	}
 }
@@ -274,6 +279,12 @@ func (rs *Resource) getFeedback(w http.ResponseWriter, r *http.Request) {
 
 // getStudentFeedback handles getting feedback entries for a specific student
 func (rs *Resource) getStudentFeedback(w http.ResponseWriter, r *http.Request) {
+	// Feature gate: feedback must be enabled for this tenant
+	if !configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyFeedbackEnabled, false, slog.Default()) {
+		common.RenderError(w, r, ErrorForbidden(errors.New("feature_disabled")))
+		return
+	}
+
 	// Parse student ID from URL
 	studentID, err := common.ParseID(r)
 	if err != nil {

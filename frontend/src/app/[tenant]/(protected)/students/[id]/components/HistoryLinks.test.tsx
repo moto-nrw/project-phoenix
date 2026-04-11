@@ -24,29 +24,50 @@ vi.mock("~/lib/tenant-router", () => ({
 
 describe("HistoryLinks", () => {
   it("renders Historien title", () => {
-    render(<HistoryLinks studentId="42" attendanceLogEnabled={false} />);
+    render(
+      <HistoryLinks
+        studentId="42"
+        attendanceLogEnabled={false}
+        feedbackEnabled={false}
+      />,
+    );
     expect(screen.getByText("Historien")).toBeInTheDocument();
   });
 
   it("renders all three history link buttons", () => {
-    render(<HistoryLinks studentId="42" attendanceLogEnabled={true} />);
+    render(
+      <HistoryLinks
+        studentId="42"
+        attendanceLogEnabled={true}
+        feedbackEnabled={true}
+      />,
+    );
 
     expect(screen.getByText("Anwesenheitsprotokoll")).toBeInTheDocument();
     expect(screen.getByText("Feedbackhistorie")).toBeInTheDocument();
     expect(screen.getByText("Mensaverlauf")).toBeInTheDocument();
   });
 
-  it("feedback and mensa buttons remain disabled", () => {
-    render(<HistoryLinks studentId="42" attendanceLogEnabled={true} />);
+  it("mensa button remains disabled", () => {
+    render(
+      <HistoryLinks
+        studentId="42"
+        attendanceLogEnabled={true}
+        feedbackEnabled={true}
+      />,
+    );
 
-    expect(
-      screen.getByText("Feedbackhistorie").closest("button"),
-    ).toBeDisabled();
     expect(screen.getByText("Mensaverlauf").closest("button")).toBeDisabled();
   });
 
   it("raumverlauf button is enabled when attendanceLogEnabled is true", () => {
-    render(<HistoryLinks studentId="42" attendanceLogEnabled={true} />);
+    render(
+      <HistoryLinks
+        studentId="42"
+        attendanceLogEnabled={true}
+        feedbackEnabled={false}
+      />,
+    );
 
     const raumButton = screen
       .getByText("Anwesenheitsprotokoll")
@@ -58,12 +79,61 @@ describe("HistoryLinks", () => {
   });
 
   it("raumverlauf button is disabled when attendanceLogEnabled is false", () => {
-    render(<HistoryLinks studentId="42" attendanceLogEnabled={false} />);
+    render(
+      <HistoryLinks
+        studentId="42"
+        attendanceLogEnabled={false}
+        feedbackEnabled={false}
+      />,
+    );
 
     const raumButton = screen
       .getByText("Anwesenheitsprotokoll")
       .closest("button");
     expect(raumButton).toBeDisabled();
-    expect(screen.getByText("Für Ihre Schule deaktiviert")).toBeInTheDocument();
+  });
+
+  it("feedback button is enabled when feedbackEnabled is true", () => {
+    render(
+      <HistoryLinks
+        studentId="42"
+        attendanceLogEnabled={false}
+        feedbackEnabled={true}
+      />,
+    );
+
+    const feedbackButton = screen
+      .getByText("Feedbackhistorie")
+      .closest("button");
+    expect(feedbackButton).not.toBeDisabled();
+    expect(screen.getByText("Feedback und Bewertungen")).toBeInTheDocument();
+  });
+
+  it("feedback button is disabled when feedbackEnabled is false", () => {
+    render(
+      <HistoryLinks
+        studentId="42"
+        attendanceLogEnabled={false}
+        feedbackEnabled={false}
+      />,
+    );
+
+    const feedbackButton = screen
+      .getByText("Feedbackhistorie")
+      .closest("button");
+    expect(feedbackButton).toBeDisabled();
+  });
+
+  it("shows deaktiviert text for disabled features", () => {
+    render(
+      <HistoryLinks
+        studentId="42"
+        attendanceLogEnabled={false}
+        feedbackEnabled={false}
+      />,
+    );
+
+    const deactivatedTexts = screen.getAllByText("Für Ihre Schule deaktiviert");
+    expect(deactivatedTexts).toHaveLength(2);
   });
 });

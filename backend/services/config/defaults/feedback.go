@@ -8,14 +8,14 @@ func init() {
 	config.Register(config.Definition{
 		Key:             config.KeyFeedbackEnabled,
 		Label:           "Feedback aktiviert",
-		Description:     "Feedback-Modal beim täglichen Checkout anzeigen",
+		Description:     "Ermöglicht das Erfassen und Anzeigen von Feedback. Feedback-Modal beim täglichen Checkout und Feedbackhistorie in der Schülerdetailansicht. Aus Datenschutzgründen standardmäßig deaktiviert.",
 		Type:            config.FieldBoolean,
-		Default:         true,
+		Default:         false,
 		ReadPermission:  "config:read",
-		WritePermission: "config:update",
-		Tab:             "operations",
+		WritePermission: "config:manage",
+		Tab:             "gdpr",
 		Category:        "feedback",
-		SortOrder:       1,
+		SortOrder:       20,
 	})
 
 	minDays := float64(7)
@@ -30,7 +30,8 @@ func init() {
 		WritePermission: "config:manage",
 		Tab:             "gdpr",
 		Category:        "feedback",
-		SortOrder:       10,
+		SortOrder:       21,
 		Validation:      &config.ValidationRules{Min: &minDays, Max: &maxDays},
+		DependsOn:       &config.Dependency{Key: config.KeyFeedbackEnabled, Condition: "eq", Value: true},
 	})
 }
