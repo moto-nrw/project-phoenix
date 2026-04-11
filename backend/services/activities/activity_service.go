@@ -256,15 +256,6 @@ func (s *Service) UpdateGroup(ctx context.Context, group *activities.Group, requ
 		return nil, &ActivityError{Op: "validate group", Err: err}
 	}
 
-	// Block renaming system activities (Schulhof Freispiel, WC)
-	existingGroup, err := s.groupRepo.FindByID(ctx, group.ID)
-	if err != nil {
-		return nil, &ActivityError{Op: "update group", Err: ErrGroupNotFound}
-	}
-	if constants.IsSystemActivityName(existingGroup.Name) && group.Name != existingGroup.Name {
-		return nil, &ActivityError{Op: "update group", Err: ErrSystemActivityProtected}
-	}
-
 	// Check if user can modify this activity
 	canModify, err := s.CanModifyActivity(ctx, group.ID, requestingStaffID, hasManagePermission)
 	if err != nil {
@@ -272,6 +263,17 @@ func (s *Service) UpdateGroup(ctx context.Context, group *activities.Group, requ
 	}
 	if !canModify {
 		return nil, &ActivityError{Op: "update group", Err: ErrNotOwner}
+	}
+
+	// Block renaming system activities (Schulhof Freispiel, WC).
+	// Placed after CanModifyActivity to avoid an extra FindByID call — CanModifyActivity
+	// already fetches the group internally for non-admin users.
+	existingGroup, err := s.groupRepo.FindByID(ctx, group.ID)
+	if err != nil {
+		return nil, &ActivityError{Op: "update group", Err: ErrGroupNotFound}
+	}
+	if constants.IsSystemActivityName(existingGroup.Name) && group.Name != existingGroup.Name {
+		return nil, &ActivityError{Op: "update group", Err: ErrSystemActivityProtected}
 	}
 
 	if err := s.groupRepo.Update(ctx, group); err != nil {
