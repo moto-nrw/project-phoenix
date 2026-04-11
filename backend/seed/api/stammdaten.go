@@ -878,8 +878,6 @@ func (s *FixedSeeder) seedActivities(_ context.Context, result *FixedResult) err
 		"Musik":        "Musik",
 		"Tanzen":       "Sport",
 		"Schach":       "Spiele",
-		"Garten":       "Draußen",
-		"Freispiel":    "Draußen",
 	}
 
 	for _, activity := range DemoActivities {
