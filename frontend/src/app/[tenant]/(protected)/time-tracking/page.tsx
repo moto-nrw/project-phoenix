@@ -2814,7 +2814,7 @@ function EditSessionModal({
                   type="time"
                   value={startTime}
                   onChange={(e) => setStartTime(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:border-gray-900 focus:ring-1 focus:ring-gray-900 focus:outline-none"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
                 />
               </div>
               <div>
@@ -2829,7 +2829,7 @@ function EditSessionModal({
                   type="time"
                   value={endTime}
                   onChange={(e) => setEndTime(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:border-gray-900 focus:ring-1 focus:ring-gray-900 focus:outline-none"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
                 />
               </div>
             </div>
@@ -2860,7 +2860,7 @@ function EditSessionModal({
                                   Number.parseInt(e.target.value, 10),
                                 )
                               }
-                              className="w-full appearance-none rounded-lg border border-gray-300 px-3 py-1.5 pr-8 text-sm transition-colors focus:border-gray-900 focus:ring-1 focus:ring-gray-900 focus:outline-none"
+                              className="w-full appearance-none rounded-lg border border-gray-300 px-3 py-1.5 pr-8 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
                             >
                               {BREAK_DURATION_OPTIONS.map((m) => (
                                 <option key={m} value={m.toString()}>
@@ -2907,7 +2907,7 @@ function EditSessionModal({
                         id="edit-break"
                         value={breakMins}
                         onChange={(e) => setBreakMins(e.target.value)}
-                        className="w-full appearance-none rounded-lg border border-gray-300 px-3 py-2 pr-8 text-sm transition-colors focus:border-gray-900 focus:ring-1 focus:ring-gray-900 focus:outline-none"
+                        className="w-full appearance-none rounded-lg border border-gray-300 px-3 py-2 pr-8 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
                       >
                         {[0, 15, 30, 45, 60].map((m) => (
                           <option key={m} value={m.toString()}>
@@ -2944,7 +2944,7 @@ function EditSessionModal({
                     id="edit-status"
                     value={status}
                     onChange={(e) => setStatus(e.target.value as SessionStatus)}
-                    className="w-full appearance-none rounded-lg border border-gray-300 px-3 py-2 pr-8 text-sm transition-colors focus:border-gray-900 focus:ring-1 focus:ring-gray-900 focus:outline-none"
+                    className="w-full appearance-none rounded-lg border border-gray-300 px-3 py-2 pr-8 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
                   >
                     <option value="present">In der OGS</option>
                     <option value="home_office">Homeoffice</option>
@@ -3001,7 +3001,7 @@ function EditSessionModal({
                 onChange={(e) => setNotes(e.target.value)}
                 rows={2}
                 maxLength={2000}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:border-gray-900 focus:ring-1 focus:ring-gray-900 focus:outline-none"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
                 placeholder="Oder eigenen Grund eingeben..."
               />
             </div>
@@ -3034,7 +3034,7 @@ function EditSessionModal({
                   id="edit-abs-type"
                   value={absType}
                   onChange={(e) => setAbsType(e.target.value as AbsenceType)}
-                  className="w-full appearance-none rounded-lg border border-gray-300 px-3 py-2 pr-8 text-sm transition-colors focus:border-gray-900 focus:ring-1 focus:ring-gray-900 focus:outline-none"
+                  className="w-full appearance-none rounded-lg border border-gray-300 px-3 py-2 pr-8 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
                 >
                   {ABSENCE_TYPE_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
@@ -3072,7 +3072,7 @@ function EditSessionModal({
                   type="date"
                   value={absDateStart}
                   onChange={(e) => setAbsDateStart(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:border-gray-900 focus:ring-1 focus:ring-gray-900 focus:outline-none"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
                   required
                 />
               </div>
@@ -3089,7 +3089,7 @@ function EditSessionModal({
                   value={absDateEnd}
                   min={absDateStart}
                   onChange={(e) => setAbsDateEnd(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:border-gray-900 focus:ring-1 focus:ring-gray-900 focus:outline-none"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
                   required
                 />
               </div>
@@ -3128,7 +3128,7 @@ function EditSessionModal({
                 onChange={(e) => setAbsNote(e.target.value)}
                 rows={2}
                 maxLength={2000}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:border-gray-900 focus:ring-1 focus:ring-gray-900 focus:outline-none"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
                 placeholder="z.B. Arzttermin, Schulung ..."
               />
             </div>
@@ -3256,7 +3256,7 @@ function CreateAbsenceModal({
               id="absence-type"
               value={absenceType}
               onChange={(e) => setAbsenceType(e.target.value as AbsenceType)}
-              className="w-full appearance-none rounded-lg border border-gray-300 px-3 py-2 pr-8 text-sm transition-colors focus:border-gray-900 focus:ring-1 focus:ring-gray-900 focus:outline-none"
+              className="w-full appearance-none rounded-lg border border-gray-300 px-3 py-2 pr-8 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
             >
               {ABSENCE_TYPE_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
@@ -3294,7 +3294,7 @@ function CreateAbsenceModal({
               type="date"
               value={dateStart}
               onChange={(e) => setDateStart(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:border-gray-900 focus:ring-1 focus:ring-gray-900 focus:outline-none"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
               required
             />
           </div>
@@ -3311,7 +3311,7 @@ function CreateAbsenceModal({
               value={dateEnd}
               min={dateStart}
               onChange={(e) => setDateEnd(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:border-gray-900 focus:ring-1 focus:ring-gray-900 focus:outline-none"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
               required
             />
           </div>
@@ -3348,7 +3348,7 @@ function CreateAbsenceModal({
             onChange={(e) => setNote(e.target.value)}
             rows={2}
             maxLength={2000}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:border-gray-900 focus:ring-1 focus:ring-gray-900 focus:outline-none"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
             placeholder="z.B. Arzttermin, Schulung ..."
           />
         </div>

@@ -9,6 +9,8 @@ import {
   resetSettingValue,
 } from "~/lib/settings-api";
 import type { SettingsSchema, SchemaTab } from "~/lib/settings-api";
+import { Alert } from "~/components/ui/alert";
+import { Skeleton } from "~/components/ui/skeleton";
 import { SettingsCategory } from "./settings-category";
 import { PersonalizationTab } from "./personalization-tab";
 
@@ -30,6 +32,35 @@ function SettingsTabContent({ tab, onSave, onReset }: SettingsTabContentProps) {
           onSave={onSave}
           onReset={onReset}
         />
+      ))}
+    </div>
+  );
+}
+
+function SettingsSkeleton() {
+  return (
+    <div className="space-y-6">
+      {Array.from({ length: 2 }).map((_, catIdx) => (
+        <div
+          key={catIdx}
+          className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm sm:p-6"
+        >
+          <Skeleton className="mb-4 h-5 w-32 rounded" />
+          <div className="divide-y divide-gray-100">
+            {Array.from({ length: catIdx === 0 ? 3 : 2 }).map((_, i) => (
+              <div
+                key={i}
+                className="flex flex-col gap-3 py-4 sm:flex-row sm:items-start sm:justify-between sm:gap-4"
+              >
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-4 w-3/4 rounded sm:w-48" />
+                  <Skeleton className="h-3.5 w-full rounded sm:w-72" />
+                </div>
+                <Skeleton className="h-10 w-24 rounded-lg sm:w-32" />
+              </div>
+            ))}
+          </div>
+        </div>
       ))}
     </div>
   );
@@ -81,8 +112,7 @@ function SettingsContent({ tabKey }: SettingsContentProps) {
       } else {
         setError(null);
         logger.info("setting_value_saved", { key });
-        // Update schema state locally so values persist across tab switches
-        // and field components aren't remounted (preserves green border).
+        // Update schema state locally so values persist across tab switches.
         setSchema((prev) => {
           if (!prev) return prev;
           // Build a value map for DependsOn evaluation
@@ -130,7 +160,7 @@ function SettingsContent({ tabKey }: SettingsContentProps) {
           };
         });
 
-        // Background sync: silently re-fetch after green border fades (4s + margin).
+        // Background sync: silently re-fetch to pick up server-side changes.
         // Only updates state if the server data actually differs from local state.
         setTimeout(() => {
           void fetchSettingsSchema().then((fresh) => {
@@ -175,11 +205,7 @@ function SettingsContent({ tabKey }: SettingsContentProps) {
   );
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-gray-900" />
-      </div>
-    );
+    return <SettingsSkeleton />;
   }
 
   // Server error — show error message with retry
@@ -216,13 +242,26 @@ function SettingsContent({ tabKey }: SettingsContentProps) {
   return (
     <>
       {error && (
-        <div className="mb-4 flex items-center justify-between rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          <span>{error}</span>
+        <div className="relative mb-4">
+          <Alert type="error" message={error} />
           <button
             onClick={() => setError(null)}
-            className="ml-3 font-medium text-red-500 hover:text-red-700"
+            className="absolute top-1/2 right-4 -translate-y-1/2 text-red-600 hover:text-red-800"
+            aria-label="Fehler schließen"
           >
-            &times;
+            <svg
+              className="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
           </button>
         </div>
       )}
@@ -283,7 +322,7 @@ export function useSettingsTabs(): {
     security:
       "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z",
     devices:
-      "M12 14l9-5-9-5-9 5 9 5z M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z",
+      "M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z",
     general:
       "M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4",
   };

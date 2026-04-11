@@ -9,8 +9,12 @@ vi.mock("./session-cache", () => ({
 }));
 
 // Import after mocking
-const { fetchSettingsSchema, setSettingValue, resetSettingValue } =
-  await import("./settings-api");
+const {
+  fetchSettingsSchema,
+  setSettingValue,
+  resetSettingValue,
+  revealSettingValue,
+} = await import("./settings-api");
 
 function mockResponse(status: number, body?: unknown): Response {
   return {
@@ -199,5 +203,61 @@ describe("resetSettingValue", () => {
     const result = await resetSettingValue("test.key");
 
     expect(result).toContain("Netzwerkfehler");
+  });
+});
+
+describe("revealSettingValue", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns revealed value on success (nested data)", async () => {
+    mockSessionFetch.mockResolvedValue(
+      mockResponse(200, { data: { data: { value: "1234" } } }),
+    );
+
+    const result = await revealSettingValue("security.ogs_device_pin");
+
+    expect(result).toBe("1234");
+    expect(mockSessionFetch).toHaveBeenCalledWith(
+      "/api/settings/values/security.ogs_device_pin/reveal",
+      { method: "GET" },
+    );
+  });
+
+  it("returns revealed value on success (flat data)", async () => {
+    mockSessionFetch.mockResolvedValue(
+      mockResponse(200, { data: { value: "5678" } }),
+    );
+
+    const result = await revealSettingValue("security.ogs_device_pin");
+
+    expect(result).toBe("5678");
+  });
+
+  it("returns null when value is not a string", async () => {
+    mockSessionFetch.mockResolvedValue(
+      mockResponse(200, { data: { value: 1234 } }),
+    );
+
+    const result = await revealSettingValue("security.ogs_device_pin");
+
+    expect(result).toBeNull();
+  });
+
+  it("returns null on non-ok response", async () => {
+    mockSessionFetch.mockResolvedValue(mockResponse(403));
+
+    const result = await revealSettingValue("security.ogs_device_pin");
+
+    expect(result).toBeNull();
+  });
+
+  it("returns null on network error", async () => {
+    mockSessionFetch.mockRejectedValue(new Error("network error"));
+
+    const result = await revealSettingValue("security.ogs_device_pin");
+
+    expect(result).toBeNull();
   });
 });

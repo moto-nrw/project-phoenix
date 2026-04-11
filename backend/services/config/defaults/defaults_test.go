@@ -226,7 +226,7 @@ func TestDefaults_HaveReasonableValues(t *testing.T) {
 		{"gdpr.attendance_visible_days", 30},
 		{"gdpr.room_detail_visible_days", 7},
 		{"gdpr.attendance_log_scope", config.AttendanceLogScopeGroupSupervisorsOnly},
-		{"security.ogs_device_pin", ""},
+		{"security.ogs_device_pin", "1234"},
 		{"checkout.raumwechsel_enabled", true},
 		{"checkout.schulhof_enabled", true},
 		{"checkout.wc_enabled", true},

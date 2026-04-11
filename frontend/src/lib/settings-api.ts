@@ -36,6 +36,7 @@ export interface ResolvedSetting {
     required?: boolean;
     min?: number;
     max?: number;
+    pattern?: string;
   } | null;
   depends_on?: {
     key: string;
@@ -192,5 +193,37 @@ export async function resetSettingValue(key: string): Promise<string | null> {
       error: error instanceof Error ? error.message : String(error),
     });
     return "Netzwerkfehler beim Zurücksetzen der Einstellung.";
+  }
+}
+
+/**
+ * Reveal the unmasked value of a password/PIN setting.
+ * Returns the raw value on success, or null on failure.
+ */
+export async function revealSettingValue(key: string): Promise<string | null> {
+  try {
+    const response = await sessionFetch(`/api/settings/values/${key}/reveal`, {
+      method: "GET",
+    });
+
+    if (!response.ok) {
+      logger.warn("reveal_setting_value_failed", {
+        key,
+        status: response.status,
+      });
+      return null;
+    }
+
+    // The Next.js proxy wraps the backend response, so the structure is:
+    // { status, data: { status, data: { value }, message } }
+    const json = await response.json();
+    const value = json?.data?.data?.value ?? json?.data?.value;
+    return typeof value === "string" ? value : null;
+  } catch (error) {
+    logger.warn("reveal_setting_value_error", {
+      key,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
   }
 }

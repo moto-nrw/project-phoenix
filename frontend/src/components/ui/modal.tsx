@@ -244,7 +244,7 @@ export function ConfirmationModal({
   cancelText = "Abbrechen",
   isConfirmLoading = false,
   isConfirmDisabled = false,
-  confirmButtonClass = "bg-blue-500 hover:bg-blue-600",
+  confirmButtonClass = "bg-gray-900 hover:bg-gray-700",
 }: ConfirmationModalProps) {
   const modalFooter = (
     <>
