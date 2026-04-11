@@ -1135,12 +1135,12 @@ func cleanupSchulhofInfrastructure(t *testing.T, db *bun.DB, roomID int64) {
 	// All queries are scoped to the specific room ID to avoid interfering
 	// with Schulhof tests running in parallel from other packages.
 	stmts := []string{
-		fmt.Sprintf(`DELETE FROM active.attendance WHERE visit_id IN (SELECT v.id FROM active.visits v JOIN active.groups ag ON ag.id = v.active_group_id WHERE ag.room_id = %d)`, roomID),
+		fmt.Sprintf(`DELETE FROM active.attendance WHERE student_id IN (SELECT v.student_id FROM active.visits v JOIN active.groups ag ON ag.id = v.active_group_id WHERE ag.room_id = %d)`, roomID),
 		fmt.Sprintf(`DELETE FROM active.visits WHERE active_group_id IN (SELECT id FROM active.groups WHERE room_id = %d)`, roomID),
 		fmt.Sprintf(`DELETE FROM active.group_supervisors WHERE group_id IN (SELECT id FROM active.groups WHERE room_id = %d)`, roomID),
 		fmt.Sprintf(`DELETE FROM active.groups WHERE room_id = %d`, roomID),
-		fmt.Sprintf(`DELETE FROM activities.schedules WHERE group_id IN (SELECT ag.id FROM activities.groups ag JOIN activities.categories ac ON ac.id = ag.category_id JOIN facilities.rooms r ON r.name = ac.name WHERE r.id = %d)`, roomID),
-		fmt.Sprintf(`DELETE FROM activities.student_enrollments WHERE group_id IN (SELECT ag.id FROM activities.groups ag JOIN activities.categories ac ON ac.id = ag.category_id JOIN facilities.rooms r ON r.name = ac.name WHERE r.id = %d)`, roomID),
+		fmt.Sprintf(`DELETE FROM activities.schedules WHERE activity_group_id IN (SELECT ag.id FROM activities.groups ag JOIN activities.categories ac ON ac.id = ag.category_id JOIN facilities.rooms r ON r.name = ac.name WHERE r.id = %d)`, roomID),
+		fmt.Sprintf(`DELETE FROM activities.student_enrollments WHERE activity_group_id IN (SELECT ag.id FROM activities.groups ag JOIN activities.categories ac ON ac.id = ag.category_id JOIN facilities.rooms r ON r.name = ac.name WHERE r.id = %d)`, roomID),
 		fmt.Sprintf(`DELETE FROM activities.groups WHERE category_id IN (SELECT ac.id FROM activities.categories ac JOIN facilities.rooms r ON r.name = ac.name WHERE r.id = %d)`, roomID),
 		fmt.Sprintf(`DELETE FROM activities.categories WHERE name = (SELECT name FROM facilities.rooms WHERE id = %d)`, roomID),
 		fmt.Sprintf(`DELETE FROM facilities.rooms WHERE id = %d`, roomID),
@@ -1173,8 +1173,8 @@ func createSchulhofRoom(t *testing.T, db *bun.DB) *facilities.Room {
 
 	// Also clean up any pre-existing Schulhof activity and category (auto-created artifacts)
 	schulhofCleanupStmts := []string{
-		`DELETE FROM activities.schedules WHERE group_id IN (SELECT id FROM activities.groups WHERE name = 'Schulhof Freispiel')`,
-		`DELETE FROM activities.student_enrollments WHERE group_id IN (SELECT id FROM activities.groups WHERE name = 'Schulhof Freispiel')`,
+		`DELETE FROM activities.schedules WHERE activity_group_id IN (SELECT id FROM activities.groups WHERE name = 'Schulhof Freispiel')`,
+		`DELETE FROM activities.student_enrollments WHERE activity_group_id IN (SELECT id FROM activities.groups WHERE name = 'Schulhof Freispiel')`,
 		`DELETE FROM activities.groups WHERE name = 'Schulhof Freispiel'`,
 		`DELETE FROM activities.categories WHERE name = 'Schulhof'`,
 	}
@@ -1971,12 +1971,12 @@ func cleanupWCInfrastructure(t *testing.T, db *bun.DB, roomID int64) {
 
 	// Delete in FK-safe order: child tables first, then parents.
 	stmts := []string{
-		fmt.Sprintf(`DELETE FROM active.attendance WHERE visit_id IN (SELECT v.id FROM active.visits v JOIN active.groups ag ON ag.id = v.active_group_id WHERE ag.room_id = %d)`, roomID),
+		fmt.Sprintf(`DELETE FROM active.attendance WHERE student_id IN (SELECT v.student_id FROM active.visits v JOIN active.groups ag ON ag.id = v.active_group_id WHERE ag.room_id = %d)`, roomID),
 		fmt.Sprintf(`DELETE FROM active.visits WHERE active_group_id IN (SELECT id FROM active.groups WHERE room_id = %d)`, roomID),
 		fmt.Sprintf(`DELETE FROM active.group_supervisors WHERE group_id IN (SELECT id FROM active.groups WHERE room_id = %d)`, roomID),
 		fmt.Sprintf(`DELETE FROM active.groups WHERE room_id = %d`, roomID),
-		fmt.Sprintf(`DELETE FROM activities.schedules WHERE group_id IN (SELECT ag.id FROM activities.groups ag JOIN activities.categories ac ON ac.id = ag.category_id JOIN facilities.rooms r ON r.name = ac.name WHERE r.id = %d)`, roomID),
-		fmt.Sprintf(`DELETE FROM activities.student_enrollments WHERE group_id IN (SELECT ag.id FROM activities.groups ag JOIN activities.categories ac ON ac.id = ag.category_id JOIN facilities.rooms r ON r.name = ac.name WHERE r.id = %d)`, roomID),
+		fmt.Sprintf(`DELETE FROM activities.schedules WHERE activity_group_id IN (SELECT ag.id FROM activities.groups ag JOIN activities.categories ac ON ac.id = ag.category_id JOIN facilities.rooms r ON r.name = ac.name WHERE r.id = %d)`, roomID),
+		fmt.Sprintf(`DELETE FROM activities.student_enrollments WHERE activity_group_id IN (SELECT ag.id FROM activities.groups ag JOIN activities.categories ac ON ac.id = ag.category_id JOIN facilities.rooms r ON r.name = ac.name WHERE r.id = %d)`, roomID),
 		fmt.Sprintf(`DELETE FROM activities.groups WHERE category_id IN (SELECT ac.id FROM activities.categories ac JOIN facilities.rooms r ON r.name = ac.name WHERE r.id = %d)`, roomID),
 		fmt.Sprintf(`DELETE FROM activities.categories WHERE name = (SELECT name FROM facilities.rooms WHERE id = %d)`, roomID),
 		fmt.Sprintf(`DELETE FROM facilities.rooms WHERE id = %d`, roomID),
@@ -2009,8 +2009,8 @@ func createWCRoom(t *testing.T, db *bun.DB) *facilities.Room {
 
 	// Also clean up any pre-existing WC activity and category (auto-created artifacts)
 	wcCleanupStmts := []string{
-		`DELETE FROM activities.schedules WHERE group_id IN (SELECT id FROM activities.groups WHERE name = 'WC')`,
-		`DELETE FROM activities.student_enrollments WHERE group_id IN (SELECT id FROM activities.groups WHERE name = 'WC')`,
+		`DELETE FROM activities.schedules WHERE activity_group_id IN (SELECT id FROM activities.groups WHERE name = 'WC')`,
+		`DELETE FROM activities.student_enrollments WHERE activity_group_id IN (SELECT id FROM activities.groups WHERE name = 'WC')`,
 		`DELETE FROM activities.groups WHERE name = 'WC'`,
 		`DELETE FROM activities.categories WHERE name = 'WC'`,
 	}
@@ -2278,7 +2278,7 @@ func TestDeviceCheckin_WCAutoCreateWithoutStaff(t *testing.T) {
 	// student reaches the WC reader.
 	setupStaff := testpkg.CreateTestStaff(t, ctx.db, "SetupStaff", "WCNoStaff")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, setupStaff.ID)
-	today := timezone.Today() // Berlin date — matches FindByStudentAndDate's timezone.DateOf()
+	today := timezone.TodayUTC() // UTC midnight of Berlin date — matches FindByStudentAndDate's DateOfUTC()
 	var attendanceID int64
 	err := ctx.db.NewRaw(
 		`INSERT INTO active.attendance (student_id, date, check_in_time, checked_in_by, device_id, tenant_id)
@@ -2339,7 +2339,7 @@ func TestDeviceCheckin_SchulhofAutoCreateWithoutStaff(t *testing.T) {
 	// student reaches the Schulhof reader.
 	setupStaff := testpkg.CreateTestStaff(t, ctx.db, "SetupStaff", "SchulhofNoStaff")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, setupStaff.ID)
-	today := timezone.Today() // Berlin date — matches FindByStudentAndDate's timezone.DateOf()
+	today := timezone.TodayUTC() // UTC midnight of Berlin date — matches FindByStudentAndDate's DateOfUTC()
 	var attendanceID int64
 	err := ctx.db.NewRaw(
 		`INSERT INTO active.attendance (student_id, date, check_in_time, checked_in_by, device_id, tenant_id)

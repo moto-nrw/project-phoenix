@@ -126,8 +126,9 @@ func (s *service) ToggleStudentAttendance(ctx context.Context, studentID, staffI
 	}
 
 	now := time.Now()
-	// Use timezone.Today() for consistent Europe/Berlin timezone handling
-	today := timezone.Today()
+	// Use TodayUTC() so the Berlin calendar date is stored as UTC midnight,
+	// which round-trips correctly through PostgreSQL DATE columns (PG session is UTC).
+	today := timezone.TodayUTC()
 
 	if currentStatus.Status == "not_checked_in" || currentStatus.Status == "checked_out" {
 		return s.performCheckIn(ctx, studentID, authorizedStaffID, deviceID, now, today)

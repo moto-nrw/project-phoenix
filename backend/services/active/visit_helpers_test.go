@@ -144,7 +144,7 @@ func getAttendanceForStudent(t *testing.T, db *bun.DB, studentID int64) *activeM
 		Model(&attendance).
 		ModelTableExpr(`active.attendance`). // NOTE: singular, not plural!
 		Where("student_id = ?", studentID).
-		Where("date = ?", timezone.Today()).
+		Where("date = ?", timezone.TodayUTC()).
 		Order("check_in_time DESC").
 		Limit(1).
 		Scan(context.Background())
@@ -161,7 +161,7 @@ func createAttendanceWithCheckout(t *testing.T, db *bun.DB, studentID, staffID, 
 	checkedOutBy := staffID
 	attendance := &activeModels.Attendance{
 		StudentID:    studentID,
-		Date:         timezone.Today(),
+		Date:         timezone.TodayUTC(),
 		CheckInTime:  time.Now().Add(-4 * time.Hour),
 		CheckOutTime: &checkoutTime,
 		CheckedInBy:  staffID,

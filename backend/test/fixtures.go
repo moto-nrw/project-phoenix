@@ -317,9 +317,9 @@ func CreateTestAttendance(tb testing.TB, db *bun.DB, studentID, staffID, deviceI
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Use timezone.Today() for consistent Europe/Berlin timezone handling.
-	// This matches the repository queries which also use timezone.Today().
-	today := timezone.Today()
+	// Use TodayUTC() so the DATE column gets UTC midnight of the Berlin calendar
+	// date, matching how performCheckIn stores attendance records in production.
+	today := timezone.TodayUTC()
 
 	attendance := &active.Attendance{
 		StudentID:    studentID,
