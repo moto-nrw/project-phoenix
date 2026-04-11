@@ -21,7 +21,7 @@ func init() {
 	config.Register(config.Definition{
 		Key:             config.KeyCheckoutSchulhofEnabled,
 		Label:           "Schulhof-Button anzeigen",
-		Description:     "Zeigt den Schulhof-Button auf dem Geräte-Checkout-Bildschirm an (setzt voraus, dass ein Schulhof-Raum existiert)",
+		Description:     "Zeigt den Schulhof-Button auf dem Geräte-Checkout-Bildschirm an (Schulhof-Raum wird automatisch erstellt)",
 		Type:            config.FieldBoolean,
 		Default:         false,
 		ReadPermission:  "config:read",
@@ -34,7 +34,7 @@ func init() {
 	config.Register(config.Definition{
 		Key:             config.KeyCheckoutWCEnabled,
 		Label:           "Toilette-Button anzeigen",
-		Description:     "Zeigt den Toilette-Button auf dem Geräte-Checkout-Bildschirm an (setzt voraus, dass ein WC-Raum existiert)",
+		Description:     "Zeigt den Toilette-Button auf dem Geräte-Checkout-Bildschirm an (WC-Raum wird automatisch erstellt)",
 		Type:            config.FieldBoolean,
 		Default:         false,
 		ReadPermission:  "config:read",
