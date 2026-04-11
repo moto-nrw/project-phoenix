@@ -21,11 +21,12 @@ const { useSession } = await import("next-auth/react");
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
-// Default mock responses for the 3 API endpoints
+// Default mock responses for the API endpoints
 const defaultMockResponses = {
   groups: { groups: [] },
   supervised: { data: [] },
   schulhof: { data: { data: { exists: false } } }, // Double-wrapped response
+  adminAll: { data: [] },
 };
 
 // Helper to create URL-based fetch mock
@@ -33,11 +34,27 @@ function setupFetchMock(overrides?: {
   groups?: object | Error;
   supervised?: object | Error;
   schulhof?: object | Error;
+  adminAll?: object | Error | { status: number };
 }) {
   mockFetch.mockImplementation((url: string) => {
     if (url.includes("/api/groups/context")) {
       const response = overrides?.groups ?? defaultMockResponses.groups;
       if (response instanceof Error) return Promise.reject(response);
+      return Promise.resolve({
+        ok: true,
+        json: async () => response,
+      });
+    }
+    if (url.includes("/api/active/supervisors/all")) {
+      const response = overrides?.adminAll ?? defaultMockResponses.adminAll;
+      if (response instanceof Error) return Promise.reject(response);
+      if (
+        typeof response === "object" &&
+        "status" in response &&
+        response.status === 403
+      ) {
+        return Promise.resolve({ ok: false, status: 403 });
+      }
       return Promise.resolve({
         ok: true,
         json: async () => response,
@@ -68,7 +85,7 @@ function setupFetchMock(overrides?: {
 }
 
 // Helper to create wrapper with session
-function createWrapper(token?: string) {
+function createWrapper(token?: string, roles?: string[]) {
   return function Wrapper({ children }: { children: ReactNode }) {
     vi.mocked(useSession).mockReturnValue(
       (token
@@ -79,6 +96,7 @@ function createWrapper(token?: string) {
                 id: "1",
                 email: "test@example.com",
                 name: "Test User",
+                ...(roles ? { roles } : {}),
               },
               expires: "2099-12-31",
             },
@@ -474,6 +492,109 @@ describe("useIsSupervising", () => {
     await waitFor(() => {
       expect(result.current).toBe(false);
     });
+  });
+});
+
+describe("SupervisionProvider admin paths", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("should fetch from admin endpoint when user is admin", async () => {
+    setupFetchMock({
+      adminAll: {
+        success: true,
+        data: [
+          {
+            id: 10,
+            room_id: 100,
+            group_id: 50,
+            room: { id: 100, name: "Admin Room" },
+          },
+        ],
+      },
+    });
+
+    const { result } = renderHook(() => useSupervision(), {
+      wrapper: createWrapper("test-token", ["admin"]),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoadingSupervision).toBe(false);
+    });
+
+    expect(result.current.isSupervising).toBe(true);
+    expect(result.current.supervisedRoomName).toBe("Admin Room");
+
+    // Verify the admin endpoint was called
+    const fetchCalls = mockFetch.mock.calls.map((call) => call[0] as string);
+    expect(fetchCalls).toContain("/api/active/supervisors/all");
+  });
+
+  it("should fall back to staff endpoint when admin gets 403", async () => {
+    setupFetchMock({
+      adminAll: { status: 403 }, // Setting disabled
+      supervised: {
+        data: [
+          {
+            id: 5,
+            room_id: 50,
+            group_id: 25,
+            room: { id: 50, name: "Staff Room" },
+          },
+        ],
+      },
+    });
+
+    const { result } = renderHook(() => useSupervision(), {
+      wrapper: createWrapper("test-token", ["admin"]),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoadingSupervision).toBe(false);
+    });
+
+    expect(result.current.isSupervising).toBe(true);
+    expect(result.current.supervisedRoomName).toBe("Staff Room");
+
+    // Verify both endpoints were called (admin first, then staff fallback)
+    const fetchCalls = mockFetch.mock.calls.map((call) => call[0] as string);
+    expect(fetchCalls).toContain("/api/active/supervisors/all");
+    expect(fetchCalls).toContain("/api/me/groups/supervised");
+  });
+
+  it("should use staff endpoint directly for non-admin users", async () => {
+    setupFetchMock({
+      supervised: {
+        data: [
+          {
+            id: 3,
+            room_id: 30,
+            group_id: 15,
+            room: { id: 30, name: "Teacher Room" },
+          },
+        ],
+      },
+    });
+
+    const { result } = renderHook(() => useSupervision(), {
+      wrapper: createWrapper("test-token", ["user"]),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoadingSupervision).toBe(false);
+    });
+
+    expect(result.current.isSupervising).toBe(true);
+
+    // Verify only staff endpoint was called (no admin endpoint)
+    const fetchCalls = mockFetch.mock.calls.map((call) => call[0] as string);
+    expect(fetchCalls).not.toContain("/api/active/supervisors/all");
+    expect(fetchCalls).toContain("/api/me/groups/supervised");
   });
 });
 
