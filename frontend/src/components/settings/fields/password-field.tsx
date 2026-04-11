@@ -264,7 +264,7 @@ export function PasswordField({
             setIsEditing(false);
           }
         }}
-        className="min-h-[44px] rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-medium text-white transition-all hover:bg-gray-700"
+        className="rounded-lg bg-gray-900 px-3 py-2 text-sm font-medium text-white transition-all hover:bg-gray-700"
       >
         Speichern
       </button>
@@ -274,7 +274,7 @@ export function PasswordField({
           setNewValue("");
           setIsEditing(false);
         }}
-        className="min-h-[44px] px-2 text-sm text-gray-500 hover:text-gray-700"
+        className="px-2 text-sm text-gray-500 hover:text-gray-700"
       >
         Abbrechen
       </button>
