@@ -216,7 +216,7 @@ func TestDefaults_HaveReasonableValues(t *testing.T) {
 		{"operations.session_end_time", "18:00"},
 		{"operations.session_end_timeout_minutes", 10},
 		{"operations.student_daily_checkout_time", ""},
-		{"operations.session_cleanup_enabled", true},
+		{"operations.session_cleanup_enabled", false},
 		{"operations.session_cleanup_interval_minutes", 15},
 		{"operations.session_abandoned_threshold_minutes", 60},
 		{"gdpr.data_cleanup_enabled", true},

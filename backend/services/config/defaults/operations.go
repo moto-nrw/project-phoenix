@@ -81,7 +81,7 @@ func init() {
 		Label:           "Bereinigung verlassener Sitzungen",
 		Description:     "Automatische Bereinigung von Sitzungen ohne Aktivität",
 		Type:            config.FieldBoolean,
-		Default:         true,
+		Default:         false,
 		ReadPermission:  "config:read",
 		WritePermission: "config:update",
 		Tab:             "operations",
