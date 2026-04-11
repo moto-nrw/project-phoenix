@@ -208,18 +208,34 @@ export function SupervisionProvider({
     }
 
     try {
-      // Admins with supervision overview setting: fetch ALL active groups
-      // Regular staff: fetch only their supervised groups
-      const supervisedUrl = isAdminRef.current
-        ? "/api/active/supervisors/all"
-        : "/api/me/groups/supervised";
+      // Admins: try the admin overview endpoint first (returns all active groups when
+      // the admin_supervision_overview setting is enabled). On 403 (setting disabled),
+      // fall back to the regular staff endpoint for their own supervisions.
+      // Regular staff: fetch only their supervised groups directly.
+      const fetchSupervisedGroups = async (): Promise<Response> => {
+        if (!isAdminRef.current) {
+          return fetch("/api/me/groups/supervised", {
+            headers: { "Content-Type": "application/json" },
+            cache: "no-store",
+          });
+        }
+        const adminResponse = await fetch("/api/active/supervisors/all", {
+          headers: { "Content-Type": "application/json" },
+          cache: "no-store",
+        });
+        if (adminResponse.status === 403) {
+          // Setting disabled or not available — fall back to own supervisions
+          return fetch("/api/me/groups/supervised", {
+            headers: { "Content-Type": "application/json" },
+            cache: "no-store",
+          });
+        }
+        return adminResponse;
+      };
 
       // Fetch supervised groups and Schulhof status in parallel
       const [response, schulhofResponse] = await Promise.all([
-        fetch(supervisedUrl, {
-          headers: { "Content-Type": "application/json" },
-          cache: "no-store",
-        }),
+        fetchSupervisedGroups(),
         fetch("/api/active/schulhof/status", {
           headers: { "Content-Type": "application/json" },
           cache: "no-store",

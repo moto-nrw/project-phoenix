@@ -175,7 +175,9 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
       schulhofResult,
     ] = await Promise.all([
       // User's supervised active groups (admin: all groups, staff: own groups)
-      // Try admin endpoint first; falls back to regular endpoint on 403
+      // Try admin endpoint first; falls back to regular staff endpoint on any error (403 = setting
+      // disabled or non-admin, others = server error). The staff endpoint is always authoritative
+      // for the user's own supervisions.
       apiGet<{ data: BackendActiveGroup[] | null }>(
         "/api/active/supervisors/all",
         token,

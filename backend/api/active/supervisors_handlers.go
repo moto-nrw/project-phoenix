@@ -288,20 +288,22 @@ func (rs *Resource) getAllActiveSupervisions(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	// Check tenant setting
-	if rs.SettingsService != nil {
-		enabled, err := rs.SettingsService.ResolveBool(ctx, configModel.KeyAdminSupervisionOverview)
-		if err != nil {
-			rs.getLogger().WarnContext(ctx, "admin_supervision_overview setting check failed",
-				"error", err.Error(),
-			)
-			common.RenderError(w, r, ErrorForbidden(errors.New("admin supervision overview is not enabled")))
-			return
-		}
-		if !enabled {
-			common.RenderError(w, r, ErrorForbidden(errors.New("admin supervision overview is not enabled for this school")))
-			return
-		}
+	// Check tenant setting — SettingsService must be available and the setting must be enabled
+	if rs.SettingsService == nil {
+		common.RenderError(w, r, ErrorForbidden(errors.New("admin supervision overview is not available")))
+		return
+	}
+	enabled, err := rs.SettingsService.ResolveBool(ctx, configModel.KeyAdminSupervisionOverview)
+	if err != nil {
+		rs.getLogger().WarnContext(ctx, "admin_supervision_overview setting check failed",
+			"error", err.Error(),
+		)
+		common.RenderError(w, r, ErrorForbidden(errors.New("admin supervision overview is not enabled")))
+		return
+	}
+	if !enabled {
+		common.RenderError(w, r, ErrorForbidden(errors.New("admin supervision overview is not enabled for this school")))
+		return
 	}
 
 	// Get all active groups with room info (same format as /api/me/groups/supervised)

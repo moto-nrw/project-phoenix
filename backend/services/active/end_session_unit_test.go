@@ -265,6 +265,7 @@ type mockGroupSupervisorRepository struct {
 	endSupervisionFunc      func(ctx context.Context, id int64) error
 	createFunc              func(ctx context.Context, entity *active.GroupSupervisor) error
 	createBulkFunc          func(ctx context.Context, supervisors []*active.GroupSupervisor) error
+	findAllActiveFunc       func(ctx context.Context) ([]*active.GroupSupervisor, error)
 }
 
 func (m *mockGroupSupervisorRepository) Create(ctx context.Context, entity *active.GroupSupervisor) error {
@@ -332,6 +333,9 @@ func (m *mockGroupSupervisorRepository) EndSupervisionsByActiveGroupIDs(ctx cont
 }
 
 func (m *mockGroupSupervisorRepository) FindAllActive(ctx context.Context) ([]*active.GroupSupervisor, error) {
+	if m.findAllActiveFunc != nil {
+		return m.findAllActiveFunc(ctx)
+	}
 	return nil, nil
 }
 
@@ -485,4 +489,85 @@ func TestEndActivitySession_EndSupervisionError(t *testing.T) {
 	// Verify all expectations were met
 	err = mock.ExpectationsWereMet()
 	assert.NoError(t, err)
+}
+
+// =============================================================================
+// GetAllActiveSupervisions Tests
+// =============================================================================
+
+func TestGetAllActiveSupervisions_Success(t *testing.T) {
+	now := time.Now()
+	supervisors := []*active.GroupSupervisor{
+		{Model: base.Model{ID: 10}, StaffID: 100, GroupID: 200, StartDate: now},
+		{Model: base.Model{ID: 11}, StaffID: 101, GroupID: 201, StartDate: now},
+	}
+
+	repo := &mockGroupSupervisorRepository{
+		findAllActiveFunc: func(_ context.Context) ([]*active.GroupSupervisor, error) {
+			return supervisors, nil
+		},
+	}
+
+	svc := &service{supervisorRepo: repo}
+	result, err := svc.GetAllActiveSupervisions(context.Background())
+
+	require.NoError(t, err)
+	assert.Len(t, result, 2)
+}
+
+func TestGetAllActiveSupervisions_Empty(t *testing.T) {
+	repo := &mockGroupSupervisorRepository{
+		findAllActiveFunc: func(_ context.Context) ([]*active.GroupSupervisor, error) {
+			return []*active.GroupSupervisor{}, nil
+		},
+	}
+
+	svc := &service{supervisorRepo: repo}
+	result, err := svc.GetAllActiveSupervisions(context.Background())
+
+	require.NoError(t, err)
+	assert.Empty(t, result)
+}
+
+func TestGetAllActiveSupervisions_DatabaseError(t *testing.T) {
+	repo := &mockGroupSupervisorRepository{
+		findAllActiveFunc: func(_ context.Context) ([]*active.GroupSupervisor, error) {
+			return nil, errors.New("connection refused")
+		},
+	}
+
+	svc := &service{supervisorRepo: repo}
+	result, err := svc.GetAllActiveSupervisions(context.Background())
+
+	assert.Error(t, err)
+	assert.Nil(t, result)
+	var activeErr *ActiveError
+	assert.True(t, errors.As(err, &activeErr))
+	assert.Equal(t, "GetAllActiveSupervisions", activeErr.Op)
+}
+
+func TestGetAllActiveSupervisions_FiltersInactive(t *testing.T) {
+	past := time.Now().Add(-24 * time.Hour)
+	now := time.Now()
+
+	supervisors := []*active.GroupSupervisor{
+		// Active: no end date
+		{Model: base.Model{ID: 10}, StaffID: 100, GroupID: 200, StartDate: now},
+		// Inactive: end date in the past
+		{Model: base.Model{ID: 11}, StaffID: 101, GroupID: 201, StartDate: past, EndDate: &past},
+	}
+
+	repo := &mockGroupSupervisorRepository{
+		findAllActiveFunc: func(_ context.Context) ([]*active.GroupSupervisor, error) {
+			return supervisors, nil
+		},
+	}
+
+	svc := &service{supervisorRepo: repo}
+	result, err := svc.GetAllActiveSupervisions(context.Background())
+
+	require.NoError(t, err)
+	// Only the active one (no end date) should remain after IsActive() filter
+	assert.Len(t, result, 1)
+	assert.Equal(t, int64(10), result[0].ID)
 }
