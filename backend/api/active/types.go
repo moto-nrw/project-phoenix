@@ -202,6 +202,17 @@ type ActiveGroupSummary struct {
 	Status       string `json:"status"`
 }
 
+// TrackingIndicatorsResponse returns labels and per-student match results
+type TrackingIndicatorsResponse struct {
+	Labels  []string         `json:"labels"`
+	Results map[int64][]bool `json:"results"`
+}
+
+// TrackingIndicatorsRequest is the request body for POST /tracking-indicators
+type TrackingIndicatorsRequest struct {
+	StudentIDs []int64 `json:"student_ids"`
+}
+
 // ===== Request Types =====
 
 // ActiveGroupRequest represents an active group creation/update request

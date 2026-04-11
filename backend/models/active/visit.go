@@ -81,6 +81,13 @@ func (v *Visit) Validate() error {
 	return nil
 }
 
+// VisitGroupNames holds the activity and room names from a visit for indicator matching.
+type VisitGroupNames struct {
+	StudentID         int64
+	ActivityGroupName string
+	RoomName          string
+}
+
 // IsActive returns whether this visit is currently active
 func (v *Visit) IsActive() bool {
 	return v.ExitTime == nil

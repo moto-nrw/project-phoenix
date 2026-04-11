@@ -36,6 +36,10 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"checkout.raumwechsel_enabled",
 		"checkout.schulhof_enabled",
 		"checkout.wc_enabled",
+		"tracking.indicators_enabled",
+		"tracking.indicator_1",
+		"tracking.indicator_2",
+		"tracking.indicator_3",
 	}
 
 	for _, key := range expectedKeys {
@@ -46,7 +50,7 @@ func TestAllSettingsRegistered(t *testing.T) {
 		assert.NotEmpty(t, def.Category, "setting %q should have a category", key)
 	}
 
-	assert.GreaterOrEqual(t, len(all), 20, "at least 20 settings should be registered")
+	assert.GreaterOrEqual(t, len(all), 24, "at least 24 settings should be registered")
 }
 
 func TestOperationsSettings_Types(t *testing.T) {
@@ -265,6 +269,10 @@ func TestDefaults_HaveReasonableValues(t *testing.T) {
 		{"checkout.raumwechsel_enabled", true},
 		{"checkout.schulhof_enabled", false},
 		{"checkout.wc_enabled", false},
+		{"tracking.indicators_enabled", false},
+		{"tracking.indicator_1", ""},
+		{"tracking.indicator_2", ""},
+		{"tracking.indicator_3", ""},
 	}
 
 	for _, tc := range tests {
@@ -272,4 +280,58 @@ func TestDefaults_HaveReasonableValues(t *testing.T) {
 		require.NotNilf(t, def, "setting %q should exist", tc.key)
 		assert.Equalf(t, tc.expectedDefault, def.Default, "setting %q default", tc.key)
 	}
+}
+
+func TestTrackingSettings_Types(t *testing.T) {
+	tests := []struct {
+		key      string
+		expected config.FieldType
+	}{
+		{"tracking.indicators_enabled", config.FieldBoolean},
+		{"tracking.indicator_1", config.FieldText},
+		{"tracking.indicator_2", config.FieldText},
+		{"tracking.indicator_3", config.FieldText},
+	}
+
+	for _, tc := range tests {
+		def := config.GetDefinition(tc.key)
+		require.NotNilf(t, def, "setting %q should exist", tc.key)
+		assert.Equalf(t, tc.expected, def.Type, "setting %q should be type %s", tc.key, tc.expected)
+	}
+}
+
+func TestDependsOn_TrackingGroup(t *testing.T) {
+	dependentKeys := []string{
+		"tracking.indicator_1",
+		"tracking.indicator_2",
+		"tracking.indicator_3",
+	}
+	for _, key := range dependentKeys {
+		def := config.GetDefinition(key)
+		require.NotNilf(t, def, "setting %q should exist", key)
+		require.NotNilf(t, def.DependsOn, "setting %q should have DependsOn", key)
+		assert.Equalf(t, "tracking.indicators_enabled", def.DependsOn.Key, "setting %q should depend on indicators_enabled", key)
+		assert.Equal(t, "eq", def.DependsOn.Condition)
+		assert.Equal(t, true, def.DependsOn.Value)
+	}
+}
+
+func TestTrackingIndicator_Validation(t *testing.T) {
+	indicatorKeys := []string{
+		"tracking.indicator_1",
+		"tracking.indicator_2",
+		"tracking.indicator_3",
+	}
+	for _, key := range indicatorKeys {
+		def := config.GetDefinition(key)
+		require.NotNilf(t, def, "setting %q should exist", key)
+		require.NotNilf(t, def.Validation, "setting %q should have validation", key)
+		require.NotNilf(t, def.Validation.Pattern, "setting %q should have pattern", key)
+		assert.Equal(t, `^[a-zA-ZäöüÄÖÜß\s]{0,30}$`, *def.Validation.Pattern, "setting %q pattern", key)
+	}
+
+	// Verify the toggle has no validation (boolean doesn't need it)
+	enabledDef := config.GetDefinition("tracking.indicators_enabled")
+	require.NotNil(t, enabledDef)
+	assert.Nil(t, enabledDef.Validation, "boolean toggle should have no validation")
 }

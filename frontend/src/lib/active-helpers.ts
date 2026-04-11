@@ -1,6 +1,12 @@
 // lib/active-helpers.ts
 // Type definitions for active entities
 
+// Tracking indicators response from POST /api/active/tracking-indicators
+export interface TrackingIndicatorsResponse {
+  labels: string[];
+  results: Record<string, boolean[]>; // student_id → [matched1, matched2, ...]
+}
+
 // Backend types (from Go structs)
 export interface BackendActiveGroup {
   id: number;

@@ -18,6 +18,8 @@ interface StudentCardProps {
   readonly locationBadge: ReactNode;
   /** Optional extra content between name and click hint */
   readonly extraContent?: ReactNode;
+  /** Optional tracking indicators (right-aligned, below location badge) */
+  readonly trackingIndicators?: ReactNode;
 }
 
 /**
@@ -32,6 +34,7 @@ export function StudentCard({
   onClick,
   locationBadge,
   extraContent,
+  trackingIndicators,
 }: StudentCardProps) {
   return (
     <button
@@ -81,8 +84,15 @@ export function StudentCard({
             {extraContent}
           </div>
 
-          {/* Location Badge */}
-          {locationBadge}
+          {/* Location Badge + optional Tracking Indicators */}
+          {trackingIndicators ? (
+            <div className="flex flex-col items-end gap-1">
+              {locationBadge}
+              {trackingIndicators}
+            </div>
+          ) : (
+            locationBadge
+          )}
         </div>
 
         {/* Bottom row with click hint */}

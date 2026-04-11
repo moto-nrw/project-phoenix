@@ -27,6 +27,9 @@ import {
   StudentInfoRow,
 } from "~/components/students/student-card";
 import { useSWRAuth, useImmutableSWR } from "~/lib/swr";
+import { activeService } from "~/lib/active-api";
+import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
+import { TrackingIndicators } from "~/components/students/tracking-indicators";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "StudentSearchPage" });
@@ -127,6 +130,19 @@ function SearchPageContent() {
   );
 
   const students = studentsData?.students ?? [];
+
+  // Tracking indicators for student cards
+  const trackingStudentIds = useMemo(
+    () => (studentsData?.students ?? []).map((s) => s.id),
+    [studentsData],
+  );
+  const { data: trackingData } = useSWRAuth<TrackingIndicatorsResponse>(
+    trackingStudentIds.length > 0
+      ? `tracking-search-${studentsCacheKey}`
+      : null,
+    async () => activeService.getTrackingIndicators(trackingStudentIds),
+    { keepPreviousData: true, revalidateOnFocus: false },
+  );
 
   // Error type for proper heading display (Fix P3: substring matching on transformed string)
   type ErrorType = "permission" | "session" | "generic" | null;
@@ -456,6 +472,14 @@ function SearchPageContent() {
                         </StudentInfoRow>
                       )}
                     </>
+                  }
+                  trackingIndicators={
+                    trackingData?.labels.length ? (
+                      <TrackingIndicators
+                        labels={trackingData.labels}
+                        results={trackingData.results[student.id] ?? []}
+                      />
+                    ) : undefined
                   }
                 />
               ))}
