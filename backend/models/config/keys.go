@@ -29,6 +29,17 @@ const (
 	AttendanceLogScopeAllStaff             = "all_staff"
 )
 
+// Student data scope / who can read full student profile data.
+const (
+	KeyStudentDataScope = "gdpr.student_data_scope"
+)
+
+// StudentDataScope option values for KeyStudentDataScope.
+const (
+	StudentDataScopeGroupSupervisorsOnly = "group_supervisors_only"
+	StudentDataScopeAllStaff             = "all_staff"
+)
+
 // Feedback settings.
 const (
 	KeyFeedbackEnabled           = "feedback.enabled"
