@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	activeModel "github.com/moto-nrw/project-phoenix/models/active"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 )
@@ -92,15 +94,12 @@ func (rs *Resource) resolveStaff(ctx context.Context) (*users.Staff, string, int
 	return staff, "", 0
 }
 
-// buildSubscriptionTopics builds the list of topics to subscribe to
+// buildSubscriptionTopics builds the list of topics to subscribe to.
+// For admins with admin_supervision_overview enabled, subscribes to all active groups.
 func (rs *Resource) buildSubscriptionTopics(ctx context.Context, staffID int64) (*sseTopics, error) {
-	// Get supervised active groups for this staff member
-	supervisions, err := rs.activeSvc.GetStaffActiveSupervisions(ctx, staffID)
+	// Check if user is admin with supervision overview enabled
+	supervisions, err := rs.resolveSupervisions(ctx, staffID)
 	if err != nil {
-		rs.getLogger().Error("failed to get staff active supervisions for SSE",
-			slog.String("error", err.Error()),
-			slog.Int64("staff_id", staffID),
-		)
 		return nil, err
 	}
 
@@ -245,4 +244,43 @@ func (conn *sseConnection) sendEvent(event realtime.Event) error {
 	}
 
 	return conn.writeSSEMessage(string(event.Type), eventData)
+}
+
+// resolveSupervisions returns the supervisions to subscribe to.
+// For admins with admin_supervision_overview enabled, returns all active supervisions.
+// For regular staff, returns only their own supervised groups.
+func (rs *Resource) resolveSupervisions(ctx context.Context, staffID int64) ([]*activeModel.GroupSupervisor, error) {
+	claims := jwt.ClaimsFromCtx(ctx)
+
+	// Check if admin with supervision overview setting enabled
+	if claims.IsAdmin && rs.settingsSvc != nil {
+		enabled, err := rs.settingsSvc.ResolveBool(ctx, configModel.KeyAdminSupervisionOverview)
+		if err != nil {
+			rs.getLogger().Warn("admin_supervision_overview setting check failed for SSE, falling back to staff supervisions",
+				slog.String("error", err.Error()),
+				slog.Int64("staff_id", staffID),
+			)
+		} else if enabled {
+			allSupervisions, err := rs.activeSvc.GetAllActiveSupervisions(ctx)
+			if err != nil {
+				rs.getLogger().Error("failed to get all active supervisions for admin SSE",
+					slog.String("error", err.Error()),
+					slog.Int64("staff_id", staffID),
+				)
+				return nil, err
+			}
+			return allSupervisions, nil
+		}
+	}
+
+	// Default: get only this staff member's supervised groups
+	supervisions, err := rs.activeSvc.GetStaffActiveSupervisions(ctx, staffID)
+	if err != nil {
+		rs.getLogger().Error("failed to get staff active supervisions for SSE",
+			slog.String("error", err.Error()),
+			slog.Int64("staff_id", staffID),
+		)
+		return nil, err
+	}
+	return supervisions, nil
 }

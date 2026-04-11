@@ -9,6 +9,7 @@ import React, {
   useMemo,
 } from "react";
 import { useSession } from "next-auth/react";
+import { isAdmin } from "~/lib/auth-utils";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "SupervisionContext" });
@@ -91,9 +92,11 @@ export function SupervisionProvider({
   const isRefreshingRef = React.useRef(false);
   const lastRefreshRef = React.useRef<number>(0);
 
-  // Store token in ref to avoid dependency loops
+  // Store token and admin status in refs to avoid dependency loops
   const tokenRef = React.useRef<string | undefined>(session?.user?.token);
   tokenRef.current = session?.user?.token;
+  const isAdminRef = React.useRef<boolean>(isAdmin(session));
+  isAdminRef.current = isAdmin(session);
 
   // Use a ref for the refresh function to break dependency cycles
   const refreshRef = React.useRef<((silent?: boolean) => Promise<void>) | null>(
@@ -205,9 +208,15 @@ export function SupervisionProvider({
     }
 
     try {
+      // Admins with supervision overview setting: fetch ALL active groups
+      // Regular staff: fetch only their supervised groups
+      const supervisedUrl = isAdminRef.current
+        ? "/api/active/supervisors/all"
+        : "/api/me/groups/supervised";
+
       // Fetch supervised groups and Schulhof status in parallel
       const [response, schulhofResponse] = await Promise.all([
-        fetch("/api/me/groups/supervised", {
+        fetch(supervisedUrl, {
           headers: { "Content-Type": "application/json" },
           cache: "no-store",
         }),

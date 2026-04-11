@@ -6,8 +6,10 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 )
 
 // ===== Supervisor Handlers =====
@@ -269,4 +271,58 @@ func (rs *Resource) endSupervision(w http.ResponseWriter, r *http.Request) {
 	// Return the updated supervisor
 	response := newSupervisorResponse(updatedSupervisor)
 	common.Respond(w, r, http.StatusOK, response, "Supervision ended successfully")
+}
+
+// getAllActiveSupervisions returns all active groups with room info for admin overview.
+// Only available to admins when the admin_supervision_overview setting is enabled.
+// Returns the same response format as /api/me/groups/supervised so the frontend
+// can consume both endpoints identically.
+// GET /api/active/supervisors/all
+func (rs *Resource) getAllActiveSupervisions(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Check admin role from JWT claims
+	claims := jwt.ClaimsFromCtx(ctx)
+	if !claims.IsAdmin {
+		common.RenderError(w, r, ErrorForbidden(errors.New("admin role required")))
+		return
+	}
+
+	// Check tenant setting
+	if rs.SettingsService != nil {
+		enabled, err := rs.SettingsService.ResolveBool(ctx, configModel.KeyAdminSupervisionOverview)
+		if err != nil {
+			rs.getLogger().WarnContext(ctx, "admin_supervision_overview setting check failed",
+				"error", err.Error(),
+			)
+			common.RenderError(w, r, ErrorForbidden(errors.New("admin supervision overview is not enabled")))
+			return
+		}
+		if !enabled {
+			common.RenderError(w, r, ErrorForbidden(errors.New("admin supervision overview is not enabled for this school")))
+			return
+		}
+	}
+
+	// Get all active groups with room info (same format as /api/me/groups/supervised)
+	groups, err := rs.ActiveService.ListActiveGroups(ctx, base.NewQueryOptions())
+	if err != nil {
+		common.RenderError(w, r, ErrorInternalServer(err))
+		return
+	}
+
+	// Load room relations for display
+	if len(groups) > 0 {
+		rs.loadActiveGroupRelations(r, groups)
+	}
+
+	// Build response using the same ActiveGroupResponse format
+	responses := make([]ActiveGroupResponse, 0, len(groups))
+	for _, group := range groups {
+		if group.IsActive() {
+			responses = append(responses, newActiveGroupResponse(group))
+		}
+	}
+
+	common.Respond(w, r, http.StatusOK, responses, "All active groups retrieved successfully")
 }

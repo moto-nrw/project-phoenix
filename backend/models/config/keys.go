@@ -51,4 +51,5 @@ const (
 	KeySessionCleanupEnabled         = "operations.session_cleanup_enabled"
 	KeySessionCleanupIntervalMinutes = "operations.session_cleanup_interval_minutes"
 	KeySessionAbandonedThresholdMin  = "operations.session_abandoned_threshold_minutes"
+	KeyAdminSupervisionOverview      = "operations.admin_supervision_overview"
 )

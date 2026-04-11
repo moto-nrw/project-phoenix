@@ -331,6 +331,10 @@ func (m *mockGroupSupervisorRepository) EndSupervisionsByActiveGroupIDs(ctx cont
 	return 0, nil
 }
 
+func (m *mockGroupSupervisorRepository) FindAllActive(ctx context.Context) ([]*active.GroupSupervisor, error) {
+	return nil, nil
+}
+
 // TestEndActivitySession_FindByActiveGroupIDError tests the error path when finding supervisors fails.
 // This covers the error path when supervisorRepo.FindByActiveGroupID returns an error.
 // The handler layer now owns the transaction via WithTenantTx; the service no longer wraps with RunInTx.

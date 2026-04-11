@@ -174,11 +174,17 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
       groupsResult,
       schulhofResult,
     ] = await Promise.all([
-      // User's supervised active groups
+      // User's supervised active groups (admin: all groups, staff: own groups)
+      // Try admin endpoint first; falls back to regular endpoint on 403
       apiGet<{ data: BackendActiveGroup[] | null }>(
-        "/api/me/groups/supervised",
+        "/api/active/supervisors/all",
         token,
-      ).catch(() => ({ data: [] as BackendActiveGroup[] })),
+      ).catch(() =>
+        apiGet<{ data: BackendActiveGroup[] | null }>(
+          "/api/me/groups/supervised",
+          token,
+        ).catch(() => ({ data: [] as BackendActiveGroup[] })),
+      ),
 
       // Unclaimed groups available to claim
       apiGet<{ data: BackendUnclaimedGroup[] | null }>(

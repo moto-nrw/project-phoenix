@@ -297,7 +297,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Schedules = schedulesAPI.NewResource(api.Services.Schedule, db)
 	api.Config = configAPI.NewResource(api.Services.Config, api.Services.ActiveCleanup, db)
 	api.Settings = configAPI.NewSettingsResource(api.Services.Settings, db)
-	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, api.Services.Schulhof, api.Services.UserContext, db, logger.With("handler", "active"))
+	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, api.Services.Schulhof, api.Services.UserContext, api.Services.Settings, db, logger.With("handler", "active"))
 	api.IoT = iotAPI.NewResource(iotAPI.ServiceDependencies{
 		IoTService:            api.Services.IoT,
 		UsersService:          api.Services.Users,
@@ -313,7 +313,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		Logger:                logger.With("handler", "iot"),
 		DB:                    db,
 	})
-	api.SSE = sseAPI.NewResource(api.Services.RealtimeHub, api.Services.Active, api.Services.Users, api.Services.UserContext, db, logger.With("handler", "sse"))
+	api.SSE = sseAPI.NewResource(api.Services.RealtimeHub, api.Services.Active, api.Services.Users, api.Services.UserContext, api.Services.Settings, db, logger.With("handler", "sse"))
 	api.Users = usersAPI.NewResource(api.Services.Users, db)
 	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext, repoFactory.GroupSubstitution, db)
 	api.Substitutions = substitutionsAPI.NewResource(api.Services.Education, db)

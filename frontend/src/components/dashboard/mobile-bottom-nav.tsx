@@ -280,7 +280,23 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
         : hasRole(session, "admin")
           ? ADMIN_MAIN_ITEMS
           : STAFF_MAIN_ITEMS;
-  const filteredMainItems = baseMain;
+  // Admins with supervision overview: inject "Aufsicht" tab dynamically
+  const filteredMainItems =
+    hasRole(session, "admin") &&
+    !isCaregiver(session) &&
+    !isLoadingSupervision &&
+    isSupervising
+      ? [
+          ...baseMain.slice(0, 1),
+          {
+            href: "/active-supervisions",
+            label: "Aufsicht",
+            iconKey: "supervision" as const,
+            alwaysShow: true,
+          },
+          ...baseMain.slice(1),
+        ]
+      : baseMain;
 
   // Pre-compute permission flags to reduce complexity in filter
   const userIsAdmin = hasRole(session, "admin");

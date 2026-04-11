@@ -229,12 +229,12 @@ var DemoActivities = []DemoActivity{
 	{Name: "Fußball", DefaultRoom: "Sporthalle", DurationMins: 90},
 	{Name: "Basteln", DefaultRoom: "Kreativraum", DurationMins: 75},
 	{Name: "Kochen", DefaultRoom: "Mensa", DurationMins: 120},
-	{Name: "Lesen", DefaultRoom: "OGS-Raum 2", DurationMins: 45},
-	{Name: "Musik", DefaultRoom: "OGS-Raum 1", DurationMins: 60},
-	{Name: "Tanzen", DefaultRoom: "Sporthalle", DurationMins: 60},
+	{Name: "Lesen", DefaultRoom: "Leseecke", DurationMins: 45},
+	{Name: "Musik", DefaultRoom: "Musikraum", DurationMins: 60},
+	{Name: "Tanzen", DefaultRoom: "Bewegungsraum", DurationMins: 60},
 	{Name: "Schach", DefaultRoom: "OGS-Raum 2", DurationMins: 45},
 	{Name: "Garten", DefaultRoom: "Schulhof", DurationMins: 90},
-	{Name: "Freispiel", DefaultRoom: "Schulhof", DurationMins: 60},
+	{Name: "Freispiel", DefaultRoom: "OGS-Raum 3", DurationMins: 60},
 }
 
 // DemoDevices defines IoT devices for check-in/check-out

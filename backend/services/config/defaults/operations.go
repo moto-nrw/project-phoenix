@@ -131,6 +131,21 @@ func init() {
 		},
 	})
 
+	// --- Admin Supervision Overview ---
+
+	config.Register(config.Definition{
+		Key:             config.KeyAdminSupervisionOverview,
+		Label:           "Administrator-Aufsichtsübersicht",
+		Description:     "Administratoren können alle aktiven Aufsichten und anwesende Kinder einsehen",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "sessions",
+		SortOrder:       8,
+	})
+
 	// Break auto-end interval is NOT registered here — it controls a global ticker
 	// (not per-tenant) and is configured via BREAK_AUTO_END_INTERVAL_SECONDS env var only.
 }

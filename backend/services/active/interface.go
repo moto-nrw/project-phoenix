@@ -51,6 +51,7 @@ type Service interface {
 	FindSupervisorsByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) ([]*active.GroupSupervisor, error)
 	EndSupervision(ctx context.Context, id int64) error
 	GetStaffActiveSupervisions(ctx context.Context, staffID int64) ([]*active.GroupSupervisor, error)
+	GetAllActiveSupervisions(ctx context.Context) ([]*active.GroupSupervisor, error)
 
 	// Combined Group operations
 	GetCombinedGroup(ctx context.Context, id int64) (*active.CombinedGroup, error)

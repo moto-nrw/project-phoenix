@@ -1042,6 +1042,9 @@ func (m *mockActiveService) EndSupervision(_ context.Context, _ int64) error { r
 func (m *mockActiveService) GetStaffActiveSupervisions(_ context.Context, _ int64) ([]*active.GroupSupervisor, error) {
 	return nil, nil
 }
+func (m *mockActiveService) GetAllActiveSupervisions(_ context.Context) ([]*active.GroupSupervisor, error) {
+	return nil, nil
+}
 func (m *mockActiveService) GetCombinedGroup(_ context.Context, _ int64) (*active.CombinedGroup, error) {
 	return nil, nil
 }

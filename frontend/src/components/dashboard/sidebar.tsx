@@ -515,7 +515,10 @@ function SidebarContent({ className = "" }: SidebarProps) {
   }, [toggle, pathname, router]);
 
   // Caregiver accordions are driven by the explicit caregiver role.
-  const showStaffAccordions = userIsCaregiver;
+  // Show staff accordions for caregivers (user/teacher role),
+  // and also for admins who have active supervision rooms (admin_supervision_overview setting)
+  const showStaffAccordions =
+    userIsCaregiver || (userIsAdmin && supervisedRooms.length > 0);
 
   // Resolve operator nav hrefs once (operatorPath is deterministic for the page lifetime)
   const resolvedOperatorItems = useMemo(
