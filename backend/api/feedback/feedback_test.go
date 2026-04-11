@@ -7,10 +7,12 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	feedbackAPI "github.com/moto-nrw/project-phoenix/api/feedback"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -35,6 +37,18 @@ func setupTestContext(t *testing.T) *testContext {
 		services: svc,
 		resource: resource,
 	}
+}
+
+// enableFeedback turns on the feedback feature for tenant 1
+// via a real DB setting override. Cleanup is deferred automatically.
+func enableFeedback(t *testing.T, ctx *testContext) {
+	t.Helper()
+	tenantCtx := testpkg.TenantContext(1)
+	err := ctx.services.Settings.SetValue(tenantCtx, configModel.KeyFeedbackEnabled, true, nil, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = ctx.services.Settings.ResetValue(tenantCtx, configModel.KeyFeedbackEnabled, nil, nil)
+	})
 }
 
 // =============================================================================
@@ -154,6 +168,7 @@ func TestGetFeedback_InvalidID(t *testing.T) {
 func TestGetStudentFeedback_Success(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
+	enableFeedback(t, ctx)
 
 	// Create test student
 	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "Student", "1a")
@@ -175,6 +190,7 @@ func TestGetStudentFeedback_Success(t *testing.T) {
 func TestGetStudentFeedback_InvalidID(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
+	enableFeedback(t, ctx)
 
 	router := chi.NewRouter()
 	router.Get("/feedback/student/{id}", ctx.resource.GetStudentFeedbackHandler())
