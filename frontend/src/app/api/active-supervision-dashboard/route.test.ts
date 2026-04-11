@@ -231,13 +231,17 @@ describe("GET /api/active-supervision-dashboard", () => {
   });
 
   it("handles API failures gracefully", async () => {
-    // All parallel fetches fail
+    // All parallel fetches fail — note: supervised groups has a two-step fallback
+    // (tries /api/active/supervisors/all first, then /api/me/groups/supervised)
     mockApiGet
-      .mockRejectedValueOnce(new Error("Supervised groups error"))
+      .mockRejectedValueOnce(new Error("Admin supervised groups error"))
       .mockRejectedValueOnce(new Error("Unclaimed groups error"))
       .mockRejectedValueOnce(new Error("Staff error"))
       .mockRejectedValueOnce(new Error("Educational groups error"))
-      .mockRejectedValueOnce(new Error("Schulhof status error"));
+      .mockRejectedValueOnce(new Error("Schulhof status error"))
+      .mockRejectedValueOnce(
+        new Error("Staff supervised groups fallback error"),
+      );
 
     const request = createMockRequest("/api/active-supervision-dashboard");
     const response = await GET(request, createMockContext());
