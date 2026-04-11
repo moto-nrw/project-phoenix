@@ -184,12 +184,14 @@ func TestGetStudentAttendanceHistory_ScopeAllStaff_NonAdminCanAccess(t *testing.
 	})
 
 	student := testpkg.CreateTestStudent(t, tc.db, "ScopeAll", "Student", "3b")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+	// Create a real account so the audit log FK constraint is satisfied
+	account := testpkg.CreateTestAccount(t, tc.db, "scopeall-teacher")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, account.ID)
 
 	router := setupRouter(tc.resource.GetStudentAttendanceHistoryHandler(), "id")
 	req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
-	// Use teacher claims (non-admin) with UsersRead permission
-	rr := executeWithAuth(router, req, testutil.TeacherTestClaims(99), []string{"users:read"})
+	// Use teacher claims (non-admin) with UsersRead permission — account ID must exist in auth.accounts
+	rr := executeWithAuth(router, req, testutil.TeacherTestClaims(int(account.ID)), []string{"users:read"})
 
 	assert.Equal(t, http.StatusOK, rr.Code, "all_staff scope should allow any staff with UsersRead. Body: %s", rr.Body.String())
 }
