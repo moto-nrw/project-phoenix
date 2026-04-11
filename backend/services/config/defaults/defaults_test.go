@@ -176,9 +176,18 @@ func TestDevicesSettings(t *testing.T) {
 		assert.Equal(t, config.FieldBoolean, def.Type, "setting %q should be boolean", key)
 		assert.Equal(t, "devices", def.Tab, "setting %q should be in devices tab", key)
 		assert.Equal(t, "checkout", def.Category, "setting %q should be in checkout category", key)
-		assert.Equal(t, true, def.Default, "setting %q should default to true", key)
 		assert.Equal(t, "config:update", def.WritePermission, "setting %q should use config:update", key)
 	}
+
+	// Raumwechsel defaults to true (no system room required)
+	raumwechsel := config.GetDefinition("checkout.raumwechsel_enabled")
+	assert.Equal(t, true, raumwechsel.Default, "raumwechsel should default to true")
+
+	// Schulhof and WC default to false (opt-in, system rooms created on activation)
+	schulhof := config.GetDefinition("checkout.schulhof_enabled")
+	assert.Equal(t, false, schulhof.Default, "schulhof should default to false (opt-in)")
+	wc := config.GetDefinition("checkout.wc_enabled")
+	assert.Equal(t, false, wc.Default, "wc should default to false (opt-in)")
 }
 
 func TestStudentDailyCheckoutTime_OptionalDefault(t *testing.T) {
@@ -228,8 +237,8 @@ func TestDefaults_HaveReasonableValues(t *testing.T) {
 		{"gdpr.attendance_log_scope", config.AttendanceLogScopeGroupSupervisorsOnly},
 		{"security.ogs_device_pin", "1234"},
 		{"checkout.raumwechsel_enabled", true},
-		{"checkout.schulhof_enabled", true},
-		{"checkout.wc_enabled", true},
+		{"checkout.schulhof_enabled", false},
+		{"checkout.wc_enabled", false},
 	}
 
 	for _, tc := range tests {
