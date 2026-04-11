@@ -75,6 +75,16 @@ describe("fetchStudentFeedback", () => {
     expect(result).toEqual([]);
   });
 
+  it("throws feature_disabled on 403", async () => {
+    mockSessionFetch.mockResolvedValue({
+      ok: false,
+      status: 403,
+      statusText: "Forbidden",
+    });
+
+    await expect(fetchStudentFeedback("1")).rejects.toThrow("feature_disabled");
+  });
+
   it("throws on non-404 error", async () => {
     mockSessionFetch.mockResolvedValue({
       ok: false,

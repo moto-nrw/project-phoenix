@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { HistoryLinks } from "./HistoryLinks";
 
@@ -18,11 +18,16 @@ vi.mock("~/components/ui/info-card", () => ({
   ),
 }));
 
+const mockPush = vi.fn();
 vi.mock("~/lib/tenant-router", () => ({
-  useTenantRouter: () => ({ push: vi.fn() }),
+  useTenantRouter: () => ({ push: mockPush }),
 }));
 
 describe("HistoryLinks", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("renders Historien title", () => {
     render(
       <HistoryLinks
@@ -135,5 +140,22 @@ describe("HistoryLinks", () => {
 
     const deactivatedTexts = screen.getAllByText("Für Ihre Schule deaktiviert");
     expect(deactivatedTexts).toHaveLength(2);
+  });
+
+  it("navigates to feedback history when feedback button is clicked", () => {
+    render(
+      <HistoryLinks
+        studentId="42"
+        attendanceLogEnabled={false}
+        feedbackEnabled={true}
+      />,
+    );
+
+    const feedbackButton = screen
+      .getByText("Feedbackhistorie")
+      .closest("button");
+    fireEvent.click(feedbackButton!);
+
+    expect(mockPush).toHaveBeenCalledWith("/students/42/feedback_history");
   });
 });
