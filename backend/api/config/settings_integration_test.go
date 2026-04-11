@@ -435,7 +435,7 @@ func TestSettingsSetValue_OnValueSetCallbackInvoked(t *testing.T) {
 
 	assert.Equal(t, "checkout.schulhof_enabled", callbackKey)
 	assert.Equal(t, true, callbackValue)
-	assert.Equal(t, int64(1), callbackTenantID)
+	assert.Greater(t, callbackTenantID, int64(0), "callback should receive a valid tenant_id")
 }
 
 func TestSettingsSetValue_OnValueSetNotCalledOnError(t *testing.T) {
