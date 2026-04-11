@@ -147,6 +147,7 @@ type mockVisitRepository struct {
 	getCurrentByStudentIDWithRoomFunc func(ctx context.Context, studentID int64) (*active.Visit, error)
 	countActiveByRoomIDFunc           func(ctx context.Context, roomID int64) (int, error)
 	countActiveByGroupIDFunc          func(ctx context.Context, activeGroupID int64) (int, error)
+	getTodayVisitNamesFunc            func(ctx context.Context, studentIDs []int64) ([]active.VisitGroupNames, error)
 }
 
 func (m *mockVisitRepository) Create(ctx context.Context, entity *active.Visit) error {
@@ -260,6 +261,9 @@ func (m *mockVisitRepository) CountActiveByStudentID(ctx context.Context, studen
 }
 
 func (m *mockVisitRepository) GetTodayVisitNamesForStudents(ctx context.Context, studentIDs []int64) ([]active.VisitGroupNames, error) {
+	if m.getTodayVisitNamesFunc != nil {
+		return m.getTodayVisitNamesFunc(ctx, studentIDs)
+	}
 	return nil, nil
 }
 

@@ -5,6 +5,8 @@ import {
   SchoolClassIcon,
   GroupIcon,
   StudentInfoRow,
+  PickupTimeIcon,
+  ExceptionIcon,
 } from "./student-card";
 
 describe("StudentCard", () => {
@@ -82,6 +84,31 @@ describe("StudentCard", () => {
     const gradientDiv = container.querySelector(".from-blue-50\\/80");
     expect(gradientDiv).toBeInTheDocument();
   });
+
+  it("wraps location badge and tracking indicators in flex-col when trackingIndicators provided", () => {
+    render(
+      <StudentCard
+        {...defaultProps}
+        trackingIndicators={<span data-testid="tracking">Indicators</span>}
+      />,
+    );
+
+    expect(screen.getByTestId("tracking")).toBeInTheDocument();
+    expect(screen.getByTestId("location-badge")).toBeInTheDocument();
+    // Both should be inside a flex-col wrapper
+    const trackingEl = screen.getByTestId("tracking");
+    const wrapper = trackingEl.parentElement;
+    expect(wrapper?.className).toContain("flex");
+    expect(wrapper?.className).toContain("flex-col");
+  });
+
+  it("renders location badge alone without wrapper when no trackingIndicators", () => {
+    const { container } = render(<StudentCard {...defaultProps} />);
+
+    expect(screen.getByTestId("location-badge")).toBeInTheDocument();
+    // No tracking indicators present
+    expect(container.querySelector("[data-testid='tracking']")).toBeNull();
+  });
 });
 
 describe("SchoolClassIcon", () => {
@@ -117,6 +144,22 @@ describe("GroupIcon", () => {
     expect(svg?.className).toContain("h-3.5");
     expect(svg?.className).toContain("w-3.5");
     expect(svg?.className).toContain("text-gray-400");
+  });
+});
+
+describe("PickupTimeIcon", () => {
+  it("renders an SVG icon", () => {
+    const { container } = render(<PickupTimeIcon />);
+    expect(container.querySelector("svg")).toBeInTheDocument();
+  });
+});
+
+describe("ExceptionIcon", () => {
+  it("renders an SVG icon with orange color", () => {
+    const { container } = render(<ExceptionIcon />);
+    const svg = container.querySelector("svg");
+    expect(svg).toBeInTheDocument();
+    expect(svg?.className).toContain("text-orange-500");
   });
 });
 
