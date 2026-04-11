@@ -47,6 +47,9 @@ export async function fetchStudentFeedback(
 
     if (!response.ok) {
       if (response.status === 404) return [];
+      if (response.status === 403) {
+        throw new Error("feature_disabled");
+      }
       throw new Error(
         `Failed to fetch feedback: ${response.status} ${response.statusText}`,
       );

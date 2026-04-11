@@ -80,6 +80,16 @@ func TestErrorInternalServer(t *testing.T) {
 	assert.Equal(t, "database error", resp.ErrorText)
 }
 
+func TestErrorForbidden(t *testing.T) {
+	testErr := errors.New("feature_disabled")
+	renderer := feedback.ErrorForbidden(testErr)
+	resp, ok := renderer.(*feedback.ErrResponse)
+	assert.True(t, ok)
+	assert.Equal(t, http.StatusForbidden, resp.HTTPStatusCode)
+	assert.Equal(t, "Forbidden", resp.StatusText)
+	assert.Equal(t, "feature_disabled", resp.ErrorText)
+}
+
 func TestErrResponse_Render(t *testing.T) {
 	errResp := &feedback.ErrResponse{
 		Err:            errors.New("test error"),
