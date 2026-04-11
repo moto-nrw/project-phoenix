@@ -109,6 +109,8 @@ export const GET = createGetHandler(
       const groupSupervisors = studentData.group_supervisors ?? [];
       const attendanceLogEnabled =
         (studentData.attendance_log_enabled as boolean) ?? false;
+      const feedbackEnabled =
+        (studentData.feedback_enabled as boolean) ?? false;
 
       // Check if we need to extract last_name from the name field
       if (!studentData.last_name && studentData.name) {
@@ -135,6 +137,7 @@ export const GET = createGetHandler(
         has_full_access: hasFullAccess,
         group_supervisors: groupSupervisors,
         attendance_log_enabled: attendanceLogEnabled,
+        feedback_enabled: feedbackEnabled,
       };
     } catch (error) {
       logger.error("student fetch failed", {
