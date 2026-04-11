@@ -420,12 +420,20 @@ func (s *Scheduler) executeCleanupForTenant(ctx context.Context, tenantID int64)
 			slog.Int64("tenant_id", tenantID),
 			slog.String("error", err.Error()),
 		)
-	} else if attendanceResult != nil && attendanceResult.RecordsClosed > 0 {
-		s.getLogger().Info("attendance cleanup completed",
-			slog.Int64("tenant_id", tenantID),
-			slog.Int("records_closed", attendanceResult.RecordsClosed),
-			slog.Int("students_affected", attendanceResult.StudentsAffected),
-		)
+	} else if attendanceResult != nil {
+		if !attendanceResult.Success {
+			s.getLogger().Warn("attendance cleanup partial failure",
+				slog.Int64("tenant_id", tenantID),
+				slog.Int("records_closed", attendanceResult.RecordsClosed),
+				slog.Int("errors", len(attendanceResult.Errors)),
+			)
+		} else if attendanceResult.RecordsClosed > 0 {
+			s.getLogger().Info("attendance cleanup completed",
+				slog.Int64("tenant_id", tenantID),
+				slog.Int("records_closed", attendanceResult.RecordsClosed),
+				slog.Int("students_affected", attendanceResult.StudentsAffected),
+			)
+		}
 	}
 
 	// Cleanup open work sessions
