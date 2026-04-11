@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/audit"
@@ -368,7 +369,9 @@ func (s *cleanupService) CleanupStaleAttendance(ctx context.Context) (*Attendanc
 		CheckInTime time.Time `bun:"check_in_time"`
 	}
 
-	err := s.db.NewSelect().
+	db := repoBase.GetDB(ctx, s.db)
+
+	err := db.NewSelect().
 		Table(attendanceTableName).
 		Column("id", "student_id", "date", "check_in_time").
 		Where("date < ?", today).
@@ -406,7 +409,7 @@ func (s *cleanupService) CleanupStaleAttendance(ctx context.Context) (*Attendanc
 		}
 
 		// Update the record
-		_, err := s.db.NewUpdate().
+		_, err := db.NewUpdate().
 			Table(attendanceTableName).
 			Set("check_out_time = ?", checkOutTime).
 			Set("updated_at = ?", time.Now()).
@@ -452,7 +455,9 @@ func (s *cleanupService) PreviewAttendanceCleanup(ctx context.Context) (*Attenda
 		Date      time.Time `bun:"date"`
 	}
 
-	err := s.db.NewSelect().
+	db := repoBase.GetDB(ctx, s.db)
+
+	err := db.NewSelect().
 		Table(attendanceTableName).
 		Column("student_id", "date").
 		Where("date < ?", today).
