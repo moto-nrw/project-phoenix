@@ -441,6 +441,51 @@ func TestGetAllActiveSupervisions_SuccessEmptyGroups(t *testing.T) {
 	assert.Equal(t, "success", resp["status"])
 }
 
+func TestGetAllActiveSupervisions_SuccessWithActiveGroups(t *testing.T) {
+	now := time.Now()
+	past := now.Add(-2 * time.Hour)
+	endedTime := now.Add(-1 * time.Hour)
+
+	rs := &Resource{
+		SettingsService: &mockSettingsSvc{boolValues: map[string]bool{
+			configModel.KeyAdminSupervisionOverview: true,
+		}},
+		ActiveService: &stubActiveService{
+			listActiveGroupsFunc: func(_ context.Context, _ *base.QueryOptions) ([]*activeModel.Group, error) {
+				return []*activeModel.Group{
+					// Active group (no end time)
+					{
+						Model:     base.Model{ID: 100},
+						StartTime: past,
+					},
+					// Ended group (has end time in the past → IsActive() = false)
+					{
+						Model:     base.Model{ID: 101},
+						StartTime: past,
+						EndTime:   &endedTime,
+					},
+				}, nil
+			},
+		},
+	}
+	r := newRequestWithClaims("GET", "/active/supervisors/all", adminClaims())
+	w := httptest.NewRecorder()
+
+	rs.getAllActiveSupervisions(w, r)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var resp map[string]any
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+	assert.Equal(t, "success", resp["status"])
+
+	// Only the active group should be in the response (the ended one is filtered out)
+	data, ok := resp["data"].([]any)
+	require.True(t, ok)
+	assert.Len(t, data, 1)
+}
+
 func TestGetAllActiveSupervisions_ServiceError(t *testing.T) {
 	rs := &Resource{
 		SettingsService: &mockSettingsSvc{boolValues: map[string]bool{

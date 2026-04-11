@@ -422,6 +422,44 @@ func TestResolveSupervisions_SettingErrorFallsBack(t *testing.T) {
 	assert.Len(t, result, 1)
 }
 
+func TestResolveSupervisions_StaffSupervisionsError(t *testing.T) {
+	rs := &Resource{
+		settingsSvc: &mockSettingsSvc{boolValues: map[string]bool{
+			configModel.KeyAdminSupervisionOverview: false,
+		}},
+		activeSvc: &mockActiveSvcForSSE{
+			getStaffFunc: func(_ context.Context, _ int64) ([]*activeModel.GroupSupervisor, error) {
+				return nil, fmt.Errorf("database connection lost")
+			},
+		},
+		logger: slog.Default(),
+	}
+
+	ctx := ctxWithClaims(true) // admin but setting disabled → falls back to staff
+	result, err := rs.resolveSupervisions(ctx, 42)
+
+	assert.Error(t, err)
+	assert.Nil(t, result)
+}
+
+func TestResolveSupervisions_NonAdminStaffError(t *testing.T) {
+	rs := &Resource{
+		settingsSvc: &mockSettingsSvc{boolValues: map[string]bool{}},
+		activeSvc: &mockActiveSvcForSSE{
+			getStaffFunc: func(_ context.Context, _ int64) ([]*activeModel.GroupSupervisor, error) {
+				return nil, fmt.Errorf("timeout")
+			},
+		},
+		logger: slog.Default(),
+	}
+
+	ctx := ctxWithClaims(false) // non-admin
+	result, err := rs.resolveSupervisions(ctx, 42)
+
+	assert.Error(t, err)
+	assert.Nil(t, result)
+}
+
 func TestResolveSupervisions_GetAllError(t *testing.T) {
 	rs := &Resource{
 		settingsSvc: &mockSettingsSvc{boolValues: map[string]bool{
