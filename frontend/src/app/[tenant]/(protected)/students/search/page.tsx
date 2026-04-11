@@ -138,7 +138,7 @@ function SearchPageContent() {
   );
   const { data: trackingData } = useSWRAuth<TrackingIndicatorsResponse>(
     trackingStudentIds.length > 0
-      ? `tracking-search-${studentsCacheKey}`
+      ? `tracking-indicators-${debouncedSearchTerm}-${selectedGroup}`
       : null,
     async () => activeService.getTrackingIndicators(trackingStudentIds),
     { keepPreviousData: true, revalidateOnFocus: false },
@@ -474,7 +474,7 @@ function SearchPageContent() {
                     </>
                   }
                   trackingIndicators={
-                    trackingData?.labels.length ? (
+                    trackingData?.labels?.length ? (
                       <TrackingIndicators
                         labels={trackingData.labels}
                         results={trackingData.results[student.id] ?? []}
