@@ -7,21 +7,20 @@ This document catalogs every hardcoded business-logic decision in Project Phoeni
 
 ---
 
-## Currently Implemented (17 settings)
+## Currently Implemented (21 settings)
 
 For reference, these settings already exist in the registry (`services/config/defaults/`):
 
 | Key | Type | Default | Tab | File |
 |-----|------|---------|-----|------|
-| `security.ogs_device_pin` | password | `""` | security | `defaults/security.go` |
+| `security.ogs_device_pin` | password | `"1234"` | security | `defaults/security.go` |
 | `operations.session_end_enabled` | boolean | `true` | operations | `defaults/operations.go` |
 | `operations.session_end_time` | time | `"18:00"` | operations | `defaults/operations.go` |
 | `operations.session_end_timeout_minutes` | number | `10` | operations | `defaults/operations.go` |
 | `operations.student_daily_checkout_time` | time | `""` (optional — empty = always available) | operations | `defaults/operations.go` |
-| `operations.session_cleanup_enabled` | boolean | `true` | operations | `defaults/operations.go` |
+| `operations.session_cleanup_enabled` | boolean | `false` | operations | `defaults/operations.go` |
 | `operations.session_cleanup_interval_minutes` | number | `15` | operations | `defaults/operations.go` |
 | `operations.session_abandoned_threshold_minutes` | number | `60` | operations | `defaults/operations.go` |
-| `feedback.enabled` | boolean | `true` | operations | `defaults/feedback.go` |
 | `gdpr.data_cleanup_enabled` | boolean | `true` | gdpr | `defaults/gdpr.go` |
 | `gdpr.data_cleanup_time` | time | `"02:00"` | gdpr | `defaults/gdpr.go` |
 | `gdpr.data_cleanup_timeout_minutes` | number | `30` | gdpr | `defaults/gdpr.go` |
@@ -29,7 +28,12 @@ For reference, these settings already exist in the registry (`services/config/de
 | `gdpr.attendance_visible_days` | number | `30` | gdpr | `defaults/gdpr.go` |
 | `gdpr.room_detail_visible_days` | number | `7` | gdpr | `defaults/gdpr.go` |
 | `gdpr.attendance_log_scope` | select | `"group_supervisors_only"` | gdpr | `defaults/gdpr.go` |
+| `gdpr.student_data_scope` | select | `"group_supervisors_only"` | gdpr | `defaults/gdpr.go` |
+| `feedback.enabled` | boolean | `false` | gdpr | `defaults/feedback.go` |
 | `feedback.data_retention_days` | number | `90` | gdpr | `defaults/feedback.go` |
+| `checkout.raumwechsel_enabled` | boolean | `true` | devices | `defaults/devices.go` |
+| `checkout.schulhof_enabled` | boolean | `false` | devices | `defaults/devices.go` |
+| `checkout.wc_enabled` | boolean | `false` | devices | `defaults/devices.go` |
 
 ---
 

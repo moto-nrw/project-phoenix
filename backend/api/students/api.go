@@ -216,11 +216,28 @@ func (rs *Resource) getStudentGroup(ctx context.Context, student *users.Student)
 	return group
 }
 
-// checkStudentFullAccess determines if the current user has full access to a student's data
-// Returns true if user is admin or supervises the student's group
+// checkStudentFullAccess determines if the current user has full access to a student's data.
+// Returns true if the user is an admin, the tenant's student_data_scope is set to all_staff,
+// or the user supervises the student's education group.
+//
+// This function gates READ access only. Write operations (update, delete, check-in, etc.)
+// remain restricted to the student's group supervisors regardless of this setting.
 func (rs *Resource) checkStudentFullAccess(r *http.Request, student *users.Student) bool {
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
 	if hasAdminPermissions(userPermissions) {
+		return true
+	}
+
+	// Tenant-configurable: when student_data_scope is set to all_staff, any
+	// authenticated staff member gets full read access to any student.
+	scope := configService.ResolveStringOrDefault(
+		r.Context(),
+		rs.SettingsService,
+		configModel.KeyStudentDataScope,
+		configModel.StudentDataScopeGroupSupervisorsOnly,
+		rs.Logger,
+	)
+	if scope == configModel.StudentDataScopeAllStaff {
 		return true
 	}
 

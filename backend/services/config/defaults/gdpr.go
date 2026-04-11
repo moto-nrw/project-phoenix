@@ -135,4 +135,25 @@ func init() {
 			Value:     true,
 		},
 	})
+
+	// --- Schülerdaten-Zugriff (who can read full student profile data) ---
+
+	config.Register(config.Definition{
+		Key:             config.KeyStudentDataScope,
+		Label:           "Schülerdaten-Zugriff",
+		Description:     "Legt fest, welche Mitarbeitenden vollständige Schülerdaten (Profil, aktueller Aufenthaltsort, Besuchsinformationen, Datenschutzangaben und Abholpläne) einsehen dürfen. Schreiboperationen bleiben stets auf die Gruppenbetreuer des Schülers beschränkt.",
+		Type:            config.FieldSelect,
+		Default:         config.StudentDataScopeGroupSupervisorsOnly,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "gdpr",
+		Category:        "schülerdaten",
+		SortOrder:       20,
+		Options: &config.SelectOptions{
+			Static: []config.SelectOption{
+				{Label: "Nur Gruppenbetreuer des Schülers", Value: config.StudentDataScopeGroupSupervisorsOnly},
+				{Label: "Alle berechtigten Mitarbeitenden", Value: config.StudentDataScopeAllStaff},
+			},
+		},
+	})
 }
