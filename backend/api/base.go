@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"os"
@@ -44,7 +45,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // API represents the API structure
@@ -297,6 +300,34 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Schedules = schedulesAPI.NewResource(api.Services.Schedule, db)
 	api.Config = configAPI.NewResource(api.Services.Config, api.Services.ActiveCleanup, db)
 	api.Settings = configAPI.NewSettingsResource(api.Services.Settings, db)
+	api.Settings.OnValueSet(func(ctx context.Context, tenantID int64, key string, value any) {
+		boolVal, ok := value.(bool)
+		if !ok || !boolVal {
+			return // only trigger on enable (true), not disable
+		}
+
+		var ensureErr error
+		switch key {
+		case configModel.KeyCheckoutSchulhofEnabled:
+			ensureErr = tenant.WithTenantTx(ctx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+				_, err := api.Services.Schulhof.EnsureInfrastructure(txCtx, 0)
+				return err
+			})
+		case configModel.KeyCheckoutWCEnabled:
+			ensureErr = tenant.WithTenantTx(ctx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+				_, err := api.Services.WC.EnsureInfrastructure(txCtx)
+				return err
+			})
+		}
+
+		if ensureErr != nil {
+			slog.Warn("auto-create system room failed",
+				"key", key,
+				"tenant_id", tenantID,
+				"error", ensureErr.Error(),
+			)
+		}
+	})
 	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, api.Services.Schulhof, api.Services.UserContext, db, logger.With("handler", "active"))
 	api.IoT = iotAPI.NewResource(iotAPI.ServiceDependencies{
 		IoTService:            api.Services.IoT,

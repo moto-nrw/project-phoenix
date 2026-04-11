@@ -47,6 +47,7 @@ type Factory struct {
 	GradeTransition          education.GradeTransitionService
 	Facilities               facilities.Service
 	Schulhof                 facilities.SchulhofService
+	WC                       facilities.WCService
 	Invitation               auth.InvitationService
 	Feedback                 feedback.Service
 	Suggestions              suggestions.Service
@@ -288,6 +289,13 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		facilitiesLogger,
 	)
 
+	// Initialize WC service (depends on facilities and activities services)
+	wcService := facilities.NewWCService(
+		facilitiesService,
+		activitiesService,
+		facilitiesLogger,
+	)
+
 	// Initialize schedule service
 	scheduleService := schedule.NewService(
 		repos.Dateframe,
@@ -514,6 +522,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		GradeTransition:          gradeTransitionService,
 		Facilities:               facilitiesService,
 		Schulhof:                 schulhofService,
+		WC:                       wcService,
 		Feedback:                 feedbackService,
 		Suggestions:              suggestionsService,
 		IoT:                      iotService,

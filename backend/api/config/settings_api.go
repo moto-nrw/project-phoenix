@@ -34,6 +34,13 @@ const (
 type SettingsResource struct {
 	settingsService configSvc.SettingsService
 	db              *bun.DB
+	onValueSet      func(ctx context.Context, tenantID int64, key string, value any)
+}
+
+// OnValueSet registers a callback that fires after a setting value is successfully saved.
+// The callback runs best-effort: errors are logged but do not affect the HTTP response.
+func (rs *SettingsResource) OnValueSet(fn func(ctx context.Context, tenantID int64, key string, value any)) {
+	rs.onValueSet = fn
 }
 
 // NewSettingsResource creates a new settings resource.
@@ -135,12 +142,18 @@ func (rs *SettingsResource) setValue(w http.ResponseWriter, r *http.Request) {
 	claims := jwt.ClaimsFromCtx(r.Context())
 	changedBy := int64(claims.ID)
 
-	err := tenant.WithTenantTx(r.Context(), rs.db, tenant.FromContext(r.Context()), func(ctx context.Context, _ bun.Tx) error {
+	tenantID := tenant.FromContext(r.Context())
+	err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return rs.settingsService.SetValue(ctx, key, req.Value, &changedBy, claims.Permissions)
 	})
 	if err != nil {
 		renderSettingsError(w, r, err)
 		return
+	}
+
+	// Fire post-save hook (best-effort, does not affect the response)
+	if rs.onValueSet != nil {
+		rs.onValueSet(r.Context(), tenantID, key, req.Value)
 	}
 
 	common.Respond(w, r, http.StatusOK, nil, "Value updated successfully")
