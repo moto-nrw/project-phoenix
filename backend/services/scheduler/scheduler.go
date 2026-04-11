@@ -414,6 +414,20 @@ func (s *Scheduler) executeCleanupForTenant(ctx context.Context, tenantID int64)
 		)
 	}
 
+	// Cleanup stale attendance records (open from previous days)
+	if attendanceResult, err := s.cleanupService.CleanupStaleAttendance(ctx); err != nil {
+		s.getLogger().Error("attendance cleanup failed",
+			slog.Int64("tenant_id", tenantID),
+			slog.String("error", err.Error()),
+		)
+	} else if attendanceResult != nil && attendanceResult.RecordsClosed > 0 {
+		s.getLogger().Info("attendance cleanup completed",
+			slog.Int64("tenant_id", tenantID),
+			slog.Int("records_closed", attendanceResult.RecordsClosed),
+			slog.Int("students_affected", attendanceResult.StudentsAffected),
+		)
+	}
+
 	// Cleanup open work sessions
 	if s.workSessionCleanup != nil {
 		if closedCount, err := s.workSessionCleanup.CleanupOpenSessions(ctx); err != nil {
