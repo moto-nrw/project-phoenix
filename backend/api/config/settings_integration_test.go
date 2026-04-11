@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"context"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -399,6 +400,88 @@ func TestSettingsDeleteLoginImage_NoExistingImage(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 	testutil.AssertSuccessResponse(t, rr, http.StatusNoContent)
+}
+
+// =============================================================================
+// OnValueSet Callback Tests
+// =============================================================================
+
+func TestSettingsSetValue_OnValueSetCallbackInvoked(t *testing.T) {
+	ctx := setupSettingsTest(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	var callbackKey string
+	var callbackValue any
+	var callbackTenantID int64
+	ctx.resource.OnValueSet(func(_ context.Context, tenantID int64, key string, value any) {
+		callbackTenantID = tenantID
+		callbackKey = key
+		callbackValue = value
+	})
+
+	router := testutil.NewTenantRouter(ctx.db)
+	router.Put("/values/{key}", ctx.resource.SetValue())
+
+	body := map[string]interface{}{
+		"value": true,
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/checkout.schulhof_enabled", body,
+		testutil.WithClaims(adminClaimsWithConfigPerms()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	assert.Equal(t, "checkout.schulhof_enabled", callbackKey)
+	assert.Equal(t, true, callbackValue)
+	assert.Equal(t, int64(1), callbackTenantID)
+}
+
+func TestSettingsSetValue_OnValueSetNotCalledOnError(t *testing.T) {
+	ctx := setupSettingsTest(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	callbackInvoked := false
+	ctx.resource.OnValueSet(func(_ context.Context, _ int64, _ string, _ any) {
+		callbackInvoked = true
+	})
+
+	router := testutil.NewTenantRouter(ctx.db)
+	router.Put("/values/{key}", ctx.resource.SetValue())
+
+	body := map[string]interface{}{
+		"value": "not-a-boolean",
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/checkout.schulhof_enabled", body,
+		testutil.WithClaims(adminClaimsWithConfigPerms()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertErrorResponse(t, rr, http.StatusBadRequest)
+
+	assert.False(t, callbackInvoked, "callback should not be invoked on validation error")
+}
+
+func TestSettingsSetValue_NilCallbackDoesNotPanic(t *testing.T) {
+	ctx := setupSettingsTest(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	// No OnValueSet registered — should not panic
+	router := testutil.NewTenantRouter(ctx.db)
+	router.Put("/values/{key}", ctx.resource.SetValue())
+
+	body := map[string]interface{}{
+		"value": true,
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/checkout.wc_enabled", body,
+		testutil.WithClaims(adminClaimsWithConfigPerms()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
 
 func TestSettingsDeleteLoginImage_NoTenantContext(t *testing.T) {
