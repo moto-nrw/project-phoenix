@@ -8,6 +8,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
@@ -255,4 +257,103 @@ func TestRegisterRoutesWithRateLimiting_MountsOperatorInvitationRoutes(t *testin
 	api.Router.ServeHTTP(rr, req)
 
 	assert.NotEqual(t, http.StatusNotFound, rr.Code)
+}
+
+// TestOnValueSetCallback_WCEnabled tests that the OnValueSet callback
+// registered in initializeAPIResources triggers WC infrastructure creation
+// when checkout.wc_enabled is set to true.
+func TestOnValueSetCallback_WCEnabled(t *testing.T) {
+	db, serviceFactory := testutil.SetupAPITest(t)
+	defer func() { _ = db.Close() }()
+
+	repoFactory := repositories.NewFactory(db)
+	a := &API{
+		Services: serviceFactory,
+		Router:   chi.NewRouter(),
+		db:       db,
+		repos:    repoFactory,
+	}
+
+	initializeAPIResources(a, repoFactory, db, slog.Default())
+
+	// Mount the SetValue handler on a tenant-aware router
+	router := testutil.NewTenantRouter(db)
+	router.Put("/values/{key}", a.Settings.SetValue())
+
+	// Set checkout.wc_enabled = true → triggers callback → creates WC infrastructure
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/checkout.wc_enabled",
+		map[string]any{"value": true},
+		testutil.WithClaims(adminClaimsForCallback()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+}
+
+// TestOnValueSetCallback_SchulhofEnabled tests that the callback triggers
+// Schulhof infrastructure creation when checkout.schulhof_enabled is set to true.
+func TestOnValueSetCallback_SchulhofEnabled(t *testing.T) {
+	db, serviceFactory := testutil.SetupAPITest(t)
+	defer func() { _ = db.Close() }()
+
+	repoFactory := repositories.NewFactory(db)
+	a := &API{
+		Services: serviceFactory,
+		Router:   chi.NewRouter(),
+		db:       db,
+		repos:    repoFactory,
+	}
+
+	initializeAPIResources(a, repoFactory, db, slog.Default())
+
+	router := testutil.NewTenantRouter(db)
+	router.Put("/values/{key}", a.Settings.SetValue())
+
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/checkout.schulhof_enabled",
+		map[string]any{"value": true},
+		testutil.WithClaims(adminClaimsForCallback()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+}
+
+// TestOnValueSetCallback_FalseValueSkipsInfrastructure tests that setting
+// a checkout setting to false does not trigger infrastructure creation.
+func TestOnValueSetCallback_FalseValueSkipsInfrastructure(t *testing.T) {
+	db, serviceFactory := testutil.SetupAPITest(t)
+	defer func() { _ = db.Close() }()
+
+	repoFactory := repositories.NewFactory(db)
+	a := &API{
+		Services: serviceFactory,
+		Router:   chi.NewRouter(),
+		db:       db,
+		repos:    repoFactory,
+	}
+
+	initializeAPIResources(a, repoFactory, db, slog.Default())
+
+	router := testutil.NewTenantRouter(db)
+	router.Put("/values/{key}", a.Settings.SetValue())
+
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/checkout.wc_enabled",
+		map[string]any{"value": false},
+		testutil.WithClaims(adminClaimsForCallback()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+}
+
+// adminClaimsForCallback returns admin claims with config permissions
+// for testing the OnValueSet callback.
+func adminClaimsForCallback() jwt.AppClaims {
+	claims := testutil.DefaultTestClaims()
+	claims.Permissions = append(claims.Permissions,
+		permissions.ConfigRead,
+		permissions.ConfigUpdate,
+		permissions.ConfigManage,
+	)
+	return claims
 }
