@@ -85,6 +85,8 @@ export interface FormField {
   min?: number;
   max?: number;
   maxLength?: number;
+  /** When true, the field is rendered as read-only and cannot be edited. */
+  disabled?: boolean;
 }
 
 // Form section type (imported from database-form.tsx)

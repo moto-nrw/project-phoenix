@@ -50,6 +50,8 @@ func ErrorRenderer(err error) render.Renderer {
 			return ErrorConflictWithCode(actErr, errorCodeOnlySupervisorReplacementRequired)
 		case errors.Is(actErr, activities.ErrNotEnrolled):
 			return ErrorNotFound(actErr)
+		case errors.Is(actErr, activities.ErrSystemActivityProtected):
+			return ErrorForbidden(actErr)
 		case errors.Is(actErr, activities.ErrGroupClosed):
 			return ErrorForbidden(actErr)
 		case errors.Is(actErr, activities.ErrInvalidAttendanceStatus):

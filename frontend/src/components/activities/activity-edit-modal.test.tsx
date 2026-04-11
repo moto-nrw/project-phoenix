@@ -29,24 +29,36 @@ vi.mock("~/components/ui/modal", () => ({
     ) : null,
 }));
 
-// Mock DatabaseForm component
+// Mock DatabaseForm component — captures sections for assertion
 vi.mock("~/components/ui/database/database-form", () => ({
   DatabaseForm: ({
     onSubmit,
     onCancel,
     submitLabel,
+    sections,
   }: {
     onSubmit: (data: unknown) => Promise<void>;
     onCancel: () => void;
     submitLabel: string;
-  }) => (
-    <div data-testid="database-form">
-      <button onClick={() => onSubmit({ name: "Updated Activity" })}>
-        {submitLabel}
-      </button>
-      <button onClick={onCancel}>Cancel</button>
-    </div>
-  ),
+    sections: Array<{
+      fields: Array<{ name: string; disabled?: boolean; helperText?: string }>;
+    }>;
+  }) => {
+    const nameField = sections
+      ?.flatMap((s) => s.fields)
+      .find((f) => f.name === "name");
+    return (
+      <div data-testid="database-form">
+        {nameField?.disabled && (
+          <span data-testid="name-disabled">{nameField.helperText}</span>
+        )}
+        <button onClick={() => onSubmit({ name: "Updated Activity" })}>
+          {submitLabel}
+        </button>
+        <button onClick={onCancel}>Cancel</button>
+      </div>
+    );
+  },
 }));
 
 // Mock activitiesConfig and configToFormSection
@@ -172,6 +184,64 @@ describe("ActivityEditModal", () => {
     await waitFor(() => {
       expect(screen.getByTestId("database-form")).toBeInTheDocument();
       expect(screen.getByText("Speichern")).toBeInTheDocument();
+    });
+  });
+
+  it("disables name field for system activity Schulhof Freispiel", async () => {
+    const systemActivity: Activity = {
+      ...mockActivity,
+      name: "Schulhof Freispiel",
+    };
+
+    render(
+      <ActivityEditModal
+        isOpen={true}
+        onClose={mockOnClose}
+        activity={systemActivity}
+        onSave={mockOnSave}
+      />,
+    );
+
+    await waitFor(() => {
+      const nameDisabled = screen.getByTestId("name-disabled");
+      expect(nameDisabled).toBeInTheDocument();
+      expect(nameDisabled).toHaveTextContent("Systemaktivität:");
+    });
+  });
+
+  it("disables name field for system activity WC", async () => {
+    const systemActivity: Activity = {
+      ...mockActivity,
+      name: "WC",
+    };
+
+    render(
+      <ActivityEditModal
+        isOpen={true}
+        onClose={mockOnClose}
+        activity={systemActivity}
+        onSave={mockOnSave}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("name-disabled")).toBeInTheDocument();
+    });
+  });
+
+  it("does not disable name field for regular activity", async () => {
+    render(
+      <ActivityEditModal
+        isOpen={true}
+        onClose={mockOnClose}
+        activity={mockActivity}
+        onSave={mockOnSave}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("database-form")).toBeInTheDocument();
+      expect(screen.queryByTestId("name-disabled")).not.toBeInTheDocument();
     });
   });
 });

@@ -335,6 +335,20 @@ function mapScheduleToTime(
   };
 }
 
+// System activity names that cannot be deleted or renamed.
+// Must stay in sync with backend constants/activities.go.
+const SYSTEM_ACTIVITY_NAMES = ["Schulhof Freispiel", "WC"] as const;
+
+/** Returns true if the activity is a system activity (Schulhof Freispiel, WC). */
+export function isSystemActivity(
+  activity: Activity | null | undefined,
+): boolean {
+  if (!activity) return false;
+  return SYSTEM_ACTIVITY_NAMES.includes(
+    activity.name as (typeof SYSTEM_ACTIVITY_NAMES)[number],
+  );
+}
+
 // Mapping functions for backend to frontend types
 export function mapActivityResponse(
   backendActivity: BackendActivity,

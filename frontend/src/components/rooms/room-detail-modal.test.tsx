@@ -105,6 +105,10 @@ vi.mock("@/lib/room-helpers", () => ({
     if (floor > 0) return `${floor}. OG`;
     return `${Math.abs(floor)}. UG`;
   },
+  isSystemRoom: (room: { name: string } | null | undefined) => {
+    if (!room) return false;
+    return room.name === "Schulhof" || room.name === "WC";
+  },
 }));
 
 const mockRoom = {

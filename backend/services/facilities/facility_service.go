@@ -9,6 +9,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/constants"
 	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -169,6 +170,11 @@ func (s *service) UpdateRoom(ctx context.Context, room *facilities.Room) error {
 		return &FacilitiesError{Op: opUpdateRoom, Err: ErrRoomNotFound}
 	}
 
+	// Block renaming system rooms (Schulhof, WC)
+	if constants.IsSystemRoomName(existingRoom.Name) && room.Name != existingRoom.Name {
+		return &FacilitiesError{Op: opUpdateRoom, Err: ErrSystemRoomProtected}
+	}
+
 	// If name is changing, check for duplicates
 	if existingRoom.Name != room.Name {
 		existing, err := s.roomRepo.FindByName(ctx, room.Name)
@@ -188,9 +194,14 @@ func (s *service) UpdateRoom(ctx context.Context, room *facilities.Room) error {
 // DeleteRoom deletes a room by its ID
 func (s *service) DeleteRoom(ctx context.Context, id int64) error {
 	// Check if room exists
-	_, err := s.roomRepo.FindByID(ctx, id)
+	existingRoom, err := s.roomRepo.FindByID(ctx, id)
 	if err != nil {
 		return &FacilitiesError{Op: "delete room", Err: ErrRoomNotFound}
+	}
+
+	// Block deletion of system rooms (Schulhof, WC)
+	if constants.IsSystemRoomName(existingRoom.Name) {
+		return &FacilitiesError{Op: "delete room", Err: ErrSystemRoomProtected}
 	}
 
 	// Best-effort pre-check: active groups would block deletion via FK RESTRICT.

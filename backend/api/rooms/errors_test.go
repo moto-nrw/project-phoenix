@@ -5,7 +5,9 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/rooms"
+	"github.com/moto-nrw/project-phoenix/services/facilities"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -33,4 +35,16 @@ func TestErrorInvalidRequest(t *testing.T) {
 	})
 	assert.True(t, ok)
 	assert.NotNil(t, resp)
+}
+
+func TestErrorRenderer_SystemRoomProtected(t *testing.T) {
+	facErr := &facilities.FacilitiesError{
+		Op:  "delete room",
+		Err: facilities.ErrSystemRoomProtected,
+	}
+	renderer := rooms.ErrorRenderer(facErr)
+	resp, ok := renderer.(*common.ErrResponse)
+	assert.True(t, ok, "expected *common.ErrResponse")
+	assert.Equal(t, http.StatusForbidden, resp.HTTPStatusCode)
+	assert.Contains(t, resp.ErrorText, "Systemraum")
 }

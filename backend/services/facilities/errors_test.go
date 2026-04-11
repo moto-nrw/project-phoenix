@@ -123,6 +123,12 @@ func TestFacilitiesError_AllOperations(t *testing.T) {
 			err:  ErrRoomCapacityExceeded,
 			want: "facilities error during CheckCapacity: room capacity exceeded",
 		},
+		{
+			name: "system room protection",
+			op:   "DeleteRoom",
+			err:  ErrSystemRoomProtected,
+			want: "facilities error during DeleteRoom: Systemraum kann nicht gelöscht oder umbenannt werden",
+		},
 	}
 
 	for _, tt := range tests {
