@@ -147,7 +147,7 @@ func init() {
 		ReadPermission:  "config:read",
 		WritePermission: "config:manage",
 		Tab:             "gdpr",
-		Category:        "schülerdaten",
+		Category:        "student_data",
 		SortOrder:       20,
 		Options: &config.SelectOptions{
 			Static: []config.SelectOption{
