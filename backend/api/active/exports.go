@@ -47,6 +47,9 @@ func (rs *Resource) GetStaffSupervisionsHandler() http.HandlerFunc {
 func (rs *Resource) GetStaffActiveSupervisionsHandler() http.HandlerFunc {
 	return rs.getStaffActiveSupervisions
 }
+func (rs *Resource) GetAllActiveSupervisionsHandler() http.HandlerFunc {
+	return rs.getAllActiveSupervisions
+}
 
 // Analytics Handlers
 func (rs *Resource) GetCountsHandler() http.HandlerFunc { return rs.getCounts }

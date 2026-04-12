@@ -20,6 +20,20 @@ vi.mock("~/lib/settings-api", () => ({
   resetSettingValue: (_k: string) => mockResetSettingValue(),
 }));
 
+const mockRefreshSupervision = vi.fn(() => Promise.resolve());
+vi.mock("~/lib/supervision-context", () => ({
+  useOptionalSupervision: () => ({
+    hasGroups: false,
+    groups: [],
+    isLoadingGroups: false,
+    isSupervising: false,
+    supervisedRooms: [],
+    isLoadingSupervision: false,
+    adminOverviewEnabled: false,
+    refresh: mockRefreshSupervision,
+  }),
+}));
+
 const { useSettingsTabs } = await import("./settings-page");
 
 const mockSchema = {
@@ -451,5 +465,63 @@ describe("SettingsContent (via renderTab)", () => {
 
     // Validation errors don't match the banner condition — no banner should appear
     expect(container.querySelector(".bg-red-50")).toBeNull();
+  });
+
+  it("refreshes supervision context after toggling admin_supervision_overview", async () => {
+    const schemaWithAdminOverview = {
+      tabs: [
+        {
+          key: "operations",
+          label: "Betrieb",
+          categories: [
+            {
+              key: "sessions",
+              label: "Sitzungen",
+              items: [
+                {
+                  key: "operations.admin_supervision_overview",
+                  label: "Administrator-Aufsichtsübersicht",
+                  description: "Admins sehen alle Aufsichten",
+                  type: "boolean" as const,
+                  default: false,
+                  value: false,
+                  is_default: true,
+                  writable: true,
+                  visible: true,
+                  sort_order: 1,
+                  validation: null,
+                  depends_on: null,
+                  options: null,
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    mockFetchSchema.mockResolvedValue(schemaWithAdminOverview);
+    mockSetSettingValue.mockResolvedValue(null);
+
+    renderWithProviders(<RenderedTab tabId="settings-operations" />);
+    const toggle = await screen.findByRole("switch");
+    fireEvent.click(toggle);
+
+    await waitFor(() => {
+      expect(mockRefreshSupervision).toHaveBeenCalledWith({ force: true });
+    });
+  });
+
+  it("does not refresh supervision context for unrelated settings", async () => {
+    mockFetchSchema.mockResolvedValue(mockSchema);
+    mockSetSettingValue.mockResolvedValue(null);
+
+    renderWithProviders(<RenderedTab tabId="settings-operations" />);
+    const toggle = await screen.findByRole("switch");
+    fireEvent.click(toggle);
+
+    await waitFor(() => {
+      expect(mockSetSettingValue).toHaveBeenCalled();
+    });
+    expect(mockRefreshSupervision).not.toHaveBeenCalled();
   });
 });

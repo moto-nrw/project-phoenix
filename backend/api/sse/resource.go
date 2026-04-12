@@ -5,6 +5,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/uptrace/bun"
@@ -12,12 +13,13 @@ import (
 
 // Resource defines the SSE resource with dependencies
 type Resource struct {
-	hub       *realtime.Hub
-	activeSvc active.Service
-	personSvc users.PersonService
-	userCtx   usercontext.UserContextService
-	db        *bun.DB
-	logger    *slog.Logger
+	hub         *realtime.Hub
+	activeSvc   active.Service
+	personSvc   users.PersonService
+	userCtx     usercontext.UserContextService
+	settingsSvc config.SettingsService
+	db          *bun.DB
+	logger      *slog.Logger
 }
 
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
@@ -34,15 +36,17 @@ func NewResource(
 	activeSvc active.Service,
 	personSvc users.PersonService,
 	userCtx usercontext.UserContextService,
+	settingsSvc config.SettingsService,
 	db *bun.DB,
 	logger *slog.Logger,
 ) *Resource {
 	return &Resource{
-		hub:       hub,
-		activeSvc: activeSvc,
-		personSvc: personSvc,
-		userCtx:   userCtx,
-		db:        db,
-		logger:    logger,
+		hub:         hub,
+		activeSvc:   activeSvc,
+		personSvc:   personSvc,
+		userCtx:     userCtx,
+		settingsSvc: settingsSvc,
+		db:          db,
+		logger:      logger,
 	}
 }

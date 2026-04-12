@@ -23,6 +23,7 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"operations.session_cleanup_enabled",
 		"operations.session_cleanup_interval_minutes",
 		"operations.session_abandoned_threshold_minutes",
+		"operations.admin_supervision_overview",
 		"gdpr.data_cleanup_enabled",
 		"gdpr.data_cleanup_time",
 		"gdpr.data_cleanup_timeout_minutes",
@@ -50,7 +51,7 @@ func TestAllSettingsRegistered(t *testing.T) {
 		assert.NotEmpty(t, def.Category, "setting %q should have a category", key)
 	}
 
-	assert.GreaterOrEqual(t, len(all), 24, "at least 24 settings should be registered")
+	assert.GreaterOrEqual(t, len(all), 25, "at least 25 settings should be registered")
 }
 
 func TestOperationsSettings_Types(t *testing.T) {
@@ -65,6 +66,7 @@ func TestOperationsSettings_Types(t *testing.T) {
 		{"operations.session_cleanup_enabled", config.FieldBoolean},
 		{"operations.session_cleanup_interval_minutes", config.FieldNumber},
 		{"operations.session_abandoned_threshold_minutes", config.FieldNumber},
+		{"operations.admin_supervision_overview", config.FieldBoolean},
 	}
 
 	for _, tc := range tests {
@@ -256,6 +258,7 @@ func TestDefaults_HaveReasonableValues(t *testing.T) {
 		{"operations.session_cleanup_enabled", false},
 		{"operations.session_cleanup_interval_minutes", 15},
 		{"operations.session_abandoned_threshold_minutes", 60},
+		{"operations.admin_supervision_overview", false},
 		{"gdpr.data_cleanup_enabled", true},
 		{"gdpr.data_cleanup_time", "02:00"},
 		{"gdpr.data_cleanup_timeout_minutes", 30},

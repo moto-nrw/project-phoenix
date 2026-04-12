@@ -112,6 +112,9 @@ vi.mock("~/lib/active-api", () => ({
     getActiveGroupSupervisors: vi.fn(() => Promise.resolve([])),
     endSupervision: vi.fn(() => Promise.resolve()),
     toggleSchulhofSupervision: vi.fn(() => Promise.resolve()),
+    getTrackingIndicators: vi.fn(() =>
+      Promise.resolve({ labels: [], results: {} }),
+    ),
   },
 }));
 
@@ -7312,5 +7315,408 @@ describe("RoleGuard integration", () => {
 
     expect(screen.queryByText("Kein Zugriff")).not.toBeInTheDocument();
     expect(screen.getByTestId("sse-boundary")).toBeInTheDocument();
+  });
+
+  it("renders content for admin with supervised rooms", async () => {
+    const { useSession } = await import("next-auth/react");
+    vi.mocked(useSession).mockReturnValue({
+      data: { user: { token: "test-token", isAdmin: true } },
+      status: "authenticated",
+    } as never);
+
+    // Mock useOptionalSupervision to return adminOverviewEnabled = true,
+    // which is the explicit signal that the admin_supervision_overview
+    // setting is enabled on the backend.
+    const supervisionCtx = await import("~/lib/supervision-context");
+    vi.spyOn(supervisionCtx, "useOptionalSupervision").mockReturnValue({
+      supervisedRooms: [{ id: "10", name: "Admin Room", groupId: "1" }],
+      isLoadingSupervision: false,
+      adminOverviewEnabled: true,
+      hasGroups: false,
+      isLoadingGroups: false,
+      groups: [],
+      isSupervising: true,
+      refresh: vi.fn(),
+    });
+
+    render(<MeinRaumPage />);
+
+    // Admin with rooms should pass the gate and render content
+    expect(screen.queryByText("Kein Zugriff")).not.toBeInTheDocument();
+    expect(screen.getByTestId("sse-boundary")).toBeInTheDocument();
+  });
+
+  it("blocks admin when only a synthetic Schulhof room exists (setting off)", async () => {
+    // P1-A regression guard — the gate must consult adminOverviewEnabled,
+    // not supervisedRooms.length. A synthetic Schulhof entry is always
+    // present when the tenant has a Schulhof, regardless of the setting.
+    const { useSession } = await import("next-auth/react");
+    vi.mocked(useSession).mockReturnValue({
+      data: { user: { token: "test-token", isAdmin: true } },
+      status: "authenticated",
+    } as never);
+
+    const supervisionCtx = await import("~/lib/supervision-context");
+    vi.spyOn(supervisionCtx, "useOptionalSupervision").mockReturnValue({
+      supervisedRooms: [
+        {
+          id: "schulhof",
+          name: "Schulhof",
+          groupId: "1",
+          isSchulhof: true,
+        },
+      ],
+      isLoadingSupervision: false,
+      adminOverviewEnabled: false,
+      hasGroups: false,
+      isLoadingGroups: false,
+      groups: [],
+      isSupervising: true,
+      refresh: vi.fn(),
+    });
+
+    render(<MeinRaumPage />);
+
+    expect(screen.getByText("Kein Zugriff")).toBeInTheDocument();
+  });
+
+  it("shows loading state while supervision is loading for admin", async () => {
+    const { useSession } = await import("next-auth/react");
+    vi.mocked(useSession).mockReturnValue({
+      data: { user: { token: "test-token", isAdmin: true } },
+      status: "authenticated",
+    } as never);
+
+    const supervisionCtx = await import("~/lib/supervision-context");
+    vi.spyOn(supervisionCtx, "useOptionalSupervision").mockReturnValue({
+      supervisedRooms: [],
+      isLoadingSupervision: true,
+      adminOverviewEnabled: false,
+      hasGroups: false,
+      isLoadingGroups: true,
+      groups: [],
+      isSupervising: false,
+      refresh: vi.fn(),
+    });
+
+    render(<MeinRaumPage />);
+
+    expect(screen.getByTestId("loading")).toBeInTheDocument();
+  });
+});
+
+describe("Admin fallback dashboard fetcher", () => {
+  const mockMutate = vi.fn();
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    const { useSession } = await import("next-auth/react");
+    vi.mocked(useSession).mockReturnValue({
+      data: { user: { token: "test-token", isAdmin: true } },
+      status: "authenticated",
+    } as never);
+
+    const supervisionCtx = await import("~/lib/supervision-context");
+    vi.spyOn(supervisionCtx, "useOptionalSupervision").mockReturnValue({
+      supervisedRooms: [{ id: "10", name: "Admin Room", groupId: "1" }],
+      isLoadingSupervision: false,
+      adminOverviewEnabled: true,
+      hasGroups: false,
+      isLoadingGroups: false,
+      groups: [],
+      isSupervising: true,
+      refresh: vi.fn(),
+    });
+  });
+
+  afterEach(() => cleanup());
+
+  // Helper: mock useSWRAuth so the dashboard fetcher actually runs
+  function captureFetcher(): {
+    getPromise: () => Promise<unknown> | undefined;
+  } {
+    let dashboardPromise: Promise<unknown> | undefined;
+    vi.mocked(useSWRAuth).mockImplementation(((
+      key: string | null,
+      fetcher: (() => Promise<unknown>) | undefined,
+    ) => {
+      if (
+        key?.startsWith("active-supervision-dashboard") &&
+        fetcher &&
+        !dashboardPromise
+      ) {
+        dashboardPromise = fetcher();
+      }
+      return {
+        data: null,
+        isLoading: true,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never;
+    }) as never);
+    return { getPromise: () => dashboardPromise };
+  }
+
+  it("populates supervisedGroups and schulhofStatus from fallback endpoints", async () => {
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url.includes("/api/active-supervision-dashboard")) {
+        return Promise.resolve({ ok: false, status: 500 });
+      }
+      if (url.includes("/api/active/supervisors/all")) {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              data: [
+                {
+                  id: 1,
+                  name: "Group 1",
+                  room_id: 10,
+                  room: { id: 10, name: "Kunstraum" },
+                },
+              ],
+            }),
+        });
+      }
+      if (url.includes("/api/active/schulhof/status")) {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              data: {
+                data: {
+                  exists: true,
+                  room_id: 99,
+                  room_name: "Schulhof",
+                  active_group_id: 42,
+                  is_user_supervising: true,
+                  supervision_id: 123,
+                  supervisor_count: 1,
+                  student_count: 5,
+                  supervisors: [
+                    {
+                      id: 1,
+                      staff_id: 2,
+                      name: "Super",
+                      is_current_user: true,
+                    },
+                  ],
+                },
+              },
+            }),
+        });
+      }
+      return Promise.reject(new Error(`unexpected: ${url}`));
+    });
+
+    const { getPromise } = captureFetcher();
+    render(<MeinRaumPage />);
+    await waitFor(() => expect(getPromise()).toBeDefined());
+
+    const result = (await getPromise()) as {
+      supervisedGroups: Array<{ id: string; room_id?: string }>;
+      schulhofStatus: { exists: boolean; supervisorCount: number } | null;
+      firstRoomId: string | null;
+    };
+    expect(result.supervisedGroups).toHaveLength(1);
+    expect(result.supervisedGroups[0]?.room_id).toBe("10");
+    expect(result.firstRoomId).toBe("10");
+    expect(result.schulhofStatus?.exists).toBe(true);
+    expect(result.schulhofStatus?.supervisorCount).toBe(1);
+  });
+
+  it("returns empty supervisedGroups when supervisors endpoint fails", async () => {
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url.includes("/api/active-supervision-dashboard")) {
+        return Promise.resolve({ ok: false, status: 403 });
+      }
+      if (url.includes("/api/active/supervisors/all")) {
+        return Promise.resolve({ ok: false });
+      }
+      if (url.includes("/api/active/schulhof/status")) {
+        return Promise.reject(new Error("network"));
+      }
+      return Promise.reject(new Error("unexpected"));
+    });
+
+    const { getPromise } = captureFetcher();
+    render(<MeinRaumPage />);
+    await waitFor(() => expect(getPromise()).toBeDefined());
+
+    const result = (await getPromise()) as {
+      supervisedGroups: unknown[];
+      schulhofStatus: unknown;
+      firstRoomId: string | null;
+    };
+    expect(result.supervisedGroups).toEqual([]);
+    expect(result.schulhofStatus).toBeNull();
+    expect(result.firstRoomId).toBeNull();
+  });
+
+  it("omits schulhofStatus when schulhof.exists is false", async () => {
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url.includes("/api/active-supervision-dashboard")) {
+        return Promise.resolve({ ok: false, status: 500 });
+      }
+      if (url.includes("/api/active/supervisors/all")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ data: [] }),
+        });
+      }
+      if (url.includes("/api/active/schulhof/status")) {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              data: {
+                data: {
+                  exists: false,
+                  room_name: "",
+                  is_user_supervising: false,
+                  supervisor_count: 0,
+                  student_count: 0,
+                },
+              },
+            }),
+        });
+      }
+      return Promise.reject(new Error("unexpected"));
+    });
+
+    const { getPromise } = captureFetcher();
+    render(<MeinRaumPage />);
+    await waitFor(() => expect(getPromise()).toBeDefined());
+
+    const result = (await getPromise()) as { schulhofStatus: unknown };
+    expect(result.schulhofStatus).toBeNull();
+  });
+
+  it("skips fallback entirely for non-admin and throws on BFF failure", async () => {
+    const { useSession } = await import("next-auth/react");
+    vi.mocked(useSession).mockReturnValue({
+      data: { user: { token: "test-token", isAdmin: false } },
+      status: "authenticated",
+    } as never);
+
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url.includes("/api/active-supervision-dashboard")) {
+        return Promise.resolve({ ok: false, status: 500 });
+      }
+      return Promise.reject(new Error("should not be called"));
+    });
+
+    // Capture the fetcher without invoking — invoke manually below to contain
+    // the rejection inside the test instead of letting it escape to vitest.
+    let capturedFetcher: (() => Promise<unknown>) | undefined;
+    vi.mocked(useSWRAuth).mockImplementation(((
+      key: string | null,
+      fetcher: (() => Promise<unknown>) | undefined,
+    ) => {
+      if (
+        key?.startsWith("active-supervision-dashboard") &&
+        fetcher &&
+        !capturedFetcher
+      ) {
+        capturedFetcher = fetcher;
+      }
+      return {
+        data: null,
+        isLoading: true,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never;
+    }) as never);
+
+    render(<MeinRaumPage />);
+    await waitFor(() => expect(capturedFetcher).toBeDefined());
+
+    await expect(capturedFetcher!()).rejects.toThrow("BFF request failed: 500");
+  });
+});
+
+describe("Tracking indicators rendering", () => {
+  const mockMutate = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    global.fetch = vi.fn();
+    localStorage.clear();
+  });
+
+  afterEach(() => cleanup());
+
+  it("subscribes to the tracking hook once a room has students", async () => {
+    const dashboardData = {
+      supervisedGroups: [
+        { id: "1", name: "Raum 101", room: { id: "10", name: "Raum 101" } },
+      ],
+      unclaimedGroups: [],
+      currentStaff: { id: "1" },
+      educationalGroups: [],
+      firstRoomVisits: [
+        {
+          studentId: "100",
+          studentName: "Max Mustermann",
+          schoolClass: "1a",
+          groupName: "OGS",
+          activeGroupId: "1",
+          checkInTime: new Date().toISOString(),
+          isActive: true,
+        },
+      ],
+      firstRoomId: "1",
+      schulhofStatus: null,
+    };
+
+    vi.mocked(useSWRAuth).mockImplementation((key) => {
+      if (typeof key === "string" && key.startsWith("tracking-supervisions")) {
+        return {
+          data: { labels: ["Hausaufgaben"], results: { "100": [true] } },
+          isLoading: false,
+          error: null,
+          mutate: mockMutate,
+          isValidating: false,
+        } as never;
+      }
+      if (
+        typeof key === "string" &&
+        key.startsWith("active-supervision-dashboard")
+      ) {
+        return {
+          data: dashboardData,
+          isLoading: false,
+          error: null,
+          mutate: mockMutate,
+          isValidating: false,
+        } as never;
+      }
+      return {
+        data: null,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never;
+    });
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("student-card")).toBeInTheDocument();
+    });
+
+    const trackingCall = vi
+      .mocked(useSWRAuth)
+      .mock.calls.find(
+        (args) =>
+          typeof args[0] === "string" &&
+          args[0].startsWith("tracking-supervisions"),
+      );
+    expect(trackingCall).toBeDefined();
+    expect(trackingCall?.[0]).toContain("tracking-supervisions-");
+    expect(trackingCall?.[0]).toContain("100");
   });
 });

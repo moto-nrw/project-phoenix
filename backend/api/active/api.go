@@ -128,6 +128,7 @@ func (rs *Resource) Router() chi.Router {
 			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/{id}", rs.getSupervisor)
 			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/staff/{staffId}", rs.getStaffSupervisions)
 			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/staff/{staffId}/active", rs.getStaffActiveSupervisions)
+			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/all", rs.getAllActiveSupervisions)
 			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get(routeGroupByGroupID, rs.getSupervisorsByGroup)
 
 			// Write operations

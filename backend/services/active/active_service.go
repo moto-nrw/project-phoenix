@@ -902,6 +902,24 @@ func (s *service) GetStaffActiveSupervisions(ctx context.Context, staffID int64)
 	return activeSupervisions, nil
 }
 
+// GetAllActiveSupervisions returns all currently active supervisions across all staff.
+// Used by admin supervision overview to display all active rooms.
+func (s *service) GetAllActiveSupervisions(ctx context.Context) ([]*active.GroupSupervisor, error) {
+	supervisors, err := s.supervisorRepo.FindAllActive(ctx)
+	if err != nil {
+		return nil, &ActiveError{Op: "GetAllActiveSupervisions", Err: ErrDatabaseOperation}
+	}
+
+	var activeSupervisions []*active.GroupSupervisor
+	for _, supervisor := range supervisors {
+		if supervisor.IsActive() {
+			activeSupervisions = append(activeSupervisions, supervisor)
+		}
+	}
+
+	return activeSupervisions, nil
+}
+
 // GetCrossTenantStudents returns students visiting from other tenants.
 func (s *service) GetCrossTenantStudents(ctx context.Context, hostingTenantID int64) ([]active.CrossTenantStudent, error) {
 	if s.crossTenantRepo == nil {

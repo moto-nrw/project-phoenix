@@ -141,6 +141,9 @@ type GroupSupervisorRepository interface {
 	// FindActiveByStaffID finds all active supervisions for a specific staff member
 	FindActiveByStaffID(ctx context.Context, staffID int64) ([]*GroupSupervisor, error)
 
+	// FindAllActive finds all currently active supervisions across all staff
+	FindAllActive(ctx context.Context) ([]*GroupSupervisor, error)
+
 	// FindByActiveGroupID finds supervisors for a specific active group
 	// If activeOnly is true, only returns supervisors with end_date IS NULL (currently active)
 	FindByActiveGroupID(ctx context.Context, activeGroupID int64, activeOnly bool) ([]*GroupSupervisor, error)

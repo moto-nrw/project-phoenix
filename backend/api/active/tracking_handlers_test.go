@@ -84,6 +84,9 @@ func (m *trackingMockActiveService) GetTrackingIndicators(ctx context.Context, s
 }
 
 // Stub out the rest of the Service interface:
+func (m *trackingMockActiveService) GetAllActiveSupervisions(_ context.Context) ([]*activeModel.GroupSupervisor, error) {
+	return nil, nil
+}
 func (m *trackingMockActiveService) GetActiveGroup(ctx context.Context, id int64) (*activeModel.Group, error) {
 	return nil, nil
 }

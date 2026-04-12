@@ -13,6 +13,14 @@ import { Alert } from "~/components/ui/alert";
 import { Skeleton } from "~/components/ui/skeleton";
 import { SettingsCategory } from "./settings-category";
 import { PersonalizationTab } from "./personalization-tab";
+import { useOptionalSupervision } from "~/lib/supervision-context";
+
+// Settings whose value affects the supervision context (sidebar / mobile nav)
+// and therefore require an immediate re-fetch after save/reset instead of
+// waiting for the next navigation or re-login.
+const SUPERVISION_AFFECTING_KEYS = new Set<string>([
+  "operations.admin_supervision_overview",
+]);
 
 const logger = createLogger({ component: "SettingsPage" });
 
@@ -72,6 +80,7 @@ interface SettingsContentProps {
 
 function SettingsContent({ tabKey }: SettingsContentProps) {
   const { status: sessionStatus } = useSession();
+  const { refresh: refreshSupervision } = useOptionalSupervision();
   const [schema, setSchema] = useState<SettingsSchema | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -172,10 +181,14 @@ function SettingsContent({ tabKey }: SettingsContentProps) {
             });
           });
         }, 6000);
+
+        if (SUPERVISION_AFFECTING_KEYS.has(key)) {
+          void refreshSupervision({ force: true });
+        }
       }
       return errorMsg;
     },
-    [],
+    [refreshSupervision],
   );
 
   const handleReset = useCallback(
@@ -198,10 +211,14 @@ function SettingsContent({ tabKey }: SettingsContentProps) {
             });
           });
         }, 500);
+
+        if (SUPERVISION_AFFECTING_KEYS.has(key)) {
+          void refreshSupervision({ force: true });
+        }
       }
       return errorMsg;
     },
-    [],
+    [refreshSupervision],
   );
 
   if (loading) {
