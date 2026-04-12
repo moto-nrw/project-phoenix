@@ -290,8 +290,17 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   // than just isSupervising so a synthetic Schulhof entry does not surface
   // the admin tab when the setting is off. Dual-role teacher-admins see the
   // tab too — the tenant setting is the explicit opt-in signal.
+  // STAFF_MAIN_ITEMS already contains /active-supervisions, so only inject
+  // when it is missing (i.e. for admin-only users whose baseline is
+  // ADMIN_MAIN_ITEMS) to avoid duplicate React keys.
+  const alreadyHasSupervisionTab = baseMain.some(
+    (item) => item.href === "/active-supervisions",
+  );
   const filteredMainItems =
-    hasRole(session, "admin") && !isLoadingSupervision && adminOverviewEnabled
+    hasRole(session, "admin") &&
+    !isLoadingSupervision &&
+    adminOverviewEnabled &&
+    !alreadyHasSupervisionTab
       ? [
           ...baseMain.slice(0, 1),
           {
