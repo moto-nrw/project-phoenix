@@ -1,0 +1,279 @@
+package operator_test
+
+import (
+	"bytes"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/spf13/viper"
+
+	operatorAPI "github.com/moto-nrw/project-phoenix/api/operator"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
+)
+
+// operatorTestClaims returns JWT claims for a platform-scoped operator.
+// Operators have empty permissions — access is gated by RequiresOperatorScope
+// middleware at the route level, not by per-setting permission checks.
+func operatorTestClaims() jwt.AppClaims {
+	return jwt.AppClaims{
+		ID:          1,
+		Sub:         "operator@example.com",
+		Username:    "operator",
+		FirstName:   "Test",
+		LastName:    "Operator",
+		Scope:       "platform",
+		Permissions: []string{},
+	}
+}
+
+// operatorSettingsTestContext holds dependencies for operator settings tests.
+type operatorSettingsTestContext struct {
+	db       *bun.DB
+	resource *operatorAPI.SettingsResource
+	router   chi.Router
+}
+
+func setupOperatorSettingsTest(t *testing.T) *operatorSettingsTestContext {
+	t.Helper()
+
+	// Reset viper app_env to "test" — provisioning_internal_test.go sets it to
+	// "production" and doesn't clean up, which causes service factory creation
+	// to fail the HTTPS FRONTEND_URL check when tests run in the same binary.
+	prevEnv := viper.GetString("app_env")
+	viper.Set("app_env", "test")
+	t.Cleanup(func() { viper.Set("app_env", prevEnv) })
+
+	db, svc := testutil.SetupAPITest(t)
+	resource := operatorAPI.NewSettingsResource(svc.Settings, db)
+
+	// Operator routes do not use TenantTxMiddleware — handlers call
+	// tenant.WithTenantTx internally using the school ID from the URL path.
+	router := chi.NewRouter()
+	router.Get("/schools/{id}/settings/schema", resource.GetSchoolSettingsSchema)
+	router.Get("/schools/{id}/settings/values/{key}/reveal", resource.RevealSchoolSettingValue)
+	router.Put("/schools/{id}/settings/values/{key}", resource.SetSchoolSettingValue)
+	router.Delete("/schools/{id}/settings/values/{key}", resource.ResetSchoolSettingValue)
+
+	return &operatorSettingsTestContext{
+		db:       db,
+		resource: resource,
+		router:   router,
+	}
+}
+
+// newOperatorRequest builds a request with platform-scope operator claims.
+// Uses testutil.WithClaims for consistency (injects claims into context).
+func newOperatorRequest(t *testing.T, method, target string, body any) *http.Request {
+	t.Helper()
+	return testutil.NewAuthenticatedRequest(t, method, target, body, testutil.WithClaims(operatorTestClaims()))
+}
+
+// =============================================================================
+// GET /schools/{id}/settings/schema
+// =============================================================================
+
+func TestOperatorGetSchoolSettingsSchema_Success(t *testing.T) {
+	ctx := setupOperatorSettingsTest(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	req := newOperatorRequest(t, http.MethodGet, "/schools/1/settings/schema", nil)
+	rr := testutil.ExecuteRequest(ctx.router, req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data, ok := response["data"].(map[string]interface{})
+	require.True(t, ok, "response should contain data")
+
+	// Operators must see actual tabs — passing nil permissions would cause the
+	// schema builder to filter out every setting that has a ReadPermission,
+	// resulting in tabs: null. The handler uses a wildcard permission to bypass
+	// that filter so operators see all registered settings.
+	tabs, ok := data["tabs"].([]interface{})
+	require.True(t, ok, "schema.tabs should be a non-null array")
+	require.NotEmpty(t, tabs, "operators should see all registered settings tabs")
+
+	// Spot-check: every item should be marked writable for operators.
+	for _, tabRaw := range tabs {
+		tab, ok := tabRaw.(map[string]interface{})
+		require.True(t, ok)
+		categories, _ := tab["categories"].([]interface{})
+		for _, catRaw := range categories {
+			cat, ok := catRaw.(map[string]interface{})
+			require.True(t, ok)
+			items, _ := cat["items"].([]interface{})
+			for _, itemRaw := range items {
+				item, ok := itemRaw.(map[string]interface{})
+				require.True(t, ok)
+				assert.True(t, item["writable"].(bool),
+					"operator should have writable=true on all settings, got false for %v", item["key"])
+			}
+		}
+	}
+}
+
+func TestOperatorGetSchoolSettingsSchema_InvalidSchoolID(t *testing.T) {
+	ctx := setupOperatorSettingsTest(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	req := newOperatorRequest(t, http.MethodGet, "/schools/not-a-number/settings/schema", nil)
+	rr := testutil.ExecuteRequest(ctx.router, req)
+
+	testutil.AssertErrorResponse(t, rr, http.StatusBadRequest)
+}
+
+// =============================================================================
+// PUT /schools/{id}/settings/values/{key}
+// =============================================================================
+
+func TestOperatorSetSchoolSettingValue_Success(t *testing.T) {
+	ctx := setupOperatorSettingsTest(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	body := map[string]interface{}{"value": "18:30"}
+	req := newOperatorRequest(t, http.MethodPut, "/schools/1/settings/values/operations.session_end_time", body)
+
+	rr := testutil.ExecuteRequest(ctx.router, req)
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+}
+
+func TestOperatorSetSchoolSettingValue_BypassesPermissionCheck(t *testing.T) {
+	ctx := setupOperatorSettingsTest(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	// security.ogs_device_pin requires config:manage for tenant users.
+	// Operators have empty permissions but should still succeed because
+	// the handler passes nil to SetValue to bypass permission checks.
+	body := map[string]interface{}{"value": "1234"}
+	req := newOperatorRequest(t, http.MethodPut, "/schools/1/settings/values/security.ogs_device_pin", body)
+
+	rr := testutil.ExecuteRequest(ctx.router, req)
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+}
+
+func TestOperatorSetSchoolSettingValue_UnknownKey(t *testing.T) {
+	ctx := setupOperatorSettingsTest(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	body := map[string]interface{}{"value": "anything"}
+	req := newOperatorRequest(t, http.MethodPut, "/schools/1/settings/values/nonexistent.key", body)
+
+	rr := testutil.ExecuteRequest(ctx.router, req)
+	testutil.AssertErrorResponse(t, rr, http.StatusNotFound)
+}
+
+func TestOperatorSetSchoolSettingValue_InvalidValue(t *testing.T) {
+	ctx := setupOperatorSettingsTest(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	// session_end_enabled is a boolean — string value should fail validation.
+	body := map[string]interface{}{"value": "not-a-boolean"}
+	req := newOperatorRequest(t, http.MethodPut, "/schools/1/settings/values/operations.session_end_enabled", body)
+
+	rr := testutil.ExecuteRequest(ctx.router, req)
+	testutil.AssertErrorResponse(t, rr, http.StatusBadRequest)
+}
+
+func TestOperatorSetSchoolSettingValue_InvalidJSON(t *testing.T) {
+	ctx := setupOperatorSettingsTest(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	req := httptest.NewRequest(http.MethodPut, "/schools/1/settings/values/operations.session_end_time", bytes.NewReader([]byte("{not-json")))
+	req.Header.Set("Content-Type", "application/json")
+	// Apply operator claims option directly.
+	testutil.WithClaims(operatorTestClaims())(req)
+
+	rr := testutil.ExecuteRequest(ctx.router, req)
+	testutil.AssertErrorResponse(t, rr, http.StatusBadRequest)
+}
+
+func TestOperatorSetSchoolSettingValue_InvalidSchoolID(t *testing.T) {
+	ctx := setupOperatorSettingsTest(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	body := map[string]interface{}{"value": "18:30"}
+	req := newOperatorRequest(t, http.MethodPut, "/schools/abc/settings/values/operations.session_end_time", body)
+
+	rr := testutil.ExecuteRequest(ctx.router, req)
+	testutil.AssertErrorResponse(t, rr, http.StatusBadRequest)
+}
+
+// =============================================================================
+// DELETE /schools/{id}/settings/values/{key}
+// =============================================================================
+
+func TestOperatorResetSchoolSettingValue_Success(t *testing.T) {
+	ctx := setupOperatorSettingsTest(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	req := newOperatorRequest(t, http.MethodDelete, "/schools/1/settings/values/operations.session_end_time", nil)
+	rr := testutil.ExecuteRequest(ctx.router, req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusNoContent)
+}
+
+func TestOperatorResetSchoolSettingValue_UnknownKey(t *testing.T) {
+	ctx := setupOperatorSettingsTest(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	req := newOperatorRequest(t, http.MethodDelete, "/schools/1/settings/values/nonexistent.key", nil)
+	rr := testutil.ExecuteRequest(ctx.router, req)
+
+	testutil.AssertErrorResponse(t, rr, http.StatusNotFound)
+}
+
+func TestOperatorResetSchoolSettingValue_InvalidSchoolID(t *testing.T) {
+	ctx := setupOperatorSettingsTest(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	req := newOperatorRequest(t, http.MethodDelete, "/schools/xyz/settings/values/operations.session_end_time", nil)
+	rr := testutil.ExecuteRequest(ctx.router, req)
+
+	testutil.AssertErrorResponse(t, rr, http.StatusBadRequest)
+}
+
+// =============================================================================
+// GET /schools/{id}/settings/values/{key}/reveal
+// =============================================================================
+
+func TestOperatorRevealSchoolSettingValue_Success(t *testing.T) {
+	ctx := setupOperatorSettingsTest(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	req := newOperatorRequest(t, http.MethodGet, "/schools/1/settings/values/operations.session_end_time/reveal", nil)
+	rr := testutil.ExecuteRequest(ctx.router, req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data, ok := response["data"].(map[string]interface{})
+	require.True(t, ok, "response should contain data")
+	_, hasValue := data["value"]
+	assert.True(t, hasValue, "reveal response should include value field")
+}
+
+func TestOperatorRevealSchoolSettingValue_UnknownKey(t *testing.T) {
+	ctx := setupOperatorSettingsTest(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	req := newOperatorRequest(t, http.MethodGet, "/schools/1/settings/values/nonexistent.key/reveal", nil)
+	rr := testutil.ExecuteRequest(ctx.router, req)
+
+	testutil.AssertErrorResponse(t, rr, http.StatusNotFound)
+}
+
+func TestOperatorRevealSchoolSettingValue_InvalidSchoolID(t *testing.T) {
+	ctx := setupOperatorSettingsTest(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	req := newOperatorRequest(t, http.MethodGet, "/schools/bogus/settings/values/operations.session_end_time/reveal", nil)
+	rr := testutil.ExecuteRequest(ctx.router, req)
+
+	testutil.AssertErrorResponse(t, rr, http.StatusBadRequest)
+}

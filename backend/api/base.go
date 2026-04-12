@@ -348,6 +348,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		CaregiverCapabilityService: api.Services.CaregiverCapability,
 		SuggestionsService:         api.Services.OperatorSuggestions,
 		AnnouncementsService:       api.Services.Announcement,
+		SettingsService:            api.Services.Settings,
 		TokenAuth:                  nil, // Created internally by operator API
 		DB:                         db,
 	})

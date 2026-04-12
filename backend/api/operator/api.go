@@ -6,6 +6,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/uptrace/bun"
@@ -15,6 +16,7 @@ import (
 type Resource struct {
 	authResource            *AuthResource
 	provisioningResource    *ProvisioningResource
+	settingsResource        *SettingsResource
 	suggestionsResource     *SuggestionsResource
 	announcementsResource   *AnnouncementsResource
 	profileResource         *ProfileResource
@@ -33,6 +35,7 @@ type ResourceConfig struct {
 	CaregiverCapabilityService usersSvc.CaregiverCapabilityService
 	SuggestionsService         platformSvc.OperatorSuggestionsService
 	AnnouncementsService       platformSvc.AnnouncementService
+	SettingsService            configSvc.SettingsService
 	TokenAuth                  *jwt.TokenAuth
 	DB                         *bun.DB
 }
@@ -72,6 +75,9 @@ func NewResource(cfg ResourceConfig) *Resource {
 		profileResource:       NewProfileResource(cfg.AuthService),
 		invitationsResource:   NewInvitationsResource(cfg.InvitationService),
 		tokenAuth:             tokenAuth,
+	}
+	if cfg.SettingsService != nil {
+		resource.settingsResource = NewSettingsResource(cfg.SettingsService, cfg.DB)
 	}
 	resource.provisioningResource.CaregiverCapabilityService = cfg.CaregiverCapabilityService
 	resource.provisioningResource.db = cfg.DB
@@ -162,6 +168,14 @@ func (rs *Resource) Router() chi.Router {
 			})
 			r.Get("/{id}/devices", rs.provisioningResource.ListSchoolDevices)
 			r.Get("/{id}/persons", rs.provisioningResource.ListSchoolPersons)
+			if rs.settingsResource != nil {
+				r.Route("/{id}/settings", func(r chi.Router) {
+					r.Get("/schema", rs.settingsResource.GetSchoolSettingsSchema)
+					r.Get("/values/{key}/reveal", rs.settingsResource.RevealSchoolSettingValue)
+					r.Put("/values/{key}", rs.settingsResource.SetSchoolSettingValue)
+					r.Delete("/values/{key}", rs.settingsResource.ResetSchoolSettingValue)
+				})
+			}
 		})
 
 		r.Route("/persons", func(r chi.Router) {
