@@ -7,7 +7,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	configService "github.com/moto-nrw/project-phoenix/services/config"
 )
 
 // studentListParams holds all query parameters for student listing
@@ -25,8 +27,9 @@ type studentListParams struct {
 
 // studentAccessContext holds access control information for student listing
 type studentAccessContext struct {
-	isAdmin    bool
-	myGroupIDs map[int64]struct{}
+	isAdmin       bool
+	allStaffScope bool // true when gdpr.student_data_scope = all_staff
+	myGroupIDs    map[int64]struct{}
 }
 
 // parseStudentListParams extracts query parameters from the request
@@ -98,7 +101,9 @@ func (p *studentListParams) buildCountOptions() *base.QueryOptions {
 	return countOptions
 }
 
-// determineStudentAccess determines access level and group IDs for the current user
+// determineStudentAccess determines access level and group IDs for the current user.
+// Resolves the tenant-configurable student_data_scope once per request so that
+// per-student access checks remain cheap when iterating a list of students.
 func (rs *Resource) determineStudentAccess(r *http.Request) *studentAccessContext {
 	ctx := &studentAccessContext{
 		isAdmin: hasAdminPermissions(jwt.PermissionsFromCtx(r.Context())),
@@ -106,6 +111,18 @@ func (rs *Resource) determineStudentAccess(r *http.Request) *studentAccessContex
 
 	if !ctx.isAdmin {
 		if staff, err := rs.UserContextService.GetCurrentStaff(r.Context()); err == nil && staff != nil {
+			// Resolve student_data_scope once; this governs read-access for non-admin staff.
+			// Only apply the all_staff scope if the caller is a verified staff member —
+			// other roles (guest, guardian) with users:read must NOT get unredacted access.
+			scope := configService.ResolveStringOrDefault(
+				r.Context(),
+				rs.SettingsService,
+				configModel.KeyStudentDataScope,
+				configModel.StudentDataScopeGroupSupervisorsOnly,
+				rs.Logger,
+			)
+			ctx.allStaffScope = scope == configModel.StudentDataScopeAllStaff
+
 			if educationGroups, err := rs.UserContextService.GetMyGroups(r.Context()); err == nil {
 				ctx.myGroupIDs = make(map[int64]struct{}, len(educationGroups))
 				for _, eduGroup := range educationGroups {
@@ -118,9 +135,11 @@ func (rs *Resource) determineStudentAccess(r *http.Request) *studentAccessContex
 	return ctx
 }
 
-// hasFullAccessToStudent checks if user has full access to a specific student
+// hasFullAccessToStudent checks if user has full access to a specific student.
+// Returns true for admins, when the tenant-wide all_staff scope is enabled,
+// or when the user supervises the student's education group.
 func (ac *studentAccessContext) hasFullAccessToStudent(student *users.Student) bool {
-	if ac.isAdmin {
+	if ac.isAdmin || ac.allStaffScope {
 		return true
 	}
 	if student.GroupID != nil && ac.myGroupIDs != nil {

@@ -31,6 +31,7 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"gdpr.attendance_visible_days",
 		"gdpr.room_detail_visible_days",
 		"gdpr.attendance_log_scope",
+		"gdpr.student_data_scope",
 		"feedback.enabled",
 		"feedback.data_retention_days",
 		"security.ogs_device_pin",
@@ -88,6 +89,7 @@ func TestGDPRSettings_Types(t *testing.T) {
 		{"gdpr.attendance_visible_days", config.FieldNumber},
 		{"gdpr.room_detail_visible_days", config.FieldNumber},
 		{"gdpr.attendance_log_scope", config.FieldSelect},
+		{"gdpr.student_data_scope", config.FieldSelect},
 		{"feedback.enabled", config.FieldBoolean},
 		{"feedback.data_retention_days", config.FieldNumber},
 	}
@@ -193,6 +195,23 @@ func TestAttendanceLogScope_Options(t *testing.T) {
 	assert.Contains(t, values, config.AttendanceLogScopeAllStaff)
 }
 
+func TestStudentDataScope_Options(t *testing.T) {
+	def := config.GetDefinition("gdpr.student_data_scope")
+	require.NotNil(t, def)
+	assert.Equal(t, "gdpr", def.Tab)
+	assert.Equal(t, "schülerdaten", def.Category)
+	assert.Equal(t, config.FieldSelect, def.Type)
+	assert.Equal(t, config.StudentDataScopeGroupSupervisorsOnly, def.Default)
+	assert.Equal(t, "config:manage", def.WritePermission)
+	assert.Nil(t, def.DependsOn, "student_data_scope should stand alone, no DependsOn")
+
+	require.NotNil(t, def.Options)
+	require.Len(t, def.Options.Static, 2)
+	values := []any{def.Options.Static[0].Value, def.Options.Static[1].Value}
+	assert.Contains(t, values, config.StudentDataScopeGroupSupervisorsOnly)
+	assert.Contains(t, values, config.StudentDataScopeAllStaff)
+}
+
 func TestDevicesSettings(t *testing.T) {
 	keys := []string{
 		"checkout.raumwechsel_enabled",
@@ -266,6 +285,7 @@ func TestDefaults_HaveReasonableValues(t *testing.T) {
 		{"gdpr.attendance_visible_days", 30},
 		{"gdpr.room_detail_visible_days", 7},
 		{"gdpr.attendance_log_scope", config.AttendanceLogScopeGroupSupervisorsOnly},
+		{"gdpr.student_data_scope", config.StudentDataScopeGroupSupervisorsOnly},
 		{"feedback.enabled", false},
 		{"feedback.data_retention_days", 90},
 		{"security.ogs_device_pin", "1234"},

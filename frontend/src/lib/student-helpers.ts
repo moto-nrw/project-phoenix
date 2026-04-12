@@ -56,6 +56,7 @@ export interface BackendStudent {
   health_info?: string;
   supervisor_notes?: string;
   pickup_status?: string;
+  has_full_access?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -73,6 +74,7 @@ export interface SupervisorContact {
 // Detailed student response with access control
 export interface BackendStudentDetail extends BackendStudent {
   has_full_access: boolean;
+  has_write_access: boolean;
   group_supervisors?: SupervisorContact[];
   attendance_log_enabled: boolean;
 }
@@ -145,6 +147,7 @@ export interface Student {
   data_retention_days?: number;
   // Additional fields for access control
   has_full_access?: boolean;
+  has_write_access?: boolean;
   group_supervisors?: SupervisorContact[];
   // Feature flag: tenant has attendance log enabled
   attendance_log_enabled?: boolean;
@@ -197,6 +200,7 @@ export function mapStudentResponse(
     health_info: backendStudent.health_info,
     supervisor_notes: backendStudent.supervisor_notes,
     pickup_status: backendStudent.pickup_status,
+    has_full_access: backendStudent.has_full_access,
   };
 
   // Add scheduled checkout info if present
@@ -233,6 +237,7 @@ export function mapStudentDetailResponse(
 
   // Then add the additional fields
   student.has_full_access = backendStudent.has_full_access;
+  student.has_write_access = backendStudent.has_write_access;
   student.group_supervisors = backendStudent.group_supervisors;
   student.attendance_log_enabled = backendStudent.attendance_log_enabled;
 

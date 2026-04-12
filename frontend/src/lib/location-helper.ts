@@ -22,6 +22,7 @@ export interface StudentLocationContext {
   group_name?: string | null;
   sick?: boolean;
   sick_since?: string | null;
+  has_full_access?: boolean;
 }
 
 export const LOCATION_STATUSES = {
@@ -257,7 +258,12 @@ export function canSeeDetailedLocation(
   userGroups?: string[],
   _supervisedRooms?: string[],
 ): boolean {
-  // Check if student is in user's OGS group (ONLY way to get detailed location)
+  // Backend grants full read access via student_data_scope setting
+  if (student.has_full_access) {
+    return true;
+  }
+
+  // Check if student is in user's OGS group
   if (
     student.group_id &&
     Array.isArray(userGroups) &&
@@ -267,7 +273,6 @@ export function canSeeDetailedLocation(
     return true;
   }
 
-  // Supervisors do NOT get detailed location for students outside their OGS groups
   return false;
 }
 

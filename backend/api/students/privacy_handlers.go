@@ -23,7 +23,7 @@ func (rs *Resource) getStudentPrivacyConsent(w http.ResponseWriter, r *http.Requ
 	}
 
 	// Check if user has permission to view this student's data
-	hasFullAccess := rs.checkStudentFullAccess(r, student)
+	hasFullAccess := rs.checkStudentReadAccess(r, student)
 	if !hasFullAccess {
 		renderError(w, r, ErrorForbidden(errors.New("insufficient permissions to access this student's data")))
 		return

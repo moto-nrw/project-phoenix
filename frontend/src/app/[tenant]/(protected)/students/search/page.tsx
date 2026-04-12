@@ -474,7 +474,8 @@ function SearchPageContent() {
                     </>
                   }
                   trackingIndicators={
-                    trackingData?.labels?.length ? (
+                    trackingData?.labels?.length &&
+                    student.has_full_access !== false ? (
                       <TrackingIndicators
                         labels={trackingData.labels}
                         results={trackingData.results[student.id] ?? []}
