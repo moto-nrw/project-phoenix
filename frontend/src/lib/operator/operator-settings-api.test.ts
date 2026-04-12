@@ -77,6 +77,14 @@ describe("operator-settings-api", () => {
         "network down",
       );
     });
+
+    it("rethrows on non-Error rejection (e.g. string)", async () => {
+      mockOperatorFetch.mockRejectedValue("raw-string-error");
+
+      await expect(fetchOperatorSettingsSchema(SCHOOL_ID)).rejects.toBe(
+        "raw-string-error",
+      );
+    });
   });
 
   describe("setOperatorSettingValue", () => {
@@ -165,6 +173,18 @@ describe("operator-settings-api", () => {
       expect(err).toBe("Ungültiger Wert.");
     });
 
+    it("returns generic 'Ungültiger Wert' for 400 with no colon separator", async () => {
+      // Tests the translateValidationError fallback path where the backend
+      // error string has no ": " separator and the whole message is used as
+      // the reason.
+      mockOperatorFetch.mockRejectedValue(
+        new OperatorApiError("malformed-400-no-colon", 400),
+      );
+
+      const err = await setOperatorSettingValue(SCHOOL_ID, "foo.bar", "x");
+      expect(err).toBe("Ungültiger Wert.");
+    });
+
     it("returns generic save error on 500", async () => {
       mockOperatorFetch.mockRejectedValue(new OperatorApiError("boom", 500));
 
@@ -174,6 +194,13 @@ describe("operator-settings-api", () => {
 
     it("returns network-error message for non-OperatorApiError", async () => {
       mockOperatorFetch.mockRejectedValue(new Error("fetch failed"));
+
+      const err = await setOperatorSettingValue(SCHOOL_ID, "foo.bar", "x");
+      expect(err).toBe("Netzwerkfehler beim Speichern der Einstellung.");
+    });
+
+    it("returns network-error message for non-Error thrown value (e.g. string)", async () => {
+      mockOperatorFetch.mockRejectedValue("raw-string-error");
 
       const err = await setOperatorSettingValue(SCHOOL_ID, "foo.bar", "x");
       expect(err).toBe("Netzwerkfehler beim Speichern der Einstellung.");
@@ -201,6 +228,13 @@ describe("operator-settings-api", () => {
 
     it("returns error message for non-OperatorApiError", async () => {
       mockOperatorFetch.mockRejectedValue(new Error("network down"));
+
+      const err = await resetOperatorSettingValue(SCHOOL_ID, "foo.bar");
+      expect(err).toBe("Einstellung konnte nicht zurückgesetzt werden.");
+    });
+
+    it("returns error message for non-Error thrown value", async () => {
+      mockOperatorFetch.mockRejectedValue("raw-string-error");
 
       const err = await resetOperatorSettingValue(SCHOOL_ID, "foo.bar");
       expect(err).toBe("Einstellung konnte nicht zurückgesetzt werden.");
@@ -233,6 +267,13 @@ describe("operator-settings-api", () => {
       mockOperatorFetch.mockRejectedValue(
         new OperatorApiError("not found", 404),
       );
+
+      const result = await revealOperatorSettingValue(SCHOOL_ID, "foo.bar");
+      expect(result).toBeNull();
+    });
+
+    it("returns null when fetch throws non-Error value", async () => {
+      mockOperatorFetch.mockRejectedValue("raw-string-error");
 
       const result = await revealOperatorSettingValue(SCHOOL_ID, "foo.bar");
       expect(result).toBeNull();
