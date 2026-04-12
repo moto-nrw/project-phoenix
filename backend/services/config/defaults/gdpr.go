@@ -5,6 +5,8 @@ import (
 )
 
 func init() {
+	// --- Data cleanup (system tab — automated background process) ---
+
 	config.Register(config.Definition{
 		Key:             config.KeyDataCleanupEnabled,
 		Label:           "Automatische Datenbereinigung",
@@ -13,9 +15,9 @@ func init() {
 		Default:         true,
 		ReadPermission:  "config:read",
 		WritePermission: "config:manage",
-		Tab:             "gdpr",
-		Category:        "cleanup",
-		SortOrder:       1,
+		Tab:             "system",
+		Category:        "datenbereinigung",
+		SortOrder:       20,
 	})
 
 	config.Register(config.Definition{
@@ -26,9 +28,9 @@ func init() {
 		Default:         "02:00",
 		ReadPermission:  "config:read",
 		WritePermission: "config:manage",
-		Tab:             "gdpr",
-		Category:        "cleanup",
-		SortOrder:       2,
+		Tab:             "system",
+		Category:        "datenbereinigung",
+		SortOrder:       21,
 		DependsOn: &config.Dependency{
 			Key:       config.KeyDataCleanupEnabled,
 			Condition: "eq",
@@ -46,9 +48,9 @@ func init() {
 		Default:         30,
 		ReadPermission:  "config:read",
 		WritePermission: "config:manage",
-		Tab:             "gdpr",
-		Category:        "cleanup",
-		SortOrder:       3,
+		Tab:             "system",
+		Category:        "datenbereinigung",
+		SortOrder:       22,
 		Validation:      &config.ValidationRules{Min: &minTimeout, Max: &maxTimeout},
 		DependsOn: &config.Dependency{
 			Key:       config.KeyDataCleanupEnabled,
