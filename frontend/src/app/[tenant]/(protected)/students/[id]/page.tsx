@@ -145,9 +145,9 @@ export default function StudentDetailPage() {
     void loadActiveGroups();
   }, [showConfirmCheckin]);
 
-  // Load today's pickup time for header
+  // Load today's pickup time for header (requires read access to student data)
   useEffect(() => {
-    if (!studentId) {
+    if (!hasFullAccess || !studentId) {
       setTodayPickup({});
       return;
     }
@@ -181,7 +181,7 @@ export default function StudentDetailPage() {
     };
 
     void loadTodayPickup();
-  }, [studentId, student?.sick]);
+  }, [hasFullAccess, studentId, student?.sick]);
 
   // Show loading state
   if (loading) {
@@ -548,12 +548,6 @@ function LimitedAccessView({
       )}
 
       <SupervisorsCard supervisors={supervisors} studentName={student.name} />
-
-      <PickupScheduleManager
-        studentId={student.id}
-        readOnly={true}
-        isSick={student.sick}
-      />
 
       <PersonalInfoReadOnly student={student} />
 
