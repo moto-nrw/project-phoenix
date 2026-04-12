@@ -288,12 +288,10 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   // Admins with supervision overview: inject "Aufsicht" tab dynamically.
   // Gate on adminOverviewEnabled (confirmed via /supervisors/all 200) rather
   // than just isSupervising so a synthetic Schulhof entry does not surface
-  // the admin tab when the setting is off.
+  // the admin tab when the setting is off. Dual-role teacher-admins see the
+  // tab too — the tenant setting is the explicit opt-in signal.
   const filteredMainItems =
-    hasRole(session, "admin") &&
-    !isCaregiver(session) &&
-    !isLoadingSupervision &&
-    adminOverviewEnabled
+    hasRole(session, "admin") && !isLoadingSupervision && adminOverviewEnabled
       ? [
           ...baseMain.slice(0, 1),
           {

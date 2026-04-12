@@ -5,7 +5,7 @@ import type { NextRequest } from "next/server";
 import { apiGet } from "~/lib/api-helpers";
 import { createGetHandler } from "~/lib/route-wrapper";
 import { auth } from "~/server/auth";
-import { isAdmin, isCaregiver } from "~/lib/auth-utils";
+import { isAdmin } from "~/lib/auth-utils";
 
 // Backend response types for supervised/active groups
 interface BackendActiveGroup {
@@ -169,12 +169,12 @@ interface ActiveSupervisionDashboardResponse {
 export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
   async (_request: NextRequest, token: string) => {
     // Resolve the caller's role once so we can pick the right supervised-groups
-    // endpoint. Admin-only users go through /supervisors/all (admin overview);
-    // caregivers and dual-role users use /me/groups/supervised (own scope).
-    // Routing by role avoids an unnecessary 403 + fallback round-trip on every
-    // caregiver dashboard load.
+    // endpoint. Admins (including dual-role teacher-admins) go through
+    // /supervisors/all first; non-admins skip that call entirely and use
+    // /me/groups/supervised. Routing by role avoids an unnecessary 403 +
+    // fallback round-trip on every non-admin dashboard load.
     const session = await auth();
-    const shouldUseAdminEndpoint = isAdmin(session) && !isCaregiver(session);
+    const shouldUseAdminEndpoint = isAdmin(session);
 
     // Step 1: Fetch all initial data in parallel (including Schulhof status)
     const [

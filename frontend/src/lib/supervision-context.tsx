@@ -9,7 +9,7 @@ import React, {
   useMemo,
 } from "react";
 import { useSession } from "next-auth/react";
-import { isAdmin, isCaregiver } from "~/lib/auth-utils";
+import { isAdmin } from "~/lib/auth-utils";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "SupervisionContext" });
@@ -100,16 +100,14 @@ export function SupervisionProvider({
   const lastRefreshRef = React.useRef<number>(0);
 
   // Store token and admin status in refs to avoid dependency loops.
-  // `isAdminOnlyRef` identifies users that should go through the admin-overview
-  // endpoint — admins that do NOT also hold the caregiver role. Dual-role
-  // users (admin + teacher) keep their caregiver view to avoid suddenly
-  // seeing every room instead of their own.
+  // Any admin (including dual-role teacher-admins) tries the admin-overview
+  // endpoint first. The server-side setting is the single source of truth for
+  // whether all rooms are visible; users without opt-in fall back to their
+  // own scope via the staff endpoint.
   const tokenRef = React.useRef<string | undefined>(session?.user?.token);
   tokenRef.current = session?.user?.token;
-  const isAdminOnlyRef = React.useRef<boolean>(
-    isAdmin(session) && !isCaregiver(session),
-  );
-  isAdminOnlyRef.current = isAdmin(session) && !isCaregiver(session);
+  const isAdminRef = React.useRef<boolean>(isAdmin(session));
+  isAdminRef.current = isAdmin(session);
 
   // Use a ref for the refresh function to break dependency cycles
   const refreshRef = React.useRef<
@@ -226,15 +224,13 @@ export function SupervisionProvider({
     let adminOverviewOk = false;
 
     try {
-      // Admin-only users: try the admin overview endpoint first. On any
-      // non-OK response (403 = setting disabled; 5xx/network = transient),
-      // fall back to the regular staff endpoint so the user at least keeps
-      // their own supervisions instead of an empty sidebar.
-      // Dual-role users (admin + caregiver) stay on the caregiver path to
-      // preserve "see only my rooms" behaviour.
+      // Admins: try the admin overview endpoint first. On any non-OK
+      // response (403 = setting disabled; 5xx/network = transient), fall
+      // back to the regular staff endpoint so the user at least keeps their
+      // own supervisions instead of an empty sidebar.
       // Regular staff: fetch own supervised groups directly.
       const fetchSupervisedGroups = async (): Promise<Response> => {
-        if (!isAdminOnlyRef.current) {
+        if (!isAdminRef.current) {
           return fetch("/api/me/groups/supervised", {
             headers: { "Content-Type": "application/json" },
             cache: "no-store",
