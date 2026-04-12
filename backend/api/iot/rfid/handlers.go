@@ -158,7 +158,7 @@ func (rs *Resource) getStaffAndPerson(w http.ResponseWriter, r *http.Request, st
 	// Get person details for the staff member
 	person, err := rs.UsersService.Get(r.Context(), staff.PersonID)
 	if err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to get person data for staff")))
+		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
 		return nil, nil, false
 	}
 

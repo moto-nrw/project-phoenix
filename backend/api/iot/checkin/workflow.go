@@ -229,8 +229,7 @@ func (rs *Resource) handleSupervisorScan(w http.ResponseWriter, r *http.Request,
 			slog.Int64("session_id", session.ID),
 			slog.String("error", err.Error()),
 		)
-		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(
-			errors.New("failed to load session supervisors")))
+		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
 		return
 	}
 
@@ -255,8 +254,7 @@ func (rs *Resource) handleSupervisorScan(w http.ResponseWriter, r *http.Request,
 				slog.Int64("session_id", session.ID),
 				slog.String("error", err.Error()),
 			)
-			iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(
-				errors.New("failed to update session supervisors")))
+			iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
 			return
 		}
 		rs.getLogger().InfoContext(ctx, "added staff as supervisor to session",

@@ -198,7 +198,7 @@ func (rs *Resource) parseAndGetStudent(w http.ResponseWriter, r *http.Request) (
 func (rs *Resource) getPersonForStudent(w http.ResponseWriter, r *http.Request, student *users.Student) (*users.Person, bool) {
 	person, err := rs.PersonService.Get(r.Context(), student.PersonID)
 	if err != nil {
-		renderError(w, r, ErrorInternalServer(errors.New("failed to get person data for student")))
+		renderError(w, r, ErrorInternalServer(err))
 		return nil, false
 	}
 	return person, true
