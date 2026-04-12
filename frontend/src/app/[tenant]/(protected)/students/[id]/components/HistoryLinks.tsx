@@ -12,16 +12,22 @@ interface HistoryLinksProps {
    * `gdpr.attendance_log_enabled` setting.
    */
   readonly attendanceLogEnabled: boolean;
+  /**
+   * When true, the Feedbackhistorie button is active and navigates to the
+   * feedback history page. Should mirror the tenant's `feedback.enabled` setting.
+   */
+  readonly feedbackEnabled: boolean;
 }
 
 /**
  * History links section. The Raumverlauf button is gated by the tenant's
- * GDPR setting; feedback and mensa history are future features and remain
- * disabled as visual placeholders.
+ * GDPR setting; the Feedbackhistorie button is gated by the tenant's
+ * feedback.enabled setting; mensa history remains a disabled placeholder.
  */
 export function HistoryLinks({
   studentId,
   attendanceLogEnabled,
+  feedbackEnabled,
 }: HistoryLinksProps) {
   const router = useTenantRouter();
 
@@ -48,8 +54,17 @@ export function HistoryLinks({
           icon={<ChatIcon />}
           iconBgColor="bg-[#83CD2D]"
           title="Feedbackhistorie"
-          subtitle="Feedback und Bewertungen"
-          disabled
+          subtitle={
+            feedbackEnabled
+              ? "Feedback und Bewertungen"
+              : "Für Ihre Schule deaktiviert"
+          }
+          disabled={!feedbackEnabled}
+          onClick={
+            feedbackEnabled
+              ? () => router.push(`/students/${studentId}/feedback_history`)
+              : undefined
+          }
         />
         <HistoryLinkButton
           icon={<ForkKnifeIcon />}

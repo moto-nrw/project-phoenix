@@ -577,18 +577,20 @@ function HistoryButton({
 interface StudentHistorySectionProps {
   studentId: string;
   attendanceLogEnabled: boolean;
+  feedbackEnabled: boolean;
   onNavigate: (path: string) => void;
 }
 
 /**
  * History section on the student detail page. The Anwesenheitsprotokoll button
- * is gated by the tenant's `gdpr.attendance_log_enabled` setting. Scope checks
- * (group supervisor) are handled by the destination page. Mensa history remains
- * a disabled placeholder (future feature).
+ * is gated by the tenant's `gdpr.attendance_log_enabled` setting. The
+ * Feedbackhistorie button is gated by the tenant's `feedback.enabled` setting.
+ * Mensa history remains a disabled placeholder (future feature).
  */
 export function StudentHistorySection({
   studentId,
   attendanceLogEnabled,
+  feedbackEnabled,
   onNavigate,
 }: Readonly<StudentHistorySectionProps>) {
   return (
@@ -613,9 +615,18 @@ export function StudentHistorySection({
         <HistoryButton
           icon={<ChatIcon />}
           title="Feedbackhistorie"
-          description="Feedback und Bewertungen"
+          description={
+            feedbackEnabled
+              ? "Feedback und Bewertungen"
+              : "Für Ihre Schule deaktiviert"
+          }
           bgColor="bg-[#83CD2D]"
-          onClick={() => onNavigate(`/students/${studentId}/feedback_history`)}
+          disabled={!feedbackEnabled}
+          onClick={
+            feedbackEnabled
+              ? () => onNavigate(`/students/${studentId}/feedback_history`)
+              : undefined
+          }
         />
         <HistoryButton
           icon={<ForkKnifeIcon />}

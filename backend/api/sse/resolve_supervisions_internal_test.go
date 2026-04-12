@@ -88,6 +88,10 @@ func (m *mockActiveSvcForSSE) GetStaffActiveSupervisions(ctx context.Context, st
 	return []*activeModel.GroupSupervisor{}, nil
 }
 
+func (m *mockActiveSvcForSSE) GetTrackingIndicators(_ context.Context, _ []int64, _ []string) (map[int64][]bool, error) {
+	return map[int64][]bool{}, nil
+}
+
 // Stubs for the rest of active.Service (never called by resolveSupervisions)
 func (m *mockActiveSvcForSSE) GetActiveGroup(_ context.Context, _ int64) (*activeModel.Group, error) {
 	return nil, nil

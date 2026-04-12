@@ -48,7 +48,6 @@ func floor(f int) *int { return &f }
 //
 //	Hauptgebäude: EG (Mensa, Aula, OGS-1), 1.OG (OGS-2, OGS-3, Kreativ, Musik), 2.OG (Werk, Lese)
 //	Sporthalle: EG (Sporthalle, Bewegungsraum)
-//	Außenbereich: Schulhof (no floor)
 var DemoRooms = []DemoRoom{
 	// Hauptgebäude - Erdgeschoss (Ground Floor)
 	{Name: "OGS-Raum 1", Category: "Gruppenraum", Capacity: 25, Building: "Hauptgebäude", Floor: floor(0)},
@@ -65,8 +64,7 @@ var DemoRooms = []DemoRoom{
 	// Sporthalle - Separate Building
 	{Name: "Sporthalle", Category: "Sport", Capacity: 40, Building: "Sporthalle", Floor: floor(0)},
 	{Name: "Bewegungsraum", Category: "Sport", Capacity: 15, Building: "Sporthalle", Floor: floor(0)},
-	// Außenbereich - Outdoor (no floor)
-	{Name: "Schulhof", Category: "Normaler Raum", Capacity: 100, Building: "Außenbereich", Floor: nil},
+	// Note: Schulhof is auto-created as a system room by schulhof_service
 }
 
 // DemoStaff defines staff members for the demo environment
@@ -229,12 +227,10 @@ var DemoActivities = []DemoActivity{
 	{Name: "Fußball", DefaultRoom: "Sporthalle", DurationMins: 90},
 	{Name: "Basteln", DefaultRoom: "Kreativraum", DurationMins: 75},
 	{Name: "Kochen", DefaultRoom: "Mensa", DurationMins: 120},
-	{Name: "Lesen", DefaultRoom: "Leseecke", DurationMins: 45},
-	{Name: "Musik", DefaultRoom: "Musikraum", DurationMins: 60},
-	{Name: "Tanzen", DefaultRoom: "Bewegungsraum", DurationMins: 60},
+	{Name: "Lesen", DefaultRoom: "OGS-Raum 2", DurationMins: 45},
+	{Name: "Musik", DefaultRoom: "OGS-Raum 1", DurationMins: 60},
+	{Name: "Tanzen", DefaultRoom: "Sporthalle", DurationMins: 60},
 	{Name: "Schach", DefaultRoom: "OGS-Raum 2", DurationMins: 45},
-	{Name: "Garten", DefaultRoom: "Schulhof", DurationMins: 90},
-	{Name: "Freispiel", DefaultRoom: "OGS-Raum 3", DurationMins: 60},
 }
 
 // DemoDevices defines IoT devices for check-in/check-out
@@ -247,7 +243,7 @@ var DemoDevices = []DemoDevice{
 	{DeviceID: "demo-device-005", Name: "Sporthalle Scanner"},
 	{DeviceID: "demo-device-006", Name: "Kreativraum Scanner"},
 	{DeviceID: "demo-device-007", Name: "Mensa Scanner"},
-	{DeviceID: "demo-device-008", Name: "Schulhof Scanner"},
+	{DeviceID: "demo-device-008", Name: "Aula Scanner"},
 	{DeviceID: "demo-device-009", Name: "Musikraum Scanner"},
 	{DeviceID: "demo-device-010", Name: "Bewegungsraum Scanner"},
 }

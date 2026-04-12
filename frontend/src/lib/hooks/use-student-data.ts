@@ -33,6 +33,7 @@ interface StudentDataState {
   error: string | null;
   hasFullAccess: boolean;
   attendanceLogEnabled: boolean;
+  feedbackEnabled: boolean;
   supervisors: SupervisorContact[];
   myGroups: string[];
   myGroupRooms: string[];
@@ -103,6 +104,7 @@ interface StudentDetailResponse {
   student: ExtendedStudent;
   hasFullAccess: boolean;
   attendanceLogEnabled: boolean;
+  feedbackEnabled: boolean;
   supervisors: SupervisorContact[];
   myGroups: string[];
   myGroupRooms: string[];
@@ -153,11 +155,13 @@ export function useStudentData(studentId: string): UseStudentDataResult {
         has_full_access?: boolean;
         group_supervisors?: SupervisorContact[];
         attendance_log_enabled?: boolean;
+        feedback_enabled?: boolean;
       };
 
       const hasAccess = mappedStudent.has_full_access ?? false;
       const attendanceLogEnabled =
         mappedStudent.attendance_log_enabled ?? false;
+      const feedbackEnabled = mappedStudent.feedback_enabled ?? false;
       const groupSupervisors = mappedStudent.group_supervisors ?? [];
       const extendedStudent = mapStudentResponse(studentResponse, hasAccess);
 
@@ -169,6 +173,7 @@ export function useStudentData(studentId: string): UseStudentDataResult {
         student: extendedStudent,
         hasFullAccess: hasAccess,
         attendanceLogEnabled,
+        feedbackEnabled,
         supervisors: groupSupervisors,
         myGroups: groupIds,
         myGroupRooms: ogsGroupRoomNames,
@@ -205,6 +210,7 @@ export function useStudentData(studentId: string): UseStudentDataResult {
     error,
     hasFullAccess: studentData?.hasFullAccess ?? true,
     attendanceLogEnabled: studentData?.attendanceLogEnabled ?? false,
+    feedbackEnabled: studentData?.feedbackEnabled ?? false,
     supervisors: studentData?.supervisors ?? [],
     myGroups: studentData?.myGroups ?? [],
     myGroupRooms: studentData?.myGroupRooms ?? [],

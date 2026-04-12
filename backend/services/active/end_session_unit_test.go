@@ -147,6 +147,7 @@ type mockVisitRepository struct {
 	getCurrentByStudentIDWithRoomFunc func(ctx context.Context, studentID int64) (*active.Visit, error)
 	countActiveByRoomIDFunc           func(ctx context.Context, roomID int64) (int, error)
 	countActiveByGroupIDFunc          func(ctx context.Context, activeGroupID int64) (int, error)
+	getTodayVisitNamesFunc            func(ctx context.Context, studentIDs []int64) ([]active.VisitGroupNames, error)
 }
 
 func (m *mockVisitRepository) Create(ctx context.Context, entity *active.Visit) error {
@@ -257,6 +258,13 @@ func (m *mockVisitRepository) EndVisitsByActiveGroupIDs(ctx context.Context, act
 
 func (m *mockVisitRepository) CountActiveByStudentID(ctx context.Context, studentID int64) (int, error) {
 	return 0, nil
+}
+
+func (m *mockVisitRepository) GetTodayVisitNamesForStudents(ctx context.Context, studentIDs []int64) ([]active.VisitGroupNames, error) {
+	if m.getTodayVisitNamesFunc != nil {
+		return m.getTodayVisitNamesFunc(ctx, studentIDs)
+	}
+	return nil, nil
 }
 
 // mockGroupSupervisorRepository is a minimal mock implementation of active.GroupSupervisorRepository

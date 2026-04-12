@@ -46,7 +46,7 @@ func (rs *Resource) getDeviceConfig(w http.ResponseWriter, r *http.Request) {
 	raumwechsel := true
 	schulhof := true
 	wc := true
-	feedbackEnabled := true
+	feedbackEnabled := false
 
 	if rs.SettingsService != nil {
 		if val, err := rs.SettingsService.ResolveBool(r.Context(), configModel.KeyCheckoutRaumwechselEnabled); err == nil {

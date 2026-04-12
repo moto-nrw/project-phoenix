@@ -170,6 +170,9 @@ func (rs *Resource) Router() chi.Router {
 			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/dashboard", rs.getDashboardAnalytics)
 		})
 
+		// Tracking indicators (bulk check if students visited configured rooms/activities today)
+		r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Post("/tracking-indicators", rs.getTrackingIndicators)
+
 		// Cross-tenant students (Ferienbetreuung / holiday care)
 		r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/cross-tenant-students", rs.getCrossTenantStudents)
 

@@ -396,6 +396,7 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 	hasFullAccess := rs.checkStudentFullAccess(r, student)
 
 	attendanceLogEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyAttendanceLogEnabled, false, rs.Logger)
+	feedbackEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyFeedbackEnabled, false, rs.Logger)
 
 	response := StudentDetailResponse{
 		StudentResponse: newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
@@ -409,6 +410,7 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 		}),
 		HasFullAccess:        hasFullAccess,
 		AttendanceLogEnabled: attendanceLogEnabled,
+		FeedbackEnabled:      feedbackEnabled,
 	}
 
 	// Add supervisor contacts for users without full access

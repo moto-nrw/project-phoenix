@@ -1150,6 +1150,9 @@ func (m *mockActiveService) ClaimActiveGroup(_ context.Context, _, _ int64, _ st
 func (m *mockActiveService) GetCrossTenantStudents(_ context.Context, _ int64) ([]active.CrossTenantStudent, error) {
 	return nil, nil
 }
+func (m *mockActiveService) GetTrackingIndicators(_ context.Context, _ []int64, _ []string) (map[int64][]bool, error) {
+	return nil, nil
+}
 
 // =============================================================================
 // Mock Cleanup Service for Execute Tests
@@ -1167,6 +1170,7 @@ type mockCleanupService struct {
 	previewCalls           int
 	previewErr             error
 	attendanceCalls        int
+	attendanceResult       *activeService.AttendanceCleanupResult
 	attendanceErr          error
 	attendancePreviewCalls int
 	attendancePreviewErr   error
@@ -1204,7 +1208,7 @@ func (m *mockCleanupService) CleanupStaleAttendance(_ context.Context) (*activeS
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.attendanceCalls++
-	return nil, m.attendanceErr
+	return m.attendanceResult, m.attendanceErr
 }
 
 func (m *mockCleanupService) PreviewAttendanceCleanup(_ context.Context) (*activeService.AttendanceCleanupPreview, error) {
@@ -2358,6 +2362,78 @@ func TestExecuteCleanupForTenant_ReturnsTrueOnSuccess(t *testing.T) {
 	s := &Scheduler{
 		cleanupService: &mockCleanupService{
 			cleanupResult: &activeService.CleanupResult{},
+		},
+		logger: slog.Default(),
+	}
+	result := s.executeCleanupForTenant(context.Background(), 1)
+	assert.True(t, result)
+}
+
+func TestExecuteCleanupForTenant_AttendanceError(t *testing.T) {
+	s := &Scheduler{
+		cleanupService: &mockCleanupService{
+			cleanupResult: &activeService.CleanupResult{},
+			attendanceErr: errors.New("attendance db error"),
+		},
+		logger: slog.Default(),
+	}
+	result := s.executeCleanupForTenant(context.Background(), 1)
+	// Returns true because primary cleanup (expired visits) succeeded
+	assert.True(t, result)
+}
+
+func TestExecuteCleanupForTenant_AttendancePartialFailure(t *testing.T) {
+	s := &Scheduler{
+		cleanupService: &mockCleanupService{
+			cleanupResult: &activeService.CleanupResult{},
+			attendanceResult: &activeService.AttendanceCleanupResult{
+				Success:       false,
+				RecordsClosed: 3,
+				Errors:        []string{"record 1 failed", "record 2 failed"},
+			},
+		},
+		logger: slog.Default(),
+	}
+	result := s.executeCleanupForTenant(context.Background(), 1)
+	assert.True(t, result)
+}
+
+func TestExecuteCleanupForTenant_AttendanceSuccess(t *testing.T) {
+	s := &Scheduler{
+		cleanupService: &mockCleanupService{
+			cleanupResult: &activeService.CleanupResult{},
+			attendanceResult: &activeService.AttendanceCleanupResult{
+				Success:          true,
+				RecordsClosed:    5,
+				StudentsAffected: 3,
+			},
+		},
+		logger: slog.Default(),
+	}
+	result := s.executeCleanupForTenant(context.Background(), 1)
+	assert.True(t, result)
+}
+
+func TestExecuteCleanupForTenant_AttendanceNoRecords(t *testing.T) {
+	s := &Scheduler{
+		cleanupService: &mockCleanupService{
+			cleanupResult: &activeService.CleanupResult{},
+			attendanceResult: &activeService.AttendanceCleanupResult{
+				Success:       true,
+				RecordsClosed: 0,
+			},
+		},
+		logger: slog.Default(),
+	}
+	result := s.executeCleanupForTenant(context.Background(), 1)
+	assert.True(t, result)
+}
+
+func TestExecuteCleanupForTenant_AttendanceNilResult(t *testing.T) {
+	s := &Scheduler{
+		cleanupService: &mockCleanupService{
+			cleanupResult:    &activeService.CleanupResult{},
+			attendanceResult: nil,
 		},
 		logger: slog.Default(),
 	}

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"os"
@@ -44,6 +45,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/services"
 )
 
@@ -292,11 +294,28 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Import = importAPI.NewResource(api.Services.Import, repoFactory.DataImport, api.Services.Users, db)
 	api.Activities = activitiesAPI.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users, api.Services.UserContext, db)
 	api.Staff = staffAPI.NewResource(api.Services.Users, api.Services.Education, api.Services.Auth, repoFactory.GroupSupervisor, api.Services.WorkSession, repoFactory.StaffAbsence, db, logger.With("handler", "staff"))
-	api.Feedback = feedbackAPI.NewResource(api.Services.Feedback, db)
+	api.Feedback = feedbackAPI.NewResource(api.Services.Feedback, api.Services.Settings, db)
 	api.Suggestions = suggestionsAPI.NewResource(api.Services.Suggestions, db)
 	api.Schedules = schedulesAPI.NewResource(api.Services.Schedule, db)
 	api.Config = configAPI.NewResource(api.Services.Config, api.Services.ActiveCleanup, db)
 	api.Settings = configAPI.NewSettingsResource(api.Services.Settings, db)
+	api.Settings.OnValueSet(func(ctx context.Context, tenantID int64, key string, value any) error {
+		boolVal, ok := value.(bool)
+		if !ok || !boolVal {
+			return nil // only trigger on enable (true), not disable
+		}
+
+		switch key {
+		case configModel.KeyCheckoutSchulhofEnabled:
+			_, err := api.Services.Schulhof.EnsureInfrastructure(ctx, 0)
+			return err
+		case configModel.KeyCheckoutWCEnabled:
+			_, err := api.Services.WC.EnsureInfrastructure(ctx)
+			return err
+		default:
+			return nil
+		}
+	})
 	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, api.Services.Schulhof, api.Services.UserContext, api.Services.Settings, db, logger.With("handler", "active"))
 	api.IoT = iotAPI.NewResource(iotAPI.ServiceDependencies{
 		IoTService:            api.Services.IoT,

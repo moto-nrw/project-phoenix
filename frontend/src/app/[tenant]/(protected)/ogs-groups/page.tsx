@@ -52,6 +52,9 @@ import {
 } from "~/components/students/student-card";
 import { fetchBulkPickupTimes } from "~/lib/pickup-schedule-api";
 import type { BulkPickupTime } from "~/lib/pickup-schedule-api";
+import { activeService } from "~/lib/active-api";
+import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
+import { TrackingIndicators } from "~/components/students/tracking-indicators";
 import { Clock, AlertTriangle } from "lucide-react";
 import { createLogger } from "~/lib/logger";
 
@@ -449,6 +452,7 @@ function OGSGroupPageContent() {
       }
     >;
     pickupTimes?: Map<string, BulkPickupTime>;
+    trackingIndicators?: TrackingIndicatorsResponse;
   }>(
     hasAccess && currentGroupId ? `ogs-students-${currentGroupId}` : null,
     async () => {
@@ -488,20 +492,32 @@ function OGSGroupPageContent() {
 
       const students = studentsResponse.students || [];
 
-      // Fetch pickup times for all students (prevents loading flash)
+      // Fetch pickup times and tracking indicators for all students (prevents loading flash)
       let pickupTimesMap = new Map<string, BulkPickupTime>();
+      let trackingIndicators: TrackingIndicatorsResponse = {
+        labels: [],
+        results: {},
+      };
       if (students.length > 0) {
         const studentIds = students.map((s) => s.id.toString());
-        pickupTimesMap = await fetchBulkPickupTimes(studentIds).catch(() => {
-          logger.error("failed to fetch pickup times in SWR");
-          return new Map<string, BulkPickupTime>();
-        });
+        const [pickupResult, trackingResult] = await Promise.all([
+          fetchBulkPickupTimes(studentIds).catch(() => {
+            logger.error("failed to fetch pickup times in SWR");
+            return new Map<string, BulkPickupTime>();
+          }),
+          activeService.getTrackingIndicators(studentIds).catch(() => {
+            return { labels: [], results: {} } as TrackingIndicatorsResponse;
+          }),
+        ]);
+        pickupTimesMap = pickupResult;
+        trackingIndicators = trackingResult;
       }
 
       return {
         students,
         roomStatus: roomStatusResponse ?? undefined,
         pickupTimes: pickupTimesMap,
+        trackingIndicators,
       };
     },
     {
@@ -1183,6 +1199,18 @@ function OGSGroupPageContent() {
                         )}
                       </StudentInfoRow>
                     ) : null
+                  }
+                  trackingIndicators={
+                    swrStudentsData?.trackingIndicators?.labels.length ? (
+                      <TrackingIndicators
+                        labels={swrStudentsData.trackingIndicators.labels}
+                        results={
+                          swrStudentsData.trackingIndicators.results[
+                            student.id
+                          ] ?? []
+                        }
+                      />
+                    ) : undefined
                   }
                 />
               );

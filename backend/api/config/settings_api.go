@@ -34,6 +34,14 @@ const (
 type SettingsResource struct {
 	settingsService configSvc.SettingsService
 	db              *bun.DB
+	onValueSet      func(ctx context.Context, tenantID int64, key string, value any) error
+}
+
+// OnValueSet registers a callback that runs after a setting value is validated and saved.
+// The callback executes inside the same tenant transaction as the setting write, so
+// returning an error aborts the request and rolls back the update.
+func (rs *SettingsResource) OnValueSet(fn func(ctx context.Context, tenantID int64, key string, value any) error) {
+	rs.onValueSet = fn
 }
 
 // NewSettingsResource creates a new settings resource.
@@ -135,8 +143,15 @@ func (rs *SettingsResource) setValue(w http.ResponseWriter, r *http.Request) {
 	claims := jwt.ClaimsFromCtx(r.Context())
 	changedBy := int64(claims.ID)
 
-	err := tenant.WithTenantTx(r.Context(), rs.db, tenant.FromContext(r.Context()), func(ctx context.Context, _ bun.Tx) error {
-		return rs.settingsService.SetValue(ctx, key, req.Value, &changedBy, claims.Permissions)
+	tenantID := tenant.FromContext(r.Context())
+	err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		if err := rs.settingsService.SetValue(ctx, key, req.Value, &changedBy, claims.Permissions); err != nil {
+			return err
+		}
+		if rs.onValueSet != nil {
+			return rs.onValueSet(ctx, tenantID, key, req.Value)
+		}
+		return nil
 	})
 	if err != nil {
 		renderSettingsError(w, r, err)

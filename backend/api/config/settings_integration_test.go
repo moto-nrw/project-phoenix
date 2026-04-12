@@ -1,6 +1,8 @@
 package config_test
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -13,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
 
@@ -399,6 +402,122 @@ func TestSettingsDeleteLoginImage_NoExistingImage(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 	testutil.AssertSuccessResponse(t, rr, http.StatusNoContent)
+}
+
+// =============================================================================
+// OnValueSet Callback Tests
+// =============================================================================
+
+func TestSettingsSetValue_OnValueSetCallbackInvoked(t *testing.T) {
+	ctx := setupSettingsTest(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	var callbackKey string
+	var callbackValue any
+	var callbackTenantID int64
+	ctx.resource.OnValueSet(func(_ context.Context, tenantID int64, key string, value any) error {
+		callbackTenantID = tenantID
+		callbackKey = key
+		callbackValue = value
+		return nil
+	})
+
+	router := testutil.NewTenantRouter(ctx.db)
+	router.Put("/values/{key}", ctx.resource.SetValue())
+
+	body := map[string]interface{}{
+		"value": true,
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/checkout.schulhof_enabled", body,
+		testutil.WithClaims(adminClaimsWithConfigPerms()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	assert.Equal(t, "checkout.schulhof_enabled", callbackKey)
+	assert.Equal(t, true, callbackValue)
+	assert.Greater(t, callbackTenantID, int64(0), "callback should receive a valid tenant_id")
+}
+
+func TestSettingsSetValue_OnValueSetCallbackErrorRollsBack(t *testing.T) {
+	ctx := setupSettingsTest(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	ctx.resource.OnValueSet(func(_ context.Context, _ int64, _ string, _ any) error {
+		return errors.New("hook failed")
+	})
+
+	router := testutil.NewTenantRouter(ctx.db)
+	router.Put("/values/{key}", ctx.resource.SetValue())
+
+	body := map[string]interface{}{
+		"value": "17:45",
+	}
+
+	claims := adminClaimsWithConfigPerms()
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/operations.session_end_time", body,
+		testutil.WithClaims(claims),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertErrorResponse(t, rr, http.StatusInternalServerError)
+
+	count, err := ctx.db.NewSelect().
+		TableExpr("config.setting_values").
+		Where("tenant_id = ?", claims.TenantID).
+		Where("setting_key = ?", "operations.session_end_time").
+		Count(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 0, count, "failed callback should roll back the setting update")
+}
+
+func TestSettingsSetValue_OnValueSetNotCalledOnError(t *testing.T) {
+	ctx := setupSettingsTest(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	callbackInvoked := false
+	ctx.resource.OnValueSet(func(_ context.Context, _ int64, _ string, _ any) error {
+		callbackInvoked = true
+		return nil
+	})
+
+	router := testutil.NewTenantRouter(ctx.db)
+	router.Put("/values/{key}", ctx.resource.SetValue())
+
+	body := map[string]interface{}{
+		"value": "not-a-boolean",
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/checkout.schulhof_enabled", body,
+		testutil.WithClaims(adminClaimsWithConfigPerms()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertErrorResponse(t, rr, http.StatusBadRequest)
+
+	assert.False(t, callbackInvoked, "callback should not be invoked on validation error")
+}
+
+func TestSettingsSetValue_NilCallbackDoesNotPanic(t *testing.T) {
+	ctx := setupSettingsTest(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	// No OnValueSet registered — should not panic
+	router := testutil.NewTenantRouter(ctx.db)
+	router.Put("/values/{key}", ctx.resource.SetValue())
+
+	body := map[string]interface{}{
+		"value": true,
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/checkout.wc_enabled", body,
+		testutil.WithClaims(adminClaimsWithConfigPerms()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
 
 func TestSettingsDeleteLoginImage_NoTenantContext(t *testing.T) {

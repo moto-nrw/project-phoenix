@@ -128,6 +128,10 @@ type VisitRepository interface {
 	// EndVisitsByActiveGroupIDs ends all active visits for multiple group IDs in a single query.
 	// Returns the number of visits ended.
 	EndVisitsByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) (int64, error)
+
+	// GetTodayVisitNamesForStudents returns activity group + room names for all of
+	// today's visits for the given students. Used for tracking indicator matching.
+	GetTodayVisitNamesForStudents(ctx context.Context, studentIDs []int64) ([]VisitGroupNames, error)
 }
 
 // GroupSupervisorRepository defines operations for managing active group supervisors

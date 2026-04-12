@@ -348,6 +348,12 @@ describe("useGlobalSSE", () => {
         );
       });
       expect(ogsStudentCall).toBeDefined();
+
+      // Matcher must work with tenant-prefixed keys (useSWRAuth adds tenant slug prefix)
+      const matcher = ogsStudentCall![0] as (key: string) => boolean;
+      expect(matcher("my-tenant:ogs-students-5")).toBe(true);
+      expect(matcher("my-tenant:tracking-supervisions-1-42,43")).toBe(true);
+      expect(matcher("my-tenant:tracking-indicators-search-group1")).toBe(true);
     });
 
     it("student_checkout without active_group_id invalidates dashboard caches", () => {
@@ -391,9 +397,19 @@ describe("useGlobalSSE", () => {
 
       const mutateCalls = vi.mocked(mutate).mock.calls;
       const studentDetailCall = mutateCalls.find((call) => {
-        return call[0] === "student-detail-42";
+        const matcher = call[0];
+        return (
+          typeof matcher === "function" &&
+          (matcher as (key: string) => boolean)("student-detail-42")
+        );
       });
       expect(studentDetailCall).toBeDefined();
+
+      // Must also match tenant-prefixed key
+      const matcher = studentDetailCall![0] as (key: string) => boolean;
+      expect(matcher("my-tenant:student-detail-42")).toBe(true);
+      // Must NOT match other student IDs
+      expect(matcher("student-detail-99")).toBe(false);
     });
 
     it("student_checkout without active_group_id does NOT invalidate supervision-visits", () => {

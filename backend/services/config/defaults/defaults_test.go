@@ -31,10 +31,16 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"gdpr.attendance_visible_days",
 		"gdpr.room_detail_visible_days",
 		"gdpr.attendance_log_scope",
+		"feedback.enabled",
+		"feedback.data_retention_days",
 		"security.ogs_device_pin",
 		"checkout.raumwechsel_enabled",
 		"checkout.schulhof_enabled",
 		"checkout.wc_enabled",
+		"tracking.indicators_enabled",
+		"tracking.indicator_1",
+		"tracking.indicator_2",
+		"tracking.indicator_3",
 	}
 
 	for _, key := range expectedKeys {
@@ -45,7 +51,7 @@ func TestAllSettingsRegistered(t *testing.T) {
 		assert.NotEmpty(t, def.Category, "setting %q should have a category", key)
 	}
 
-	assert.GreaterOrEqual(t, len(all), 19, "at least 19 settings should be registered")
+	assert.GreaterOrEqual(t, len(all), 25, "at least 25 settings should be registered")
 }
 
 func TestOperationsSettings_Types(t *testing.T) {
@@ -82,6 +88,8 @@ func TestGDPRSettings_Types(t *testing.T) {
 		{"gdpr.attendance_visible_days", config.FieldNumber},
 		{"gdpr.room_detail_visible_days", config.FieldNumber},
 		{"gdpr.attendance_log_scope", config.FieldSelect},
+		{"feedback.enabled", config.FieldBoolean},
+		{"feedback.data_retention_days", config.FieldNumber},
 	}
 
 	for _, tc := range tests {
@@ -156,6 +164,25 @@ func TestDependsOn_AttendanceLogGroup(t *testing.T) {
 	}
 }
 
+func TestDependsOn_FeedbackGroup(t *testing.T) {
+	retentionDef := config.GetDefinition("feedback.data_retention_days")
+	require.NotNil(t, retentionDef)
+	require.NotNil(t, retentionDef.DependsOn)
+	assert.Equal(t, "feedback.enabled", retentionDef.DependsOn.Key)
+	assert.Equal(t, "eq", retentionDef.DependsOn.Condition)
+	assert.Equal(t, true, retentionDef.DependsOn.Value)
+}
+
+func TestFeedbackSettings(t *testing.T) {
+	def := config.GetDefinition("feedback.enabled")
+	require.NotNil(t, def)
+	assert.Equal(t, config.FieldBoolean, def.Type)
+	assert.Equal(t, "gdpr", def.Tab)
+	assert.Equal(t, "feedback", def.Category)
+	assert.Equal(t, false, def.Default, "feedback should default to false (opt-in)")
+	assert.Equal(t, "config:manage", def.WritePermission)
+}
+
 func TestAttendanceLogScope_Options(t *testing.T) {
 	def := config.GetDefinition("gdpr.attendance_log_scope")
 	require.NotNil(t, def)
@@ -178,9 +205,18 @@ func TestDevicesSettings(t *testing.T) {
 		assert.Equal(t, config.FieldBoolean, def.Type, "setting %q should be boolean", key)
 		assert.Equal(t, "devices", def.Tab, "setting %q should be in devices tab", key)
 		assert.Equal(t, "checkout", def.Category, "setting %q should be in checkout category", key)
-		assert.Equal(t, true, def.Default, "setting %q should default to true", key)
 		assert.Equal(t, "config:update", def.WritePermission, "setting %q should use config:update", key)
 	}
+
+	// Raumwechsel defaults to true (no system room required)
+	raumwechsel := config.GetDefinition("checkout.raumwechsel_enabled")
+	assert.Equal(t, true, raumwechsel.Default, "raumwechsel should default to true")
+
+	// Schulhof and WC default to false (opt-in, system rooms created on activation)
+	schulhof := config.GetDefinition("checkout.schulhof_enabled")
+	assert.Equal(t, false, schulhof.Default, "schulhof should default to false (opt-in)")
+	wc := config.GetDefinition("checkout.wc_enabled")
+	assert.Equal(t, false, wc.Default, "wc should default to false (opt-in)")
 }
 
 func TestStudentDailyCheckoutTime_OptionalDefault(t *testing.T) {
@@ -198,6 +234,7 @@ func TestValidation_NumberFields(t *testing.T) {
 		"gdpr.data_cleanup_timeout_minutes",
 		"gdpr.attendance_visible_days",
 		"gdpr.room_detail_visible_days",
+		"feedback.data_retention_days",
 	}
 
 	for _, key := range numberKeys {
@@ -229,10 +266,16 @@ func TestDefaults_HaveReasonableValues(t *testing.T) {
 		{"gdpr.attendance_visible_days", 30},
 		{"gdpr.room_detail_visible_days", 7},
 		{"gdpr.attendance_log_scope", config.AttendanceLogScopeGroupSupervisorsOnly},
+		{"feedback.enabled", false},
+		{"feedback.data_retention_days", 90},
 		{"security.ogs_device_pin", "1234"},
 		{"checkout.raumwechsel_enabled", true},
-		{"checkout.schulhof_enabled", true},
-		{"checkout.wc_enabled", true},
+		{"checkout.schulhof_enabled", false},
+		{"checkout.wc_enabled", false},
+		{"tracking.indicators_enabled", false},
+		{"tracking.indicator_1", ""},
+		{"tracking.indicator_2", ""},
+		{"tracking.indicator_3", ""},
 	}
 
 	for _, tc := range tests {
@@ -240,4 +283,58 @@ func TestDefaults_HaveReasonableValues(t *testing.T) {
 		require.NotNilf(t, def, "setting %q should exist", tc.key)
 		assert.Equalf(t, tc.expectedDefault, def.Default, "setting %q default", tc.key)
 	}
+}
+
+func TestTrackingSettings_Types(t *testing.T) {
+	tests := []struct {
+		key      string
+		expected config.FieldType
+	}{
+		{"tracking.indicators_enabled", config.FieldBoolean},
+		{"tracking.indicator_1", config.FieldText},
+		{"tracking.indicator_2", config.FieldText},
+		{"tracking.indicator_3", config.FieldText},
+	}
+
+	for _, tc := range tests {
+		def := config.GetDefinition(tc.key)
+		require.NotNilf(t, def, "setting %q should exist", tc.key)
+		assert.Equalf(t, tc.expected, def.Type, "setting %q should be type %s", tc.key, tc.expected)
+	}
+}
+
+func TestDependsOn_TrackingGroup(t *testing.T) {
+	dependentKeys := []string{
+		"tracking.indicator_1",
+		"tracking.indicator_2",
+		"tracking.indicator_3",
+	}
+	for _, key := range dependentKeys {
+		def := config.GetDefinition(key)
+		require.NotNilf(t, def, "setting %q should exist", key)
+		require.NotNilf(t, def.DependsOn, "setting %q should have DependsOn", key)
+		assert.Equalf(t, "tracking.indicators_enabled", def.DependsOn.Key, "setting %q should depend on indicators_enabled", key)
+		assert.Equal(t, "eq", def.DependsOn.Condition)
+		assert.Equal(t, true, def.DependsOn.Value)
+	}
+}
+
+func TestTrackingIndicator_Validation(t *testing.T) {
+	indicatorKeys := []string{
+		"tracking.indicator_1",
+		"tracking.indicator_2",
+		"tracking.indicator_3",
+	}
+	for _, key := range indicatorKeys {
+		def := config.GetDefinition(key)
+		require.NotNilf(t, def, "setting %q should exist", key)
+		require.NotNilf(t, def.Validation, "setting %q should have validation", key)
+		require.NotNilf(t, def.Validation.Pattern, "setting %q should have pattern", key)
+		assert.Equal(t, `^[a-zA-ZäöüÄÖÜß\s]{0,30}$`, *def.Validation.Pattern, "setting %q pattern", key)
+	}
+
+	// Verify the toggle has no validation (boolean doesn't need it)
+	enabledDef := config.GetDefinition("tracking.indicators_enabled")
+	require.NotNil(t, enabledDef)
+	assert.Nil(t, enabledDef.Validation, "boolean toggle should have no validation")
 }

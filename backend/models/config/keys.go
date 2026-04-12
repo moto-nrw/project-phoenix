@@ -42,6 +42,14 @@ const (
 	KeyCheckoutWCEnabled          = "checkout.wc_enabled"
 )
 
+// Tracking indicator settings (student card activity indicators).
+const (
+	KeyTrackingIndicatorsEnabled = "tracking.indicators_enabled"
+	KeyTrackingIndicator1        = "tracking.indicator_1"
+	KeyTrackingIndicator2        = "tracking.indicator_2"
+	KeyTrackingIndicator3        = "tracking.indicator_3"
+)
+
 // Operations settings.
 const (
 	KeySessionEndEnabled             = "operations.session_end_enabled"

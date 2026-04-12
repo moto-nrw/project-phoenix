@@ -322,7 +322,7 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 		result.DailyCheckoutAvailable = rs.shouldShowDailyCheckoutWithGroup(ctx, student, currentVisit)
 
 		// Resolve feedback_enabled so PyrePortal knows whether to show the feedback modal
-		result.FeedbackEnabled = true // default
+		result.FeedbackEnabled = false // default: opt-in (GDPR)
 		if rs.SettingsService != nil {
 			if val, err := rs.SettingsService.ResolveBool(ctx, configModel.KeyFeedbackEnabled); err == nil {
 				result.FeedbackEnabled = val
