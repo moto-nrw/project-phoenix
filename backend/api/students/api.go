@@ -216,13 +216,26 @@ func (rs *Resource) getStudentGroup(ctx context.Context, student *users.Student)
 	return group
 }
 
-// checkStudentFullAccess determines if the current user has full access to a student's data.
-// Returns true if the user is an admin, the tenant's student_data_scope is set to all_staff,
-// or the user supervises the student's education group.
+// checkStudentFullAccess determines if the current user has full access to
+// a student's data for write operations (update, delete, privacy consent, etc.).
+// Returns true if the user is an admin or supervises the student's group.
 //
-// This function gates READ access only. Write operations (update, delete, check-in, etc.)
-// remain restricted to the student's group supervisors regardless of this setting.
+// The gdpr.student_data_scope setting intentionally does NOT apply here —
+// write operations remain restricted to group supervisors regardless of scope.
+// For read access checks, use checkStudentReadAccess instead.
 func (rs *Resource) checkStudentFullAccess(r *http.Request, student *users.Student) bool {
+	return rs.isGroupSupervisorOrAdmin(r, student)
+}
+
+// checkStudentReadAccess determines if the current user has full read access
+// to a student's data (profile, location, visit info, privacy details, pickup
+// schedules). Returns true if the user is an admin, a verified staff member
+// when the tenant's student_data_scope is set to all_staff, or a supervisor
+// of the student's education group.
+//
+// This function MUST only be used on read paths. Write operations must use
+// checkStudentFullAccess which ignores the scope setting.
+func (rs *Resource) checkStudentReadAccess(r *http.Request, student *users.Student) bool {
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
 	if hasAdminPermissions(userPermissions) {
 		return true
@@ -230,6 +243,8 @@ func (rs *Resource) checkStudentFullAccess(r *http.Request, student *users.Stude
 
 	// Tenant-configurable: when student_data_scope is set to all_staff, any
 	// authenticated staff member gets full read access to any student.
+	// Verify the caller is actually a staff member — other roles (guest,
+	// guardian) with users:read must NOT get unredacted access.
 	scope := configService.ResolveStringOrDefault(
 		r.Context(),
 		rs.SettingsService,
@@ -238,6 +253,35 @@ func (rs *Resource) checkStudentFullAccess(r *http.Request, student *users.Stude
 		rs.Logger,
 	)
 	if scope == configModel.StudentDataScopeAllStaff {
+		if staff, err := rs.UserContextService.GetCurrentStaff(r.Context()); err == nil && staff != nil {
+			return true
+		}
+	}
+
+	if student.GroupID == nil {
+		return false
+	}
+
+	educationGroups, err := rs.UserContextService.GetMyGroups(r.Context())
+	if err != nil {
+		return false
+	}
+
+	for _, group := range educationGroups {
+		if group.ID == *student.GroupID {
+			return true
+		}
+	}
+
+	return false
+}
+
+// isGroupSupervisorOrAdmin checks if the caller is an admin or supervises the
+// student's education group. This is the core authorization logic shared by
+// both read and write access paths (before scope overrides are applied).
+func (rs *Resource) isGroupSupervisorOrAdmin(r *http.Request, student *users.Student) bool {
+	userPermissions := jwt.PermissionsFromCtx(r.Context())
+	if hasAdminPermissions(userPermissions) {
 		return true
 	}
 
@@ -410,7 +454,7 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	group := rs.getStudentGroup(r.Context(), student)
-	hasFullAccess := rs.checkStudentFullAccess(r, student)
+	hasFullAccess := rs.checkStudentReadAccess(r, student)
 
 	attendanceLogEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyAttendanceLogEnabled, false, rs.Logger)
 	feedbackEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyFeedbackEnabled, false, rs.Logger)

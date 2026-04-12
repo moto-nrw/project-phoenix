@@ -31,7 +31,7 @@ func (rs *Resource) getStudentCurrentLocation(w http.ResponseWriter, r *http.Req
 	group := rs.getStudentGroup(r.Context(), student)
 
 	// Determine if user has full access to student location details
-	hasFullAccess := rs.checkStudentFullAccess(r, student)
+	hasFullAccess := rs.checkStudentReadAccess(r, student)
 
 	// Build student response
 	response := newStudentResponseWithOpts(r.Context(), StudentResponseOpts{

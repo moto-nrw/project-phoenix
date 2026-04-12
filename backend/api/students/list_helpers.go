@@ -109,18 +109,20 @@ func (rs *Resource) determineStudentAccess(r *http.Request) *studentAccessContex
 		isAdmin: hasAdminPermissions(jwt.PermissionsFromCtx(r.Context())),
 	}
 
-	// Resolve student_data_scope once; this governs read-access for non-admin staff.
-	scope := configService.ResolveStringOrDefault(
-		r.Context(),
-		rs.SettingsService,
-		configModel.KeyStudentDataScope,
-		configModel.StudentDataScopeGroupSupervisorsOnly,
-		rs.Logger,
-	)
-	ctx.allStaffScope = scope == configModel.StudentDataScopeAllStaff
-
 	if !ctx.isAdmin {
 		if staff, err := rs.UserContextService.GetCurrentStaff(r.Context()); err == nil && staff != nil {
+			// Resolve student_data_scope once; this governs read-access for non-admin staff.
+			// Only apply the all_staff scope if the caller is a verified staff member —
+			// other roles (guest, guardian) with users:read must NOT get unredacted access.
+			scope := configService.ResolveStringOrDefault(
+				r.Context(),
+				rs.SettingsService,
+				configModel.KeyStudentDataScope,
+				configModel.StudentDataScopeGroupSupervisorsOnly,
+				rs.Logger,
+			)
+			ctx.allStaffScope = scope == configModel.StudentDataScopeAllStaff
+
 			if educationGroups, err := rs.UserContextService.GetMyGroups(r.Context()); err == nil {
 				ctx.myGroupIDs = make(map[int64]struct{}, len(educationGroups))
 				for _, eduGroup := range educationGroups {
