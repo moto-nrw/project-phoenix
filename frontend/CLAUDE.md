@@ -122,6 +122,34 @@ src/app/
 - **`lib/tenant-api.ts`**: `resolveTenant(slug)`, `listTenants()`, `switchTenant(slug)`
 - **Error contract**: Backend returns `"account does not have access to this tenant"` — hardcoded mapping in `tenant-api.ts`. Changing this backend string breaks tenant switching silently.
 
+## Reuse Existing Components and Design Standards (MANDATORY)
+
+**ABSOLUTE RULE: Before creating ANY new UI element, color, or component, search the existing codebase first.** Do not reinvent what already exists. Duplication is a bug.
+
+### Brand Colors — NEVER Use Generic Tailwind Colors
+
+MOTO has specific brand hex codes. Using generic Tailwind colors (like `text-green-500`, `bg-blue-500`) instead of the correct brand hex is **wrong** and will be rejected in review. Tailwind defaults are different hues than the MOTO brand.
+
+**Before using ANY color, read these files and use the exact hex values defined there:**
+
+| File | What it defines |
+|------|----------------|
+| **`src/lib/location-helper.ts` → `LOCATION_COLORS`** | Single source of truth for all semantic brand colors (green, blue, red, orange, purple, gray, amber). Every status color in the app derives from here. |
+| **`src/contexts/ToastContext.tsx`** | Established color patterns for success/error/info toast states. |
+| **`src/styles/globals.css`** | Logo gradient and global color definitions. |
+
+**Rules:**
+- **ALWAYS read `LOCATION_COLORS` first** to get the correct hex values. Do not guess or use Tailwind defaults.
+- **Use arbitrary value syntax** with the brand hex: `text-[#HEX]`, `bg-[#HEX]`, `border-[#HEX]`.
+- **NEVER use `text-green-500`, `bg-blue-500`**, or any other generic Tailwind color utility when a MOTO brand color exists for that semantic purpose.
+
+### Before Writing Any New Frontend Code
+
+1. **Search `src/components/`** for existing components that do what you need. Reuse and extend, don't rebuild.
+2. **Search `src/lib/`** for existing helpers, hooks, API clients, and type mappings.
+3. **Check `src/components/ui/`** for shared UI primitives (modals, buttons, inputs, badges, etc.).
+4. **Read the color source files above** before picking any color.
+
 ## Code Architecture
 
 ### High-Level Architecture

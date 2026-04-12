@@ -79,6 +79,22 @@ Changing tenant resolution, auth headers, or error messages affects PyrePortal's
 
 ## Critical Patterns
 
+### 0. Frontend: Reuse Existing Components and Design Standards (MANDATORY)
+
+**ABSOLUTE RULE: Before creating ANY new UI element, color, or component, search the existing codebase first.** Do not reinvent what already exists.
+
+**Brand Colors** — MOTO uses specific brand hex codes, NOT generic Tailwind color classes. Before using any color:
+
+1. **Check `frontend/src/lib/location-helper.ts` → `LOCATION_COLORS`** — the single source of truth for all semantic brand colors (green, blue, red, orange, purple, gray, amber). Read the file and use the exact hex values defined there.
+2. **Check `frontend/src/contexts/ToastContext.tsx`** — established color patterns for success/error/info states.
+3. **Check `frontend/src/styles/globals.css`** — logo gradient and other global color definitions.
+
+**NEVER use generic Tailwind color classes** (`text-green-500`, `bg-blue-500`, etc.) when a MOTO brand color exists for that semantic purpose. Tailwind defaults are different hues. Always use arbitrary value syntax with the brand hex: `text-[#HEX]`, `bg-[#HEX]`.
+
+**Reuse before rebuild:**
+- **ALWAYS search `frontend/src/components/`** for existing components before building new ones.
+- **ALWAYS check `frontend/src/lib/`** for existing helpers, hooks, and utilities before writing new logic.
+
 ### 1. BUN ORM: Quote Aliases (MANDATORY)
 ```go
 ModelTableExpr(`education.groups AS "group"`)   // CORRECT — quoted
