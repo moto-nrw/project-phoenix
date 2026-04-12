@@ -468,6 +468,67 @@ describe("MobileBottomNav", () => {
       const hrefs = links.map((link) => link.getAttribute("href"));
       expect(hrefs).toContain("/active-supervisions");
     });
+
+    it("injects Aufsicht tab for admins who are actively supervising", () => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: true,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        supervisedRooms: [{ id: "1", name: "Room A", groupId: "g1" }],
+        groups: [],
+        refresh: vi.fn(),
+      });
+
+      render(<MobileBottomNav />);
+
+      // Admin baseline does NOT include /active-supervisions — injection must add it
+      const links = screen.getAllByRole("link");
+      const hrefs = links.map((link) => link.getAttribute("href"));
+      expect(hrefs).toContain("/active-supervisions");
+    });
+
+    it("does not inject Aufsicht tab for admin while supervision is still loading", () => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+      mockUseSupervision.mockReturnValue({
+        hasGroups: false,
+        isSupervising: false,
+        isLoadingGroups: true,
+        isLoadingSupervision: true,
+        supervisedRooms: [],
+        groups: [],
+        refresh: vi.fn(),
+      });
+
+      render(<MobileBottomNav />);
+
+      const links = screen.getAllByRole("link");
+      const hrefs = links.map((link) => link.getAttribute("href"));
+      expect(hrefs).not.toContain("/active-supervisions");
+    });
+
+    it("does not inject Aufsicht tab for admin who is not supervising", () => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+      mockUseSupervision.mockReturnValue({
+        hasGroups: false,
+        isSupervising: false,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        supervisedRooms: [],
+        groups: [],
+        refresh: vi.fn(),
+      });
+
+      render(<MobileBottomNav />);
+
+      const links = screen.getAllByRole("link");
+      const hrefs = links.map((link) => link.getAttribute("href"));
+      expect(hrefs).not.toContain("/active-supervisions");
+    });
   });
 
   describe("More button active state", () => {

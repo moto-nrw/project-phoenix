@@ -1,6 +1,7 @@
 package active_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -1087,6 +1088,19 @@ func TestGroupSupervisorRepository_FindAllActive(t *testing.T) {
 		result, err := repo.FindAllActive(freshCtx)
 		require.NoError(t, err)
 		assert.Empty(t, result)
+	})
+
+	t.Run("wraps driver errors in DatabaseError", func(t *testing.T) {
+		// Cancelled context forces the Scan to fail, exercising the error branch.
+		cancelledCtx, cancel := context.WithCancel(ctx)
+		cancel()
+
+		result, err := repo.FindAllActive(cancelledCtx)
+		assert.Nil(t, result)
+		require.Error(t, err)
+		var dbErr *modelBase.DatabaseError
+		require.ErrorAs(t, err, &dbErr)
+		assert.Equal(t, "find all active supervisions", dbErr.Op)
 	})
 }
 
