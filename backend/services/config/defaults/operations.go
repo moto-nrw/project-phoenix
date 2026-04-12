@@ -5,7 +5,7 @@ import (
 )
 
 func init() {
-	// --- Session End ---
+	// --- Session End (system tab — automated background process) ---
 
 	config.Register(config.Definition{
 		Key:             config.KeySessionEndEnabled,
@@ -15,8 +15,8 @@ func init() {
 		Default:         true,
 		ReadPermission:  "config:read",
 		WritePermission: "config:update",
-		Tab:             "operations",
-		Category:        "sessions",
+		Tab:             "system",
+		Category:        "sitzungsende",
 		SortOrder:       1,
 	})
 
@@ -28,8 +28,8 @@ func init() {
 		Default:         "18:00",
 		ReadPermission:  "config:read",
 		WritePermission: "config:update",
-		Tab:             "operations",
-		Category:        "sessions",
+		Tab:             "system",
+		Category:        "sitzungsende",
 		SortOrder:       2,
 		DependsOn: &config.Dependency{
 			Key:       config.KeySessionEndEnabled,
@@ -48,8 +48,8 @@ func init() {
 		Default:         10,
 		ReadPermission:  "config:read",
 		WritePermission: "config:update",
-		Tab:             "operations",
-		Category:        "sessions",
+		Tab:             "system",
+		Category:        "sitzungsende",
 		SortOrder:       3,
 		Validation:      &config.ValidationRules{Min: &minTimeout, Max: &maxTimeout},
 		DependsOn: &config.Dependency{
@@ -74,7 +74,7 @@ func init() {
 		SortOrder:       1,
 	})
 
-	// --- Abandoned Session Cleanup ---
+	// --- Abandoned Session Cleanup (system tab — automated background process) ---
 
 	config.Register(config.Definition{
 		Key:             config.KeySessionCleanupEnabled,
@@ -84,9 +84,9 @@ func init() {
 		Default:         false,
 		ReadPermission:  "config:read",
 		WritePermission: "config:update",
-		Tab:             "operations",
-		Category:        "cleanup",
-		SortOrder:       1,
+		Tab:             "system",
+		Category:        "sitzungsbereinigung",
+		SortOrder:       10,
 	})
 
 	minInterval := float64(5)
@@ -99,9 +99,9 @@ func init() {
 		Default:         15,
 		ReadPermission:  "config:read",
 		WritePermission: "config:update",
-		Tab:             "operations",
-		Category:        "cleanup",
-		SortOrder:       2,
+		Tab:             "system",
+		Category:        "sitzungsbereinigung",
+		SortOrder:       11,
 		Validation:      &config.ValidationRules{Min: &minInterval, Max: &maxInterval},
 		DependsOn: &config.Dependency{
 			Key:       config.KeySessionCleanupEnabled,
@@ -120,9 +120,9 @@ func init() {
 		Default:         60,
 		ReadPermission:  "config:read",
 		WritePermission: "config:update",
-		Tab:             "operations",
-		Category:        "cleanup",
-		SortOrder:       3,
+		Tab:             "system",
+		Category:        "sitzungsbereinigung",
+		SortOrder:       12,
 		Validation:      &config.ValidationRules{Min: &minThreshold, Max: &maxThreshold},
 		DependsOn: &config.Dependency{
 			Key:       config.KeySessionCleanupEnabled,
@@ -142,8 +142,8 @@ func init() {
 		ReadPermission:  "config:read",
 		WritePermission: "config:update",
 		Tab:             "operations",
-		Category:        "sessions",
-		SortOrder:       8,
+		Category:        "aufsicht",
+		SortOrder:       1,
 	})
 
 	// Break auto-end interval is NOT registered here — it controls a global ticker

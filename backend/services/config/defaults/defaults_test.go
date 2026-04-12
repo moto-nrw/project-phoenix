@@ -105,8 +105,8 @@ func TestSecuritySettings(t *testing.T) {
 	def := config.GetDefinition("security.ogs_device_pin")
 	require.NotNil(t, def)
 	assert.Equal(t, config.FieldPassword, def.Type)
-	assert.Equal(t, "security", def.Tab)
-	assert.Equal(t, "auth", def.Category)
+	assert.Equal(t, "devices", def.Tab)
+	assert.Equal(t, "pin", def.Category)
 	assert.Equal(t, "config:manage", def.WritePermission)
 }
 
