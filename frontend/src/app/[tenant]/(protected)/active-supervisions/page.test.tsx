@@ -7313,4 +7313,53 @@ describe("RoleGuard integration", () => {
     expect(screen.queryByText("Kein Zugriff")).not.toBeInTheDocument();
     expect(screen.getByTestId("sse-boundary")).toBeInTheDocument();
   });
+
+  it("renders content for admin with supervised rooms", async () => {
+    const { useSession } = await import("next-auth/react");
+    vi.mocked(useSession).mockReturnValue({
+      data: { user: { token: "test-token", isAdmin: true } },
+      status: "authenticated",
+    } as never);
+
+    // Mock useOptionalSupervision to return supervised rooms
+    const supervisionCtx = await import("~/lib/supervision-context");
+    vi.spyOn(supervisionCtx, "useOptionalSupervision").mockReturnValue({
+      supervisedRooms: [{ id: "10", name: "Admin Room", groupId: "1" }],
+      isLoadingSupervision: false,
+      hasGroups: false,
+      isLoadingGroups: false,
+      groups: [],
+      isSupervising: true,
+      refresh: vi.fn(),
+    });
+
+    render(<MeinRaumPage />);
+
+    // Admin with rooms should pass the gate and render content
+    expect(screen.queryByText("Kein Zugriff")).not.toBeInTheDocument();
+    expect(screen.getByTestId("sse-boundary")).toBeInTheDocument();
+  });
+
+  it("shows loading state while supervision is loading for admin", async () => {
+    const { useSession } = await import("next-auth/react");
+    vi.mocked(useSession).mockReturnValue({
+      data: { user: { token: "test-token", isAdmin: true } },
+      status: "authenticated",
+    } as never);
+
+    const supervisionCtx = await import("~/lib/supervision-context");
+    vi.spyOn(supervisionCtx, "useOptionalSupervision").mockReturnValue({
+      supervisedRooms: [],
+      isLoadingSupervision: true,
+      hasGroups: false,
+      isLoadingGroups: true,
+      groups: [],
+      isSupervising: false,
+      refresh: vi.fn(),
+    });
+
+    render(<MeinRaumPage />);
+
+    expect(screen.getByTestId("loading")).toBeInTheDocument();
+  });
 });
