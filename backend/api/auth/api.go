@@ -629,7 +629,7 @@ func (rs *Resource) authorizeRoleAssignment(w http.ResponseWriter, r *http.Reque
 				"role_id", *requestedRoleID,
 				"error", err,
 			)
-			common.RenderError(w, r, ErrorInternalServer(err))
+			common.RenderError(w, r, common.ErrorInternalServerWrap("failed to verify role", err))
 		}
 		return nil, 0, true
 	}

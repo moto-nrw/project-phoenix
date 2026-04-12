@@ -286,7 +286,7 @@ func TestGetSchulhofStatus_ServiceError(t *testing.T) {
 	rr := executeSchulhofRequest(router, req, testutil.AdminTestClaims(1), []string{"schulhof:read"})
 
 	testutil.AssertErrorResponse(t, rr, http.StatusInternalServerError)
-	assert.Contains(t, rr.Body.String(), "database connection failed")
+	assert.Contains(t, rr.Body.String(), "failed to get Schulhof status")
 }
 
 // =============================================================================

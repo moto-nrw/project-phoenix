@@ -2,6 +2,7 @@ package common
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -135,6 +136,19 @@ func ErrorInternalServer(err error) render.Renderer {
 		HTTPStatusCode: http.StatusInternalServerError,
 		Status:         "error",
 		ErrorText:      err.Error(),
+	}
+}
+
+// ErrorInternalServerWrap returns a 500 response with a stable client-facing message
+// while preserving the full error chain for Sentry and slog.
+// Use this instead of ErrorInternalServer when the original error contains
+// internal details (DB errors, stack traces) that must not leak to clients.
+func ErrorInternalServerWrap(clientMsg string, cause error) render.Renderer {
+	return &ErrResponse{
+		Err:            fmt.Errorf("%s: %w", clientMsg, cause),
+		HTTPStatusCode: http.StatusInternalServerError,
+		Status:         "error",
+		ErrorText:      clientMsg,
 	}
 }
 

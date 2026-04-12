@@ -125,7 +125,7 @@ func (rs *Resource) getStudentInGroupRoom(w http.ResponseWriter, r *http.Request
 	// Get the educational group
 	group, err := rs.EducationService.GetGroup(r.Context(), *student.GroupID)
 	if err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServerWrap("failed to get student's group", err))
 		return
 	}
 
@@ -157,7 +157,7 @@ func (rs *Resource) getStudentInGroupRoom(w http.ResponseWriter, r *http.Request
 	// Get the active group to check its room
 	activeGroup, err := rs.ActiveService.GetActiveGroup(r.Context(), visit.ActiveGroupID)
 	if err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServerWrap("failed to get active group", err))
 		return
 	}
 

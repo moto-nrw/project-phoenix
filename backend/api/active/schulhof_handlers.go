@@ -73,7 +73,7 @@ func (rs *SchulhofResource) getSchulhofStatus(w http.ResponseWriter, r *http.Req
 	// Get Schulhof status
 	status, err := rs.schulhofService.GetSchulhofStatus(ctx, staff.ID)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServerWrap("failed to get Schulhof status", err))
 		return
 	}
 

@@ -818,7 +818,7 @@ func (rs *Resource) getGroupStudentsRoomStatus(w http.ResponseWriter, r *http.Re
 
 	students, err := rs.StudentRepo.FindByGroupID(r.Context(), id)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServerWrap("failed to get group students", err))
 		return
 	}
 

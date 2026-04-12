@@ -125,7 +125,7 @@ func (rs *Resource) getStudentAttendanceHistory(w http.ResponseWriter, r *http.R
 			slog.Int64("student_id", student.ID),
 			slog.String("error", err.Error()),
 		)
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServerWrap("failed to load attendance history", err))
 		return
 	}
 
@@ -167,7 +167,7 @@ func (rs *Resource) getStudentAttendanceHistory(w http.ResponseWriter, r *http.R
 	// 8. Audit write — GDPR requires a trace for every data access.
 	// If we cannot write the audit log, we must not expose the data.
 	if err := rs.writeAttendanceHistoryAudit(r, student.ID, start, end, logger); err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServerWrap("failed to record audit trail", err))
 		return
 	}
 
