@@ -506,7 +506,7 @@ describe("SettingsContent (via renderTab)", () => {
     fireEvent.click(toggle);
 
     await waitFor(() => {
-      expect(mockRefreshSupervision).toHaveBeenCalled();
+      expect(mockRefreshSupervision).toHaveBeenCalledWith({ force: true });
     });
   });
 

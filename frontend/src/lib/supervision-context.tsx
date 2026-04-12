@@ -59,7 +59,7 @@ interface SupervisionState {
 }
 
 interface SupervisionContextType extends SupervisionState {
-  refresh: (silent?: boolean) => Promise<void>;
+  refresh: (options?: { silent?: boolean; force?: boolean }) => Promise<void>;
 }
 
 const SupervisionContext = createContext<SupervisionContextType | undefined>(
@@ -99,9 +99,9 @@ export function SupervisionProvider({
   isAdminRef.current = isAdmin(session);
 
   // Use a ref for the refresh function to break dependency cycles
-  const refreshRef = React.useRef<((silent?: boolean) => Promise<void>) | null>(
-    null,
-  );
+  const refreshRef = React.useRef<
+    ((options?: { silent?: boolean; force?: boolean }) => Promise<void>) | null
+  >(null);
 
   // Check if user has any groups (as teacher or representative)
   const checkGroups = useCallback(async () => {
@@ -431,10 +431,14 @@ export function SupervisionProvider({
   // Check Schulhof status and add to supervised rooms if exists
   // Refresh all supervision states with debouncing
   const refresh = useCallback(
-    async (silent = false) => {
-      // Prevent rapid successive refreshes (min 5 seconds between refreshes)
+    async (options?: { silent?: boolean; force?: boolean }) => {
+      const silent = options?.silent ?? false;
+      const force = options?.force ?? false;
+      // Prevent rapid successive refreshes (min 5 seconds between refreshes).
+      // `force` bypasses the throttle for deliberate external triggers
+      // (e.g. after saving a setting that changes supervision visibility).
       const now = Date.now();
-      if (now - lastRefreshRef.current < 5000) {
+      if (!force && now - lastRefreshRef.current < 5000) {
         return;
       }
       lastRefreshRef.current = now;
@@ -494,7 +498,7 @@ export function SupervisionProvider({
     const interval = setInterval(() => {
       // Use silent refresh to avoid UI flicker - errors handled internally
       if (refreshRef.current) {
-        refreshRef.current(true).catch(() => {
+        refreshRef.current({ silent: true }).catch(() => {
           // Intentionally ignored - silent background refresh
         });
       }

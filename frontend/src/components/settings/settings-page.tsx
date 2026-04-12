@@ -183,7 +183,7 @@ function SettingsContent({ tabKey }: SettingsContentProps) {
         }, 6000);
 
         if (SUPERVISION_AFFECTING_KEYS.has(key)) {
-          void refreshSupervision();
+          void refreshSupervision({ force: true });
         }
       }
       return errorMsg;
@@ -213,7 +213,7 @@ function SettingsContent({ tabKey }: SettingsContentProps) {
         }, 500);
 
         if (SUPERVISION_AFFECTING_KEYS.has(key)) {
-          void refreshSupervision();
+          void refreshSupervision({ force: true });
         }
       }
       return errorMsg;
