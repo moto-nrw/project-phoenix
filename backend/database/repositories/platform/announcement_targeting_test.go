@@ -446,6 +446,182 @@ func TestAnnouncementTargeting_GetUnreadForUser_RolesWithOrgTargeting(t *testing
 	assert.Equal(t, 0, countB)
 }
 
+func TestAnnouncementTargeting_GetUnreadForUser_DualRoleNotDuplicated(t *testing.T) {
+	// Regression test: an account with BOTH a direct role match AND a custom role
+	// with matching base_role must see the announcement exactly once, not duplicated.
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	viewRepo := platform.NewAnnouncementViewRepository(db)
+	annoRepo := platform.NewAnnouncementRepository(db)
+
+	orgID := createTestOrganization(t, db, "Org Dual Role")
+	schoolID := createTestSchool(t, db, "School Dual Role", orgID)
+
+	operator := createTestOperator(t, db, "targeting-dual-role@example.com", "Dual Role Test")
+
+	// Role with name "user" (direct name match on target_roles)
+	sysRoleID := createTestRoleWithBaseRole(t, db, "user", "user", schoolID)
+
+	// Custom role with base_role = "user" (base_role match on target_roles)
+	customRoleID := createTestRoleWithBaseRole(t, db, "gruppenleitung-dual-delivery", "user", schoolID)
+
+	// Account has BOTH roles
+	userID := createTestAccount(t, db, "user-dual-delivery@example.com")
+	createTestAccountTenant(t, db, userID, schoolID)
+	assignTestRole(t, db, userID, sysRoleID, schoolID)
+	assignTestRole(t, db, userID, customRoleID, schoolID)
+
+	// Announcement targets "user" — both roles match (one by name, one by base_role)
+	announcement := &platformModels.Announcement{
+		Title:           "Dual Role Delivery",
+		Content:         "Should appear exactly once",
+		Type:            platformModels.TypeAnnouncement,
+		Severity:        platformModels.SeverityInfo,
+		Active:          true,
+		CreatedBy:       operator.ID,
+		TargetRoles:     []string{"user"},
+		TargetOrgIDs:    []int64{},
+		TargetTenantIDs: []int64{},
+	}
+	err := annoRepo.Create(ctx, announcement)
+	require.NoError(t, err)
+	publishTestAnnouncement(t, db, announcement.ID)
+
+	defer cleanupTargetingTestData(t, db,
+		[]int64{announcement.ID},
+		[]int64{userID},
+		[]int64{schoolID},
+		[]int64{orgID},
+	)
+	defer cleanupTestOperator(t, db, operator.ID)
+	defer cleanupTestRole(t, db, sysRoleID)
+	defer cleanupTestRole(t, db, customRoleID)
+	defer cleanupTestAccountRole(t, db, userID, sysRoleID)
+	defer cleanupTestAccountRole(t, db, userID, customRoleID)
+
+	// GetUnreadForUser should return the announcement exactly once
+	unread, err := viewRepo.GetUnreadForUser(ctx, userID, []string{"user", "gruppenleitung-dual-delivery"}, schoolID, orgID)
+	require.NoError(t, err)
+
+	matchCount := 0
+	for _, a := range unread {
+		if a.ID == announcement.ID {
+			matchCount++
+		}
+	}
+	assert.Equal(t, 1, matchCount, "announcement must appear exactly once even with both direct and base_role match")
+
+	// CountUnread should also be consistent
+	count, err := viewRepo.CountUnread(ctx, userID, []string{"user", "gruppenleitung-dual-delivery"}, schoolID, orgID)
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, count, 1, "count should include the dual-matched announcement")
+}
+
+func TestAnnouncementTargeting_GetUnreadForUser_UpdateBaseRoleChangesDelivery(t *testing.T) {
+	// Test: changing a custom role's base_role should change which announcements
+	// the user receives via the base_role expansion path.
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	viewRepo := platform.NewAnnouncementViewRepository(db)
+	annoRepo := platform.NewAnnouncementRepository(db)
+
+	orgID := createTestOrganization(t, db, "Org BaseRole Update")
+	schoolID := createTestSchool(t, db, "School BaseRole Update", orgID)
+
+	operator := createTestOperator(t, db, "targeting-update-baserole@example.com", "Update BaseRole Test")
+
+	// Custom role initially with base_role = "user"
+	customRoleID := createTestRoleWithBaseRole(t, db, "dynamic-role-test", "user", schoolID)
+
+	userID := createTestAccount(t, db, "user-update-baserole@example.com")
+	createTestAccountTenant(t, db, userID, schoolID)
+	assignTestRole(t, db, userID, customRoleID, schoolID)
+
+	// Announcement targeting "admin"
+	annoAdmin := &platformModels.Announcement{
+		Title:           "Admin Only",
+		Content:         "For admins",
+		Type:            platformModels.TypeAnnouncement,
+		Severity:        platformModels.SeverityInfo,
+		Active:          true,
+		CreatedBy:       operator.ID,
+		TargetRoles:     []string{"admin"},
+		TargetOrgIDs:    []int64{},
+		TargetTenantIDs: []int64{},
+	}
+	err := annoRepo.Create(ctx, annoAdmin)
+	require.NoError(t, err)
+	publishTestAnnouncement(t, db, annoAdmin.ID)
+
+	// Announcement targeting "user"
+	annoUser := &platformModels.Announcement{
+		Title:           "User Only",
+		Content:         "For users",
+		Type:            platformModels.TypeAnnouncement,
+		Severity:        platformModels.SeverityInfo,
+		Active:          true,
+		CreatedBy:       operator.ID,
+		TargetRoles:     []string{"user"},
+		TargetOrgIDs:    []int64{},
+		TargetTenantIDs: []int64{},
+	}
+	err = annoRepo.Create(ctx, annoUser)
+	require.NoError(t, err)
+	publishTestAnnouncement(t, db, annoUser.ID)
+
+	defer cleanupTargetingTestData(t, db,
+		[]int64{annoAdmin.ID, annoUser.ID},
+		[]int64{userID},
+		[]int64{schoolID},
+		[]int64{orgID},
+	)
+	defer cleanupTestOperator(t, db, operator.ID)
+	defer cleanupTestRole(t, db, customRoleID)
+	defer cleanupTestAccountRole(t, db, userID, customRoleID)
+
+	// With base_role = "user", the user should see "User Only" but NOT "Admin Only"
+	unread, err := viewRepo.GetUnreadForUser(ctx, userID, []string{"dynamic-role-test"}, schoolID, orgID)
+	require.NoError(t, err)
+
+	hasUser, hasAdmin := false, false
+	for _, a := range unread {
+		if a.ID == annoUser.ID {
+			hasUser = true
+		}
+		if a.ID == annoAdmin.ID {
+			hasAdmin = true
+		}
+	}
+	assert.True(t, hasUser, "user with base_role='user' should see user-targeted announcement")
+	assert.False(t, hasAdmin, "user with base_role='user' should NOT see admin-targeted announcement")
+
+	// Now update the role's base_role to "admin"
+	updateCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, err = db.NewRaw(`UPDATE auth.roles SET base_role = 'admin' WHERE id = ?`, customRoleID).Exec(updateCtx)
+	require.NoError(t, err)
+
+	// After update: should see "Admin Only" but NOT "User Only"
+	unread2, err := viewRepo.GetUnreadForUser(ctx, userID, []string{"dynamic-role-test"}, schoolID, orgID)
+	require.NoError(t, err)
+
+	hasUser2, hasAdmin2 := false, false
+	for _, a := range unread2 {
+		if a.ID == annoUser.ID {
+			hasUser2 = true
+		}
+		if a.ID == annoAdmin.ID {
+			hasAdmin2 = true
+		}
+	}
+	assert.False(t, hasUser2, "after base_role change to 'admin', should NOT see user-targeted announcement")
+	assert.True(t, hasAdmin2, "after base_role change to 'admin', should see admin-targeted announcement")
+}
+
 func TestOrganizationRepository_CountByIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

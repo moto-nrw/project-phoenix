@@ -9,6 +9,8 @@ import {
   mapRoleResponse,
   getRoleDisplayName,
   getRoleDisplayDescription,
+  getBaseRoleLabel,
+  BASE_ROLE_LABELS,
 } from "@/lib/auth-helpers";
 
 export const rolesConfig = defineEntityConfig<Role>({
@@ -48,6 +50,19 @@ export const rolesConfig = defineEntityConfig<Role>({
             required: false,
             placeholder:
               "Beschreiben Sie die Aufgaben und Verantwortlichkeiten dieser Rolle",
+          },
+          {
+            name: "baseRole",
+            label: "Systemrolle",
+            type: "select",
+            required: true,
+            placeholder: "Systemrolle auswählen",
+            helperText:
+              "Ordnet diese Rolle einer Systemrolle zu, damit Ankündigungen korrekt zugestellt werden",
+            options: Object.entries(BASE_ROLE_LABELS).map(([value, label]) => ({
+              value,
+              label,
+            })),
           },
         ],
       },
@@ -90,6 +105,10 @@ export const rolesConfig = defineEntityConfig<Role>({
             value: (role: Role) =>
               getRoleDisplayDescription(role.name, role.description) ||
               "Keine Beschreibung",
+          },
+          {
+            label: "Systemrolle",
+            value: (role: Role) => getBaseRoleLabel(role.baseRole),
           },
           {
             label: "Berechtigungen",
@@ -142,6 +161,11 @@ export const rolesConfig = defineEntityConfig<Role>({
   },
 
   service: {
+    mapRequest: (data: Partial<Role>): Record<string, unknown> => ({
+      name: data.name,
+      description: data.description,
+      ...(!data.isSystem && { base_role: data.baseRole }),
+    }),
     mapResponse: (data: unknown): Role => {
       // Handle wrapped response format
       let actualData = data;

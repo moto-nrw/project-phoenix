@@ -9,18 +9,59 @@ import (
 )
 
 const DefaultSeedStatePath = ".seed-state.json"
+const CurrentSeedStateVersion = "2"
 
 type SeedState struct {
-	CreatedAt  time.Time             `json:"created_at"`
-	BaseURL    string                `json:"base_url"`
-	DevicePIN  string                `json:"device_pin"`
-	Bootstrap  SeedStateBootstrap    `json:"bootstrap"`
-	Accounts   SeedStateAccounts     `json:"accounts"`
-	Devices    map[string]SeedDevice `json:"devices"`
-	Students   []SeedStudent         `json:"students"`
-	Rooms      map[string]int64      `json:"rooms"`
-	Activities map[string]int64      `json:"activities"`
-	Groups     map[string]int64      `json:"groups"`
+	Version     string                `json:"version"`
+	CreatedAt   time.Time             `json:"created_at"`
+	BaseURL     string                `json:"base_url"`
+	DevicePIN   string                `json:"device_pin"`
+	Bootstrap   SeedStateBootstrap    `json:"bootstrap"`
+	Accounts    SeedStateAccounts     `json:"accounts"`
+	Devices     map[string]SeedDevice `json:"devices"`
+	Students    []SeedStudent         `json:"students"`
+	Rooms       map[string]int64      `json:"rooms"`
+	Activities  map[string]int64      `json:"activities"`
+	Groups      map[string]int64      `json:"groups"`
+	Credentials SeedStateCredentials  `json:"credentials"`
+	Topology    SeedStateTopology     `json:"topology"`
+	Entities    SeedStateEntities     `json:"entities"`
+	Lookups     SeedStateLookups      `json:"lookups"`
+	Scenarios   SeedStateScenarios    `json:"scenarios"`
+}
+
+type SeedStateCredentials struct {
+	Operator  *SeedOperatorCredentials `json:"operator,omitempty"`
+	DevicePIN string                   `json:"device_pin"`
+	Accounts  SeedStateAccounts        `json:"accounts"`
+}
+
+type SeedOperatorCredentials struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+type SeedStateTopology struct {
+	Organizations int    `json:"organizations"`
+	Schools       int    `json:"schools"`
+	Mode          string `json:"mode,omitempty"`
+}
+
+type SeedStateEntities struct {
+	Bootstrap SeedStateBootstrap    `json:"bootstrap"`
+	Devices   map[string]SeedDevice `json:"devices"`
+	Students  []SeedStudent         `json:"students"`
+}
+
+type SeedStateLookups struct {
+	Rooms      map[string]int64 `json:"rooms"`
+	Activities map[string]int64 `json:"activities"`
+	Groups     map[string]int64 `json:"groups"`
+}
+
+type SeedStateScenarios struct {
+	DefaultPlayer string `json:"default_player,omitempty"`
+	DefaultMode   string `json:"default_mode,omitempty"`
 }
 
 type SeedStateBootstrap struct {
@@ -70,6 +111,7 @@ type SeedStudent struct {
 }
 
 func WriteSeedState(state *SeedState, path string) error {
+	state.Normalize()
 	data, err := json.MarshalIndent(state, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshal seed state: %w", err)
@@ -89,5 +131,131 @@ func LoadSeedState(path string) (*SeedState, error) {
 	if err := json.Unmarshal(data, &state); err != nil {
 		return nil, fmt.Errorf("unmarshal seed state: %w", err)
 	}
+	if state.Version != "" && state.Version != CurrentSeedStateVersion {
+		return nil, fmt.Errorf("unsupported seed state version: %s", state.Version)
+	}
+	state.Normalize()
 	return &state, nil
+}
+
+func (s *SeedState) Normalize() {
+	if s == nil {
+		return
+	}
+
+	if s.Version == "" {
+		s.Version = CurrentSeedStateVersion
+	}
+	if s.Devices == nil {
+		s.Devices = make(map[string]SeedDevice)
+	}
+	if s.Rooms == nil {
+		s.Rooms = make(map[string]int64)
+	}
+	if s.Activities == nil {
+		s.Activities = make(map[string]int64)
+	}
+	if s.Groups == nil {
+		s.Groups = make(map[string]int64)
+	}
+	if s.Entities.Devices == nil {
+		s.Entities.Devices = make(map[string]SeedDevice)
+	}
+	if s.Lookups.Rooms == nil {
+		s.Lookups.Rooms = make(map[string]int64)
+	}
+	if s.Lookups.Activities == nil {
+		s.Lookups.Activities = make(map[string]int64)
+	}
+	if s.Lookups.Groups == nil {
+		s.Lookups.Groups = make(map[string]int64)
+	}
+
+	if s.Credentials.DevicePIN == "" {
+		s.Credentials.DevicePIN = s.DevicePIN
+	}
+	if s.DevicePIN == "" {
+		s.DevicePIN = s.Credentials.DevicePIN
+	}
+
+	if len(s.Credentials.Accounts.Admin) == 0 && len(s.Credentials.Accounts.Betreuer) == 0 {
+		s.Credentials.Accounts = s.Accounts
+	}
+	if len(s.Accounts.Admin) == 0 && len(s.Accounts.Betreuer) == 0 {
+		s.Accounts = s.Credentials.Accounts
+	}
+
+	if s.Entities.Bootstrap.OrganizationID == 0 && s.Bootstrap.OrganizationID != 0 {
+		s.Entities.Bootstrap = s.Bootstrap
+	}
+	if s.Bootstrap.OrganizationID == 0 && s.Entities.Bootstrap.OrganizationID != 0 {
+		s.Bootstrap = s.Entities.Bootstrap
+	}
+
+	if len(s.Entities.Devices) == 0 && len(s.Devices) > 0 {
+		s.Entities.Devices = cloneSeedDevices(s.Devices)
+	}
+	if len(s.Devices) == 0 && len(s.Entities.Devices) > 0 {
+		s.Devices = cloneSeedDevices(s.Entities.Devices)
+	}
+
+	if len(s.Entities.Students) == 0 && len(s.Students) > 0 {
+		s.Entities.Students = append([]SeedStudent(nil), s.Students...)
+	}
+	if len(s.Students) == 0 && len(s.Entities.Students) > 0 {
+		s.Students = append([]SeedStudent(nil), s.Entities.Students...)
+	}
+
+	if len(s.Lookups.Rooms) == 0 && len(s.Rooms) > 0 {
+		s.Lookups.Rooms = cloneSeedIDMap(s.Rooms)
+	}
+	if len(s.Rooms) == 0 && len(s.Lookups.Rooms) > 0 {
+		s.Rooms = cloneSeedIDMap(s.Lookups.Rooms)
+	}
+
+	if len(s.Lookups.Activities) == 0 && len(s.Activities) > 0 {
+		s.Lookups.Activities = cloneSeedIDMap(s.Activities)
+	}
+	if len(s.Activities) == 0 && len(s.Lookups.Activities) > 0 {
+		s.Activities = cloneSeedIDMap(s.Lookups.Activities)
+	}
+
+	if len(s.Lookups.Groups) == 0 && len(s.Groups) > 0 {
+		s.Lookups.Groups = cloneSeedIDMap(s.Groups)
+	}
+	if len(s.Groups) == 0 && len(s.Lookups.Groups) > 0 {
+		s.Groups = cloneSeedIDMap(s.Lookups.Groups)
+	}
+
+	if s.Topology.Organizations == 0 && s.Bootstrap.OrganizationID != 0 {
+		s.Topology.Organizations = 1
+	}
+	if s.Topology.Schools == 0 && s.Bootstrap.SchoolID != 0 {
+		s.Topology.Schools = 1
+	}
+	if s.Topology.Mode == "" {
+		s.Topology.Mode = "full-demo"
+	}
+	if s.Scenarios.DefaultPlayer == "" {
+		s.Scenarios.DefaultPlayer = "pyreportal"
+	}
+	if s.Scenarios.DefaultMode == "" {
+		s.Scenarios.DefaultMode = "hybrid"
+	}
+}
+
+func cloneSeedDevices(src map[string]SeedDevice) map[string]SeedDevice {
+	dst := make(map[string]SeedDevice, len(src))
+	for key, value := range src {
+		dst[key] = value
+	}
+	return dst
+}
+
+func cloneSeedIDMap(src map[string]int64) map[string]int64 {
+	dst := make(map[string]int64, len(src))
+	for key, value := range src {
+		dst[key] = value
+	}
+	return dst
 }

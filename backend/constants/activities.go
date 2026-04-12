@@ -52,3 +52,15 @@ const (
 	// WCMaxParticipants is the default max participants for the WC activity.
 	WCMaxParticipants = 20
 )
+
+// IsSystemRoomName returns true if the given room name is a system room
+// that must not be deleted or renamed.
+func IsSystemRoomName(name string) bool {
+	return name == SchulhofRoomName || name == WCRoomName
+}
+
+// IsSystemActivityName returns true if the given activity name is a system activity
+// that must not be deleted or renamed.
+func IsSystemActivityName(name string) bool {
+	return name == SchulhofActivityName || name == WCActivityName
+}

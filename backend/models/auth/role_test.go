@@ -94,6 +94,78 @@ func TestRole_Validate_Normalization(t *testing.T) {
 	}
 }
 
+func TestRole_Validate_BaseRole(t *testing.T) {
+	validUser := "user"
+	validAdmin := "admin"
+	validGuardian := "guardian"
+	invalid := "superuser"
+	empty := ""
+
+	tests := []struct {
+		name    string
+		role    *Role
+		wantErr bool
+	}{
+		{
+			name:    "nil base_role on custom role is valid (legacy roles)",
+			role:    &Role{Name: "custom", BaseRole: nil},
+			wantErr: false,
+		},
+		{
+			name:    "nil base_role on system role is valid",
+			role:    &Role{Name: "admin", IsSystem: true, BaseRole: nil},
+			wantErr: false,
+		},
+		{
+			name:    "base_role admin is valid",
+			role:    &Role{Name: "custom", BaseRole: &validAdmin},
+			wantErr: false,
+		},
+		{
+			name:    "base_role user is valid",
+			role:    &Role{Name: "custom", BaseRole: &validUser},
+			wantErr: false,
+		},
+		{
+			name:    "base_role guardian is valid",
+			role:    &Role{Name: "custom", BaseRole: &validGuardian},
+			wantErr: false,
+		},
+		{
+			name:    "invalid base_role is rejected",
+			role:    &Role{Name: "custom", BaseRole: &invalid},
+			wantErr: true,
+		},
+		{
+			name:    "empty base_role on custom role is valid (normalized to nil)",
+			role:    &Role{Name: "custom", BaseRole: &empty},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.role.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Role.Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+
+	// Verify empty base_role normalization on system role (still becomes nil, which is valid)
+	t.Run("empty base_role on system role becomes nil after Validate", func(t *testing.T) {
+		empty := ""
+		role := &Role{Name: "admin", IsSystem: true, BaseRole: &empty}
+		err := role.Validate()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if role.BaseRole != nil {
+			t.Errorf("expected BaseRole to be nil after normalization, got %q", *role.BaseRole)
+		}
+	})
+}
+
 func TestRole_HasPermission(t *testing.T) {
 	readPerm := &Permission{
 		Model: base.Model{ID: 1},

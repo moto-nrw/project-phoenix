@@ -40,7 +40,7 @@ func setupTestContext(t *testing.T) *testContext {
 	t.Helper()
 
 	db, svc := testutil.SetupAPITest(t)
-	resource := activeAPI.NewResource(svc.Active, svc.Users, svc.Schulhof, svc.UserContext, db, slog.Default())
+	resource := activeAPI.NewResource(svc.Active, svc.Users, svc.Schulhof, svc.UserContext, svc.Settings, db, slog.Default())
 
 	t.Cleanup(func() {
 		if err := db.Close(); err != nil {
@@ -95,6 +95,7 @@ func setupProtectedRouter(t *testing.T) (*testContext, chi.Router) {
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}", tc.resource.GetSupervisorHandler())
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/staff/{staffId}", tc.resource.GetStaffSupervisionsHandler())
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/staff/{staffId}/active", tc.resource.GetStaffActiveSupervisionsHandler())
+			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/all", tc.resource.GetAllActiveSupervisionsHandler())
 			r.With(authorize.RequiresPermission(permissions.GroupsAssign)).Post("/", tc.resource.CreateSupervisorHandler())
 			r.With(authorize.RequiresPermission(permissions.GroupsAssign)).Put("/{id}", tc.resource.UpdateSupervisorHandler())
 			r.With(authorize.RequiresPermission(permissions.GroupsAssign)).Delete("/{id}", tc.resource.DeleteSupervisorHandler())
@@ -162,6 +163,7 @@ func setupExtendedProtectedRouter(t *testing.T) (*testContext, chi.Router) {
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}", tc.resource.GetSupervisorHandler())
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/staff/{staffId}", tc.resource.GetStaffSupervisionsHandler())
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/staff/{staffId}/active", tc.resource.GetStaffActiveSupervisionsHandler())
+			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/all", tc.resource.GetAllActiveSupervisionsHandler())
 			r.With(authorize.RequiresPermission(permissions.GroupsAssign)).Post("/", tc.resource.CreateSupervisorHandler())
 			r.With(authorize.RequiresPermission(permissions.GroupsAssign)).Put("/{id}", tc.resource.UpdateSupervisorHandler())
 			r.With(authorize.RequiresPermission(permissions.GroupsAssign)).Delete("/{id}", tc.resource.DeleteSupervisorHandler())
@@ -2369,6 +2371,39 @@ func TestGetActiveGroupVisitsWithDisplay(t *testing.T) {
 	t.Run("forbidden without permission", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/groups/%d/visits/display", activeGroup.ID), nil)
 		rr := executeWithAuth(router, req, staffClaims, []string{})
+
+		testutil.AssertForbidden(t, rr)
+	})
+}
+
+// ============================================================================
+// ADMIN SUPERVISION OVERVIEW TESTS (GET /active/supervisors/all)
+// ============================================================================
+
+func TestGetAllActiveSupervisions(t *testing.T) {
+	_, router := setupProtectedRouter(t)
+
+	adminClaims := testutil.AdminTestClaims(1)
+	teacherClaims := testutil.TeacherTestClaims(42)
+
+	t.Run("forbidden for non-admin user", func(t *testing.T) {
+		req := testutil.NewJSONRequest(t, "GET", "/active/supervisors/all", nil)
+		rr := executeWithAuth(router, req, teacherClaims, []string{permissions.GroupsRead})
+
+		testutil.AssertForbidden(t, rr)
+	})
+
+	t.Run("forbidden for admin when setting is disabled (default)", func(t *testing.T) {
+		// The setting defaults to false, so admin should get 403
+		req := testutil.NewJSONRequest(t, "GET", "/active/supervisors/all", nil)
+		rr := executeWithAuth(router, req, adminClaims, []string{permissions.GroupsRead})
+
+		testutil.AssertForbidden(t, rr)
+	})
+
+	t.Run("forbidden without groups:read permission", func(t *testing.T) {
+		req := testutil.NewJSONRequest(t, "GET", "/active/supervisors/all", nil)
+		rr := executeWithAuth(router, req, adminClaims, []string{})
 
 		testutil.AssertForbidden(t, rr)
 	})

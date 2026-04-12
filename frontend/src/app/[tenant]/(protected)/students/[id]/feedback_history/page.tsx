@@ -85,10 +85,17 @@ export default function StudentFeedbackHistoryPage() {
         setFeedbackHistory(feedbackData);
       } catch (err) {
         if (cancelled) return;
+        const errMsg = err instanceof Error ? err.message : String(err);
         logger.error("failed_to_fetch_feedback_history", {
-          error: err instanceof Error ? err.message : String(err),
+          error: errMsg,
         });
-        setError("Fehler beim Laden der Daten.");
+        if (errMsg === "feature_disabled") {
+          setError(
+            "Diese Funktion ist für Ihre Schule deaktiviert. Sie kann in den Einstellungen unter Datenschutz aktiviert werden.",
+          );
+        } else {
+          setError("Fehler beim Laden der Daten.");
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }

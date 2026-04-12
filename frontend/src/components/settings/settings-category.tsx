@@ -21,7 +21,7 @@ export function SettingsCategory({
   }
 
   return (
-    <div className="rounded-2xl border border-gray-100 bg-white/50 p-6 backdrop-blur-sm">
+    <div className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm sm:p-6">
       <h3 className="mb-1 text-base font-semibold text-gray-900 capitalize">
         {category.label}
       </h3>

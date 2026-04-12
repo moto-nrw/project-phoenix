@@ -35,6 +35,7 @@ type StudentResponse struct {
 	Bus             bool       `json:"bus"`
 	Sick            bool       `json:"sick"`
 	SickSince       *time.Time `json:"sick_since,omitempty"`
+	HasFullAccess   bool       `json:"has_full_access"`
 	CreatedAt       time.Time  `json:"created_at"`
 	UpdatedAt       time.Time  `json:"updated_at"`
 }
@@ -53,8 +54,10 @@ type SupervisorContact struct {
 type StudentDetailResponse struct {
 	StudentResponse
 	HasFullAccess        bool                `json:"has_full_access"`
+	HasWriteAccess       bool                `json:"has_write_access"`
 	GroupSupervisors     []SupervisorContact `json:"group_supervisors,omitempty"`
 	AttendanceLogEnabled bool                `json:"attendance_log_enabled"`
+	FeedbackEnabled      bool                `json:"feedback_enabled"`
 }
 
 // StudentRequest represents a student creation request with person details

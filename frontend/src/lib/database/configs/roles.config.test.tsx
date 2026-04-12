@@ -11,6 +11,12 @@ vi.mock("@/lib/auth-helpers", () => ({
   mapRoleResponse: vi.fn((data: unknown) => data),
   getRoleDisplayName: vi.fn((name: string) => name),
   getRoleDisplayDescription: vi.fn((_name: string, desc: string) => desc),
+  getBaseRoleLabel: vi.fn((role?: string) => role ?? "Keine Zuordnung"),
+  BASE_ROLE_LABELS: {
+    admin: "Administrator",
+    user: "Betreuer",
+    guardian: "Erziehungsberechtigte",
+  },
 }));
 
 describe("rolesConfig", () => {
@@ -37,6 +43,7 @@ describe("rolesConfig", () => {
 
     expect(fieldNames).toContain("name");
     expect(fieldNames).toContain("description");
+    expect(fieldNames).toContain("baseRole");
   });
 
   it("has detail header configuration", () => {

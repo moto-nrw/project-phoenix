@@ -199,7 +199,7 @@ export function PasswordResetModal({
             <div className="mt-6">
               <button
                 onClick={handleClose}
-                className="inline-flex items-center rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all duration-150 hover:scale-110 hover:shadow-2xl hover:shadow-gray-500/25 focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 focus:outline-none"
+                className="inline-flex items-center rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all duration-150 hover:scale-110 hover:shadow-2xl hover:shadow-gray-500/25 focus:outline-none"
               >
                 <span>Schließen</span>
               </button>
@@ -250,14 +250,14 @@ export function PasswordResetModal({
                   type="button"
                   onClick={handleClose}
                   disabled={isLoading}
-                  className="inline-flex items-center rounded-md bg-gray-200 px-4 py-2 text-sm font-medium text-gray-800 shadow-sm transition-colors hover:bg-gray-300 focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex items-center rounded-md bg-gray-200 px-4 py-2 text-sm font-medium text-gray-800 shadow-sm transition-colors hover:bg-gray-300 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Abbrechen
                 </button>
                 <button
                   type="submit"
                   disabled={isLoading || rateLimitActive}
-                  className="inline-flex items-center rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all duration-150 hover:scale-110 hover:shadow-2xl hover:shadow-gray-500/25 focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
+                  className="inline-flex items-center rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all duration-150 hover:scale-110 hover:shadow-2xl hover:shadow-gray-500/25 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
                 >
                   {isLoading ? (
                     <>

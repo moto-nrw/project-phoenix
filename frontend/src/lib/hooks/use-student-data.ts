@@ -32,7 +32,9 @@ interface StudentDataState {
   loading: boolean;
   error: string | null;
   hasFullAccess: boolean;
+  hasWriteAccess: boolean;
   attendanceLogEnabled: boolean;
+  feedbackEnabled: boolean;
   supervisors: SupervisorContact[];
   myGroups: string[];
   myGroupRooms: string[];
@@ -87,6 +89,7 @@ function mapStudentResponse(
     pickup_status: mappedStudent.pickup_status ?? undefined,
     sick: hasAccess ? (mappedStudent.sick ?? false) : false,
     sick_since: hasAccess ? (mappedStudent.sick_since ?? undefined) : undefined,
+    has_full_access: hasAccess,
   };
 }
 
@@ -102,7 +105,9 @@ function extractRoomNames(
 interface StudentDetailResponse {
   student: ExtendedStudent;
   hasFullAccess: boolean;
+  hasWriteAccess: boolean;
   attendanceLogEnabled: boolean;
+  feedbackEnabled: boolean;
   supervisors: SupervisorContact[];
   myGroups: string[];
   myGroupRooms: string[];
@@ -151,13 +156,17 @@ export function useStudentData(studentId: string): UseStudentDataResult {
 
       const mappedStudent = rawStudentData as Student & {
         has_full_access?: boolean;
+        has_write_access?: boolean;
         group_supervisors?: SupervisorContact[];
         attendance_log_enabled?: boolean;
+        feedback_enabled?: boolean;
       };
 
       const hasAccess = mappedStudent.has_full_access ?? false;
+      const hasWriteAccess = mappedStudent.has_write_access ?? false;
       const attendanceLogEnabled =
         mappedStudent.attendance_log_enabled ?? false;
+      const feedbackEnabled = mappedStudent.feedback_enabled ?? false;
       const groupSupervisors = mappedStudent.group_supervisors ?? [];
       const extendedStudent = mapStudentResponse(studentResponse, hasAccess);
 
@@ -168,7 +177,9 @@ export function useStudentData(studentId: string): UseStudentDataResult {
       return {
         student: extendedStudent,
         hasFullAccess: hasAccess,
+        hasWriteAccess,
         attendanceLogEnabled,
+        feedbackEnabled,
         supervisors: groupSupervisors,
         myGroups: groupIds,
         myGroupRooms: ogsGroupRoomNames,
@@ -204,7 +215,9 @@ export function useStudentData(studentId: string): UseStudentDataResult {
     loading,
     error,
     hasFullAccess: studentData?.hasFullAccess ?? true,
+    hasWriteAccess: studentData?.hasWriteAccess ?? false,
     attendanceLogEnabled: studentData?.attendanceLogEnabled ?? false,
+    feedbackEnabled: studentData?.feedbackEnabled ?? false,
     supervisors: studentData?.supervisors ?? [],
     myGroups: studentData?.myGroups ?? [],
     myGroupRooms: studentData?.myGroupRooms ?? [],

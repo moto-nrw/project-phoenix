@@ -231,8 +231,8 @@ func TestFixedSeeder_SeedGuardians(t *testing.T) {
 
 	fs := NewFixedSeeder(client, true)
 
-	// Pre-populate studentIDByIndex
-	for i := 0; i < 50; i++ {
+	// Pre-populate studentIDByIndex for all 100 students
+	for i := 0; i < 100; i++ {
 		fs.studentIDByIndex[i] = int64(i + 100)
 	}
 
@@ -604,10 +604,10 @@ func TestDemoData_GuardiansHaveRequiredFields(t *testing.T) {
 }
 
 func TestDemoData_Counts(t *testing.T) {
-	assert.Equal(t, 12, len(DemoRooms))
+	assert.Equal(t, 11, len(DemoRooms))
 	assert.Equal(t, 20, len(DemoStaff))
 	assert.Equal(t, 100, len(DemoStudents))
-	assert.Equal(t, 10, len(DemoActivities))
+	assert.Equal(t, 8, len(DemoActivities))
 	assert.Equal(t, 10, len(DemoDevices))
 }
 
@@ -784,4 +784,41 @@ func TestFloor_Helper(t *testing.T) {
 	f0 := floor(0)
 	assert.NotNil(t, f0)
 	assert.Equal(t, 0, *f0)
+}
+
+func TestFixedSeeder_SeedPickupSchedules(t *testing.T) {
+	srv := apiMock(t)
+	defer srv.Close()
+
+	client := NewClient(srv.URL, false)
+	client.token = "test-token"
+
+	fs := NewFixedSeeder(client, true)
+
+	// Pre-populate all 100 students
+	for i := 0; i < 100; i++ {
+		fs.studentIDByIndex[i] = int64(i + 100)
+	}
+
+	result := &FixedResult{}
+	err := fs.seedPickupSchedules(context.TODO(), result)
+	require.NoError(t, err)
+	// Every other student (odd indices) gets a schedule: 100/2 = 50
+	assert.Equal(t, 50, result.PickupScheduleCount)
+}
+
+func TestFixedSeeder_SeedPickupSchedules_EmptyStudents(t *testing.T) {
+	srv := apiMock(t)
+	defer srv.Close()
+
+	client := NewClient(srv.URL, false)
+	client.token = "test-token"
+
+	fs := NewFixedSeeder(client, true)
+	// studentIDByIndex is empty — no schedules should be created
+
+	result := &FixedResult{}
+	err := fs.seedPickupSchedules(context.TODO(), result)
+	require.NoError(t, err)
+	assert.Equal(t, 0, result.PickupScheduleCount)
 }

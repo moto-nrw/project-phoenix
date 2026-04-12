@@ -258,7 +258,7 @@ export function CaregiverCapabilityModal({
     <FormModal
       isOpen={isOpen}
       onClose={onClose}
-      title={`Betreuung verwalten — ${accountLabel}`}
+      title={`Betreuung verwalten: ${accountLabel}`}
       size="lg"
       footer={
         <>

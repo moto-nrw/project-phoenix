@@ -83,28 +83,42 @@ func (r *AnnouncementViewRepository) MarkDismissed(ctx context.Context, userID, 
 	return nil
 }
 
-// buildUnreadArgs returns the fixed-size positional args for unreadWhereClause.
-// Arg order is always: userID, now, now, pgArray(userRoles), tenantID, orgID (6 args).
+// buildUnreadArgs returns the fixed-size positional args shared by the JOIN + WHERE
+// in the unread announcement query.
+// Arg order: userID (JOIN), now, now, pgArray(userRoles), userID (EXISTS), tenantID (EXISTS), tenantID (targeting), orgID (targeting) — 8 args.
 func buildUnreadArgs(userID int64, userRoles []string, tenantID int64, orgID int64) []any {
 	now := time.Now()
 	if userRoles == nil {
 		userRoles = []string{}
 	}
-	return []any{userID, now, now, pgdialect.Array(userRoles), tenantID, orgID}
+	return []any{userID, now, now, pgdialect.Array(userRoles), userID, tenantID, tenantID, orgID}
 }
 
 // unreadWhereClause is the shared SQL fragment used by both GetUnreadForUser
-// and CountUnread. Arg positions are fixed (always 6 — see buildUnreadArgs).
-// Role matching uses the && (overlap) operator: when userRoles is empty the
-// overlap with '{}' is false, so only global announcements (target_roles = '{}')
-// pass the filter — no branching or fmt.Sprintf needed.
+// and CountUnread. Arg positions are fixed (always 8 — see buildUnreadArgs).
+//
+// Role matching: a user matches if their JWT role names overlap with target_roles
+// (direct match) OR if any of their assigned roles in the current session tenant
+// has a base_role that appears in target_roles (base-role match via EXISTS).
+// The tenant scoping on the EXISTS prevents cross-tenant role leakage: a user's
+// custom role in Tenant B must not influence announcement delivery in Tenant A.
+// This mirrors the strategy used by GetStats to keep delivery and stats consistent.
 const unreadWhereClause = `
 	WHERE a.active = true
 		AND a.published_at IS NOT NULL
 		AND a.published_at <= ?
 		AND (a.expires_at IS NULL OR a.expires_at > ?)
 		AND v.seen_at IS NULL
-		AND (a.target_roles = '{}' OR a.target_roles && ?::text[])
+		AND (a.target_roles = '{}'
+			OR a.target_roles && ?::text[]
+			OR EXISTS (
+				SELECT 1 FROM auth.account_roles ar
+				JOIN auth.roles r ON r.id = ar.role_id
+				WHERE ar.account_id = ?
+				AND ar.tenant_id = ?
+				AND r.base_role IS NOT NULL
+				AND r.base_role = ANY(a.target_roles)
+			))
 		AND (
 			(a.target_org_ids = '{}' AND a.target_tenant_ids = '{}')
 			OR (a.target_tenant_ids != '{}' AND ? = ANY(a.target_tenant_ids))
@@ -216,8 +230,8 @@ func (r *AnnouncementViewRepository) GetStats(ctx context.Context, announcementI
 	queryParts = append(queryParts, `WHERE at.status = 'active'`)
 
 	if hasRoleFilter {
-		queryParts = append(queryParts, `AND r.name IN (?)`)
-		queryArgs = append(queryArgs, bun.List(targetRoles))
+		queryParts = append(queryParts, `AND (r.name IN (?) OR (r.base_role IS NOT NULL AND r.base_role IN (?)))`)
+		queryArgs = append(queryArgs, bun.List(targetRoles), bun.List(targetRoles))
 	}
 
 	if hasOrgFilter && hasTenantFilter {

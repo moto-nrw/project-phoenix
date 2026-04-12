@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/uptrace/bun"
@@ -244,13 +245,16 @@ func (rs *Resource) getActiveGroupVisitsWithDisplay(w http.ResponseWriter, r *ht
 		return
 	}
 
-	staff, err := rs.extractStaffFromRequest(w, r)
-	if err != nil {
-		return
-	}
+	// Admin with supervision overview setting: skip staff/supervision checks
+	if !rs.isAdminWithSupervisionOverview(r) {
+		staff, err := rs.extractStaffFromRequest(w, r)
+		if err != nil {
+			return
+		}
 
-	if rs.verifyStaffSupervisionAccess(w, r, staff.ID, id) != nil {
-		return
+		if rs.verifyStaffSupervisionAccess(w, r, staff.ID, id) != nil {
+			return
+		}
 	}
 
 	results, err := rs.fetchVisitsWithDisplayData(r, id)
@@ -310,6 +314,23 @@ func (rs *Resource) verifyStaffSupervisionAccess(w http.ResponseWriter, r *http.
 	}
 
 	return nil
+}
+
+// isAdminWithSupervisionOverview checks if the current user is an admin with the
+// admin_supervision_overview setting enabled for this tenant.
+func (rs *Resource) isAdminWithSupervisionOverview(r *http.Request) bool {
+	claims := jwt.ClaimsFromCtx(r.Context())
+	if !claims.IsAdmin {
+		return false
+	}
+	if rs.SettingsService == nil {
+		return false
+	}
+	enabled, err := rs.SettingsService.ResolveBool(r.Context(), configModel.KeyAdminSupervisionOverview)
+	if err != nil {
+		return false
+	}
+	return enabled
 }
 
 // visitWithStudent is a helper struct for the JOIN query

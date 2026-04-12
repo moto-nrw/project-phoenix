@@ -11,7 +11,7 @@ func init() {
 		Label:           "OGS Geräte-PIN",
 		Description:     "PIN für die Authentifizierung an RFID-Geräten. Wird als Klartext gespeichert und in der Oberfläche maskiert.",
 		Type:            config.FieldPassword,
-		Default:         "",
+		Default:         "1234",
 		ReadPermission:  "config:read",
 		WritePermission: "config:manage",
 		Tab:             "security",

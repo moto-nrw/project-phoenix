@@ -33,7 +33,6 @@ func TestWriteSimulatorConfig_GeneratesValidYAML(t *testing.T) {
 			"Kreativraum": 3,
 			"Mensa":       4,
 			"OGS-Raum 2":  5,
-			"Schulhof":    6,
 		},
 		Activities: map[string]int64{
 			"Hausaufgaben": 50,
@@ -44,8 +43,6 @@ func TestWriteSimulatorConfig_GeneratesValidYAML(t *testing.T) {
 			"Musik":        55,
 			"Tanzen":       56,
 			"Schach":       57,
-			"Garten":       58,
-			"Freispiel":    59,
 		},
 	}
 

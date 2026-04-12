@@ -135,7 +135,7 @@ describe("PermissionSelector", () => {
     render(<PermissionSelector value={value} onChange={mockOnChange} />);
 
     await waitFor(() => {
-      expect(screen.getByText("Permission-Name:")).toBeInTheDocument();
+      expect(screen.getByText("Berechtigungsname:")).toBeInTheDocument();
       expect(screen.getByText("users:read")).toBeInTheDocument();
     });
   });

@@ -21,6 +21,7 @@ import (
 func TestFindRoomForActivity_KnownActivity(t *testing.T) {
 	rooms := map[string]int64{
 		"OGS-Raum 1": 10,
+		"OGS-Raum 3": 15,
 		"Sporthalle": 20,
 		"Schulhof":   30,
 	}
@@ -28,30 +29,34 @@ func TestFindRoomForActivity_KnownActivity(t *testing.T) {
 	assert.Equal(t, int64(10), findRoomForActivity("Hausaufgaben", rooms))
 	assert.Equal(t, int64(20), findRoomForActivity("Fußball", rooms))
 	assert.Equal(t, int64(30), findRoomForActivity("Garten", rooms))
-	assert.Equal(t, int64(30), findRoomForActivity("Freispiel", rooms))
+	assert.Equal(t, int64(15), findRoomForActivity("Freispiel", rooms))
 }
 
 func TestFindRoomForActivity_AllMappings(t *testing.T) {
 	rooms := map[string]int64{
-		"OGS-Raum 1":  1,
-		"OGS-Raum 2":  2,
-		"Sporthalle":  3,
-		"Kreativraum": 4,
-		"Mensa":       5,
-		"Schulhof":    6,
+		"OGS-Raum 1":    1,
+		"OGS-Raum 2":    2,
+		"OGS-Raum 3":    3,
+		"Sporthalle":    4,
+		"Kreativraum":   5,
+		"Mensa":         6,
+		"Schulhof":      7,
+		"Leseecke":      8,
+		"Musikraum":     9,
+		"Bewegungsraum": 10,
 	}
 
 	tests := map[string]int64{
 		"Hausaufgaben": 1,
-		"Fußball":      3,
-		"Basteln":      4,
-		"Kochen":       5,
-		"Lesen":        2,
-		"Musik":        1,
-		"Tanzen":       3,
+		"Fußball":      4,
+		"Basteln":      5,
+		"Kochen":       6,
+		"Lesen":        8,
+		"Musik":        9,
+		"Tanzen":       10,
 		"Schach":       2,
-		"Garten":       6,
-		"Freispiel":    6,
+		"Garten":       7,
+		"Freispiel":    3,
 	}
 
 	for activity, expectedRoomID := range tests {

@@ -29,10 +29,36 @@ const (
 	AttendanceLogScopeAllStaff             = "all_staff"
 )
 
+// Student data scope / who can read full student profile data.
+const (
+	KeyStudentDataScope = "gdpr.student_data_scope"
+)
+
+// StudentDataScope option values for KeyStudentDataScope.
+const (
+	StudentDataScopeGroupSupervisorsOnly = "group_supervisors_only"
+	StudentDataScopeAllStaff             = "all_staff"
+)
+
 // Feedback settings.
 const (
 	KeyFeedbackEnabled           = "feedback.enabled"
 	KeyFeedbackDataRetentionDays = "feedback.data_retention_days"
+)
+
+// Checkout button settings (devices tab).
+const (
+	KeyCheckoutRaumwechselEnabled = "checkout.raumwechsel_enabled"
+	KeyCheckoutSchulhofEnabled    = "checkout.schulhof_enabled"
+	KeyCheckoutWCEnabled          = "checkout.wc_enabled"
+)
+
+// Tracking indicator settings (student card activity indicators).
+const (
+	KeyTrackingIndicatorsEnabled = "tracking.indicators_enabled"
+	KeyTrackingIndicator1        = "tracking.indicator_1"
+	KeyTrackingIndicator2        = "tracking.indicator_2"
+	KeyTrackingIndicator3        = "tracking.indicator_3"
 )
 
 // Operations settings.
@@ -44,4 +70,5 @@ const (
 	KeySessionCleanupEnabled         = "operations.session_cleanup_enabled"
 	KeySessionCleanupIntervalMinutes = "operations.session_cleanup_interval_minutes"
 	KeySessionAbandonedThresholdMin  = "operations.session_abandoned_threshold_minutes"
+	KeyAdminSupervisionOverview      = "operations.admin_supervision_overview"
 )

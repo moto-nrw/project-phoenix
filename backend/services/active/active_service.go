@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/device"
@@ -901,6 +902,24 @@ func (s *service) GetStaffActiveSupervisions(ctx context.Context, staffID int64)
 	return activeSupervisions, nil
 }
 
+// GetAllActiveSupervisions returns all currently active supervisions across all staff.
+// Used by admin supervision overview to display all active rooms.
+func (s *service) GetAllActiveSupervisions(ctx context.Context) ([]*active.GroupSupervisor, error) {
+	supervisors, err := s.supervisorRepo.FindAllActive(ctx)
+	if err != nil {
+		return nil, &ActiveError{Op: "GetAllActiveSupervisions", Err: ErrDatabaseOperation}
+	}
+
+	var activeSupervisions []*active.GroupSupervisor
+	for _, supervisor := range supervisors {
+		if supervisor.IsActive() {
+			activeSupervisions = append(activeSupervisions, supervisor)
+		}
+	}
+
+	return activeSupervisions, nil
+}
+
 // GetCrossTenantStudents returns students visiting from other tenants.
 func (s *service) GetCrossTenantStudents(ctx context.Context, hostingTenantID int64) ([]active.CrossTenantStudent, error) {
 	if s.crossTenantRepo == nil {
@@ -918,6 +937,51 @@ func (s *service) GetCrossTenantStudents(ctx context.Context, hostingTenantID in
 	)
 
 	return students, nil
+}
+
+// GetTrackingIndicators returns per-student match results for the given labels.
+// For each student, it checks today's visits and matches activity group name + room name
+// against each label using case-insensitive substring matching.
+func (s *service) GetTrackingIndicators(ctx context.Context, studentIDs []int64, labels []string) (map[int64][]bool, error) {
+	result := make(map[int64][]bool, len(studentIDs))
+	if len(studentIDs) == 0 || len(labels) == 0 {
+		return result, nil
+	}
+
+	visitNames, err := s.visitRepo.GetTodayVisitNamesForStudents(ctx, studentIDs)
+	if err != nil {
+		return nil, &ActiveError{Op: "GetTrackingIndicators", Err: ErrDatabaseOperation}
+	}
+
+	// Build a map of student ID → concatenated visit texts for matching.
+	studentVisitTexts := make(map[int64][]string, len(studentIDs))
+	for _, vn := range visitNames {
+		text := strings.ToLower(strings.TrimSpace(vn.ActivityGroupName + " " + vn.RoomName))
+		studentVisitTexts[vn.StudentID] = append(studentVisitTexts[vn.StudentID], text)
+	}
+
+	// Lowercase the labels once.
+	lowerLabels := make([]string, len(labels))
+	for i, l := range labels {
+		lowerLabels[i] = strings.ToLower(strings.TrimSpace(l))
+	}
+
+	// For each student, check each label against their visit texts.
+	for _, sid := range studentIDs {
+		matches := make([]bool, len(labels))
+		texts := studentVisitTexts[sid]
+		for li, ll := range lowerLabels {
+			for _, t := range texts {
+				if strings.Contains(t, ll) {
+					matches[li] = true
+					break
+				}
+			}
+		}
+		result[sid] = matches
+	}
+
+	return result, nil
 }
 
 // visitSSEData holds data needed for SSE broadcasts after a visit is ended

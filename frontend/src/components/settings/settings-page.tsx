@@ -9,7 +9,18 @@ import {
   resetSettingValue,
 } from "~/lib/settings-api";
 import type { SettingsSchema, SchemaTab } from "~/lib/settings-api";
+import { Alert } from "~/components/ui/alert";
+import { Skeleton } from "~/components/ui/skeleton";
 import { SettingsCategory } from "./settings-category";
+import { PersonalizationTab } from "./personalization-tab";
+import { useOptionalSupervision } from "~/lib/supervision-context";
+
+// Settings whose value affects the supervision context (sidebar / mobile nav)
+// and therefore require an immediate re-fetch after save/reset instead of
+// waiting for the next navigation or re-login.
+const SUPERVISION_AFFECTING_KEYS = new Set<string>([
+  "operations.admin_supervision_overview",
+]);
 
 const logger = createLogger({ component: "SettingsPage" });
 
@@ -34,12 +45,42 @@ function SettingsTabContent({ tab, onSave, onReset }: SettingsTabContentProps) {
   );
 }
 
+function SettingsSkeleton() {
+  return (
+    <div className="space-y-6">
+      {Array.from({ length: 2 }).map((_, catIdx) => (
+        <div
+          key={catIdx}
+          className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm sm:p-6"
+        >
+          <Skeleton className="mb-4 h-5 w-32 rounded" />
+          <div className="divide-y divide-gray-100">
+            {Array.from({ length: catIdx === 0 ? 3 : 2 }).map((_, i) => (
+              <div
+                key={i}
+                className="flex flex-col gap-3 py-4 sm:flex-row sm:items-start sm:justify-between sm:gap-4"
+              >
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-4 w-3/4 rounded sm:w-48" />
+                  <Skeleton className="h-3.5 w-full rounded sm:w-72" />
+                </div>
+                <Skeleton className="h-10 w-24 rounded-lg sm:w-32" />
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 interface SettingsContentProps {
   readonly tabKey: string;
 }
 
 function SettingsContent({ tabKey }: SettingsContentProps) {
   const { status: sessionStatus } = useSession();
+  const { refresh: refreshSupervision } = useOptionalSupervision();
   const [schema, setSchema] = useState<SettingsSchema | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -80,8 +121,7 @@ function SettingsContent({ tabKey }: SettingsContentProps) {
       } else {
         setError(null);
         logger.info("setting_value_saved", { key });
-        // Update schema state locally so values persist across tab switches
-        // and field components aren't remounted (preserves green border).
+        // Update schema state locally so values persist across tab switches.
         setSchema((prev) => {
           if (!prev) return prev;
           // Build a value map for DependsOn evaluation
@@ -129,7 +169,7 @@ function SettingsContent({ tabKey }: SettingsContentProps) {
           };
         });
 
-        // Background sync: silently re-fetch after green border fades (4s + margin).
+        // Background sync: silently re-fetch to pick up server-side changes.
         // Only updates state if the server data actually differs from local state.
         setTimeout(() => {
           void fetchSettingsSchema().then((fresh) => {
@@ -141,10 +181,14 @@ function SettingsContent({ tabKey }: SettingsContentProps) {
             });
           });
         }, 6000);
+
+        if (SUPERVISION_AFFECTING_KEYS.has(key)) {
+          void refreshSupervision({ force: true });
+        }
       }
       return errorMsg;
     },
-    [],
+    [refreshSupervision],
   );
 
   const handleReset = useCallback(
@@ -167,18 +211,18 @@ function SettingsContent({ tabKey }: SettingsContentProps) {
             });
           });
         }, 500);
+
+        if (SUPERVISION_AFFECTING_KEYS.has(key)) {
+          void refreshSupervision({ force: true });
+        }
       }
       return errorMsg;
     },
-    [],
+    [refreshSupervision],
   );
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-gray-900" />
-      </div>
-    );
+    return <SettingsSkeleton />;
   }
 
   // Server error — show error message with retry
@@ -215,13 +259,26 @@ function SettingsContent({ tabKey }: SettingsContentProps) {
   return (
     <>
       {error && (
-        <div className="mb-4 flex items-center justify-between rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          <span>{error}</span>
+        <div className="relative mb-4">
+          <Alert type="error" message={error} />
           <button
             onClick={() => setError(null)}
-            className="ml-3 font-medium text-red-500 hover:text-red-700"
+            className="absolute top-1/2 right-4 -translate-y-1/2 text-red-600 hover:text-red-800"
+            aria-label="Fehler schließen"
           >
-            &times;
+            <svg
+              className="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
           </button>
         </div>
       )}
@@ -241,6 +298,8 @@ export function useSettingsTabs(): {
 } | null {
   const { status: sessionStatus } = useSession();
   const [schema, setSchema] = useState<SettingsSchema | null>(null);
+  const [schemaFetchFailed, setSchemaFetchFailed] = useState(false);
+  const [schemaLoaded, setSchemaLoaded] = useState(false);
 
   useEffect(() => {
     if (sessionStatus === "authenticated") {
@@ -249,13 +308,15 @@ export function useSettingsTabs(): {
           if (data) setSchema(data);
         })
         .catch(() => {
-          // Schema fetch failed — tabs won't render, inner SettingsContent
-          // has its own fetch with error display and retry button.
-        });
+          // Schema fetch failed — mark so we still render placeholder tabs.
+          // Inner SettingsContent has its own fetch with error display and retry button.
+          setSchemaFetchFailed(true);
+        })
+        .finally(() => setSchemaLoaded(true));
     }
   }, [sessionStatus]);
 
-  if (!schema?.tabs || schema.tabs.length === 0) {
+  if (!schemaLoaded) {
     return null;
   }
 
@@ -264,6 +325,7 @@ export function useSettingsTabs(): {
     operations: "Betrieb",
     gdpr: "Datenschutz",
     security: "Sicherheit",
+    devices: "Geräte",
     general: "Allgemein",
   };
 
@@ -276,17 +338,42 @@ export function useSettingsTabs(): {
     gdpr: "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z",
     security:
       "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z",
+    devices:
+      "M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z",
     general:
       "M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4",
   };
 
-  const tabs = schema.tabs.map((tab) => ({
-    id: `settings-${tab.key}`,
-    label: tabLabels[tab.key] ?? tab.label,
-    icon: tabIcons[tab.key] ?? defaultTabIcon,
-  }));
+  // Schema-driven tabs (may be empty if user has no config:read permission).
+  // When the schema fetch failed, render placeholder tabs so SettingsContent
+  // mounts and can show its own error/retry UI instead of silently dropping
+  // all schema tabs.
+  const fallbackTabKeys = ["operations", "gdpr", "security"];
+  const schemaTabs = schemaFetchFailed
+    ? fallbackTabKeys.map((key) => ({
+        id: `settings-${key}`,
+        label: tabLabels[key] ?? key,
+        icon: tabIcons[key] ?? defaultTabIcon,
+      }))
+    : (schema?.tabs ?? []).map((tab) => ({
+        id: `settings-${tab.key}`,
+        label: tabLabels[tab.key] ?? tab.label,
+        icon: tabIcons[tab.key] ?? defaultTabIcon,
+      }));
+
+  // Personalisierung is always available (permission-gated inside the component)
+  const personalizationTab = {
+    id: "settings-personalisierung",
+    label: "Personalisierung",
+    icon: "M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z",
+  };
+
+  const tabs = [...schemaTabs, personalizationTab];
 
   const renderTab = (tabId: string) => {
+    if (tabId === "settings-personalisierung") {
+      return <PersonalizationTab />;
+    }
     const settingsKey = tabId.replace("settings-", "");
     return <SettingsContent tabKey={settingsKey} />;
   };

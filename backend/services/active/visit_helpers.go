@@ -46,9 +46,9 @@ func (s *service) resolveStaffIDForAttendance(ctx context.Context, staffID, devi
 
 // ensureOrUpdateAttendance handles attendance creation or re-entry update
 func (s *service) ensureOrUpdateAttendance(ctx context.Context, visit *active.Visit, staffID, deviceID int64) error {
-	// Use Berlin timezone for date calculation since the school operates in Germany.
-	// This ensures a check-in at 00:30 CET is recorded for the correct day.
-	visitDate := timezone.DateOf(visit.EntryTime)
+	// Use DateOfUTC: extract the Berlin calendar date but return as UTC midnight,
+	// so the value round-trips correctly through PostgreSQL DATE columns (PG session is UTC).
+	visitDate := timezone.DateOfUTC(visit.EntryTime)
 	attendanceRecords, err := s.attendanceRepo.FindByStudentAndDate(ctx, visit.StudentID, visitDate)
 	if err != nil {
 		return &ActiveError{Op: "CreateVisit", Err: err}

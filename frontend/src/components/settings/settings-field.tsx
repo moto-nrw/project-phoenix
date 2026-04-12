@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import type { ResolvedSetting } from "~/lib/settings-api";
+import { useToast } from "~/contexts/ToastContext";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { BooleanField } from "./fields/boolean-field";
 import { NumberField } from "./fields/number-field";
@@ -42,10 +43,7 @@ function validateLocally(
   return null;
 }
 
-type SaveStatus = "idle" | "saved" | "error";
-
 const AUTO_SAVE_DELAY_MS = 3000;
-const FEEDBACK_DURATION_MS = 4000;
 
 interface SettingsFieldProps {
   readonly setting: ResolvedSetting;
@@ -58,14 +56,13 @@ export function SettingsField({
   onSave,
   onReset,
 }: SettingsFieldProps) {
+  const { success: toastSuccess, error: toastError } = useToast();
   const [localValue, setLocalValue] = useState<unknown>(setting.value);
   const [isDirty, setIsDirty] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const feedbackRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isResettingRef = useRef(false);
   const isDirtyRef = useRef(false);
   const localValueRef = useRef<unknown>(setting.value);
@@ -75,8 +72,6 @@ export function SettingsField({
   localValueRef.current = localValue;
 
   // Sync local state when setting value changes from server.
-  // Does NOT reset saveStatus — the green/red feedback must persist
-  // through the schema re-fetch that follows a successful save.
   useEffect(() => {
     setLocalValue(setting.value);
     setIsDirty(false);
@@ -86,7 +81,6 @@ export function SettingsField({
   useEffect(() => {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
-      if (feedbackRef.current) clearTimeout(feedbackRef.current);
       // Fire-and-forget save if user switches tab with unsaved changes
       if (isDirtyRef.current) {
         const localErr = validateLocally(setting, localValueRef.current);
@@ -98,36 +92,25 @@ export function SettingsField({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setting.key]);
 
-  const showFeedback = useCallback((status: SaveStatus) => {
-    setSaveStatus(status);
-    if (feedbackRef.current) clearTimeout(feedbackRef.current);
-    feedbackRef.current = setTimeout(() => {
-      setSaveStatus("idle");
-    }, FEEDBACK_DURATION_MS);
-  }, []);
-
   const doSave = useCallback(
     async (value: unknown) => {
       const localError = validateLocally(setting, value);
       if (localError) {
         setError(localError);
-        showFeedback("error");
+        toastError(localError);
         return;
       }
       const errorMsg = await onSave(setting.key, value);
       if (errorMsg) {
         setError(errorMsg);
-        showFeedback("error");
+        toastError(errorMsg);
       } else {
         setError(null);
         setIsDirty(false);
-        // Delay feedback slightly so it runs after the optimistic schema
-        // update triggers the sync effect. Without this, React batches the
-        // state updates and saveStatus gets overwritten before rendering.
-        setTimeout(() => showFeedback("saved"), 50);
+        toastSuccess("Einstellung gespeichert");
       }
     },
-    [setting, onSave, showFeedback],
+    [setting, onSave, toastSuccess, toastError],
   );
 
   // Immediate save — for booleans and selects.
@@ -161,7 +144,6 @@ export function SettingsField({
       setLocalValue(value);
       setIsDirty(true);
       setError(null);
-      setSaveStatus("idle");
 
       // Reset debounce timer
       if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -194,33 +176,25 @@ export function SettingsField({
       const errorMsg = await onReset(setting.key);
       if (errorMsg) {
         setError(errorMsg);
-        showFeedback("error");
+        toastError(errorMsg);
       } else {
         setError(null);
         setIsDirty(false);
-        showFeedback("saved");
+        toastSuccess("Auf Standard zurückgesetzt");
       }
     } finally {
       isResettingRef.current = false;
     }
-  }, [setting.key, onReset, showFeedback]);
+  }, [setting.key, onReset, toastSuccess, toastError]);
 
   if (!setting.visible) {
     return null;
   }
 
-  // Save feedback: green border on success, red on error.
-  // Uses border instead of ring for better visibility.
-  let feedbackClass = "";
-  if (saveStatus === "saved")
-    feedbackClass = "rounded-lg border-2 border-green-500";
-  if (saveStatus === "error")
-    feedbackClass = "rounded-lg border-2 border-red-500";
-
   return (
-    <div className="flex items-start justify-between gap-4 py-4">
+    <div className="flex flex-col gap-3 py-4 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <h4 className="text-sm font-medium text-gray-900">{setting.label}</h4>
           {setting.is_default && (
             <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-500">
@@ -239,40 +213,40 @@ export function SettingsField({
         {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
       </div>
 
-      <div className="flex shrink-0 items-center gap-2">
-        <div className={`transition-all duration-300 ${feedbackClass}`}>
-          {renderField(
-            setting,
-            localValue,
-            handleImmediateSave,
-            handleLocalChange,
-            handleBlur,
-          )}
-        </div>
-
-        {!setting.is_default && setting.writable && (
-          <button
-            type="button"
-            onClick={handleReset}
-            className="text-xs text-gray-400 hover:text-gray-600"
-            title="Auf Standard zurücksetzen"
-            aria-label="Auf Standard zurücksetzen"
-          >
-            <svg
-              className="h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-              />
-            </svg>
-          </button>
+      <div className="flex shrink-0 items-center gap-3">
+        {renderField(
+          setting,
+          localValue,
+          handleImmediateSave,
+          handleLocalChange,
+          handleBlur,
         )}
+
+        {!setting.is_default &&
+          setting.writable &&
+          setting.type !== "boolean" && (
+            <button
+              type="button"
+              onClick={handleReset}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-600 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-900 active:bg-gray-100"
+              title="Auf Standard zurücksetzen"
+            >
+              <svg
+                className="h-3.5 w-3.5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                />
+              </svg>
+              <span className="hidden sm:inline">Zurücksetzen</span>
+            </button>
+          )}
       </div>
 
       {confirmConfig && (
@@ -286,6 +260,7 @@ export function SettingsField({
           title={confirmConfig.title}
           confirmText="Aktivieren"
           cancelText="Abbrechen"
+          confirmButtonClass="bg-gray-900 hover:bg-gray-700"
         >
           <p className="text-sm text-gray-600">{confirmConfig.body}</p>
         </ConfirmationModal>
@@ -330,6 +305,7 @@ function renderField(
           onChange={onLocalChange}
           onBlur={onBlur}
           disabled={disabled}
+          emptyLabel={setting.default === "" ? "Jederzeit" : undefined}
         />
       );
     case "text":
@@ -345,8 +321,10 @@ function renderField(
       return (
         <PasswordField
           hasValue={localValue !== "" && localValue !== null}
+          settingKey={setting.key}
           onChange={onImmediateSave}
           disabled={disabled}
+          pattern={setting.validation?.pattern}
         />
       );
     case "select":

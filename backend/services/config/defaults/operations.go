@@ -64,9 +64,9 @@ func init() {
 	config.Register(config.Definition{
 		Key:             config.KeyStudentDailyCheckoutTime,
 		Label:           "Tägliche Abmeldezeit",
-		Description:     "Uhrzeit, ab der Schüler aus dem Heimraum abgemeldet werden können",
+		Description:     "Uhrzeit, ab der Schüler aus dem Heimraum abgemeldet werden können. Wenn leer, ist die Abmeldung jederzeit möglich.",
 		Type:            config.FieldTime,
-		Default:         "15:00",
+		Default:         "",
 		ReadPermission:  "config:read",
 		WritePermission: "config:update",
 		Tab:             "operations",
@@ -81,7 +81,7 @@ func init() {
 		Label:           "Bereinigung verlassener Sitzungen",
 		Description:     "Automatische Bereinigung von Sitzungen ohne Aktivität",
 		Type:            config.FieldBoolean,
-		Default:         true,
+		Default:         false,
 		ReadPermission:  "config:read",
 		WritePermission: "config:update",
 		Tab:             "operations",
@@ -129,6 +129,21 @@ func init() {
 			Condition: "eq",
 			Value:     true,
 		},
+	})
+
+	// --- Admin Supervision Overview ---
+
+	config.Register(config.Definition{
+		Key:             config.KeyAdminSupervisionOverview,
+		Label:           "Administrator-Aufsichtsübersicht",
+		Description:     "Administratoren können alle aktiven Aufsichten und anwesende Kinder einsehen",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "sessions",
+		SortOrder:       8,
 	})
 
 	// Break auto-end interval is NOT registered here — it controls a global ticker

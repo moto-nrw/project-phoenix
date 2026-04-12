@@ -33,9 +33,10 @@ func NewAttendanceRepository(db *bun.DB) active.AttendanceRepository {
 func (r *AttendanceRepository) FindByStudentAndDate(ctx context.Context, studentID int64, date time.Time) ([]*active.Attendance, error) {
 	var attendance []*active.Attendance
 
-	// Extract date only using Berlin timezone since the school operates in Germany.
-	// This ensures consistency with CURRENT_DATE queries (PostgreSQL timezone = Europe/Berlin).
-	dateOnly := timezone.DateOf(date)
+	// Use DateOfUTC: the PG session runs in UTC, so Berlin-midnight timestamptz
+	// gets cast to the previous UTC day. DateOfUTC yields UTC midnight of the
+	// Berlin calendar date, which round-trips correctly through DATE columns.
+	dateOnly := timezone.DateOfUTC(date)
 
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&attendance).
@@ -124,10 +125,10 @@ func (r *AttendanceRepository) FindLatestByStudent(ctx context.Context, studentI
 func (r *AttendanceRepository) GetStudentCurrentStatus(ctx context.Context, studentID int64) (*active.Attendance, error) {
 	attendance := new(active.Attendance)
 
-	// Use timezone.Today() for consistent Europe/Berlin timezone handling.
-	// This ensures the date comparison matches records created via CreateVisit,
-	// which also uses timezone.Today().
-	today := timezone.Today()
+	// Use TodayUTC: the PG session runs in UTC, so Berlin-midnight gets cast to
+	// the previous UTC day. TodayUTC yields UTC midnight of the Berlin calendar
+	// date, which round-trips correctly through DATE columns.
+	today := timezone.TodayUTC()
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(attendance).
 		ModelTableExpr(`active.attendance AS "attendance"`).
@@ -207,9 +208,9 @@ func (r *AttendanceRepository) GetTodayByStudentIDs(ctx context.Context, student
 		uniqueIDs = append(uniqueIDs, id)
 	}
 
-	// Use timezone.Today() for consistent Europe/Berlin timezone handling.
-	// This ensures the date comparison matches records created via CreateVisit.
-	today := timezone.Today()
+	// Use TodayUTC: PG session runs in UTC, so Berlin-midnight gets cast to the
+	// previous UTC day. TodayUTC round-trips correctly through DATE columns.
+	today := timezone.TodayUTC()
 	var attendances []*active.Attendance
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&attendances).
@@ -244,9 +245,10 @@ func (r *AttendanceRepository) GetTodayByStudentIDs(ctx context.Context, student
 func (r *AttendanceRepository) FindForDate(ctx context.Context, date time.Time) ([]*active.Attendance, error) {
 	var attendance []*active.Attendance
 
-	// Extract date only using Berlin timezone since the school operates in Germany.
-	// This ensures consistency with CURRENT_DATE queries (PostgreSQL timezone = Europe/Berlin).
-	dateOnly := timezone.DateOf(date)
+	// Use DateOfUTC: the PG session runs in UTC, so Berlin-midnight timestamptz
+	// gets cast to the previous UTC day. DateOfUTC yields UTC midnight of the
+	// Berlin calendar date, which round-trips correctly through DATE columns.
+	dateOnly := timezone.DateOfUTC(date)
 
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&attendance).

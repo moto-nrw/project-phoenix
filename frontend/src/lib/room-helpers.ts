@@ -44,6 +44,18 @@ export interface Room {
   updatedAt?: string;
 }
 
+// System room names that cannot be deleted or renamed.
+// Must stay in sync with backend constants/activities.go.
+const SYSTEM_ROOM_NAMES = ["Schulhof", "WC"] as const;
+
+/** Returns true if the room is a system room (Schulhof, WC). */
+export function isSystemRoom(room: Room | null | undefined): boolean {
+  if (!room) return false;
+  return SYSTEM_ROOM_NAMES.includes(
+    room.name as (typeof SYSTEM_ROOM_NAMES)[number],
+  );
+}
+
 // Mapping functions
 export function mapRoomResponse(backendRoom: BackendRoom): Room {
   return {

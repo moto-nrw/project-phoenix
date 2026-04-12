@@ -157,6 +157,7 @@ describe("MobileBottomNav", () => {
       isSupervising: false,
       isLoadingGroups: false,
       isLoadingSupervision: false,
+      adminOverviewEnabled: false,
       supervisedRooms: [],
       groups: [],
       refresh: vi.fn(),
@@ -295,6 +296,7 @@ describe("MobileBottomNav", () => {
         isSupervising: true,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [],
         groups: [],
         refresh: vi.fn(),
@@ -437,6 +439,7 @@ describe("MobileBottomNav", () => {
         isSupervising: false,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [],
         groups: [],
         refresh: vi.fn(),
@@ -456,6 +459,7 @@ describe("MobileBottomNav", () => {
         isSupervising: true,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [],
         groups: [],
         refresh: vi.fn(),
@@ -467,6 +471,97 @@ describe("MobileBottomNav", () => {
       const links = screen.getAllByRole("link");
       const hrefs = links.map((link) => link.getAttribute("href"));
       expect(hrefs).toContain("/active-supervisions");
+    });
+
+    it("injects Aufsicht tab for admins when admin_supervision_overview is enabled", () => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: true,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        adminOverviewEnabled: true,
+        supervisedRooms: [{ id: "1", name: "Room A", groupId: "g1" }],
+        groups: [],
+        refresh: vi.fn(),
+      });
+
+      render(<MobileBottomNav />);
+
+      // Admin baseline does NOT include /active-supervisions — injection must add it
+      const links = screen.getAllByRole("link");
+      const hrefs = links.map((link) => link.getAttribute("href"));
+      expect(hrefs).toContain("/active-supervisions");
+    });
+
+    it("does not inject Aufsicht tab for admin while supervision is still loading", () => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+      mockUseSupervision.mockReturnValue({
+        hasGroups: false,
+        isSupervising: false,
+        isLoadingGroups: true,
+        isLoadingSupervision: true,
+        adminOverviewEnabled: false,
+        supervisedRooms: [],
+        groups: [],
+        refresh: vi.fn(),
+      });
+
+      render(<MobileBottomNav />);
+
+      const links = screen.getAllByRole("link");
+      const hrefs = links.map((link) => link.getAttribute("href"));
+      expect(hrefs).not.toContain("/active-supervisions");
+    });
+
+    it("does not inject Aufsicht tab when only a synthetic Schulhof room exists (setting off)", () => {
+      // P1-A regression guard: Schulhof is injected into supervisedRooms for
+      // every tenant that has one. An admin without admin_supervision_overview
+      // must not surface the admin tab merely because a Schulhof entry exists.
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+      mockUseSupervision.mockReturnValue({
+        hasGroups: false,
+        isSupervising: true,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        adminOverviewEnabled: false,
+        supervisedRooms: [
+          { id: "schulhof", name: "Schulhof", groupId: "g1", isSchulhof: true },
+        ],
+        groups: [],
+        refresh: vi.fn(),
+      });
+
+      render(<MobileBottomNav />);
+
+      const hrefs = screen
+        .getAllByRole("link")
+        .map((link) => link.getAttribute("href"));
+      expect(hrefs).not.toContain("/active-supervisions");
+    });
+
+    it("does not inject Aufsicht tab for admin who is not supervising", () => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+      mockUseSupervision.mockReturnValue({
+        hasGroups: false,
+        isSupervising: false,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        adminOverviewEnabled: false,
+        supervisedRooms: [],
+        groups: [],
+        refresh: vi.fn(),
+      });
+
+      render(<MobileBottomNav />);
+
+      const links = screen.getAllByRole("link");
+      const hrefs = links.map((link) => link.getAttribute("href"));
+      expect(hrefs).not.toContain("/active-supervisions");
     });
   });
 

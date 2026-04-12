@@ -6,10 +6,8 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -816,100 +814,13 @@ func (rs *Resource) serveStaffAvatar(w http.ResponseWriter, r *http.Request) {
 	}
 
 	avatarPath := avatarMap[accountID]
-	filePath, err := staffAvatarPathToFilePath(avatarPath)
+	filePath, err := common.ResolveStoredPath("public", avatarPath, "/uploads/avatars/")
 	if err != nil {
 		http.NotFound(w, r)
 		return
 	}
 
-	file, err := os.Open(filePath)
-	if err != nil {
-		http.NotFound(w, r)
-		return
-	}
-	defer func() {
-		if closeErr := file.Close(); closeErr != nil {
-			rs.getLogger().Warn("failed to close avatar file", slog.String("error", closeErr.Error()))
-		}
-	}()
-
-	w.Header().Set("Cache-Control", "private, max-age=86400")
-	http.ServeContent(w, r, filepath.Base(filePath), time.Time{}, file)
-}
-
-func staffAvatarPathToFilePath(avatarPath string) (string, error) {
-	if !strings.HasPrefix(avatarPath, "/uploads/avatars/") {
-		return "", errors.New("invalid avatar path")
-	}
-
-	publicDir, err := resolvePublicDir()
-	if err != nil {
-		return "", errors.New("failed to resolve public directory")
-	}
-
-	absAvatarDir := filepath.Join(publicDir, "uploads", "avatars")
-	absPath := filepath.Join(publicDir, strings.TrimPrefix(avatarPath, "/"))
-
-	avatarPrefix := absAvatarDir + string(os.PathSeparator)
-	if absPath != absAvatarDir && !strings.HasPrefix(absPath, avatarPrefix) {
-		return "", errors.New("invalid path")
-	}
-
-	return absPath, nil
-}
-
-var (
-	resolvedPublicDir string
-	resolvedPublicErr error
-	resolvePublicOnce sync.Once
-)
-
-func resolvePublicDir() (string, error) {
-	resolvePublicOnce.Do(func() {
-		var candidates []string
-
-		if workingDir, err := os.Getwd(); err == nil {
-			candidates = append(candidates, publicDirCandidates(workingDir)...)
-		}
-
-		if executablePath, err := os.Executable(); err == nil {
-			candidates = append(candidates, publicDirCandidates(filepath.Dir(executablePath))...)
-		}
-
-		for _, candidate := range candidates {
-			absCandidate, err := filepath.Abs(candidate)
-			if err != nil {
-				continue
-			}
-			info, err := os.Stat(absCandidate)
-			if err == nil && info.IsDir() {
-				resolvedPublicDir = absCandidate
-				return
-			}
-		}
-
-		resolvedPublicErr = errors.New("public directory not found")
-	})
-
-	return resolvedPublicDir, resolvedPublicErr
-}
-
-func publicDirCandidates(base string) []string {
-	var candidates []string
-
-	for current := base; ; current = filepath.Dir(current) {
-		candidates = append(candidates,
-			filepath.Join(current, "public"),
-			filepath.Join(current, "backend", "public"),
-		)
-
-		parent := filepath.Dir(current)
-		if parent == current {
-			break
-		}
-	}
-
-	return candidates
+	common.ServeImage(w, r, filepath.Dir(filePath), filepath.Base(filePath), "private, max-age=86400")
 }
 
 // getStaffGroups handles getting groups for a staff member

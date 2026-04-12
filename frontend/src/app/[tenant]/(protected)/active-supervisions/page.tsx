@@ -10,8 +10,10 @@ import {
 } from "react";
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
+import { redirect } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
-import { RoleGuard } from "~/components/auth/role-guard";
+import { useOptionalSupervision } from "~/lib/supervision-context";
+import { ForbiddenPage } from "~/components/ui/forbidden-page";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { Alert } from "~/components/ui/alert";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
@@ -28,6 +30,9 @@ import {
 } from "~/components/students/student-card";
 import { createLogger } from "~/lib/logger";
 import { activeService } from "~/lib/active-api";
+import { isAdmin, isCaregiver } from "~/lib/auth-utils";
+import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
+import { TrackingIndicators } from "~/components/students/tracking-indicators";
 import type { Student } from "~/lib/student-helpers";
 import { UnclaimedRooms } from "~/components/active";
 import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
@@ -460,6 +465,98 @@ function MeinRaumPageContent() {
   // NOTE: Do NOT call useGlobalSSE() here - it's already called in TenantAuthWrapper.
   // Calling it again would create a duplicate SSE connection.
 
+  // Admin fallback: when BFF fails, load supervised groups directly
+  const fetchAdminDashboardFallback =
+    useCallback(async (): Promise<BFFDashboardResponse> => {
+      const [groupsRes, schulhofRes] = await Promise.all([
+        fetch("/api/active/supervisors/all", {
+          headers: { "Content-Type": "application/json" },
+          cache: "no-store",
+        }),
+        fetch("/api/active/schulhof/status", {
+          headers: { "Content-Type": "application/json" },
+          cache: "no-store",
+        }).catch(() => null),
+      ]);
+
+      let supervisedGroups: BFFDashboardResponse["supervisedGroups"] = [];
+      if (groupsRes.ok) {
+        const json = (await groupsRes.json()) as {
+          data?: Array<{
+            id: number;
+            name?: string;
+            room_id?: number;
+            room?: { id: number; name: string };
+          }>;
+        };
+        supervisedGroups = (json.data ?? []).map((g) => ({
+          id: g.id.toString(),
+          name: g.name ?? "",
+          room_id: g.room_id?.toString(),
+          room: g.room
+            ? { id: g.room.id.toString(), name: g.room.name }
+            : undefined,
+        }));
+      }
+
+      let schulhofStatus: BFFDashboardResponse["schulhofStatus"] = null;
+      if (schulhofRes?.ok) {
+        const json = (await schulhofRes.json()) as {
+          data?: {
+            data?: {
+              exists: boolean;
+              room_id?: number;
+              room_name: string;
+              active_group_id?: number;
+              is_user_supervising: boolean;
+              supervision_id?: number;
+              supervisor_count: number;
+              student_count: number;
+              supervisors?: Array<{
+                id: number;
+                staff_id: number;
+                name: string;
+                is_current_user: boolean;
+              }>;
+            };
+          };
+        };
+        const s = json.data?.data;
+        if (s?.exists) {
+          schulhofStatus = {
+            exists: true,
+            roomId: s.room_id?.toString() ?? null,
+            roomName: s.room_name,
+            activityGroupId: null,
+            activeGroupId: s.active_group_id?.toString() ?? null,
+            isUserSupervising: s.is_user_supervising,
+            supervisionId: s.supervision_id?.toString() ?? null,
+            supervisorCount: s.supervisor_count,
+            studentCount: s.student_count,
+            supervisors: (s.supervisors ?? []).map((sup) => ({
+              id: sup.id.toString(),
+              staffId: sup.staff_id.toString(),
+              name: sup.name,
+              isCurrentUser: sup.is_current_user,
+            })),
+          };
+        }
+      }
+
+      return {
+        supervisedGroups,
+        unclaimedGroups: [],
+        currentStaff: null,
+        educationalGroups: [],
+        firstRoomVisits: [],
+        firstRoomId:
+          supervisedGroups.length > 0
+            ? (supervisedGroups[0]?.room_id ?? null)
+            : null,
+        schulhofStatus,
+      };
+    }, []);
+
   // Get current room ID for per-room SWR subscription
   const currentRoomId = currentRoom?.id;
 
@@ -483,6 +580,13 @@ function MeinRaumPageContent() {
       });
 
       if (!response.ok) {
+        // Admin fallback: load data directly from individual endpoints
+        if (isAdmin(session)) {
+          logger.info("bff_failed_admin_fallback", {
+            status: response.status,
+          });
+          return await fetchAdminDashboardFallback();
+        }
         throw new Error(`BFF request failed: ${response.status}`);
       }
 
@@ -815,6 +919,19 @@ function MeinRaumPageContent() {
     }
   }, [swrVisitsData, currentRoomId, updateRoomStudentCount]);
 
+  // Tracking indicators: fetch when student list changes (SSE-driven via SWR revalidation)
+  const trackingStudentIds = useMemo(
+    () => students.map((s) => s.id),
+    [students],
+  );
+  const { data: trackingData } = useSWRAuth<TrackingIndicatorsResponse>(
+    trackingStudentIds.length > 0
+      ? `tracking-supervisions-${currentRoomId}-${trackingStudentIds.join(",")}`
+      : null,
+    async () => activeService.getTrackingIndicators(trackingStudentIds),
+    { keepPreviousData: true, revalidateOnFocus: false },
+  );
+
   // Handle dashboard error
   useEffect(() => {
     if (dashboardError) {
@@ -1143,6 +1260,14 @@ function MeinRaumPageContent() {
                     )}
                   </>
                 }
+                trackingIndicators={
+                  trackingData?.labels.length ? (
+                    <TrackingIndicators
+                      labels={trackingData.labels}
+                      results={trackingData.results[student.id] ?? []}
+                    />
+                  ) : undefined
+                }
               />
             ))}
           </div>
@@ -1449,15 +1574,49 @@ function MeinRaumPageContent() {
   );
 }
 
+// Gate component: allows caregivers always, admins only when they have supervised rooms
+// (i.e., admin_supervision_overview setting is active and there are active groups)
+function ActiveSupervisionGate({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
+  const { data: session, status } = useSession({
+    required: true,
+    onUnauthenticated() {
+      redirect("/");
+    },
+  });
+  const { adminOverviewEnabled, isLoadingSupervision } =
+    useOptionalSupervision();
+
+  if (status === "loading" || isLoadingSupervision) {
+    return <Loading fullPage={false} />;
+  }
+
+  // Caregivers (user/teacher role) always have access
+  if (isCaregiver(session)) {
+    return <>{children}</>;
+  }
+
+  // Admins only when the admin_supervision_overview setting is confirmed
+  // enabled (i.e. /api/active/supervisors/all returned OK). Checking
+  // supervisedRooms.length would incorrectly let admins through when the
+  // setting is OFF but a synthetic Schulhof entry is present.
+  if (isAdmin(session) && adminOverviewEnabled) {
+    return <>{children}</>;
+  }
+
+  return <ForbiddenPage />;
+}
+
 // Main component with Suspense wrapper
 export default function MeinRaumPage() {
   return (
-    <RoleGuard variant="staffOnly">
-      <Suspense fallback={<Loading fullPage={false} />}>
+    <Suspense fallback={<Loading fullPage={false} />}>
+      <ActiveSupervisionGate>
         <SSEErrorBoundary>
           <MeinRaumPageContent />
         </SSEErrorBoundary>
-      </Suspense>
-    </RoleGuard>
+      </ActiveSupervisionGate>
+    </Suspense>
   );
 }

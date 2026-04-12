@@ -12,22 +12,28 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/active"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 )
 
-// getStudentDailyCheckoutTime resolves the daily checkout time.
-// Fallback chain: tenant DB override → STUDENT_DAILY_CHECKOUT_TIME env var → "15:00".
-func (rs *Resource) getStudentDailyCheckoutTime(ctx context.Context) (time.Time, error) {
+// ResolveRawDailyCheckoutTime resolves the raw daily checkout time string.
+// Fallback chain: tenant DB override → STUDENT_DAILY_CHECKOUT_TIME env var → empty string.
+// Returns empty string when no time is configured, meaning daily checkout is always available.
+//
+// This is the single source of truth for the fallback chain — both the checkin handler
+// (which needs a parsed time.Time) and the IoT config endpoint (which needs the raw string
+// for PyrePortal) must use this helper instead of reimplementing the chain.
+func ResolveRawDailyCheckoutTime(ctx context.Context, settingsService configSvc.SettingsService) string {
 	checkoutTimeStr := ""
 
 	// Try tenant DB override first (only if an explicit override exists)
-	if rs.SettingsService != nil {
-		if has, err := rs.SettingsService.HasTenantOverride(ctx, configModel.KeyStudentDailyCheckoutTime); err != nil {
+	if settingsService != nil {
+		if has, err := settingsService.HasTenantOverride(ctx, configModel.KeyStudentDailyCheckoutTime); err != nil {
 			slog.Warn("settings override check failed, falling back to env var",
 				slog.String("key", configModel.KeyStudentDailyCheckoutTime),
 				slog.String("error", err.Error()),
 			)
 		} else if has {
-			if val, err := rs.SettingsService.ResolveString(ctx, configModel.KeyStudentDailyCheckoutTime); err == nil && val != "" {
+			if val, err := settingsService.ResolveString(ctx, configModel.KeyStudentDailyCheckoutTime); err == nil && val != "" {
 				checkoutTimeStr = val
 			}
 		}
@@ -38,30 +44,38 @@ func (rs *Resource) getStudentDailyCheckoutTime(ctx context.Context) (time.Time,
 		checkoutTimeStr = os.Getenv("STUDENT_DAILY_CHECKOUT_TIME")
 	}
 
-	// Fall back to default
+	return checkoutTimeStr
+}
+
+// getStudentDailyCheckoutTime resolves the daily checkout time as a parsed *time.Time.
+// Returns nil when no time is configured, meaning daily checkout is always available.
+func (rs *Resource) getStudentDailyCheckoutTime(ctx context.Context) (*time.Time, error) {
+	checkoutTimeStr := ResolveRawDailyCheckoutTime(ctx, rs.SettingsService)
+
+	// No time configured — daily checkout is always available
 	if checkoutTimeStr == "" {
-		checkoutTimeStr = "15:00"
+		return nil, nil
 	}
 
 	// Parse time in HH:MM format
 	parts := strings.Split(checkoutTimeStr, ":")
 	if len(parts) != 2 {
-		return time.Time{}, fmt.Errorf("invalid checkout time format: %s", checkoutTimeStr)
+		return nil, fmt.Errorf("invalid checkout time format: %s", checkoutTimeStr)
 	}
 
 	hour, err := strconv.Atoi(parts[0])
 	if err != nil || hour < 0 || hour > 23 {
-		return time.Time{}, fmt.Errorf("invalid hour in checkout time: %s", checkoutTimeStr)
+		return nil, fmt.Errorf("invalid hour in checkout time: %s", checkoutTimeStr)
 	}
 
 	minute, err := strconv.Atoi(parts[1])
 	if err != nil || minute < 0 || minute > 59 {
-		return time.Time{}, fmt.Errorf("invalid minute in checkout time: %s", checkoutTimeStr)
+		return nil, fmt.Errorf("invalid minute in checkout time: %s", checkoutTimeStr)
 	}
 
 	now := time.Now()
 	checkoutTime := time.Date(now.Year(), now.Month(), now.Day(), hour, minute, 0, 0, now.Location())
-	return checkoutTime, nil
+	return &checkoutTime, nil
 }
 
 // getRoomNameFromVisit extracts the room name from a visit's active group if available.
@@ -94,7 +108,12 @@ func (rs *Resource) shouldShowDailyCheckoutWithGroup(ctx context.Context, studen
 	}
 
 	checkoutTime, err := rs.getStudentDailyCheckoutTime(ctx)
-	if err != nil || !time.Now().After(checkoutTime) {
+	if err != nil {
+		return false
+	}
+	// If a checkout time is configured, only allow after that time.
+	// If nil (no time configured), daily checkout is always available.
+	if checkoutTime != nil && !time.Now().After(*checkoutTime) {
 		return false
 	}
 

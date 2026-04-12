@@ -25,6 +25,7 @@ import { ConfirmationModal } from "~/components/ui/modal";
 import {
   formatPermissionDisplay,
   localizeAction,
+  localizeDescription,
   localizeResource,
 } from "@/lib/permission-labels";
 import { useToast } from "~/contexts/ToastContext";
@@ -97,9 +98,12 @@ export default function PermissionsPage() {
   const toDisplay = (p: Permission) =>
     formatPermissionDisplay(p.resource, p.action);
 
-  // Anzeigename + Beschreibung exakt wie in den Daten anzeigen; bei fehlendem Anzeigenamen auf Ressource:Aktion ausweichen
-  const displayTitle = (p: Permission) =>
-    p.name?.trim() ? p.name : toDisplay(p);
+  // Immer den deutschen Anzeigenamen verwenden (Ressource: Aktion)
+  const displayTitle = (p: Permission) => toDisplay(p);
+
+  // Deutsche Beschreibung aus der Label-Map, Fallback auf DB-Beschreibung
+  const displayDescription = (p: Permission) =>
+    localizeDescription(p.resource, p.action, p.description);
 
   const filters: FilterConfig[] = useMemo(() => [], []);
   const activeFilters: ActiveFilter[] = useMemo(
@@ -125,7 +129,9 @@ export default function PermissionsPage() {
           p.name.toLowerCase().includes(q) ||
           (p.description?.toLowerCase().includes(q) ?? false) ||
           p.resource.toLowerCase().includes(q) ||
-          p.action.toLowerCase().includes(q),
+          p.action.toLowerCase().includes(q) ||
+          displayDescription(p).toLowerCase().includes(q) ||
+          toDisplay(p).toLowerCase().includes(q),
       );
     }
     arr.sort((a, b) => {
@@ -429,9 +435,9 @@ export default function PermissionsPage() {
                     <h3 className="truncate text-lg font-semibold text-gray-900 transition-colors duration-300 md:group-hover:text-pink-600">
                       {displayTitle(perm)}
                     </h3>
-                    {perm.description && (
+                    {displayDescription(perm) && (
                       <p className="mt-0.5 line-clamp-1 text-sm text-gray-600">
-                        {perm.description}
+                        {displayDescription(perm)}
                       </p>
                     )}
                     <div className="mt-1 flex flex-wrap items-center gap-2">

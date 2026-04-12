@@ -15,6 +15,7 @@ var (
 	ErrBuildingNotFound     = errors.New("building not found")
 	ErrCategoryNotFound     = errors.New("category not found")
 	ErrRoomInUse            = errors.New("Raum kann nicht gelöscht werden: Raum wird aktuell von einer aktiven Gruppe verwendet") //nolint:staticcheck // ST1005: user-facing German message
+	ErrSystemRoomProtected  = errors.New("Systemraum kann nicht gelöscht oder umbenannt werden")                                  //nolint:staticcheck // ST1005: user-facing German message
 )
 
 // FacilitiesError represents a facilities-related error

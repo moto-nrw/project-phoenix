@@ -92,6 +92,9 @@ func (m *mockSchoolRepo) FindByID(ctx context.Context, id int64) (*platformModel
 func (m *mockSchoolRepo) FindByIDForShare(ctx context.Context, id int64) (*platformModels.School, error) {
 	return m.FindByID(ctx, id)
 }
+func (m *mockSchoolRepo) FindByIDForUpdate(ctx context.Context, id int64) (*platformModels.School, error) {
+	return m.FindByID(ctx, id)
+}
 func (m *mockSchoolRepo) FindBySlug(context.Context, string) (*platformModels.School, error) {
 	return nil, nil
 }
@@ -337,7 +340,7 @@ func (m *mockAuthService) GetAccountByID(context.Context, int) (*authModels.Acco
 func (m *mockAuthService) GetAccountByEmail(context.Context, string) (*authModels.Account, error) {
 	return nil, nil
 }
-func (m *mockAuthService) CreateRole(context.Context, string, string) (*authModels.Role, error) {
+func (m *mockAuthService) CreateRole(context.Context, string, string, *string) (*authModels.Role, error) {
 	return nil, nil
 }
 func (m *mockAuthService) GetRoleByID(context.Context, int) (*authModels.Role, error) {

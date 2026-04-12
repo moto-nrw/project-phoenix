@@ -62,6 +62,9 @@ func (s stubAuthLoginSchoolRepo) CountByIDs(context.Context, []int64) (int, erro
 func (s stubAuthLoginSchoolRepo) FindByIDForShare(ctx context.Context, id int64) (*platformModels.School, error) {
 	return s.FindByID(ctx, id)
 }
+func (s stubAuthLoginSchoolRepo) FindByIDForUpdate(ctx context.Context, id int64) (*platformModels.School, error) {
+	return s.FindByID(ctx, id)
+}
 func (r stubAuthLoginSchoolRepo) SoftDelete(context.Context, int64) error { return nil }
 func (r stubAuthLoginSchoolRepo) Restore(context.Context, int64) error    { return nil }
 

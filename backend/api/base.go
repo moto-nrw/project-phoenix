@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"os"
@@ -19,6 +20,7 @@ import (
 	activitiesAPI "github.com/moto-nrw/project-phoenix/api/activities"
 	adminAPI "github.com/moto-nrw/project-phoenix/api/admin"
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
+	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	configAPI "github.com/moto-nrw/project-phoenix/api/config"
 	databaseAPI "github.com/moto-nrw/project-phoenix/api/database"
 	feedbackAPI "github.com/moto-nrw/project-phoenix/api/feedback"
@@ -43,6 +45,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/services"
 )
 
@@ -291,12 +294,29 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Import = importAPI.NewResource(api.Services.Import, repoFactory.DataImport, api.Services.Users, db)
 	api.Activities = activitiesAPI.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users, api.Services.UserContext, db)
 	api.Staff = staffAPI.NewResource(api.Services.Users, api.Services.Education, api.Services.Auth, repoFactory.GroupSupervisor, api.Services.WorkSession, repoFactory.StaffAbsence, db, logger.With("handler", "staff"))
-	api.Feedback = feedbackAPI.NewResource(api.Services.Feedback, db)
+	api.Feedback = feedbackAPI.NewResource(api.Services.Feedback, api.Services.Settings, db)
 	api.Suggestions = suggestionsAPI.NewResource(api.Services.Suggestions, db)
 	api.Schedules = schedulesAPI.NewResource(api.Services.Schedule, db)
 	api.Config = configAPI.NewResource(api.Services.Config, api.Services.ActiveCleanup, db)
 	api.Settings = configAPI.NewSettingsResource(api.Services.Settings, db)
-	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, api.Services.Schulhof, api.Services.UserContext, db, logger.With("handler", "active"))
+	api.Settings.OnValueSet(func(ctx context.Context, tenantID int64, key string, value any) error {
+		boolVal, ok := value.(bool)
+		if !ok || !boolVal {
+			return nil // only trigger on enable (true), not disable
+		}
+
+		switch key {
+		case configModel.KeyCheckoutSchulhofEnabled:
+			_, err := api.Services.Schulhof.EnsureInfrastructure(ctx, 0)
+			return err
+		case configModel.KeyCheckoutWCEnabled:
+			_, err := api.Services.WC.EnsureInfrastructure(ctx)
+			return err
+		default:
+			return nil
+		}
+	})
+	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, api.Services.Schulhof, api.Services.UserContext, api.Services.Settings, db, logger.With("handler", "active"))
 	api.IoT = iotAPI.NewResource(iotAPI.ServiceDependencies{
 		IoTService:            api.Services.IoT,
 		UsersService:          api.Services.Users,
@@ -312,7 +332,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		Logger:                logger.With("handler", "iot"),
 		DB:                    db,
 	})
-	api.SSE = sseAPI.NewResource(api.Services.RealtimeHub, api.Services.Active, api.Services.Users, api.Services.UserContext, db, logger.With("handler", "sse"))
+	api.SSE = sseAPI.NewResource(api.Services.RealtimeHub, api.Services.Active, api.Services.Users, api.Services.UserContext, api.Services.Settings, db, logger.With("handler", "sse"))
 	api.Users = usersAPI.NewResource(api.Services.Users, db)
 	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext, repoFactory.GroupSubstitution, db)
 	api.Substitutions = substitutionsAPI.NewResource(api.Services.Education, db)
@@ -386,6 +406,12 @@ func (a *API) registerRoutesWithRateLimiting() {
 
 	// Note: Avatar files are served through authenticated endpoints, not as static files
 	// This prevents unauthorized access to user avatars
+
+	// Public login image serving (no auth — displayed on the login page before authentication)
+	a.Router.Get("/public/login-image/{filename}", func(w http.ResponseWriter, r *http.Request) {
+		filename := chi.URLParam(r, "filename")
+		apiCommon.ServeImage(w, r, "public/uploads/login-images", filename, "public, max-age=86400")
+	})
 
 	// Mount API resources
 	// Auth routes mounted at root level to match frontend expectations

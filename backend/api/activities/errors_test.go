@@ -63,12 +63,24 @@ func TestErrorRenderer_ConflictErrors(t *testing.T) {
 }
 
 func TestErrorRenderer_ForbiddenErrors(t *testing.T) {
-	actErr := &activities.ActivityError{Err: activities.ErrGroupClosed}
-	renderer := activitiesAPI.ErrorRenderer(actErr)
-	resp, ok := renderer.(*activitiesAPI.ErrorResponse)
-	assert.True(t, ok)
-	assert.Equal(t, http.StatusForbidden, resp.HTTPStatusCode)
-	assert.Equal(t, "error", resp.Status)
+	tests := []struct {
+		name    string
+		baseErr error
+	}{
+		{"ErrGroupClosed", activities.ErrGroupClosed},
+		{"ErrSystemActivityProtected", activities.ErrSystemActivityProtected},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actErr := &activities.ActivityError{Err: tt.baseErr}
+			renderer := activitiesAPI.ErrorRenderer(actErr)
+			resp, ok := renderer.(*activitiesAPI.ErrorResponse)
+			assert.True(t, ok)
+			assert.Equal(t, http.StatusForbidden, resp.HTTPStatusCode)
+			assert.Equal(t, "error", resp.Status)
+		})
+	}
 }
 
 func TestErrorRenderer_BadRequestErrors(t *testing.T) {

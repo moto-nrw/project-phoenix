@@ -162,6 +162,9 @@ func (rs *Resource) Router() chi.Router {
 
 		// School name endpoint (device API key → school name)
 		r.Get("/school-name", rs.getSchoolName)
+
+		// Device configuration endpoint (checkout buttons, feedback settings)
+		r.Get("/config", rs.getDeviceConfig)
 	})
 
 	// Device-authenticated routes for RFID devices.

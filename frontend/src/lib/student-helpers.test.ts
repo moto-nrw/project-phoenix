@@ -222,6 +222,7 @@ describe("mapStudentDetailResponse", () => {
     const detailStudent: BackendStudentDetail = {
       ...sampleBackendStudent,
       has_full_access: true,
+      has_write_access: true,
       attendance_log_enabled: true,
       group_supervisors: [
         {
@@ -238,6 +239,7 @@ describe("mapStudentDetailResponse", () => {
     const result = mapStudentDetailResponse(detailStudent);
 
     expect(result.has_full_access).toBe(true);
+    expect(result.has_write_access).toBe(true);
     expect(result.attendance_log_enabled).toBe(true);
     expect(result.group_supervisors).toHaveLength(1);
     expect(result.group_supervisors?.[0]?.first_name).toBe("John");
@@ -247,12 +249,14 @@ describe("mapStudentDetailResponse", () => {
     const detailStudent: BackendStudentDetail = {
       ...sampleBackendStudent,
       has_full_access: false,
+      has_write_access: false,
       attendance_log_enabled: false,
     };
 
     const result = mapStudentDetailResponse(detailStudent);
 
     expect(result.has_full_access).toBe(false);
+    expect(result.has_write_access).toBe(false);
     expect(result.group_supervisors).toBeUndefined();
   });
 });

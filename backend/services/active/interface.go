@@ -51,6 +51,7 @@ type Service interface {
 	FindSupervisorsByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) ([]*active.GroupSupervisor, error)
 	EndSupervision(ctx context.Context, id int64) error
 	GetStaffActiveSupervisions(ctx context.Context, staffID int64) ([]*active.GroupSupervisor, error)
+	GetAllActiveSupervisions(ctx context.Context) ([]*active.GroupSupervisor, error)
 
 	// Combined Group operations
 	GetCombinedGroup(ctx context.Context, id int64) (*active.CombinedGroup, error)
@@ -112,6 +113,10 @@ type Service interface {
 
 	// Cross-tenant student visibility (Ferienbetreuung / holiday care)
 	GetCrossTenantStudents(ctx context.Context, hostingTenantID int64) ([]active.CrossTenantStudent, error)
+
+	// Tracking indicators — returns per-student match results for the given labels.
+	// Each student gets a []bool aligned with the labels slice.
+	GetTrackingIndicators(ctx context.Context, studentIDs []int64, labels []string) (map[int64][]bool, error)
 }
 
 // DashboardAnalytics represents aggregated analytics for dashboard

@@ -1,6 +1,7 @@
 package students_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
@@ -9,8 +10,21 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
+
+// setStudentDataScope overrides gdpr.student_data_scope for tenant 1 and
+// registers a cleanup to reset it at the end of the test.
+func setStudentDataScope(t *testing.T, tc *testContext, scope string) {
+	t.Helper()
+	ctx := testpkg.TenantContext(1)
+	err := tc.services.Settings.SetValue(ctx, configModel.KeyStudentDataScope, scope, nil, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = tc.services.Settings.ResetValue(ctx, configModel.KeyStudentDataScope, nil, nil)
+	})
+}
 
 // =============================================================================
 // Authorization Tests (Non-Admin Access)
@@ -220,4 +234,214 @@ func TestGetStudent_WithTeacherAccess(t *testing.T) {
 	rr := executeWithAuth(router, req, claims, []string{"students:read"})
 
 	assert.Equal(t, http.StatusOK, rr.Code, "Teacher should get student")
+}
+
+// =============================================================================
+// Student Data Scope Setting Tests (gdpr.student_data_scope)
+// =============================================================================
+
+// TestStudentDataScope_AllStaff_GrantsFullReadAccess verifies that when a tenant
+// sets gdpr.student_data_scope = all_staff, any authenticated staff member with
+// users:read permission sees the full student profile, not just the redacted view.
+func TestStudentDataScope_AllStaff_GrantsFullReadAccess(t *testing.T) {
+	tc := setupTestContext(t)
+	setStudentDataScope(t, tc, configModel.StudentDataScopeAllStaff)
+
+	// Create a student assigned to a group, plus an unrelated staff member
+	// who does NOT supervise that group. Under the default scope this staff
+	// would only see the limited/redacted fields; with all_staff they should
+	// see the full profile.
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "DataScopeGroup")
+	student := testpkg.CreateTestStudent(t, tc.db, "Scope", "Student", "DS1")
+	otherStaff, otherAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "Other", "Staff")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID, student.ID, otherStaff.ID)
+
+	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
+
+	router := setupRouter(tc.resource.GetStudentHandler(), "id")
+	req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
+	claims := testutil.TeacherTestClaims(int(otherAccount.ID))
+	rr := executeWithAuth(router, req, claims, []string{"users:read"})
+
+	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+
+	var resp struct {
+		Data struct {
+			HasFullAccess  bool `json:"has_full_access"`
+			HasWriteAccess bool `json:"has_write_access"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+	assert.True(t, resp.Data.HasFullAccess, "all_staff scope should grant full read access to non-supervisors")
+	assert.False(t, resp.Data.HasWriteAccess, "all_staff scope should NOT grant write access to non-supervisors")
+}
+
+// TestStudentDataScope_GroupSupervisorsOnly_RedactsForNonSupervisor verifies that
+// the default scope still redacts non-supervisor access. This is the pre-existing
+// behavior — the test locks it in to catch regressions from the scope rewrite.
+func TestStudentDataScope_GroupSupervisorsOnly_RedactsForNonSupervisor(t *testing.T) {
+	tc := setupTestContext(t)
+	// Explicitly set the default value so the test is independent of
+	// whatever the tenant happens to have persisted in the DB.
+	setStudentDataScope(t, tc, configModel.StudentDataScopeGroupSupervisorsOnly)
+
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "DefaultScopeGroup")
+	student := testpkg.CreateTestStudent(t, tc.db, "Default", "Student", "DS2")
+	otherStaff, otherAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "Unrelated", "Staff")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID, student.ID, otherStaff.ID)
+
+	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
+
+	router := setupRouter(tc.resource.GetStudentHandler(), "id")
+	req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
+	claims := testutil.TeacherTestClaims(int(otherAccount.ID))
+	rr := executeWithAuth(router, req, claims, []string{"users:read"})
+
+	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+
+	var resp struct {
+		Data struct {
+			HasFullAccess  bool `json:"has_full_access"`
+			HasWriteAccess bool `json:"has_write_access"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+	assert.False(t, resp.Data.HasFullAccess, "group_supervisors_only should redact non-supervisors")
+	assert.False(t, resp.Data.HasWriteAccess, "group_supervisors_only should not grant write access to non-supervisors")
+}
+
+// TestStudentDataScope_AllStaff_GrantsAccessToGrouplessStudent covers the edge
+// case where a student has no group assigned. Under the default scope, the only
+// way to see full data is to be an admin. With all_staff, any staff should see it.
+func TestStudentDataScope_AllStaff_GrantsAccessToGrouplessStudent(t *testing.T) {
+	tc := setupTestContext(t)
+	setStudentDataScope(t, tc, configModel.StudentDataScopeAllStaff)
+
+	student := testpkg.CreateTestStudent(t, tc.db, "NoGroup", "Scoped", "DS3")
+	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "AnyStaff", "Member")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID)
+
+	router := setupRouter(tc.resource.GetStudentHandler(), "id")
+	req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
+	claims := testutil.TeacherTestClaims(int(account.ID))
+	rr := executeWithAuth(router, req, claims, []string{"users:read"})
+
+	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+
+	var resp struct {
+		Data struct {
+			HasFullAccess  bool `json:"has_full_access"`
+			HasWriteAccess bool `json:"has_write_access"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+	assert.True(t, resp.Data.HasFullAccess, "all_staff scope should grant access even to students without groups")
+	assert.False(t, resp.Data.HasWriteAccess, "all_staff scope should NOT grant write access even for groupless students")
+}
+
+// TestStudentDataScope_DoesNotAffectWrites confirms that flipping the scope to
+// all_staff does NOT relax write authorization — update/delete remain restricted
+// to group supervisors. This is the critical invariant of this feature.
+func TestStudentDataScope_DoesNotAffectWrites(t *testing.T) {
+	tc := setupTestContext(t)
+	setStudentDataScope(t, tc, configModel.StudentDataScopeAllStaff)
+
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "WriteScopeGroup")
+	student := testpkg.CreateTestStudent(t, tc.db, "Write", "Student", "DS4")
+	otherStaff, otherAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "WriteDenied", "Staff")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID, student.ID, otherStaff.ID)
+
+	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
+
+	// A non-supervisor attempts to update → must still be forbidden even
+	// though the read scope is fully open.
+	router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
+	body := map[string]interface{}{"first_name": "ShouldNotChange"}
+	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
+	claims := testutil.TeacherTestClaims(int(otherAccount.ID))
+	rr := executeWithAuth(router, req, claims, []string{"students:write"})
+
+	testutil.AssertForbidden(t, rr)
+}
+
+// TestStudentDataScope_AllStaff_ListReturnsFullAccess verifies that the student
+// LIST endpoint uses the per-request access context, and with all_staff scope
+// non-supervisor staff see sensitive fields (like extra_info) that would normally
+// be redacted. This covers studentAccessContext.hasFullAccessToStudent.
+func TestStudentDataScope_AllStaff_ListReturnsFullAccess(t *testing.T) {
+	tc := setupTestContext(t)
+	setStudentDataScope(t, tc, configModel.StudentDataScopeAllStaff)
+
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "ListScopeGroup")
+	student := testpkg.CreateTestStudent(t, tc.db, "ListScope", "Student", "DS5")
+	otherStaff, otherAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "ListViewer", "Staff")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID, student.ID, otherStaff.ID)
+
+	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
+
+	// Add a sensitive field that only appears when hasFullAccessToStudent returns true.
+	// extra_info is a supervisor-visible field redacted from non-supervisors under the
+	// default scope. With all_staff scope it should appear for any staff viewer.
+	ctx := testpkg.TenantContext(1)
+	_, err := tc.db.ExecContext(ctx,
+		"UPDATE users.students SET extra_info = ? WHERE id = ?",
+		"LIST_SCOPE_MARKER_d5s", student.ID)
+	require.NoError(t, err)
+
+	router := setupRouter(tc.resource.ListStudentsHandler(), "")
+	// Filter by search query so we only get our specific student back and
+	// aren't fooled by leftover test data from other tests in the same run.
+	req := testutil.NewRequest("GET", "/?search=ListScope", nil)
+	claims := testutil.TeacherTestClaims(int(otherAccount.ID))
+	rr := executeWithAuth(router, req, claims, []string{"users:read"})
+
+	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+	// The extra_info field should only be present when the viewer has full access.
+	// Under all_staff scope, this non-supervisor must see it.
+	assert.Contains(t, rr.Body.String(), "LIST_SCOPE_MARKER_d5s",
+		"all_staff scope should expose extra_info to non-supervisors in list responses")
+}
+
+// TestStudentDataScope_AllStaff_GroupRoomAccessible verifies that the
+// in-group-room endpoint works for non-supervisor staff when scope is all_staff.
+func TestStudentDataScope_AllStaff_GroupRoomAccessible(t *testing.T) {
+	tc := setupTestContext(t)
+	setStudentDataScope(t, tc, configModel.StudentDataScopeAllStaff)
+
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "GroupRoomScopeGroup")
+	student := testpkg.CreateTestStudent(t, tc.db, "GroupRoom", "Scoped", "DS6")
+	otherStaff, otherAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "GroupRoom", "Viewer")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID, student.ID, otherStaff.ID)
+
+	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
+
+	router := setupRouter(tc.resource.GetStudentInGroupRoomHandler(), "id")
+	req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
+	claims := testutil.TeacherTestClaims(int(otherAccount.ID))
+	rr := executeWithAuth(router, req, claims, []string{"users:read"})
+
+	// Under the default scope this would be 403; with all_staff it should be 200.
+	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+}
+
+// TestStudentDataScope_GroupSupervisorsOnly_GroupRoomForbidden verifies the
+// default behavior — a non-supervisor accessing the in-group-room endpoint is
+// forbidden. Locks in the pre-existing restriction to catch regressions.
+func TestStudentDataScope_GroupSupervisorsOnly_GroupRoomForbidden(t *testing.T) {
+	tc := setupTestContext(t)
+	setStudentDataScope(t, tc, configModel.StudentDataScopeGroupSupervisorsOnly)
+
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "GroupRoomForbiddenGroup")
+	student := testpkg.CreateTestStudent(t, tc.db, "GroupRoom", "Forbidden", "DS7")
+	otherStaff, otherAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "GroupRoom", "Denied")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID, student.ID, otherStaff.ID)
+
+	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
+
+	router := setupRouter(tc.resource.GetStudentInGroupRoomHandler(), "id")
+	req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
+	claims := testutil.TeacherTestClaims(int(otherAccount.ID))
+	rr := executeWithAuth(router, req, claims, []string{"users:read"})
+
+	testutil.AssertForbidden(t, rr)
 }

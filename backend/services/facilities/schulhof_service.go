@@ -280,7 +280,10 @@ func (s *schulhofService) EnsureInfrastructure(ctx context.Context, createdBy in
 		IsOpen:          true, // Open activity - anyone can join
 		CategoryID:      category.ID,
 		PlannedRoomID:   &room.ID,
-		CreatedBy:       &createdBy,
+	}
+	// createdBy == 0 means system-created (nil) — avoids FK violation on users.staff
+	if createdBy > 0 {
+		newActivity.CreatedBy = &createdBy
 	}
 
 	createdActivity, err := s.activityService.CreateGroup(ctx, newActivity, []int64{}, []*activityModels.Schedule{})

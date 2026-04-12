@@ -63,6 +63,8 @@ export function useGlobalSSE(): SSEHookState {
   const hasPendingDailyCheckoutDashboardEvent = useRef(false);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // SWR cache keys are tenant-prefixed by useSWRAuth (e.g. "tenant-slug:ogs-students-2").
+  // All matchers must use includes() instead of startsWith() to match regardless of prefix.
   const flushInvalidations = useCallback(() => {
     // Invalidate ALL supervision-visits caches for student/dashboard events.
     // A student checked out of Room A may appear on the Schulhof (catch-all),
@@ -71,8 +73,7 @@ export function useGlobalSSE(): SSEHookState {
     // that flag to keep their detail views in sync.
     if (pendingGroupIds.current.size > 0 || hasPendingDashboardEvent.current) {
       mutate(
-        (key) =>
-          typeof key === "string" && key.startsWith("supervision-visits-"),
+        (key) => typeof key === "string" && key.includes("supervision-visits-"),
       ).catch((err) => {
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
@@ -83,6 +84,8 @@ export function useGlobalSSE(): SSEHookState {
 
     // Invalidate OGS group student caches (ogs-students-{groupId})
     // so the "Meine Gruppe" page picks up location changes (e.g. Zuhause).
+    // Also invalidate tracking indicator caches on active-supervisions
+    // (tracking-supervisions-*) and students/search (tracking-indicators-*).
     // Triggered by pendingGroupIds (room-level events) OR pendingStudentIds
     // (daily checkout sends student_checkout without an active_group_id).
     if (
@@ -90,7 +93,11 @@ export function useGlobalSSE(): SSEHookState {
       pendingStudentIds.current.size > 0
     ) {
       mutate(
-        (key) => typeof key === "string" && key.startsWith("ogs-students-"),
+        (key) =>
+          typeof key === "string" &&
+          (key.includes("ogs-students-") ||
+            key.includes("tracking-supervisions-") ||
+            key.includes("tracking-indicators-")),
       ).catch((err) => {
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
@@ -101,7 +108,11 @@ export function useGlobalSSE(): SSEHookState {
 
     // Invalidate specific student detail caches
     for (const studentId of pendingStudentIds.current) {
-      mutate(`student-detail-${studentId}`).catch((err) => {
+      mutate(
+        (key) =>
+          typeof key === "string" &&
+          key.includes(`student-detail-${studentId}`),
+      ).catch((err) => {
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
           scope: "student_detail",
@@ -121,10 +132,7 @@ export function useGlobalSSE(): SSEHookState {
       hasPendingDailyCheckoutDashboardEvent.current
     ) {
       mutate(
-        (key) =>
-          typeof key === "string" &&
-          (key.startsWith("active-supervision-dashboard") ||
-            key.includes("dashboard")),
+        (key) => typeof key === "string" && key.includes("dashboard"),
       ).catch((err) => {
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),

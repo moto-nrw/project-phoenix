@@ -14,6 +14,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -113,8 +114,8 @@ func TestGetStudentPickupSchedules(t *testing.T) {
 		testutil.AssertNotFound(t, rr)
 	})
 
-	t.Run("success_any_staff_can_read_schedules", func(t *testing.T) {
-		// Any authenticated staff can read pickup schedules (read-only access)
+	t.Run("forbidden_non_supervisor_with_default_scope", func(t *testing.T) {
+		// Default scope (group_supervisors_only): non-supervisors cannot read pickup schedules
 		staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "NoAccess", "Staff")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, staff.ID)
 
@@ -122,7 +123,21 @@ func TestGetStudentPickupSchedules(t *testing.T) {
 		claims := testutil.TeacherTestClaims(int(account.ID))
 		rr := executeWithAuth(router, req, claims, []string{"students:read"})
 
-		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK - any staff can read pickup schedules. Body: %s", rr.Body.String())
+		assert.Equal(t, http.StatusForbidden, rr.Code, "Non-supervisor should be forbidden with default scope. Body: %s", rr.Body.String())
+	})
+
+	t.Run("success_any_staff_can_read_with_all_staff_scope", func(t *testing.T) {
+		// all_staff scope: any verified staff member can read pickup schedules
+		setStudentDataScope(t, tc, configModel.StudentDataScopeAllStaff)
+
+		staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "AllStaff", "Reader")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, staff.ID)
+
+		req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
+		claims := testutil.TeacherTestClaims(int(account.ID))
+		rr := executeWithAuth(router, req, claims, []string{"students:read"})
+
+		assert.Equal(t, http.StatusOK, rr.Code, "Any staff should read pickup schedules with all_staff scope. Body: %s", rr.Body.String())
 	})
 }
 

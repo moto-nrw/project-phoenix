@@ -128,6 +128,10 @@ type VisitRepository interface {
 	// EndVisitsByActiveGroupIDs ends all active visits for multiple group IDs in a single query.
 	// Returns the number of visits ended.
 	EndVisitsByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) (int64, error)
+
+	// GetTodayVisitNamesForStudents returns activity group + room names for all of
+	// today's visits for the given students. Used for tracking indicator matching.
+	GetTodayVisitNamesForStudents(ctx context.Context, studentIDs []int64) ([]VisitGroupNames, error)
 }
 
 // GroupSupervisorRepository defines operations for managing active group supervisors
@@ -136,6 +140,9 @@ type GroupSupervisorRepository interface {
 
 	// FindActiveByStaffID finds all active supervisions for a specific staff member
 	FindActiveByStaffID(ctx context.Context, staffID int64) ([]*GroupSupervisor, error)
+
+	// FindAllActive finds all currently active supervisions across all staff
+	FindAllActive(ctx context.Context) ([]*GroupSupervisor, error)
 
 	// FindByActiveGroupID finds supervisors for a specific active group
 	// If activeOnly is true, only returns supervisors with end_date IS NULL (currently active)

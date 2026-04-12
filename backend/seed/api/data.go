@@ -48,7 +48,6 @@ func floor(f int) *int { return &f }
 //
 //	Hauptgebäude: EG (Mensa, Aula, OGS-1), 1.OG (OGS-2, OGS-3, Kreativ, Musik), 2.OG (Werk, Lese)
 //	Sporthalle: EG (Sporthalle, Bewegungsraum)
-//	Außenbereich: Schulhof (no floor)
 var DemoRooms = []DemoRoom{
 	// Hauptgebäude - Erdgeschoss (Ground Floor)
 	{Name: "OGS-Raum 1", Category: "Gruppenraum", Capacity: 25, Building: "Hauptgebäude", Floor: floor(0)},
@@ -65,8 +64,7 @@ var DemoRooms = []DemoRoom{
 	// Sporthalle - Separate Building
 	{Name: "Sporthalle", Category: "Sport", Capacity: 40, Building: "Sporthalle", Floor: floor(0)},
 	{Name: "Bewegungsraum", Category: "Sport", Capacity: 15, Building: "Sporthalle", Floor: floor(0)},
-	// Außenbereich - Outdoor (no floor)
-	{Name: "Schulhof", Category: "Normaler Raum", Capacity: 100, Building: "Außenbereich", Floor: nil},
+	// Note: Schulhof is auto-created as a system room by schulhof_service
 }
 
 // DemoStaff defines staff members for the demo environment
@@ -233,8 +231,6 @@ var DemoActivities = []DemoActivity{
 	{Name: "Musik", DefaultRoom: "OGS-Raum 1", DurationMins: 60},
 	{Name: "Tanzen", DefaultRoom: "Sporthalle", DurationMins: 60},
 	{Name: "Schach", DefaultRoom: "OGS-Raum 2", DurationMins: 45},
-	{Name: "Garten", DefaultRoom: "Schulhof", DurationMins: 90},
-	{Name: "Freispiel", DefaultRoom: "Schulhof", DurationMins: 60},
 }
 
 // DemoDevices defines IoT devices for check-in/check-out
@@ -247,7 +243,7 @@ var DemoDevices = []DemoDevice{
 	{DeviceID: "demo-device-005", Name: "Sporthalle Scanner"},
 	{DeviceID: "demo-device-006", Name: "Kreativraum Scanner"},
 	{DeviceID: "demo-device-007", Name: "Mensa Scanner"},
-	{DeviceID: "demo-device-008", Name: "Schulhof Scanner"},
+	{DeviceID: "demo-device-008", Name: "Aula Scanner"},
 	{DeviceID: "demo-device-009", Name: "Musikraum Scanner"},
 	{DeviceID: "demo-device-010", Name: "Bewegungsraum Scanner"},
 }
@@ -319,4 +315,71 @@ var DemoGuardians = []DemoGuardian{
 	{FirstName: "Helga", LastName: "Vogt", Email: "helga.vogt@email.de", MobilePhone: "+49 151 12345043", Relationship: "parent", StudentIndex: 42, IsPrimary: true},
 	{FirstName: "Hermann", LastName: "Engel", Email: "hermann.engel@email.de", Phone: "+49 221 555044", Relationship: "parent", StudentIndex: 43, IsPrimary: true},
 	{FirstName: "Ursula", LastName: "Stein", Email: "ursula.stein@email.de", MobilePhone: "+49 151 12345045", Relationship: "parent", StudentIndex: 44, IsPrimary: true},
+
+	// Regenbogengruppe guardians (students 45–49)
+	{FirstName: "Gerhard", LastName: "Sommer", Email: "gerhard.sommer@email.de", MobilePhone: "+49 151 12345046", Relationship: "parent", StudentIndex: 45, IsPrimary: true},
+	{FirstName: "Inge", LastName: "Brandt", Email: "inge.brandt@email.de", MobilePhone: "+49 151 12345047", Relationship: "parent", StudentIndex: 46, IsPrimary: true},
+	{FirstName: "Horst", LastName: "Vogt", Email: "horst.vogt@email.de", Phone: "+49 221 555048", Relationship: "parent", StudentIndex: 47, IsPrimary: true},
+	{FirstName: "Hannelore", LastName: "Albrecht", Email: "hannelore.albrecht@email.de", MobilePhone: "+49 151 12345049", Relationship: "parent", StudentIndex: 48, IsPrimary: true},
+	{FirstName: "Ewald", LastName: "Arnold", Email: "ewald.arnold@email.de", MobilePhone: "+49 151 12345050", Relationship: "parent", StudentIndex: 49, IsPrimary: true},
+
+	// Blumengruppe guardians (students 50–59)
+	{FirstName: "Rita", LastName: "Dietrich", Email: "rita.dietrich@email.de", MobilePhone: "+49 151 12345051", Relationship: "parent", StudentIndex: 50, IsPrimary: true},
+	{FirstName: "Walter", LastName: "Ernst", Email: "walter.ernst@email.de", Phone: "+49 221 555052", Relationship: "parent", StudentIndex: 51, IsPrimary: true},
+	{FirstName: "Elfriede", LastName: "Franke", Email: "elfriede.franke@email.de", MobilePhone: "+49 151 12345053", Relationship: "parent", StudentIndex: 52, IsPrimary: true},
+	{FirstName: "Norbert", LastName: "Friedrich", Email: "norbert.friedrich@email.de", MobilePhone: "+49 151 12345054", Relationship: "parent", StudentIndex: 53, IsPrimary: true},
+	{FirstName: "Hildegard", LastName: "Günther", Email: "hildegard.guenther@email.de", MobilePhone: "+49 151 12345055", Relationship: "parent", StudentIndex: 54, IsPrimary: true},
+	{FirstName: "Friedhelm", LastName: "Haas", Email: "friedhelm.haas@email.de", Phone: "+49 221 555056", Relationship: "parent", StudentIndex: 55, IsPrimary: true},
+	{FirstName: "Waltraud", LastName: "Heinrich", Email: "waltraud.heinrich@email.de", MobilePhone: "+49 151 12345057", Relationship: "parent", StudentIndex: 56, IsPrimary: true},
+	{FirstName: "Lothar", LastName: "Henkel", Email: "lothar.henkel@email.de", MobilePhone: "+49 151 12345058", Relationship: "parent", StudentIndex: 57, IsPrimary: true},
+	{FirstName: "Brigitte", LastName: "Hesse", Email: "brigitte.hesse@email.de", MobilePhone: "+49 151 12345059", Relationship: "parent", StudentIndex: 58, IsPrimary: true},
+	{FirstName: "Ottmar", LastName: "Horn", Email: "ottmar.horn@email.de", Phone: "+49 221 555060", Relationship: "parent", StudentIndex: 59, IsPrimary: true},
+
+	// Schmetterlingsgruppe guardians (students 60–69)
+	{FirstName: "Ilse", LastName: "Jäger", Email: "ilse.jaeger@email.de", MobilePhone: "+49 151 12345061", Relationship: "parent", StudentIndex: 60, IsPrimary: true},
+	{FirstName: "Erwin", LastName: "Kerner", Email: "erwin.kerner@email.de", MobilePhone: "+49 151 12345062", Relationship: "parent", StudentIndex: 61, IsPrimary: true},
+	{FirstName: "Liselotte", LastName: "Kraft", Email: "liselotte.kraft@email.de", Phone: "+49 221 555063", Relationship: "parent", StudentIndex: 62, IsPrimary: true},
+	{FirstName: "Rudolf", LastName: "Kramer", Email: "rudolf.kramer@email.de", MobilePhone: "+49 151 12345064", Relationship: "parent", StudentIndex: 63, IsPrimary: true},
+	{FirstName: "Heidrun", LastName: "Kuhn", Email: "heidrun.kuhn@email.de", MobilePhone: "+49 151 12345065", Relationship: "parent", StudentIndex: 64, IsPrimary: true},
+	{FirstName: "Armin", LastName: "Lehmann", Email: "armin.lehmann@email.de", MobilePhone: "+49 151 12345066", Relationship: "parent", StudentIndex: 65, IsPrimary: true},
+	{FirstName: "Rosemarie", LastName: "Lorenz", Email: "rosemarie.lorenz@email.de", Phone: "+49 221 555067", Relationship: "parent", StudentIndex: 66, IsPrimary: true},
+	{FirstName: "Volkmar", LastName: "Ludwig", Email: "volkmar.ludwig@email.de", MobilePhone: "+49 151 12345068", Relationship: "parent", StudentIndex: 67, IsPrimary: true},
+	{FirstName: "Christa", LastName: "Mayer", Email: "christa.mayer2@email.de", MobilePhone: "+49 151 12345069", Relationship: "parent", StudentIndex: 68, IsPrimary: true},
+	{FirstName: "Klaus-Dieter", LastName: "Menzel", Email: "klausdieter.menzel@email.de", Phone: "+49 221 555070", Relationship: "parent", StudentIndex: 69, IsPrimary: true},
+
+	// Waldgruppe guardians (students 70–79)
+	{FirstName: "Anneliese", LastName: "Naumann", Email: "anneliese.naumann@email.de", MobilePhone: "+49 151 12345071", Relationship: "parent", StudentIndex: 70, IsPrimary: true},
+	{FirstName: "Dietmar", LastName: "Otto", Email: "dietmar.otto@email.de", MobilePhone: "+49 151 12345072", Relationship: "parent", StudentIndex: 71, IsPrimary: true},
+	{FirstName: "Ursula", LastName: "Paul", Email: "ursula.paul@email.de", Phone: "+49 221 555073", Relationship: "parent", StudentIndex: 72, IsPrimary: true},
+	{FirstName: "Günter", LastName: "Pohl", Email: "guenter.pohl@email.de", MobilePhone: "+49 151 12345074", Relationship: "parent", StudentIndex: 73, IsPrimary: true},
+	{FirstName: "Margarete", LastName: "Ritter", Email: "margarete.ritter@email.de", MobilePhone: "+49 151 12345075", Relationship: "parent", StudentIndex: 74, IsPrimary: true},
+	{FirstName: "Helmut", LastName: "Sauer", Email: "helmut.sauer@email.de", MobilePhone: "+49 151 12345076", Relationship: "parent", StudentIndex: 75, IsPrimary: true},
+	{FirstName: "Edeltraud", LastName: "Schäfer", Email: "edeltraud.schaefer@email.de", Phone: "+49 221 555077", Relationship: "parent", StudentIndex: 76, IsPrimary: true},
+	{FirstName: "Siegfried", LastName: "Schenk", Email: "siegfried.schenk@email.de", MobilePhone: "+49 151 12345078", Relationship: "parent", StudentIndex: 77, IsPrimary: true},
+	{FirstName: "Johanna", LastName: "Schubert", Email: "johanna.schubert@email.de", MobilePhone: "+49 151 12345079", Relationship: "parent", StudentIndex: 78, IsPrimary: true},
+	{FirstName: "Alfred", LastName: "Seifert", Email: "alfred.seifert@email.de", Phone: "+49 221 555080", Relationship: "parent", StudentIndex: 79, IsPrimary: true},
+
+	// Meeresgruppe guardians (students 80–89)
+	{FirstName: "Isolde", LastName: "Simon", Email: "isolde.simon@email.de", MobilePhone: "+49 151 12345081", Relationship: "parent", StudentIndex: 80, IsPrimary: true},
+	{FirstName: "Berthold", LastName: "Stark", Email: "berthold.stark@email.de", MobilePhone: "+49 151 12345082", Relationship: "parent", StudentIndex: 81, IsPrimary: true},
+	{FirstName: "Irmgard", LastName: "Steiner", Email: "irmgard.steiner@email.de", Phone: "+49 221 555083", Relationship: "parent", StudentIndex: 82, IsPrimary: true},
+	{FirstName: "Reinhard", LastName: "Stock", Email: "reinhard.stock@email.de", MobilePhone: "+49 151 12345084", Relationship: "parent", StudentIndex: 83, IsPrimary: true},
+	{FirstName: "Hildegunde", LastName: "Thiel", Email: "hildegunde.thiel@email.de", MobilePhone: "+49 151 12345085", Relationship: "parent", StudentIndex: 84, IsPrimary: true},
+	{FirstName: "Heinz-Georg", LastName: "Ulrich", Email: "heinzgeorg.ulrich@email.de", MobilePhone: "+49 151 12345086", Relationship: "parent", StudentIndex: 85, IsPrimary: true},
+	{FirstName: "Walburga", LastName: "Vetter", Email: "walburga.vetter@email.de", Phone: "+49 221 555087", Relationship: "parent", StudentIndex: 86, IsPrimary: true},
+	{FirstName: "Konrad", LastName: "Voigt", Email: "konrad.voigt@email.de", MobilePhone: "+49 151 12345088", Relationship: "parent", StudentIndex: 87, IsPrimary: true},
+	{FirstName: "Elfriede", LastName: "Walther", Email: "elfriede.walther@email.de", MobilePhone: "+49 151 12345089", Relationship: "parent", StudentIndex: 88, IsPrimary: true},
+	{FirstName: "Eberhard", LastName: "Weiß", Email: "eberhard.weiss@email.de", Phone: "+49 221 555090", Relationship: "parent", StudentIndex: 89, IsPrimary: true},
+
+	// Wiesengruppe guardians (students 90–99)
+	{FirstName: "Gundula", LastName: "Wendt", Email: "gundula.wendt@email.de", MobilePhone: "+49 151 12345091", Relationship: "parent", StudentIndex: 90, IsPrimary: true},
+	{FirstName: "Eckhard", LastName: "Winkler", Email: "eckhard.winkler@email.de", MobilePhone: "+49 151 12345092", Relationship: "parent", StudentIndex: 91, IsPrimary: true},
+	{FirstName: "Renate", LastName: "Winter", Email: "renate.winter@email.de", Phone: "+49 221 555093", Relationship: "parent", StudentIndex: 92, IsPrimary: true},
+	{FirstName: "Gerfried", LastName: "Wolff", Email: "gerfried.wolff@email.de", MobilePhone: "+49 151 12345094", Relationship: "parent", StudentIndex: 93, IsPrimary: true},
+	{FirstName: "Lieselotte", LastName: "Zander", Email: "lieselotte.zander@email.de", MobilePhone: "+49 151 12345095", Relationship: "parent", StudentIndex: 94, IsPrimary: true},
+	{FirstName: "Winfried", LastName: "Ziegler", Email: "winfried.ziegler@email.de", MobilePhone: "+49 151 12345096", Relationship: "parent", StudentIndex: 95, IsPrimary: true},
+	{FirstName: "Brunhilde", LastName: "Anders", Email: "brunhilde.anders@email.de", Phone: "+49 221 555097", Relationship: "parent", StudentIndex: 96, IsPrimary: true},
+	{FirstName: "Hartmut", LastName: "Bader", Email: "hartmut.bader@email.de", MobilePhone: "+49 151 12345098", Relationship: "parent", StudentIndex: 97, IsPrimary: true},
+	{FirstName: "Rosalinde", LastName: "Bartsch", Email: "rosalinde.bartsch@email.de", MobilePhone: "+49 151 12345099", Relationship: "parent", StudentIndex: 98, IsPrimary: true},
+	{FirstName: "Bernhard", LastName: "Bergmann", Email: "bernhard.bergmann@email.de", Phone: "+49 221 555100", Relationship: "parent", StudentIndex: 99, IsPrimary: true},
 }

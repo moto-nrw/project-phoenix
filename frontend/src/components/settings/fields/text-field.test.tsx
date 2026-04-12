@@ -40,4 +40,30 @@ describe("TextField", () => {
       (container.querySelector("input") as HTMLInputElement).disabled,
     ).toBe(true);
   });
+
+  it("blurs input on Enter key", () => {
+    const onBlur = vi.fn();
+    const { container } = render(
+      <TextField value="hello" onChange={vi.fn()} onBlur={onBlur} />,
+    );
+    const input = container.querySelector(
+      "input[type='text']",
+    ) as HTMLInputElement;
+    input.focus();
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onBlur).toHaveBeenCalled();
+  });
+
+  it("does not blur on non-Enter key", () => {
+    const onBlur = vi.fn();
+    const { container } = render(
+      <TextField value="hello" onChange={vi.fn()} onBlur={onBlur} />,
+    );
+    const input = container.querySelector(
+      "input[type='text']",
+    ) as HTMLInputElement;
+    input.focus();
+    fireEvent.keyDown(input, { key: "a" });
+    expect(onBlur).not.toHaveBeenCalled();
+  });
 });

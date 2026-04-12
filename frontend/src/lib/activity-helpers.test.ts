@@ -43,6 +43,7 @@ import {
   isTimeSlotAvailable,
   isSupervisorAvailable,
   getActivityCategoryColor,
+  isSystemActivity,
 } from "./activity-helpers";
 
 // Sample data for tests
@@ -1219,5 +1220,38 @@ describe("getActivityCategoryColor", () => {
     expect(getActivityCategoryColor("Unknown Category")).toBe(
       "from-gray-500 to-gray-600",
     );
+  });
+});
+
+describe("isSystemActivity", () => {
+  const makeActivity = (name: string): Activity => ({
+    id: "1",
+    name,
+    max_participant: 20,
+    is_open_ags: false,
+    supervisor_id: "1",
+    ag_category_id: "1",
+    created_at: new Date(),
+    updated_at: new Date(),
+  });
+
+  it("returns true for Schulhof Freispiel", () => {
+    expect(isSystemActivity(makeActivity("Schulhof Freispiel"))).toBe(true);
+  });
+
+  it("returns true for WC", () => {
+    expect(isSystemActivity(makeActivity("WC"))).toBe(true);
+  });
+
+  it("returns false for regular activity", () => {
+    expect(isSystemActivity(makeActivity("Basteln"))).toBe(false);
+  });
+
+  it("returns false for null", () => {
+    expect(isSystemActivity(null)).toBe(false);
+  });
+
+  it("returns false for undefined", () => {
+    expect(isSystemActivity(undefined)).toBe(false);
   });
 });

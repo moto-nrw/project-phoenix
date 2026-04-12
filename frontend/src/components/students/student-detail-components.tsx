@@ -300,6 +300,7 @@ export function StudentDetailHeader({
     group_name: student.group_name,
     sick: student.sick,
     sick_since: student.sick_since,
+    has_full_access: student.has_full_access,
   };
 
   return (
@@ -577,20 +578,27 @@ function HistoryButton({
 interface StudentHistorySectionProps {
   studentId: string;
   attendanceLogEnabled: boolean;
+  feedbackEnabled: boolean;
+  readOnly?: boolean;
   onNavigate: (path: string) => void;
 }
 
 /**
  * History section on the student detail page. The Anwesenheitsprotokoll button
- * is gated by the tenant's `gdpr.attendance_log_enabled` setting. Scope checks
- * (group supervisor) are handled by the destination page. Mensa history remains
- * a disabled placeholder (future feature).
+ * is gated by the tenant's `gdpr.attendance_log_enabled` setting. The
+ * Feedbackhistorie button is gated by the tenant's `feedback.enabled` setting.
+ * Mensa history remains a disabled placeholder (future feature).
  */
 export function StudentHistorySection({
   studentId,
   attendanceLogEnabled,
+  feedbackEnabled,
+  readOnly = false,
   onNavigate,
 }: Readonly<StudentHistorySectionProps>) {
+  const attendanceDisabled = readOnly || !attendanceLogEnabled;
+  const feedbackDisabled = readOnly || !feedbackEnabled;
+
   return (
     <InfoCard title="Historien" icon={<ClockIcon />}>
       <div className="grid grid-cols-1 gap-2">
@@ -598,14 +606,16 @@ export function StudentHistorySection({
           icon={<BuildingIcon />}
           title="Anwesenheitsprotokoll"
           description={
-            attendanceLogEnabled
-              ? "Anwesenheit und besuchte Räume"
-              : "Für Ihre Schule deaktiviert"
+            readOnly
+              ? "Nur für Gruppenbetreuer"
+              : attendanceLogEnabled
+                ? "Anwesenheit und besuchte Räume"
+                : "Für Ihre Schule deaktiviert"
           }
           bgColor="bg-[#5080D8]"
-          disabled={!attendanceLogEnabled}
+          disabled={attendanceDisabled}
           onClick={
-            attendanceLogEnabled
+            !attendanceDisabled
               ? () => onNavigate(`/students/${studentId}/room-history`)
               : undefined
           }
@@ -613,9 +623,20 @@ export function StudentHistorySection({
         <HistoryButton
           icon={<ChatIcon />}
           title="Feedbackhistorie"
-          description="Feedback und Bewertungen"
+          description={
+            readOnly
+              ? "Nur für Gruppenbetreuer"
+              : feedbackEnabled
+                ? "Feedback und Bewertungen"
+                : "Für Ihre Schule deaktiviert"
+          }
           bgColor="bg-[#83CD2D]"
-          onClick={() => onNavigate(`/students/${studentId}/feedback_history`)}
+          disabled={feedbackDisabled}
+          onClick={
+            !feedbackDisabled
+              ? () => onNavigate(`/students/${studentId}/feedback_history`)
+              : undefined
+          }
         />
         <HistoryButton
           icon={<ForkKnifeIcon />}

@@ -82,6 +82,7 @@ var TabOrder = []string{
 	"operations",
 	"gdpr",
 	"security",
+	"devices",
 	"general",
 }
 

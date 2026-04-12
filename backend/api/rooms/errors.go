@@ -24,6 +24,8 @@ func ErrorRenderer(err error) render.Renderer {
 			return common.ErrorNotFound(facErr)
 		case facilities.ErrRoomInUse:
 			return common.ErrorConflict(facErr)
+		case facilities.ErrSystemRoomProtected:
+			return common.ErrorForbidden(facErr)
 		case facilities.ErrDuplicateRoom:
 			return common.ErrorConflict(facErr)
 		default:

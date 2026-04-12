@@ -130,7 +130,7 @@ describe("createFileUploadHandler", () => {
       const response = await wrappedHandler(request, context);
       const data = (await response.json()) as ErrorResponse;
 
-      expect(response.status).toBe(500);
+      expect(response.status).toBe(413);
       expect(data.error).toContain("File size exceeds 5MB limit");
       expect(handler).not.toHaveBeenCalled();
     });
@@ -209,7 +209,7 @@ describe("createFileUploadHandler", () => {
       const response = await wrappedHandler(request, context);
       const data = (await response.json()) as ErrorResponse;
 
-      expect(response.status).toBe(500);
+      expect(response.status).toBe(415);
       expect(data.error).toContain("File type text/plain is not allowed");
       expect(handler).not.toHaveBeenCalled();
     });
@@ -303,7 +303,7 @@ describe("createFileUploadHandler", () => {
       const response = await wrappedHandler(request, context);
       const data = (await response.json()) as ErrorResponse;
 
-      expect(response.status).toBe(500);
+      expect(response.status).toBe(415);
       expect(data.error).toContain("File extension not allowed");
       expect(handler).not.toHaveBeenCalled();
     });
@@ -329,7 +329,7 @@ describe("createFileUploadHandler", () => {
       const response = await wrappedHandler(request, context);
       const data = (await response.json()) as ErrorResponse;
 
-      expect(response.status).toBe(500);
+      expect(response.status).toBe(422);
       expect(data.error).toContain(
         "Files with multiple extensions are not allowed",
       );
@@ -356,8 +356,8 @@ describe("createFileUploadHandler", () => {
 
       const response = await wrappedHandler(request, context);
 
-      // The file either fails extension check or traversal check
-      expect(response.status).toBe(500);
+      // The file either fails extension check (415) or traversal check (422)
+      expect([415, 422]).toContain(response.status);
       expect(handler).not.toHaveBeenCalled();
     });
 
@@ -381,7 +381,7 @@ describe("createFileUploadHandler", () => {
       const response = await wrappedHandler(request, context);
       const data = (await response.json()) as ErrorResponse;
 
-      expect(response.status).toBe(500);
+      expect(response.status).toBe(422);
       expect(data.error).toBe("Invalid filename");
       expect(handler).not.toHaveBeenCalled();
     });
@@ -406,7 +406,7 @@ describe("createFileUploadHandler", () => {
       const response = await wrappedHandler(request, context);
       const data = (await response.json()) as ErrorResponse;
 
-      expect(response.status).toBe(500);
+      expect(response.status).toBe(422);
       expect(data.error).toBe("Invalid filename");
       expect(handler).not.toHaveBeenCalled();
     });
@@ -435,7 +435,7 @@ describe("createFileUploadHandler", () => {
       const response = await wrappedHandler(request, context);
       const data = (await response.json()) as ErrorResponse;
 
-      expect(response.status).toBe(500);
+      expect(response.status).toBe(415);
       expect(data.error).toContain("File type text/plain is not allowed");
       expect(handler).not.toHaveBeenCalled();
     });

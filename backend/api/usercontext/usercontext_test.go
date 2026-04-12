@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	usercontextAPI "github.com/moto-nrw/project-phoenix/api/usercontext"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -628,8 +629,15 @@ func TestServeAvatar_GlobalAvatarFile(t *testing.T) {
 
 	_, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "Avatar", "GlobalFile")
 
-	avatarDir := filepath.Join("public", "uploads", "avatars", "global")
-	err := os.MkdirAll(avatarDir, 0755)
+	// Resolve the public directory the same way production code does,
+	// so the file is created where ServeImage will look for it.
+	publicDir, err := common.ResolvePublicDir()
+	if err != nil {
+		// No resolved public dir — create one relative to CWD so the resolver finds it.
+		publicDir = filepath.Join("public")
+	}
+	avatarDir := filepath.Join(publicDir, "uploads", "avatars", "global")
+	err = os.MkdirAll(avatarDir, 0755)
 	require.NoError(t, err)
 
 	filename := fmt.Sprintf("%d_test-avatar.jpg", account.ID)

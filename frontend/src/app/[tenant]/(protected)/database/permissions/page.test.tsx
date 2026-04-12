@@ -112,6 +112,8 @@ vi.mock("@/lib/permission-labels", () => ({
     `${resource}:${action}`,
   localizeAction: (action: string) => action,
   localizeResource: (resource: string) => resource,
+  localizeDescription: (_resource: string, _action: string, dbDesc?: string) =>
+    dbDesc ?? "",
 }));
 
 vi.mock("@/components/permissions", () => ({
@@ -241,13 +243,14 @@ describe("PermissionsPage", () => {
     mockGetOne.mockResolvedValue(mockPermissions[0]);
   });
 
-  it("renders permissions list", async () => {
+  it("renders permissions list with formatted display names", async () => {
     render(<PermissionsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Read Students")).toBeInTheDocument();
-      expect(screen.getByText("Write Students")).toBeInTheDocument();
-      expect(screen.getByText("Admin Access")).toBeInTheDocument();
+      // displayTitle now always uses formatPermissionDisplay (resource:action)
+      expect(screen.getByText("students:read")).toBeInTheDocument();
+      expect(screen.getByText("students:write")).toBeInTheDocument();
+      expect(screen.getByText("admin:all")).toBeInTheDocument();
     });
   });
 
@@ -293,15 +296,15 @@ describe("PermissionsPage", () => {
     render(<PermissionsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Read Students")).toBeInTheDocument();
+      expect(screen.getByText("students:read")).toBeInTheDocument();
     });
 
     const searchInput = screen.getByTestId("search-input");
     fireEvent.change(searchInput, { target: { value: "Admin" } });
 
     await waitFor(() => {
-      expect(screen.getByText("Admin Access")).toBeInTheDocument();
-      expect(screen.queryByText("Read Students")).not.toBeInTheDocument();
+      expect(screen.getByText("admin:all")).toBeInTheDocument();
+      expect(screen.queryByText("students:read")).not.toBeInTheDocument();
     });
   });
 
@@ -309,7 +312,7 @@ describe("PermissionsPage", () => {
     render(<PermissionsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Read Students")).toBeInTheDocument();
+      expect(screen.getByText("students:read")).toBeInTheDocument();
     });
 
     const createButtons = screen.getAllByLabelText("Berechtigung erstellen");
@@ -327,10 +330,10 @@ describe("PermissionsPage", () => {
     render(<PermissionsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Read Students")).toBeInTheDocument();
+      expect(screen.getByText("students:read")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByText("Read Students"));
+    fireEvent.click(screen.getByText("students:read"));
 
     await waitFor(() => {
       expect(screen.getByTestId("detail-modal")).toBeInTheDocument();
@@ -341,10 +344,10 @@ describe("PermissionsPage", () => {
     render(<PermissionsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Read Students")).toBeInTheDocument();
+      expect(screen.getByText("students:read")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByText("Read Students"));
+    fireEvent.click(screen.getByText("students:read"));
 
     await waitFor(() => {
       expect(screen.getByTestId("detail-modal")).toBeInTheDocument();
@@ -367,7 +370,7 @@ describe("PermissionsPage", () => {
     render(<PermissionsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Read Students")).toBeInTheDocument();
+      expect(screen.getByText("students:read")).toBeInTheDocument();
     });
 
     const createButtons = screen.getAllByLabelText("Berechtigung erstellen");
@@ -392,7 +395,7 @@ describe("PermissionsPage", () => {
     render(<PermissionsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Read Students")).toBeInTheDocument();
+      expect(screen.getByText("students:read")).toBeInTheDocument();
     });
 
     const createButtons = screen.getAllByLabelText("Berechtigung erstellen");
@@ -420,7 +423,7 @@ describe("PermissionsPage", () => {
     render(<PermissionsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Read Students")).toBeInTheDocument();
+      expect(screen.getByText("students:read")).toBeInTheDocument();
     });
 
     const createButtons = screen.getAllByLabelText("Berechtigung erstellen");
@@ -447,7 +450,7 @@ describe("PermissionsPage", () => {
     render(<PermissionsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Read Students")).toBeInTheDocument();
+      expect(screen.getByText("students:read")).toBeInTheDocument();
     });
 
     const createButtons = screen.getAllByLabelText("Berechtigung erstellen");
@@ -473,7 +476,7 @@ describe("PermissionsPage", () => {
     render(<PermissionsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Read Students")).toBeInTheDocument();
+      expect(screen.getByText("students:read")).toBeInTheDocument();
     });
 
     const createButtons = screen.getAllByLabelText("Berechtigung erstellen");
@@ -509,10 +512,10 @@ describe("PermissionsPage", () => {
     render(<PermissionsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Read Students")).toBeInTheDocument();
+      expect(screen.getByText("students:read")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByText("Read Students"));
+    fireEvent.click(screen.getByText("students:read"));
     await waitFor(() =>
       expect(screen.getByTestId("detail-modal")).toBeInTheDocument(),
     );
@@ -538,10 +541,10 @@ describe("PermissionsPage", () => {
     render(<PermissionsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Read Students")).toBeInTheDocument();
+      expect(screen.getByText("students:read")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByText("Read Students"));
+    fireEvent.click(screen.getByText("students:read"));
     await waitFor(() =>
       expect(screen.getByTestId("detail-modal")).toBeInTheDocument(),
     );
@@ -567,10 +570,10 @@ describe("PermissionsPage", () => {
     render(<PermissionsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Read Students")).toBeInTheDocument();
+      expect(screen.getByText("students:read")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByText("Read Students"));
+    fireEvent.click(screen.getByText("students:read"));
     await waitFor(() =>
       expect(screen.getByTestId("detail-modal")).toBeInTheDocument(),
     );
@@ -596,15 +599,15 @@ describe("PermissionsPage", () => {
     render(<PermissionsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Read Students")).toBeInTheDocument();
+      expect(screen.getByText("students:read")).toBeInTheDocument();
     });
 
     const searchInput = screen.getByTestId("search-input");
     fireEvent.change(searchInput, { target: { value: "Full admin" } });
 
     await waitFor(() => {
-      expect(screen.getByText("Admin Access")).toBeInTheDocument();
-      expect(screen.queryByText("Read Students")).not.toBeInTheDocument();
+      expect(screen.getByText("admin:all")).toBeInTheDocument();
+      expect(screen.queryByText("students:read")).not.toBeInTheDocument();
     });
   });
 
@@ -614,7 +617,7 @@ describe("PermissionsPage", () => {
     render(<PermissionsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Read Students")).toBeInTheDocument();
+      expect(screen.getByText("students:read")).toBeInTheDocument();
     });
 
     const createButtons = screen.getAllByLabelText("Berechtigung erstellen");
@@ -626,7 +629,7 @@ describe("PermissionsPage", () => {
     render(<PermissionsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Read Students")).toBeInTheDocument();
+      expect(screen.getByText("students:read")).toBeInTheDocument();
       expect(screen.getByText("Can read student data")).toBeInTheDocument();
     });
   });
@@ -647,12 +650,13 @@ describe("PermissionsPage", () => {
     render(<PermissionsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Basic Permission")).toBeInTheDocument();
+      // displayTitle always uses formatPermissionDisplay now
+      expect(screen.getByText("users:read")).toBeInTheDocument();
       expect(screen.queryByText("Can read")).not.toBeInTheDocument();
     });
   });
 
-  it("uses resource:action when name is empty", async () => {
+  it("always shows formatted display name regardless of name field", async () => {
     mockGetList.mockResolvedValue({
       data: [
         {
@@ -696,10 +700,10 @@ describe("PermissionsPage", () => {
     render(<PermissionsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Read Students")).toBeInTheDocument();
+      expect(screen.getByText("students:read")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByText("Read Students"));
+    fireEvent.click(screen.getByText("students:read"));
     await waitFor(() =>
       expect(screen.getByTestId("detail-modal")).toBeInTheDocument(),
     );
@@ -723,10 +727,10 @@ describe("PermissionsPage", () => {
     render(<PermissionsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Read Students")).toBeInTheDocument();
+      expect(screen.getByText("students:read")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByText("Read Students"));
+    fireEvent.click(screen.getByText("students:read"));
 
     await waitFor(() => {
       expect(screen.getByTestId("detail-modal")).toBeInTheDocument();
@@ -769,16 +773,17 @@ describe("PermissionsPage", () => {
     render(<PermissionsPage />);
 
     await waitFor(() => {
+      // displayTitle uses formatPermissionDisplay → resource:action
       const buttons = screen
         .getAllByRole("button")
         .filter((btn) =>
-          ["A Permission", "M Permission", "Z Permission"].some((name) =>
-            btn.textContent?.includes(name),
+          ["admin:read", "users:read", "users:write"].some((key) =>
+            btn.textContent?.includes(key),
           ),
         );
-      expect(buttons[0]?.textContent).toContain("A Permission");
-      expect(buttons[1]?.textContent).toContain("M Permission");
-      expect(buttons[2]?.textContent).toContain("Z Permission");
+      expect(buttons[0]?.textContent).toContain("admin:read");
+      expect(buttons[1]?.textContent).toContain("users:read");
+      expect(buttons[2]?.textContent).toContain("users:write");
     });
   });
 
@@ -788,7 +793,7 @@ describe("PermissionsPage", () => {
     render(<PermissionsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Read Students")).toBeInTheDocument();
+      expect(screen.getByText("students:read")).toBeInTheDocument();
     });
   });
 });
@@ -852,27 +857,24 @@ describe("PermissionsPage filtering logic", () => {
 });
 
 describe("displayTitle helper logic", () => {
-  it("returns name when name is present", () => {
+  // displayTitle now always uses formatPermissionDisplay (resource:action)
+  const formatPermissionDisplay = (resource: string, action: string) =>
+    `${resource}:${action}`;
+  const displayTitle = (p: { resource: string; action: string }) =>
+    formatPermissionDisplay(p.resource, p.action);
+
+  it("always returns formatted display regardless of name", () => {
     const perm = { name: "Test Permission", resource: "test", action: "read" };
-    const displayTitle = (p: typeof perm) =>
-      p.name?.trim() ? p.name : `${p.resource}:${p.action}`;
-
-    expect(displayTitle(perm)).toBe("Test Permission");
-  });
-
-  it("returns resource:action when name is empty", () => {
-    const perm = { name: "", resource: "test", action: "read" };
-    const displayTitle = (p: typeof perm) =>
-      p.name?.trim() ? p.name : `${p.resource}:${p.action}`;
-
     expect(displayTitle(perm)).toBe("test:read");
   });
 
-  it("returns resource:action when name is whitespace", () => {
-    const perm = { name: "   ", resource: "test", action: "read" };
-    const displayTitle = (p: typeof perm) =>
-      p.name?.trim() ? p.name : `${p.resource}:${p.action}`;
+  it("returns formatted display when name is empty", () => {
+    const perm = { name: "", resource: "test", action: "read" };
+    expect(displayTitle(perm)).toBe("test:read");
+  });
 
+  it("returns formatted display when name is whitespace", () => {
+    const perm = { name: "   ", resource: "test", action: "read" };
     expect(displayTitle(perm)).toBe("test:read");
   });
 });

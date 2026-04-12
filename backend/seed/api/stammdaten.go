@@ -38,17 +38,18 @@ type FixedSeeder struct {
 
 // FixedResult contains counts of created entities
 type FixedResult struct {
-	RoomCount        int
-	PersonCount      int
-	StaffCount       int
-	AccountCount     int
-	GroupCount       int
-	StudentCount     int
-	SickStudentCount int // Students marked as sick for demo badges
-	GuardianCount    int
-	ActivityCount    int
-	DeviceCount      int
-	StaffCredentials []StaffCredentials // Login credentials for demo
+	RoomCount           int
+	PersonCount         int
+	StaffCount          int
+	AccountCount        int
+	GroupCount          int
+	StudentCount        int
+	SickStudentCount    int // Students marked as sick for demo badges
+	GuardianCount       int
+	PickupScheduleCount int // Students with weekly pickup schedules seeded
+	ActivityCount       int
+	DeviceCount         int
+	StaffCredentials    []StaffCredentials // Login credentials for demo
 }
 
 // NewFixedSeeder creates a new fixed data seeder
@@ -126,6 +127,11 @@ func (s *FixedSeeder) Seed(ctx context.Context) (*FixedResult, error) {
 	// 8. Create guardians and link to students
 	if err := s.seedGuardians(ctx, result); err != nil {
 		return nil, fmt.Errorf("failed to seed guardians: %w", err)
+	}
+
+	// 8b. Create weekly pickup schedules for students who are picked up
+	if err := s.seedPickupSchedules(ctx, result); err != nil {
+		return nil, fmt.Errorf("failed to seed pickup schedules: %w", err)
 	}
 
 	// 9. Re-authenticate as a staff member for activity creation
@@ -467,14 +473,29 @@ func (s *FixedSeeder) seedStudents(_ context.Context, result *FixedResult) error
 		}
 
 		// Generate birthday based on group (varied ages within each group)
-		baseYear := 2019 // For 6-year-olds
+		// Groups map to school classes: 1a/1b (born ~2019), 2a/2b (~2018), 3a/3b (~2017), 4a/4b (~2016)
+		baseYear := 2019
 		switch student.GroupKey {
-		case "sternengruppe":
+		case "sternengruppe": // Klasse 1a/1b
 			baseYear = 2019
-		case "bärengruppe":
+		case "bärengruppe": // Klasse 1b/2a
 			baseYear = 2018
-		case "sonnengruppe":
+		case "sonnengruppe": // Klasse 2a/2b
+			baseYear = 2018
+		case "mondgruppe": // Klasse 2b/3a
 			baseYear = 2017
+		case "regenbogengruppe": // Klasse 3a/3b
+			baseYear = 2017
+		case "blumengruppe": // Klasse 3b/4a
+			baseYear = 2016
+		case "schmetterlingsgruppe": // Klasse 4a/4b
+			baseYear = 2016
+		case "waldgruppe": // Klasse 1a/2a
+			baseYear = 2019
+		case "meeresgruppe": // Klasse 2b/3b
+			baseYear = 2017
+		case "wiesengruppe": // Klasse 3a/4b
+			baseYear = 2016
 		}
 		// Spread birthdays across the year
 		month := (i % 12) + 1
@@ -707,6 +728,109 @@ func (s *FixedSeeder) seedGuardians(_ context.Context, result *FixedResult) erro
 	return nil
 }
 
+// seedPickupSchedules creates weekly pickup schedules for students with "Wird abgeholt" status.
+// Uses a varied but deterministic pattern: different pickup times per weekday to simulate
+// realistic family schedules (e.g. earlier on Tuesdays due to extracurricular activities).
+func (s *FixedSeeder) seedPickupSchedules(_ context.Context, result *FixedResult) error {
+	// Pickup time patterns (varies by student index for realistic diversity)
+	// Weekdays: 1=Montag, 2=Dienstag, 3=Mittwoch, 4=Donnerstag, 5=Freitag
+	type weekdaySchedule struct {
+		weekday    int
+		pickupTime string
+		notes      string
+	}
+
+	schedulePatterns := [][]weekdaySchedule{
+		// Pattern 0: Standard full-week pickup at 15:30
+		{
+			{weekday: 1, pickupTime: "15:30"},
+			{weekday: 2, pickupTime: "15:30"},
+			{weekday: 3, pickupTime: "15:30"},
+			{weekday: 4, pickupTime: "15:30"},
+			{weekday: 5, pickupTime: "15:00", notes: "Freitag früher"},
+		},
+		// Pattern 1: Early Tuesday (Musikunterricht), standard otherwise
+		{
+			{weekday: 1, pickupTime: "15:30"},
+			{weekday: 2, pickupTime: "14:30", notes: "Musikunterricht danach"},
+			{weekday: 3, pickupTime: "15:30"},
+			{weekday: 4, pickupTime: "15:30"},
+			{weekday: 5, pickupTime: "15:00"},
+		},
+		// Pattern 2: Late pickup Mon/Thu (Eltern arbeiten), early Wed
+		{
+			{weekday: 1, pickupTime: "16:00"},
+			{weekday: 2, pickupTime: "15:30"},
+			{weekday: 3, pickupTime: "14:00", notes: "Oma holt ab"},
+			{weekday: 4, pickupTime: "16:00"},
+			{weekday: 5, pickupTime: "15:00"},
+		},
+		// Pattern 3: Partial week (e.g. grandparent picks up Mon/Fri only)
+		{
+			{weekday: 1, pickupTime: "15:30", notes: "Opa holt ab"},
+			{weekday: 3, pickupTime: "15:30"},
+			{weekday: 5, pickupTime: "14:30", notes: "Früher wegen Sportverein"},
+		},
+		// Pattern 4: All days, varied times
+		{
+			{weekday: 1, pickupTime: "15:00"},
+			{weekday: 2, pickupTime: "15:30"},
+			{weekday: 3, pickupTime: "16:00", notes: "Papa holt ab"},
+			{weekday: 4, pickupTime: "15:30"},
+			{weekday: 5, pickupTime: "14:00", notes: "Fußballtraining"},
+		},
+	}
+
+	for i, student := range DemoStudents {
+		// Only seed schedules for students being picked up (every other student)
+		if i%2 == 0 {
+			continue
+		}
+
+		studentID, ok := s.studentIDByIndex[i]
+		if !ok {
+			continue
+		}
+
+		pattern := schedulePatterns[i%len(schedulePatterns)]
+
+		// Build schedules array
+		schedules := make([]map[string]any, 0, len(pattern))
+		for _, day := range pattern {
+			entry := map[string]any{
+				"weekday":     day.weekday,
+				"pickup_time": day.pickupTime,
+			}
+			if day.notes != "" {
+				entry["notes"] = day.notes
+			}
+			schedules = append(schedules, entry)
+		}
+
+		path := fmt.Sprintf("/api/students/%d/pickup-schedules", studentID)
+		body := map[string]any{
+			"schedules": schedules,
+		}
+
+		_, err := s.client.Put(path, body)
+		if err != nil {
+			// Log warning but continue — pickup schedules are non-critical demo data
+			if s.verbose {
+				fmt.Printf("    Warning: failed to seed pickup schedule for student %s %s: %v\n",
+					student.FirstName, student.LastName, err)
+			}
+			continue
+		}
+
+		result.PickupScheduleCount++
+	}
+
+	if s.verbose {
+		fmt.Printf("  ✓ %d pickup schedules seeded\n", result.PickupScheduleCount)
+	}
+	return nil
+}
+
 func (s *FixedSeeder) fetchCategories(_ context.Context) error {
 	// Fetch existing categories
 	respBody, err := s.client.Get("/api/activities/categories")
@@ -754,8 +878,6 @@ func (s *FixedSeeder) seedActivities(_ context.Context, result *FixedResult) err
 		"Musik":        "Musik",
 		"Tanzen":       "Sport",
 		"Schach":       "Spiele",
-		"Garten":       "Draußen",
-		"Freispiel":    "Draußen",
 	}
 
 	for _, activity := range DemoActivities {

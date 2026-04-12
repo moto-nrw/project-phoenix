@@ -130,6 +130,7 @@ describe("Sidebar", () => {
       isSupervising: false,
       isLoadingGroups: false,
       isLoadingSupervision: false,
+      adminOverviewEnabled: false,
       supervisedRooms: [],
       groups: [],
       refresh: vi.fn(),
@@ -202,6 +203,7 @@ describe("Sidebar", () => {
         isSupervising: false,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [],
         groups: [],
         refresh: vi.fn(),
@@ -230,6 +232,7 @@ describe("Sidebar", () => {
         isSupervising: false,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [],
         groups: [],
         refresh: vi.fn(),
@@ -246,6 +249,7 @@ describe("Sidebar", () => {
         isSupervising: true,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [],
         groups: [],
         refresh: vi.fn(),
@@ -262,6 +266,7 @@ describe("Sidebar", () => {
         isSupervising: false,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [],
         groups: [],
         refresh: vi.fn(),
@@ -442,6 +447,7 @@ describe("Sidebar", () => {
         isSupervising: false,
         isLoadingGroups: true,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [],
         groups: [],
         refresh: vi.fn(),
@@ -459,6 +465,7 @@ describe("Sidebar", () => {
         isSupervising: false,
         isLoadingGroups: false,
         isLoadingSupervision: true,
+        adminOverviewEnabled: false,
         supervisedRooms: [],
         groups: [],
         refresh: vi.fn(),
@@ -500,6 +507,7 @@ describe("Sidebar", () => {
         isSupervising: false,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [],
         groups: [
           { id: 1, name: "Eulen" },
@@ -524,6 +532,7 @@ describe("Sidebar", () => {
         isSupervising: true,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [
           { id: "10", name: "Raum A", groupId: "1" },
           { id: "20", name: "Raum B", groupId: "2" },
@@ -570,6 +579,7 @@ describe("Sidebar", () => {
         isSupervising: false,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [],
         groups: [{ id: 1, name: "Eulen" }],
         refresh: vi.fn(),
@@ -592,6 +602,7 @@ describe("Sidebar", () => {
         isSupervising: false,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [],
         groups: [],
         refresh: vi.fn(),
@@ -612,6 +623,7 @@ describe("Sidebar", () => {
         isSupervising: true,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [{ id: "10", name: "Raum A", groupId: "1" }],
         groups: [],
         refresh: vi.fn(),
@@ -634,6 +646,7 @@ describe("Sidebar", () => {
         isSupervising: false,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [],
         groups: [],
         refresh: vi.fn(),
@@ -735,6 +748,7 @@ describe("Sidebar", () => {
         isSupervising: false,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [],
         groups: [{ id: 1, name: "Eulen" }],
         refresh: vi.fn(),
@@ -751,6 +765,7 @@ describe("Sidebar", () => {
         isSupervising: false,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [],
         groups: [
           { id: 1, name: "Eulen" },
@@ -770,6 +785,7 @@ describe("Sidebar", () => {
         isSupervising: true,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [{ id: "10", name: "Raum A", groupId: "1" }],
         groups: [],
         refresh: vi.fn(),
@@ -786,6 +802,7 @@ describe("Sidebar", () => {
         isSupervising: true,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [
           { id: "10", name: "Raum A", groupId: "1" },
           { id: "20", name: "Raum B", groupId: "2" },
@@ -819,6 +836,7 @@ describe("Sidebar", () => {
         isSupervising: false,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [],
         groups: [
           { id: 1, name: "Eulen" },
@@ -846,6 +864,7 @@ describe("Sidebar", () => {
         isSupervising: true,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [
           { id: "10", name: "Raum A", groupId: "1" },
           { id: "20", name: "Raum B", groupId: "2" },
@@ -882,6 +901,7 @@ describe("Sidebar", () => {
         isSupervising: true,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [
           { id: "10", name: "Raum A", groupId: "1" },
           { id: "20", name: "Raum B", groupId: "2" },
@@ -953,6 +973,7 @@ describe("Sidebar", () => {
         isSupervising: false,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [],
         groups: [
           { id: 1, name: "Eulen" },
@@ -980,6 +1001,7 @@ describe("Sidebar", () => {
         isSupervising: true,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [
           { id: "10", name: "Raum A", groupId: "1" },
           { id: "20", name: "Raum B", groupId: "2" },
@@ -1022,6 +1044,7 @@ describe("Sidebar", () => {
         isSupervising: false,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [],
         groups: [{ id: 1, name: "Eulen" }],
         refresh: vi.fn(),
@@ -1048,6 +1071,7 @@ describe("Sidebar", () => {
         isSupervising: true,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [{ id: "10", name: "Raum A", groupId: "1" }],
         groups: [],
         refresh: vi.fn(),
@@ -1119,6 +1143,7 @@ describe("Sidebar", () => {
         isSupervising: false,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [],
         groups: [
           { id: 1, name: "Eulen" },
@@ -1153,6 +1178,7 @@ describe("Sidebar", () => {
         isSupervising: true,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [
           { id: "10", name: "Raum A", groupId: "1" },
           { id: "20", name: "Raum B", groupId: "2" },
@@ -1187,6 +1213,7 @@ describe("Sidebar", () => {
         isSupervising: false,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [],
         groups: [
           { id: 1, name: "Eulen" },
@@ -1221,6 +1248,7 @@ describe("Sidebar", () => {
         isSupervising: true,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [
           { id: "10", name: "Raum A", groupId: "1" },
           { id: "20", name: "Raum B", groupId: "2" },
@@ -1299,6 +1327,7 @@ describe("Sidebar", () => {
         isSupervising: true,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [
           { id: "10", name: "Raum A", groupId: "1" },
           {
@@ -1325,6 +1354,7 @@ describe("Sidebar", () => {
         isSupervising: true,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [
           {
             id: "schulhof",
@@ -1390,6 +1420,7 @@ describe("Sidebar", () => {
         isSupervising: true,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [
           { id: "10", name: "Raum A", groupId: "1" },
           {

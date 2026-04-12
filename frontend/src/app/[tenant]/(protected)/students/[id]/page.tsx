@@ -57,7 +57,9 @@ export default function StudentDetailPage() {
     loading,
     error,
     hasFullAccess,
+    hasWriteAccess,
     attendanceLogEnabled,
+    feedbackEnabled,
     supervisors,
     myGroups,
     myGroupRooms,
@@ -143,7 +145,7 @@ export default function StudentDetailPage() {
     void loadActiveGroups();
   }, [showConfirmCheckin]);
 
-  // Load today's pickup time for header (only for full access users)
+  // Load today's pickup time for header (requires read access to student data)
   useEffect(() => {
     if (!hasFullAccess || !studentId) {
       setTodayPickup({});
@@ -402,7 +404,9 @@ export default function StudentDetailPage() {
           <FullAccessView
             student={student}
             studentId={studentId}
+            hasWriteAccess={hasWriteAccess}
             attendanceLogEnabled={attendanceLogEnabled}
+            feedbackEnabled={feedbackEnabled}
             showCheckout={showCheckout}
             showCheckin={showCheckin}
             showPersonalInfoModal={showPersonalInfoModal}
@@ -420,6 +424,7 @@ export default function StudentDetailPage() {
             student={student}
             studentId={studentId}
             attendanceLogEnabled={attendanceLogEnabled}
+            feedbackEnabled={feedbackEnabled}
             supervisors={supervisors}
             showCheckout={showCheckout}
             showCheckin={showCheckin}
@@ -509,6 +514,7 @@ interface LimitedAccessViewProps {
   student: ExtendedStudent;
   studentId: string;
   attendanceLogEnabled: boolean;
+  feedbackEnabled: boolean;
   supervisors: SupervisorContact[];
   showCheckout: boolean;
   showCheckin: boolean;
@@ -520,6 +526,7 @@ function LimitedAccessView({
   student,
   studentId,
   attendanceLogEnabled,
+  feedbackEnabled,
   supervisors,
   showCheckout,
   showCheckin,
@@ -542,12 +549,6 @@ function LimitedAccessView({
 
       <SupervisorsCard supervisors={supervisors} studentName={student.name} />
 
-      <PickupScheduleManager
-        studentId={student.id}
-        readOnly={true}
-        isSick={student.sick}
-      />
-
       <PersonalInfoReadOnly student={student} />
 
       <StudentGuardianManager studentId={student.id} readOnly={true} />
@@ -555,6 +556,8 @@ function LimitedAccessView({
       <StudentHistorySection
         studentId={studentId}
         attendanceLogEnabled={attendanceLogEnabled}
+        feedbackEnabled={feedbackEnabled}
+        readOnly={true}
         onNavigate={(path) => historyRouter.push(path)}
       />
     </div>
@@ -568,7 +571,9 @@ function LimitedAccessView({
 interface FullAccessViewProps {
   student: ExtendedStudent;
   studentId: string;
+  hasWriteAccess: boolean;
   attendanceLogEnabled: boolean;
+  feedbackEnabled: boolean;
   showCheckout: boolean;
   showCheckin: boolean;
   showPersonalInfoModal: boolean;
@@ -585,7 +590,9 @@ interface FullAccessViewProps {
 function FullAccessView({
   student,
   studentId,
+  hasWriteAccess,
   attendanceLogEnabled,
+  feedbackEnabled,
   showCheckout,
   showCheckin,
   showPersonalInfoModal,
@@ -601,54 +608,61 @@ function FullAccessView({
   const historyRouter = useTenantRouter();
   return (
     <>
-      <div className="mb-4 flex gap-3 sm:mb-6 sm:gap-4">
-        {showCheckout && (
-          <StudentCheckoutSection onCheckoutClick={onCheckoutClick} />
-        )}
-        {showCheckin && (
-          <StudentCheckinSection onCheckinClick={onCheckinClick} />
-        )}
-        <StudentSickReportSection
-          isSick={student.sick ?? false}
-          sickSince={student.sick_since}
-          onToggle={onSickClick}
-          isLoading={sickLoading}
-        />
-      </div>
+      {(showCheckout || showCheckin || hasWriteAccess) && (
+        <div className="mb-4 flex gap-3 sm:mb-6 sm:gap-4">
+          {showCheckout && (
+            <StudentCheckoutSection onCheckoutClick={onCheckoutClick} />
+          )}
+          {showCheckin && (
+            <StudentCheckinSection onCheckinClick={onCheckinClick} />
+          )}
+          {hasWriteAccess && (
+            <StudentSickReportSection
+              isSick={student.sick ?? false}
+              sickSince={student.sick_since}
+              onToggle={onSickClick}
+              isLoading={sickLoading}
+            />
+          )}
+        </div>
+      )}
 
       <div className="space-y-4 sm:space-y-6">
         <PickupScheduleManager
           studentId={studentId}
-          readOnly={false}
-          onUpdate={onRefreshData}
+          readOnly={!hasWriteAccess}
+          onUpdate={hasWriteAccess ? onRefreshData : undefined}
           isSick={student.sick}
         />
 
         <PersonalInfoReadOnly
           student={student}
-          showEditButton={true}
-          onEditClick={onOpenPersonalInfoModal}
+          showEditButton={hasWriteAccess}
+          onEditClick={hasWriteAccess ? onOpenPersonalInfoModal : undefined}
         />
 
         <StudentGuardianManager
           studentId={studentId}
-          readOnly={false}
-          onUpdate={onRefreshData}
+          readOnly={!hasWriteAccess}
+          onUpdate={hasWriteAccess ? onRefreshData : undefined}
         />
 
         <StudentHistorySection
           studentId={studentId}
           attendanceLogEnabled={attendanceLogEnabled}
+          feedbackEnabled={feedbackEnabled}
           onNavigate={(path) => historyRouter.push(path)}
         />
       </div>
 
-      <PersonalInfoFormModal
-        isOpen={showPersonalInfoModal}
-        onClose={onClosePersonalInfoModal}
-        student={student}
-        onSave={onSavePersonal}
-      />
+      {hasWriteAccess && (
+        <PersonalInfoFormModal
+          isOpen={showPersonalInfoModal}
+          onClose={onClosePersonalInfoModal}
+          student={student}
+          onSave={onSavePersonal}
+        />
+      )}
     </>
   );
 }

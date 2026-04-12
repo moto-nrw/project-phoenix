@@ -196,6 +196,8 @@ func newStudentResponseWithOpts(ctx context.Context, opts StudentResponseOpts, s
 		response.GuardianContact = *student.GuardianContact
 	}
 
+	response.HasFullAccess = hasFullAccess
+
 	// Resolve location
 	if locationOverride != nil {
 		response.Location = *locationOverride
@@ -233,6 +235,8 @@ func newStudentResponseFromSnapshot(_ context.Context, student *users.Student, p
 	if student.GuardianContact != nil {
 		response.GuardianContact = *student.GuardianContact
 	}
+
+	response.HasFullAccess = hasFullAccess
 
 	locationInfo := snapshot.ResolveLocationWithTime(student.ID, hasFullAccess)
 	response.Location = locationInfo.Location

@@ -162,6 +162,9 @@ func TestSchulhofService_GetSchulhofStatus_WithInfrastructureNoSession(t *testin
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
+	cleanupSchulhofArtifacts(t, db)
+	defer cleanupSchulhofArtifacts(t, db)
+
 	service := setupSchulhofService(t, db)
 	ctx := testpkg.TenantContext(1)
 
@@ -171,7 +174,13 @@ func TestSchulhofService_GetSchulhofStatus_WithInfrastructureNoSession(t *testin
 	// Create infrastructure
 	activityGroup, err := service.EnsureInfrastructure(ctx, staff.ID)
 	require.NoError(t, err)
-	defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, activityGroup.CategoryID, *activityGroup.PlannedRoomID)
+
+	// Build cleanup IDs — PlannedRoomID may be nil if EnsureInfrastructure found an existing activity
+	cleanupIDs := []int64{activityGroup.ID, activityGroup.CategoryID}
+	if activityGroup.PlannedRoomID != nil {
+		cleanupIDs = append(cleanupIDs, *activityGroup.PlannedRoomID)
+	}
+	defer testpkg.CleanupActivityFixtures(t, db, cleanupIDs...)
 
 	// ACT
 	status, err := service.GetSchulhofStatus(ctx, staff.ID)
@@ -192,6 +201,9 @@ func TestSchulhofService_GetSchulhofStatus_WithInfrastructureNoSession(t *testin
 func TestSchulhofService_GetSchulhofStatus_WithActiveSessionNoSupervisor(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+
+	cleanupSchulhofArtifacts(t, db)
+	defer cleanupSchulhofArtifacts(t, db)
 
 	service := setupSchulhofService(t, db)
 	ctx := testpkg.TenantContext(1)
@@ -222,6 +234,9 @@ func TestSchulhofService_GetSchulhofStatus_WithSupervisor(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
+	cleanupSchulhofArtifacts(t, db)
+	defer cleanupSchulhofArtifacts(t, db)
+
 	service := setupSchulhofService(t, db)
 	ctx := testpkg.TenantContext(1)
 
@@ -231,9 +246,16 @@ func TestSchulhofService_GetSchulhofStatus_WithSupervisor(t *testing.T) {
 	// First ensure infrastructure to get the room ID
 	activityGroup, err := service.EnsureInfrastructure(ctx, staff.ID)
 	require.NoError(t, err)
-	defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, activityGroup.CategoryID, *activityGroup.PlannedRoomID)
+
+	// Build cleanup IDs — PlannedRoomID may be nil if EnsureInfrastructure found an existing activity
+	cleanupIDs := []int64{activityGroup.ID, activityGroup.CategoryID}
+	if activityGroup.PlannedRoomID != nil {
+		cleanupIDs = append(cleanupIDs, *activityGroup.PlannedRoomID)
+	}
+	defer testpkg.CleanupActivityFixtures(t, db, cleanupIDs...)
 
 	// End all existing active groups for this room to get a fresh one
+	require.NotNil(t, activityGroup.PlannedRoomID, "EnsureInfrastructure should set PlannedRoomID")
 	_, err = db.NewUpdate().
 		Model((*active.Group)(nil)).
 		ModelTableExpr(`active.groups AS "group"`).
@@ -287,6 +309,7 @@ func TestSchulhofService_GetSchulhofStatus_WithMultipleSupervisors(t *testing.T)
 	defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, activityGroup.CategoryID, *activityGroup.PlannedRoomID)
 
 	// End all existing active groups for this room to get a fresh one
+	require.NotNil(t, activityGroup.PlannedRoomID, "EnsureInfrastructure should set PlannedRoomID")
 	_, err = db.NewUpdate().
 		Model((*active.Group)(nil)).
 		ModelTableExpr(`active.groups AS "group"`).
