@@ -131,6 +131,12 @@ func ErrorInternalServer(err error) render.Renderer {
 	return common.ErrorInternalServer(err)
 }
 
+// ErrorInternalServerWrap returns a 500 response with a stable client-facing message
+// while preserving the full error chain for Sentry and slog.
+func ErrorInternalServerWrap(clientMsg string, cause error) render.Renderer {
+	return common.ErrorInternalServerWrap(clientMsg, cause)
+}
+
 // ErrorNotFound returns a 404 Not Found error response
 func ErrorNotFound(err error) render.Renderer {
 	return common.ErrorNotFound(err)
