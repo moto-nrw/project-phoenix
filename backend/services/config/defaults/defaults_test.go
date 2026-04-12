@@ -52,7 +52,6 @@ func TestAllSettingsRegistered(t *testing.T) {
 	}
 
 	assert.GreaterOrEqual(t, len(all), 25, "at least 25 settings should be registered")
-
 }
 
 func TestOperationsSettings_Types(t *testing.T) {
@@ -198,8 +197,7 @@ func TestStudentDataScope_Options(t *testing.T) {
 	def := config.GetDefinition("gdpr.student_data_scope")
 	require.NotNil(t, def)
 	assert.Equal(t, "gdpr", def.Tab)
-
-	assert.Equal(t, "student_data", def.Category)
+	assert.Equal(t, "schülerdaten", def.Category)
 	assert.Equal(t, config.FieldSelect, def.Type)
 	assert.Equal(t, config.StudentDataScopeGroupSupervisorsOnly, def.Default)
 	assert.Equal(t, "config:manage", def.WritePermission)
