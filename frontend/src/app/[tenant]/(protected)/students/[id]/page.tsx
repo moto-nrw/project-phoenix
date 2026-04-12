@@ -557,6 +557,7 @@ function LimitedAccessView({
         studentId={studentId}
         attendanceLogEnabled={attendanceLogEnabled}
         feedbackEnabled={feedbackEnabled}
+        readOnly={true}
         onNavigate={(path) => historyRouter.push(path)}
       />
     </div>
