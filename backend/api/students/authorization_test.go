@@ -267,11 +267,13 @@ func TestStudentDataScope_AllStaff_GrantsFullReadAccess(t *testing.T) {
 
 	var resp struct {
 		Data struct {
-			HasFullAccess bool `json:"has_full_access"`
+			HasFullAccess  bool `json:"has_full_access"`
+			HasWriteAccess bool `json:"has_write_access"`
 		} `json:"data"`
 	}
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
-	assert.True(t, resp.Data.HasFullAccess, "all_staff scope should grant full access to non-supervisors")
+	assert.True(t, resp.Data.HasFullAccess, "all_staff scope should grant full read access to non-supervisors")
+	assert.False(t, resp.Data.HasWriteAccess, "all_staff scope should NOT grant write access to non-supervisors")
 }
 
 // TestStudentDataScope_GroupSupervisorsOnly_RedactsForNonSupervisor verifies that
@@ -299,11 +301,13 @@ func TestStudentDataScope_GroupSupervisorsOnly_RedactsForNonSupervisor(t *testin
 
 	var resp struct {
 		Data struct {
-			HasFullAccess bool `json:"has_full_access"`
+			HasFullAccess  bool `json:"has_full_access"`
+			HasWriteAccess bool `json:"has_write_access"`
 		} `json:"data"`
 	}
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
 	assert.False(t, resp.Data.HasFullAccess, "group_supervisors_only should redact non-supervisors")
+	assert.False(t, resp.Data.HasWriteAccess, "group_supervisors_only should not grant write access to non-supervisors")
 }
 
 // TestStudentDataScope_AllStaff_GrantsAccessToGrouplessStudent covers the edge
@@ -326,11 +330,13 @@ func TestStudentDataScope_AllStaff_GrantsAccessToGrouplessStudent(t *testing.T) 
 
 	var resp struct {
 		Data struct {
-			HasFullAccess bool `json:"has_full_access"`
+			HasFullAccess  bool `json:"has_full_access"`
+			HasWriteAccess bool `json:"has_write_access"`
 		} `json:"data"`
 	}
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
 	assert.True(t, resp.Data.HasFullAccess, "all_staff scope should grant access even to students without groups")
+	assert.False(t, resp.Data.HasWriteAccess, "all_staff scope should NOT grant write access even for groupless students")
 }
 
 // TestStudentDataScope_DoesNotAffectWrites confirms that flipping the scope to

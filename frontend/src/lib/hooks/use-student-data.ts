@@ -32,6 +32,7 @@ interface StudentDataState {
   loading: boolean;
   error: string | null;
   hasFullAccess: boolean;
+  hasWriteAccess: boolean;
   attendanceLogEnabled: boolean;
   feedbackEnabled: boolean;
   supervisors: SupervisorContact[];
@@ -103,6 +104,7 @@ function extractRoomNames(
 interface StudentDetailResponse {
   student: ExtendedStudent;
   hasFullAccess: boolean;
+  hasWriteAccess: boolean;
   attendanceLogEnabled: boolean;
   feedbackEnabled: boolean;
   supervisors: SupervisorContact[];
@@ -153,12 +155,14 @@ export function useStudentData(studentId: string): UseStudentDataResult {
 
       const mappedStudent = rawStudentData as Student & {
         has_full_access?: boolean;
+        has_write_access?: boolean;
         group_supervisors?: SupervisorContact[];
         attendance_log_enabled?: boolean;
         feedback_enabled?: boolean;
       };
 
       const hasAccess = mappedStudent.has_full_access ?? false;
+      const hasWriteAccess = mappedStudent.has_write_access ?? false;
       const attendanceLogEnabled =
         mappedStudent.attendance_log_enabled ?? false;
       const feedbackEnabled = mappedStudent.feedback_enabled ?? false;
@@ -172,6 +176,7 @@ export function useStudentData(studentId: string): UseStudentDataResult {
       return {
         student: extendedStudent,
         hasFullAccess: hasAccess,
+        hasWriteAccess,
         attendanceLogEnabled,
         feedbackEnabled,
         supervisors: groupSupervisors,
@@ -209,6 +214,7 @@ export function useStudentData(studentId: string): UseStudentDataResult {
     loading,
     error,
     hasFullAccess: studentData?.hasFullAccess ?? true,
+    hasWriteAccess: studentData?.hasWriteAccess ?? false,
     attendanceLogEnabled: studentData?.attendanceLogEnabled ?? false,
     feedbackEnabled: studentData?.feedbackEnabled ?? false,
     supervisors: studentData?.supervisors ?? [],

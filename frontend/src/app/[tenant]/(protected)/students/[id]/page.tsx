@@ -57,6 +57,7 @@ export default function StudentDetailPage() {
     loading,
     error,
     hasFullAccess,
+    hasWriteAccess,
     attendanceLogEnabled,
     feedbackEnabled,
     supervisors,
@@ -144,9 +145,9 @@ export default function StudentDetailPage() {
     void loadActiveGroups();
   }, [showConfirmCheckin]);
 
-  // Load today's pickup time for header (only for full access users)
+  // Load today's pickup time for header
   useEffect(() => {
-    if (!hasFullAccess || !studentId) {
+    if (!studentId) {
       setTodayPickup({});
       return;
     }
@@ -180,7 +181,7 @@ export default function StudentDetailPage() {
     };
 
     void loadTodayPickup();
-  }, [hasFullAccess, studentId, student?.sick]);
+  }, [studentId, student?.sick]);
 
   // Show loading state
   if (loading) {
@@ -403,6 +404,7 @@ export default function StudentDetailPage() {
           <FullAccessView
             student={student}
             studentId={studentId}
+            hasWriteAccess={hasWriteAccess}
             attendanceLogEnabled={attendanceLogEnabled}
             feedbackEnabled={feedbackEnabled}
             showCheckout={showCheckout}
@@ -574,6 +576,7 @@ function LimitedAccessView({
 interface FullAccessViewProps {
   student: ExtendedStudent;
   studentId: string;
+  hasWriteAccess: boolean;
   attendanceLogEnabled: boolean;
   feedbackEnabled: boolean;
   showCheckout: boolean;
@@ -592,6 +595,7 @@ interface FullAccessViewProps {
 function FullAccessView({
   student,
   studentId,
+  hasWriteAccess,
   attendanceLogEnabled,
   feedbackEnabled,
   showCheckout,
@@ -609,39 +613,43 @@ function FullAccessView({
   const historyRouter = useTenantRouter();
   return (
     <>
-      <div className="mb-4 flex gap-3 sm:mb-6 sm:gap-4">
-        {showCheckout && (
-          <StudentCheckoutSection onCheckoutClick={onCheckoutClick} />
-        )}
-        {showCheckin && (
-          <StudentCheckinSection onCheckinClick={onCheckinClick} />
-        )}
-        <StudentSickReportSection
-          isSick={student.sick ?? false}
-          sickSince={student.sick_since}
-          onToggle={onSickClick}
-          isLoading={sickLoading}
-        />
-      </div>
+      {(showCheckout || showCheckin || hasWriteAccess) && (
+        <div className="mb-4 flex gap-3 sm:mb-6 sm:gap-4">
+          {showCheckout && (
+            <StudentCheckoutSection onCheckoutClick={onCheckoutClick} />
+          )}
+          {showCheckin && (
+            <StudentCheckinSection onCheckinClick={onCheckinClick} />
+          )}
+          {hasWriteAccess && (
+            <StudentSickReportSection
+              isSick={student.sick ?? false}
+              sickSince={student.sick_since}
+              onToggle={onSickClick}
+              isLoading={sickLoading}
+            />
+          )}
+        </div>
+      )}
 
       <div className="space-y-4 sm:space-y-6">
         <PickupScheduleManager
           studentId={studentId}
-          readOnly={false}
-          onUpdate={onRefreshData}
+          readOnly={!hasWriteAccess}
+          onUpdate={hasWriteAccess ? onRefreshData : undefined}
           isSick={student.sick}
         />
 
         <PersonalInfoReadOnly
           student={student}
-          showEditButton={true}
-          onEditClick={onOpenPersonalInfoModal}
+          showEditButton={hasWriteAccess}
+          onEditClick={hasWriteAccess ? onOpenPersonalInfoModal : undefined}
         />
 
         <StudentGuardianManager
           studentId={studentId}
-          readOnly={false}
-          onUpdate={onRefreshData}
+          readOnly={!hasWriteAccess}
+          onUpdate={hasWriteAccess ? onRefreshData : undefined}
         />
 
         <StudentHistorySection
@@ -652,12 +660,14 @@ function FullAccessView({
         />
       </div>
 
-      <PersonalInfoFormModal
-        isOpen={showPersonalInfoModal}
-        onClose={onClosePersonalInfoModal}
-        student={student}
-        onSave={onSavePersonal}
-      />
+      {hasWriteAccess && (
+        <PersonalInfoFormModal
+          isOpen={showPersonalInfoModal}
+          onClose={onClosePersonalInfoModal}
+          student={student}
+          onSave={onSavePersonal}
+        />
+      )}
     </>
   );
 }

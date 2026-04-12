@@ -455,6 +455,7 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 
 	group := rs.getStudentGroup(r.Context(), student)
 	hasFullAccess := rs.checkStudentReadAccess(r, student)
+	hasWriteAccess := rs.checkStudentFullAccess(r, student)
 
 	attendanceLogEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyAttendanceLogEnabled, false, rs.Logger)
 	feedbackEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyFeedbackEnabled, false, rs.Logger)
@@ -470,6 +471,7 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 			PersonService: rs.PersonService,
 		}),
 		HasFullAccess:        hasFullAccess,
+		HasWriteAccess:       hasWriteAccess,
 		AttendanceLogEnabled: attendanceLogEnabled,
 		FeedbackEnabled:      feedbackEnabled,
 	}

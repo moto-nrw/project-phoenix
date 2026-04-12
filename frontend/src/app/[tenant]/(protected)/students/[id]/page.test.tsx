@@ -328,6 +328,7 @@ interface MockStudentDataResult {
   loading: boolean;
   error: string | null;
   hasFullAccess: boolean;
+  hasWriteAccess: boolean;
   supervisors: Array<{ name: string; phone?: string }>;
   myGroups: string[];
   myGroupRooms: string[];
@@ -421,6 +422,7 @@ describe("StudentDetailPage", () => {
       loading: false,
       error: null,
       hasFullAccess: true,
+      hasWriteAccess: true,
       supervisors: [{ name: "Frau Schmidt", phone: "0123456" }],
       myGroups: ["1"],
       myGroupRooms: ["Raum 101"],
@@ -448,6 +450,7 @@ describe("StudentDetailPage", () => {
         loading: true,
         error: null,
         hasFullAccess: false,
+        hasWriteAccess: false,
         supervisors: [],
         myGroups: [],
         myGroupRooms: [],
@@ -469,6 +472,7 @@ describe("StudentDetailPage", () => {
         loading: false,
         error: "Schüler nicht gefunden",
         hasFullAccess: false,
+        hasWriteAccess: false,
         supervisors: [],
         myGroups: [],
         myGroupRooms: [],
@@ -488,6 +492,7 @@ describe("StudentDetailPage", () => {
         loading: false,
         error: null,
         hasFullAccess: false,
+        hasWriteAccess: false,
         supervisors: [],
         myGroups: [],
         myGroupRooms: [],
@@ -506,6 +511,7 @@ describe("StudentDetailPage", () => {
         loading: false,
         error: "Error",
         hasFullAccess: false,
+        hasWriteAccess: false,
         supervisors: [],
         myGroups: [],
         myGroupRooms: [],
@@ -564,6 +570,7 @@ describe("StudentDetailPage", () => {
         loading: false,
         error: null,
         hasFullAccess: false,
+        hasWriteAccess: false,
         supervisors: [{ name: "Frau Schmidt", phone: "0123456" }],
         myGroups: ["1"],
         myGroupRooms: ["Raum 101"],
@@ -767,6 +774,7 @@ describe("StudentDetailPage", () => {
         loading: false,
         error: null,
         hasFullAccess: true,
+        hasWriteAccess: true,
         supervisors: [],
         myGroups: ["1"],
         myGroupRooms: [],
@@ -1007,6 +1015,7 @@ describe("StudentDetailPage", () => {
         loading: false,
         error: null,
         hasFullAccess: true,
+        hasWriteAccess: true,
         supervisors: [],
         myGroups: ["1"],
         myGroupRooms: [],
@@ -1068,6 +1077,7 @@ describe("StudentDetailPage", () => {
         loading: false,
         error: null,
         hasFullAccess: true,
+        hasWriteAccess: true,
         supervisors: [],
         myGroups: ["1"],
         myGroupRooms: [],
@@ -1116,6 +1126,7 @@ describe("StudentDetailPage", () => {
         loading: false,
         error: null,
         hasFullAccess: false,
+        hasWriteAccess: false,
         supervisors: [{ name: "Frau Schmidt" }],
         myGroups: ["1"],
         myGroupRooms: [],
@@ -1157,6 +1168,7 @@ describe("StudentDetailPage", () => {
         loading: false,
         error: null,
         hasFullAccess: true,
+        hasWriteAccess: true,
         supervisors: [],
         myGroups: ["1"],
         myGroupRooms: [],

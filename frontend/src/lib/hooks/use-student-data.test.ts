@@ -121,6 +121,7 @@ describe("useStudentData", () => {
         data: {
           student: mockStudent,
           hasFullAccess: true,
+          hasWriteAccess: true,
           supervisors: mockSupervisors,
           myGroups: ["100", "101"],
           myGroupRooms: ["Room A", "Room B"],
@@ -172,6 +173,7 @@ describe("useStudentData", () => {
         data: {
           student: mockStudent,
           hasFullAccess: true,
+          hasWriteAccess: true,
           supervisors: mockSupervisors,
           myGroups: ["100"],
           myGroupRooms: ["Room A"],
@@ -263,6 +265,7 @@ describe("useStudentData", () => {
         group_name: "Group A",
         current_location: "Room 101",
         has_full_access: true,
+        has_write_access: true,
         group_supervisors: mockSupervisors,
       });
 
@@ -320,6 +323,7 @@ describe("useStudentData", () => {
         group_name: "Group A",
         current_location: "Room 101",
         has_full_access: true,
+        has_write_access: true,
         group_supervisors: mockSupervisors,
       });
 
@@ -381,6 +385,7 @@ describe("useStudentData", () => {
             sick_since: "2024-01-10T08:00:00Z",
           },
           hasFullAccess: true,
+          hasWriteAccess: true,
           supervisors: mockSupervisors,
           myGroups: ["100"],
           myGroupRooms: ["Room A"],
@@ -419,6 +424,8 @@ describe("useStudentData", () => {
 
       // Default value should be true according to the implementation
       expect(result.current.hasFullAccess).toBe(true);
+      // Write access defaults to false (deny-by-default)
+      expect(result.current.hasWriteAccess).toBe(false);
     });
   });
 
@@ -436,6 +443,7 @@ describe("useStudentData", () => {
         data: {
           student: mockStudent,
           hasFullAccess: true,
+          hasWriteAccess: true,
           supervisors: mockSupervisors,
           myGroups: ["100"],
           myGroupRooms: ["Room A"],
@@ -470,6 +478,7 @@ describe("useStudentData", () => {
         data: {
           student: mockStudent,
           hasFullAccess: true,
+          hasWriteAccess: true,
           supervisors: mockSupervisors,
           myGroups: ["100"],
           myGroupRooms: ["Room A"],

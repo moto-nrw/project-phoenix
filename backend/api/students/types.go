@@ -53,6 +53,7 @@ type SupervisorContact struct {
 type StudentDetailResponse struct {
 	StudentResponse
 	HasFullAccess        bool                `json:"has_full_access"`
+	HasWriteAccess       bool                `json:"has_write_access"`
 	GroupSupervisors     []SupervisorContact `json:"group_supervisors,omitempty"`
 	AttendanceLogEnabled bool                `json:"attendance_log_enabled"`
 	FeedbackEnabled      bool                `json:"feedback_enabled"`
