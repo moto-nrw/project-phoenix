@@ -14,8 +14,8 @@ func init() {
 		Default:         "1234",
 		ReadPermission:  "config:read",
 		WritePermission: "config:manage",
-		Tab:             "security",
-		Category:        "auth",
+		Tab:             "devices",
+		Category:        "pin",
 		SortOrder:       1,
 		Validation:      &config.ValidationRules{Pattern: &pinPattern},
 	})

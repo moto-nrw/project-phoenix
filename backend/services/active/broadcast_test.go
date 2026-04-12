@@ -168,3 +168,17 @@ func TestBroadcast_EndActivitySessionSendsDashboardCounts(t *testing.T) {
 	}
 	assert.True(t, found, "expected dashboard_counts_changed after EndActivitySession with active visits")
 }
+
+func TestBroadcast_DailyCheckoutSendsDashboardCounts(t *testing.T) {
+	svc, broadcaster := setupServiceWithBroadcaster(t)
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	student := testpkg.CreateTestStudent(t, db, "Broadcast", "DailyCheckout", "3a")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+	svc.BroadcastDailyCheckout(testpkg.TenantContext(1), student.ID)
+
+	assert.True(t, broadcaster.hasEventType(realtime.EventDashboardCountsChanged),
+		"expected dashboard_counts_changed after BroadcastDailyCheckout")
+}

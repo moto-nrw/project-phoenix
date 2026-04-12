@@ -15,7 +15,7 @@ func init() {
 		WritePermission: "config:update",
 		Tab:             "devices",
 		Category:        "checkout",
-		SortOrder:       1,
+		SortOrder:       10,
 	})
 
 	config.Register(config.Definition{
@@ -28,7 +28,7 @@ func init() {
 		WritePermission: "config:update",
 		Tab:             "devices",
 		Category:        "checkout",
-		SortOrder:       2,
+		SortOrder:       11,
 	})
 
 	config.Register(config.Definition{
@@ -41,6 +41,6 @@ func init() {
 		WritePermission: "config:update",
 		Tab:             "devices",
 		Category:        "checkout",
-		SortOrder:       3,
+		SortOrder:       12,
 	})
 }
