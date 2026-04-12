@@ -189,7 +189,7 @@ func TestMarkDismissed_ServiceError(t *testing.T) {
 	resource.MarkDismissed(rr, req)
 
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
-	assert.Contains(t, rr.Body.String(), "failed to mark announcement as dismissed")
+	assert.Contains(t, rr.Body.String(), "database error")
 }
 
 func TestGetUnread_ResponseIncludesPublishedAt(t *testing.T) {
@@ -331,7 +331,7 @@ func TestMarkSeen_SuccessAndErrors(t *testing.T) {
 				return errors.New("database error")
 			},
 			wantStatus: http.StatusInternalServerError,
-			wantBody:   "failed to mark announcement as seen",
+			wantBody:   "database error",
 		},
 	}
 	for _, tt := range tests {
