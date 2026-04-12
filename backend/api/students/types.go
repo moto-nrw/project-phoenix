@@ -35,6 +35,7 @@ type StudentResponse struct {
 	Bus             bool       `json:"bus"`
 	Sick            bool       `json:"sick"`
 	SickSince       *time.Time `json:"sick_since,omitempty"`
+	HasFullAccess   bool       `json:"has_full_access"`
 	CreatedAt       time.Time  `json:"created_at"`
 	UpdatedAt       time.Time  `json:"updated_at"`
 }
