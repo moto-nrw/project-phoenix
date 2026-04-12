@@ -89,6 +89,7 @@ function mapStudentResponse(
     pickup_status: mappedStudent.pickup_status ?? undefined,
     sick: hasAccess ? (mappedStudent.sick ?? false) : false,
     sick_since: hasAccess ? (mappedStudent.sick_since ?? undefined) : undefined,
+    has_full_access: hasAccess,
   };
 }
 
