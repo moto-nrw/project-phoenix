@@ -11,6 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -247,7 +248,12 @@ func (conn *sseConnection) sendEvent(event realtime.Event) error {
 }
 
 // resolveSupervisions returns the supervisions to subscribe to.
-// For admins with admin_supervision_overview enabled, returns all active supervisions.
+// For admins with admin_supervision_overview enabled, returns a synthetic
+// entry for every currently active group — aligned with the HTTP endpoint
+// /api/active/supervisors/all which also enumerates active.groups directly.
+// Using ListActiveGroups (rather than FindAllActive on group_supervisors)
+// ensures unclaimed active groups (e.g. Schulhof without a current supervisor)
+// still receive live events.
 // For regular staff, returns only their own supervised groups.
 func (rs *Resource) resolveSupervisions(ctx context.Context, staffID int64) ([]*activeModel.GroupSupervisor, error) {
 	claims := jwt.ClaimsFromCtx(ctx)
@@ -261,15 +267,25 @@ func (rs *Resource) resolveSupervisions(ctx context.Context, staffID int64) ([]*
 				slog.Int64("staff_id", staffID),
 			)
 		} else if enabled {
-			allSupervisions, err := rs.activeSvc.GetAllActiveSupervisions(ctx)
+			groups, err := rs.activeSvc.ListActiveGroups(ctx, base.NewQueryOptions())
 			if err != nil {
-				rs.getLogger().Error("failed to get all active supervisions for admin SSE",
+				rs.getLogger().Error("failed to list active groups for admin SSE",
 					slog.String("error", err.Error()),
 					slog.Int64("staff_id", staffID),
 				)
 				return nil, err
 			}
-			return allSupervisions, nil
+			// Synthesise GroupSupervisor records so the existing topic-building
+			// loop can reuse GroupID without special-casing admin paths.
+			synthetic := make([]*activeModel.GroupSupervisor, 0, len(groups))
+			for _, g := range groups {
+				if g.IsActive() {
+					synthetic = append(synthetic, &activeModel.GroupSupervisor{
+						GroupID: g.ID,
+					})
+				}
+			}
+			return synthetic, nil
 		}
 	}
 

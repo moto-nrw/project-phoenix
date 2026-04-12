@@ -65,7 +65,11 @@ async function parseJsonResponse<T>(response: Response): Promise<T> {
 
 describe("GET /api/active-supervision-dashboard", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    // mockReset also clears any pending `mockResolvedValueOnce` queue so
+    // unmatched mocks from a previous test cannot leak into the next one
+    // (vi.clearAllMocks only clears call history, not the once-queue).
+    mockApiGet.mockReset();
+    mockAuth.mockReset();
     mockAuth.mockResolvedValue(defaultSession);
   });
 
@@ -230,42 +234,57 @@ describe("GET /api/active-supervision-dashboard", () => {
     expect(json.data.supervisedGroups[0]?.room?.name).toBe("Schulhof");
   });
 
-  it("handles API failures gracefully", async () => {
-    // All parallel fetches fail — note: supervised groups has a two-step fallback
-    // (tries /api/active/supervisors/all first, then /api/me/groups/supervised)
+  it("propagates supervised fetch errors so real outages surface", async () => {
+    // The supervised fetch is authoritative — if the backend is down or
+    // returning 5xx, the BFF must NOT silently return an empty dashboard.
+    // Other parallel fetches (unclaimed, staff, edu, schulhof) still fall
+    // back to safe defaults individually.
     mockApiGet
-      .mockRejectedValueOnce(new Error("Admin supervised groups error"))
+      .mockRejectedValueOnce(new Error("API error (500): backend unavailable")) // supervised
       .mockRejectedValueOnce(new Error("Unclaimed groups error"))
       .mockRejectedValueOnce(new Error("Staff error"))
       .mockRejectedValueOnce(new Error("Educational groups error"))
-      .mockRejectedValueOnce(new Error("Schulhof status error"))
-      .mockRejectedValueOnce(
-        new Error("Staff supervised groups fallback error"),
-      );
+      .mockRejectedValueOnce(new Error("Schulhof status error"));
+
+    const request = createMockRequest("/api/active-supervision-dashboard");
+    const response = await GET(request, createMockContext());
+
+    expect(response.status).toBe(500);
+  });
+
+  it("falls back to own supervisions when admin endpoint returns 403", async () => {
+    // Dual-role / setting-disabled admin: /supervisors/all returns 403 and
+    // the BFF should silently use the caregiver endpoint. Tested with an
+    // explicit admin session so the admin endpoint is actually attempted.
+    const adminSession = {
+      ...mockSessionData(),
+      user: { ...mockSessionData().user, roles: ["admin"] },
+    } as ExtendedSession;
+    // Both route-wrapper and the handler itself call auth(), so mock the
+    // resolved value (not Once) so both calls see the admin session.
+    mockAuth.mockResolvedValue(adminSession);
+    const ownGroups = [{ id: 42, name: "Raum A", room: { id: 9, name: "A" } }];
+    // Promise.all fires the 5 parallel calls synchronously in array order
+    // (supervised, unclaimed, staff, edu, schulhof). The 6th mock is consumed
+    // asynchronously by the fallback apiGet inside the supervised catch.
+    mockApiGet
+      .mockRejectedValueOnce(new Error("API error (403): forbidden")) // supervised
+      .mockResolvedValueOnce({ data: [] }) // unclaimed
+      .mockResolvedValueOnce({ data: null }) // staff
+      .mockResolvedValueOnce({ data: [] }) // educational
+      .mockResolvedValueOnce({ data: { exists: false } }) // schulhof
+      .mockResolvedValueOnce({ data: ownGroups }); // caregiver fallback
 
     const request = createMockRequest("/api/active-supervision-dashboard");
     const response = await GET(request, createMockContext());
 
     expect(response.status).toBe(200);
-
-    const json = await parseJsonResponse<
-      ApiResponse<{
-        supervisedGroups: unknown[];
-        unclaimedGroups: unknown[];
-        currentStaff: unknown;
-        educationalGroups: unknown[];
-        firstRoomVisits: unknown[];
-        firstRoomId: string | null;
-      }>
-    >(response);
-
-    // Should return empty arrays instead of crashing
-    expect(json.data.supervisedGroups).toEqual([]);
-    expect(json.data.unclaimedGroups).toEqual([]);
-    expect(json.data.currentStaff).toBeNull();
-    expect(json.data.educationalGroups).toEqual([]);
-    expect(json.data.firstRoomVisits).toEqual([]);
-    expect(json.data.firstRoomId).toBeNull();
+    const json =
+      await parseJsonResponse<
+        ApiResponse<{ supervisedGroups: Array<{ id: string }> }>
+      >(response);
+    expect(json.data.supervisedGroups).toHaveLength(1);
+    expect(json.data.supervisedGroups[0]?.id).toBe("42");
   });
 
   it("handles null response data safely", async () => {

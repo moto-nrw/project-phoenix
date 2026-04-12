@@ -1585,7 +1585,8 @@ function ActiveSupervisionGate({
       redirect("/");
     },
   });
-  const { supervisedRooms, isLoadingSupervision } = useOptionalSupervision();
+  const { adminOverviewEnabled, isLoadingSupervision } =
+    useOptionalSupervision();
 
   if (status === "loading" || isLoadingSupervision) {
     return <Loading fullPage={false} />;
@@ -1596,8 +1597,11 @@ function ActiveSupervisionGate({
     return <>{children}</>;
   }
 
-  // Admins only when the supervision overview setting is active (i.e., they have rooms)
-  if (isAdmin(session) && supervisedRooms.length > 0) {
+  // Admins only when the admin_supervision_overview setting is confirmed
+  // enabled (i.e. /api/active/supervisors/all returned OK). Checking
+  // supervisedRooms.length would incorrectly let admins through when the
+  // setting is OFF but a synthetic Schulhof entry is present.
+  if (isAdmin(session) && adminOverviewEnabled) {
     return <>{children}</>;
   }
 

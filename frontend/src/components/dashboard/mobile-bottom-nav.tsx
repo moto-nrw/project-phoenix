@@ -234,8 +234,13 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   const { data: session } = useSession();
 
   // Get supervision state
-  const { hasGroups, isSupervising, isLoadingGroups, isLoadingSupervision } =
-    useOptionalSupervision();
+  const {
+    hasGroups,
+    isSupervising,
+    isLoadingGroups,
+    isLoadingSupervision,
+    adminOverviewEnabled,
+  } = useOptionalSupervision();
 
   // Get shell auth mode
   const { mode } = useShellAuth();
@@ -280,12 +285,15 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
         : hasRole(session, "admin")
           ? ADMIN_MAIN_ITEMS
           : STAFF_MAIN_ITEMS;
-  // Admins with supervision overview: inject "Aufsicht" tab dynamically
+  // Admins with supervision overview: inject "Aufsicht" tab dynamically.
+  // Gate on adminOverviewEnabled (confirmed via /supervisors/all 200) rather
+  // than just isSupervising so a synthetic Schulhof entry does not surface
+  // the admin tab when the setting is off.
   const filteredMainItems =
     hasRole(session, "admin") &&
     !isCaregiver(session) &&
     !isLoadingSupervision &&
-    isSupervising
+    adminOverviewEnabled
       ? [
           ...baseMain.slice(0, 1),
           {

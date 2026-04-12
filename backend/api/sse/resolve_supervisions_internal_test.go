@@ -73,6 +73,7 @@ func (m *mockSettingsSvc) ClearLoginImageURL(_ context.Context, _ int64) (string
 type mockActiveSvcForSSE struct {
 	getAllFunc   func(ctx context.Context) ([]*activeModel.GroupSupervisor, error)
 	getStaffFunc func(ctx context.Context, staffID int64) ([]*activeModel.GroupSupervisor, error)
+	listFunc     func(ctx context.Context, opts *base.QueryOptions) ([]*activeModel.Group, error)
 }
 
 func (m *mockActiveSvcForSSE) GetAllActiveSupervisions(ctx context.Context) ([]*activeModel.GroupSupervisor, error) {
@@ -103,7 +104,10 @@ func (m *mockActiveSvcForSSE) UpdateActiveGroup(_ context.Context, _ *activeMode
 	return nil
 }
 func (m *mockActiveSvcForSSE) DeleteActiveGroup(_ context.Context, _ int64) error { return nil }
-func (m *mockActiveSvcForSSE) ListActiveGroups(_ context.Context, _ *base.QueryOptions) ([]*activeModel.Group, error) {
+func (m *mockActiveSvcForSSE) ListActiveGroups(ctx context.Context, opts *base.QueryOptions) ([]*activeModel.Group, error) {
+	if m.listFunc != nil {
+		return m.listFunc(ctx, opts)
+	}
 	return nil, nil
 }
 func (m *mockActiveSvcForSSE) FindActiveGroupsByRoomID(_ context.Context, _ int64) ([]*activeModel.Group, error) {
@@ -306,9 +310,13 @@ func ctxWithClaims(isAdmin bool) context.Context {
 // =============================================================================
 
 func TestResolveSupervisions_AdminWithSettingEnabled(t *testing.T) {
-	allSupervisions := []*activeModel.GroupSupervisor{
-		{Model: base.Model{ID: 100}, GroupID: 10, StaffID: 20},
-		{Model: base.Model{ID: 101}, GroupID: 11, StaffID: 21},
+	// Admin SSE path now enumerates active.groups directly so unclaimed groups
+	// still receive live events. Synthetic GroupSupervisor entries are built
+	// from the list.
+	now := time.Now()
+	activeGroups := []*activeModel.Group{
+		{Model: base.Model{ID: 10}, StartTime: now.Add(-time.Hour)},
+		{Model: base.Model{ID: 11}, StartTime: now.Add(-time.Hour)},
 	}
 
 	rs := &Resource{
@@ -316,8 +324,8 @@ func TestResolveSupervisions_AdminWithSettingEnabled(t *testing.T) {
 			configModel.KeyAdminSupervisionOverview: true,
 		}},
 		activeSvc: &mockActiveSvcForSSE{
-			getAllFunc: func(_ context.Context) ([]*activeModel.GroupSupervisor, error) {
-				return allSupervisions, nil
+			listFunc: func(_ context.Context, _ *base.QueryOptions) ([]*activeModel.Group, error) {
+				return activeGroups, nil
 			},
 		},
 		logger: slog.Default(),
@@ -470,7 +478,7 @@ func TestResolveSupervisions_GetAllError(t *testing.T) {
 			configModel.KeyAdminSupervisionOverview: true,
 		}},
 		activeSvc: &mockActiveSvcForSSE{
-			getAllFunc: func(_ context.Context) ([]*activeModel.GroupSupervisor, error) {
+			listFunc: func(_ context.Context, _ *base.QueryOptions) ([]*activeModel.Group, error) {
 				return nil, fmt.Errorf("database error")
 			},
 		},
@@ -482,4 +490,37 @@ func TestResolveSupervisions_GetAllError(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Nil(t, result)
+}
+
+// TestResolveSupervisions_AdminIncludesUnclaimedGroups verifies that active
+// groups without supervisor rows (e.g. Schulhof without a current claim) are
+// included in the SSE topic list — closing the prior divergence between
+// HTTP (/supervisors/all → ListActiveGroups) and SSE (→ FindAllActive).
+func TestResolveSupervisions_AdminIncludesUnclaimedGroups(t *testing.T) {
+	now := time.Now()
+	// Two active groups, including one that would have been missed by the
+	// previous GetAllActiveSupervisions path (no supervisor row).
+	activeGroups := []*activeModel.Group{
+		{Model: base.Model{ID: 50}, StartTime: now.Add(-time.Hour)},
+		{Model: base.Model{ID: 51}, StartTime: now.Add(-time.Minute)},
+	}
+
+	rs := &Resource{
+		settingsSvc: &mockSettingsSvc{boolValues: map[string]bool{
+			configModel.KeyAdminSupervisionOverview: true,
+		}},
+		activeSvc: &mockActiveSvcForSSE{
+			listFunc: func(_ context.Context, _ *base.QueryOptions) ([]*activeModel.Group, error) {
+				return activeGroups, nil
+			},
+		},
+		logger: slog.Default(),
+	}
+
+	ctx := ctxWithClaims(true)
+	result, err := rs.resolveSupervisions(ctx, 42)
+	require.NoError(t, err)
+	require.Len(t, result, 2)
+	assert.Equal(t, int64(50), result[0].GroupID)
+	assert.Equal(t, int64(51), result[1].GroupID)
 }

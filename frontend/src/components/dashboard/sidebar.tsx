@@ -242,8 +242,13 @@ function SidebarContent({ className = "" }: SidebarProps) {
         : rawPathname;
 
   // Get supervision state
-  const { isLoadingGroups, isLoadingSupervision, groups, supervisedRooms } =
-    useOptionalSupervision();
+  const {
+    isLoadingGroups,
+    isLoadingSupervision,
+    groups,
+    supervisedRooms,
+    adminOverviewEnabled,
+  } = useOptionalSupervision();
 
   // Get unread suggestions count for badge (teacher mode)
   const { unreadCount: suggestionsUnreadCount } = useSuggestionsUnread();
@@ -515,10 +520,12 @@ function SidebarContent({ className = "" }: SidebarProps) {
   }, [toggle, pathname, router]);
 
   // Caregiver accordions are driven by the explicit caregiver role.
-  // Show staff accordions for caregivers (user/teacher role),
-  // and also for admins who have active supervision rooms (admin_supervision_overview setting)
+  // Show staff accordions for caregivers (user/teacher role) and for admins
+  // only when the admin_supervision_overview setting is confirmed enabled
+  // (adminOverviewEnabled avoids the synthetic Schulhof entry triggering the
+  // accordion when the setting is off).
   const showStaffAccordions =
-    userIsCaregiver || (userIsAdmin && supervisedRooms.length > 0);
+    userIsCaregiver || (userIsAdmin && adminOverviewEnabled);
 
   // Resolve operator nav hrefs once (operatorPath is deterministic for the page lifetime)
   const resolvedOperatorItems = useMemo(

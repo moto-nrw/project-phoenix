@@ -29,6 +29,7 @@ vi.mock("~/lib/supervision-context", () => ({
     isSupervising: false,
     supervisedRooms: [],
     isLoadingSupervision: false,
+    adminOverviewEnabled: false,
     refresh: mockRefreshSupervision,
   }),
 }));

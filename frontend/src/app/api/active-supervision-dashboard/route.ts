@@ -4,6 +4,8 @@
 import type { NextRequest } from "next/server";
 import { apiGet } from "~/lib/api-helpers";
 import { createGetHandler } from "~/lib/route-wrapper";
+import { auth } from "~/server/auth";
+import { isAdmin, isCaregiver } from "~/lib/auth-utils";
 
 // Backend response types for supervised/active groups
 interface BackendActiveGroup {
@@ -166,6 +168,14 @@ interface ActiveSupervisionDashboardResponse {
  */
 export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
   async (_request: NextRequest, token: string) => {
+    // Resolve the caller's role once so we can pick the right supervised-groups
+    // endpoint. Admin-only users go through /supervisors/all (admin overview);
+    // caregivers and dual-role users use /me/groups/supervised (own scope).
+    // Routing by role avoids an unnecessary 403 + fallback round-trip on every
+    // caregiver dashboard load.
+    const session = await auth();
+    const shouldUseAdminEndpoint = isAdmin(session) && !isCaregiver(session);
+
     // Step 1: Fetch all initial data in parallel (including Schulhof status)
     const [
       supervisedResult,
@@ -174,19 +184,32 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
       groupsResult,
       schulhofResult,
     ] = await Promise.all([
-      // User's supervised active groups (admin: all groups, staff: own groups)
-      // Try admin endpoint first; falls back to regular staff endpoint on any error (403 = setting
-      // disabled or non-admin, others = server error). The staff endpoint is always authoritative
-      // for the user's own supervisions.
-      apiGet<{ data: BackendActiveGroup[] | null }>(
-        "/api/active/supervisors/all",
-        token,
-      ).catch(() =>
-        apiGet<{ data: BackendActiveGroup[] | null }>(
-          "/api/me/groups/supervised",
-          token,
-        ).catch(() => ({ data: [] as BackendActiveGroup[] })),
-      ),
+      // User's supervised active groups. For admin-only users, try the admin
+      // overview endpoint first. If it returns 403 (setting disabled) fall
+      // back to the caregiver endpoint so the user keeps their own rooms.
+      // Other errors (5xx, network) are not swallowed — they propagate so
+      // the frontend can surface them instead of silently rendering empty.
+      shouldUseAdminEndpoint
+        ? apiGet<{ data: BackendActiveGroup[] | null }>(
+            "/api/active/supervisors/all",
+            token,
+          ).catch((err: unknown) => {
+            // Only fall back on a forbidden response (setting disabled or
+            // insufficient role). Any other error (5xx, network) propagates
+            // so the caller sees a real failure instead of a silent empty.
+            const msg = err instanceof Error ? err.message : String(err);
+            if (msg.includes("(403)") || msg.includes(" 403 ")) {
+              return apiGet<{ data: BackendActiveGroup[] | null }>(
+                "/api/me/groups/supervised",
+                token,
+              );
+            }
+            throw err;
+          })
+        : apiGet<{ data: BackendActiveGroup[] | null }>(
+            "/api/me/groups/supervised",
+            token,
+          ),
 
       // Unclaimed groups available to claim
       apiGet<{ data: BackendUnclaimedGroup[] | null }>(

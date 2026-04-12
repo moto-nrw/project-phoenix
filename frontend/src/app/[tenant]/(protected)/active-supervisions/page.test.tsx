@@ -7324,11 +7324,14 @@ describe("RoleGuard integration", () => {
       status: "authenticated",
     } as never);
 
-    // Mock useOptionalSupervision to return supervised rooms
+    // Mock useOptionalSupervision to return adminOverviewEnabled = true,
+    // which is the explicit signal that the admin_supervision_overview
+    // setting is enabled on the backend.
     const supervisionCtx = await import("~/lib/supervision-context");
     vi.spyOn(supervisionCtx, "useOptionalSupervision").mockReturnValue({
       supervisedRooms: [{ id: "10", name: "Admin Room", groupId: "1" }],
       isLoadingSupervision: false,
+      adminOverviewEnabled: true,
       hasGroups: false,
       isLoadingGroups: false,
       groups: [],
@@ -7343,6 +7346,40 @@ describe("RoleGuard integration", () => {
     expect(screen.getByTestId("sse-boundary")).toBeInTheDocument();
   });
 
+  it("blocks admin when only a synthetic Schulhof room exists (setting off)", async () => {
+    // P1-A regression guard — the gate must consult adminOverviewEnabled,
+    // not supervisedRooms.length. A synthetic Schulhof entry is always
+    // present when the tenant has a Schulhof, regardless of the setting.
+    const { useSession } = await import("next-auth/react");
+    vi.mocked(useSession).mockReturnValue({
+      data: { user: { token: "test-token", isAdmin: true } },
+      status: "authenticated",
+    } as never);
+
+    const supervisionCtx = await import("~/lib/supervision-context");
+    vi.spyOn(supervisionCtx, "useOptionalSupervision").mockReturnValue({
+      supervisedRooms: [
+        {
+          id: "schulhof",
+          name: "Schulhof",
+          groupId: "1",
+          isSchulhof: true,
+        },
+      ],
+      isLoadingSupervision: false,
+      adminOverviewEnabled: false,
+      hasGroups: false,
+      isLoadingGroups: false,
+      groups: [],
+      isSupervising: true,
+      refresh: vi.fn(),
+    });
+
+    render(<MeinRaumPage />);
+
+    expect(screen.getByText("Kein Zugriff")).toBeInTheDocument();
+  });
+
   it("shows loading state while supervision is loading for admin", async () => {
     const { useSession } = await import("next-auth/react");
     vi.mocked(useSession).mockReturnValue({
@@ -7354,6 +7391,7 @@ describe("RoleGuard integration", () => {
     vi.spyOn(supervisionCtx, "useOptionalSupervision").mockReturnValue({
       supervisedRooms: [],
       isLoadingSupervision: true,
+      adminOverviewEnabled: false,
       hasGroups: false,
       isLoadingGroups: true,
       groups: [],
@@ -7382,6 +7420,7 @@ describe("Admin fallback dashboard fetcher", () => {
     vi.spyOn(supervisionCtx, "useOptionalSupervision").mockReturnValue({
       supervisedRooms: [{ id: "10", name: "Admin Room", groupId: "1" }],
       isLoadingSupervision: false,
+      adminOverviewEnabled: true,
       hasGroups: false,
       isLoadingGroups: false,
       groups: [],

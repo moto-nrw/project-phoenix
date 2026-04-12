@@ -9,7 +9,7 @@ import React, {
   useMemo,
 } from "react";
 import { useSession } from "next-auth/react";
-import { isAdmin } from "~/lib/auth-utils";
+import { isAdmin, isCaregiver } from "~/lib/auth-utils";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "SupervisionContext" });
@@ -56,6 +56,12 @@ interface SupervisionState {
   supervisedRoomName?: string;
   supervisedRooms: SupervisedRoom[];
   isLoadingSupervision: boolean;
+
+  // True when the caller fetched supervision rooms via the admin overview
+  // endpoint (/api/active/supervisors/all). False for regular staff or when
+  // the setting is disabled. Used by pages to gate admin-only views so that
+  // a synthetic Schulhof entry does not count as an enabled overview.
+  adminOverviewEnabled: boolean;
 }
 
 interface SupervisionContextType extends SupervisionState {
@@ -86,17 +92,24 @@ export function SupervisionProvider({
     supervisedRoomName: undefined,
     supervisedRooms: [],
     isLoadingSupervision: true,
+    adminOverviewEnabled: false,
   });
 
   // Debounce mechanism to prevent rapid successive calls
   const isRefreshingRef = React.useRef(false);
   const lastRefreshRef = React.useRef<number>(0);
 
-  // Store token and admin status in refs to avoid dependency loops
+  // Store token and admin status in refs to avoid dependency loops.
+  // `isAdminOnlyRef` identifies users that should go through the admin-overview
+  // endpoint — admins that do NOT also hold the caregiver role. Dual-role
+  // users (admin + teacher) keep their caregiver view to avoid suddenly
+  // seeing every room instead of their own.
   const tokenRef = React.useRef<string | undefined>(session?.user?.token);
   tokenRef.current = session?.user?.token;
-  const isAdminRef = React.useRef<boolean>(isAdmin(session));
-  isAdminRef.current = isAdmin(session);
+  const isAdminOnlyRef = React.useRef<boolean>(
+    isAdmin(session) && !isCaregiver(session),
+  );
+  isAdminOnlyRef.current = isAdmin(session) && !isCaregiver(session);
 
   // Use a ref for the refresh function to break dependency cycles
   const refreshRef = React.useRef<
@@ -203,17 +216,25 @@ export function SupervisionProvider({
         supervisedRoomName: undefined,
         supervisedRooms: [],
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
       }));
       return;
     }
 
+    // Tracks whether the admin overview endpoint actually responded with data
+    // (i.e. the setting is enabled). Only set to true on a successful response.
+    let adminOverviewOk = false;
+
     try {
-      // Admins: try the admin overview endpoint first (returns all active groups when
-      // the admin_supervision_overview setting is enabled). On 403 (setting disabled),
-      // fall back to the regular staff endpoint for their own supervisions.
-      // Regular staff: fetch only their supervised groups directly.
+      // Admin-only users: try the admin overview endpoint first. On any
+      // non-OK response (403 = setting disabled; 5xx/network = transient),
+      // fall back to the regular staff endpoint so the user at least keeps
+      // their own supervisions instead of an empty sidebar.
+      // Dual-role users (admin + caregiver) stay on the caregiver path to
+      // preserve "see only my rooms" behaviour.
+      // Regular staff: fetch own supervised groups directly.
       const fetchSupervisedGroups = async (): Promise<Response> => {
-        if (!isAdminRef.current) {
+        if (!isAdminOnlyRef.current) {
           return fetch("/api/me/groups/supervised", {
             headers: { "Content-Type": "application/json" },
             cache: "no-store",
@@ -223,13 +244,13 @@ export function SupervisionProvider({
           headers: { "Content-Type": "application/json" },
           cache: "no-store",
         });
-        if (adminResponse.status === 403) {
-          // Setting disabled or not available — fall back to own supervisions
+        if (!adminResponse.ok) {
           return fetch("/api/me/groups/supervised", {
             headers: { "Content-Type": "application/json" },
             cache: "no-store",
           });
         }
+        adminOverviewOk = true;
         return adminResponse;
       };
 
@@ -336,6 +357,7 @@ export function SupervisionProvider({
               supervisedRoomName: newRoomName,
               supervisedRooms: newSupervisedRooms,
               isLoadingSupervision: false,
+              adminOverviewEnabled: adminOverviewOk,
             };
           });
         } else {
@@ -369,6 +391,7 @@ export function SupervisionProvider({
               supervisedRoomName: newRoomName,
               supervisedRooms: roomsWithSchulhof,
               isLoadingSupervision: false,
+              adminOverviewEnabled: adminOverviewOk,
             };
           });
         }
@@ -400,6 +423,7 @@ export function SupervisionProvider({
             supervisedRoomName: newRoomName,
             supervisedRooms: roomsOnError,
             isLoadingSupervision: false,
+            adminOverviewEnabled: false,
           };
         });
       }
@@ -423,6 +447,7 @@ export function SupervisionProvider({
           supervisedRoomName: undefined,
           supervisedRooms: [],
           isLoadingSupervision: false,
+          adminOverviewEnabled: false,
         };
       });
     }
@@ -487,6 +512,7 @@ export function SupervisionProvider({
         supervisedRoomName: undefined,
         supervisedRooms: [],
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
       });
     }
   }, [session?.user?.token]); // Only depend on token
@@ -541,6 +567,7 @@ const EMPTY_SUPERVISION: SupervisionContextType = {
   isSupervising: false,
   supervisedRooms: [],
   isLoadingSupervision: false,
+  adminOverviewEnabled: false,
   // eslint-disable-next-line no-empty-function -- safe no-op default for operator context
   refresh: async () => {},
 };
