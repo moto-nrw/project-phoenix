@@ -30,6 +30,26 @@ const (
 	loginImageDir     = "public/uploads/login-images"
 )
 
+// errOperatorOnlyForTenant explains why a tenant admin may not read/write an
+// AccessOperatorOnly setting. Surfaced as HTTP 403. The UI already hides these
+// settings; this is belt-and-braces defence against direct API calls.
+const errOperatorOnlyForTenant = "this setting is operator-only"
+
+// guardTenantAccess blocks tenant-admin read/write on AccessOperatorOnly settings.
+// Returns true when the handler should abort (response has already been written).
+func guardTenantAccess(w http.ResponseWriter, r *http.Request, key string) bool {
+	def := configModel.GetDefinition(key)
+	if def == nil {
+		common.RenderError(w, r, common.ErrorNotFound(fmt.Errorf("setting %q not found", key)))
+		return true
+	}
+	if def.AccessPolicy == configModel.AccessOperatorOnly {
+		common.RenderError(w, r, common.ErrorForbidden(errors.New(errOperatorOnlyForTenant)))
+		return true
+	}
+	return false
+}
+
 // SettingsResource defines the settings API resource.
 type SettingsResource struct {
 	settingsService configSvc.SettingsService
@@ -108,15 +128,14 @@ func (rs *SettingsResource) getSchema(w http.ResponseWriter, r *http.Request) {
 
 func (rs *SettingsResource) revealValue(w http.ResponseWriter, r *http.Request) {
 	key := chi.URLParam(r, "key")
+	if guardTenantAccess(w, r, key) {
+		return
+	}
 
 	claims := jwt.ClaimsFromCtx(r.Context())
 
-	// Check that the setting exists and user has write permission
+	// Check that the user has write permission (reveal requires write, not just read).
 	def := configModel.GetDefinition(key)
-	if def == nil {
-		common.RenderError(w, r, common.ErrorNotFound(fmt.Errorf("setting %q not found", key)))
-		return
-	}
 	if def.WritePermission != "" && !authorize.HasPermission(def.WritePermission, claims.Permissions) {
 		common.RenderError(w, r, common.ErrorForbidden(fmt.Errorf("insufficient permissions for %q", key)))
 		return
@@ -133,6 +152,9 @@ func (rs *SettingsResource) revealValue(w http.ResponseWriter, r *http.Request) 
 
 func (rs *SettingsResource) setValue(w http.ResponseWriter, r *http.Request) {
 	key := chi.URLParam(r, "key")
+	if guardTenantAccess(w, r, key) {
+		return
+	}
 
 	var req setValueRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -163,6 +185,9 @@ func (rs *SettingsResource) setValue(w http.ResponseWriter, r *http.Request) {
 
 func (rs *SettingsResource) resetValue(w http.ResponseWriter, r *http.Request) {
 	key := chi.URLParam(r, "key")
+	if guardTenantAccess(w, r, key) {
+		return
+	}
 
 	claims := jwt.ClaimsFromCtx(r.Context())
 	changedBy := int64(claims.ID)

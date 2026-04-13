@@ -49,12 +49,16 @@ interface SettingsFieldProps {
   readonly setting: ResolvedSetting;
   readonly onSave: (key: string, value: unknown) => Promise<string | null>;
   readonly onReset: (key: string) => Promise<string | null>;
+  // audience controls the "auch von {other side} änderbar" hint shown
+  // on shared settings. Defaults to "admin" (tenant settings page).
+  readonly audience?: "admin" | "operator";
 }
 
 export function SettingsField({
   setting,
   onSave,
   onReset,
+  audience = "admin",
 }: SettingsFieldProps) {
   const { success: toastSuccess, error: toastError } = useToast();
   const [localValue, setLocalValue] = useState<unknown>(setting.value);
@@ -209,6 +213,13 @@ export function SettingsField({
         </div>
         {setting.description && (
           <p className="mt-0.5 text-sm text-gray-500">{setting.description}</p>
+        )}
+        {setting.access_policy === "shared" && (
+          <p className="mt-0.5 text-xs text-gray-400 italic">
+            {audience === "admin"
+              ? "Kann auch von moto geändert werden."
+              : "Kann auch vom Schul-Admin geändert werden."}
+          </p>
         )}
         {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
       </div>

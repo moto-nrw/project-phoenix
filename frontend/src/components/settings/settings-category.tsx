@@ -7,12 +7,18 @@ interface SettingsCategoryProps {
   readonly category: SchemaCategory;
   readonly onSave: (key: string, value: unknown) => Promise<string | null>;
   readonly onReset: (key: string) => Promise<string | null>;
+  // audience identifies who is viewing the settings page. Controls the
+  // "auch von {other side} änderbar" hint on shared settings. Defaults
+  // to "admin" for the tenant settings page; the operator page passes
+  // "operator" to flip the hint copy.
+  readonly audience?: "admin" | "operator";
 }
 
 export function SettingsCategory({
   category,
   onSave,
   onReset,
+  audience = "admin",
 }: SettingsCategoryProps) {
   const visibleItems = category.items.filter((item) => item.visible);
 
@@ -32,6 +38,7 @@ export function SettingsCategory({
             setting={setting}
             onSave={onSave}
             onReset={onReset}
+            audience={audience}
           />
         ))}
       </div>

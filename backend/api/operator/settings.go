@@ -17,11 +17,24 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// operatorWildcardPermissions grants full access to every setting. Used to
-// bypass the schema builder's per-setting ReadPermission filter when an
-// operator calls GetSchema for a school. Operator access is already gated
-// at the route level by RequiresOperatorScope middleware.
-var operatorWildcardPermissions = []string{"*:*"}
+// errAdminOnlyForOperator explains why an operator may not touch an
+// AccessAdminOnly setting (e.g. the OGS device PIN). Surfaced as HTTP 403.
+const errAdminOnlyForOperator = "this setting is admin-only and cannot be modified by operators"
+
+// guardOperatorWrite blocks the operator from set/reset/reveal on AccessAdminOnly settings.
+// Returns true when the handler should abort (response has already been written).
+func guardOperatorWrite(w http.ResponseWriter, r *http.Request, key string) bool {
+	def := configModel.GetDefinition(key)
+	if def == nil {
+		render.Render(w, r, ErrNotFound(fmt.Sprintf("setting %q not found", key))) //nolint:errcheck
+		return true
+	}
+	if def.AccessPolicy == configModel.AccessAdminOnly {
+		render.Render(w, r, ErrForbidden(errAdminOnlyForOperator)) //nolint:errcheck
+		return true
+	}
+	return false
+}
 
 // SettingsResource handles operator-level settings management for schools.
 type SettingsResource struct {
@@ -52,7 +65,7 @@ func (rs *SettingsResource) GetSchoolSettingsSchema(w http.ResponseWriter, r *ht
 	var schema *configSvc.SettingsSchema
 	err := tenant.WithTenantTx(r.Context(), rs.db, schoolID, func(ctx context.Context, _ bun.Tx) error {
 		var schemaErr error
-		schema, schemaErr = rs.settingsService.GetSchema(ctx, operatorWildcardPermissions)
+		schema, schemaErr = rs.settingsService.GetSchemaForOperator(ctx, nil)
 		return schemaErr
 	})
 	if err != nil {
@@ -70,6 +83,9 @@ func (rs *SettingsResource) SetSchoolSettingValue(w http.ResponseWriter, r *http
 		return
 	}
 	key := chi.URLParam(r, "key")
+	if guardOperatorWrite(w, r, key) {
+		return
+	}
 
 	var req setSchoolSettingRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -98,6 +114,9 @@ func (rs *SettingsResource) ResetSchoolSettingValue(w http.ResponseWriter, r *ht
 		return
 	}
 	key := chi.URLParam(r, "key")
+	if guardOperatorWrite(w, r, key) {
+		return
+	}
 
 	claims := jwt.ClaimsFromCtx(r.Context())
 	changedBy := int64(claims.ID)
@@ -120,10 +139,7 @@ func (rs *SettingsResource) RevealSchoolSettingValue(w http.ResponseWriter, r *h
 		return
 	}
 	key := chi.URLParam(r, "key")
-
-	def := configModel.GetDefinition(key)
-	if def == nil {
-		render.Render(w, r, ErrNotFound(fmt.Sprintf("setting %q not found", key))) //nolint:errcheck
+	if guardOperatorWrite(w, r, key) {
 		return
 	}
 

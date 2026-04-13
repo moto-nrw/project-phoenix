@@ -26,6 +26,9 @@ type configMockSettings struct {
 func (m *configMockSettings) GetSchema(_ context.Context, _ []string) (*configSvc.SettingsSchema, error) {
 	return nil, nil
 }
+func (m *configMockSettings) GetSchemaForOperator(_ context.Context, _ []string) (*configSvc.SettingsSchema, error) {
+	return nil, nil
+}
 func (m *configMockSettings) Resolve(_ context.Context, key string) (any, error) {
 	if v, ok := m.stringValues[key]; ok {
 		return v, nil

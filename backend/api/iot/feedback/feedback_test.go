@@ -34,6 +34,9 @@ type fakeSettingsService struct {
 func (f *fakeSettingsService) GetSchema(_ context.Context, _ []string) (*configSvc.SettingsSchema, error) {
 	return nil, nil
 }
+func (f *fakeSettingsService) GetSchemaForOperator(_ context.Context, _ []string) (*configSvc.SettingsSchema, error) {
+	return nil, nil
+}
 func (f *fakeSettingsService) Resolve(_ context.Context, _ string) (any, error) { return nil, nil }
 func (f *fakeSettingsService) ResolveString(_ context.Context, _ string) (string, error) {
 	return "", nil

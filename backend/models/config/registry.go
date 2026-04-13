@@ -25,6 +25,30 @@ var validFieldTypes = map[FieldType]bool{
 	FieldText: true, FieldPassword: true, FieldSelect: true,
 }
 
+// AccessPolicy classifies which audience can read and write a setting.
+// Storage remains per-tenant (config.setting_values.tenant_id) in every case;
+// this is purely about who sees the setting in the schema and who may modify it.
+type AccessPolicy string
+
+const (
+	// AccessShared: both tenant admins and platform operators can read and
+	// write the setting. The default when the field is left unset.
+	AccessShared AccessPolicy = "shared"
+	// AccessAdminOnly: only tenant admins can read or write. Operators do
+	// not see the setting in their schema and cannot set/reset/reveal it.
+	AccessAdminOnly AccessPolicy = "admin_only"
+	// AccessOperatorOnly: only platform operators can read or write. Tenant
+	// admins do not see the setting in their schema and cannot write it.
+	AccessOperatorOnly AccessPolicy = "operator_only"
+)
+
+// validAccessPolicies lists the accepted non-empty values for Definition.AccessPolicy.
+var validAccessPolicies = map[AccessPolicy]bool{
+	AccessShared:       true,
+	AccessAdminOnly:    true,
+	AccessOperatorOnly: true,
+}
+
 // Definition describes a single setting: its type, default, permissions,
 // categorization, dependencies, and select options.
 //
@@ -48,6 +72,11 @@ type Definition struct {
 
 	DependsOn *Dependency    `json:"depends_on,omitempty"`
 	Options   *SelectOptions `json:"options,omitempty"`
+
+	// AccessPolicy classifies the audience. Empty defaults to AccessShared
+	// in Register() — preserves existing behaviour for all previously
+	// registered settings and future settings that don't declare a policy.
+	AccessPolicy AccessPolicy `json:"access_policy,omitempty"`
 }
 
 // ValidationRules defines constraints on a setting value.
@@ -105,6 +134,9 @@ func (d *Definition) Validate() error {
 	}
 	if d.Type == FieldSelect && d.Options == nil {
 		return fmt.Errorf("select field %s must have options", d.Key)
+	}
+	if d.AccessPolicy != "" && !validAccessPolicies[d.AccessPolicy] {
+		return fmt.Errorf("invalid AccessPolicy %q for setting %s", d.AccessPolicy, d.Key)
 	}
 	if d.Validation != nil && d.Validation.Pattern != nil {
 		compiled, err := regexp.Compile(*d.Validation.Pattern)
@@ -166,6 +198,9 @@ func Register(def Definition) {
 
 	if _, exists := registry[def.Key]; exists {
 		panic(fmt.Sprintf("config: duplicate setting key: %s", def.Key))
+	}
+	if def.AccessPolicy == "" {
+		def.AccessPolicy = AccessShared
 	}
 	if err := def.Validate(); err != nil {
 		panic(fmt.Sprintf("config: invalid setting definition: %v", err))

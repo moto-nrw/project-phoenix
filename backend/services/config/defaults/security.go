@@ -18,5 +18,6 @@ func init() {
 		Category:        "auth",
 		SortOrder:       1,
 		Validation:      &config.ValidationRules{Pattern: &pinPattern},
+		AccessPolicy:    config.AccessAdminOnly,
 	})
 }

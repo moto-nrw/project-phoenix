@@ -10,8 +10,15 @@ import (
 // All settings are tenant-scoped with a registry default fallback.
 type SettingsService interface {
 	// GetSchema returns the full settings schema with resolved values for the
-	// current tenant, filtered by the user's permissions.
+	// current tenant, filtered by the user's permissions. Excludes settings
+	// marked AccessOperatorOnly — they are only visible via GetSchemaForOperator.
 	GetSchema(ctx context.Context, userPermissions []string) (*SettingsSchema, error)
+
+	// GetSchemaForOperator returns the full settings schema for platform
+	// operators. Excludes AccessAdminOnly settings and skips the per-setting
+	// ReadPermission filter (operators see everything they're allowed to see
+	// via AccessPolicy). Used by the /api/operator/schools/{id}/settings route.
+	GetSchemaForOperator(ctx context.Context, userPermissions []string) (*SettingsSchema, error)
 
 	// Resolve returns the raw value for a setting key (tenant override or registry default).
 	Resolve(ctx context.Context, key string) (any, error)
@@ -81,16 +88,17 @@ type SchemaCategory struct {
 
 // ResolvedSetting is a setting definition enriched with its resolved value.
 type ResolvedSetting struct {
-	Key         string           `json:"key"`
-	Label       string           `json:"label"`
-	Description string           `json:"description"`
-	Type        config.FieldType `json:"type"`
-	Default     any              `json:"default"`
-	Value       any              `json:"value"`
-	IsDefault   bool             `json:"is_default"`
-	Writable    bool             `json:"writable"`
-	Visible     bool             `json:"visible"`
-	SortOrder   int              `json:"sort_order"`
+	Key          string              `json:"key"`
+	Label        string              `json:"label"`
+	Description  string              `json:"description"`
+	Type         config.FieldType    `json:"type"`
+	Default      any                 `json:"default"`
+	Value        any                 `json:"value"`
+	IsDefault    bool                `json:"is_default"`
+	Writable     bool                `json:"writable"`
+	Visible      bool                `json:"visible"`
+	SortOrder    int                 `json:"sort_order"`
+	AccessPolicy config.AccessPolicy `json:"access_policy"`
 
 	Validation *config.ValidationRules `json:"validation,omitempty"`
 	DependsOn  *config.Dependency      `json:"depends_on,omitempty"`

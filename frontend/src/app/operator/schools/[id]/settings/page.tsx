@@ -180,6 +180,7 @@ export default function OperatorSchoolSettingsPage({ params }: PageProps) {
                   category={category}
                   onSave={handleSave}
                   onReset={handleReset}
+                  audience="operator"
                 />
               ))}
             </div>

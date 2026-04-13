@@ -29,6 +29,9 @@ type trackingMockSettingsService struct {
 func (m *trackingMockSettingsService) GetSchema(ctx context.Context, perms []string) (*configSvc.SettingsSchema, error) {
 	return nil, nil
 }
+func (m *trackingMockSettingsService) GetSchemaForOperator(ctx context.Context, perms []string) (*configSvc.SettingsSchema, error) {
+	return nil, nil
+}
 func (m *trackingMockSettingsService) Resolve(ctx context.Context, key string) (any, error) {
 	return nil, nil
 }

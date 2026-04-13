@@ -32,6 +32,9 @@ type stubSettingsService struct{}
 func (stubSettingsService) GetSchema(context.Context, []string) (*configSvc.SettingsSchema, error) {
 	return nil, nil
 }
+func (stubSettingsService) GetSchemaForOperator(context.Context, []string) (*configSvc.SettingsSchema, error) {
+	return nil, nil
+}
 func (stubSettingsService) Resolve(context.Context, string) (any, error) { return nil, nil }
 func (stubSettingsService) ResolveString(context.Context, string) (string, error) {
 	return "", nil

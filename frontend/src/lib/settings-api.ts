@@ -21,6 +21,8 @@ export interface SchemaCategory {
   items: ResolvedSetting[];
 }
 
+export type AccessPolicy = "shared" | "admin_only" | "operator_only";
+
 export interface ResolvedSetting {
   key: string;
   label: string;
@@ -32,6 +34,7 @@ export interface ResolvedSetting {
   writable: boolean;
   visible: boolean;
   sort_order: number;
+  access_policy: AccessPolicy;
   validation?: {
     required?: boolean;
     min?: number;

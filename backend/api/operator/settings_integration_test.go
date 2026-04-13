@@ -147,11 +147,12 @@ func TestOperatorSetSchoolSettingValue_BypassesPermissionCheck(t *testing.T) {
 	ctx := setupOperatorSettingsTest(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	// security.ogs_device_pin requires config:manage for tenant users.
-	// Operators have empty permissions but should still succeed because
-	// the handler passes nil to SetValue to bypass permission checks.
-	body := map[string]interface{}{"value": "1234"}
-	req := newOperatorRequest(t, http.MethodPut, "/schools/1/settings/values/security.ogs_device_pin", body)
+	// feedback.enabled requires config:manage for tenant users and is a
+	// shared setting operators may write. Operators have empty permissions
+	// but should still succeed because the handler passes nil to SetValue
+	// to bypass per-setting permission checks.
+	body := map[string]interface{}{"value": true}
+	req := newOperatorRequest(t, http.MethodPut, "/schools/1/settings/values/feedback.enabled", body)
 
 	rr := testutil.ExecuteRequest(ctx.router, req)
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
@@ -276,4 +277,69 @@ func TestOperatorRevealSchoolSettingValue_InvalidSchoolID(t *testing.T) {
 	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertErrorResponse(t, rr, http.StatusBadRequest)
+}
+
+// =============================================================================
+// AccessPolicy enforcement — operators must not touch AccessAdminOnly settings
+// =============================================================================
+
+func TestOperatorSetSchoolSettingValue_AdminOnlyForbidden(t *testing.T) {
+	ctx := setupOperatorSettingsTest(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	// security.ogs_device_pin is AccessAdminOnly — operators must not change it.
+	body := map[string]interface{}{"value": "1234"}
+	req := newOperatorRequest(t, http.MethodPut, "/schools/1/settings/values/security.ogs_device_pin", body)
+
+	rr := testutil.ExecuteRequest(ctx.router, req)
+	testutil.AssertErrorResponse(t, rr, http.StatusForbidden)
+}
+
+func TestOperatorResetSchoolSettingValue_AdminOnlyForbidden(t *testing.T) {
+	ctx := setupOperatorSettingsTest(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	req := newOperatorRequest(t, http.MethodDelete, "/schools/1/settings/values/security.ogs_device_pin", nil)
+
+	rr := testutil.ExecuteRequest(ctx.router, req)
+	testutil.AssertErrorResponse(t, rr, http.StatusForbidden)
+}
+
+func TestOperatorRevealSchoolSettingValue_AdminOnlyForbidden(t *testing.T) {
+	ctx := setupOperatorSettingsTest(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	req := newOperatorRequest(t, http.MethodGet, "/schools/1/settings/values/security.ogs_device_pin/reveal", nil)
+
+	rr := testutil.ExecuteRequest(ctx.router, req)
+	testutil.AssertErrorResponse(t, rr, http.StatusForbidden)
+}
+
+func TestOperatorGetSchoolSettingsSchema_HidesAdminOnly(t *testing.T) {
+	ctx := setupOperatorSettingsTest(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	req := newOperatorRequest(t, http.MethodGet, "/schools/1/settings/schema", nil)
+	rr := testutil.ExecuteRequest(ctx.router, req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data := response["data"].(map[string]interface{})
+	tabs, _ := data["tabs"].([]interface{})
+
+	// Walk every item across all tabs and confirm the PIN is not present.
+	for _, tabRaw := range tabs {
+		tab := tabRaw.(map[string]interface{})
+		categories, _ := tab["categories"].([]interface{})
+		for _, catRaw := range categories {
+			cat := catRaw.(map[string]interface{})
+			items, _ := cat["items"].([]interface{})
+			for _, itemRaw := range items {
+				item := itemRaw.(map[string]interface{})
+				assert.NotEqual(t, "security.ogs_device_pin", item["key"],
+					"operator schema must not include AccessAdminOnly PIN setting")
+			}
+		}
+	}
 }

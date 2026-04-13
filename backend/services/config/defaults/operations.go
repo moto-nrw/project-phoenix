@@ -18,6 +18,7 @@ func init() {
 		Tab:             "operations",
 		Category:        "sessions",
 		SortOrder:       1,
+		AccessPolicy:    config.AccessOperatorOnly,
 	})
 
 	config.Register(config.Definition{
@@ -36,6 +37,7 @@ func init() {
 			Condition: "eq",
 			Value:     true,
 		},
+		AccessPolicy: config.AccessOperatorOnly,
 	})
 
 	minTimeout := float64(1)
@@ -57,6 +59,7 @@ func init() {
 			Condition: "eq",
 			Value:     true,
 		},
+		AccessPolicy: config.AccessOperatorOnly,
 	})
 
 	// --- Student Daily Checkout ---
@@ -87,6 +90,7 @@ func init() {
 		Tab:             "operations",
 		Category:        "cleanup",
 		SortOrder:       1,
+		AccessPolicy:    config.AccessOperatorOnly,
 	})
 
 	minInterval := float64(5)
@@ -108,6 +112,7 @@ func init() {
 			Condition: "eq",
 			Value:     true,
 		},
+		AccessPolicy: config.AccessOperatorOnly,
 	})
 
 	minThreshold := float64(10)
@@ -129,6 +134,7 @@ func init() {
 			Condition: "eq",
 			Value:     true,
 		},
+		AccessPolicy: config.AccessOperatorOnly,
 	})
 
 	// --- Admin Supervision Overview ---

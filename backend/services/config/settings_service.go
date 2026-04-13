@@ -310,9 +310,14 @@ func (s *settingsService) ResetValue(ctx context.Context, key string, changedBy 
 	return nil
 }
 
-// GetSchema delegates to the schema builder.
+// GetSchema delegates to the schema builder for tenant admin callers.
 func (s *settingsService) GetSchema(ctx context.Context, userPermissions []string) (*SettingsSchema, error) {
 	return buildSchema(ctx, s, userPermissions)
+}
+
+// GetSchemaForOperator delegates to the operator-scoped schema builder.
+func (s *settingsService) GetSchemaForOperator(ctx context.Context, userPermissions []string) (*SettingsSchema, error) {
+	return buildSchemaForOperator(ctx, s, userPermissions)
 }
 
 // --- Validation ---

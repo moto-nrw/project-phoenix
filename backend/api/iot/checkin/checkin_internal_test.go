@@ -160,6 +160,9 @@ type mockSettingsService struct {
 func (m *mockSettingsService) GetSchema(_ context.Context, _ []string) (*configSvc.SettingsSchema, error) {
 	return nil, nil
 }
+func (m *mockSettingsService) GetSchemaForOperator(_ context.Context, _ []string) (*configSvc.SettingsSchema, error) {
+	return nil, nil
+}
 func (m *mockSettingsService) Resolve(_ context.Context, key string) (any, error) {
 	if v, ok := m.values[key]; ok {
 		return v, nil
