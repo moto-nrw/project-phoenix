@@ -156,7 +156,11 @@ export async function handleAuthFailure(): Promise<boolean> {
   }
 }
 
-export type ApiError = Error & { status?: number; retryAfterSeconds?: number };
+export type ApiError = Error & {
+  status?: number;
+  retryAfterSeconds?: number;
+  code?: string;
+};
 
 function parseRetryAfter(value: string | null): number | null {
   if (!value) {
