@@ -10,25 +10,40 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/integration/phoenixapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestGenerateSeedPassword(t *testing.T) {
-	// Run multiple times to verify deterministic compliance (was probabilistic before fix).
-	for i := 0; i < 50; i++ {
-		password, err := generateSeedPassword()
-		require.NoError(t, err)
-		assert.Len(t, password, seedPasswordLength)
-		for _, char := range password {
-			assert.Contains(t, seedPasswordAlphabet, string(char))
+func TestWrapConflictError(t *testing.T) {
+	t.Run("wraps 409 APIError with helpful message", func(t *testing.T) {
+		apiErr := &phoenixapi.APIError{
+			Method:     "POST",
+			Path:       "/operator/organizations",
+			StatusCode: http.StatusConflict,
+			Message:    "slug already taken",
 		}
-		// Every generated password must satisfy ValidatePasswordStrength.
-		assert.Regexp(t, `[a-z]`, password, "must contain lowercase")
-		assert.Regexp(t, `[A-Z]`, password, "must contain uppercase")
-		assert.Regexp(t, `[0-9]`, password, "must contain digit")
-		assert.Regexp(t, `[^a-zA-Z0-9]`, password, "must contain special char")
-	}
+		err := wrapConflictError(apiErr, "organization")
+		assert.Contains(t, err.Error(), "seed organization already exists (409 Conflict)")
+		assert.Contains(t, err.Error(), "migrate reset")
+	})
+
+	t.Run("passes through non-409 errors unchanged", func(t *testing.T) {
+		apiErr := &phoenixapi.APIError{
+			Method:     "POST",
+			Path:       "/operator/organizations",
+			StatusCode: http.StatusInternalServerError,
+			Message:    "internal error",
+		}
+		err := wrapConflictError(apiErr, "organization")
+		assert.Equal(t, apiErr, err)
+	})
+
+	t.Run("passes through non-API errors unchanged", func(t *testing.T) {
+		original := fmt.Errorf("network timeout")
+		err := wrapConflictError(original, "school")
+		assert.Equal(t, original, err)
+	})
 }
 
 func TestExtractBootstrapInvitationToken(t *testing.T) {
@@ -77,9 +92,9 @@ func TestCollectSeedState_BasicFields(t *testing.T) {
 
 	// Populate FixedSeeder internal maps
 	fs.staffCredentials = []StaffCredentials{
-		{Email: "demo1@mail.de", Password: "pass1", PIN: "1000", Name: "Anna Müller", Position: "OGS-Büro"},
-		{Email: "demo11@mail.de", Password: "pass11", PIN: "1010", Name: "Julia Klein", Position: "Pädagogische Fachkraft"},
-		{Email: "demo12@mail.de", Password: "pass12", PIN: "1011", Name: "Markus Wolf", Position: "Pädagogische Fachkraft"},
+		{Email: "betreuer1@example.com", Password: "pass1", PIN: "1000", Name: "Anna Müller", Position: "OGS-Büro"},
+		{Email: "betreuer11@example.com", Password: "pass11", PIN: "1010", Name: "Julia Klein", Position: "Pädagogische Fachkraft"},
+		{Email: "betreuer12@example.com", Password: "pass12", PIN: "1011", Name: "Markus Wolf", Position: "Pädagogische Fachkraft"},
 	}
 	fs.staffIDs = map[string]int64{
 		"Anna Müller": 11,
@@ -122,7 +137,7 @@ func TestCollectSeedState_BasicFields(t *testing.T) {
 
 	// Admin accounts
 	assert.Len(t, state.Accounts.Admin, 1)
-	assert.Equal(t, "demo1@mail.de", state.Accounts.Admin[0].Email)
+	assert.Equal(t, "betreuer1@example.com", state.Accounts.Admin[0].Email)
 	assert.Equal(t, int64(11), state.Accounts.Admin[0].StaffID)
 	assert.Equal(t, int64(10), state.Accounts.Admin[0].TeacherID)
 
@@ -299,7 +314,7 @@ func TestPrintSuccessSummary_DoesNotPanic(t *testing.T) {
 			ActivityCount: 10,
 			DeviceCount:   10,
 			StaffCredentials: []StaffCredentials{
-				{Name: "Anna Müller", Position: "OGS-Büro", Email: "demo1@mail.de", Password: "pass1", PIN: "1000"},
+				{Name: "Anna Müller", Position: "OGS-Büro", Email: "betreuer1@example.com", Password: "pass1", PIN: "1000"},
 			},
 		},
 	}
@@ -431,7 +446,7 @@ func TestFixedResult_Fields(t *testing.T) {
 		ActivityCount:    10,
 		DeviceCount:      10,
 		StaffCredentials: []StaffCredentials{
-			{Email: "demo1@mail.de", Name: "Anna"},
+			{Email: "betreuer1@example.com", Name: "Anna"},
 		},
 	}
 

@@ -70,7 +70,7 @@ var DemoRooms = []DemoRoom{
 // DemoStaff defines staff members for the demo environment
 // Position must match frontend dropdown values in teacher-form.tsx and invitation-form.tsx
 // Demo accounts: 10 OGS-Büro (admin) + 10 Pädagogische Fachkraft (betreuer)
-// All use email: demo{n}@mail.de and password: sdlXK26%
+// All use email: betreuer{n}@example.com and password: Test1234%
 var DemoStaff = []DemoStaffMember{
 	// 10 OGS-Büro accounts (admin role)
 	{FirstName: "Anna", LastName: "Müller", Position: "OGS-Büro", IsTeacher: true},

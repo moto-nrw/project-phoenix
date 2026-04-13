@@ -405,7 +405,7 @@ func TestFixedSeeder_SeedStaffAccounts(t *testing.T) {
 	assert.Len(t, fs.staffCredentials, len(DemoStaff))
 
 	// Verify first credential
-	assert.Equal(t, "demo1@mail.de", fs.staffCredentials[0].Email)
+	assert.Equal(t, "betreuer1@example.com", fs.staffCredentials[0].Email)
 	assert.Equal(t, "OGS-Büro", fs.staffCredentials[0].Position)
 }
 
@@ -460,7 +460,7 @@ func TestFixedSeeder_SwitchToStaffAccount(t *testing.T) {
 
 	fs := NewFixedSeeder(client, false)
 	fs.staffCredentials = []StaffCredentials{
-		{Email: "demo1@mail.de", Password: "pass1", Name: "Anna Müller", Position: "OGS-Büro"},
+		{Email: "betreuer1@example.com", Password: "pass1", Name: "Anna Müller", Position: "OGS-Büro"},
 	}
 
 	err := fs.switchToStaffAccount()
@@ -735,7 +735,7 @@ func TestFixedSeeder_SwitchToStaffAccount_LoginError(t *testing.T) {
 	client := NewClient(srv.URL, false)
 	fs := NewFixedSeeder(client, false)
 	fs.staffCredentials = []StaffCredentials{
-		{Email: "demo1@mail.de", Password: "wrong", Name: "Admin", Position: "OGS-Büro"},
+		{Email: "betreuer1@example.com", Password: "wrong", Name: "Admin", Position: "OGS-Büro"},
 	}
 
 	err := fs.switchToStaffAccount()

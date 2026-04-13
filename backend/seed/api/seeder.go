@@ -2,10 +2,9 @@ package api
 
 import (
 	"context"
-	"crypto/rand"
 	"errors"
 	"fmt"
-	"strings"
+	"net/http"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/integration/phoenixapi"
@@ -18,8 +17,8 @@ const (
 	defaultSeedSchoolSlug       = "demo-school"
 	defaultSeedSchoolSubdomain  = "demo-school"
 	seedTokenHeader             = "X-Phoenix-Seed-Token"
-	seedPasswordAlphabet        = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%"
-	seedPasswordLength          = 12
+	defaultSeedPassword         = "Test1234%"
+	defaultSeedAdminEmail       = "school-admin@example.com"
 )
 
 // Seeder orchestrates the complete API-based seeding process
@@ -72,28 +71,22 @@ func (s *Seeder) Seed(ctx context.Context, email, password, staffPIN string) (*S
 	return runtime.Result, nil
 }
 
+// bootstrapTenant creates the demo organization, school, and admin account with
+// deterministic credentials. This assumes a clean database (migrate reset) —
+// re-running without reset will fail with 409 due to duplicate slugs/emails.
 func (s *Seeder) bootstrapTenant(ctx context.Context) (*bootstrapSeedState, error) {
-	suffix := fmt.Sprintf("%d", time.Now().UnixNano())
-	orgName := fmt.Sprintf("%s %s", defaultSeedOrganizationName, suffix)
-	orgSlug := fmt.Sprintf("%s-%s", defaultSeedOrganizationSlug, suffix)
-	orgID, err := s.createSeedOrganization(orgName, orgSlug)
+	orgID, err := s.createSeedOrganization(defaultSeedOrganizationName, defaultSeedOrganizationSlug)
 	if err != nil {
-		return nil, err
+		return nil, wrapConflictError(err, "organization")
 	}
 
-	schoolName := fmt.Sprintf("%s %s", defaultSeedSchoolName, suffix)
-	schoolSlug := fmt.Sprintf("%s-%s", defaultSeedSchoolSlug, suffix)
-	schoolSubdomain := truncateSeedSubdomain(fmt.Sprintf("%s-%s", defaultSeedSchoolSubdomain, suffix))
-	schoolID, tenantSlug, err := s.createSeedSchool(orgID, schoolName, schoolSlug, schoolSubdomain)
+	schoolID, tenantSlug, err := s.createSeedSchool(orgID, defaultSeedSchoolName, defaultSeedSchoolSlug, defaultSeedSchoolSubdomain)
 	if err != nil {
-		return nil, err
+		return nil, wrapConflictError(err, "school")
 	}
 
-	adminEmail := fmt.Sprintf("school-admin-%s@example.com", suffix)
-	adminPassword, err := generateSeedPassword()
-	if err != nil {
-		return nil, fmt.Errorf("generate admin password: %w", err)
-	}
+	adminEmail := defaultSeedAdminEmail
+	adminPassword := defaultSeedPassword
 	adminName := "Seed Admin"
 	adminPosition := "OGS-Büro"
 	inviteResp, err := s.client.PostWithHeaders(fmt.Sprintf("/operator/schools/%d/invite-admin", schoolID), map[string]any{
@@ -121,11 +114,11 @@ func (s *Seeder) bootstrapTenant(ctx context.Context) (*bootstrapSeedState, erro
 
 	return &bootstrapSeedState{
 		OrganizationID:   orgID,
-		OrganizationName: orgName,
-		OrganizationSlug: orgSlug,
+		OrganizationName: defaultSeedOrganizationName,
+		OrganizationSlug: defaultSeedOrganizationSlug,
 		SchoolID:         schoolID,
-		SchoolName:       schoolName,
-		SchoolSlug:       schoolSlug,
+		SchoolName:       defaultSeedSchoolName,
+		SchoolSlug:       defaultSeedSchoolSlug,
 		TenantSlug:       tenantSlug,
 		AdminEmail:       adminEmail,
 		AdminPassword:    adminPassword,
@@ -187,51 +180,14 @@ func (s *Seeder) createSeedSchool(organizationID int64, name, slug, subdomain st
 	return payload.Data.ID, payload.Data.Subdomain, nil
 }
 
-func generateSeedPassword() (string, error) {
-	// Character sets that must each appear at least once to satisfy
-	// ValidatePasswordStrength (upper, lower, digit, special).
-	required := []string{
-		"abcdefghijkmnopqrstuvwxyz",
-		"ABCDEFGHJKLMNPQRSTUVWXYZ",
-		"23456789",
-		"!@#$%",
+// wrapConflictError checks if the error is a 409 Conflict from the API and
+// returns a user-friendly message directing the developer to run migrate reset.
+func wrapConflictError(err error, entity string) error {
+	var apiErr *phoenixapi.APIError
+	if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusConflict {
+		return fmt.Errorf("seed %s already exists (409 Conflict) — run 'go run main.go migrate reset' before re-seeding", entity)
 	}
-
-	bytes := make([]byte, seedPasswordLength)
-	random := make([]byte, seedPasswordLength)
-	if _, err := rand.Read(random); err != nil {
-		return "", err
-	}
-
-	// Place one character from each required set in the first positions.
-	for i, charset := range required {
-		bytes[i] = charset[int(random[i])%len(charset)]
-	}
-
-	// Fill remaining positions from the full alphabet.
-	for i := len(required); i < seedPasswordLength; i++ {
-		bytes[i] = seedPasswordAlphabet[int(random[i])%len(seedPasswordAlphabet)]
-	}
-
-	// Shuffle using Fisher-Yates to avoid predictable positions.
-	shuffleRandom := make([]byte, seedPasswordLength)
-	if _, err := rand.Read(shuffleRandom); err != nil {
-		return "", err
-	}
-	for i := seedPasswordLength - 1; i > 0; i-- {
-		j := int(shuffleRandom[i]) % (i + 1)
-		bytes[i], bytes[j] = bytes[j], bytes[i]
-	}
-
-	return string(bytes), nil
-}
-
-func truncateSeedSubdomain(subdomain string) string {
-	subdomain = strings.ToLower(strings.TrimSpace(subdomain))
-	if len(subdomain) <= 63 {
-		return subdomain
-	}
-	return subdomain[:63]
+	return err
 }
 
 // collectSeedState builds SeedState from the FixedSeeder's internal maps
