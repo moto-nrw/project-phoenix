@@ -81,6 +81,7 @@ type ErrResponse struct {
 
 	Status    string `json:"status"`
 	ErrorText string `json:"error,omitempty"`
+	Code      string `json:"code,omitempty"`
 }
 
 // Render implements the render.Renderer interface for ErrResponse
@@ -159,6 +160,17 @@ func ErrorConflict(err error) render.Renderer {
 		HTTPStatusCode: http.StatusConflict,
 		Status:         "error",
 		ErrorText:      err.Error(),
+	}
+}
+
+// ErrorConflictWithCode returns a 409 Conflict with a stable error code for frontend disambiguation.
+func ErrorConflictWithCode(err error, code string) render.Renderer {
+	return &ErrResponse{
+		Err:            err,
+		HTTPStatusCode: http.StatusConflict,
+		Status:         "error",
+		ErrorText:      err.Error(),
+		Code:           code,
 	}
 }
 

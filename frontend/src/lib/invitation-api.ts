@@ -35,6 +35,7 @@ const createApiError = async (
   fallbackMessage: string,
 ): Promise<ApiError> => {
   let message = fallbackMessage;
+  let code: string | undefined;
 
   try {
     const contentType = response.headers.get("Content-Type") ?? "";
@@ -42,8 +43,10 @@ const createApiError = async (
       const payload = (await response.json()) as {
         error?: string;
         message?: string;
+        code?: string;
       };
       message = payload.error ?? payload.message ?? fallbackMessage;
+      code = payload.code;
     } else {
       const text = (await response.text()).trim();
       if (text) {
@@ -58,6 +61,7 @@ const createApiError = async (
 
   const apiError = new Error(message) as ApiError;
   apiError.status = response.status;
+  apiError.code = code;
   const retry = parseRetryAfter(response.headers.get("Retry-After"));
   if (retry !== undefined) {
     apiError.retryAfterSeconds = retry;
