@@ -27,6 +27,7 @@ export interface ApiResponse<T> {
 export interface ApiErrorResponse {
   error: string;
   status?: number;
+  code?: string;
 }
 
 /**
@@ -245,7 +246,29 @@ export function handleApiError(error: unknown): NextResponse<ApiErrorResponse> {
           error: error.message,
         });
       }
-      return NextResponse.json({ error: error.message }, { status });
+
+      // Try to extract structured fields from embedded backend JSON response
+      const response: ApiErrorResponse = { error: error.message };
+      const jsonStart = error.message.indexOf("{");
+      if (jsonStart !== -1) {
+        try {
+          const parsed = JSON.parse(error.message.substring(jsonStart)) as {
+            error?: string;
+            message?: string;
+            code?: string;
+          };
+          if (parsed.error ?? parsed.message) {
+            response.error = (parsed.error ?? parsed.message) as string;
+          }
+          if (parsed.code) {
+            response.code = parsed.code;
+          }
+        } catch {
+          // Not valid JSON, keep original error message
+        }
+      }
+
+      return NextResponse.json(response, { status });
     }
   }
 
