@@ -128,6 +128,11 @@ func (rs *Resource) createInvitation(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		if errors.Is(err, authService.ErrAccountAlreadyHasTenantAccess) {
+			common.RenderError(w, r, common.ErrorConflictWithCode(authService.ErrAccountAlreadyHasTenantAccess, "ACCOUNT_ALREADY_HAS_TENANT_ACCESS"))
+			return
+		}
+
 		if renderInvitationError(w, r, err) {
 			return
 		}

@@ -82,20 +82,25 @@ export function useGlobalSSE(): SSEHookState {
       });
     }
 
-    // Invalidate OGS group student caches (ogs-students-{groupId})
-    // so the "Meine Gruppe" page picks up location changes (e.g. Zuhause).
+    // Invalidate student list caches so "Meine Gruppe" and students/search
+    // pick up location changes (e.g. Zuhause) without a manual refresh.
     // Also invalidate tracking indicator caches on active-supervisions
     // (tracking-supervisions-*) and students/search (tracking-indicators-*).
-    // Triggered by pendingGroupIds (room-level events) OR pendingStudentIds
-    // (daily checkout sends student_checkout without an active_group_id).
+    // Triggered by pendingGroupIds (room-level events), pendingStudentIds
+    // (daily checkout sends student_checkout without an active_group_id),
+    // or hasPendingDashboardEvent (dashboard_counts_changed is broadcast
+    // to ALL clients on every check-in/out — ensures search page updates
+    // even when the user doesn't supervise the affected room/group).
     if (
       pendingGroupIds.current.size > 0 ||
-      pendingStudentIds.current.size > 0
+      pendingStudentIds.current.size > 0 ||
+      hasPendingDashboardEvent.current
     ) {
       mutate(
         (key) =>
           typeof key === "string" &&
           (key.includes("ogs-students-") ||
+            key.includes("search-students-") ||
             key.includes("tracking-supervisions-") ||
             key.includes("tracking-indicators-")),
       ).catch((err) => {
