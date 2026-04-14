@@ -2,6 +2,8 @@ package operator_test
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -342,4 +344,70 @@ func TestOperatorGetSchoolSettingsSchema_HidesAdminOnly(t *testing.T) {
 			}
 		}
 	}
+}
+
+// =============================================================================
+// OnValueSet hook — operator writes must trigger the same side effects as
+// tenant writes (e.g. auto-provisioning Schulhof/WC rooms).
+// =============================================================================
+
+func TestOperatorSetSchoolSettingValue_InvokesOnValueSetHook(t *testing.T) {
+	ctx := setupOperatorSettingsTest(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	// Register a hook and assert it fires with the expected args.
+	var called bool
+	var capturedTenantID int64
+	var capturedKey string
+	var capturedValue any
+	ctx.resource.OnValueSet(func(_ context.Context, tenantID int64, key string, value any) error {
+		called = true
+		capturedTenantID = tenantID
+		capturedKey = key
+		capturedValue = value
+		return nil
+	})
+
+	body := map[string]interface{}{"value": true}
+	req := newOperatorRequest(t, http.MethodPut, "/schools/1/settings/values/checkout.schulhof_enabled", body)
+	rr := testutil.ExecuteRequest(ctx.router, req)
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	require.True(t, called, "OnValueSet hook must fire when operator writes a shared setting")
+	assert.Equal(t, int64(1), capturedTenantID, "hook must receive the school ID from the URL")
+	assert.Equal(t, "checkout.schulhof_enabled", capturedKey)
+	assert.Equal(t, true, capturedValue)
+}
+
+func TestOperatorSetSchoolSettingValue_OnValueSetErrorRollsBackWrite(t *testing.T) {
+	ctx := setupOperatorSettingsTest(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	// Count rows for this key before the failed write. The rollback test
+	// only requires that the count does NOT change; tolerating any pre-
+	// existing seed data.
+	const testKey = "checkout.wc_enabled"
+	before, err := ctx.db.NewSelect().
+		TableExpr("config.setting_values").
+		Where("tenant_id = ?", int64(1)).
+		Where("setting_key = ?", testKey).
+		Count(context.Background())
+	require.NoError(t, err)
+
+	ctx.resource.OnValueSet(func(_ context.Context, _ int64, _ string, _ any) error {
+		return errors.New("hook rejected the change")
+	})
+
+	body := map[string]interface{}{"value": true}
+	req := newOperatorRequest(t, http.MethodPut, "/schools/1/settings/values/"+testKey, body)
+	rr := testutil.ExecuteRequest(ctx.router, req)
+	testutil.AssertErrorResponse(t, rr, http.StatusInternalServerError)
+
+	after, err := ctx.db.NewSelect().
+		TableExpr("config.setting_values").
+		Where("tenant_id = ?", int64(1)).
+		Where("setting_key = ?", testKey).
+		Count(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, before, after, "failed hook must roll back the write (row count should not change)")
 }

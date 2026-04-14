@@ -40,6 +40,7 @@ func guardOperatorWrite(w http.ResponseWriter, r *http.Request, key string) bool
 type SettingsResource struct {
 	settingsService configSvc.SettingsService
 	db              *bun.DB
+	onValueSet      func(ctx context.Context, tenantID int64, key string, value any) error
 }
 
 // NewSettingsResource creates a new operator settings resource.
@@ -48,6 +49,16 @@ func NewSettingsResource(svc configSvc.SettingsService, db *bun.DB) *SettingsRes
 		settingsService: svc,
 		db:              db,
 	}
+}
+
+// OnValueSet registers a callback that runs after a setting value is validated
+// and saved. The callback executes inside the same tenant transaction as the
+// setting write, so returning an error aborts the request and rolls back the
+// update. Mirrors the tenant SettingsResource.OnValueSet contract so side
+// effects (e.g. auto-creating the Schulhof/WC rooms when the corresponding
+// checkout toggle flips on) apply uniformly regardless of who flipped it.
+func (rs *SettingsResource) OnValueSet(fn func(ctx context.Context, tenantID int64, key string, value any) error) {
+	rs.onValueSet = fn
 }
 
 type setSchoolSettingRequest struct {
@@ -97,7 +108,13 @@ func (rs *SettingsResource) SetSchoolSettingValue(w http.ResponseWriter, r *http
 	changedBy := int64(claims.ID)
 
 	err := tenant.WithTenantTx(r.Context(), rs.db, schoolID, func(ctx context.Context, _ bun.Tx) error {
-		return rs.settingsService.SetValue(ctx, key, req.Value, &changedBy, nil)
+		if err := rs.settingsService.SetValue(ctx, key, req.Value, &changedBy, nil); err != nil {
+			return err
+		}
+		if rs.onValueSet != nil {
+			return rs.onValueSet(ctx, schoolID, key, req.Value)
+		}
+		return nil
 	})
 	if err != nil {
 		renderOperatorSettingsError(w, r, err)

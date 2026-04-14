@@ -12,6 +12,10 @@ interface SettingsCategoryProps {
   // to "admin" for the tenant settings page; the operator page passes
   // "operator" to flip the hint copy.
   readonly audience?: "admin" | "operator";
+  // revealFn is forwarded to PasswordField. Defaults to the tenant reveal
+  // endpoint when unset. The operator page passes a school-bound function
+  // so password reveal hits the operator endpoint instead.
+  readonly revealFn?: (key: string) => Promise<string | null>;
 }
 
 export function SettingsCategory({
@@ -19,6 +23,7 @@ export function SettingsCategory({
   onSave,
   onReset,
   audience = "admin",
+  revealFn,
 }: SettingsCategoryProps) {
   const visibleItems = category.items.filter((item) => item.visible);
 
@@ -39,6 +44,7 @@ export function SettingsCategory({
             onSave={onSave}
             onReset={onReset}
             audience={audience}
+            revealFn={revealFn}
           />
         ))}
       </div>

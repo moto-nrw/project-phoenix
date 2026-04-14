@@ -1,6 +1,7 @@
 package operator
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -57,6 +58,17 @@ func (rs *Resource) SetEmailConfirmRateLimiter(mw func(http.Handler) http.Handle
 // repeated validate calls (page refreshes) cannot exhaust the accept budget.
 func (rs *Resource) SetInvitationRateLimiter(mw func(http.Handler) http.Handler) {
 	rs.invitationRateLimiter = mw
+}
+
+// OnSettingValueSet forwards to the internal SettingsResource.OnValueSet hook
+// so the caller can register a side-effect callback (e.g. auto-provisioning
+// system rooms when checkout toggles flip on). No-op when the settings
+// resource is unconfigured (cfg.SettingsService was nil).
+func (rs *Resource) OnSettingValueSet(fn func(ctx context.Context, tenantID int64, key string, value any) error) {
+	if rs.settingsResource == nil {
+		return
+	}
+	rs.settingsResource.OnValueSet(fn)
 }
 
 // NewResource creates a new operator resource

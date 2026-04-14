@@ -9,6 +9,7 @@ import {
   fetchOperatorSettingsSchema,
   setOperatorSettingValue,
   resetOperatorSettingValue,
+  revealOperatorSettingValue,
 } from "~/lib/operator/operator-settings-api";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import { SettingsCategory } from "~/components/settings/settings-category";
@@ -23,6 +24,7 @@ const TAB_LABELS: Record<string, string> = {
   gdpr: "Datenschutz",
   security: "Sicherheit",
   devices: "Geräte",
+  system: "System",
   general: "Allgemein",
 };
 
@@ -110,6 +112,11 @@ export default function OperatorSchoolSettingsPage({ params }: PageProps) {
     [schoolId],
   );
 
+  const handleReveal = useCallback(
+    (key: string) => revealOperatorSettingValue(schoolId, key),
+    [schoolId],
+  );
+
   return (
     <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6 lg:px-8">
       <div className="mb-6">
@@ -181,6 +188,7 @@ export default function OperatorSchoolSettingsPage({ params }: PageProps) {
                   onSave={handleSave}
                   onReset={handleReset}
                   audience="operator"
+                  revealFn={handleReveal}
                 />
               ))}
             </div>

@@ -9,6 +9,11 @@ interface PasswordFieldProps {
   readonly onChange: (value: unknown) => Promise<void>;
   readonly disabled?: boolean;
   readonly pattern?: string;
+  // revealFn overrides how the unmasked value is fetched. Defaults to the
+  // tenant-scoped reveal endpoint. Operator-side callers should pass a
+  // function bound to their school ID so reveal hits the operator API
+  // instead. Signature matches (key) => Promise<string | null>.
+  readonly revealFn?: (key: string) => Promise<string | null>;
 }
 
 function getInputHints(pattern?: string): {
@@ -37,6 +42,7 @@ export function PasswordField({
   onChange,
   disabled = false,
   pattern,
+  revealFn = revealSettingValue,
 }: PasswordFieldProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [newValue, setNewValue] = useState("");
@@ -55,12 +61,12 @@ export function PasswordField({
     }
     // Only show spinner if the fetch takes longer than 150ms (avoids flicker)
     const spinnerTimeout = setTimeout(() => setIsRevealing(true), 150);
-    const value = await revealSettingValue(settingKey);
+    const value = await revealFn(settingKey);
     clearTimeout(spinnerTimeout);
     setRevealedValue(value);
     setShowValue(true);
     setIsRevealing(false);
-  }, [showValue, settingKey]);
+  }, [showValue, settingKey, revealFn]);
 
   // Display mode
   if (!isEditing) {

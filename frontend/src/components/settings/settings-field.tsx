@@ -52,6 +52,10 @@ interface SettingsFieldProps {
   // audience controls the "auch von {other side} änderbar" hint shown
   // on shared settings. Defaults to "admin" (tenant settings page).
   readonly audience?: "admin" | "operator";
+  // revealFn overrides how PasswordField fetches the unmasked value.
+  // Defaults to the tenant reveal endpoint; the operator page passes a
+  // school-bound function so reveal hits the operator endpoint instead.
+  readonly revealFn?: (key: string) => Promise<string | null>;
 }
 
 export function SettingsField({
@@ -59,6 +63,7 @@ export function SettingsField({
   onSave,
   onReset,
   audience = "admin",
+  revealFn,
 }: SettingsFieldProps) {
   const { success: toastSuccess, error: toastError } = useToast();
   const [localValue, setLocalValue] = useState<unknown>(setting.value);
@@ -229,6 +234,7 @@ export function SettingsField({
           handleImmediateSave,
           handleLocalChange,
           handleBlur,
+          revealFn,
         )}
 
         {!setting.is_default &&
@@ -284,6 +290,7 @@ function renderField(
   onImmediateSave: (value: unknown) => Promise<void>,
   onLocalChange: (value: unknown) => void,
   onBlur: () => Promise<void>,
+  revealFn?: (key: string) => Promise<string | null>,
 ) {
   const disabled = !setting.writable;
 
@@ -334,6 +341,7 @@ function renderField(
           onChange={onImmediateSave}
           disabled={disabled}
           pattern={setting.validation?.pattern}
+          revealFn={revealFn}
         />
       );
     case "select":
