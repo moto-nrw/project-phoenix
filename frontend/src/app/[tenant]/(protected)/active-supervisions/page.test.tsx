@@ -7720,3 +7720,314 @@ describe("Tracking indicators rendering", () => {
     expect(trackingCall?.[0]).toContain("100");
   });
 });
+
+describe("Year filter (Klassenstufe) on active supervisions", () => {
+  const mockMutate = vi.fn();
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    global.fetch = vi.fn();
+    localStorage.clear();
+
+    // Override PageHeaderWithSearch to expose year filter
+    const mod = await import("~/components/ui/page-header");
+    vi.mocked(
+      mod.PageHeaderWithSearch as React.FC<Record<string, unknown>>,
+    ).mockImplementation((props: Record<string, unknown>) => {
+      const p = props;
+      const search = p.search as
+        | { value: string; onChange: (v: string) => void }
+        | undefined;
+      const filters = p.filters as
+        | Array<{
+            id: string;
+            value: string;
+            onChange: (v: string) => void;
+            options: Array<{ value: string; label: string }>;
+          }>
+        | undefined;
+      const activeFilters = p.activeFilters as
+        | Array<{ id: string; label: string; onRemove?: () => void }>
+        | undefined;
+      const onClearAllFilters = p.onClearAllFilters as (() => void) | undefined;
+
+      return (
+        <div data-testid="page-header">
+          {search && (
+            <input
+              data-testid="search-input"
+              value={search.value}
+              onChange={(e) => search.onChange(e.target.value)}
+            />
+          )}
+          {filters?.map((f) => (
+            <select
+              key={f.id}
+              data-testid={`filter-${f.id}`}
+              value={f.value}
+              onChange={(e) => f.onChange(e.target.value)}
+            >
+              {f.options.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          ))}
+          <div data-testid="active-filters">
+            {activeFilters?.map((f) => (
+              <button
+                key={f.id}
+                data-testid={`active-filter-${f.id}`}
+                onClick={f.onRemove}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+          {onClearAllFilters && (
+            <button data-testid="clear-filters" onClick={onClearAllFilters}>
+              Clear
+            </button>
+          )}
+        </div>
+      );
+    });
+  });
+
+  afterEach(() => cleanup());
+
+  function makeDashboardWithStudents(
+    students: Array<{
+      id: string;
+      name: string;
+      schoolClass: string;
+      groupName: string;
+    }>,
+  ) {
+    return {
+      supervisedGroups: [
+        {
+          id: "g1",
+          name: "OGS",
+          room_id: "r1",
+          room: { id: "r1", name: "Raum A" },
+        },
+      ],
+      unclaimedGroups: [],
+      currentStaff: { id: "staff-1" },
+      educationalGroups: [{ id: "eg1", name: "OGS", room: { name: "Raum A" } }],
+      firstRoomVisits: students.map((s) => ({
+        studentId: s.id,
+        studentName: s.name,
+        schoolClass: s.schoolClass,
+        groupName: s.groupName,
+        activeGroupId: "g1",
+        checkInTime: new Date().toISOString(),
+        isActive: true,
+      })),
+      firstRoomId: "r1",
+      schulhofStatus: null,
+    };
+  }
+
+  const fourStudents = [
+    { id: "s1", name: "Max Mustermann", schoolClass: "1a", groupName: "OGS" },
+    { id: "s2", name: "Anna Schmidt", schoolClass: "2b", groupName: "OGS" },
+    { id: "s3", name: "Tom Weber", schoolClass: "1c", groupName: "OGS" },
+    { id: "s4", name: "Lisa Müller", schoolClass: "3a", groupName: "OGS" },
+  ];
+
+  const swrNull = {
+    data: null,
+    isLoading: false,
+    error: null,
+    mutate: mockMutate,
+    isValidating: false,
+  } as never;
+
+  it("filters students by year 1 — shows only class 1 students", async () => {
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: makeDashboardWithStudents(fourStudents),
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue(swrNull);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("student-card").length).toBe(4);
+    });
+
+    // Filter by year 1
+    const yearFilter = screen.getByTestId("filter-year");
+    fireEvent.change(yearFilter, { target: { value: "1" } });
+
+    await waitFor(() => {
+      // Max (1a) and Tom (1c) should remain; Anna (2b) and Lisa (3a) filtered out
+      expect(screen.getAllByTestId("student-card").length).toBe(2);
+    });
+  });
+
+  it("filters students by year 3 — shows only class 3 students", async () => {
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: makeDashboardWithStudents(fourStudents),
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue(swrNull);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("student-card").length).toBe(4);
+    });
+
+    const yearFilter = screen.getByTestId("filter-year");
+    fireEvent.change(yearFilter, { target: { value: "3" } });
+
+    await waitFor(() => {
+      // Only Lisa (3a)
+      expect(screen.getAllByTestId("student-card").length).toBe(1);
+    });
+  });
+
+  it("shows all students when year filter is reset to 'all'", async () => {
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: makeDashboardWithStudents(fourStudents),
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue(swrNull);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("student-card").length).toBe(4);
+    });
+
+    const yearFilter = screen.getByTestId("filter-year");
+
+    // Filter by year 1
+    fireEvent.change(yearFilter, { target: { value: "1" } });
+    await waitFor(() => {
+      expect(screen.getAllByTestId("student-card").length).toBe(2);
+    });
+
+    // Reset to all
+    fireEvent.change(yearFilter, { target: { value: "all" } });
+    await waitFor(() => {
+      expect(screen.getAllByTestId("student-card").length).toBe(4);
+    });
+  });
+
+  it("shows year active filter chip with correct label", async () => {
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: makeDashboardWithStudents(fourStudents),
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue(swrNull);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("student-card").length).toBe(4);
+    });
+
+    const yearFilter = screen.getByTestId("filter-year");
+    fireEvent.change(yearFilter, { target: { value: "2" } });
+
+    await waitFor(() => {
+      const chip = screen.getByTestId("active-filter-year");
+      expect(chip).toBeInTheDocument();
+      expect(chip).toHaveTextContent("Jahr 2");
+    });
+  });
+
+  it("removes year filter when active filter chip is clicked", async () => {
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: makeDashboardWithStudents(fourStudents),
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue(swrNull);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("student-card").length).toBe(4);
+    });
+
+    // Set year filter
+    const yearFilter = screen.getByTestId("filter-year");
+    fireEvent.change(yearFilter, { target: { value: "1" } });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("active-filter-year")).toBeInTheDocument();
+      expect(screen.getAllByTestId("student-card").length).toBe(2);
+    });
+
+    // Click chip to remove
+    fireEvent.click(screen.getByTestId("active-filter-year"));
+
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("active-filter-year"),
+      ).not.toBeInTheDocument();
+      expect(screen.getAllByTestId("student-card").length).toBe(4);
+    });
+  });
+
+  it("clears year filter when clear-all-filters is clicked", async () => {
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: makeDashboardWithStudents(fourStudents),
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue(swrNull);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("student-card").length).toBe(4);
+    });
+
+    // Set year filter
+    const yearFilter = screen.getByTestId("filter-year");
+    fireEvent.change(yearFilter, { target: { value: "1" } });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("active-filter-year")).toBeInTheDocument();
+    });
+
+    // Click clear all
+    fireEvent.click(screen.getByTestId("clear-filters"));
+
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("active-filter-year"),
+      ).not.toBeInTheDocument();
+      expect(screen.getAllByTestId("student-card").length).toBe(4);
+    });
+  });
+});

@@ -19,11 +19,15 @@ import {
   isSchoolyardLocation,
   isTransitLocation,
 } from "~/lib/location-helper";
-import { SCHOOL_YEAR_FILTER_OPTIONS } from "~/lib/student-helpers";
+import {
+  SCHOOL_YEAR_FILTER_OPTIONS,
+  getSchoolYear,
+} from "~/lib/student-helpers";
 import {
   StudentCard,
   SchoolClassIcon,
   GroupIcon,
+  PickupTimeIcon,
   StudentInfoRow,
 } from "~/components/students/student-card";
 import { useSWRAuth, useImmutableSWR } from "~/lib/swr";
@@ -67,6 +71,7 @@ function SearchPageContent() {
   const [attendanceFilter, setAttendanceFilter] = useState(
     initialAttendanceFilter,
   );
+  const [pickupTimeFilter, setPickupTimeFilter] = useState("all");
 
   // OGS group tracking via shared BFF endpoint with SWR caching
   // This eliminates 2 separate API calls with 2 auth() calls each
@@ -121,6 +126,7 @@ function SearchPageContent() {
       return await studentService.getStudents({
         search: debouncedSearchTerm,
         groupId: selectedGroup,
+        includePickupTimes: true,
       });
     },
     {
@@ -221,8 +227,35 @@ function SearchPageContent() {
           { value: "schulhof", label: "Schulhof" },
         ],
       },
+      {
+        id: "pickupTime",
+        label: "Abholzeit",
+        type: "dropdown",
+        value: pickupTimeFilter,
+        onChange: (value) => setPickupTimeFilter(value as string),
+        options: [
+          { value: "all", label: "Alle Abholzeiten" },
+          ...Array.from(
+            new Set(
+              (studentsData?.students ?? [])
+                .map((s) => s.pickup_time)
+                .filter((t): t is string => !!t),
+            ),
+          )
+            .sort((a, b) => a.localeCompare(b))
+            .map((time) => ({ value: time, label: `${time} Uhr` })),
+          { value: "none", label: "Keine Abholzeit" },
+        ],
+      },
     ],
-    [selectedYear, selectedGroup, attendanceFilter, groups],
+    [
+      selectedYear,
+      selectedGroup,
+      attendanceFilter,
+      pickupTimeFilter,
+      groups,
+      studentsData,
+    ],
   );
 
   // Prepare active filters for display
@@ -269,8 +302,26 @@ function SearchPageContent() {
       });
     }
 
+    if (pickupTimeFilter !== "all") {
+      filters.push({
+        id: "pickupTime",
+        label:
+          pickupTimeFilter === "none"
+            ? "Keine Abholzeit"
+            : `Abholzeit ${pickupTimeFilter} Uhr`,
+        onRemove: () => setPickupTimeFilter("all"),
+      });
+    }
+
     return filters;
-  }, [searchTerm, selectedYear, selectedGroup, attendanceFilter, groups]);
+  }, [
+    searchTerm,
+    selectedYear,
+    selectedGroup,
+    attendanceFilter,
+    pickupTimeFilter,
+    groups,
+  ]);
 
   // Apply additional client-side filtering for attendance statuses and year
   const filteredStudents = students.filter((student) => {
@@ -311,9 +362,19 @@ function SearchPageContent() {
 
     // Apply year filter - extract year from school_class (e.g., "Klasse 3a" → year 3)
     if (selectedYear !== "all") {
-      const yearMatch = /(\d)/.exec(student.school_class);
-      const studentYear = yearMatch ? yearMatch[1] : null;
+      const studentYear = getSchoolYear(student.school_class);
       if (studentYear !== selectedYear) {
+        return false;
+      }
+    }
+
+    // Apply pickup time filter (skip redacted students — missing pickup_time
+    // due to has_full_access=false is not the same as "no schedule")
+    if (pickupTimeFilter !== "all") {
+      if (student.has_full_access === false) return false;
+      if (pickupTimeFilter === "none") {
+        if (student.pickup_time) return false;
+      } else if (student.pickup_time !== pickupTimeFilter) {
         return false;
       }
     }
@@ -362,6 +423,7 @@ function SearchPageContent() {
           setSelectedGroup("");
           setSelectedYear("all");
           setAttendanceFilter("all");
+          setPickupTimeFilter("all");
         }}
       />
 
@@ -469,6 +531,11 @@ function SearchPageContent() {
                       {student.group_name && (
                         <StudentInfoRow icon={<GroupIcon />}>
                           Gruppe: {student.group_name}
+                        </StudentInfoRow>
+                      )}
+                      {student.pickup_time && (
+                        <StudentInfoRow icon={<PickupTimeIcon />}>
+                          Abholzeit: {student.pickup_time} Uhr
                         </StudentInfoRow>
                       )}
                     </>

@@ -138,15 +138,19 @@ vi.mock("~/lib/location-helper", () => ({
 }));
 
 // Mock student-helpers
-vi.mock("~/lib/student-helpers", () => ({
-  SCHOOL_YEAR_FILTER_OPTIONS: [
-    { value: "all", label: "Alle" },
-    { value: "1", label: "1" },
-    { value: "2", label: "2" },
-    { value: "3", label: "3" },
-    { value: "4", label: "4" },
-  ],
-}));
+vi.mock("~/lib/student-helpers", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("~/lib/student-helpers")>();
+  return {
+    ...actual,
+    SCHOOL_YEAR_FILTER_OPTIONS: [
+      { value: "all", label: "Alle" },
+      { value: "1", label: "1" },
+      { value: "2", label: "2" },
+      { value: "3", label: "3" },
+      { value: "4", label: "4" },
+    ],
+  };
+});
 
 // Mock SSE hook
 vi.mock("~/lib/hooks/use-sse", () => ({
@@ -174,6 +178,8 @@ const mockStudents = [
     school_class: "1a",
     group_name: "Gruppe A",
     current_location: "Raum 101",
+    pickup_time: "15:30",
+    has_full_access: true,
   },
   {
     id: "2",
@@ -182,6 +188,7 @@ const mockStudents = [
     school_class: "2b",
     group_name: "Gruppe B",
     current_location: "Zuhause",
+    has_full_access: true,
   },
   {
     id: "3",
@@ -190,6 +197,8 @@ const mockStudents = [
     school_class: "1a",
     group_name: "Gruppe A",
     current_location: "Unterwegs",
+    pickup_time: "16:00",
+    has_full_access: true,
   },
   {
     id: "4",
@@ -198,6 +207,7 @@ const mockStudents = [
     school_class: "3c",
     group_name: "Gruppe C",
     current_location: "Schulhof",
+    has_full_access: true,
   },
 ];
 
@@ -1029,6 +1039,179 @@ describe("StudentSearchPage", () => {
           screen.queryByTestId("active-filter-group"),
         ).not.toBeInTheDocument();
       });
+    });
+  });
+
+  describe("Pickup Time Filtering", () => {
+    it("filters students by specific pickup time", async () => {
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Max")).toBeInTheDocument();
+      });
+
+      // Filter by 15:30 — only Max has this pickup time
+      const pickupFilter = screen.getByTestId("filter-pickupTime");
+      fireEvent.change(pickupFilter, { target: { value: "15:30" } });
+
+      await waitFor(() => {
+        expect(screen.getByText("Max")).toBeInTheDocument();
+        expect(screen.queryByText("Anna")).not.toBeInTheDocument();
+        expect(screen.queryByText("Tom")).not.toBeInTheDocument();
+        expect(screen.queryByText("Lisa")).not.toBeInTheDocument();
+      });
+    });
+
+    it("filters students with 'none' to show only students without pickup time", async () => {
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Max")).toBeInTheDocument();
+      });
+
+      // Filter by "none" — Anna and Lisa have no pickup_time
+      const pickupFilter = screen.getByTestId("filter-pickupTime");
+      fireEvent.change(pickupFilter, { target: { value: "none" } });
+
+      await waitFor(() => {
+        // Anna has no pickup_time and has_full_access=true
+        expect(screen.getByText("Anna")).toBeInTheDocument();
+        // Lisa has no pickup_time and has_full_access=true
+        expect(screen.getByText("Lisa")).toBeInTheDocument();
+        // Max and Tom have pickup_time set, so they should be filtered out
+        expect(screen.queryByText("Max")).not.toBeInTheDocument();
+        expect(screen.queryByText("Tom")).not.toBeInTheDocument();
+      });
+    });
+
+    it("hides redacted students (has_full_access=false) when pickup time filter is active", async () => {
+      // Create mock students where one has has_full_access=false
+      const studentsWithRedacted = [
+        {
+          id: "10",
+          first_name: "Visible",
+          second_name: "Student",
+          school_class: "1a",
+          group_name: "Gruppe A",
+          current_location: "Raum 101",
+          has_full_access: true,
+        },
+        {
+          id: "11",
+          first_name: "Redacted",
+          second_name: "Student",
+          school_class: "1a",
+          group_name: "Gruppe A",
+          current_location: "Raum 102",
+          has_full_access: false,
+        },
+      ];
+
+      const swrModule = await import("~/lib/swr");
+      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+        data: { students: studentsWithRedacted },
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Visible")).toBeInTheDocument();
+        expect(screen.getByText("Redacted")).toBeInTheDocument();
+      });
+
+      // Apply "none" pickup time filter — redacted student should be excluded (GDPR)
+      const pickupFilter = screen.getByTestId("filter-pickupTime");
+      fireEvent.change(pickupFilter, { target: { value: "none" } });
+
+      await waitFor(() => {
+        expect(screen.getByText("Visible")).toBeInTheDocument();
+        // Redacted student must NOT appear — has_full_access=false means we
+        // can't know their pickup status, so they're excluded from filtering
+        expect(screen.queryByText("Redacted")).not.toBeInTheDocument();
+      });
+    });
+
+    it("shows active filter chips with correct labels and clears via chip click or clear-all", async () => {
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("filter-pickupTime")).toBeInTheDocument();
+      });
+
+      const pickupFilter = screen.getByTestId("filter-pickupTime");
+
+      // Verify "Keine Abholzeit" chip label for "none"
+      fireEvent.change(pickupFilter, { target: { value: "none" } });
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("active-filter-pickupTime"),
+        ).toHaveTextContent("Keine Abholzeit");
+      });
+
+      // Switch to specific time — verify chip label and clear-all
+      fireEvent.change(pickupFilter, { target: { value: "15:30" } });
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("active-filter-pickupTime"),
+        ).toHaveTextContent("Abholzeit 15:30 Uhr");
+      });
+
+      // Clear all filters
+      fireEvent.click(screen.getByTestId("clear-filters"));
+      await waitFor(() => {
+        expect(screen.getByTestId("filter-pickupTime")).toHaveValue("all");
+        expect(
+          screen.queryByTestId("active-filter-pickupTime"),
+        ).not.toBeInTheDocument();
+      });
+    });
+
+    it("displays pickup time on student cards when present", async () => {
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        // Max has pickup_time="15:30"
+        expect(screen.getByText("Max")).toBeInTheDocument();
+      });
+
+      // Verify pickup time text appears for students with pickup_time
+      await waitFor(() => {
+        expect(screen.getByText("Abholzeit: 15:30 Uhr")).toBeInTheDocument();
+        expect(screen.getByText("Abholzeit: 16:00 Uhr")).toBeInTheDocument();
+      });
+    });
+
+    it("does not display pickup time row when student has no pickup_time", async () => {
+      // Use only one student without pickup_time
+      const studentsNoPickup = [
+        {
+          id: "20",
+          first_name: "NoPickup",
+          second_name: "Student",
+          school_class: "2a",
+          group_name: "Gruppe A",
+          current_location: "Raum 101",
+          has_full_access: true,
+        },
+      ];
+
+      const swrModule = await import("~/lib/swr");
+      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+        data: { students: studentsNoPickup },
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("NoPickup")).toBeInTheDocument();
+      });
+
+      // No "Abholzeit:" text should appear
+      expect(screen.queryByText(/Abholzeit:/)).not.toBeInTheDocument();
     });
   });
 });

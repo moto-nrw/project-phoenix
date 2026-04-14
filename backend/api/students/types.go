@@ -32,6 +32,7 @@ type StudentResponse struct {
 	HealthInfo      string     `json:"health_info,omitempty"`
 	SupervisorNotes string     `json:"supervisor_notes,omitempty"`
 	PickupStatus    string     `json:"pickup_status,omitempty"`
+	PickupTime      *string    `json:"pickup_time,omitempty"` // Today's effective pickup time (HH:MM)
 	Bus             bool       `json:"bus"`
 	Sick            bool       `json:"sick"`
 	SickSince       *time.Time `json:"sick_since,omitempty"`

@@ -23,6 +23,15 @@ export const SCHOOL_YEAR_FILTER_OPTIONS = [
   { value: "4", label: "4" },
 ] as const;
 
+/**
+ * Extract the school year (Klassenstufe) from a school_class string.
+ * E.g. "Klasse 3a" → "3", "2b" → "2", "unknown" → null
+ */
+export function getSchoolYear(schoolClass: string): string | null {
+  const match = /(\d+)/.exec(schoolClass);
+  return match ? match[1]! : null;
+}
+
 // Scheduled checkout information
 export interface ScheduledCheckoutInfo {
   id: number;
@@ -56,6 +65,7 @@ export interface BackendStudent {
   health_info?: string;
   supervisor_notes?: string;
   pickup_status?: string;
+  pickup_time?: string; // Today's effective pickup time (HH:MM)
   has_full_access?: boolean;
   created_at: string;
   updated_at: string;
@@ -157,6 +167,7 @@ export interface Student {
   health_info?: string;
   supervisor_notes?: string;
   pickup_status?: string;
+  pickup_time?: string; // Today's effective pickup time (HH:MM)
 }
 
 // Mapping functions
@@ -200,6 +211,7 @@ export function mapStudentResponse(
     health_info: backendStudent.health_info,
     supervisor_notes: backendStudent.supervisor_notes,
     pickup_status: backendStudent.pickup_status,
+    pickup_time: backendStudent.pickup_time,
     has_full_access: backendStudent.has_full_access,
   };
 
