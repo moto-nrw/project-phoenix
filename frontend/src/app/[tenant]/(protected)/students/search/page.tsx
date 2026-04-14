@@ -239,7 +239,7 @@ function SearchPageContent() {
                 .filter((t): t is string => !!t),
             ),
           )
-            .sort()
+            .sort((a, b) => a.localeCompare(b))
             .map((time) => ({ value: time, label: `${time} Uhr` })),
           { value: "none", label: "Keine Abholzeit" },
         ],
@@ -372,8 +372,8 @@ function SearchPageContent() {
       if (student.has_full_access === false) return false;
       if (pickupTimeFilter === "none") {
         if (student.pickup_time) return false;
-      } else {
-        if (student.pickup_time !== pickupTimeFilter) return false;
+      } else if (student.pickup_time !== pickupTimeFilter) {
+        return false;
       }
     }
 
