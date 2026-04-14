@@ -34,6 +34,7 @@ import { isAdmin, isCaregiver } from "~/lib/auth-utils";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
 import { TrackingIndicators } from "~/components/students/tracking-indicators";
 import type { Student } from "~/lib/student-helpers";
+import { SCHOOL_YEAR_FILTER_OPTIONS } from "~/lib/student-helpers";
 import { UnclaimedRooms } from "~/components/active";
 import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import { useSWRAuth } from "~/lib/swr";
@@ -119,11 +120,12 @@ interface BFFDashboardResponse {
 
 const GROUP_CARD_GRADIENT = "from-blue-50/80 to-cyan-100/80";
 
-/** Check if a student matches the current search and group filters */
+/** Check if a student matches the current search, group, and year filters */
 function matchesStudentFilters(
   student: StudentWithVisit,
   searchTerm: string,
   groupFilter: string,
+  yearFilter: string,
 ): boolean {
   if (searchTerm) {
     const searchLower = searchTerm.toLowerCase();
@@ -136,6 +138,11 @@ function matchesStudentFilters(
   if (groupFilter !== "all") {
     const studentGroupName = student.group_name ?? "Unbekannt";
     if (studentGroupName !== groupFilter) return false;
+  }
+  if (yearFilter !== "all") {
+    const yearMatch = /(\d)/.exec(student.school_class);
+    const studentYear = yearMatch ? yearMatch[1] : null;
+    if (studentYear !== yearFilter) return false;
   }
   return true;
 }
@@ -197,6 +204,7 @@ interface EmptyRoomsViewProps {
   searchTerm: string;
   setSearchTerm: (term: string) => void;
   setGroupFilter: (filter: string) => void;
+  setSelectedYear: (year: string) => void;
   filterConfigs: FilterConfig[];
   activeFilters: ActiveFilter[];
 }
@@ -209,6 +217,7 @@ function EmptyRoomsView({
   searchTerm,
   setSearchTerm,
   setGroupFilter,
+  setSelectedYear,
   filterConfigs,
   activeFilters,
 }: Readonly<EmptyRoomsViewProps>) {
@@ -236,6 +245,7 @@ function EmptyRoomsView({
         onClearAllFilters={() => {
           setSearchTerm("");
           setGroupFilter("all");
+          setSelectedYear("all");
         }}
       />
 
@@ -291,6 +301,7 @@ function MeinRaumPageContent() {
   const [students, setStudents] = useState<StudentWithVisit[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [groupFilter, setGroupFilter] = useState("all");
+  const [selectedYear, setSelectedYear] = useState("all");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -1107,7 +1118,8 @@ function MeinRaumPageContent() {
 
   // Apply filters to students (ensure students is an array)
   const filteredStudents = (Array.isArray(students) ? students : []).filter(
-    (student) => matchesStudentFilters(student, searchTerm, groupFilter),
+    (student) =>
+      matchesStudentFilters(student, searchTerm, groupFilter, selectedYear),
   );
 
   // Prepare filter configurations for PageHeaderWithSearch
@@ -1123,6 +1135,14 @@ function MeinRaumPageContent() {
 
     return [
       {
+        id: "year",
+        label: "Klassenstufe",
+        type: "buttons",
+        value: selectedYear,
+        onChange: (value) => setSelectedYear(value as string),
+        options: [...SCHOOL_YEAR_FILTER_OPTIONS],
+      },
+      {
         id: "group",
         label: "Gruppe",
         type: "dropdown",
@@ -1137,7 +1157,7 @@ function MeinRaumPageContent() {
         ],
       },
     ];
-  }, [groupFilter, students]);
+  }, [selectedYear, groupFilter, students]);
 
   // Prepare active filters for display
   const activeFilters: ActiveFilter[] = useMemo(() => {
@@ -1151,6 +1171,14 @@ function MeinRaumPageContent() {
       });
     }
 
+    if (selectedYear !== "all") {
+      filters.push({
+        id: "year",
+        label: `Jahr ${selectedYear}`,
+        onRemove: () => setSelectedYear("all"),
+      });
+    }
+
     if (groupFilter !== "all") {
       filters.push({
         id: "group",
@@ -1160,7 +1188,7 @@ function MeinRaumPageContent() {
     }
 
     return filters;
-  }, [searchTerm, groupFilter]);
+  }, [searchTerm, selectedYear, groupFilter]);
 
   if (status === "loading" || isLoading || hasAccess === null) {
     return <LoadingView />;
@@ -1182,6 +1210,7 @@ function MeinRaumPageContent() {
         searchTerm={searchTerm}
         setSearchTerm={setSearchTerm}
         setGroupFilter={setGroupFilter}
+        setSelectedYear={setSelectedYear}
         filterConfigs={filterConfigs}
         activeFilters={activeFilters}
       />
@@ -1427,6 +1456,7 @@ function MeinRaumPageContent() {
             onClearAllFilters={() => {
               setSearchTerm("");
               setGroupFilter("all");
+              setSelectedYear("all");
             }}
             actionButton={
               // Only show release button when user IS supervising Schulhof
