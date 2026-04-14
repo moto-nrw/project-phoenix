@@ -357,6 +357,13 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		responses, totalCount = applyInMemoryPagination(responses, params.page, params.pageSize)
 	}
 
+	// Enrich the paginated slice with today's effective pickup times (single bulk query)
+	paginatedIDs := make([]int64, len(responses))
+	for i := range responses {
+		paginatedIDs[i] = responses[i].ID
+	}
+	rs.enrichWithPickupTimes(r.Context(), responses, paginatedIDs)
+
 	common.RespondPaginated(w, r, http.StatusOK, responses, common.PaginationParams{Page: params.page, PageSize: params.pageSize, Total: totalCount}, "Students retrieved successfully")
 }
 
@@ -470,7 +477,6 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 			ActiveService: rs.ActiveService,
 			PersonService: rs.PersonService,
 		}),
-		HasFullAccess:        hasFullAccess,
 		HasWriteAccess:       hasWriteAccess,
 		AttendanceLogEnabled: attendanceLogEnabled,
 		FeedbackEnabled:      feedbackEnabled,

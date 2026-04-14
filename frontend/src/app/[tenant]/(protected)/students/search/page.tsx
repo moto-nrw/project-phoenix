@@ -24,6 +24,7 @@ import {
   StudentCard,
   SchoolClassIcon,
   GroupIcon,
+  PickupTimeIcon,
   StudentInfoRow,
 } from "~/components/students/student-card";
 import { useSWRAuth, useImmutableSWR } from "~/lib/swr";
@@ -67,6 +68,7 @@ function SearchPageContent() {
   const [attendanceFilter, setAttendanceFilter] = useState(
     initialAttendanceFilter,
   );
+  const [pickupTimeFilter, setPickupTimeFilter] = useState("all");
 
   // OGS group tracking via shared BFF endpoint with SWR caching
   // This eliminates 2 separate API calls with 2 auth() calls each
@@ -221,8 +223,35 @@ function SearchPageContent() {
           { value: "schulhof", label: "Schulhof" },
         ],
       },
+      {
+        id: "pickupTime",
+        label: "Abholzeit",
+        type: "dropdown",
+        value: pickupTimeFilter,
+        onChange: (value) => setPickupTimeFilter(value as string),
+        options: [
+          { value: "all", label: "Alle Abholzeiten" },
+          ...Array.from(
+            new Set(
+              (studentsData?.students ?? [])
+                .map((s) => s.pickup_time)
+                .filter((t): t is string => !!t),
+            ),
+          )
+            .sort()
+            .map((time) => ({ value: time, label: `${time} Uhr` })),
+          { value: "none", label: "Keine Abholzeit" },
+        ],
+      },
     ],
-    [selectedYear, selectedGroup, attendanceFilter, groups],
+    [
+      selectedYear,
+      selectedGroup,
+      attendanceFilter,
+      pickupTimeFilter,
+      groups,
+      studentsData,
+    ],
   );
 
   // Prepare active filters for display
@@ -269,8 +298,26 @@ function SearchPageContent() {
       });
     }
 
+    if (pickupTimeFilter !== "all") {
+      filters.push({
+        id: "pickupTime",
+        label:
+          pickupTimeFilter === "none"
+            ? "Keine Abholzeit"
+            : `Abholzeit ${pickupTimeFilter} Uhr`,
+        onRemove: () => setPickupTimeFilter("all"),
+      });
+    }
+
     return filters;
-  }, [searchTerm, selectedYear, selectedGroup, attendanceFilter, groups]);
+  }, [
+    searchTerm,
+    selectedYear,
+    selectedGroup,
+    attendanceFilter,
+    pickupTimeFilter,
+    groups,
+  ]);
 
   // Apply additional client-side filtering for attendance statuses and year
   const filteredStudents = students.filter((student) => {
@@ -318,6 +365,17 @@ function SearchPageContent() {
       }
     }
 
+    // Apply pickup time filter (skip redacted students — missing pickup_time
+    // due to has_full_access=false is not the same as "no schedule")
+    if (pickupTimeFilter !== "all") {
+      if (student.has_full_access === false) return false;
+      if (pickupTimeFilter === "none") {
+        if (student.pickup_time) return false;
+      } else {
+        if (student.pickup_time !== pickupTimeFilter) return false;
+      }
+    }
+
     return true;
   });
 
@@ -362,6 +420,7 @@ function SearchPageContent() {
           setSelectedGroup("");
           setSelectedYear("all");
           setAttendanceFilter("all");
+          setPickupTimeFilter("all");
         }}
       />
 
@@ -469,6 +528,11 @@ function SearchPageContent() {
                       {student.group_name && (
                         <StudentInfoRow icon={<GroupIcon />}>
                           Gruppe: {student.group_name}
+                        </StudentInfoRow>
+                      )}
+                      {student.pickup_time && (
+                        <StudentInfoRow icon={<PickupTimeIcon />}>
+                          Abholzeit: {student.pickup_time} Uhr
                         </StudentInfoRow>
                       )}
                     </>

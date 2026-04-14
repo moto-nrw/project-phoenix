@@ -56,6 +56,7 @@ export interface BackendStudent {
   health_info?: string;
   supervisor_notes?: string;
   pickup_status?: string;
+  pickup_time?: string; // Today's effective pickup time (HH:MM)
   has_full_access?: boolean;
   created_at: string;
   updated_at: string;
@@ -157,6 +158,7 @@ export interface Student {
   health_info?: string;
   supervisor_notes?: string;
   pickup_status?: string;
+  pickup_time?: string; // Today's effective pickup time (HH:MM)
 }
 
 // Mapping functions
@@ -200,6 +202,7 @@ export function mapStudentResponse(
     health_info: backendStudent.health_info,
     supervisor_notes: backendStudent.supervisor_notes,
     pickup_status: backendStudent.pickup_status,
+    pickup_time: backendStudent.pickup_time,
     has_full_access: backendStudent.has_full_access,
   };
 

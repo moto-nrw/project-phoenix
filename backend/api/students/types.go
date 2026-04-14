@@ -32,6 +32,7 @@ type StudentResponse struct {
 	HealthInfo      string     `json:"health_info,omitempty"`
 	SupervisorNotes string     `json:"supervisor_notes,omitempty"`
 	PickupStatus    string     `json:"pickup_status,omitempty"`
+	PickupTime      *string    `json:"pickup_time,omitempty"` // Today's effective pickup time (HH:MM)
 	Bus             bool       `json:"bus"`
 	Sick            bool       `json:"sick"`
 	SickSince       *time.Time `json:"sick_since,omitempty"`
@@ -53,7 +54,6 @@ type SupervisorContact struct {
 // StudentDetailResponse represents a detailed student response with access control
 type StudentDetailResponse struct {
 	StudentResponse
-	HasFullAccess        bool                `json:"has_full_access"`
 	HasWriteAccess       bool                `json:"has_write_access"`
 	GroupSupervisors     []SupervisorContact `json:"group_supervisors,omitempty"`
 	AttendanceLogEnabled bool                `json:"attendance_log_enabled"`
