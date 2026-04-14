@@ -34,7 +34,10 @@ import { isAdmin, isCaregiver } from "~/lib/auth-utils";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
 import { TrackingIndicators } from "~/components/students/tracking-indicators";
 import type { Student } from "~/lib/student-helpers";
-import { SCHOOL_YEAR_FILTER_OPTIONS } from "~/lib/student-helpers";
+import {
+  SCHOOL_YEAR_FILTER_OPTIONS,
+  getSchoolYear,
+} from "~/lib/student-helpers";
 import { UnclaimedRooms } from "~/components/active";
 import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import { useSWRAuth } from "~/lib/swr";
@@ -140,8 +143,7 @@ function matchesStudentFilters(
     if (studentGroupName !== groupFilter) return false;
   }
   if (yearFilter !== "all") {
-    const yearMatch = /(\d+)/.exec(student.school_class);
-    const studentYear = yearMatch ? yearMatch[1] : null;
+    const studentYear = getSchoolYear(student.school_class);
     if (studentYear !== yearFilter) return false;
   }
   return true;

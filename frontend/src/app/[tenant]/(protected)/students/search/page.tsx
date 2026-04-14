@@ -19,7 +19,10 @@ import {
   isSchoolyardLocation,
   isTransitLocation,
 } from "~/lib/location-helper";
-import { SCHOOL_YEAR_FILTER_OPTIONS } from "~/lib/student-helpers";
+import {
+  SCHOOL_YEAR_FILTER_OPTIONS,
+  getSchoolYear,
+} from "~/lib/student-helpers";
 import {
   StudentCard,
   SchoolClassIcon,
@@ -359,8 +362,7 @@ function SearchPageContent() {
 
     // Apply year filter - extract year from school_class (e.g., "Klasse 3a" → year 3)
     if (selectedYear !== "all") {
-      const yearMatch = /(\d)/.exec(student.school_class);
-      const studentYear = yearMatch ? yearMatch[1] : null;
+      const studentYear = getSchoolYear(student.school_class);
       if (studentYear !== selectedYear) {
         return false;
       }

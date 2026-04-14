@@ -23,6 +23,15 @@ export const SCHOOL_YEAR_FILTER_OPTIONS = [
   { value: "4", label: "4" },
 ] as const;
 
+/**
+ * Extract the school year (Klassenstufe) from a school_class string.
+ * E.g. "Klasse 3a" → "3", "2b" → "2", "unknown" → null
+ */
+export function getSchoolYear(schoolClass: string): string | null {
+  const match = /(\d+)/.exec(schoolClass);
+  return match ? match[1]! : null;
+}
+
 // Scheduled checkout information
 export interface ScheduledCheckoutInfo {
   id: number;

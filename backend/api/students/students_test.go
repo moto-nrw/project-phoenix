@@ -28,10 +28,8 @@ func TestListStudents_WithPickupTimes(t *testing.T) {
 	studentNoSchedule := testpkg.CreateTestStudent(t, tc.db, "Pickup", "NoSchedule", "PT2")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, studentWithSchedule.ID, studentNoSchedule.ID)
 
-	// Use a fixed Tuesday date to avoid weekend edge cases
-	// Jan 7, 2025 is a Tuesday (weekday 2)
-	testDate := time.Date(2025, 1, 7, 12, 0, 0, 0, time.UTC)
-	_ = testDate // used conceptually — the handler uses time.Now(), so we insert for today's weekday
+	// The handler uses time.Now() internally, so we insert schedules for today's weekday
+	// rather than a fixed date. This means the test dynamically adapts to the current day.
 
 	// Determine today's ISO weekday (Mon=1..Fri=5) for the schedule to match
 	todayWeekday := int(time.Now().Weekday())
