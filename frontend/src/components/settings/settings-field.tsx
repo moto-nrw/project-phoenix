@@ -214,11 +214,9 @@ export function SettingsField({
         {setting.description && (
           <p className="mt-0.5 text-sm text-gray-500">{setting.description}</p>
         )}
-        {setting.access_policy === "shared" && (
+        {setting.access_policy === "shared" && audience === "operator" && (
           <p className="mt-0.5 text-xs text-gray-400 italic">
-            {audience === "admin"
-              ? "Kann auch von moto geändert werden."
-              : "Kann auch vom Schul-Admin geändert werden."}
+            Kann auch vom Schul-Admin geändert werden.
           </p>
         )}
         {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
