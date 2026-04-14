@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { mutate } from "swr";
 import {
   Calendar,
   ChevronLeft,
@@ -38,6 +39,19 @@ import {
 } from "@/lib/pickup-schedule-api";
 
 const logger = createLogger({ component: "PickupScheduleManager" });
+
+/** Invalidate SWR caches that contain pickup time data (OGS groups, dashboard). */
+function invalidatePickupCaches() {
+  try {
+    mutate(
+      (key) =>
+        typeof key === "string" &&
+        (key.includes("ogs-students-") || key.includes("dashboard")),
+    ).catch(() => {});
+  } catch {
+    // SWR cache not available (e.g. in tests)
+  }
+}
 
 interface PickupScheduleManagerProps {
   readonly studentId: string;
@@ -121,6 +135,7 @@ export default function PickupScheduleManager({
     await loadPickupData();
     onUpdate?.();
     setIsScheduleModalOpen(false);
+    invalidatePickupCaches();
   };
 
   // Open day edit modal
@@ -130,10 +145,12 @@ export default function PickupScheduleManager({
   };
 
   // Refresh day data after changes (keeps modal open with fresh data)
+  // Also invalidates OGS groups SWR caches so pickup times update on navigation back
   const refreshAndKeepModal = useCallback(async () => {
     const data = await fetchStudentPickupData(studentId);
     setPickupData(data);
     onUpdate?.();
+    invalidatePickupCaches();
   }, [studentId, onUpdate]);
 
   // Day edit modal: exception handlers
