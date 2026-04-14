@@ -18,29 +18,6 @@ export interface OGSGroup {
   viaSubstitution?: boolean;
 }
 
-// Pickup urgency constants and helper
-const PICKUP_URGENCY_SOON_MINUTES = 30;
-
-export type PickupUrgency = "overdue" | "soon" | "normal" | "none";
-
-export function getPickupUrgency(
-  pickupTimeStr: string | undefined,
-  now: Date,
-): PickupUrgency {
-  if (!pickupTimeStr) return "none";
-
-  const [hours, minutes] = pickupTimeStr.split(":").map(Number);
-  const pickupDate = new Date(now);
-  pickupDate.setHours(hours ?? 0, minutes ?? 0, 0, 0);
-
-  const diffMs = pickupDate.getTime() - now.getTime();
-  const diffMinutes = diffMs / 60000;
-
-  if (diffMinutes < 0) return "overdue";
-  if (diffMinutes <= PICKUP_URGENCY_SOON_MINUTES) return "soon";
-  return "normal";
-}
-
 export function isStudentInGroupRoom(
   student: Student,
   currentGroup?: OGSGroup | null,

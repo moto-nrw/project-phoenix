@@ -1183,7 +1183,7 @@ describe("StudentSearchPage", () => {
       });
     });
 
-    it("does not display pickup time row when student has no pickup_time", async () => {
+    it("displays fallback pickup row when student has no pickup_time but has full access", async () => {
       // Use only one student without pickup_time
       const studentsNoPickup = [
         {
@@ -1210,8 +1210,8 @@ describe("StudentSearchPage", () => {
         expect(screen.getByText("NoPickup")).toBeInTheDocument();
       });
 
-      // No "Abholzeit:" text should appear
-      expect(screen.queryByText(/Abholzeit:/)).not.toBeInTheDocument();
+      // Should show "Abholzeit: —" fallback for students with full access but no pickup time
+      expect(screen.getByText("Abholzeit: —")).toBeInTheDocument();
     });
   });
 });

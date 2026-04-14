@@ -66,6 +66,8 @@ export interface BackendStudent {
   supervisor_notes?: string;
   pickup_status?: string;
   pickup_time?: string; // Today's effective pickup time (HH:MM)
+  pickup_is_exception?: boolean; // True if today's pickup time is an exception
+  pickup_notes?: string; // Exception reason or schedule notes
   has_full_access?: boolean;
   created_at: string;
   updated_at: string;
@@ -168,6 +170,8 @@ export interface Student {
   supervisor_notes?: string;
   pickup_status?: string;
   pickup_time?: string; // Today's effective pickup time (HH:MM)
+  pickup_is_exception?: boolean; // True if today's pickup time is an exception
+  pickup_notes?: string; // Exception reason or schedule notes
 }
 
 // Mapping functions
@@ -212,6 +216,8 @@ export function mapStudentResponse(
     supervisor_notes: backendStudent.supervisor_notes,
     pickup_status: backendStudent.pickup_status,
     pickup_time: backendStudent.pickup_time,
+    pickup_is_exception: backendStudent.pickup_is_exception,
+    pickup_notes: backendStudent.pickup_notes,
     has_full_access: backendStudent.has_full_access,
   };
 
