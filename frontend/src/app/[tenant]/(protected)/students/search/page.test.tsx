@@ -138,15 +138,19 @@ vi.mock("~/lib/location-helper", () => ({
 }));
 
 // Mock student-helpers
-vi.mock("~/lib/student-helpers", () => ({
-  SCHOOL_YEAR_FILTER_OPTIONS: [
-    { value: "all", label: "Alle" },
-    { value: "1", label: "1" },
-    { value: "2", label: "2" },
-    { value: "3", label: "3" },
-    { value: "4", label: "4" },
-  ],
-}));
+vi.mock("~/lib/student-helpers", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("~/lib/student-helpers")>();
+  return {
+    ...actual,
+    SCHOOL_YEAR_FILTER_OPTIONS: [
+      { value: "all", label: "Alle" },
+      { value: "1", label: "1" },
+      { value: "2", label: "2" },
+      { value: "3", label: "3" },
+      { value: "4", label: "4" },
+    ],
+  };
+});
 
 // Mock SSE hook
 vi.mock("~/lib/hooks/use-sse", () => ({
