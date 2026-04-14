@@ -136,6 +136,37 @@ describe("handleApiError", () => {
     expect(response.status).toBe(500);
     expect(body.error).toBe("Internal Server Error");
   });
+
+  it("extracts error and code from embedded backend JSON", async () => {
+    const backendJson = JSON.stringify({
+      status: "error",
+      error: "account already has access to tenant",
+      code: "ACCOUNT_ALREADY_HAS_TENANT_ACCESS",
+    });
+    const error = new Error(`API error (409): ${backendJson}`);
+
+    const response = handleApiError(error);
+    const body = (await response.json()) as { error: string; code?: string };
+
+    expect(response.status).toBe(409);
+    expect(body.error).toBe("account already has access to tenant");
+    expect(body.code).toBe("ACCOUNT_ALREADY_HAS_TENANT_ACCESS");
+  });
+
+  it("omits code field when backend JSON has no code", async () => {
+    const backendJson = JSON.stringify({
+      status: "error",
+      error: "email already exists",
+    });
+    const error = new Error(`API error (409): ${backendJson}`);
+
+    const response = handleApiError(error);
+    const body = (await response.json()) as { error: string; code?: string };
+
+    expect(response.status).toBe(409);
+    expect(body.error).toBe("email already exists");
+    expect(body.code).toBeUndefined();
+  });
 });
 
 describe("handleDomainApiError", () => {

@@ -33,6 +33,7 @@ func TestErrorVariables(t *testing.T) {
 		{"ErrInvitationExpired", ErrInvitationExpired, "invitation has expired"},
 		{"ErrInvitationUsed", ErrInvitationUsed, "invitation has already been used"},
 		{"ErrInvitationNameRequired", ErrInvitationNameRequired, "first name and last name are required"},
+		{"ErrAccountAlreadyHasTenantAccess", ErrAccountAlreadyHasTenantAccess, "account already has access to tenant"},
 	}
 
 	for _, tt := range tests {
@@ -63,6 +64,7 @@ func TestErrorVariablesAreDistinct(t *testing.T) {
 		ErrInvitationExpired,
 		ErrInvitationUsed,
 		ErrInvitationNameRequired,
+		ErrAccountAlreadyHasTenantAccess,
 	}
 
 	// Each error should be distinguishable with errors.Is

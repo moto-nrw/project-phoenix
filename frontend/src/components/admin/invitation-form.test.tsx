@@ -336,7 +336,38 @@ describe("InvitationForm", () => {
     });
   });
 
-  it("shows error for duplicate email (409)", async () => {
+  it("shows error for account already has tenant access (409 with code)", async () => {
+    mockCreateInvitation.mockRejectedValue({
+      status: 409,
+      code: "ACCOUNT_ALREADY_HAS_TENANT_ACCESS",
+      message: "account already has access to tenant",
+    });
+
+    render(<InvitationForm />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Betreuer")).toBeInTheDocument();
+    });
+
+    const emailInput = screen.getByTestId("invitation-email");
+    fireEvent.change(emailInput, { target: { value: "test@example.com" } });
+
+    const roleSelect = screen.getByLabelText("Rolle");
+    fireEvent.change(roleSelect, { target: { value: "1" } });
+
+    const submitButton = screen.getByText("Einladung senden");
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          /Dieser Account hat bereits Zugang zu dieser Einrichtung/,
+        ),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("shows error for duplicate email (409 without code)", async () => {
     mockCreateInvitation.mockRejectedValue({
       status: 409,
       message: "Conflict",

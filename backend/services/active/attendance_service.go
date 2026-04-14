@@ -362,6 +362,11 @@ func (s *service) BroadcastDailyCheckout(ctx context.Context, studentID int64) {
 
 	// Broadcast to educational (OGS) group topic so the "Meine Gruppe" page updates
 	s.broadcastToEducationalGroup(ctx, studentRec, event)
+
+	// Notify all clients so dashboard counts and search page refresh —
+	// the educational group broadcast only reaches staff in that group,
+	// but the search page is used by all staff.
+	_ = s.broadcaster.BroadcastToAll(realtime.NewEvent(realtime.EventDashboardCountsChanged, "", realtime.EventData{}))
 }
 
 // ======== Unclaimed Groups Management (Deviceless Claiming) ========

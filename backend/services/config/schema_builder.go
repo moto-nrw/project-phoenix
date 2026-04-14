@@ -135,7 +135,8 @@ func buildSchemaWithScope(
 			Label: tabKey,
 		}
 
-		// Collect and sort categories
+		// Collect and sort categories by minimum SortOrder of their items,
+		// with alphabetical as tiebreaker.
 		var categoryKeys []string
 		seen := make(map[string]bool)
 		for ck := range catItems {
@@ -144,7 +145,14 @@ func buildSchemaWithScope(
 				seen[ck.category] = true
 			}
 		}
-		sort.Strings(categoryKeys)
+		sort.Slice(categoryKeys, func(i, j int) bool {
+			minI := minCategorySortOrder(catItems[catKey{tab: tabKey, category: categoryKeys[i]}])
+			minJ := minCategorySortOrder(catItems[catKey{tab: tabKey, category: categoryKeys[j]}])
+			if minI != minJ {
+				return minI < minJ
+			}
+			return categoryKeys[i] < categoryKeys[j]
+		})
 
 		for _, catName := range categoryKeys {
 			ck := catKey{tab: tabKey, category: catName}
@@ -208,6 +216,20 @@ func jsonValuesEqual(a, b any) bool {
 		return false
 	}
 	return string(aj) == string(bj)
+}
+
+// minCategorySortOrder returns the minimum SortOrder among items in a category.
+func minCategorySortOrder(items []*ResolvedSetting) int {
+	if len(items) == 0 {
+		return 0
+	}
+	min := items[0].SortOrder
+	for _, item := range items[1:] {
+		if item.SortOrder < min {
+			min = item.SortOrder
+		}
+	}
+	return min
 }
 
 // orderTabs returns tab keys ordered by TabOrder, with unknown tabs appended alphabetically.
