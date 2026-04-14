@@ -22,6 +22,7 @@ function makeSetting(
     writable: true,
     visible: true,
     sort_order: 1,
+    access_policy: "shared",
     validation: null,
     depends_on: null,
     options: null,

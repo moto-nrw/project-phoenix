@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useMemo, useCallback } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
 import useSWR, { useSWRConfig } from "swr";
@@ -1576,6 +1577,12 @@ function SchoolCard({
           >
             Admin einladen
           </button>
+          <Link
+            href={`/operator/schools/${school.id}/settings`}
+            className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200"
+          >
+            Einstellungen
+          </Link>
           <button
             type="button"
             onClick={() => onDelete(school)}
