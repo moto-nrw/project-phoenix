@@ -27,7 +27,12 @@ import {
   StudentInfoRow,
   SchoolClassIcon,
   GroupIcon,
+  PickupTimeRow,
 } from "~/components/students/student-card";
+import { fetchBulkPickupTimes } from "~/lib/pickup-schedule-api";
+import type { BulkPickupTime } from "~/lib/pickup-schedule-api";
+import { isHomeLocation } from "~/lib/location-helper";
+import { useMinuteClock, combinePickupNotes } from "~/lib/pickup-helpers";
 import { createLogger } from "~/lib/logger";
 import { activeService } from "~/lib/active-api";
 import { isAdmin, isCaregiver } from "~/lib/auth-utils";
@@ -945,6 +950,19 @@ function MeinRaumPageContent() {
     { keepPreviousData: true, revalidateOnFocus: false },
   );
 
+  // Current time for pickup urgency calculation (updates every minute)
+  const now = useMinuteClock();
+
+  // Pickup times: fetch when student list or date changes
+  const todayKey = now.toISOString().slice(0, 10);
+  const { data: pickupTimesData } = useSWRAuth<Map<string, BulkPickupTime>>(
+    trackingStudentIds.length > 0 && currentRoomId
+      ? `pickup-supervisions-${todayKey}-${trackingStudentIds.join(",")}`
+      : null,
+    async () => fetchBulkPickupTimes(trackingStudentIds),
+    { keepPreviousData: true, revalidateOnFocus: false },
+  );
+
   // Handle dashboard error
   useEffect(() => {
     if (dashboardError) {
@@ -1255,52 +1273,70 @@ function MeinRaumPageContent() {
       return (
         <div>
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
-            {filteredStudents.map((student) => (
-              <StudentCard
-                key={student.id}
-                studentId={student.id}
-                firstName={student.first_name}
-                lastName={student.second_name}
-                gradient={GROUP_CARD_GRADIENT}
-                onClick={() =>
-                  router.push(
-                    `/students/${student.id}?from=/active-supervisions`,
-                  )
-                }
-                locationBadge={
-                  <LocationBadge
-                    student={student}
-                    displayMode="contextAware"
-                    userGroups={myGroupIds}
-                    groupRooms={myGroupRooms}
-                    variant="modern"
-                    size="md"
-                  />
-                }
-                extraContent={
-                  <>
-                    {student.school_class && (
-                      <StudentInfoRow icon={<SchoolClassIcon />}>
-                        Klasse {student.school_class}
-                      </StudentInfoRow>
-                    )}
-                    {student.group_name && (
-                      <StudentInfoRow icon={<GroupIcon />}>
-                        Gruppe: {student.group_name}
-                      </StudentInfoRow>
-                    )}
-                  </>
-                }
-                trackingIndicators={
-                  trackingData?.labels.length ? (
-                    <TrackingIndicators
-                      labels={trackingData.labels}
-                      results={trackingData.results[student.id] ?? []}
+            {filteredStudents.map((student) => {
+              const studentPickup = pickupTimesData?.get(student.id.toString());
+
+              return (
+                <StudentCard
+                  key={student.id}
+                  studentId={student.id}
+                  firstName={student.first_name}
+                  lastName={student.second_name}
+                  gradient={GROUP_CARD_GRADIENT}
+                  onClick={() =>
+                    router.push(
+                      `/students/${student.id}?from=/active-supervisions`,
+                    )
+                  }
+                  locationBadge={
+                    <LocationBadge
+                      student={student}
+                      displayMode="contextAware"
+                      userGroups={myGroupIds}
+                      groupRooms={myGroupRooms}
+                      variant="modern"
+                      size="md"
                     />
-                  ) : undefined
-                }
-              />
-            ))}
+                  }
+                  extraContent={
+                    <>
+                      {student.school_class && (
+                        <StudentInfoRow icon={<SchoolClassIcon />}>
+                          Klasse {student.school_class}
+                        </StudentInfoRow>
+                      )}
+                      {student.group_name && (
+                        <StudentInfoRow icon={<GroupIcon />}>
+                          Gruppe: {student.group_name}
+                        </StudentInfoRow>
+                      )}
+                      <PickupTimeRow
+                        pickupTime={studentPickup?.pickupTime}
+                        isException={studentPickup?.isException ?? false}
+                        notes={
+                          studentPickup
+                            ? combinePickupNotes(
+                                studentPickup.notes,
+                                studentPickup.dayNotes,
+                              )
+                            : undefined
+                        }
+                        isHome={isHomeLocation(student.current_location)}
+                        now={now}
+                      />
+                    </>
+                  }
+                  trackingIndicators={
+                    trackingData?.labels.length ? (
+                      <TrackingIndicators
+                        labels={trackingData.labels}
+                        results={trackingData.results[student.id] ?? []}
+                      />
+                    ) : undefined
+                  }
+                />
+              );
+            })}
           </div>
         </div>
       );

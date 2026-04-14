@@ -240,8 +240,39 @@ vi.mock("~/components/students/student-card", () => ({
       {children}
     </div>
   ),
-  PickupTimeIcon: () => <span data-testid="pickup-time-icon">clock-gray</span>,
-  ExceptionIcon: () => <span data-testid="exception-icon">exception</span>,
+  renderPickupIcon: (urgency: string) => {
+    if (urgency === "overdue")
+      return <span data-testid="lucide-alert-triangle">alert</span>;
+    if (urgency === "soon")
+      return <span data-testid="lucide-clock">clock</span>;
+    return <span data-testid="pickup-time-icon">clock-gray</span>;
+  },
+  PickupTimeRow: ({
+    pickupTime,
+    isException,
+    notes,
+    isHome,
+  }: {
+    pickupTime?: string;
+    isException: boolean;
+    notes?: string;
+    isHome: boolean;
+    now: Date;
+  }) => {
+    return (
+      <div
+        data-testid="pickup-time-row"
+        data-pickup-time={pickupTime ?? ""}
+        data-is-exception={String(isException)}
+        data-is-home={String(isHome)}
+      >
+        {pickupTime && <>Abholzeit: {pickupTime} Uhr</>}
+        {!pickupTime && isException && (notes || "Abwesend")}
+        {!pickupTime && !isException && <>Abholzeit: —</>}
+        {notes && <span>({notes})</span>}
+      </div>
+    );
+  },
 }));
 
 // Mock pickup schedule API
@@ -2909,8 +2940,7 @@ describe("OGSGroupPage rendered pickup urgency", () => {
       } as never);
   }
 
-  it("renders pickup time with default gray icon when no urgency", async () => {
-    // Pickup far in the future (normal urgency) — frozen time is 14:00
+  it("passes pickup time props to PickupTimeRow", async () => {
     const pickupMap = new Map([
       ["1", { pickupTime: "23:59", isException: false }],
     ]);
@@ -2922,54 +2952,18 @@ describe("OGSGroupPage rendered pickup urgency", () => {
       expect(screen.getAllByTestId("student-card")).toHaveLength(3);
     });
 
-    // Should render pickup time text
+    // Should render pickup time text and pass correct props
     await waitFor(() => {
       expect(screen.getByText(/23:59 Uhr/)).toBeInTheDocument();
     });
-
-    // Should render default pickup time icon (gray clock from mock)
-    expect(screen.getByTestId("pickup-time-icon")).toBeInTheDocument();
+    const row = screen
+      .getAllByTestId("pickup-time-row")
+      .find((el) => el.dataset.pickupTime === "23:59");
+    expect(row).toBeDefined();
+    expect(row?.dataset.isException).toBe("false");
   });
 
-  it("renders pulsing orange clock when pickup is within 30 minutes", async () => {
-    // Frozen time is 14:00, so 14:15 is 15 minutes away → "soon"
-    const pickupMap = new Map([
-      ["1", { pickupTime: "14:15", isException: false }],
-    ]);
-    setupWithStudentsAndPickupTimes(pickupMap);
-
-    render(<OGSGroupPage />);
-
-    await waitFor(() => {
-      expect(screen.getAllByTestId("student-card")).toHaveLength(3);
-    });
-
-    // Should render lucide Clock icon (from mock)
-    await waitFor(() => {
-      expect(screen.getByTestId("lucide-clock")).toBeInTheDocument();
-    });
-  });
-
-  it("renders red alert triangle when pickup is overdue", async () => {
-    // Frozen time is 14:00, so 13:00 is 1 hour in the past → "overdue"
-    const pickupMap = new Map([
-      ["1", { pickupTime: "13:00", isException: false }],
-    ]);
-    setupWithStudentsAndPickupTimes(pickupMap);
-
-    render(<OGSGroupPage />);
-
-    await waitFor(() => {
-      expect(screen.getAllByTestId("student-card")).toHaveLength(3);
-    });
-
-    // Should render lucide AlertTriangle icon (from mock)
-    await waitFor(() => {
-      expect(screen.getByTestId("lucide-alert-triangle")).toBeInTheDocument();
-    });
-  });
-
-  it("renders exception icon when student has pickup exception", async () => {
+  it("passes exception flag and day notes to PickupTimeRow", async () => {
     const pickupMap = new Map([
       [
         "1",
@@ -2988,17 +2982,18 @@ describe("OGSGroupPage rendered pickup urgency", () => {
       expect(screen.getAllByTestId("student-card")).toHaveLength(3);
     });
 
-    // Exception icon should be used instead of urgency icon
+    // Exception flag and day note should be passed through
     await waitFor(() => {
-      expect(screen.getByTestId("exception-icon")).toBeInTheDocument();
+      expect(screen.getByText(/Arzttermin/)).toBeInTheDocument();
     });
-
-    // Day note should be displayed
-    expect(screen.getByText(/Arzttermin/)).toBeInTheDocument();
+    const row = screen
+      .getAllByTestId("pickup-time-row")
+      .find((el) => el.dataset.isException === "true");
+    expect(row).toBeDefined();
   });
 
-  it("does not show urgency icon for at-home students", async () => {
-    // Student 3 is "Zuhause" — should get no urgency even with overdue time
+  it("passes isHome=true to PickupTimeRow for at-home students", async () => {
+    // Student 3 is "Zuhause" — page should pass isHome=true
     const pickupMap = new Map([
       ["3", { pickupTime: "00:01", isException: false }],
     ]);
@@ -3012,15 +3007,46 @@ describe("OGSGroupPage rendered pickup urgency", () => {
       expect(screen.getAllByTestId("student-card")).toHaveLength(3);
     });
 
-    // At-home student with overdue time should get default gray icon, not alert triangle
+    // At-home student should have isHome=true passed to PickupTimeRow
     await waitFor(() => {
       expect(screen.getByText(/00:01 Uhr/)).toBeInTheDocument();
     });
-    // Should use PickupTimeIcon (default gray), not AlertTriangle
-    expect(screen.getByTestId("pickup-time-icon")).toBeInTheDocument();
-    expect(
-      screen.queryByTestId("lucide-alert-triangle"),
-    ).not.toBeInTheDocument();
+    const row = screen
+      .getAllByTestId("pickup-time-row")
+      .find((el) => el.dataset.pickupTime === "00:01");
+    expect(row).toBeDefined();
+    expect(row?.dataset.isHome).toBe("true");
+  });
+
+  it("passes isHome=false to PickupTimeRow for present students", async () => {
+    // Student 1 is in "Raum 101" (not home) — page should pass isHome=false
+    const pickupMap = new Map([
+      ["1", { pickupTime: "14:00", isException: false }],
+      ["3", { pickupTime: "14:00", isException: false }],
+    ]);
+    setupWithStudentsAndPickupTimes(pickupMap, {
+      isHome: (loc) => loc === "Zuhause",
+    });
+
+    render(<OGSGroupPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("student-card")).toHaveLength(3);
+    });
+
+    // Present student (id=1, "Raum 101") should have isHome=false
+    const rows = screen.getAllByTestId("pickup-time-row");
+    const presentRow = rows.find(
+      (el) =>
+        el.dataset.pickupTime === "14:00" && el.dataset.isHome === "false",
+    );
+    expect(presentRow).toBeDefined();
+
+    // At-home student (id=3, "Zuhause") should have isHome=true
+    const homeRow = rows.find(
+      (el) => el.dataset.pickupTime === "14:00" && el.dataset.isHome === "true",
+    );
+    expect(homeRow).toBeDefined();
   });
 
   it("renders sort filter with Alphabetisch and Nächste Abholung options", async () => {
@@ -3490,7 +3516,7 @@ describe("OGSGroupPage rendered pickup urgency", () => {
     });
   });
 
-  it("renders students without pickup time (no extra content)", async () => {
+  it("renders fallback pickup row when no pickup data exists", async () => {
     // No pickup times at all
     setupWithStudentsAndPickupTimes(new Map());
 
@@ -3500,8 +3526,9 @@ describe("OGSGroupPage rendered pickup urgency", () => {
       expect(screen.getAllByTestId("student-card")).toHaveLength(3);
     });
 
-    // No extra-content should be rendered (no pickup times)
-    expect(screen.queryByTestId("extra-content")).not.toBeInTheDocument();
+    // Always-show-pickup-time: fallback "Abholzeit: —" row is rendered
+    const fallbackRows = screen.getAllByText("Abholzeit: —");
+    expect(fallbackRows).toHaveLength(3);
   });
 });
 
@@ -3705,12 +3732,12 @@ describe("OGSGroupPage loadAvailableUsers", () => {
 // ===== Tests for exported helper functions (direct coverage) =====
 
 import {
-  getPickupUrgency as actualGetPickupUrgency,
   isStudentInGroupRoom as actualIsStudentInGroupRoom,
   matchesSearchFilter as actualMatchesSearchFilter,
   matchesAttendanceFilter as actualMatchesAttendanceFilter,
   matchesForeignRoomFilter as actualMatchesForeignRoomFilter,
 } from "./ogs-group-helpers";
+import { getPickupUrgency as actualGetPickupUrgency } from "~/lib/pickup-helpers";
 
 // Helper to build a minimal Student for direct function tests
 function makeTestStudent(

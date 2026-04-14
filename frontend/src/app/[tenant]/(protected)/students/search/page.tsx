@@ -23,12 +23,13 @@ import {
   SCHOOL_YEAR_FILTER_OPTIONS,
   getSchoolYear,
 } from "~/lib/student-helpers";
+import { useMinuteClock } from "~/lib/pickup-helpers";
 import {
   StudentCard,
   SchoolClassIcon,
   GroupIcon,
-  PickupTimeIcon,
   StudentInfoRow,
+  PickupTimeRow,
 } from "~/components/students/student-card";
 import { useSWRAuth, useImmutableSWR } from "~/lib/swr";
 import { activeService } from "~/lib/active-api";
@@ -72,6 +73,9 @@ function SearchPageContent() {
     initialAttendanceFilter,
   );
   const [pickupTimeFilter, setPickupTimeFilter] = useState("all");
+
+  // Current time for pickup urgency calculation (updates every minute)
+  const now = useMinuteClock();
 
   // OGS group tracking via shared BFF endpoint with SWR caching
   // This eliminates 2 separate API calls with 2 auth() calls each
@@ -373,7 +377,7 @@ function SearchPageContent() {
     if (pickupTimeFilter !== "all") {
       if (student.has_full_access === false) return false;
       if (pickupTimeFilter === "none") {
-        if (student.pickup_time) return false;
+        if (student.pickup_time || student.pickup_is_exception) return false;
       } else if (student.pickup_time !== pickupTimeFilter) {
         return false;
       }
@@ -533,10 +537,14 @@ function SearchPageContent() {
                           Gruppe: {student.group_name}
                         </StudentInfoRow>
                       )}
-                      {student.pickup_time && (
-                        <StudentInfoRow icon={<PickupTimeIcon />}>
-                          Abholzeit: {student.pickup_time} Uhr
-                        </StudentInfoRow>
+                      {student.has_full_access !== false && (
+                        <PickupTimeRow
+                          pickupTime={student.pickup_time ?? undefined}
+                          isException={student.pickup_is_exception ?? false}
+                          notes={student.pickup_notes}
+                          isHome={isHomeLocation(student.current_location)}
+                          now={now}
+                        />
                       )}
                     </>
                   }

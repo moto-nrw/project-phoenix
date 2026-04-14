@@ -140,6 +140,26 @@ vi.mock("~/components/ui/empty-student-results", () => ({
   EmptyStudentResults: () => <div data-testid="empty-results">No results</div>,
 }));
 
+// Mock location-helper
+vi.mock("~/lib/location-helper", () => ({
+  LOCATION_STATUSES: { PRESENT: "Anwesend" },
+  isHomeLocation: vi.fn(() => false),
+  isSchoolyardLocation: vi.fn(() => false),
+  isTransitLocation: vi.fn(() => false),
+  parseLocation: vi.fn(() => ({ room: "Room 1", status: "Anwesend" })),
+}));
+
+// Mock pickup-helpers
+vi.mock("~/lib/pickup-helpers", () => ({
+  useMinuteClock: () => new Date("2026-01-15T12:00:00"),
+  combinePickupNotes: () => undefined,
+}));
+
+// Mock pickup-schedule-api
+vi.mock("~/lib/pickup-schedule-api", () => ({
+  fetchBulkPickupTimes: vi.fn(() => Promise.resolve(new Map())),
+}));
+
 // Mock StudentCard components
 vi.mock("~/components/students/student-card", () => ({
   StudentCard: ({
@@ -158,6 +178,30 @@ vi.mock("~/components/students/student-card", () => ({
   ),
   SchoolClassIcon: () => <span data-testid="school-class-icon" />,
   GroupIcon: () => <span data-testid="group-icon" />,
+  PickupTimeRow: ({
+    pickupTime,
+    isException,
+    notes,
+    isHome,
+  }: {
+    pickupTime?: string;
+    isException: boolean;
+    notes?: string;
+    isHome: boolean;
+    now: Date;
+  }) => (
+    <div
+      data-testid="pickup-time-row"
+      data-pickup-time={pickupTime ?? ""}
+      data-is-exception={String(isException)}
+      data-is-home={String(isHome)}
+    >
+      {pickupTime && <>Abholzeit: {pickupTime} Uhr</>}
+      {!pickupTime && isException && (notes || "Abwesend")}
+      {!pickupTime && !isException && <>Abholzeit: —</>}
+      {notes && <span>({notes})</span>}
+    </div>
+  ),
 }));
 
 // Mock SWR hook

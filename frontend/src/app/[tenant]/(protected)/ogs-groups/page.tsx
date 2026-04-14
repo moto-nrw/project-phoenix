@@ -7,7 +7,6 @@ import {
   useMemo,
   useCallback,
   useRef,
-  type JSX,
 } from "react";
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
@@ -27,12 +26,16 @@ import {
   parseLocation,
 } from "~/lib/location-helper";
 import {
-  getPickupUrgency,
   isStudentInGroupRoom,
   matchesSearchFilter,
   matchesAttendanceFilter,
 } from "./ogs-group-helpers";
-import type { OGSGroup, PickupUrgency } from "./ogs-group-helpers";
+import {
+  getPickupUrgency,
+  useMinuteClock,
+  combinePickupNotes,
+} from "~/lib/pickup-helpers";
+import type { OGSGroup } from "./ogs-group-helpers";
 import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import { GroupTransferModal } from "~/components/groups/group-transfer-modal";
 import { groupTransferService } from "~/lib/group-transfer-api";
@@ -44,18 +47,13 @@ import { useUserContext } from "~/lib/hooks/use-user-context";
 import { Loading } from "~/components/ui/loading";
 import { LocationBadge } from "@/components/ui/location-badge";
 import { EmptyStudentResults } from "~/components/ui/empty-student-results";
-import {
-  StudentCard,
-  StudentInfoRow,
-  PickupTimeIcon,
-  ExceptionIcon,
-} from "~/components/students/student-card";
+import { StudentCard, PickupTimeRow } from "~/components/students/student-card";
 import { fetchBulkPickupTimes } from "~/lib/pickup-schedule-api";
 import type { BulkPickupTime } from "~/lib/pickup-schedule-api";
 import { activeService } from "~/lib/active-api";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
 import { TrackingIndicators } from "~/components/students/tracking-indicators";
-import { Clock, AlertTriangle } from "lucide-react";
+
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "OgsGroupsPage" });
@@ -127,17 +125,6 @@ interface OGSDashboardBFFResponse {
   firstGroupId: string | null;
 }
 
-function renderPickupIcon(urgency: PickupUrgency): JSX.Element {
-  if (urgency === "overdue") {
-    return <AlertTriangle className="h-3.5 w-3.5 text-red-500" />;
-  }
-  if (urgency === "soon") {
-    return <Clock className="h-3.5 w-3.5 animate-pulse text-orange-500" />;
-  }
-  // normal / none — default gray clock
-  return <PickupTimeIcon />;
-}
-
 function OGSGroupPageContent() {
   const router = useTenantRouter();
   const searchParams = useSearchParams();
@@ -191,12 +178,7 @@ function OGSGroupPageContent() {
   const [sortMode, setSortMode] = useState<"default" | "pickup">("default");
 
   // Current time for urgency calculation (updates every minute)
-  const [now, setNow] = useState(() => new Date());
-
-  useEffect(() => {
-    const interval = setInterval(() => setNow(new Date()), 60_000);
-    return () => clearInterval(interval);
-  }, []);
+  const now = useMinuteClock();
 
   // State for group transfer modal
   const [showTransferModal, setShowTransferModal] = useState(false);
@@ -1152,10 +1134,6 @@ function OGSGroupPageContent() {
               const inGroupRoom = isStudentInGroupRoom(student, currentGroup);
               const cardGradient = getCardGradient(student);
               const studentPickup = pickupTimes.get(student.id.toString());
-              const isAtHome = isHomeLocation(student.current_location);
-              const urgency = isAtHome
-                ? ("none" as PickupUrgency)
-                : getPickupUrgency(studentPickup?.pickupTime, now);
 
               return (
                 <StudentCard
@@ -1177,28 +1155,20 @@ function OGSGroupPageContent() {
                     />
                   }
                   extraContent={
-                    studentPickup?.pickupTime ? (
-                      <StudentInfoRow
-                        icon={
-                          studentPickup.isException ? (
-                            <ExceptionIcon />
-                          ) : (
-                            renderPickupIcon(urgency)
-                          )
-                        }
-                      >
-                        Abholung: {studentPickup.pickupTime} Uhr
-                        {studentPickup.dayNotes?.length > 0 && (
-                          <span className="ml-1 text-gray-500">
-                            (
-                            {studentPickup.dayNotes
-                              .map((n) => n.content)
-                              .join(", ")}
+                    <PickupTimeRow
+                      pickupTime={studentPickup?.pickupTime}
+                      isException={studentPickup?.isException ?? false}
+                      notes={
+                        studentPickup
+                          ? combinePickupNotes(
+                              studentPickup.notes,
+                              studentPickup.dayNotes,
                             )
-                          </span>
-                        )}
-                      </StudentInfoRow>
-                    ) : null
+                          : undefined
+                      }
+                      isHome={isHomeLocation(student.current_location)}
+                      now={now}
+                    />
                   }
                   trackingIndicators={
                     swrStudentsData?.trackingIndicators?.labels.length ? (

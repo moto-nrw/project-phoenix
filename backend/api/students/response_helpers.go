@@ -3,12 +3,14 @@ package students
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/services/schedule"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
@@ -307,9 +309,27 @@ func (rs *Resource) enrichWithPickupTimes(ctx context.Context, responses []Stude
 		if !responses[i].HasFullAccess {
 			continue
 		}
-		if ept, ok := pickupTimes[responses[i].ID]; ok && ept.PickupTime != nil {
-			formatted := ept.PickupTime.Format("15:04")
-			responses[i].PickupTime = &formatted
+		if ept, ok := pickupTimes[responses[i].ID]; ok {
+			if ept.PickupTime != nil {
+				formatted := ept.PickupTime.Format("15:04")
+				responses[i].PickupTime = &formatted
+			}
+			responses[i].PickupIsException = ept.IsException
+			responses[i].PickupNotes = buildPickupNotes(ept)
 		}
 	}
+}
+
+// buildPickupNotes combines exception reason and day notes into a single string.
+func buildPickupNotes(ept *schedule.EffectivePickupTime) string {
+	var parts []string
+	if ept.Notes != "" {
+		parts = append(parts, ept.Notes)
+	}
+	for _, n := range ept.DayNotes {
+		if n.Content != "" {
+			parts = append(parts, n.Content)
+		}
+	}
+	return strings.Join(parts, ", ")
 }

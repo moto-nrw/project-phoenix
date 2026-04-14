@@ -127,6 +127,126 @@ func TestEnrichWithPickupTimes_NoPickupTime(t *testing.T) {
 	assert.Nil(t, responses[0].PickupTime, "should be nil when no pickup time is set")
 }
 
+func TestEnrichWithPickupTimes_ExceptionWithNotes(t *testing.T) {
+	now := time.Date(2026, 4, 14, 10, 0, 0, 0, time.UTC)
+	pickupAt := time.Date(2026, 4, 14, 14, 0, 0, 0, time.UTC)
+
+	mock := &mockPickupScheduleService{
+		bulkResult: map[int64]*scheduleService.EffectivePickupTime{
+			100: {
+				PickupTime:  &pickupAt,
+				IsException: true,
+				Notes:       "Arzttermin",
+				DayNotes: []scheduleService.NoteData{
+					{ID: 1, Content: "Früher abholen"},
+				},
+			},
+		},
+	}
+
+	rs := &Resource{
+		PickupScheduleService: mock,
+		Logger:                slog.Default(),
+	}
+
+	responses := []StudentResponse{
+		{ID: 100, HasFullAccess: true},
+	}
+
+	rs.enrichWithPickupTimes(context.Background(), responses, []int64{100}, now)
+
+	assert.NotNil(t, responses[0].PickupTime)
+	assert.Equal(t, "14:00", *responses[0].PickupTime)
+	assert.True(t, responses[0].PickupIsException, "should be marked as exception")
+	assert.Equal(t, "Arzttermin, Früher abholen", responses[0].PickupNotes, "should combine notes and day notes")
+}
+
+func TestEnrichWithPickupTimes_ExceptionWithoutPickupTime(t *testing.T) {
+	now := time.Date(2026, 4, 14, 10, 0, 0, 0, time.UTC)
+
+	mock := &mockPickupScheduleService{
+		bulkResult: map[int64]*scheduleService.EffectivePickupTime{
+			100: {
+				PickupTime:  nil,
+				IsException: true,
+				Notes:       "Ganztägig abwesend",
+			},
+		},
+	}
+
+	rs := &Resource{
+		PickupScheduleService: mock,
+		Logger:                slog.Default(),
+	}
+
+	responses := []StudentResponse{
+		{ID: 100, HasFullAccess: true},
+	}
+
+	rs.enrichWithPickupTimes(context.Background(), responses, []int64{100}, now)
+
+	assert.Nil(t, responses[0].PickupTime, "should be nil when exception has no pickup time")
+	assert.True(t, responses[0].PickupIsException, "should be marked as exception")
+	assert.Equal(t, "Ganztägig abwesend", responses[0].PickupNotes)
+}
+
+func TestBuildPickupNotes(t *testing.T) {
+	tests := []struct {
+		name     string
+		ept      *scheduleService.EffectivePickupTime
+		expected string
+	}{
+		{
+			name:     "empty when no notes",
+			ept:      &scheduleService.EffectivePickupTime{},
+			expected: "",
+		},
+		{
+			name:     "notes only",
+			ept:      &scheduleService.EffectivePickupTime{Notes: "Arzttermin"},
+			expected: "Arzttermin",
+		},
+		{
+			name: "day notes only",
+			ept: &scheduleService.EffectivePickupTime{
+				DayNotes: []scheduleService.NoteData{
+					{ID: 1, Content: "Früher abholen"},
+				},
+			},
+			expected: "Früher abholen",
+		},
+		{
+			name: "notes and day notes combined",
+			ept: &scheduleService.EffectivePickupTime{
+				Notes: "Arzttermin",
+				DayNotes: []scheduleService.NoteData{
+					{ID: 1, Content: "Früher abholen"},
+					{ID: 2, Content: "Oma holt ab"},
+				},
+			},
+			expected: "Arzttermin, Früher abholen, Oma holt ab",
+		},
+		{
+			name: "skips empty day note content",
+			ept: &scheduleService.EffectivePickupTime{
+				Notes: "Termin",
+				DayNotes: []scheduleService.NoteData{
+					{ID: 1, Content: ""},
+					{ID: 2, Content: "Wichtig"},
+				},
+			},
+			expected: "Termin, Wichtig",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := buildPickupNotes(tt.ept)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
 func TestEnrichWithPickupTimes_ServiceError(t *testing.T) {
 	now := time.Date(2026, 4, 14, 10, 0, 0, 0, time.UTC)
 
