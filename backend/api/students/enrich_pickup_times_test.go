@@ -2,6 +2,7 @@ package students
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"testing"
 	"time"
@@ -124,4 +125,28 @@ func TestEnrichWithPickupTimes_NoPickupTime(t *testing.T) {
 	rs.enrichWithPickupTimes(context.Background(), responses, []int64{100}, now)
 
 	assert.Nil(t, responses[0].PickupTime, "should be nil when no pickup time is set")
+}
+
+func TestEnrichWithPickupTimes_ServiceError(t *testing.T) {
+	now := time.Date(2026, 4, 14, 10, 0, 0, 0, time.UTC)
+
+	mock := &mockPickupScheduleService{
+		bulkErr: fmt.Errorf("database connection lost"),
+	}
+
+	rs := &Resource{
+		PickupScheduleService: mock,
+		Logger:                slog.Default(),
+	}
+
+	responses := []StudentResponse{
+		{ID: 100, HasFullAccess: true},
+		{ID: 200, HasFullAccess: true},
+	}
+
+	rs.enrichWithPickupTimes(context.Background(), responses, []int64{100, 200}, now)
+
+	// No pickup times should be set when the service returns an error
+	assert.Nil(t, responses[0].PickupTime, "should be nil when service returns error")
+	assert.Nil(t, responses[1].PickupTime, "should be nil when service returns error")
 }
