@@ -237,7 +237,13 @@ func (s *pickupScheduleService) CreateStudentPickupException(ctx context.Context
 		return &ScheduleError{Op: opCreateStudentPickupException, Err: err}
 	}
 	if existing != nil {
-		return &ScheduleError{Op: opCreateStudentPickupException, Err: errors.New("exception already exists for this date")}
+		existing.PickupTime = exception.PickupTime
+		existing.Reason = exception.Reason
+		if err := s.exceptionRepo.Update(ctx, existing); err != nil {
+			return &ScheduleError{Op: opCreateStudentPickupException, Err: err}
+		}
+		*exception = *existing
+		return nil
 	}
 
 	exception.SetTenantID(tenant.FromContext(ctx))
