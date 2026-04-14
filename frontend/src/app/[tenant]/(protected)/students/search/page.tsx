@@ -123,6 +123,7 @@ function SearchPageContent() {
       return await studentService.getStudents({
         search: debouncedSearchTerm,
         groupId: selectedGroup,
+        includePickupTimes: true,
       });
     },
     {

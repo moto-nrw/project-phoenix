@@ -14,15 +14,16 @@ import (
 
 // studentListParams holds all query parameters for student listing
 type studentListParams struct {
-	schoolClass  string
-	guardianName string
-	firstName    string
-	lastName     string
-	location     string
-	groupID      int64
-	search       string
-	page         int
-	pageSize     int
+	schoolClass        string
+	guardianName       string
+	firstName          string
+	lastName           string
+	location           string
+	groupID            int64
+	search             string
+	page               int
+	pageSize           int
+	includePickupTimes bool
 }
 
 // studentAccessContext holds access control information for student listing
@@ -49,6 +50,9 @@ func parseStudentListParams(r *http.Request) *studentListParams {
 			params.groupID = groupID
 		}
 	}
+
+	// Parse optional includes
+	params.includePickupTimes = r.URL.Query().Get("include_pickup_times") == "true"
 
 	// Parse pagination
 	params.page, params.pageSize = common.ParsePagination(r)

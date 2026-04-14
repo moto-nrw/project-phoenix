@@ -140,7 +140,7 @@ function matchesStudentFilters(
     if (studentGroupName !== groupFilter) return false;
   }
   if (yearFilter !== "all") {
-    const yearMatch = /(\d)/.exec(student.school_class);
+    const yearMatch = /(\d+)/.exec(student.school_class);
     const studentYear = yearMatch ? yearMatch[1] : null;
     if (studentYear !== yearFilter) return false;
   }

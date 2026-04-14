@@ -291,12 +291,12 @@ func teacherToSupervisorContact(teacher *users.Teacher) *SupervisorContact {
 
 // enrichWithPickupTimes adds today's effective pickup time to each student response.
 // Uses a single bulk query via PickupScheduleService (handles schedule + exception merging).
-func (rs *Resource) enrichWithPickupTimes(ctx context.Context, responses []StudentResponse, studentIDs []int64) {
+// Only students with HasFullAccess=true receive pickup times (GDPR).
+func (rs *Resource) enrichWithPickupTimes(ctx context.Context, responses []StudentResponse, studentIDs []int64, now time.Time) {
 	if len(studentIDs) == 0 || rs.PickupScheduleService == nil {
 		return
 	}
 
-	now := time.Now()
 	pickupTimes, err := rs.PickupScheduleService.GetBulkEffectivePickupTimesForDate(ctx, studentIDs, now)
 	if err != nil {
 		rs.Logger.Warn("failed to bulk-fetch pickup times", "error", err.Error())
