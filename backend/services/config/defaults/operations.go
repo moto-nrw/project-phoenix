@@ -90,7 +90,7 @@ func init() {
 		Tab:             "system",
 		Category:        "sitzungsbereinigung",
 		SortOrder:       10,
-    AccessPolicy:    config.AccessOperatorOnly,
+		AccessPolicy:    config.AccessOperatorOnly,
 	})
 
 	minInterval := float64(5)
