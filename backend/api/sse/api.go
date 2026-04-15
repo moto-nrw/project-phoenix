@@ -63,15 +63,26 @@ func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
 	var staff *users.Staff
 	var topics *sseTopics
 	err := tenant.WithTenantTx(ctx, rs.db, conn.tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		// Step 3: Resolve staff member from JWT claims
+		// Step 3: Resolve staff member from JWT claims.
+		// Pure admins may not have a staff record — that's OK,
+		// they can still receive BroadcastToAll events and (if
+		// admin_supervision_overview is enabled) all group events.
 		resolved, errMsg, code := rs.resolveStaff(txCtx)
 		if resolved == nil {
-			return &sseSetupError{msg: errMsg, status: code}
+			claims := jwt.ClaimsFromCtx(txCtx)
+			if !claims.IsAdmin {
+				return &sseSetupError{msg: errMsg, status: code}
+			}
+		} else {
+			staff = resolved
 		}
-		staff = resolved
 
 		// Step 4: Build subscription topics (active groups + educational groups)
-		built, err := rs.buildSubscriptionTopics(txCtx, staff.ID)
+		var staffID int64
+		if staff != nil {
+			staffID = staff.ID
+		}
+		built, err := rs.buildSubscriptionTopics(txCtx, staffID)
 		if err != nil {
 			return err
 		}
@@ -88,7 +99,9 @@ func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	conn.staffID = staff.ID
+	if staff != nil {
+		conn.staffID = staff.ID
+	}
 	conn.topics = topics
 
 	// Step 5: Send initial "connected" event
