@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -402,7 +403,10 @@ func TestAuthService_RefreshToken_ConcurrentSingleflight(t *testing.T) {
 	_, refreshToken, err := service.Login(ctx, email, testPassword)
 	require.NoError(t, err)
 
-	// ACT: fire 5 concurrent refresh requests with the same token
+	// ACT: fire 5 concurrent refresh requests with the same token.
+	// Use a barrier (WaitGroup) so all goroutines start at the same time —
+	// without this, goroutine 1 can complete the entire refresh (rotating the
+	// token in the DB) before goroutine 2 even starts, defeating singleflight.
 	const concurrency = 5
 	type result struct {
 		accessToken  string
@@ -411,8 +415,12 @@ func TestAuthService_RefreshToken_ConcurrentSingleflight(t *testing.T) {
 	}
 	results := make(chan result, concurrency)
 
+	var barrier sync.WaitGroup
+	barrier.Add(concurrency)
 	for range concurrency {
 		go func() {
+			barrier.Done()
+			barrier.Wait() // all goroutines unblock together
 			at, rt, e := service.RefreshToken(ctx, refreshToken)
 			results <- result{at, rt, e}
 		}()
