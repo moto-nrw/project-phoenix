@@ -48,12 +48,15 @@ const DEBOUNCE_MS = 500;
 export function useGlobalSSE(): SSEHookState {
   const { data: session, status: sessionStatus } = useSession();
 
-  // Only enable SSE when authenticated AND user is staff (has "user" role).
-  // Admin-only accounts lack a person/staff record, so the backend SSE
-  // endpoint rejects them with 401 — skip the connection entirely.
+  // Enable SSE for staff (has "user" role) and admins.
+  // Pure admins without a staff record connect with zero supervised groups
+  // but still receive BroadcastToAll events (e.g. dashboard_counts_changed).
   const isStaff = session?.user?.roles?.includes("user") ?? false;
+  const isAdmin = session?.user?.roles?.includes("admin") ?? false;
   const isAuthenticated =
-    sessionStatus === "authenticated" && !!session?.user?.token && isStaff;
+    sessionStatus === "authenticated" &&
+    !!session?.user?.token &&
+    (isStaff || isAdmin);
 
   // Debounce state: collect affected group IDs, flush once after DEBOUNCE_MS
   const pendingGroupIds = useRef(new Set<string>());
