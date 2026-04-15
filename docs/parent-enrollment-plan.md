@@ -7,6 +7,7 @@
 ## Changelog
 
 - **2026-04-15 (rev 2):** Added structured Betreuungsangebote (care offerings), email outbox/delivery-failure visibility, waitlist status + parent status page, per-child approval decisions, refined withdrawal rules. Updated domain model, API, settings, phasing, and risks sections accordingly.
+- **2026-04-15 (rev 2.1):** Added per-offering application windows (`application_window_start`/`_end`) and service date fields on `care_offerings` so parents can't apply for offerings whose intake period has closed (e.g. holiday care after holidays begin).
 
 ---
 
@@ -89,8 +90,16 @@ enrollment.care_offerings
   includes_lunch boolean,
   capacity int (nullable),                         -- null = unlimited
   price_cents int (nullable),                      -- informational only; not billing-grade
+  application_window_start timestamptz (nullable), -- parents can apply from this moment
+  application_window_end timestamptz (nullable),   -- parents can no longer apply after this
+  service_start_date date (nullable),              -- informational: when the offering actually begins (e.g. first day of holiday care)
+  service_end_date date (nullable),                -- informational: when it ends
   is_active boolean,
   sort_order, created_at, updated_at
+  CHECK (application_window_end IS NULL OR application_window_start IS NULL
+         OR application_window_end > application_window_start)
+  CHECK (service_end_date IS NULL OR service_start_date IS NULL
+         OR service_end_date >= service_start_date)
 
 enrollment.requests
   id, tenant_id, schema_id (version snapshot), school_year_id,
@@ -164,7 +173,7 @@ All new tables get RLS policies matching the existing tenant-isolation pattern.
 ### 5.2 Service layer
 
 - **`services/enrollment/form_schema_service.go`** — get active schema, create versions, validate submissions
-- **`services/enrollment/care_offering_service.go`** — admin CRUD over the care offerings catalog, capacity checks, per-year cloning for next year's setup
+- **`services/enrollment/care_offering_service.go`** — admin CRUD over the care offerings catalog, capacity checks, per-year cloning for next year's setup, **application-window enforcement** (offerings outside their `application_window_start..application_window_end` are hidden from the public form and rejected server-side even if a stale client submits them)
 - **`services/enrollment/request_service.go`** — public submit/withdraw/edit (token-auth), admin list/get/patch; derives request-level status from child statuses; enforces withdrawal rules (only non-terminal children)
 - **`services/enrollment/decision_service.go`** — per-child approve/waitlist/reject. On `approved`: creates student (status=pending), guardian_profile, students_guardians, student_year_assignment, selected care offering links. Writes outbox rows atomically. Idempotent per child — promoting a waitlisted child to approved works via the same entry point.
 - **`services/enrollment/outbox_worker.go`** — scheduler-driven worker. Picks up `pending` outbox rows where `next_retry_at <= now()`, renders template, dispatches via existing mailer. Exponential backoff on failure (1min, 5min, 30min, 2h, 12h, then `failed` at 6 attempts). Marks `sent` on success.
@@ -175,7 +184,7 @@ All new tables get RLS policies matching the existing tenant-isolation pattern.
 
 **Public (no auth, token- or tenant-slug-gated):**
 - `POST /api/enrollment/{tenantSlug}/submit`
-- `GET /api/enrollment/{tenantSlug}/care-offerings` — active offerings for the chosen school year
+- `GET /api/enrollment/{tenantSlug}/care-offerings` — active offerings for the chosen school year whose application window is currently open (`application_window_start <= now() <= application_window_end`, nulls = unbounded); admin view uses a separate endpoint that returns all regardless of window
 - `GET /api/enrollment/requests/{statusToken}` — returns current status for each child + per-child reasons (gated by setting)
 - `PATCH /api/enrollment/requests/{statusToken}` — edit payload; allowed only while ALL children are still `submitted`
 - `POST /api/enrollment/requests/{statusToken}/withdraw` — optional `child_id` in body; omit to withdraw all non-terminal children
@@ -364,6 +373,7 @@ Each PR is independently shippable and gated by `enrollment.enabled` (off by def
 | **Email deliverability for guardian invites** | Outbox pattern + retry with exponential backoff; admin-visible delivery status; verify DKIM/SPF on the from-domain |
 | **Outbox worker stalls / duplicates** | `FOR UPDATE SKIP LOCKED` on pickup; idempotent dispatch keyed by outbox ID; monitoring/alert if `failed` count grows |
 | **Care offering capacity race** | Capacity check on submit uses `SELECT ... FOR UPDATE` within the submission transaction; over-capacity requests get a friendly error or land on waitlist automatically (setting TBD) |
+| **Stale care-offering catalog (parent applies after service started)** | Each offering carries its own `application_window_start`/`_end`; public endpoint filters to offerings with an open window; service validates on submit so a cached browser can't bypass; admin view still lists closed offerings so they can be reopened or cloned |
 | **Partial decisions leaving requests in limbo** | Derived request status makes "partial" visible to admin; admin list has a filter "has pending children"; digest emails only fire when a decision batch is complete |
 | **Approved child already has a student record if parent withdraws** | Withdrawal of approved children disabled in parent UI; admin must delete/archive the student manually |
 
