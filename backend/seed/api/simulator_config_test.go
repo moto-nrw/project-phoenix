@@ -19,8 +19,8 @@ func TestWriteSimulatorConfig_GeneratesValidYAML(t *testing.T) {
 		DevicePIN: "1234",
 		Accounts: SeedStateAccounts{
 			Betreuer: []AccountCredentials{
-				{Name: "Julia Klein", StaffID: 10, TeacherID: 100, Email: "betreuer11@example.com"},
-				{Name: "Markus Wolf", StaffID: 20, TeacherID: 200, Email: "betreuer12@example.com"},
+				{Name: "Julia Klein", StaffID: 10, TeacherID: 100, Email: "demo11@mail.de"},
+				{Name: "Markus Wolf", StaffID: 20, TeacherID: 200, Email: "demo12@mail.de"},
 			},
 		},
 		Devices: map[string]SeedDevice{

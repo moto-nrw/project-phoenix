@@ -15,6 +15,23 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestGenerateSeedPassword(t *testing.T) {
+	// Run multiple times to verify deterministic compliance (was probabilistic before fix).
+	for i := 0; i < 50; i++ {
+		password, err := generateSeedPassword()
+		require.NoError(t, err)
+		assert.Len(t, password, seedPasswordLength)
+		for _, char := range password {
+			assert.Contains(t, seedPasswordAlphabet, string(char))
+		}
+		// Every generated password must satisfy ValidatePasswordStrength.
+		assert.Regexp(t, `[a-z]`, password, "must contain lowercase")
+		assert.Regexp(t, `[A-Z]`, password, "must contain uppercase")
+		assert.Regexp(t, `[0-9]`, password, "must contain digit")
+		assert.Regexp(t, `[^a-zA-Z0-9]`, password, "must contain special char")
+	}
+}
+
 func TestWrapConflictError(t *testing.T) {
 	t.Run("wraps 409 APIError with helpful message", func(t *testing.T) {
 		apiErr := &phoenixapi.APIError{
@@ -47,7 +64,7 @@ func TestWrapConflictError(t *testing.T) {
 }
 
 func TestExtractBootstrapInvitationToken(t *testing.T) {
-	s := NewSeeder("http://localhost:8080", false)
+	s := NewSeeder("http://localhost:8080", false, SeedOptions{})
 
 	token, err := s.extractBootstrapInvitationToken([]byte(`{"data":{"token":"seed-token"}}`))
 	require.NoError(t, err)
@@ -55,7 +72,7 @@ func TestExtractBootstrapInvitationToken(t *testing.T) {
 }
 
 func TestExtractBootstrapInvitationToken_MissingToken(t *testing.T) {
-	s := NewSeeder("http://localhost:8080", false)
+	s := NewSeeder("http://localhost:8080", false, SeedOptions{})
 
 	token, err := s.extractBootstrapInvitationToken([]byte(`{"data":{}}`))
 	require.Error(t, err)
@@ -88,13 +105,13 @@ func TestCollectSeedState_BasicFields(t *testing.T) {
 		AdminPosition:    "OGS-Buero",
 	}
 
-	fs := NewFixedSeeder(nil, false)
+	fs := NewFixedSeeder(nil, false, "")
 
 	// Populate FixedSeeder internal maps
 	fs.staffCredentials = []StaffCredentials{
-		{Email: "betreuer1@example.com", Password: "pass1", PIN: "1000", Name: "Anna Müller", Position: "OGS-Büro"},
-		{Email: "betreuer11@example.com", Password: "pass11", PIN: "1010", Name: "Julia Klein", Position: "Pädagogische Fachkraft"},
-		{Email: "betreuer12@example.com", Password: "pass12", PIN: "1011", Name: "Markus Wolf", Position: "Pädagogische Fachkraft"},
+		{Email: "demo1@mail.de", Password: "pass1", PIN: "1000", Name: "Anna Müller", Position: "OGS-Büro"},
+		{Email: "demo11@mail.de", Password: "pass11", PIN: "1010", Name: "Julia Klein", Position: "Pädagogische Fachkraft"},
+		{Email: "demo12@mail.de", Password: "pass12", PIN: "1011", Name: "Markus Wolf", Position: "Pädagogische Fachkraft"},
 	}
 	fs.staffIDs = map[string]int64{
 		"Anna Müller": 11,
@@ -137,7 +154,7 @@ func TestCollectSeedState_BasicFields(t *testing.T) {
 
 	// Admin accounts
 	assert.Len(t, state.Accounts.Admin, 1)
-	assert.Equal(t, "betreuer1@example.com", state.Accounts.Admin[0].Email)
+	assert.Equal(t, "demo1@mail.de", state.Accounts.Admin[0].Email)
 	assert.Equal(t, int64(11), state.Accounts.Admin[0].StaffID)
 	assert.Equal(t, int64(10), state.Accounts.Admin[0].TeacherID)
 
@@ -171,7 +188,7 @@ func TestCollectSeedState_EmptySeeder(t *testing.T) {
 	s := &Seeder{
 		client: &Client{baseURL: "http://test:9090"},
 	}
-	fs := NewFixedSeeder(nil, false)
+	fs := NewFixedSeeder(nil, false, "")
 
 	state := s.collectSeedState(fs, "0000", nil)
 
@@ -193,10 +210,22 @@ func TestFormatError(t *testing.T) {
 }
 
 func TestNewSeeder(t *testing.T) {
-	s := NewSeeder("http://localhost:8080", true)
+	s := NewSeeder("http://localhost:8080", true, SeedOptions{})
 	assert.NotNil(t, s.client)
 	assert.True(t, s.verbose)
 	assert.Equal(t, "http://localhost:8080", s.client.baseURL)
+}
+
+func TestNewSeeder_WithOptions(t *testing.T) {
+	opts := SeedOptions{
+		TenantSlug:    "my-school",
+		StaffPassword: "MyPass1!",
+		AdminEmail:    "admin@test.com",
+	}
+	s := NewSeeder("http://localhost:8080", false, opts)
+	assert.Equal(t, "my-school", s.options.TenantSlug)
+	assert.Equal(t, "MyPass1!", s.options.StaffPassword)
+	assert.Equal(t, "admin@test.com", s.options.AdminEmail)
 }
 
 func TestSeedResult_ZeroValues(t *testing.T) {
@@ -205,7 +234,7 @@ func TestSeedResult_ZeroValues(t *testing.T) {
 }
 
 func TestNewFixedSeeder_InitializesMaps(t *testing.T) {
-	fs := NewFixedSeeder(nil, true)
+	fs := NewFixedSeeder(nil, true, "")
 	assert.NotNil(t, fs.roomIDs)
 	assert.NotNil(t, fs.personIDs)
 	assert.NotNil(t, fs.staffIDs)
@@ -222,6 +251,12 @@ func TestNewFixedSeeder_InitializesMaps(t *testing.T) {
 	assert.NotNil(t, fs.guardianIDs)
 	assert.NotNil(t, fs.staffCredentials)
 	assert.True(t, fs.verbose)
+	assert.Empty(t, fs.staffPassword)
+}
+
+func TestNewFixedSeeder_WithStaffPassword(t *testing.T) {
+	fs := NewFixedSeeder(nil, false, "SharedPass1!")
+	assert.Equal(t, "SharedPass1!", fs.staffPassword)
 }
 
 func TestSeeder_Seed_FullWorkflow(t *testing.T) {
@@ -238,7 +273,7 @@ func TestSeeder_Seed_FullWorkflow(t *testing.T) {
 	// Create simulator/iot/ directory for the simulator config
 	require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "simulator", "iot"), 0o755))
 
-	s := NewSeeder(srv.URL, false)
+	s := NewSeeder(srv.URL, false, SeedOptions{})
 	result, err := s.Seed(context.Background(), "admin@test.de", "pass", "1234")
 	require.NoError(t, err)
 	assert.NotNil(t, result)
@@ -257,7 +292,7 @@ func TestSeeder_Seed_FullWorkflow(t *testing.T) {
 }
 
 func TestSeeder_Seed_HealthCheckFails(t *testing.T) {
-	s := NewSeeder("http://localhost:1", false)
+	s := NewSeeder("http://localhost:1", false, SeedOptions{})
 	_, err := s.Seed(context.Background(), "admin@test.de", "pass", "1234")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "Server health check failed")
@@ -275,7 +310,7 @@ func TestSeeder_Seed_LoginFails(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	s := NewSeeder(srv.URL, false)
+	s := NewSeeder(srv.URL, false, SeedOptions{})
 	_, err := s.Seed(context.Background(), "bad@test.de", "wrong", "1234")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "Login failed")
@@ -288,7 +323,7 @@ func TestFixedSeeder_Seed_FullWorkflow(t *testing.T) {
 	client := NewClient(srv.URL, false)
 	require.NoError(t, client.Login("admin@test.de", "pass"))
 
-	fs := NewFixedSeeder(client, false)
+	fs := NewFixedSeeder(client, false, "")
 	result, err := fs.Seed(context.Background())
 	require.NoError(t, err)
 	assert.NotNil(t, result)
@@ -314,7 +349,7 @@ func TestPrintSuccessSummary_DoesNotPanic(t *testing.T) {
 			ActivityCount: 10,
 			DeviceCount:   10,
 			StaffCredentials: []StaffCredentials{
-				{Name: "Anna Müller", Position: "OGS-Büro", Email: "betreuer1@example.com", Password: "pass1", PIN: "1000"},
+				{Name: "Anna Müller", Position: "OGS-Büro", Email: "demo1@mail.de", Password: "pass1", PIN: "1000"},
 			},
 		},
 	}
@@ -446,11 +481,17 @@ func TestFixedResult_Fields(t *testing.T) {
 		ActivityCount:    10,
 		DeviceCount:      10,
 		StaffCredentials: []StaffCredentials{
-			{Email: "betreuer1@example.com", Name: "Anna"},
+			{Email: "demo1@mail.de", Name: "Anna"},
 		},
 	}
 
 	assert.Equal(t, 12, r.RoomCount)
 	assert.Equal(t, 100, r.StudentCount)
 	assert.Len(t, r.StaffCredentials, 1)
+}
+
+func TestTruncateSeedSubdomain(t *testing.T) {
+	assert.Equal(t, "short", truncateSeedSubdomain("short"))
+	long := "this-is-a-very-long-subdomain-that-exceeds-the-sixty-three-character-limit-for-dns-labels"
+	assert.Len(t, truncateSeedSubdomain(long), 63)
 }

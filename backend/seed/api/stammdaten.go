@@ -19,6 +19,7 @@ type StaffCredentials struct {
 type FixedSeeder struct {
 	client           *Client
 	verbose          bool
+	staffPassword    string             // optional: shared password for all staff accounts (from CLI flag)
 	roomIDs          map[string]int64   // room name -> id
 	personIDs        map[string]int64   // "firstName lastName" -> id (staff only)
 	staffIDs         map[string]int64   // "firstName lastName" -> staff id
@@ -52,11 +53,14 @@ type FixedResult struct {
 	StaffCredentials    []StaffCredentials // Login credentials for demo
 }
 
-// NewFixedSeeder creates a new fixed data seeder
-func NewFixedSeeder(client *Client, verbose bool) *FixedSeeder {
+// NewFixedSeeder creates a new fixed data seeder.
+// staffPassword is optional: when non-empty, all 20 staff accounts use this
+// password instead of the per-account defaults from demoPasswords.
+func NewFixedSeeder(client *Client, verbose bool, staffPassword string) *FixedSeeder {
 	return &FixedSeeder{
 		client:           client,
 		verbose:          verbose,
+		staffPassword:    staffPassword,
 		roomIDs:          make(map[string]int64),
 		personIDs:        make(map[string]int64),
 		staffIDs:         make(map[string]int64),
@@ -1095,12 +1099,21 @@ func (s *FixedSeeder) seedStaffAccounts(_ context.Context, result *FixedResult) 
 			return fmt.Errorf("person not found for staff account %s", personKey)
 		}
 
-		// Deterministic credentials for local development
-		// Email: betreuer{n}@example.com where n = account number (1-20)
-		// Password: shared across all demo accounts
+		// Generate email and credentials for demo accounts
+		// Email: demo{n}@mail.de where n = account number (1-20)
+		// Password: per-account defaults, or shared --staff-password when set
+		demoPasswords := []string{
+			"sdlXK26%", "mQp9Wy3$", "kJt4Nz8!", "hBv7Rx5@", "fGn2Lm6#",
+			"pYc8Dq1&", "wZa3Ks9*", "vTe5Hj4%", "xUi6Fo7$", "cRo1Pn2!",
+			"bWs4Mv8@", "nLk7Qx3#", "jHd9Zt5&", "gFa2Yc6*", "tEr8Ub1%",
+			"qDm3Wp4$", "yKn5Sj7!", "uBx6Gi9@", "iCv1Lh2#", "oAz4Rk8&",
+		}
 		accountNum := i + 1
-		email := fmt.Sprintf("betreuer%d@example.com", accountNum)
-		password := defaultSeedPassword
+		email := fmt.Sprintf("demo%d@mail.de", accountNum)
+		password := demoPasswords[i]
+		if s.staffPassword != "" {
+			password = s.staffPassword
+		}
 		pin := fmt.Sprintf("%04d", 1000+i)
 
 		// Assign role based on position:
@@ -1120,7 +1133,7 @@ func (s *FixedSeeder) seedStaffAccounts(_ context.Context, result *FixedResult) 
 		// Create account via /register with role_id
 		registerBody := map[string]any{
 			"email":            email,
-			"username":         fmt.Sprintf("betreuer%d", accountNum),
+			"username":         fmt.Sprintf("demo%d", accountNum),
 			"password":         password,
 			"confirm_password": password,
 			"role_id":          roleID,

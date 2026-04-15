@@ -2,9 +2,11 @@ package api
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/integration/phoenixapi"
@@ -17,15 +19,25 @@ const (
 	defaultSeedSchoolSlug       = "demo-school"
 	defaultSeedSchoolSubdomain  = "demo-school"
 	seedTokenHeader             = "X-Phoenix-Seed-Token"
-	defaultSeedPassword         = "Test1234%"
-	defaultSeedAdminEmail       = "school-admin@example.com"
+	seedPasswordAlphabet        = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%"
+	seedPasswordLength          = 12
 )
+
+// SeedOptions holds optional CLI flags for deterministic seeding.
+// When a field is empty, the seeder falls back to its default behavior
+// (random suffixes, generated passwords).
+type SeedOptions struct {
+	TenantSlug    string // Fixed tenant slug instead of demo-school-{timestamp}
+	StaffPassword string // Shared password for all 20 staff accounts
+	AdminEmail    string // Fixed email for the bootstrap school admin
+}
 
 // Seeder orchestrates the complete API-based seeding process
 type Seeder struct {
 	adapter *phoenixapi.Adapter
 	client  *Client
 	verbose bool
+	options SeedOptions
 }
 
 // SeedResult contains counts of created entities
@@ -48,12 +60,13 @@ type bootstrapSeedState struct {
 }
 
 // NewSeeder creates a new API seeder
-func NewSeeder(baseURL string, verbose bool) *Seeder {
+func NewSeeder(baseURL string, verbose bool, options SeedOptions) *Seeder {
 	adapter := phoenixapi.New(baseURL, verbose)
 	return &Seeder{
 		adapter: adapter,
 		client:  NewClientWithAdapter(adapter, verbose),
 		verbose: verbose,
+		options: options,
 	}
 }
 
@@ -71,22 +84,56 @@ func (s *Seeder) Seed(ctx context.Context, email, password, staffPIN string) (*S
 	return runtime.Result, nil
 }
 
-// bootstrapTenant creates the demo organization, school, and admin account with
-// deterministic credentials. This assumes a clean database (migrate reset) —
-// re-running without reset will fail with 409 due to duplicate slugs/emails.
+// bootstrapTenant creates the demo organization, school, and admin account.
+// When SeedOptions provides a TenantSlug or AdminEmail, deterministic values
+// are used — re-running without 'migrate reset' will fail with 409.
+// Without options, random suffixes ensure each run creates unique entities.
 func (s *Seeder) bootstrapTenant(ctx context.Context) (*bootstrapSeedState, error) {
-	orgID, err := s.createSeedOrganization(defaultSeedOrganizationName, defaultSeedOrganizationSlug)
+	var orgName, orgSlug, schoolName, schoolSlug, schoolSubdomain string
+
+	if s.options.TenantSlug != "" {
+		// Deterministic: use fixed slugs
+		orgName = defaultSeedOrganizationName
+		orgSlug = defaultSeedOrganizationSlug
+		schoolName = defaultSeedSchoolName
+		schoolSlug = s.options.TenantSlug
+		schoolSubdomain = s.options.TenantSlug
+	} else {
+		// Random: append timestamp suffix (default behavior)
+		suffix := fmt.Sprintf("%d", time.Now().UnixNano())
+		orgName = fmt.Sprintf("%s %s", defaultSeedOrganizationName, suffix)
+		orgSlug = fmt.Sprintf("%s-%s", defaultSeedOrganizationSlug, suffix)
+		schoolName = fmt.Sprintf("%s %s", defaultSeedSchoolName, suffix)
+		schoolSlug = fmt.Sprintf("%s-%s", defaultSeedSchoolSlug, suffix)
+		schoolSubdomain = truncateSeedSubdomain(fmt.Sprintf("%s-%s", defaultSeedSchoolSubdomain, suffix))
+	}
+
+	orgID, err := s.createSeedOrganization(orgName, orgSlug)
 	if err != nil {
 		return nil, wrapConflictError(err, "organization")
 	}
 
-	schoolID, tenantSlug, err := s.createSeedSchool(orgID, defaultSeedSchoolName, defaultSeedSchoolSlug, defaultSeedSchoolSubdomain)
+	schoolID, tenantSlug, err := s.createSeedSchool(orgID, schoolName, schoolSlug, schoolSubdomain)
 	if err != nil {
 		return nil, wrapConflictError(err, "school")
 	}
 
-	adminEmail := defaultSeedAdminEmail
-	adminPassword := defaultSeedPassword
+	var adminEmail, adminPassword string
+	if s.options.AdminEmail != "" {
+		adminEmail = s.options.AdminEmail
+	} else {
+		adminEmail = fmt.Sprintf("school-admin-%d@example.com", time.Now().UnixNano())
+	}
+
+	if s.options.StaffPassword != "" {
+		adminPassword = s.options.StaffPassword
+	} else {
+		adminPassword, err = generateSeedPassword()
+		if err != nil {
+			return nil, fmt.Errorf("generate admin password: %w", err)
+		}
+	}
+
 	adminName := "Seed Admin"
 	adminPosition := "OGS-Büro"
 	inviteResp, err := s.client.PostWithHeaders(fmt.Sprintf("/operator/schools/%d/invite-admin", schoolID), map[string]any{
@@ -114,11 +161,11 @@ func (s *Seeder) bootstrapTenant(ctx context.Context) (*bootstrapSeedState, erro
 
 	return &bootstrapSeedState{
 		OrganizationID:   orgID,
-		OrganizationName: defaultSeedOrganizationName,
-		OrganizationSlug: defaultSeedOrganizationSlug,
+		OrganizationName: orgName,
+		OrganizationSlug: orgSlug,
 		SchoolID:         schoolID,
-		SchoolName:       defaultSeedSchoolName,
-		SchoolSlug:       defaultSeedSchoolSlug,
+		SchoolName:       schoolName,
+		SchoolSlug:       schoolSlug,
 		TenantSlug:       tenantSlug,
 		AdminEmail:       adminEmail,
 		AdminPassword:    adminPassword,
@@ -178,6 +225,53 @@ func (s *Seeder) createSeedSchool(organizationID int64, name, slug, subdomain st
 		return 0, "", fmt.Errorf("parse school response: %w", err)
 	}
 	return payload.Data.ID, payload.Data.Subdomain, nil
+}
+
+func generateSeedPassword() (string, error) {
+	// Character sets that must each appear at least once to satisfy
+	// ValidatePasswordStrength (upper, lower, digit, special).
+	required := []string{
+		"abcdefghijkmnopqrstuvwxyz",
+		"ABCDEFGHJKLMNPQRSTUVWXYZ",
+		"23456789",
+		"!@#$%",
+	}
+
+	bytes := make([]byte, seedPasswordLength)
+	random := make([]byte, seedPasswordLength)
+	if _, err := rand.Read(random); err != nil {
+		return "", err
+	}
+
+	// Place one character from each required set in the first positions.
+	for i, charset := range required {
+		bytes[i] = charset[int(random[i])%len(charset)]
+	}
+
+	// Fill remaining positions from the full alphabet.
+	for i := len(required); i < seedPasswordLength; i++ {
+		bytes[i] = seedPasswordAlphabet[int(random[i])%len(seedPasswordAlphabet)]
+	}
+
+	// Shuffle using Fisher-Yates to avoid predictable positions.
+	shuffleRandom := make([]byte, seedPasswordLength)
+	if _, err := rand.Read(shuffleRandom); err != nil {
+		return "", err
+	}
+	for i := seedPasswordLength - 1; i > 0; i-- {
+		j := int(shuffleRandom[i]) % (i + 1)
+		bytes[i], bytes[j] = bytes[j], bytes[i]
+	}
+
+	return string(bytes), nil
+}
+
+func truncateSeedSubdomain(subdomain string) string {
+	subdomain = strings.ToLower(strings.TrimSpace(subdomain))
+	if len(subdomain) <= 63 {
+		return subdomain
+	}
+	return subdomain[:63]
 }
 
 // wrapConflictError checks if the error is a 409 Conflict from the API and
