@@ -3,12 +3,14 @@ package students
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/services/schedule"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
@@ -287,4 +289,47 @@ func teacherToSupervisorContact(teacher *users.Teacher) *SupervisorContact {
 	}
 
 	return supervisor
+}
+
+// enrichWithPickupTimes adds today's effective pickup time to each student response.
+// Uses a single bulk query via PickupScheduleService (handles schedule + exception merging).
+// Only students with HasFullAccess=true receive pickup times (GDPR).
+func (rs *Resource) enrichWithPickupTimes(ctx context.Context, responses []StudentResponse, studentIDs []int64, now time.Time) {
+	if len(studentIDs) == 0 || rs.PickupScheduleService == nil {
+		return
+	}
+
+	pickupTimes, err := rs.PickupScheduleService.GetBulkEffectivePickupTimesForDate(ctx, studentIDs, now)
+	if err != nil {
+		rs.Logger.Warn("failed to bulk-fetch pickup times", "error", err.Error())
+		return
+	}
+
+	for i := range responses {
+		if !responses[i].HasFullAccess {
+			continue
+		}
+		if ept, ok := pickupTimes[responses[i].ID]; ok {
+			if ept.PickupTime != nil {
+				formatted := ept.PickupTime.Format("15:04")
+				responses[i].PickupTime = &formatted
+			}
+			responses[i].PickupIsException = ept.IsException
+			responses[i].PickupNotes = buildPickupNotes(ept)
+		}
+	}
+}
+
+// buildPickupNotes combines exception reason and day notes into a single string.
+func buildPickupNotes(ept *schedule.EffectivePickupTime) string {
+	var parts []string
+	if ept.Notes != "" {
+		parts = append(parts, ept.Notes)
+	}
+	for _, n := range ept.DayNotes {
+		if n.Content != "" {
+			parts = append(parts, n.Content)
+		}
+	}
+	return strings.Join(parts, ", ")
 }

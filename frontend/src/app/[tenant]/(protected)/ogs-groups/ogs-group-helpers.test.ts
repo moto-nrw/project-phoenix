@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
 import {
-  getPickupUrgency,
   isStudentInGroupRoom,
   matchesSearchFilter,
   matchesAttendanceFilter,
@@ -32,42 +31,6 @@ function makeGroup(overrides: Partial<OGSGroup> = {}): OGSGroup {
     ...overrides,
   };
 }
-
-describe("getPickupUrgency", () => {
-  it("returns 'none' when pickupTimeStr is undefined", () => {
-    expect(getPickupUrgency(undefined, new Date())).toBe("none");
-  });
-
-  it("returns 'overdue' when pickup time is in the past", () => {
-    const now = new Date("2025-01-15T15:00:00");
-    expect(getPickupUrgency("14:30", now)).toBe("overdue");
-  });
-
-  it("returns 'soon' when pickup time is within 30 minutes", () => {
-    const now = new Date("2025-01-15T14:45:00");
-    expect(getPickupUrgency("15:00", now)).toBe("soon");
-  });
-
-  it("returns 'soon' when pickup time is exactly now (0 minutes diff)", () => {
-    const now = new Date("2025-01-15T15:00:00");
-    expect(getPickupUrgency("15:00", now)).toBe("soon");
-  });
-
-  it("returns 'normal' when pickup time is more than 30 minutes away", () => {
-    const now = new Date("2025-01-15T13:00:00");
-    expect(getPickupUrgency("15:00", now)).toBe("normal");
-  });
-
-  it("returns 'soon' at exactly 30 minutes before pickup", () => {
-    const now = new Date("2025-01-15T14:30:00");
-    expect(getPickupUrgency("15:00", now)).toBe("soon");
-  });
-
-  it("returns 'normal' at 31 minutes before pickup", () => {
-    const now = new Date("2025-01-15T14:29:00");
-    expect(getPickupUrgency("15:00", now)).toBe("normal");
-  });
-});
 
 describe("isStudentInGroupRoom", () => {
   it("returns false when student has no current_location", () => {

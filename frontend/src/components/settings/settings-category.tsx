@@ -7,12 +7,23 @@ interface SettingsCategoryProps {
   readonly category: SchemaCategory;
   readonly onSave: (key: string, value: unknown) => Promise<string | null>;
   readonly onReset: (key: string) => Promise<string | null>;
+  // audience identifies who is viewing the settings page. Controls the
+  // "auch von {other side} änderbar" hint on shared settings. Defaults
+  // to "admin" for the tenant settings page; the operator page passes
+  // "operator" to flip the hint copy.
+  readonly audience?: "admin" | "operator";
+  // revealFn is forwarded to PasswordField. Defaults to the tenant reveal
+  // endpoint when unset. The operator page passes a school-bound function
+  // so password reveal hits the operator endpoint instead.
+  readonly revealFn?: (key: string) => Promise<string | null>;
 }
 
 export function SettingsCategory({
   category,
   onSave,
   onReset,
+  audience = "admin",
+  revealFn,
 }: SettingsCategoryProps) {
   const visibleItems = category.items.filter((item) => item.visible);
 
@@ -32,6 +43,8 @@ export function SettingsCategory({
             setting={setting}
             onSave={onSave}
             onReset={onReset}
+            audience={audience}
+            revealFn={revealFn}
           />
         ))}
       </div>

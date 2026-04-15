@@ -785,6 +785,53 @@ describe("api.ts helper functions", () => {
         restore();
       }
     });
+
+    it("appends include_pickup_times=true when includePickupTimes is true", async () => {
+      const { fetchWithRetry } = await import("./api-helpers");
+      vi.mocked(fetchWithRetry).mockResolvedValue({
+        data: [],
+        response: new Response(),
+      });
+
+      const { studentService } = await import("./api");
+
+      const restore = setupBrowserEnv();
+      try {
+        await studentService.getStudents({
+          search: "Test",
+          includePickupTimes: true,
+          token: "test-token",
+        });
+
+        const callUrl = vi.mocked(fetchWithRetry).mock.calls[0]?.[0];
+        expect(callUrl).toContain("include_pickup_times=true");
+      } finally {
+        restore();
+      }
+    });
+
+    it("omits include_pickup_times when includePickupTimes is falsy", async () => {
+      const { fetchWithRetry } = await import("./api-helpers");
+      vi.mocked(fetchWithRetry).mockResolvedValue({
+        data: [],
+        response: new Response(),
+      });
+
+      const { studentService } = await import("./api");
+
+      const restore = setupBrowserEnv();
+      try {
+        await studentService.getStudents({
+          search: "Test",
+          token: "test-token",
+        });
+
+        const callUrl = vi.mocked(fetchWithRetry).mock.calls[0]?.[0];
+        expect(callUrl).not.toContain("include_pickup_times");
+      } finally {
+        restore();
+      }
+    });
   });
 
   describe("studentService.getStudent", () => {

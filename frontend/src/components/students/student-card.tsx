@@ -2,6 +2,8 @@
 // Shared student card component used across OGS groups and active supervisions pages
 
 import type { ReactNode } from "react";
+import { Clock, AlertTriangle } from "lucide-react";
+import { getPickupUrgency, type PickupUrgency } from "~/lib/pickup-helpers";
 
 interface StudentCardProps {
   /** Unique student ID */
@@ -205,4 +207,64 @@ export function ExceptionIcon() {
       />
     </svg>
   );
+}
+
+/**
+ * Shared pickup time display row used across OGS groups, active supervisions,
+ * and student search pages. Normalizes the three rendering branches:
+ *   1. Has pickup time → show time with urgency/exception icon
+ *   2. Exception without time → show exception reason
+ *   3. Neither → show "Abholzeit: —" fallback
+ */
+export function PickupTimeRow({
+  pickupTime,
+  isException,
+  notes,
+  isHome,
+  now,
+}: Readonly<{
+  pickupTime?: string;
+  isException: boolean;
+  notes?: string;
+  isHome: boolean;
+  now: Date;
+}>) {
+  const urgency = isHome
+    ? ("none" as const)
+    : getPickupUrgency(pickupTime, now);
+
+  if (pickupTime) {
+    return (
+      <StudentInfoRow
+        icon={isException ? <ExceptionIcon /> : renderPickupIcon(urgency)}
+      >
+        Abholzeit: {pickupTime} Uhr
+        {notes && <span className="ml-1 text-gray-500">({notes})</span>}
+      </StudentInfoRow>
+    );
+  }
+
+  if (isException) {
+    return (
+      <StudentInfoRow icon={<ExceptionIcon />}>
+        {notes || "Abwesend"}
+      </StudentInfoRow>
+    );
+  }
+
+  return (
+    <StudentInfoRow icon={<PickupTimeIcon />}>Abholzeit: —</StudentInfoRow>
+  );
+}
+
+/** Renders the appropriate pickup icon based on urgency level */
+export function renderPickupIcon(urgency: PickupUrgency): ReactNode {
+  if (urgency === "overdue") {
+    return <AlertTriangle className="h-3.5 w-3.5 text-red-500" />;
+  }
+  if (urgency === "soon") {
+    return <Clock className="h-3.5 w-3.5 animate-pulse text-orange-500" />;
+  }
+  // normal / none — default gray clock
+  return <PickupTimeIcon />;
 }

@@ -151,6 +151,7 @@ func checkHardcodedIDs(t *testing.T, root string) []string {
 		"error_helpers_test.go",                 // Internal unit tests for helper functions (no DB)
 		"api/iot/api_test.go",                   // Uses mock SchoolRepo for unit testing handler
 		"api/iot/config_test.go",                // Uses mock settings service for unit testing config endpoint
+		"enrich_pickup_times_test.go",           // Uses mock PickupScheduleService for unit testing enrichment
 	}
 
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {

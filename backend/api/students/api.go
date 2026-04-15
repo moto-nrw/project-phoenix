@@ -357,6 +357,18 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		responses, totalCount = applyInMemoryPagination(responses, params.page, params.pageSize)
 	}
 
+	// Optionally enrich the paginated slice with today's effective pickup times (single bulk query).
+	// Only query for students the caller has full access to (GDPR — skip redacted students).
+	if params.includePickupTimes {
+		fullAccessIDs := make([]int64, 0, len(responses))
+		for i := range responses {
+			if responses[i].HasFullAccess {
+				fullAccessIDs = append(fullAccessIDs, responses[i].ID)
+			}
+		}
+		rs.enrichWithPickupTimes(r.Context(), responses, fullAccessIDs, time.Now())
+	}
+
 	common.RespondPaginated(w, r, http.StatusOK, responses, common.PaginationParams{Page: params.page, PageSize: params.pageSize, Total: totalCount}, "Students retrieved successfully")
 }
 

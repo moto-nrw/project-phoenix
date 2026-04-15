@@ -28,6 +28,9 @@ type mockSettingsSvc struct {
 func (m *mockSettingsSvc) GetSchema(_ context.Context, _ []string) (*configSvc.SettingsSchema, error) {
 	return nil, nil
 }
+func (m *mockSettingsSvc) GetSchemaForOperator(_ context.Context, _ []string) (*configSvc.SettingsSchema, error) {
+	return nil, nil
+}
 func (m *mockSettingsSvc) Resolve(_ context.Context, key string) (any, error) {
 	if v, ok := m.boolValues[key]; ok {
 		return v, nil

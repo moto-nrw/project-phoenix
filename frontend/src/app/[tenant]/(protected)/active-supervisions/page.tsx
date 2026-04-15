@@ -27,13 +27,22 @@ import {
   StudentInfoRow,
   SchoolClassIcon,
   GroupIcon,
+  PickupTimeRow,
 } from "~/components/students/student-card";
+import { fetchBulkPickupTimes } from "~/lib/pickup-schedule-api";
+import type { BulkPickupTime } from "~/lib/pickup-schedule-api";
+import { isHomeLocation } from "~/lib/location-helper";
+import { useMinuteClock, combinePickupNotes } from "~/lib/pickup-helpers";
 import { createLogger } from "~/lib/logger";
 import { activeService } from "~/lib/active-api";
 import { isAdmin, isCaregiver } from "~/lib/auth-utils";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
 import { TrackingIndicators } from "~/components/students/tracking-indicators";
 import type { Student } from "~/lib/student-helpers";
+import {
+  SCHOOL_YEAR_FILTER_OPTIONS,
+  getSchoolYear,
+} from "~/lib/student-helpers";
 import { UnclaimedRooms } from "~/components/active";
 import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import { useSWRAuth } from "~/lib/swr";
@@ -119,11 +128,12 @@ interface BFFDashboardResponse {
 
 const GROUP_CARD_GRADIENT = "from-blue-50/80 to-cyan-100/80";
 
-/** Check if a student matches the current search and group filters */
+/** Check if a student matches the current search, group, and year filters */
 function matchesStudentFilters(
   student: StudentWithVisit,
   searchTerm: string,
   groupFilter: string,
+  yearFilter: string,
 ): boolean {
   if (searchTerm) {
     const searchLower = searchTerm.toLowerCase();
@@ -136,6 +146,10 @@ function matchesStudentFilters(
   if (groupFilter !== "all") {
     const studentGroupName = student.group_name ?? "Unbekannt";
     if (studentGroupName !== groupFilter) return false;
+  }
+  if (yearFilter !== "all") {
+    const studentYear = getSchoolYear(student.school_class);
+    if (studentYear !== yearFilter) return false;
   }
   return true;
 }
@@ -197,6 +211,7 @@ interface EmptyRoomsViewProps {
   searchTerm: string;
   setSearchTerm: (term: string) => void;
   setGroupFilter: (filter: string) => void;
+  setSelectedYear: (year: string) => void;
   filterConfigs: FilterConfig[];
   activeFilters: ActiveFilter[];
 }
@@ -209,6 +224,7 @@ function EmptyRoomsView({
   searchTerm,
   setSearchTerm,
   setGroupFilter,
+  setSelectedYear,
   filterConfigs,
   activeFilters,
 }: Readonly<EmptyRoomsViewProps>) {
@@ -236,6 +252,7 @@ function EmptyRoomsView({
         onClearAllFilters={() => {
           setSearchTerm("");
           setGroupFilter("all");
+          setSelectedYear("all");
         }}
       />
 
@@ -291,6 +308,7 @@ function MeinRaumPageContent() {
   const [students, setStudents] = useState<StudentWithVisit[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [groupFilter, setGroupFilter] = useState("all");
+  const [selectedYear, setSelectedYear] = useState("all");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -932,6 +950,19 @@ function MeinRaumPageContent() {
     { keepPreviousData: true, revalidateOnFocus: false },
   );
 
+  // Current time for pickup urgency calculation (updates every minute)
+  const now = useMinuteClock();
+
+  // Pickup times: fetch when student list or date changes
+  const todayKey = now.toISOString().slice(0, 10);
+  const { data: pickupTimesData } = useSWRAuth<Map<string, BulkPickupTime>>(
+    trackingStudentIds.length > 0 && currentRoomId
+      ? `pickup-supervisions-${todayKey}-${trackingStudentIds.join(",")}`
+      : null,
+    async () => fetchBulkPickupTimes(trackingStudentIds),
+    { keepPreviousData: true, revalidateOnFocus: false },
+  );
+
   // Handle dashboard error
   useEffect(() => {
     if (dashboardError) {
@@ -1107,7 +1138,8 @@ function MeinRaumPageContent() {
 
   // Apply filters to students (ensure students is an array)
   const filteredStudents = (Array.isArray(students) ? students : []).filter(
-    (student) => matchesStudentFilters(student, searchTerm, groupFilter),
+    (student) =>
+      matchesStudentFilters(student, searchTerm, groupFilter, selectedYear),
   );
 
   // Prepare filter configurations for PageHeaderWithSearch
@@ -1123,6 +1155,14 @@ function MeinRaumPageContent() {
 
     return [
       {
+        id: "year",
+        label: "Klassenstufe",
+        type: "buttons",
+        value: selectedYear,
+        onChange: (value) => setSelectedYear(value as string),
+        options: [...SCHOOL_YEAR_FILTER_OPTIONS],
+      },
+      {
         id: "group",
         label: "Gruppe",
         type: "dropdown",
@@ -1137,7 +1177,7 @@ function MeinRaumPageContent() {
         ],
       },
     ];
-  }, [groupFilter, students]);
+  }, [selectedYear, groupFilter, students]);
 
   // Prepare active filters for display
   const activeFilters: ActiveFilter[] = useMemo(() => {
@@ -1151,6 +1191,14 @@ function MeinRaumPageContent() {
       });
     }
 
+    if (selectedYear !== "all") {
+      filters.push({
+        id: "year",
+        label: `Jahr ${selectedYear}`,
+        onRemove: () => setSelectedYear("all"),
+      });
+    }
+
     if (groupFilter !== "all") {
       filters.push({
         id: "group",
@@ -1160,7 +1208,7 @@ function MeinRaumPageContent() {
     }
 
     return filters;
-  }, [searchTerm, groupFilter]);
+  }, [searchTerm, selectedYear, groupFilter]);
 
   if (status === "loading" || isLoading || hasAccess === null) {
     return <LoadingView />;
@@ -1182,6 +1230,7 @@ function MeinRaumPageContent() {
         searchTerm={searchTerm}
         setSearchTerm={setSearchTerm}
         setGroupFilter={setGroupFilter}
+        setSelectedYear={setSelectedYear}
         filterConfigs={filterConfigs}
         activeFilters={activeFilters}
       />
@@ -1224,52 +1273,70 @@ function MeinRaumPageContent() {
       return (
         <div>
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
-            {filteredStudents.map((student) => (
-              <StudentCard
-                key={student.id}
-                studentId={student.id}
-                firstName={student.first_name}
-                lastName={student.second_name}
-                gradient={GROUP_CARD_GRADIENT}
-                onClick={() =>
-                  router.push(
-                    `/students/${student.id}?from=/active-supervisions`,
-                  )
-                }
-                locationBadge={
-                  <LocationBadge
-                    student={student}
-                    displayMode="contextAware"
-                    userGroups={myGroupIds}
-                    groupRooms={myGroupRooms}
-                    variant="modern"
-                    size="md"
-                  />
-                }
-                extraContent={
-                  <>
-                    {student.school_class && (
-                      <StudentInfoRow icon={<SchoolClassIcon />}>
-                        Klasse {student.school_class}
-                      </StudentInfoRow>
-                    )}
-                    {student.group_name && (
-                      <StudentInfoRow icon={<GroupIcon />}>
-                        Gruppe: {student.group_name}
-                      </StudentInfoRow>
-                    )}
-                  </>
-                }
-                trackingIndicators={
-                  trackingData?.labels.length ? (
-                    <TrackingIndicators
-                      labels={trackingData.labels}
-                      results={trackingData.results[student.id] ?? []}
+            {filteredStudents.map((student) => {
+              const studentPickup = pickupTimesData?.get(student.id.toString());
+
+              return (
+                <StudentCard
+                  key={student.id}
+                  studentId={student.id}
+                  firstName={student.first_name}
+                  lastName={student.second_name}
+                  gradient={GROUP_CARD_GRADIENT}
+                  onClick={() =>
+                    router.push(
+                      `/students/${student.id}?from=/active-supervisions`,
+                    )
+                  }
+                  locationBadge={
+                    <LocationBadge
+                      student={student}
+                      displayMode="contextAware"
+                      userGroups={myGroupIds}
+                      groupRooms={myGroupRooms}
+                      variant="modern"
+                      size="md"
                     />
-                  ) : undefined
-                }
-              />
-            ))}
+                  }
+                  extraContent={
+                    <>
+                      {student.school_class && (
+                        <StudentInfoRow icon={<SchoolClassIcon />}>
+                          Klasse {student.school_class}
+                        </StudentInfoRow>
+                      )}
+                      {student.group_name && (
+                        <StudentInfoRow icon={<GroupIcon />}>
+                          Gruppe: {student.group_name}
+                        </StudentInfoRow>
+                      )}
+                      <PickupTimeRow
+                        pickupTime={studentPickup?.pickupTime}
+                        isException={studentPickup?.isException ?? false}
+                        notes={
+                          studentPickup
+                            ? combinePickupNotes(
+                                studentPickup.notes,
+                                studentPickup.dayNotes,
+                              )
+                            : undefined
+                        }
+                        isHome={isHomeLocation(student.current_location)}
+                        now={now}
+                      />
+                    </>
+                  }
+                  trackingIndicators={
+                    trackingData?.labels.length ? (
+                      <TrackingIndicators
+                        labels={trackingData.labels}
+                        results={trackingData.results[student.id] ?? []}
+                      />
+                    ) : undefined
+                  }
+                />
+              );
+            })}
           </div>
         </div>
       );
@@ -1427,6 +1494,7 @@ function MeinRaumPageContent() {
             onClearAllFilters={() => {
               setSearchTerm("");
               setGroupFilter("all");
+              setSelectedYear("all");
             }}
             actionButton={
               // Only show release button when user IS supervising Schulhof

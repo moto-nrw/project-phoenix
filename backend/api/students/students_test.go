@@ -1,16 +1,132 @@
 package students_test
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
+
+// =============================================================================
+// List Students with Pickup Times Tests
+// =============================================================================
+
+func TestListStudents_WithPickupTimes(t *testing.T) {
+	tc := setupTestContext(t)
+
+	// Create two students: one with a pickup schedule, one without
+	studentWithSchedule := testpkg.CreateTestStudent(t, tc.db, "Pickup", "WithSchedule", "PT1")
+	studentNoSchedule := testpkg.CreateTestStudent(t, tc.db, "Pickup", "NoSchedule", "PT2")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, studentWithSchedule.ID, studentNoSchedule.ID)
+
+	// The handler derives the weekday via timezone.DateOf(time.Now()), which
+	// converts to Europe/Berlin before extracting the date. The test must use
+	// the same conversion so the inserted schedule matches the handler's query,
+	// even when CI runs near midnight UTC (where UTC and Berlin dates differ).
+	berlinToday := timezone.DateOf(time.Now())
+	todayWeekday := int(berlinToday.Weekday())
+	if todayWeekday == 0 {
+		todayWeekday = 7 // Sunday
+	}
+
+	// Skip on weekends — pickup schedules only apply Mon-Fri
+	if todayWeekday > scheduleModel.WeekdayFriday {
+		t.Skip("Skipping pickup time test on weekend — schedules only apply Mon-Fri")
+	}
+
+	// Insert a pickup schedule for today's weekday
+	pickupTime := time.Date(2000, 1, 1, 15, 30, 0, 0, time.UTC)
+	schedule := &scheduleModel.StudentPickupSchedule{
+		StudentID:  studentWithSchedule.ID,
+		Weekday:    todayWeekday,
+		PickupTime: pickupTime,
+		CreatedBy:  1,
+	}
+	schedule.SetTenantID(1)
+	_, err := tc.db.NewInsert().Model(schedule).
+		ModelTableExpr("schedule.student_pickup_schedules").
+		Returning("id").
+		Exec(context.Background())
+	require.NoError(t, err)
+	defer func() {
+		_, _ = tc.db.NewDelete().Model((*scheduleModel.StudentPickupSchedule)(nil)).
+			ModelTableExpr("schedule.student_pickup_schedules").
+			Where("student_id = ?", studentWithSchedule.ID).
+			Exec(context.Background())
+	}()
+
+	t.Run("include_pickup_times_returns_pickup_time_field", func(t *testing.T) {
+		router := setupRouter(tc.resource.ListStudentsHandler(), "")
+		req := testutil.NewRequest("GET", "/?include_pickup_times=true&school_class=PT1&page_size=50", nil)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		require.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+
+		// Parse response to check pickup_time field
+		var resp struct {
+			Data []json.RawMessage `json:"data"`
+		}
+		err := json.Unmarshal(rr.Body.Bytes(), &resp)
+		require.NoError(t, err, "Failed to parse response JSON")
+		require.NotEmpty(t, resp.Data, "Expected at least one student in response")
+
+		// Find the student with schedule and verify pickup_time is set
+		found := false
+		for _, raw := range resp.Data {
+			var student struct {
+				ID         int64   `json:"id"`
+				PickupTime *string `json:"pickup_time"`
+			}
+			err := json.Unmarshal(raw, &student)
+			require.NoError(t, err)
+
+			if student.ID == studentWithSchedule.ID {
+				found = true
+				require.NotNil(t, student.PickupTime, "Student with schedule should have pickup_time")
+				assert.Equal(t, "15:30", *student.PickupTime, "Pickup time should match the schedule")
+			}
+
+			if student.ID == studentNoSchedule.ID {
+				assert.Nil(t, student.PickupTime, "Student without schedule should not have pickup_time")
+			}
+		}
+		assert.True(t, found, "Student with schedule should be in response")
+	})
+
+	t.Run("without_include_pickup_times_omits_field", func(t *testing.T) {
+		router := setupRouter(tc.resource.ListStudentsHandler(), "")
+		req := testutil.NewRequest("GET", "/?school_class=PT1&page_size=50", nil)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		require.Equal(t, http.StatusOK, rr.Code)
+
+		// Verify pickup_time is not present in any response
+		var resp struct {
+			Data []json.RawMessage `json:"data"`
+		}
+		err := json.Unmarshal(rr.Body.Bytes(), &resp)
+		require.NoError(t, err)
+
+		for _, raw := range resp.Data {
+			var student map[string]interface{}
+			err := json.Unmarshal(raw, &student)
+			require.NoError(t, err)
+
+			_, hasPickupTime := student["pickup_time"]
+			assert.False(t, hasPickupTime, "pickup_time should not be present when include_pickup_times is not set")
+		}
+	})
+}
 
 // =============================================================================
 // List Students Tests

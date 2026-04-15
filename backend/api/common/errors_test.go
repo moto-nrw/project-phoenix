@@ -404,6 +404,46 @@ func TestIsConstraintViolation(t *testing.T) {
 }
 
 // =============================================================================
+// ErrorConflictWithCode Tests
+// =============================================================================
+
+func TestErrorConflictWithCode(t *testing.T) {
+	testErr := errors.New("account already has access to tenant")
+	renderer := common.ErrorConflictWithCode(testErr, "ACCOUNT_ALREADY_HAS_TENANT_ACCESS")
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("POST", "/test", nil)
+
+	err := render.Render(w, r, renderer)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusConflict, w.Code)
+
+	var resp map[string]interface{}
+	err = json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+	assert.Equal(t, "error", resp["status"])
+	assert.Equal(t, "account already has access to tenant", resp["error"])
+	assert.Equal(t, "ACCOUNT_ALREADY_HAS_TENANT_ACCESS", resp["code"])
+}
+
+func TestErrorConflictWithCode_OmitsEmptyCode(t *testing.T) {
+	testErr := errors.New("conflict")
+	renderer := common.ErrorConflict(testErr)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("POST", "/test", nil)
+
+	err := render.Render(w, r, renderer)
+	require.NoError(t, err)
+
+	var resp map[string]interface{}
+	err = json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+	_, hasCode := resp["code"]
+	assert.False(t, hasCode, "code field should be omitted when empty")
+}
+
+// =============================================================================
 // ErrorConflictMessage Tests
 // =============================================================================
 
