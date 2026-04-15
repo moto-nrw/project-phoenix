@@ -210,25 +210,31 @@ func TestSSEEvents_StaffWithAccount(t *testing.T) {
 }
 
 func TestSSEEvents_AdminClaims(t *testing.T) {
-	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
+	tctx := setupTestContext(t)
+	defer func() { _ = tctx.db.Close() }()
 
-	// Create admin - admins may or may not be staff
-	_, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "Admin", "NoStaff")
+	// Create admin without staff record
+	_, account := testpkg.CreateTestPersonWithAccount(t, tctx.db, "Admin", "NoStaff")
 
 	router := chi.NewRouter()
-	router.Get("/events", ctx.resource.EventsHandler())
+	router.Get("/events", tctx.resource.EventsHandler())
 
-	// Admin without staff record should fail
-	req := testutil.NewAuthenticatedRequest(t, "GET", "/events", nil,
-		testutil.WithClaims(testutil.AdminTestClaims(int(account.ID))),
-	)
+	// Admin without staff record should reach the streaming path (not 403).
+	// Use a context timeout so the event loop exits cleanly.
+	baseCtx, cancel := context.WithTimeout(testpkg.TenantContext(1), 100*time.Millisecond)
+	defer cancel()
+
+	claims := testutil.AdminTestClaims(int(account.ID))
+	claimsCtx := context.WithValue(baseCtx, jwt.CtxClaims, claims)
+
+	req := testutil.NewRequest("GET", "/events", nil)
+	req = req.WithContext(claimsCtx)
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	// Admin without staff record gets 403
-	assert.Equal(t, http.StatusForbidden, rr.Code,
-		"Expected 403 for admin without staff record")
+	// Admin should reach the streaming path (200), not be rejected (403)
+	assert.Contains(t, []int{http.StatusOK, http.StatusInternalServerError}, rr.Code,
+		"Expected streaming to start (200) or context timeout (500), got %d", rr.Code)
 }
 
 func TestSSEEvents_EmptyAuthClaims(t *testing.T) {
