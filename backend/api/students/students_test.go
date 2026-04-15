@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -28,11 +29,12 @@ func TestListStudents_WithPickupTimes(t *testing.T) {
 	studentNoSchedule := testpkg.CreateTestStudent(t, tc.db, "Pickup", "NoSchedule", "PT2")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, studentWithSchedule.ID, studentNoSchedule.ID)
 
-	// The handler uses time.Now() internally, so we insert schedules for today's weekday
-	// rather than a fixed date. This means the test dynamically adapts to the current day.
-
-	// Determine today's ISO weekday (Mon=1..Fri=5) for the schedule to match
-	todayWeekday := int(time.Now().Weekday())
+	// The handler derives the weekday via timezone.DateOf(time.Now()), which
+	// converts to Europe/Berlin before extracting the date. The test must use
+	// the same conversion so the inserted schedule matches the handler's query,
+	// even when CI runs near midnight UTC (where UTC and Berlin dates differ).
+	berlinToday := timezone.DateOf(time.Now())
+	todayWeekday := int(berlinToday.Weekday())
 	if todayWeekday == 0 {
 		todayWeekday = 7 // Sunday
 	}
