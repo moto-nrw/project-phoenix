@@ -77,6 +77,40 @@ func init() {
 		SortOrder:       1,
 	})
 
+	config.Register(config.Definition{
+		Key:             config.KeyPerStudentCheckoutEnabled,
+		Label:           "Individuelle Abholzeiten verwenden",
+		Description:     "Wenn aktiviert, wird die Abmeldung anhand der individuellen Abholzeiten der Schüler angezeigt statt der globalen Abmeldezeit.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "checkout",
+		SortOrder:       2,
+	})
+
+	minDelta := float64(0)
+	maxDelta := float64(120)
+	config.Register(config.Definition{
+		Key:             config.KeyPerStudentCheckoutDeltaMinutes,
+		Label:           "Vorlaufzeit vor Abholung (Minuten)",
+		Description:     "Minuten vor der Abholzeit, ab der die Abmeldung am Gerät angeboten wird. Beispiel: Bei Abholzeit 15:00 und Vorlaufzeit 15 Min. ist die Abmeldung ab 14:45 möglich.",
+		Type:            config.FieldNumber,
+		Default:         15,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "checkout",
+		SortOrder:       3,
+		Validation:      &config.ValidationRules{Min: &minDelta, Max: &maxDelta},
+		DependsOn: &config.Dependency{
+			Key:       config.KeyPerStudentCheckoutEnabled,
+			Condition: "eq",
+			Value:     true,
+		},
+	})
+
 	// --- Abandoned Session Cleanup (system tab — automated background process) ---
 
 	config.Register(config.Definition{
