@@ -63,12 +63,14 @@ const (
 
 // Operations settings.
 const (
-	KeySessionEndEnabled             = "operations.session_end_enabled"
-	KeySessionEndTime                = "operations.session_end_time"
-	KeySessionEndTimeoutMinutes      = "operations.session_end_timeout_minutes"
-	KeyStudentDailyCheckoutTime      = "operations.student_daily_checkout_time"
-	KeySessionCleanupEnabled         = "operations.session_cleanup_enabled"
-	KeySessionCleanupIntervalMinutes = "operations.session_cleanup_interval_minutes"
-	KeySessionAbandonedThresholdMin  = "operations.session_abandoned_threshold_minutes"
-	KeyAdminSupervisionOverview      = "operations.admin_supervision_overview"
+	KeySessionEndEnabled              = "operations.session_end_enabled"
+	KeySessionEndTime                 = "operations.session_end_time"
+	KeySessionEndTimeoutMinutes       = "operations.session_end_timeout_minutes"
+	KeyStudentDailyCheckoutTime       = "operations.student_daily_checkout_time"
+	KeyPerStudentCheckoutEnabled      = "operations.per_student_checkout_enabled"
+	KeyPerStudentCheckoutDeltaMinutes = "operations.per_student_checkout_delta_minutes"
+	KeySessionCleanupEnabled          = "operations.session_cleanup_enabled"
+	KeySessionCleanupIntervalMinutes  = "operations.session_cleanup_interval_minutes"
+	KeySessionAbandonedThresholdMin   = "operations.session_abandoned_threshold_minutes"
+	KeyAdminSupervisionOverview       = "operations.admin_supervision_overview"
 )

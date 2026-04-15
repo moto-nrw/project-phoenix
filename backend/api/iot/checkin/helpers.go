@@ -98,6 +98,51 @@ func (rs *Resource) shouldUpgradeToDailyCheckout(ctx context.Context, action str
 	return rs.shouldShowDailyCheckoutWithGroup(ctx, student, currentVisit)
 }
 
+// isAfterCheckoutTimeGate checks whether the current time is past the applicable
+// checkout time gate for this student. When per-student checkout is enabled and
+// the student has a pickup time, uses pickup_time - delta. Otherwise falls back
+// to the global daily checkout time.
+func (rs *Resource) isAfterCheckoutTimeGate(ctx context.Context, student *users.Student) bool {
+	// Check per-student mode (new setting, no env var fallback needed)
+	perStudentEnabled := false
+	if rs.SettingsService != nil {
+		if val, err := rs.SettingsService.ResolveBool(ctx, configModel.KeyPerStudentCheckoutEnabled); err == nil {
+			perStudentEnabled = val
+		}
+	}
+
+	if perStudentEnabled && rs.PickupScheduleService != nil {
+		now := time.Now()
+		effectivePickup, err := rs.PickupScheduleService.GetEffectivePickupTimeForDate(ctx, student.ID, now)
+		if err == nil && effectivePickup != nil && effectivePickup.PickupTime != nil {
+			// Student has a pickup time — use it with the delta
+			delta := 15
+			if rs.SettingsService != nil {
+				if val, err := rs.SettingsService.ResolveInt(ctx, configModel.KeyPerStudentCheckoutDeltaMinutes); err == nil {
+					delta = val
+				}
+			}
+
+			todayPickup := time.Date(now.Year(), now.Month(), now.Day(),
+				effectivePickup.PickupTime.Hour(), effectivePickup.PickupTime.Minute(),
+				0, 0, now.Location())
+			threshold := todayPickup.Add(-time.Duration(delta) * time.Minute)
+			return now.After(threshold)
+		}
+		// No pickup time for this student — fall through to global check
+	}
+
+	// Global checkout time check (existing behavior)
+	checkoutTime, err := rs.getStudentDailyCheckoutTime(ctx)
+	if err != nil {
+		return false
+	}
+	if checkoutTime == nil {
+		return true // No time gate — always available
+	}
+	return time.Now().After(*checkoutTime)
+}
+
 // shouldShowDailyCheckoutWithGroup checks if daily checkout should be shown by verifying education group room
 func (rs *Resource) shouldShowDailyCheckoutWithGroup(ctx context.Context, student *users.Student, currentVisit *active.Visit) bool {
 	if student.GroupID == nil {
@@ -107,13 +152,7 @@ func (rs *Resource) shouldShowDailyCheckoutWithGroup(ctx context.Context, studen
 		return false
 	}
 
-	checkoutTime, err := rs.getStudentDailyCheckoutTime(ctx)
-	if err != nil {
-		return false
-	}
-	// If a checkout time is configured, only allow after that time.
-	// If nil (no time configured), daily checkout is always available.
-	if checkoutTime != nil && !time.Now().After(*checkoutTime) {
+	if !rs.isAfterCheckoutTimeGate(ctx, student) {
 		return false
 	}
 

@@ -20,6 +20,8 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"operations.session_end_time",
 		"operations.session_end_timeout_minutes",
 		"operations.student_daily_checkout_time",
+		"operations.per_student_checkout_enabled",
+		"operations.per_student_checkout_delta_minutes",
 		"operations.session_cleanup_enabled",
 		"operations.session_cleanup_interval_minutes",
 		"operations.session_abandoned_threshold_minutes",
@@ -52,7 +54,7 @@ func TestAllSettingsRegistered(t *testing.T) {
 		assert.NotEmpty(t, def.Category, "setting %q should have a category", key)
 	}
 
-	assert.GreaterOrEqual(t, len(all), 25, "at least 25 settings should be registered")
+	assert.GreaterOrEqual(t, len(all), 27, "at least 27 settings should be registered")
 }
 
 func TestOperationsSettings_Types(t *testing.T) {
@@ -64,6 +66,8 @@ func TestOperationsSettings_Types(t *testing.T) {
 		{"operations.session_end_time", config.FieldTime},
 		{"operations.session_end_timeout_minutes", config.FieldNumber},
 		{"operations.student_daily_checkout_time", config.FieldTime},
+		{"operations.per_student_checkout_enabled", config.FieldBoolean},
+		{"operations.per_student_checkout_delta_minutes", config.FieldNumber},
 		{"operations.session_cleanup_enabled", config.FieldBoolean},
 		{"operations.session_cleanup_interval_minutes", config.FieldNumber},
 		{"operations.session_abandoned_threshold_minutes", config.FieldNumber},
@@ -148,6 +152,20 @@ func TestDependsOn_GDPRGroup(t *testing.T) {
 	require.NotNil(t, timeoutDef)
 	require.NotNil(t, timeoutDef.DependsOn)
 	assert.Equal(t, "gdpr.data_cleanup_enabled", timeoutDef.DependsOn.Key)
+}
+
+func TestDependsOn_PerStudentCheckoutGroup(t *testing.T) {
+	deltaDef := config.GetDefinition("operations.per_student_checkout_delta_minutes")
+	require.NotNil(t, deltaDef)
+	require.NotNil(t, deltaDef.DependsOn)
+	assert.Equal(t, "operations.per_student_checkout_enabled", deltaDef.DependsOn.Key)
+	assert.Equal(t, "eq", deltaDef.DependsOn.Condition)
+	assert.Equal(t, true, deltaDef.DependsOn.Value)
+
+	// The toggle itself has no DependsOn
+	toggleDef := config.GetDefinition("operations.per_student_checkout_enabled")
+	require.NotNil(t, toggleDef)
+	assert.Nil(t, toggleDef.DependsOn)
 }
 
 func TestDependsOn_AttendanceLogGroup(t *testing.T) {
@@ -254,6 +272,7 @@ func TestValidation_NumberFields(t *testing.T) {
 		"gdpr.attendance_visible_days",
 		"gdpr.room_detail_visible_days",
 		"feedback.data_retention_days",
+		"operations.per_student_checkout_delta_minutes",
 	}
 
 	for _, key := range numberKeys {
@@ -274,6 +293,8 @@ func TestDefaults_HaveReasonableValues(t *testing.T) {
 		{"operations.session_end_time", "18:00"},
 		{"operations.session_end_timeout_minutes", 10},
 		{"operations.student_daily_checkout_time", ""},
+		{"operations.per_student_checkout_enabled", false},
+		{"operations.per_student_checkout_delta_minutes", 15},
 		{"operations.session_cleanup_enabled", false},
 		{"operations.session_cleanup_interval_minutes", 15},
 		{"operations.session_abandoned_threshold_minutes", 60},
