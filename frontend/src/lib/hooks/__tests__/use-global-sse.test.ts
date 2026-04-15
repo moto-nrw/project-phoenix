@@ -92,7 +92,7 @@ describe("useGlobalSSE", () => {
       );
     });
 
-    it("is disabled for admin-only users without staff role", () => {
+    it("is enabled for admin-only users without staff role", () => {
       vi.mocked(useSession).mockReturnValueOnce({
         status: "authenticated",
         data: {
@@ -106,7 +106,7 @@ describe("useGlobalSSE", () => {
       expect(useSSE).toHaveBeenCalledWith(
         "/api/sse/events",
         expect.objectContaining({
-          enabled: false,
+          enabled: true,
         }),
       );
     });
