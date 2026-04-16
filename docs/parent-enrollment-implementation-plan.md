@@ -192,7 +192,7 @@ known deviations from plan.
 - Existing staff invitation flow (separate table) is unaffected
 
 **Notes / gotchas:**
-- If PR 5 (email outbox) hasn't merged yet, dispatch directly via the existing mailer. Leave a TODO comment and a memory note to migrate to outbox when available.
+- If PR 5 (shared `platform.email_outbox`) hasn't merged yet, dispatch directly via the existing mailer. Leave a TODO comment and a memory note to migrate to outbox when available. PR 5's template registry design should make retrofitting cheap.
 - The existing `services/auth/invitation_service.go` is the reference — stay close to its structure for easier reviews.
 - `auth.accounts_parents` exists but is orphaned — DO NOT write to it. Accounts go into `auth.accounts`.
 
@@ -245,12 +245,21 @@ All of these with German labels + descriptions. See §5.6 for the full table. Do
 **Depends on:** PR 4 (settings keys exist for outbox retries/token TTL). Does NOT depend on PR 1 (calendar_periods — added in a later column-add migration by whichever plan ships it first).
 
 **Scope:**
-- Migration: `enrollment.form_schemas`, `enrollment.requests` (calendar_period_id column nullable for now — see emergency plan §3 below), `enrollment.request_children`, `enrollment.email_outbox`. RLS policies on all four.
+- Migration: **`platform.email_outbox`** (shared platform-level table, not enrollment-scoped — see plan §5.1 and §11). RLS policy for tenant isolation.
+- Migration: `enrollment.form_schemas`, `enrollment.requests` (calendar_period_id column — assumes Yannick's `schedule.calendar_periods` is live; if not, coordinate before merging), `enrollment.request_children`. RLS on all three.
 - Models + repositories for each
+- `services/platform/outbox_service.go` + `services/platform/outbox_worker.go` — shared worker. Picks up `pending` rows with `FOR UPDATE SKIP LOCKED`, renders template by `kind`, dispatches, handles retry. Wire into scheduler.
+- Template registry: a `kind → template renderer` mapping so each feature registers its own renderers without the worker knowing about them
 - `services/enrollment/form_schema_service.go` — active schema getter, create-version, validate-submission-against-schema
-- `services/enrollment/outbox_worker.go` — picks up `pending` rows with `FOR UPDATE SKIP LOCKED`, renders + dispatches, handles retry. Wire into scheduler.
+- Enrollment registers its initial kinds: `guardian_invitation`, `enrollment_submitted`, `enrollment_admin_notification`, `enrollment_decision_digest`, `enrollment_approved`, `enrollment_waitlisted`, `enrollment_rejected`
 - Admin form editor UI at `/{tenant}/admin/enrollment-form` — simple table: add/edit/delete/reorder fields
 - Admin API: schema CRUD endpoints
+
+**Platform outbox table shape (confirmed from plan rev 2.3):**
+- Keyed by `kind` (text, extensible) — no enum, new kinds register their renderer at startup
+- Polymorphic `related_entity_type` + `related_entity_id` — no FK constraints
+- Common fields: `tenant_id`, `status`, `attempts`, `last_error`, `next_retry_at`, `payload JSONB`
+- Settings-driven retry policy (max attempts, backoff schedule)
 
 **Tests:**
 - Schema versioning: creating a new version marks the old inactive; submissions pin to their version_id; editing an active schema doesn't break old submissions
@@ -348,61 +357,21 @@ All of these with German labels + descriptions. See §5.6 for the full table. Do
 
 ---
 
-## 3. Calendar Periods Emergency Plan
+## 3. Calendar Periods Coordination (no longer an emergency — confirmed 2026-04-16)
 
-**Trigger:** PR 6 or PR 7 is ready to ship and `schedule.calendar_periods` has not been created by Yannick's Timetable RFC work.
+**Resolution:** Yannick has agreed to ship `schedule.calendar_periods` as part of the Timetable RFC work. The enrollment plan no longer needs a fallback migration.
 
-**Action:** Ship a minimal version of the table as part of PR 6 (not a separate PR — keep coordination surface small).
+**What this means:**
 
-### Minimal migration
+- PR 6 (care offerings) depends on Yannick's calendar_periods table being live before it can merge
+- If PR 6 is ready and calendar_periods isn't yet merged, coordinate with Yannick on timing — don't re-open the emergency plan without explicit approval from Christian + Yannick
+- PR 7 and PR 8 depend on `activities.student_enrollments` having the `valid_from`/`valid_until` columns (Timetable RFC E17). Confirm these are live before PR 8 merges.
 
-```sql
--- backend/database/migrations/<next>_calendar_periods_minimal.up.sql
+**Still open (ask Yannick before PR 6):**
 
-CREATE TABLE IF NOT EXISTS schedule.calendar_periods (
-  id            bigserial PRIMARY KEY,
-  tenant_id     bigint NOT NULL REFERENCES platform.schools(id) ON DELETE CASCADE,
-  name          text NOT NULL,
-  period_type   text NOT NULL DEFAULT 'school_year'
-    CHECK (period_type IN ('school_year','semester','holiday','custom')),
-  start_date    date NOT NULL,
-  end_date      date NOT NULL,
-  is_active     boolean NOT NULL DEFAULT false,
-  created_at    timestamptz NOT NULL DEFAULT now(),
-  updated_at    timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (tenant_id, name),
-  CHECK (end_date > start_date)
-);
-
--- RLS to match existing tenant-scoped tables
-ALTER TABLE schedule.calendar_periods ENABLE ROW LEVEL SECURITY;
--- (policy following the existing pattern — copy from a nearby tenant-scoped table)
-
-CREATE INDEX IF NOT EXISTS idx_calendar_periods_tenant_active
-  ON schedule.calendar_periods (tenant_id) WHERE is_active;
-CREATE INDEX IF NOT EXISTS idx_calendar_periods_tenant_type
-  ON schedule.calendar_periods (tenant_id, period_type);
-```
-
-### Notes for Yannick's later extension
-
-Yannick's full RFC spec adds:
-- `week_cycle_length SMALLINT DEFAULT 1`
-- `week_cycle_anchor DATE`
-
-These are additive. His migration just runs `ALTER TABLE schedule.calendar_periods ADD COLUMN ...`. No data migration needed. We should flag this explicitly to him in the PR description so he's not surprised.
-
-### Minimal service
-
-Ship `backend/services/schedule/calendar_period_service.go` with just `Get`, `List`, `Create`, `Update`, `Delete`. Admin UI at `/{tenant}/admin/calendar-periods` — simple list + form. Yannick can extend later.
-
-### Communication
-
-The PR 6 description should include a `### Coordination` section noting:
-- We shipped the minimal `schedule.calendar_periods` because the Timetable RFC hadn't landed
-- The columns added are a strict subset of the RFC's spec
-- Additive extension is safe; no data migration needed
-- Link to the Timetable RFC and the enrollment plan's §11
+- Does Yannick's delivery auto-create a default `school_year` period per tenant, or do we need to add this to enrollment setup flow?
+- What's `ON DELETE` behavior if an admin tries to delete a calendar_period that enrollment rows reference? Enrollment wants `ON DELETE RESTRICT` — confirm Yannick agrees.
+- Any additional fields on `activities.student_enrollments` beyond `valid_from`/`valid_until`/`calendar_period_id` that we should know about?
 
 ---
 
@@ -504,19 +473,21 @@ If a merged PR misbehaves in staging, revert first and debug the revert commit l
 
 These are open questions that don't block starting PR 2 but should be resolved before their respective later PR:
 
-| Question | Blocks PR | Source |
-|----------|-----------|--------|
-| Required consent checkboxes for GDPR (AGB, data processing, contact, photo?) | PR 7 | plan §4 Q1 |
-| Default rejection retention in days | PR 5 or PR 8 | plan §4 Q2 (proposed 90) |
-| Spam provider choice (Turnstile / hCaptcha / other) | PR 7 | plan §4 Q5 |
-| Email sender identity (tenant-specific vs global) | PR 7 | plan §4 Q6 |
-| Grade level max (restrict to 4 for OGS or allow 13?) | PR 7 | plan §4 Q7 |
-| Care overflow behavior (reject / waitlist / allow) | PR 7 | plan §4 Q9 |
-| Digest vs immediate default | PR 8 | plan §4 Q10 |
-| Outbox scope (enrollment-only vs platform-shared) | PR 5 | plan §4 Q11 |
-| Status token TTL (1 year?) | PR 5 | plan §4 Q12 |
-| Calendar period ownership (skip PR 1 / ship minimal in PR 6) | PR 6 | plan §4 Q13 |
-| Default school-year period auto-gen | PR 6 | plan §4 Q14 |
+| Question | Blocks PR | Source | Status |
+|----------|-----------|--------|--------|
+| Required consent checkboxes for GDPR (AGB, data processing, contact, photo?) | PR 7 | plan §4 Q1 | **open** — Christian will discuss; ask again before PR 7 |
+| Default rejection retention in days | PR 5 or PR 8 | plan §4 Q2 (proposed 90) | tentative default 90; confirm before PR 5 |
+| Spam provider choice (Turnstile / hCaptcha / other) | PR 7 | plan §4 Q5 | **tentative: Cloudflare Turnstile** (Chris thinks we already use Cloudflare — verify before PR 7) |
+| Email sender identity (tenant-specific vs global) | PR 7 | plan §4 Q6 | open — ask again before PR 7 |
+| Grade level max (restrict to 4 for OGS or allow 13?) | PR 7 | plan §4 Q7 | open — ask again before PR 7 |
+| Care overflow behavior (reject / waitlist / allow) | PR 7 | plan §4 Q9 | open — ask again before PR 7 |
+| Digest vs immediate default | PR 8 | plan §4 Q10 | open — ask before PR 8 (my recommendation: `digest`) |
+| Outbox scope (enrollment-only vs platform-shared) | PR 5 | plan §4 Q11 | **RESOLVED: `platform.email_outbox` (shared)** |
+| Status token TTL (1 year?) | PR 5 | plan §4 Q12 | **RESOLVED: 1 year default, operator-only editable per tenant (new `platform:config:update` write permission)** |
+| Calendar period ownership | PR 6 | plan §4 Q13 | **RESOLVED: Yannick ships it** |
+| Default school-year period auto-gen | PR 6 | plan §4 Q14 | depends on Yannick's delivery — ask before PR 6 |
+
+**Protocol for re-asking open questions:** Claude must re-read this table at the start of every session starting from PR 5 onward, and explicitly ask the user for answers to the open items before writing code that depends on them. Don't assume; ask.
 
 ---
 
@@ -533,3 +504,4 @@ Do NOT rewrite history — keep a changelog at the top.
 ### Changelog
 
 - **2026-04-16 (v1):** Initial execution plan drafted by Claude for team review.
+- **2026-04-16 (v1.1):** Resolved Q11 (outbox → `platform.email_outbox` shared), Q12 (status token TTL 1 year, operator-only editable — introduces new `platform:config:update` permission pattern), Q13 (Yannick ships calendar_periods). Emergency fallback replaced by coordination notes. PR-7 open questions marked as re-ask-before-PR-7.
