@@ -129,27 +129,19 @@ func (r *CalendarPeriodRepository) FindByID(ctx context.Context, id any) (*sched
 	return &period, nil
 }
 
-// Create overrides the base Create method to handle validation
+// Create overrides the base Create method with nil guard
 func (r *CalendarPeriodRepository) Create(ctx context.Context, p *schedule.CalendarPeriod) error {
 	if p == nil {
 		return errCalendarPeriodNil
 	}
 
-	if err := p.Validate(); err != nil {
-		return err
-	}
-
 	return r.Repository.Create(ctx, p)
 }
 
-// Update overrides the base Update method to handle validation
+// Update overrides the base Update method with nil guard
 func (r *CalendarPeriodRepository) Update(ctx context.Context, p *schedule.CalendarPeriod) error {
 	if p == nil {
 		return errCalendarPeriodNil
-	}
-
-	if err := p.Validate(); err != nil {
-		return err
 	}
 
 	return r.Repository.Update(ctx, p)

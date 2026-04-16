@@ -29,7 +29,7 @@ type Group struct {
 	CreatedBy        *int64 `bun:"created_by" json:"created_by"`
 	Type             string `bun:"type,notnull,default:'activity'" json:"type"`
 	EducationGroupID *int64 `bun:"education_group_id" json:"education_group_id,omitempty"`
-	IsTemplate       bool   `bun:"is_template,notnull,default:true" json:"is_template"`
+	IsTemplate       bool   `bun:"is_template,notnull,default:false" json:"is_template"`
 
 	// Relations - populated when using the ORM's relations
 	Category       *Category            `bun:"rel:belongs-to,join:category_id=id" json:"category,omitempty"`

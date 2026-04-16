@@ -43,7 +43,7 @@ func templateExtensionsUp(ctx context.Context, db *bun.DB) error {
 		ALTER TABLE activities.groups
 			ADD COLUMN IF NOT EXISTS type TEXT NOT NULL DEFAULT 'activity',
 			ADD COLUMN IF NOT EXISTS education_group_id BIGINT REFERENCES education.groups(id),
-			ADD COLUMN IF NOT EXISTS is_template BOOLEAN NOT NULL DEFAULT true;
+			ADD COLUMN IF NOT EXISTS is_template BOOLEAN NOT NULL DEFAULT false;
 	`).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed adding columns to activities.groups: %w", err)

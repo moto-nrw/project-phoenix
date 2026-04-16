@@ -1,8 +1,10 @@
 package timetable
 
 import (
+	"database/sql"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -76,14 +78,23 @@ func (req *CalendarPeriodRequest) Bind(_ *http.Request) error {
 	if req.Name == "" {
 		return errors.New("name is required")
 	}
+	if len(req.Name) > 255 {
+		return errors.New("name cannot exceed 255 characters")
+	}
 	if req.PeriodType == "" {
 		return errors.New("period_type is required")
+	}
+	if !schedule.IsValidPeriodType(req.PeriodType) {
+		return errors.New("invalid period_type, must be one of: school_year, semester, holiday, custom")
 	}
 	if req.StartDate == "" {
 		return errors.New("start_date is required")
 	}
 	if req.EndDate == "" {
 		return errors.New("end_date is required")
+	}
+	if req.WeekCycleLength <= 0 {
+		req.WeekCycleLength = 1
 	}
 	return nil
 }
@@ -149,6 +160,20 @@ func parseDates(w http.ResponseWriter, r *http.Request, req *CalendarPeriodReque
 	return startDate, endDate, anchor, true
 }
 
+// validatePeriodRules checks business rules after dates have been parsed.
+// Returns true on success, or renders an error and returns false.
+func validatePeriodRules(w http.ResponseWriter, r *http.Request, req *CalendarPeriodRequest, startDate, endDate time.Time, anchor *time.Time) bool {
+	if !endDate.After(startDate) {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("end_date must be after start_date")))
+		return false
+	}
+	if req.WeekCycleLength > 1 && anchor == nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("week_cycle_anchor is required when week_cycle_length > 1")))
+		return false
+	}
+	return true
+}
+
 // Handlers
 
 func (rs *Resource) listPeriods(w http.ResponseWriter, r *http.Request) {
@@ -175,7 +200,11 @@ func (rs *Resource) getPeriod(w http.ResponseWriter, r *http.Request) {
 
 	period, err := rs.calendarPeriodService.GetPeriodByID(r.Context(), id)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("calendar period not found")))
+		if errors.Is(err, sql.ErrNoRows) {
+			common.RenderError(w, r, common.ErrorNotFound(errors.New("calendar period not found")))
+		} else {
+			common.RenderError(w, r, common.ErrorInternalServer(err))
+		}
 		return
 	}
 
@@ -194,6 +223,10 @@ func (rs *Resource) createPeriod(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !validatePeriodRules(w, r, req, startDate, endDate, anchor) {
+		return
+	}
+
 	period := &schedule.CalendarPeriod{
 		Name:            req.Name,
 		PeriodType:      req.PeriodType,
@@ -204,12 +237,12 @@ func (rs *Resource) createPeriod(w http.ResponseWriter, r *http.Request) {
 		IsActive:        req.IsActive,
 	}
 
-	if period.WeekCycleLength == 0 {
-		period.WeekCycleLength = 1
-	}
-
 	if err := rs.calendarPeriodService.CreatePeriod(r.Context(), period); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		if strings.Contains(err.Error(), "already exists") {
+			common.RenderError(w, r, common.ErrorConflict(errors.New("a period with this name already exists")))
+		} else {
+			common.RenderError(w, r, common.ErrorInternalServer(err))
+		}
 		return
 	}
 
@@ -225,7 +258,11 @@ func (rs *Resource) updatePeriod(w http.ResponseWriter, r *http.Request) {
 
 	existing, err := rs.calendarPeriodService.GetPeriodByID(r.Context(), id)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("calendar period not found")))
+		if errors.Is(err, sql.ErrNoRows) {
+			common.RenderError(w, r, common.ErrorNotFound(errors.New("calendar period not found")))
+		} else {
+			common.RenderError(w, r, common.ErrorInternalServer(err))
+		}
 		return
 	}
 
@@ -240,6 +277,10 @@ func (rs *Resource) updatePeriod(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !validatePeriodRules(w, r, req, startDate, endDate, anchor) {
+		return
+	}
+
 	existing.Name = req.Name
 	existing.PeriodType = req.PeriodType
 	existing.StartDate = startDate
@@ -248,12 +289,12 @@ func (rs *Resource) updatePeriod(w http.ResponseWriter, r *http.Request) {
 	existing.WeekCycleAnchor = anchor
 	existing.IsActive = req.IsActive
 
-	if existing.WeekCycleLength == 0 {
-		existing.WeekCycleLength = 1
-	}
-
 	if err := rs.calendarPeriodService.UpdatePeriod(r.Context(), existing); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		if strings.Contains(err.Error(), "already exists") {
+			common.RenderError(w, r, common.ErrorConflict(errors.New("a period with this name already exists")))
+		} else {
+			common.RenderError(w, r, common.ErrorInternalServer(err))
+		}
 		return
 	}
 
@@ -264,6 +305,15 @@ func (rs *Resource) deletePeriod(w http.ResponseWriter, r *http.Request) {
 	id, err := common.ParseID(r)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid period ID")))
+		return
+	}
+
+	if _, err := rs.calendarPeriodService.GetPeriodByID(r.Context(), id); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			common.RenderError(w, r, common.ErrorNotFound(errors.New("calendar period not found")))
+		} else {
+			common.RenderError(w, r, common.ErrorInternalServer(err))
+		}
 		return
 	}
 
