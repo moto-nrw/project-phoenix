@@ -513,8 +513,8 @@ Two tracks: **all backend first, frontend after.** Each item is a **Work Package
 
 - [x] **WP-B1** — Arrival schedules tables + models + repos + service → GitHub #1280
 - [x] **WP-B2** — Arrival API endpoints (CRUD + bulk by class) + exception warnings → GitHub #1280
-- [x] **WP-B3** — `schedule.calendar_periods` table + model + default-period auto-creation → GitHub #1281 *(in review)*
-- [x] **WP-B4** — Template extensions: `week_pattern` + `calendar_period_id` on `activities.schedules`, `valid_from`/`valid_until` + `calendar_period_id` on enrollments + supervisors, `enrollment_date` → `valid_from` rename, partial UNIQUE indexes → GitHub #1281 *(in review)*
+- [x] **WP-B3** — `schedule.calendar_periods` table + model + default-period auto-creation → GitHub #1281
+- [x] **WP-B4** — Template extensions: `week_pattern` + `calendar_period_id` on `activities.schedules`, `valid_from`/`valid_until` + `calendar_period_id` on enrollments + supervisors, `enrollment_date` → `valid_from` rename, partial UNIQUE indexes → GitHub #1281
 
 #### B2 — Activity instances + materialization (core)
 
