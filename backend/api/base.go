@@ -273,21 +273,22 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Auth.CaregiverCapabilityService = api.Services.CaregiverCapability
 	api.Rooms = roomsAPI.NewResource(api.Services.Facilities, db)
 	api.Students = studentsAPI.NewResource(studentsAPI.ResourceConfig{
-		PersonService:         api.Services.Users,
-		StudentRepo:           repoFactory.Student,
-		EducationService:      api.Services.Education,
-		UserContextService:    api.Services.UserContext,
-		ActiveService:         api.Services.Active,
-		IoTService:            api.Services.IoT,
-		PrivacyConsentRepo:    repoFactory.PrivacyConsent,
-		PickupScheduleService: api.Services.PickupSchedule,
-		SchoolRepo:            repoFactory.School,
-		SettingsService:       api.Services.Settings,
-		AttendanceRepo:        repoFactory.Attendance,
-		VisitRepo:             repoFactory.ActiveVisit,
-		DataAccessLogRepo:     repoFactory.DataAccessLog,
-		Logger:                logger.With("handler", "students"),
-		DB:                    db,
+		PersonService:          api.Services.Users,
+		StudentRepo:            repoFactory.Student,
+		EducationService:       api.Services.Education,
+		UserContextService:     api.Services.UserContext,
+		ActiveService:          api.Services.Active,
+		IoTService:             api.Services.IoT,
+		PrivacyConsentRepo:     repoFactory.PrivacyConsent,
+		PickupScheduleService:  api.Services.PickupSchedule,
+		ArrivalScheduleService: api.Services.ArrivalSchedule,
+		SchoolRepo:             repoFactory.School,
+		SettingsService:        api.Services.Settings,
+		AttendanceRepo:         repoFactory.Attendance,
+		VisitRepo:              repoFactory.ActiveVisit,
+		DataAccessLogRepo:      repoFactory.DataAccessLog,
+		Logger:                 logger.With("handler", "students"),
+		DB:                     db,
 	})
 	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, repoFactory.Student, repoFactory.GroupSubstitution, db)
 	api.Guardians = guardiansAPI.NewResource(api.Services.Guardian, api.Services.Users, api.Services.Education, api.Services.UserContext, repoFactory.Student, db)

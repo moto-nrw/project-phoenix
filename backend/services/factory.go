@@ -56,6 +56,7 @@ type Factory struct {
 	Settings                 config.SettingsService
 	Schedule                 schedule.Service
 	PickupSchedule           schedule.PickupScheduleService
+	ArrivalSchedule          schedule.ArrivalScheduleService
 	Users                    users.PersonService
 	CaregiverCapability      users.CaregiverCapabilityService
 	Guardian                 users.GuardianService
@@ -312,6 +313,17 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		db,
 	)
 
+	// Initialize arrival schedule service
+	arrivalScheduleService := schedule.NewArrivalScheduleService(
+		repos.StudentArrivalSchedule,
+		repos.StudentArrivalException,
+		repos.StudentArrivalNote,
+		repos.Student,
+		repos.Person,
+		db,
+		logger.With("service", "arrival-schedule"),
+	)
+
 	// Initialize auth service with validated config
 	authConfig, err := auth.NewServiceConfig(
 		dispatcher,
@@ -530,6 +542,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Settings:                 settingsService,
 		Schedule:                 scheduleService,
 		PickupSchedule:           pickupScheduleService,
+		ArrivalSchedule:          arrivalScheduleService,
 		Users:                    usersService,
 		CaregiverCapability:      caregiverCapabilityService,
 		Guardian:                 guardianService,

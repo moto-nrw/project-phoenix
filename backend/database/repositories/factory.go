@@ -73,12 +73,15 @@ type Factory struct {
 	GradeTransition   educationModels.GradeTransitionRepository
 
 	// Schedule domain
-	Dateframe              scheduleModels.DateframeRepository
-	Timeframe              scheduleModels.TimeframeRepository
-	RecurrenceRule         scheduleModels.RecurrenceRuleRepository
-	StudentPickupSchedule  scheduleModels.StudentPickupScheduleRepository
-	StudentPickupException scheduleModels.StudentPickupExceptionRepository
-	StudentPickupNote      scheduleModels.StudentPickupNoteRepository
+	Dateframe               scheduleModels.DateframeRepository
+	Timeframe               scheduleModels.TimeframeRepository
+	RecurrenceRule          scheduleModels.RecurrenceRuleRepository
+	StudentPickupSchedule   scheduleModels.StudentPickupScheduleRepository
+	StudentPickupException  scheduleModels.StudentPickupExceptionRepository
+	StudentPickupNote       scheduleModels.StudentPickupNoteRepository
+	StudentArrivalSchedule  scheduleModels.StudentArrivalScheduleRepository
+	StudentArrivalException scheduleModels.StudentArrivalExceptionRepository
+	StudentArrivalNote      scheduleModels.StudentArrivalNoteRepository
 
 	// Activities domain
 	ActivityGroup      activitiesModels.GroupRepository
@@ -176,12 +179,15 @@ func NewFactory(db *bun.DB) *Factory {
 		GradeTransition:   education.NewGradeTransitionRepository(db),
 
 		// Schedule repositories
-		Dateframe:              schedule.NewDateframeRepository(db),
-		Timeframe:              schedule.NewTimeframeRepository(db),
-		RecurrenceRule:         schedule.NewRecurrenceRuleRepository(db),
-		StudentPickupSchedule:  schedule.NewStudentPickupScheduleRepository(db),
-		StudentPickupException: schedule.NewStudentPickupExceptionRepository(db),
-		StudentPickupNote:      schedule.NewStudentPickupNoteRepository(db),
+		Dateframe:               schedule.NewDateframeRepository(db),
+		Timeframe:               schedule.NewTimeframeRepository(db),
+		RecurrenceRule:          schedule.NewRecurrenceRuleRepository(db),
+		StudentPickupSchedule:   schedule.NewStudentPickupScheduleRepository(db),
+		StudentPickupException:  schedule.NewStudentPickupExceptionRepository(db),
+		StudentPickupNote:       schedule.NewStudentPickupNoteRepository(db),
+		StudentArrivalSchedule:  schedule.NewStudentArrivalScheduleRepository(db),
+		StudentArrivalException: schedule.NewStudentArrivalExceptionRepository(db),
+		StudentArrivalNote:      schedule.NewStudentArrivalNoteRepository(db),
 
 		// Activities repositories
 		ActivityGroup:      activities.NewGroupRepository(db),
