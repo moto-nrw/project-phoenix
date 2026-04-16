@@ -43,7 +43,7 @@ The system connects three independent scheduling domains — **Arrival** (when d
 - Per-student expected arrival times per weekday (mirrors existing pickup schedule pattern)
 - Bulk endpoint for class-based entry using `students.school_class` as filter
 - Date-specific exceptions (Wandertag, Hitzefrei, schedule change)
-- Independent from timetable — deployable first (Phase 0)
+- Independent from timetable — deployable first (WP-B1 / WP-B2, shipped in #1280)
 
 **Staff Management:**
 - One-click substitute assignment across all instances for a day
@@ -80,7 +80,7 @@ The system connects three independent scheduling domains — **Arrival** (when d
 | **E16** | **A/B weeks** | `week_pattern` on `activities.schedules` (0=every, 1=A, 2=B). Cycle config on calendar period (`week_cycle_length`, `week_cycle_anchor`). Day-based difference calculation for correct year-boundary handling. |
 | **E17** | **Enrollment validity** | `valid_from`/`valid_until` on enrollments and supervisors. Enables semester rollover without losing history. Partial UNIQUE: only unbounded enrollments must be unique. Bulk rollover endpoint. |
 | **E18** | **Three-field attendance** | `status` (expected/present/absent — system-controlled), `substatus` (late/excused/sick/field_trip/other — human-controlled), `note` (freetext, max 500). TEXT with CHECK constraint, not DB ENUM. Auto-detection of `late` substatus at check-in. |
-| **E19** | **Auto-start** | Three independently configurable levels: Passive (UI indicators, MVP), Active (SSE events to assigned staff, Phase 4), Automatic (scheduler creates `active.group`, per setting). |
+| **E19** | **Auto-start** | Three independently configurable levels: Passive (UI indicators, MVP — WP-F3), Active (SSE events to assigned staff — WP-F7), Automatic (scheduler creates `active.group`, per setting — WP-F10). |
 | **E20** | **Substitute detection** | Gap-detection query (MVP) — API endpoint shows instances with zero/insufficient staff. Staff-absence entity (`schedule.staff_absences`) deferred until admin UI exists. |
 | **E21** | **Mensa rotation** | Already solved by existing templates + A/B weeks. Daily rotation via different weekday schedules, weekly rotation via `week_pattern`. No additional model needed. |
 | **E22** | **Holiday care** | All schema decisions keep holiday care possible without schema changes: nullable `calendar_period_id`, `activities.schedules.weekday` allows 1–7 (not restricted to 1–5), templates not bound to school weeks, enrollment validity scoping. Note: arrival schedules stay 1–5 (school days only) — holiday arrivals use a different pattern. |
@@ -486,7 +486,7 @@ Chris's enrollment plan (PR #1270) introduces shared concepts that interact with
 | `users.student_year_assignments` (grade, class) | Can replace `students.school_class` string for arrival bulk endpoints in the future. Currently: bulk arrival uses `school_class` string. |
 | Care offerings on approved enrollments | **Open question (§4.8):** approved care selections (e.g., "child enrolled in Lernzeit + Mensa") may map to `activities.student_enrollments`. This interface should be planned before either system ships. |
 
-**No blocking dependency:** Both systems can proceed independently. The shared `platform.school_years` table from the enrollment plan does not conflict with `schedule.calendar_periods` — they serve different purposes. However, the care-offering → enrollment mapping should be discussed before Phase 2 of either system.
+**No blocking dependency:** Both systems can proceed independently. The shared `platform.school_years` table from the enrollment plan does not conflict with `schedule.calendar_periods` — they serve different purposes. However, the care-offering → enrollment mapping should be discussed before WP-B5 ships (instance tables) or before the equivalent point in the enrollment plan.
 
 ### 6.6 Existing system integration points
 
@@ -503,53 +503,77 @@ Chris's enrollment plan (PR #1270) introduces shared concepts that interact with
 
 ---
 
-## 7. Phased Delivery
+## 7. Delivery Plan
 
-### Phase 0: Arrival Schedules (independent, no timetable dependency)
+Two tracks: **all backend first, frontend after.** Each item is a **Work Package (WP)** — a planning unit, not a GitHub PR number. One GitHub PR may bundle multiple WPs, and one WP may span multiple GitHub PRs.
 
-- [x] **PR 1** — `student_arrival_schedules` + `student_arrival_exceptions` tables, models, repos, service — shipped in #1280
-- [x] **PR 2** — Arrival API endpoints (CRUD + bulk by class) + arrival exception warnings — shipped in #1280
-- [ ] **PR 3** — Admin UI: arrival schedule editor (class-based bulk + individual override)
+### Backend Track
 
-### Phase 1: Calendar Periods + Template Extensions (schema prep, no UI)
+#### B1 — Schema foundations (✅ shipped)
 
-- [x] **PR 4** — `calendar_periods` table + model + default-period auto-creation — in review #1281
-- [x] **PR 5** — `week_pattern` + `calendar_period_id` on `activities.schedules`. `valid_from`/`valid_until` + `calendar_period_id` on enrollments + supervisors. Migration: `enrollment_date` → `valid_from`. UNIQUE constraint updates. — in review #1281
+- [x] **WP-B1** — Arrival schedules tables + models + repos + service → GitHub #1280
+- [x] **WP-B2** — Arrival API endpoints (CRUD + bulk by class) + exception warnings → GitHub #1280
+- [x] **WP-B3** — `schedule.calendar_periods` table + model + default-period auto-creation → GitHub #1281 *(in review)*
+- [x] **WP-B4** — Template extensions: `week_pattern` + `calendar_period_id` on `activities.schedules`, `valid_from`/`valid_until` + `calendar_period_id` on enrollments + supervisors, `enrollment_date` → `valid_from` rename, partial UNIQUE indexes → GitHub #1281 *(in review)*
 
-### Phase 2: Activity Instances + Materialization (core timetable)
+#### B2 — Activity instances + materialization (core)
 
-- [ ] **PR 6** — `activity_instances`, `instance_staff`, `instance_students`, `activity_exceptions` tables + models + repos
-- [ ] **PR 7** — `active.groups.group_id` nullable migration + Go model update + NULL-safe service updates
-- [ ] **PR 8** — Materialization service + scheduler job (with A/B week + validity filtering) + manual endpoint
-- [ ] **PR 9** — Instance lifecycle: start (→ `active.group` bridge), complete, cancel + conflict detection service
-- [ ] **PR 10** — Timetable settings (7 entries) registered in config system
-- [ ] **PR 11** — Attendance sync: check-in handler instance-awareness (E4) + three-field model updates (E18)
+- [ ] **WP-B5** — `activity_instances`, `instance_staff`, `instance_students`, `activity_exceptions` tables + models + repos
+- [ ] **WP-B6** — `active.groups.group_id` NOT NULL → NULLABLE migration + Go model update + NULL-safe consumer updates
+- [ ] **WP-B7** — Timetable settings (7 entries) registered in config system
+- [ ] **WP-B8** — Materialization service + scheduler job (A/B week + validity filtering) + manual endpoint
+- [ ] **WP-B9** — Instance lifecycle: start (→ `active.group` bridge), complete, cancel + conflict detection service
+- [ ] **WP-B10** — Attendance sync (E4) + three-field attendance model (E18: status / substatus / note)
 
-### Phase 3: Day Aggregation + Substitution
+#### B3 — Aggregation + Ops
 
-- [ ] **PR 12** — Student day API (aggregates arrival + instances + pickup)
-- [ ] **PR 13** — Gap detection endpoint + substitute endpoint
-- [ ] **PR 14** — Conflict warnings on exception writes (arrival → timetable)
-- [ ] **PR 15** — GDPR cleanup job for timetable data
+- [ ] **WP-B11** — Student day API (aggregates arrival + instances + pickup)
+- [ ] **WP-B12** — Gap detection endpoint + substitute endpoint
+- [ ] **WP-B13** — Exception conflict warnings (arrival ↔ timetable)
+- [ ] **WP-B14** — GDPR cleanup job for timetable data
 
-### Phase 4: Staff Views + Admin Planner
+#### B4 — Backend roadmap (after MVP)
 
-- [ ] **PR 16** — Admin weekly planner UI (grid view, instance CRUD)
-- [ ] **PR 17** — Staff "My Day" view with passive auto-start indicators (E19 level 1)
-- [ ] **PR 18** — Instance detail view with check-in list (expected/present/missing)
-- [ ] **PR 19** — Spontaneous activity creation (staff-facing)
-- [ ] **PR 20** — Semester rollover UI + enrollment validity management
-- [ ] **PR 21** — SSE events for overdue instances (E19 level 2)
+- [ ] **WP-B15** — Staff absence entity + substitution plan backend
+- [ ] **WP-B16** — Holiday-specific templates + enrollments backend
 
-### Phase 5: Holiday Care + Polish (roadmap)
+### Frontend Track (starts only after backend MVP is stable)
 
-- [ ] Calendar period admin UI
-- [ ] Holiday-specific templates + enrollments
-- [ ] Staff absence entity + substitution plan UI
-- [ ] Student day view in frontend (currently API-only)
-- [ ] Automatic auto-start (E19 level 3)
+#### F1 — Arrival admin
 
-Each PR is independently shippable. Phase 0 ships value immediately (arrival schedules). Phase 2 is the core investment. Phase 4 is where staff see the system daily.
+- [ ] **WP-F1** — Arrival schedule editor (class-based bulk + individual override)
+
+#### F2 — Admin planner + Staff daily UI
+
+- [ ] **WP-F2** — Admin weekly planner UI (grid view, instance CRUD)
+- [ ] **WP-F3** — Staff "My Day" view + passive auto-start indicators (E19 level 1)
+- [ ] **WP-F4** — Instance detail view with check-in list (expected / present / missing)
+- [ ] **WP-F5** — Spontaneous activity creation (staff-facing)
+
+#### F3 — Rollover + live updates
+
+- [ ] **WP-F6** — Semester rollover UI + enrollment validity management
+- [ ] **WP-F7** — SSE events for overdue instances (E19 level 2)
+
+#### F4 — Frontend roadmap
+
+- [ ] **WP-F8** — Calendar period admin UI
+- [ ] **WP-F9** — Student day view in frontend (currently API-only)
+- [ ] **WP-F10** — Automatic auto-start (E19 level 3)
+
+### Backend dependency map
+
+| Work Package | Blocks |
+|---|---|
+| WP-B5 (instance tables) | B8, B9, B10, B11, B12, B13 |
+| WP-B6 (nullable group_id) | B9 |
+| WP-B7 (settings) | — (parallelizable, no blockers) |
+| WP-B10 (attendance sync) | B13 |
+| WP-B14 (cleanup) | — |
+
+### Recommended next
+
+**WP-B5** — mirrors WP-B3/B4 structurally (new tables in `schedule` schema with RLS + tenant scoping + repo + factory wiring). Lowest risk in B2. Unblocks most of the remaining backend.
 
 ---
 
