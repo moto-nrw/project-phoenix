@@ -121,6 +121,34 @@ func mapPeriodToResponse(p *schedule.CalendarPeriod) CalendarPeriodResponse {
 	return resp
 }
 
+// parseDates extracts start_date, end_date, and optional week_cycle_anchor from a request.
+// Returns parsed times and true on success, or renders an error and returns false.
+func parseDates(w http.ResponseWriter, r *http.Request, req *CalendarPeriodRequest) (startDate, endDate time.Time, anchor *time.Time, ok bool) {
+	var err error
+	startDate, err = time.Parse(dateLayout, req.StartDate)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid start_date format, expected YYYY-MM-DD")))
+		return time.Time{}, time.Time{}, nil, false
+	}
+
+	endDate, err = time.Parse(dateLayout, req.EndDate)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid end_date format, expected YYYY-MM-DD")))
+		return time.Time{}, time.Time{}, nil, false
+	}
+
+	if req.WeekCycleAnchor != nil {
+		a, err := time.Parse(dateLayout, *req.WeekCycleAnchor)
+		if err != nil {
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid week_cycle_anchor format, expected YYYY-MM-DD")))
+			return time.Time{}, time.Time{}, nil, false
+		}
+		anchor = &a
+	}
+
+	return startDate, endDate, anchor, true
+}
+
 // Handlers
 
 func (rs *Resource) listPeriods(w http.ResponseWriter, r *http.Request) {
@@ -161,15 +189,8 @@ func (rs *Resource) createPeriod(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	startDate, err := time.Parse(dateLayout, req.StartDate)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid start_date format, expected YYYY-MM-DD")))
-		return
-	}
-
-	endDate, err := time.Parse(dateLayout, req.EndDate)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid end_date format, expected YYYY-MM-DD")))
+	startDate, endDate, anchor, ok := parseDates(w, r, req)
+	if !ok {
 		return
 	}
 
@@ -179,16 +200,8 @@ func (rs *Resource) createPeriod(w http.ResponseWriter, r *http.Request) {
 		StartDate:       startDate,
 		EndDate:         endDate,
 		WeekCycleLength: req.WeekCycleLength,
+		WeekCycleAnchor: anchor,
 		IsActive:        req.IsActive,
-	}
-
-	if req.WeekCycleAnchor != nil {
-		anchor, err := time.Parse(dateLayout, *req.WeekCycleAnchor)
-		if err != nil {
-			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid week_cycle_anchor format, expected YYYY-MM-DD")))
-			return
-		}
-		period.WeekCycleAnchor = &anchor
 	}
 
 	if period.WeekCycleLength == 0 {
@@ -222,15 +235,8 @@ func (rs *Resource) updatePeriod(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	startDate, err := time.Parse(dateLayout, req.StartDate)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid start_date format, expected YYYY-MM-DD")))
-		return
-	}
-
-	endDate, err := time.Parse(dateLayout, req.EndDate)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid end_date format, expected YYYY-MM-DD")))
+	startDate, endDate, anchor, ok := parseDates(w, r, req)
+	if !ok {
 		return
 	}
 
@@ -239,18 +245,8 @@ func (rs *Resource) updatePeriod(w http.ResponseWriter, r *http.Request) {
 	existing.StartDate = startDate
 	existing.EndDate = endDate
 	existing.WeekCycleLength = req.WeekCycleLength
+	existing.WeekCycleAnchor = anchor
 	existing.IsActive = req.IsActive
-
-	if req.WeekCycleAnchor != nil {
-		anchor, err := time.Parse(dateLayout, *req.WeekCycleAnchor)
-		if err != nil {
-			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid week_cycle_anchor format, expected YYYY-MM-DD")))
-			return
-		}
-		existing.WeekCycleAnchor = &anchor
-	} else {
-		existing.WeekCycleAnchor = nil
-	}
 
 	if existing.WeekCycleLength == 0 {
 		existing.WeekCycleLength = 1
