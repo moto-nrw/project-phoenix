@@ -518,7 +518,7 @@ Two tracks: **all backend first, frontend after.** Each item is a **Work Package
 
 #### B2 — Activity instances + materialization (core)
 
-- [ ] **WP-B5** — `activity_instances`, `instance_staff`, `instance_students`, `activity_exceptions` tables + models + repos
+- [x] **WP-B5** — `activity_instances`, `instance_staff`, `instance_students`, `activity_exceptions` tables + models + repos → GitHub #1283
 - [ ] **WP-B6** — `active.groups.group_id` NOT NULL → NULLABLE migration + Go model update + NULL-safe consumer updates
 - [ ] **WP-B7** — Timetable settings (7 entries) registered in config system
 - [ ] **WP-B8** — Materialization service + scheduler job (A/B week + validity filtering) + manual endpoint
