@@ -91,20 +91,8 @@ func createCalendarPeriodsUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed to create RLS policy on calendar_periods: %w", err)
 	}
 
-	// Grant permissions to phoenix_app role
-	_, err = db.NewRaw(`
-		GRANT SELECT, INSERT, UPDATE, DELETE ON schedule.calendar_periods TO phoenix_app;
-	`).Exec(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to grant permissions on calendar_periods: %w", err)
-	}
-
-	_, err = db.NewRaw(`
-		GRANT USAGE, SELECT ON SEQUENCE schedule.calendar_periods_id_seq TO phoenix_app;
-	`).Exec(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to grant sequence permissions: %w", err)
-	}
+	// Grants are handled automatically via ALTER DEFAULT PRIVILEGES in migration 1.14.1
+	// (phoenix_tenant gets SELECT/INSERT/UPDATE/DELETE on all tables in the schedule schema)
 
 	return nil
 }
