@@ -19,6 +19,7 @@ type StaffCredentials struct {
 type FixedSeeder struct {
 	client           *Client
 	verbose          bool
+	staffPassword    string             // optional: shared password for all staff accounts (from CLI flag)
 	roomIDs          map[string]int64   // room name -> id
 	personIDs        map[string]int64   // "firstName lastName" -> id (staff only)
 	staffIDs         map[string]int64   // "firstName lastName" -> staff id
@@ -52,11 +53,14 @@ type FixedResult struct {
 	StaffCredentials    []StaffCredentials // Login credentials for demo
 }
 
-// NewFixedSeeder creates a new fixed data seeder
-func NewFixedSeeder(client *Client, verbose bool) *FixedSeeder {
+// NewFixedSeeder creates a new fixed data seeder.
+// staffPassword is optional: when non-empty, all 20 staff accounts use this
+// password instead of the per-account defaults from demoPasswords.
+func NewFixedSeeder(client *Client, verbose bool, staffPassword string) *FixedSeeder {
 	return &FixedSeeder{
 		client:           client,
 		verbose:          verbose,
+		staffPassword:    staffPassword,
 		roomIDs:          make(map[string]int64),
 		personIDs:        make(map[string]int64),
 		staffIDs:         make(map[string]int64),
@@ -1097,7 +1101,7 @@ func (s *FixedSeeder) seedStaffAccounts(_ context.Context, result *FixedResult) 
 
 		// Generate email and credentials for demo accounts
 		// Email: demo{n}@mail.de where n = account number (1-20)
-		// Password: hardcoded unique passwords so accounts survive cronjob resets
+		// Password: per-account defaults, or shared --staff-password when set
 		demoPasswords := []string{
 			"sdlXK26%", "mQp9Wy3$", "kJt4Nz8!", "hBv7Rx5@", "fGn2Lm6#",
 			"pYc8Dq1&", "wZa3Ks9*", "vTe5Hj4%", "xUi6Fo7$", "cRo1Pn2!",
@@ -1107,6 +1111,9 @@ func (s *FixedSeeder) seedStaffAccounts(_ context.Context, result *FixedResult) 
 		accountNum := i + 1
 		email := fmt.Sprintf("demo%d@mail.de", accountNum)
 		password := demoPasswords[i]
+		if s.staffPassword != "" {
+			password = s.staffPassword
+		}
 		pin := fmt.Sprintf("%04d", 1000+i)
 
 		// Assign role based on position:

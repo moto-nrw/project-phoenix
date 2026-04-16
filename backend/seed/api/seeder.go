@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -22,11 +23,21 @@ const (
 	seedPasswordLength          = 12
 )
 
+// SeedOptions holds optional CLI flags for deterministic seeding.
+// When a field is empty, the seeder falls back to its default behavior
+// (random suffixes, generated passwords).
+type SeedOptions struct {
+	TenantSlug    string // Fixed tenant slug instead of demo-school-{timestamp}
+	StaffPassword string // Shared password for all 20 staff accounts
+	AdminEmail    string // Fixed email for the bootstrap school admin
+}
+
 // Seeder orchestrates the complete API-based seeding process
 type Seeder struct {
 	adapter *phoenixapi.Adapter
 	client  *Client
 	verbose bool
+	options SeedOptions
 }
 
 // SeedResult contains counts of created entities
@@ -49,12 +60,13 @@ type bootstrapSeedState struct {
 }
 
 // NewSeeder creates a new API seeder
-func NewSeeder(baseURL string, verbose bool) *Seeder {
+func NewSeeder(baseURL string, verbose bool, options SeedOptions) *Seeder {
 	adapter := phoenixapi.New(baseURL, verbose)
 	return &Seeder{
 		adapter: adapter,
 		client:  NewClientWithAdapter(adapter, verbose),
 		verbose: verbose,
+		options: options,
 	}
 }
 
@@ -72,28 +84,56 @@ func (s *Seeder) Seed(ctx context.Context, email, password, staffPIN string) (*S
 	return runtime.Result, nil
 }
 
+// bootstrapTenant creates the demo organization, school, and admin account.
+// When SeedOptions provides a TenantSlug or AdminEmail, deterministic values
+// are used — re-running without 'migrate reset' will fail with 409.
+// Without options, random suffixes ensure each run creates unique entities.
 func (s *Seeder) bootstrapTenant(ctx context.Context) (*bootstrapSeedState, error) {
-	suffix := fmt.Sprintf("%d", time.Now().UnixNano())
-	orgName := fmt.Sprintf("%s %s", defaultSeedOrganizationName, suffix)
-	orgSlug := fmt.Sprintf("%s-%s", defaultSeedOrganizationSlug, suffix)
+	var orgName, orgSlug, schoolName, schoolSlug, schoolSubdomain string
+
+	if s.options.TenantSlug != "" {
+		// Deterministic: use fixed slugs
+		orgName = defaultSeedOrganizationName
+		orgSlug = defaultSeedOrganizationSlug
+		schoolName = defaultSeedSchoolName
+		schoolSlug = s.options.TenantSlug
+		schoolSubdomain = s.options.TenantSlug
+	} else {
+		// Random: append timestamp suffix (default behavior)
+		suffix := fmt.Sprintf("%d", time.Now().UnixNano())
+		orgName = fmt.Sprintf("%s %s", defaultSeedOrganizationName, suffix)
+		orgSlug = fmt.Sprintf("%s-%s", defaultSeedOrganizationSlug, suffix)
+		schoolName = fmt.Sprintf("%s %s", defaultSeedSchoolName, suffix)
+		schoolSlug = fmt.Sprintf("%s-%s", defaultSeedSchoolSlug, suffix)
+		schoolSubdomain = truncateSeedSubdomain(fmt.Sprintf("%s-%s", defaultSeedSchoolSubdomain, suffix))
+	}
+
 	orgID, err := s.createSeedOrganization(orgName, orgSlug)
 	if err != nil {
-		return nil, err
+		return nil, wrapConflictError(err, "organization")
 	}
 
-	schoolName := fmt.Sprintf("%s %s", defaultSeedSchoolName, suffix)
-	schoolSlug := fmt.Sprintf("%s-%s", defaultSeedSchoolSlug, suffix)
-	schoolSubdomain := truncateSeedSubdomain(fmt.Sprintf("%s-%s", defaultSeedSchoolSubdomain, suffix))
 	schoolID, tenantSlug, err := s.createSeedSchool(orgID, schoolName, schoolSlug, schoolSubdomain)
 	if err != nil {
-		return nil, err
+		return nil, wrapConflictError(err, "school")
 	}
 
-	adminEmail := fmt.Sprintf("school-admin-%s@example.com", suffix)
-	adminPassword, err := generateSeedPassword()
-	if err != nil {
-		return nil, fmt.Errorf("generate admin password: %w", err)
+	var adminEmail, adminPassword string
+	if s.options.AdminEmail != "" {
+		adminEmail = s.options.AdminEmail
+	} else {
+		adminEmail = fmt.Sprintf("school-admin-%d@example.com", time.Now().UnixNano())
 	}
+
+	if s.options.StaffPassword != "" {
+		adminPassword = s.options.StaffPassword
+	} else {
+		adminPassword, err = generateSeedPassword()
+		if err != nil {
+			return nil, fmt.Errorf("generate admin password: %w", err)
+		}
+	}
+
 	adminName := "Seed Admin"
 	adminPosition := "OGS-Büro"
 	inviteResp, err := s.client.PostWithHeaders(fmt.Sprintf("/operator/schools/%d/invite-admin", schoolID), map[string]any{
@@ -232,6 +272,16 @@ func truncateSeedSubdomain(subdomain string) string {
 		return subdomain
 	}
 	return subdomain[:63]
+}
+
+// wrapConflictError checks if the error is a 409 Conflict from the API and
+// returns a user-friendly message directing the developer to run migrate reset.
+func wrapConflictError(err error, entity string) error {
+	var apiErr *phoenixapi.APIError
+	if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusConflict {
+		return fmt.Errorf("seed %s already exists (409 Conflict) — run 'go run main.go migrate reset' before re-seeding", entity)
+	}
+	return err
 }
 
 // collectSeedState builds SeedState from the FixedSeeder's internal maps
