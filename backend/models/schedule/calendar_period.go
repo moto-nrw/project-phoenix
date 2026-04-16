@@ -17,6 +17,14 @@ const (
 	PeriodTypeCustom     = "custom"
 )
 
+// Sentinel errors for the calendar period domain. Callers should compare via
+// errors.Is rather than matching on error strings.
+var (
+	// ErrCalendarPeriodNameConflict is returned when a create or update would
+	// violate the per-tenant name uniqueness rule.
+	ErrCalendarPeriodNameConflict = errors.New("calendar period name already exists")
+)
+
 // tableCalendarPeriods is the schema-qualified table name.
 const tableCalendarPeriods = "schedule.calendar_periods"
 

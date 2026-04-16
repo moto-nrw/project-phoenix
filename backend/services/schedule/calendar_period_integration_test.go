@@ -228,7 +228,7 @@ func TestCalendarPeriodService_CreatePeriod(t *testing.T) {
 		err = svc.CreatePeriod(ctx, second)
 
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "already exists")
+		assert.ErrorIs(t, err, scheduleModels.ErrCalendarPeriodNameConflict)
 	})
 
 	t.Run("rejects invalid period data", func(t *testing.T) {
@@ -353,7 +353,7 @@ func TestCalendarPeriodService_UpdatePeriod(t *testing.T) {
 		err = svc.UpdatePeriod(ctx, second)
 
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "already exists")
+		assert.ErrorIs(t, err, scheduleModels.ErrCalendarPeriodNameConflict)
 	})
 
 	t.Run("rejects invalid update data", func(t *testing.T) {

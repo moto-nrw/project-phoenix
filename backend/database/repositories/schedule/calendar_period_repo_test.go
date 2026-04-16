@@ -367,6 +367,46 @@ func TestCalendarPeriodRepository_Delete(t *testing.T) {
 	})
 }
 
+// TestCalendarPeriodFKOnDelete verifies that the three FK columns pointing to
+// schedule.calendar_periods are declared ON DELETE SET NULL, so deleting a
+// period clears references instead of failing with a constraint violation.
+// Catalog code 'n' = SET NULL, 'a' = NO ACTION (default RESTRICT-equivalent),
+// 'c' = CASCADE, 'r' = RESTRICT, 'd' = SET DEFAULT.
+func TestCalendarPeriodFKOnDelete(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+
+	tables := []string{
+		"activities.schedules",
+		"activities.student_enrollments",
+		"activities.supervisors",
+	}
+
+	for _, table := range tables {
+		t.Run(table, func(t *testing.T) {
+			var confdeltype string
+			err := db.NewRaw(`
+				SELECT c.confdeltype
+				FROM pg_constraint c
+				JOIN pg_class t ON t.oid = c.conrelid
+				JOIN pg_namespace ns ON ns.oid = t.relnamespace
+				JOIN pg_class rt ON rt.oid = c.confrelid
+				JOIN pg_namespace rns ON rns.oid = rt.relnamespace
+				WHERE c.contype = 'f'
+				  AND ns.nspname || '.' || t.relname = ?
+				  AND rns.nspname = 'schedule'
+				  AND rt.relname = 'calendar_periods'
+				LIMIT 1
+			`, table).Scan(ctx, &confdeltype)
+			require.NoError(t, err, "FK to schedule.calendar_periods must exist on %s", table)
+			assert.Equal(t, "n", confdeltype,
+				"%s.calendar_period_id must be ON DELETE SET NULL (got %q)", table, confdeltype)
+		})
+	}
+}
+
 func TestCalendarPeriodRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

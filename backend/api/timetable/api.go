@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -238,8 +237,8 @@ func (rs *Resource) createPeriod(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := rs.calendarPeriodService.CreatePeriod(r.Context(), period); err != nil {
-		if strings.Contains(err.Error(), "already exists") {
-			common.RenderError(w, r, common.ErrorConflict(errors.New("a period with this name already exists")))
+		if errors.Is(err, schedule.ErrCalendarPeriodNameConflict) {
+			common.RenderError(w, r, common.ErrorConflict(schedule.ErrCalendarPeriodNameConflict))
 		} else {
 			common.RenderError(w, r, common.ErrorInternalServer(err))
 		}
@@ -290,8 +289,8 @@ func (rs *Resource) updatePeriod(w http.ResponseWriter, r *http.Request) {
 	existing.IsActive = req.IsActive
 
 	if err := rs.calendarPeriodService.UpdatePeriod(r.Context(), existing); err != nil {
-		if strings.Contains(err.Error(), "already exists") {
-			common.RenderError(w, r, common.ErrorConflict(errors.New("a period with this name already exists")))
+		if errors.Is(err, schedule.ErrCalendarPeriodNameConflict) {
+			common.RenderError(w, r, common.ErrorConflict(schedule.ErrCalendarPeriodNameConflict))
 		} else {
 			common.RenderError(w, r, common.ErrorInternalServer(err))
 		}

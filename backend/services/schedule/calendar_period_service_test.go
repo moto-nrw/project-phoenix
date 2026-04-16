@@ -1,12 +1,22 @@
 package schedule
 
 import (
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/stretchr/testify/assert"
 )
+
+// TestScheduleErrorUnwrapsSentinel verifies that the ScheduleError wrapper used
+// by the calendar period service preserves errors.Is semantics for the
+// ErrCalendarPeriodNameConflict sentinel. Callers (API handler) rely on this.
+func TestScheduleErrorUnwrapsSentinel(t *testing.T) {
+	wrapped := &ScheduleError{Op: "create calendar period", Err: schedule.ErrCalendarPeriodNameConflict}
+	assert.True(t, errors.Is(wrapped, schedule.ErrCalendarPeriodNameConflict),
+		"ScheduleError must unwrap to the sentinel so handlers can detect via errors.Is")
+}
 
 func TestShouldMaterialize(t *testing.T) {
 	svc := &calendarPeriodService{}

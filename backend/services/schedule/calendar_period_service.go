@@ -2,7 +2,6 @@ package schedule
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"math"
@@ -96,7 +95,7 @@ func (s *calendarPeriodService) CreatePeriod(ctx context.Context, period *schedu
 		return &ScheduleError{Op: "create calendar period", Err: err}
 	}
 	if existing != nil {
-		return &ScheduleError{Op: "create calendar period", Err: errors.New("a period with this name already exists")}
+		return &ScheduleError{Op: "create calendar period", Err: schedule.ErrCalendarPeriodNameConflict}
 	}
 
 	period.SetTenantID(tenant.FromContext(ctx))
@@ -125,7 +124,7 @@ func (s *calendarPeriodService) UpdatePeriod(ctx context.Context, period *schedu
 		return &ScheduleError{Op: "update calendar period", Err: err}
 	}
 	if existing != nil && existing.ID != period.ID {
-		return &ScheduleError{Op: "update calendar period", Err: errors.New("a period with this name already exists")}
+		return &ScheduleError{Op: "update calendar period", Err: schedule.ErrCalendarPeriodNameConflict}
 	}
 
 	if err := s.repo.Update(ctx, period); err != nil {

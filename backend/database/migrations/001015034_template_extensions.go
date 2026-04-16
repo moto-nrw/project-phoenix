@@ -65,11 +65,13 @@ func templateExtensionsUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed creating index on activities.groups.type: %w", err)
 	}
 
-	// 2. activities.schedules — add week_pattern, calendar_period_id
+	// 2. activities.schedules — add week_pattern, calendar_period_id.
+	// ON DELETE SET NULL: deleting a calendar period clears references
+	// instead of blocking the delete with a FK violation.
 	_, err = db.NewRaw(`
 		ALTER TABLE activities.schedules
 			ADD COLUMN IF NOT EXISTS week_pattern SMALLINT NOT NULL DEFAULT 0,
-			ADD COLUMN IF NOT EXISTS calendar_period_id BIGINT REFERENCES schedule.calendar_periods(id);
+			ADD COLUMN IF NOT EXISTS calendar_period_id BIGINT REFERENCES schedule.calendar_periods(id) ON DELETE SET NULL;
 	`).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed adding columns to activities.schedules: %w", err)
@@ -95,7 +97,7 @@ func templateExtensionsUp(ctx context.Context, db *bun.DB) error {
 	_, err = db.NewRaw(`
 		ALTER TABLE activities.student_enrollments
 			ADD COLUMN IF NOT EXISTS valid_until DATE,
-			ADD COLUMN IF NOT EXISTS calendar_period_id BIGINT REFERENCES schedule.calendar_periods(id);
+			ADD COLUMN IF NOT EXISTS calendar_period_id BIGINT REFERENCES schedule.calendar_periods(id) ON DELETE SET NULL;
 	`).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed adding columns to activities.student_enrollments: %w", err)
@@ -131,7 +133,7 @@ func templateExtensionsUp(ctx context.Context, db *bun.DB) error {
 		ALTER TABLE activities.supervisors
 			ADD COLUMN IF NOT EXISTS valid_from DATE NOT NULL DEFAULT CURRENT_DATE,
 			ADD COLUMN IF NOT EXISTS valid_until DATE,
-			ADD COLUMN IF NOT EXISTS calendar_period_id BIGINT REFERENCES schedule.calendar_periods(id);
+			ADD COLUMN IF NOT EXISTS calendar_period_id BIGINT REFERENCES schedule.calendar_periods(id) ON DELETE SET NULL;
 	`).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed adding columns to activities.supervisors: %w", err)

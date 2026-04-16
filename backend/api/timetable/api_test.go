@@ -81,6 +81,17 @@ func (m *mockCalendarPeriodService) ShouldMaterialize(_ int, _ time.Time, _ *sch
 	return m.shouldMaterialize
 }
 
+// scheduleSvcErr is a minimal stand-in for services/schedule.ScheduleError.
+// It lets the test verify errors.Is traverses a wrapping layer without pulling
+// the services package into the handler test.
+type scheduleSvcErr struct {
+	op    string
+	inner error
+}
+
+func (e *scheduleSvcErr) Error() string { return e.op + ": " + e.inner.Error() }
+func (e *scheduleSvcErr) Unwrap() error { return e.inner }
+
 // =============================================================================
 // Helper functions
 // =============================================================================
@@ -617,7 +628,7 @@ func TestCreatePeriod(t *testing.T) {
 	})
 
 	t.Run("returns 409 for duplicate name", func(t *testing.T) {
-		mock := &mockCalendarPeriodService{err: errors.New("a period with this name already exists")}
+		mock := &mockCalendarPeriodService{err: schedule.ErrCalendarPeriodNameConflict}
 		res := NewResource(mock, nil)
 		router := setupTestRouter(res.createPeriod, http.MethodPost, false)
 
@@ -632,6 +643,26 @@ func TestCreatePeriod(t *testing.T) {
 
 		assert.Equal(t, http.StatusConflict, w.Code)
 		assert.Contains(t, w.Body.String(), "already exists")
+	})
+
+	t.Run("returns 409 when service wraps the sentinel", func(t *testing.T) {
+		// Services wrap the sentinel in ScheduleError — errors.Is must still match.
+		mock := &mockCalendarPeriodService{
+			err: &scheduleSvcErr{op: "create calendar period", inner: schedule.ErrCalendarPeriodNameConflict},
+		}
+		res := NewResource(mock, nil)
+		router := setupTestRouter(res.createPeriod, http.MethodPost, false)
+
+		body := CalendarPeriodRequest{
+			Name:       "Duplicate",
+			PeriodType: "school_year",
+			StartDate:  "2025-08-01",
+			EndDate:    "2026-07-31",
+		}
+
+		w := executeRequest(router, http.MethodPost, "/", body)
+
+		assert.Equal(t, http.StatusConflict, w.Code)
 	})
 
 	t.Run("returns 500 on service error", func(t *testing.T) {
@@ -892,7 +923,7 @@ func TestUpdatePeriod(t *testing.T) {
 	t.Run("returns 409 for duplicate name on update", func(t *testing.T) {
 		mock := &mockCalendarPeriodService{
 			period:    existingPeriod,
-			updateErr: errors.New("a period with this name already exists"),
+			updateErr: schedule.ErrCalendarPeriodNameConflict,
 		}
 		res := NewResource(mock, nil)
 
