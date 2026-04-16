@@ -8,6 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -124,8 +125,40 @@ func (s *service) clearCheckoutOnReentry(ctx context.Context, studentID int64, a
 	}
 }
 
-// autoClearStudentSickness clears sickness flag when student checks in
+// resolveClearMode resolves the configured clear mode for a status flag,
+// falling back to the provided default when the settings resolver is unavailable
+// or has no tenant override. Registry defaults are populated via SetValue flow,
+// not via Resolve* — so we check HasTenantOverride explicitly.
+func (s *service) resolveClearMode(ctx context.Context, key, fallback string) string {
+	if s.settings == nil {
+		return fallback
+	}
+	hasOverride, err := s.settings.HasTenantOverride(ctx, key)
+	if err != nil {
+		s.getLogger().Warn("settings override check failed, using default",
+			slog.String("key", key),
+			slog.String("error", err.Error()),
+		)
+		return fallback
+	}
+	if !hasOverride {
+		return fallback
+	}
+	val, err := s.settings.ResolveString(ctx, key)
+	if err != nil || val == "" {
+		return fallback
+	}
+	return val
+}
+
+// autoClearStudentSickness clears the sickness flag on student check-in when
+// the tenant's operations.sick_clear_mode setting is "next_checkin" (default).
 func (s *service) autoClearStudentSickness(ctx context.Context, studentID int64) {
+	mode := s.resolveClearMode(ctx, configModel.KeySickClearMode, configModel.ClearModeNextCheckin)
+	if mode != configModel.ClearModeNextCheckin {
+		return
+	}
+
 	student, err := s.studentRepo.FindByID(ctx, studentID)
 	if err != nil || student == nil {
 		return
@@ -135,7 +168,6 @@ func (s *service) autoClearStudentSickness(ctx context.Context, studentID int64)
 		return
 	}
 
-	// Student is marked as sick, clear it since they're checking in
 	falseVal := false
 	student.Sick = &falseVal
 	student.SickSince = nil
@@ -149,6 +181,40 @@ func (s *service) autoClearStudentSickness(ctx context.Context, studentID int64)
 	}
 
 	s.getLogger().Info("auto-cleared sickness on student check-in",
+		slog.Int64("student_id", studentID),
+	)
+}
+
+// autoClearStudentExcused clears the excused flag on student check-in when
+// the tenant's operations.excused_clear_mode setting is "next_checkin".
+func (s *service) autoClearStudentExcused(ctx context.Context, studentID int64) {
+	mode := s.resolveClearMode(ctx, configModel.KeyExcusedClearMode, configModel.ClearModeEndOfDay)
+	if mode != configModel.ClearModeNextCheckin {
+		return
+	}
+
+	student, err := s.studentRepo.FindByID(ctx, studentID)
+	if err != nil || student == nil {
+		return
+	}
+
+	if student.Excused == nil || !*student.Excused {
+		return
+	}
+
+	falseVal := false
+	student.Excused = &falseVal
+	student.ExcusedSince = nil
+
+	if err := s.studentRepo.Update(ctx, student); err != nil {
+		s.getLogger().Warn("failed to auto-clear excused on check-in",
+			slog.Int64("student_id", studentID),
+			slog.String("error", err.Error()),
+		)
+		return
+	}
+
+	s.getLogger().Info("auto-cleared excused on student check-in",
 		slog.Int64("student_id", studentID),
 	)
 }

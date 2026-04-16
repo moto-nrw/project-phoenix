@@ -117,6 +117,10 @@ type Service interface {
 	// Tracking indicators — returns per-student match results for the given labels.
 	// Each student gets a []bool aligned with the labels slice.
 	GetTrackingIndicators(ctx context.Context, studentIDs []int64, labels []string) (map[int64][]bool, error)
+
+	// Injects the tenant-scoped settings resolver (optional).
+	// Called by the factory after the settings service is constructed.
+	SetSettingsService(resolver SettingsResolver)
 }
 
 // DashboardAnalytics represents aggregated analytics for dashboard

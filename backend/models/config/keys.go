@@ -73,4 +73,13 @@ const (
 	KeySessionCleanupIntervalMinutes  = "operations.session_cleanup_interval_minutes"
 	KeySessionAbandonedThresholdMin   = "operations.session_abandoned_threshold_minutes"
 	KeyAdminSupervisionOverview       = "operations.admin_supervision_overview"
+	KeySickClearMode                  = "operations.sick_clear_mode"
+	KeyExcusedClearMode               = "operations.excused_clear_mode"
+)
+
+// StatusFlagClearMode option values for KeySickClearMode and KeyExcusedClearMode.
+const (
+	ClearModeManual      = "manual"
+	ClearModeNextCheckin = "next_checkin"
+	ClearModeEndOfDay    = "end_of_day"
 )
