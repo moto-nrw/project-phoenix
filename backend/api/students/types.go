@@ -38,6 +38,8 @@ type StudentResponse struct {
 	Bus               bool       `json:"bus"`
 	Sick              bool       `json:"sick"`
 	SickSince         *time.Time `json:"sick_since,omitempty"`
+	Excused           bool       `json:"excused"`
+	ExcusedSince      *time.Time `json:"excused_since,omitempty"`
 	HasFullAccess     bool       `json:"has_full_access"`
 	CreatedAt         time.Time  `json:"created_at"`
 	UpdatedAt         time.Time  `json:"updated_at"`
@@ -110,6 +112,7 @@ type UpdateStudentRequest struct {
 	PickupStatus    *string `json:"pickup_status,omitempty"`    // How the child gets home
 	Bus             *bool   `json:"bus,omitempty"`              // Administrative permission flag (Buskind)
 	Sick            *bool   `json:"sick,omitempty"`             // true = currently sick
+	Excused         *bool   `json:"excused,omitempty"`          // true = currently excused (not attending today)
 }
 
 // RFIDAssignmentRequest represents an RFID tag assignment request

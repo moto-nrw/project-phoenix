@@ -90,6 +90,12 @@ func populateSensitiveStudentFields(response *StudentResponse, student *users.St
 	if student.SickSince != nil {
 		response.SickSince = student.SickSince
 	}
+	if student.Excused != nil {
+		response.Excused = *student.Excused
+	}
+	if student.ExcusedSince != nil {
+		response.ExcusedSince = student.ExcusedSince
+	}
 }
 
 // populateSnapshotSensitiveFields sets sensitive fields for the snapshot version
@@ -109,6 +115,12 @@ func populateSnapshotSensitiveFields(response *StudentResponse, student *users.S
 	}
 	if student.SickSince != nil {
 		response.SickSince = student.SickSince
+	}
+	if student.Excused != nil {
+		response.Excused = *student.Excused
+	}
+	if student.ExcusedSince != nil {
+		response.ExcusedSince = student.ExcusedSince
 	}
 }
 
