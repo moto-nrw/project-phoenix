@@ -26,10 +26,12 @@ const (
 type StudentEnrollment struct {
 	base.Model `bun:"schema:activities,table:student_enrollments"`
 	base.TenantModel
-	StudentID        int64     `bun:"student_id,notnull" json:"student_id"`
-	ActivityGroupID  int64     `bun:"activity_group_id,notnull" json:"activity_group_id"`
-	EnrollmentDate   time.Time `bun:"enrollment_date,notnull" json:"enrollment_date"`
-	AttendanceStatus *string   `bun:"attendance_status" json:"attendance_status,omitempty"`
+	StudentID        int64      `bun:"student_id,notnull" json:"student_id"`
+	ActivityGroupID  int64      `bun:"activity_group_id,notnull" json:"activity_group_id"`
+	ValidFrom        time.Time  `bun:"valid_from,notnull" json:"valid_from"`
+	ValidUntil       *time.Time `bun:"valid_until" json:"valid_until,omitempty"`
+	CalendarPeriodID *int64     `bun:"calendar_period_id" json:"calendar_period_id,omitempty"`
+	AttendanceStatus *string    `bun:"attendance_status" json:"attendance_status,omitempty"`
 
 	// Relations - populated when using the ORM's relations
 	Student       *users.Student `bun:"rel:belongs-to,join:student_id=id" json:"student,omitempty"`
@@ -90,8 +92,8 @@ func (se *StudentEnrollment) Validate() error {
 		return errors.New("activity group ID is required")
 	}
 
-	if se.EnrollmentDate.IsZero() {
-		se.EnrollmentDate = time.Now()
+	if se.ValidFrom.IsZero() {
+		se.ValidFrom = time.Now()
 	}
 
 	if se.AttendanceStatus != nil && !IsValidAttendanceStatus(*se.AttendanceStatus) {

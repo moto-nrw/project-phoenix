@@ -76,7 +76,7 @@ func TestStudentEnrollmentValidate(t *testing.T) {
 			studentEnrollment: &StudentEnrollment{
 				StudentID:       1,
 				ActivityGroupID: 1,
-				EnrollmentDate:  now,
+				ValidFrom:       now,
 			},
 			wantErr: false,
 		},
@@ -85,7 +85,7 @@ func TestStudentEnrollmentValidate(t *testing.T) {
 			studentEnrollment: &StudentEnrollment{
 				StudentID:        1,
 				ActivityGroupID:  1,
-				EnrollmentDate:   now,
+				ValidFrom:        now,
 				AttendanceStatus: &present,
 			},
 			wantErr: false,
@@ -95,7 +95,7 @@ func TestStudentEnrollmentValidate(t *testing.T) {
 			studentEnrollment: &StudentEnrollment{
 				StudentID:        1,
 				ActivityGroupID:  1,
-				EnrollmentDate:   now,
+				ValidFrom:        now,
 				AttendanceStatus: &absent,
 			},
 			wantErr: false,
@@ -104,7 +104,7 @@ func TestStudentEnrollmentValidate(t *testing.T) {
 			name: "Missing student ID",
 			studentEnrollment: &StudentEnrollment{
 				ActivityGroupID: 1,
-				EnrollmentDate:  now,
+				ValidFrom:       now,
 			},
 			wantErr: true,
 		},
@@ -113,15 +113,15 @@ func TestStudentEnrollmentValidate(t *testing.T) {
 			studentEnrollment: &StudentEnrollment{
 				StudentID:       -1,
 				ActivityGroupID: 1,
-				EnrollmentDate:  now,
+				ValidFrom:       now,
 			},
 			wantErr: true,
 		},
 		{
 			name: "Missing activity group ID",
 			studentEnrollment: &StudentEnrollment{
-				StudentID:      1,
-				EnrollmentDate: now,
+				StudentID: 1,
+				ValidFrom: now,
 			},
 			wantErr: true,
 		},
@@ -130,12 +130,12 @@ func TestStudentEnrollmentValidate(t *testing.T) {
 			studentEnrollment: &StudentEnrollment{
 				StudentID:       1,
 				ActivityGroupID: -1,
-				EnrollmentDate:  now,
+				ValidFrom:       now,
 			},
 			wantErr: true,
 		},
 		{
-			name: "Missing enrollment date will be set automatically",
+			name: "Missing valid_from will be set automatically",
 			studentEnrollment: &StudentEnrollment{
 				StudentID:       1,
 				ActivityGroupID: 1,
@@ -147,7 +147,7 @@ func TestStudentEnrollmentValidate(t *testing.T) {
 			studentEnrollment: &StudentEnrollment{
 				StudentID:        1,
 				ActivityGroupID:  1,
-				EnrollmentDate:   now,
+				ValidFrom:        now,
 				AttendanceStatus: &invalid,
 			},
 			wantErr: true,
@@ -162,7 +162,7 @@ func TestStudentEnrollmentValidate(t *testing.T) {
 			}
 
 			// Verify enrollment date is set when missing
-			if tt.name == "Missing enrollment date will be set automatically" && tt.studentEnrollment.EnrollmentDate.IsZero() {
+			if tt.name == "Missing valid_from will be set automatically" && tt.studentEnrollment.ValidFrom.IsZero() {
 				t.Errorf("StudentEnrollment.Validate() did not set enrollment date")
 			}
 		})

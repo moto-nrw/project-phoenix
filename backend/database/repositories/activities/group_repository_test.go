@@ -277,7 +277,7 @@ func TestActivityGroupRepository_FindWithEnrollmentCounts(t *testing.T) {
 		enrollment1 := &activities.StudentEnrollment{
 			StudentID:       student1.ID,
 			ActivityGroupID: group.ID,
-			EnrollmentDate:  time.Now(),
+			ValidFrom:       time.Now(),
 		}
 		enrollment1.SetTenantID(1)
 		_, _ = db.NewInsert().
@@ -288,7 +288,7 @@ func TestActivityGroupRepository_FindWithEnrollmentCounts(t *testing.T) {
 		enrollment2 := &activities.StudentEnrollment{
 			StudentID:       student2.ID,
 			ActivityGroupID: group.ID,
-			EnrollmentDate:  time.Now(),
+			ValidFrom:       time.Now(),
 		}
 		enrollment2.SetTenantID(1)
 		_, _ = db.NewInsert().

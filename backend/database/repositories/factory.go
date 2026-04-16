@@ -82,6 +82,7 @@ type Factory struct {
 	StudentArrivalSchedule  scheduleModels.StudentArrivalScheduleRepository
 	StudentArrivalException scheduleModels.StudentArrivalExceptionRepository
 	StudentArrivalNote      scheduleModels.StudentArrivalNoteRepository
+	CalendarPeriod          scheduleModels.CalendarPeriodRepository
 
 	// Activities domain
 	ActivityGroup      activitiesModels.GroupRepository
@@ -188,6 +189,7 @@ func NewFactory(db *bun.DB) *Factory {
 		StudentArrivalSchedule:  schedule.NewStudentArrivalScheduleRepository(db),
 		StudentArrivalException: schedule.NewStudentArrivalExceptionRepository(db),
 		StudentArrivalNote:      schedule.NewStudentArrivalNoteRepository(db),
+		CalendarPeriod:          schedule.NewCalendarPeriodRepository(db),
 
 		// Activities repositories
 		ActivityGroup:      activities.NewGroupRepository(db),
