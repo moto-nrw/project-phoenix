@@ -9,6 +9,7 @@
 - **2026-04-15 (rev 2):** Added structured Betreuungsangebote (care offerings), email outbox/delivery-failure visibility, waitlist status + parent status page, per-child approval decisions, refined withdrawal rules. Updated domain model, API, settings, phasing, and risks sections accordingly.
 - **2026-04-15 (rev 2.1):** Added per-offering application windows (`application_window_start`/`_end`) and service date fields on `care_offerings` so parents can't apply for offerings whose intake period has closed (e.g. holiday care after holidays begin).
 - **2026-04-16 (rev 2.2):** Aligned with Yannick's Timetable RFC (`docs/timetable-system-plan.md`). Dropped `platform.school_years` in favor of `schedule.calendar_periods` (filter by `period_type='school_year'`). Dropped `users.student_year_assignments` in favor of the validity-scoped pattern (`valid_from`/`valid_until`). Approved care offering selections now create `activities.student_enrollments` rows instead of a new `users.student_care_enrollments` table. Added §11 Cross-dependencies.
+- **2026-04-16 (rev 2.3):** Resolved team questions. Q11: outbox is **shared platform-level** (`platform.email_outbox`), not enrollment-scoped. Q12: status token TTL default 1 year, **operator-editable only** per tenant (new `platform:config:update` write permission for this setting). Q13: Yannick will ship `schedule.calendar_periods` — emergency fallback plan removed from Phase 1 PR 1 / PR 6.
 
 ---
 
@@ -53,7 +54,7 @@ Enable parents to submit a sign-up request for a child (or multiple children) fo
 | **Approval granularity** | Per-child. Admin decides approve/waitlist/reject for each child independently. The parent is still one unit: one guardian profile, one account (if created), one status token, one status page. |
 | **Waitlist** | Supported as first-class status alongside approved/rejected. Setting `enrollment.waitlist_enabled` toggles visibility in admin UI. Admin can promote waitlisted children to approved (same code path as initial approval). |
 | **Parent status visibility** | Tokenized status page accessible from the confirmation email stays live throughout the lifecycle. Parent sees per-child status + optional reason. Same token also powers edit/withdraw (gated by rules in §6.3). |
-| **Email reliability** | Outbox pattern (`enrollment.email_outbox`) — all approval-related emails written atomically with DB changes, dispatched by a worker with exponential backoff retry. Admin UI shows per-request delivery status with resend button. No more silent send failures. |
+| **Email reliability** | Outbox pattern (`platform.email_outbox`) — all approval-related emails written atomically with DB changes, dispatched by a worker with exponential backoff retry. Admin UI shows per-request delivery status with resend button. No more silent send failures. |
 | **Decision notification style** | Configurable per tenant via `enrollment.notify_per_decision` — default `digest` (one email summarizing all children's decisions after admin saves), alternative `immediate` (one email per child decision). |
 | **Care-offering ↔ activity-group mapping** | Each `enrollment.care_offerings` row optionally references an `activities.groups` row (care-type). Approving a child's care selection creates an `activities.student_enrollments` row linking student to that activity group, with `valid_from`/`valid_until` derived from the selected `calendar_period`. The offering row stays in the `enrollment` schema as the intake-side catalog; the activity group stays in the `activities` schema as the schedule-side entity. Clean separation. |
 
@@ -69,10 +70,10 @@ Enable parents to submit a sign-up request for a child (or multiple children) fo
 8. **Care offerings — downstream representation** — **RESOLVED (rev 2.2):** Approved care selections create `activities.student_enrollments` rows scoped by `valid_from`/`valid_until` from the calendar period, following the Timetable RFC's E17 pattern. Offerings without a linked `activity_group_id` stay as catalog-only records.
 9. **Care offering capacity overflow behavior** — when a parent submits but the chosen offering is full, should we: (a) reject the submission with an error, (b) auto-place the child on waitlist and let the admin decide, or (c) allow submission and surface the overflow in admin UI? (b) feels most parent-friendly.
 10. **Digest vs. immediate notification default** — default proposed as `digest` (one email after admin saves all decisions). Is that right, or do schools expect immediate per-child emails?
-11. **Outbox scope** — scope to enrollment only (table `enrollment.email_outbox`) for v1, or invest in a shared `platform.outbox` that other features can use? Shared is more work up-front but pays dividends.
-12. **Status token lifetime** — proposal is 1 year so parents can revisit status long after submission. Is that acceptable under data protection review?
-13. **Coordination with Timetable RFC delivery** — if Yannick's full `schedule.calendar_periods` table lands before this plan's Phase 1 PR 1, we skip PR 1. If it lands after, do we ship the minimal subset (§7 Phase 1 PR 1) and let him extend, or do we block on his delivery? Depends on timing alignment — conversation with Yannick needed.
-14. **Auto-generated default school-year period** — the Timetable RFC (E15) says the system auto-creates a default `school_year` period per tenant. Does this plan rely on that behavior (i.e., we assume a school-year period always exists for a tenant and the parent picks from open ones)? If yes, our plan depends on that feature shipping too.
+11. **Outbox scope** — **RESOLVED (rev 2.3):** build `platform.email_outbox` (shared across features), not an enrollment-scoped table.
+12. **Status token lifetime** — **RESOLVED (rev 2.3):** default 1 year. Operator-only editable per tenant (new permission pattern — see §11 coordination notes).
+13. **Coordination with Timetable RFC delivery** — **RESOLVED (rev 2.3):** Yannick will ship `schedule.calendar_periods`. Enrollment Phase 1 no longer needs its own calendar_periods PR; we consume his.
+14. **Auto-generated default school-year period** — still open: does Yannick's delivery auto-create a `school_year` period per tenant? If not, the enrollment admin UI (PR 6 or earlier) needs a setup step. Ask him.
 15. **Care offering ↔ activity group wiring UX** — since `care_offerings.activity_group_id` is nullable, admins can create offerings before the matching `activities.groups` row exists. When a care offering has no linked activity group and a child is approved, what should happen? Proposed: log a warning, still approve the enrollment request, but skip the `student_enrollments` insert — admin can wire it later via an "attach activity group" action.
 
 ---
@@ -139,10 +140,10 @@ enrollment.request_child_offerings
   notes TEXT (nullable)
   UNIQUE(request_child_id, care_offering_id)
 
-enrollment.email_outbox
-  id, tenant_id, kind ('guardian_invitation'|'admin_notification'|'enrollment_submitted'
-                      |'enrollment_approved'|'enrollment_waitlisted'|'enrollment_rejected'),
-  related_request_id (nullable FK),
+platform.email_outbox                          -- SHARED ACROSS FEATURES, not enrollment-only
+  id, tenant_id, kind (text, extensible — initial kinds listed below),
+  related_entity_type (text, nullable — e.g. 'enrollment_request', 'invitation'),
+  related_entity_id (bigint, nullable — polymorphic reference, no FK constraint),
   payload JSONB (rendered template context),
   status ('pending'|'sending'|'sent'|'failed'),
   attempts int default 0,
@@ -153,6 +154,8 @@ enrollment.email_outbox
 ```
 
 **Why `email_outbox` over a pure async dispatcher:** the approval flow writes student + guardian + outbox rows in ONE transaction. The worker reads outbox rows independently. A dispatcher crash or SMTP outage no longer leaves the database in a state where records exist but the invitation was never sent. Admin UI reads from `email_outbox` to show delivery status; resend re-enqueues a new outbox row.
+
+**Why `platform.email_outbox` (shared) instead of `enrollment.email_outbox`:** per-feature outboxes would duplicate worker logic, retry policy, monitoring, and admin UI. A single platform-level table keyed by `kind` + `related_entity_type` is reused for guardian invitations (enrollment), staff invitations, audit email notifications, and any future feature. The enrollment feature only adds new `kind` values and a small wrapper on the admin UI to filter by request-related rows. Initial `kind` values registered by enrollment: `guardian_invitation`, `enrollment_submitted`, `enrollment_admin_notification`, `enrollment_decision_digest`, `enrollment_approved`, `enrollment_waitlisted`, `enrollment_rejected`.
 
 **No `platform.school_years` / `users.student_year_assignments` tables.** Earlier revisions of this plan proposed new tables for year tracking and year-scoped class assignment. The Timetable RFC (`docs/timetable-system-plan.md`) introduces `schedule.calendar_periods` with `period_type IN ('school_year'|'semester'|'holiday'|'custom')` — a superset of what we need — and establishes the `valid_from`/`valid_until` pattern on existing rows (`activities.student_enrollments`, `activities.supervisors`) for year-scoped progression. We defer to that model:
 
@@ -269,7 +272,7 @@ Registered in `services/config/defaults/enrollment.go`, new "Enrollment" tab. Al
 | `enrollment.show_status_reason_to_parent` | boolean | `true` | Include admin's per-child reason on the status page + email |
 | `enrollment.notify_per_decision` | select (`digest`/`immediate`) | `digest` | One email after admin saves all decisions vs. email per child decision |
 | `enrollment.outbox_max_attempts` | number | `6` | Retries before outbox rows are marked `failed` |
-| `enrollment.status_token_ttl_days` | number | `365` | How long the parent status/edit token remains valid |
+| `enrollment.status_token_ttl_days` | number | `365` | How long the parent status/edit token remains valid. **Operator-only writeable** (write permission `platform:config:update`); tenant admins can read but not edit. |
 
 ---
 
@@ -306,7 +309,7 @@ Audit log entries are written per child decision (reuse existing audit schema or
 Runs every 30–60 seconds via the scheduler. Pseudocode:
 
 ```
-SELECT id, kind, payload FROM enrollment.email_outbox
+SELECT id, kind, payload FROM platform.email_outbox
   WHERE status = 'pending' AND next_retry_at <= now()
   ORDER BY created_at
   FOR UPDATE SKIP LOCKED
@@ -444,11 +447,24 @@ This plan intentionally defers several concepts to Yannick's Timetable RFC (`doc
 
 ### Required Coordination Points
 
-- Table ownership for `schedule.calendar_periods` migration — decide before the first PR lands
+- Table ownership for `schedule.calendar_periods` migration — **Yannick ships it (rev 2.3)**; enrollment consumes
 - Migration version numbers across both plans must not collide (`MigrationRegistry` is a map — collisions silently overwrite)
 - `activities.student_enrollments` column additions — agree who writes them and who runs the data migration
 - Confirm `activities.groups.type='care'` is the right mapping for holiday care, daily care, Mensa, etc.
 - Error handling when a calendar period is deleted while an enrollment request still references it (FK strategy: `ON DELETE RESTRICT` on both sides)
+- Auto-generated default `school_year` period — confirm with Yannick whether his delivery handles this, or enrollment admin UI must create the first period manually
+
+### New Permission Pattern: `platform:config:update`
+
+Rev 2.3 introduces settings that tenant admins can read but only operators (platform scope) can write. This is new — existing settings are tenant-admin-editable. Implementation:
+
+- Add a new write permission `platform:config:update` to the permission catalog
+- Grant only to operator role(s)
+- Settings declaration uses the new permission in `WritePermission`
+- The settings service's permission check already supports this (string compare with wildcard); no service-layer changes needed
+- Frontend `writable` flag in the schema response correctly reflects: tenant admin sees the setting as read-only with a "Nur Operator" / "Systemverwaltung" badge; operator UI shows it editable
+
+Apply this to `enrollment.status_token_ttl_days` (first user of the pattern). Other sensitive platform-level knobs should use the same pattern going forward.
 
 ---
 
