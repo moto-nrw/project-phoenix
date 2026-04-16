@@ -42,61 +42,64 @@ func renderError(w http.ResponseWriter, r *http.Request, errorResponse render.Re
 
 // Resource defines the students API resource
 type Resource struct {
-	PersonService         userService.PersonService
-	StudentRepo           users.StudentRepository
-	EducationService      educationService.Service
-	UserContextService    userContextService.UserContextService
-	ActiveService         activeService.Service
-	IoTService            iotSvc.Service
-	PrivacyConsentRepo    users.PrivacyConsentRepository
-	PickupScheduleService scheduleService.PickupScheduleService
-	SchoolRepo            platform.SchoolRepository
-	SettingsService       configService.SettingsService
-	AttendanceRepo        active.AttendanceRepository
-	VisitRepo             active.VisitRepository
-	DataAccessLogRepo     auditModels.DataAccessLogRepository
-	Logger                *slog.Logger
-	db                    *bun.DB
+	PersonService          userService.PersonService
+	StudentRepo            users.StudentRepository
+	EducationService       educationService.Service
+	UserContextService     userContextService.UserContextService
+	ActiveService          activeService.Service
+	IoTService             iotSvc.Service
+	PrivacyConsentRepo     users.PrivacyConsentRepository
+	PickupScheduleService  scheduleService.PickupScheduleService
+	ArrivalScheduleService scheduleService.ArrivalScheduleService
+	SchoolRepo             platform.SchoolRepository
+	SettingsService        configService.SettingsService
+	AttendanceRepo         active.AttendanceRepository
+	VisitRepo              active.VisitRepository
+	DataAccessLogRepo      auditModels.DataAccessLogRepository
+	Logger                 *slog.Logger
+	db                     *bun.DB
 }
 
 // ResourceConfig holds all dependencies for creating a students Resource.
 // Using a config struct instead of individual parameters improves maintainability.
 type ResourceConfig struct {
-	PersonService         userService.PersonService
-	StudentRepo           users.StudentRepository
-	EducationService      educationService.Service
-	UserContextService    userContextService.UserContextService
-	ActiveService         activeService.Service
-	IoTService            iotSvc.Service
-	PrivacyConsentRepo    users.PrivacyConsentRepository
-	PickupScheduleService scheduleService.PickupScheduleService
-	SchoolRepo            platform.SchoolRepository
-	SettingsService       configService.SettingsService
-	AttendanceRepo        active.AttendanceRepository
-	VisitRepo             active.VisitRepository
-	DataAccessLogRepo     auditModels.DataAccessLogRepository
-	Logger                *slog.Logger
-	DB                    *bun.DB
+	PersonService          userService.PersonService
+	StudentRepo            users.StudentRepository
+	EducationService       educationService.Service
+	UserContextService     userContextService.UserContextService
+	ActiveService          activeService.Service
+	IoTService             iotSvc.Service
+	PrivacyConsentRepo     users.PrivacyConsentRepository
+	PickupScheduleService  scheduleService.PickupScheduleService
+	ArrivalScheduleService scheduleService.ArrivalScheduleService
+	SchoolRepo             platform.SchoolRepository
+	SettingsService        configService.SettingsService
+	AttendanceRepo         active.AttendanceRepository
+	VisitRepo              active.VisitRepository
+	DataAccessLogRepo      auditModels.DataAccessLogRepository
+	Logger                 *slog.Logger
+	DB                     *bun.DB
 }
 
 // NewResource creates a new students resource from the provided configuration.
 func NewResource(cfg ResourceConfig) *Resource {
 	return &Resource{
-		PersonService:         cfg.PersonService,
-		StudentRepo:           cfg.StudentRepo,
-		EducationService:      cfg.EducationService,
-		UserContextService:    cfg.UserContextService,
-		ActiveService:         cfg.ActiveService,
-		IoTService:            cfg.IoTService,
-		PrivacyConsentRepo:    cfg.PrivacyConsentRepo,
-		PickupScheduleService: cfg.PickupScheduleService,
-		SchoolRepo:            cfg.SchoolRepo,
-		SettingsService:       cfg.SettingsService,
-		AttendanceRepo:        cfg.AttendanceRepo,
-		VisitRepo:             cfg.VisitRepo,
-		DataAccessLogRepo:     cfg.DataAccessLogRepo,
-		Logger:                cfg.Logger,
-		db:                    cfg.DB,
+		PersonService:          cfg.PersonService,
+		StudentRepo:            cfg.StudentRepo,
+		EducationService:       cfg.EducationService,
+		UserContextService:     cfg.UserContextService,
+		ActiveService:          cfg.ActiveService,
+		IoTService:             cfg.IoTService,
+		PrivacyConsentRepo:     cfg.PrivacyConsentRepo,
+		PickupScheduleService:  cfg.PickupScheduleService,
+		ArrivalScheduleService: cfg.ArrivalScheduleService,
+		SchoolRepo:             cfg.SchoolRepo,
+		SettingsService:        cfg.SettingsService,
+		AttendanceRepo:         cfg.AttendanceRepo,
+		VisitRepo:              cfg.VisitRepo,
+		DataAccessLogRepo:      cfg.DataAccessLogRepo,
+		Logger:                 cfg.Logger,
+		db:                     cfg.DB,
 	}
 }
 
@@ -151,6 +154,22 @@ func (rs *Resource) Router() chi.Router {
 
 		// Bulk pickup times endpoint (returns pickup times for multiple students)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Post("/pickup-times/bulk", rs.getBulkPickupTimes)
+
+		// Arrival schedule routes (full access required - checked in handlers)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/arrival-schedules", rs.getStudentArrivalSchedules)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/arrival-schedules", rs.updateStudentArrivalSchedules)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/{id}/arrival-exceptions", rs.createStudentArrivalException)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/arrival-exceptions/{exceptionId}", rs.updateStudentArrivalException)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Delete("/{id}/arrival-exceptions/{exceptionId}", rs.deleteStudentArrivalException)
+
+		// Arrival note routes (full access required - checked in handlers)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/{id}/arrival-notes", rs.createStudentArrivalNote)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/arrival-notes/{noteId}", rs.updateStudentArrivalNote)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Delete("/{id}/arrival-notes/{noteId}", rs.deleteStudentArrivalNote)
+
+		// Bulk arrival schedule and time endpoints
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/arrival-schedules/bulk", rs.bulkUpsertArrivalSchedules)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Post("/arrival-times/bulk", rs.getBulkArrivalTimes)
 	})
 
 	// Device-authenticated routes for RFID devices.
