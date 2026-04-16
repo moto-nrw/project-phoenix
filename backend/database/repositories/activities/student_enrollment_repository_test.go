@@ -25,7 +25,7 @@ func createEnrollment(t *testing.T, db *bun.DB, studentID, groupID int64, enroll
 	enrollment := &activities.StudentEnrollment{
 		StudentID:        studentID,
 		ActivityGroupID:  groupID,
-		EnrollmentDate:   enrollmentDate,
+		ValidFrom:        enrollmentDate,
 		AttendanceStatus: status,
 	}
 	enrollment.SetTenantID(1)
@@ -59,7 +59,7 @@ func TestStudentEnrollmentRepository_Create(t *testing.T) {
 		enrollment := &activities.StudentEnrollment{
 			StudentID:       student.ID,
 			ActivityGroupID: group.ID,
-			EnrollmentDate:  time.Now(),
+			ValidFrom:       time.Now(),
 		}
 
 		err := repo.Create(ctx, enrollment)
@@ -79,7 +79,7 @@ func TestStudentEnrollmentRepository_Create(t *testing.T) {
 		enrollment := &activities.StudentEnrollment{
 			StudentID:        student.ID,
 			ActivityGroupID:  group.ID,
-			EnrollmentDate:   time.Now(),
+			ValidFrom:        time.Now(),
 			AttendanceStatus: &status,
 		}
 
@@ -373,7 +373,7 @@ func TestStudentEnrollmentRepository_CountByGroupID(t *testing.T) {
 	})
 }
 
-func TestStudentEnrollmentRepository_FindByEnrollmentDateRange(t *testing.T) {
+func TestStudentEnrollmentRepository_FindByValidFromRange(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -406,7 +406,7 @@ func TestStudentEnrollmentRepository_FindByEnrollmentDateRange(t *testing.T) {
 		start := now.Add(-60 * time.Hour)
 		end := now
 
-		enrollments, err := repo.FindByEnrollmentDateRange(ctx, start, end)
+		enrollments, err := repo.FindByValidFromRange(ctx, start, end)
 		require.NoError(t, err)
 		assert.NotEmpty(t, enrollments)
 
@@ -427,7 +427,7 @@ func TestStudentEnrollmentRepository_FindByEnrollmentDateRange(t *testing.T) {
 		futureStart := time.Now().Add(365 * 24 * time.Hour)
 		futureEnd := futureStart.Add(24 * time.Hour)
 
-		enrollments, err := repo.FindByEnrollmentDateRange(ctx, futureStart, futureEnd)
+		enrollments, err := repo.FindByValidFromRange(ctx, futureStart, futureEnd)
 		require.NoError(t, err)
 		assert.Empty(t, enrollments)
 	})

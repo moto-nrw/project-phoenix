@@ -10,16 +10,26 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// Group type constants
+const (
+	GroupTypeActivity = "activity"
+	GroupTypeCare     = "care"
+	GroupTypeExternal = "external"
+)
+
 // Group represents an activity group
 type Group struct {
 	base.Model `bun:"schema:activities,table:groups"`
 	base.TenantModel
-	Name            string `bun:"name,notnull" json:"name"`
-	MaxParticipants int    `bun:"max_participants,notnull" json:"max_participants"`
-	IsOpen          bool   `bun:"is_open,notnull,default:false" json:"is_open"`
-	CategoryID      int64  `bun:"category_id,notnull" json:"category_id"`
-	PlannedRoomID   *int64 `bun:"planned_room_id" json:"planned_room_id,omitempty"`
-	CreatedBy       *int64 `bun:"created_by" json:"created_by"`
+	Name             string `bun:"name,notnull" json:"name"`
+	MaxParticipants  int    `bun:"max_participants,notnull" json:"max_participants"`
+	IsOpen           bool   `bun:"is_open,notnull,default:false" json:"is_open"`
+	CategoryID       int64  `bun:"category_id,notnull" json:"category_id"`
+	PlannedRoomID    *int64 `bun:"planned_room_id" json:"planned_room_id,omitempty"`
+	CreatedBy        *int64 `bun:"created_by" json:"created_by"`
+	Type             string `bun:"type,notnull,default:'activity'" json:"type"`
+	EducationGroupID *int64 `bun:"education_group_id" json:"education_group_id,omitempty"`
+	IsTemplate       bool   `bun:"is_template,notnull,default:false" json:"is_template"`
 
 	// Relations - populated when using the ORM's relations
 	Category       *Category            `bun:"rel:belongs-to,join:category_id=id" json:"category,omitempty"`

@@ -57,6 +57,7 @@ type Factory struct {
 	Schedule                 schedule.Service
 	PickupSchedule           schedule.PickupScheduleService
 	ArrivalSchedule          schedule.ArrivalScheduleService
+	CalendarPeriod           schedule.CalendarPeriodService
 	Users                    users.PersonService
 	CaregiverCapability      users.CaregiverCapabilityService
 	Guardian                 users.GuardianService
@@ -313,6 +314,13 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		db,
 	)
 
+	// Initialize calendar period service
+	calendarPeriodService := schedule.NewCalendarPeriodService(
+		repos.CalendarPeriod,
+		db,
+		logger.With("service", "calendar-period"),
+	)
+
 	// Initialize arrival schedule service
 	arrivalScheduleService := schedule.NewArrivalScheduleService(
 		repos.StudentArrivalSchedule,
@@ -543,6 +551,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Schedule:                 scheduleService,
 		PickupSchedule:           pickupScheduleService,
 		ArrivalSchedule:          arrivalScheduleService,
+		CalendarPeriod:           calendarPeriodService,
 		Users:                    usersService,
 		CaregiverCapability:      caregiverCapabilityService,
 		Guardian:                 guardianService,

@@ -41,7 +41,7 @@ func (s *Service) EnrollStudent(ctx context.Context, groupID, studentID int64) e
 	enrollment := &activities.StudentEnrollment{
 		StudentID:       studentID,
 		ActivityGroupID: groupID,
-		EnrollmentDate:  time.Now(),
+		ValidFrom:       time.Now(),
 	}
 	enrollment.SetTenantID(tenant.FromContext(ctx))
 
@@ -145,7 +145,7 @@ func (s *Service) addNewEnrollmentsInTx(ctx context.Context, txService ActivityS
 			enrollment := &activities.StudentEnrollment{
 				StudentID:       studentID,
 				ActivityGroupID: groupID,
-				EnrollmentDate:  time.Now(),
+				ValidFrom:       time.Now(),
 			}
 			enrollment.SetTenantID(tenant.FromContext(ctx))
 
@@ -277,8 +277,8 @@ func (s *Service) GetEnrollmentsByDate(ctx context.Context, date time.Time) ([]*
 	// This would require a custom repository method with SQL join between enrollments and schedules
 	// For now, we just use the date range finder with the date as both start and end
 
-	// Using the repository's FindByEnrollmentDateRange method
-	enrollments, err := s.enrollmentRepo.FindByEnrollmentDateRange(ctx, date, date)
+	// Using the repository's FindByValidFromRange method
+	enrollments, err := s.enrollmentRepo.FindByValidFromRange(ctx, date, date)
 	if err != nil {
 		return nil, &ActivityError{Op: "get enrollments by date", Err: err}
 	}
@@ -300,7 +300,7 @@ func (s *Service) GetEnrollmentHistory(ctx context.Context, studentID int64, sta
 	// Filter by date range (simplified logic, actual implementation would be more complex)
 	var filteredEnrollments []*activities.StudentEnrollment
 	for _, enrollment := range enrollments {
-		if !enrollment.EnrollmentDate.Before(startDate) && !enrollment.EnrollmentDate.After(endDate) {
+		if !enrollment.ValidFrom.Before(startDate) && !enrollment.ValidFrom.After(endDate) {
 			filteredEnrollments = append(filteredEnrollments, enrollment)
 		}
 	}
