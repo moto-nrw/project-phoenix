@@ -28,6 +28,7 @@ import {
   StudentCheckoutSection,
   StudentCheckinSection,
   StudentSickReportSection,
+  StudentExcusedReportSection,
   getStudentActionType,
 } from "~/components/students/student-checkout-section";
 import { performImmediateCheckin } from "~/lib/checkin-api";
@@ -105,6 +106,23 @@ export default function StudentDetailPage() {
     : student?.sick
       ? "Gesundmelden"
       : "Krankmelden";
+
+  // Excused toggle state
+  const [showConfirmExcused, setShowConfirmExcused] = useState(false);
+  const [excusedLoading, setExcusedLoading] = useState(false);
+  const excusedConfirmText = excusedLoading
+    ? "Wird gespeichert..."
+    : student?.excused
+      ? "Entschuldigung aufheben"
+      : "Entschuldigen";
+
+  // Switch dialog: shown when the user clicks one flag but the other is set.
+  // "sick" = we want to switch TO sick (excused is currently true).
+  // "excused" = we want to switch TO excused (sick is currently true).
+  const [switchTarget, setSwitchTarget] = useState<"sick" | "excused" | null>(
+    null,
+  );
+  const [switchLoading, setSwitchLoading] = useState(false);
   const [selectedActiveGroupId, setSelectedActiveGroupId] =
     useState<string>("");
   const [activeGroups, setActiveGroups] = useState<ActiveGroup[]>([]);
@@ -298,6 +316,92 @@ export default function StudentDetailPage() {
     }
   };
 
+  const handleConfirmExcusedToggle = async () => {
+    if (!student) return;
+
+    setExcusedLoading(true);
+    try {
+      const newExcusedStatus = !(student.excused ?? false);
+      await studentService.updateStudent(studentId, {
+        excused: newExcusedStatus,
+        bus: student.buskind ?? false,
+      });
+      refreshData();
+      setShowConfirmExcused(false);
+      toast.success(
+        newExcusedStatus
+          ? `${student.name} wurde als entschuldigt markiert`
+          : `Entschuldigung für ${student.name} wurde aufgehoben`,
+      );
+    } catch (err) {
+      logger.error("excused_status_toggle_failed", {
+        student_id: studentId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      toast.error("Fehler beim Ändern des Entschuldigungsstatus");
+    } finally {
+      setExcusedLoading(false);
+    }
+  };
+
+  // Click interceptor for the Krank button. If the student is currently
+  // excused, we must first clear the excused flag — show the switch dialog
+  // instead of the normal confirm modal.
+  const handleSickClick = () => {
+    if (student?.sick) {
+      setShowConfirmSick(true);
+      return;
+    }
+    if (student?.excused) {
+      setSwitchTarget("sick");
+      return;
+    }
+    setShowConfirmSick(true);
+  };
+
+  const handleExcusedClick = () => {
+    if (student?.excused) {
+      setShowConfirmExcused(true);
+      return;
+    }
+    if (student?.sick) {
+      setSwitchTarget("excused");
+      return;
+    }
+    setShowConfirmExcused(true);
+  };
+
+  const handleConfirmSwitch = async () => {
+    if (!student || !switchTarget) return;
+
+    setSwitchLoading(true);
+    try {
+      // Send both flags in one request so the backend's mutual-exclusion guard
+      // sees only the final state (one true, the other explicitly false).
+      await studentService.updateStudent(studentId, {
+        sick: switchTarget === "sick",
+        excused: switchTarget === "excused",
+        bus: student.buskind ?? false,
+      });
+      refreshData();
+      toast.success(
+        switchTarget === "sick"
+          ? `${student.name} wurde krankgemeldet (Entschuldigung aufgehoben)`
+          : `${student.name} wurde entschuldigt (Krankmeldung aufgehoben)`,
+      );
+      setSwitchTarget(null);
+    } catch (err) {
+      logger.error("status_switch_failed", {
+        student_id: studentId,
+        target: switchTarget,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      toast.error("Fehler beim Wechseln des Status");
+    } finally {
+      setSwitchLoading(false);
+    }
+  };
+
   // =============================================================================
   // COMPUTED VALUES
   // =============================================================================
@@ -416,8 +520,10 @@ export default function StudentDetailPage() {
             onClosePersonalInfoModal={() => setShowPersonalInfoModal(false)}
             onSavePersonal={handleSavePersonal}
             onRefreshData={refreshData}
-            onSickClick={() => setShowConfirmSick(true)}
+            onSickClick={handleSickClick}
             sickLoading={sickLoading}
+            onExcusedClick={handleExcusedClick}
+            excusedLoading={excusedLoading}
           />
         ) : (
           <LimitedAccessView
@@ -498,6 +604,66 @@ export default function StudentDetailPage() {
           ) : (
             <>
               Möchten Sie <strong>{student.name}</strong> als krank melden?
+            </>
+          )}
+        </p>
+      </ConfirmationModal>
+
+      {/* Excused Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={showConfirmExcused}
+        onClose={() => setShowConfirmExcused(false)}
+        onConfirm={handleConfirmExcusedToggle}
+        title={
+          student.excused ? "Entschuldigung aufheben" : "Kind entschuldigen"
+        }
+        confirmText={excusedConfirmText}
+        cancelText="Abbrechen"
+        isConfirmLoading={excusedLoading}
+        confirmButtonClass="bg-gray-900 hover:bg-gray-700"
+      >
+        <p>
+          {student.excused ? (
+            <>
+              Möchten Sie die Entschuldigung für <strong>{student.name}</strong>{" "}
+              aufheben?
+            </>
+          ) : (
+            <>
+              Möchten Sie <strong>{student.name}</strong> als entschuldigt
+              markieren?
+            </>
+          )}
+        </p>
+      </ConfirmationModal>
+
+      {/* Switch Dialog — shown when user clicks one flag but the other is set */}
+      <ConfirmationModal
+        isOpen={switchTarget !== null}
+        onClose={() => setSwitchTarget(null)}
+        onConfirm={handleConfirmSwitch}
+        title={
+          switchTarget === "sick"
+            ? "Als krank melden?"
+            : "Als entschuldigt markieren?"
+        }
+        confirmText={switchLoading ? "Wird gewechselt..." : "Status wechseln"}
+        cancelText="Abbrechen"
+        isConfirmLoading={switchLoading}
+        confirmButtonClass="bg-gray-900 hover:bg-gray-700"
+      >
+        <p>
+          {switchTarget === "sick" ? (
+            <>
+              <strong>{student.name}</strong> ist aktuell als entschuldigt
+              markiert. Stattdessen als krank melden? Die Entschuldigung wird
+              dabei aufgehoben.
+            </>
+          ) : (
+            <>
+              <strong>{student.name}</strong> ist aktuell als krank gemeldet.
+              Stattdessen als entschuldigt markieren? Die Krankmeldung wird
+              dabei aufgehoben.
             </>
           )}
         </p>
@@ -585,6 +751,8 @@ interface FullAccessViewProps {
   onRefreshData: () => void;
   onSickClick: () => void;
   sickLoading: boolean;
+  onExcusedClick: () => void;
+  excusedLoading: boolean;
 }
 
 function FullAccessView({
@@ -604,6 +772,8 @@ function FullAccessView({
   onRefreshData,
   onSickClick,
   sickLoading,
+  onExcusedClick,
+  excusedLoading,
 }: Readonly<FullAccessViewProps>) {
   const historyRouter = useTenantRouter();
   return (
@@ -622,6 +792,14 @@ function FullAccessView({
               sickSince={student.sick_since}
               onToggle={onSickClick}
               isLoading={sickLoading}
+            />
+          )}
+          {hasWriteAccess && (
+            <StudentExcusedReportSection
+              isExcused={student.excused ?? false}
+              excusedSince={student.excused_since}
+              onToggle={onExcusedClick}
+              isLoading={excusedLoading}
             />
           )}
         </div>
