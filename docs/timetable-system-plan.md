@@ -507,47 +507,47 @@ Chris's enrollment plan (PR #1270) introduces shared concepts that interact with
 
 ### Phase 0: Arrival Schedules (independent, no timetable dependency)
 
-- **PR 1** — `student_arrival_schedules` + `student_arrival_exceptions` tables, models, repos, service
-- **PR 2** — Arrival API endpoints (CRUD + bulk by class) + arrival exception warnings
-- **PR 3** — Admin UI: arrival schedule editor (class-based bulk + individual override)
+- [x] **PR 1** — `student_arrival_schedules` + `student_arrival_exceptions` tables, models, repos, service — shipped in #1280
+- [x] **PR 2** — Arrival API endpoints (CRUD + bulk by class) + arrival exception warnings — shipped in #1280
+- [ ] **PR 3** — Admin UI: arrival schedule editor (class-based bulk + individual override)
 
 ### Phase 1: Calendar Periods + Template Extensions (schema prep, no UI)
 
-- **PR 4** — `calendar_periods` table + model + default-period auto-creation
-- **PR 5** — `week_pattern` + `calendar_period_id` on `activities.schedules`. `valid_from`/`valid_until` + `calendar_period_id` on enrollments + supervisors. Migration: `enrollment_date` → `valid_from`. UNIQUE constraint updates.
+- [x] **PR 4** — `calendar_periods` table + model + default-period auto-creation — in review #1281
+- [x] **PR 5** — `week_pattern` + `calendar_period_id` on `activities.schedules`. `valid_from`/`valid_until` + `calendar_period_id` on enrollments + supervisors. Migration: `enrollment_date` → `valid_from`. UNIQUE constraint updates. — in review #1281
 
 ### Phase 2: Activity Instances + Materialization (core timetable)
 
-- **PR 6** — `activity_instances`, `instance_staff`, `instance_students`, `activity_exceptions` tables + models + repos
-- **PR 7** — `active.groups.group_id` nullable migration + Go model update + NULL-safe service updates
-- **PR 8** — Materialization service + scheduler job (with A/B week + validity filtering) + manual endpoint
-- **PR 9** — Instance lifecycle: start (→ `active.group` bridge), complete, cancel + conflict detection service
-- **PR 10** — Timetable settings (7 entries) registered in config system
-- **PR 11** — Attendance sync: check-in handler instance-awareness (E4) + three-field model updates (E18)
+- [ ] **PR 6** — `activity_instances`, `instance_staff`, `instance_students`, `activity_exceptions` tables + models + repos
+- [ ] **PR 7** — `active.groups.group_id` nullable migration + Go model update + NULL-safe service updates
+- [ ] **PR 8** — Materialization service + scheduler job (with A/B week + validity filtering) + manual endpoint
+- [ ] **PR 9** — Instance lifecycle: start (→ `active.group` bridge), complete, cancel + conflict detection service
+- [ ] **PR 10** — Timetable settings (7 entries) registered in config system
+- [ ] **PR 11** — Attendance sync: check-in handler instance-awareness (E4) + three-field model updates (E18)
 
 ### Phase 3: Day Aggregation + Substitution
 
-- **PR 12** — Student day API (aggregates arrival + instances + pickup)
-- **PR 13** — Gap detection endpoint + substitute endpoint
-- **PR 14** — Conflict warnings on exception writes (arrival → timetable)
-- **PR 15** — GDPR cleanup job for timetable data
+- [ ] **PR 12** — Student day API (aggregates arrival + instances + pickup)
+- [ ] **PR 13** — Gap detection endpoint + substitute endpoint
+- [ ] **PR 14** — Conflict warnings on exception writes (arrival → timetable)
+- [ ] **PR 15** — GDPR cleanup job for timetable data
 
 ### Phase 4: Staff Views + Admin Planner
 
-- **PR 16** — Admin weekly planner UI (grid view, instance CRUD)
-- **PR 17** — Staff "My Day" view with passive auto-start indicators (E19 level 1)
-- **PR 18** — Instance detail view with check-in list (expected/present/missing)
-- **PR 19** — Spontaneous activity creation (staff-facing)
-- **PR 20** — Semester rollover UI + enrollment validity management
-- **PR 21** — SSE events for overdue instances (E19 level 2)
+- [ ] **PR 16** — Admin weekly planner UI (grid view, instance CRUD)
+- [ ] **PR 17** — Staff "My Day" view with passive auto-start indicators (E19 level 1)
+- [ ] **PR 18** — Instance detail view with check-in list (expected/present/missing)
+- [ ] **PR 19** — Spontaneous activity creation (staff-facing)
+- [ ] **PR 20** — Semester rollover UI + enrollment validity management
+- [ ] **PR 21** — SSE events for overdue instances (E19 level 2)
 
 ### Phase 5: Holiday Care + Polish (roadmap)
 
-- Calendar period admin UI
-- Holiday-specific templates + enrollments
-- Staff absence entity + substitution plan UI
-- Student day view in frontend (currently API-only)
-- Automatic auto-start (E19 level 3)
+- [ ] Calendar period admin UI
+- [ ] Holiday-specific templates + enrollments
+- [ ] Staff absence entity + substitution plan UI
+- [ ] Student day view in frontend (currently API-only)
+- [ ] Automatic auto-start (E19 level 3)
 
 Each PR is independently shippable. Phase 0 ships value immediately (arrival schedules). Phase 2 is the core investment. Phase 4 is where staff see the system daily.
 
