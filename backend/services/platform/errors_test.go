@@ -149,6 +149,30 @@ func TestSchoolAlreadyDeletedError(t *testing.T) {
 	assert.Contains(t, err.Error(), "already soft-deleted")
 }
 
+func TestOrganizationAlreadyDeletedError(t *testing.T) {
+	err := &platform.OrganizationAlreadyDeletedError{OrganizationID: 101}
+	assert.Contains(t, err.Error(), "101")
+	assert.Contains(t, err.Error(), "already soft-deleted")
+}
+
+func TestOrganizationNotDeletedError(t *testing.T) {
+	err := &platform.OrganizationNotDeletedError{OrganizationID: 202}
+	assert.Contains(t, err.Error(), "202")
+	assert.Contains(t, err.Error(), "not soft-deleted")
+}
+
+func TestOrganizationHasSchoolsError(t *testing.T) {
+	err := &platform.OrganizationHasSchoolsError{OrganizationID: 303, SchoolCount: 5}
+	assert.Equal(t, "organization with ID 303 has 5 existing school(s) and cannot be deleted", err.Error())
+}
+
+func TestOrganizationDeletedError(t *testing.T) {
+	err := &platform.OrganizationDeletedError{OrganizationID: 404}
+	assert.Contains(t, err.Error(), "404")
+	assert.Contains(t, err.Error(), "soft-deleted")
+	assert.Contains(t, err.Error(), "cannot host schools")
+}
+
 func TestSchoolNotDeletedError(t *testing.T) {
 	err := &platform.SchoolNotDeletedError{SchoolID: 77}
 	assert.Contains(t, err.Error(), "77")

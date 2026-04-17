@@ -1965,6 +1965,32 @@ func TestProvisioningResource_RestoreOrganization_NotDeleted(t *testing.T) {
 	assert.Equal(t, http.StatusConflict, rr.Code)
 }
 
+func TestProvisioningResource_SoftDeleteOrganization_InvalidID(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{})
+	req := httptest.NewRequest(http.MethodDelete, "/operator/organizations/abc", nil)
+	req = withOperatorClaims(req, 42)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "abc")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.SoftDeleteOrganization(rr, req)
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestProvisioningResource_RestoreOrganization_InvalidID(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{})
+	req := httptest.NewRequest(http.MethodPost, "/operator/organizations/abc/restore", nil)
+	req = withOperatorClaims(req, 42)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "abc")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.RestoreOrganization(rr, req)
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
 // --- Error renderer tests for organization soft-delete/restore ---
 
 func TestProvisioningErrorRenderer_OrganizationAlreadyDeleted(t *testing.T) {

@@ -858,4 +858,52 @@ describe("OperatorProvisioningService", () => {
       expect(result).toBeUndefined();
     });
   });
+
+  describe("softDeleteOrganization", () => {
+    it("calls correct endpoint with DELETE method", async () => {
+      mockOperatorFetch.mockResolvedValue(undefined);
+
+      await operatorProvisioningService.softDeleteOrganization("77");
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/organizations/77",
+        { method: "DELETE" },
+      );
+    });
+
+    it("encodes organization id in URL", async () => {
+      mockOperatorFetch.mockResolvedValue(undefined);
+
+      await operatorProvisioningService.softDeleteOrganization("77/evil");
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/organizations/77%2Fevil",
+        { method: "DELETE" },
+      );
+    });
+  });
+
+  describe("restoreOrganization", () => {
+    it("calls correct endpoint with POST method", async () => {
+      mockOperatorFetch.mockResolvedValue(undefined);
+
+      await operatorProvisioningService.restoreOrganization("77");
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/organizations/77/restore",
+        { method: "POST" },
+      );
+    });
+
+    it("encodes organization id in URL", async () => {
+      mockOperatorFetch.mockResolvedValue(undefined);
+
+      await operatorProvisioningService.restoreOrganization("77/evil");
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/organizations/77%2Fevil/restore",
+        { method: "POST" },
+      );
+    });
+  });
 });

@@ -164,4 +164,67 @@ func TestOrganizationRepository_FindByIDAndSlugAndList(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 0, onlyDeleted, "single soft-deleted organization id must count as 0")
 	})
+
+	t.Run("find by id for share returns nil when missing", func(t *testing.T) {
+		// Exercises the ErrNoRows branch of findByIDWithLock (returns nil, nil).
+		found, err := repo.FindByIDForShare(ctx, 999999999)
+		require.NoError(t, err)
+		assert.Nil(t, found, "FindByIDForShare must return nil, nil for missing IDs")
+	})
+
+	t.Run("find by id for share returns organization", func(t *testing.T) {
+		found, err := repo.FindByIDForShare(ctx, orgA.ID)
+		require.NoError(t, err)
+		require.NotNil(t, found)
+		assert.Equal(t, orgA.Slug, found.Slug)
+	})
+
+	t.Run("find by id for update returns nil when missing", func(t *testing.T) {
+		found, err := repo.FindByIDForUpdate(ctx, 999999999)
+		require.NoError(t, err)
+		assert.Nil(t, found, "FindByIDForUpdate must return nil, nil for missing IDs")
+	})
+
+	t.Run("soft delete sets deleted_at", func(t *testing.T) {
+		err := repo.SoftDelete(ctx, orgA.ID)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			_, _ = db.ExecContext(ctx, `UPDATE platform.organizations SET deleted_at = NULL WHERE id = ?`, orgA.ID)
+		})
+
+		found, err := repo.FindByID(ctx, orgA.ID)
+		require.NoError(t, err)
+		require.NotNil(t, found)
+		assert.True(t, found.IsDeleted(), "organization should be marked as deleted")
+	})
+
+	t.Run("soft delete prevents double-delete", func(t *testing.T) {
+		_, _ = db.ExecContext(ctx, `UPDATE platform.organizations SET deleted_at = NOW() WHERE id = ?`, orgA.ID)
+		t.Cleanup(func() {
+			_, _ = db.ExecContext(ctx, `UPDATE platform.organizations SET deleted_at = NULL WHERE id = ?`, orgA.ID)
+		})
+
+		err := repo.SoftDelete(ctx, orgA.ID)
+		require.Error(t, err, "double soft-delete should fail via AssertRowsAffected")
+	})
+
+	t.Run("restore clears deleted_at", func(t *testing.T) {
+		_, _ = db.ExecContext(ctx, `UPDATE platform.organizations SET deleted_at = NOW() WHERE id = ?`, orgA.ID)
+		t.Cleanup(func() {
+			_, _ = db.ExecContext(ctx, `UPDATE platform.organizations SET deleted_at = NULL WHERE id = ?`, orgA.ID)
+		})
+
+		err := repo.Restore(ctx, orgA.ID)
+		require.NoError(t, err)
+
+		found, err := repo.FindByID(ctx, orgA.ID)
+		require.NoError(t, err)
+		require.NotNil(t, found)
+		assert.False(t, found.IsDeleted(), "organization should no longer be deleted after restore")
+	})
+
+	t.Run("restore prevents double-restore", func(t *testing.T) {
+		err := repo.Restore(ctx, orgA.ID)
+		require.Error(t, err, "restoring a non-deleted organization should fail via AssertRowsAffected")
+	})
 }

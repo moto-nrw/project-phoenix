@@ -455,4 +455,41 @@ func TestSchoolRepository_QueryMethods(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 0, onlyDeleted, "single soft-deleted school id must count as 0")
 	})
+
+	t.Run("find by id for share returns school", func(t *testing.T) {
+		found, err := repo.FindByIDForShare(ctx, schoolA.ID)
+		require.NoError(t, err)
+		require.NotNil(t, found)
+		assert.Equal(t, schoolA.Subdomain, found.Subdomain)
+	})
+
+	t.Run("find by id for share wraps not found", func(t *testing.T) {
+		found, err := repo.FindByIDForShare(ctx, 999999999)
+		require.Error(t, err)
+		assert.Nil(t, found)
+	})
+
+	t.Run("CountNonDeletedByOrganizationID counts live schools", func(t *testing.T) {
+		count, err := repo.CountNonDeletedByOrganizationID(ctx, orgA.ID)
+		require.NoError(t, err)
+		assert.Equal(t, 1, count, "orgA has one live school (schoolA)")
+	})
+
+	t.Run("CountNonDeletedByOrganizationID excludes soft-deleted schools", func(t *testing.T) {
+		_, err := db.ExecContext(ctx, `UPDATE platform.schools SET deleted_at = NOW() WHERE id = ?`, schoolA.ID)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			_, _ = db.ExecContext(ctx, `UPDATE platform.schools SET deleted_at = NULL WHERE id = ?`, schoolA.ID)
+		})
+
+		count, err := repo.CountNonDeletedByOrganizationID(ctx, orgA.ID)
+		require.NoError(t, err)
+		assert.Equal(t, 0, count, "soft-deleted school must not count — allowing parent org to be deleted")
+	})
+
+	t.Run("CountNonDeletedByOrganizationID returns zero for organization with no schools", func(t *testing.T) {
+		count, err := repo.CountNonDeletedByOrganizationID(ctx, 999999999)
+		require.NoError(t, err)
+		assert.Equal(t, 0, count)
+	})
 }

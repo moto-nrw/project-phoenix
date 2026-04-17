@@ -3247,6 +3247,157 @@ func TestOperatorProvisioningService_RestoreOrganization_NotDeleted(t *testing.T
 	assert.ErrorAs(t, err, &notDeleted)
 }
 
+func TestOperatorProvisioningService_RestoreSchool_ParentOrgLookupFails(t *testing.T) {
+	// Covers the FindByIDForShare error branch in RestoreSchool: the repo
+	// error must bubble up unchanged, the school must not be restored.
+	now := time.Now()
+	lookupErr := errors.New("db connection lost")
+	restoreCalled := false
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SchoolRepo: &mockSchoolRepo{
+			findByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
+				return &platformModels.School{
+					Model: base.Model{ID: id}, DeletedAt: &now,
+					Name: "Test", Slug: "test", Subdomain: "test",
+					OrganizationID: 1,
+				}, nil
+			},
+			restoreFn: func(_ context.Context, _ int64) error {
+				restoreCalled = true
+				return nil
+			},
+		},
+		OrganizationRepo: &mockOrganizationRepo{
+			findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
+				return nil, lookupErr
+			},
+		},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+	})
+
+	err := service.RestoreSchool(context.Background(), 900, 10, nil)
+	require.ErrorIs(t, err, lookupErr)
+	assert.False(t, restoreCalled, "must not restore when parent org lookup fails")
+}
+
+func TestOperatorProvisioningService_RestoreSchool_ParentOrgMissing(t *testing.T) {
+	// Covers the parentOrg == nil branch in RestoreSchool: should map to
+	// OrganizationNotFoundError and not attempt to restore.
+	now := time.Now()
+	restoreCalled := false
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		SchoolRepo: &mockSchoolRepo{
+			findByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
+				return &platformModels.School{
+					Model: base.Model{ID: id}, DeletedAt: &now,
+					Name: "Test", Slug: "test", Subdomain: "test",
+					OrganizationID: 42,
+				}, nil
+			},
+			restoreFn: func(_ context.Context, _ int64) error {
+				restoreCalled = true
+				return nil
+			},
+		},
+		OrganizationRepo: &mockOrganizationRepo{
+			findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
+				return nil, nil
+			},
+		},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+	})
+
+	err := service.RestoreSchool(context.Background(), 900, 10, nil)
+	require.Error(t, err)
+	var notFound *platformSvc.OrganizationNotFoundError
+	assert.ErrorAs(t, err, &notFound)
+	assert.Equal(t, int64(42), notFound.OrganizationID)
+	assert.False(t, restoreCalled)
+}
+
+func TestOperatorProvisioningService_SoftDeleteOrganization_CountSchoolsFails(t *testing.T) {
+	// Covers the CountNonDeletedByOrganizationID error branch in
+	// SoftDeleteOrganization: the repo error must be wrapped and returned,
+	// and the org must not be soft-deleted.
+	countErr := errors.New("count query failed")
+	softDeleteCalled := false
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		OrganizationRepo: &mockOrganizationRepo{
+			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
+				return &platformModels.Organization{
+					Model: base.Model{ID: id}, Name: "Org", Slug: "org", Active: true,
+				}, nil
+			},
+			softDeleteFn: func(context.Context, int64) error {
+				softDeleteCalled = true
+				return nil
+			},
+		},
+		SchoolRepo: &mockSchoolRepo{
+			countNonDeletedByOrgIDFn: func(context.Context, int64) (int, error) {
+				return 0, countErr
+			},
+		},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+	})
+
+	err := service.SoftDeleteOrganization(context.Background(), 100, 10, nil)
+	require.ErrorIs(t, err, countErr)
+	assert.False(t, softDeleteCalled, "must not soft-delete when count query fails")
+}
+
+func TestOperatorProvisioningService_SoftDeleteOrganization_RepoErrorFallsThrough(t *testing.T) {
+	// Covers the non-rows-mismatch branch of SoftDeleteOrganization: a raw
+	// repo error (not a rows-affected mismatch) must propagate unchanged.
+	softDeleteErr := errors.New("unexpected db error")
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		OrganizationRepo: &mockOrganizationRepo{
+			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
+				return &platformModels.Organization{
+					Model: base.Model{ID: id}, Name: "Org", Slug: "org", Active: true,
+				}, nil
+			},
+			softDeleteFn: func(context.Context, int64) error {
+				return softDeleteErr
+			},
+		},
+		SchoolRepo: &mockSchoolRepo{
+			countNonDeletedByOrgIDFn: func(context.Context, int64) (int, error) {
+				return 0, nil
+			},
+		},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+	})
+
+	err := service.SoftDeleteOrganization(context.Background(), 100, 10, nil)
+	require.ErrorIs(t, err, softDeleteErr)
+}
+
+func TestOperatorProvisioningService_RestoreOrganization_RepoErrorFallsThrough(t *testing.T) {
+	// Covers the non-rows-mismatch branch of RestoreOrganization: a raw
+	// repo error (not a rows-affected mismatch) must propagate unchanged.
+	now := time.Now()
+	restoreErr := errors.New("unexpected db error")
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		OrganizationRepo: &mockOrganizationRepo{
+			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
+				return &platformModels.Organization{
+					Model: base.Model{ID: id}, Name: "Org", Slug: "org", Active: true,
+					DeletedAt: &now,
+				}, nil
+			},
+			restoreFn: func(context.Context, int64) error {
+				return restoreErr
+			},
+		},
+		SchoolRepo:   &mockSchoolRepo{},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+	})
+
+	err := service.RestoreOrganization(context.Background(), 100, 10, nil)
+	require.ErrorIs(t, err, restoreErr)
+}
+
 // ---------------------------------------------------------------------------
 // mockDeviceRepoWithFind extends mockDeviceRepo with a configurable FindByID.
 // ---------------------------------------------------------------------------
