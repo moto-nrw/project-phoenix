@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	createActivityInstancesVersion     = "1.15.35"
+	createActivityInstancesVersion     = "1.15.36"
 	createActivityInstancesDescription = "Create activity instances, instance staff/students, and activity exceptions tables for timetable system"
 )
 
@@ -38,7 +38,7 @@ func init() {
 }
 
 func createActivityInstancesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.35: Creating activity instances and related tables...")
+	fmt.Println("Migration 1.15.36: Creating activity instances and related tables...")
 
 	// 1. schedule.activity_instances — the concrete materialized instance of a template on a given date,
 	//    or a spontaneous instance (activity_group_id IS NULL).
@@ -369,7 +369,7 @@ func createActivityInstancesUp(ctx context.Context, db *bun.DB) error {
 }
 
 func createActivityInstancesDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.35: Dropping activity instance tables...")
+	fmt.Println("Rolling back migration 1.15.36: Dropping activity instance tables...")
 
 	// Drop in reverse dependency order: children first, then parent.
 	_, err := db.NewRaw(`DROP TABLE IF EXISTS schedule.activity_exceptions CASCADE;`).Exec(ctx)
