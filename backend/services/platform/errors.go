@@ -125,6 +125,45 @@ func (e *OperatorDeviceNotFoundError) Error() string {
 	return fmt.Sprintf("device with ID %d not found", e.DeviceID)
 }
 
+// OrganizationAlreadyDeletedError is returned when trying to soft-delete an already deleted organization.
+type OrganizationAlreadyDeletedError struct {
+	OrganizationID int64
+}
+
+func (e *OrganizationAlreadyDeletedError) Error() string {
+	return fmt.Sprintf("organization with ID %d is already soft-deleted", e.OrganizationID)
+}
+
+// OrganizationNotDeletedError is returned when trying to restore an organization that is not soft-deleted.
+type OrganizationNotDeletedError struct {
+	OrganizationID int64
+}
+
+func (e *OrganizationNotDeletedError) Error() string {
+	return fmt.Sprintf("organization with ID %d is not soft-deleted", e.OrganizationID)
+}
+
+// OrganizationHasSchoolsError is returned when trying to delete an organization that still has non-deleted schools.
+type OrganizationHasSchoolsError struct {
+	OrganizationID int64
+	SchoolCount    int
+}
+
+func (e *OrganizationHasSchoolsError) Error() string {
+	return fmt.Sprintf("organization with ID %d has %d existing school(s) and cannot be deleted", e.OrganizationID, e.SchoolCount)
+}
+
+// OrganizationDeletedError is returned when a school operation targets a parent
+// organization that has been soft-deleted. Blocks create/update/restore paths
+// from attaching active schools to a deleted organization.
+type OrganizationDeletedError struct {
+	OrganizationID int64
+}
+
+func (e *OrganizationDeletedError) Error() string {
+	return fmt.Sprintf("organization with ID %d is soft-deleted and cannot host schools", e.OrganizationID)
+}
+
 // SchoolAlreadyDeletedError is returned when trying to soft-delete an already deleted school.
 type SchoolAlreadyDeletedError struct {
 	SchoolID int64

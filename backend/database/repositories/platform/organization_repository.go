@@ -57,6 +57,63 @@ func (r *OrganizationRepository) FindByID(ctx context.Context, id int64) (*platf
 	return organization, nil
 }
 
+// FindByIDForShare returns an organization by ID while acquiring a FOR SHARE lock on the row.
+//
+// Locking contract (shared by all callers of this method and FindByIDForUpdate):
+//
+// Any service method that mutates a school in a way that depends on the parent
+// organization NOT being deleted (CreateSchool, UpdateSchool when the org changes,
+// RestoreSchool, UpdateOrganization) takes FOR SHARE on the parent org row. This
+// pins the row for the lifetime of the transaction so SoftDeleteOrganization
+// (which takes FOR UPDATE on the same row) cannot commit deleted_at between the
+// IsDeleted check and the subsequent write. Without this, a school insert or
+// update could land after the CountNonDeletedByOrganizationID check but before
+// the organization's SoftDelete commits, leaving a live school under a
+// tombstoned organization.
+//
+// Multiple FOR SHARE readers can hold the lock concurrently (schools under the
+// same org can be mutated in parallel); FOR UPDATE blocks until all FOR SHARE
+// holders release. Lock order is always org → school, so no deadlock.
+//
+// Must be called within a transaction.
+func (r *OrganizationRepository) FindByIDForShare(ctx context.Context, id int64) (*platform.Organization, error) {
+	organization := new(platform.Organization)
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(organization).
+		ModelTableExpr(tablePlatformOrganizationsAlias).
+		Where(`"organization".id = ?`, id).
+		For("SHARE").
+		Scan(ctx)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, &modelBase.DatabaseError{Op: "find organization by id for share", Err: err}
+	}
+	return organization, nil
+}
+
+// FindByIDForUpdate returns an organization by ID while acquiring a FOR UPDATE lock on the row.
+// SoftDeleteOrganization uses this to serialize against concurrent school mutations that
+// take FOR SHARE on the same row. See FindByIDForShare for the full locking contract.
+// Must be called within a transaction.
+func (r *OrganizationRepository) FindByIDForUpdate(ctx context.Context, id int64) (*platform.Organization, error) {
+	organization := new(platform.Organization)
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(organization).
+		ModelTableExpr(tablePlatformOrganizationsAlias).
+		Where(`"organization".id = ?`, id).
+		For("UPDATE").
+		Scan(ctx)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, &modelBase.DatabaseError{Op: "find organization by id for update", Err: err}
+	}
+	return organization, nil
+}
+
 func (r *OrganizationRepository) FindBySlug(ctx context.Context, slug string) (*platform.Organization, error) {
 	organization := new(platform.Organization)
 	err := base.GetDB(ctx, r.db).NewSelect().
@@ -92,7 +149,11 @@ func (r *OrganizationRepository) Update(ctx context.Context, organization *platf
 	return base.AssertRowsAffected(result, 1, "update organization")
 }
 
-// CountByIDs counts how many of the given IDs exist in the organizations table.
+// CountByIDs counts how many of the given IDs exist in the organizations table,
+// excluding soft-deleted rows. This is used to enforce that new announcement
+// targeting (create + newly-added IDs on update) cannot reference trashed
+// organizations. Historical targets already on an announcement are allowed
+// through by the service layer via a diff against the existing record.
 func (r *OrganizationRepository) CountByIDs(ctx context.Context, ids []int64) (int, error) {
 	if len(ids) == 0 {
 		return 0, nil
@@ -101,6 +162,7 @@ func (r *OrganizationRepository) CountByIDs(ctx context.Context, ids []int64) (i
 		Model((*platform.Organization)(nil)).
 		ModelTableExpr(tablePlatformOrganizationsAlias).
 		Where(`"organization".id IN (?)`, bun.List(ids)).
+		Where(`"organization".deleted_at IS NULL`).
 		Count(ctx)
 	if err != nil {
 		return 0, &modelBase.DatabaseError{Op: "count organizations by ids", Err: err}
@@ -119,4 +181,32 @@ func (r *OrganizationRepository) List(ctx context.Context) ([]*platform.Organiza
 		return nil, &modelBase.DatabaseError{Op: "list organizations", Err: err}
 	}
 	return organizations, nil
+}
+
+// SoftDelete sets deleted_at on an organization. Fails if the organization is already deleted.
+func (r *OrganizationRepository) SoftDelete(ctx context.Context, id int64) error {
+	result, err := base.GetDB(ctx, r.db).NewUpdate().
+		ModelTableExpr(tablePlatformOrganizationsAlias).
+		Set(`deleted_at = NOW()`).
+		Where(`"organization".id = ?`, id).
+		Where(`"organization".deleted_at IS NULL`).
+		Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "soft delete organization", Err: err}
+	}
+	return base.AssertRowsAffected(result, 1, "soft delete organization")
+}
+
+// Restore clears deleted_at on a soft-deleted organization. Fails if the organization is not deleted.
+func (r *OrganizationRepository) Restore(ctx context.Context, id int64) error {
+	result, err := base.GetDB(ctx, r.db).NewUpdate().
+		ModelTableExpr(tablePlatformOrganizationsAlias).
+		Set(`deleted_at = NULL`).
+		Where(`"organization".id = ?`, id).
+		Where(`"organization".deleted_at IS NOT NULL`).
+		Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "restore organization", Err: err}
+	}
+	return base.AssertRowsAffected(result, 1, "restore organization")
 }

@@ -267,10 +267,11 @@ func (r *SchoolRepository) SoftDelete(ctx context.Context, id int64) error {
 	return base.AssertRowsAffected(result, 1, "soft delete school")
 }
 
-// CountByIDs counts how many of the given IDs exist in the schools table.
-// This intentionally includes soft-deleted schools so that validation accepts
-// whatever the UI picker offers and existing announcements that reference
-// previously-deleted schools can still be re-saved without error.
+// CountByIDs counts how many of the given IDs exist in the schools table,
+// excluding soft-deleted rows. Used to enforce that new announcement targeting
+// cannot reference trashed schools. Historical school targets already present
+// on an announcement are allowed through by the service layer via a diff
+// against the existing record, so re-saving does not reactivate stale targets.
 func (r *SchoolRepository) CountByIDs(ctx context.Context, ids []int64) (int, error) {
 	if len(ids) == 0 {
 		return 0, nil
@@ -279,6 +280,7 @@ func (r *SchoolRepository) CountByIDs(ctx context.Context, ids []int64) (int, er
 		Model((*platform.School)(nil)).
 		ModelTableExpr(schoolTableAlias).
 		Where(`"school".id IN (?)`, bun.List(ids)).
+		Where(`"school".deleted_at IS NULL`).
 		Count(ctx)
 	if err != nil {
 		return 0, &modelBase.DatabaseError{Op: "count schools by ids", Err: err}
@@ -298,4 +300,23 @@ func (r *SchoolRepository) Restore(ctx context.Context, id int64) error {
 		return &modelBase.DatabaseError{Op: "restore school", Err: err}
 	}
 	return base.AssertRowsAffected(result, 1, "restore school")
+}
+
+// CountNonDeletedByOrganizationID counts schools belonging to an organization that have
+// not been soft-deleted. Used by SoftDeleteOrganization to block deletion of an
+// organization that still has child schools (active or inactive) — the operator must
+// soft-delete every school first. The name intentionally does NOT say "Active" because
+// the query does not filter on the `active` boolean; a disabled-but-not-deleted school
+// still blocks the parent org's deletion.
+func (r *SchoolRepository) CountNonDeletedByOrganizationID(ctx context.Context, organizationID int64) (int, error) {
+	count, err := base.GetDB(ctx, r.db).NewSelect().
+		Model((*platform.School)(nil)).
+		ModelTableExpr(schoolTableAlias).
+		Where(`"school".organization_id = ?`, organizationID).
+		Where(`"school".deleted_at IS NULL`).
+		Count(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "count non-deleted schools by organization", Err: err}
+	}
+	return count, nil
 }

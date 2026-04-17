@@ -320,6 +320,59 @@ func TestAnnouncementService_ValidateTargetingIDs_Errors(t *testing.T) {
 	}
 }
 
+// TestAnnouncementService_CreateAnnouncement_RejectsSoftDeletedOrgTarget pins the
+// invariant that new announcements cannot target a soft-deleted organization.
+// CountByIDs excludes deleted_at IS NOT NULL rows at the repository layer, so a
+// soft-deleted org ID looks to the service like a nonexistent ID and surfaces as
+// InvalidDataError. This guards against an operator pinning an announcement to a
+// trashed Träger — which would silently vanish once the org is restored and could
+// leak the announcement to unintended audiences.
+func TestAnnouncementService_CreateAnnouncement_RejectsSoftDeletedOrgTarget(t *testing.T) {
+	svc := newTestAnnouncementService(func(m *testAnnouncementMocks) {
+		// Simulate repository behavior: the org row exists but is soft-deleted,
+		// so CountByIDs returns 0 for the requested ID.
+		m.orgRepo.countByIDsFn = func(_ context.Context, ids []int64) (int, error) {
+			assert.Equal(t, []int64{42}, ids)
+			return 0, nil
+		}
+		m.announcementRepo.createFn = func(context.Context, *platform.Announcement) error {
+			t.Fatal("Create should not be called when targeting a soft-deleted org")
+			return nil
+		}
+	})
+
+	a := validAnnouncement()
+	a.TargetOrgIDs = []int64{42}
+
+	err := svc.CreateAnnouncement(context.Background(), a, 1, net.ParseIP("127.0.0.1"))
+	require.Error(t, err)
+	assert.IsType(t, &platformSvc.InvalidDataError{}, err)
+	assert.Contains(t, err.Error(), "one or more organization IDs do not exist")
+}
+
+// TestAnnouncementService_CreateAnnouncement_RejectsSoftDeletedSchoolTarget is
+// the school-tenant analogue of the org test above.
+func TestAnnouncementService_CreateAnnouncement_RejectsSoftDeletedSchoolTarget(t *testing.T) {
+	svc := newTestAnnouncementService(func(m *testAnnouncementMocks) {
+		m.schoolRepo.countByIDsFn = func(_ context.Context, ids []int64) (int, error) {
+			assert.Equal(t, []int64{99}, ids)
+			return 0, nil
+		}
+		m.announcementRepo.createFn = func(context.Context, *platform.Announcement) error {
+			t.Fatal("Create should not be called when targeting a soft-deleted school")
+			return nil
+		}
+	})
+
+	a := validAnnouncement()
+	a.TargetTenantIDs = []int64{99}
+
+	err := svc.CreateAnnouncement(context.Background(), a, 1, net.ParseIP("127.0.0.1"))
+	require.Error(t, err)
+	assert.IsType(t, &platformSvc.InvalidDataError{}, err)
+	assert.Contains(t, err.Error(), "one or more school (tenant) IDs do not exist")
+}
+
 func TestAnnouncementService_DeleteAnnouncement_NotFound(t *testing.T) {
 	ctx := context.Background()
 	announcementRepo := &mockAnnouncementRepoShared{

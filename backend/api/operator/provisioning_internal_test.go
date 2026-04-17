@@ -51,6 +51,8 @@ type mockProvisioningService struct {
 	setDeviceAPIKeyFn         func(context.Context, int64, *string, int64, net.IP) (*platformSvc.OperatorDeviceInfo, error)
 	softDeleteSchoolFn        func(int64) error
 	restoreSchoolFn           func(int64) error
+	softDeleteOrgFn           func(int64) error
+	restoreOrgFn              func(int64) error
 	deleteDeviceFn            func(context.Context, int64, int64, net.IP) error
 	listSchoolPersonsFn       func(context.Context, int64) ([]platformSvc.OperatorPersonInfo, error)
 	softDeletePersonFn        func(context.Context, int64, int64, net.IP) error
@@ -152,6 +154,18 @@ func (m *mockProvisioningService) SoftDeleteSchool(_ context.Context, schoolID, 
 func (m *mockProvisioningService) RestoreSchool(_ context.Context, schoolID, _ int64, _ net.IP) error {
 	if m.restoreSchoolFn != nil {
 		return m.restoreSchoolFn(schoolID)
+	}
+	return nil
+}
+func (m *mockProvisioningService) SoftDeleteOrganization(_ context.Context, orgID int64, _ int64, _ net.IP) error {
+	if m.softDeleteOrgFn != nil {
+		return m.softDeleteOrgFn(orgID)
+	}
+	return nil
+}
+func (m *mockProvisioningService) RestoreOrganization(_ context.Context, orgID int64, _ int64, _ net.IP) error {
+	if m.restoreOrgFn != nil {
+		return m.restoreOrgFn(orgID)
 	}
 	return nil
 }
@@ -1844,6 +1858,145 @@ func TestProvisioningErrorRenderer_SchoolNotDeleted(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
 	assert.Contains(t, resp.ErrorText, "not deleted")
+}
+
+// --- SoftDeleteOrganization handler tests ---
+
+func TestProvisioningResource_SoftDeleteOrganization(t *testing.T) {
+	var deletedID int64
+	resource := NewProvisioningResource(&mockProvisioningService{
+		softDeleteOrgFn: func(orgID int64) error {
+			deletedID = orgID
+			return nil
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodDelete, "/operator/organizations/10", nil)
+	req.RemoteAddr = "203.0.113.10:1234"
+	req = withOperatorClaims(req, 42)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "10")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.SoftDeleteOrganization(rr, req)
+	assert.Equal(t, http.StatusNoContent, rr.Code)
+	assert.Equal(t, int64(10), deletedID)
+}
+
+func TestProvisioningResource_SoftDeleteOrganization_HasSchools(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{
+		softDeleteOrgFn: func(_ int64) error {
+			return &platformSvc.OrganizationHasSchoolsError{OrganizationID: 10, SchoolCount: 3}
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodDelete, "/operator/organizations/10", nil)
+	req.RemoteAddr = "203.0.113.10:1234"
+	req = withOperatorClaims(req, 42)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "10")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.SoftDeleteOrganization(rr, req)
+	assert.Equal(t, http.StatusConflict, rr.Code)
+}
+
+func TestProvisioningResource_SoftDeleteOrganization_AlreadyDeleted(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{
+		softDeleteOrgFn: func(_ int64) error {
+			return &platformSvc.OrganizationAlreadyDeletedError{OrganizationID: 10}
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodDelete, "/operator/organizations/10", nil)
+	req.RemoteAddr = "203.0.113.10:1234"
+	req = withOperatorClaims(req, 42)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "10")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.SoftDeleteOrganization(rr, req)
+	assert.Equal(t, http.StatusConflict, rr.Code)
+}
+
+// --- RestoreOrganization handler tests ---
+
+func TestProvisioningResource_RestoreOrganization(t *testing.T) {
+	var restoredID int64
+	resource := NewProvisioningResource(&mockProvisioningService{
+		restoreOrgFn: func(orgID int64) error {
+			restoredID = orgID
+			return nil
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/operator/organizations/10/restore", nil)
+	req.RemoteAddr = "203.0.113.10:1234"
+	req = withOperatorClaims(req, 42)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "10")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.RestoreOrganization(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, int64(10), restoredID)
+}
+
+func TestProvisioningResource_RestoreOrganization_NotDeleted(t *testing.T) {
+	resource := NewProvisioningResource(&mockProvisioningService{
+		restoreOrgFn: func(_ int64) error {
+			return &platformSvc.OrganizationNotDeletedError{OrganizationID: 10}
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/operator/organizations/10/restore", nil)
+	req.RemoteAddr = "203.0.113.10:1234"
+	req = withOperatorClaims(req, 42)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("id", "10")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	rr := httptest.NewRecorder()
+
+	resource.RestoreOrganization(rr, req)
+	assert.Equal(t, http.StatusConflict, rr.Code)
+}
+
+// --- Error renderer tests for organization soft-delete/restore ---
+
+func TestProvisioningErrorRenderer_OrganizationAlreadyDeleted(t *testing.T) {
+	renderer := ProvisioningErrorRenderer(&platformSvc.OrganizationAlreadyDeletedError{OrganizationID: 10})
+	resp, ok := renderer.(*ErrResponse)
+	require.True(t, ok)
+	assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
+	assert.Contains(t, resp.ErrorText, "already deleted")
+}
+
+func TestProvisioningErrorRenderer_OrganizationNotDeleted(t *testing.T) {
+	renderer := ProvisioningErrorRenderer(&platformSvc.OrganizationNotDeletedError{OrganizationID: 10})
+	resp, ok := renderer.(*ErrResponse)
+	require.True(t, ok)
+	assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
+	assert.Contains(t, resp.ErrorText, "not deleted")
+}
+
+func TestProvisioningErrorRenderer_OrganizationHasSchools(t *testing.T) {
+	renderer := ProvisioningErrorRenderer(&platformSvc.OrganizationHasSchoolsError{OrganizationID: 10, SchoolCount: 3})
+	resp, ok := renderer.(*ErrResponse)
+	require.True(t, ok)
+	assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
+	assert.Contains(t, resp.ErrorText, "3 existing school(s)")
+}
+
+func TestProvisioningErrorRenderer_OrganizationDeleted(t *testing.T) {
+	renderer := ProvisioningErrorRenderer(&platformSvc.OrganizationDeletedError{OrganizationID: 10})
+	resp, ok := renderer.(*ErrResponse)
+	require.True(t, ok)
+	assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
+	assert.Contains(t, resp.ErrorText, "deleted")
 }
 
 func TestUpdateCaregiverCapabilityRequest_Bind_TrimWhitespace(t *testing.T) {
