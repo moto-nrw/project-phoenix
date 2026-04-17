@@ -137,7 +137,7 @@ func (r *InstanceStaffRepository) FindByStaffAndDate(ctx context.Context, staffI
 		Join(`INNER JOIN schedule.activity_instances AS "activity_instance" ON "activity_instance".id = "instance_staff".instance_id`).
 		Where(`"instance_staff".staff_id = ?`, staffID).
 		Where(`"activity_instance".date = ?`, date).
-		Order(`"activity_instance".start_time ASC`)
+		OrderExpr(`"activity_instance".start_time ASC`)
 
 	if where, val, ok := base.TenantWhere(ctx, aliasInstanceStaff); ok {
 		query = query.Where(where, val)

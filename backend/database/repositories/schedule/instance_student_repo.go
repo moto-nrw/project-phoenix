@@ -140,7 +140,7 @@ func (r *InstanceStudentRepository) FindByStudentAndDateRange(ctx context.Contex
 		Where(`"instance_student".student_id = ?`, studentID).
 		Where(`"activity_instance".date >= ?`, from).
 		Where(`"activity_instance".date <= ?`, to).
-		Order(`"activity_instance".date ASC`, `"activity_instance".start_time ASC`)
+		OrderExpr(`"activity_instance".date ASC, "activity_instance".start_time ASC`)
 
 	if where, val, ok := base.TenantWhere(ctx, aliasInstanceStudent); ok {
 		query = query.Where(where, val)
