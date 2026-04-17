@@ -329,6 +329,180 @@ describe("LocationBadge", () => {
   });
 
   // ===========================================================================
+  // EXCUSED STATUS TESTS — mirrors the Krank pattern with purple badge
+  // ===========================================================================
+
+  describe("excused status display", () => {
+    describe("when student is excused AND at home", () => {
+      it("shows Entschuldigt badge instead of Zuhause", () => {
+        const student = createStudent({
+          current_location: "Zuhause",
+          excused: true,
+          excused_since: "2024-01-15T08:00:00Z",
+        });
+        render(<LocationBadge student={student} displayMode="roomName" />);
+
+        expect(screen.getByText(LOCATION_STATUSES.EXCUSED)).toBeInTheDocument();
+        expect(screen.queryByText("Zuhause")).not.toBeInTheDocument();
+      });
+
+      it("applies purple color (EXCUSED) to the badge", () => {
+        const student = createStudent({
+          current_location: "Zuhause",
+          excused: true,
+        });
+        render(<LocationBadge student={student} displayMode="roomName" />);
+
+        const badge = screen.getByText(LOCATION_STATUSES.EXCUSED);
+        expect(badge.closest("span")).toHaveStyle({
+          backgroundColor: LOCATION_COLORS.EXCUSED,
+        });
+      });
+
+      it("shows excused_since timestamp when showLocationSince is enabled", () => {
+        const student = createStudent({
+          current_location: "Zuhause",
+          excused: true,
+          excused_since: "2024-01-15T09:45:00Z",
+        });
+        render(
+          <LocationBadge
+            student={student}
+            displayMode="roomName"
+            showLocationSince={true}
+          />,
+        );
+        expect(screen.getByText(/seit.*Uhr/)).toBeInTheDocument();
+      });
+
+      it("falls back to location_since when excused_since is missing", () => {
+        const student = createStudent({
+          current_location: "Zuhause",
+          location_since: "2024-01-15T10:30:00Z",
+          excused: true,
+          excused_since: undefined,
+        });
+        render(
+          <LocationBadge
+            student={student}
+            displayMode="roomName"
+            showLocationSince={true}
+          />,
+        );
+        expect(screen.getByText(/seit.*Uhr/)).toBeInTheDocument();
+      });
+    });
+
+    describe("when student is excused AND present at school", () => {
+      it("shows location badge with additional Entschuldigt indicator", () => {
+        const student = createStudent({
+          current_location: "Anwesend - Raum 101",
+          excused: true,
+        });
+        render(<LocationBadge student={student} displayMode="roomName" />);
+
+        expect(screen.getByText("Raum 101")).toBeInTheDocument();
+        expect(screen.getByText(LOCATION_STATUSES.EXCUSED)).toBeInTheDocument();
+      });
+
+      it("renders excused indicator with data attribute and purple color", () => {
+        const student = createStudent({
+          current_location: "Anwesend - Raum 101",
+          excused: true,
+        });
+        render(<LocationBadge student={student} displayMode="roomName" />);
+
+        const ind = screen.getByText(LOCATION_STATUSES.EXCUSED);
+        expect(ind.closest("[data-excused-indicator]")).toHaveAttribute(
+          "data-excused-indicator",
+          "true",
+        );
+        expect(ind.closest("span")).toHaveStyle({
+          backgroundColor: LOCATION_COLORS.EXCUSED,
+        });
+      });
+    });
+
+    describe("sick takes precedence over excused when both flags are set", () => {
+      it("shows only Krank badge, not Entschuldigt, when both are true at home", () => {
+        const student = createStudent({
+          current_location: "Zuhause",
+          sick: true,
+          excused: true,
+        });
+        render(<LocationBadge student={student} displayMode="roomName" />);
+
+        expect(screen.getByText(LOCATION_STATUSES.SICK)).toBeInTheDocument();
+        expect(
+          screen.queryByText(LOCATION_STATUSES.EXCUSED),
+        ).not.toBeInTheDocument();
+      });
+
+      it("shows only Krank indicator, not Entschuldigt, when both are true and present", () => {
+        const student = createStudent({
+          current_location: "Anwesend - Raum 101",
+          sick: true,
+          excused: true,
+        });
+        render(<LocationBadge student={student} displayMode="roomName" />);
+
+        expect(screen.getByText(LOCATION_STATUSES.SICK)).toBeInTheDocument();
+        expect(
+          screen.queryByText(LOCATION_STATUSES.EXCUSED),
+        ).not.toBeInTheDocument();
+      });
+    });
+
+    describe("when student is NOT excused", () => {
+      it("does not show excused indicator", () => {
+        const student = createStudent({
+          current_location: "Anwesend - Raum 101",
+          excused: false,
+        });
+        render(<LocationBadge student={student} displayMode="roomName" />);
+
+        expect(screen.getByText("Raum 101")).toBeInTheDocument();
+        expect(
+          screen.queryByText(LOCATION_STATUSES.EXCUSED),
+        ).not.toBeInTheDocument();
+      });
+    });
+
+    describe("excused badge with simple variant", () => {
+      it("shows Entschuldigt badge in simple variant when excused at home", () => {
+        const student = createStudent({
+          current_location: "Zuhause",
+          excused: true,
+        });
+        render(
+          <LocationBadge
+            student={student}
+            displayMode="roomName"
+            variant="simple"
+          />,
+        );
+        expect(screen.getByText(LOCATION_STATUSES.EXCUSED)).toBeInTheDocument();
+      });
+
+      it("shows additional excused indicator in simple variant when present", () => {
+        const student = createStudent({
+          current_location: "Anwesend - Raum 101",
+          excused: true,
+        });
+        render(
+          <LocationBadge
+            student={student}
+            displayMode="roomName"
+            variant="simple"
+          />,
+        );
+        expect(screen.getByText("Raum 101")).toBeInTheDocument();
+        expect(screen.getByText(LOCATION_STATUSES.EXCUSED)).toBeInTheDocument();
+      });
+    });
+  });
+
+  // ===========================================================================
   // CONTEXT-AWARE MODE WITH SICK STATUS
   // ===========================================================================
 

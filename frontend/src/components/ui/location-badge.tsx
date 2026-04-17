@@ -293,6 +293,7 @@ export function LocationBadge({
         </span>
       )}
       {sickMode === "additional" && <SickIndicator />}
+      {excusedMode === "additional" && <ExcusedIndicator />}
     </div>
   );
 }

@@ -4,6 +4,7 @@ import {
   StudentCheckoutSection,
   StudentCheckinSection,
   StudentSickReportSection,
+  StudentExcusedReportSection,
   getStudentActionType,
 } from "./student-checkout-section";
 
@@ -282,6 +283,81 @@ describe("StudentSickReportSection", () => {
   it("does not show spinner when not loading", () => {
     const { container } = render(
       <StudentSickReportSection {...defaultProps} />,
+    );
+    expect(container.querySelector(".animate-spin")).not.toBeInTheDocument();
+  });
+});
+
+describe("StudentExcusedReportSection", () => {
+  const defaultProps = {
+    isExcused: false,
+    onToggle: vi.fn(),
+    isLoading: false,
+  };
+
+  it("renders 'Entschuldigen' label when student is not excused", () => {
+    render(<StudentExcusedReportSection {...defaultProps} />);
+    expect(screen.getByText("Entschuldigen")).toBeInTheDocument();
+  });
+
+  it("renders 'Als entschuldigt markieren' subtitle when not excused", () => {
+    render(<StudentExcusedReportSection {...defaultProps} />);
+    expect(screen.getByText("Als entschuldigt markieren")).toBeInTheDocument();
+  });
+
+  it("renders 'Entschuldigung aufheben' when student is excused", () => {
+    render(<StudentExcusedReportSection {...defaultProps} isExcused={true} />);
+    expect(screen.getByText("Entschuldigung aufheben")).toBeInTheDocument();
+  });
+
+  it("displays excused-since date when excused with excusedSince", () => {
+    const excusedSince = "2026-02-10T08:00:00Z";
+    const expectedDate = new Date(excusedSince).toLocaleDateString("de-DE", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+    render(
+      <StudentExcusedReportSection
+        {...defaultProps}
+        isExcused={true}
+        excusedSince={excusedSince}
+      />,
+    );
+    expect(
+      screen.getByText(`Entschuldigt seit ${expectedDate}`),
+    ).toBeInTheDocument();
+  });
+
+  it("renders 'Als entschuldigt markieren' subtitle when excused but no excusedSince", () => {
+    render(<StudentExcusedReportSection {...defaultProps} isExcused={true} />);
+    expect(screen.getByText("Als entschuldigt markieren")).toBeInTheDocument();
+  });
+
+  it("calls onToggle when card is clicked", () => {
+    const mockToggle = vi.fn();
+    render(
+      <StudentExcusedReportSection {...defaultProps} onToggle={mockToggle} />,
+    );
+    fireEvent.click(screen.getByText("Entschuldigen"));
+    expect(mockToggle).toHaveBeenCalledTimes(1);
+  });
+
+  it("disables button when loading", () => {
+    render(<StudentExcusedReportSection {...defaultProps} isLoading={true} />);
+    expect(screen.getByRole("button")).toBeDisabled();
+  });
+
+  it("shows spinner when loading", () => {
+    const { container } = render(
+      <StudentExcusedReportSection {...defaultProps} isLoading={true} />,
+    );
+    expect(container.querySelector(".animate-spin")).toBeInTheDocument();
+  });
+
+  it("does not show spinner when not loading", () => {
+    const { container } = render(
+      <StudentExcusedReportSection {...defaultProps} />,
     );
     expect(container.querySelector(".animate-spin")).not.toBeInTheDocument();
   });
