@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	addOrganizationDeletedAtVersion     = "1.15.32"
+	addOrganizationDeletedAtVersion     = "1.15.35"
 	addOrganizationDeletedAtDescription = "Add deleted_at column to platform.organizations and partial indexes for fast non-deleted lookups (orgs + schools by organization_id)"
 )
 
@@ -15,7 +15,7 @@ func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     addOrganizationDeletedAtVersion,
 		Description: addOrganizationDeletedAtDescription,
-		DependsOn:   []string{"1.15.31"},
+		DependsOn:   []string{"1.15.34"},
 	})
 
 	Migrations.MustRegister(
