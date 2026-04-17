@@ -48,8 +48,7 @@ func (s *InstanceStaff) GetID() any { return s.ID }
 func (s *InstanceStaff) GetCreatedAt() time.Time { return s.CreatedAt }
 
 // GetUpdatedAt implements the Entity interface.
-// instance_staff has no updated_at column in the schema, so this mirrors created_at.
-func (s *InstanceStaff) GetUpdatedAt() time.Time { return s.CreatedAt }
+func (s *InstanceStaff) GetUpdatedAt() time.Time { return s.UpdatedAt }
 
 // Validate ensures the staff assignment is well-formed.
 func (s *InstanceStaff) Validate() error {

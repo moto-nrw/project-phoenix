@@ -62,8 +62,8 @@ func TestActivityInstanceRepository_Create(t *testing.T) {
 		inst := buildInstance(
 			1, fx.roomID, &fx.activityID,
 			time.Date(2026, 9, 15, 0, 0, 0, 0, time.UTC),
-			time.Date(0, 1, 1, 14, 0, 0, 0, time.UTC),
-			time.Date(0, 1, 1, 15, 30, 0, 0, time.UTC),
+			time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
+			time.Date(2024, 1, 1, 15, 30, 0, 0, time.UTC),
 			"Lernzeit",
 		)
 
@@ -81,8 +81,8 @@ func TestActivityInstanceRepository_Create(t *testing.T) {
 		inst := buildInstance(
 			1, fx.roomID, nil,
 			time.Date(2026, 9, 16, 0, 0, 0, 0, time.UTC),
-			time.Date(0, 1, 1, 10, 0, 0, 0, time.UTC),
-			time.Date(0, 1, 1, 11, 0, 0, 0, time.UTC),
+			time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC),
+			time.Date(2024, 1, 1, 11, 0, 0, 0, time.UTC),
 			"Spontanes Kochen",
 		)
 		inst.IsSpontaneous = true
@@ -108,8 +108,8 @@ func TestActivityInstanceRepository_Create(t *testing.T) {
 
 		inst := buildInstance(1, fx.roomID, &fx.activityID,
 			time.Date(2026, 9, 17, 0, 0, 0, 0, time.UTC),
-			time.Date(0, 1, 1, 14, 0, 0, 0, time.UTC),
-			time.Date(0, 1, 1, 13, 0, 0, 0, time.UTC),
+			time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
+			time.Date(2024, 1, 1, 13, 0, 0, 0, time.UTC),
 			"Broken",
 		)
 
@@ -123,8 +123,8 @@ func TestActivityInstanceRepository_Create(t *testing.T) {
 		defer fx.cleanup()
 
 		date := time.Date(2026, 9, 18, 0, 0, 0, 0, time.UTC)
-		start := time.Date(0, 1, 1, 10, 0, 0, 0, time.UTC)
-		end := time.Date(0, 1, 1, 11, 0, 0, 0, time.UTC)
+		start := time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC)
+		end := time.Date(2024, 1, 1, 11, 0, 0, 0, time.UTC)
 
 		a := buildInstance(1, fx.roomID, nil, date, start, end, "Spontan A")
 		a.IsSpontaneous = true
@@ -142,8 +142,8 @@ func TestActivityInstanceRepository_Create(t *testing.T) {
 		defer fx.cleanup()
 
 		date := time.Date(2026, 9, 19, 0, 0, 0, 0, time.UTC)
-		start := time.Date(0, 1, 1, 14, 0, 0, 0, time.UTC)
-		end := time.Date(0, 1, 1, 15, 0, 0, 0, time.UTC)
+		start := time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC)
+		end := time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC)
 
 		a := buildInstance(1, fx.roomID, &fx.activityID, date, start, end, "Lernzeit A")
 		require.NoError(t, repo.Create(ctx, a))
@@ -168,8 +168,8 @@ func TestActivityInstanceRepository_FindByID_and_Update(t *testing.T) {
 	inst := buildInstance(
 		1, fx.roomID, &fx.activityID,
 		time.Date(2026, 9, 15, 0, 0, 0, 0, time.UTC),
-		time.Date(0, 1, 1, 14, 0, 0, 0, time.UTC),
-		time.Date(0, 1, 1, 15, 30, 0, 0, time.UTC),
+		time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
+		time.Date(2024, 1, 1, 15, 30, 0, 0, time.UTC),
 		"Lernzeit",
 	)
 	require.NoError(t, repo.Create(ctx, inst))
@@ -216,14 +216,14 @@ func TestActivityInstanceRepository_FindByTenantAndDate(t *testing.T) {
 	other := time.Date(2026, 9, 21, 0, 0, 0, 0, time.UTC)
 
 	a := buildInstance(1, fx.roomID, &fx.activityID, date,
-		time.Date(0, 1, 1, 10, 0, 0, 0, time.UTC),
-		time.Date(0, 1, 1, 11, 0, 0, 0, time.UTC), "A")
+		time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC),
+		time.Date(2024, 1, 1, 11, 0, 0, 0, time.UTC), "A")
 	b := buildInstance(1, fx.roomID, &fx.activityID, date,
-		time.Date(0, 1, 1, 12, 0, 0, 0, time.UTC),
-		time.Date(0, 1, 1, 13, 0, 0, 0, time.UTC), "B")
+		time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC),
+		time.Date(2024, 1, 1, 13, 0, 0, 0, time.UTC), "B")
 	c := buildInstance(1, fx.roomID, &fx.activityID, other,
-		time.Date(0, 1, 1, 10, 0, 0, 0, time.UTC),
-		time.Date(0, 1, 1, 11, 0, 0, 0, time.UTC), "C")
+		time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC),
+		time.Date(2024, 1, 1, 11, 0, 0, 0, time.UTC), "C")
 
 	require.NoError(t, repo.Create(ctx, a))
 	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", a.ID)
@@ -267,17 +267,17 @@ func TestActivityInstanceRepository_FindByTenantAndDateRange(t *testing.T) {
 	outside := time.Date(2026, 10, 5, 0, 0, 0, 0, time.UTC)
 
 	s1 := buildInstance(1, fx.roomID, &fx.activityID, start,
-		time.Date(0, 1, 1, 9, 0, 0, 0, time.UTC),
-		time.Date(0, 1, 1, 10, 0, 0, 0, time.UTC), "start")
+		time.Date(2024, 1, 1, 9, 0, 0, 0, time.UTC),
+		time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC), "start")
 	s2 := buildInstance(1, fx.roomID, &fx.activityID, mid,
-		time.Date(0, 1, 1, 9, 0, 0, 0, time.UTC),
-		time.Date(0, 1, 1, 10, 0, 0, 0, time.UTC), "mid")
+		time.Date(2024, 1, 1, 9, 0, 0, 0, time.UTC),
+		time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC), "mid")
 	s3 := buildInstance(1, fx.roomID, &fx.activityID, end,
-		time.Date(0, 1, 1, 9, 0, 0, 0, time.UTC),
-		time.Date(0, 1, 1, 10, 0, 0, 0, time.UTC), "end")
+		time.Date(2024, 1, 1, 9, 0, 0, 0, time.UTC),
+		time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC), "end")
 	s4 := buildInstance(1, fx.roomID, &fx.activityID, outside,
-		time.Date(0, 1, 1, 9, 0, 0, 0, time.UTC),
-		time.Date(0, 1, 1, 10, 0, 0, 0, time.UTC), "outside")
+		time.Date(2024, 1, 1, 9, 0, 0, 0, time.UTC),
+		time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC), "outside")
 
 	for _, inst := range []*scheduleModels.ActivityInstance{s1, s2, s3, s4} {
 		require.NoError(t, repo.Create(ctx, inst))
@@ -310,11 +310,11 @@ func TestActivityInstanceRepository_FindByActivityGroupAndDate(t *testing.T) {
 	date := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
 
 	a := buildInstance(1, fx.roomID, &fx.activityID, date,
-		time.Date(0, 1, 1, 10, 0, 0, 0, time.UTC),
-		time.Date(0, 1, 1, 11, 0, 0, 0, time.UTC), "morning")
+		time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC),
+		time.Date(2024, 1, 1, 11, 0, 0, 0, time.UTC), "morning")
 	b := buildInstance(1, fx.roomID, &fx.activityID, date,
-		time.Date(0, 1, 1, 14, 0, 0, 0, time.UTC),
-		time.Date(0, 1, 1, 15, 0, 0, 0, time.UTC), "afternoon")
+		time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
+		time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC), "afternoon")
 
 	require.NoError(t, repo.Create(ctx, a))
 	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", a.ID)
@@ -352,8 +352,8 @@ func TestActivityInstanceRepository_List(t *testing.T) {
 
 	inst := buildInstance(1, fx.roomID, &fx.activityID,
 		time.Date(2026, 10, 7, 0, 0, 0, 0, time.UTC),
-		time.Date(0, 1, 1, 14, 0, 0, 0, time.UTC),
-		time.Date(0, 1, 1, 15, 0, 0, 0, time.UTC),
+		time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
+		time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC),
 		"List-entry")
 	require.NoError(t, repo.Create(ctx, inst))
 	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", inst.ID)

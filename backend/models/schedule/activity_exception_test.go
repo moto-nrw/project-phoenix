@@ -26,8 +26,8 @@ func TestActivityException_Validate(t *testing.T) {
 	t.Run("valid modified exception with time override", func(t *testing.T) {
 		e := validActivityException()
 		e.ExceptionType = ActivityExceptionModified
-		start := time.Date(0, 1, 1, 14, 0, 0, 0, time.UTC)
-		end := time.Date(0, 1, 1, 15, 30, 0, 0, time.UTC)
+		start := time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC)
+		end := time.Date(2024, 1, 1, 15, 30, 0, 0, time.UTC)
 		e.StartTime = &start
 		e.EndTime = &end
 		require.NoError(t, e.Validate())
@@ -85,8 +85,8 @@ func TestActivityException_Validate(t *testing.T) {
 	t.Run("modified exception with end before start is rejected", func(t *testing.T) {
 		e := validActivityException()
 		e.ExceptionType = ActivityExceptionModified
-		start := time.Date(0, 1, 1, 15, 30, 0, 0, time.UTC)
-		end := time.Date(0, 1, 1, 14, 0, 0, 0, time.UTC)
+		start := time.Date(2024, 1, 1, 15, 30, 0, 0, time.UTC)
+		end := time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC)
 		e.StartTime = &start
 		e.EndTime = &end
 		err := e.Validate()

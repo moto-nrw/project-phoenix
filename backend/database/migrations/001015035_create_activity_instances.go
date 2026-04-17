@@ -166,6 +166,7 @@ func createActivityInstancesUp(ctx context.Context, db *bun.DB) error {
 			is_substitute BOOLEAN NOT NULL DEFAULT false,
 			is_absent BOOLEAN NOT NULL DEFAULT false,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			CONSTRAINT unique_instance_staff UNIQUE (instance_id, staff_id)
 		);
 	`).Exec(ctx)
@@ -300,6 +301,7 @@ func createActivityInstancesUp(ctx context.Context, db *bun.DB) error {
 			reason VARCHAR(500),
 			created_by BIGINT REFERENCES users.staff(id) ON DELETE SET NULL,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			CONSTRAINT unique_activity_exception UNIQUE (tenant_id, activity_group_id, exception_date),
 			CONSTRAINT check_activity_exception_type CHECK (exception_type IN ('cancelled', 'modified')),
 			CONSTRAINT check_activity_exception_times CHECK (

@@ -69,8 +69,7 @@ func (e *ActivityException) GetID() any { return e.ID }
 func (e *ActivityException) GetCreatedAt() time.Time { return e.CreatedAt }
 
 // GetUpdatedAt implements the Entity interface.
-// activity_exceptions has no updated_at column, so mirror created_at.
-func (e *ActivityException) GetUpdatedAt() time.Time { return e.CreatedAt }
+func (e *ActivityException) GetUpdatedAt() time.Time { return e.UpdatedAt }
 
 // Validate ensures the exception is well-formed for persistence.
 func (e *ActivityException) Validate() error {

@@ -22,8 +22,8 @@ func createInstanceFixture(t *testing.T, db *bun.DB, prefix string, date time.Ti
 	ctx := testpkg.TenantContext(1)
 
 	inst := buildInstance(1, fx.roomID, &fx.activityID, date,
-		time.Date(0, 1, 1, 14, 0, 0, 0, time.UTC),
-		time.Date(0, 1, 1, 15, 0, 0, 0, time.UTC),
+		time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
+		time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC),
 		fmt.Sprintf("Instance-%s-%d", prefix, time.Now().UnixNano()),
 	)
 	require.NoError(t, repo.Create(ctx, inst))

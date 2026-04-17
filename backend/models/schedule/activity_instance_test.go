@@ -13,8 +13,8 @@ func validActivityInstance() *ActivityInstance {
 	return &ActivityInstance{
 		Date:      time.Date(2026, 9, 15, 0, 0, 0, 0, time.UTC),
 		Title:     "Lernzeit 3a",
-		StartTime: time.Date(0, 1, 1, 14, 0, 0, 0, time.UTC),
-		EndTime:   time.Date(0, 1, 1, 15, 30, 0, 0, time.UTC),
+		StartTime: time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
+		EndTime:   time.Date(2024, 1, 1, 15, 30, 0, 0, time.UTC),
 		RoomID:    42,
 		Status:    InstanceStatusPlanned,
 	}
