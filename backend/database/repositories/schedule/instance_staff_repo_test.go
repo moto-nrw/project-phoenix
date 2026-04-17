@@ -1,11 +1,13 @@
 package schedule_test
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
 
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -155,4 +157,190 @@ func TestInstanceStaffRepository_DeleteByInstanceID(t *testing.T) {
 	rows, err := repo.FindByInstanceID(ctx, inst.ID)
 	require.NoError(t, err)
 	assert.Empty(t, rows)
+}
+
+func TestInstanceStaffRepository_Update(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewInstanceStaffRepository(db)
+
+	inst, cleanupInst := createInstanceFixture(t, db, "upd", time.Date(2026, 9, 21, 0, 0, 0, 0, time.UTC))
+	defer cleanupInst()
+
+	staff := testpkg.CreateTestStaff(t, db, "Eve", fmt.Sprintf("Upd-%d", time.Now().UnixNano()))
+	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
+
+	row := &scheduleModels.InstanceStaff{
+		InstanceID: inst.ID,
+		StaffID:    staff.ID,
+	}
+	row.SetTenantID(1)
+	require.NoError(t, repo.Create(ctx, row))
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_staff", row.ID)
+
+	t.Run("updates fields in place", func(t *testing.T) {
+		row.IsPrimary = true
+		row.IsSubstitute = false
+		row.IsAbsent = true
+
+		require.NoError(t, repo.Update(ctx, row))
+
+		got, err := repo.FindByID(ctx, row.ID)
+		require.NoError(t, err)
+		assert.True(t, got.IsPrimary)
+		assert.False(t, got.IsSubstitute)
+		assert.True(t, got.IsAbsent)
+	})
+
+	t.Run("rejects nil", func(t *testing.T) {
+		err := repo.Update(ctx, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot be nil")
+	})
+
+	t.Run("rejects invalid payload", func(t *testing.T) {
+		bad := &scheduleModels.InstanceStaff{InstanceID: 0, StaffID: staff.ID}
+		bad.SetTenantID(1)
+		bad.ID = row.ID
+		err := repo.Update(ctx, bad)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "instance_id is required")
+	})
+}
+
+func TestInstanceStaffRepository_FindByID(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewInstanceStaffRepository(db)
+
+	inst, cleanupInst := createInstanceFixture(t, db, "fid", time.Date(2026, 9, 22, 0, 0, 0, 0, time.UTC))
+	defer cleanupInst()
+
+	staff := testpkg.CreateTestStaff(t, db, "Finn", fmt.Sprintf("FID-%d", time.Now().UnixNano()))
+	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
+
+	row := &scheduleModels.InstanceStaff{InstanceID: inst.ID, StaffID: staff.ID, IsPrimary: true}
+	row.SetTenantID(1)
+	require.NoError(t, repo.Create(ctx, row))
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_staff", row.ID)
+
+	t.Run("returns row for known id", func(t *testing.T) {
+		got, err := repo.FindByID(ctx, row.ID)
+		require.NoError(t, err)
+		require.NotNil(t, got)
+		assert.Equal(t, row.ID, got.ID)
+		assert.Equal(t, staff.ID, got.StaffID)
+	})
+
+	t.Run("wraps sql.ErrNoRows for missing id", func(t *testing.T) {
+		got, err := repo.FindByID(ctx, int64(999999999))
+		require.Error(t, err)
+		assert.Nil(t, got)
+		var dbErr *modelBase.DatabaseError
+		require.ErrorAs(t, err, &dbErr)
+		assert.Equal(t, "find by id", dbErr.Op)
+	})
+
+	t.Run("wraps driver errors in DatabaseError", func(t *testing.T) {
+		cancelledCtx, cancel := context.WithCancel(ctx)
+		cancel()
+
+		got, err := repo.FindByID(cancelledCtx, row.ID)
+		assert.Nil(t, got)
+		require.Error(t, err)
+		var dbErr *modelBase.DatabaseError
+		require.ErrorAs(t, err, &dbErr)
+		assert.Equal(t, "find by id", dbErr.Op)
+	})
+}
+
+func TestInstanceStaffRepository_List(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewInstanceStaffRepository(db)
+
+	inst, cleanupInst := createInstanceFixture(t, db, "lst", time.Date(2026, 9, 23, 0, 0, 0, 0, time.UTC))
+	defer cleanupInst()
+
+	staff := testpkg.CreateTestStaff(t, db, "Gina", fmt.Sprintf("Lst-%d", time.Now().UnixNano()))
+	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
+
+	row := &scheduleModels.InstanceStaff{InstanceID: inst.ID, StaffID: staff.ID}
+	row.SetTenantID(1)
+	require.NoError(t, repo.Create(ctx, row))
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_staff", row.ID)
+
+	t.Run("nil options returns rows", func(t *testing.T) {
+		rows, err := repo.List(ctx, nil)
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, len(rows), 1)
+	})
+
+	t.Run("with pagination and filter", func(t *testing.T) {
+		options := modelBase.NewQueryOptions()
+		options.Filter.Equal("instance_id", inst.ID)
+		options.WithPagination(1, 50)
+
+		rows, err := repo.List(ctx, options)
+		require.NoError(t, err)
+		require.NotEmpty(t, rows)
+		for _, r := range rows {
+			assert.Equal(t, inst.ID, r.InstanceID)
+		}
+	})
+
+	t.Run("wraps driver errors in DatabaseError", func(t *testing.T) {
+		cancelledCtx, cancel := context.WithCancel(ctx)
+		cancel()
+
+		rows, err := repo.List(cancelledCtx, nil)
+		assert.Nil(t, rows)
+		require.Error(t, err)
+		var dbErr *modelBase.DatabaseError
+		require.ErrorAs(t, err, &dbErr)
+		assert.Equal(t, "list", dbErr.Op)
+	})
+}
+
+func TestInstanceStaffRepository_ErrorBranches(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewInstanceStaffRepository(db)
+
+	cancelledCtx, cancel := context.WithCancel(ctx)
+	cancel()
+
+	t.Run("FindByInstanceID wraps driver errors", func(t *testing.T) {
+		rows, err := repo.FindByInstanceID(cancelledCtx, int64(999999))
+		assert.Nil(t, rows)
+		require.Error(t, err)
+		var dbErr *modelBase.DatabaseError
+		require.ErrorAs(t, err, &dbErr)
+		assert.Equal(t, "find by instance id", dbErr.Op)
+	})
+
+	t.Run("FindByStaffAndDate wraps driver errors", func(t *testing.T) {
+		rows, err := repo.FindByStaffAndDate(cancelledCtx, int64(999999), time.Date(2026, 9, 24, 0, 0, 0, 0, time.UTC))
+		assert.Nil(t, rows)
+		require.Error(t, err)
+		var dbErr *modelBase.DatabaseError
+		require.ErrorAs(t, err, &dbErr)
+		assert.Equal(t, "find by staff and date", dbErr.Op)
+	})
+
+	t.Run("DeleteByInstanceID wraps driver errors", func(t *testing.T) {
+		err := repo.DeleteByInstanceID(cancelledCtx, int64(999999))
+		require.Error(t, err)
+		var dbErr *modelBase.DatabaseError
+		require.ErrorAs(t, err, &dbErr)
+		assert.Equal(t, "delete by instance id", dbErr.Op)
+	})
 }

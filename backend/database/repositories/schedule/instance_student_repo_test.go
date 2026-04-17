@@ -1,12 +1,14 @@
 package schedule_test
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
 	"time"
 
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -186,6 +188,175 @@ func TestInstanceStudentRepository_FindByStudentAndDateRange(t *testing.T) {
 	assert.True(t, ids[rA.ID])
 	assert.True(t, ids[rB.ID])
 	assert.False(t, ids[rOut.ID], "instance outside range must not appear")
+}
+
+func TestInstanceStudentRepository_CreateValidation(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewInstanceStudentRepository(db)
+
+	t.Run("Create rejects nil", func(t *testing.T) {
+		err := repo.Create(ctx, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot be nil")
+	})
+
+	t.Run("Create rejects invalid payload", func(t *testing.T) {
+		bad := &scheduleModels.InstanceStudent{
+			InstanceID: 0,
+			StudentID:  123,
+			Status:     scheduleModels.AttendanceStatusExpected,
+		}
+		bad.SetTenantID(1)
+		err := repo.Create(ctx, bad)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "instance_id is required")
+	})
+}
+
+func TestInstanceStudentRepository_UpdateValidation(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewInstanceStudentRepository(db)
+
+	t.Run("Update rejects nil", func(t *testing.T) {
+		err := repo.Update(ctx, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot be nil")
+	})
+
+	t.Run("Update rejects invalid payload", func(t *testing.T) {
+		bad := &scheduleModels.InstanceStudent{
+			InstanceID: 10,
+			StudentID:  0,
+			Status:     scheduleModels.AttendanceStatusExpected,
+		}
+		bad.SetTenantID(1)
+		err := repo.Update(ctx, bad)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "student_id is required")
+	})
+}
+
+func TestInstanceStudentRepository_FindByID_NotFound(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewInstanceStudentRepository(db)
+
+	got, err := repo.FindByID(ctx, int64(999999999))
+	require.Error(t, err)
+	assert.Nil(t, got)
+	var dbErr *modelBase.DatabaseError
+	require.ErrorAs(t, err, &dbErr)
+	assert.Equal(t, "find by id", dbErr.Op)
+}
+
+func TestInstanceStudentRepository_List(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewInstanceStudentRepository(db)
+
+	inst, cleanupInst := createInstanceFixture(t, db, "stu-list", time.Date(2026, 10, 8, 0, 0, 0, 0, time.UTC))
+	defer cleanupInst()
+
+	student := testpkg.CreateTestStudent(t, db, "Peter", fmt.Sprintf("List-%d", time.Now().UnixNano()), "3a")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+	row := &scheduleModels.InstanceStudent{
+		InstanceID: inst.ID,
+		StudentID:  student.ID,
+		Status:     scheduleModels.AttendanceStatusExpected,
+	}
+	row.SetTenantID(1)
+	require.NoError(t, repo.Create(ctx, row))
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
+
+	t.Run("nil options returns rows", func(t *testing.T) {
+		rows, err := repo.List(ctx, nil)
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, len(rows), 1)
+	})
+
+	t.Run("with filter + pagination", func(t *testing.T) {
+		options := modelBase.NewQueryOptions()
+		options.Filter.Equal("instance_id", inst.ID)
+		options.WithPagination(1, 50)
+
+		rows, err := repo.List(ctx, options)
+		require.NoError(t, err)
+		require.NotEmpty(t, rows)
+		for _, r := range rows {
+			assert.Equal(t, inst.ID, r.InstanceID)
+		}
+	})
+
+	t.Run("wraps driver errors in DatabaseError", func(t *testing.T) {
+		cancelledCtx, cancel := context.WithCancel(ctx)
+		cancel()
+
+		rows, err := repo.List(cancelledCtx, nil)
+		assert.Nil(t, rows)
+		require.Error(t, err)
+		var dbErr *modelBase.DatabaseError
+		require.ErrorAs(t, err, &dbErr)
+		assert.Equal(t, "list", dbErr.Op)
+	})
+}
+
+func TestInstanceStudentRepository_ErrorBranches(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewInstanceStudentRepository(db)
+
+	cancelledCtx, cancel := context.WithCancel(ctx)
+	cancel()
+
+	t.Run("FindByInstanceID wraps driver errors", func(t *testing.T) {
+		rows, err := repo.FindByInstanceID(cancelledCtx, int64(999999))
+		assert.Nil(t, rows)
+		require.Error(t, err)
+		var dbErr *modelBase.DatabaseError
+		require.ErrorAs(t, err, &dbErr)
+		assert.Equal(t, "find by instance id", dbErr.Op)
+	})
+
+	t.Run("FindByStudentAndDateRange wraps driver errors", func(t *testing.T) {
+		from := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+		to := time.Date(2026, 10, 31, 0, 0, 0, 0, time.UTC)
+		rows, err := repo.FindByStudentAndDateRange(cancelledCtx, int64(999999), from, to)
+		assert.Nil(t, rows)
+		require.Error(t, err)
+		var dbErr *modelBase.DatabaseError
+		require.ErrorAs(t, err, &dbErr)
+		assert.Equal(t, "find by student and date range", dbErr.Op)
+	})
+
+	t.Run("FindByInstanceAndStudent wraps driver errors", func(t *testing.T) {
+		row, err := repo.FindByInstanceAndStudent(cancelledCtx, int64(999999), int64(999999))
+		assert.Nil(t, row)
+		require.Error(t, err)
+		var dbErr *modelBase.DatabaseError
+		require.ErrorAs(t, err, &dbErr)
+		assert.Equal(t, "find by instance and student", dbErr.Op)
+	})
+
+	t.Run("DeleteByInstanceID wraps driver errors", func(t *testing.T) {
+		err := repo.DeleteByInstanceID(cancelledCtx, int64(999999))
+		require.Error(t, err)
+		var dbErr *modelBase.DatabaseError
+		require.ErrorAs(t, err, &dbErr)
+		assert.Equal(t, "delete by instance id", dbErr.Op)
+	})
 }
 
 func TestInstanceStudentRepository_DeleteByInstanceID(t *testing.T) {

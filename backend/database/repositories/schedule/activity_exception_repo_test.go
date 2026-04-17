@@ -1,11 +1,13 @@
 package schedule_test
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
 
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -173,6 +175,184 @@ func TestActivityExceptionRepository_FindByDateRange(t *testing.T) {
 	assert.True(t, ids[eMid.ID])
 	assert.True(t, ids[eEnd.ID], "to-date inclusive")
 	assert.False(t, ids[eOut.ID], "outside range must not appear")
+}
+
+func TestActivityExceptionRepository_Update(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewActivityExceptionRepository(db)
+
+	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("Exc-Upd-%d", time.Now().UnixNano()))
+	defer testpkg.CleanupActivityFixtures(t, db, activity.ID)
+
+	exc := &scheduleModels.ActivityException{
+		ActivityGroupID: activity.ID,
+		ExceptionDate:   time.Date(2027, 5, 1, 0, 0, 0, 0, time.UTC),
+		ExceptionType:   scheduleModels.ActivityExceptionCancelled,
+	}
+	exc.SetTenantID(1)
+	require.NoError(t, repo.Create(ctx, exc))
+	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_exceptions", exc.ID)
+
+	t.Run("updates fields in place", func(t *testing.T) {
+		reason := "Ferien"
+		exc.Reason = &reason
+
+		require.NoError(t, repo.Update(ctx, exc))
+
+		got, err := repo.FindByID(ctx, exc.ID)
+		require.NoError(t, err)
+		require.NotNil(t, got.Reason)
+		assert.Equal(t, "Ferien", *got.Reason)
+	})
+
+	t.Run("rejects nil", func(t *testing.T) {
+		err := repo.Update(ctx, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot be nil")
+	})
+
+	t.Run("rejects invalid payload", func(t *testing.T) {
+		bad := &scheduleModels.ActivityException{
+			ActivityGroupID: 0,
+			ExceptionDate:   time.Date(2027, 5, 2, 0, 0, 0, 0, time.UTC),
+			ExceptionType:   scheduleModels.ActivityExceptionCancelled,
+		}
+		bad.SetTenantID(1)
+		bad.ID = exc.ID
+		err := repo.Update(ctx, bad)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "activity_group_id is required")
+	})
+}
+
+func TestActivityExceptionRepository_FindByID(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewActivityExceptionRepository(db)
+
+	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("Exc-FID-%d", time.Now().UnixNano()))
+	defer testpkg.CleanupActivityFixtures(t, db, activity.ID)
+
+	exc := &scheduleModels.ActivityException{
+		ActivityGroupID: activity.ID,
+		ExceptionDate:   time.Date(2027, 5, 3, 0, 0, 0, 0, time.UTC),
+		ExceptionType:   scheduleModels.ActivityExceptionCancelled,
+	}
+	exc.SetTenantID(1)
+	require.NoError(t, repo.Create(ctx, exc))
+	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_exceptions", exc.ID)
+
+	t.Run("returns row for known id", func(t *testing.T) {
+		got, err := repo.FindByID(ctx, exc.ID)
+		require.NoError(t, err)
+		require.NotNil(t, got)
+		assert.Equal(t, exc.ID, got.ID)
+	})
+
+	t.Run("wraps sql.ErrNoRows for missing id", func(t *testing.T) {
+		got, err := repo.FindByID(ctx, int64(999999999))
+		require.Error(t, err)
+		assert.Nil(t, got)
+		var dbErr *modelBase.DatabaseError
+		require.ErrorAs(t, err, &dbErr)
+		assert.Equal(t, "find by id", dbErr.Op)
+	})
+}
+
+func TestActivityExceptionRepository_List(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewActivityExceptionRepository(db)
+
+	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("Exc-List-%d", time.Now().UnixNano()))
+	defer testpkg.CleanupActivityFixtures(t, db, activity.ID)
+
+	exc := &scheduleModels.ActivityException{
+		ActivityGroupID: activity.ID,
+		ExceptionDate:   time.Date(2027, 5, 4, 0, 0, 0, 0, time.UTC),
+		ExceptionType:   scheduleModels.ActivityExceptionCancelled,
+	}
+	exc.SetTenantID(1)
+	require.NoError(t, repo.Create(ctx, exc))
+	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_exceptions", exc.ID)
+
+	t.Run("nil options returns rows", func(t *testing.T) {
+		rows, err := repo.List(ctx, nil)
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, len(rows), 1)
+	})
+
+	t.Run("with filter + pagination", func(t *testing.T) {
+		options := modelBase.NewQueryOptions()
+		options.Filter.Equal("activity_group_id", activity.ID)
+		options.WithPagination(1, 10)
+
+		rows, err := repo.List(ctx, options)
+		require.NoError(t, err)
+		require.NotEmpty(t, rows)
+		for _, r := range rows {
+			assert.Equal(t, activity.ID, r.ActivityGroupID)
+		}
+	})
+
+	t.Run("wraps driver errors in DatabaseError", func(t *testing.T) {
+		cancelledCtx, cancel := context.WithCancel(ctx)
+		cancel()
+
+		rows, err := repo.List(cancelledCtx, nil)
+		assert.Nil(t, rows)
+		require.Error(t, err)
+		var dbErr *modelBase.DatabaseError
+		require.ErrorAs(t, err, &dbErr)
+		assert.Equal(t, "list", dbErr.Op)
+	})
+}
+
+func TestActivityExceptionRepository_ErrorBranches(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewActivityExceptionRepository(db)
+
+	cancelledCtx, cancel := context.WithCancel(ctx)
+	cancel()
+
+	date := time.Date(2027, 5, 5, 0, 0, 0, 0, time.UTC)
+
+	t.Run("FindByActivityGroupID wraps driver errors", func(t *testing.T) {
+		rows, err := repo.FindByActivityGroupID(cancelledCtx, int64(999999))
+		assert.Nil(t, rows)
+		require.Error(t, err)
+		var dbErr *modelBase.DatabaseError
+		require.ErrorAs(t, err, &dbErr)
+		assert.Equal(t, "find by activity group id", dbErr.Op)
+	})
+
+	t.Run("FindByActivityGroupAndDate wraps driver errors", func(t *testing.T) {
+		row, err := repo.FindByActivityGroupAndDate(cancelledCtx, int64(999999), date)
+		assert.Nil(t, row)
+		require.Error(t, err)
+		var dbErr *modelBase.DatabaseError
+		require.ErrorAs(t, err, &dbErr)
+		assert.Equal(t, "find by activity group and date", dbErr.Op)
+	})
+
+	t.Run("FindByDateRange wraps driver errors", func(t *testing.T) {
+		rows, err := repo.FindByDateRange(cancelledCtx, date, date)
+		assert.Nil(t, rows)
+		require.Error(t, err)
+		var dbErr *modelBase.DatabaseError
+		require.ErrorAs(t, err, &dbErr)
+		assert.Equal(t, "find by date range", dbErr.Op)
+	})
 }
 
 // TestActivityExceptionFKOnDelete verifies:
