@@ -26,6 +26,7 @@ const mockBackendOrg: BackendOrganization = {
   name: "Stadt Köln",
   slug: "stadt-koeln",
   active: true,
+  deleted_at: null,
   settings: null,
   created_at: NOW,
   updated_at: NOW,
@@ -132,6 +133,7 @@ describe("OperatorProvisioningService", () => {
         active: true,
         createdAt: NOW,
         updatedAt: NOW,
+        deletedAt: null,
       });
     });
   });

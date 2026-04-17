@@ -1,0 +1,362 @@
+"use client";
+
+import { useCallback, useState } from "react";
+import { getRelativeTime } from "~/lib/format-utils";
+import { createLogger } from "~/lib/logger";
+import { ConfirmationModal } from "~/components/ui/modal";
+
+const logger = createLogger({ component: "SoftDeleteShared" });
+
+export interface SoftDeletable {
+  readonly id: string;
+  readonly name: string;
+  readonly deletedAt?: string | null;
+}
+
+interface UseSoftDeletableOptions<T extends SoftDeletable> {
+  readonly softDeleteFn: (id: string) => Promise<unknown>;
+  readonly restoreFn: (id: string) => Promise<unknown>;
+  readonly mutateList: () => Promise<unknown>;
+  readonly errorMessages: {
+    readonly softDelete: string;
+    readonly restore: string;
+  };
+  readonly logEventPrefix: string;
+  readonly onAfterSoftDelete?: (target: T) => void | Promise<void>;
+  readonly onAfterRestore?: (target: T) => void | Promise<void>;
+}
+
+export interface SoftDeletableState<T extends SoftDeletable> {
+  readonly deleteTarget: T | null;
+  readonly setDeleteTarget: (target: T | null) => void;
+  readonly deleteConfirmInput: string;
+  readonly setDeleteConfirmInput: (value: string) => void;
+  readonly restoreTarget: T | null;
+  readonly setRestoreTarget: (target: T | null) => void;
+  readonly isProcessing: boolean;
+  readonly softDeleteError: string;
+  readonly showTrash: boolean;
+  readonly setShowTrash: (value: boolean) => void;
+  readonly handleSoftDelete: () => Promise<void>;
+  readonly handleRestore: () => Promise<void>;
+}
+
+export function useSoftDeletable<T extends SoftDeletable>(
+  options: UseSoftDeletableOptions<T>,
+): SoftDeletableState<T> {
+  const {
+    softDeleteFn,
+    restoreFn,
+    mutateList,
+    errorMessages,
+    logEventPrefix,
+    onAfterSoftDelete,
+    onAfterRestore,
+  } = options;
+
+  const [deleteTarget, setDeleteTargetRaw] = useState<T | null>(null);
+  const [deleteConfirmInput, setDeleteConfirmInput] = useState("");
+  const [restoreTarget, setRestoreTargetRaw] = useState<T | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [softDeleteError, setSoftDeleteError] = useState("");
+  const [showTrash, setShowTrash] = useState(false);
+
+  const setDeleteTarget = useCallback((target: T | null) => {
+    setDeleteTargetRaw(target);
+    setDeleteConfirmInput("");
+    setSoftDeleteError("");
+  }, []);
+
+  const setRestoreTarget = useCallback((target: T | null) => {
+    setRestoreTargetRaw(target);
+    setSoftDeleteError("");
+  }, []);
+
+  const execute = useCallback(
+    async (
+      target: T | null,
+      action: (id: string) => Promise<unknown>,
+      errorMsg: string,
+      logEvent: string,
+      onSuccess: () => void | Promise<void>,
+    ) => {
+      if (!target) return;
+      setIsProcessing(true);
+      setSoftDeleteError("");
+      try {
+        await action(target.id);
+        await onSuccess();
+        await mutateList().catch(() => {});
+      } catch (error) {
+        setSoftDeleteError(errorMsg);
+        logger.error(logEvent, {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      } finally {
+        setIsProcessing(false);
+      }
+    },
+    [mutateList],
+  );
+
+  const handleSoftDelete = useCallback(async () => {
+    const target = deleteTarget;
+    await execute(
+      target,
+      softDeleteFn,
+      errorMessages.softDelete,
+      `${logEventPrefix}_soft_delete_failed`,
+      async () => {
+        setDeleteTarget(null);
+        if (target && onAfterSoftDelete) {
+          await onAfterSoftDelete(target);
+        }
+      },
+    );
+  }, [
+    deleteTarget,
+    execute,
+    softDeleteFn,
+    errorMessages.softDelete,
+    logEventPrefix,
+    setDeleteTarget,
+    onAfterSoftDelete,
+  ]);
+
+  const handleRestore = useCallback(async () => {
+    const target = restoreTarget;
+    await execute(
+      target,
+      restoreFn,
+      errorMessages.restore,
+      `${logEventPrefix}_restore_failed`,
+      async () => {
+        setRestoreTarget(null);
+        setShowTrash(false);
+        if (target && onAfterRestore) {
+          await onAfterRestore(target);
+        }
+      },
+    );
+  }, [
+    restoreTarget,
+    execute,
+    restoreFn,
+    errorMessages.restore,
+    logEventPrefix,
+    setRestoreTarget,
+    onAfterRestore,
+  ]);
+
+  return {
+    deleteTarget,
+    setDeleteTarget,
+    deleteConfirmInput,
+    setDeleteConfirmInput,
+    restoreTarget,
+    setRestoreTarget,
+    isProcessing,
+    softDeleteError,
+    showTrash,
+    setShowTrash,
+    handleSoftDelete,
+    handleRestore,
+  };
+}
+
+export function DeletedEntityCard({
+  name,
+  subtitle,
+  deletedAt,
+  onRestore,
+  extraSubtitle,
+  restoreDisabled = false,
+  restoreDisabledReason,
+}: {
+  readonly name: string;
+  readonly subtitle: string;
+  readonly deletedAt: string | null | undefined;
+  readonly onRestore: () => void;
+  readonly extraSubtitle?: string | null;
+  readonly restoreDisabled?: boolean;
+  readonly restoreDisabledReason?: string;
+}) {
+  return (
+    <div className="rounded-3xl border border-red-100/50 bg-red-50/50 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.08)]">
+      <div className="flex items-start justify-between">
+        <div className="min-w-0 flex-1">
+          <h3 className="text-base font-semibold text-gray-900">{name}</h3>
+          <div className="mt-0.5 flex items-center gap-2 text-sm text-gray-500">
+            <span className="font-mono">{subtitle}</span>
+            {extraSubtitle && (
+              <>
+                <span className="text-gray-300">·</span>
+                <span>{extraSubtitle}</span>
+              </>
+            )}
+          </div>
+        </div>
+        <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
+          Gelöscht
+        </span>
+      </div>
+      <div className="mt-3 flex items-center justify-between gap-3">
+        <p className="text-xs text-gray-400">
+          Gelöscht {deletedAt ? getRelativeTime(deletedAt) : ""}
+        </p>
+        <div className="flex flex-col items-end gap-1">
+          <button
+            type="button"
+            onClick={onRestore}
+            disabled={restoreDisabled}
+            title={restoreDisabled ? restoreDisabledReason : undefined}
+            className="rounded-lg bg-green-100 px-3 py-1.5 text-xs font-medium text-green-700 transition-colors hover:bg-green-200 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400 disabled:hover:bg-gray-100"
+          >
+            Wiederherstellen
+          </button>
+          {restoreDisabled && restoreDisabledReason && (
+            <p className="max-w-[16rem] text-right text-[11px] text-gray-500">
+              {restoreDisabledReason}
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function SoftDeleteConfirmationModal<T extends SoftDeletable>({
+  target,
+  entityLabel,
+  nameLabel,
+  warningTitle,
+  warningBullets,
+  inputId,
+  confirmInput,
+  onConfirmInputChange,
+  errorMessage,
+  isProcessing,
+  onCancel,
+  onConfirm,
+}: {
+  readonly target: T;
+  readonly entityLabel: string;
+  readonly nameLabel: string;
+  readonly warningTitle: string;
+  readonly warningBullets: readonly string[];
+  readonly inputId: string;
+  readonly confirmInput: string;
+  readonly onConfirmInputChange: (value: string) => void;
+  readonly errorMessage: string;
+  readonly isProcessing: boolean;
+  readonly onCancel: () => void;
+  readonly onConfirm: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="mx-4 w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+        <h3 className="text-lg font-semibold text-gray-900">
+          {entityLabel} löschen
+        </h3>
+        <p className="mt-2 text-sm text-gray-600">
+          Möchten Sie {entityLabel === "Träger" ? "den Träger" : "die Schule"}{" "}
+          <span className="font-medium">{target.name}</span> wirklich löschen?
+        </p>
+        <div className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          <p className="font-medium">{warningTitle}</p>
+          <ul className="mt-1 list-inside list-disc space-y-0.5 text-xs">
+            {warningBullets.map((b) => (
+              <li key={b}>{b}</li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="mt-4">
+          <label
+            htmlFor={inputId}
+            className="block text-sm font-medium text-gray-700"
+          >
+            {nameLabel}
+          </label>
+          <p className="mb-1 text-sm font-medium text-gray-900">
+            {target.name}
+          </p>
+          <input
+            id={inputId}
+            type="text"
+            value={confirmInput}
+            onChange={(e) => onConfirmInputChange(e.target.value)}
+            placeholder={target.name}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-red-500 focus:ring-1 focus:ring-red-500 focus:outline-none"
+            autoComplete="off"
+          />
+        </div>
+
+        {errorMessage && (
+          <div className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
+            {errorMessage}
+          </div>
+        )}
+
+        <div className="mt-5 flex justify-end gap-3">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={isProcessing}
+            className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-50"
+          >
+            Abbrechen
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={isProcessing || confirmInput !== target.name}
+            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isProcessing ? "Wird gelöscht..." : "Löschen"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function RestoreConfirmationModal<T extends SoftDeletable>({
+  target,
+  setTarget,
+  entityLabel,
+  onConfirm,
+  isProcessing,
+  errorMessage,
+}: {
+  readonly target: T | null;
+  readonly setTarget: (t: T | null) => void;
+  readonly entityLabel: string;
+  readonly onConfirm: () => void;
+  readonly isProcessing: boolean;
+  readonly errorMessage?: string;
+}) {
+  const article = entityLabel === "Träger" ? "den Träger" : "die Schule";
+  const pronoun = entityLabel === "Träger" ? "Der Träger" : "Die Schule";
+  const possessive = entityLabel === "Träger" ? "seinen" : "ihren";
+  return (
+    <ConfirmationModal
+      isOpen={target !== null}
+      onClose={() => setTarget(null)}
+      onConfirm={onConfirm}
+      title={`${entityLabel} wiederherstellen`}
+      confirmText="Wiederherstellen"
+      isConfirmLoading={isProcessing}
+    >
+      <p className="text-sm text-gray-600">
+        Möchten Sie {article} &quot;{target?.name}&quot; wiederherstellen?{" "}
+        {pronoun} wird in {possessive} vorherigen Zustand zurückversetzt.
+      </p>
+      {errorMessage && (
+        <div className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
+          {errorMessage}
+        </div>
+      )}
+    </ConfirmationModal>
+  );
+}

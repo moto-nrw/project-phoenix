@@ -188,6 +188,20 @@ class OperatorProvisioningService {
     );
   }
 
+  async softDeleteOrganization(id: string): Promise<void> {
+    await operatorFetch(
+      `/api/operator/provisioning/organizations/${encodeURIComponent(id)}`,
+      { method: "DELETE" },
+    );
+  }
+
+  async restoreOrganization(id: string): Promise<void> {
+    await operatorFetch(
+      `/api/operator/provisioning/organizations/${encodeURIComponent(id)}/restore`,
+      { method: "POST" },
+    );
+  }
+
   async softDeleteSchool(id: string): Promise<void> {
     await operatorFetch(
       `/api/operator/provisioning/schools/${encodeURIComponent(id)}`,
