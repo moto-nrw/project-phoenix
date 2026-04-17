@@ -1805,8 +1805,14 @@ func TestIsAfterCheckoutTimeGate_PerStudentDisabled_GlobalTimeInFuture(t *testin
 func TestIsAfterCheckoutTimeGate_PerStudentEnabled_BeforeDelta(t *testing.T) {
 	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
 
-	// Pickup time 2 hours from now, delta 15 min → too early
+	// Pickup time 2 hours from now, delta 15 min → too early.
+	// Skip when the +2 offset wraps past midnight (e.g., CI running after
+	// 22:00 local time), since the function projects pickup onto TODAY's
+	// date and the wrapped hour would land in the past instead.
 	now := time.Now()
+	if now.Hour()+2 >= 24 {
+		t.Skip("skipping time-of-day sensitive test: now+2h crosses midnight")
+	}
 	pickupTime := time.Date(2000, 1, 1, now.Hour()+2, 0, 0, 0, now.Location())
 
 	rs := &Resource{
