@@ -632,6 +632,24 @@ export default function OperatorProvisioningPage() {
     },
   });
 
+  const deletedOrgIds = useMemo(
+    () => new Set(deletedOrganizations.map((o) => o.id)),
+    [deletedOrganizations],
+  );
+
+  const orgDeleteTargetHasSchools = useMemo(() => {
+    const orgId = orgDelete.deleteTarget?.id;
+    if (!orgId) return false;
+    return activeSchools.some((s) => s.organizationId === orgId);
+  }, [orgDelete.deleteTarget, activeSchools]);
+
+  const schoolRestoreParentDeleted = useMemo(() => {
+    const target = schoolDelete.restoreTarget;
+    if (!target) return false;
+    if (target.organization?.deletedAt != null) return true;
+    return deletedOrgIds.has(target.organizationId);
+  }, [schoolDelete.restoreTarget, deletedOrgIds]);
+
   const isLoading =
     activeTab === "organizations"
       ? orgsLoading
@@ -854,6 +872,9 @@ export default function OperatorProvisioningPage() {
             entityLabel="Schule"
             onConfirm={() => void schoolDelete.handleRestore()}
             isProcessing={schoolDelete.isProcessing}
+            errorMessage={schoolDelete.softDeleteError}
+            confirmDisabled={schoolRestoreParentDeleted}
+            confirmDisabledReason="Der Träger dieser Schule ist gelöscht. Bitte zuerst den Träger wiederherstellen."
           />
         </>
       )}
@@ -875,6 +896,7 @@ export default function OperatorProvisioningPage() {
           isProcessing={orgDelete.isProcessing}
           onCancel={() => orgDelete.setDeleteTarget(null)}
           onConfirm={() => void orgDelete.handleSoftDelete()}
+          confirmDisabled={orgDeleteTargetHasSchools}
         />
       )}
 

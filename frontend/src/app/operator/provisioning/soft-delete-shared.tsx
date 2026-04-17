@@ -238,6 +238,8 @@ export function SoftDeleteConfirmationModal<T extends SoftDeletable>({
   isProcessing,
   onCancel,
   onConfirm,
+  confirmDisabled = false,
+  confirmDisabledReason,
 }: {
   readonly target: T;
   readonly entityLabel: string;
@@ -251,6 +253,8 @@ export function SoftDeleteConfirmationModal<T extends SoftDeletable>({
   readonly isProcessing: boolean;
   readonly onCancel: () => void;
   readonly onConfirm: () => void;
+  readonly confirmDisabled?: boolean;
+  readonly confirmDisabledReason?: string;
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
@@ -262,14 +266,16 @@ export function SoftDeleteConfirmationModal<T extends SoftDeletable>({
           Möchten Sie {entityLabel === "Träger" ? "den Träger" : "die Schule"}{" "}
           <span className="font-medium">{target.name}</span> wirklich löschen?
         </p>
-        <div className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
-          <p className="font-medium">{warningTitle}</p>
-          <ul className="mt-1 list-inside list-disc space-y-0.5 text-xs">
-            {warningBullets.map((b) => (
-              <li key={b}>{b}</li>
-            ))}
-          </ul>
-        </div>
+        {warningBullets.length > 0 && (
+          <div className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            <p className="font-medium">{warningTitle}</p>
+            <ul className="mt-1 list-inside list-disc space-y-0.5 text-xs">
+              {warningBullets.map((b) => (
+                <li key={b}>{b}</li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         <div className="mt-4">
           <label
@@ -292,6 +298,12 @@ export function SoftDeleteConfirmationModal<T extends SoftDeletable>({
           />
         </div>
 
+        {confirmDisabled && confirmDisabledReason && (
+          <div className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
+            {confirmDisabledReason}
+          </div>
+        )}
+
         {errorMessage && (
           <div className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
             {errorMessage}
@@ -310,7 +322,10 @@ export function SoftDeleteConfirmationModal<T extends SoftDeletable>({
           <button
             type="button"
             onClick={onConfirm}
-            disabled={isProcessing || confirmInput !== target.name}
+            disabled={
+              isProcessing || confirmInput !== target.name || confirmDisabled
+            }
+            title={confirmDisabled ? confirmDisabledReason : undefined}
             className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isProcessing ? "Wird gelöscht..." : "Löschen"}
@@ -328,6 +343,8 @@ export function RestoreConfirmationModal<T extends SoftDeletable>({
   onConfirm,
   isProcessing,
   errorMessage,
+  confirmDisabled = false,
+  confirmDisabledReason,
 }: {
   readonly target: T | null;
   readonly setTarget: (t: T | null) => void;
@@ -335,6 +352,8 @@ export function RestoreConfirmationModal<T extends SoftDeletable>({
   readonly onConfirm: () => void;
   readonly isProcessing: boolean;
   readonly errorMessage?: string;
+  readonly confirmDisabled?: boolean;
+  readonly confirmDisabledReason?: string;
 }) {
   const article = entityLabel === "Träger" ? "den Träger" : "die Schule";
   const pronoun = entityLabel === "Träger" ? "Der Träger" : "Die Schule";
@@ -347,11 +366,17 @@ export function RestoreConfirmationModal<T extends SoftDeletable>({
       title={`${entityLabel} wiederherstellen`}
       confirmText="Wiederherstellen"
       isConfirmLoading={isProcessing}
+      isConfirmDisabled={confirmDisabled}
     >
       <p className="text-sm text-gray-600">
         Möchten Sie {article} &quot;{target?.name}&quot; wiederherstellen?{" "}
         {pronoun} wird in {possessive} vorherigen Zustand zurückversetzt.
       </p>
+      {confirmDisabled && confirmDisabledReason && (
+        <div className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
+          {confirmDisabledReason}
+        </div>
+      )}
       {errorMessage && (
         <div className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
           {errorMessage}
