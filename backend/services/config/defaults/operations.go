@@ -208,7 +208,7 @@ func init() {
 		ReadPermission:  "config:read",
 		WritePermission: "config:update",
 		Tab:             "operations",
-		Category:        "status_flags",
+		Category:        "abwesenheit",
 		SortOrder:       30,
 		Options:         statusFlagOptions,
 	})
@@ -222,7 +222,7 @@ func init() {
 		ReadPermission:  "config:read",
 		WritePermission: "config:update",
 		Tab:             "operations",
-		Category:        "status_flags",
+		Category:        "abwesenheit",
 		SortOrder:       31,
 		Options:         statusFlagOptions,
 	})

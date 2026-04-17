@@ -92,7 +92,7 @@ func TestStatusFlagClearMode_Defaults(t *testing.T) {
 	sickDef := config.GetDefinition(config.KeySickClearMode)
 	require.NotNil(t, sickDef)
 	assert.Equal(t, "operations", sickDef.Tab)
-	assert.Equal(t, "status_flags", sickDef.Category)
+	assert.Equal(t, "abwesenheit", sickDef.Category)
 	assert.Equal(t, "config:update", sickDef.WritePermission)
 	assert.Equal(t, config.ClearModeNextCheckin, sickDef.Default,
 		"sick default must stay next_checkin to preserve prior behavior")
@@ -100,7 +100,7 @@ func TestStatusFlagClearMode_Defaults(t *testing.T) {
 	excusedDef := config.GetDefinition(config.KeyExcusedClearMode)
 	require.NotNil(t, excusedDef)
 	assert.Equal(t, "operations", excusedDef.Tab)
-	assert.Equal(t, "status_flags", excusedDef.Category)
+	assert.Equal(t, "abwesenheit", excusedDef.Category)
 	assert.Equal(t, "config:update", excusedDef.WritePermission)
 	assert.Equal(t, config.ClearModeEndOfDay, excusedDef.Default,
 		"excused default must be end_of_day per product spec")
