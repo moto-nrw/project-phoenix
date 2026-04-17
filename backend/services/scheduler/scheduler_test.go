@@ -1097,6 +1097,15 @@ func (m *mockActiveService) ForceStartActivitySession(_ context.Context, _, _, _
 func (m *mockActiveService) ForceStartActivitySessionWithSupervisors(_ context.Context, _, _ int64, _ []int64, _ *int64) (*active.Group, error) {
 	return nil, nil
 }
+func (m *mockActiveService) CheckWebActivityConflict(_ context.Context, _ int64) (*activeService.ActivityConflictInfo, error) {
+	return nil, nil
+}
+func (m *mockActiveService) StartWebActivitySession(_ context.Context, _, _ int64, _ []int64, _ *int64) (*active.Group, error) {
+	return nil, nil
+}
+func (m *mockActiveService) ForceStartWebActivitySession(_ context.Context, _, _ int64, _ []int64, _ *int64) (*active.Group, error) {
+	return nil, nil
+}
 func (m *mockActiveService) GetDeviceCurrentSession(_ context.Context, _ int64) (*active.Group, error) {
 	return nil, nil
 }

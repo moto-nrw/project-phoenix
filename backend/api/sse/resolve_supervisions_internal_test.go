@@ -241,6 +241,15 @@ func (m *mockActiveSvcForSSE) ForceStartActivitySession(_ context.Context, _, _,
 func (m *mockActiveSvcForSSE) ForceStartActivitySessionWithSupervisors(_ context.Context, _, _ int64, _ []int64, _ *int64) (*activeModel.Group, error) {
 	return nil, nil
 }
+func (m *mockActiveSvcForSSE) CheckWebActivityConflict(_ context.Context, _ int64) (*activeSvc.ActivityConflictInfo, error) {
+	return nil, nil
+}
+func (m *mockActiveSvcForSSE) StartWebActivitySession(_ context.Context, _, _ int64, _ []int64, _ *int64) (*activeModel.Group, error) {
+	return nil, nil
+}
+func (m *mockActiveSvcForSSE) ForceStartWebActivitySession(_ context.Context, _, _ int64, _ []int64, _ *int64) (*activeModel.Group, error) {
+	return nil, nil
+}
 func (m *mockActiveSvcForSSE) GetDeviceCurrentSession(_ context.Context, _ int64) (*activeModel.Group, error) {
 	return nil, nil
 }

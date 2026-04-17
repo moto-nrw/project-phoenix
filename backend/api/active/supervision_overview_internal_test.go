@@ -236,6 +236,15 @@ func (s *stubActiveService) ForceStartActivitySession(_ context.Context, _, _, _
 func (s *stubActiveService) ForceStartActivitySessionWithSupervisors(_ context.Context, _, _ int64, _ []int64, _ *int64) (*activeModel.Group, error) {
 	return nil, nil
 }
+func (s *stubActiveService) CheckWebActivityConflict(_ context.Context, _ int64) (*activeSvc.ActivityConflictInfo, error) {
+	return nil, nil
+}
+func (s *stubActiveService) StartWebActivitySession(_ context.Context, _, _ int64, _ []int64, _ *int64) (*activeModel.Group, error) {
+	return nil, nil
+}
+func (s *stubActiveService) ForceStartWebActivitySession(_ context.Context, _, _ int64, _ []int64, _ *int64) (*activeModel.Group, error) {
+	return nil, nil
+}
 func (s *stubActiveService) GetDeviceCurrentSession(_ context.Context, _ int64) (*activeModel.Group, error) {
 	return nil, nil
 }

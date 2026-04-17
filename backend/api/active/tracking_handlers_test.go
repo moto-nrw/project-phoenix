@@ -252,6 +252,15 @@ func (m *trackingMockActiveService) ForceStartActivitySession(ctx context.Contex
 func (m *trackingMockActiveService) ForceStartActivitySessionWithSupervisors(ctx context.Context, activityID, deviceID int64, supervisorIDs []int64, roomID *int64) (*activeModel.Group, error) {
 	return nil, nil
 }
+func (m *trackingMockActiveService) CheckWebActivityConflict(ctx context.Context, activityID int64) (*activeSvc.ActivityConflictInfo, error) {
+	return nil, nil
+}
+func (m *trackingMockActiveService) StartWebActivitySession(ctx context.Context, activityID, staffID int64, supervisorIDs []int64, roomID *int64) (*activeModel.Group, error) {
+	return nil, nil
+}
+func (m *trackingMockActiveService) ForceStartWebActivitySession(ctx context.Context, activityID, staffID int64, supervisorIDs []int64, roomID *int64) (*activeModel.Group, error) {
+	return nil, nil
+}
 func (m *trackingMockActiveService) GetDeviceCurrentSession(ctx context.Context, deviceID int64) (*activeModel.Group, error) {
 	return nil, nil
 }

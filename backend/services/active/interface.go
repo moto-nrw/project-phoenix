@@ -80,6 +80,15 @@ type Service interface {
 	ForceStartActivitySessionWithSupervisors(ctx context.Context, activityID, deviceID int64, supervisorIDs []int64, roomID *int64) (*active.Group, error)
 	GetDeviceCurrentSession(ctx context.Context, deviceID int64) (*active.Group, error)
 
+	// Web-originated activity sessions (no device attached).
+	// The starter's staff ID is stamped on the group as `started_by` with source="web".
+	// CheckWebActivityConflict reports whether an activity is already running. It
+	// differs from CheckActivityConflict in that it does not check for a device's
+	// existing session (there is none for web-started sessions).
+	CheckWebActivityConflict(ctx context.Context, activityID int64) (*ActivityConflictInfo, error)
+	StartWebActivitySession(ctx context.Context, activityID, staffID int64, supervisorIDs []int64, roomID *int64) (*active.Group, error)
+	ForceStartWebActivitySession(ctx context.Context, activityID, staffID int64, supervisorIDs []int64, roomID *int64) (*active.Group, error)
+
 	// Dynamic Supervisor Management
 	UpdateActiveGroupSupervisors(ctx context.Context, activeGroupID int64, supervisorIDs []int64) (*active.Group, error)
 

@@ -23,6 +23,15 @@ type Group struct {
 	DeviceID       *int64     `bun:"device_id" json:"device_id,omitempty"` // Optional for RFID system
 	RoomID         int64      `bun:"room_id,notnull" json:"room_id"`
 
+	// StartedBy records the staff member who initiated the session. Nullable for
+	// legacy rows and for device-started sessions where the starter is tracked
+	// via the supervisors table rather than directly on the group.
+	StartedBy *int64 `bun:"started_by" json:"started_by,omitempty"`
+	// StartedBySource distinguishes the origin of the session: "device" (PyrePortal
+	// kiosk) or "web" (tenant web app). `nullzero` lets the DB default 'device'
+	// kick in when callers leave the field empty.
+	StartedBySource string `bun:"started_by_source,nullzero,notnull,default:'device'" json:"started_by_source"`
+
 	// Relations - these would be populated when using the ORM's relations
 	ActualGroup *activities.Group  `bun:"rel:belongs-to,join:group_id=id" json:"actual_group,omitempty"`
 	Device      *iot.Device        `bun:"rel:belongs-to,join:device_id=id" json:"device,omitempty"`

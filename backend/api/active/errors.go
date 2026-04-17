@@ -104,6 +104,10 @@ func ErrorRenderer(err error) render.Renderer {
 		renderer.HTTPStatusCode = http.StatusConflict
 		renderer.StatusText = "Room Conflict"
 
+	case errors.Is(err, activeSvc.ErrSessionConflict):
+		renderer.HTTPStatusCode = http.StatusConflict
+		renderer.StatusText = "Activity Session Conflict"
+
 	case errors.Is(err, activeSvc.ErrStudentNotFound):
 		renderer.HTTPStatusCode = http.StatusNotFound
 		renderer.StatusText = "Student Not Found"

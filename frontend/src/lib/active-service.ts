@@ -49,6 +49,87 @@ interface ApiResponse<T> {
   status?: string;
 }
 
+/** Payload returned by POST /api/active/sessions/start on success. */
+interface BackendStartSessionResponse {
+  active_group_id: number;
+  activity_id: number;
+  room_id: number;
+  start_time: string;
+  started_by: number;
+  supervisors?: Array<{ staff_id: number; role?: string }>;
+  status?: string;
+  message?: string;
+}
+
+/** Caller-facing success shape. */
+export interface StartSessionResult {
+  activeGroupId: string;
+  activityId: string;
+  roomId: string;
+  startTime: Date;
+  supervisorIds: string[];
+}
+
+/** Conflict payload returned by the backend when an activity is already running. */
+export interface SessionConflictInfo {
+  hasConflict: boolean;
+  message: string;
+  canOverride: boolean;
+  conflictingRoomId?: string;
+  conflictingActiveGroupId?: string;
+}
+
+/** Thrown by activeService.startSession when the backend returns 409. */
+export class SessionConflictError extends Error {
+  readonly conflict: SessionConflictInfo;
+  constructor(info: SessionConflictInfo) {
+    super(info.message || "Activity already running");
+    this.name = "SessionConflictError";
+    this.conflict = info;
+  }
+}
+
+function extractConflictPayload(body: unknown): SessionConflictInfo {
+  const fallback: SessionConflictInfo = {
+    hasConflict: true,
+    message: "Activity already running",
+    canOverride: true,
+  };
+  if (!body || typeof body !== "object") return fallback;
+
+  const envelope = body as Record<string, unknown>;
+  const inner = (envelope.data ?? envelope) as Record<string, unknown>;
+  if (!inner || typeof inner !== "object") return fallback;
+
+  return {
+    hasConflict: inner.has_conflict === true,
+    message:
+      typeof inner.conflict_message === "string" &&
+      inner.conflict_message.length > 0
+        ? inner.conflict_message
+        : fallback.message,
+    canOverride: inner.can_override !== false,
+    conflictingRoomId:
+      typeof inner.conflicting_room_id === "number"
+        ? inner.conflicting_room_id.toString()
+        : undefined,
+    conflictingActiveGroupId:
+      typeof inner.conflicting_active_group_id === "number"
+        ? inner.conflicting_active_group_id.toString()
+        : undefined,
+  };
+}
+
+function extractErrorMessage(body: unknown): string | undefined {
+  if (!body || typeof body !== "object") return undefined;
+  const obj = body as Record<string, unknown>;
+  for (const key of ["error", "message"] as const) {
+    const value = obj[key];
+    if (typeof value === "string" && value.length > 0) return value;
+  }
+  return undefined;
+}
+
 // Helper to extract array from potentially paginated response
 function extractArrayFromResponse<T>(response: unknown): T[] {
   if (!response || typeof response !== "object") {
@@ -1013,6 +1094,80 @@ export const activeService = {
       mapToggleSupervisionResponse,
       "Toggle Schulhof supervision",
     );
+  },
+
+  /**
+   * Start a web-originated activity session ("Aufsicht starten"). Returns the
+   * new active-group payload, or throws a SessionConflictError when another
+   * session is already running. Pass `force: true` to end the existing session
+   * and start a new one.
+   */
+  startSession: async (input: {
+    activityId: string;
+    roomId?: string;
+    supervisorIds: string[];
+    force?: boolean;
+  }): Promise<StartSessionResult> => {
+    const session = await getCachedSession();
+    if (!session?.user?.token) {
+      throw new Error("Not authenticated");
+    }
+
+    const payload: Record<string, unknown> = {
+      activity_id: Number.parseInt(input.activityId, 10),
+      supervisor_ids: input.supervisorIds.map((id) => Number.parseInt(id, 10)),
+    };
+    if (input.roomId !== undefined && input.roomId !== "") {
+      payload.room_id = Number.parseInt(input.roomId, 10);
+    }
+    if (input.force) {
+      payload.force = true;
+    }
+
+    const response = await fetch("/api/active/sessions/start", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${session.user.token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const body = (await response.json()) as unknown;
+
+    if (response.status === 409) {
+      const conflict = extractConflictPayload(body);
+      logger.warn("session_start_conflict", {
+        activity_id: input.activityId,
+        conflict_message: conflict.message,
+      });
+      throw new SessionConflictError(conflict);
+    }
+
+    if (!response.ok) {
+      const message = extractErrorMessage(body) ?? `HTTP ${response.status}`;
+      logger.error("session_start_failed", {
+        activity_id: input.activityId,
+        status: response.status,
+        message,
+      });
+      throw new Error(message);
+    }
+
+    const wrapped = body as
+      | { data: BackendStartSessionResponse }
+      | BackendStartSessionResponse;
+    const data =
+      "data" in (wrapped as Record<string, unknown>)
+        ? (wrapped as { data: BackendStartSessionResponse }).data
+        : (wrapped as BackendStartSessionResponse);
+    return {
+      activeGroupId: data.active_group_id.toString(),
+      activityId: data.activity_id.toString(),
+      roomId: data.room_id.toString(),
+      startTime: new Date(data.start_time),
+      supervisorIds: (data.supervisors ?? []).map((s) => s.staff_id.toString()),
+    };
   },
 
   /**

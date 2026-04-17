@@ -1070,6 +1070,160 @@ func (s *service) EndDailySessions(ctx context.Context) (*DailySessionCleanupRes
 	return result, nil
 }
 
+// CheckWebActivityConflict reports whether the given activity already has an
+// active session — the only conflict dimension that matters for a web-started
+// session (which has no device). Mirrors the shape of CheckActivityConflict so
+// the HTTP layer can reuse the same response type.
+func (s *service) CheckWebActivityConflict(ctx context.Context, activityID int64) (*ActivityConflictInfo, error) {
+	existing, err := s.groupRepo.FindActiveByGroupID(ctx, activityID)
+	if err != nil {
+		return nil, &ActiveError{Op: "CheckWebActivityConflict", Err: err}
+	}
+
+	if len(existing) == 0 {
+		return &ActivityConflictInfo{HasConflict: false, CanOverride: true}, nil
+	}
+
+	conflict := existing[0]
+	var conflictDeviceStr *string
+	if conflict.DeviceID != nil {
+		s := fmt.Sprintf("%d", *conflict.DeviceID)
+		conflictDeviceStr = &s
+	}
+	return &ActivityConflictInfo{
+		HasConflict:       true,
+		ConflictingGroup:  conflict,
+		ConflictingDevice: conflictDeviceStr,
+		ConflictMessage:   "Activity already has an active session",
+		CanOverride:       true,
+	}, nil
+}
+
+// StartWebActivitySession creates a new device-less active session initiated by
+// a staff member via the web app. The starter is stamped on the group as
+// started_by with source="web". Fails with ErrSessionConflict if the activity
+// is already running — use ForceStartWebActivitySession to override.
+func (s *service) StartWebActivitySession(ctx context.Context, activityID, staffID int64, supervisorIDs []int64, roomID *int64) (*active.Group, error) {
+	if staffID <= 0 {
+		return nil, &ActiveError{Op: "StartWebActivitySession", Err: fmt.Errorf("staff id is required")}
+	}
+	if err := s.validateSupervisorIDs(ctx, supervisorIDs); err != nil {
+		return nil, err
+	}
+
+	var newGroup *active.Group
+	err := s.executeWebSessionStart(ctx, activityID, roomID, "StartWebActivitySession", func(txCtx context.Context, finalRoomID int64) (*active.Group, error) {
+		group, err := s.createWebSessionWithSupervisors(txCtx, activityID, staffID, supervisorIDs, finalRoomID)
+		newGroup = group
+		return group, err
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	s.broadcastActivityStartEvent(ctx, newGroup, supervisorIDs)
+	return newGroup, nil
+}
+
+// ForceStartWebActivitySession ends any existing session for the given activity
+// and starts a new web-originated one. Used to override a conflict reported by
+// StartWebActivitySession / CheckWebActivityConflict.
+func (s *service) ForceStartWebActivitySession(ctx context.Context, activityID, staffID int64, supervisorIDs []int64, roomID *int64) (*active.Group, error) {
+	if staffID <= 0 {
+		return nil, &ActiveError{Op: "ForceStartWebActivitySession", Err: fmt.Errorf("staff id is required")}
+	}
+	if err := s.validateSupervisorIDs(ctx, supervisorIDs); err != nil {
+		return nil, err
+	}
+
+	if err := s.endExistingActivitySessions(ctx, activityID); err != nil {
+		return nil, &ActiveError{Op: "ForceStartWebActivitySession", Err: err}
+	}
+
+	finalRoomID, err := s.determineRoomIDForForceStart(ctx, activityID, roomID)
+	if err != nil {
+		return nil, &ActiveError{Op: "ForceStartWebActivitySession", Err: err}
+	}
+
+	newGroup, err := s.createWebSessionWithSupervisors(ctx, activityID, staffID, supervisorIDs, finalRoomID)
+	if err != nil {
+		return nil, &ActiveError{Op: "ForceStartWebActivitySession", Err: err}
+	}
+
+	s.broadcastActivityStartEvent(ctx, newGroup, supervisorIDs)
+	return newGroup, nil
+}
+
+// executeWebSessionStart is the web-equivalent of executeSessionStart — same
+// advisory-lock pattern but with a device-less conflict check.
+func (s *service) executeWebSessionStart(ctx context.Context, activityID int64, roomID *int64, operation string, createSession func(context.Context, int64) (*active.Group, error)) error {
+	txHandler := modelBase.NewTxHandler(s.db)
+
+	return txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
+		tenantID := tenant.FromContext(txCtx)
+		if _, err := tx.ExecContext(txCtx, "SELECT pg_advisory_xact_lock(?, ?)", tenantID, activityID); err != nil {
+			return &ActiveError{Op: operation, Err: fmt.Errorf("failed to acquire activity lock: %w", err)}
+		}
+
+		conflictInfo, err := s.CheckWebActivityConflict(txCtx, activityID)
+		if err != nil {
+			return &ActiveError{Op: operation, Err: err}
+		}
+		if conflictInfo.HasConflict {
+			return &ActiveError{Op: operation, Err: ErrSessionConflict}
+		}
+
+		finalRoomID, err := s.determineSessionRoomID(txCtx, activityID, roomID)
+		if err != nil {
+			return err
+		}
+
+		_, err = createSession(txCtx, finalRoomID)
+		return err
+	})
+}
+
+// endExistingActivitySessions ends every active session for the given activity,
+// regardless of whether it was started from a device or the web. Used by the
+// web "force start" override path.
+func (s *service) endExistingActivitySessions(ctx context.Context, activityID int64) error {
+	existing, err := s.groupRepo.FindActiveByGroupID(ctx, activityID)
+	if err != nil {
+		return err
+	}
+	for _, g := range existing {
+		if err := s.groupRepo.EndSession(ctx, g.ID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// createWebSessionWithSupervisors creates a device-less active group and links
+// the supervisors. Skips device-centric steps (visit transfer, device location)
+// that apply only to kiosk sessions.
+func (s *service) createWebSessionWithSupervisors(ctx context.Context, activityID, staffID int64, supervisorIDs []int64, roomID int64) (*active.Group, error) {
+	now := time.Now()
+	starter := staffID
+	newGroup := &active.Group{
+		StartTime:       now,
+		LastActivity:    now,
+		TimeoutMinutes:  30,
+		GroupID:         activityID,
+		DeviceID:        nil,
+		RoomID:          roomID,
+		StartedBy:       &starter,
+		StartedBySource: "web",
+	}
+	newGroup.SetTenantID(tenant.FromContext(ctx))
+	if err := s.groupRepo.Create(ctx, newGroup); err != nil {
+		return nil, err
+	}
+
+	s.assignMultipleSupervisorsNonCritical(ctx, newGroup.ID, supervisorIDs, newGroup.StartTime)
+	return newGroup, nil
+}
+
 // cleanupOrphanedSupervisors closes supervisor records from previous days
 // that the per-group loop wouldn't find (e.g., groups already ended but supervisors left open)
 func (s *service) cleanupOrphanedSupervisors(ctx context.Context, result *DailySessionCleanupResult) {

@@ -164,6 +164,15 @@ func (rs *Resource) Router() chi.Router {
 			r.With(authorize.RequiresPermission(permissions.GroupsUpdate), withTx).Post("/remove", rs.removeGroupFromCombination)
 		})
 
+		// Sessions — JWT-authenticated activity session lifecycle (web app).
+		// Mirrors the IoT /api/iot/session/start endpoint but targets browser
+		// clients instead of PyrePortal kiosks. Uses `groups:update` so any
+		// Betreuer who can take over a schulhof/unclaimed group can also start
+		// an Aufsicht — matching /schulhof/supervise and /groups/{id}/claim.
+		r.Route("/sessions", func(r chi.Router) {
+			r.With(authorize.RequiresPermission(permissions.GroupsUpdate), withTx).Post("/start", rs.startSession)
+		})
+
 		// Analytics
 		r.Route("/analytics", func(r chi.Router) {
 			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/counts", rs.getCounts)

@@ -15,6 +15,7 @@ import {
 } from "~/lib/activity-helpers";
 import { ActivityManagementModal } from "~/components/activities/activity-management-modal";
 import { QuickCreateActivityModal } from "~/components/activities/quick-create-modal";
+import { StartSupervisionModal } from "~/components/active/start-supervision-modal";
 import { userContextService } from "~/lib/usercontext-api";
 import type { Staff } from "~/lib/usercontext-helpers";
 import { useToast } from "~/contexts/ToastContext";
@@ -44,6 +45,9 @@ export default function ActivitiesPage() {
   );
   const [isManagementModalOpen, setIsManagementModalOpen] = useState(false);
   const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false);
+  const [isStartSupervisionOpen, setIsStartSupervisionOpen] = useState(false);
+  const [startSupervisionActivity, setStartSupervisionActivity] =
+    useState<Activity | null>(null);
   const { success: toastSuccess } = useToast();
   const [isMobile, setIsMobile] = useState(false);
 
@@ -286,34 +290,59 @@ export default function ActivitiesPage() {
             }}
             actionButton={
               !isMobile && (
-                <button
-                  onClick={() => setIsQuickCreateOpen(true)}
-                  className="group flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#FF3130] to-[#e02020] text-white shadow-lg transition-all duration-150 hover:scale-105 hover:shadow-xl active:scale-95"
-                  style={{
-                    background:
-                      "linear-gradient(135deg, rgb(255, 49, 48) 0%, rgb(224, 32, 32) 100%)",
-                    willChange: "transform, opacity",
-                    WebkitTransform: "translateZ(0)",
-                    transform: "translateZ(0)",
-                  }}
-                  aria-label="Aktivität erstellen"
-                >
-                  <div className="absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-150 group-hover:opacity-100"></div>
-                  <svg
-                    className="relative h-5 w-5 transition-transform duration-150 group-active:rotate-90"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2.5}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      setStartSupervisionActivity(null);
+                      setIsStartSupervisionOpen(true);
+                    }}
+                    className="inline-flex items-center gap-2 rounded-full bg-[#83CD2D] px-4 py-2 text-sm font-semibold text-white shadow-lg transition-all duration-150 hover:scale-105 hover:bg-[#6fb81f] hover:shadow-xl active:scale-95"
+                    aria-label="Aufsicht starten"
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M12 4.5v15m7.5-7.5h-15"
-                    />
-                  </svg>
-                  <div className="absolute inset-0 scale-0 rounded-full bg-white/20 opacity-0 transition-transform duration-200 group-hover:scale-100 group-hover:opacity-100"></div>
-                </button>
+                    <svg
+                      className="h-4 w-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2.5}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M5 3l14 9-14 9V3z"
+                      />
+                    </svg>
+                    Aufsicht starten
+                  </button>
+                  <button
+                    onClick={() => setIsQuickCreateOpen(true)}
+                    className="group flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#FF3130] to-[#e02020] text-white shadow-lg transition-all duration-150 hover:scale-105 hover:shadow-xl active:scale-95"
+                    style={{
+                      background:
+                        "linear-gradient(135deg, rgb(255, 49, 48) 0%, rgb(224, 32, 32) 100%)",
+                      willChange: "transform, opacity",
+                      WebkitTransform: "translateZ(0)",
+                      transform: "translateZ(0)",
+                    }}
+                    aria-label="Aktivität erstellen"
+                  >
+                    <div className="absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-150 group-hover:opacity-100"></div>
+                    <svg
+                      className="relative h-5 w-5 transition-transform duration-150 group-active:rotate-90"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2.5}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M12 4.5v15m7.5-7.5h-15"
+                      />
+                    </svg>
+                    <div className="absolute inset-0 scale-0 rounded-full bg-white/20 opacity-0 transition-transform duration-200 group-hover:scale-100 group-hover:opacity-100"></div>
+                  </button>
+                </div>
               )
             }
           />
@@ -492,6 +521,22 @@ export default function ActivitiesPage() {
           // Don't close here - let the modal handle its own closing
           handleManagementSuccess().catch(() => {
             // Error already handled in handleManagementSuccess
+          });
+        }}
+      />
+
+      {/* Start Supervision Modal */}
+      <StartSupervisionModal
+        isOpen={isStartSupervisionOpen}
+        onClose={() => {
+          setIsStartSupervisionOpen(false);
+          setStartSupervisionActivity(null);
+        }}
+        preselectedActivity={startSupervisionActivity}
+        onStarted={() => {
+          // Refresh the activity list so running-state badges update.
+          mutatePageData().catch(() => {
+            /* handled via toast */
           });
         }}
       />
