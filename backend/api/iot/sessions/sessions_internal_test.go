@@ -263,9 +263,10 @@ func TestSessionStartResponse_Fields(t *testing.T) {
 	}
 	conflictInfo := &ConflictInfoResponse{HasConflict: false}
 
+	activityID := int64(456)
 	resp := SessionStartResponse{
 		ActiveGroupID: 123,
-		ActivityID:    456,
+		ActivityID:    &activityID,
 		DeviceID:      789,
 		StartTime:     now,
 		Status:        "started",

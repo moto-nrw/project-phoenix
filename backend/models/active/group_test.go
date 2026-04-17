@@ -10,6 +10,12 @@ func TestGroupValidate(t *testing.T) {
 	futureTime := nowTime.Add(2 * time.Hour)
 	pastTime := nowTime.Add(-2 * time.Hour)
 	deviceID := int64(1)
+	// WP-B6: GroupID became *int64. Non-nil positive values validate as before,
+	// nil is now legal (spontaneous session), non-nil non-positive values are
+	// rejected. We keep concrete *int64 helpers below rather than allocating
+	// anonymous &int64 literals scattered through the table.
+	templateID := int64(1)
+	negativeTemplateID := int64(-1)
 
 	tests := []struct {
 		name    string
@@ -20,7 +26,7 @@ func TestGroupValidate(t *testing.T) {
 			name: "Valid group with device",
 			group: &Group{
 				StartTime: nowTime,
-				GroupID:   1,
+				GroupID:   &templateID,
 				DeviceID:  &deviceID,
 				RoomID:    1,
 			},
@@ -30,7 +36,7 @@ func TestGroupValidate(t *testing.T) {
 			name: "Valid group without device (RFID system)",
 			group: &Group{
 				StartTime: nowTime,
-				GroupID:   1,
+				GroupID:   &templateID,
 				DeviceID:  nil, // Optional for RFID
 				RoomID:    1,
 			},
@@ -41,7 +47,7 @@ func TestGroupValidate(t *testing.T) {
 			group: &Group{
 				StartTime: nowTime,
 				EndTime:   &futureTime,
-				GroupID:   1,
+				GroupID:   &templateID,
 				DeviceID:  &deviceID,
 				RoomID:    1,
 			},
@@ -50,7 +56,7 @@ func TestGroupValidate(t *testing.T) {
 		{
 			name: "Missing start time",
 			group: &Group{
-				GroupID:  1,
+				GroupID:  &templateID,
 				DeviceID: &deviceID,
 				RoomID:   1,
 			},
@@ -61,35 +67,40 @@ func TestGroupValidate(t *testing.T) {
 			group: &Group{
 				StartTime: nowTime,
 				EndTime:   &pastTime,
-				GroupID:   1,
+				GroupID:   &templateID,
 				DeviceID:  &deviceID,
 				RoomID:    1,
 			},
 			wantErr: true,
 		},
 		{
-			name: "Missing group ID",
+			// Business rule change (WP-B6, RFC E2): a nil GroupID is now the
+			// canonical marker for a spontaneous session. The prior test
+			// expected this to error because the column was NOT NULL; that
+			// constraint has been dropped at the schema level.
+			name: "Nil group ID (spontaneous session) — valid",
 			group: &Group{
 				StartTime: nowTime,
+				GroupID:   nil,
 				DeviceID:  &deviceID,
 				RoomID:    1,
 			},
-			wantErr: true,
+			wantErr: false,
 		},
 		{
 			name: "Missing room ID",
 			group: &Group{
 				StartTime: nowTime,
-				GroupID:   1,
+				GroupID:   &templateID,
 				DeviceID:  &deviceID,
 			},
 			wantErr: true,
 		},
 		{
-			name: "Invalid group ID",
+			name: "Invalid group ID (non-nil, non-positive)",
 			group: &Group{
 				StartTime: nowTime,
-				GroupID:   -1,
+				GroupID:   &negativeTemplateID,
 				DeviceID:  &deviceID,
 				RoomID:    1,
 			},
@@ -99,7 +110,7 @@ func TestGroupValidate(t *testing.T) {
 			name: "Invalid room ID",
 			group: &Group{
 				StartTime: nowTime,
-				GroupID:   1,
+				GroupID:   &templateID,
 				DeviceID:  &deviceID,
 				RoomID:    -5,
 			},
@@ -115,6 +126,50 @@ func TestGroupValidate(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestGroupTemplateHelpers covers the WP-B6 semantic helpers — the single
+// sanctioned entry point for reading GroupID across the codebase. Every
+// call site in services / repositories / handlers now goes through these,
+// so a regression here would silently corrupt consumer behaviour.
+func TestGroupTemplateHelpers(t *testing.T) {
+	templateID := int64(42)
+
+	t.Run("template-backed group", func(t *testing.T) {
+		g := &Group{GroupID: &templateID}
+
+		if g.IsSpontaneous() {
+			t.Errorf("IsSpontaneous() = true, want false for template-backed group")
+		}
+		if !g.HasTemplate() {
+			t.Errorf("HasTemplate() = false, want true for template-backed group")
+		}
+		id, ok := g.TemplateID()
+		if !ok {
+			t.Errorf("TemplateID() ok = false, want true")
+		}
+		if id != templateID {
+			t.Errorf("TemplateID() id = %d, want %d", id, templateID)
+		}
+	})
+
+	t.Run("spontaneous group", func(t *testing.T) {
+		g := &Group{GroupID: nil}
+
+		if !g.IsSpontaneous() {
+			t.Errorf("IsSpontaneous() = false, want true for nil GroupID")
+		}
+		if g.HasTemplate() {
+			t.Errorf("HasTemplate() = true, want false for nil GroupID")
+		}
+		id, ok := g.TemplateID()
+		if ok {
+			t.Errorf("TemplateID() ok = true, want false for spontaneous group")
+		}
+		if id != 0 {
+			t.Errorf("TemplateID() id = %d, want 0 (sentinel) when ok is false", id)
+		}
+	})
 }
 
 func TestGroupIsActive(t *testing.T) {

@@ -103,7 +103,9 @@ func TestProcessSessionTimeout_WithActiveSession(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, session.ID, result.SessionID)
-	assert.Equal(t, activityGroup.ID, result.ActivityID)
+	if assert.NotNil(t, result.ActivityID) {
+		assert.Equal(t, activityGroup.ID, *result.ActivityID)
+	}
 	assert.GreaterOrEqual(t, result.StudentsCheckedOut, 0)
 }
 
@@ -159,7 +161,9 @@ func TestProcessSessionTimeout_WithVisits(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, session.ID, result.SessionID)
-	assert.Equal(t, activityGroup.ID, result.ActivityID)
+	if assert.NotNil(t, result.ActivityID) {
+		assert.Equal(t, activityGroup.ID, *result.ActivityID)
+	}
 	assert.Equal(t, 1, result.StudentsCheckedOut, "Should have checked out 1 student")
 }
 

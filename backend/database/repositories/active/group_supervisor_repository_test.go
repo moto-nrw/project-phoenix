@@ -45,7 +45,7 @@ func createSupervisorTestData(t *testing.T, db *bun.DB) *supervisorTestData {
 		StartTime:      now,
 		LastActivity:   now,
 		TimeoutMinutes: 30,
-		GroupID:        activityGroup.ID,
+		GroupID:        modelBase.Int64Ptr(activityGroup.ID),
 		RoomID:         room.ID,
 	}
 	err := groupRepo.Create(testpkg.TenantContext(1), activeGroup)
@@ -530,7 +530,7 @@ func TestGroupSupervisorRepository_FindByActiveGroupIDs(t *testing.T) {
 			StartTime:      now,
 			LastActivity:   now,
 			TimeoutMinutes: 30,
-			GroupID:        data.ActivityGroup,
+			GroupID:        modelBase.Int64Ptr(data.ActivityGroup),
 			RoomID:         room2.ID,
 		}
 		err := groupRepo.Create(ctx, activeGroup2)

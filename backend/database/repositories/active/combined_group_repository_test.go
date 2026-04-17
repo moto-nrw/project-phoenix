@@ -63,18 +63,19 @@ func createCombinedGroupTestData(t *testing.T, db *bun.DB) *combinedGroupTestDat
 	ctx := testpkg.TenantContext(1)
 	now := time.Now()
 
+	activityGroupID := activityGroup.ID
 	activeGroup1 := &active.Group{
 		StartTime:      now,
 		LastActivity:   now,
 		TimeoutMinutes: 30,
-		GroupID:        activityGroup.ID,
+		GroupID:        &activityGroupID,
 		RoomID:         room1.ID,
 	}
 	activeGroup2 := &active.Group{
 		StartTime:      now,
 		LastActivity:   now,
 		TimeoutMinutes: 30,
-		GroupID:        activityGroup.ID,
+		GroupID:        &activityGroupID,
 		RoomID:         room2.ID,
 	}
 

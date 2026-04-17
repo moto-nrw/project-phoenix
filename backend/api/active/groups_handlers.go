@@ -432,9 +432,12 @@ func (rs *Resource) createActiveGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create active group
+	// Create active group. The CRUD endpoint always carries a template id
+	// (validated in req.Bind as > 0), so GroupID is always set here —
+	// spontaneous instance creation runs through a separate handler (WP-B9+).
+	groupID := req.GroupID
 	group := &active.Group{
-		GroupID:   req.GroupID,
+		GroupID:   &groupID,
 		RoomID:    req.RoomID,
 		StartTime: req.StartTime,
 		EndTime:   req.EndTime,
@@ -483,8 +486,10 @@ func (rs *Resource) updateActiveGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Update fields
-	existing.GroupID = req.GroupID
+	// Update fields. See create handler comment on GroupID — the CRUD surface
+	// always supplies a template id, so we wrap the value in a pointer.
+	groupID := req.GroupID
+	existing.GroupID = &groupID
 	existing.RoomID = req.RoomID
 	existing.StartTime = req.StartTime
 	existing.EndTime = req.EndTime

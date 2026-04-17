@@ -35,10 +35,14 @@ type SupervisorInfo struct {
 	Role        string `json:"role"`
 }
 
-// SessionStartResponse represents the response when starting an activity session
+// SessionStartResponse represents the response when starting an activity session.
+// ActivityID is nullable (WP-B6): an API client that triggers a spontaneous
+// session still receives a response, but with `activity_id: null`. The
+// existing IoT start flow always carries a template id, so `null` never
+// appears for today's NFC path.
 type SessionStartResponse struct {
 	ActiveGroupID int64                 `json:"active_group_id"`
-	ActivityID    int64                 `json:"activity_id"`
+	ActivityID    *int64                `json:"activity_id"`
 	DeviceID      int64                 `json:"device_id"`
 	StartTime     time.Time             `json:"start_time"`
 	ConflictInfo  *ConflictInfoResponse `json:"conflict_info,omitempty"`
@@ -55,10 +59,13 @@ type ConflictInfoResponse struct {
 	CanOverride       bool   `json:"can_override"`
 }
 
-// SessionTimeoutResponse represents the result of processing a session timeout
+// SessionTimeoutResponse represents the result of processing a session timeout.
+// ActivityID is nullable (WP-B6): a timed-out spontaneous session has no parent
+// template. Serialized as `null` on the wire (no omitempty) so clients must
+// handle both shapes explicitly.
 type SessionTimeoutResponse struct {
 	SessionID          int64     `json:"session_id"`
-	ActivityID         int64     `json:"activity_id"`
+	ActivityID         *int64    `json:"activity_id"`
 	StudentsCheckedOut int       `json:"students_checked_out"`
 	TimeoutAt          time.Time `json:"timeout_at"`
 	Status             string    `json:"status"`
@@ -108,10 +115,11 @@ func (req *TimeoutValidationRequest) Bind(_ *http.Request) error {
 	)
 }
 
-// SessionTimeoutInfoResponse provides comprehensive timeout information
+// SessionTimeoutInfoResponse provides comprehensive timeout information.
+// ActivityID is nullable per WP-B6 — see SessionTimeoutResponse above.
 type SessionTimeoutInfoResponse struct {
 	SessionID               int64     `json:"session_id"`
-	ActivityID              int64     `json:"activity_id"`
+	ActivityID              *int64    `json:"activity_id"`
 	StartTime               time.Time `json:"start_time"`
 	LastActivity            time.Time `json:"last_activity"`
 	TimeoutMinutes          int       `json:"timeout_minutes"`

@@ -262,11 +262,12 @@ func TestActivityService_ListGroupsWithOccupancy(t *testing.T) {
 
 		// Create an active session for group1 (making it occupied)
 		now := time.Now()
+		group1ID := group1.ID
 		activeGroup := &active.Group{
 			StartTime:      now,
 			LastActivity:   now,
 			TimeoutMinutes: 30,
-			GroupID:        group1.ID,
+			GroupID:        &group1ID,
 			RoomID:         room.ID,
 		}
 		activeGroup.SetTenantID(1)

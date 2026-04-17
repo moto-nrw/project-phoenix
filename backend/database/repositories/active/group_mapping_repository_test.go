@@ -39,11 +39,12 @@ func createGroupMappingTestData(t *testing.T, db *bun.DB) *groupMappingTestData 
 	now := time.Now()
 
 	// Create first active group
+	activityGroupID := activityGroup.ID
 	activeGroup1 := &active.Group{
 		StartTime:      now,
 		LastActivity:   now,
 		TimeoutMinutes: 30,
-		GroupID:        activityGroup.ID,
+		GroupID:        &activityGroupID,
 		RoomID:         room.ID,
 	}
 	err := groupRepo.Create(ctx, activeGroup1)
@@ -54,7 +55,7 @@ func createGroupMappingTestData(t *testing.T, db *bun.DB) *groupMappingTestData 
 		StartTime:      now,
 		LastActivity:   now,
 		TimeoutMinutes: 30,
-		GroupID:        activityGroup.ID,
+		GroupID:        &activityGroupID,
 		RoomID:         room.ID,
 	}
 	err = groupRepo.Create(ctx, activeGroup2)

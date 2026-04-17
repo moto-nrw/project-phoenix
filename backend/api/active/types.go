@@ -36,10 +36,14 @@ const (
 
 // ===== Response Types =====
 
-// ActiveGroupResponse represents an active group API response
+// ActiveGroupResponse represents an active group API response.
+// GroupID is nullable (WP-B6): spontaneous sessions — started ad-hoc without
+// a parent template in activities.groups — serialize as `null`. The tag
+// intentionally omits `omitempty` so clients always see the field and are
+// forced to handle the null case explicitly.
 type ActiveGroupResponse struct {
 	ID              int64                   `json:"id"`
-	GroupID         int64                   `json:"group_id"`
+	GroupID         *int64                  `json:"group_id"`
 	RoomID          int64                   `json:"room_id"`
 	StartTime       time.Time               `json:"start_time"`
 	EndTime         *time.Time              `json:"end_time,omitempty"`
