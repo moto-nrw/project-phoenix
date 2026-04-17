@@ -763,7 +763,9 @@ export default function OperatorProvisioningPage() {
           {schoolDelete.showTrash ? (
             <div className="mt-4 space-y-4">
               {deletedSchools.map((school) => {
-                const parentOrgDeleted = school.organization?.deletedAt != null;
+                const parentOrgDeleted =
+                  school.organization?.deletedAt != null ||
+                  deletedOrgIds.has(school.organizationId);
                 return (
                   <DeletedEntityCard
                     key={school.id}
