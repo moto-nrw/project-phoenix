@@ -373,6 +373,118 @@ func TestAnnouncementService_CreateAnnouncement_RejectsSoftDeletedSchoolTarget(t
 	assert.Contains(t, err.Error(), "one or more school (tenant) IDs do not exist")
 }
 
+// TestAnnouncementService_UpdateAnnouncement_PreservesHistoricalDeletedOrgTarget
+// is the load-bearing invariant behind validateNewTargetingIDs: an announcement
+// whose historical TargetOrgIDs reference an org that has since been soft-deleted
+// MUST still round-trip through an unrelated edit (e.g. title change). Empty
+// TargetOrgIDs means "global", so silently pruning the deleted ID would widen
+// the audience of an already-published scoped announcement. Instead the diff
+// helper only validates NEWLY-ADDED targets; historical targets skip CountByIDs
+// entirely. Without this test a future refactor could resurrect the old
+// validateTargetingIDs call-path on update and break the preservation contract.
+func TestAnnouncementService_UpdateAnnouncement_PreservesHistoricalDeletedOrgTarget(t *testing.T) {
+	var countByIDsCalls int
+	var updateCalled bool
+	svc := newTestAnnouncementService(func(m *testAnnouncementMocks) {
+		m.announcementRepo.findByIDFn = func(context.Context, int64) (*platform.Announcement, error) {
+			existing := existingAnnouncement()
+			existing.TargetOrgIDs = []int64{42}
+			existing.CreatedBy = 1
+			return existing, nil
+		}
+		// Simulate org 42 having been soft-deleted since the announcement was
+		// created: CountByIDs would return 0. The diff helper must ensure this
+		// repo is not queried for unchanged historical IDs.
+		m.orgRepo.countByIDsFn = func(_ context.Context, ids []int64) (int, error) {
+			countByIDsCalls++
+			t.Errorf("CountByIDs must not be called when historical target is unchanged, got ids=%v", ids)
+			return 0, nil
+		}
+		m.announcementRepo.updateFn = func(context.Context, *platform.Announcement) error {
+			updateCalled = true
+			return nil
+		}
+	})
+
+	a := validAnnouncement()
+	a.ID = 1
+	a.Title = "Updated title"
+	a.TargetOrgIDs = []int64{42} // unchanged historical target
+	a.CreatedBy = 1
+
+	err := svc.UpdateAnnouncement(context.Background(), a, 1, net.ParseIP("127.0.0.1"))
+	require.NoError(t, err, "update should succeed even though org 42 is now soft-deleted")
+	assert.True(t, updateCalled, "repo.Update should have been invoked")
+	assert.Equal(t, 0, countByIDsCalls, "CountByIDs must not be called for unchanged historical IDs")
+}
+
+// TestAnnouncementService_UpdateAnnouncement_PreservesHistoricalDeletedSchoolTarget
+// is the school-tenant analogue of the org preservation test above.
+func TestAnnouncementService_UpdateAnnouncement_PreservesHistoricalDeletedSchoolTarget(t *testing.T) {
+	var countByIDsCalls int
+	svc := newTestAnnouncementService(func(m *testAnnouncementMocks) {
+		m.announcementRepo.findByIDFn = func(context.Context, int64) (*platform.Announcement, error) {
+			existing := existingAnnouncement()
+			existing.TargetTenantIDs = []int64{77}
+			existing.CreatedBy = 1
+			return existing, nil
+		}
+		m.schoolRepo.countByIDsFn = func(_ context.Context, ids []int64) (int, error) {
+			countByIDsCalls++
+			t.Errorf("school CountByIDs must not be called for unchanged historical IDs, got ids=%v", ids)
+			return 0, nil
+		}
+		m.announcementRepo.updateFn = func(context.Context, *platform.Announcement) error { return nil }
+	})
+
+	a := validAnnouncement()
+	a.ID = 1
+	a.Content = "Updated content"
+	a.TargetTenantIDs = []int64{77} // unchanged historical target, now soft-deleted
+	a.CreatedBy = 1
+
+	err := svc.UpdateAnnouncement(context.Background(), a, 1, net.ParseIP("127.0.0.1"))
+	require.NoError(t, err, "update should succeed even though school 77 is now soft-deleted")
+	assert.Equal(t, 0, countByIDsCalls)
+}
+
+// TestAnnouncementService_UpdateAnnouncement_RejectsNewlyAddedSoftDeletedOrgTarget
+// complements the preservation tests: operators cannot sneak a soft-deleted org
+// in as a NEW target during an update. Only additions relative to the existing
+// record are validated, so this path must still flow through CountByIDs.
+func TestAnnouncementService_UpdateAnnouncement_RejectsNewlyAddedSoftDeletedOrgTarget(t *testing.T) {
+	var updateCalled bool
+	svc := newTestAnnouncementService(func(m *testAnnouncementMocks) {
+		m.announcementRepo.findByIDFn = func(context.Context, int64) (*platform.Announcement, error) {
+			existing := existingAnnouncement()
+			existing.TargetOrgIDs = []int64{42} // legitimate historical target
+			existing.CreatedBy = 1
+			return existing, nil
+		}
+		// Only the NEW addition (org 99) should reach the repo; CountByIDs
+		// returns 0 to simulate it being soft-deleted.
+		m.orgRepo.countByIDsFn = func(_ context.Context, ids []int64) (int, error) {
+			assert.Equal(t, []int64{99}, ids, "only the newly-added org ID should be validated")
+			return 0, nil
+		}
+		m.announcementRepo.updateFn = func(context.Context, *platform.Announcement) error {
+			updateCalled = true
+			return nil
+		}
+	})
+
+	a := validAnnouncement()
+	a.ID = 1
+	a.TargetOrgIDs = []int64{42, 99} // 42 historical, 99 newly added + soft-deleted
+	a.CreatedBy = 1
+
+	err := svc.UpdateAnnouncement(context.Background(), a, 1, net.ParseIP("127.0.0.1"))
+	require.Error(t, err)
+	assert.IsType(t, &platformSvc.InvalidDataError{}, err)
+	assert.Contains(t, err.Error(), "one or more organization IDs do not exist")
+	assert.False(t, updateCalled, "repo.Update must not run when new target is soft-deleted")
+}
+
 func TestAnnouncementService_DeleteAnnouncement_NotFound(t *testing.T) {
 	ctx := context.Background()
 	announcementRepo := &mockAnnouncementRepoShared{
