@@ -83,6 +83,10 @@ type Factory struct {
 	StudentArrivalException scheduleModels.StudentArrivalExceptionRepository
 	StudentArrivalNote      scheduleModels.StudentArrivalNoteRepository
 	CalendarPeriod          scheduleModels.CalendarPeriodRepository
+	ActivityInstance        scheduleModels.ActivityInstanceRepository
+	InstanceStaff           scheduleModels.InstanceStaffRepository
+	InstanceStudent         scheduleModels.InstanceStudentRepository
+	ActivityException       scheduleModels.ActivityExceptionRepository
 
 	// Activities domain
 	ActivityGroup      activitiesModels.GroupRepository
@@ -190,6 +194,10 @@ func NewFactory(db *bun.DB) *Factory {
 		StudentArrivalException: schedule.NewStudentArrivalExceptionRepository(db),
 		StudentArrivalNote:      schedule.NewStudentArrivalNoteRepository(db),
 		CalendarPeriod:          schedule.NewCalendarPeriodRepository(db),
+		ActivityInstance:        schedule.NewActivityInstanceRepository(db),
+		InstanceStaff:           schedule.NewInstanceStaffRepository(db),
+		InstanceStudent:         schedule.NewInstanceStudentRepository(db),
+		ActivityException:       schedule.NewActivityExceptionRepository(db),
 
 		// Activities repositories
 		ActivityGroup:      activities.NewGroupRepository(db),

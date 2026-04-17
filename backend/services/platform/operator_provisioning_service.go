@@ -81,6 +81,8 @@ type OperatorProvisioningService interface {
 	SetDeviceAPIKey(ctx context.Context, id int64, apiKey *string, operatorID int64, clientIP net.IP) (*OperatorDeviceInfo, error)
 	SoftDeleteSchool(ctx context.Context, schoolID, operatorID int64, clientIP net.IP) error
 	RestoreSchool(ctx context.Context, schoolID, operatorID int64, clientIP net.IP) error
+	SoftDeleteOrganization(ctx context.Context, organizationID, operatorID int64, clientIP net.IP) error
+	RestoreOrganization(ctx context.Context, organizationID, operatorID int64, clientIP net.IP) error
 	DeleteDevice(ctx context.Context, id int64, operatorID int64, clientIP net.IP) error
 	ListSchoolPersons(ctx context.Context, schoolID int64) ([]OperatorPersonInfo, error)
 	SoftDeletePerson(ctx context.Context, personID int64, operatorID int64, clientIP net.IP) error
@@ -253,12 +255,16 @@ func (s *operatorProvisioningService) ListOrganizations(ctx context.Context) ([]
 func (s *operatorProvisioningService) UpdateOrganization(ctx context.Context, id int64, req UpdateOrganizationRequest, operatorID int64, clientIP net.IP) (*platform.Organization, error) {
 	var updated *platform.Organization
 	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
-		existing, err := s.organizationRepo.FindByID(adminCtx, id)
+		// See locking contract on OrganizationRepository.FindByIDForShare.
+		existing, err := s.organizationRepo.FindByIDForShare(adminCtx, id)
 		if err != nil {
 			return err
 		}
 		if existing == nil {
 			return &OrganizationNotFoundError{OrganizationID: id}
+		}
+		if existing.IsDeleted() {
+			return &OrganizationAlreadyDeletedError{OrganizationID: id}
 		}
 
 		changes := map[string]any{}
@@ -365,12 +371,16 @@ func (s *operatorProvisioningService) UpdateSchool(ctx context.Context, id int64
 		changes := map[string]any{}
 
 		if req.OrganizationID != existing.OrganizationID {
-			org, orgErr := s.organizationRepo.FindByID(adminCtx, req.OrganizationID)
+			// See locking contract on OrganizationRepository.FindByIDForShare.
+			org, orgErr := s.organizationRepo.FindByIDForShare(adminCtx, req.OrganizationID)
 			if orgErr != nil {
 				return orgErr
 			}
 			if org == nil {
 				return &OrganizationNotFoundError{OrganizationID: req.OrganizationID}
+			}
+			if org.IsDeleted() {
+				return &OrganizationDeletedError{OrganizationID: req.OrganizationID}
 			}
 			changes["organization_id"] = map[string]int64{"old": existing.OrganizationID, "new": req.OrganizationID}
 		}
@@ -1247,12 +1257,16 @@ func (s *operatorProvisioningService) SoftDeletePerson(ctx context.Context, pers
 }
 
 func (s *operatorProvisioningService) validateSchoolCreate(ctx context.Context, school *platform.School) error {
-	org, err := s.organizationRepo.FindByID(ctx, school.OrganizationID)
+	// See locking contract on OrganizationRepository.FindByIDForShare.
+	org, err := s.organizationRepo.FindByIDForShare(ctx, school.OrganizationID)
 	if err != nil {
 		return err
 	}
 	if org == nil {
 		return &OrganizationNotFoundError{OrganizationID: school.OrganizationID}
+	}
+	if org.IsDeleted() {
+		return &OrganizationDeletedError{OrganizationID: school.OrganizationID}
 	}
 	if err := s.ensureSchoolSlugAvailable(ctx, school.OrganizationID, school.Slug); err != nil {
 		return err
@@ -1574,6 +1588,18 @@ func (s *operatorProvisioningService) RestoreSchool(ctx context.Context, schoolI
 			return &SchoolNotDeletedError{SchoolID: schoolID}
 		}
 
+		// See locking contract on OrganizationRepository.FindByIDForShare.
+		parentOrg, orgErr := s.organizationRepo.FindByIDForShare(adminCtx, school.OrganizationID)
+		if orgErr != nil {
+			return orgErr
+		}
+		if parentOrg == nil {
+			return &OrganizationNotFoundError{OrganizationID: school.OrganizationID}
+		}
+		if parentOrg.IsDeleted() {
+			return &OrganizationDeletedError{OrganizationID: school.OrganizationID}
+		}
+
 		if err := s.schoolRepo.Restore(adminCtx, schoolID); err != nil {
 			// If another operator concurrently restored this school between our read and
 			// update, the WHERE deleted_at IS NOT NULL clause matches zero rows. Map that
@@ -1588,6 +1614,78 @@ func (s *operatorProvisioningService) RestoreSchool(ctx context.Context, schoolI
 			"name":      school.Name,
 			"slug":      school.Slug,
 			"subdomain": school.Subdomain,
+		})
+		return nil
+	})
+}
+
+// SoftDeleteOrganization marks an organization as deleted. Blocked if the organization still
+// has non-deleted schools — the operator must delete each school individually first.
+func (s *operatorProvisioningService) SoftDeleteOrganization(ctx context.Context, organizationID, operatorID int64, clientIP net.IP) error {
+	return s.withAdminTx(ctx, func(adminCtx context.Context) error {
+		// See locking contract on OrganizationRepository.FindByIDForShare — this
+		// FOR UPDATE serializes against concurrent school mutations that take FOR SHARE.
+		org, err := s.organizationRepo.FindByIDForUpdate(adminCtx, organizationID)
+		if err != nil {
+			return err
+		}
+		if org == nil {
+			return &OrganizationNotFoundError{OrganizationID: organizationID}
+		}
+		if org.IsDeleted() {
+			return &OrganizationAlreadyDeletedError{OrganizationID: organizationID}
+		}
+
+		// Block deletion if the organization still has non-deleted schools.
+		schoolCount, err := s.schoolRepo.CountNonDeletedByOrganizationID(adminCtx, organizationID)
+		if err != nil {
+			return fmt.Errorf("count schools for organization %d: %w", organizationID, err)
+		}
+		if schoolCount > 0 {
+			return &OrganizationHasSchoolsError{OrganizationID: organizationID, SchoolCount: schoolCount}
+		}
+
+		if err := s.organizationRepo.SoftDelete(adminCtx, organizationID); err != nil {
+			if isRowsAffectedMismatch(err) {
+				return &OrganizationAlreadyDeletedError{OrganizationID: organizationID}
+			}
+			return err
+		}
+
+		s.logAction(adminCtx, operatorID, platform.ActionSoftDelete, platform.ResourceOrganization, &organizationID, clientIP, map[string]any{
+			"name": org.Name,
+			"slug": org.Slug,
+		})
+		return nil
+	})
+}
+
+// RestoreOrganization returns a soft-deleted organization to its pre-deletion state.
+func (s *operatorProvisioningService) RestoreOrganization(ctx context.Context, organizationID, operatorID int64, clientIP net.IP) error {
+	return s.withAdminTx(ctx, func(adminCtx context.Context) error {
+		// Lock symmetry with SoftDeleteOrganization: FOR UPDATE serializes restore
+		// against a concurrent soft-delete of the same row.
+		org, err := s.organizationRepo.FindByIDForUpdate(adminCtx, organizationID)
+		if err != nil {
+			return err
+		}
+		if org == nil {
+			return &OrganizationNotFoundError{OrganizationID: organizationID}
+		}
+		if !org.IsDeleted() {
+			return &OrganizationNotDeletedError{OrganizationID: organizationID}
+		}
+
+		if err := s.organizationRepo.Restore(adminCtx, organizationID); err != nil {
+			if isRowsAffectedMismatch(err) {
+				return &OrganizationNotDeletedError{OrganizationID: organizationID}
+			}
+			return err
+		}
+
+		s.logAction(adminCtx, operatorID, platform.ActionRestore, platform.ResourceOrganization, &organizationID, clientIP, map[string]any{
+			"name": org.Name,
+			"slug": org.Slug,
 		})
 		return nil
 	})

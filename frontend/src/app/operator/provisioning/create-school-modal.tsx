@@ -1,7 +1,10 @@
 import { useState, useCallback, useEffect } from "react";
 import { Modal } from "~/components/ui/modal";
 import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
-import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
+import {
+  operatorProvisioningService,
+  revalidateTenantCache,
+} from "~/lib/operator/provisioning-api";
 import { generateSlug, isValidSlug } from "~/lib/operator/provisioning-helpers";
 import type { Organization } from "~/lib/operator/provisioning-helpers";
 import { isOperatorApiError } from "~/lib/operator/api-helpers";
@@ -109,15 +112,7 @@ export function CreateSchoolModal({
         });
         onClose();
         await onCreated();
-        try {
-          await fetch("/api/operator/provisioning/revalidate-tenant", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ slugs: [schoolSubdomain.trim()] }),
-          });
-        } catch {
-          /* Cache self-heals in ≤5 min */
-        }
+        await revalidateTenantCache([schoolSubdomain.trim()]);
       } catch (error) {
         if (isOperatorApiError(error) && error.status === 409) {
           const msg = error.message.toLowerCase();

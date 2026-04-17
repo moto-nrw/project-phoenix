@@ -67,6 +67,9 @@ func (s stubAuthLoginSchoolRepo) FindByIDForUpdate(ctx context.Context, id int64
 }
 func (r stubAuthLoginSchoolRepo) SoftDelete(context.Context, int64) error { return nil }
 func (r stubAuthLoginSchoolRepo) Restore(context.Context, int64) error    { return nil }
+func (r stubAuthLoginSchoolRepo) CountNonDeletedByOrganizationID(context.Context, int64) (int, error) {
+	return 0, nil
+}
 
 type stubAuthLoginAccountTenantRepo struct {
 	findActiveFn func(context.Context, int64) ([]authModels.AccountTenant, error)
