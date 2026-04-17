@@ -7,7 +7,10 @@ import useSWR, { useSWRConfig } from "swr";
 import { useSession } from "next-auth/react";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
-import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
+import {
+  operatorProvisioningService,
+  revalidateTenantCache,
+} from "~/lib/operator/provisioning-api";
 import type {
   Organization,
   School,
@@ -486,17 +489,7 @@ export default function OperatorProvisioningPage() {
         const orgSchoolSlugs = (schools ?? [])
           .filter((s) => s.organizationId === org.id)
           .map((s) => s.subdomain);
-        if (orgSchoolSlugs.length > 0) {
-          try {
-            await fetch("/api/operator/provisioning/revalidate-tenant", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ slugs: orgSchoolSlugs }),
-            });
-          } catch {
-            /* Cache self-heals in ≤5 min */
-          }
-        }
+        await revalidateTenantCache(orgSchoolSlugs);
       } catch (error) {
         setOrgToggleError(
           "Fehler beim Ändern des Status. Bitte versuchen Sie es erneut.",
@@ -533,15 +526,7 @@ export default function OperatorProvisioningPage() {
           hidden: fresh.hidden,
         });
         await mutateSchools();
-        try {
-          await fetch("/api/operator/provisioning/revalidate-tenant", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ slugs: [fresh.subdomain] }),
-          });
-        } catch {
-          /* Cache self-heals in ≤5 min */
-        }
+        await revalidateTenantCache([fresh.subdomain]);
       } catch (error) {
         setSchoolToggleError(
           "Fehler beim Ändern des Status. Bitte versuchen Sie es erneut.",
@@ -580,26 +565,10 @@ export default function OperatorProvisioningPage() {
       if (selectedSchool?.id === target.id) {
         setSelectedSchool(null);
       }
-      try {
-        await fetch("/api/operator/provisioning/revalidate-tenant", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ slugs: [target.subdomain] }),
-        });
-      } catch {
-        /* Cache self-heals in ≤5 min */
-      }
+      await revalidateTenantCache([target.subdomain]);
     },
     onAfterRestore: async (target) => {
-      try {
-        await fetch("/api/operator/provisioning/revalidate-tenant", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ slugs: [target.subdomain] }),
-        });
-      } catch {
-        /* Cache self-heals in ≤5 min */
-      }
+      await revalidateTenantCache([target.subdomain]);
     },
   });
 
@@ -849,6 +818,7 @@ export default function OperatorProvisioningPage() {
             <SoftDeleteConfirmationModal
               target={schoolDelete.deleteTarget}
               entityLabel="Schule"
+              entityArticleAccusative="die Schule"
               nameLabel="Geben Sie den Schulnamen ein:"
               warningTitle="Folgende Aktionen werden ausgeführt:"
               warningBullets={[
@@ -870,6 +840,9 @@ export default function OperatorProvisioningPage() {
             target={schoolDelete.restoreTarget}
             setTarget={schoolDelete.setRestoreTarget}
             entityLabel="Schule"
+            entityArticleAccusative="die Schule"
+            entityPronounNominative="Die Schule"
+            entityPossessiveAccusative="ihren"
             onConfirm={() => void schoolDelete.handleRestore()}
             isProcessing={schoolDelete.isProcessing}
             errorMessage={schoolDelete.softDeleteError}
@@ -883,6 +856,7 @@ export default function OperatorProvisioningPage() {
         <SoftDeleteConfirmationModal
           target={orgDelete.deleteTarget}
           entityLabel="Träger"
+          entityArticleAccusative="den Träger"
           nameLabel="Geben Sie den Trägernamen ein:"
           warningTitle="Hinweis:"
           warningBullets={[
@@ -897,6 +871,7 @@ export default function OperatorProvisioningPage() {
           onCancel={() => orgDelete.setDeleteTarget(null)}
           onConfirm={() => void orgDelete.handleSoftDelete()}
           confirmDisabled={orgDeleteTargetHasSchools}
+          confirmDisabledReason="Dieser Träger hat noch nicht gelöschte Schulen. Bitte zuerst alle Schulen löschen."
         />
       )}
 
@@ -904,6 +879,10 @@ export default function OperatorProvisioningPage() {
         target={orgDelete.restoreTarget}
         setTarget={orgDelete.setRestoreTarget}
         entityLabel="Träger"
+        entityArticleAccusative="den Träger"
+        entityPronounNominative="Der Träger"
+        entityPossessiveAccusative="seinen"
+        extraMessage="Gelöschte Schulen dieses Trägers müssen separat wiederhergestellt werden."
         onConfirm={() => void orgDelete.handleRestore()}
         isProcessing={orgDelete.isProcessing}
         errorMessage={orgDelete.softDeleteError}

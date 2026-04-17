@@ -1,7 +1,10 @@
 import { useState, useCallback, useEffect } from "react";
 import { Modal } from "~/components/ui/modal";
 import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
-import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
+import {
+  operatorProvisioningService,
+  revalidateTenantCache,
+} from "~/lib/operator/provisioning-api";
 import { isValidSlug } from "~/lib/operator/provisioning-helpers";
 import type { Organization, School } from "~/lib/operator/provisioning-helpers";
 import { isOperatorApiError } from "~/lib/operator/api-helpers";
@@ -101,15 +104,7 @@ export function EditSchoolModal({
         });
         // Purge ISR cache for old subdomain so it stops serving stale pages
         if (oldSubdomain !== newSubdomain) {
-          try {
-            await fetch("/api/operator/provisioning/revalidate-tenant", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ slugs: [oldSubdomain, newSubdomain] }),
-            });
-          } catch {
-            // Cache will self-heal in ≤5 min; don't block the success flow
-          }
+          await revalidateTenantCache([oldSubdomain, newSubdomain]);
         }
         onClose();
         await onUpdated();

@@ -5,7 +5,9 @@ export interface BackendOrganization {
   name: string;
   slug: string;
   active: boolean;
-  deleted_at: string | null;
+  // Backend uses json:",omitempty" on a *time.Time, so the field is absent
+  // (undefined) when the row is not soft-deleted, not null.
+  deleted_at?: string | null;
   settings: string | null;
   created_at: string;
   updated_at: string;
@@ -24,7 +26,9 @@ export interface BackendSchool {
   email: string;
   active: boolean;
   hidden: boolean;
-  deleted_at: string | null;
+  // Backend uses json:",omitempty" on a *time.Time, so the field is absent
+  // (undefined) when the row is not soft-deleted, not null.
+  deleted_at?: string | null;
   settings: string | null;
   created_at: string;
   updated_at: string;

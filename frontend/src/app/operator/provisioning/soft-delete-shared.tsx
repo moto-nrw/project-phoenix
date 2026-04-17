@@ -228,6 +228,7 @@ export function DeletedEntityCard({
 export function SoftDeleteConfirmationModal<T extends SoftDeletable>({
   target,
   entityLabel,
+  entityArticleAccusative,
   nameLabel,
   warningTitle,
   warningBullets,
@@ -243,6 +244,7 @@ export function SoftDeleteConfirmationModal<T extends SoftDeletable>({
 }: {
   readonly target: T;
   readonly entityLabel: string;
+  readonly entityArticleAccusative: string;
   readonly nameLabel: string;
   readonly warningTitle: string;
   readonly warningBullets: readonly string[];
@@ -263,7 +265,7 @@ export function SoftDeleteConfirmationModal<T extends SoftDeletable>({
           {entityLabel} löschen
         </h3>
         <p className="mt-2 text-sm text-gray-600">
-          Möchten Sie {entityLabel === "Träger" ? "den Träger" : "die Schule"}{" "}
+          Möchten Sie {entityArticleAccusative}{" "}
           <span className="font-medium">{target.name}</span> wirklich löschen?
         </p>
         {warningBullets.length > 0 && (
@@ -340,6 +342,10 @@ export function RestoreConfirmationModal<T extends SoftDeletable>({
   target,
   setTarget,
   entityLabel,
+  entityArticleAccusative,
+  entityPronounNominative,
+  entityPossessiveAccusative,
+  extraMessage,
   onConfirm,
   isProcessing,
   errorMessage,
@@ -349,15 +355,16 @@ export function RestoreConfirmationModal<T extends SoftDeletable>({
   readonly target: T | null;
   readonly setTarget: (t: T | null) => void;
   readonly entityLabel: string;
+  readonly entityArticleAccusative: string;
+  readonly entityPronounNominative: string;
+  readonly entityPossessiveAccusative: string;
+  readonly extraMessage?: string;
   readonly onConfirm: () => void;
   readonly isProcessing: boolean;
   readonly errorMessage?: string;
   readonly confirmDisabled?: boolean;
   readonly confirmDisabledReason?: string;
 }) {
-  const article = entityLabel === "Träger" ? "den Träger" : "die Schule";
-  const pronoun = entityLabel === "Träger" ? "Der Träger" : "Die Schule";
-  const possessive = entityLabel === "Träger" ? "seinen" : "ihren";
   return (
     <ConfirmationModal
       isOpen={target !== null}
@@ -369,9 +376,13 @@ export function RestoreConfirmationModal<T extends SoftDeletable>({
       isConfirmDisabled={confirmDisabled}
     >
       <p className="text-sm text-gray-600">
-        Möchten Sie {article} &quot;{target?.name}&quot; wiederherstellen?{" "}
-        {pronoun} wird in {possessive} vorherigen Zustand zurückversetzt.
+        Möchten Sie {entityArticleAccusative} &quot;{target?.name}&quot;
+        wiederherstellen? {entityPronounNominative} wird in{" "}
+        {entityPossessiveAccusative} vorherigen Zustand zurückversetzt.
       </p>
+      {extraMessage && (
+        <p className="mt-2 text-xs text-gray-500">{extraMessage}</p>
+      )}
       {confirmDisabled && confirmDisabledReason && (
         <div className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
           {confirmDisabledReason}
