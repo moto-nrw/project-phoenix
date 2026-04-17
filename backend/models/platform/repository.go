@@ -24,10 +24,14 @@ type OperatorRepository interface {
 type OrganizationRepository interface {
 	Create(ctx context.Context, organization *Organization) error
 	FindByID(ctx context.Context, id int64) (*Organization, error)
+	FindByIDForShare(ctx context.Context, id int64) (*Organization, error)
+	FindByIDForUpdate(ctx context.Context, id int64) (*Organization, error)
 	FindBySlug(ctx context.Context, slug string) (*Organization, error)
 	List(ctx context.Context) ([]*Organization, error)
 	Update(ctx context.Context, organization *Organization) error
 	CountByIDs(ctx context.Context, ids []int64) (int, error)
+	SoftDelete(ctx context.Context, id int64) error
+	Restore(ctx context.Context, id int64) error
 }
 
 // AnnouncementRepository defines operations for managing announcements
@@ -86,6 +90,7 @@ type SchoolRepository interface {
 	SoftDelete(ctx context.Context, id int64) error
 	Restore(ctx context.Context, id int64) error
 	CountByIDs(ctx context.Context, ids []int64) (int, error)
+	CountNonDeletedByOrganizationID(ctx context.Context, organizationID int64) (int, error)
 }
 
 // OperatorEmailChangeTokenRepository defines operations for email change verification tokens

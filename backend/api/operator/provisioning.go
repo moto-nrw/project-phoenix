@@ -3,6 +3,7 @@ package operator
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -348,6 +349,32 @@ func (rs *ProvisioningResource) RestoreSchool(w http.ResponseWriter, r *http.Req
 	common.Respond(w, r, http.StatusOK, nil, "School restored successfully")
 }
 
+func (rs *ProvisioningResource) SoftDeleteOrganization(w http.ResponseWriter, r *http.Request) {
+	orgID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid organization ID")
+	if !ok {
+		return
+	}
+	operatorID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	if err := rs.service.SoftDeleteOrganization(r.Context(), orgID, operatorID, getClientIP(r)); err != nil {
+		common.RenderError(w, r, ProvisioningErrorRenderer(err))
+		return
+	}
+	common.RespondNoContent(w, r)
+}
+
+func (rs *ProvisioningResource) RestoreOrganization(w http.ResponseWriter, r *http.Request) {
+	orgID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid organization ID")
+	if !ok {
+		return
+	}
+	operatorID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	if err := rs.service.RestoreOrganization(r.Context(), orgID, operatorID, getClientIP(r)); err != nil {
+		common.RenderError(w, r, ProvisioningErrorRenderer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, nil, "Organization restored successfully")
+}
+
 func (rs *ProvisioningResource) InviteSchoolAdmin(w http.ResponseWriter, r *http.Request) {
 	req := &inviteSchoolAdminRequest{}
 	if err := render.Bind(r, req); err != nil {
@@ -584,6 +611,10 @@ func ProvisioningErrorRenderer(err error) render.Renderer {
 	var invalidData *platformSvc.InvalidDataError
 	var conflictErr *platformSvc.ConflictError
 	var organizationNotFound *platformSvc.OrganizationNotFoundError
+	var organizationAlreadyDeleted *platformSvc.OrganizationAlreadyDeletedError
+	var organizationNotDeleted *platformSvc.OrganizationNotDeletedError
+	var organizationHasSchools *platformSvc.OrganizationHasSchoolsError
+	var organizationDeleted *platformSvc.OrganizationDeletedError
 	var schoolNotFound *platformSvc.SchoolNotFoundError
 	var schoolInactive *platformSvc.SchoolInactiveError
 	var schoolAlreadyDeleted *platformSvc.SchoolAlreadyDeletedError
@@ -619,6 +650,14 @@ func ProvisioningErrorRenderer(err error) render.Renderer {
 		return ErrConflict(conflictErr.Err.Error())
 	case errors.As(err, &organizationNotFound):
 		return ErrNotFound("Organization not found")
+	case errors.As(err, &organizationAlreadyDeleted):
+		return ErrConflict("Organization is already deleted")
+	case errors.As(err, &organizationNotDeleted):
+		return ErrConflict("Organization is not deleted")
+	case errors.As(err, &organizationHasSchools):
+		return ErrConflict(fmt.Sprintf("Organization has %d existing school(s) and cannot be deleted. Delete all schools first.", organizationHasSchools.SchoolCount))
+	case errors.As(err, &organizationDeleted):
+		return ErrConflict("Organization is deleted and cannot host schools")
 	case errors.As(err, &schoolNotFound):
 		return ErrNotFound("School not found")
 	case errors.As(err, &schoolInactive):

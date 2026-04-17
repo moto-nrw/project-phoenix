@@ -69,6 +69,7 @@ const mockOrg: Organization = {
   name: "Test Org",
   slug: "test-org",
   active: true,
+  deletedAt: null,
   createdAt: "2025-01-01T00:00:00Z",
   updatedAt: "2025-01-01T00:00:00Z",
 };

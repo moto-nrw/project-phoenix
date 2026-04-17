@@ -92,8 +92,37 @@ func deduplicateInt64(ids []int64) []int64 {
 	return slices.Compact(cp)
 }
 
-// validateTargetingIDs checks that all referenced org and tenant IDs exist in the database
-// using batch queries (WHERE id IN (?)) instead of N+1 individual lookups.
+// diffInt64 returns the IDs in `new` that are not present in `existing`.
+// The inputs are not modified.
+func diffInt64(newIDs, existingIDs []int64) []int64 {
+	if len(newIDs) == 0 {
+		return nil
+	}
+	if len(existingIDs) == 0 {
+		return slices.Clone(newIDs)
+	}
+	keep := make(map[int64]struct{}, len(existingIDs))
+	for _, id := range existingIDs {
+		keep[id] = struct{}{}
+	}
+	added := make([]int64, 0, len(newIDs))
+	for _, id := range newIDs {
+		if _, ok := keep[id]; !ok {
+			added = append(added, id)
+		}
+	}
+	return added
+}
+
+// validateTargetingIDs checks that all referenced org and tenant IDs exist in
+// the database (and are not soft-deleted) using batch queries instead of N+1
+// individual lookups. `CountByIDs` excludes soft-deleted rows, so passing a
+// soft-deleted ID here will fail validation.
+//
+// Callers responsible for updates should only pass the NEWLY-ADDED IDs (diffed
+// against the existing announcement) so that historical targets pointing at
+// now-deleted orgs or schools can still round-trip through an unrelated edit.
+// Use validateNewTargetingIDs for that.
 func (s *announcementService) validateTargetingIDs(ctx context.Context, orgIDs, tenantIDs []int64) error {
 	if len(orgIDs) > 0 {
 		unique := deduplicateInt64(orgIDs)
@@ -102,7 +131,7 @@ func (s *announcementService) validateTargetingIDs(ctx context.Context, orgIDs, 
 			return fmt.Errorf("failed to verify organizations: %w", err)
 		}
 		if count != len(unique) {
-			return &InvalidDataError{Err: fmt.Errorf("one or more organization IDs do not exist (requested %d, found %d)", len(unique), count)}
+			return &InvalidDataError{Err: fmt.Errorf("one or more organization IDs do not exist or are deleted (requested %d, found %d)", len(unique), count)}
 		}
 	}
 	if len(tenantIDs) > 0 {
@@ -112,10 +141,21 @@ func (s *announcementService) validateTargetingIDs(ctx context.Context, orgIDs, 
 			return fmt.Errorf("failed to verify schools: %w", err)
 		}
 		if count != len(unique) {
-			return &InvalidDataError{Err: fmt.Errorf("one or more school (tenant) IDs do not exist (requested %d, found %d)", len(unique), count)}
+			return &InvalidDataError{Err: fmt.Errorf("one or more school (tenant) IDs do not exist or are deleted (requested %d, found %d)", len(unique), count)}
 		}
 	}
 	return nil
+}
+
+// validateNewTargetingIDs validates only the IDs that are new relative to the
+// existing announcement. Historical IDs already on the record are allowed to
+// persist even if their org/school has since been soft-deleted — the operator
+// cannot add a new deleted target, but an unrelated edit will not blow up on
+// targets that were legitimate when originally set.
+func (s *announcementService) validateNewTargetingIDs(ctx context.Context, newOrgIDs, existingOrgIDs, newTenantIDs, existingTenantIDs []int64) error {
+	addedOrgs := diffInt64(newOrgIDs, existingOrgIDs)
+	addedTenants := diffInt64(newTenantIDs, existingTenantIDs)
+	return s.validateTargetingIDs(ctx, addedOrgs, addedTenants)
 }
 
 // CreateAnnouncement creates a new announcement
@@ -174,7 +214,11 @@ func (s *announcementService) UpdateAnnouncement(ctx context.Context, announceme
 		return &InvalidDataError{Err: err}
 	}
 
-	if err := s.validateTargetingIDs(ctx, announcement.TargetOrgIDs, announcement.TargetTenantIDs); err != nil {
+	if err := s.validateNewTargetingIDs(
+		ctx,
+		announcement.TargetOrgIDs, existing.TargetOrgIDs,
+		announcement.TargetTenantIDs, existing.TargetTenantIDs,
+	); err != nil {
 		return err
 	}
 
