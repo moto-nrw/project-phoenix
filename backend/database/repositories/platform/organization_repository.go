@@ -57,61 +57,56 @@ func (r *OrganizationRepository) FindByID(ctx context.Context, id int64) (*platf
 	return organization, nil
 }
 
-// FindByIDForShare returns an organization by ID while acquiring a FOR SHARE lock on the row.
+// findByIDWithLock returns an organization by ID while acquiring the given
+// row-level lock. `lockClause` is passed verbatim to bun's `For(...)` builder
+// (e.g. "SHARE", "UPDATE"). `op` labels the operation in DatabaseError on
+// wrapping failure. Must be called within a transaction.
 //
-// Locking contract (shared by all callers of this method and FindByIDForUpdate):
+// Locking contract shared by FindByIDForShare and FindByIDForUpdate:
 //
 // Any service method that mutates a school in a way that depends on the parent
-// organization NOT being deleted (CreateSchool, UpdateSchool when the org changes,
-// RestoreSchool, UpdateOrganization) takes FOR SHARE on the parent org row. This
-// pins the row for the lifetime of the transaction so SoftDeleteOrganization
-// (which takes FOR UPDATE on the same row) cannot commit deleted_at between the
-// IsDeleted check and the subsequent write. Without this, a school insert or
-// update could land after the CountNonDeletedByOrganizationID check but before
-// the organization's SoftDelete commits, leaving a live school under a
-// tombstoned organization.
+// organization NOT being deleted (CreateSchool, UpdateSchool when the org
+// changes, RestoreSchool, UpdateOrganization) takes FOR SHARE on the parent
+// org row. This pins the row for the lifetime of the transaction so
+// SoftDeleteOrganization (which takes FOR UPDATE on the same row) cannot
+// commit deleted_at between the IsDeleted check and the subsequent write.
+// Without this, a school insert or update could land after the
+// CountNonDeletedByOrganizationID check but before the organization's
+// SoftDelete commits, leaving a live school under a tombstoned organization.
 //
-// Multiple FOR SHARE readers can hold the lock concurrently (schools under the
-// same org can be mutated in parallel); FOR UPDATE blocks until all FOR SHARE
-// holders release. Lock order is always org → school, so no deadlock.
-//
-// Must be called within a transaction.
-func (r *OrganizationRepository) FindByIDForShare(ctx context.Context, id int64) (*platform.Organization, error) {
+// Multiple FOR SHARE readers can hold the lock concurrently (schools under
+// the same org can be mutated in parallel); FOR UPDATE blocks until all
+// FOR SHARE holders release. Lock order is always org → school, so no
+// deadlock.
+func (r *OrganizationRepository) findByIDWithLock(ctx context.Context, id int64, lockClause, op string) (*platform.Organization, error) {
 	organization := new(platform.Organization)
 	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(organization).
 		ModelTableExpr(tablePlatformOrganizationsAlias).
 		Where(`"organization".id = ?`, id).
-		For("SHARE").
+		For(lockClause).
 		Scan(ctx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, &modelBase.DatabaseError{Op: "find organization by id for share", Err: err}
+		return nil, &modelBase.DatabaseError{Op: op, Err: err}
 	}
 	return organization, nil
 }
 
-// FindByIDForUpdate returns an organization by ID while acquiring a FOR UPDATE lock on the row.
-// SoftDeleteOrganization uses this to serialize against concurrent school mutations that
-// take FOR SHARE on the same row. See FindByIDForShare for the full locking contract.
-// Must be called within a transaction.
+// FindByIDForShare returns an organization by ID while acquiring a FOR SHARE
+// lock on the row. See findByIDWithLock for the locking contract.
+func (r *OrganizationRepository) FindByIDForShare(ctx context.Context, id int64) (*platform.Organization, error) {
+	return r.findByIDWithLock(ctx, id, "SHARE", "find organization by id for share")
+}
+
+// FindByIDForUpdate returns an organization by ID while acquiring a FOR
+// UPDATE lock on the row. SoftDeleteOrganization uses this to serialize
+// against concurrent school mutations that take FOR SHARE on the same row.
+// See findByIDWithLock for the locking contract.
 func (r *OrganizationRepository) FindByIDForUpdate(ctx context.Context, id int64) (*platform.Organization, error) {
-	organization := new(platform.Organization)
-	err := base.GetDB(ctx, r.db).NewSelect().
-		Model(organization).
-		ModelTableExpr(tablePlatformOrganizationsAlias).
-		Where(`"organization".id = ?`, id).
-		For("UPDATE").
-		Scan(ctx)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
-		return nil, &modelBase.DatabaseError{Op: "find organization by id for update", Err: err}
-	}
-	return organization, nil
+	return r.findByIDWithLock(ctx, id, "UPDATE", "find organization by id for update")
 }
 
 func (r *OrganizationRepository) FindBySlug(ctx context.Context, slug string) (*platform.Organization, error) {

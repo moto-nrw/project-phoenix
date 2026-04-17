@@ -145,4 +145,23 @@ func TestOrganizationRepository_FindByIDAndSlugAndList(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 0, count)
 	})
+
+	t.Run("CountByIDs excludes soft-deleted organizations", func(t *testing.T) {
+		// Pin the filter `deleted_at IS NULL` on CountByIDs: a soft-deleted row
+		// must drop out of the count so announcement targeting cannot reference
+		// trashed organizations via new targeting IDs.
+		_, err := db.ExecContext(ctx, `UPDATE platform.organizations SET deleted_at = NOW() WHERE id = ?`, orgA.ID)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			_, _ = db.ExecContext(ctx, `UPDATE platform.organizations SET deleted_at = NULL WHERE id = ?`, orgA.ID)
+		})
+
+		count, err := repo.CountByIDs(ctx, []int64{orgA.ID, orgB.ID})
+		require.NoError(t, err)
+		assert.Equal(t, 1, count, "soft-deleted organization must not be counted")
+
+		onlyDeleted, err := repo.CountByIDs(ctx, []int64{orgA.ID})
+		require.NoError(t, err)
+		assert.Equal(t, 0, onlyDeleted, "single soft-deleted organization id must count as 0")
+	})
 }

@@ -42,7 +42,7 @@ type Organization struct {
 	Name       string     `bun:"name,notnull" json:"name"`
 	Slug       string     `bun:"slug,notnull,unique" json:"slug"`
 	Active     bool       `bun:"active,notnull,default:true" json:"active"`
-	DeletedAt  *time.Time `bun:"deleted_at" json:"deleted_at"`
+	DeletedAt  *time.Time `bun:"deleted_at" json:"deleted_at,omitempty"`
 	Settings   string     `bun:"settings,default:'{}'" json:"settings,omitempty"`
 }
 

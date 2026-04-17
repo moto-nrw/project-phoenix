@@ -436,4 +436,23 @@ func TestSchoolRepository_QueryMethods(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 0, count)
 	})
+
+	t.Run("CountByIDs excludes soft-deleted schools", func(t *testing.T) {
+		// Pin the filter `deleted_at IS NULL` on CountByIDs: a soft-deleted row
+		// must drop out of the count so announcement targeting cannot reference
+		// trashed schools via new targeting IDs.
+		_, err := db.ExecContext(ctx, `UPDATE platform.schools SET deleted_at = NOW() WHERE id = ?`, schoolA.ID)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			_, _ = db.ExecContext(ctx, `UPDATE platform.schools SET deleted_at = NULL WHERE id = ?`, schoolA.ID)
+		})
+
+		count, err := repo.CountByIDs(ctx, []int64{schoolA.ID, schoolB.ID})
+		require.NoError(t, err)
+		assert.Equal(t, 1, count, "soft-deleted school must not be counted")
+
+		onlyDeleted, err := repo.CountByIDs(ctx, []int64{schoolA.ID})
+		require.NoError(t, err)
+		assert.Equal(t, 0, onlyDeleted, "single soft-deleted school id must count as 0")
+	})
 }

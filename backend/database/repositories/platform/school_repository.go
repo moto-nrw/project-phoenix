@@ -79,45 +79,41 @@ func (r *SchoolRepository) FindByID(ctx context.Context, id int64) (*platform.Sc
 	return school, nil
 }
 
-// FindByIDForShare returns a school by ID while acquiring a FOR SHARE lock on the row.
-// This prevents concurrent UPDATE (e.g., SoftDelete) from committing until the calling
-// transaction completes. Must be called within a transaction.
-func (r *SchoolRepository) FindByIDForShare(ctx context.Context, id int64) (*platform.School, error) {
+// findByIDWithLock returns a school by ID while acquiring the given row-level
+// lock. `lockClause` is passed verbatim to bun's `For(...)` builder (e.g.
+// "SHARE", "UPDATE"). `op` labels the operation in DatabaseError on wrapping
+// failure. Must be called within a transaction.
+func (r *SchoolRepository) findByIDWithLock(ctx context.Context, id int64, lockClause, op string) (*platform.School, error) {
 	school := new(platform.School)
 	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(school).
 		ModelTableExpr(schoolTableAlias).
 		Where(`"school".id = ?`, id).
-		For("SHARE").
+		For(lockClause).
 		Scan(ctx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, &modelBase.DatabaseError{Op: "find school by id for share", Err: err}
+			return nil, &modelBase.DatabaseError{Op: op, Err: err}
 		}
 		return nil, err
 	}
 	return school, nil
 }
 
-// FindByIDForUpdate returns a school by ID while acquiring a FOR UPDATE lock on the row.
-// This serializes concurrent read-modify-write cycles (e.g., JSONB settings updates)
-// by blocking other transactions from reading or writing the same row until the calling
-// transaction completes. Must be called within a transaction.
+// FindByIDForShare returns a school by ID while acquiring a FOR SHARE lock on
+// the row. Prevents concurrent UPDATE (e.g., SoftDelete) from committing until
+// the calling transaction completes. Must be called within a transaction.
+func (r *SchoolRepository) FindByIDForShare(ctx context.Context, id int64) (*platform.School, error) {
+	return r.findByIDWithLock(ctx, id, "SHARE", "find school by id for share")
+}
+
+// FindByIDForUpdate returns a school by ID while acquiring a FOR UPDATE lock
+// on the row. Serializes concurrent read-modify-write cycles (e.g., JSONB
+// settings updates) by blocking other transactions from reading or writing
+// the same row until the calling transaction completes. Must be called within
+// a transaction.
 func (r *SchoolRepository) FindByIDForUpdate(ctx context.Context, id int64) (*platform.School, error) {
-	school := new(platform.School)
-	err := base.GetDB(ctx, r.db).NewSelect().
-		Model(school).
-		ModelTableExpr(schoolTableAlias).
-		Where(`"school".id = ?`, id).
-		For("UPDATE").
-		Scan(ctx)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, &modelBase.DatabaseError{Op: "find school by id for update", Err: err}
-		}
-		return nil, err
-	}
-	return school, nil
+	return r.findByIDWithLock(ctx, id, "UPDATE", "find school by id for update")
 }
 
 // FindBySlug returns a non-deleted school by its slug.
