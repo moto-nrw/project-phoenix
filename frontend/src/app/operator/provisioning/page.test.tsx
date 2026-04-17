@@ -65,27 +65,35 @@ vi.mock("swr", () => ({
   useSWRConfig: () => ({ mutate: vi.fn() }),
 }));
 
-vi.mock("~/lib/operator/provisioning-api", () => ({
-  operatorProvisioningService: {
-    listOrganizations: mockListOrganizations,
-    createOrganization: mockCreateOrganization,
-    listSchools: mockListSchools,
-    createSchool: mockCreateSchool,
-    updateOrganization: mockUpdateOrganization,
-    updateSchool: mockUpdateSchool,
-    inviteSchoolAdmin: mockInviteSchoolAdmin,
-    listSchoolAccounts: mockListSchoolAccounts,
-    listOrganizationAccounts: mockListOrganizationAccounts,
-    listAllAccounts: mockListAllAccounts,
-    listSchoolDevices: mockListSchoolDevices,
-    listOrganizationDevices: mockListOrganizationDevices,
-    listAllDevices: mockListAllDevices,
-    listSchoolPersons: mockListSchoolPersons,
-    softDeletePerson: mockSoftDeletePerson,
-    softDeleteSchool: mockSoftDeleteSchool,
-    restoreSchool: mockRestoreSchool,
-  },
-}));
+vi.mock("~/lib/operator/provisioning-api", async () => {
+  // Keep the real revalidateTenantCache so tests spy on globalThis.fetch; mock
+  // only the service methods that hit the backend.
+  const actual = await vi.importActual<
+    typeof import("~/lib/operator/provisioning-api")
+  >("~/lib/operator/provisioning-api");
+  return {
+    ...actual,
+    operatorProvisioningService: {
+      listOrganizations: mockListOrganizations,
+      createOrganization: mockCreateOrganization,
+      listSchools: mockListSchools,
+      createSchool: mockCreateSchool,
+      updateOrganization: mockUpdateOrganization,
+      updateSchool: mockUpdateSchool,
+      inviteSchoolAdmin: mockInviteSchoolAdmin,
+      listSchoolAccounts: mockListSchoolAccounts,
+      listOrganizationAccounts: mockListOrganizationAccounts,
+      listAllAccounts: mockListAllAccounts,
+      listSchoolDevices: mockListSchoolDevices,
+      listOrganizationDevices: mockListOrganizationDevices,
+      listAllDevices: mockListAllDevices,
+      listSchoolPersons: mockListSchoolPersons,
+      softDeletePerson: mockSoftDeletePerson,
+      softDeleteSchool: mockSoftDeleteSchool,
+      restoreSchool: mockRestoreSchool,
+    },
+  };
+});
 
 vi.mock("~/lib/format-utils", () => ({
   getRelativeTime: (dateStr: string) => `relative(${dateStr})`,

@@ -5,6 +5,9 @@ export interface BackendOrganization {
   name: string;
   slug: string;
   active: boolean;
+  // Backend uses json:",omitempty" on a *time.Time, so the field is absent
+  // (undefined) when the row is not soft-deleted, not null.
+  deleted_at?: string | null;
   settings: string | null;
   created_at: string;
   updated_at: string;
@@ -23,7 +26,9 @@ export interface BackendSchool {
   email: string;
   active: boolean;
   hidden: boolean;
-  deleted_at: string | null;
+  // Backend uses json:",omitempty" on a *time.Time, so the field is absent
+  // (undefined) when the row is not soft-deleted, not null.
+  deleted_at?: string | null;
   settings: string | null;
   created_at: string;
   updated_at: string;
@@ -54,6 +59,7 @@ export interface Organization {
   name: string;
   slug: string;
   active: boolean;
+  deletedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -209,6 +215,7 @@ export function mapOrganization(data: BackendOrganization): Organization {
     name: data.name,
     slug: data.slug,
     active: data.active,
+    deletedAt: data.deleted_at ?? null,
     createdAt: data.created_at,
     updatedAt: data.updated_at,
   };
