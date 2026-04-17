@@ -344,6 +344,10 @@ type visitWithStudent struct {
 	LastName      string     `bun:"last_name"`
 	SchoolClass   string     `bun:"school_class"`
 	OGSGroupName  string     `bun:"ogs_group_name"`
+	Sick          *bool      `bun:"sick"`
+	SickSince     *time.Time `bun:"sick_since"`
+	Excused       *bool      `bun:"excused"`
+	ExcusedSince  *time.Time `bun:"excused_since"`
 	CreatedAt     time.Time  `bun:"created_at"`
 	UpdatedAt     time.Time  `bun:"updated_at"`
 }
@@ -364,6 +368,10 @@ func (rs *Resource) fetchVisitsWithDisplayData(r *http.Request, activeGroupID in
 		ColumnExpr("p.last_name").
 		ColumnExpr("COALESCE(s.school_class, '') AS school_class").
 		ColumnExpr("COALESCE(g.name, '') AS ogs_group_name").
+		ColumnExpr("s.sick").
+		ColumnExpr("s.sick_since").
+		ColumnExpr("s.excused").
+		ColumnExpr("s.excused_since").
 		TableExpr("active.visits AS v").
 		Join("INNER JOIN users.students AS s ON s.id = v.student_id").
 		Join("INNER JOIN users.persons AS p ON p.id = s.person_id").
@@ -381,6 +389,14 @@ func (rs *Resource) buildVisitDisplayResponses(results []visitWithStudent) []Vis
 	responses := make([]VisitWithDisplayDataResponse, 0, len(results))
 	for _, result := range results {
 		studentName := result.FirstName + " " + result.LastName
+		sick := false
+		if result.Sick != nil {
+			sick = *result.Sick
+		}
+		excused := false
+		if result.Excused != nil {
+			excused = *result.Excused
+		}
 		responses = append(responses, VisitWithDisplayDataResponse{
 			ID:            result.VisitID,
 			StudentID:     result.StudentID,
@@ -391,6 +407,10 @@ func (rs *Resource) buildVisitDisplayResponses(results []visitWithStudent) []Vis
 			StudentName:   studentName,
 			SchoolClass:   result.SchoolClass,
 			GroupName:     result.OGSGroupName,
+			Sick:          sick,
+			SickSince:     result.SickSince,
+			Excused:       excused,
+			ExcusedSince:  result.ExcusedSince,
 			CreatedAt:     result.CreatedAt,
 			UpdatedAt:     result.UpdatedAt,
 		})
