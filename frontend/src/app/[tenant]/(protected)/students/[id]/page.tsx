@@ -181,6 +181,7 @@ export default function StudentDetailPage() {
           data.exceptions,
           student?.sick ?? false,
           data.notes,
+          student?.excused ?? false,
         );
 
         if (dayData.effectiveTime) {
@@ -199,7 +200,7 @@ export default function StudentDetailPage() {
     };
 
     void loadTodayPickup();
-  }, [hasFullAccess, studentId, student?.sick]);
+  }, [hasFullAccess, studentId, student?.sick, student?.excused]);
 
   // Show loading state
   if (loading) {
@@ -811,6 +812,7 @@ function FullAccessView({
           readOnly={!hasWriteAccess}
           onUpdate={hasWriteAccess ? onRefreshData : undefined}
           isSick={student.sick}
+          isExcused={student.excused}
         />
 
         <PersonalInfoReadOnly

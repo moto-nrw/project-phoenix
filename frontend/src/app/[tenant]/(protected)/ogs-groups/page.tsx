@@ -295,6 +295,8 @@ function OGSGroupPageContent() {
         current_location: s.current_location ?? "",
         sick: s.sick ?? false,
         sick_since: s.sick_since,
+        excused: s.excused ?? false,
+        excused_since: s.excused_since,
         location_since: s.location_since,
         group_id: s.group_id?.toString(),
         group_name: s.group_name,

@@ -300,6 +300,8 @@ export function StudentDetailHeader({
     group_name: student.group_name,
     sick: student.sick,
     sick_since: student.sick_since,
+    excused: student.excused,
+    excused_since: student.excused_since,
     has_full_access: student.has_full_access,
   };
 
