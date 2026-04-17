@@ -338,6 +338,89 @@ func TestActivityInstanceRepository_FindByActiveGroupID(t *testing.T) {
 		require.NoError(t, err)
 		assert.Nil(t, got)
 	})
+
+	t.Run("returns the bridged instance when linked", func(t *testing.T) {
+		fx := newActivityInstanceFixtures(t, db, "active-lookup")
+		defer fx.cleanup()
+
+		ag := testpkg.CreateTestActiveGroup(t, db, fx.activityID, fx.roomID)
+
+		inst := buildInstance(1, fx.roomID, &fx.activityID,
+			time.Date(2026, 10, 14, 0, 0, 0, 0, time.UTC),
+			time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
+			time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC),
+			"linked")
+		inst.ActiveGroupID = &ag.ID
+		require.NoError(t, repo.Create(ctx, inst))
+		defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", inst.ID)
+
+		got, err := repo.FindByActiveGroupID(ctx, ag.ID)
+		require.NoError(t, err)
+		require.NotNil(t, got)
+		assert.Equal(t, inst.ID, got.ID)
+	})
+}
+
+// TestActivityInstanceRepository_ActiveGroupBridgeUnique verifies the 1:1
+// bridge invariant between schedule.activity_instances and active.groups:
+// two instances must not be able to claim the same active.group.
+func TestActivityInstanceRepository_ActiveGroupBridgeUnique(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewActivityInstanceRepository(db)
+
+	fx := newActivityInstanceFixtures(t, db, "bridge-uniq")
+	defer fx.cleanup()
+
+	ag := testpkg.CreateTestActiveGroup(t, db, fx.activityID, fx.roomID)
+
+	date := time.Date(2026, 10, 13, 0, 0, 0, 0, time.UTC)
+
+	first := buildInstance(1, fx.roomID, &fx.activityID, date,
+		time.Date(2024, 1, 1, 9, 0, 0, 0, time.UTC),
+		time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC),
+		"first")
+	first.ActiveGroupID = &ag.ID
+	require.NoError(t, repo.Create(ctx, first))
+	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", first.ID)
+
+	second := buildInstance(1, fx.roomID, &fx.activityID, date,
+		time.Date(2024, 1, 1, 11, 0, 0, 0, time.UTC),
+		time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC),
+		"second")
+	second.ActiveGroupID = &ag.ID
+
+	err := repo.Create(ctx, second)
+	require.Error(t, err, "second instance claiming the same active.group must be rejected by the unique partial index")
+}
+
+// TestActivityInstanceActiveGroupUniqueIndex verifies at the schema level that
+// the partial unique index on active_group_id exists with the expected
+// predicate. Mirrors the FK OnDelete pattern — guards against a future
+// migration silently downgrading the invariant.
+func TestActivityInstanceActiveGroupUniqueIndex(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+
+	var isUnique bool
+	var predicate string
+	err := db.NewRaw(`
+		SELECT ix.indisunique, pg_get_expr(ix.indpred, ix.indrelid)
+		FROM pg_index ix
+		JOIN pg_class c     ON c.oid = ix.indexrelid
+		JOIN pg_class t     ON t.oid = ix.indrelid
+		JOIN pg_namespace n ON n.oid = t.relnamespace
+		WHERE n.nspname = 'schedule'
+		  AND t.relname = 'activity_instances'
+		  AND c.relname = 'idx_activity_instances_active_group_unique'
+	`).Scan(ctx, &isUnique, &predicate)
+	require.NoError(t, err, "unique partial index on active_group_id must exist")
+	assert.True(t, isUnique, "index must be UNIQUE")
+	assert.Contains(t, predicate, "active_group_id IS NOT NULL", "partial predicate must exclude NULLs")
 }
 
 func TestActivityInstanceRepository_List(t *testing.T) {

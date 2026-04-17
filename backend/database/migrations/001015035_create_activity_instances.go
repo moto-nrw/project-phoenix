@@ -116,13 +116,26 @@ func createActivityInstancesUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed creating activity_group index: %w", err)
 	}
 
+	// Drop the earlier non-unique variant of this index for developers who
+	// already applied an earlier revision of this migration. No-op on a fresh DB.
+	_, err = db.NewRaw(`DROP INDEX IF EXISTS schedule.idx_activity_instances_active_group;`).Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed dropping stale active_group index: %w", err)
+	}
+
+	// UNIQUE partial index on active_group_id: the bridge to active.groups is
+	// 1:1. The partial clause (WHERE active_group_id IS NOT NULL) permits many
+	// rows with NULL — planned / completed / cancelled instances without a live
+	// session — while rejecting two instances claiming the same active.group.
+	// Serves as the lookup index for FindByActiveGroupID, so no companion
+	// non-unique index is needed.
 	_, err = db.NewRaw(`
-		CREATE INDEX IF NOT EXISTS idx_activity_instances_active_group
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_activity_instances_active_group_unique
 		ON schedule.activity_instances (active_group_id)
 		WHERE active_group_id IS NOT NULL;
 	`).Exec(ctx)
 	if err != nil {
-		return fmt.Errorf("failed creating active_group index: %w", err)
+		return fmt.Errorf("failed creating unique active_group index: %w", err)
 	}
 
 	_, err = db.NewRaw(`

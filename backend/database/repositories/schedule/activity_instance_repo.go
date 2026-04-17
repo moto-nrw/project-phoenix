@@ -178,7 +178,10 @@ func (r *ActivityInstanceRepository) FindByActivityGroupAndDate(ctx context.Cont
 }
 
 // FindByActiveGroupID returns the instance bridged to the given active.group,
-// or nil if none exists.
+// or nil if none exists. The bridge is 1:1 — enforced by a UNIQUE partial
+// index on schedule.activity_instances(active_group_id) WHERE IS NOT NULL.
+// The Limit(1) is belt-and-suspenders for windows where the index is not yet
+// present (e.g. a test DB restored from a pre-fix dump).
 func (r *ActivityInstanceRepository) FindByActiveGroupID(ctx context.Context, activeGroupID int64) (*schedule.ActivityInstance, error) {
 	var instance schedule.ActivityInstance
 	query := base.GetDB(ctx, r.db).NewSelect().
@@ -190,7 +193,7 @@ func (r *ActivityInstanceRepository) FindByActiveGroupID(ctx context.Context, ac
 		query = query.Where(where, val)
 	}
 
-	err := query.Scan(ctx)
+	err := query.Limit(1).Scan(ctx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
