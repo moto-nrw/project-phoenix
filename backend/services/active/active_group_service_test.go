@@ -53,7 +53,8 @@ func TestActiveService_GetActiveGroup(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotNil(t, result)
 		assert.Equal(t, activeGroup.ID, result.ID)
-		assert.Equal(t, activityGroup.ID, result.GroupID)
+		require.NotNil(t, result.GroupID)
+		assert.Equal(t, activityGroup.ID, *result.GroupID)
 		assert.Equal(t, room.ID, result.RoomID)
 	})
 

@@ -146,7 +146,8 @@ func TestActivitySessionConflictDetection(t *testing.T) {
 		session, err := service.StartActivitySession(ctx, activityGroup.ID, device.ID, 1, &room.ID)
 		require.NoError(t, err)
 		assert.NotNil(t, session)
-		assert.Equal(t, activityGroup.ID, session.GroupID)
+		require.NotNil(t, session.GroupID)
+		assert.Equal(t, activityGroup.ID, *session.GroupID)
 		assert.Equal(t, &device.ID, session.DeviceID)
 	})
 
@@ -219,7 +220,8 @@ func TestActivitySessionConflictDetection(t *testing.T) {
 		// ASSERT
 		require.NoError(t, err)
 		assert.NotNil(t, session2)
-		assert.Equal(t, activityGroup.ID, session2.GroupID)
+		require.NotNil(t, session2.GroupID)
+		assert.Equal(t, activityGroup.ID, *session2.GroupID)
 		assert.Equal(t, &device.ID, session2.DeviceID)
 
 		// Verify first session was ended (force start ends previous session on same device)
@@ -247,7 +249,8 @@ func TestActivitySessionConflictDetection(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotNil(t, currentSession)
 		assert.Equal(t, session.ID, currentSession.ID)
-		assert.Equal(t, activityGroup.ID, currentSession.GroupID)
+		require.NotNil(t, currentSession.GroupID)
+		assert.Equal(t, activityGroup.ID, *currentSession.GroupID)
 
 		// End session
 		err = service.EndActivitySession(ctx, session.ID)
@@ -461,7 +464,8 @@ func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 		// ASSERT
 		require.NoError(t, err)
 		assert.NotNil(t, session)
-		assert.Equal(t, activityGroup.ID, session.GroupID)
+		require.NotNil(t, session.GroupID)
+		assert.Equal(t, activityGroup.ID, *session.GroupID)
 		assert.Equal(t, &device.ID, session.DeviceID)
 
 		// Verify supervisors were assigned

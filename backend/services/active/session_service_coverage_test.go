@@ -53,7 +53,8 @@ func TestGetDeviceCurrentSession_HasSession(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, currentSession)
 	assert.Equal(t, session.ID, currentSession.ID)
-	assert.Equal(t, activityGroup.ID, currentSession.GroupID)
+	require.NotNil(t, currentSession.GroupID)
+	assert.Equal(t, activityGroup.ID, *currentSession.GroupID)
 }
 
 // TestGetDeviceCurrentSession_NoSession verifies error when device has no active session
