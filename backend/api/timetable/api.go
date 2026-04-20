@@ -22,15 +22,24 @@ const dateLayout = "2006-01-02"
 
 // Resource defines the timetable API resource
 type Resource struct {
-	calendarPeriodService scheduleSvc.CalendarPeriodService
-	db                    *bun.DB
+	calendarPeriodService  scheduleSvc.CalendarPeriodService
+	materializationService scheduleSvc.MaterializationService
+	db                     *bun.DB
 }
 
-// NewResource creates a new timetable resource
-func NewResource(calendarPeriodService scheduleSvc.CalendarPeriodService, db *bun.DB) *Resource {
+// NewResource creates a new timetable resource. materializationService is
+// optional — if nil, the /materialize route returns 500 when hit (no silent
+// misconfiguration). Passing nil is useful in tests that only exercise the
+// periods endpoints.
+func NewResource(
+	calendarPeriodService scheduleSvc.CalendarPeriodService,
+	materializationService scheduleSvc.MaterializationService,
+	db *bun.DB,
+) *Resource {
 	return &Resource{
-		calendarPeriodService: calendarPeriodService,
-		db:                    db,
+		calendarPeriodService:  calendarPeriodService,
+		materializationService: materializationService,
+		db:                     db,
 	}
 }
 
@@ -54,6 +63,13 @@ func (rs *Resource) Router() chi.Router {
 			r.With(authorize.RequiresPermission(permissions.SchedulesUpdate), withTx).Put("/{id}", rs.updatePeriod)
 			r.With(authorize.RequiresPermission(permissions.SchedulesDelete), withTx).Delete("/{id}", rs.deletePeriod)
 		})
+
+		// WP-B8: manual materialization. Admin-only — reuses SchedulesManage
+		// as the rough "you can do anything with the schedule" permission.
+		// The scheduler job runs the same service; this endpoint exists so
+		// admins can re-run ad hoc without waiting for the weekly cadence.
+		r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
+			Post("/materialize", rs.materialize)
 	})
 
 	return r

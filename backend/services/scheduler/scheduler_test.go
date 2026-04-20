@@ -112,6 +112,27 @@ func TestNewScheduler_OnlyInvitationService(t *testing.T) {
 	assert.Len(t, s.cleanupJobs, 1) // 1 invitation job only
 }
 
+func TestIsoWeekdayMatchesNow(t *testing.T) {
+	// This test checks the mapping from Go's Sunday=0 to ISO Sunday=7
+	// via the helper's sole branch point. It does not assert a specific
+	// day (that would depend on when the test runs) but asserts the
+	// function's contract for the current day.
+	today := time.Now().Weekday()
+	var iso int
+	if today == time.Sunday {
+		iso = 7
+	} else {
+		iso = int(today)
+	}
+	assert.True(t, isoWeekdayMatchesNow(iso), "current day must match its ISO weekday")
+	// A day that is definitely not today
+	other := iso + 1
+	if other > 7 {
+		other = 1
+	}
+	assert.False(t, isoWeekdayMatchesNow(other), "non-current day must not match")
+}
+
 // =============================================================================
 // Start/Stop Lifecycle Tests
 // =============================================================================

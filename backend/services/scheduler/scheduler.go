@@ -14,6 +14,7 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/services/active"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -78,6 +79,7 @@ type Scheduler struct {
 	workSessionCleanup WorkSessionCleaner
 	breakAutoEnder     BreakAutoEnder
 	feedbackCleaner    FeedbackCleaner
+	materializer       scheduleSvc.MaterializationService
 	settings           SettingsResolver
 	db                 *bun.DB
 	schoolRepo         platform.SchoolRepository
@@ -97,9 +99,10 @@ type Scheduler struct {
 	breakAutoEndIntervalSeconds int
 
 	// Per-tenant tracking for minute-polling (keyed by tenant ID)
-	lastSessionEnd     sync.Map // tenant_id → time.Time
-	lastDataCleanup    sync.Map // tenant_id → time.Time
-	lastSessionCleanup sync.Map // tenant_id → time.Time
+	lastSessionEnd      sync.Map // tenant_id → time.Time
+	lastDataCleanup     sync.Map // tenant_id → time.Time
+	lastSessionCleanup  sync.Map // tenant_id → time.Time
+	lastMaterialization sync.Map // tenant_id → time.Time
 }
 
 // ScheduledTask represents a scheduled task
@@ -147,6 +150,15 @@ func (s *Scheduler) SetBreakAutoEnder(bae BreakAutoEnder) {
 // SetFeedbackCleaner sets the feedback cleanup service (optional).
 func (s *Scheduler) SetFeedbackCleaner(fc FeedbackCleaner) {
 	s.feedbackCleaner = fc
+}
+
+// SetMaterializer wires the timetable materialization service. When set, the
+// scheduler registers the weekly materialization task in Start(). A nil
+// materializer is a valid configuration — the task simply does not register,
+// matching the legacy "opt-in via dependency injection" pattern used by the
+// feedback cleaner, work-session cleaner, and break auto-ender above.
+func (s *Scheduler) SetMaterializer(m scheduleSvc.MaterializationService) {
+	s.materializer = m
 }
 
 // SetDB sets the database connection for tenant-aware operations.
@@ -257,6 +269,9 @@ func (s *Scheduler) Start() {
 
 	// Schedule break auto-end task
 	s.scheduleBreakAutoEndTask()
+
+	// Schedule weekly timetable materialization (WP-B8)
+	s.scheduleMaterializationTask()
 }
 
 // Stop gracefully stops the scheduler
@@ -1228,4 +1243,162 @@ func wasRunToday(lastRunMap *sync.Map, tenantID int64) bool {
 // markRunToday records that a per-tenant job ran today.
 func markRunToday(lastRunMap *sync.Map, tenantID int64) {
 	lastRunMap.Store(tenantID, time.Now())
+}
+
+// --- Timetable materialization (WP-B8) ---
+//
+// Defaults-off: a tenant opts in by setting `timetable.materialization_enabled`
+// to true in the settings UI. Without the opt-in, the per-tenant check short-
+// circuits and the scheduler does nothing for that tenant. The job fires
+// once per day-of-week (on the configured weekday) via a 60-second
+// minute-polling loop, same shape as scheduleSessionEndTask.
+//
+// The actual business logic (period selection, A/B week filtering, exception
+// application, instance/staff/student generation) lives entirely in
+// services/schedule.MaterializationService — the scheduler only decides
+// "when to call it" and "for which tenant".
+
+// scheduleMaterializationTask registers the weekly timetable-materialization
+// task when a Materializer has been wired in. No materializer → no task.
+func (s *Scheduler) scheduleMaterializationTask() {
+	if s.materializer == nil {
+		s.getLogger().Info("timetable materialization not configured (no Materializer service)")
+		return
+	}
+
+	task := &ScheduledTask{
+		Name:     "timetable-materialization",
+		Schedule: "1m-poll",
+	}
+
+	s.mu.Lock()
+	s.tasks[task.Name] = task
+	s.mu.Unlock()
+
+	s.wg.Add(1)
+	go s.runMaterializationTaskPolling(task)
+}
+
+// runMaterializationTaskPolling ticks every minute and delegates to
+// checkAndRunMaterialization. Minute alignment matches the other scheduler
+// tasks so HH:MM:00 ticks land deterministically.
+func (s *Scheduler) runMaterializationTaskPolling(task *ScheduledTask) {
+	defer s.wg.Done()
+	defer func() {
+		if r := recover(); r != nil {
+			err := fmt.Errorf("panic in materialization task: %v", r)
+			s.getLogger().Error("goroutine panic recovered", slog.String("error", err.Error()))
+			sentry.CurrentHub().Recover(r)
+			sentry.Flush(2 * time.Second)
+		}
+	}()
+
+	s.getLogger().Info("timetable materialization using minute-polling for per-tenant scheduling")
+
+	// Startup check — covers the case of the server booting on the scheduled
+	// weekday after the minute has already passed.
+	s.checkAndRunMaterialization(task)
+
+	if !s.waitUntilNextMinute() {
+		return
+	}
+
+	ticker := time.NewTicker(60 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			s.checkAndRunMaterialization(task)
+		case <-s.done:
+			return
+		}
+	}
+}
+
+// checkAndRunMaterialization iterates active tenants and fires materialization
+// for each tenant whose configured weekday matches today's ISO weekday, gated
+// on the timetable.materialization_enabled setting.
+func (s *Scheduler) checkAndRunMaterialization(task *ScheduledTask) {
+	task.mu.Lock()
+	if task.Running {
+		task.mu.Unlock()
+		return
+	}
+	task.Running = true
+	task.mu.Unlock()
+	defer func() {
+		task.mu.Lock()
+		task.Running = false
+		task.mu.Unlock()
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	defer cancel()
+
+	s.forEachTenantSettings(ctx, "materialization-check", func(tenantCtx context.Context, tenantID int64) error {
+		enabled := s.resolveBoolSetting(tenantCtx, configModel.KeyTimetableMaterializationEnabled, "", false)
+		if !enabled {
+			return nil
+		}
+
+		// Registry default is 5 (Friday, ISO 8601). The helper goes through
+		// HasTenantOverride → ResolveInt → env → default, exactly matching
+		// the documented fallback pattern.
+		targetWeekday := s.resolveIntSetting(tenantCtx, configModel.KeyTimetableMaterializationWeekday, "", 5)
+		if !isoWeekdayMatchesNow(targetWeekday) {
+			return nil
+		}
+
+		if wasRunToday(&s.lastMaterialization, tenantID) {
+			return nil
+		}
+		markRunToday(&s.lastMaterialization, tenantID)
+
+		weeksAhead := s.resolveIntSetting(tenantCtx, configModel.KeyTimetableMaterializationWeeksAhead, "", 1)
+		from, to := s.materializer.ResolveWindow(time.Now(), weeksAhead)
+
+		s.getLogger().Info("running timetable materialization for tenant",
+			slog.Int64("tenant_id", tenantID),
+			slog.Int("target_weekday", targetWeekday),
+			slog.Int("weeks_ahead", weeksAhead),
+			slog.String("from", from.Format("2006-01-02")),
+			slog.String("to", to.Format("2006-01-02")),
+		)
+
+		result, err := s.materializer.MaterializeForTenant(tenantCtx, from, to, scheduleSvc.MaterializationSourceScheduler)
+		if err != nil {
+			// Clear today-mark so a retry on the next scheduler day succeeds.
+			// We do NOT clear immediately because that would cause every
+			// subsequent minute on the same day to retry a known-failing run.
+			s.getLogger().Error("timetable materialization failed for tenant",
+				slog.Int64("tenant_id", tenantID),
+				slog.String("error", err.Error()),
+			)
+			return nil
+		}
+
+		if result.InstancesCreated > 0 || result.CandidatesRaced > 0 {
+			s.getLogger().Info("timetable materialization completed for tenant",
+				slog.Int64("tenant_id", tenantID),
+				slog.Int("created", result.InstancesCreated),
+				slog.Int("skipped_existing", result.CandidatesSkippedExisting),
+				slog.Int("raced", result.CandidatesRaced),
+				slog.Int64("duration_ms", result.DurationMS),
+			)
+		}
+		return nil
+	})
+}
+
+// isoWeekdayMatchesNow returns true if wd (1=Mon…7=Sun) matches today's ISO
+// weekday. Wall-clock local time is used because the per-tenant timezone is
+// not part of WP-B8 — default materialization day is "Friday wherever the
+// server is", good enough for a German-only deployment.
+func isoWeekdayMatchesNow(wd int) bool {
+	today := time.Now().Weekday()
+	if today == time.Sunday {
+		return wd == 7
+	}
+	return wd == int(today)
 }

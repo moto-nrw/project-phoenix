@@ -58,6 +58,7 @@ type Factory struct {
 	PickupSchedule           schedule.PickupScheduleService
 	ArrivalSchedule          schedule.ArrivalScheduleService
 	CalendarPeriod           schedule.CalendarPeriodService
+	Materialization          schedule.MaterializationService
 	Users                    users.PersonService
 	CaregiverCapability      users.CaregiverCapabilityService
 	Guardian                 users.GuardianService
@@ -321,6 +322,26 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		logger.With("service", "calendar-period"),
 	)
 
+	// Initialize materialization service (WP-B8). Turns activity templates into
+	// concrete schedule.activity_instances + instance_staff/instance_students
+	// for a date window. Consumed by the scheduler task (gated on the
+	// timetable.materialization_enabled setting) and the manual admin endpoint.
+	materializationService := schedule.NewMaterializationService(
+		repos.ActivityGroup,
+		repos.ActivitySchedule,
+		repos.StudentEnrollment,
+		repos.ActivitySupervisor,
+		repos.CalendarPeriod,
+		repos.ActivityInstance,
+		repos.InstanceStaff,
+		repos.InstanceStudent,
+		repos.ActivityException,
+		repos.Timeframe,
+		calendarPeriodService,
+		db,
+		logger.With("service", "materialization"),
+	)
+
 	// Initialize arrival schedule service
 	arrivalScheduleService := schedule.NewArrivalScheduleService(
 		repos.StudentArrivalSchedule,
@@ -552,6 +573,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		PickupSchedule:           pickupScheduleService,
 		ArrivalSchedule:          arrivalScheduleService,
 		CalendarPeriod:           calendarPeriodService,
+		Materialization:          materializationService,
 		Users:                    usersService,
 		CaregiverCapability:      caregiverCapabilityService,
 		Guardian:                 guardianService,
