@@ -521,7 +521,7 @@ Two tracks: **all backend first, frontend after.** Each item is a **Work Package
 - [x] **WP-B5** — `activity_instances`, `instance_staff`, `instance_students`, `activity_exceptions` tables + models + repos → GitHub #1283
 - [x] **WP-B6** — `active.groups.group_id` NOT NULL → NULLABLE migration + Go model update + NULL-safe consumer updates → GitHub #1286
 - [x] **WP-B7** — Timetable settings (7 entries) registered in config system → GitHub #1286
-- [ ] **WP-B8** — Materialization service + scheduler job (A/B week + validity filtering) + manual endpoint
+- [x] **WP-B8** — Materialization service + scheduler job (A/B week + validity filtering) + manual endpoint → GitHub #1293
 - [ ] **WP-B9** — Instance lifecycle: start (→ `active.group` bridge), complete, cancel + conflict detection service
 - [ ] **WP-B10** — Attendance sync (E4) + three-field attendance model (E18: status / substatus / note)
 
@@ -573,7 +573,7 @@ Two tracks: **all backend first, frontend after.** Each item is a **Work Package
 
 ### Recommended next
 
-**WP-B8** — materialization service + scheduler job. WP-B5 (instance tables), WP-B6 (nullable `group_id`), and WP-B7 (settings) are all shipped, so the registry-gated toggle (`timetable.materialization_enabled`, default `false`) and the nullable bridge are in place. WP-B8 can now be built behind the toggle without perturbing any tenant until they opt in, and it unblocks WP-B9 (instance start → `active.group`) which is the next critical-path item.
+**WP-B9** — instance lifecycle: `start` (→ `active.group` bridge), `complete`, `cancel` + conflict detection service. WP-B6 (nullable `GroupID *int64`) and WP-B8 (instances now exist in `schedule.activity_instances`) are both shipped, so the two things WP-B9 needs are in place. This is the critical-path item — it turns a materialized plan into a live session, unblocks WP-B10 (attendance sync at check-in/out), and enables the "Re-plan week" admin action that WP-B8 deliberately deferred. Scope-gate to lifecycle + conflicts only; leave attendance sync and exception-warning UX to WP-B10 / WP-B13.
 
 ---
 
