@@ -1019,17 +1019,15 @@ describe("StudentDetailPage", () => {
       await waitFor(() => {
         expect(mockUpdateStudent).toHaveBeenCalledWith("1", {
           sick: true,
-          bus: false,
         });
         expect(mockRefreshData).toHaveBeenCalled();
         expect(mockToastSuccess).toHaveBeenCalled();
       });
     });
 
-    it("preserves bus flag when toggling sick status", async () => {
+    it("does not send bus on sick toggle so the persisted flag is preserved", async () => {
       mockUpdateStudent.mockResolvedValue({});
 
-      // Student with buskind = true
       mockUseStudentData.mockReturnValue({
         student: { ...mockStudent, buskind: true },
         loading: false,
@@ -1062,8 +1060,8 @@ describe("StudentDetailPage", () => {
       await waitFor(() => {
         expect(mockUpdateStudent).toHaveBeenCalledWith("1", {
           sick: true,
-          bus: true,
         });
+        expect(mockUpdateStudent.mock.calls[0]?.[1]).not.toHaveProperty("bus");
       });
     });
 
@@ -1196,7 +1194,6 @@ describe("StudentDetailPage", () => {
       await waitFor(() => {
         expect(mockUpdateStudent).toHaveBeenCalledWith("1", {
           excused: true,
-          bus: false,
         });
         expect(mockRefreshData).toHaveBeenCalled();
         expect(mockToastSuccess).toHaveBeenCalled();
@@ -1318,7 +1315,6 @@ describe("StudentDetailPage", () => {
         expect(mockUpdateStudent).toHaveBeenCalledWith("1", {
           sick: false,
           excused: true,
-          bus: false,
         });
         expect(mockToastSuccess).toHaveBeenCalled();
       });

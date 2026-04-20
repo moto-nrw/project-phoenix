@@ -290,7 +290,10 @@ export function prepareStudentForBackend(
     current_location: student.current_location
       ? normalizeLocation(student.current_location)
       : undefined,
-    bus: student.bus ?? false, // Send bus as a separate field
+    // Only send bus when explicitly provided so partial updates (e.g. sick/excused
+    // toggles) don't clobber the persisted Buskind flag. The backend field is
+    // *bool with omitempty — omitting the key leaves the DB value untouched.
+    bus: student.bus,
     // REMOVED: guardian_name and guardian_contact - deprecated fields
     // Use guardian_profiles system instead
     group_id: student.group_id

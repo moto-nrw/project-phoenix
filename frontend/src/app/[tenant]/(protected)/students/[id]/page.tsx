@@ -297,7 +297,6 @@ export default function StudentDetailPage() {
       const newSickStatus = !(student.sick ?? false);
       await studentService.updateStudent(studentId, {
         sick: newSickStatus,
-        bus: student.buskind ?? false,
       });
       refreshData();
       setShowConfirmSick(false);
@@ -325,7 +324,6 @@ export default function StudentDetailPage() {
       const newExcusedStatus = !(student.excused ?? false);
       await studentService.updateStudent(studentId, {
         excused: newExcusedStatus,
-        bus: student.buskind ?? false,
       });
       refreshData();
       setShowConfirmExcused(false);
@@ -382,7 +380,6 @@ export default function StudentDetailPage() {
       await studentService.updateStudent(studentId, {
         sick: switchTarget === "sick",
         excused: switchTarget === "excused",
-        bus: student.buskind ?? false,
       });
       refreshData();
       toast.success(
