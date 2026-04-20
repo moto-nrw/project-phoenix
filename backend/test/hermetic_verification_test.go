@@ -153,6 +153,7 @@ func checkHardcodedIDs(t *testing.T, root string) []string {
 		"api/iot/config_test.go",                // Uses mock settings service for unit testing config endpoint
 		"enrich_pickup_times_test.go",           // Uses mock PickupScheduleService for unit testing enrichment
 		"api/timetable/api_test.go",             // Uses mock CalendarPeriodService for unit testing handlers
+		"api/timetable/instances_test.go",       // Uses mock InstanceService + PersonService for unit testing handlers
 	}
 
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
