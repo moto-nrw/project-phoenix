@@ -522,7 +522,7 @@ Two tracks: **all backend first, frontend after.** Each item is a **Work Package
 - [x] **WP-B6** — `active.groups.group_id` NOT NULL → NULLABLE migration + Go model update + NULL-safe consumer updates → GitHub #1286
 - [x] **WP-B7** — Timetable settings (7 entries) registered in config system → GitHub #1286
 - [x] **WP-B8** — Materialization service + scheduler job (A/B week + validity filtering) + manual endpoint → GitHub #1293
-- [ ] **WP-B9** — Instance lifecycle: start (→ `active.group` bridge), complete, cancel + conflict detection service
+- [x] **WP-B9** — Instance lifecycle: start (→ `active.group` bridge), complete, cancel + conflict detection service → GitHub #1294
 - [ ] **WP-B10** — Attendance sync (E4) + three-field attendance model (E18: status / substatus / note)
 
 #### B3 — Aggregation + Ops
@@ -573,7 +573,7 @@ Two tracks: **all backend first, frontend after.** Each item is a **Work Package
 
 ### Recommended next
 
-**WP-B9** — instance lifecycle: `start` (→ `active.group` bridge), `complete`, `cancel` + conflict detection service. WP-B6 (nullable `GroupID *int64`) and WP-B8 (instances now exist in `schedule.activity_instances`) are both shipped, so the two things WP-B9 needs are in place. This is the critical-path item — it turns a materialized plan into a live session, unblocks WP-B10 (attendance sync at check-in/out), and enables the "Re-plan week" admin action that WP-B8 deliberately deferred. Scope-gate to lifecycle + conflicts only; leave attendance sync and exception-warning UX to WP-B10 / WP-B13.
+**WP-B10** — attendance sync (E4) + three-field attendance model (E18: `status` / `substatus` / `note`). With WP-B9 shipped, instances can now `start → active` with a live `active.group` bridge, so the plan-vs-reality gap between `instance_students` (expected) and `active.visits` (actual) becomes visible for the first time. WP-B10 closes it: mirror `active.visits` creation/end into `instance_students.status` on check-in/out, and surface the E18 `substatus` + `note` fields so staff can record "late / excused / sick / field_trip" without inventing parallel tables. This PR is the first real cross-boundary touch of the timetable epic (`api/iot/checkin/*`) and unblocks WP-B13 (exception ↔ arrival conflict warnings). Scope-gate hard: no gap detection (WP-B12), no student-day aggregation (WP-B11), no cleanup (WP-B14).
 
 ---
 
