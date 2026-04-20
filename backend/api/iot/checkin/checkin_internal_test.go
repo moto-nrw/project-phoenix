@@ -1711,6 +1711,14 @@ func TestSchulhofActivityGroup_NoStaffContext(t *testing.T) {
 	assert.Nil(t, group.CreatedBy, "system-created Schulhof group should have NULL created_by")
 }
 
+// overrideTimeNow pins the package-level timeNow clock to fixed and returns a
+// restore function that should be deferred by the caller.
+func overrideTimeNow(fixed time.Time) func() {
+	orig := timeNow
+	timeNow = func() time.Time { return fixed }
+	return func() { timeNow = orig }
+}
+
 // mockPickupScheduleService is a minimal mock for testing isAfterCheckoutTimeGate.
 type mockPickupScheduleService struct {
 	scheduleSvc.PickupScheduleService
@@ -1805,15 +1813,16 @@ func TestIsAfterCheckoutTimeGate_PerStudentDisabled_GlobalTimeInFuture(t *testin
 func TestIsAfterCheckoutTimeGate_PerStudentEnabled_BeforeDelta(t *testing.T) {
 	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
 
-	// Pickup time 2 hours from now, delta 15 min → too early.
-	// Skip when the +2 offset wraps past midnight (e.g., CI running after
-	// 22:00 local time), since the function projects pickup onto TODAY's
-	// date and the wrapped hour would land in the past instead.
-	now := time.Now()
-	if now.Hour()+2 >= 24 {
-		t.Skip("skipping time-of-day sensitive test: now+2h crosses midnight")
-	}
-	pickupTime := time.Date(2000, 1, 1, now.Hour()+2, 0, 0, 0, now.Location())
+	// Pin "now" to a deterministic midday so the +2h pickup offset never
+	// wraps past midnight. The function projects pickup onto today's date,
+	// so a wrapped hour would otherwise land in the past and flip the
+	// assertion when CI runs late in the day.
+	fixedNow := time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC)
+	restore := overrideTimeNow(fixedNow)
+	defer restore()
+
+	// Pickup time 2 hours from fixed now, delta 15 min → too early.
+	pickupTime := time.Date(2000, 1, 1, fixedNow.Hour()+2, 0, 0, 0, fixedNow.Location())
 
 	rs := &Resource{
 		SettingsService: &mockSettingsService{
