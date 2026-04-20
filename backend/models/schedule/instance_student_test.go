@@ -3,6 +3,7 @@ package schedule
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -118,5 +119,38 @@ func TestInstanceStudent_BeforeAppendModel(t *testing.T) {
 	s := &InstanceStudent{}
 	for _, q := range []any{&bun.SelectQuery{}, &bun.UpdateQuery{}, &bun.DeleteQuery{}, "unknown"} {
 		require.NoError(t, s.BeforeAppendModel(q))
+	}
+}
+
+func TestInstanceStudent_EntityInterface(t *testing.T) {
+	now := time.Date(2026, 4, 20, 12, 0, 0, 0, time.UTC)
+	s := &InstanceStudent{}
+	s.ID = 42
+	s.CreatedAt = now
+	s.UpdatedAt = now.Add(time.Minute)
+
+	assert.Equal(t, int64(42), s.GetID())
+	assert.Equal(t, now, s.GetCreatedAt())
+	assert.Equal(t, now.Add(time.Minute), s.GetUpdatedAt())
+}
+
+func TestAttendanceFieldPatch_HasChanges(t *testing.T) {
+	sentinel := "x"
+	tests := []struct {
+		name  string
+		patch AttendanceFieldPatch
+		want  bool
+	}{
+		{"empty patch", AttendanceFieldPatch{}, false},
+		{"status set", AttendanceFieldPatch{Status: &sentinel}, true},
+		{"substatus set", AttendanceFieldPatch{Substatus: &sentinel}, true},
+		{"substatus cleared", AttendanceFieldPatch{SubstatusClear: true}, true},
+		{"note set", AttendanceFieldPatch{Note: &sentinel}, true},
+		{"note cleared", AttendanceFieldPatch{NoteClear: true}, true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, tc.patch.HasChanges())
+		})
 	}
 }
