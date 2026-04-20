@@ -519,8 +519,8 @@ Two tracks: **all backend first, frontend after.** Each item is a **Work Package
 #### B2 — Activity instances + materialization (core)
 
 - [x] **WP-B5** — `activity_instances`, `instance_staff`, `instance_students`, `activity_exceptions` tables + models + repos → GitHub #1283
-- [ ] **WP-B6** — `active.groups.group_id` NOT NULL → NULLABLE migration + Go model update + NULL-safe consumer updates
-- [ ] **WP-B7** — Timetable settings (7 entries) registered in config system
+- [x] **WP-B6** — `active.groups.group_id` NOT NULL → NULLABLE migration + Go model update + NULL-safe consumer updates → GitHub #1286
+- [x] **WP-B7** — Timetable settings (7 entries) registered in config system → GitHub #1286
 - [ ] **WP-B8** — Materialization service + scheduler job (A/B week + validity filtering) + manual endpoint
 - [ ] **WP-B9** — Instance lifecycle: start (→ `active.group` bridge), complete, cancel + conflict detection service
 - [ ] **WP-B10** — Attendance sync (E4) + three-field attendance model (E18: status / substatus / note)
@@ -573,7 +573,7 @@ Two tracks: **all backend first, frontend after.** Each item is a **Work Package
 
 ### Recommended next
 
-**WP-B5** — mirrors WP-B3/B4 structurally (new tables in `schedule` schema with RLS + tenant scoping + repo + factory wiring). Lowest risk in B2. Unblocks most of the remaining backend.
+**WP-B8** — materialization service + scheduler job. WP-B5 (instance tables), WP-B6 (nullable `group_id`), and WP-B7 (settings) are all shipped, so the registry-gated toggle (`timetable.materialization_enabled`, default `false`) and the nullable bridge are in place. WP-B8 can now be built behind the toggle without perturbing any tenant until they opt in, and it unblocks WP-B9 (instance start → `active.group`) which is the next critical-path item.
 
 ---
 
