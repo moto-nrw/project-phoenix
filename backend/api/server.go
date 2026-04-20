@@ -71,6 +71,9 @@ func NewServer(logger *slog.Logger) (*Server, error) {
 		if api.Services.Feedback != nil {
 			srv.scheduler.SetFeedbackCleaner(api.Services.Feedback)
 		}
+		if api.Services.Materialization != nil {
+			srv.scheduler.SetMaterializer(api.Services.Materialization)
+		}
 	}
 
 	return srv, nil

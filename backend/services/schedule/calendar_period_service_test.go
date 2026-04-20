@@ -7,6 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestScheduleErrorUnwrapsSentinel verifies that the ScheduleError wrapper used
@@ -165,5 +166,48 @@ func TestShouldMaterialize(t *testing.T) {
 		assert.True(t, svc.ShouldMaterialize(1, exactDate, abPeriod))
 		assert.False(t, svc.ShouldMaterialize(2, exactDate, abPeriod))
 		_ = date // used for documentation
+	})
+
+	t.Run("DST boundary does not break A/B pattern", func(t *testing.T) {
+		// Europe/Berlin DST in 2026: CEST begins Sun 2026-03-29 (wall clock
+		// 02:00 → 03:00). A week that crosses this boundary is 167h, not 168h.
+		// The old float-hours math truncated 167/24 to 6 days, producing the
+		// wrong A/B pattern for any anchor on or before the transition.
+		dstAnchor := time.Date(2026, 3, 23, 0, 0, 0, 0, time.UTC)
+		dstPeriod := &schedule.CalendarPeriod{
+			WeekCycleLength: 2,
+			WeekCycleAnchor: &dstAnchor,
+		}
+
+		// Mon 2026-03-30 is exactly 7 civil days after the anchor, post-DST.
+		// It must resolve to Week B (pattern 2), not Week A.
+		mar30UTC := time.Date(2026, 3, 30, 0, 0, 0, 0, time.UTC)
+		assert.False(t, svc.ShouldMaterialize(1, mar30UTC, dstPeriod),
+			"post-DST Monday should not be week A")
+		assert.True(t, svc.ShouldMaterialize(2, mar30UTC, dstPeriod),
+			"post-DST Monday should be week B")
+
+		// Critical: the same civil date expressed in Europe/Berlin local time
+		// would, under the old code, subtract to 167h and yield the wrong
+		// answer. The fix normalizes both sides to UTC midnight based on the
+		// civil date components, which makes the input timezone irrelevant.
+		berlin, err := time.LoadLocation("Europe/Berlin")
+		require.NoError(t, err)
+		mar30Berlin := time.Date(2026, 3, 30, 0, 0, 0, 0, berlin)
+		assert.False(t, svc.ShouldMaterialize(1, mar30Berlin, dstPeriod),
+			"DST-crossing local-time input should still resolve to week B")
+		assert.True(t, svc.ShouldMaterialize(2, mar30Berlin, dstPeriod),
+			"DST-crossing local-time input should still resolve to week B")
+
+		// And the fall transition (CEST → CET on Sun 2026-10-25 = 169h week).
+		// Anchor Mon 2026-10-19 (week A) → Mon 2026-10-26 must be week B.
+		fallAnchor := time.Date(2026, 10, 19, 0, 0, 0, 0, time.UTC)
+		fallPeriod := &schedule.CalendarPeriod{
+			WeekCycleLength: 2,
+			WeekCycleAnchor: &fallAnchor,
+		}
+		oct26Berlin := time.Date(2026, 10, 26, 0, 0, 0, 0, berlin)
+		assert.True(t, svc.ShouldMaterialize(2, oct26Berlin, fallPeriod),
+			"post-fall-DST Monday should be week B")
 	})
 }

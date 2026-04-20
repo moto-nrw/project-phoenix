@@ -89,6 +89,33 @@ func (r *GroupRepository) FindOpenGroups(ctx context.Context) ([]*activities.Gro
 	return groups, nil
 }
 
+// FindAllTemplates returns all activity groups flagged as templates
+// (is_template = true). Tenant-scoped via the standard base.TenantWhere helper.
+func (r *GroupRepository) FindAllTemplates(ctx context.Context) ([]*activities.Group, error) {
+	var groups []*activities.Group
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&groups).
+		ModelTableExpr(tableExprActivitiesGroupsAsGrp).
+		Where(`"group".is_template = ?`, true)
+
+	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.
+		Order(orderByNameAsc).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find all templates",
+			Err: err,
+		}
+	}
+
+	return groups, nil
+}
+
 // FindWithEnrollmentCounts returns groups with their current enrollment counts
 func (r *GroupRepository) FindWithEnrollmentCounts(ctx context.Context) ([]*activities.Group, map[int64]int, error) {
 	var groups []*activities.Group

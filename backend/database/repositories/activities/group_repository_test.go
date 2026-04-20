@@ -255,6 +255,57 @@ func TestActivityGroupRepository_FindOpenGroups(t *testing.T) {
 	})
 }
 
+func TestActivityGroupRepository_FindAllTemplates(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).ActivityGroup
+	ctx := testpkg.TenantContext(1)
+
+	t.Run("returns only groups flagged as templates", func(t *testing.T) {
+		// Template group — should be returned.
+		templateGroup := testpkg.CreateTestActivityGroup(t, db, "TemplateGroup")
+		templateGroup.IsTemplate = true
+		require.NoError(t, repo.Update(ctx, templateGroup))
+		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, templateGroup.CategoryID, 0)
+		defer testpkg.CleanupTableRecords(t, db, "activities.groups", templateGroup.ID)
+
+		// Non-template group — should NOT be returned.
+		regularGroup := testpkg.CreateTestActivityGroup(t, db, "RegularGroup")
+		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, regularGroup.CategoryID, 0)
+		defer testpkg.CleanupTableRecords(t, db, "activities.groups", regularGroup.ID)
+
+		templates, err := repo.FindAllTemplates(ctx)
+		require.NoError(t, err)
+
+		// All returned groups must be templates.
+		for _, g := range templates {
+			assert.True(t, g.IsTemplate, "FindAllTemplates must only return is_template=true rows")
+		}
+
+		// Template group must be present; non-template must not.
+		var foundTemplate, foundRegular bool
+		for _, g := range templates {
+			if g.ID == templateGroup.ID {
+				foundTemplate = true
+			}
+			if g.ID == regularGroup.ID {
+				foundRegular = true
+			}
+		}
+		assert.True(t, foundTemplate, "template group must be returned")
+		assert.False(t, foundRegular, "non-template group must not be returned")
+	})
+
+	t.Run("returns empty slice when no templates exist", func(t *testing.T) {
+		// Isolate this case in a fresh tenant so seed/other templates don't leak in.
+		isoCtx := testpkg.TenantContext(999999)
+		templates, err := repo.FindAllTemplates(isoCtx)
+		require.NoError(t, err)
+		assert.Empty(t, templates, "no templates must return empty slice, not error")
+	})
+}
+
 func TestActivityGroupRepository_FindWithEnrollmentCounts(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

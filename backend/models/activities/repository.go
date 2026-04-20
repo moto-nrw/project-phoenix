@@ -42,6 +42,11 @@ type GroupRepository interface {
 
 	// FindByStaffSupervisorToday finds all activity groups where a staff member is a supervisor for today
 	FindByStaffSupervisorToday(ctx context.Context, staffID int64) ([]*Group, error)
+
+	// FindAllTemplates returns all activity groups flagged as templates
+	// (is_template = true). Used by the materialization service to enumerate
+	// candidates when generating schedule.activity_instances rows.
+	FindAllTemplates(ctx context.Context) ([]*Group, error)
 }
 
 // ScheduleRepository defines operations for managing activity schedules
