@@ -183,6 +183,97 @@ func (r *InstanceStudentRepository) FindByInstanceAndStudent(ctx context.Context
 	return &row, nil
 }
 
+// UpdateAttendanceFromCheckin is the mirror-path write (WP-B10). It flips
+// status 'expected' → 'present' and stamps checked_in_at, but ONLY when the
+// current row is still 'expected'. The status='expected' predicate in the
+// WHERE clause enforces monotonicity: a row that has been marked present
+// (by a prior check-in or a staff PATCH) is never overwritten here.
+//
+// Returns (updated=true) when exactly one row was modified. A zero-rows
+// result means either (a) the row doesn't exist in this tenant, or
+// (b) it already moved out of 'expected' between the caller's read and
+// this UPDATE — a benign race the mirror service handles by preserving
+// the existing state.
+func (r *InstanceStudentRepository) UpdateAttendanceFromCheckin(
+	ctx context.Context, instanceID, studentID int64, checkedInAt time.Time,
+) (bool, error) {
+	q := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*schedule.InstanceStudent)(nil)).
+		ModelTableExpr(modelTblInstanceStudent).
+		Set(`status = ?`, schedule.AttendanceStatusPresent).
+		Set(`checked_in_at = ?`, checkedInAt).
+		Set(`updated_at = ?`, time.Now()).
+		Where(`"instance_student".instance_id = ?`, instanceID).
+		Where(`"instance_student".student_id = ?`, studentID).
+		Where(`"instance_student".status = ?`, schedule.AttendanceStatusExpected)
+
+	if where, val, ok := base.TenantWhere(ctx, aliasInstanceStudent); ok {
+		q = q.Where(where, val)
+	}
+
+	res, err := q.Exec(ctx)
+	if err != nil {
+		return false, &modelBase.DatabaseError{
+			Op:  "update attendance from checkin",
+			Err: err,
+		}
+	}
+	n, _ := res.RowsAffected()
+	return n > 0, nil
+}
+
+// UpdateAttendanceFields writes only the fields the patch carries. Pointer-nil
+// (and the *Clear bools unset) means "do not touch that column". Substatus and
+// Note support explicit NULL via the *Clear companion bools, since both
+// columns are nullable in the schema.
+//
+// This is the PATCH-endpoint write — it overwrites whatever is there. The
+// handler is responsible for cross-field validation (e.g. substatus-with-
+// expected-status) before calling.
+func (r *InstanceStudentRepository) UpdateAttendanceFields(
+	ctx context.Context, id int64, patch schedule.AttendanceFieldPatch,
+) error {
+	if !patch.HasChanges() {
+		// Defensive: the handler should reject this at 400. A repo no-op
+		// here is safer than issuing an empty UPDATE and bumping updated_at.
+		return nil
+	}
+
+	q := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*schedule.InstanceStudent)(nil)).
+		ModelTableExpr(modelTblInstanceStudent).
+		Where(`"instance_student".id = ?`, id)
+
+	if where, val, ok := base.TenantWhere(ctx, aliasInstanceStudent); ok {
+		q = q.Where(where, val)
+	}
+
+	if patch.Status != nil {
+		q = q.Set(`status = ?`, *patch.Status)
+	}
+	switch {
+	case patch.SubstatusClear:
+		q = q.Set(`substatus = NULL`)
+	case patch.Substatus != nil:
+		q = q.Set(`substatus = ?`, *patch.Substatus)
+	}
+	switch {
+	case patch.NoteClear:
+		q = q.Set(`note = NULL`)
+	case patch.Note != nil:
+		q = q.Set(`note = ?`, *patch.Note)
+	}
+	q = q.Set(`updated_at = ?`, time.Now())
+
+	if _, err := q.Exec(ctx); err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "update attendance fields",
+			Err: err,
+		}
+	}
+	return nil
+}
+
 // DeleteByInstanceID removes all attendance rows for an instance.
 func (r *InstanceStudentRepository) DeleteByInstanceID(ctx context.Context, instanceID int64) error {
 	query := base.GetDB(ctx, r.db).NewDelete().

@@ -24,15 +24,16 @@ const dateLayout = "2006-01-02"
 
 // Resource defines the timetable API resource.
 //
-// instanceService, personService, and logger are optional at construction
-// time: tests that only exercise /periods or /materialize can pass nil and
-// will get a 500 on the WP-B9 routes instead of a crash. Production wiring
-// must supply all of them via NewResource.
+// instanceService, personService, instanceStudentRepo, and logger are optional
+// at construction time: tests that only exercise /periods or /materialize can
+// pass nil and will get a 500 on the dependent routes instead of a crash.
+// Production wiring must supply all of them via NewResource.
 type Resource struct {
 	calendarPeriodService  scheduleSvc.CalendarPeriodService
 	materializationService scheduleSvc.MaterializationService
 	instanceService        scheduleSvc.InstanceService
 	personService          userSvc.PersonService
+	instanceStudentRepo    schedule.InstanceStudentRepository // WP-B10 PATCH /instances/{id}/students/{id}
 	logger                 *slog.Logger
 	db                     *bun.DB
 }
@@ -46,6 +47,7 @@ func NewResource(
 	materializationService scheduleSvc.MaterializationService,
 	instanceService scheduleSvc.InstanceService,
 	personService userSvc.PersonService,
+	instanceStudentRepo schedule.InstanceStudentRepository,
 	logger *slog.Logger,
 	db *bun.DB,
 ) *Resource {
@@ -54,6 +56,7 @@ func NewResource(
 		materializationService: materializationService,
 		instanceService:        instanceService,
 		personService:          personService,
+		instanceStudentRepo:    instanceStudentRepo,
 		logger:                 logger,
 		db:                     db,
 	}
@@ -99,6 +102,13 @@ func (rs *Resource) Router() chi.Router {
 				Post("/{id}/complete", rs.completeInstance)
 			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
 				Post("/{id}/cancel", rs.cancelInstance)
+
+			// WP-B10: three-field attendance PATCH. Gated on SchedulesManage
+			// like the lifecycle routes. Path params are {instance_id} and
+			// {student_id} — distinct from the {id} param above so they live
+			// in a sibling route subtree.
+			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
+				Patch("/{instance_id}/students/{student_id}", rs.patchInstanceStudent)
 		})
 	})
 

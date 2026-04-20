@@ -120,6 +120,29 @@ func IsValidAttendanceSubstatus(s string) bool {
 	return false
 }
 
+// AttendanceFieldPatch carries a targeted update to status/substatus/note.
+// A nil pointer means "do not touch"; a non-nil pointer to "" or a valid
+// value means "set to this". Substatus and Note additionally carry a
+// Clear bool to express "set to NULL" (distinct from "don't touch"), since
+// those columns are nullable.
+//
+// The PATCH handler resolves the JSON tri-state (missing / null / value)
+// into this struct before it reaches the repo.
+type AttendanceFieldPatch struct {
+	Status         *string
+	Substatus      *string
+	SubstatusClear bool
+	Note           *string
+	NoteClear      bool
+}
+
+// HasChanges reports whether the patch carries at least one mutation. The
+// PATCH handler uses this to reject no-op bodies at 400.
+func (p AttendanceFieldPatch) HasChanges() bool {
+	return p.Status != nil || p.Substatus != nil || p.SubstatusClear ||
+		p.Note != nil || p.NoteClear
+}
+
 // InstanceStudentRepository defines operations for managing expected/actual
 // attendance on materialized activity instances.
 type InstanceStudentRepository interface {
@@ -139,4 +162,16 @@ type InstanceStudentRepository interface {
 
 	// DeleteByInstanceID removes all attendance rows for an instance.
 	DeleteByInstanceID(ctx context.Context, instanceID int64) error
+
+	// UpdateAttendanceFromCheckin flips status 'expected' → 'present' and
+	// stamps checked_in_at. The status='expected' predicate in the WHERE
+	// clause enforces monotonicity — a row that's already present (double
+	// tap, or post-hoc PATCH) is never clobbered. Returns (updated=true)
+	// only when a row was actually changed.
+	UpdateAttendanceFromCheckin(ctx context.Context, instanceID, studentID int64, checkedInAt time.Time) (bool, error)
+
+	// UpdateAttendanceFields writes only the fields carried by the patch.
+	// Callers (the PATCH handler) must validate cross-field invariants
+	// BEFORE invoking — the repo does not re-check them.
+	UpdateAttendanceFields(ctx context.Context, id int64, patch AttendanceFieldPatch) error
 }

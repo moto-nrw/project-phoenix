@@ -195,6 +195,16 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	// Initialize staff absence service
 	staffAbsenceService := active.NewStaffAbsenceService(repos.StaffAbsence, repos.WorkSession)
 
+	// Initialize attendance sync service (WP-B10). Implements
+	// active.AttendanceSyncer — called from CreateVisit / EndVisit to mirror
+	// into schedule.instance_students and enrich SSE events. No circular
+	// dependency because it only depends on repos, not on active.Service.
+	attendanceSyncService := schedule.NewAttendanceSyncService(
+		repos.ActivityInstance,
+		repos.InstanceStudent,
+		logger.With("service", "attendance-sync"),
+	)
+
 	// Initialize active service with SSE broadcaster
 	activeService := active.NewService(active.ServiceDependencies{
 		GroupRepo:          repos.ActiveGroup,
@@ -216,8 +226,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		EducationService:   educationService,
 		UsersService:       usersService,
 		DB:                 db,
-		Broadcaster:        realtimeHub,        // Pass SSE broadcaster
-		WorkSessionService: workSessionService, // NFC auto-check-in
+		Broadcaster:        realtimeHub,           // Pass SSE broadcaster
+		WorkSessionService: workSessionService,    // NFC auto-check-in
+		AttendanceSyncer:   attendanceSyncService, // WP-B10 mirror + SSE enrichment
 		Logger:             activeLogger,
 	})
 
