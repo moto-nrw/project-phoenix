@@ -57,6 +57,24 @@ function getSickDisplayMode(
   return "additional";
 }
 
+/**
+ * Determines how to display excused status on the badge.
+ * Mirrors the sick pattern:
+ * - If excused AND at home: replace "Zuhause" with "Entschuldigt"
+ * - If excused AND present: show additional "Entschuldigt" indicator
+ */
+function getExcusedDisplayMode(
+  student: StudentLocationContext,
+): "replace" | "additional" | "none" {
+  if (!student.excused) return "none";
+
+  if (isHomeLocation(student.current_location)) {
+    return "replace";
+  }
+
+  return "additional";
+}
+
 interface LocationBadgeProps {
   readonly student: StudentLocationContext;
   readonly displayMode: DisplayMode;
@@ -116,8 +134,12 @@ export function LocationBadge({
     supervisedRooms,
   );
 
-  // Check sick status display mode
+  // Check sick / excused status display modes.
+  // Sick takes precedence when both are set — the backend enforces mutual
+  // exclusion, so this is defensive. Only one replace-mode applies at a time.
   const sickMode = getSickDisplayMode(student);
+  const excusedMode =
+    sickMode === "none" ? getExcusedDisplayMode(student) : "none";
 
   // Determine color based on display mode and permissions
   let color: string;
@@ -153,10 +175,14 @@ export function LocationBadge({
   if (sickMode === "replace") {
     color = LOCATION_COLORS.SICK;
     label = LOCATION_STATUSES.SICK;
+  } else if (excusedMode === "replace") {
+    color = LOCATION_COLORS.EXCUSED;
+    label = LOCATION_STATUSES.EXCUSED;
   }
 
   const glowEffect = getLocationGlowEffect(color);
   const sickGlowEffect = getLocationGlowEffect(LOCATION_COLORS.SICK);
+  const excusedGlowEffect = getLocationGlowEffect(LOCATION_COLORS.EXCUSED);
 
   const locationStyle: LocationStyle = {
     color,
@@ -167,19 +193,24 @@ export function LocationBadge({
   const sizeKey = size ?? DEFAULT_SIZE;
   const sizeConfig = SIZE_MAP[sizeKey] ?? SIZE_MAP[DEFAULT_SIZE];
 
-  // Determine if we should show "seit XX:XX" for this status
-  // For sick at home, prefer sick_since but fall back to location_since if missing
-  const timeSource =
+  // Determine if we should show "seit XX:XX" for this status.
+  // For sick/excused at home, prefer the dedicated *_since timestamp but fall
+  // back to location_since if missing.
+  const replaceTimeSource =
     sickMode === "replace"
       ? (student.sick_since ?? student.location_since)
-      : student.location_since;
+      : excusedMode === "replace"
+        ? (student.excused_since ?? student.location_since)
+        : null;
+  const timeSource = replaceTimeSource ?? student.location_since;
   const formattedTime = formatLocationSince(timeSource);
   const showSinceTime =
     showLocationSince &&
     formattedTime &&
     (parsed.status === LOCATION_STATUSES.PRESENT ||
       parsed.status === LOCATION_STATUSES.HOME ||
-      sickMode === "replace");
+      sickMode === "replace" ||
+      excusedMode === "replace");
 
   // Sick indicator badge for "additional" mode (sick but present)
   // Uses same size configuration as the main badge for consistency
@@ -196,6 +227,24 @@ export function LocationBadge({
         className={`${sizeConfig.dot} animate-pulse rounded-full bg-white/80`}
       />
       {LOCATION_STATUSES.SICK}
+    </span>
+  );
+
+  // Excused indicator badge for "additional" mode (excused but present).
+  // Same size/shape as sick indicator, purple to differentiate.
+  const ExcusedIndicator = () => (
+    <span
+      className={`mt-1 ${MODERN_BASE_CLASS} ${sizeConfig.modern}`}
+      style={{
+        backgroundColor: LOCATION_COLORS.EXCUSED,
+        boxShadow: excusedGlowEffect,
+      }}
+      data-excused-indicator="true"
+    >
+      <span
+        className={`${sizeConfig.dot} animate-pulse rounded-full bg-white/80`}
+      />
+      {LOCATION_STATUSES.EXCUSED}
     </span>
   );
 
@@ -218,6 +267,7 @@ export function LocationBadge({
           </span>
         )}
         {sickMode === "additional" && <SickIndicator />}
+        {excusedMode === "additional" && <ExcusedIndicator />}
       </div>
     );
   }
@@ -243,6 +293,7 @@ export function LocationBadge({
         </span>
       )}
       {sickMode === "additional" && <SickIndicator />}
+      {excusedMode === "additional" && <ExcusedIndicator />}
     </div>
   );
 }

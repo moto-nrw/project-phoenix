@@ -482,10 +482,12 @@ func TestScheduler_DisabledByEnvVars(t *testing.T) {
 	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_ENABLED", "false"))
 	require.NoError(t, os.Setenv("SESSION_END_SCHEDULER_ENABLED", "false"))
 	require.NoError(t, os.Setenv("SESSION_CLEANUP_ENABLED", "false"))
+	require.NoError(t, os.Setenv("STATUS_FLAG_CLEAR_ENABLED", "false"))
 	defer func() {
 		_ = os.Unsetenv("CLEANUP_SCHEDULER_ENABLED")
 		_ = os.Unsetenv("SESSION_END_SCHEDULER_ENABLED")
 		_ = os.Unsetenv("SESSION_CLEANUP_ENABLED")
+		_ = os.Unsetenv("STATUS_FLAG_CLEAR_ENABLED")
 	}()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -1176,6 +1178,7 @@ func (m *mockActiveService) GetCrossTenantStudents(_ context.Context, _ int64) (
 func (m *mockActiveService) GetTrackingIndicators(_ context.Context, _ []int64, _ []string) (map[int64][]bool, error) {
 	return nil, nil
 }
+func (m *mockActiveService) SetSettingsService(_ activeService.SettingsResolver) {}
 
 // =============================================================================
 // Mock Cleanup Service for Execute Tests

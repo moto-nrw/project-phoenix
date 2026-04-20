@@ -121,6 +121,10 @@ interface BFFDashboardResponse {
     activeGroupId: string;
     checkInTime: string;
     isActive: boolean;
+    sick?: boolean;
+    sickSince?: string;
+    excused?: boolean;
+    excusedSince?: string;
   }>;
   firstRoomId: string | null;
   schulhofStatus: SchulhofStatusResponse | null;
@@ -434,6 +438,10 @@ function MeinRaumPageContent() {
             current_location: location,
             group_name: visit.groupName,
             group_id: groupId, // Add group_id for permission checking
+            sick: visit.sick,
+            sick_since: visit.sickSince,
+            excused: visit.excused,
+            excused_since: visit.excusedSince,
             activeGroupId: visit.activeGroupId,
             checkInTime: visit.checkInTime,
           } as StudentWithVisit;
@@ -764,6 +772,10 @@ function MeinRaumPageContent() {
               current_location: location,
               group_name: visit.groupName,
               group_id: groupId,
+              sick: visit.sick,
+              sick_since: visit.sickSince,
+              excused: visit.excused,
+              excused_since: visit.excusedSince,
               activeGroupId: visit.activeGroupId,
               checkInTime: new Date(visit.checkInTime),
             } as StudentWithVisit;
@@ -917,6 +929,10 @@ function MeinRaumPageContent() {
           current_location: location,
           group_name: visit.groupName,
           group_id: groupId,
+          sick: visit.sick,
+          sick_since: visit.sickSince,
+          excused: visit.excused,
+          excused_since: visit.excusedSince,
           activeGroupId: visit.activeGroupId,
           checkInTime: visit.checkInTime,
         } as StudentWithVisit;

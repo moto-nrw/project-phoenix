@@ -311,10 +311,10 @@ describe("prepareStudentForBackend", () => {
     expect(result.birthday).toBeUndefined();
   });
 
-  it("defaults bus to false when undefined", () => {
+  it("omits bus when undefined so partial updates do not clobber the flag", () => {
     const result = prepareStudentForBackend({ id: "1" });
 
-    expect(result.bus).toBe(false);
+    expect(result.bus).toBeUndefined();
   });
 
   it("handles missing id for creation", () => {

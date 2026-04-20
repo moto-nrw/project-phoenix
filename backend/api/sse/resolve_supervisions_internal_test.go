@@ -96,6 +96,8 @@ func (m *mockActiveSvcForSSE) GetTrackingIndicators(_ context.Context, _ []int64
 	return map[int64][]bool{}, nil
 }
 
+func (m *mockActiveSvcForSSE) SetSettingsService(_ activeSvc.SettingsResolver) {}
+
 // Stubs for the rest of active.Service (never called by resolveSupervisions)
 func (m *mockActiveSvcForSSE) GetActiveGroup(_ context.Context, _ int64) (*activeModel.Group, error) {
 	return nil, nil

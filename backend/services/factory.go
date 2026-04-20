@@ -274,6 +274,11 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		logger,
 	)
 
+	// Inject settings resolver into active service so auto-clear of sick /
+	// excused flags respects the tenant's operations.sick_clear_mode and
+	// operations.excused_clear_mode settings.
+	activeService.SetSettingsService(settingsService)
+
 	// Initialize activities service
 	activitiesService, err := activities.NewService(
 		repos.ActivityCategory,
