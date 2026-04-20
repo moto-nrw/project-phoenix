@@ -471,15 +471,28 @@ func (rs *Resource) countActiveGroupOccupancy(ctx context.Context, activeGroupID
 
 // checkActivityCapacity validates that the activity has capacity for another student.
 // Returns nil if capacity is available, error otherwise.
+//
+// Spontaneous sessions (no parent template in activities.groups, WP-B6) have
+// no capacity row to consult. Today's IoT check-in flow only interacts with
+// template-backed sessions, so a nil GroupID here is unexpected and we fail
+// the capacity check rather than silently admitting the student.
 func (rs *Resource) checkActivityCapacity(ctx context.Context, w http.ResponseWriter, r *http.Request, activeGroup *active.Group) error {
 	// Get the activity group to check MaxParticipants
 	activityGroup := activeGroup.ActualGroup
 	if activityGroup == nil {
+		templateID, ok := activeGroup.TemplateID()
+		if !ok {
+			rs.getLogger().ErrorContext(ctx, "spontaneous active group reached IoT capacity check — unsupported in this flow",
+				slog.Int64("active_group_id", activeGroup.ID),
+			)
+			iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("spontaneous sessions are not supported on this check-in path")))
+			return errors.New("spontaneous session in IoT capacity check")
+		}
 		var err error
-		activityGroup, err = rs.ActivitiesService.GetGroup(ctx, activeGroup.GroupID)
+		activityGroup, err = rs.ActivitiesService.GetGroup(ctx, templateID)
 		if err != nil {
 			rs.getLogger().ErrorContext(ctx, "failed to get activity group",
-				slog.Int64("activity_group_id", activeGroup.GroupID),
+				slog.Int64("activity_group_id", templateID),
 				slog.String("error", err.Error()),
 			)
 			iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to get activity information")))
@@ -619,8 +632,10 @@ func (rs *Resource) createSpecialRoomActiveGroupIfNeeded(ctx context.Context, w 
 		return nil, errors.New("no active groups in specified room")
 	}
 
+	// IoT check-in fallback always starts a template-backed session.
+	activityGroupID := activityGroup.ID
 	newActiveGroup := &active.Group{
-		GroupID:      activityGroup.ID,
+		GroupID:      &activityGroupID,
 		RoomID:       room.ID,
 		StartTime:    time.Now(),
 		LastActivity: time.Now(),

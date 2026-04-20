@@ -7,10 +7,14 @@ export interface TrackingIndicatorsResponse {
   results: Record<string, boolean[]>; // student_id → [matched1, matched2, ...]
 }
 
-// Backend types (from Go structs)
+// Backend types (from Go structs).
+// group_id: number | null — WP-B6 made active.groups.group_id nullable so
+// spontaneous activity instances can run without a parent template. The
+// backend serializes `null` explicitly (no omitempty), so clients MUST
+// handle both shapes.
 export interface BackendActiveGroup {
   id: number;
-  group_id: number;
+  group_id: number | null;
   room_id: number;
   start_time: string;
   end_time?: string;
@@ -96,9 +100,11 @@ export interface BackendAnalytics {
 }
 
 // Frontend types
+// groupId: string | null — mirrors the nullable backend contract (WP-B6).
+// A null value means the session is spontaneous (no parent template).
 export interface ActiveGroup {
   id: string;
-  groupId: string;
+  groupId: string | null;
   roomId: string;
   startTime: Date;
   endTime?: Date;
@@ -189,7 +195,13 @@ export function mapActiveGroupResponse(
 ): ActiveGroup {
   return {
     id: String(backendActiveGroup.id),
-    groupId: String(backendActiveGroup.group_id),
+    // Preserve null when the backend sends `group_id: null` (spontaneous
+    // session, WP-B6). Do NOT do `String(null)` — that produces the literal
+    // string "null" which would silently break any equality check.
+    groupId:
+      backendActiveGroup.group_id === null
+        ? null
+        : String(backendActiveGroup.group_id),
     roomId: String(backendActiveGroup.room_id),
     startTime: new Date(backendActiveGroup.start_time),
     endTime: backendActiveGroup.end_time
@@ -365,7 +377,15 @@ export interface GroupMappingRequest {
   combined_group_id: number;
 }
 
-// Utility functions to prepare data for backend
+// Utility functions to prepare data for backend.
+//
+// NOTE (WP-B6): this helper targets the admin CRUD endpoint
+// (POST/PUT /api/active/groups) which REQUIRES a positive template id. A
+// spontaneous session (groupId === null) cannot be created through this
+// path — spontaneous creation goes through a separate handler (WP-B9+).
+// The truthy guard below is therefore intentional: if groupId is null, we
+// omit the field, and the backend's request validator will reject the
+// request with a 400. That is the desired behaviour for this endpoint.
 export function prepareActiveGroupForBackend(
   activeGroup: Partial<ActiveGroup>,
 ): Partial<CreateActiveGroupRequest> {

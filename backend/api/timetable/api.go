@@ -3,6 +3,7 @@ package timetable
 import (
 	"database/sql"
 	"errors"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -14,23 +15,47 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	userSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
 const dateLayout = "2006-01-02"
 
-// Resource defines the timetable API resource
+// Resource defines the timetable API resource.
+//
+// instanceService, personService, and logger are optional at construction
+// time: tests that only exercise /periods or /materialize can pass nil and
+// will get a 500 on the WP-B9 routes instead of a crash. Production wiring
+// must supply all of them via NewResource.
 type Resource struct {
-	calendarPeriodService scheduleSvc.CalendarPeriodService
-	db                    *bun.DB
+	calendarPeriodService  scheduleSvc.CalendarPeriodService
+	materializationService scheduleSvc.MaterializationService
+	instanceService        scheduleSvc.InstanceService
+	personService          userSvc.PersonService
+	logger                 *slog.Logger
+	db                     *bun.DB
 }
 
-// NewResource creates a new timetable resource
-func NewResource(calendarPeriodService scheduleSvc.CalendarPeriodService, db *bun.DB) *Resource {
+// NewResource creates a new timetable resource. Optional services (see the
+// Resource doc) may be nil; passing nil for the materialization or instance
+// service makes the corresponding routes return 500 instead of silently
+// misbehaving.
+func NewResource(
+	calendarPeriodService scheduleSvc.CalendarPeriodService,
+	materializationService scheduleSvc.MaterializationService,
+	instanceService scheduleSvc.InstanceService,
+	personService userSvc.PersonService,
+	logger *slog.Logger,
+	db *bun.DB,
+) *Resource {
 	return &Resource{
-		calendarPeriodService: calendarPeriodService,
-		db:                    db,
+		calendarPeriodService:  calendarPeriodService,
+		materializationService: materializationService,
+		instanceService:        instanceService,
+		personService:          personService,
+		logger:                 logger,
+		db:                     db,
 	}
 }
 
@@ -53,6 +78,27 @@ func (rs *Resource) Router() chi.Router {
 			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).Get("/{id}", rs.getPeriod)
 			r.With(authorize.RequiresPermission(permissions.SchedulesUpdate), withTx).Put("/{id}", rs.updatePeriod)
 			r.With(authorize.RequiresPermission(permissions.SchedulesDelete), withTx).Delete("/{id}", rs.deletePeriod)
+		})
+
+		// WP-B8: manual materialization. Admin-only — reuses SchedulesManage
+		// as the rough "you can do anything with the schedule" permission.
+		// The scheduler job runs the same service; this endpoint exists so
+		// admins can re-run ad hoc without waiting for the weekly cadence.
+		r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
+			Post("/materialize", rs.materialize)
+
+		// WP-B9: instance lifecycle + re-plan-week. All four routes gated on
+		// SchedulesManage. They share the tenant tx so start/complete/cancel
+		// are atomic end-to-end (no dangling bridge rows on rollback).
+		r.Route("/instances", func(r chi.Router) {
+			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
+				Post("/re-plan-week", rs.replanWeek)
+			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
+				Post("/{id}/start", rs.startInstance)
+			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
+				Post("/{id}/complete", rs.completeInstance)
+			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
+				Post("/{id}/cancel", rs.cancelInstance)
 		})
 	})
 

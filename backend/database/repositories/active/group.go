@@ -386,7 +386,7 @@ func (r *GroupRepository) FindActiveByDeviceID(ctx context.Context, deviceID int
 		EndTime        *time.Time `bun:"end_time"`
 		LastActivity   time.Time  `bun:"last_activity"`
 		TimeoutMinutes int        `bun:"timeout_minutes"`
-		GroupID        int64      `bun:"group_id"`
+		GroupID        *int64     `bun:"group_id"`
 		DeviceID       *int64     `bun:"device_id"`
 		RoomID         int64      `bun:"room_id"`
 		CreatedAt      time.Time  `bun:"created_at"`
@@ -450,7 +450,7 @@ func (r *GroupRepository) FindActiveByDeviceIDWithNames(ctx context.Context, dev
 		EndTime        *time.Time `bun:"end_time"`
 		LastActivity   time.Time  `bun:"last_activity"`
 		TimeoutMinutes int        `bun:"timeout_minutes"`
-		GroupID        int64      `bun:"group_id"`
+		GroupID        *int64     `bun:"group_id"`
 		DeviceID       *int64     `bun:"device_id"`
 		RoomID         int64      `bun:"room_id"`
 		CreatedAt      time.Time  `bun:"created_at"`
@@ -505,10 +505,13 @@ func (r *GroupRepository) FindActiveByDeviceIDWithNames(ctx context.Context, dev
 		RoomID:         result.RoomID,
 	}
 
-	// Add activity info if available
-	if result.ActivityName != nil && *result.ActivityName != "" {
+	// Add activity info if available. The LEFT JOIN only yields an ActivityName
+	// when group_id is non-NULL and matches an activities.groups row, so a
+	// non-empty name implies result.GroupID is non-nil. We still guard the
+	// dereference explicitly to keep this robust against future query changes.
+	if result.GroupID != nil && result.ActivityName != nil && *result.ActivityName != "" {
 		session.ActualGroup = &activities.Group{
-			Model: modelBase.Model{ID: result.GroupID},
+			Model: modelBase.Model{ID: *result.GroupID},
 			Name:  *result.ActivityName,
 		}
 	}
@@ -610,7 +613,7 @@ func (r *GroupRepository) FindActiveSessionsOlderThan(ctx context.Context, cutof
 		EndTime        *time.Time `bun:"end_time"`
 		LastActivity   time.Time  `bun:"last_activity"`
 		TimeoutMinutes int        `bun:"timeout_minutes"`
-		GroupID        int64      `bun:"group_id"`
+		GroupID        *int64     `bun:"group_id"`
 		DeviceID       *int64     `bun:"device_id"`
 		RoomID         int64      `bun:"room_id"`
 		// Device fields
@@ -927,7 +930,9 @@ func (r *GroupRepository) loadUnclaimedGroupRelations(ctx context.Context, group
 	return nil
 }
 
-// collectRelationIDs extracts unique room and group IDs
+// collectRelationIDs extracts unique room and group IDs. Spontaneous sessions
+// (g.GroupID == nil) have no parent template — they are skipped here rather
+// than materialising as spurious zero IDs.
 func collectRelationIDs(groups []*active.Group) (roomIDs, groupIDs []int64) {
 	roomSeen := make(map[int64]bool)
 	groupSeen := make(map[int64]bool)
@@ -937,9 +942,9 @@ func collectRelationIDs(groups []*active.Group) (roomIDs, groupIDs []int64) {
 			roomIDs = append(roomIDs, g.RoomID)
 			roomSeen[g.RoomID] = true
 		}
-		if g.GroupID > 0 && !groupSeen[g.GroupID] {
-			groupIDs = append(groupIDs, g.GroupID)
-			groupSeen[g.GroupID] = true
+		if templateID, ok := g.TemplateID(); ok && !groupSeen[templateID] {
+			groupIDs = append(groupIDs, templateID)
+			groupSeen[templateID] = true
 		}
 	}
 	return roomIDs, groupIDs
@@ -995,8 +1000,10 @@ func assignActivityGroupsToGroups(groups []*active.Group, activityGroups []*acti
 		agMap[ag.ID] = ag
 	}
 	for _, g := range groups {
-		if ag, ok := agMap[g.GroupID]; ok {
-			g.ActualGroup = ag
+		if templateID, ok := g.TemplateID(); ok {
+			if ag, found := agMap[templateID]; found {
+				g.ActualGroup = ag
+			}
 		}
 	}
 }

@@ -83,3 +83,16 @@ const (
 	ClearModeNextCheckin = "next_checkin"
 	ClearModeEndOfDay    = "end_of_day"
 )
+
+// Timetable settings (WP-B7). Per-tenant configuration for the activity
+// template → instance materialization pipeline and the staff-facing
+// auto-start behaviour. All definitions live in defaults/timetable.go.
+const (
+	KeyTimetableMaterializationEnabled    = "timetable.materialization_enabled"
+	KeyTimetableMaterializationWeekday    = "timetable.materialization_weekday"
+	KeyTimetableMaterializationWeeksAhead = "timetable.materialization_weeks_ahead"
+	KeyTimetableAutoStartPlanned          = "timetable.auto_start_planned"
+	KeyTimetableOverdueThresholdMinutes   = "timetable.overdue_threshold_minutes"
+	KeyTimetableShowExpectedChildrenCount = "timetable.show_expected_children_count"
+	KeyGDPRTimetableRetentionDays         = "gdpr.timetable_retention_days"
+)

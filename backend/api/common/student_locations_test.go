@@ -6,6 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/stretchr/testify/assert"
@@ -277,7 +278,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocation_CheckedIn_GroupNoRoom(t 
 		},
 		Groups: map[int64]*activeModels.Group{
 			456: {
-				GroupID:   789,
+				GroupID:   base.Int64Ptr(789),
 				RoomID:    1,
 				StartTime: startTime,
 				Room:      nil, // No room loaded
@@ -311,7 +312,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocation_CheckedIn_GroupEmptyRoom
 		},
 		Groups: map[int64]*activeModels.Group{
 			456: {
-				GroupID:   789,
+				GroupID:   base.Int64Ptr(789),
 				RoomID:    1,
 				StartTime: startTime,
 				Room: &facilities.Room{
@@ -347,7 +348,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocation_CheckedIn_WithRoom(t *te
 		},
 		Groups: map[int64]*activeModels.Group{
 			456: {
-				GroupID:   789,
+				GroupID:   base.Int64Ptr(789),
 				RoomID:    1,
 				StartTime: startTime,
 				Room: &facilities.Room{
@@ -438,7 +439,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocationWithTime_CheckedIn_WithRo
 		},
 		Groups: map[int64]*activeModels.Group{
 			456: {
-				GroupID:   789,
+				GroupID:   base.Int64Ptr(789),
 				RoomID:    1,
 				StartTime: startTime,
 				Room: &facilities.Room{
@@ -497,7 +498,7 @@ func TestStudentLocationSnapshot_MultipleStudents(t *testing.T) {
 		},
 		Groups: map[int64]*activeModels.Group{
 			10: {
-				GroupID: 100, RoomID: 1, StartTime: startTime,
+				GroupID: base.Int64Ptr(100), RoomID: 1, StartTime: startTime,
 				Room: &facilities.Room{Name: "Cafeteria"},
 			},
 		},

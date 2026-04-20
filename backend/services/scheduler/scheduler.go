@@ -13,7 +13,10 @@ import (
 	"github.com/getsentry/sentry-go"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/platform"
+	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/active"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -78,6 +81,7 @@ type Scheduler struct {
 	workSessionCleanup WorkSessionCleaner
 	breakAutoEnder     BreakAutoEnder
 	feedbackCleaner    FeedbackCleaner
+	materializer       scheduleSvc.MaterializationService
 	settings           SettingsResolver
 	db                 *bun.DB
 	schoolRepo         platform.SchoolRepository
@@ -101,6 +105,24 @@ type Scheduler struct {
 	lastDataCleanup     sync.Map // tenant_id → time.Time
 	lastSessionCleanup  sync.Map // tenant_id → time.Time
 	lastStatusFlagClear sync.Map // tenant_id → time.Time
+	lastMaterialization sync.Map // tenant_id → time.Time
+
+	// Overdue instance tracking (WP-B9). Re-fire guard so the same instance
+	// does not emit `instance_overdue` every minute for the same planned
+	// row. Cleared explicitly on day boundary; see checkAndRunOverdue.
+	instanceRepo        scheduleModel.ActivityInstanceRepository
+	overdueBroadcaster  realtime.Broadcaster
+	overdueEmitted      sync.Map // overdueKey{tenantID, instanceID} → time.Time
+	overdueEmittedDay   time.Time
+	overdueEmittedDayMu sync.Mutex
+}
+
+// overdueKey composites tenant + instance so the sync.Map key cannot collide
+// across tenants. Using a struct literal avoids the ambiguity of a stringly-
+// typed "tenant:instance" key if either id ever contained a colon.
+type overdueKey struct {
+	tenantID   int64
+	instanceID int64
 }
 
 // ScheduledTask represents a scheduled task
@@ -150,6 +172,15 @@ func (s *Scheduler) SetFeedbackCleaner(fc FeedbackCleaner) {
 	s.feedbackCleaner = fc
 }
 
+// SetMaterializer wires the timetable materialization service. When set, the
+// scheduler registers the weekly materialization task in Start(). A nil
+// materializer is a valid configuration — the task simply does not register,
+// matching the legacy "opt-in via dependency injection" pattern used by the
+// feedback cleaner, work-session cleaner, and break auto-ender above.
+func (s *Scheduler) SetMaterializer(m scheduleSvc.MaterializationService) {
+	s.materializer = m
+}
+
 // SetDB sets the database connection for tenant-aware operations.
 func (s *Scheduler) SetDB(db *bun.DB) {
 	s.db = db
@@ -164,6 +195,16 @@ func (s *Scheduler) SetSchoolRepo(repo platform.SchoolRepository) {
 // When set, the scheduler reads per-tenant settings instead of global env vars.
 func (s *Scheduler) SetSettingsService(svc SettingsResolver) {
 	s.settings = svc
+}
+
+// SetInstanceOverdueDeps wires the dependencies for the WP-B9 overdue
+// instance tick. Both parameters are required; passing nil for either
+// disables the tick entirely (no task registers, no SSE events fire). Same
+// opt-in shape as SetMaterializer: a partial wiring is never a silent
+// misconfiguration.
+func (s *Scheduler) SetInstanceOverdueDeps(repo scheduleModel.ActivityInstanceRepository, broadcaster realtime.Broadcaster) {
+	s.instanceRepo = repo
+	s.overdueBroadcaster = broadcaster
 }
 
 // forEachTenant executes fn for each active tenant inside a WithTenantTx.
@@ -261,6 +302,12 @@ func (s *Scheduler) Start() {
 
 	// Schedule daily sick/excused status-flag clear task
 	s.scheduleStatusFlagClearTask()
+
+	// Schedule weekly timetable materialization (WP-B8)
+	s.scheduleMaterializationTask()
+
+	// Schedule minute-polled overdue instance tick (WP-B9)
+	s.scheduleInstanceOverdueTask()
 }
 
 // Stop gracefully stops the scheduler
@@ -1380,4 +1427,368 @@ func (s *Scheduler) clearStatusFlag(ctx context.Context, flagColumn, sinceColumn
 		return 0, err
 	}
 	return affected, nil
+}
+
+// --- Timetable materialization (WP-B8) ---
+//
+// Defaults-off: a tenant opts in by setting `timetable.materialization_enabled`
+// to true in the settings UI. Without the opt-in, the per-tenant check short-
+// circuits and the scheduler does nothing for that tenant. The job fires
+// once per day-of-week (on the configured weekday) via a 60-second
+// minute-polling loop, same shape as scheduleSessionEndTask.
+//
+// The actual business logic (period selection, A/B week filtering, exception
+// application, instance/staff/student generation) lives entirely in
+// services/schedule.MaterializationService — the scheduler only decides
+// "when to call it" and "for which tenant".
+
+// scheduleMaterializationTask registers the weekly timetable-materialization
+// task when a Materializer has been wired in. No materializer → no task.
+func (s *Scheduler) scheduleMaterializationTask() {
+	if s.materializer == nil {
+		s.getLogger().Info("timetable materialization not configured (no Materializer service)")
+		return
+	}
+
+	task := &ScheduledTask{
+		Name:     "timetable-materialization",
+		Schedule: "1m-poll",
+	}
+
+	s.mu.Lock()
+	s.tasks[task.Name] = task
+	s.mu.Unlock()
+
+	s.wg.Add(1)
+	go s.runMaterializationTaskPolling(task)
+}
+
+// runMaterializationTaskPolling ticks every minute and delegates to
+// checkAndRunMaterialization. Minute alignment matches the other scheduler
+// tasks so HH:MM:00 ticks land deterministically.
+func (s *Scheduler) runMaterializationTaskPolling(task *ScheduledTask) {
+	defer s.wg.Done()
+	defer func() {
+		if r := recover(); r != nil {
+			err := fmt.Errorf("panic in materialization task: %v", r)
+			s.getLogger().Error("goroutine panic recovered", slog.String("error", err.Error()))
+			sentry.CurrentHub().Recover(r)
+			sentry.Flush(2 * time.Second)
+		}
+	}()
+
+	s.getLogger().Info("timetable materialization using minute-polling for per-tenant scheduling")
+
+	// Startup check — covers the case of the server booting on the scheduled
+	// weekday after the minute has already passed.
+	s.checkAndRunMaterialization(task)
+
+	if !s.waitUntilNextMinute() {
+		return
+	}
+
+	ticker := time.NewTicker(60 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			s.checkAndRunMaterialization(task)
+		case <-s.done:
+			return
+		}
+	}
+}
+
+// checkAndRunMaterialization iterates active tenants and fires materialization
+// for each tenant whose configured weekday matches today's ISO weekday, gated
+// on the timetable.materialization_enabled setting.
+func (s *Scheduler) checkAndRunMaterialization(task *ScheduledTask) {
+	task.mu.Lock()
+	if task.Running {
+		task.mu.Unlock()
+		return
+	}
+	task.Running = true
+	task.mu.Unlock()
+	defer func() {
+		task.mu.Lock()
+		task.Running = false
+		task.mu.Unlock()
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	defer cancel()
+
+	s.forEachTenantSettings(ctx, "materialization-check", func(tenantCtx context.Context, tenantID int64) error {
+		enabled := s.resolveBoolSetting(tenantCtx, configModel.KeyTimetableMaterializationEnabled, "", false)
+		if !enabled {
+			return nil
+		}
+
+		// Registry default is 5 (Friday, ISO 8601). The helper goes through
+		// HasTenantOverride → ResolveInt → env → default, exactly matching
+		// the documented fallback pattern.
+		targetWeekday := s.resolveIntSetting(tenantCtx, configModel.KeyTimetableMaterializationWeekday, "", 5)
+		if !isoWeekdayMatchesNow(targetWeekday) {
+			return nil
+		}
+
+		if wasRunToday(&s.lastMaterialization, tenantID) {
+			return nil
+		}
+		markRunToday(&s.lastMaterialization, tenantID)
+
+		weeksAhead := s.resolveIntSetting(tenantCtx, configModel.KeyTimetableMaterializationWeeksAhead, "", 1)
+		from, to := s.materializer.ResolveWindow(time.Now(), weeksAhead)
+
+		s.getLogger().Info("running timetable materialization for tenant",
+			slog.Int64("tenant_id", tenantID),
+			slog.Int("target_weekday", targetWeekday),
+			slog.Int("weeks_ahead", weeksAhead),
+			slog.String("from", from.Format("2006-01-02")),
+			slog.String("to", to.Format("2006-01-02")),
+		)
+
+		result, err := s.materializer.MaterializeForTenant(tenantCtx, from, to, scheduleSvc.MaterializationSourceScheduler)
+		if err != nil {
+			// Clear today-mark so a retry on the next scheduler day succeeds.
+			// We do NOT clear immediately because that would cause every
+			// subsequent minute on the same day to retry a known-failing run.
+			s.getLogger().Error("timetable materialization failed for tenant",
+				slog.Int64("tenant_id", tenantID),
+				slog.String("error", err.Error()),
+			)
+			return nil
+		}
+
+		if result.InstancesCreated > 0 || result.CandidatesRaced > 0 {
+			s.getLogger().Info("timetable materialization completed for tenant",
+				slog.Int64("tenant_id", tenantID),
+				slog.Int("created", result.InstancesCreated),
+				slog.Int("skipped_existing", result.CandidatesSkippedExisting),
+				slog.Int("raced", result.CandidatesRaced),
+				slog.Int64("duration_ms", result.DurationMS),
+			)
+		}
+		return nil
+	})
+}
+
+// isoWeekdayMatchesNow returns true if wd (1=Mon…7=Sun) matches today's ISO
+// weekday. Wall-clock local time is used because the per-tenant timezone is
+// not part of WP-B8 — default materialization day is "Friday wherever the
+// server is", good enough for a German-only deployment.
+func isoWeekdayMatchesNow(wd int) bool {
+	today := time.Now().Weekday()
+	if today == time.Sunday {
+		return wd == 7
+	}
+	return wd == int(today)
+}
+
+// --- Instance overdue tick (WP-B9) ---
+//
+// Purpose: emit realtime.EventInstanceOverdue once per planned instance that
+// has exceeded its start_time by the tenant-configured threshold. Drives the
+// "Überfällig" badge in the staff "My Day" view.
+//
+// Cadence: same minute-polling shape as every other scheduler task. The tick
+// does NOT read timetable.auto_start_planned — that setting belongs to E19
+// level 3 (auto-start, WP-F10), a separate workpackage.
+//
+// Re-fire guard: an in-memory sync.Map keyed by (tenant_id, instance_id).
+// Cleared explicitly when the civil-date rolls over — do not rely on entries
+// decaying via planned-filter misses, that leaks memory for cancelled or
+// completed instances until restart. On a mid-day restart the cache is
+// empty and each still-overdue planned instance fires once more; subscribers
+// are idempotent, that cost is acceptable for zero disk state.
+
+// scheduleInstanceOverdueTask registers the tick when both dependencies are
+// wired. No repo or no broadcaster → no task; matches SetMaterializer's
+// opt-in pattern so partial wiring is never a silent misconfiguration.
+func (s *Scheduler) scheduleInstanceOverdueTask() {
+	if s.instanceRepo == nil || s.overdueBroadcaster == nil {
+		s.getLogger().Info("instance overdue tick not configured (missing repo or broadcaster)")
+		return
+	}
+
+	task := &ScheduledTask{
+		Name:     "instance-overdue",
+		Schedule: "1m-poll",
+	}
+
+	s.mu.Lock()
+	s.tasks[task.Name] = task
+	s.mu.Unlock()
+
+	s.wg.Add(1)
+	go s.runInstanceOverdueTaskPolling(task)
+}
+
+// runInstanceOverdueTaskPolling mirrors the minute-polling loops used by
+// cleanup / session-end / materialization. Startup check + minute alignment
+// + 60 s ticker + done-signal exit.
+func (s *Scheduler) runInstanceOverdueTaskPolling(task *ScheduledTask) {
+	defer s.wg.Done()
+	defer func() {
+		if r := recover(); r != nil {
+			err := fmt.Errorf("panic in instance overdue task: %v", r)
+			s.getLogger().Error("goroutine panic recovered", slog.String("error", err.Error()))
+			sentry.CurrentHub().Recover(r)
+			sentry.Flush(2 * time.Second)
+		}
+	}()
+
+	s.getLogger().Info("instance overdue tick using minute-polling")
+
+	s.checkAndRunOverdue(task)
+
+	if !s.waitUntilNextMinute() {
+		return
+	}
+
+	ticker := time.NewTicker(60 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			s.checkAndRunOverdue(task)
+		case <-s.done:
+			return
+		}
+	}
+}
+
+// checkAndRunOverdue rotates the day-cache when midnight has been crossed,
+// then iterates active tenants and delegates the per-tenant work to
+// runOverdueForTenant. Extracted into two methods so unit tests can invoke
+// the inner loop directly with a synthetic tenant ctx without building the
+// full school repo + settings service stack.
+func (s *Scheduler) checkAndRunOverdue(task *ScheduledTask) {
+	task.mu.Lock()
+	if task.Running {
+		task.mu.Unlock()
+		return
+	}
+	task.Running = true
+	task.mu.Unlock()
+	defer func() {
+		task.mu.Lock()
+		task.Running = false
+		task.mu.Unlock()
+	}()
+
+	s.rotateOverdueCacheIfNewDay(time.Now())
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	s.forEachTenantSettings(ctx, "instance-overdue", func(tenantCtx context.Context, tenantID int64) error {
+		threshold := s.resolveIntSetting(tenantCtx, configModel.KeyTimetableOverdueThresholdMinutes, "", 5)
+		s.runOverdueForTenant(tenantCtx, tenantID, threshold, time.Now())
+		return nil
+	})
+}
+
+// runOverdueForTenant iterates today's instances for a single tenant and
+// emits instance_overdue once per still-planned, past-threshold row. `now`
+// is injected for deterministic tests. `threshold` < 1 is a no-op.
+func (s *Scheduler) runOverdueForTenant(ctx context.Context, tenantID int64, threshold int, now time.Time) {
+	if threshold < 1 {
+		return
+	}
+
+	today := civilDateUTC(now)
+	instances, err := s.instanceRepo.FindByTenantAndDate(ctx, today)
+	if err != nil {
+		s.getLogger().Warn("overdue tick: load today's instances failed",
+			slog.Int64("tenant_id", tenantID),
+			slog.String("error", err.Error()),
+		)
+		return
+	}
+
+	cutoff := time.Duration(threshold) * time.Minute
+
+	for _, inst := range instances {
+		if inst.Status != scheduleModel.InstanceStatusPlanned {
+			continue
+		}
+		instanceStart := combineDayAndTime(today, inst.StartTime)
+		if now.Sub(instanceStart) < cutoff {
+			continue
+		}
+		key := overdueKey{tenantID: tenantID, instanceID: inst.ID}
+		if _, seen := s.overdueEmitted.Load(key); seen {
+			continue
+		}
+		s.emitInstanceOverdue(ctx, tenantID, inst)
+		s.overdueEmitted.Store(key, now)
+	}
+}
+
+// emitInstanceOverdue builds the SSE envelope and fires it as BroadcastToAll:
+// a planned instance has no bridged active.group yet, so there is no group-
+// scoped topic to route through. Admin dashboard subscribers pick it up.
+func (s *Scheduler) emitInstanceOverdue(ctx context.Context, tenantID int64, inst *scheduleModel.ActivityInstance) {
+	instanceIDStr := fmt.Sprintf("%d", inst.ID)
+	instanceDate := inst.Date.Format("2006-01-02")
+	instanceStart := inst.StartTime.Format("15:04:05")
+	roomIDStr := fmt.Sprintf("%d", inst.RoomID)
+
+	event := realtime.NewEvent(realtime.EventInstanceOverdue, "", realtime.EventData{
+		InstanceID:        &instanceIDStr,
+		InstanceDate:      &instanceDate,
+		InstanceStartTime: &instanceStart,
+		RoomID:            &roomIDStr,
+	})
+	if err := s.overdueBroadcaster.BroadcastToAll(event); err != nil {
+		s.getLogger().Warn("overdue tick: broadcast failed",
+			slog.Int64("tenant_id", tenantID),
+			slog.Int64("instance_id", inst.ID),
+			slog.String("error", err.Error()),
+		)
+		return
+	}
+	s.getLogger().Info("instance_overdue broadcast",
+		slog.Int64("tenant_id", tenantID),
+		slog.Int64("instance_id", inst.ID),
+		slog.String("start_time", instanceStart),
+	)
+	_ = ctx // reserved: if later the broadcaster needs ctx for cancellation.
+}
+
+// rotateOverdueCacheIfNewDay clears the re-fire guard on civil-date roll-
+// over. Called at the top of every tick so a restart mid-day does not
+// miss the rollover.
+func (s *Scheduler) rotateOverdueCacheIfNewDay(now time.Time) {
+	today := civilDateUTC(now)
+	s.overdueEmittedDayMu.Lock()
+	defer s.overdueEmittedDayMu.Unlock()
+	if !s.overdueEmittedDay.Equal(today) {
+		s.overdueEmitted.Range(func(k, _ any) bool {
+			s.overdueEmitted.Delete(k)
+			return true
+		})
+		s.overdueEmittedDay = today
+	}
+}
+
+// civilDateUTC strips the time component to UTC midnight. Duplicates the
+// materialization service's civilDate helper but staying in the scheduler
+// package avoids a circular import.
+func civilDateUTC(t time.Time) time.Time {
+	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
+}
+
+// combineDayAndTime returns "day at time-of-day", reading the wall-clock
+// hour/minute/second from `tod` (typically an ActivityInstance.StartTime
+// which lives as a bare TIME). Stays in the server's local zone so the
+// comparison with time.Now() is apples-to-apples.
+func combineDayAndTime(day, tod time.Time) time.Time {
+	local := day.Local()
+	return time.Date(local.Year(), local.Month(), local.Day(),
+		tod.Hour(), tod.Minute(), tod.Second(), tod.Nanosecond(), time.Local)
 }

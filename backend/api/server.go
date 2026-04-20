@@ -71,6 +71,14 @@ func NewServer(logger *slog.Logger) (*Server, error) {
 		if api.Services.Feedback != nil {
 			srv.scheduler.SetFeedbackCleaner(api.Services.Feedback)
 		}
+		if api.Services.Materialization != nil {
+			srv.scheduler.SetMaterializer(api.Services.Materialization)
+		}
+		// WP-B9: overdue instance tick. Requires both the ActivityInstance
+		// repo and a broadcaster — either missing disables the tick.
+		if api.repos != nil && api.Services.RealtimeHub != nil {
+			srv.scheduler.SetInstanceOverdueDeps(api.repos.ActivityInstance, api.Services.RealtimeHub)
+		}
 	}
 
 	return srv, nil

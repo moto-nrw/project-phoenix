@@ -705,8 +705,13 @@ func (s *service) broadcastWithLogging(ctx context.Context, activeGroupID, stude
 }
 
 // getActivityName retrieves the activity name by group ID, returning empty string on error.
-func (s *service) getActivityName(ctx context.Context, groupID int64) string {
-	activity, err := s.activityGroupRepo.FindByID(ctx, groupID)
+// A nil groupID marks a spontaneous session (WP-B6): there is no template to look up,
+// so we return an empty name and leave the display decision to the caller.
+func (s *service) getActivityName(ctx context.Context, groupID *int64) string {
+	if groupID == nil {
+		return ""
+	}
+	activity, err := s.activityGroupRepo.FindByID(ctx, *groupID)
 	if err != nil || activity == nil {
 		return ""
 	}

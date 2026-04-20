@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"math"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/schedule"
@@ -205,6 +204,12 @@ func (s *calendarPeriodService) GetOrCreateDefaultPeriod(ctx context.Context) (*
 // Uses day-based difference calculation (NOT ISO week numbers) to avoid
 // year-boundary bugs. See timetable-system-plan.md §6.1 for algorithm details.
 //
+// Both anchor and instance dates are normalized to UTC midnight on their civil
+// date components before subtraction so that DST transitions in the caller's
+// timezone (Europe/Berlin's 167- or 169-hour weeks at the end of March/October)
+// do not skew the day count. Integer arithmetic replaces the earlier float
+// division, which truncated 167h/24 to 6 days instead of 7.
+//
 // weekPattern: 0=every week, 1=week A, 2=week B (maps to currentPattern 1, 2, ...)
 func (s *calendarPeriodService) ShouldMaterialize(weekPattern int, instanceDate time.Time, period *schedule.CalendarPeriod) bool {
 	if weekPattern == 0 {
@@ -217,14 +222,24 @@ func (s *calendarPeriodService) ShouldMaterialize(weekPattern int, instanceDate 
 		return true // no anchor set, can't compute — allow by default
 	}
 
-	// Day-based difference from anchor to instance date
-	anchorDate := period.WeekCycleAnchor.Truncate(24 * time.Hour)
-	instDate := instanceDate.Truncate(24 * time.Hour)
+	anchorUTC := time.Date(
+		period.WeekCycleAnchor.Year(), period.WeekCycleAnchor.Month(), period.WeekCycleAnchor.Day(),
+		0, 0, 0, 0, time.UTC,
+	)
+	instUTC := time.Date(
+		instanceDate.Year(), instanceDate.Month(), instanceDate.Day(),
+		0, 0, 0, 0, time.UTC,
+	)
 
-	daysDiff := instDate.Sub(anchorDate).Hours() / 24
-	weeksDiff := int(math.Floor(daysDiff / 7))
+	daysDiff := int(instUTC.Sub(anchorUTC) / (24 * time.Hour))
+	weeksDiff := daysDiff / 7
+	// Go's integer division truncates toward zero, so for negative daysDiff
+	// we need an explicit floor when the division isn't exact.
+	if daysDiff < 0 && daysDiff%7 != 0 {
+		weeksDiff--
+	}
 
-	// Modulo that handles negative values correctly
+	// Modulo that handles negative values correctly.
 	cycleLen := period.WeekCycleLength
 	currentPattern := ((weeksDiff % cycleLen) + cycleLen) % cycleLen
 	currentPattern++ // 1-based: 1=A, 2=B, etc.

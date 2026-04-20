@@ -73,11 +73,12 @@ func isGroupSupervisor(ctx context.Context, groupID int64, userContextService us
 		}
 	}
 
-	// Also check active groups
+	// Also check active groups. Spontaneous sessions (no parent template,
+	// WP-B6) can never match the given template groupID and are skipped.
 	activeGroups, err := userContextService.GetMyActiveGroups(ctx)
 	if err == nil {
 		for _, ag := range activeGroups {
-			if ag.GroupID == groupID {
+			if templateID, ok := ag.TemplateID(); ok && templateID == groupID {
 				return true
 			}
 		}

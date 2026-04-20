@@ -318,7 +318,7 @@ func (s *service) createSessionBase(ctx context.Context, activityID, deviceID, r
 		StartTime:      now,
 		LastActivity:   now,
 		TimeoutMinutes: 30,
-		GroupID:        activityID,
+		GroupID:        &activityID,
 		DeviceID:       &deviceID,
 		RoomID:         roomID,
 	}

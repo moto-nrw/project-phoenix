@@ -214,7 +214,7 @@ func TestSchulhofService_GetSchulhofStatus_WithActiveSessionNoSupervisor(t *test
 	// Create infrastructure and active group
 	activeGroup, err := service.GetOrCreateActiveGroup(ctx, staff.ID)
 	require.NoError(t, err)
-	defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID, activeGroup.GroupID, activeGroup.RoomID)
+	defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID, *activeGroup.GroupID, activeGroup.RoomID)
 
 	// ACT
 	status, err := service.GetSchulhofStatus(ctx, staff.ID)
@@ -514,7 +514,7 @@ func TestSchulhofService_ToggleSupervision_StopNotSupervising(t *testing.T) {
 	// Create infrastructure and active group (but don't add as supervisor)
 	activeGroup, err := service.GetOrCreateActiveGroup(ctx, staff.ID)
 	require.NoError(t, err)
-	defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID, activeGroup.GroupID, activeGroup.RoomID)
+	defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID, *activeGroup.GroupID, activeGroup.RoomID)
 
 	// ACT - Try to stop when not supervising
 	result, err := service.ToggleSupervision(ctx, staff.ID, "stop")
@@ -625,8 +625,8 @@ func TestSchulhofService_GetOrCreateActiveGroup_Creates(t *testing.T) {
 	assert.NotZero(t, activeGroup.RoomID)
 	assert.WithinDuration(t, time.Now(), activeGroup.StartTime, 5*time.Second)
 
-	// Cleanup
-	testpkg.CleanupActivityFixtures(t, db, activeGroup.ID, activeGroup.GroupID, activeGroup.RoomID)
+	// Cleanup — activeGroup.GroupID is *int64 (WP-B6); Schulhof is always template-backed.
+	testpkg.CleanupActivityFixtures(t, db, activeGroup.ID, *activeGroup.GroupID, activeGroup.RoomID)
 
 	// Find created activity group and cleanup
 	options := base.NewQueryOptions()
@@ -654,7 +654,7 @@ func TestSchulhofService_GetOrCreateActiveGroup_ReturnsExisting(t *testing.T) {
 	// Create first time
 	activeGroup1, err := service.GetOrCreateActiveGroup(ctx, staff.ID)
 	require.NoError(t, err)
-	defer testpkg.CleanupActivityFixtures(t, db, activeGroup1.ID, activeGroup1.GroupID, activeGroup1.RoomID)
+	defer testpkg.CleanupActivityFixtures(t, db, activeGroup1.ID, *activeGroup1.GroupID, activeGroup1.RoomID)
 
 	// ACT - Call again (should return same group)
 	activeGroup2, err := service.GetOrCreateActiveGroup(ctx, staff.ID)
@@ -708,8 +708,9 @@ func TestSchulhofService_GetOrCreateActiveGroup_IgnoresEndedGroups(t *testing.T)
 
 	// Create an ended active group from today
 	endedTime := time.Now()
+	endedActivityGroupID := activityGroup.ID
 	endedGroup := &active.Group{
-		GroupID:   activityGroup.ID,
+		GroupID:   &endedActivityGroupID,
 		RoomID:    *activityGroup.PlannedRoomID,
 		StartTime: time.Now().Add(-2 * time.Hour),
 		EndTime:   &endedTime,
@@ -902,8 +903,9 @@ func TestSchulhofService_GetOrCreateActiveGroup_EndsStaleGroups(t *testing.T) {
 
 	// Create a stale active group from "yesterday" that is still open (no EndTime)
 	yesterday := time.Now().Add(-24 * time.Hour)
+	staleActivityGroupID := activityGroup.ID
 	staleGroup := &active.Group{
-		GroupID:   activityGroup.ID,
+		GroupID:   &staleActivityGroupID,
 		RoomID:    *activityGroup.PlannedRoomID,
 		StartTime: yesterday,
 		// EndTime is nil — this is the stale group
