@@ -102,6 +102,13 @@ func DetectStartConflicts(
 		)
 	}
 	for _, row := range staffRows {
+		// Absent rows are not candidates for supervision on this instance;
+		// flagging them as "supervising elsewhere" would be misleading. Start()
+		// also skips them when copying to active.group_supervisors, so the two
+		// paths stay consistent.
+		if row.IsAbsent {
+			continue
+		}
 		supervisions, err := deps.SupervisorRepo.FindActiveByStaffID(ctx, row.StaffID)
 		if err != nil {
 			logger.Warn("conflict detection: staff supervision lookup failed",
@@ -130,6 +137,10 @@ func DetectStartConflicts(
 	// informational only, never blocking. The check ignores students already
 	// in statuses other than expected (present/absent are post-check-in states
 	// that belong to other instances in this tenant's day).
+	//
+	// Batched via GetCurrentByStudentIDs — per-student lookups would produce
+	// N queries on an instance with N expected students (20+ for a typical
+	// OGS group), measurable latency inside the tenant tx.
 	studentRows, err := deps.InstanceStudents.FindByInstanceID(ctx, instance.ID)
 	if err != nil {
 		logger.Warn("conflict detection: load instance_students failed",
@@ -137,27 +148,38 @@ func DetectStartConflicts(
 			slog.String("error", err.Error()),
 		)
 	}
+	expectedIDs := make([]int64, 0, len(studentRows))
 	for _, row := range studentRows {
 		if row.Status != scheduleModel.AttendanceStatusExpected {
 			continue
 		}
-		visit, err := deps.VisitRepo.GetCurrentByStudentID(ctx, row.StudentID)
+		expectedIDs = append(expectedIDs, row.StudentID)
+	}
+	if len(expectedIDs) > 0 {
+		visits, err := deps.VisitRepo.GetCurrentByStudentIDs(ctx, expectedIDs)
 		if err != nil {
-			logger.Warn("conflict detection: student current visit lookup failed",
-				slog.Int64("student_id", row.StudentID),
+			logger.Warn("conflict detection: student current visits lookup failed",
+				slog.Int64("instance_id", instance.ID),
+				slog.Int("student_count", len(expectedIDs)),
 				slog.String("error", err.Error()),
 			)
-			continue
+		} else {
+			// Iterate expectedIDs (not the map) so warning order stays
+			// deterministic — it mirrors the instance_students insertion
+			// order from materialization, which tests rely on.
+			for _, sid := range expectedIDs {
+				visit, ok := visits[sid]
+				if !ok || visit == nil {
+					continue
+				}
+				warnings = append(warnings, InstanceConflictWarning{
+					Kind:        ConflictKindStudent,
+					ResourceID:  sid,
+					Message:     fmt.Sprintf("Schüler hat bereits einen aktiven Aufenthalt in Gruppe #%d", visit.ActiveGroupID),
+					CanOverride: true,
+				})
+			}
 		}
-		if visit == nil {
-			continue
-		}
-		warnings = append(warnings, InstanceConflictWarning{
-			Kind:        ConflictKindStudent,
-			ResourceID:  row.StudentID,
-			Message:     fmt.Sprintf("Schüler hat bereits einen aktiven Aufenthalt in Gruppe #%d", visit.ActiveGroupID),
-			CanOverride: true,
-		})
 	}
 
 	return warnings

@@ -311,6 +311,51 @@ func TestInstance_Start_NotFound(t *testing.T) {
 	assert.ErrorIs(t, err, scheduleSvc.ErrInstanceNotFound)
 }
 
+// Absent staff rows on instance_staff must NOT be copied into
+// active.group_supervisors on start. They represent staff marked out for
+// this instance (sick, substitution flow); copying them would make them
+// appear as actively supervising and contradict the absence flag.
+func TestInstance_Start_SkipsAbsentStaff(t *testing.T) {
+	s := buildLifecycle(t)
+
+	ai := seedInstance(t, s, false, false)
+
+	// Primary staff (present) + a second staff flagged absent.
+	primary := &scheduleModels.InstanceStaff{
+		InstanceID: ai.ID, StaffID: s.staffID, IsPrimary: true, IsAbsent: false,
+	}
+	primary.SetTenantID(1)
+	_, err := s.db.NewInsert().Model(primary).ModelTableExpr(`schedule.instance_staff`).Exec(s.ctx)
+	require.NoError(t, err)
+
+	absent := testpkg.CreateTestStaff(t, s.db, "Absent", fmt.Sprintf("Staff-%d", time.Now().UnixNano()))
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "users.staff", absent.ID) })
+
+	absentRow := &scheduleModels.InstanceStaff{
+		InstanceID: ai.ID, StaffID: absent.ID, IsPrimary: false, IsAbsent: true,
+	}
+	absentRow.SetTenantID(1)
+	_, err = s.db.NewInsert().Model(absentRow).ModelTableExpr(`schedule.instance_staff`).Exec(s.ctx)
+	require.NoError(t, err)
+
+	result, err := s.svc.Start(s.ctx, ai.ID, 0)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, s.db, "active.groups", result.ActiveGroupID)
+	})
+
+	sups, err := s.factory.Active.FindSupervisorsByActiveGroupID(s.ctx, result.ActiveGroupID)
+	require.NoError(t, err)
+	require.Len(t, sups, 1, "only the non-absent staff should become a supervisor")
+	assert.Equal(t, s.staffID, sups[0].StaffID)
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.group_supervisors", sups[0].ID) })
+
+	// And the SupervisorIDs on the SSE envelope (visible via start result)
+	// must not include the absent staff — handled through activeStaffRows,
+	// which the integration test can't introspect directly, but the
+	// supervisor count above is the authoritative proof.
+}
+
 // --- Conflict detection -----------------------------------------------------
 
 func TestInstance_Start_ConflictWarning_Room(t *testing.T) {

@@ -168,10 +168,22 @@ func (s *instanceService) Start(ctx context.Context, instanceID, startedByStaffI
 		return nil, &ScheduleError{Op: "start instance: create active.group", Err: err}
 	}
 
-	// Each staff row becomes a supervisor. Failure aborts — unlike the NFC
-	// best-effort path, a planner start with missing supervisors would
-	// silently undermine the conflict model for the staff's next start.
+	// Each non-absent staff row becomes a supervisor. IsAbsent=true rows are
+	// intentionally skipped — those staff are marked out for this instance
+	// (sick, substitution flow, etc.); copying them into active.group_supervisors
+	// would make the staff appear as actively supervising, pollute the staff
+	// conflict model for their next planner start elsewhere, and contradict
+	// the semantics of the absence flag.
+	//
+	// A full-row failure aborts the whole transition. Unlike the NFC best-
+	// effort path, a planner start with missing supervisors would silently
+	// undermine the conflict model the next time that staff starts elsewhere.
+	activeStaffRows := make([]*scheduleModel.InstanceStaff, 0, len(staffRows))
 	for _, row := range staffRows {
+		if row.IsAbsent {
+			continue
+		}
+		activeStaffRows = append(activeStaffRows, row)
 		sup := &activeModel.GroupSupervisor{
 			StaffID:   row.StaffID,
 			GroupID:   newGroup.ID,
@@ -201,7 +213,7 @@ func (s *instanceService) Start(ctx context.Context, instanceID, startedByStaffI
 		return nil, &ScheduleError{Op: "start instance: update instance", Err: err}
 	}
 
-	s.broadcastInstanceEvent(ctx, realtime.EventInstanceStarted, instance, newGroup, staffRows)
+	s.broadcastInstanceEvent(ctx, realtime.EventInstanceStarted, instance, newGroup, activeStaffRows)
 
 	return &StartInstanceResult{
 		Instance:      instance,
@@ -259,7 +271,15 @@ func (s *instanceService) Cancel(ctx context.Context, instanceID int64) (*schedu
 		return nil, fmt.Errorf("%w: cannot cancel instance in status %q", ErrInvalidInstanceTransition, instance.Status)
 	}
 
-	if instance.Status == scheduleModel.InstanceStatusActive && instance.ActiveGroupID != nil {
+	if instance.Status == scheduleModel.InstanceStatusActive {
+		if instance.ActiveGroupID == nil {
+			// Mirrors the Complete branch: an active instance without a bridge
+			// is data corruption, not a normal state. Aborting here is safer
+			// than silently "cancelling" a session that never actually ran —
+			// a staff member downstream might have assumed the visits were
+			// closed for them.
+			return nil, &ScheduleError{Op: "cancel instance", Err: fmt.Errorf("active instance %d has no active_group_id", instance.ID)}
+		}
 		if err := s.deps.ActiveService.EndActivitySession(ctx, *instance.ActiveGroupID); err != nil {
 			return nil, &ScheduleError{Op: "cancel instance: end active.group", Err: err}
 		}
@@ -312,6 +332,13 @@ func (s *instanceService) ReplanWeek(ctx context.Context, from, to time.Time) (*
 	}
 
 	tenantID := tenant.FromContext(ctx)
+	if tenantID <= 0 {
+		// Defence-in-depth: if the route is ever hit without
+		// TenantTxMiddleware the DELETE would silently match zero rows (and
+		// MaterializeForTenant would operate on tenant 0 with nothing to
+		// find). Fail fast instead of silently no-oping the admin action.
+		return nil, &ScheduleError{Op: "replan week", Err: errors.New("no tenant in context")}
+	}
 
 	res, err := repoBase.GetDB(ctx, s.deps.DB).NewDelete().
 		Table("schedule.activity_instances").
@@ -367,6 +394,15 @@ func (s *instanceService) loadForTransition(ctx context.Context, instanceID int6
 // broadcastInstanceEvent is a nil-safe fire-and-forget SSE wrapper. Events
 // with a live active.group route to group subscribers; events without (i.e.
 // cancelled-from-planned) broadcast to all so the admin dashboard sees them.
+//
+// Timing caveat: the broadcast happens BEFORE the TenantTxMiddleware commit.
+// In the very narrow window where the tenant tx rolls back after a 2xx
+// response (e.g. late middleware panic, render failure), subscribers will
+// have already seen an instance_* event for a DB state that no longer exists.
+// We accept that trade-off: the alternative — broadcasting after commit —
+// would require either plumbing a post-commit hook through the middleware
+// stack, or running the service outside the ambient tx. Neither is worth the
+// complexity for a fire-and-forget UI notification.
 func (s *instanceService) broadcastInstanceEvent(
 	ctx context.Context,
 	eventType realtime.EventType,
