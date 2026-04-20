@@ -49,6 +49,13 @@ type CrossTenantRepo interface {
 	FindCrossTenantStudents(ctx context.Context, hostingTenantID int64) ([]active.CrossTenantStudent, error)
 }
 
+// SettingsResolver resolves tenant-scoped settings. Implemented by config.SettingsService.
+// Optional dependency — when nil, auto-clear behavior falls back to the registry default.
+type SettingsResolver interface {
+	HasTenantOverride(ctx context.Context, key string) (bool, error)
+	ResolveString(ctx context.Context, key string) (string, error)
+}
+
 // ServiceDependencies contains all dependencies required by the active service
 type ServiceDependencies struct {
 	// Active domain repositories
@@ -125,8 +132,18 @@ type service struct {
 	// Optional: Work session service for NFC auto-check-in
 	workSessionService WorkSessionService
 
+	// Optional: Tenant-scoped settings resolver for auto-clear logic.
+	// When nil, auto-clear falls back to the registry default behavior.
+	settings SettingsResolver
+
 	// Structured logger (nil-safe)
 	logger *slog.Logger
+}
+
+// SetSettingsService injects the tenant-scoped settings resolver.
+// Called from the factory after settingsService is constructed.
+func (s *service) SetSettingsService(resolver SettingsResolver) {
+	s.settings = resolver
 }
 
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
@@ -409,8 +426,10 @@ func (s *service) CreateVisit(ctx context.Context, visit *active.Visit) error {
 		return &ActiveError{Op: "CreateVisit", Err: ErrDatabaseOperation}
 	}
 
-	// Auto-clear sickness when student checks in
+	// Auto-clear sickness / excused flags when student checks in
+	// (only triggers when the tenant's clear_mode setting is "next_checkin").
 	s.autoClearStudentSickness(ctx, visit.StudentID)
+	s.autoClearStudentExcused(ctx, visit.StudentID)
 
 	// Create the visit record
 	visit.SetTenantID(tenant.FromContext(ctx))

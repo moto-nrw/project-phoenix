@@ -26,6 +26,8 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"operations.session_cleanup_interval_minutes",
 		"operations.session_abandoned_threshold_minutes",
 		"operations.admin_supervision_overview",
+		"operations.sick_clear_mode",
+		"operations.excused_clear_mode",
 		"gdpr.data_cleanup_enabled",
 		"gdpr.data_cleanup_time",
 		"gdpr.data_cleanup_timeout_minutes",
@@ -62,10 +64,10 @@ func TestAllSettingsRegistered(t *testing.T) {
 		assert.NotEmpty(t, def.Category, "setting %q should have a category", key)
 	}
 
-	// 28 pre-WP-B7 settings + 7 timetable settings == 35 minimum. The `>=` is
-	// intentional so later work packages can add more settings without
-	// retrofitting this assertion.
-	assert.GreaterOrEqual(t, len(all), 35, "at least 35 settings should be registered (28 existing + 7 timetable)")
+	// 28 pre-WP-B7 settings + 7 timetable settings + 2 sick/excused clear-mode
+	// settings == 37 minimum. The `>=` is intentional so later work packages can
+	// add more settings without retrofitting this assertion.
+	assert.GreaterOrEqual(t, len(all), 37, "at least 37 settings should be registered (28 existing + 7 timetable + 2 clear-mode)")
 }
 
 func TestTimetableSettings_Types(t *testing.T) {
@@ -202,12 +204,55 @@ func TestOperationsSettings_Types(t *testing.T) {
 		{"operations.session_cleanup_interval_minutes", config.FieldNumber},
 		{"operations.session_abandoned_threshold_minutes", config.FieldNumber},
 		{"operations.admin_supervision_overview", config.FieldBoolean},
+		{"operations.sick_clear_mode", config.FieldSelect},
+		{"operations.excused_clear_mode", config.FieldSelect},
 	}
 
 	for _, tc := range tests {
 		def := config.GetDefinition(tc.key)
 		require.NotNilf(t, def, "setting %q should exist", tc.key)
 		assert.Equalf(t, tc.expected, def.Type, "setting %q should be type %s", tc.key, tc.expected)
+	}
+}
+
+// TestStatusFlagClearMode_Defaults guards that the clear-mode settings
+// preserve existing behavior (sick clears on next check-in unconditionally,
+// new Entschuldigt flow clears at end of day).
+func TestStatusFlagClearMode_Defaults(t *testing.T) {
+	sickDef := config.GetDefinition(config.KeySickClearMode)
+	require.NotNil(t, sickDef)
+	assert.Equal(t, "operations", sickDef.Tab)
+	assert.Equal(t, "abwesenheit", sickDef.Category)
+	assert.Equal(t, "config:update", sickDef.WritePermission)
+	assert.Equal(t, config.ClearModeNextCheckin, sickDef.Default,
+		"sick default must stay next_checkin to preserve prior behavior")
+
+	excusedDef := config.GetDefinition(config.KeyExcusedClearMode)
+	require.NotNil(t, excusedDef)
+	assert.Equal(t, "operations", excusedDef.Tab)
+	assert.Equal(t, "abwesenheit", excusedDef.Category)
+	assert.Equal(t, "config:update", excusedDef.WritePermission)
+	assert.Equal(t, config.ClearModeEndOfDay, excusedDef.Default,
+		"excused default must be end_of_day per product spec")
+}
+
+// TestStatusFlagClearMode_Options confirms both settings offer the full set
+// of three modes (manual / next_checkin / end_of_day) so the frontend can
+// render a complete select.
+func TestStatusFlagClearMode_Options(t *testing.T) {
+	for _, key := range []string{config.KeySickClearMode, config.KeyExcusedClearMode} {
+		def := config.GetDefinition(key)
+		require.NotNilf(t, def, "setting %q should exist", key)
+		require.NotNilf(t, def.Options, "setting %q should have options", key)
+		require.Lenf(t, def.Options.Static, 3, "setting %q should have 3 options", key)
+
+		values := make([]any, 0, 3)
+		for _, opt := range def.Options.Static {
+			values = append(values, opt.Value)
+		}
+		assert.Contains(t, values, config.ClearModeManual)
+		assert.Contains(t, values, config.ClearModeNextCheckin)
+		assert.Contains(t, values, config.ClearModeEndOfDay)
 	}
 }
 

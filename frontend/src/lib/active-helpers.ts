@@ -48,6 +48,11 @@ export interface BackendVisit {
   school_class?: string;
   group_name?: string; // Student's OGS group (not the active group)
   active_group_name?: string;
+  // Status flags surfaced by the visits/display endpoint
+  sick?: boolean;
+  sick_since?: string;
+  excused?: boolean;
+  excused_since?: string;
   created_at: string;
   updated_at: string;
 }
@@ -133,6 +138,11 @@ export interface Visit {
   schoolClass?: string;
   groupName?: string;
   activeGroupName?: string;
+  // Status flags (populated by the visits/display endpoint)
+  sick?: boolean;
+  sickSince?: string;
+  excused?: boolean;
+  excusedSince?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -223,6 +233,10 @@ export function mapVisitResponse(backendVisit: BackendVisit): Visit {
     schoolClass: backendVisit.school_class,
     groupName: backendVisit.group_name,
     activeGroupName: backendVisit.active_group_name,
+    sick: backendVisit.sick,
+    sickSince: backendVisit.sick_since,
+    excused: backendVisit.excused,
+    excusedSince: backendVisit.excused_since,
     createdAt: new Date(backendVisit.created_at),
     updatedAt: new Date(backendVisit.updated_at),
   };

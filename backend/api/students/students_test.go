@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/api/students"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -599,6 +600,110 @@ func TestUpdateStudent_SickStatusExtended(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, clearRR.Code, "Should clear sick status")
 		assert.Contains(t, clearRR.Body.String(), `"sick":false`)
+	})
+}
+
+func TestUpdateStudent_WithExcusedStatus(t *testing.T) {
+	tc := setupTestContext(t)
+
+	t.Run("mark_as_excused_sets_excused_since", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, tc.db, "Excused", "Status", "ES1")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
+
+		body := map[string]interface{}{"excused": true}
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Contains(t, rr.Body.String(), `"excused":true`)
+		assert.Contains(t, rr.Body.String(), `"excused_since"`)
+	})
+
+	t.Run("clear_excused_clears_excused_since", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, tc.db, "ClearExcused", "Student", "EC1")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
+
+		setReq := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID),
+			map[string]interface{}{"excused": true})
+		setRR := executeWithAuth(router, setReq, testutil.AdminTestClaims(1), []string{"admin:*"})
+		assert.Equal(t, http.StatusOK, setRR.Code)
+
+		clearReq := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID),
+			map[string]interface{}{"excused": false})
+		clearRR := executeWithAuth(router, clearReq, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusOK, clearRR.Code)
+		assert.Contains(t, clearRR.Body.String(), `"excused":false`)
+	})
+}
+
+// TestUpdateStudent_SickExcusedMutualExclusion encodes the business rule
+// that a student cannot be both sick and excused at the same time.
+func TestUpdateStudent_SickExcusedMutualExclusion(t *testing.T) {
+	tc := setupTestContext(t)
+
+	t.Run("both_flags_true_in_same_request_is_rejected", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, tc.db, "Mutex", "Student", "MS1")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
+
+		body := map[string]interface{}{"sick": true, "excused": true}
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusConflict, rr.Code,
+			"setting both sick and excused to true must return 409")
+		assert.Contains(t, rr.Body.String(), students.ErrCodeSickExcusedConflict,
+			"response should carry the SICK_EXCUSED_CONFLICT code for the frontend")
+	})
+
+	t.Run("setting_sick_while_already_excused_is_rejected", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, tc.db, "Mutex", "Excused", "ME1")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
+
+		// Pre-state: excused = true
+		excReq := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID),
+			map[string]interface{}{"excused": true})
+		excRR := executeWithAuth(router, excReq, testutil.AdminTestClaims(1), []string{"admin:*"})
+		assert.Equal(t, http.StatusOK, excRR.Code)
+
+		// Attempt: set sick = true without clearing excused
+		sickReq := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID),
+			map[string]interface{}{"sick": true})
+		sickRR := executeWithAuth(router, sickReq, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusConflict, sickRR.Code)
+		assert.Contains(t, sickRR.Body.String(), students.ErrCodeSickExcusedConflict)
+	})
+
+	t.Run("switch_from_sick_to_excused_in_one_request_succeeds", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, tc.db, "Switch", "Student", "SW1")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
+
+		// Pre-state: sick = true
+		sickReq := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID),
+			map[string]interface{}{"sick": true})
+		sickRR := executeWithAuth(router, sickReq, testutil.AdminTestClaims(1), []string{"admin:*"})
+		assert.Equal(t, http.StatusOK, sickRR.Code)
+
+		// Switch: clear sick AND set excused in one request
+		switchReq := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID),
+			map[string]interface{}{"sick": false, "excused": true})
+		switchRR := executeWithAuth(router, switchReq, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusOK, switchRR.Code,
+			"simultaneous clear-one + set-other must be accepted")
+		assert.Contains(t, switchRR.Body.String(), `"sick":false`)
+		assert.Contains(t, switchRR.Body.String(), `"excused":true`)
 	})
 }
 

@@ -90,6 +90,7 @@ func (s *stubActiveService) ListActiveGroups(ctx context.Context, options *base.
 func (s *stubActiveService) GetTrackingIndicators(_ context.Context, _ []int64, _ []string) (map[int64][]bool, error) {
 	return map[int64][]bool{}, nil
 }
+func (s *stubActiveService) SetSettingsService(_ activeSvc.SettingsResolver) {}
 func (s *stubActiveService) GetActiveGroup(_ context.Context, _ int64) (*activeModel.Group, error) {
 	return nil, nil
 }

@@ -22,6 +22,8 @@ export interface StudentLocationContext {
   group_name?: string | null;
   sick?: boolean;
   sick_since?: string | null;
+  excused?: boolean;
+  excused_since?: string | null;
   has_full_access?: boolean;
 }
 
@@ -32,6 +34,7 @@ export const LOCATION_STATUSES = {
   TRANSIT: "Unterwegs",
   UNKNOWN: "Unbekannt",
   SICK: "Krank",
+  EXCUSED: "Entschuldigt",
 } as const;
 
 export const LOCATION_COLORS = {
@@ -42,6 +45,7 @@ export const LOCATION_COLORS = {
   TRANSIT: "#D946EF",
   UNKNOWN: "#6B7280",
   SICK: "#EAB308", // Amber - medical/sick status
+  EXCUSED: "#7C3AED", // Purple - excused absence (kind is not attending today)
 } as const;
 
 const LOCATION_SEPARATOR = "-";

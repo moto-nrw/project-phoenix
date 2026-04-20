@@ -95,6 +95,10 @@ type VisitWithDisplayDataResponse struct {
 	StudentName   string     `json:"student_name"`
 	SchoolClass   string     `json:"school_class"`
 	GroupName     string     `json:"group_name,omitempty"` // Student's OGS group
+	Sick          bool       `json:"sick"`
+	SickSince     *time.Time `json:"sick_since,omitempty"`
+	Excused       bool       `json:"excused"`
+	ExcusedSince  *time.Time `json:"excused_since,omitempty"`
 	CreatedAt     time.Time  `json:"created_at"`
 	UpdatedAt     time.Time  `json:"updated_at"`
 }

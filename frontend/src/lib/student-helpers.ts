@@ -53,6 +53,8 @@ export interface BackendStudent {
   bus?: boolean;
   sick?: boolean;
   sick_since?: string;
+  excused?: boolean;
+  excused_since?: string;
   guardian_name?: string; // Optional: Legacy field, use guardian_profiles instead
   guardian_contact?: string; // Optional: Legacy field, use guardian_profiles instead
   guardian_email?: string;
@@ -147,6 +149,9 @@ export interface Student {
   // Sickness status (only visible to supervisors/admins)
   sick?: boolean;
   sick_since?: string;
+  // Excused status (kind is not attending the OGS today, only visible to supervisors/admins)
+  excused?: boolean;
+  excused_since?: string;
   name_lg?: string;
   contact_lg?: string;
   guardian_email?: string;
@@ -205,6 +210,8 @@ export function mapStudentResponse(
     bus: backendStudent.bus ?? false, // Administrative permission flag (Buskind)
     sick: backendStudent.sick ?? false, // Sickness status
     sick_since: backendStudent.sick_since,
+    excused: backendStudent.excused ?? false, // Excused from attending today
+    excused_since: backendStudent.excused_since,
     name_lg: backendStudent.guardian_name ?? undefined,
     contact_lg: backendStudent.guardian_contact ?? undefined,
     guardian_email: backendStudent.guardian_email,
@@ -283,7 +290,10 @@ export function prepareStudentForBackend(
     current_location: student.current_location
       ? normalizeLocation(student.current_location)
       : undefined,
-    bus: student.bus ?? false, // Send bus as a separate field
+    // Only send bus when explicitly provided so partial updates (e.g. sick/excused
+    // toggles) don't clobber the persisted Buskind flag. The backend field is
+    // *bool with omitempty — omitting the key leaves the DB value untouched.
+    bus: student.bus,
     // REMOVED: guardian_name and guardian_contact - deprecated fields
     // Use guardian_profiles system instead
     group_id: student.group_id
@@ -302,6 +312,7 @@ export function prepareStudentForBackend(
     supervisor_notes: student.supervisor_notes,
     pickup_status: student.pickup_status,
     sick: student.sick,
+    excused: student.excused,
   };
 }
 
@@ -336,6 +347,7 @@ export interface UpdateStudentRequest {
   pickup_status?: string;
   bus?: boolean;
   sick?: boolean;
+  excused?: boolean;
 }
 
 // Backend request type (for actual API calls)
@@ -356,6 +368,7 @@ export interface BackendUpdateRequest {
   pickup_status?: string;
   bus?: boolean;
   sick?: boolean;
+  excused?: boolean;
 }
 
 // Map privacy consent from backend to frontend
@@ -405,6 +418,7 @@ const DIRECT_FIELD_MAPPINGS: FieldMapping[] = [
   { source: "pickup_status", target: "pickup_status" },
   { source: "bus", target: "bus" },
   { source: "sick", target: "sick" },
+  { source: "excused", target: "excused" },
 ];
 
 /**

@@ -117,6 +117,172 @@ func TestCreateVisit_ReEntry(t *testing.T) {
 }
 
 // =============================================================================
+// Auto-clear status flag Tests (sick / excused on check-in)
+// =============================================================================
+
+// TestCreateVisit_AutoClearsSick — with default settings (sick_clear_mode =
+// next_checkin), a sick student's flag is cleared when they check in.
+func TestCreateVisit_AutoClearsSick(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupVisitHelperService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	activity := testpkg.CreateTestActivityGroup(t, db, "autoclear-sick-test")
+	room := testpkg.CreateTestRoom(t, db, "Autoclear Sick Room")
+	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	student := testpkg.CreateTestStudent(t, db, "Autoclear", "Sick", "4a")
+	staff := testpkg.CreateTestStaff(t, db, "Autoclear", "Staff")
+	rfidDevice := testpkg.CreateTestDevice(t, db, "RFID-ACS-001")
+	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, staff.ID, rfidDevice.ID)
+
+	// Pre-state: mark student sick
+	sickTrue := true
+	now := time.Now()
+	student.Sick = &sickTrue
+	student.SickSince = &now
+	_, err := db.NewUpdate().Model(student).Column("sick", "sick_since").Where("id = ?", student.ID).Exec(ctx)
+	require.NoError(t, err)
+
+	staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
+	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, rfidDevice)
+
+	visit := &activeModels.Visit{
+		StudentID:     student.ID,
+		ActiveGroupID: activeGroup.ID,
+		EntryTime:     time.Now(),
+	}
+	require.NoError(t, service.CreateVisit(deviceCtx, visit))
+
+	// Re-read student — sick flag should be cleared.
+	var reloaded struct {
+		Sick      bool       `bun:"sick"`
+		SickSince *time.Time `bun:"sick_since"`
+	}
+	err = db.NewSelect().
+		Table("users.students").
+		Column("sick", "sick_since").
+		Where("id = ?", student.ID).
+		Scan(ctx, &reloaded)
+	require.NoError(t, err)
+	assert.False(t, reloaded.Sick, "sick should be cleared on check-in under next_checkin mode")
+	assert.Nil(t, reloaded.SickSince, "sick_since should be nil after clearing")
+}
+
+// TestCreateVisit_AutoClearsExcused_WhenSettingNextCheckin — when the tenant
+// overrides operations.excused_clear_mode to "next_checkin", an excused
+// student gets the flag cleared on check-in (same behavior path as sick).
+func TestCreateVisit_AutoClearsExcused_WhenSettingNextCheckin(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupVisitHelperService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	// Insert a per-tenant override for excused_clear_mode = next_checkin.
+	// We write directly to config.setting_values so the test doesn't depend
+	// on the full permission-gated SetValue flow (the real write path has
+	// its own tests).
+	_, err := db.NewRaw(`
+		INSERT INTO config.setting_values (tenant_id, setting_key, value, updated_by)
+		VALUES (1, 'operations.excused_clear_mode', '"next_checkin"', NULL)
+		ON CONFLICT (tenant_id, setting_key)
+		DO UPDATE SET value = EXCLUDED.value, updated_at = now()
+	`).Exec(ctx)
+	require.NoError(t, err)
+	defer func() {
+		_, _ = db.NewRaw(`DELETE FROM config.setting_values WHERE tenant_id = 1 AND setting_key = 'operations.excused_clear_mode'`).Exec(context.Background())
+	}()
+
+	activity := testpkg.CreateTestActivityGroup(t, db, "autoclear-exc-test")
+	room := testpkg.CreateTestRoom(t, db, "Autoclear Excused Room")
+	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	student := testpkg.CreateTestStudent(t, db, "Autoclear", "Excused", "4c")
+	staff := testpkg.CreateTestStaff(t, db, "Autoclear", "Staff")
+	rfidDevice := testpkg.CreateTestDevice(t, db, "RFID-ACE-001")
+	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, staff.ID, rfidDevice.ID)
+
+	excusedTrue := true
+	now := time.Now()
+	student.Excused = &excusedTrue
+	student.ExcusedSince = &now
+	_, err = db.NewUpdate().Model(student).Column("excused", "excused_since").Where("id = ?", student.ID).Exec(ctx)
+	require.NoError(t, err)
+
+	staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
+	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, rfidDevice)
+
+	visit := &activeModels.Visit{
+		StudentID:     student.ID,
+		ActiveGroupID: activeGroup.ID,
+		EntryTime:     time.Now(),
+	}
+	require.NoError(t, service.CreateVisit(deviceCtx, visit))
+
+	var reloaded struct {
+		Excused      bool       `bun:"excused"`
+		ExcusedSince *time.Time `bun:"excused_since"`
+	}
+	err = db.NewSelect().
+		Table("users.students").
+		Column("excused", "excused_since").
+		Where("id = ?", student.ID).
+		Scan(ctx, &reloaded)
+	require.NoError(t, err)
+	assert.False(t, reloaded.Excused, "excused must be cleared when clear_mode override is next_checkin")
+	assert.Nil(t, reloaded.ExcusedSince)
+}
+
+// TestCreateVisit_DoesNotClearExcused_WhenDefaultMode — excused default is
+// end_of_day, so check-in must NOT clear the flag.
+func TestCreateVisit_DoesNotClearExcused_WhenDefaultMode(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupVisitHelperService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	activity := testpkg.CreateTestActivityGroup(t, db, "keepexc-test")
+	room := testpkg.CreateTestRoom(t, db, "Keep Excused Room")
+	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	student := testpkg.CreateTestStudent(t, db, "KeepExc", "Student", "4b")
+	staff := testpkg.CreateTestStaff(t, db, "KeepExc", "Staff")
+	rfidDevice := testpkg.CreateTestDevice(t, db, "RFID-KEX-001")
+	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, staff.ID, rfidDevice.ID)
+
+	excusedTrue := true
+	now := time.Now()
+	student.Excused = &excusedTrue
+	student.ExcusedSince = &now
+	_, err := db.NewUpdate().Model(student).Column("excused", "excused_since").Where("id = ?", student.ID).Exec(ctx)
+	require.NoError(t, err)
+
+	staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
+	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, rfidDevice)
+
+	visit := &activeModels.Visit{
+		StudentID:     student.ID,
+		ActiveGroupID: activeGroup.ID,
+		EntryTime:     time.Now(),
+	}
+	require.NoError(t, service.CreateVisit(deviceCtx, visit))
+
+	var reloaded struct {
+		Excused      bool       `bun:"excused"`
+		ExcusedSince *time.Time `bun:"excused_since"`
+	}
+	err = db.NewSelect().
+		Table("users.students").
+		Column("excused", "excused_since").
+		Where("id = ?", student.ID).
+		Scan(ctx, &reloaded)
+	require.NoError(t, err)
+	assert.True(t, reloaded.Excused, "excused should remain set when clear_mode is end_of_day (default)")
+	assert.NotNil(t, reloaded.ExcusedSince)
+}
+
+// =============================================================================
 // WebManualDeviceCode Constant Test
 // =============================================================================
 

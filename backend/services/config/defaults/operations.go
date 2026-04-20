@@ -188,4 +188,42 @@ func init() {
 
 	// Break auto-end interval is NOT registered here — it controls a global ticker
 	// (not per-tenant) and is configured via BREAK_AUTO_END_INTERVAL_SECONDS env var only.
+
+	// --- Status flag auto-clear (Krank / Entschuldigt badge lifecycle) ---
+
+	statusFlagOptions := &config.SelectOptions{
+		Static: []config.SelectOption{
+			{Label: "Manuell (nur durch Betreuer)", Value: config.ClearModeManual},
+			{Label: "Beim nächsten Check-in", Value: config.ClearModeNextCheckin},
+			{Label: "Am Ende des Tages", Value: config.ClearModeEndOfDay},
+		},
+	}
+
+	config.Register(config.Definition{
+		Key:             config.KeySickClearMode,
+		Label:           "Krankmeldung automatisch beenden",
+		Description:     "Legt fest, wann die Krankmeldung eines Schülers automatisch aufgehoben wird.",
+		Type:            config.FieldSelect,
+		Default:         config.ClearModeNextCheckin,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "abwesenheit",
+		SortOrder:       30,
+		Options:         statusFlagOptions,
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyExcusedClearMode,
+		Label:           "Entschuldigung automatisch beenden",
+		Description:     "Legt fest, wann die Entschuldigung eines Schülers automatisch aufgehoben wird.",
+		Type:            config.FieldSelect,
+		Default:         config.ClearModeEndOfDay,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "abwesenheit",
+		SortOrder:       31,
+		Options:         statusFlagOptions,
+	})
 }

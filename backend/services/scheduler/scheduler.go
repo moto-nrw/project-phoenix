@@ -104,6 +104,7 @@ type Scheduler struct {
 	lastSessionEnd      sync.Map // tenant_id → time.Time
 	lastDataCleanup     sync.Map // tenant_id → time.Time
 	lastSessionCleanup  sync.Map // tenant_id → time.Time
+	lastStatusFlagClear sync.Map // tenant_id → time.Time
 	lastMaterialization sync.Map // tenant_id → time.Time
 
 	// Overdue instance tracking (WP-B9). Re-fire guard so the same instance
@@ -298,6 +299,9 @@ func (s *Scheduler) Start() {
 
 	// Schedule break auto-end task
 	s.scheduleBreakAutoEndTask()
+
+	// Schedule daily sick/excused status-flag clear task
+	s.scheduleStatusFlagClearTask()
 
 	// Schedule weekly timetable materialization (WP-B8)
 	s.scheduleMaterializationTask()
@@ -1275,6 +1279,154 @@ func wasRunToday(lastRunMap *sync.Map, tenantID int64) bool {
 // markRunToday records that a per-tenant job ran today.
 func markRunToday(lastRunMap *sync.Map, tenantID int64) {
 	lastRunMap.Store(tenantID, time.Now())
+}
+
+// scheduleStatusFlagClearTask schedules a daily task to clear sick / excused
+// flags for tenants whose operations.sick_clear_mode or
+// operations.excused_clear_mode is set to "end_of_day". The task fires at the
+// tenant's configured operations.student_daily_checkout_time (the natural
+// end of the OGS day); when that setting is empty, no clear happens.
+func (s *Scheduler) scheduleStatusFlagClearTask() {
+	// Env var kill switch to allow ops to disable this task without code changes.
+	if os.Getenv("STATUS_FLAG_CLEAR_ENABLED") == "false" {
+		s.getLogger().Info("status flag clear scheduler is disabled via env var")
+		return
+	}
+
+	task := &ScheduledTask{
+		Name:     "status-flag-clear",
+		Schedule: "1m-poll",
+	}
+
+	s.mu.Lock()
+	s.tasks[task.Name] = task
+	s.mu.Unlock()
+
+	s.wg.Add(1)
+	go s.runStatusFlagClearTaskPolling(task)
+}
+
+// runStatusFlagClearTaskPolling checks every minute if any tenant's checkout
+// time matches now and clears the configured end_of_day flags.
+func (s *Scheduler) runStatusFlagClearTaskPolling(task *ScheduledTask) {
+	defer s.wg.Done()
+	defer func() {
+		if r := recover(); r != nil {
+			err := fmt.Errorf("panic in status flag clear task: %v", r)
+			s.getLogger().Error("goroutine panic recovered", slog.String("error", err.Error()))
+			sentry.CurrentHub().Recover(r)
+			sentry.Flush(2 * time.Second)
+		}
+	}()
+
+	s.getLogger().Info("status flag clear task using minute-polling for per-tenant scheduling")
+
+	s.checkAndRunStatusFlagClear(task)
+
+	if !s.waitUntilNextMinute() {
+		return
+	}
+
+	ticker := time.NewTicker(60 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			s.checkAndRunStatusFlagClear(task)
+		case <-s.done:
+			return
+		}
+	}
+}
+
+// checkAndRunStatusFlagClear evaluates each tenant's clear_mode settings and
+// clears flags when the configured daily checkout time matches now.
+func (s *Scheduler) checkAndRunStatusFlagClear(task *ScheduledTask) {
+	task.mu.Lock()
+	if task.Running {
+		task.mu.Unlock()
+		return
+	}
+	task.Running = true
+	task.mu.Unlock()
+	defer func() {
+		task.mu.Lock()
+		task.Running = false
+		task.mu.Unlock()
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	defer cancel()
+
+	s.forEachTenantSettings(ctx, "status-flag-clear", func(tenantCtx context.Context, tenantID int64) error {
+		clearTime := s.resolveStringSetting(tenantCtx, configModel.KeyStudentDailyCheckoutTime, "", "")
+		if clearTime == "" || !timeMatchesNow(clearTime) {
+			return nil
+		}
+
+		if wasRunToday(&s.lastStatusFlagClear, tenantID) {
+			return nil
+		}
+		markRunToday(&s.lastStatusFlagClear, tenantID)
+
+		sickMode := s.resolveStringSetting(tenantCtx, configModel.KeySickClearMode, "", configModel.ClearModeNextCheckin)
+		excusedMode := s.resolveStringSetting(tenantCtx, configModel.KeyExcusedClearMode, "", configModel.ClearModeEndOfDay)
+
+		if sickMode == configModel.ClearModeEndOfDay {
+			if affected, err := s.clearStatusFlag(tenantCtx, "sick", "sick_since"); err != nil {
+				s.getLogger().Error("end-of-day sick clear failed",
+					slog.Int64("tenant_id", tenantID),
+					slog.String("error", err.Error()),
+				)
+				s.lastStatusFlagClear.Delete(tenantID)
+			} else if affected > 0 {
+				s.getLogger().Info("end-of-day sick clear completed",
+					slog.Int64("tenant_id", tenantID),
+					slog.Int64("students_cleared", affected),
+				)
+			}
+		}
+
+		if excusedMode == configModel.ClearModeEndOfDay {
+			if affected, err := s.clearStatusFlag(tenantCtx, "excused", "excused_since"); err != nil {
+				s.getLogger().Error("end-of-day excused clear failed",
+					slog.Int64("tenant_id", tenantID),
+					slog.String("error", err.Error()),
+				)
+				s.lastStatusFlagClear.Delete(tenantID)
+			} else if affected > 0 {
+				s.getLogger().Info("end-of-day excused clear completed",
+					slog.Int64("tenant_id", tenantID),
+					slog.Int64("students_cleared", affected),
+				)
+			}
+		}
+
+		return nil
+	})
+}
+
+// clearStatusFlag clears a boolean flag + its timestamp for every student in
+// the current tenant transaction. Column names are trusted constants — the
+// caller picks them from a fixed set.
+func (s *Scheduler) clearStatusFlag(ctx context.Context, flagColumn, sinceColumn string) (int64, error) {
+	if s.db == nil {
+		return 0, fmt.Errorf("scheduler db not configured")
+	}
+	query := fmt.Sprintf(
+		`UPDATE users.students SET %s = FALSE, %s = NULL WHERE %s = TRUE`,
+		flagColumn, sinceColumn, flagColumn,
+	)
+	res, err := s.db.NewRaw(query).Exec(ctx)
+	if err != nil {
+		return 0, err
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+	return affected, nil
 }
 
 // --- Timetable materialization (WP-B8) ---

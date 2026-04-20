@@ -405,6 +405,40 @@ describe("useStudentData", () => {
       expect(result.current.student?.sick).toBe(true);
     });
 
+    it("should include excused fields when hasFullAccess is true", () => {
+      mockUseSession.mockReturnValue({
+        data: { user: { id: "1", token: "test-token" }, expires: "2099-12-31" },
+        status: "authenticated",
+        update: vi.fn(),
+      });
+
+      mockUseSWRAuth.mockReturnValue({
+        data: {
+          student: {
+            ...mockStudent,
+            excused: true,
+            excused_since: "2024-02-01T08:00:00Z",
+          },
+          hasFullAccess: true,
+          hasWriteAccess: true,
+          supervisors: mockSupervisors,
+          myGroups: ["100"],
+          myGroupRooms: ["Room A"],
+          mySupervisedRooms: [],
+        },
+        error: undefined,
+        isLoading: false,
+        isValidating: false,
+        mutate: vi.fn(),
+      });
+
+      const { result } = renderHook(() => useStudentData("1"));
+      expect(result.current.student?.excused).toBe(true);
+      expect(result.current.student?.excused_since).toBe(
+        "2024-02-01T08:00:00Z",
+      );
+    });
+
     it("should use default value for hasFullAccess when data is undefined", () => {
       mockUseSession.mockReturnValue({
         data: { user: { id: "1", token: "test-token" }, expires: "2099-12-31" },

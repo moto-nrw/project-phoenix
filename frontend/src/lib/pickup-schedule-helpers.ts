@@ -443,6 +443,7 @@ export interface DayData {
   weekday: number; // 1-5 (Mon-Fri)
   isToday: boolean;
   showSick: boolean;
+  showExcused: boolean;
   exception: PickupException | undefined;
   baseSchedule: PickupSchedule | undefined;
   effectiveTime: string | undefined;
@@ -460,6 +461,7 @@ export function getDayData(
   exceptions: PickupException[],
   isSickToday: boolean,
   notes: PickupNote[] = [],
+  isExcusedToday = false,
 ): DayData {
   const weekday = getWeekdayFromDate(date);
   const dateStr = formatDateISO(date);
@@ -472,6 +474,7 @@ export function getDayData(
       weekday: 0, // Weekend indicator
       isToday: isSameDay(date, today),
       showSick: false,
+      showExcused: false,
       exception: undefined,
       baseSchedule: undefined,
       effectiveTime: undefined,
@@ -484,19 +487,22 @@ export function getDayData(
   // Check for exception on this specific date
   const exception = exceptions.find((e) => e.exceptionDate === dateStr);
 
-  // Check if this is today and student is sick
+  // Check if this is today and student is sick / excused. The two flags are
+  // mutually exclusive at the backend level; if they somehow both arrive as
+  // true we let sick win to stay consistent with LocationBadge precedence.
   const isToday = isSameDay(date, today);
   const showSick = isToday && isSickToday;
+  const showExcused = isToday && !showSick && isExcusedToday;
 
   // Get base schedule for this weekday
   const baseSchedule = schedules.find((s) => s.weekday === weekday);
 
   // Determine effective pickup time:
-  // - If sick today: no pickup time (undefined)
+  // - If sick or excused today: no pickup time (child is not being picked up)
   // - If exception exists: use exception's pickup time (even if null = absent)
   // - Otherwise: use base schedule's pickup time
   let effectiveTime: string | undefined;
-  if (showSick) {
+  if (showSick || showExcused) {
     effectiveTime = undefined;
   } else if (exception) {
     effectiveTime = exception.pickupTime; // null means absent, don't fall back
@@ -512,6 +518,7 @@ export function getDayData(
     weekday,
     isToday,
     showSick,
+    showExcused,
     exception,
     baseSchedule,
     effectiveTime,
