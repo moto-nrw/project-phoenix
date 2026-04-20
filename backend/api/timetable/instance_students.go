@@ -44,28 +44,11 @@ type PatchAttendanceRequest struct {
 	Note      json.RawMessage `json:"note,omitempty"`
 }
 
-// fieldError carries one specific validation problem. Multiple are returned
-// together so the client can render a per-field form error list without a
-// second round-trip.
-type fieldError struct {
-	Field  string `json:"field"`
-	Reason string `json:"reason"`
-}
-
-// validationErrResponse is the 400 body for validation failures. Uses the
-// same Status=error convention as common.ErrResponse so the frontend's
-// existing error handling keeps working.
-type validationErrResponse struct {
-	Status  string       `json:"status"`
-	Message string       `json:"message"`
-	Errors  []fieldError `json:"errors"`
-}
-
-func (v *validationErrResponse) Render(w http.ResponseWriter, _ *http.Request) error {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusBadRequest)
-	return json.NewEncoder(w).Encode(v)
-}
+// fieldError is a package-local alias for common.FieldError so test tables
+// and helper signatures stay compact. The unified ErrResponse carries these
+// under the `errors` key — the envelope is the same as every other 400 in
+// the codebase, with an optional per-field list.
+type fieldError = common.FieldError
 
 // patchInstanceStudent handles PATCH /instances/{instance_id}/students/{student_id}.
 //
@@ -102,6 +85,9 @@ func (rs *Resource) patchInstanceStudent(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if !patch.HasChanges() {
+		// 400 the no-op here so the client gets a specific error. The repo
+		// short-circuits the same case as a defensive no-op for any future
+		// caller that bypasses this handler — the two guards are intentional.
 		renderValidationErrors(w, r, []fieldError{
 			{Field: "body", Reason: "at least one of status, substatus, note must be set"},
 		})
@@ -164,7 +150,9 @@ func parseAttendancePathIDs(w http.ResponseWriter, r *http.Request) (int64, int6
 
 // decodePatchBody reads and JSON-decodes the request body. The 16 KiB cap is
 // generous headroom above the 500-char note ceiling — any payload larger
-// than that is almost certainly noise.
+// than that is almost certainly noise. Unknown JSON fields are ignored,
+// matching the rest of the timetable/IoT endpoints: a frontend that sends
+// a future or stray key does not get a 400 for it.
 func decodePatchBody(w http.ResponseWriter, r *http.Request) (*PatchAttendanceRequest, bool) {
 	body, err := io.ReadAll(io.LimitReader(r.Body, 16*1024))
 	if err != nil {
@@ -177,9 +165,7 @@ func decodePatchBody(w http.ResponseWriter, r *http.Request) (*PatchAttendanceRe
 		return &PatchAttendanceRequest{}, true
 	}
 	req := &PatchAttendanceRequest{}
-	dec := json.NewDecoder(bytes.NewReader(body))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(req); err != nil {
+	if err := json.NewDecoder(bytes.NewReader(body)).Decode(req); err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("invalid JSON body: %w", err)))
 		return nil, false
 	}
@@ -316,12 +302,10 @@ func validateAttendancePatch(patch scheduleModel.AttendanceFieldPatch, current *
 }
 
 // renderValidationErrors emits the 400 body with the full errors slice.
+// The summary lands in the standard `error` field (readable by the generic
+// frontend handler) and the per-field list in `errors`.
 func renderValidationErrors(w http.ResponseWriter, r *http.Request, errs []fieldError) {
-	common.RenderError(w, r, &validationErrResponse{
-		Status:  "error",
-		Message: "validation failed",
-		Errors:  errs,
-	})
+	common.RenderError(w, r, common.ErrorValidation("validation failed", errs))
 }
 
 // AttendanceResponse is the on-wire shape of a schedule.instance_students row.

@@ -202,7 +202,7 @@ func (r *InstanceStudentRepository) UpdateAttendanceFromCheckin(
 		ModelTableExpr(modelTblInstanceStudent).
 		Set(`status = ?`, schedule.AttendanceStatusPresent).
 		Set(`checked_in_at = ?`, checkedInAt).
-		Set(`updated_at = ?`, time.Now()).
+		Set(`updated_at = ?`, time.Now().UTC()).
 		Where(`"instance_student".instance_id = ?`, instanceID).
 		Where(`"instance_student".student_id = ?`, studentID).
 		Where(`"instance_student".status = ?`, schedule.AttendanceStatusExpected)
@@ -263,7 +263,7 @@ func (r *InstanceStudentRepository) UpdateAttendanceFields(
 	case patch.Note != nil:
 		q = q.Set(`note = ?`, *patch.Note)
 	}
-	q = q.Set(`updated_at = ?`, time.Now())
+	q = q.Set(`updated_at = ?`, time.Now().UTC())
 
 	if _, err := q.Exec(ctx); err != nil {
 		return &modelBase.DatabaseError{

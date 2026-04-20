@@ -100,6 +100,14 @@ var pyreportalCheckinErrorStrings = []string{
 // test fixtures that happen to contain the same literal.
 //
 // Paths are relative to this test file (api/iot/checkin/).
+//
+// Scope limitation: the guard only covers strings that originate inside
+// this file list (the IoT checkin package + device auth + iot/common
+// errors). If the checkin flow begins to surface error strings that come
+// from a deeper layer — for example a new active/schedule service error
+// bubbled up through the handler and translated by PyrePortal — add that
+// source file here. Otherwise a wording change there silently breaks the
+// mapping and this guard will not catch it.
 var guardSources = []string{
 	// Checkin package itself
 	"workflow.go",

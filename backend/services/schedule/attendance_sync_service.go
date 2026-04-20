@@ -26,6 +26,7 @@ package schedule
 import (
 	"context"
 	"log/slog"
+	"runtime/debug"
 
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -83,10 +84,13 @@ func (s *AttendanceSyncService) MirrorCheckInForVisit(
 	ctx context.Context, visit *activeModel.Visit,
 ) (snapshot *activeSvc.AttendanceSnapshot) {
 	// Panic belt-and-braces — we promise no error and no panic to the caller.
+	// The stack is captured at Error level so an after-the-fact root cause
+	// is recoverable from Grafana without having to reproduce the panic.
 	defer func() {
 		if r := recover(); r != nil {
 			s.getLogger().Error("attendance mirror panic",
 				slog.Any("panic", r),
+				slog.String("stack", string(debug.Stack())),
 			)
 			snapshot = nil
 		}
@@ -201,6 +205,7 @@ func (s *AttendanceSyncService) LoadAttendanceForVisit(
 		if r := recover(); r != nil {
 			s.getLogger().Error("attendance load panic",
 				slog.Any("panic", r),
+				slog.String("stack", string(debug.Stack())),
 			)
 			snapshot = nil
 		}
