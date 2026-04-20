@@ -65,29 +65,8 @@ func (p *studentListParams) hasPersonFilters() bool {
 	return p.search != "" || p.firstName != "" || p.lastName != "" || p.location != ""
 }
 
-// buildQueryOptions creates query options from parameters
-func (p *studentListParams) buildQueryOptions() *base.QueryOptions {
-	queryOptions := base.NewQueryOptions()
-	filter := base.NewFilter()
-
-	if p.schoolClass != "" {
-		filter.ILike("school_class", "%"+p.schoolClass+"%")
-	}
-	if p.guardianName != "" {
-		filter.ILike("guardian_name", "%"+p.guardianName+"%")
-	}
-
-	// Add pagination only if no person-based filters
-	if !p.hasPersonFilters() {
-		queryOptions.WithPagination(p.page, p.pageSize)
-	}
-	queryOptions.Filter = filter
-
-	return queryOptions
-}
-
-// buildCountFilter creates a filter for counting records
-func (p *studentListParams) buildCountFilter() *base.Filter {
+// buildBaseFilter creates the shared filter for school_class and guardian_name
+func (p *studentListParams) buildBaseFilter() *base.Filter {
 	filter := base.NewFilter()
 	if p.schoolClass != "" {
 		filter.ILike("school_class", "%"+p.schoolClass+"%")
@@ -98,10 +77,23 @@ func (p *studentListParams) buildCountFilter() *base.Filter {
 	return filter
 }
 
+// buildQueryOptions creates query options from parameters
+func (p *studentListParams) buildQueryOptions() *base.QueryOptions {
+	queryOptions := base.NewQueryOptions()
+	queryOptions.Filter = p.buildBaseFilter()
+
+	// Add pagination only if no person-based filters
+	if !p.hasPersonFilters() {
+		queryOptions.WithPagination(p.page, p.pageSize)
+	}
+
+	return queryOptions
+}
+
 // buildCountOptions creates query options for counting records
 func (p *studentListParams) buildCountOptions() *base.QueryOptions {
 	countOptions := base.NewQueryOptions()
-	countOptions.Filter = p.buildCountFilter()
+	countOptions.Filter = p.buildBaseFilter()
 	return countOptions
 }
 
