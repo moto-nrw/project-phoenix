@@ -263,9 +263,10 @@ func TestSessionStartResponse_Fields(t *testing.T) {
 	}
 	conflictInfo := &ConflictInfoResponse{HasConflict: false}
 
+	activityID := int64(456)
 	resp := SessionStartResponse{
 		ActiveGroupID: 123,
-		ActivityID:    456,
+		ActivityID:    &activityID,
 		DeviceID:      789,
 		StartTime:     now,
 		Status:        "started",
@@ -275,7 +276,8 @@ func TestSessionStartResponse_Fields(t *testing.T) {
 	}
 
 	assert.Equal(t, int64(123), resp.ActiveGroupID)
-	assert.Equal(t, int64(456), resp.ActivityID)
+	require.NotNil(t, resp.ActivityID)
+	assert.Equal(t, int64(456), *resp.ActivityID)
 	assert.Equal(t, int64(789), resp.DeviceID)
 	assert.Equal(t, now, resp.StartTime)
 	assert.Equal(t, "started", resp.Status)

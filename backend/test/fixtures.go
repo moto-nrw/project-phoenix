@@ -745,7 +745,7 @@ func CreateTestActiveGroup(tb testing.TB, db *bun.DB, activityGroupID, roomID in
 
 	now := time.Now()
 	activeGroup := &active.Group{
-		GroupID:        activityGroupID,
+		GroupID:        &activityGroupID,
 		RoomID:         roomID,
 		StartTime:      now,
 		LastActivity:   now,
@@ -2344,8 +2344,9 @@ func CreateTestActiveGroupForTenant(tb testing.TB, db *bun.DB, tenantID int64) *
 	activityGroup := CreateTestActivityGroupForTenant(tb, db, tenantID, "IsolationActivity")
 
 	now := time.Now()
+	activityGroupID := activityGroup.ID
 	activeGroup := &active.Group{
-		GroupID:        activityGroup.ID,
+		GroupID:        &activityGroupID,
 		RoomID:         room.ID,
 		StartTime:      now,
 		LastActivity:   now,

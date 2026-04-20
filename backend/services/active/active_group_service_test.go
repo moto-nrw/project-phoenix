@@ -53,7 +53,8 @@ func TestActiveService_GetActiveGroup(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotNil(t, result)
 		assert.Equal(t, activeGroup.ID, result.ID)
-		assert.Equal(t, activityGroup.ID, result.GroupID)
+		require.NotNil(t, result.GroupID)
+		assert.Equal(t, activityGroup.ID, *result.GroupID)
 		assert.Equal(t, room.ID, result.RoomID)
 	})
 
@@ -150,8 +151,9 @@ func TestActiveService_CreateActiveGroup(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID)
 
 		now := time.Now()
+		activityID := activity.ID
 		group := &activeModels.Group{
-			GroupID:        activity.ID,
+			GroupID:        &activityID,
 			RoomID:         room.ID,
 			StartTime:      now,
 			LastActivity:   now,
@@ -438,10 +440,11 @@ func TestActiveService_FindActiveGroupsByGroupID(t *testing.T) {
 		// ASSERT
 		require.NoError(t, err)
 		assert.NotEmpty(t, result)
-		// Verify at least one has our activity group ID
+		// Verify at least one has our activity group ID. After WP-B6,
+		// GroupID is *int64; spontaneous sessions never match here.
 		found := false
 		for _, g := range result {
-			if g.GroupID == activity.ID {
+			if templateID, ok := g.TemplateID(); ok && templateID == activity.ID {
 				found = true
 				break
 			}
@@ -472,8 +475,9 @@ func TestActiveService_FindDeviceActiveGroupInRoom(t *testing.T) {
 		device := testpkg.CreateTestDevice(t, db, "svc-device-room-match")
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, device.ID, activity.CategoryID, room.ID)
 
+		activityID := activity.ID
 		activeGroup := &activeModels.Group{
-			GroupID:        activity.ID,
+			GroupID:        &activityID,
 			RoomID:         room.ID,
 			DeviceID:       &device.ID,
 			StartTime:      time.Now(),

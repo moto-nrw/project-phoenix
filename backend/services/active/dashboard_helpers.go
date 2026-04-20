@@ -266,9 +266,13 @@ func processActiveGroups(activeGroups []*active.Group, visitsByGroupID map[int64
 			}
 		}
 
-		// Check if this is an OGS/education group
-		if _, isOGS := educationGroupsByID[group.GroupID]; isOGS {
-			ogsGroupsCount++
+		// Check if this is an OGS/education group. Spontaneous sessions
+		// (GroupID == nil, WP-B6) are never OGS-bound — they skip this
+		// classification entirely.
+		if templateID, ok := group.TemplateID(); ok {
+			if _, isOGS := educationGroupsByID[templateID]; isOGS {
+				ogsGroupsCount++
+			}
 		}
 	}
 
@@ -436,10 +440,13 @@ func buildCurrentActivities(allActivityGroups []*activitiesModels.Group, activeG
 	return currentActivities
 }
 
-// findActiveSessionForActivity checks if an activity has an active session and returns participant count
+// findActiveSessionForActivity checks if an activity has an active session and returns participant count.
+// Spontaneous sessions (TemplateID ok == false) can never match since they
+// have no parent template id to compare against.
 func findActiveSessionForActivity(activityID int64, activeGroups []*active.Group, roomData *dashboardRoomData) (bool, int) {
 	for _, group := range activeGroups {
-		if group.IsActive() && group.GroupID == activityID {
+		templateID, ok := group.TemplateID()
+		if group.IsActive() && ok && templateID == activityID {
 			participantCount := 0
 			if studentSet, ok := roomData.roomStudentsMap[group.RoomID]; ok {
 				participantCount = len(studentSet)
@@ -495,26 +502,35 @@ func buildActiveGroupsSummary(activeGroups []*active.Group, activityGroupsByID m
 }
 
 // resolveGroupName gets the display name for a group via pre-loaded maps.
-func resolveGroupName(groupID int64, activityGroupsByID map[int64]*activitiesModels.Group, educationGroupsByID map[int64]*educationModels.Group) string {
-	if ag, ok := activityGroupsByID[groupID]; ok {
+// Spontaneous sessions (groupID == nil, WP-B6) return a generic label since
+// no template row exists to derive a name from.
+func resolveGroupName(groupID *int64, activityGroupsByID map[int64]*activitiesModels.Group, educationGroupsByID map[int64]*educationModels.Group) string {
+	if groupID == nil {
+		return "Spontane Aktivität"
+	}
+	if ag, ok := activityGroupsByID[*groupID]; ok {
 		return ag.Name
 	}
-	if eg, ok := educationGroupsByID[groupID]; ok {
+	if eg, ok := educationGroupsByID[*groupID]; ok {
 		return eg.Name
 	}
-	return fmt.Sprintf("Gruppe %d", groupID)
+	return fmt.Sprintf("Gruppe %d", *groupID)
 }
 
 // resolveGroupNameAndType gets the display name and type for a group.
 // Education/OGS groups are checked first since they need the "ogs_group" type.
-func resolveGroupNameAndType(groupID int64, activityGroupsByID map[int64]*activitiesModels.Group, educationGroupsByID map[int64]*educationModels.Group) (string, string) {
-	if eg, ok := educationGroupsByID[groupID]; ok {
+// Spontaneous sessions (groupID == nil) are classified as "spontaneous".
+func resolveGroupNameAndType(groupID *int64, activityGroupsByID map[int64]*activitiesModels.Group, educationGroupsByID map[int64]*educationModels.Group) (string, string) {
+	if groupID == nil {
+		return "Spontane Aktivität", "spontaneous"
+	}
+	if eg, ok := educationGroupsByID[*groupID]; ok {
 		return eg.Name, "ogs_group"
 	}
-	if ag, ok := activityGroupsByID[groupID]; ok {
+	if ag, ok := activityGroupsByID[*groupID]; ok {
 		return ag.Name, "activity"
 	}
-	return fmt.Sprintf("Gruppe %d", groupID), "activity"
+	return fmt.Sprintf("Gruppe %d", *groupID), "activity"
 }
 
 // resolveRoomName gets the display name for a room

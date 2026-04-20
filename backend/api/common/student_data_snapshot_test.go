@@ -6,6 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -173,7 +174,7 @@ func TestStudentDataSnapshot_ResolveLocationWithTime_WithLocationSnapshot(t *tes
 		},
 		Groups: map[int64]*activeModels.Group{
 			456: {
-				GroupID:   789,
+				GroupID:   base.Int64Ptr(789),
 				RoomID:    1,
 				StartTime: startTime,
 				Room: &facilities.Room{
@@ -255,7 +256,7 @@ func TestStudentDataSnapshot_CompleteScenario(t *testing.T) {
 		},
 		Groups: map[int64]*activeModels.Group{
 			500: {
-				GroupID: 10, RoomID: 1, StartTime: startTime,
+				GroupID: base.Int64Ptr(10), RoomID: 1, StartTime: startTime,
 				Room: &facilities.Room{Name: "Library"},
 			},
 		},

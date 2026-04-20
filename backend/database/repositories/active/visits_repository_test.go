@@ -7,6 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	"github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -42,7 +43,7 @@ func createVisitTestData(t *testing.T, db *bun.DB) *visitTestData {
 		StartTime:      now,
 		LastActivity:   now,
 		TimeoutMinutes: 30,
-		GroupID:        activityGroup.ID,
+		GroupID:        base.Int64Ptr(activityGroup.ID),
 		RoomID:         room.ID,
 	}
 	err := groupRepo.Create(testpkg.TenantContext(1), activeGroup)
@@ -663,7 +664,7 @@ func TestVisitRepository_TransferVisitsFromRecentSessions(t *testing.T) {
 			StartTime:      now.Add(-2 * time.Hour),
 			LastActivity:   now.Add(-1 * time.Hour),
 			TimeoutMinutes: 30,
-			GroupID:        data.ActivityGroup,
+			GroupID:        base.Int64Ptr(data.ActivityGroup),
 			DeviceID:       &device.ID,
 			RoomID:         data.Room,
 		}
@@ -690,7 +691,7 @@ func TestVisitRepository_TransferVisitsFromRecentSessions(t *testing.T) {
 			StartTime:      now,
 			LastActivity:   now,
 			TimeoutMinutes: 30,
-			GroupID:        data.ActivityGroup,
+			GroupID:        base.Int64Ptr(data.ActivityGroup),
 			DeviceID:       &device.ID,
 			RoomID:         data.Room,
 		}
@@ -741,7 +742,7 @@ func TestVisitRepository_TransferVisitsFromRecentSessions(t *testing.T) {
 			StartTime:      now,
 			LastActivity:   now,
 			TimeoutMinutes: 30,
-			GroupID:        data.ActivityGroup,
+			GroupID:        base.Int64Ptr(data.ActivityGroup),
 			DeviceID:       &device.ID,
 			RoomID:         data.Room,
 		}
@@ -1110,7 +1111,7 @@ func TestVisitRepository_EndVisitsByActiveGroupIDs(t *testing.T) {
 			StartTime:      now,
 			LastActivity:   now,
 			TimeoutMinutes: 30,
-			GroupID:        data.ActivityGroup,
+			GroupID:        base.Int64Ptr(data.ActivityGroup),
 			RoomID:         data.Room,
 		}
 		err := groupRepo.Create(ctx, secondGroup)

@@ -44,6 +44,14 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"tracking.indicator_1",
 		"tracking.indicator_2",
 		"tracking.indicator_3",
+		// Timetable settings (WP-B7): 6 in operations tab + 1 in gdpr tab.
+		"timetable.materialization_enabled",
+		"timetable.materialization_weekday",
+		"timetable.materialization_weeks_ahead",
+		"timetable.auto_start_planned",
+		"timetable.overdue_threshold_minutes",
+		"timetable.show_expected_children_count",
+		"gdpr.timetable_retention_days",
 	}
 
 	for _, key := range expectedKeys {
@@ -54,7 +62,129 @@ func TestAllSettingsRegistered(t *testing.T) {
 		assert.NotEmpty(t, def.Category, "setting %q should have a category", key)
 	}
 
-	assert.GreaterOrEqual(t, len(all), 27, "at least 27 settings should be registered")
+	// 28 pre-WP-B7 settings + 7 timetable settings == 35 minimum. The `>=` is
+	// intentional so later work packages can add more settings without
+	// retrofitting this assertion.
+	assert.GreaterOrEqual(t, len(all), 35, "at least 35 settings should be registered (28 existing + 7 timetable)")
+}
+
+func TestTimetableSettings_Types(t *testing.T) {
+	tests := []struct {
+		key      string
+		expected config.FieldType
+	}{
+		{"timetable.materialization_enabled", config.FieldBoolean},
+		{"timetable.materialization_weekday", config.FieldSelect},
+		{"timetable.materialization_weeks_ahead", config.FieldNumber},
+		{"timetable.auto_start_planned", config.FieldBoolean},
+		{"timetable.overdue_threshold_minutes", config.FieldNumber},
+		{"timetable.show_expected_children_count", config.FieldBoolean},
+		{"gdpr.timetable_retention_days", config.FieldNumber},
+	}
+
+	for _, tc := range tests {
+		def := config.GetDefinition(tc.key)
+		require.NotNilf(t, def, "setting %q should exist", tc.key)
+		assert.Equalf(t, tc.expected, def.Type, "setting %q should be type %s", tc.key, tc.expected)
+	}
+}
+
+func TestTimetableSettings_Defaults(t *testing.T) {
+	// Both the materialization and auto-start flags default to FALSE so that
+	// WP-B7 is a pure no-op until the consuming services (WP-B8 / B9) ship
+	// AND a tenant explicitly opts in. Regressing either of these defaults
+	// would silently activate incomplete features for every tenant.
+	matDef := config.GetDefinition("timetable.materialization_enabled")
+	require.NotNil(t, matDef)
+	assert.Equal(t, false, matDef.Default, "materialization must default to false")
+
+	autoStartDef := config.GetDefinition("timetable.auto_start_planned")
+	require.NotNil(t, autoStartDef)
+	assert.Equal(t, false, autoStartDef.Default, "auto-start must default to false")
+
+	// Weekday defaults to Friday (ISO 8601: 5) so the RFC's recommended
+	// "materialize Fri → next week ready Mon" cadence holds out of the box.
+	weekdayDef := config.GetDefinition("timetable.materialization_weekday")
+	require.NotNil(t, weekdayDef)
+	assert.Equal(t, 5, weekdayDef.Default, "materialization weekday must default to Friday (5)")
+
+	retentionDef := config.GetDefinition("gdpr.timetable_retention_days")
+	require.NotNil(t, retentionDef)
+	assert.Equal(t, 365, retentionDef.Default, "timetable retention must default to 365 days")
+}
+
+func TestTimetableSettings_DependsOn(t *testing.T) {
+	// Materialization sub-settings are gated on the top-level toggle.
+	gatedKeys := []string{
+		"timetable.materialization_weekday",
+		"timetable.materialization_weeks_ahead",
+	}
+	for _, key := range gatedKeys {
+		def := config.GetDefinition(key)
+		require.NotNilf(t, def, "setting %q should exist", key)
+		require.NotNilf(t, def.DependsOn, "setting %q should have DependsOn", key)
+		assert.Equal(t, "timetable.materialization_enabled", def.DependsOn.Key)
+		assert.Equal(t, "eq", def.DependsOn.Condition)
+		assert.Equal(t, true, def.DependsOn.Value)
+	}
+
+	// Retention hangs off the shared GDPR cleanup toggle — same pattern as
+	// the other gdpr.* time/timeout settings.
+	retentionDef := config.GetDefinition("gdpr.timetable_retention_days")
+	require.NotNil(t, retentionDef)
+	require.NotNil(t, retentionDef.DependsOn)
+	assert.Equal(t, "gdpr.data_cleanup_enabled", retentionDef.DependsOn.Key)
+
+	// Overdue threshold is independent — materialization can be off while
+	// staff still see passive "this instance is overdue" indicators.
+	overdueDef := config.GetDefinition("timetable.overdue_threshold_minutes")
+	require.NotNil(t, overdueDef)
+	assert.Nil(t, overdueDef.DependsOn, "overdue threshold must stand alone (no DependsOn)")
+}
+
+func TestTimetableSettings_Permissions(t *testing.T) {
+	// Operational timetable settings use config:update (admin operational).
+	// The GDPR retention setting uses config:manage (admin GDPR-scoped).
+	opsKeys := []string{
+		"timetable.materialization_enabled",
+		"timetable.materialization_weekday",
+		"timetable.materialization_weeks_ahead",
+		"timetable.auto_start_planned",
+		"timetable.overdue_threshold_minutes",
+		"timetable.show_expected_children_count",
+	}
+	for _, key := range opsKeys {
+		def := config.GetDefinition(key)
+		require.NotNilf(t, def, "setting %q should exist", key)
+		assert.Equal(t, "operations", def.Tab, "setting %q should be in operations tab", key)
+		assert.Equal(t, "config:update", def.WritePermission, "setting %q should use config:update", key)
+	}
+
+	retentionDef := config.GetDefinition("gdpr.timetable_retention_days")
+	require.NotNil(t, retentionDef)
+	assert.Equal(t, "gdpr", retentionDef.Tab)
+	assert.Equal(t, "config:manage", retentionDef.WritePermission, "GDPR settings must use config:manage")
+}
+
+func TestTimetableSettings_WeekdayOptions(t *testing.T) {
+	def := config.GetDefinition("timetable.materialization_weekday")
+	require.NotNil(t, def)
+	require.NotNil(t, def.Options)
+	require.Len(t, def.Options.Static, 7, "all 7 weekdays must be offered")
+
+	// Weekday option values must be ISO 8601 integers 1–7. Drifting to
+	// time.Weekday's 0–6 convention would silently break any future
+	// materialization consumer that compares to time.Weekday()+1.
+	seen := map[int]string{}
+	for _, opt := range def.Options.Static {
+		v, ok := opt.Value.(int)
+		require.Truef(t, ok, "weekday option %q value should be int, got %T", opt.Label, opt.Value)
+		require.GreaterOrEqualf(t, v, 1, "weekday option %q value %d must be >= 1", opt.Label, v)
+		require.LessOrEqualf(t, v, 7, "weekday option %q value %d must be <= 7", opt.Label, v)
+		_, dup := seen[v]
+		require.Falsef(t, dup, "weekday option value %d appears twice", v)
+		seen[v] = opt.Label
+	}
 }
 
 func TestOperationsSettings_Types(t *testing.T) {

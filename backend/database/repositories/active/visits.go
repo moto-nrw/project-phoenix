@@ -554,7 +554,15 @@ func (r *VisitRepository) GetCurrentByStudentIDWithRoom(ctx context.Context, stu
 		ExitTime:      row.VisitExitTime,
 	}
 
-	if row.GroupID.Valid && row.GroupGroupID.Valid && row.GroupRoomID.Valid {
+	if row.GroupID.Valid && row.GroupRoomID.Valid {
+		// Row.GroupGroupID may legitimately be NULL for spontaneous sessions
+		// (WP-B6) — map it to *int64, leaving nil when the row carries no
+		// parent template.
+		var templateID *int64
+		if row.GroupGroupID.Valid {
+			v := row.GroupGroupID.Int64
+			templateID = &v
+		}
 		group := &active.Group{
 			Model: modelBase.Model{
 				ID:        row.GroupID.Int64,
@@ -564,7 +572,7 @@ func (r *VisitRepository) GetCurrentByStudentIDWithRoom(ctx context.Context, stu
 			StartTime:    row.GroupStartTime,
 			EndTime:      row.GroupEndTime,
 			LastActivity: row.GroupLastActivity,
-			GroupID:      row.GroupGroupID.Int64,
+			GroupID:      templateID,
 			RoomID:       row.GroupRoomID.Int64,
 		}
 		if row.GroupTimeoutMinutes.Valid {

@@ -53,7 +53,8 @@ func TestGetDeviceCurrentSession_HasSession(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, currentSession)
 	assert.Equal(t, session.ID, currentSession.ID)
-	assert.Equal(t, activityGroup.ID, currentSession.GroupID)
+	require.NotNil(t, currentSession.GroupID)
+	assert.Equal(t, activityGroup.ID, *currentSession.GroupID)
 }
 
 // TestGetDeviceCurrentSession_NoSession verifies error when device has no active session
@@ -103,7 +104,9 @@ func TestProcessSessionTimeout_WithActiveSession(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, session.ID, result.SessionID)
-	assert.Equal(t, activityGroup.ID, result.ActivityID)
+	if assert.NotNil(t, result.ActivityID) {
+		assert.Equal(t, activityGroup.ID, *result.ActivityID)
+	}
 	assert.GreaterOrEqual(t, result.StudentsCheckedOut, 0)
 }
 
@@ -159,7 +162,9 @@ func TestProcessSessionTimeout_WithVisits(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, session.ID, result.SessionID)
-	assert.Equal(t, activityGroup.ID, result.ActivityID)
+	if assert.NotNil(t, result.ActivityID) {
+		assert.Equal(t, activityGroup.ID, *result.ActivityID)
+	}
 	assert.Equal(t, 1, result.StudentsCheckedOut, "Should have checked out 1 student")
 }
 
