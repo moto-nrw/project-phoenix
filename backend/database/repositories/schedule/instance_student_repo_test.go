@@ -359,6 +359,167 @@ func TestInstanceStudentRepository_ErrorBranches(t *testing.T) {
 	})
 }
 
+func TestInstanceStudentRepository_UpdateAttendanceFromCheckin(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewInstanceStudentRepository(db)
+
+	inst, cleanupInst := createInstanceFixture(t, db, "mirror", time.Date(2026, 10, 10, 0, 0, 0, 0, time.UTC))
+	defer cleanupInst()
+
+	student := testpkg.CreateTestStudent(t, db, "Lea", fmt.Sprintf("Mirror-%d", time.Now().UnixNano()), "3a")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+	t.Run("flips expected → present and stamps checked_in_at", func(t *testing.T) {
+		row := &scheduleModels.InstanceStudent{
+			InstanceID: inst.ID,
+			StudentID:  student.ID,
+			Status:     scheduleModels.AttendanceStatusExpected,
+		}
+		row.SetTenantID(1)
+		require.NoError(t, repo.Create(ctx, row))
+		defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
+
+		checkedAt := time.Date(2026, 10, 10, 13, 5, 0, 0, time.UTC)
+		updated, err := repo.UpdateAttendanceFromCheckin(ctx, inst.ID, student.ID, checkedAt)
+		require.NoError(t, err)
+		assert.True(t, updated, "expected row should be flipped")
+
+		got, err := repo.FindByID(ctx, row.ID)
+		require.NoError(t, err)
+		assert.Equal(t, scheduleModels.AttendanceStatusPresent, got.Status)
+		require.NotNil(t, got.CheckedInAt)
+		assert.WithinDuration(t, checkedAt, *got.CheckedInAt, time.Second)
+	})
+
+	t.Run("no-op when row is already present (monotonicity)", func(t *testing.T) {
+		other := testpkg.CreateTestStudent(t, db, "Tom", fmt.Sprintf("Mono-%d", time.Now().UnixNano()), "3a")
+		defer testpkg.CleanupActivityFixtures(t, db, other.ID)
+
+		firstCheckin := time.Date(2026, 10, 10, 13, 0, 0, 0, time.UTC)
+		row := &scheduleModels.InstanceStudent{
+			InstanceID:  inst.ID,
+			StudentID:   other.ID,
+			Status:      scheduleModels.AttendanceStatusPresent,
+			CheckedInAt: &firstCheckin,
+		}
+		row.SetTenantID(1)
+		require.NoError(t, repo.Create(ctx, row))
+		defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
+
+		laterCheckin := time.Date(2026, 10, 10, 14, 30, 0, 0, time.UTC)
+		updated, err := repo.UpdateAttendanceFromCheckin(ctx, inst.ID, other.ID, laterCheckin)
+		require.NoError(t, err)
+		assert.False(t, updated, "already-present row must not be clobbered")
+
+		got, err := repo.FindByID(ctx, row.ID)
+		require.NoError(t, err)
+		assert.Equal(t, scheduleModels.AttendanceStatusPresent, got.Status)
+		require.NotNil(t, got.CheckedInAt)
+		// Original checked_in_at must be preserved — monotonicity.
+		assert.WithinDuration(t, firstCheckin, *got.CheckedInAt, time.Second)
+	})
+
+	t.Run("no-op when no matching row (walk-in)", func(t *testing.T) {
+		walkin := testpkg.CreateTestStudent(t, db, "Kim", fmt.Sprintf("Walk-%d", time.Now().UnixNano()), "3a")
+		defer testpkg.CleanupActivityFixtures(t, db, walkin.ID)
+
+		// walkin student has NO instance_students row — mirror should be a no-op
+		// returning (false, nil) rather than an error.
+		updated, err := repo.UpdateAttendanceFromCheckin(ctx, inst.ID, walkin.ID, time.Now())
+		require.NoError(t, err)
+		assert.False(t, updated)
+	})
+
+	t.Run("no-op when row belongs to another tenant (RLS)", func(t *testing.T) {
+		// Row is created in tenant 1 (above). Call with tenant 2 context
+		// should match zero rows under RLS.
+		ctxT2 := testpkg.TenantContext(2)
+		updated, err := repo.UpdateAttendanceFromCheckin(ctxT2, inst.ID, student.ID, time.Now())
+		require.NoError(t, err)
+		assert.False(t, updated)
+	})
+}
+
+func TestInstanceStudentRepository_UpdateAttendanceFields(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewInstanceStudentRepository(db)
+
+	inst, cleanupInst := createInstanceFixture(t, db, "patch", time.Date(2026, 10, 11, 0, 0, 0, 0, time.UTC))
+	defer cleanupInst()
+
+	student := testpkg.CreateTestStudent(t, db, "Nora", fmt.Sprintf("Patch-%d", time.Now().UnixNano()), "3a")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+	checkedAt := time.Date(2026, 10, 11, 13, 0, 0, 0, time.UTC)
+	late := scheduleModels.AttendanceSubstatusLate
+	origNote := "im stau"
+
+	row := &scheduleModels.InstanceStudent{
+		InstanceID:  inst.ID,
+		StudentID:   student.ID,
+		Status:      scheduleModels.AttendanceStatusPresent,
+		Substatus:   &late,
+		Note:        &origNote,
+		CheckedInAt: &checkedAt,
+	}
+	row.SetTenantID(1)
+	require.NoError(t, repo.Create(ctx, row))
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
+
+	t.Run("updates only the fields the patch carries", func(t *testing.T) {
+		newStatus := scheduleModels.AttendanceStatusAbsent
+		excused := scheduleModels.AttendanceSubstatusExcused
+
+		patch := scheduleModels.AttendanceFieldPatch{
+			Status:    &newStatus,
+			Substatus: &excused,
+			// Note intentionally not set — must be preserved.
+		}
+		require.NoError(t, repo.UpdateAttendanceFields(ctx, row.ID, patch))
+
+		got, err := repo.FindByID(ctx, row.ID)
+		require.NoError(t, err)
+		assert.Equal(t, scheduleModels.AttendanceStatusAbsent, got.Status)
+		require.NotNil(t, got.Substatus)
+		assert.Equal(t, scheduleModels.AttendanceSubstatusExcused, *got.Substatus)
+		require.NotNil(t, got.Note)
+		assert.Equal(t, "im stau", *got.Note, "note must survive when patch omits it")
+	})
+
+	t.Run("clears nullable columns via *Clear flags", func(t *testing.T) {
+		patch := scheduleModels.AttendanceFieldPatch{
+			SubstatusClear: true,
+			NoteClear:      true,
+		}
+		require.NoError(t, repo.UpdateAttendanceFields(ctx, row.ID, patch))
+
+		got, err := repo.FindByID(ctx, row.ID)
+		require.NoError(t, err)
+		assert.Nil(t, got.Substatus)
+		assert.Nil(t, got.Note)
+	})
+
+	t.Run("empty patch is a no-op (defensive)", func(t *testing.T) {
+		// After the clear above, status is 'absent'. A no-op patch must not
+		// mutate the row (not even updated_at).
+		beforeRow, err := repo.FindByID(ctx, row.ID)
+		require.NoError(t, err)
+
+		require.NoError(t, repo.UpdateAttendanceFields(ctx, row.ID, scheduleModels.AttendanceFieldPatch{}))
+
+		afterRow, err := repo.FindByID(ctx, row.ID)
+		require.NoError(t, err)
+		assert.Equal(t, beforeRow.Status, afterRow.Status)
+		assert.Equal(t, beforeRow.UpdatedAt.UnixNano(), afterRow.UpdatedAt.UnixNano())
+	})
+}
+
 func TestInstanceStudentRepository_DeleteByInstanceID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

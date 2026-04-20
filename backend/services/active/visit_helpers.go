@@ -219,8 +219,11 @@ func (s *service) autoClearStudentExcused(ctx context.Context, studentID int64) 
 	)
 }
 
-// broadcastVisitCreated sends SSE event for visit creation
-func (s *service) broadcastVisitCreated(ctx context.Context, visit *active.Visit) {
+// broadcastVisitCreated sends SSE event for visit creation.
+// snapshot (WP-B10) may be nil — when present, it enriches the event with
+// attendance_status/substatus/note so subscribers see the flipped attendance
+// state alongside the check-in line.
+func (s *service) broadcastVisitCreated(ctx context.Context, visit *active.Visit, snapshot *AttendanceSnapshot) {
 	if s.broadcaster == nil {
 		return
 	}
@@ -230,13 +233,16 @@ func (s *service) broadcastVisitCreated(ctx context.Context, visit *active.Visit
 
 	studentName, studentRec := s.getStudentDisplayData(ctx, visit.StudentID)
 
+	data := realtime.EventData{
+		StudentID:   &studentID,
+		StudentName: &studentName,
+	}
+	applyAttendanceSnapshot(&data, snapshot)
+
 	event := realtime.NewEvent(
 		realtime.EventStudentCheckIn,
 		activeGroupID,
-		realtime.EventData{
-			StudentID:   &studentID,
-			StudentName: &studentName,
-		},
+		data,
 	)
 
 	if err := s.broadcaster.BroadcastToGroup(tenant.FromContext(ctx), activeGroupID, event); err != nil {

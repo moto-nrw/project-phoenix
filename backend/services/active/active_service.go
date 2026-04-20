@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"strings"
 	"time"
 
@@ -93,6 +94,11 @@ type ServiceDependencies struct {
 	// Optional: Work session service for NFC auto-check-in
 	WorkSessionService WorkSessionService
 
+	// Optional: Attendance sync (WP-B10). When non-nil, visit create/end
+	// calls mirror into schedule.instance_students and enrich check-in/out
+	// SSE events with attendance status/substatus/note.
+	AttendanceSyncer AttendanceSyncer
+
 	// Optional: Structured logger (nil-safe, Phase 2b will add logging calls)
 	Logger *slog.Logger
 }
@@ -131,6 +137,9 @@ type service struct {
 
 	// Optional: Work session service for NFC auto-check-in
 	workSessionService WorkSessionService
+
+	// Optional: Attendance sync (WP-B10)
+	attendanceSyncer AttendanceSyncer
 
 	// Optional: Tenant-scoped settings resolver for auto-clear logic.
 	// When nil, auto-clear falls back to the registry default behavior.
@@ -178,6 +187,7 @@ func NewService(deps ServiceDependencies) Service {
 		db:                 deps.DB,
 		broadcaster:        deps.Broadcaster,
 		workSessionService: deps.WorkSessionService,
+		attendanceSyncer:   deps.AttendanceSyncer,
 		logger:             deps.Logger,
 	}
 }
@@ -437,8 +447,19 @@ func (s *service) CreateVisit(ctx context.Context, visit *active.Visit) error {
 		return &ActiveError{Op: "CreateVisit", Err: ErrDatabaseOperation}
 	}
 
+	// WP-B10: mirror the check-in into schedule.instance_students when the
+	// visit corresponds to a planned instance. The mirror is graceful-
+	// degradation-by-design — it returns nil for walk-ins, pre-start
+	// races, or any error — so we never block a visit write on it.
+	// Snapshot is threaded into the broadcast so the SSE event carries
+	// attendance fields when applicable.
+	var snapshot *AttendanceSnapshot
+	if s.attendanceSyncer != nil {
+		snapshot = s.attendanceSyncer.MirrorCheckInForVisit(ctx, visit)
+	}
+
 	// Broadcast SSE event (fire-and-forget, outside transaction)
-	s.broadcastVisitCreated(ctx, visit)
+	s.broadcastVisitCreated(ctx, visit, snapshot)
 
 	return nil
 }
@@ -566,7 +587,14 @@ func (s *service) EndVisit(ctx context.Context, id int64) error {
 		return &ActiveError{Op: "EndVisit", Err: ErrDatabaseOperation}
 	}
 
-	s.broadcastVisitCheckout(ctx, endedVisit)
+	// WP-B10: load (not mutate) attendance snapshot for SSE enrichment.
+	// Per spec: check-out does NOT change instance_students.status.
+	var snapshot *AttendanceSnapshot
+	if s.attendanceSyncer != nil {
+		snapshot = s.attendanceSyncer.LoadAttendanceForVisit(ctx, endedVisit)
+	}
+
+	s.broadcastVisitCheckout(ctx, endedVisit, snapshot)
 	return nil
 }
 
@@ -589,8 +617,11 @@ func (s *service) endVisitRecord(ctx context.Context, id int64) (*active.Visit, 
 	return visit, nil
 }
 
-// broadcastVisitCheckout broadcasts SSE event for visit checkout
-func (s *service) broadcastVisitCheckout(ctx context.Context, endedVisit *active.Visit) {
+// broadcastVisitCheckout broadcasts SSE event for visit checkout.
+// snapshot (WP-B10) may be nil — when present, it enriches the event
+// with attendance_status/substatus/note so the frontend can display
+// the current attendance state alongside the checkout line.
+func (s *service) broadcastVisitCheckout(ctx context.Context, endedVisit *active.Visit, snapshot *AttendanceSnapshot) {
 	if s.broadcaster == nil || endedVisit == nil {
 		return
 	}
@@ -599,13 +630,16 @@ func (s *service) broadcastVisitCheckout(ctx context.Context, endedVisit *active
 	studentID := fmt.Sprintf("%d", endedVisit.StudentID)
 	studentName, studentRec := s.getStudentDisplayData(ctx, endedVisit.StudentID)
 
+	data := realtime.EventData{
+		StudentID:   &studentID,
+		StudentName: &studentName,
+	}
+	applyAttendanceSnapshot(&data, snapshot)
+
 	event := realtime.NewEvent(
 		realtime.EventStudentCheckOut,
 		activeGroupID,
-		realtime.EventData{
-			StudentID:   &studentID,
-			StudentName: &studentName,
-		},
+		data,
 	)
 
 	s.broadcastWithLogging(ctx, activeGroupID, studentID, event, "student_checkout")
@@ -637,18 +671,41 @@ func (s *service) broadcastToEducationalGroup(ctx context.Context, student *user
 
 // broadcastStudentCheckoutEvents sends checkout SSE events for each visit.
 // This helper reduces cognitive complexity in session timeout processing.
+//
+// TODO(wp-b11-or-later): batch if hot. Each visit triggers two independent
+// schedule queries inside LoadAttendanceForVisit (FindByActiveGroupID,
+// FindByInstanceAndStudent). A session timeout flushing N students = 2N
+// queries. Not catastrophic at v1 scale, but if schools grow we should add
+// a batched FindByInstanceAndStudentIDs path. Not scoped into WP-B10.
 func (s *service) broadcastStudentCheckoutEvents(ctx context.Context, sessionIDStr string, visitsToNotify []visitSSEData) {
+	// Parse session ID once — all visits in this batch share the same
+	// active_group_id, which IS the session. We construct a minimal Visit
+	// per student for the snapshot lookup.
+	var sessionID int64
+	if parsed, perr := strconv.ParseInt(sessionIDStr, 10, 64); perr == nil {
+		sessionID = parsed
+	}
+
 	for _, visitData := range visitsToNotify {
 		studentIDStr := fmt.Sprintf("%d", visitData.StudentID)
 		studentName := visitData.Name
 
+		data := realtime.EventData{
+			StudentID:   &studentIDStr,
+			StudentName: &studentName,
+		}
+		if s.attendanceSyncer != nil && sessionID > 0 {
+			snapshot := s.attendanceSyncer.LoadAttendanceForVisit(ctx, &active.Visit{
+				StudentID:     visitData.StudentID,
+				ActiveGroupID: sessionID,
+			})
+			applyAttendanceSnapshot(&data, snapshot)
+		}
+
 		checkoutEvent := realtime.NewEvent(
 			realtime.EventStudentCheckOut,
 			sessionIDStr,
-			realtime.EventData{
-				StudentID:   &studentIDStr,
-				StudentName: &studentName,
-			},
+			data,
 		)
 
 		s.broadcastWithLogging(ctx, sessionIDStr, studentIDStr, checkoutEvent, "student_checkout")

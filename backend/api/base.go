@@ -353,6 +353,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		api.Services.Materialization,
 		api.Services.Instance,
 		api.Services.Users,
+		repoFactory.InstanceStudent,
 		logger.With("handler", "timetable"),
 		db,
 	)

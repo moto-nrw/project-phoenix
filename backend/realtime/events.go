@@ -61,6 +61,13 @@ type EventData struct {
 	InstanceDate      *string `json:"instance_date,omitempty"`       // YYYY-MM-DD
 	InstanceStartTime *string `json:"instance_start_time,omitempty"` // HH:MM:SS
 
+	// Attendance fields (WP-B10). Populated on student_checkin / student_checkout
+	// when the visit corresponds to a schedule.instance_students row — null
+	// otherwise (walk-ins, check-ins against non-instance active groups).
+	AttendanceStatus    *string `json:"attendance_status,omitempty"`
+	AttendanceSubstatus *string `json:"attendance_substatus,omitempty"`
+	AttendanceNote      *string `json:"attendance_note,omitempty"`
+
 	// Source tracking
 	Source *string `json:"source,omitempty"` // "rfid", "manual", "automated"
 }

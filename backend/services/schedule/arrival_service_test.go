@@ -1250,10 +1250,20 @@ func TestArrivalScheduleService_BulkUpsertBySchoolClass(t *testing.T) {
 		assert.Equal(t, 0, result.StudentsAffected)
 	})
 
+	// Class names must be unique per run. BulkUpsertBySchoolClass finds
+	// students by school_class string match, and the cleanup path for
+	// users.students is a known no-op (see backend/test/fixtures.go —
+	// cleanupDelete errors silently on `.Model((*interface{})(nil))`),
+	// so stale students with reused class names accumulate across local
+	// re-runs and inflate StudentsAffected. CI isn't affected because it
+	// starts each run from a fresh test DB. Hermetic tests should not
+	// reuse the same school_class literal on a long-lived test DB.
 	t.Run("upserts schedules for class with students", func(t *testing.T) {
+		className := fmt.Sprintf("BC1-%d", time.Now().UnixNano())
+
 		// Create students in the same class
-		student1 := testpkg.CreateTestStudent(t, db, "BulkArr", "Student1", "BC1")
-		student2 := testpkg.CreateTestStudent(t, db, "BulkArr", "Student2", "BC1")
+		student1 := testpkg.CreateTestStudent(t, db, "BulkArr", "Student1", className)
+		student2 := testpkg.CreateTestStudent(t, db, "BulkArr", "Student2", className)
 		defer testpkg.CleanupActivityFixtures(t, db, student1.ID, student2.ID)
 
 		schedules := []schedule.ArrivalScheduleInput{
@@ -1261,7 +1271,7 @@ func TestArrivalScheduleService_BulkUpsertBySchoolClass(t *testing.T) {
 			{Weekday: 3, ArrivalTime: "08:15"},
 		}
 
-		result, err := service.BulkUpsertBySchoolClass(ctx, "BC1", schedules, 1)
+		result, err := service.BulkUpsertBySchoolClass(ctx, className, schedules, 1)
 
 		require.NoError(t, err)
 		assert.Equal(t, 2, result.StudentsAffected)
@@ -1275,7 +1285,8 @@ func TestArrivalScheduleService_BulkUpsertBySchoolClass(t *testing.T) {
 	})
 
 	t.Run("returns overwrite warnings when schedules differ", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, db, "BulkOverwrite", "Student", "BOW1")
+		className := fmt.Sprintf("BOW1-%d", time.Now().UnixNano())
+		student := testpkg.CreateTestStudent(t, db, "BulkOverwrite", "Student", className)
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// Create existing schedule with a different time
@@ -1292,7 +1303,7 @@ func TestArrivalScheduleService_BulkUpsertBySchoolClass(t *testing.T) {
 			{Weekday: 1, ArrivalTime: "08:00"}, // Different time
 		}
 
-		result, err := service.BulkUpsertBySchoolClass(ctx, "BOW1", schedules, 1)
+		result, err := service.BulkUpsertBySchoolClass(ctx, className, schedules, 1)
 
 		require.NoError(t, err)
 		assert.Equal(t, 1, result.StudentsAffected)
@@ -1300,14 +1311,15 @@ func TestArrivalScheduleService_BulkUpsertBySchoolClass(t *testing.T) {
 	})
 
 	t.Run("returns error for invalid arrival time format", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, db, "BulkBadTime", "Student", "BBT1")
+		className := fmt.Sprintf("BBT1-%d", time.Now().UnixNano())
+		student := testpkg.CreateTestStudent(t, db, "BulkBadTime", "Student", className)
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		schedules := []schedule.ArrivalScheduleInput{
 			{Weekday: 1, ArrivalTime: "invalid"},
 		}
 
-		result, err := service.BulkUpsertBySchoolClass(ctx, "BBT1", schedules, 1)
+		result, err := service.BulkUpsertBySchoolClass(ctx, className, schedules, 1)
 
 		require.Error(t, err)
 		assert.Nil(t, result)
