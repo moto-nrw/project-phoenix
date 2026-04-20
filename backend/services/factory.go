@@ -59,6 +59,7 @@ type Factory struct {
 	ArrivalSchedule          schedule.ArrivalScheduleService
 	CalendarPeriod           schedule.CalendarPeriodService
 	Materialization          schedule.MaterializationService
+	Instance                 schedule.InstanceService
 	Users                    users.PersonService
 	CaregiverCapability      users.CaregiverCapabilityService
 	Guardian                 users.GuardianService
@@ -342,6 +343,27 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		logger.With("service", "materialization"),
 	)
 
+	// Initialize instance lifecycle service (WP-B9). Drives the state machine
+	// on schedule.activity_instances and its bridge to active.groups. Takes
+	// the active service as a dependency (for EndActivitySession) — when the
+	// bridge closes, visits + supervisors close and per-student checkout SSE
+	// events fire, matching today's observable behavior for a session ending.
+	instanceService := schedule.NewInstanceService(schedule.InstanceServiceDependencies{
+		InstanceRepo:      repos.ActivityInstance,
+		InstanceStaffRepo: repos.InstanceStaff,
+		InstanceStudents:  repos.InstanceStudent,
+		ActiveGroupRepo:   repos.ActiveGroup,
+		SupervisorRepo:    repos.GroupSupervisor,
+		VisitRepo:         repos.ActiveVisit,
+		RoomRepo:          repos.Room,
+		ActivityGroupRepo: repos.ActivityGroup,
+		ActiveService:     activeService,
+		Materialization:   materializationService,
+		Broadcaster:       realtimeHub,
+		DB:                db,
+		Logger:            logger.With("service", "instance-lifecycle"),
+	})
+
 	// Initialize arrival schedule service
 	arrivalScheduleService := schedule.NewArrivalScheduleService(
 		repos.StudentArrivalSchedule,
@@ -574,6 +596,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		ArrivalSchedule:          arrivalScheduleService,
 		CalendarPeriod:           calendarPeriodService,
 		Materialization:          materializationService,
+		Instance:                 instanceService,
 		Users:                    usersService,
 		CaregiverCapability:      caregiverCapabilityService,
 		Guardian:                 guardianService,

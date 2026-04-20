@@ -348,7 +348,14 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Database = databaseAPI.NewResource(api.Services.Database, db)
 	api.GradeTransitions = adminAPI.NewGradeTransitionResource(api.Services.GradeTransition, db)
 	api.TimeTracking = timeTrackingAPI.NewResource(api.Services.WorkSession, api.Services.StaffAbsence, api.Services.Users, db)
-	api.Timetable = timetableAPI.NewResource(api.Services.CalendarPeriod, api.Services.Materialization, db)
+	api.Timetable = timetableAPI.NewResource(
+		api.Services.CalendarPeriod,
+		api.Services.Materialization,
+		api.Services.Instance,
+		api.Services.Users,
+		logger.With("handler", "timetable"),
+		db,
+	)
 
 	// Initialize operator dashboard resources
 	api.Operator = operatorAPI.NewResource(operatorAPI.ResourceConfig{
