@@ -51,6 +51,10 @@ interface NavItem {
   requiresSupervision?: boolean;
   requiresActiveSupervision?: boolean;
   alwaysShow?: boolean;
+  // Additional pathname prefixes that should highlight this nav entry as
+  // active — used when one bottom-nav slot represents a group of related
+  // routes (e.g. the five Verwaltung pages).
+  activePaths?: string[];
 }
 
 // Static base definitions; actual main items are computed per session
@@ -94,7 +98,23 @@ const STAFF_MAIN_ITEMS: NavItem[] = [
   },
 ];
 
+// Order mirrors the desktop sidebar sections: VERWALTUNG → KOMMUNIKATION → TEAM.
 const OPERATOR_MAIN_ITEMS: NavItem[] = [
+  {
+    href: "/operator/organizations",
+    label: "Verwaltung",
+    iconKey: "rooms",
+    alwaysShow: true,
+    // Highlight when on any of the five Verwaltung pages.
+    activePaths: [
+      "/operator/organizations",
+      "/operator/schools",
+      "/operator/accounts",
+      "/operator/devices",
+      "/operator/persons",
+      "/operator/provisioning",
+    ],
+  },
   {
     href: "/operator/suggestions",
     label: "Feedback",
@@ -105,12 +125,6 @@ const OPERATOR_MAIN_ITEMS: NavItem[] = [
     href: "/operator/announcements",
     label: "Ankündigungen",
     iconKey: "bell",
-    alwaysShow: true,
-  },
-  {
-    href: "/operator/provisioning",
-    label: "Schulen",
-    iconKey: "buildingOffice",
     alwaysShow: true,
   },
   {
@@ -132,7 +146,46 @@ interface AdditionalNavItem {
   alwaysShow?: boolean;
   hideForAdmin?: boolean; // Hide from admin users (for caregiver-specific features)
   comingSoon?: boolean; // Show as grayed out "coming soon" feature
+  activePaths?: string[];
 }
+
+// Operator-mode overflow items — everything reachable from the sidebar on
+// desktop that isn't already a main bottom-nav slot. The 4 sibling Verwaltung
+// pages (Schulen/Konten/Geräte/Personen) belong here since the bottom nav has
+// only one "Verwaltung" slot that lands on /operator/organizations, and
+// Einstellungen is otherwise unreachable on mobile.
+const OPERATOR_ADDITIONAL_ITEMS: AdditionalNavItem[] = [
+  {
+    href: "/operator/schools",
+    label: "Schulen",
+    iconKey: "buildingOffice",
+    alwaysShow: true,
+  },
+  {
+    href: "/operator/accounts",
+    label: "Konten",
+    iconKey: "profile",
+    alwaysShow: true,
+  },
+  {
+    href: "/operator/devices",
+    label: "Geräte",
+    iconKey: "device",
+    alwaysShow: true,
+  },
+  {
+    href: "/operator/persons",
+    label: "Personen",
+    iconKey: "userSingle",
+    alwaysShow: true,
+  },
+  {
+    href: "/operator/settings",
+    label: "Einstellungen",
+    iconKey: "settings",
+    alwaysShow: true,
+  },
+];
 
 const additionalNavItems: AdditionalNavItem[] = [
   {
@@ -247,7 +300,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
 
   // Check if current path matches nav item
   const isActiveRoute = useCallback(
-    (href: string) => {
+    (href: string, activePaths?: string[]) => {
       if (href === "/dashboard") {
         return pathname === "/dashboard" || pathname === "/";
       }
@@ -256,6 +309,9 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
         pathname.startsWith("/students/") &&
         searchParams.get("from")?.startsWith(href)
       ) {
+        return true;
+      }
+      if (activePaths?.some((p) => pathname.startsWith(p))) {
         return true;
       }
       return pathname.startsWith(href);
@@ -268,10 +324,21 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   };
 
   // Compute main navigation items per role and mode
-  // operatorPath is deterministic for the page lifetime — memoize to avoid per-render churn
+  // operatorPath is deterministic for the page lifetime — memoize to avoid per-render churn.
+  // activePaths must also go through operatorPath: on the operator subdomain pathname is
+  // the clean URL (e.g. /schools), so comparing against /operator/schools would never match.
   const resolvedOperatorMainItems = useMemo(
     () =>
       OPERATOR_MAIN_ITEMS.map((item) => ({
+        ...item,
+        href: operatorPath(item.href),
+        activePaths: item.activePaths?.map(operatorPath),
+      })),
+    [],
+  );
+  const resolvedOperatorAdditionalItems = useMemo(
+    () =>
+      OPERATOR_ADDITIONAL_ITEMS.map((item) => ({
         ...item,
         href: operatorPath(item.href),
       })),
@@ -336,19 +403,21 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     return true;
   });
 
-  // Static navigation - 4 main items + overflow menu (operator mode: 4 items, no overflow)
+  // Static navigation - 4 main items + overflow drawer. Operator mode uses a
+  // dedicated item list (the 4 sibling Verwaltung pages + Einstellungen) since
+  // the bottom nav has only one Verwaltung slot.
   const displayMainItems: NavItem[] = filteredMainItems;
-  const showOverflowMenu = mode !== "operator";
+  const showOverflowMenu = true;
   // Avoid duplicates between main and additional
   const mainHrefs = new Set(displayMainItems.map((i) => i.href));
   const displayAdditionalItems =
     mode === "operator"
-      ? []
+      ? resolvedOperatorAdditionalItems.filter((i) => !mainHrefs.has(i.href))
       : filteredAdditionalItems.filter((i) => !mainHrefs.has(i.href));
 
   // Check if any additional nav item is active
   const isAnyAdditionalNavActive = displayAdditionalItems.some((item) =>
-    isActiveRoute(item.href),
+    isActiveRoute(item.href, item.activePaths),
   );
 
   // Update sliding indicator position when route changes
@@ -356,7 +425,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     const updateIndicator = () => {
       // Find active nav item index
       const activeIndex = displayMainItems.findIndex((item) =>
-        isActiveRoute(item.href),
+        isActiveRoute(item.href, item.activePaths),
       );
 
       if (activeIndex !== -1 && navRefs.current[activeIndex]) {
@@ -394,7 +463,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   useEffect(() => {
     const timer = setTimeout(() => {
       const activeIndex = displayMainItems.findIndex((item) =>
-        isActiveRoute(item.href),
+        isActiveRoute(item.href, item.activePaths),
       );
 
       if (activeIndex !== -1 && navRefs.current[activeIndex]) {
@@ -508,7 +577,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
 
               {/* Main navigation items */}
               {displayMainItems.map((item, index) => {
-                const isActive = isActiveRoute(item.href);
+                const isActive = isActiveRoute(item.href, item.activePaths);
 
                 return (
                   <Link

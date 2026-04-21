@@ -1,15 +1,17 @@
 /**
- * Tests for Operator Root Page (Redirect)
- * Tests the redirect from /operator to /operator/suggestions
+ * Tests for Operator Root Page (Redirect).
+ *
+ * The operator root redirects to the first Verwaltung page — see issue
+ * #1282 (operator sidebar restructure) where Schulverwaltung's tabs were
+ * split into dedicated /operator/{organizations,schools,accounts,devices,persons}
+ * routes and Träger became the default landing.
  */
 import { describe, it, expect, vi } from "vitest";
 
-// Hoisted mocks
 const { mockRedirect } = vi.hoisted(() => ({
   mockRedirect: vi.fn(),
 }));
 
-// Mock next/navigation redirect
 vi.mock("next/navigation", () => ({
   redirect: mockRedirect,
 }));
@@ -17,9 +19,9 @@ vi.mock("next/navigation", () => ({
 import OperatorRootPage from "./page";
 
 describe("OperatorRootPage", () => {
-  it("redirects to /operator/suggestions", () => {
+  it("redirects to /operator/organizations", () => {
     OperatorRootPage();
 
-    expect(mockRedirect).toHaveBeenCalledWith("/operator/suggestions");
+    expect(mockRedirect).toHaveBeenCalledWith("/operator/organizations");
   });
 });

@@ -121,7 +121,7 @@ export default function OperatorSchoolSettingsPage({ params }: PageProps) {
     <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6 lg:px-8">
       <div className="mb-6">
         <Link
-          href="/operator/provisioning"
+          href="/operator/schools"
           className="mb-4 inline-flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900"
         >
           <svg
@@ -137,7 +137,7 @@ export default function OperatorSchoolSettingsPage({ params }: PageProps) {
               d="M15 19l-7-7 7-7"
             />
           </svg>
-          Zur Schulverwaltung
+          Zu den Schulen
         </Link>
         <h1 className="text-2xl font-semibold text-gray-900">
           Einstellungen{schoolName ? ` · ${schoolName}` : ""}
