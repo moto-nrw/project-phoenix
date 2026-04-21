@@ -156,6 +156,7 @@ func checkHardcodedIDs(t *testing.T, root string) []string {
 		"api/timetable/instances_test.go",                        // Uses mock InstanceService + PersonService for unit testing handlers
 		"api/timetable/instance_students_unit_test.go",           // Uses fake repo for unit testing attendance PATCH handler
 		"services/schedule/attendance_sync_service_unit_test.go", // Uses fake repos for unit testing graceful-degradation branches
+		"services/schedule/timetable_cleanup_service_test.go",    // Uses failingAuditRepo mock for audit-write-failure rollback coverage (WP-B14)
 	}
 
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
