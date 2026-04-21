@@ -13,8 +13,13 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	scheduleRepoPkg "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
+	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/models/users"
+	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	usercontextSvc "github.com/moto-nrw/project-phoenix/services/usercontext"
 	userSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -33,7 +38,17 @@ type Resource struct {
 	materializationService scheduleSvc.MaterializationService
 	instanceService        scheduleSvc.InstanceService
 	personService          userSvc.PersonService
-	instanceStudentRepo    schedule.InstanceStudentRepository // WP-B10 PATCH /instances/{id}/students/{id}
+	instanceStudentRepo    schedule.InstanceStudentRepository         // B10 PATCH (interface-typed for unit tests with fakes)
+	studentDayRepo         *scheduleRepoPkg.InstanceStudentRepository // B11 read (concrete type; holds FindInstancesWithAttendanceByStudentAndDateRange)
+	activityInstanceRepo   schedule.ActivityInstanceRepository
+	arrivalScheduleRepo    schedule.StudentArrivalScheduleRepository
+	arrivalExceptionRepo   schedule.StudentArrivalExceptionRepository
+	pickupScheduleRepo     schedule.StudentPickupScheduleRepository
+	pickupExceptionRepo    schedule.StudentPickupExceptionRepository
+	visitRepo              active.VisitRepository
+	studentRepo            users.StudentRepository
+	userContextService     usercontextSvc.UserContextService
+	settingsService        configSvc.SettingsService
 	logger                 *slog.Logger
 	db                     *bun.DB
 }
@@ -42,12 +57,26 @@ type Resource struct {
 // Resource doc) may be nil; passing nil for the materialization or instance
 // service makes the corresponding routes return 500 instead of silently
 // misbehaving.
+//
+// The B11 student day/week endpoints require the full set of arrival/pickup/
+// instance/visit repos plus studentRepo, userContextService, settingsService.
+// If any of them is nil, the student-side routes return 500 on request.
 func NewResource(
 	calendarPeriodService scheduleSvc.CalendarPeriodService,
 	materializationService scheduleSvc.MaterializationService,
 	instanceService scheduleSvc.InstanceService,
 	personService userSvc.PersonService,
 	instanceStudentRepo schedule.InstanceStudentRepository,
+	studentDayRepo *scheduleRepoPkg.InstanceStudentRepository,
+	activityInstanceRepo schedule.ActivityInstanceRepository,
+	arrivalScheduleRepo schedule.StudentArrivalScheduleRepository,
+	arrivalExceptionRepo schedule.StudentArrivalExceptionRepository,
+	pickupScheduleRepo schedule.StudentPickupScheduleRepository,
+	pickupExceptionRepo schedule.StudentPickupExceptionRepository,
+	visitRepo active.VisitRepository,
+	studentRepo users.StudentRepository,
+	userContextService usercontextSvc.UserContextService,
+	settingsService configSvc.SettingsService,
 	logger *slog.Logger,
 	db *bun.DB,
 ) *Resource {
@@ -57,6 +86,16 @@ func NewResource(
 		instanceService:        instanceService,
 		personService:          personService,
 		instanceStudentRepo:    instanceStudentRepo,
+		studentDayRepo:         studentDayRepo,
+		activityInstanceRepo:   activityInstanceRepo,
+		arrivalScheduleRepo:    arrivalScheduleRepo,
+		arrivalExceptionRepo:   arrivalExceptionRepo,
+		pickupScheduleRepo:     pickupScheduleRepo,
+		pickupExceptionRepo:    pickupExceptionRepo,
+		visitRepo:              visitRepo,
+		studentRepo:            studentRepo,
+		userContextService:     userContextService,
+		settingsService:        settingsService,
 		logger:                 logger,
 		db:                     db,
 	}
@@ -109,6 +148,16 @@ func (rs *Resource) Router() chi.Router {
 			// in a sibling route subtree.
 			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
 				Patch("/{instance_id}/students/{student_id}", rs.patchInstanceStudent)
+		})
+
+		// WP-B11: per-student day and week read endpoints. Both gated on
+		// SchedulesRead; handler-level auth (authorize.CanReadStudent) adds
+		// the per-student check.
+		r.Route("/student/{id}", func(r chi.Router) {
+			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+				Get("/day", rs.getStudentDay)
+			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+				Get("/week", rs.getStudentWeek)
 		})
 	})
 

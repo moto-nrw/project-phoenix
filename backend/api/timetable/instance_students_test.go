@@ -233,7 +233,7 @@ func buildPatchSetup(t *testing.T) *patchSetup {
 	require.NoError(t, isRepo.Create(ctx, row))
 	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID) })
 
-	res := NewResource(nil, nil, nil, nil, isRepo, nil, db)
+	res := NewResource(nil, nil, nil, nil, isRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, db)
 
 	return &patchSetup{
 		res:        res,

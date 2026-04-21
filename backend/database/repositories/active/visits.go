@@ -804,6 +804,43 @@ func (r *VisitRepository) GetTodayVisitNamesForStudents(ctx context.Context, stu
 	return out, nil
 }
 
+// FindByStudentAndActiveGroupIDs returns visits for the given student whose
+// active_group_id is in the provided slice. Used by the timetable /student/
+// {id}/day and /week endpoints to detect "unplanned" attendance — instances
+// where the student was actually there (has a visit) without being enrolled
+// (no instance_students row).
+//
+// Empty slice short-circuits to an empty result: bun would otherwise emit
+// `IN ('{}')` which some driver paths handle oddly. Bailing early keeps the
+// call cheap on the common "no active/completed instances" path.
+func (r *VisitRepository) FindByStudentAndActiveGroupIDs(
+	ctx context.Context, studentID int64, activeGroupIDs []int64,
+) ([]*active.Visit, error) {
+	if len(activeGroupIDs) == 0 {
+		return []*active.Visit{}, nil
+	}
+
+	var visits []*active.Visit
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&visits).
+		ModelTableExpr(tableExprActiveVisitsAsVisit).
+		Where(`"visit".student_id = ?`, studentID).
+		Where(`"visit".active_group_id IN (?)`, bun.List(activeGroupIDs)).
+		OrderExpr(`"visit".entry_time ASC`)
+
+	if where, val, ok := base.TenantWhere(ctx, "visit"); ok {
+		query = query.Where(where, val)
+	}
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by student and active group IDs",
+			Err: err,
+		}
+	}
+	return visits, nil
+}
+
 // FindActiveVisits finds all visits with no exit time (currently active)
 func (r *VisitRepository) FindActiveVisits(ctx context.Context) ([]*active.Visit, error) {
 	var visits []*active.Visit

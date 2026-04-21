@@ -254,45 +254,19 @@ func (rs *Resource) checkStudentFullAccess(r *http.Request, student *users.Stude
 //
 // This function MUST only be used on read paths. Write operations must use
 // checkStudentFullAccess which ignores the scope setting.
+//
+// Delegates to authorize.CanReadStudent so the same predicate is reusable
+// from other handlers (timetable, per-student day view) without duplicating
+// the scope/admin/supervisor logic.
 func (rs *Resource) checkStudentReadAccess(r *http.Request, student *users.Student) bool {
-	userPermissions := jwt.PermissionsFromCtx(r.Context())
-	if hasAdminPermissions(userPermissions) {
-		return true
-	}
-
-	// Tenant-configurable: when student_data_scope is set to all_staff, any
-	// authenticated staff member gets full read access to any student.
-	// Verify the caller is actually a staff member — other roles (guest,
-	// guardian) with users:read must NOT get unredacted access.
-	scope := configService.ResolveStringOrDefault(
+	return authorize.CanReadStudent(
 		r.Context(),
+		jwt.PermissionsFromCtx(r.Context()),
+		student,
+		rs.UserContextService,
 		rs.SettingsService,
-		configModel.KeyStudentDataScope,
-		configModel.StudentDataScopeGroupSupervisorsOnly,
 		rs.Logger,
 	)
-	if scope == configModel.StudentDataScopeAllStaff {
-		if staff, err := rs.UserContextService.GetCurrentStaff(r.Context()); err == nil && staff != nil {
-			return true
-		}
-	}
-
-	if student.GroupID == nil {
-		return false
-	}
-
-	educationGroups, err := rs.UserContextService.GetMyGroups(r.Context())
-	if err != nil {
-		return false
-	}
-
-	for _, group := range educationGroups {
-		if group.ID == *student.GroupID {
-			return true
-		}
-	}
-
-	return false
 }
 
 // isGroupSupervisorOrAdmin checks if the caller is an admin or supervises the
