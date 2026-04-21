@@ -261,6 +261,56 @@ func TestGetStudentDay_NoArrivalNoPickup_SourceNone(t *testing.T) {
 	assert.Empty(t, got.Instances)
 }
 
+// Regression guard: when a student is BOTH enrolled (instance_students row
+// exists) AND has a visit on the same active_group, the response must
+// contain exactly ONE entry for that instance — the enrolled one, with
+// is_unplanned=false. The dedup lives in buildStudentDay where the visit
+// loop skips ids already present in enrolledInstanceIDs; this test locks
+// that behavior in so a future rewrite can't introduce a duplicate.
+func TestGetStudentDay_EnrolledPlusVisit_NoDuplicate(t *testing.T) {
+	s := buildStudentDaySetup(t)
+
+	// Active group + bridge instance (same shape as the unplanned test).
+	ag := testpkg.CreateTestActiveGroup(t, s.db, s.activityID, s.roomID)
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.groups", ag.ID) })
+
+	agID := ag.ID
+	inst := testpkg.CreateTestActivityInstance(t, s.db,
+		time.Date(2026, 4, 22, 0, 0, 0, 0, time.UTC), s.roomID,
+		testpkg.ActivityInstanceOpts{
+			ActivityGroupID: &s.activityID,
+			ActiveGroupID:   &agID,
+			Status:          schedule.InstanceStatusActive,
+			StartHHMM:       "14:00",
+			EndHHMM:         "15:00",
+			Title:           "Enrolled-And-Present",
+		})
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
+
+	// Both signals: enrolled row AND a visit on the same active_group.
+	row := testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, s.studentID, schedule.AttendanceStatusPresent)
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.instance_students", row.ID) })
+
+	visit := testpkg.CreateTestVisit(t, s.db, s.studentID, ag.ID,
+		time.Date(2026, 4, 22, 14, 5, 0, 0, time.UTC), nil)
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.visits", visit.ID) })
+
+	router := adminRouter(s.ctx, s.res)
+	w := doGet(t, router, fmt.Sprintf("/student/%d/day?date=2026-04-22", s.studentID))
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+
+	var got StudentDayResponse
+	decodeEnvelope(t, w, &got)
+
+	require.Len(t, got.Instances, 1,
+		"enrolled student with a matching visit must appear exactly once, not duplicated")
+	entry := got.Instances[0]
+	assert.Equal(t, inst.ID, entry.ID)
+	assert.False(t, entry.Attendance.IsUnplanned,
+		"enrolled row must win over the visit-side path (is_unplanned=false)")
+	assert.Equal(t, schedule.AttendanceStatusPresent, entry.Attendance.Status)
+}
+
 // Unplanned scenario: active.visit exists for student on an active
 // instance's bridge group, but no instance_students row.
 func TestGetStudentDay_UnplannedStudent(t *testing.T) {

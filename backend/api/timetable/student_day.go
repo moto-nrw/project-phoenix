@@ -24,7 +24,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -375,7 +374,3 @@ func (rs *Resource) resolvePickupSlot(ctx context.Context, studentID int64, date
 
 	return SlotResponse{Source: SlotSourceNone}, nil
 }
-
-// Compile-time hint for future readers: ScheduledInstanceRow must stay
-// exported from the repo package because mapEnrolledInstance takes it.
-var _ = (*scheduleRepo.ScheduledInstanceRow)(nil)
