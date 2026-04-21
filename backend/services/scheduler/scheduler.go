@@ -209,6 +209,8 @@ func (s *Scheduler) SetInstanceOverdueDeps(repo scheduleModel.ActivityInstanceRe
 
 // forEachTenant executes fn for each active tenant inside a WithTenantTx.
 // If schoolRepo or db is not set, falls back to running fn with plain ctx (non-tenant-aware mode).
+// Thin wrapper over tenant.ForEachActive; the scheduler-owned fallback to non-tenant-aware mode
+// is preserved so existing tests that do not wire a school repo keep working.
 func (s *Scheduler) forEachTenant(ctx context.Context, opName string, fn func(ctx context.Context) error) error {
 	if s.db == nil || s.schoolRepo == nil {
 		s.getLogger().Warn("tenant iteration not configured, running without tenant context",
@@ -216,35 +218,14 @@ func (s *Scheduler) forEachTenant(ctx context.Context, opName string, fn func(ct
 		return fn(ctx)
 	}
 
-	// List active tenants using admin context
-	var schools []platform.School
-	err := tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, tx bun.Tx) error {
-		var listErr error
-		schools, listErr = s.schoolRepo.ListActive(txCtx)
-		return listErr
+	return tenant.ForEachActive(ctx, s.db, s.schoolRepo, s.getLogger(), opName, func(txCtx context.Context, _ int64) error {
+		return fn(txCtx)
 	})
-	if err != nil {
-		return fmt.Errorf("scheduler: list active tenants for %s: %w", opName, err)
-	}
-
-	for _, school := range schools {
-		tenantErr := tenant.WithTenantTx(ctx, s.db, school.ID, func(txCtx context.Context, tx bun.Tx) error {
-			return fn(txCtx)
-		})
-		if tenantErr != nil {
-			s.getLogger().Error("tenant operation failed, continuing to next tenant",
-				slog.String("operation", opName),
-				slog.Int64("tenant_id", school.ID),
-				slog.Any("error", tenantErr))
-			continue
-		}
-	}
-
-	return nil
 }
 
 // forEachTenantSettings executes fn for each active tenant, passing tenant ID for settings resolution.
-// Falls back to non-tenant-aware mode if schoolRepo/db is not set.
+// Falls back to non-tenant-aware mode if schoolRepo/db is not set (tests, local dev without
+// seeded schools). Shared with the CLI via tenant.ForEachActive.
 func (s *Scheduler) forEachTenantSettings(ctx context.Context, opName string, fn func(ctx context.Context, tenantID int64) error) {
 	if s.db == nil || s.schoolRepo == nil {
 		s.getLogger().Warn("tenant iteration not configured, running without tenant context",
@@ -253,31 +234,11 @@ func (s *Scheduler) forEachTenantSettings(ctx context.Context, opName string, fn
 		return
 	}
 
-	var schools []platform.School
-	err := tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
-		var listErr error
-		schools, listErr = s.schoolRepo.ListActive(txCtx)
-		return listErr
-	})
-	if err != nil {
+	if err := tenant.ForEachActive(ctx, s.db, s.schoolRepo, s.getLogger(), opName, fn); err != nil {
 		s.getLogger().Error("failed to list active tenants",
 			slog.String("operation", opName),
 			slog.String("error", err.Error()),
 		)
-		return
-	}
-
-	for _, school := range schools {
-		tenantErr := tenant.WithTenantTx(ctx, s.db, school.ID, func(txCtx context.Context, _ bun.Tx) error {
-			return fn(txCtx, school.ID)
-		})
-		if tenantErr != nil {
-			s.getLogger().Error("tenant operation failed, continuing to next tenant",
-				slog.String("operation", opName),
-				slog.Int64("tenant_id", school.ID),
-				slog.Any("error", tenantErr),
-			)
-		}
 	}
 }
 
