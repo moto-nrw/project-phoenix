@@ -26,19 +26,16 @@
 //     to audit.data_deletions — slog-only. The audit writes land BEFORE the
 //     deletes; a failure anywhere rolls back everything atomically.
 //
-//   - Retention resolution: tenant DB override → env var → registry default.
-//     The 365 literal in the service is a last-resort fallback only reached
-//     when both settings service and env var are unavailable; in production
-//     the registry definition in services/config/defaults/timetable.go:142
-//     supplies the default.
+//   - Retention resolution: tenant DB override → registry default. The 365
+//     literal in the service is a last-resort fallback only reached when the
+//     settings service is not wired (tests); in production the registry
+//     definition in services/config/defaults/timetable.go supplies the default.
 package schedule
 
 import (
 	"context"
 	"fmt"
 	"log/slog"
-	"os"
-	"strconv"
 	"time"
 
 	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -59,12 +56,6 @@ const auditInstanceIDSampleCap = 10
 // services/config/defaults/timetable.go registers 365 at init time. Kept so
 // the service is callable in tests without settings wiring.
 const timetableRetentionDefaultDays = 365
-
-// timetableRetentionEnvVar is the backward-compat env var for tenants that
-// pre-date the settings system. Per CLAUDE.md, new per-tenant runtime config
-// MUST use the settings system — this env var exists for migration paths and
-// is intentionally not documented in dev.env.example or docker-compose.
-const timetableRetentionEnvVar = "TIMETABLE_RETENTION_DAYS"
 
 // TimetableCleanupResult summarises one cleanup run.
 type TimetableCleanupResult struct {
@@ -118,8 +109,7 @@ type timetableCleanupService struct {
 }
 
 // NewTimetableCleanupService constructs the cleanup service. settings may be
-// nil in tests; when nil, retention resolves via env var or the last-resort
-// default 365.
+// nil in tests; when nil, retention resolves to the last-resort default 365.
 func NewTimetableCleanupService(
 	db *bun.DB,
 	auditRepo audit.DataDeletionRepository,
@@ -312,39 +302,27 @@ func (s *timetableCleanupService) GetStats(ctx context.Context) (*TimetableClean
 
 // --- Internal helpers ---
 
-// resolveRetentionDays picks the tenant's retention days following the
-// documented chain: tenant DB override → env var → registry default.
+// resolveRetentionDays picks the tenant's retention days: tenant DB override
+// → registry default (both via the settings service). The literal fallback
+// is only reached when the settings service is not wired (tests).
 //
-// HasTenantOverride distinguishes "tenant explicitly set a value" from
-// "returning registry default" so the env var fallback isn't silently
-// skipped when no tenant override exists. Env var path is backward-compat
-// only — per CLAUDE.md, new per-tenant runtime config MUST use settings.
+// Per CLAUDE.md, this service does NOT consult environment variables —
+// per-tenant runtime config lives exclusively in the settings system.
 func (s *timetableCleanupService) resolveRetentionDays(ctx context.Context) int {
-	if s.settings != nil {
-		has, err := s.settings.HasTenantOverride(ctx, configModel.KeyGDPRTimetableRetentionDays)
-		if err != nil {
-			s.logger.Warn("settings override check failed, falling back",
-				slog.String("key", configModel.KeyGDPRTimetableRetentionDays),
-				slog.String("error", err.Error()),
-			)
-		} else if has {
-			if v, err := s.settings.ResolveInt(ctx, configModel.KeyGDPRTimetableRetentionDays); err == nil && v > 0 {
-				return v
-			}
-		}
+	if s.settings == nil {
+		return timetableRetentionDefaultDays
 	}
-	if env := os.Getenv(timetableRetentionEnvVar); env != "" {
-		if parsed, err := strconv.Atoi(env); err == nil && parsed > 0 {
-			return parsed
-		}
+	// Log a warning if the override check fails, but fall through to the
+	// registry-default path below so the cleanup still runs on a sane value.
+	if _, err := s.settings.HasTenantOverride(ctx, configModel.KeyGDPRTimetableRetentionDays); err != nil {
+		s.logger.Warn("settings override check failed, falling back to registry default",
+			slog.String("key", configModel.KeyGDPRTimetableRetentionDays),
+			slog.String("error", err.Error()),
+		)
 	}
-	// Fall back to registry default when settings service is wired; otherwise
-	// the last-resort literal. ResolveInt returns the registry default even
-	// without a tenant override, which is exactly what we want here.
-	if s.settings != nil {
-		if v, err := s.settings.ResolveInt(ctx, configModel.KeyGDPRTimetableRetentionDays); err == nil && v > 0 {
-			return v
-		}
+	// ResolveInt returns the tenant override if set, else the registry default.
+	if v, err := s.settings.ResolveInt(ctx, configModel.KeyGDPRTimetableRetentionDays); err == nil && v > 0 {
+		return v
 	}
 	return timetableRetentionDefaultDays
 }

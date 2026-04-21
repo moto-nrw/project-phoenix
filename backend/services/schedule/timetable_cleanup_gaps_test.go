@@ -173,7 +173,8 @@ func TestGetStats_ReportsTotals(t *testing.T) {
 
 // -----------------------------------------------------------------------------
 // resolveRetentionDays — cover the branches not exercised by the existing
-// env-var / nil-settings tests.
+// nil-settings tests. The chain is: tenant DB override → registry default
+// (both via SettingsService) → literal 365 only when settings is nil.
 // -----------------------------------------------------------------------------
 
 func TestResolveRetentionDays_TenantOverride_UsesOverriddenValue(t *testing.T) {
@@ -182,26 +183,22 @@ func TestResolveRetentionDays_TenantOverride_UsesOverriddenValue(t *testing.T) {
 	settings := &stubSettingsService{hasOverride: true, intVal: 42}
 	svc := buildSvc(f.db, settings)
 
-	// Nothing old in this tenant → instances=0, but retention must reflect override.
-	// Insert a 50-day-old instance to verify: 42-day window deletes it, 400-day
-	// registry default would too but 42 is specific.
+	// Insert a 50-day-old instance to verify: 42-day window deletes it, a
+	// 365-day default would have spared it.
 	fiftyDaysOld := time.Now().UTC().AddDate(0, 0, -50)
 	f.newInstance(t, fiftyDaysOld, scheduleModels.InstanceStatusCompleted, roomID, nil)
 
 	result, err := svc.CleanupExpiredTimetableData(f.ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 42, result.RetentionDays, "tenant override must win over env/default")
+	assert.Equal(t, 42, result.RetentionDays, "tenant override must win over registry default")
 	assert.Equal(t, 1, result.InstancesDeleted, "50-day row past 42-day window")
 }
 
 func TestResolveRetentionDays_HasOverrideError_FallsBackToDefault(t *testing.T) {
-	// HasTenantOverride returns err — Warn-log, skip settings.ResolveInt, fall
-	// through to env var (unset) and finally the final `if s.settings != nil`
-	// block which calls ResolveInt without the gate.
+	// HasTenantOverride returns err — service warn-logs and falls through to
+	// ResolveInt, which returns the registry default even when no override
+	// exists.
 	f, roomID := setupFixture(t)
-	// Final `if s.settings != nil` path: ResolveInt returns 365 (simulates
-	// registry default). Even though HasTenantOverride errors, resolveInt is
-	// still consulted as a last-ditch resort in the post-env-var block.
 	settings := &stubSettingsService{
 		hasOverrideErr: errors.New("settings DB down"),
 		intVal:         365,
@@ -215,9 +212,11 @@ func TestResolveRetentionDays_HasOverrideError_FallsBackToDefault(t *testing.T) 
 	assert.Equal(t, 365, result.RetentionDays, "override-check error must fall through to settings default")
 }
 
-func TestResolveRetentionDays_NoOverrideNoEnv_UsesRegistryDefault(t *testing.T) {
-	// HasTenantOverride = false, no env var → the final `if s.settings != nil`
-	// block returns the registry default via ResolveInt.
+func TestResolveRetentionDays_NoOverride_UsesRegistryDefault(t *testing.T) {
+	// HasTenantOverride = false → service still calls ResolveInt, which
+	// returns the registry default. No tenant override means no per-school
+	// customization; the default 180 (via stub) is what the service should
+	// use.
 	f, _ := setupFixture(t)
 	settings := &stubSettingsService{hasOverride: false, intVal: 180}
 	svc := buildSvc(f.db, settings)
@@ -225,27 +224,20 @@ func TestResolveRetentionDays_NoOverrideNoEnv_UsesRegistryDefault(t *testing.T) 
 	// Call Preview to inspect RetentionDays without having to seed data.
 	preview, err := svc.PreviewExpiredTimetableData(f.ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 180, preview.RetentionDays, "no tenant override + no env var → registry default via settings.ResolveInt")
+	assert.Equal(t, 180, preview.RetentionDays, "no tenant override → registry default via settings.ResolveInt")
 }
 
-func TestResolveRetentionDays_HasOverrideTrue_InvalidValue_FallsThrough(t *testing.T) {
+func TestResolveRetentionDays_ResolveIntReturnsZero_FallsThroughToLiteral(t *testing.T) {
 	// HasTenantOverride = true but ResolveInt returns 0 (simulating a bad
-	// stored value). The service should skip the override and fall through to
-	// the env/default chain — we use the final `if s.settings != nil` block
-	// with intVal > 0 after the bad branch.
-	//
-	// This specifically covers the `v > 0` guard inside the HasTenantOverride
-	// branch (line 331 in the source).
+	// stored value or misconfigured registry default). The `v > 0` guard
+	// rejects it and the function falls through to the literal default 365.
 	f, _ := setupFixture(t)
 	settings := &stubSettingsService{hasOverride: true, intVal: 0}
 	svc := buildSvc(f.db, settings)
 
-	// Override resolves to 0 → both inner guards fail → final `if s.settings != nil`
-	// block is reached. intVal is still 0, so the literal `timetableRetentionDefaultDays`
-	// (365) is the final value.
 	preview, err := svc.PreviewExpiredTimetableData(f.ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 365, preview.RetentionDays, "override with non-positive value falls through to literal default")
+	assert.Equal(t, 365, preview.RetentionDays, "non-positive resolved value falls through to literal default")
 }
 
 // Sanity check — the registered key constant is what the service reads.

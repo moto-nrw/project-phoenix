@@ -13,6 +13,7 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -176,13 +177,14 @@ func setupFixture(t *testing.T) (*instFixture, int64) {
 }
 
 // newCleanupSvc builds a TimetableCleanupService wired against the real
-// audit repo + no settings service (so retention falls to the env/default).
-// Tests that need the settings service build it themselves.
+// audit repo + no settings service (so retention falls to the 365-day
+// literal default). Tests that need to override retention build their own
+// service with a stubSettingsService.
 func newCleanupSvc(db *bun.DB) scheduleSvc.TimetableCleanupService {
 	return scheduleSvc.NewTimetableCleanupService(
 		db,
 		auditRepoPkg.NewDataDeletionRepository(db),
-		nil, // no settings — retention falls to env var or 365 default
+		nil, // no settings — retention falls through to the 365-day default
 		slog.Default(),
 	)
 }
@@ -300,13 +302,18 @@ func TestCleanup_CASCADE_DeletesInstanceChildren(t *testing.T) {
 }
 
 func TestCleanup_RetentionOverride_UsesOverriddenDays(t *testing.T) {
-	// Tests the env-var fallback path in resolveRetentionDays. Setting the
-	// env var narrows the window to 30 days; a 60-day-old instance becomes
-	// deletable even though the registry default (365) would have spared it.
-	t.Setenv("TIMETABLE_RETENTION_DAYS", "30")
-
+	// Tenant override narrows the window to 30 days; a 60-day-old instance
+	// becomes deletable even though the registry default (365) would have
+	// spared it. Wires a stubSettingsService that reports HasTenantOverride
+	// = true and ResolveInt = 30 — the same contract the real settings
+	// service provides when a school admin sets the value in the UI.
 	f, roomID := setupFixture(t)
-	svc := newCleanupSvc(f.db)
+	svc := scheduleSvc.NewTimetableCleanupService(
+		f.db,
+		auditRepoPkg.NewDataDeletionRepository(f.db),
+		&stubSettingsService{hasOverride: true, intVal: 30},
+		slog.Default(),
+	)
 
 	sixtyDaysOld := time.Now().UTC().AddDate(0, 0, -60)
 	tenDaysOld := time.Now().UTC().AddDate(0, 0, -10)
@@ -316,7 +323,7 @@ func TestCleanup_RetentionOverride_UsesOverriddenDays(t *testing.T) {
 
 	r, err := svc.CleanupExpiredTimetableData(f.ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 30, r.RetentionDays, "env var overrides default 365")
+	assert.Equal(t, 30, r.RetentionDays, "tenant override must win over registry default")
 	assert.Equal(t, 1, r.InstancesDeleted, "60-day-old row past 30-day window")
 
 	assertRowExists(t, f, "schedule.activity_instances", oldID, false)
@@ -566,6 +573,66 @@ func TestCleanup_AuditWriteFailure_BubblesError(t *testing.T) {
 	require.Error(t, err, "audit failure must bubble up")
 	assertRowExists(t, f, "schedule.activity_instances", instID, true,
 		"audit-before-delete ordering means the DELETE did not fire")
+}
+
+// TestCleanup_InsideWithTenantTx_Rollback_UndoesEverything proves the
+// atomicity claim in the package doc: when the caller wraps
+// CleanupExpiredTimetableData in tenant.WithTenantTx and the tx body returns
+// an error, the audit rows AND the DELETEs are both rolled back — so the
+// tenant's data is left exactly as it was before the cleanup attempt.
+//
+// This is the production contract: the scheduler and CLI both invoke the
+// service inside a WithTenantTx, so a DB failure anywhere during or after
+// cleanup must leave no partial state behind. The ordering-only test
+// (TestCleanup_AuditWriteFailure_BubblesError) runs outside a tx and can't
+// prove this — this test does.
+func TestCleanup_InsideWithTenantTx_Rollback_UndoesEverything(t *testing.T) {
+	f, roomID := setupFixture(t)
+	svc := newCleanupSvc(f.db)
+
+	old := time.Now().UTC().AddDate(0, 0, -400)
+	inst1 := f.newInstance(t, old, scheduleModels.InstanceStatusCompleted, roomID, nil)
+	inst2 := f.newInstance(t, old, scheduleModels.InstanceStatusCancelled, roomID, nil)
+
+	stud := testpkg.CreateTestStudent(t, f.db, "Rollback", fmt.Sprintf("Stud-%d", time.Now().UnixNano()), "3a")
+	f.studentIDs = append(f.studentIDs, stud.ID)
+	f.attachStudent(t, inst1, stud.ID, nil)
+	f.attachStudent(t, inst2, stud.ID, nil)
+
+	rollbackErr := errors.New("simulated caller-side failure after cleanup")
+	txCtx := tenant.WithTenantID(context.Background(), testTenantID)
+	err := tenant.WithTenantTx(txCtx, f.db, testTenantID, func(innerCtx context.Context, _ bun.Tx) error {
+		// Cleanup succeeds inside the tx: audit row is written, both
+		// instances are DELETEd (CASCADE removes the instance_students rows).
+		result, cErr := svc.CleanupExpiredTimetableData(innerCtx)
+		require.NoError(t, cErr, "cleanup itself must succeed")
+		require.Equal(t, 2, result.InstancesDeleted)
+		require.Equal(t, 1, result.StudentsAffected)
+		// Return an error so the tx rolls back. In production this simulates
+		// any failure that happens in the caller after cleanup returns —
+		// e.g., a scheduler-level commit failure or a chained operation that
+		// errors. The atomicity guarantee says cleanup's writes must be
+		// undone.
+		return rollbackErr
+	})
+	require.ErrorIs(t, err, rollbackErr)
+
+	// Both instance rows are back — the DELETEs were rolled back.
+	assertRowExists(t, f, "schedule.activity_instances", inst1, true,
+		"rollback must restore inst1")
+	assertRowExists(t, f, "schedule.activity_instances", inst2, true,
+		"rollback must restore inst2")
+
+	// The audit row is gone — the INSERT was rolled back too. This is the
+	// key check: without atomicity, we'd have an audit row claiming data
+	// was deleted when it actually wasn't.
+	auditCount, err := f.db.NewSelect().Table("audit.data_deletions").
+		Where("tenant_id = ? AND student_id = ? AND deletion_type = ?",
+			testTenantID, stud.ID, auditModels.DeletionTypeTimetableRetention).
+		Count(f.ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 0, auditCount,
+		"rollback must undo audit rows — otherwise compliance log lies about deleted data")
 }
 
 // --- Helpers ---
