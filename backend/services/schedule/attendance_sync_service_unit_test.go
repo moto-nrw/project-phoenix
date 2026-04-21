@@ -139,6 +139,10 @@ func (f *fakeInstanceStudentRepo) UpdateAttendanceFields(context.Context, int64,
 	panic("unused")
 }
 
+func (f *fakeInstanceStudentRepo) BulkUpdateStatus(context.Context, int64, string, string) (int, error) {
+	panic("unused")
+}
+
 // -----------------------------------------------------------------------------
 // Helpers
 // -----------------------------------------------------------------------------

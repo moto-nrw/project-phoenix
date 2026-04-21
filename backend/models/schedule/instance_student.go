@@ -174,4 +174,14 @@ type InstanceStudentRepository interface {
 	// Callers (the PATCH handler) must validate cross-field invariants
 	// BEFORE invoking — the repo does not re-check them.
 	UpdateAttendanceFields(ctx context.Context, id int64, patch AttendanceFieldPatch) error
+
+	// BulkUpdateStatus flips every attendance row for the given instance whose
+	// current status equals fromStatus to toStatus, and returns the number of
+	// rows changed. Tenant-scoped via the caller's transaction context.
+	//
+	// Used by Complete() to mark remaining 'expected' students as 'absent'
+	// when an instance ends (WP-B10 plan §6.2). Intentionally NOT used by
+	// Cancel(): a cancelled instance never ran, so "absent" would be a
+	// semantic misclaim.
+	BulkUpdateStatus(ctx context.Context, instanceID int64, fromStatus, toStatus string) (int, error)
 }
