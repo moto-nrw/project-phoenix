@@ -10,8 +10,10 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/uptrace/bun"
 )
 
@@ -34,10 +36,11 @@ const (
 // Note: Context should be passed as a parameter to methods that need it,
 // rather than stored in the struct (per Go best practices).
 type cleanupContext struct {
-	DB             *bun.DB
-	RepoFactory    *repositories.Factory
-	ServiceFactory *services.Factory
-	CleanupService active.CleanupService
+	DB                      *bun.DB
+	RepoFactory             *repositories.Factory
+	ServiceFactory          *services.Factory
+	CleanupService          active.CleanupService
+	TimetableCleanupService schedule.TimetableCleanupService
 }
 
 // newCleanupContext initializes database and repository factory.
@@ -91,6 +94,24 @@ func newCleanupContextWithCleanupService() (*cleanupContext, error) {
 		ctx.DB,
 	)
 
+	return ctx, nil
+}
+
+// newCleanupContextWithTimetableCleanup initializes database + timetable
+// GDPR cleanup service (WP-B14). Uses settingsService from the full service
+// factory so tenant overrides of gdpr.timetable_retention_days are honored.
+// The caller must call Close() when done.
+func newCleanupContextWithTimetableCleanup() (*cleanupContext, error) {
+	ctx, err := newCleanupContextWithServices()
+	if err != nil {
+		return nil, err
+	}
+	ctx.TimetableCleanupService = schedule.NewTimetableCleanupService(
+		ctx.DB,
+		auditRepo.NewDataDeletionRepository(ctx.DB),
+		ctx.ServiceFactory.Settings,
+		slog.Default().With("service", "timetable-cleanup-cli"),
+	)
 	return ctx, nil
 }
 

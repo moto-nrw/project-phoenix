@@ -925,10 +925,11 @@ func TestCleanupCmd_HasSubcommands(t *testing.T) {
 	assert.Contains(t, names, "attendance")
 	assert.Contains(t, names, "sessions")
 	assert.Contains(t, names, "supervisors")
+	assert.Contains(t, names, "timetable") // WP-B14
 }
 
 func TestCleanupCmd_SubcommandCount(t *testing.T) {
-	assert.Len(t, cleanupCmd.Commands(), 9, "cleanupCmd should have exactly 9 subcommands")
+	assert.Len(t, cleanupCmd.Commands(), 10, "cleanupCmd should have exactly 10 subcommands")
 }
 
 func TestCleanupVisitsCmd_Metadata(t *testing.T) {
@@ -954,6 +955,12 @@ func TestCleanupTokensCmd_Metadata(t *testing.T) {
 	assert.Equal(t, "tokens", cleanupTokensCmd.Use)
 	assert.Contains(t, cleanupTokensCmd.Short, "expired authentication tokens")
 	assert.NotNil(t, cleanupTokensCmd.RunE)
+}
+
+func TestCleanupTimetableCmd_Metadata(t *testing.T) {
+	assert.Equal(t, "timetable", cleanupTimetableCmd.Use)
+	assert.Contains(t, cleanupTimetableCmd.Short, "timetable")
+	assert.NotNil(t, cleanupTimetableCmd.RunE)
 }
 
 func TestCleanupInvitationsCmd_Metadata(t *testing.T) {
