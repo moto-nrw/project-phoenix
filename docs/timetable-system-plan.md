@@ -12,6 +12,7 @@
 - **2026-04-13 (Iteration 2):** Devil's advocate review (E1–E10). Eliminated three-mode system. Nullable GroupID. Multi-room override. Missing children as core feature. Substitute endpoint. Conflict detection. Dual materialization. GDPR retention. Partial UNIQUE index.
 - **2026-04-14 (Iteration 3):** Architecture session (E11–E14). Replaced class_timetable with per-student arrival schedules. Clean milestone vs. activity separation. Three independent data systems (arrival, timetable, pickup). Implicit care contract. Industry research validating design against 6 open-source SIS + 5 commercial products.
 - **2026-04-15 (Iteration 4):** Team feedback from Christian and Flo (E15–E22). Calendar periods. A/B weeks. Enrollment validity. Three-field attendance model. Auto-start levels. Gap detection. Mensa rotation solved. Holiday care compatibility.
+- **2026-04-21 (Iteration 5):** Post-B10 review. Open questions §4.1/§4.7/§4.8 resolved. B10 gap identified: `Complete()` must mark remaining `expected` students as `absent` (plan §6.2) — follow-up bundled with WP-B11.
 
 ---
 
@@ -87,14 +88,14 @@ The system connects three independent scheduling domains — **Arrival** (when d
 
 ## 4. Open Questions for Team Review
 
-1. **Spontaneous visitors** — child checks into an instance but is not in `instance_students`. Create a new entry with `status=present`? Or track only in `active.visits`?
+1. ~~**Spontaneous visitors** — child checks into an instance but is not in `instance_students`. Create a new entry with `status=present`? Or track only in `active.visits`?~~ **Resolved (2026-04-21):** No schema change. Spontaneous check-ins are accepted as valid. `instance_students` stays unchanged (only planned students). The B11 student-day aggregator joins `instance_students` with `active.visits` via `active_group_id`; students in `active.visits` but not in `instance_students` surface in the response with `is_unplanned: true`. Counting "who was here?" happens read-side, not write-side. Nice side effect: `Complete()` mark-as-absent logic stays trivial (`UPDATE instance_students SET status='absent' WHERE status='expected'`) — no need to distinguish planned-missing from spontaneous-attending.
 2. **"Re-plan week" UI** — confirmation dialog with diff showing what will be overwritten? Or simpler "are you sure?" dialog?
 3. **Arrival bulk: overwrite or merge?** — when bulk-setting arrival times for class "3a" and Max already has individual times, overwrite silently or warn?
 4. **Arrival notes** — do we need `student_arrival_notes` analog to `student_pickup_notes`? Or does the `reason` field on exceptions suffice?
 5. **`early_pickup` substatus** — needed? Or covered by the existing pickup exception system?
 6. **Period overlap rules** — can active periods overlap (e.g., "Schuljahr 2026/27" + "Projektwoche Mai" both active)? If yes, materialization must pick the more specific period's templates.
-7. **`minimum_staff` field** — does `activity_instances` need a `minimum_staff SMALLINT DEFAULT 1` for gap detection? Or is `COUNT(staff) < 1` sufficient for MVP?
-8. **Cross-dependency with enrollment plan** — Chris's enrollment plan introduces `platform.school_years` and `users.student_year_assignments`. Care offering selections on approved enrollments may need to map to `activities.student_enrollments`. Should we plan this interface now? (See §7.2)
+7. ~~**`minimum_staff` field** — does `activity_instances` need a `minimum_staff SMALLINT DEFAULT 1` for gap detection? Or is `COUNT(staff) < 1` sufficient for MVP?~~ **Resolved (2026-04-21):** No field for MVP. WP-B12 uses `COUNT(instance_staff WHERE NOT is_absent) < 1` as the gap-detection predicate. An optional `minimum_staff` column can be added later if the planning use case appears, without breaking existing data.
+8. ~~**Cross-dependency with enrollment plan** — Chris's enrollment plan introduces `platform.school_years` and `users.student_year_assignments`. Care offering selections on approved enrollments may need to map to `activities.student_enrollments`. Should we plan this interface now? (See §7.2)~~ **Resolved (2026-04-21):** Proceed independently on both sides. If the interface shape between enrollment care-offerings and `activities.student_enrollments` needs reconciliation later, the migration cost is accepted. No blocking dependency.
 
 ---
 
@@ -527,8 +528,10 @@ Two tracks: **all backend first, frontend after.** Each item is a **Work Package
 
 #### B3 — Aggregation + Ops
 
-- [ ] **WP-B11** — Student day API (aggregates arrival + instances + pickup)
-- [ ] **WP-B12** — Gap detection endpoint + substitute endpoint
+- [ ] **WP-B11** — Student day API (aggregates arrival + instances + pickup).
+  - **Bundled follow-up from B10 (plan §6.2):** `Complete()` in `backend/services/schedule/instance_service.go:229` currently does not mark remaining `expected` students as `absent`; same for `Cancel()` when transitioning from `active`. Add a single `UPDATE instance_students SET status='absent' WHERE instance_id=? AND status='expected'` inside the existing transaction. Small (<50 LOC + 2 tests). Must ship with or before B11 so the aggregator sees consistent data.
+  - **Spontaneous-visitor handling (§4.1):** join `instance_students` with `active.visits` on `active_group_id`; students in `active.visits` absent from `instance_students` surface as `is_unplanned: true`. Read-only, no schema change.
+- [ ] **WP-B12** — Gap detection endpoint (`COUNT(instance_staff WHERE NOT is_absent) < 1` — §4.7) + substitute endpoint
 - [ ] **WP-B13** — Exception conflict warnings (arrival ↔ timetable)
 - [x] **WP-B14** — GDPR cleanup job for timetable data → GitHub #1298
 
@@ -573,7 +576,13 @@ Two tracks: **all backend first, frontend after.** Each item is a **Work Package
 
 ### Recommended next
 
-**WP-B13** — exception conflict warnings (arrival ↔ timetable). The only WP that WP-B10's attendance sync directly unblocks: compare `activity_exceptions` (cancelled/modified instances) against `arrival_schedules` exceptions and surface mismatches to admins before they become day-of surprises ("the instance is cancelled but 12 students are still scheduled to arrive for it"). Read-only API surface, no IoT boundary touch. Two alternatives now run fully in parallel: **WP-B11** (student day API — read-only aggregator for the upcoming frontend, good handoff for a different contributor) and **WP-B12** (gap detection + substitute endpoint — operational tool for admin UIs). Any of the three is defensible; B13 is recommended because it's the most user-impactful continuation of the B10 thread.
+**WP-B11** — Student day API (arrival + instances + pickup aggregator), bundled with the B10 Mark-as-Absent follow-up. Three reasons over B12/B13:
+
+1. **Closes a correctness gap.** The bundled `Complete()` absence-marking fix (plan §6.2) is semantically necessary before any frontend reads `instance_students` — otherwise the staff UI will show children as `expected` after their instance has ended.
+2. **Unblocks the F-track.** B11 is the clean read-only API that F3/F4/F9 (staff "My Day", instance detail, student day view) consume directly. Shipping it now means the frontend track can begin in parallel without waiting for B12/B13.
+3. **Resolves §4.1 in code, not paper.** The spontaneous-visitor decision (Option C — join `active.visits` with `instance_students` at read time) is a read-side concern. B11 is the first endpoint where the shape gets exercised.
+
+B12 (gap detection + substitute) and B13 (exception conflict warnings) remain fully parallelizable and can be picked up by a different contributor or as the next WP after B11. No cross-blocks.
 
 ---
 
