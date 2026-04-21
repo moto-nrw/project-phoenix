@@ -42,61 +42,64 @@ func renderError(w http.ResponseWriter, r *http.Request, errorResponse render.Re
 
 // Resource defines the students API resource
 type Resource struct {
-	PersonService         userService.PersonService
-	StudentRepo           users.StudentRepository
-	EducationService      educationService.Service
-	UserContextService    userContextService.UserContextService
-	ActiveService         activeService.Service
-	IoTService            iotSvc.Service
-	PrivacyConsentRepo    users.PrivacyConsentRepository
-	PickupScheduleService scheduleService.PickupScheduleService
-	SchoolRepo            platform.SchoolRepository
-	SettingsService       configService.SettingsService
-	AttendanceRepo        active.AttendanceRepository
-	VisitRepo             active.VisitRepository
-	DataAccessLogRepo     auditModels.DataAccessLogRepository
-	Logger                *slog.Logger
-	db                    *bun.DB
+	PersonService          userService.PersonService
+	StudentRepo            users.StudentRepository
+	EducationService       educationService.Service
+	UserContextService     userContextService.UserContextService
+	ActiveService          activeService.Service
+	IoTService             iotSvc.Service
+	PrivacyConsentRepo     users.PrivacyConsentRepository
+	PickupScheduleService  scheduleService.PickupScheduleService
+	ArrivalScheduleService scheduleService.ArrivalScheduleService
+	SchoolRepo             platform.SchoolRepository
+	SettingsService        configService.SettingsService
+	AttendanceRepo         active.AttendanceRepository
+	VisitRepo              active.VisitRepository
+	DataAccessLogRepo      auditModels.DataAccessLogRepository
+	Logger                 *slog.Logger
+	db                     *bun.DB
 }
 
 // ResourceConfig holds all dependencies for creating a students Resource.
 // Using a config struct instead of individual parameters improves maintainability.
 type ResourceConfig struct {
-	PersonService         userService.PersonService
-	StudentRepo           users.StudentRepository
-	EducationService      educationService.Service
-	UserContextService    userContextService.UserContextService
-	ActiveService         activeService.Service
-	IoTService            iotSvc.Service
-	PrivacyConsentRepo    users.PrivacyConsentRepository
-	PickupScheduleService scheduleService.PickupScheduleService
-	SchoolRepo            platform.SchoolRepository
-	SettingsService       configService.SettingsService
-	AttendanceRepo        active.AttendanceRepository
-	VisitRepo             active.VisitRepository
-	DataAccessLogRepo     auditModels.DataAccessLogRepository
-	Logger                *slog.Logger
-	DB                    *bun.DB
+	PersonService          userService.PersonService
+	StudentRepo            users.StudentRepository
+	EducationService       educationService.Service
+	UserContextService     userContextService.UserContextService
+	ActiveService          activeService.Service
+	IoTService             iotSvc.Service
+	PrivacyConsentRepo     users.PrivacyConsentRepository
+	PickupScheduleService  scheduleService.PickupScheduleService
+	ArrivalScheduleService scheduleService.ArrivalScheduleService
+	SchoolRepo             platform.SchoolRepository
+	SettingsService        configService.SettingsService
+	AttendanceRepo         active.AttendanceRepository
+	VisitRepo              active.VisitRepository
+	DataAccessLogRepo      auditModels.DataAccessLogRepository
+	Logger                 *slog.Logger
+	DB                     *bun.DB
 }
 
 // NewResource creates a new students resource from the provided configuration.
 func NewResource(cfg ResourceConfig) *Resource {
 	return &Resource{
-		PersonService:         cfg.PersonService,
-		StudentRepo:           cfg.StudentRepo,
-		EducationService:      cfg.EducationService,
-		UserContextService:    cfg.UserContextService,
-		ActiveService:         cfg.ActiveService,
-		IoTService:            cfg.IoTService,
-		PrivacyConsentRepo:    cfg.PrivacyConsentRepo,
-		PickupScheduleService: cfg.PickupScheduleService,
-		SchoolRepo:            cfg.SchoolRepo,
-		SettingsService:       cfg.SettingsService,
-		AttendanceRepo:        cfg.AttendanceRepo,
-		VisitRepo:             cfg.VisitRepo,
-		DataAccessLogRepo:     cfg.DataAccessLogRepo,
-		Logger:                cfg.Logger,
-		db:                    cfg.DB,
+		PersonService:          cfg.PersonService,
+		StudentRepo:            cfg.StudentRepo,
+		EducationService:       cfg.EducationService,
+		UserContextService:     cfg.UserContextService,
+		ActiveService:          cfg.ActiveService,
+		IoTService:             cfg.IoTService,
+		PrivacyConsentRepo:     cfg.PrivacyConsentRepo,
+		PickupScheduleService:  cfg.PickupScheduleService,
+		ArrivalScheduleService: cfg.ArrivalScheduleService,
+		SchoolRepo:             cfg.SchoolRepo,
+		SettingsService:        cfg.SettingsService,
+		AttendanceRepo:         cfg.AttendanceRepo,
+		VisitRepo:              cfg.VisitRepo,
+		DataAccessLogRepo:      cfg.DataAccessLogRepo,
+		Logger:                 cfg.Logger,
+		db:                     cfg.DB,
 	}
 }
 
@@ -151,6 +154,22 @@ func (rs *Resource) Router() chi.Router {
 
 		// Bulk pickup times endpoint (returns pickup times for multiple students)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Post("/pickup-times/bulk", rs.getBulkPickupTimes)
+
+		// Arrival schedule routes (full access required - checked in handlers)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/arrival-schedules", rs.getStudentArrivalSchedules)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/arrival-schedules", rs.updateStudentArrivalSchedules)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/{id}/arrival-exceptions", rs.createStudentArrivalException)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/arrival-exceptions/{exceptionId}", rs.updateStudentArrivalException)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Delete("/{id}/arrival-exceptions/{exceptionId}", rs.deleteStudentArrivalException)
+
+		// Arrival note routes (full access required - checked in handlers)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/{id}/arrival-notes", rs.createStudentArrivalNote)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/arrival-notes/{noteId}", rs.updateStudentArrivalNote)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Delete("/{id}/arrival-notes/{noteId}", rs.deleteStudentArrivalNote)
+
+		// Bulk arrival schedule and time endpoints
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/arrival-schedules/bulk", rs.bulkUpsertArrivalSchedules)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Post("/arrival-times/bulk", rs.getBulkArrivalTimes)
 	})
 
 	// Device-authenticated routes for RFID devices.
@@ -698,6 +717,7 @@ func applyStudentFieldUpdates(req *UpdateStudentRequest, student *users.Student)
 	applyGuardianUpdates(req, student)
 	applyOptionalStudentFields(req, student)
 	applySickStatus(req, student)
+	applyExcusedStatus(req, student)
 }
 
 // applyGuardianUpdates handles legacy guardian field updates
@@ -764,6 +784,40 @@ func applySickStatus(req *UpdateStudentRequest, student *users.Student) {
 	}
 }
 
+// applyExcusedStatus handles excused status updates with ExcusedSince timestamp logic
+func applyExcusedStatus(req *UpdateStudentRequest, student *users.Student) {
+	if req.Excused == nil {
+		return
+	}
+	student.Excused = req.Excused
+	if *req.Excused {
+		if student.ExcusedSince == nil {
+			now := time.Now()
+			student.ExcusedSince = &now
+		}
+	} else {
+		student.ExcusedSince = nil
+	}
+}
+
+// checkSickExcusedConflict returns an error if the incoming update would
+// result in both sick and excused being true simultaneously. Callers with a
+// conflict should prompt the user to switch states rather than hold both.
+func checkSickExcusedConflict(req *UpdateStudentRequest, student *users.Student) error {
+	sickFinal := student.Sick != nil && *student.Sick
+	if req.Sick != nil {
+		sickFinal = *req.Sick
+	}
+	excusedFinal := student.Excused != nil && *student.Excused
+	if req.Excused != nil {
+		excusedFinal = *req.Excused
+	}
+	if sickFinal && excusedFinal {
+		return errors.New("a student cannot be both sick and excused at the same time")
+	}
+	return nil
+}
+
 // updateStudent handles updating an existing student
 func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	// Parse ID and get student
@@ -801,6 +855,14 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	personResult := applyPersonUpdates(req, person)
 	if personResult.err != nil {
 		renderError(w, r, ErrorInvalidRequest(personResult.err))
+		return
+	}
+
+	// Reject updates that would leave the student in both sick and excused
+	// states simultaneously. The frontend uses the SICK_EXCUSED_CONFLICT code
+	// to prompt the user to switch states rather than hold both.
+	if err := checkSickExcusedConflict(req, student); err != nil {
+		renderError(w, r, ErrorConflictWithCode(err, ErrCodeSickExcusedConflict))
 		return
 	}
 

@@ -54,6 +54,9 @@ func (m *mockSchoolRepo) Update(_ context.Context, _ *platform.School) error   {
 func (m *mockSchoolRepo) SoftDelete(_ context.Context, _ int64) error          { return nil }
 func (m *mockSchoolRepo) Restore(_ context.Context, _ int64) error             { return nil }
 func (m *mockSchoolRepo) CountByIDs(_ context.Context, _ []int64) (int, error) { return 0, nil }
+func (m *mockSchoolRepo) CountNonDeletedByOrganizationID(_ context.Context, _ int64) (int, error) {
+	return 0, nil
+}
 
 // =============================================================================
 // delegateHandler Tests

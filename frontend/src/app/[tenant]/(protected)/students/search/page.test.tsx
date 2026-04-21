@@ -7,6 +7,7 @@ import {
   act,
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
 import StudentSearchPage from "./page";
 
 // Mock next-auth/react
@@ -1212,6 +1213,232 @@ describe("StudentSearchPage", () => {
 
       // Should show "Abholzeit: —" fallback for students with full access but no pickup time
       expect(screen.getByText("Abholzeit: —")).toBeInTheDocument();
+    });
+  });
+
+  describe("Tracking Filter (Aktivitäten heute)", () => {
+    // Fixture: two students, two configured labels; student "1" completed
+    // Hausaufgaben, student "2" has done nothing yet.
+    const trackingStudents = [
+      {
+        id: "1",
+        first_name: "Felix",
+        second_name: "Schneider",
+        school_class: "1a",
+        group_name: "Sterne",
+        current_location: "Raum 101",
+        has_full_access: true,
+      },
+      {
+        id: "2",
+        first_name: "Emma",
+        second_name: "Meyer",
+        school_class: "1a",
+        group_name: "Sterne",
+        current_location: "Raum 101",
+        has_full_access: true,
+      },
+    ];
+
+    const trackingTwoLabels: TrackingIndicatorsResponse = {
+      labels: ["Hausaufgaben", "Mensa"],
+      results: {
+        "1": [true, false],
+        "2": [false, false],
+      },
+    };
+
+    // Configures useSWRAuth to return students for the students key and
+    // the provided tracking response for the tracking-indicators key.
+    async function primeTracking(opts: {
+      tracking?: TrackingIndicatorsResponse;
+      students?: typeof trackingStudents;
+    }) {
+      const swrModule = await import("~/lib/swr");
+      const studentsResult = {
+        data: { students: opts.students ?? trackingStudents },
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>;
+      const trackingResult = {
+        data: opts.tracking,
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>;
+      vi.mocked(swrModule.useSWRAuth).mockImplementation((key: unknown) => {
+        if (typeof key === "string" && key.startsWith("tracking-indicators-")) {
+          return trackingResult;
+        }
+        return studentsResult;
+      });
+    }
+
+    it("does not render the tracking dropdown when no labels are configured", async () => {
+      await primeTracking({ tracking: { labels: [], results: {} } });
+      render(<StudentSearchPage />);
+
+      await waitFor(() =>
+        expect(screen.getByText("Felix")).toBeInTheDocument(),
+      );
+      expect(screen.queryByTestId("filter-tracking")).not.toBeInTheDocument();
+    });
+
+    it("renders the dropdown with Alle / per-label / Noch nichts erledigt options", async () => {
+      await primeTracking({ tracking: trackingTwoLabels });
+      render(<StudentSearchPage />);
+
+      await waitFor(() =>
+        expect(screen.getByTestId("filter-tracking")).toBeInTheDocument(),
+      );
+      const select = screen.getByTestId("filter-tracking");
+      expect(select.querySelector('option[value="all"]')).toHaveTextContent(
+        "Alle Aktivitäten heute",
+      );
+      expect(
+        select.querySelector('option[value="missing:0"]'),
+      ).toHaveTextContent("Noch nicht in Hausaufgaben");
+      expect(
+        select.querySelector('option[value="missing:1"]'),
+      ).toHaveTextContent("Noch nicht in Mensa");
+      expect(
+        select.querySelector('option[value="none_visited"]'),
+      ).toHaveTextContent("Noch nichts erledigt");
+    });
+
+    it("selecting 'missing:0' hides students who already completed that label", async () => {
+      await primeTracking({ tracking: trackingTwoLabels });
+      render(<StudentSearchPage />);
+
+      await waitFor(() =>
+        expect(screen.getByText("Felix")).toBeInTheDocument(),
+      );
+
+      fireEvent.change(screen.getByTestId("filter-tracking"), {
+        target: { value: "missing:0" },
+      });
+
+      await waitFor(() => {
+        // Felix completed Hausaufgaben (results[0] === true) → hidden.
+        expect(screen.queryByText("Felix")).not.toBeInTheDocument();
+        // Emma hasn't → visible.
+        expect(screen.getByText("Emma")).toBeInTheDocument();
+      });
+    });
+
+    it("'none_visited' keeps only students missing every configured indicator", async () => {
+      await primeTracking({ tracking: trackingTwoLabels });
+      render(<StudentSearchPage />);
+
+      await waitFor(() =>
+        expect(screen.getByText("Felix")).toBeInTheDocument(),
+      );
+
+      fireEvent.change(screen.getByTestId("filter-tracking"), {
+        target: { value: "none_visited" },
+      });
+
+      await waitFor(() => {
+        expect(screen.queryByText("Felix")).not.toBeInTheDocument();
+        expect(screen.getByText("Emma")).toBeInTheDocument();
+      });
+    });
+
+    it("shows the chip with the correct label and clears it when clicked", async () => {
+      await primeTracking({ tracking: trackingTwoLabels });
+      render(<StudentSearchPage />);
+
+      await waitFor(() =>
+        expect(screen.getByTestId("filter-tracking")).toBeInTheDocument(),
+      );
+
+      fireEvent.change(screen.getByTestId("filter-tracking"), {
+        target: { value: "missing:1" },
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("active-filter-tracking")).toHaveTextContent(
+          "Noch nicht in Mensa",
+        );
+      });
+
+      fireEvent.click(screen.getByTestId("active-filter-tracking"));
+
+      await waitFor(() => {
+        expect(
+          screen.queryByTestId("active-filter-tracking"),
+        ).not.toBeInTheDocument();
+        expect(screen.getByTestId("filter-tracking")).toHaveValue("all");
+      });
+    });
+
+    it("'Alle zurücksetzen' clears the tracking filter", async () => {
+      await primeTracking({ tracking: trackingTwoLabels });
+      render(<StudentSearchPage />);
+
+      await waitFor(() =>
+        expect(screen.getByTestId("filter-tracking")).toBeInTheDocument(),
+      );
+
+      fireEvent.change(screen.getByTestId("filter-tracking"), {
+        target: { value: "none_visited" },
+      });
+      await waitFor(() =>
+        expect(
+          screen.getByTestId("active-filter-tracking"),
+        ).toBeInTheDocument(),
+      );
+
+      fireEvent.click(screen.getByTestId("clear-filters"));
+
+      await waitFor(() => {
+        expect(
+          screen.queryByTestId("active-filter-tracking"),
+        ).not.toBeInTheDocument();
+        expect(screen.getByTestId("filter-tracking")).toHaveValue("all");
+      });
+    });
+
+    it("hides redacted students (has_full_access === false) while a tracking filter is active", async () => {
+      const mixed = [
+        trackingStudents[0],
+        {
+          id: "9",
+          first_name: "Redacted",
+          second_name: "Kid",
+          school_class: "1a",
+          group_name: "Sterne",
+          current_location: "Raum 101",
+          has_full_access: false,
+        },
+      ];
+      // Only include tracking data for id "1"; redacted student has no row.
+      await primeTracking({
+        tracking: {
+          labels: ["Hausaufgaben"],
+          results: { "1": [false] },
+        },
+        students: mixed as typeof trackingStudents,
+      });
+      render(<StudentSearchPage />);
+
+      await waitFor(() =>
+        expect(screen.getByText("Redacted")).toBeInTheDocument(),
+      );
+
+      // Initially both visible.
+      expect(screen.getByText("Felix")).toBeInTheDocument();
+      expect(screen.getByText("Redacted")).toBeInTheDocument();
+
+      fireEvent.change(screen.getByTestId("filter-tracking"), {
+        target: { value: "missing:0" },
+      });
+
+      await waitFor(() => {
+        // Felix missing HA → shown.
+        expect(screen.getByText("Felix")).toBeInTheDocument();
+        // Redacted kid hidden — no tracking data AND has_full_access false.
+        expect(screen.queryByText("Redacted")).not.toBeInTheDocument();
+      });
     });
   });
 });

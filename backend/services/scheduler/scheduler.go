@@ -13,7 +13,10 @@ import (
 	"github.com/getsentry/sentry-go"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/platform"
+	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/active"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -78,6 +81,8 @@ type Scheduler struct {
 	workSessionCleanup WorkSessionCleaner
 	breakAutoEnder     BreakAutoEnder
 	feedbackCleaner    FeedbackCleaner
+	materializer       scheduleSvc.MaterializationService
+	timetableCleanup   scheduleSvc.TimetableCleanupService
 	settings           SettingsResolver
 	db                 *bun.DB
 	schoolRepo         platform.SchoolRepository
@@ -97,9 +102,29 @@ type Scheduler struct {
 	breakAutoEndIntervalSeconds int
 
 	// Per-tenant tracking for minute-polling (keyed by tenant ID)
-	lastSessionEnd     sync.Map // tenant_id → time.Time
-	lastDataCleanup    sync.Map // tenant_id → time.Time
-	lastSessionCleanup sync.Map // tenant_id → time.Time
+	lastSessionEnd       sync.Map // tenant_id → time.Time
+	lastDataCleanup      sync.Map // tenant_id → time.Time
+	lastSessionCleanup   sync.Map // tenant_id → time.Time
+	lastStatusFlagClear  sync.Map // tenant_id → time.Time
+	lastMaterialization  sync.Map // tenant_id → time.Time
+	lastTimetableCleanup sync.Map // tenant_id → time.Time (WP-B14)
+
+	// Overdue instance tracking (WP-B9). Re-fire guard so the same instance
+	// does not emit `instance_overdue` every minute for the same planned
+	// row. Cleared explicitly on day boundary; see checkAndRunOverdue.
+	instanceRepo        scheduleModel.ActivityInstanceRepository
+	overdueBroadcaster  realtime.Broadcaster
+	overdueEmitted      sync.Map // overdueKey{tenantID, instanceID} → time.Time
+	overdueEmittedDay   time.Time
+	overdueEmittedDayMu sync.Mutex
+}
+
+// overdueKey composites tenant + instance so the sync.Map key cannot collide
+// across tenants. Using a struct literal avoids the ambiguity of a stringly-
+// typed "tenant:instance" key if either id ever contained a colon.
+type overdueKey struct {
+	tenantID   int64
+	instanceID int64
 }
 
 // ScheduledTask represents a scheduled task
@@ -149,6 +174,23 @@ func (s *Scheduler) SetFeedbackCleaner(fc FeedbackCleaner) {
 	s.feedbackCleaner = fc
 }
 
+// SetMaterializer wires the timetable materialization service. When set, the
+// scheduler registers the weekly materialization task in Start(). A nil
+// materializer is a valid configuration — the task simply does not register,
+// matching the legacy "opt-in via dependency injection" pattern used by the
+// feedback cleaner, work-session cleaner, and break auto-ender above.
+func (s *Scheduler) SetMaterializer(m scheduleSvc.MaterializationService) {
+	s.materializer = m
+}
+
+// SetTimetableCleanup wires the timetable GDPR cleanup service (WP-B14). When
+// set, the scheduler registers the daily timetable-cleanup task in Start().
+// Nil is a valid configuration — the task simply does not register, matching
+// the opt-in shape of SetMaterializer.
+func (s *Scheduler) SetTimetableCleanup(svc scheduleSvc.TimetableCleanupService) {
+	s.timetableCleanup = svc
+}
+
 // SetDB sets the database connection for tenant-aware operations.
 func (s *Scheduler) SetDB(db *bun.DB) {
 	s.db = db
@@ -165,8 +207,20 @@ func (s *Scheduler) SetSettingsService(svc SettingsResolver) {
 	s.settings = svc
 }
 
+// SetInstanceOverdueDeps wires the dependencies for the WP-B9 overdue
+// instance tick. Both parameters are required; passing nil for either
+// disables the tick entirely (no task registers, no SSE events fire). Same
+// opt-in shape as SetMaterializer: a partial wiring is never a silent
+// misconfiguration.
+func (s *Scheduler) SetInstanceOverdueDeps(repo scheduleModel.ActivityInstanceRepository, broadcaster realtime.Broadcaster) {
+	s.instanceRepo = repo
+	s.overdueBroadcaster = broadcaster
+}
+
 // forEachTenant executes fn for each active tenant inside a WithTenantTx.
 // If schoolRepo or db is not set, falls back to running fn with plain ctx (non-tenant-aware mode).
+// Thin wrapper over tenant.ForEachActive; the scheduler-owned fallback to non-tenant-aware mode
+// is preserved so existing tests that do not wire a school repo keep working.
 func (s *Scheduler) forEachTenant(ctx context.Context, opName string, fn func(ctx context.Context) error) error {
 	if s.db == nil || s.schoolRepo == nil {
 		s.getLogger().Warn("tenant iteration not configured, running without tenant context",
@@ -174,35 +228,14 @@ func (s *Scheduler) forEachTenant(ctx context.Context, opName string, fn func(ct
 		return fn(ctx)
 	}
 
-	// List active tenants using admin context
-	var schools []platform.School
-	err := tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, tx bun.Tx) error {
-		var listErr error
-		schools, listErr = s.schoolRepo.ListActive(txCtx)
-		return listErr
+	return tenant.ForEachActive(ctx, s.db, s.schoolRepo, s.getLogger(), opName, func(txCtx context.Context, _ int64) error {
+		return fn(txCtx)
 	})
-	if err != nil {
-		return fmt.Errorf("scheduler: list active tenants for %s: %w", opName, err)
-	}
-
-	for _, school := range schools {
-		tenantErr := tenant.WithTenantTx(ctx, s.db, school.ID, func(txCtx context.Context, tx bun.Tx) error {
-			return fn(txCtx)
-		})
-		if tenantErr != nil {
-			s.getLogger().Error("tenant operation failed, continuing to next tenant",
-				slog.String("operation", opName),
-				slog.Int64("tenant_id", school.ID),
-				slog.Any("error", tenantErr))
-			continue
-		}
-	}
-
-	return nil
 }
 
 // forEachTenantSettings executes fn for each active tenant, passing tenant ID for settings resolution.
-// Falls back to non-tenant-aware mode if schoolRepo/db is not set.
+// Falls back to non-tenant-aware mode if schoolRepo/db is not set (tests, local dev without
+// seeded schools). Shared with the CLI via tenant.ForEachActive.
 func (s *Scheduler) forEachTenantSettings(ctx context.Context, opName string, fn func(ctx context.Context, tenantID int64) error) {
 	if s.db == nil || s.schoolRepo == nil {
 		s.getLogger().Warn("tenant iteration not configured, running without tenant context",
@@ -211,31 +244,11 @@ func (s *Scheduler) forEachTenantSettings(ctx context.Context, opName string, fn
 		return
 	}
 
-	var schools []platform.School
-	err := tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
-		var listErr error
-		schools, listErr = s.schoolRepo.ListActive(txCtx)
-		return listErr
-	})
-	if err != nil {
+	if err := tenant.ForEachActive(ctx, s.db, s.schoolRepo, s.getLogger(), opName, fn); err != nil {
 		s.getLogger().Error("failed to list active tenants",
 			slog.String("operation", opName),
 			slog.String("error", err.Error()),
 		)
-		return
-	}
-
-	for _, school := range schools {
-		tenantErr := tenant.WithTenantTx(ctx, s.db, school.ID, func(txCtx context.Context, _ bun.Tx) error {
-			return fn(txCtx, school.ID)
-		})
-		if tenantErr != nil {
-			s.getLogger().Error("tenant operation failed, continuing to next tenant",
-				slog.String("operation", opName),
-				slog.Int64("tenant_id", school.ID),
-				slog.Any("error", tenantErr),
-			)
-		}
 	}
 }
 
@@ -245,6 +258,11 @@ func (s *Scheduler) Start() {
 
 	// Schedule daily data cleanup at 2 AM
 	s.scheduleCleanupTask()
+
+	// Schedule daily timetable GDPR cleanup (WP-B14). Shares the same toggle
+	// and time as scheduleCleanupTask so admins configure one nightly window
+	// for all retention jobs.
+	s.scheduleTimetableCleanupTask()
 
 	// Schedule daily session end at configurable time (default 6 PM)
 	s.scheduleSessionEndTask()
@@ -257,6 +275,15 @@ func (s *Scheduler) Start() {
 
 	// Schedule break auto-end task
 	s.scheduleBreakAutoEndTask()
+
+	// Schedule daily sick/excused status-flag clear task
+	s.scheduleStatusFlagClearTask()
+
+	// Schedule weekly timetable materialization (WP-B8)
+	s.scheduleMaterializationTask()
+
+	// Schedule minute-polled overdue instance tick (WP-B9)
+	s.scheduleInstanceOverdueTask()
 }
 
 // Stop gracefully stops the scheduler
@@ -1228,4 +1255,653 @@ func wasRunToday(lastRunMap *sync.Map, tenantID int64) bool {
 // markRunToday records that a per-tenant job ran today.
 func markRunToday(lastRunMap *sync.Map, tenantID int64) {
 	lastRunMap.Store(tenantID, time.Now())
+}
+
+// scheduleStatusFlagClearTask schedules a daily task to clear sick / excused
+// flags for tenants whose operations.sick_clear_mode or
+// operations.excused_clear_mode is set to "end_of_day". The task fires at the
+// tenant's configured operations.student_daily_checkout_time (the natural
+// end of the OGS day); when that setting is empty, no clear happens.
+func (s *Scheduler) scheduleStatusFlagClearTask() {
+	// Env var kill switch to allow ops to disable this task without code changes.
+	if os.Getenv("STATUS_FLAG_CLEAR_ENABLED") == "false" {
+		s.getLogger().Info("status flag clear scheduler is disabled via env var")
+		return
+	}
+
+	task := &ScheduledTask{
+		Name:     "status-flag-clear",
+		Schedule: "1m-poll",
+	}
+
+	s.mu.Lock()
+	s.tasks[task.Name] = task
+	s.mu.Unlock()
+
+	s.wg.Add(1)
+	go s.runStatusFlagClearTaskPolling(task)
+}
+
+// runStatusFlagClearTaskPolling checks every minute if any tenant's checkout
+// time matches now and clears the configured end_of_day flags.
+func (s *Scheduler) runStatusFlagClearTaskPolling(task *ScheduledTask) {
+	defer s.wg.Done()
+	defer func() {
+		if r := recover(); r != nil {
+			err := fmt.Errorf("panic in status flag clear task: %v", r)
+			s.getLogger().Error("goroutine panic recovered", slog.String("error", err.Error()))
+			sentry.CurrentHub().Recover(r)
+			sentry.Flush(2 * time.Second)
+		}
+	}()
+
+	s.getLogger().Info("status flag clear task using minute-polling for per-tenant scheduling")
+
+	s.checkAndRunStatusFlagClear(task)
+
+	if !s.waitUntilNextMinute() {
+		return
+	}
+
+	ticker := time.NewTicker(60 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			s.checkAndRunStatusFlagClear(task)
+		case <-s.done:
+			return
+		}
+	}
+}
+
+// checkAndRunStatusFlagClear evaluates each tenant's clear_mode settings and
+// clears flags when the configured daily checkout time matches now.
+func (s *Scheduler) checkAndRunStatusFlagClear(task *ScheduledTask) {
+	task.mu.Lock()
+	if task.Running {
+		task.mu.Unlock()
+		return
+	}
+	task.Running = true
+	task.mu.Unlock()
+	defer func() {
+		task.mu.Lock()
+		task.Running = false
+		task.mu.Unlock()
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	defer cancel()
+
+	s.forEachTenantSettings(ctx, "status-flag-clear", func(tenantCtx context.Context, tenantID int64) error {
+		clearTime := s.resolveStringSetting(tenantCtx, configModel.KeyStudentDailyCheckoutTime, "", "")
+		if clearTime == "" || !timeMatchesNow(clearTime) {
+			return nil
+		}
+
+		if wasRunToday(&s.lastStatusFlagClear, tenantID) {
+			return nil
+		}
+		markRunToday(&s.lastStatusFlagClear, tenantID)
+
+		sickMode := s.resolveStringSetting(tenantCtx, configModel.KeySickClearMode, "", configModel.ClearModeNextCheckin)
+		excusedMode := s.resolveStringSetting(tenantCtx, configModel.KeyExcusedClearMode, "", configModel.ClearModeEndOfDay)
+
+		if sickMode == configModel.ClearModeEndOfDay {
+			if affected, err := s.clearStatusFlag(tenantCtx, "sick", "sick_since"); err != nil {
+				s.getLogger().Error("end-of-day sick clear failed",
+					slog.Int64("tenant_id", tenantID),
+					slog.String("error", err.Error()),
+				)
+				s.lastStatusFlagClear.Delete(tenantID)
+			} else if affected > 0 {
+				s.getLogger().Info("end-of-day sick clear completed",
+					slog.Int64("tenant_id", tenantID),
+					slog.Int64("students_cleared", affected),
+				)
+			}
+		}
+
+		if excusedMode == configModel.ClearModeEndOfDay {
+			if affected, err := s.clearStatusFlag(tenantCtx, "excused", "excused_since"); err != nil {
+				s.getLogger().Error("end-of-day excused clear failed",
+					slog.Int64("tenant_id", tenantID),
+					slog.String("error", err.Error()),
+				)
+				s.lastStatusFlagClear.Delete(tenantID)
+			} else if affected > 0 {
+				s.getLogger().Info("end-of-day excused clear completed",
+					slog.Int64("tenant_id", tenantID),
+					slog.Int64("students_cleared", affected),
+				)
+			}
+		}
+
+		return nil
+	})
+}
+
+// clearStatusFlag clears a boolean flag + its timestamp for every student in
+// the current tenant transaction. Column names are trusted constants — the
+// caller picks them from a fixed set.
+func (s *Scheduler) clearStatusFlag(ctx context.Context, flagColumn, sinceColumn string) (int64, error) {
+	if s.db == nil {
+		return 0, fmt.Errorf("scheduler db not configured")
+	}
+	query := fmt.Sprintf(
+		`UPDATE users.students SET %s = FALSE, %s = NULL WHERE %s = TRUE`,
+		flagColumn, sinceColumn, flagColumn,
+	)
+	res, err := s.db.NewRaw(query).Exec(ctx)
+	if err != nil {
+		return 0, err
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+	return affected, nil
+}
+
+// --- Timetable materialization (WP-B8) ---
+//
+// Defaults-off: a tenant opts in by setting `timetable.materialization_enabled`
+// to true in the settings UI. Without the opt-in, the per-tenant check short-
+// circuits and the scheduler does nothing for that tenant. The job fires
+// once per day-of-week (on the configured weekday) via a 60-second
+// minute-polling loop, same shape as scheduleSessionEndTask.
+//
+// The actual business logic (period selection, A/B week filtering, exception
+// application, instance/staff/student generation) lives entirely in
+// services/schedule.MaterializationService — the scheduler only decides
+// "when to call it" and "for which tenant".
+
+// scheduleMaterializationTask registers the weekly timetable-materialization
+// task when a Materializer has been wired in. No materializer → no task.
+func (s *Scheduler) scheduleMaterializationTask() {
+	if s.materializer == nil {
+		s.getLogger().Info("timetable materialization not configured (no Materializer service)")
+		return
+	}
+
+	task := &ScheduledTask{
+		Name:     "timetable-materialization",
+		Schedule: "1m-poll",
+	}
+
+	s.mu.Lock()
+	s.tasks[task.Name] = task
+	s.mu.Unlock()
+
+	s.wg.Add(1)
+	go s.runMaterializationTaskPolling(task)
+}
+
+// runMaterializationTaskPolling ticks every minute and delegates to
+// checkAndRunMaterialization. Minute alignment matches the other scheduler
+// tasks so HH:MM:00 ticks land deterministically.
+func (s *Scheduler) runMaterializationTaskPolling(task *ScheduledTask) {
+	defer s.wg.Done()
+	defer func() {
+		if r := recover(); r != nil {
+			err := fmt.Errorf("panic in materialization task: %v", r)
+			s.getLogger().Error("goroutine panic recovered", slog.String("error", err.Error()))
+			sentry.CurrentHub().Recover(r)
+			sentry.Flush(2 * time.Second)
+		}
+	}()
+
+	s.getLogger().Info("timetable materialization using minute-polling for per-tenant scheduling")
+
+	// Startup check — covers the case of the server booting on the scheduled
+	// weekday after the minute has already passed.
+	s.checkAndRunMaterialization(task)
+
+	if !s.waitUntilNextMinute() {
+		return
+	}
+
+	ticker := time.NewTicker(60 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			s.checkAndRunMaterialization(task)
+		case <-s.done:
+			return
+		}
+	}
+}
+
+// checkAndRunMaterialization iterates active tenants and fires materialization
+// for each tenant whose configured weekday matches today's ISO weekday, gated
+// on the timetable.materialization_enabled setting.
+func (s *Scheduler) checkAndRunMaterialization(task *ScheduledTask) {
+	task.mu.Lock()
+	if task.Running {
+		task.mu.Unlock()
+		return
+	}
+	task.Running = true
+	task.mu.Unlock()
+	defer func() {
+		task.mu.Lock()
+		task.Running = false
+		task.mu.Unlock()
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	defer cancel()
+
+	s.forEachTenantSettings(ctx, "materialization-check", func(tenantCtx context.Context, tenantID int64) error {
+		enabled := s.resolveBoolSetting(tenantCtx, configModel.KeyTimetableMaterializationEnabled, "", false)
+		if !enabled {
+			return nil
+		}
+
+		// Registry default is 5 (Friday, ISO 8601). The helper goes through
+		// HasTenantOverride → ResolveInt → env → default, exactly matching
+		// the documented fallback pattern.
+		targetWeekday := s.resolveIntSetting(tenantCtx, configModel.KeyTimetableMaterializationWeekday, "", 5)
+		if !isoWeekdayMatchesNow(targetWeekday) {
+			return nil
+		}
+
+		if wasRunToday(&s.lastMaterialization, tenantID) {
+			return nil
+		}
+		markRunToday(&s.lastMaterialization, tenantID)
+
+		weeksAhead := s.resolveIntSetting(tenantCtx, configModel.KeyTimetableMaterializationWeeksAhead, "", 1)
+		from, to := s.materializer.ResolveWindow(time.Now(), weeksAhead)
+
+		s.getLogger().Info("running timetable materialization for tenant",
+			slog.Int64("tenant_id", tenantID),
+			slog.Int("target_weekday", targetWeekday),
+			slog.Int("weeks_ahead", weeksAhead),
+			slog.String("from", from.Format("2006-01-02")),
+			slog.String("to", to.Format("2006-01-02")),
+		)
+
+		result, err := s.materializer.MaterializeForTenant(tenantCtx, from, to, scheduleSvc.MaterializationSourceScheduler)
+		if err != nil {
+			// Clear today-mark so a retry on the next scheduler day succeeds.
+			// We do NOT clear immediately because that would cause every
+			// subsequent minute on the same day to retry a known-failing run.
+			s.getLogger().Error("timetable materialization failed for tenant",
+				slog.Int64("tenant_id", tenantID),
+				slog.String("error", err.Error()),
+			)
+			return nil
+		}
+
+		if result.InstancesCreated > 0 || result.CandidatesRaced > 0 {
+			s.getLogger().Info("timetable materialization completed for tenant",
+				slog.Int64("tenant_id", tenantID),
+				slog.Int("created", result.InstancesCreated),
+				slog.Int("skipped_existing", result.CandidatesSkippedExisting),
+				slog.Int("raced", result.CandidatesRaced),
+				slog.Int64("duration_ms", result.DurationMS),
+			)
+		}
+		return nil
+	})
+}
+
+// isoWeekdayMatchesNow returns true if wd (1=Mon…7=Sun) matches today's ISO
+// weekday. Wall-clock local time is used because the per-tenant timezone is
+// not part of WP-B8 — default materialization day is "Friday wherever the
+// server is", good enough for a German-only deployment.
+func isoWeekdayMatchesNow(wd int) bool {
+	today := time.Now().Weekday()
+	if today == time.Sunday {
+		return wd == 7
+	}
+	return wd == int(today)
+}
+
+// --- Instance overdue tick (WP-B9) ---
+//
+// Purpose: emit realtime.EventInstanceOverdue once per planned instance that
+// has exceeded its start_time by the tenant-configured threshold. Drives the
+// "Überfällig" badge in the staff "My Day" view.
+//
+// Cadence: same minute-polling shape as every other scheduler task. The tick
+// does NOT read timetable.auto_start_planned — that setting belongs to E19
+// level 3 (auto-start, WP-F10), a separate workpackage.
+//
+// Re-fire guard: an in-memory sync.Map keyed by (tenant_id, instance_id).
+// Cleared explicitly when the civil-date rolls over — do not rely on entries
+// decaying via planned-filter misses, that leaks memory for cancelled or
+// completed instances until restart. On a mid-day restart the cache is
+// empty and each still-overdue planned instance fires once more; subscribers
+// are idempotent, that cost is acceptable for zero disk state.
+
+// scheduleInstanceOverdueTask registers the tick when both dependencies are
+// wired. No repo or no broadcaster → no task; matches SetMaterializer's
+// opt-in pattern so partial wiring is never a silent misconfiguration.
+func (s *Scheduler) scheduleInstanceOverdueTask() {
+	if s.instanceRepo == nil || s.overdueBroadcaster == nil {
+		s.getLogger().Info("instance overdue tick not configured (missing repo or broadcaster)")
+		return
+	}
+
+	task := &ScheduledTask{
+		Name:     "instance-overdue",
+		Schedule: "1m-poll",
+	}
+
+	s.mu.Lock()
+	s.tasks[task.Name] = task
+	s.mu.Unlock()
+
+	s.wg.Add(1)
+	go s.runInstanceOverdueTaskPolling(task)
+}
+
+// runInstanceOverdueTaskPolling mirrors the minute-polling loops used by
+// cleanup / session-end / materialization. Startup check + minute alignment
+// + 60 s ticker + done-signal exit.
+func (s *Scheduler) runInstanceOverdueTaskPolling(task *ScheduledTask) {
+	defer s.wg.Done()
+	defer func() {
+		if r := recover(); r != nil {
+			err := fmt.Errorf("panic in instance overdue task: %v", r)
+			s.getLogger().Error("goroutine panic recovered", slog.String("error", err.Error()))
+			sentry.CurrentHub().Recover(r)
+			sentry.Flush(2 * time.Second)
+		}
+	}()
+
+	s.getLogger().Info("instance overdue tick using minute-polling")
+
+	s.checkAndRunOverdue(task)
+
+	if !s.waitUntilNextMinute() {
+		return
+	}
+
+	ticker := time.NewTicker(60 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			s.checkAndRunOverdue(task)
+		case <-s.done:
+			return
+		}
+	}
+}
+
+// checkAndRunOverdue rotates the day-cache when midnight has been crossed,
+// then iterates active tenants and delegates the per-tenant work to
+// runOverdueForTenant. Extracted into two methods so unit tests can invoke
+// the inner loop directly with a synthetic tenant ctx without building the
+// full school repo + settings service stack.
+func (s *Scheduler) checkAndRunOverdue(task *ScheduledTask) {
+	task.mu.Lock()
+	if task.Running {
+		task.mu.Unlock()
+		return
+	}
+	task.Running = true
+	task.mu.Unlock()
+	defer func() {
+		task.mu.Lock()
+		task.Running = false
+		task.mu.Unlock()
+	}()
+
+	s.rotateOverdueCacheIfNewDay(time.Now())
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	s.forEachTenantSettings(ctx, "instance-overdue", func(tenantCtx context.Context, tenantID int64) error {
+		threshold := s.resolveIntSetting(tenantCtx, configModel.KeyTimetableOverdueThresholdMinutes, "", 5)
+		s.runOverdueForTenant(tenantCtx, tenantID, threshold, time.Now())
+		return nil
+	})
+}
+
+// runOverdueForTenant iterates today's instances for a single tenant and
+// emits instance_overdue once per still-planned, past-threshold row. `now`
+// is injected for deterministic tests. `threshold` < 1 is a no-op.
+func (s *Scheduler) runOverdueForTenant(ctx context.Context, tenantID int64, threshold int, now time.Time) {
+	if threshold < 1 {
+		return
+	}
+
+	today := civilDateUTC(now)
+	instances, err := s.instanceRepo.FindByTenantAndDate(ctx, today)
+	if err != nil {
+		s.getLogger().Warn("overdue tick: load today's instances failed",
+			slog.Int64("tenant_id", tenantID),
+			slog.String("error", err.Error()),
+		)
+		return
+	}
+
+	cutoff := time.Duration(threshold) * time.Minute
+
+	for _, inst := range instances {
+		if inst.Status != scheduleModel.InstanceStatusPlanned {
+			continue
+		}
+		instanceStart := combineDayAndTime(today, inst.StartTime)
+		if now.Sub(instanceStart) < cutoff {
+			continue
+		}
+		key := overdueKey{tenantID: tenantID, instanceID: inst.ID}
+		if _, seen := s.overdueEmitted.Load(key); seen {
+			continue
+		}
+		s.emitInstanceOverdue(ctx, tenantID, inst)
+		s.overdueEmitted.Store(key, now)
+	}
+}
+
+// emitInstanceOverdue builds the SSE envelope and fires it as BroadcastToAll:
+// a planned instance has no bridged active.group yet, so there is no group-
+// scoped topic to route through. Admin dashboard subscribers pick it up.
+func (s *Scheduler) emitInstanceOverdue(ctx context.Context, tenantID int64, inst *scheduleModel.ActivityInstance) {
+	instanceIDStr := fmt.Sprintf("%d", inst.ID)
+	instanceDate := inst.Date.Format("2006-01-02")
+	instanceStart := inst.StartTime.Format("15:04:05")
+	roomIDStr := fmt.Sprintf("%d", inst.RoomID)
+
+	event := realtime.NewEvent(realtime.EventInstanceOverdue, "", realtime.EventData{
+		InstanceID:        &instanceIDStr,
+		InstanceDate:      &instanceDate,
+		InstanceStartTime: &instanceStart,
+		RoomID:            &roomIDStr,
+	})
+	if err := s.overdueBroadcaster.BroadcastToAll(event); err != nil {
+		s.getLogger().Warn("overdue tick: broadcast failed",
+			slog.Int64("tenant_id", tenantID),
+			slog.Int64("instance_id", inst.ID),
+			slog.String("error", err.Error()),
+		)
+		return
+	}
+	s.getLogger().Info("instance_overdue broadcast",
+		slog.Int64("tenant_id", tenantID),
+		slog.Int64("instance_id", inst.ID),
+		slog.String("start_time", instanceStart),
+	)
+	_ = ctx // reserved: if later the broadcaster needs ctx for cancellation.
+}
+
+// rotateOverdueCacheIfNewDay clears the re-fire guard on civil-date roll-
+// over. Called at the top of every tick so a restart mid-day does not
+// miss the rollover.
+func (s *Scheduler) rotateOverdueCacheIfNewDay(now time.Time) {
+	today := civilDateUTC(now)
+	s.overdueEmittedDayMu.Lock()
+	defer s.overdueEmittedDayMu.Unlock()
+	if !s.overdueEmittedDay.Equal(today) {
+		s.overdueEmitted.Range(func(k, _ any) bool {
+			s.overdueEmitted.Delete(k)
+			return true
+		})
+		s.overdueEmittedDay = today
+	}
+}
+
+// civilDateUTC strips the time component to UTC midnight. Duplicates the
+// materialization service's civilDate helper but staying in the scheduler
+// package avoids a circular import.
+func civilDateUTC(t time.Time) time.Time {
+	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
+}
+
+// combineDayAndTime returns "day at time-of-day", reading the wall-clock
+// hour/minute/second from `tod` (typically an ActivityInstance.StartTime
+// which lives as a bare TIME). Stays in the server's local zone so the
+// comparison with time.Now() is apples-to-apples.
+func combineDayAndTime(day, tod time.Time) time.Time {
+	local := day.Local()
+	return time.Date(local.Year(), local.Month(), local.Day(),
+		tod.Hour(), tod.Minute(), tod.Second(), tod.Nanosecond(), time.Local)
+}
+
+// --- Timetable GDPR cleanup (WP-B14) ---
+//
+// Runs daily, gated on the SAME KeyDataCleanupEnabled toggle as the visits
+// cleanup. Admins configure one nightly window; both retention jobs honor it.
+// Deletes activity_instances (CASCADEs to instance_staff + instance_students)
+// and activity_exceptions older than the tenant's gdpr.timetable_retention_days.
+// Per-tenant iteration via forEachTenantSettings; dedupe via lastTimetableCleanup.
+
+// scheduleTimetableCleanupTask registers the daily timetable cleanup task
+// when a TimetableCleanupService has been wired in. Nil service → no task.
+func (s *Scheduler) scheduleTimetableCleanupTask() {
+	if s.timetableCleanup == nil {
+		s.getLogger().Info("timetable GDPR cleanup not configured (no TimetableCleanupService)")
+		return
+	}
+
+	task := &ScheduledTask{
+		Name:     "timetable-cleanup",
+		Schedule: "1m-poll",
+	}
+
+	s.mu.Lock()
+	s.tasks[task.Name] = task
+	s.mu.Unlock()
+
+	s.wg.Add(1)
+	go s.runTimetableCleanupTaskPolling(task)
+}
+
+// runTimetableCleanupTaskPolling ticks every minute and defers to
+// checkAndRunTimetableCleanup. Minute-aligned so HH:MM:00 ticks land
+// deterministically.
+func (s *Scheduler) runTimetableCleanupTaskPolling(task *ScheduledTask) {
+	defer s.wg.Done()
+	defer func() {
+		if r := recover(); r != nil {
+			err := fmt.Errorf("panic in timetable cleanup task: %v", r)
+			s.getLogger().Error("goroutine panic recovered", slog.String("error", err.Error()))
+			sentry.CurrentHub().Recover(r)
+			sentry.Flush(2 * time.Second)
+		}
+	}()
+
+	s.getLogger().Info("timetable cleanup task using minute-polling for per-tenant scheduling")
+
+	s.checkAndRunTimetableCleanup(task)
+
+	if !s.waitUntilNextMinute() {
+		return
+	}
+
+	ticker := time.NewTicker(60 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			s.checkAndRunTimetableCleanup(task)
+		case <-s.done:
+			return
+		}
+	}
+}
+
+// checkAndRunTimetableCleanup evaluates each tenant's cleanup settings and
+// runs timetable cleanup if the configured cleanup time matches now. Shares
+// KeyDataCleanupEnabled + KeyDataCleanupTime + KeyDataCleanupTimeoutMinutes
+// with the visits cleanup task — one admin switch for all nightly retention.
+func (s *Scheduler) checkAndRunTimetableCleanup(task *ScheduledTask) {
+	task.mu.Lock()
+	if task.Running {
+		task.mu.Unlock()
+		return
+	}
+	task.Running = true
+	task.mu.Unlock()
+	defer func() {
+		task.mu.Lock()
+		task.Running = false
+		task.mu.Unlock()
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Hour)
+	defer cancel()
+
+	s.forEachTenantSettings(ctx, "timetable-cleanup-check", func(tenantCtx context.Context, tenantID int64) error {
+		enabled := s.resolveBoolSetting(tenantCtx, configModel.KeyDataCleanupEnabled, "CLEANUP_SCHEDULER_ENABLED", true)
+		if !enabled {
+			return nil
+		}
+
+		cleanupTime := s.resolveStringSetting(tenantCtx, configModel.KeyDataCleanupTime, "CLEANUP_SCHEDULER_TIME", "02:00")
+		if !timeMatchesNow(cleanupTime) {
+			return nil
+		}
+
+		if wasRunToday(&s.lastTimetableCleanup, tenantID) {
+			return nil
+		}
+
+		// Mark immediately to prevent double-fire from concurrent ticks
+		markRunToday(&s.lastTimetableCleanup, tenantID)
+
+		s.getLogger().Info("running timetable GDPR cleanup for tenant",
+			slog.Int64("tenant_id", tenantID),
+			slog.String("cleanup_time", cleanupTime),
+		)
+
+		timeoutMinutes := s.resolveIntSetting(tenantCtx, configModel.KeyDataCleanupTimeoutMinutes, "CLEANUP_SCHEDULER_TIMEOUT_MINUTES", 30)
+		cleanupCtx, cleanupCancel := context.WithTimeout(tenantCtx, time.Duration(timeoutMinutes)*time.Minute)
+		defer cleanupCancel()
+
+		result, err := s.timetableCleanup.CleanupExpiredTimetableData(cleanupCtx)
+		if err != nil {
+			s.getLogger().Error("timetable cleanup failed for tenant",
+				slog.Int64("tenant_id", tenantID),
+				slog.String("error", err.Error()),
+			)
+			// Clear today-mark so retry on next matching minute succeeds.
+			s.lastTimetableCleanup.Delete(tenantID)
+			return nil
+		}
+
+		if result.InstancesDeleted > 0 || result.ExceptionsDeleted > 0 {
+			s.getLogger().Info("timetable cleanup completed for tenant",
+				slog.Int64("tenant_id", tenantID),
+				slog.Int("instances_deleted", result.InstancesDeleted),
+				slog.Int("exceptions_deleted", result.ExceptionsDeleted),
+				slog.Int("students_affected", result.StudentsAffected),
+				slog.Int("retention_days", result.RetentionDays),
+				slog.Int64("duration_ms", result.DurationMS),
+			)
+		}
+		return nil
+	})
 }

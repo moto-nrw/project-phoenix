@@ -188,6 +188,20 @@ class OperatorProvisioningService {
     );
   }
 
+  async softDeleteOrganization(id: string): Promise<void> {
+    await operatorFetch(
+      `/api/operator/provisioning/organizations/${encodeURIComponent(id)}`,
+      { method: "DELETE" },
+    );
+  }
+
+  async restoreOrganization(id: string): Promise<void> {
+    await operatorFetch(
+      `/api/operator/provisioning/organizations/${encodeURIComponent(id)}/restore`,
+      { method: "POST" },
+    );
+  }
+
   async softDeleteSchool(id: string): Promise<void> {
     await operatorFetch(
       `/api/operator/provisioning/schools/${encodeURIComponent(id)}`,
@@ -217,3 +231,22 @@ class OperatorProvisioningService {
 }
 
 export const operatorProvisioningService = new OperatorProvisioningService();
+
+/**
+ * Purges the Next.js ISR cache for the given tenant subdomain slugs so stale
+ * tenant-resolution does not linger (~5 min) after a slug change, delete,
+ * restore, or active-flag toggle. Fire-and-forget: on failure the cache
+ * self-heals within its TTL, so callers must never block success flow.
+ */
+export async function revalidateTenantCache(slugs: string[]): Promise<void> {
+  if (slugs.length === 0) return;
+  try {
+    await fetch("/api/operator/provisioning/revalidate-tenant", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ slugs }),
+    });
+  } catch {
+    // Cache self-heals in ≤5 min; don't block the success flow.
+  }
+}

@@ -110,11 +110,42 @@ export default function OperatorAnnouncementsPage() {
     },
   );
 
-  // Filter schools by selected orgs (if any orgs selected, show only their schools)
+  // Soft-deleted orgs stay in `organizations` so the card can still resolve their
+  // names for historical targeting, but the picker below must hide them so new
+  // announcements cannot be targeted at trashed orgs.
+  const activeOrganizations = useMemo(
+    () => organizations?.filter((o) => o.deletedAt == null) ?? [],
+    [organizations],
+  );
+
+  const deletedOrgIdSet = useMemo(
+    () =>
+      new Set(
+        (organizations ?? [])
+          .filter((o) => o.deletedAt != null)
+          .map((o) => o.id),
+      ),
+    [organizations],
+  );
+
+  // Historical targets (deleted orgs, or tenants whose school no longer appears
+  // in the picker) MUST NOT be silently stripped from the form. In the backend,
+  // empty target_org_ids/target_tenant_ids means "visible globally", so pruning
+  // a scoped announcement down to [] would republish it to every tenant.
+  // Instead, preserve them and surface a warning so the operator can see the
+  // situation; the backend rejects NEW additions of deleted-org/school IDs via
+  // CountByIDs, and allows existing IDs through via a diff on update.
+
+  // Filter schools by selected orgs (if any orgs selected, show only their schools).
+  // Soft-deleted schools are excluded from the picker — the backend rejects new
+  // tenant targets that reference deleted schools via CountByIDs. Historical
+  // targets on existing announcements are preserved separately (see prune effect
+  // below and staleTenantTargets warning).
   const availableSchools = useMemo(() => {
     if (!schools) return [];
-    if (formData.targetOrgIds.length === 0) return schools;
-    return schools.filter((s) =>
+    const active = schools.filter((s) => s.deletedAt == null);
+    if (formData.targetOrgIds.length === 0) return active;
+    return active.filter((s) =>
       formData.targetOrgIds.includes(s.organizationId),
     );
   }, [schools, formData.targetOrgIds]);
@@ -127,14 +158,23 @@ export default function OperatorAnnouncementsPage() {
     setFormData((prev) => {
       const schoolsInSelectedOrgs = new Set(
         schools
-          .filter((s) => prev.targetOrgIds.includes(s.organizationId))
+          .filter(
+            (s) =>
+              s.deletedAt == null &&
+              prev.targetOrgIds.includes(s.organizationId),
+          )
           .map((s) => s.id),
       );
-      // Keep IDs that are either in a selected org OR not in the picker at all (e.g. soft-deleted)
-      const pruned = prev.targetTenantIds.filter(
-        (tid) =>
-          schoolsInSelectedOrgs.has(tid) || !schools.some((s) => s.id === tid),
-      );
+      // Keep IDs that are (a) in a selected org's active schools, (b) unknown
+      // entirely (not in schools), or (c) soft-deleted. The latter two are
+      // historical targets — stripping them would silently widen the announcement
+      // to global scope, since empty arrays mean "all tenants" in the backend.
+      const pruned = prev.targetTenantIds.filter((tid) => {
+        if (schoolsInSelectedOrgs.has(tid)) return true;
+        const school = schools.find((s) => s.id === tid);
+        if (!school) return true;
+        return school.deletedAt != null;
+      });
       if (pruned.length === prev.targetTenantIds.length) return prev;
       return { ...prev, targetTenantIds: pruned };
     });
@@ -145,6 +185,40 @@ export default function OperatorAnnouncementsPage() {
     if (statusFilter === "all") return announcements;
     return announcements.filter((a) => a.status === statusFilter);
   }, [announcements, statusFilter]);
+
+  // Identify selected targets that reference soft-deleted orgs or orphaned
+  // schools (school soft-deleted, or its org soft-deleted). These IDs stay in
+  // the form so save does not widen scope, but operators need to see them.
+  const staleOrgTargets = useMemo(() => {
+    if (!organizations) return [] as { id: string; name: string }[];
+    return formData.targetOrgIds
+      .filter((id) => deletedOrgIdSet.has(id))
+      .map((id) => ({
+        id,
+        name: organizations.find((o) => o.id === id)?.name ?? `#${id}`,
+      }));
+  }, [formData.targetOrgIds, deletedOrgIdSet, organizations]);
+
+  const staleTenantTargets = useMemo(() => {
+    if (!schools) return [] as { id: string; name: string }[];
+    return formData.targetTenantIds
+      .map((tid) => {
+        const school = schools.find((s) => s.id === tid);
+        if (!school) return { id: tid, name: `#${tid}`, stale: true };
+        if (school.deletedAt != null) {
+          return { id: tid, name: school.name, stale: true };
+        }
+        if (deletedOrgIdSet.has(school.organizationId)) {
+          return { id: tid, name: school.name, stale: true };
+        }
+        return { id: tid, name: school.name, stale: false };
+      })
+      .filter((t) => t.stale)
+      .map(({ id, name }) => ({ id, name }));
+  }, [formData.targetTenantIds, schools, deletedOrgIdSet]);
+
+  const hasStaleTargets =
+    staleOrgTargets.length > 0 || staleTenantTargets.length > 0;
 
   // Close severity dropdown on click outside
   useEffect(() => {
@@ -168,6 +242,11 @@ export default function OperatorAnnouncementsPage() {
 
   const openEditForm = useCallback((announcement: Announcement) => {
     setEditTarget(announcement);
+    // Preserve historical targets verbatim — do NOT filter out IDs that now
+    // point at soft-deleted orgs/schools. Stripping them would convert a
+    // scoped announcement into a globally-visible one the moment the operator
+    // saves any unrelated change, since empty target arrays mean "no filter"
+    // in the backend. A warning banner surfaces the situation instead.
     setFormData({
       title: announcement.title,
       content: announcement.content,
@@ -188,6 +267,11 @@ export default function OperatorAnnouncementsPage() {
       if (!formData.title.trim() || !formData.content.trim()) return;
       setIsSaving(true);
       try {
+        // Submit target IDs verbatim. Dropping deleted-org/school IDs here
+        // would silently widen a scoped announcement to global (empty arrays
+        // mean "visible to all" in the backend). The backend enforces the
+        // soft-delete invariant server-side by rejecting NEW additions via
+        // CountByIDs; historical targets pass through via a diff on update.
         const targetOrgIdsNum = formData.targetOrgIds
           .map((id) => parseInt(id, 10))
           .filter((id) => !isNaN(id));
@@ -699,6 +783,88 @@ export default function OperatorAnnouncementsPage() {
             </div>
           </div>
 
+          {/* Deleted-target warning: surfaces historical org/tenant IDs that
+              reference soft-deleted entities so the operator sees them before
+              saving. These IDs are preserved verbatim to avoid widening scope. */}
+          {hasStaleTargets && (
+            <div
+              role="alert"
+              className="rounded-lg border border-[#F49038]/40 bg-[#F49038]/10 p-3 text-sm text-gray-800"
+            >
+              <p className="font-medium">
+                Diese Ankündigung enthält gelöschte Ziele
+              </p>
+              <p className="mt-1 text-xs text-gray-700">
+                Die folgenden Organisationen/Schulen wurden gelöscht und sind in
+                den Auswahllisten ausgeblendet. Sie bleiben als Ziel erhalten,
+                damit die Ankündigung nicht versehentlich global sichtbar wird,
+                und tauchen wieder auf, falls das Ziel wiederhergestellt wird.
+                Entfernen Sie ein Ziel explizit, wenn die Ankündigung nach einer
+                Wiederherstellung nicht mehr für dieses Ziel gelten soll.
+              </p>
+              {staleOrgTargets.length > 0 && (
+                <div className="mt-2 text-xs">
+                  <span className="font-medium">Gelöschte Organisationen:</span>
+                  <ul className="mt-1 space-y-1">
+                    {staleOrgTargets.map((t) => (
+                      <li
+                        key={t.id}
+                        className="flex items-center justify-between gap-2"
+                      >
+                        <span>{t.name}</span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              targetOrgIds: prev.targetOrgIds.filter(
+                                (id) => id !== t.id,
+                              ),
+                            }))
+                          }
+                          className="rounded px-2 py-0.5 text-xs font-medium text-[#F49038] hover:bg-[#F49038]/20"
+                          aria-label={`${t.name} aus Zielen entfernen`}
+                        >
+                          Entfernen
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {staleTenantTargets.length > 0 && (
+                <div className="mt-2 text-xs">
+                  <span className="font-medium">Gelöschte Schulen:</span>
+                  <ul className="mt-1 space-y-1">
+                    {staleTenantTargets.map((t) => (
+                      <li
+                        key={t.id}
+                        className="flex items-center justify-between gap-2"
+                      >
+                        <span>{t.name}</span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              targetTenantIds: prev.targetTenantIds.filter(
+                                (id) => id !== t.id,
+                              ),
+                            }))
+                          }
+                          className="rounded px-2 py-0.5 text-xs font-medium text-[#F49038] hover:bg-[#F49038]/20"
+                          aria-label={`${t.name} aus Zielen entfernen`}
+                        >
+                          Entfernen
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Target Organizations */}
           <div>
             <span
@@ -715,7 +881,7 @@ export default function OperatorAnnouncementsPage() {
               role="group"
               aria-labelledby="announcement-orgs-label"
             >
-              {organizations?.map((org) => {
+              {activeOrganizations.map((org) => {
                 const orgId = org.id;
                 const isChecked = formData.targetOrgIds.includes(orgId);
                 return (

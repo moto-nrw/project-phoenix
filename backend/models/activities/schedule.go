@@ -26,9 +26,11 @@ const tableActivitiesSchedules = "activities.schedules"
 type Schedule struct {
 	base.Model `bun:"schema:activities,table:schedules"`
 	base.TenantModel
-	Weekday         int    `bun:"weekday,notnull" json:"weekday"`
-	TimeframeID     *int64 `bun:"timeframe_id" json:"timeframe_id,omitempty"`
-	ActivityGroupID int64  `bun:"activity_group_id,notnull" json:"activity_group_id"`
+	Weekday          int    `bun:"weekday,notnull" json:"weekday"`
+	TimeframeID      *int64 `bun:"timeframe_id" json:"timeframe_id,omitempty"`
+	ActivityGroupID  int64  `bun:"activity_group_id,notnull" json:"activity_group_id"`
+	WeekPattern      int    `bun:"week_pattern,notnull,default:0" json:"week_pattern"`
+	CalendarPeriodID *int64 `bun:"calendar_period_id" json:"calendar_period_id,omitempty"`
 
 	// Relations - these would be populated when using the ORM's relations
 	// ActivityGroup *Group `bun:"rel:belongs-to,join:activity_group_id=id" json:"activity_group,omitempty"`

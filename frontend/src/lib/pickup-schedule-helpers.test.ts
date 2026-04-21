@@ -772,6 +772,38 @@ describe("getDayData", () => {
 
       expect(result.isToday).toBe(true);
     });
+
+    it("returns excused status when student is excused today", () => {
+      const today = new Date();
+      const result = getDayData(today, schedules, [], false, [], true);
+
+      expect(result.showExcused).toBe(true);
+      expect(result.showSick).toBe(false);
+      expect(result.effectiveTime).toBeUndefined();
+    });
+
+    it("does not show excused status for past days", () => {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const result = getDayData(yesterday, schedules, [], false, [], true);
+
+      expect(result.showExcused).toBe(false);
+    });
+
+    it("sick wins over excused when both flags are true", () => {
+      const today = new Date();
+      const result = getDayData(today, schedules, [], true, [], true);
+
+      expect(result.showSick).toBe(true);
+      expect(result.showExcused).toBe(false);
+    });
+
+    it("showExcused defaults to false when parameter omitted", () => {
+      const today = new Date();
+      const result = getDayData(today, schedules, [], false);
+
+      expect(result.showExcused).toBe(false);
+    });
   });
 
   it("handles no schedule for weekday", () => {

@@ -252,4 +252,17 @@ func TestDeletionTypeConstants(t *testing.T) {
 	if DeletionTypeGDPRRequest != "gdpr_request" {
 		t.Errorf("DeletionTypeGDPRRequest = %q, want gdpr_request", DeletionTypeGDPRRequest)
 	}
+	if DeletionTypeTimetableRetention != "timetable_retention" {
+		t.Errorf("DeletionTypeTimetableRetention = %q, want timetable_retention", DeletionTypeTimetableRetention)
+	}
+}
+
+// TestDataDeletion_Validate_AcceptsTimetableRetentionType ensures the new
+// DeletionTypeTimetableRetention constant is whitelisted by Validate(). Guards
+// against the "added the constant but forgot to update the switch" regression.
+func TestDataDeletion_Validate_AcceptsTimetableRetentionType(t *testing.T) {
+	dd := NewDataDeletion(42, DeletionTypeTimetableRetention, 1, "system")
+	if err := dd.Validate(); err != nil {
+		t.Fatalf("Validate() with timetable_retention type failed: %v", err)
+	}
 }

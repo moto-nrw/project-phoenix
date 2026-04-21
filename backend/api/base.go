@@ -36,6 +36,7 @@ import (
 	substitutionsAPI "github.com/moto-nrw/project-phoenix/api/substitutions"
 	suggestionsAPI "github.com/moto-nrw/project-phoenix/api/suggestions"
 	timeTrackingAPI "github.com/moto-nrw/project-phoenix/api/time-tracking"
+	timetableAPI "github.com/moto-nrw/project-phoenix/api/timetable"
 	usercontextAPI "github.com/moto-nrw/project-phoenix/api/usercontext"
 	usersAPI "github.com/moto-nrw/project-phoenix/api/users"
 
@@ -79,6 +80,7 @@ type API struct {
 	Database         *databaseAPI.Resource
 	GradeTransitions *adminAPI.GradeTransitionResource
 	TimeTracking     *timeTrackingAPI.Resource
+	Timetable        *timetableAPI.Resource
 
 	// Operator Dashboard (platform domain)
 	Operator *operatorAPI.Resource
@@ -273,21 +275,22 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Auth.CaregiverCapabilityService = api.Services.CaregiverCapability
 	api.Rooms = roomsAPI.NewResource(api.Services.Facilities, db)
 	api.Students = studentsAPI.NewResource(studentsAPI.ResourceConfig{
-		PersonService:         api.Services.Users,
-		StudentRepo:           repoFactory.Student,
-		EducationService:      api.Services.Education,
-		UserContextService:    api.Services.UserContext,
-		ActiveService:         api.Services.Active,
-		IoTService:            api.Services.IoT,
-		PrivacyConsentRepo:    repoFactory.PrivacyConsent,
-		PickupScheduleService: api.Services.PickupSchedule,
-		SchoolRepo:            repoFactory.School,
-		SettingsService:       api.Services.Settings,
-		AttendanceRepo:        repoFactory.Attendance,
-		VisitRepo:             repoFactory.ActiveVisit,
-		DataAccessLogRepo:     repoFactory.DataAccessLog,
-		Logger:                logger.With("handler", "students"),
-		DB:                    db,
+		PersonService:          api.Services.Users,
+		StudentRepo:            repoFactory.Student,
+		EducationService:       api.Services.Education,
+		UserContextService:     api.Services.UserContext,
+		ActiveService:          api.Services.Active,
+		IoTService:             api.Services.IoT,
+		PrivacyConsentRepo:     repoFactory.PrivacyConsent,
+		PickupScheduleService:  api.Services.PickupSchedule,
+		ArrivalScheduleService: api.Services.ArrivalSchedule,
+		SchoolRepo:             repoFactory.School,
+		SettingsService:        api.Services.Settings,
+		AttendanceRepo:         repoFactory.Attendance,
+		VisitRepo:              repoFactory.ActiveVisit,
+		DataAccessLogRepo:      repoFactory.DataAccessLog,
+		Logger:                 logger.With("handler", "students"),
+		DB:                     db,
 	})
 	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, repoFactory.Student, repoFactory.GroupSubstitution, db)
 	api.Guardians = guardiansAPI.NewResource(api.Services.Guardian, api.Services.Users, api.Services.Education, api.Services.UserContext, repoFactory.Student, db)
@@ -345,6 +348,15 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Database = databaseAPI.NewResource(api.Services.Database, db)
 	api.GradeTransitions = adminAPI.NewGradeTransitionResource(api.Services.GradeTransition, db)
 	api.TimeTracking = timeTrackingAPI.NewResource(api.Services.WorkSession, api.Services.StaffAbsence, api.Services.Users, db)
+	api.Timetable = timetableAPI.NewResource(
+		api.Services.CalendarPeriod,
+		api.Services.Materialization,
+		api.Services.Instance,
+		api.Services.Users,
+		repoFactory.InstanceStudent,
+		logger.With("handler", "timetable"),
+		db,
+	)
 
 	// Initialize operator dashboard resources
 	api.Operator = operatorAPI.NewResource(operatorAPI.ResourceConfig{
@@ -493,6 +505,9 @@ func (a *API) registerRoutesWithRateLimiting() {
 
 		// Mount time-tracking resources
 		r.Mount("/time-tracking", a.TimeTracking.Router())
+
+		// Mount timetable resources
+		r.Mount("/timetable", a.Timetable.Router())
 
 		// Mount admin resources
 		r.Mount("/admin/grade-transitions", a.GradeTransitions.Router())

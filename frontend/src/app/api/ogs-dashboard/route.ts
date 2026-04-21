@@ -28,6 +28,8 @@ interface BackendStudent {
   sick?: boolean;
   sick_since?: string;
   sick_until?: string;
+  excused?: boolean;
+  excused_since?: string;
   location_since?: string;
 }
 

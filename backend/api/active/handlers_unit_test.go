@@ -23,7 +23,7 @@ func TestNewActiveGroupResponse_BasicFields(t *testing.T) {
 
 	group := &active.Group{
 		Model:     base.Model{ID: 1, CreatedAt: now, UpdatedAt: now},
-		GroupID:   100,
+		GroupID:   base.Int64Ptr(100),
 		RoomID:    200,
 		StartTime: now,
 		EndTime:   &endTime,
@@ -32,7 +32,9 @@ func TestNewActiveGroupResponse_BasicFields(t *testing.T) {
 	response := newActiveGroupResponse(group)
 
 	assert.Equal(t, int64(1), response.ID)
-	assert.Equal(t, int64(100), response.GroupID)
+	if assert.NotNil(t, response.GroupID) {
+		assert.Equal(t, int64(100), *response.GroupID)
+	}
 	assert.Equal(t, int64(200), response.RoomID)
 	assert.Equal(t, now, response.StartTime)
 	assert.Equal(t, &endTime, response.EndTime)
@@ -47,7 +49,7 @@ func TestNewActiveGroupResponse_WithVisits(t *testing.T) {
 
 	group := &active.Group{
 		Model:     base.Model{ID: 1},
-		GroupID:   100,
+		GroupID:   base.Int64Ptr(100),
 		RoomID:    200,
 		StartTime: now,
 		EndTime:   nil, // Active group
@@ -69,7 +71,7 @@ func TestNewActiveGroupResponse_WithActiveSupervisors(t *testing.T) {
 
 	group := &active.Group{
 		Model:     base.Model{ID: 1},
-		GroupID:   100,
+		GroupID:   base.Int64Ptr(100),
 		RoomID:    200,
 		StartTime: now,
 		EndTime:   nil,
@@ -94,7 +96,7 @@ func TestNewActiveGroupResponse_WithRoom(t *testing.T) {
 
 	group := &active.Group{
 		Model:     base.Model{ID: 1},
-		GroupID:   100,
+		GroupID:   base.Int64Ptr(100),
 		RoomID:    200,
 		StartTime: now,
 		Room: &facilities.Room{
@@ -184,7 +186,7 @@ func TestNewVisitResponse_WithActiveGroup(t *testing.T) {
 		EntryTime:     now,
 		ActiveGroup: &active.Group{
 			Model:   base.Model{ID: 200},
-			GroupID: 300,
+			GroupID: base.Int64Ptr(300),
 		},
 	}
 
@@ -263,7 +265,7 @@ func TestNewSupervisorResponse_WithActiveGroup(t *testing.T) {
 		StartDate: now,
 		ActiveGroup: &active.Group{
 			Model:   base.Model{ID: 200},
-			GroupID: 300,
+			GroupID: base.Int64Ptr(300),
 		},
 	}
 
@@ -339,7 +341,7 @@ func TestNewGroupMappingResponse_WithRelations(t *testing.T) {
 		ActiveCombinedGroupID: 200,
 		ActiveGroup: &active.Group{
 			Model:   base.Model{ID: 100},
-			GroupID: 50,
+			GroupID: base.Int64Ptr(50),
 		},
 		CombinedGroup: &active.CombinedGroup{
 			Model:     base.Model{ID: 200},

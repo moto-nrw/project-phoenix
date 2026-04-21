@@ -117,6 +117,10 @@ type Service interface {
 	// Tracking indicators — returns per-student match results for the given labels.
 	// Each student gets a []bool aligned with the labels slice.
 	GetTrackingIndicators(ctx context.Context, studentIDs []int64, labels []string) (map[int64][]bool, error)
+
+	// Injects the tenant-scoped settings resolver (optional).
+	// Called by the factory after the settings service is constructed.
+	SetSettingsService(resolver SettingsResolver)
 }
 
 // DashboardAnalytics represents aggregated analytics for dashboard
@@ -189,18 +193,21 @@ type ActivityConflictInfo struct {
 	CanOverride       bool          `json:"can_override"`
 }
 
-// TimeoutResult represents the result of processing a session timeout
+// TimeoutResult represents the result of processing a session timeout.
+// ActivityID is *int64 because spontaneous sessions (WP-B6) carry no parent
+// template; it is serialized as null on the wire rather than omitted.
 type TimeoutResult struct {
 	SessionID          int64     `json:"session_id"`
-	ActivityID         int64     `json:"activity_id"`
+	ActivityID         *int64    `json:"activity_id"`
 	StudentsCheckedOut int       `json:"students_checked_out"`
 	TimeoutAt          time.Time `json:"timeout_at"`
 }
 
-// SessionTimeoutInfo provides information about a session's timeout status
+// SessionTimeoutInfo provides information about a session's timeout status.
+// ActivityID follows the same *int64 contract as TimeoutResult.
 type SessionTimeoutInfo struct {
 	SessionID          int64         `json:"session_id"`
-	ActivityID         int64         `json:"activity_id"`
+	ActivityID         *int64        `json:"activity_id"`
 	StartTime          time.Time     `json:"start_time"`
 	LastActivity       time.Time     `json:"last_activity"`
 	TimeoutMinutes     int           `json:"timeout_minutes"`

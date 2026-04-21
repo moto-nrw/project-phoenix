@@ -364,7 +364,7 @@ func createTestActiveGroupWithDevice(t *testing.T, db *bun.DB, activityGroupID, 
 	now := time.Now()
 	group := &active.Group{
 		Model:          base.Model{ID: 0},
-		GroupID:        activityGroupID,
+		GroupID:        &activityGroupID,
 		RoomID:         roomID,
 		DeviceID:       &deviceID,
 		StartTime:      now,

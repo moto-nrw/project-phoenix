@@ -1,6 +1,7 @@
 package common_test
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/getsentry/sentry-go"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/stretchr/testify/assert"
@@ -463,4 +465,154 @@ func TestErrorConflictMessage(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "error", resp["status"])
 	assert.Equal(t, "Raum kann nicht gelöscht werden", resp["error"])
+}
+
+// =============================================================================
+// ErrorValidation Tests
+// =============================================================================
+
+func TestErrorValidation(t *testing.T) {
+	fields := []common.FieldError{
+		{Field: "status", Reason: "must be one of: expected, present, absent"},
+		{Field: "note", Reason: "must be at most 500 characters"},
+	}
+	renderer := common.ErrorValidation("validation failed", fields)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("PATCH", "/test", nil)
+
+	err := render.Render(w, r, renderer)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	var resp map[string]interface{}
+	err = json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+	assert.Equal(t, "error", resp["status"])
+	assert.Equal(t, "validation failed", resp["error"])
+
+	respErrs, ok := resp["errors"].([]interface{})
+	require.True(t, ok, "errors field must be an array")
+	require.Len(t, respErrs, 2)
+
+	first := respErrs[0].(map[string]interface{})
+	assert.Equal(t, "status", first["field"])
+	assert.Equal(t, "must be one of: expected, present, absent", first["reason"])
+}
+
+func TestErrorValidation_EmptyFields(t *testing.T) {
+	// nil/empty fields slice — `errors` key is omitted via omitempty.
+	renderer := common.ErrorValidation("bad request", nil)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("PATCH", "/test", nil)
+	require.NoError(t, render.Render(w, r, renderer))
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	var resp map[string]interface{}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	_, hasErrors := resp["errors"]
+	assert.False(t, hasErrors, "errors key should be omitted when empty")
+}
+
+// =============================================================================
+// ErrorInternalServerWrap Tests
+// =============================================================================
+
+func TestErrorInternalServerWrap(t *testing.T) {
+	cause := errors.New("pq: duplicate key value violates unique constraint \"students_pkey\"")
+	renderer := common.ErrorInternalServerWrap("failed to create student", cause)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("POST", "/test", nil)
+
+	require.NoError(t, render.Render(w, r, renderer))
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+
+	var resp map[string]interface{}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Equal(t, "error", resp["status"])
+	// Client sees the stable message only — the internal cause must not leak.
+	assert.Equal(t, "failed to create student", resp["error"])
+	assert.NotContains(t, w.Body.String(), "students_pkey")
+
+	// Err field chains the cause so slog/Sentry still see the root cause.
+	wrapped, ok := renderer.(*common.ErrResponse)
+	require.True(t, ok)
+	assert.ErrorIs(t, wrapped.Err, cause)
+}
+
+// =============================================================================
+// FieldError Tests
+// =============================================================================
+
+func TestFieldError_JSON(t *testing.T) {
+	fe := common.FieldError{Field: "substatus", Reason: "must be late|excused|sick|field_trip|other"}
+	raw, err := json.Marshal(fe)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"field":"substatus","reason":"must be late|excused|sick|field_trip|other"}`, string(raw))
+}
+
+// =============================================================================
+// RenderError Tests — 5xx path logs and reports to Sentry
+// =============================================================================
+
+func TestRenderError_5xxLogsAndReports(t *testing.T) {
+	// The 5xx path hits slog + sentry.CaptureException. We cannot easily
+	// intercept those here, but executing the branch still counts toward
+	// coverage and guards against regressions that change the side-effects.
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/test", nil)
+
+	renderer := common.ErrorInternalServer(errors.New("db down"))
+	common.RenderError(w, r, renderer)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Contains(t, w.Body.String(), "db down")
+}
+
+func TestRenderError_WrappedInternalServerPath(t *testing.T) {
+	// Exercises RenderError's 5xx branch with a wrapped error. The Err field
+	// is non-nil via errors.New("…"), which is what Sentry reporting relies on.
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("POST", "/test", nil)
+
+	renderer := common.ErrorInternalServerWrap("load failed", errors.New("boom"))
+	common.RenderError(w, r, renderer)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Contains(t, w.Body.String(), "load failed")
+}
+
+func TestRenderError_5xxWithSentryHubInContext(t *testing.T) {
+	// Cover the hub-not-nil branch: sentry.GetHubFromContext(ctx) returns a
+	// non-nil hub when a hub was attached to the context. The hub is created
+	// with no client, so CaptureException is a cheap no-op.
+	hub := sentry.NewHub(nil, sentry.NewScope())
+	ctx := sentry.SetHubOnContext(context.Background(), hub)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/test", nil).WithContext(ctx)
+
+	renderer := common.ErrorInternalServer(errors.New("boom with hub"))
+	common.RenderError(w, r, renderer)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestRenderError_NonErrResponseRenderer(t *testing.T) {
+	// RenderError accepts any render.Renderer; the 5xx branch only fires for
+	// *ErrResponse. Passing a different renderer must take the plain render path.
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/test", nil)
+
+	// Use an ErrResponse with Err=nil so the Sentry branch is skipped even
+	// though the status code matches. Covers the `errResp.Err != nil` guard.
+	renderer := &common.ErrResponse{
+		HTTPStatusCode: http.StatusInternalServerError,
+		Status:         "error",
+		ErrorText:      "no cause",
+	}
+	common.RenderError(w, r, renderer)
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }

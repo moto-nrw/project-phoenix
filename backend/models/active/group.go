@@ -19,7 +19,7 @@ type Group struct {
 	EndTime        *time.Time `bun:"end_time" json:"end_time,omitempty"`
 	LastActivity   time.Time  `bun:"last_activity,notnull" json:"last_activity"`      // Activity tracking for timeout
 	TimeoutMinutes int        `bun:"timeout_minutes,nullzero" json:"timeout_minutes"` // Session timeout config (default 30)
-	GroupID        int64      `bun:"group_id,notnull" json:"group_id"`
+	GroupID        *int64     `bun:"group_id" json:"group_id"`
 	DeviceID       *int64     `bun:"device_id" json:"device_id,omitempty"` // Optional for RFID system
 	RoomID         int64      `bun:"room_id,notnull" json:"room_id"`
 
@@ -76,8 +76,11 @@ func (g *Group) Validate() error {
 		return errors.New("start time must be before end time")
 	}
 
-	if g.GroupID <= 0 {
-		return errors.New("group ID is required")
+	// GroupID is optional: a NULL group_id marks a spontaneous activity
+	// instance (WP-B6) that runs without a parent template. Only reject
+	// non-nil values that are non-positive — those are clearly bad writes.
+	if g.GroupID != nil && *g.GroupID <= 0 {
+		return errors.New("group ID must be positive when set")
 	}
 
 	// DeviceID is now optional for RFID system
@@ -88,6 +91,30 @@ func (g *Group) Validate() error {
 	}
 
 	return nil
+}
+
+// IsSpontaneous reports whether this session runs without a parent template
+// (i.e. group_id IS NULL). Spontaneous instances are created ad-hoc by staff
+// and do not map back to a row in activities.groups.
+func (g *Group) IsSpontaneous() bool {
+	return g.GroupID == nil
+}
+
+// HasTemplate reports whether this session is backed by a template in
+// activities.groups. Inverse of IsSpontaneous.
+func (g *Group) HasTemplate() bool {
+	return g.GroupID != nil
+}
+
+// TemplateID returns the parent template's ID and true when the session is
+// template-backed, or (0, false) when it is spontaneous. Callers should treat
+// this as the only sanctioned way to dereference GroupID — direct pointer
+// access is discouraged.
+func (g *Group) TemplateID() (int64, bool) {
+	if g.GroupID == nil {
+		return 0, false
+	}
+	return *g.GroupID, true
 }
 
 // IsActive returns whether this active group session is currently active

@@ -136,22 +136,27 @@ func checkHardcodedIDs(t *testing.T, root string) []string {
 
 	// Files to skip (mock tests, model unit tests without DB)
 	skipPatterns := []string{
-		"_internal_test.go",                     // Internal tests often use mocks
-		"_mock_test.go",                         // Mock tests
-		"models/",                               // Model unit tests don't hit DB (Unix)
-		"models\\",                              // Model unit tests don't hit DB (Windows)
-		"invitation_service_test.go",            // Uses mocks
-		"password_reset_integration_test.go",    // Uses mocks (sqlmock + stubs)
-		"handlers_unit_test.go",                 // Unit tests for converters (no DB)
-		"http_middleware_test.go",               // Uses nil *bun.DB for unit testing middleware
-		"operator_provisioning_service_test.go", // Uses mocks (sqlmock + stubs)
-		"operator_invitation_test.go",           // Uses mocks (sqlmock + stubs)
-		"operator_invitation_dispatch_test.go",  // Uses mocks for email dispatch tests
-		"invitations_test.go",                   // Uses mocks for handler tests
-		"error_helpers_test.go",                 // Internal unit tests for helper functions (no DB)
-		"api/iot/api_test.go",                   // Uses mock SchoolRepo for unit testing handler
-		"api/iot/config_test.go",                // Uses mock settings service for unit testing config endpoint
-		"enrich_pickup_times_test.go",           // Uses mock PickupScheduleService for unit testing enrichment
+		"_internal_test.go",                                      // Internal tests often use mocks
+		"_mock_test.go",                                          // Mock tests
+		"models/",                                                // Model unit tests don't hit DB (Unix)
+		"models\\",                                               // Model unit tests don't hit DB (Windows)
+		"invitation_service_test.go",                             // Uses mocks
+		"password_reset_integration_test.go",                     // Uses mocks (sqlmock + stubs)
+		"handlers_unit_test.go",                                  // Unit tests for converters (no DB)
+		"http_middleware_test.go",                                // Uses nil *bun.DB for unit testing middleware
+		"operator_provisioning_service_test.go",                  // Uses mocks (sqlmock + stubs)
+		"operator_invitation_test.go",                            // Uses mocks (sqlmock + stubs)
+		"operator_invitation_dispatch_test.go",                   // Uses mocks for email dispatch tests
+		"invitations_test.go",                                    // Uses mocks for handler tests
+		"error_helpers_test.go",                                  // Internal unit tests for helper functions (no DB)
+		"api/iot/api_test.go",                                    // Uses mock SchoolRepo for unit testing handler
+		"api/iot/config_test.go",                                 // Uses mock settings service for unit testing config endpoint
+		"enrich_pickup_times_test.go",                            // Uses mock PickupScheduleService for unit testing enrichment
+		"api/timetable/api_test.go",                              // Uses mock CalendarPeriodService for unit testing handlers
+		"api/timetable/instances_test.go",                        // Uses mock InstanceService + PersonService for unit testing handlers
+		"api/timetable/instance_students_unit_test.go",           // Uses fake repo for unit testing attendance PATCH handler
+		"services/schedule/attendance_sync_service_unit_test.go", // Uses fake repos for unit testing graceful-degradation branches
+		"services/schedule/timetable_cleanup_service_test.go",    // Uses failingAuditRepo mock for audit-write-failure rollback coverage (WP-B14)
 	}
 
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {

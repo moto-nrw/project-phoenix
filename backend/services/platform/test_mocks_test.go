@@ -168,6 +168,14 @@ func (m *mockOrgRepoShared) FindByID(ctx context.Context, id int64) (*platform.O
 	return &platform.Organization{}, nil
 }
 
+func (m *mockOrgRepoShared) FindByIDForShare(ctx context.Context, id int64) (*platform.Organization, error) {
+	return m.FindByID(ctx, id)
+}
+
+func (m *mockOrgRepoShared) FindByIDForUpdate(ctx context.Context, id int64) (*platform.Organization, error) {
+	return m.FindByID(ctx, id)
+}
+
 func (m *mockOrgRepoShared) FindBySlug(ctx context.Context, slug string) (*platform.Organization, error) {
 	return nil, nil
 }
@@ -186,6 +194,9 @@ func (m *mockOrgRepoShared) CountByIDs(ctx context.Context, ids []int64) (int, e
 	}
 	return len(ids), nil
 }
+
+func (m *mockOrgRepoShared) SoftDelete(context.Context, int64) error { return nil }
+func (m *mockOrgRepoShared) Restore(context.Context, int64) error    { return nil }
 
 // Shared mock for school repository (used by announcement targeting validation)
 type mockSchoolRepoShared struct {
@@ -246,6 +257,9 @@ func (m *mockSchoolRepoShared) FindByIDForUpdate(ctx context.Context, id int64) 
 
 func (m *mockSchoolRepoShared) SoftDelete(context.Context, int64) error { return nil }
 func (m *mockSchoolRepoShared) Restore(context.Context, int64) error    { return nil }
+func (m *mockSchoolRepoShared) CountNonDeletedByOrganizationID(context.Context, int64) (int, error) {
+	return 0, nil
+}
 
 func (m *mockSchoolRepoShared) CountByIDs(ctx context.Context, ids []int64) (int, error) {
 	if m.countByIDsFn != nil {

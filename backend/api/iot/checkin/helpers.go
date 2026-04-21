@@ -15,6 +15,10 @@ import (
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 )
 
+// timeNow is a package-local clock hook that tests may override to pin the
+// "current time" for deterministic assertions. Production code uses time.Now.
+var timeNow = time.Now
+
 // ResolveRawDailyCheckoutTime resolves the raw daily checkout time string.
 // Fallback chain: tenant DB override → STUDENT_DAILY_CHECKOUT_TIME env var → empty string.
 // Returns empty string when no time is configured, meaning daily checkout is always available.
@@ -73,7 +77,7 @@ func (rs *Resource) getStudentDailyCheckoutTime(ctx context.Context) (*time.Time
 		return nil, fmt.Errorf("invalid minute in checkout time: %s", checkoutTimeStr)
 	}
 
-	now := time.Now()
+	now := timeNow()
 	checkoutTime := time.Date(now.Year(), now.Month(), now.Day(), hour, minute, 0, 0, now.Location())
 	return &checkoutTime, nil
 }
@@ -112,7 +116,7 @@ func (rs *Resource) isAfterCheckoutTimeGate(ctx context.Context, student *users.
 	}
 
 	if perStudentEnabled && rs.PickupScheduleService != nil {
-		now := time.Now()
+		now := timeNow()
 		effectivePickup, err := rs.PickupScheduleService.GetEffectivePickupTimeForDate(ctx, student.ID, now)
 		if err == nil && effectivePickup != nil && effectivePickup.PickupTime != nil {
 			// Student has a pickup time — use it with the delta
@@ -140,7 +144,7 @@ func (rs *Resource) isAfterCheckoutTimeGate(ctx context.Context, student *users.
 	if checkoutTime == nil {
 		return true // No time gate — always available
 	}
-	return time.Now().After(*checkoutTime)
+	return timeNow().After(*checkoutTime)
 }
 
 // shouldShowDailyCheckoutWithGroup checks if daily checkout should be shown by verifying education group room

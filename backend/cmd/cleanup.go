@@ -4,11 +4,14 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"log/slog"
 	"os"
 	"text/tabwriter"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/spf13/cobra"
 )
 
@@ -35,7 +38,34 @@ var cleanupCmd = &cobra.Command{
 	Long: `Clean up expired data based on retention policies configured in privacy consents.
 This command will delete visit records that are older than the configured retention period for each student.
 
-Available subcommands: visits, preview, stats, tokens, invitations, rate-limits, attendance, sessions, supervisors.`,
+Available subcommands: visits, preview, stats, tokens, invitations, rate-limits, attendance, sessions, supervisors, timetable.`,
+}
+
+// cleanupTimetableCmd represents the timetable subcommand (WP-B14).
+var cleanupTimetableCmd = &cobra.Command{
+	Use:   "timetable",
+	Short: "Delete expired timetable instances + exceptions (GDPR retention)",
+	Long: `Delete schedule.activity_instances (CASCADE → instance_staff + instance_students)
+and schedule.activity_exceptions older than gdpr.timetable_retention_days for each
+active tenant. Writes per-student audit rows to audit.data_deletions before the
+deletes; exceptions carry no PII and are slog-only.`,
+	RunE: runCleanupTimetable,
+}
+
+// cleanupTimetablePreviewCmd shows what would be deleted without deleting.
+var cleanupTimetablePreviewCmd = &cobra.Command{
+	Use:   "preview",
+	Short: "Preview timetable cleanup without deleting",
+	Long:  `Count activity_instances, activity_exceptions, and distinct affected students per tenant.`,
+	RunE:  runCleanupTimetablePreview,
+}
+
+// cleanupTimetableStatsCmd shows table totals and oldest dates.
+var cleanupTimetableStatsCmd = &cobra.Command{
+	Use:   "stats",
+	Short: "Show timetable retention statistics",
+	Long:  `Total row counts and oldest timestamps across schedule.activity_instances and schedule.activity_exceptions per tenant.`,
+	RunE:  runCleanupTimetableStats,
 }
 
 // cleanupVisitsCmd represents the visits subcommand
@@ -132,6 +162,15 @@ func init() {
 	cleanupCmd.AddCommand(cleanupAttendanceCmd)
 	cleanupCmd.AddCommand(cleanupSessionsCmd)
 	cleanupCmd.AddCommand(cleanupSupervisorsCmd)
+	cleanupCmd.AddCommand(cleanupTimetableCmd)
+	cleanupTimetableCmd.AddCommand(cleanupTimetablePreviewCmd)
+	cleanupTimetableCmd.AddCommand(cleanupTimetableStatsCmd)
+
+	// Flags for timetable commands
+	cleanupTimetableCmd.Flags().BoolVar(&dryRun, flagDryRun, false, flagDescDryRun)
+	cleanupTimetableCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, flagDescShowDetails)
+	cleanupTimetablePreviewCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, flagDescShowDetails)
+	cleanupTimetableStatsCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, flagDescShowDetails)
 
 	// Flags for cleanup visits command
 	cleanupVisitsCmd.Flags().BoolVar(&dryRun, flagDryRun, false, "Show what would be deleted without deleting")
@@ -653,4 +692,162 @@ func printStaffBreakdown(header string, countHeader string, data map[int64]int) 
 	if err := w.Flush(); err != nil {
 		log.Printf(errFlushWriter, err)
 	}
+}
+
+// --- Timetable GDPR cleanup (WP-B14) ---
+
+func runCleanupTimetable(_ *cobra.Command, _ []string) error {
+	ctx, err := newCleanupContextWithTimetableCleanup()
+	if err != nil {
+		return err
+	}
+	defer ctx.Close()
+
+	if dryRun {
+		return forEachTenantTimetablePreview(ctx)
+	}
+	return forEachTenantTimetableCleanup(ctx)
+}
+
+func runCleanupTimetablePreview(_ *cobra.Command, _ []string) error {
+	ctx, err := newCleanupContextWithTimetableCleanup()
+	if err != nil {
+		return err
+	}
+	defer ctx.Close()
+	return forEachTenantTimetablePreview(ctx)
+}
+
+func runCleanupTimetableStats(_ *cobra.Command, _ []string) error {
+	ctx, err := newCleanupContextWithTimetableCleanup()
+	if err != nil {
+		return err
+	}
+	defer ctx.Close()
+	return forEachTenantTimetableStats(ctx)
+}
+
+// forEachTenantTimetableCleanup runs the actual DELETE per tenant, using the
+// same tenant.ForEachActive helper the scheduler uses — so CLI and scheduler
+// agree on tenant iteration semantics.
+func forEachTenantTimetableCleanup(cc *cleanupContext) error {
+	totalInstances, totalExceptions, totalStudents := 0, 0, 0
+	tenantCount := 0
+	errs := make([]error, 0)
+
+	err := tenant.ForEachActive(context.Background(), cc.DB, cc.RepoFactory.School,
+		slog.Default(), "cli-timetable-cleanup",
+		func(txCtx context.Context, tenantID int64) error {
+			tenantCount++
+			result, err := cc.TimetableCleanupService.CleanupExpiredTimetableData(txCtx)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("tenant %d: %w", tenantID, err))
+				return err
+			}
+			totalInstances += result.InstancesDeleted
+			totalExceptions += result.ExceptionsDeleted
+			totalStudents += result.StudentsAffected
+			printTimetableCleanupLine(tenantID, result)
+			return nil
+		})
+	if err != nil {
+		return fmt.Errorf("list active tenants: %w", err)
+	}
+
+	fmt.Println("\nTimetable Cleanup Summary")
+	fmt.Println("=========================")
+	fmt.Printf("Tenants processed:    %d\n", tenantCount)
+	fmt.Printf("Instances deleted:    %d\n", totalInstances)
+	fmt.Printf("Exceptions deleted:   %d\n", totalExceptions)
+	fmt.Printf("Students affected:    %d\n", totalStudents)
+	fmt.Printf("Errors:               %d\n", len(errs))
+	if verbose {
+		for _, e := range errs {
+			fmt.Printf("  - %s\n", e.Error())
+		}
+	}
+	if len(errs) > 0 {
+		return fmt.Errorf("%d tenant(s) failed; see output above", len(errs))
+	}
+	return nil
+}
+
+func forEachTenantTimetablePreview(cc *cleanupContext) error {
+	fmt.Println("DRY RUN MODE - No data will be deleted")
+	fmt.Println("\nTimetable Cleanup Preview")
+	fmt.Println("=========================")
+
+	totalInstances, totalExceptions, totalStudents := 0, 0, 0
+	err := tenant.ForEachActive(context.Background(), cc.DB, cc.RepoFactory.School,
+		slog.Default(), "cli-timetable-preview",
+		func(txCtx context.Context, tenantID int64) error {
+			p, err := cc.TimetableCleanupService.PreviewExpiredTimetableData(txCtx)
+			if err != nil {
+				return err
+			}
+			totalInstances += p.InstancesToDelete
+			totalExceptions += p.ExceptionsToDelete
+			totalStudents += p.StudentsAffected
+			printTimetablePreviewLine(tenantID, p)
+			return nil
+		})
+	if err != nil {
+		return fmt.Errorf("list active tenants: %w", err)
+	}
+
+	fmt.Printf("\nTOTAL: %d instances, %d exceptions, %d students across all tenants\n",
+		totalInstances, totalExceptions, totalStudents)
+	return nil
+}
+
+func forEachTenantTimetableStats(cc *cleanupContext) error {
+	fmt.Println("Timetable Retention Statistics")
+	fmt.Println("==============================")
+
+	err := tenant.ForEachActive(context.Background(), cc.DB, cc.RepoFactory.School,
+		slog.Default(), "cli-timetable-stats",
+		func(txCtx context.Context, tenantID int64) error {
+			stats, err := cc.TimetableCleanupService.GetStats(txCtx)
+			if err != nil {
+				return err
+			}
+			printTimetableStatsLine(tenantID, stats)
+			return nil
+		})
+	if err != nil {
+		return fmt.Errorf("list active tenants: %w", err)
+	}
+	return nil
+}
+
+func printTimetableCleanupLine(tenantID int64, r *schedule.TimetableCleanupResult) {
+	fmt.Printf("[tenant %d] instances=%d exceptions=%d students=%d retention=%dd cutoff=%s duration_ms=%d\n",
+		tenantID, r.InstancesDeleted, r.ExceptionsDeleted, r.StudentsAffected,
+		r.RetentionDays, r.CutoffDate.Format(dateFormat), r.DurationMS)
+}
+
+func printTimetablePreviewLine(tenantID int64, p *schedule.TimetableCleanupPreview) {
+	fmt.Printf("[tenant %d] would-delete instances=%d exceptions=%d students=%d retention=%dd cutoff=%s",
+		tenantID, p.InstancesToDelete, p.ExceptionsToDelete, p.StudentsAffected,
+		p.RetentionDays, p.CutoffDate.Format(dateFormat))
+	if p.OldestInstance != nil {
+		fmt.Printf(" oldest_instance=%s", p.OldestInstance.Format(dateFormat))
+	}
+	if p.OldestException != nil {
+		fmt.Printf(" oldest_exception=%s", p.OldestException.Format(dateFormat))
+	}
+	fmt.Println()
+}
+
+func printTimetableStatsLine(tenantID int64, s *schedule.TimetableCleanupStats) {
+	fmt.Printf("[tenant %d] instances_total=%d exceptions_total=%d retention=%dd cutoff=%s",
+		tenantID, s.TotalInstances, s.TotalExceptions,
+		s.RetentionDays, s.CutoffDate.Format(dateFormat))
+	if s.OldestInstance != nil {
+		fmt.Printf(" oldest_instance=%s", s.OldestInstance.Format(dateFormat))
+	}
+	if s.OldestException != nil {
+		fmt.Printf(" oldest_exception=%s", s.OldestException.Format(dateFormat))
+	}
+	fmt.Println()
 }

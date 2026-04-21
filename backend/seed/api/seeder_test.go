@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/integration/phoenixapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -31,8 +32,39 @@ func TestGenerateSeedPassword(t *testing.T) {
 	}
 }
 
+func TestWrapConflictError(t *testing.T) {
+	t.Run("wraps 409 APIError with helpful message", func(t *testing.T) {
+		apiErr := &phoenixapi.APIError{
+			Method:     "POST",
+			Path:       "/operator/organizations",
+			StatusCode: http.StatusConflict,
+			Message:    "slug already taken",
+		}
+		err := wrapConflictError(apiErr, "organization")
+		assert.Contains(t, err.Error(), "seed organization already exists (409 Conflict)")
+		assert.Contains(t, err.Error(), "migrate reset")
+	})
+
+	t.Run("passes through non-409 errors unchanged", func(t *testing.T) {
+		apiErr := &phoenixapi.APIError{
+			Method:     "POST",
+			Path:       "/operator/organizations",
+			StatusCode: http.StatusInternalServerError,
+			Message:    "internal error",
+		}
+		err := wrapConflictError(apiErr, "organization")
+		assert.Equal(t, apiErr, err)
+	})
+
+	t.Run("passes through non-API errors unchanged", func(t *testing.T) {
+		original := fmt.Errorf("network timeout")
+		err := wrapConflictError(original, "school")
+		assert.Equal(t, original, err)
+	})
+}
+
 func TestExtractBootstrapInvitationToken(t *testing.T) {
-	s := NewSeeder("http://localhost:8080", false)
+	s := NewSeeder("http://localhost:8080", false, SeedOptions{})
 
 	token, err := s.extractBootstrapInvitationToken([]byte(`{"data":{"token":"seed-token"}}`))
 	require.NoError(t, err)
@@ -40,7 +72,7 @@ func TestExtractBootstrapInvitationToken(t *testing.T) {
 }
 
 func TestExtractBootstrapInvitationToken_MissingToken(t *testing.T) {
-	s := NewSeeder("http://localhost:8080", false)
+	s := NewSeeder("http://localhost:8080", false, SeedOptions{})
 
 	token, err := s.extractBootstrapInvitationToken([]byte(`{"data":{}}`))
 	require.Error(t, err)
@@ -73,7 +105,7 @@ func TestCollectSeedState_BasicFields(t *testing.T) {
 		AdminPosition:    "OGS-Buero",
 	}
 
-	fs := NewFixedSeeder(nil, false)
+	fs := NewFixedSeeder(nil, false, "")
 
 	// Populate FixedSeeder internal maps
 	fs.staffCredentials = []StaffCredentials{
@@ -156,7 +188,7 @@ func TestCollectSeedState_EmptySeeder(t *testing.T) {
 	s := &Seeder{
 		client: &Client{baseURL: "http://test:9090"},
 	}
-	fs := NewFixedSeeder(nil, false)
+	fs := NewFixedSeeder(nil, false, "")
 
 	state := s.collectSeedState(fs, "0000", nil)
 
@@ -178,10 +210,22 @@ func TestFormatError(t *testing.T) {
 }
 
 func TestNewSeeder(t *testing.T) {
-	s := NewSeeder("http://localhost:8080", true)
+	s := NewSeeder("http://localhost:8080", true, SeedOptions{})
 	assert.NotNil(t, s.client)
 	assert.True(t, s.verbose)
 	assert.Equal(t, "http://localhost:8080", s.client.baseURL)
+}
+
+func TestNewSeeder_WithOptions(t *testing.T) {
+	opts := SeedOptions{
+		TenantSlug:    "my-school",
+		StaffPassword: "MyPass1!",
+		AdminEmail:    "admin@test.com",
+	}
+	s := NewSeeder("http://localhost:8080", false, opts)
+	assert.Equal(t, "my-school", s.options.TenantSlug)
+	assert.Equal(t, "MyPass1!", s.options.StaffPassword)
+	assert.Equal(t, "admin@test.com", s.options.AdminEmail)
 }
 
 func TestSeedResult_ZeroValues(t *testing.T) {
@@ -190,7 +234,7 @@ func TestSeedResult_ZeroValues(t *testing.T) {
 }
 
 func TestNewFixedSeeder_InitializesMaps(t *testing.T) {
-	fs := NewFixedSeeder(nil, true)
+	fs := NewFixedSeeder(nil, true, "")
 	assert.NotNil(t, fs.roomIDs)
 	assert.NotNil(t, fs.personIDs)
 	assert.NotNil(t, fs.staffIDs)
@@ -207,6 +251,12 @@ func TestNewFixedSeeder_InitializesMaps(t *testing.T) {
 	assert.NotNil(t, fs.guardianIDs)
 	assert.NotNil(t, fs.staffCredentials)
 	assert.True(t, fs.verbose)
+	assert.Empty(t, fs.staffPassword)
+}
+
+func TestNewFixedSeeder_WithStaffPassword(t *testing.T) {
+	fs := NewFixedSeeder(nil, false, "SharedPass1!")
+	assert.Equal(t, "SharedPass1!", fs.staffPassword)
 }
 
 func TestSeeder_Seed_FullWorkflow(t *testing.T) {
@@ -223,7 +273,7 @@ func TestSeeder_Seed_FullWorkflow(t *testing.T) {
 	// Create simulator/iot/ directory for the simulator config
 	require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "simulator", "iot"), 0o755))
 
-	s := NewSeeder(srv.URL, false)
+	s := NewSeeder(srv.URL, false, SeedOptions{})
 	result, err := s.Seed(context.Background(), "admin@test.de", "pass", "1234")
 	require.NoError(t, err)
 	assert.NotNil(t, result)
@@ -242,7 +292,7 @@ func TestSeeder_Seed_FullWorkflow(t *testing.T) {
 }
 
 func TestSeeder_Seed_HealthCheckFails(t *testing.T) {
-	s := NewSeeder("http://localhost:1", false)
+	s := NewSeeder("http://localhost:1", false, SeedOptions{})
 	_, err := s.Seed(context.Background(), "admin@test.de", "pass", "1234")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "Server health check failed")
@@ -260,7 +310,7 @@ func TestSeeder_Seed_LoginFails(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	s := NewSeeder(srv.URL, false)
+	s := NewSeeder(srv.URL, false, SeedOptions{})
 	_, err := s.Seed(context.Background(), "bad@test.de", "wrong", "1234")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "Login failed")
@@ -273,7 +323,7 @@ func TestFixedSeeder_Seed_FullWorkflow(t *testing.T) {
 	client := NewClient(srv.URL, false)
 	require.NoError(t, client.Login("admin@test.de", "pass"))
 
-	fs := NewFixedSeeder(client, false)
+	fs := NewFixedSeeder(client, false, "")
 	result, err := fs.Seed(context.Background())
 	require.NoError(t, err)
 	assert.NotNil(t, result)
@@ -438,4 +488,10 @@ func TestFixedResult_Fields(t *testing.T) {
 	assert.Equal(t, 12, r.RoomCount)
 	assert.Equal(t, 100, r.StudentCount)
 	assert.Len(t, r.StaffCredentials, 1)
+}
+
+func TestTruncateSeedSubdomain(t *testing.T) {
+	assert.Equal(t, "short", truncateSeedSubdomain("short"))
+	long := "this-is-a-very-long-subdomain-that-exceeds-the-sixty-three-character-limit-for-dns-labels"
+	assert.Len(t, truncateSeedSubdomain(long), 63)
 }

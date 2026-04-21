@@ -26,6 +26,7 @@ const mockBackendOrg: BackendOrganization = {
   name: "Stadt Köln",
   slug: "stadt-koeln",
   active: true,
+  deleted_at: null,
   settings: null,
   created_at: NOW,
   updated_at: NOW,
@@ -132,6 +133,7 @@ describe("OperatorProvisioningService", () => {
         active: true,
         createdAt: NOW,
         updatedAt: NOW,
+        deletedAt: null,
       });
     });
   });
@@ -854,6 +856,54 @@ describe("OperatorProvisioningService", () => {
       const result = await operatorProvisioningService.restoreSchool("10");
 
       expect(result).toBeUndefined();
+    });
+  });
+
+  describe("softDeleteOrganization", () => {
+    it("calls correct endpoint with DELETE method", async () => {
+      mockOperatorFetch.mockResolvedValue(undefined);
+
+      await operatorProvisioningService.softDeleteOrganization("77");
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/organizations/77",
+        { method: "DELETE" },
+      );
+    });
+
+    it("encodes organization id in URL", async () => {
+      mockOperatorFetch.mockResolvedValue(undefined);
+
+      await operatorProvisioningService.softDeleteOrganization("77/evil");
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/organizations/77%2Fevil",
+        { method: "DELETE" },
+      );
+    });
+  });
+
+  describe("restoreOrganization", () => {
+    it("calls correct endpoint with POST method", async () => {
+      mockOperatorFetch.mockResolvedValue(undefined);
+
+      await operatorProvisioningService.restoreOrganization("77");
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/organizations/77/restore",
+        { method: "POST" },
+      );
+    });
+
+    it("encodes organization id in URL", async () => {
+      mockOperatorFetch.mockResolvedValue(undefined);
+
+      await operatorProvisioningService.restoreOrganization("77/evil");
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/organizations/77%2Fevil/restore",
+        { method: "POST" },
+      );
     });
   });
 });

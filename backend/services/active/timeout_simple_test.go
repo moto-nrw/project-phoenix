@@ -257,7 +257,9 @@ func TestGetSessionTimeoutInfo(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, info)
 		assert.Equal(t, session.ID, info.SessionID)
-		assert.Equal(t, activity.ID, info.ActivityID)
+		if assert.NotNil(t, info.ActivityID) {
+			assert.Equal(t, activity.ID, *info.ActivityID)
+		}
 		assert.Equal(t, 0, info.ActiveStudentCount) // No visits yet
 		assert.False(t, info.IsTimedOut)            // Fresh session
 	})
@@ -312,7 +314,9 @@ func TestGetSessionTimeoutInfo(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, info)
 		assert.Equal(t, session.ID, info.SessionID)
-		assert.Equal(t, activity.ID, info.ActivityID)
+		if assert.NotNil(t, info.ActivityID) {
+			assert.Equal(t, activity.ID, *info.ActivityID)
+		}
 		assert.Equal(t, 2, info.ActiveStudentCount) // Two active visits
 		assert.False(t, info.IsTimedOut)            // Fresh session
 	})

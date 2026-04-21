@@ -39,21 +39,22 @@ func setupTestContext(t *testing.T) *testContext {
 	require.NoError(t, err, "Failed to create service factory")
 
 	resource := studentsAPI.NewResource(studentsAPI.ResourceConfig{
-		PersonService:         svc.Users,
-		StudentRepo:           repoFactory.Student,
-		EducationService:      svc.Education,
-		UserContextService:    svc.UserContext,
-		ActiveService:         svc.Active,
-		IoTService:            svc.IoT,
-		PrivacyConsentRepo:    repoFactory.PrivacyConsent,
-		PickupScheduleService: svc.PickupSchedule,
-		SchoolRepo:            repoFactory.School,
-		SettingsService:       svc.Settings,
-		AttendanceRepo:        repoFactory.Attendance,
-		VisitRepo:             repoFactory.ActiveVisit,
-		DataAccessLogRepo:     repoFactory.DataAccessLog,
-		Logger:                slog.Default(),
-		DB:                    db,
+		PersonService:          svc.Users,
+		StudentRepo:            repoFactory.Student,
+		EducationService:       svc.Education,
+		UserContextService:     svc.UserContext,
+		ActiveService:          svc.Active,
+		IoTService:             svc.IoT,
+		PrivacyConsentRepo:     repoFactory.PrivacyConsent,
+		PickupScheduleService:  svc.PickupSchedule,
+		ArrivalScheduleService: svc.ArrivalSchedule,
+		SchoolRepo:             repoFactory.School,
+		SettingsService:        svc.Settings,
+		AttendanceRepo:         repoFactory.Attendance,
+		VisitRepo:              repoFactory.ActiveVisit,
+		DataAccessLogRepo:      repoFactory.DataAccessLog,
+		Logger:                 slog.Default(),
+		DB:                     db,
 	})
 
 	t.Cleanup(func() {

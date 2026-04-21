@@ -79,45 +79,41 @@ func (r *SchoolRepository) FindByID(ctx context.Context, id int64) (*platform.Sc
 	return school, nil
 }
 
-// FindByIDForShare returns a school by ID while acquiring a FOR SHARE lock on the row.
-// This prevents concurrent UPDATE (e.g., SoftDelete) from committing until the calling
-// transaction completes. Must be called within a transaction.
-func (r *SchoolRepository) FindByIDForShare(ctx context.Context, id int64) (*platform.School, error) {
+// findByIDWithLock returns a school by ID while acquiring the given row-level
+// lock. `lockClause` is passed verbatim to bun's `For(...)` builder (e.g.
+// "SHARE", "UPDATE"). `op` labels the operation in DatabaseError on wrapping
+// failure. Must be called within a transaction.
+func (r *SchoolRepository) findByIDWithLock(ctx context.Context, id int64, lockClause, op string) (*platform.School, error) {
 	school := new(platform.School)
 	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(school).
 		ModelTableExpr(schoolTableAlias).
 		Where(`"school".id = ?`, id).
-		For("SHARE").
+		For(lockClause).
 		Scan(ctx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, &modelBase.DatabaseError{Op: "find school by id for share", Err: err}
+			return nil, &modelBase.DatabaseError{Op: op, Err: err}
 		}
 		return nil, err
 	}
 	return school, nil
 }
 
-// FindByIDForUpdate returns a school by ID while acquiring a FOR UPDATE lock on the row.
-// This serializes concurrent read-modify-write cycles (e.g., JSONB settings updates)
-// by blocking other transactions from reading or writing the same row until the calling
-// transaction completes. Must be called within a transaction.
+// FindByIDForShare returns a school by ID while acquiring a FOR SHARE lock on
+// the row. Prevents concurrent UPDATE (e.g., SoftDelete) from committing until
+// the calling transaction completes. Must be called within a transaction.
+func (r *SchoolRepository) FindByIDForShare(ctx context.Context, id int64) (*platform.School, error) {
+	return r.findByIDWithLock(ctx, id, "SHARE", "find school by id for share")
+}
+
+// FindByIDForUpdate returns a school by ID while acquiring a FOR UPDATE lock
+// on the row. Serializes concurrent read-modify-write cycles (e.g., JSONB
+// settings updates) by blocking other transactions from reading or writing
+// the same row until the calling transaction completes. Must be called within
+// a transaction.
 func (r *SchoolRepository) FindByIDForUpdate(ctx context.Context, id int64) (*platform.School, error) {
-	school := new(platform.School)
-	err := base.GetDB(ctx, r.db).NewSelect().
-		Model(school).
-		ModelTableExpr(schoolTableAlias).
-		Where(`"school".id = ?`, id).
-		For("UPDATE").
-		Scan(ctx)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, &modelBase.DatabaseError{Op: "find school by id for update", Err: err}
-		}
-		return nil, err
-	}
-	return school, nil
+	return r.findByIDWithLock(ctx, id, "UPDATE", "find school by id for update")
 }
 
 // FindBySlug returns a non-deleted school by its slug.
@@ -267,10 +263,11 @@ func (r *SchoolRepository) SoftDelete(ctx context.Context, id int64) error {
 	return base.AssertRowsAffected(result, 1, "soft delete school")
 }
 
-// CountByIDs counts how many of the given IDs exist in the schools table.
-// This intentionally includes soft-deleted schools so that validation accepts
-// whatever the UI picker offers and existing announcements that reference
-// previously-deleted schools can still be re-saved without error.
+// CountByIDs counts how many of the given IDs exist in the schools table,
+// excluding soft-deleted rows. Used to enforce that new announcement targeting
+// cannot reference trashed schools. Historical school targets already present
+// on an announcement are allowed through by the service layer via a diff
+// against the existing record, so re-saving does not reactivate stale targets.
 func (r *SchoolRepository) CountByIDs(ctx context.Context, ids []int64) (int, error) {
 	if len(ids) == 0 {
 		return 0, nil
@@ -279,6 +276,7 @@ func (r *SchoolRepository) CountByIDs(ctx context.Context, ids []int64) (int, er
 		Model((*platform.School)(nil)).
 		ModelTableExpr(schoolTableAlias).
 		Where(`"school".id IN (?)`, bun.List(ids)).
+		Where(`"school".deleted_at IS NULL`).
 		Count(ctx)
 	if err != nil {
 		return 0, &modelBase.DatabaseError{Op: "count schools by ids", Err: err}
@@ -298,4 +296,23 @@ func (r *SchoolRepository) Restore(ctx context.Context, id int64) error {
 		return &modelBase.DatabaseError{Op: "restore school", Err: err}
 	}
 	return base.AssertRowsAffected(result, 1, "restore school")
+}
+
+// CountNonDeletedByOrganizationID counts schools belonging to an organization that have
+// not been soft-deleted. Used by SoftDeleteOrganization to block deletion of an
+// organization that still has child schools (active or inactive) — the operator must
+// soft-delete every school first. The name intentionally does NOT say "Active" because
+// the query does not filter on the `active` boolean; a disabled-but-not-deleted school
+// still blocks the parent org's deletion.
+func (r *SchoolRepository) CountNonDeletedByOrganizationID(ctx context.Context, organizationID int64) (int, error) {
+	count, err := base.GetDB(ctx, r.db).NewSelect().
+		Model((*platform.School)(nil)).
+		ModelTableExpr(schoolTableAlias).
+		Where(`"school".organization_id = ?`, organizationID).
+		Where(`"school".deleted_at IS NULL`).
+		Count(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "count non-deleted schools by organization", Err: err}
+	}
+	return count, nil
 }

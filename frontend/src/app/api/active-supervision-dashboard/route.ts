@@ -70,6 +70,10 @@ interface BackendVisitDisplay {
   student_name?: string;
   school_class?: string;
   group_name?: string;
+  sick?: boolean;
+  sick_since?: string;
+  excused?: boolean;
+  excused_since?: string;
   is_active: boolean;
 }
 
@@ -132,6 +136,10 @@ interface ActiveSupervisionDashboardResponse {
     activeGroupId: string;
     checkInTime: string;
     isActive: boolean;
+    sick?: boolean;
+    sickSince?: string;
+    excused?: boolean;
+    excusedSince?: string;
   }>;
 
   // ID of first room (for state initialization)
@@ -370,6 +378,10 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
             activeGroupId: v.active_group_id.toString(),
             checkInTime: v.check_in_time,
             isActive: v.is_active,
+            sick: v.sick,
+            sickSince: v.sick_since,
+            excused: v.excused,
+            excusedSince: v.excused_since,
           }));
       } catch {
         firstRoomVisits = [];

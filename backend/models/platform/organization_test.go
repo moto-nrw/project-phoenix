@@ -2,6 +2,7 @@ package platform
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -49,4 +50,17 @@ func TestOrganization_Validate_TrimsAndLowercases(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "Test Org", o.Name)
 	assert.Equal(t, "my-slug", o.Slug)
+}
+
+func TestOrganization_IsDeleted(t *testing.T) {
+	t.Run("returns false when deleted_at is nil", func(t *testing.T) {
+		o := &Organization{Name: "Test", Slug: "test"}
+		assert.False(t, o.IsDeleted())
+	})
+
+	t.Run("returns true when deleted_at is set", func(t *testing.T) {
+		now := time.Now()
+		o := &Organization{Name: "Test", Slug: "test", DeletedAt: &now}
+		assert.True(t, o.IsDeleted())
+	})
 }

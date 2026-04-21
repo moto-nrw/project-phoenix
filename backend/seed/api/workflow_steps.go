@@ -54,12 +54,14 @@ func (s bootstrapTenantStep) Run(ctx context.Context, rt *Runtime) error {
 	return nil
 }
 
-type seedMasterDataStep struct{}
+type seedMasterDataStep struct {
+	seeder *Seeder
+}
 
 func (seedMasterDataStep) Name() string { return "Stammdaten seeding" }
 
-func (seedMasterDataStep) Run(ctx context.Context, rt *Runtime) error {
-	fixedSeeder := NewFixedSeeder(rt.Client, rt.Verbose)
+func (s seedMasterDataStep) Run(ctx context.Context, rt *Runtime) error {
+	fixedSeeder := NewFixedSeeder(rt.Client, rt.Verbose, s.seeder.options.StaffPassword)
 	fixedResult, err := fixedSeeder.Seed(ctx)
 	if err != nil {
 		return err
@@ -154,7 +156,7 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 			healthCheckStep{},
 			operatorLoginStep{},
 			bootstrapTenantStep{seeder: seeder},
-			seedMasterDataStep{},
+			seedMasterDataStep{seeder: seeder},
 			markStudentsSickStep{},
 			seedPrivacyConsentsStep{},
 			seedAnnouncementsStep{},

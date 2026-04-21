@@ -1497,6 +1497,10 @@ func (m *mockSchoolRepo) CountByIDs(_ context.Context, _ []int64) (int, error) {
 	return 0, nil
 }
 
+func (m *mockSchoolRepo) CountNonDeletedByOrganizationID(_ context.Context, _ int64) (int, error) {
+	return 0, nil
+}
+
 func createServiceWithSchoolRepo(
 	valueRepo config.SettingValueRepository,
 	auditRepo config.SettingAuditRepository,

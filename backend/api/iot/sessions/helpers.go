@@ -75,7 +75,10 @@ func (rs *Resource) handleSessionConflictError(w http.ResponseWriter, r *http.Re
 	return true
 }
 
-// buildSessionStartResponse builds the success response with supervisor information
+// buildSessionStartResponse builds the success response with supervisor information.
+// ActivityID is *int64 after WP-B6 — for today's IoT session start, the
+// activeGroup always carries a template id, but we propagate the pointer as-is
+// so spontaneous sessions (WP-B9+) surface cleanly as null.
 func (rs *Resource) buildSessionStartResponse(ctx context.Context, activeGroup *active.Group, deviceCtx *iot.Device) SessionStartResponse {
 	response := SessionStartResponse{
 		ActiveGroupID: activeGroup.ID,

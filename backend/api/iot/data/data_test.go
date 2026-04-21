@@ -323,11 +323,12 @@ func TestGetTeacherActivities_WithOccupancy(t *testing.T) {
 	// Create an active session for this activity group
 	bgCtx := context.Background()
 	now := time.Now()
+	activityGroupID := activityGroup.ID
 	activeGroup := &active.Group{
 		StartTime:      now,
 		LastActivity:   now,
 		TimeoutMinutes: 30,
-		GroupID:        activityGroup.ID,
+		GroupID:        &activityGroupID,
 		RoomID:         room.ID,
 	}
 	activeGroup.SetTenantID(1)

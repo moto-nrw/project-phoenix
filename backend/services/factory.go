@@ -56,6 +56,11 @@ type Factory struct {
 	Settings                 config.SettingsService
 	Schedule                 schedule.Service
 	PickupSchedule           schedule.PickupScheduleService
+	ArrivalSchedule          schedule.ArrivalScheduleService
+	CalendarPeriod           schedule.CalendarPeriodService
+	Materialization          schedule.MaterializationService
+	TimetableCleanup         schedule.TimetableCleanupService
+	Instance                 schedule.InstanceService
 	Users                    users.PersonService
 	CaregiverCapability      users.CaregiverCapabilityService
 	Guardian                 users.GuardianService
@@ -191,6 +196,16 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	// Initialize staff absence service
 	staffAbsenceService := active.NewStaffAbsenceService(repos.StaffAbsence, repos.WorkSession)
 
+	// Initialize attendance sync service (WP-B10). Implements
+	// active.AttendanceSyncer — called from CreateVisit / EndVisit to mirror
+	// into schedule.instance_students and enrich SSE events. No circular
+	// dependency because it only depends on repos, not on active.Service.
+	attendanceSyncService := schedule.NewAttendanceSyncService(
+		repos.ActivityInstance,
+		repos.InstanceStudent,
+		logger.With("service", "attendance-sync"),
+	)
+
 	// Initialize active service with SSE broadcaster
 	activeService := active.NewService(active.ServiceDependencies{
 		GroupRepo:          repos.ActiveGroup,
@@ -212,8 +227,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		EducationService:   educationService,
 		UsersService:       usersService,
 		DB:                 db,
-		Broadcaster:        realtimeHub,        // Pass SSE broadcaster
-		WorkSessionService: workSessionService, // NFC auto-check-in
+		Broadcaster:        realtimeHub,           // Pass SSE broadcaster
+		WorkSessionService: workSessionService,    // NFC auto-check-in
+		AttendanceSyncer:   attendanceSyncService, // WP-B10 mirror + SSE enrichment
 		Logger:             activeLogger,
 	})
 
@@ -258,6 +274,11 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		db,
 		logger,
 	)
+
+	// Inject settings resolver into active service so auto-clear of sick /
+	// excused flags respects the tenant's operations.sick_clear_mode and
+	// operations.excused_clear_mode settings.
+	activeService.SetSettingsService(settingsService)
 
 	// Initialize activities service
 	activitiesService, err := activities.NewService(
@@ -310,6 +331,76 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.StudentPickupException,
 		repos.StudentPickupNote,
 		db,
+	)
+
+	// Initialize calendar period service
+	calendarPeriodService := schedule.NewCalendarPeriodService(
+		repos.CalendarPeriod,
+		db,
+		logger.With("service", "calendar-period"),
+	)
+
+	// Initialize materialization service (WP-B8). Turns activity templates into
+	// concrete schedule.activity_instances + instance_staff/instance_students
+	// for a date window. Consumed by the scheduler task (gated on the
+	// timetable.materialization_enabled setting) and the manual admin endpoint.
+	materializationService := schedule.NewMaterializationService(
+		repos.ActivityGroup,
+		repos.ActivitySchedule,
+		repos.StudentEnrollment,
+		repos.ActivitySupervisor,
+		repos.CalendarPeriod,
+		repos.ActivityInstance,
+		repos.InstanceStaff,
+		repos.InstanceStudent,
+		repos.ActivityException,
+		repos.Timeframe,
+		calendarPeriodService,
+		db,
+		logger.With("service", "materialization"),
+	)
+
+	// Initialize timetable GDPR cleanup service (WP-B14). Deletes
+	// schedule.activity_instances (CASCADE → instance_staff + instance_students)
+	// and schedule.activity_exceptions older than the tenant's retention window.
+	// Per-student audit rows via DataDeletion; exceptions slog-only.
+	timetableCleanupService := schedule.NewTimetableCleanupService(
+		db,
+		repos.DataDeletion,
+		settingsService,
+		logger.With("service", "timetable-cleanup"),
+	)
+
+	// Initialize instance lifecycle service (WP-B9). Drives the state machine
+	// on schedule.activity_instances and its bridge to active.groups. Takes
+	// the active service as a dependency (for EndActivitySession) — when the
+	// bridge closes, visits + supervisors close and per-student checkout SSE
+	// events fire, matching today's observable behavior for a session ending.
+	instanceService := schedule.NewInstanceService(schedule.InstanceServiceDependencies{
+		InstanceRepo:      repos.ActivityInstance,
+		InstanceStaffRepo: repos.InstanceStaff,
+		InstanceStudents:  repos.InstanceStudent,
+		ActiveGroupRepo:   repos.ActiveGroup,
+		SupervisorRepo:    repos.GroupSupervisor,
+		VisitRepo:         repos.ActiveVisit,
+		RoomRepo:          repos.Room,
+		ActivityGroupRepo: repos.ActivityGroup,
+		ActiveService:     activeService,
+		Materialization:   materializationService,
+		Broadcaster:       realtimeHub,
+		DB:                db,
+		Logger:            logger.With("service", "instance-lifecycle"),
+	})
+
+	// Initialize arrival schedule service
+	arrivalScheduleService := schedule.NewArrivalScheduleService(
+		repos.StudentArrivalSchedule,
+		repos.StudentArrivalException,
+		repos.StudentArrivalNote,
+		repos.Student,
+		repos.Person,
+		db,
+		logger.With("service", "arrival-schedule"),
 	)
 
 	// Initialize auth service with validated config
@@ -530,6 +621,11 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Settings:                 settingsService,
 		Schedule:                 scheduleService,
 		PickupSchedule:           pickupScheduleService,
+		ArrivalSchedule:          arrivalScheduleService,
+		CalendarPeriod:           calendarPeriodService,
+		Materialization:          materializationService,
+		TimetableCleanup:         timetableCleanupService,
+		Instance:                 instanceService,
 		Users:                    usersService,
 		CaregiverCapability:      caregiverCapabilityService,
 		Guardian:                 guardianService,

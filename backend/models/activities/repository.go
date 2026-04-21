@@ -42,6 +42,11 @@ type GroupRepository interface {
 
 	// FindByStaffSupervisorToday finds all activity groups where a staff member is a supervisor for today
 	FindByStaffSupervisorToday(ctx context.Context, staffID int64) ([]*Group, error)
+
+	// FindAllTemplates returns all activity groups flagged as templates
+	// (is_template = true). Used by the materialization service to enumerate
+	// candidates when generating schedule.activity_instances rows.
+	FindAllTemplates(ctx context.Context) ([]*Group, error)
 }
 
 // ScheduleRepository defines operations for managing activity schedules
@@ -91,8 +96,8 @@ type StudentEnrollmentRepository interface {
 	// CountByGroupID counts the number of students enrolled in a specific group
 	CountByGroupID(ctx context.Context, groupID int64) (int, error)
 
-	// FindByEnrollmentDateRange finds enrollments within a date range
-	FindByEnrollmentDateRange(ctx context.Context, start, end time.Time) ([]*StudentEnrollment, error)
+	// FindByValidFromRange finds enrollments within a valid_from date range
+	FindByValidFromRange(ctx context.Context, start, end time.Time) ([]*StudentEnrollment, error)
 
 	// UpdateAttendanceStatus updates the attendance status for a specific enrollment
 	UpdateAttendanceStatus(ctx context.Context, id int64, status *string) error

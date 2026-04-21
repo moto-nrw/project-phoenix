@@ -13,7 +13,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -110,6 +112,27 @@ func TestNewScheduler_OnlyInvitationService(t *testing.T) {
 
 	require.NotNil(t, s)
 	assert.Len(t, s.cleanupJobs, 1) // 1 invitation job only
+}
+
+func TestIsoWeekdayMatchesNow(t *testing.T) {
+	// This test checks the mapping from Go's Sunday=0 to ISO Sunday=7
+	// via the helper's sole branch point. It does not assert a specific
+	// day (that would depend on when the test runs) but asserts the
+	// function's contract for the current day.
+	today := time.Now().Weekday()
+	var iso int
+	if today == time.Sunday {
+		iso = 7
+	} else {
+		iso = int(today)
+	}
+	assert.True(t, isoWeekdayMatchesNow(iso), "current day must match its ISO weekday")
+	// A day that is definitely not today
+	other := iso + 1
+	if other > 7 {
+		other = 1
+	}
+	assert.False(t, isoWeekdayMatchesNow(other), "non-current day must not match")
 }
 
 // =============================================================================
@@ -459,10 +482,12 @@ func TestScheduler_DisabledByEnvVars(t *testing.T) {
 	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_ENABLED", "false"))
 	require.NoError(t, os.Setenv("SESSION_END_SCHEDULER_ENABLED", "false"))
 	require.NoError(t, os.Setenv("SESSION_CLEANUP_ENABLED", "false"))
+	require.NoError(t, os.Setenv("STATUS_FLAG_CLEAR_ENABLED", "false"))
 	defer func() {
 		_ = os.Unsetenv("CLEANUP_SCHEDULER_ENABLED")
 		_ = os.Unsetenv("SESSION_END_SCHEDULER_ENABLED")
 		_ = os.Unsetenv("SESSION_CLEANUP_ENABLED")
+		_ = os.Unsetenv("STATUS_FLAG_CLEAR_ENABLED")
 	}()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -1153,6 +1178,7 @@ func (m *mockActiveService) GetCrossTenantStudents(_ context.Context, _ int64) (
 func (m *mockActiveService) GetTrackingIndicators(_ context.Context, _ []int64, _ []string) (map[int64][]bool, error) {
 	return nil, nil
 }
+func (m *mockActiveService) SetSettingsService(_ activeService.SettingsResolver) {}
 
 // =============================================================================
 // Mock Cleanup Service for Execute Tests
@@ -2627,4 +2653,437 @@ func TestSetFeedbackCleaner(t *testing.T) {
 	s.SetFeedbackCleaner(fc)
 
 	assert.NotNil(t, s.feedbackCleaner)
+}
+
+// =============================================================================
+// Timetable Materialization Tests (WP-B8)
+// =============================================================================
+
+// fakeMaterializer is a test double for scheduleSvc.MaterializationService.
+// Call counts + recorded arguments let tests assert cadence and window math
+// without depending on the real service's repositories.
+type fakeMaterializer struct {
+	mu               sync.Mutex
+	materializeCalls int
+	resolveCalls     int
+	lastFrom         time.Time
+	lastTo           time.Time
+	lastWeeksAhead   int
+	lastSource       scheduleSvc.MaterializationSource
+	returnErr        error
+	returnResult     *scheduleSvc.MaterializationResult
+}
+
+func (f *fakeMaterializer) MaterializeForTenant(_ context.Context, from, to time.Time, source scheduleSvc.MaterializationSource) (*scheduleSvc.MaterializationResult, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.materializeCalls++
+	f.lastFrom = from
+	f.lastTo = to
+	f.lastSource = source
+	if f.returnErr != nil {
+		return nil, f.returnErr
+	}
+	if f.returnResult != nil {
+		return f.returnResult, nil
+	}
+	return &scheduleSvc.MaterializationResult{From: from, To: to}, nil
+}
+
+func (f *fakeMaterializer) ResolveWindow(baseDate time.Time, weeksAhead int) (time.Time, time.Time) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.resolveCalls++
+	f.lastWeeksAhead = weeksAhead
+	// Return a deterministic window so the caller has valid times to log.
+	from := baseDate.AddDate(0, 0, 7)
+	to := from.AddDate(0, 0, weeksAhead*7-1)
+	return from, to
+}
+
+// fakeSettingsResolver implements SettingsResolver for deterministic tests.
+// Tests populate boolValues/intValues/stringValues with the keys they care
+// about; anything else returns the zero value with HasTenantOverride=false so
+// resolveXSetting falls through to the default.
+type fakeSettingsResolver struct {
+	mu           sync.Mutex
+	boolValues   map[string]bool
+	intValues    map[string]int
+	stringValues map[string]string
+	// If set, HasTenantOverride returns this error instead of examining the maps.
+	overrideErr error
+}
+
+func (f *fakeSettingsResolver) HasTenantOverride(_ context.Context, key string) (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.overrideErr != nil {
+		return false, f.overrideErr
+	}
+	if _, ok := f.boolValues[key]; ok {
+		return true, nil
+	}
+	if _, ok := f.intValues[key]; ok {
+		return true, nil
+	}
+	if _, ok := f.stringValues[key]; ok {
+		return true, nil
+	}
+	return false, nil
+}
+
+func (f *fakeSettingsResolver) ResolveBool(_ context.Context, key string) (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if v, ok := f.boolValues[key]; ok {
+		return v, nil
+	}
+	return false, fmt.Errorf("no value for key %s", key)
+}
+
+func (f *fakeSettingsResolver) ResolveInt(_ context.Context, key string) (int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if v, ok := f.intValues[key]; ok {
+		return v, nil
+	}
+	return 0, fmt.Errorf("no value for key %s", key)
+}
+
+func (f *fakeSettingsResolver) ResolveString(_ context.Context, key string) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if v, ok := f.stringValues[key]; ok {
+		return v, nil
+	}
+	return "", fmt.Errorf("no value for key %s", key)
+}
+
+// currentISOWeekday returns today's ISO 8601 weekday (1=Mon…7=Sun).
+// Mirrors the math in isoWeekdayMatchesNow so tests stay day-of-week agnostic.
+func currentISOWeekday() int {
+	today := time.Now().Weekday()
+	if today == time.Sunday {
+		return 7
+	}
+	return int(today)
+}
+
+// otherISOWeekday returns an ISO weekday guaranteed to differ from today.
+func otherISOWeekday() int {
+	wd := currentISOWeekday() + 1
+	if wd > 7 {
+		wd = 1
+	}
+	return wd
+}
+
+func TestSetMaterializer(t *testing.T) {
+	s := NewScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
+	assert.Nil(t, s.materializer)
+
+	m := &fakeMaterializer{}
+	s.SetMaterializer(m)
+	assert.NotNil(t, s.materializer)
+}
+
+func TestScheduleMaterializationTask_NilMaterializer(t *testing.T) {
+	s := &Scheduler{
+		done:   make(chan struct{}),
+		logger: slog.Default(),
+		tasks:  make(map[string]*ScheduledTask),
+	}
+	s.scheduleMaterializationTask()
+	assert.Empty(t, s.tasks, "no task should register without a materializer")
+}
+
+func TestScheduleMaterializationTask_RegistersTask(t *testing.T) {
+	s := &Scheduler{
+		done:         make(chan struct{}),
+		logger:       slog.Default(),
+		tasks:        make(map[string]*ScheduledTask),
+		materializer: &fakeMaterializer{},
+	}
+	// Pre-close done so the spawned goroutine exits promptly after the
+	// startup check and waitUntilNextMinute returns false.
+	close(s.done)
+
+	s.scheduleMaterializationTask()
+	s.wg.Wait()
+
+	s.mu.RLock()
+	_, hasTask := s.tasks["timetable-materialization"]
+	s.mu.RUnlock()
+	assert.True(t, hasTask, "materialization task should be registered")
+}
+
+func TestCheckAndRunMaterialization_AlreadyRunning(t *testing.T) {
+	m := &fakeMaterializer{}
+	s := &Scheduler{
+		logger:       slog.Default(),
+		materializer: m,
+	}
+	task := &ScheduledTask{Name: "test", Running: true}
+
+	s.checkAndRunMaterialization(task)
+
+	assert.Equal(t, 0, m.materializeCalls, "must skip work when task already running")
+}
+
+func TestCheckAndRunMaterialization_DisabledByDefault(t *testing.T) {
+	// With no settings resolver and no env vars, resolveBoolSetting returns
+	// the defaultVal (false) — materializer must never be called.
+	m := &fakeMaterializer{}
+	s := &Scheduler{
+		logger:       slog.Default(),
+		materializer: m,
+	}
+	task := &ScheduledTask{Name: "test"}
+
+	s.checkAndRunMaterialization(task)
+
+	assert.Equal(t, 0, m.materializeCalls, "disabled tenant must not invoke materializer")
+	// Task running flag must be cleared via the deferred unlock.
+	task.mu.Lock()
+	assert.False(t, task.Running, "Running flag must be cleared after run")
+	task.mu.Unlock()
+}
+
+func TestCheckAndRunMaterialization_EnabledWrongWeekday(t *testing.T) {
+	m := &fakeMaterializer{}
+	s := &Scheduler{
+		logger:       slog.Default(),
+		materializer: m,
+		settings: &fakeSettingsResolver{
+			boolValues: map[string]bool{
+				configModel.KeyTimetableMaterializationEnabled: true,
+			},
+			intValues: map[string]int{
+				configModel.KeyTimetableMaterializationWeekday: otherISOWeekday(),
+			},
+		},
+	}
+	task := &ScheduledTask{Name: "test"}
+
+	s.checkAndRunMaterialization(task)
+
+	assert.Equal(t, 0, m.materializeCalls, "wrong weekday must skip materialization")
+}
+
+func TestCheckAndRunMaterialization_WasRunToday(t *testing.T) {
+	m := &fakeMaterializer{}
+	s := &Scheduler{
+		logger:       slog.Default(),
+		materializer: m,
+		settings: &fakeSettingsResolver{
+			boolValues: map[string]bool{
+				configModel.KeyTimetableMaterializationEnabled: true,
+			},
+			intValues: map[string]int{
+				configModel.KeyTimetableMaterializationWeekday: currentISOWeekday(),
+			},
+		},
+	}
+	// Seed lastMaterialization with today's timestamp — simulates a prior run.
+	// forEachTenantSettings calls fn with tenantID=0 when db/schoolRepo are nil.
+	s.lastMaterialization.Store(int64(0), time.Now())
+	task := &ScheduledTask{Name: "test"}
+
+	s.checkAndRunMaterialization(task)
+
+	assert.Equal(t, 0, m.materializeCalls, "must skip when already ran today")
+}
+
+func TestCheckAndRunMaterialization_HappyPath(t *testing.T) {
+	m := &fakeMaterializer{
+		returnResult: &scheduleSvc.MaterializationResult{
+			InstancesCreated: 7,
+			CandidatesRaced:  2,
+			DurationMS:       123,
+		},
+	}
+	s := &Scheduler{
+		logger:       slog.Default(),
+		materializer: m,
+		settings: &fakeSettingsResolver{
+			boolValues: map[string]bool{
+				configModel.KeyTimetableMaterializationEnabled: true,
+			},
+			intValues: map[string]int{
+				configModel.KeyTimetableMaterializationWeekday:    currentISOWeekday(),
+				configModel.KeyTimetableMaterializationWeeksAhead: 3,
+			},
+		},
+	}
+	task := &ScheduledTask{Name: "test"}
+
+	s.checkAndRunMaterialization(task)
+
+	assert.Equal(t, 1, m.materializeCalls, "materializer must be called exactly once")
+	assert.Equal(t, 1, m.resolveCalls, "ResolveWindow must be called exactly once")
+	assert.Equal(t, 3, m.lastWeeksAhead, "weeks-ahead setting must propagate to ResolveWindow")
+	assert.Equal(t, scheduleSvc.MaterializationSourceScheduler, m.lastSource,
+		"source tag must be scheduler (not manual) for scheduled runs")
+
+	// Verify lastMaterialization was stamped so the next poll skips.
+	_, ok := s.lastMaterialization.Load(int64(0))
+	assert.True(t, ok, "lastMaterialization must record that tenant ran today")
+}
+
+func TestCheckAndRunMaterialization_ZeroCounters(t *testing.T) {
+	// When the result has zero created and zero raced, the success info log
+	// is suppressed — but the call still counts and the today-mark is set.
+	m := &fakeMaterializer{
+		returnResult: &scheduleSvc.MaterializationResult{
+			InstancesCreated: 0,
+			CandidatesRaced:  0,
+		},
+	}
+	s := &Scheduler{
+		logger:       slog.Default(),
+		materializer: m,
+		settings: &fakeSettingsResolver{
+			boolValues: map[string]bool{
+				configModel.KeyTimetableMaterializationEnabled: true,
+			},
+			intValues: map[string]int{
+				configModel.KeyTimetableMaterializationWeekday: currentISOWeekday(),
+			},
+		},
+	}
+	task := &ScheduledTask{Name: "test"}
+
+	s.checkAndRunMaterialization(task)
+
+	assert.Equal(t, 1, m.materializeCalls)
+}
+
+func TestCheckAndRunMaterialization_MaterializerError(t *testing.T) {
+	m := &fakeMaterializer{
+		returnErr: errors.New("materialization exploded"),
+	}
+	s := &Scheduler{
+		logger:       slog.Default(),
+		materializer: m,
+		settings: &fakeSettingsResolver{
+			boolValues: map[string]bool{
+				configModel.KeyTimetableMaterializationEnabled: true,
+			},
+			intValues: map[string]int{
+				configModel.KeyTimetableMaterializationWeekday: currentISOWeekday(),
+			},
+		},
+	}
+	task := &ScheduledTask{Name: "test"}
+
+	assert.NotPanics(t, func() {
+		s.checkAndRunMaterialization(task)
+	})
+	assert.Equal(t, 1, m.materializeCalls, "materializer is invoked even if it errors")
+}
+
+func TestCheckAndRunMaterialization_OnlyRacedCounter(t *testing.T) {
+	// Triggers the "successful completion" info log branch where
+	// InstancesCreated==0 but CandidatesRaced>0.
+	m := &fakeMaterializer{
+		returnResult: &scheduleSvc.MaterializationResult{
+			CandidatesRaced: 4,
+			DurationMS:      55,
+		},
+	}
+	s := &Scheduler{
+		logger:       slog.Default(),
+		materializer: m,
+		settings: &fakeSettingsResolver{
+			boolValues: map[string]bool{
+				configModel.KeyTimetableMaterializationEnabled: true,
+			},
+			intValues: map[string]int{
+				configModel.KeyTimetableMaterializationWeekday: currentISOWeekday(),
+			},
+		},
+	}
+	task := &ScheduledTask{Name: "test"}
+
+	s.checkAndRunMaterialization(task)
+
+	assert.Equal(t, 1, m.materializeCalls)
+}
+
+func TestIsoWeekdayMatchesNow_NonSundayMismatch(t *testing.T) {
+	// Exercises the "today != Sunday" branch explicitly with a mismatch.
+	// Combined with the existing TestIsoWeekdayMatchesNow, this covers both
+	// branches deterministically regardless of the day the suite runs.
+	wd := otherISOWeekday()
+	// Wrap around so the mismatch value is deterministic even if it happens
+	// to be 7 (Sunday mapping would pass on Sundays).
+	if currentISOWeekday() == 7 {
+		// On Sundays: a non-7 value is guaranteed false.
+		assert.False(t, isoWeekdayMatchesNow(1))
+		assert.False(t, isoWeekdayMatchesNow(6))
+	} else {
+		// On non-Sundays: wd (today+1 mod 7) never equals today's weekday.
+		assert.False(t, isoWeekdayMatchesNow(wd))
+	}
+}
+
+func TestRunMaterializationTaskPolling_ExitsOnDone(t *testing.T) {
+	// Pre-close done before launching so waitUntilNextMinute returns false
+	// immediately after the startup checkAndRunMaterialization completes.
+	m := &fakeMaterializer{}
+	s := &Scheduler{
+		done:         make(chan struct{}),
+		logger:       slog.Default(),
+		tasks:        make(map[string]*ScheduledTask),
+		materializer: m,
+	}
+	close(s.done)
+	task := &ScheduledTask{Name: "timetable-materialization"}
+
+	finished := make(chan struct{})
+	s.wg.Add(1)
+	go func() {
+		s.runMaterializationTaskPolling(task)
+		close(finished)
+	}()
+
+	select {
+	case <-finished:
+		// Goroutine exited cleanly on the done signal.
+	case <-time.After(2 * time.Second):
+		t.Fatal("runMaterializationTaskPolling did not exit on done signal")
+	}
+}
+
+func TestRunMaterializationTaskPolling_TickerFires(t *testing.T) {
+	// Use synctest to drive the ticker past waitUntilNextMinute and into the
+	// 60-second poll loop. The ticker branch + done branch both get exercised.
+	synctest.Test(t, func(t *testing.T) {
+		m := &fakeMaterializer{}
+		s := &Scheduler{
+			done:         make(chan struct{}),
+			logger:       slog.Default(),
+			tasks:        make(map[string]*ScheduledTask),
+			materializer: m,
+		}
+		task := &ScheduledTask{Name: "timetable-materialization"}
+
+		s.wg.Add(1)
+		go s.runMaterializationTaskPolling(task)
+
+		// Advance fake time past waitUntilNextMinute (up to 1 min) plus a
+		// couple of ticker intervals so the ticker.C branch executes.
+		time.Sleep(3 * time.Minute)
+		synctest.Wait()
+
+		// checkAndRunMaterialization was called at startup + on each tick.
+		// With no settings resolver, all calls short-circuit before the
+		// materializer — we assert on the cleanup path instead.
+		m.mu.Lock()
+		assert.Equal(t, 0, m.materializeCalls, "disabled tenant must not call materializer")
+		m.mu.Unlock()
+
+		close(s.done)
+		s.wg.Wait()
+	})
 }

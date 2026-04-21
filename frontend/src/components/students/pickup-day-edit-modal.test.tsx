@@ -39,6 +39,7 @@ const createMockDayData = (overrides?: Partial<DayData>): DayData => ({
   weekday: 2,
   isToday: false,
   showSick: false,
+  showExcused: false,
   exception: undefined,
   baseSchedule: {
     id: "1",
