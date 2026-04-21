@@ -36,6 +36,12 @@ import { activeService } from "~/lib/active-api";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
 import { TrackingIndicators } from "~/components/students/tracking-indicators";
 import { createLogger } from "~/lib/logger";
+import {
+  matchesTrackingFilter,
+  resolveTrackingFilterAfterLabelChange,
+  trackingFilterChipLabel,
+  type TrackingFilter,
+} from "./tracking-filter";
 
 const logger = createLogger({ component: "StudentSearchPage" });
 
@@ -73,6 +79,7 @@ function SearchPageContent() {
     initialAttendanceFilter,
   );
   const [pickupTimeFilter, setPickupTimeFilter] = useState("all");
+  const [trackingFilter, setTrackingFilter] = useState<TrackingFilter>("all");
 
   // Current time for pickup urgency calculation (updates every minute)
   const now = useMinuteClock();
@@ -153,6 +160,18 @@ function SearchPageContent() {
     async () => activeService.getTrackingIndicators(trackingStudentIds),
     { keepPreviousData: true, revalidateOnFocus: false },
   );
+
+  // Reset tracking filter if labels vanish or the selected label index becomes stale.
+  // Without this, the active-filter chip (guarded by trackingData.labels) can hide
+  // while trackingFilter remains set, leaving an invisible filter applied.
+  const trackingLabels = trackingData?.labels;
+  useEffect(() => {
+    const next = resolveTrackingFilterAfterLabelChange(
+      trackingFilter,
+      trackingData,
+    );
+    if (next !== trackingFilter) setTrackingFilter(next);
+  }, [trackingData, trackingFilter]);
 
   // Error type for proper heading display (Fix P3: substring matching on transformed string)
   type ErrorType = "permission" | "session" | "generic" | null;
@@ -251,12 +270,34 @@ function SearchPageContent() {
           { value: "none", label: "Keine Abholzeit" },
         ],
       },
+      ...(trackingLabels && trackingLabels.length > 0
+        ? [
+            {
+              id: "tracking",
+              label: "Aktivitäten heute",
+              type: "dropdown" as const,
+              value: trackingFilter,
+              onChange: (value: string | string[]) =>
+                setTrackingFilter(value as TrackingFilter),
+              options: [
+                { value: "all", label: "Alle Aktivitäten heute" },
+                ...trackingLabels.map((lbl, idx) => ({
+                  value: `missing:${idx}`,
+                  label: `Noch nicht in ${lbl}`,
+                })),
+                { value: "none_visited", label: "Noch nichts erledigt" },
+              ],
+            },
+          ]
+        : []),
     ],
     [
       selectedYear,
       selectedGroup,
       attendanceFilter,
       pickupTimeFilter,
+      trackingFilter,
+      trackingLabels,
       groups,
       studentsData,
     ],
@@ -317,6 +358,17 @@ function SearchPageContent() {
       });
     }
 
+    if (trackingLabels) {
+      const chipLabel = trackingFilterChipLabel(trackingFilter, trackingLabels);
+      if (chipLabel !== null) {
+        filters.push({
+          id: "tracking",
+          label: chipLabel,
+          onRemove: () => setTrackingFilter("all"),
+        });
+      }
+    }
+
     return filters;
   }, [
     searchTerm,
@@ -324,6 +376,8 @@ function SearchPageContent() {
     selectedGroup,
     attendanceFilter,
     pickupTimeFilter,
+    trackingFilter,
+    trackingLabels,
     groups,
   ]);
 
@@ -383,6 +437,10 @@ function SearchPageContent() {
       }
     }
 
+    if (!matchesTrackingFilter(student, trackingFilter, trackingData)) {
+      return false;
+    }
+
     return true;
   });
 
@@ -428,6 +486,7 @@ function SearchPageContent() {
           setSelectedYear("all");
           setAttendanceFilter("all");
           setPickupTimeFilter("all");
+          setTrackingFilter("all");
         }}
       />
 
