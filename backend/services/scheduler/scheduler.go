@@ -82,6 +82,7 @@ type Scheduler struct {
 	breakAutoEnder     BreakAutoEnder
 	feedbackCleaner    FeedbackCleaner
 	materializer       scheduleSvc.MaterializationService
+	timetableCleanup   scheduleSvc.TimetableCleanupService
 	settings           SettingsResolver
 	db                 *bun.DB
 	schoolRepo         platform.SchoolRepository
@@ -101,11 +102,12 @@ type Scheduler struct {
 	breakAutoEndIntervalSeconds int
 
 	// Per-tenant tracking for minute-polling (keyed by tenant ID)
-	lastSessionEnd      sync.Map // tenant_id → time.Time
-	lastDataCleanup     sync.Map // tenant_id → time.Time
-	lastSessionCleanup  sync.Map // tenant_id → time.Time
-	lastStatusFlagClear sync.Map // tenant_id → time.Time
-	lastMaterialization sync.Map // tenant_id → time.Time
+	lastSessionEnd       sync.Map // tenant_id → time.Time
+	lastDataCleanup      sync.Map // tenant_id → time.Time
+	lastSessionCleanup   sync.Map // tenant_id → time.Time
+	lastStatusFlagClear  sync.Map // tenant_id → time.Time
+	lastMaterialization  sync.Map // tenant_id → time.Time
+	lastTimetableCleanup sync.Map // tenant_id → time.Time (WP-B14)
 
 	// Overdue instance tracking (WP-B9). Re-fire guard so the same instance
 	// does not emit `instance_overdue` every minute for the same planned
@@ -181,6 +183,14 @@ func (s *Scheduler) SetMaterializer(m scheduleSvc.MaterializationService) {
 	s.materializer = m
 }
 
+// SetTimetableCleanup wires the timetable GDPR cleanup service (WP-B14). When
+// set, the scheduler registers the daily timetable-cleanup task in Start().
+// Nil is a valid configuration — the task simply does not register, matching
+// the opt-in shape of SetMaterializer.
+func (s *Scheduler) SetTimetableCleanup(svc scheduleSvc.TimetableCleanupService) {
+	s.timetableCleanup = svc
+}
+
 // SetDB sets the database connection for tenant-aware operations.
 func (s *Scheduler) SetDB(db *bun.DB) {
 	s.db = db
@@ -248,6 +258,11 @@ func (s *Scheduler) Start() {
 
 	// Schedule daily data cleanup at 2 AM
 	s.scheduleCleanupTask()
+
+	// Schedule daily timetable GDPR cleanup (WP-B14). Shares the same toggle
+	// and time as scheduleCleanupTask so admins configure one nightly window
+	// for all retention jobs.
+	s.scheduleTimetableCleanupTask()
 
 	// Schedule daily session end at configurable time (default 6 PM)
 	s.scheduleSessionEndTask()
@@ -1752,4 +1767,141 @@ func combineDayAndTime(day, tod time.Time) time.Time {
 	local := day.Local()
 	return time.Date(local.Year(), local.Month(), local.Day(),
 		tod.Hour(), tod.Minute(), tod.Second(), tod.Nanosecond(), time.Local)
+}
+
+// --- Timetable GDPR cleanup (WP-B14) ---
+//
+// Runs daily, gated on the SAME KeyDataCleanupEnabled toggle as the visits
+// cleanup. Admins configure one nightly window; both retention jobs honor it.
+// Deletes activity_instances (CASCADEs to instance_staff + instance_students)
+// and activity_exceptions older than the tenant's gdpr.timetable_retention_days.
+// Per-tenant iteration via forEachTenantSettings; dedupe via lastTimetableCleanup.
+
+// scheduleTimetableCleanupTask registers the daily timetable cleanup task
+// when a TimetableCleanupService has been wired in. Nil service → no task.
+func (s *Scheduler) scheduleTimetableCleanupTask() {
+	if s.timetableCleanup == nil {
+		s.getLogger().Info("timetable GDPR cleanup not configured (no TimetableCleanupService)")
+		return
+	}
+
+	task := &ScheduledTask{
+		Name:     "timetable-cleanup",
+		Schedule: "1m-poll",
+	}
+
+	s.mu.Lock()
+	s.tasks[task.Name] = task
+	s.mu.Unlock()
+
+	s.wg.Add(1)
+	go s.runTimetableCleanupTaskPolling(task)
+}
+
+// runTimetableCleanupTaskPolling ticks every minute and defers to
+// checkAndRunTimetableCleanup. Minute-aligned so HH:MM:00 ticks land
+// deterministically.
+func (s *Scheduler) runTimetableCleanupTaskPolling(task *ScheduledTask) {
+	defer s.wg.Done()
+	defer func() {
+		if r := recover(); r != nil {
+			err := fmt.Errorf("panic in timetable cleanup task: %v", r)
+			s.getLogger().Error("goroutine panic recovered", slog.String("error", err.Error()))
+			sentry.CurrentHub().Recover(r)
+			sentry.Flush(2 * time.Second)
+		}
+	}()
+
+	s.getLogger().Info("timetable cleanup task using minute-polling for per-tenant scheduling")
+
+	s.checkAndRunTimetableCleanup(task)
+
+	if !s.waitUntilNextMinute() {
+		return
+	}
+
+	ticker := time.NewTicker(60 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			s.checkAndRunTimetableCleanup(task)
+		case <-s.done:
+			return
+		}
+	}
+}
+
+// checkAndRunTimetableCleanup evaluates each tenant's cleanup settings and
+// runs timetable cleanup if the configured cleanup time matches now. Shares
+// KeyDataCleanupEnabled + KeyDataCleanupTime + KeyDataCleanupTimeoutMinutes
+// with the visits cleanup task — one admin switch for all nightly retention.
+func (s *Scheduler) checkAndRunTimetableCleanup(task *ScheduledTask) {
+	task.mu.Lock()
+	if task.Running {
+		task.mu.Unlock()
+		return
+	}
+	task.Running = true
+	task.mu.Unlock()
+	defer func() {
+		task.mu.Lock()
+		task.Running = false
+		task.mu.Unlock()
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Hour)
+	defer cancel()
+
+	s.forEachTenantSettings(ctx, "timetable-cleanup-check", func(tenantCtx context.Context, tenantID int64) error {
+		enabled := s.resolveBoolSetting(tenantCtx, configModel.KeyDataCleanupEnabled, "CLEANUP_SCHEDULER_ENABLED", true)
+		if !enabled {
+			return nil
+		}
+
+		cleanupTime := s.resolveStringSetting(tenantCtx, configModel.KeyDataCleanupTime, "CLEANUP_SCHEDULER_TIME", "02:00")
+		if !timeMatchesNow(cleanupTime) {
+			return nil
+		}
+
+		if wasRunToday(&s.lastTimetableCleanup, tenantID) {
+			return nil
+		}
+
+		// Mark immediately to prevent double-fire from concurrent ticks
+		markRunToday(&s.lastTimetableCleanup, tenantID)
+
+		s.getLogger().Info("running timetable GDPR cleanup for tenant",
+			slog.Int64("tenant_id", tenantID),
+			slog.String("cleanup_time", cleanupTime),
+		)
+
+		timeoutMinutes := s.resolveIntSetting(tenantCtx, configModel.KeyDataCleanupTimeoutMinutes, "CLEANUP_SCHEDULER_TIMEOUT_MINUTES", 30)
+		cleanupCtx, cleanupCancel := context.WithTimeout(tenantCtx, time.Duration(timeoutMinutes)*time.Minute)
+		defer cleanupCancel()
+
+		result, err := s.timetableCleanup.CleanupExpiredTimetableData(cleanupCtx)
+		if err != nil {
+			s.getLogger().Error("timetable cleanup failed for tenant",
+				slog.Int64("tenant_id", tenantID),
+				slog.String("error", err.Error()),
+			)
+			// Clear today-mark so retry on next matching minute succeeds.
+			s.lastTimetableCleanup.Delete(tenantID)
+			return nil
+		}
+
+		if result.InstancesDeleted > 0 || result.ExceptionsDeleted > 0 {
+			s.getLogger().Info("timetable cleanup completed for tenant",
+				slog.Int64("tenant_id", tenantID),
+				slog.Int("instances_deleted", result.InstancesDeleted),
+				slog.Int("exceptions_deleted", result.ExceptionsDeleted),
+				slog.Int("students_affected", result.StudentsAffected),
+				slog.Int("retention_days", result.RetentionDays),
+				slog.Int64("duration_ms", result.DurationMS),
+			)
+		}
+		return nil
+	})
 }
