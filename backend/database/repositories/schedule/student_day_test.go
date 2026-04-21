@@ -19,7 +19,7 @@ func TestInstanceStudentRepository_FindInstancesWithAttendanceByStudentAndDateRa
 	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
-	repo := scheduleRepo.NewInstanceStudentRepository(db).(*scheduleRepo.InstanceStudentRepository)
+	repo := scheduleRepo.NewInstanceStudentRepository(db)
 
 	student := testpkg.CreateTestStudent(t, db, "Noah", fmt.Sprintf("SD-%d", time.Now().UnixNano()), "3a")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)

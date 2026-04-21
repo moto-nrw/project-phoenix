@@ -246,6 +246,12 @@ type StudentArrivalExceptionRepository interface {
 	// FindByStudentIDsAndDate finds arrival exceptions for multiple students and a specific date (bulk query)
 	FindByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date time.Time) ([]*StudentArrivalException, error)
 
+	// FindByStudentIDAndDateRange finds arrival exceptions for a student whose
+	// exception_date falls within the inclusive [from, to] range, sorted by
+	// date. Used by the timetable per-student week endpoint to pre-load all
+	// exceptions in a single query.
+	FindByStudentIDAndDateRange(ctx context.Context, studentID int64, from, to time.Time) ([]*StudentArrivalException, error)
+
 	// DeleteByStudentID deletes all arrival exceptions for a student
 	DeleteByStudentID(ctx context.Context, studentID int64) error
 

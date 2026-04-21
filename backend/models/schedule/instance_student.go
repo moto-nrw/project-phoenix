@@ -184,4 +184,14 @@ type InstanceStudentRepository interface {
 	// Cancel(): a cancelled instance never ran, so "absent" would be a
 	// semantic misclaim.
 	BulkUpdateStatus(ctx context.Context, instanceID int64, fromStatus, toStatus string) (int, error)
+
+	// FindInstancesWithAttendanceByStudentAndDateRange returns one row per
+	// (instance_students, activity_instance) pair for the student across the
+	// inclusive date range, sorted by date then start time. Tenant-scoped via
+	// the caller's context. Single query — no N+1.
+	//
+	// Instances the student has no attendance row for (e.g. a spontaneous
+	// instance they dropped into without being enrolled) are NOT included;
+	// the handler layer enriches those via the visits-side lookup.
+	FindInstancesWithAttendanceByStudentAndDateRange(ctx context.Context, studentID int64, from, to time.Time) ([]*ScheduledInstanceRow, error)
 }

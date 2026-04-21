@@ -388,6 +388,36 @@ func (r *StudentPickupExceptionRepository) FindByStudentIDsAndDate(ctx context.C
 	return exceptions, nil
 }
 
+// FindByStudentIDAndDateRange finds pickup exceptions for a student whose
+// exception_date lies in the inclusive [from, to] range.
+func (r *StudentPickupExceptionRepository) FindByStudentIDAndDateRange(
+	ctx context.Context, studentID int64, from, to time.Time,
+) ([]*schedule.StudentPickupException, error) {
+	fromDate := timezone.DateOfUTC(from)
+	toDate := timezone.DateOfUTC(to)
+
+	var exceptions []*schedule.StudentPickupException
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&exceptions).
+		ModelTableExpr(`schedule.student_pickup_exceptions AS "student_pickup_exception"`).
+		Where(`"student_pickup_exception".student_id = ?`, studentID).
+		Where(`"student_pickup_exception".exception_date >= ?`, fromDate).
+		Where(`"student_pickup_exception".exception_date <= ?`, toDate).
+		Order("exception_date ASC")
+
+	if where, val, ok := base.TenantWhere(ctx, "student_pickup_exception"); ok {
+		query = query.Where(where, val)
+	}
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by student id and date range",
+			Err: err,
+		}
+	}
+	return exceptions, nil
+}
+
 // DeleteByStudentID deletes all pickup exceptions for a student
 func (r *StudentPickupExceptionRepository) DeleteByStudentID(ctx context.Context, studentID int64) error {
 	query := base.GetDB(ctx, r.db).NewDelete().

@@ -81,6 +81,10 @@ func (f *fakeRepo) BulkUpdateStatus(context.Context, int64, string, string) (int
 	panic("unused")
 }
 
+func (f *fakeRepo) FindInstancesWithAttendanceByStudentAndDateRange(context.Context, int64, time.Time, time.Time) ([]*schedule.ScheduledInstanceRow, error) {
+	panic("unused")
+}
+
 func (f *fakeRepo) UpdateAttendanceFromCheckin(context.Context, int64, int64, time.Time) (bool, error) {
 	panic("unused")
 }

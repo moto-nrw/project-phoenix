@@ -45,7 +45,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -349,34 +348,24 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Database = databaseAPI.NewResource(api.Services.Database, db)
 	api.GradeTransitions = adminAPI.NewGradeTransitionResource(api.Services.GradeTransition, db)
 	api.TimeTracking = timeTrackingAPI.NewResource(api.Services.WorkSession, api.Services.StaffAbsence, api.Services.Users, db)
-	// Type assertion: B11's FindInstancesWithAttendanceByStudentAndDateRange
-	// returns ScheduledInstanceRow (a repo-package type) and is therefore
-	// not declared on the InstanceStudentRepository interface. The factory
-	// hands us the interface value; the concrete type is always
-	// *schedule.InstanceStudentRepository at runtime.
-	studentDayRepo, ok := repoFactory.InstanceStudent.(*scheduleRepo.InstanceStudentRepository)
-	if !ok {
-		logger.Error("expected concrete *schedule.InstanceStudentRepository, got different type")
-	}
-	api.Timetable = timetableAPI.NewResource(
-		api.Services.CalendarPeriod,
-		api.Services.Materialization,
-		api.Services.Instance,
-		api.Services.Users,
-		repoFactory.InstanceStudent,
-		studentDayRepo,
-		repoFactory.ActivityInstance,
-		repoFactory.StudentArrivalSchedule,
-		repoFactory.StudentArrivalException,
-		repoFactory.StudentPickupSchedule,
-		repoFactory.StudentPickupException,
-		repoFactory.ActiveVisit,
-		repoFactory.Student,
-		api.Services.UserContext,
-		api.Services.Settings,
-		logger.With("handler", "timetable"),
-		db,
-	)
+	api.Timetable = timetableAPI.NewResource(timetableAPI.Dependencies{
+		CalendarPeriodService:  api.Services.CalendarPeriod,
+		MaterializationService: api.Services.Materialization,
+		InstanceService:        api.Services.Instance,
+		PersonService:          api.Services.Users,
+		InstanceStudentRepo:    repoFactory.InstanceStudent,
+		ActivityInstanceRepo:   repoFactory.ActivityInstance,
+		ArrivalScheduleRepo:    repoFactory.StudentArrivalSchedule,
+		ArrivalExceptionRepo:   repoFactory.StudentArrivalException,
+		PickupScheduleRepo:     repoFactory.StudentPickupSchedule,
+		PickupExceptionRepo:    repoFactory.StudentPickupException,
+		VisitRepo:              repoFactory.ActiveVisit,
+		StudentRepo:            repoFactory.Student,
+		UserContextService:     api.Services.UserContext,
+		SettingsService:        api.Services.Settings,
+		Logger:                 logger.With("handler", "timetable"),
+		DB:                     db,
+	})
 
 	// Initialize operator dashboard resources
 	api.Operator = operatorAPI.NewResource(operatorAPI.ResourceConfig{

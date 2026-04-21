@@ -13,7 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	scheduleRepoPkg "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -29,17 +28,15 @@ const dateLayout = "2006-01-02"
 
 // Resource defines the timetable API resource.
 //
-// instanceService, personService, instanceStudentRepo, and logger are optional
-// at construction time: tests that only exercise /periods or /materialize can
-// pass nil and will get a 500 on the dependent routes instead of a crash.
-// Production wiring must supply all of them via NewResource.
+// Optional services may be nil in tests that only exercise a subset of routes
+// — the dependent handler will return 500 instead of panicking. Production
+// wiring must populate every field.
 type Resource struct {
 	calendarPeriodService  scheduleSvc.CalendarPeriodService
 	materializationService scheduleSvc.MaterializationService
 	instanceService        scheduleSvc.InstanceService
 	personService          userSvc.PersonService
-	instanceStudentRepo    schedule.InstanceStudentRepository         // B10 PATCH (interface-typed for unit tests with fakes)
-	studentDayRepo         *scheduleRepoPkg.InstanceStudentRepository // B11 read (concrete type; holds FindInstancesWithAttendanceByStudentAndDateRange)
+	instanceStudentRepo    schedule.InstanceStudentRepository
 	activityInstanceRepo   schedule.ActivityInstanceRepository
 	arrivalScheduleRepo    schedule.StudentArrivalScheduleRepository
 	arrivalExceptionRepo   schedule.StudentArrivalExceptionRepository
@@ -53,51 +50,50 @@ type Resource struct {
 	db                     *bun.DB
 }
 
-// NewResource creates a new timetable resource. Optional services (see the
-// Resource doc) may be nil; passing nil for the materialization or instance
-// service makes the corresponding routes return 500 instead of silently
-// misbehaving.
-//
-// The B11 student day/week endpoints require the full set of arrival/pickup/
-// instance/visit repos plus studentRepo, userContextService, settingsService.
-// If any of them is nil, the student-side routes return 500 on request.
-func NewResource(
-	calendarPeriodService scheduleSvc.CalendarPeriodService,
-	materializationService scheduleSvc.MaterializationService,
-	instanceService scheduleSvc.InstanceService,
-	personService userSvc.PersonService,
-	instanceStudentRepo schedule.InstanceStudentRepository,
-	studentDayRepo *scheduleRepoPkg.InstanceStudentRepository,
-	activityInstanceRepo schedule.ActivityInstanceRepository,
-	arrivalScheduleRepo schedule.StudentArrivalScheduleRepository,
-	arrivalExceptionRepo schedule.StudentArrivalExceptionRepository,
-	pickupScheduleRepo schedule.StudentPickupScheduleRepository,
-	pickupExceptionRepo schedule.StudentPickupExceptionRepository,
-	visitRepo active.VisitRepository,
-	studentRepo users.StudentRepository,
-	userContextService usercontextSvc.UserContextService,
-	settingsService configSvc.SettingsService,
-	logger *slog.Logger,
-	db *bun.DB,
-) *Resource {
+// Dependencies bundles everything NewResource needs. Using a struct instead
+// of a positional signature keeps tests — which frequently only populate a
+// subset — readable and lets us add future deps without churning every call
+// site.
+type Dependencies struct {
+	CalendarPeriodService  scheduleSvc.CalendarPeriodService
+	MaterializationService scheduleSvc.MaterializationService
+	InstanceService        scheduleSvc.InstanceService
+	PersonService          userSvc.PersonService
+	InstanceStudentRepo    schedule.InstanceStudentRepository
+	ActivityInstanceRepo   schedule.ActivityInstanceRepository
+	ArrivalScheduleRepo    schedule.StudentArrivalScheduleRepository
+	ArrivalExceptionRepo   schedule.StudentArrivalExceptionRepository
+	PickupScheduleRepo     schedule.StudentPickupScheduleRepository
+	PickupExceptionRepo    schedule.StudentPickupExceptionRepository
+	VisitRepo              active.VisitRepository
+	StudentRepo            users.StudentRepository
+	UserContextService     usercontextSvc.UserContextService
+	SettingsService        configSvc.SettingsService
+	Logger                 *slog.Logger
+	DB                     *bun.DB
+}
+
+// NewResource creates a new timetable resource from the given Dependencies.
+// Nil deps are tolerated at construction time; the dependent handler returns
+// 500 at request time if one of its deps is unset.
+func NewResource(deps Dependencies) *Resource {
 	return &Resource{
-		calendarPeriodService:  calendarPeriodService,
-		materializationService: materializationService,
-		instanceService:        instanceService,
-		personService:          personService,
-		instanceStudentRepo:    instanceStudentRepo,
-		studentDayRepo:         studentDayRepo,
-		activityInstanceRepo:   activityInstanceRepo,
-		arrivalScheduleRepo:    arrivalScheduleRepo,
-		arrivalExceptionRepo:   arrivalExceptionRepo,
-		pickupScheduleRepo:     pickupScheduleRepo,
-		pickupExceptionRepo:    pickupExceptionRepo,
-		visitRepo:              visitRepo,
-		studentRepo:            studentRepo,
-		userContextService:     userContextService,
-		settingsService:        settingsService,
-		logger:                 logger,
-		db:                     db,
+		calendarPeriodService:  deps.CalendarPeriodService,
+		materializationService: deps.MaterializationService,
+		instanceService:        deps.InstanceService,
+		personService:          deps.PersonService,
+		instanceStudentRepo:    deps.InstanceStudentRepo,
+		activityInstanceRepo:   deps.ActivityInstanceRepo,
+		arrivalScheduleRepo:    deps.ArrivalScheduleRepo,
+		arrivalExceptionRepo:   deps.ArrivalExceptionRepo,
+		pickupScheduleRepo:     deps.PickupScheduleRepo,
+		pickupExceptionRepo:    deps.PickupExceptionRepo,
+		visitRepo:              deps.VisitRepo,
+		studentRepo:            deps.StudentRepo,
+		userContextService:     deps.UserContextService,
+		settingsService:        deps.SettingsService,
+		logger:                 deps.Logger,
+		db:                     deps.DB,
 	}
 }
 

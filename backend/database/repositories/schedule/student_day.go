@@ -9,20 +9,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 )
 
-// ScheduledInstanceRow pairs an activity instance with the caller's attendance
-// row on that instance. The timetable /student/{id}/day and /week endpoints
-// assemble their response from rows of this shape: the instance carries the
-// when/where/title, the attendance carries the student-specific status.
-//
-// Both fields are non-nil when returned by
-// FindInstancesWithAttendanceByStudentAndDateRange — the INNER JOIN guarantees
-// it. The struct lives in the repo package, not in models/schedule, because
-// it is a query-result shape, not a persistent entity.
-type ScheduledInstanceRow struct {
-	Instance   *schedule.ActivityInstance
-	Attendance *schedule.InstanceStudent
-}
-
 // scheduledInstanceScan is the flat row bun scans into; the repo then lifts
 // it into a pair of pointers. Keeping the column aliases explicit sidesteps
 // bun's cross-schema Relation limitations (same rationale as visits.go
@@ -64,18 +50,11 @@ type scheduledInstanceScan struct {
 	AiUpdatedAt       time.Time  `bun:"ai_updated_at"`
 }
 
-// FindInstancesWithAttendanceByStudentAndDateRange returns one row per
-// (instance_student, activity_instance) pair for the student in the inclusive
-// date range, sorted by date then start time. Tenant-scoped via the caller's
-// context. Single query — no N+1.
-//
-// Use this for the timetable per-student day/week aggregation. Instances
-// where the student has NO attendance row (e.g. a spontaneous instance they
-// dropped into without being enrolled) are NOT returned here — the handler
-// layer enriches those via the visits-side lookup.
+// FindInstancesWithAttendanceByStudentAndDateRange implements
+// schedule.InstanceStudentRepository.
 func (r *InstanceStudentRepository) FindInstancesWithAttendanceByStudentAndDateRange(
 	ctx context.Context, studentID int64, from, to time.Time,
-) ([]*ScheduledInstanceRow, error) {
+) ([]*schedule.ScheduledInstanceRow, error) {
 	var scans []scheduledInstanceScan
 
 	query := base.GetDB(ctx, r.db).NewSelect().
@@ -128,7 +107,7 @@ func (r *InstanceStudentRepository) FindInstancesWithAttendanceByStudentAndDateR
 		}
 	}
 
-	out := make([]*ScheduledInstanceRow, 0, len(scans))
+	out := make([]*schedule.ScheduledInstanceRow, 0, len(scans))
 	for i := range scans {
 		s := scans[i]
 		inst := &schedule.ActivityInstance{
@@ -168,7 +147,7 @@ func (r *InstanceStudentRepository) FindInstancesWithAttendanceByStudentAndDateR
 		att.UpdatedAt = s.IsUpdatedAt
 		att.SetTenantID(s.IsTenantID)
 
-		out = append(out, &ScheduledInstanceRow{Instance: inst, Attendance: att})
+		out = append(out, &schedule.ScheduledInstanceRow{Instance: inst, Attendance: att})
 	}
 	return out, nil
 }

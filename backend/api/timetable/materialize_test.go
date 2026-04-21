@@ -142,7 +142,7 @@ func TestMaterialize_NoBody_DefaultsToNextWeek(t *testing.T) {
 			InstanceStaffCreated:    2,
 		},
 	}
-	rs := NewResource(nil, mock, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	rs := NewResource(Dependencies{MaterializationService: mock})
 	router := setupMaterializeRouter(rs)
 
 	req := httptest.NewRequest(http.MethodPost, "/", nil)
@@ -162,7 +162,7 @@ func TestMaterialize_ValidBody_ParsesAndForwards(t *testing.T) {
 	mock := &mockMaterializer{
 		result: &scheduleSvc.MaterializationResult{InstancesCreated: 1},
 	}
-	rs := NewResource(nil, mock, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	rs := NewResource(Dependencies{MaterializationService: mock})
 	router := setupMaterializeRouter(rs)
 
 	body, _ := json.Marshal(map[string]string{
@@ -188,7 +188,7 @@ func TestMaterialize_ValidBody_ParsesAndForwards(t *testing.T) {
 
 func TestMaterialize_InvalidWindow_Returns400(t *testing.T) {
 	mock := &mockMaterializer{}
-	rs := NewResource(nil, mock, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	rs := NewResource(Dependencies{MaterializationService: mock})
 	router := setupMaterializeRouter(rs)
 
 	body, _ := json.Marshal(map[string]string{
@@ -205,7 +205,7 @@ func TestMaterialize_InvalidWindow_Returns400(t *testing.T) {
 }
 
 func TestMaterialize_NilService_Returns500(t *testing.T) {
-	rs := NewResource(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	rs := NewResource(Dependencies{})
 	router := setupMaterializeRouter(rs)
 
 	req := httptest.NewRequest(http.MethodPost, "/", nil)
@@ -217,7 +217,7 @@ func TestMaterialize_NilService_Returns500(t *testing.T) {
 
 func TestMaterialize_ServiceError_Returns500(t *testing.T) {
 	mock := &mockMaterializer{err: errors.New("boom")}
-	rs := NewResource(nil, mock, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	rs := NewResource(Dependencies{MaterializationService: mock})
 	router := setupMaterializeRouter(rs)
 
 	req := httptest.NewRequest(http.MethodPost, "/", nil)

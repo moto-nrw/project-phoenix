@@ -375,6 +375,36 @@ func (r *StudentArrivalExceptionRepository) FindByStudentIDsAndDate(ctx context.
 	return exceptions, nil
 }
 
+// FindByStudentIDAndDateRange finds arrival exceptions for a student whose
+// exception_date lies in the inclusive [from, to] range.
+func (r *StudentArrivalExceptionRepository) FindByStudentIDAndDateRange(
+	ctx context.Context, studentID int64, from, to time.Time,
+) ([]*schedule.StudentArrivalException, error) {
+	fromDate := timezone.DateOfUTC(from)
+	toDate := timezone.DateOfUTC(to)
+
+	var exceptions []*schedule.StudentArrivalException
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&exceptions).
+		ModelTableExpr(`schedule.student_arrival_exceptions AS "student_arrival_exception"`).
+		Where(`"student_arrival_exception".student_id = ?`, studentID).
+		Where(`"student_arrival_exception".exception_date >= ?`, fromDate).
+		Where(`"student_arrival_exception".exception_date <= ?`, toDate).
+		Order("exception_date ASC")
+
+	if where, val, ok := base.TenantWhere(ctx, "student_arrival_exception"); ok {
+		query = query.Where(where, val)
+	}
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by student id and date range",
+			Err: err,
+		}
+	}
+	return exceptions, nil
+}
+
 // DeleteByStudentID deletes all arrival exceptions for a student
 func (r *StudentArrivalExceptionRepository) DeleteByStudentID(ctx context.Context, studentID int64) error {
 	query := base.GetDB(ctx, r.db).NewDelete().

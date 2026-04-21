@@ -61,24 +61,20 @@ func buildStudentDaySetup(t *testing.T) *studentDaySetup {
 	})
 
 	// Wire the full resource with real repos for the B11 path.
-	isIface := scheduleRepo.NewInstanceStudentRepository(db)
-	studentDayConcrete := isIface.(*scheduleRepo.InstanceStudentRepository)
-
-	res := NewResource(
-		nil, nil, nil, nil, // calendar/material/instance/person services unused
-		isIface, studentDayConcrete,
-		scheduleRepo.NewActivityInstanceRepository(db),
-		scheduleRepo.NewStudentArrivalScheduleRepository(db),
-		scheduleRepo.NewStudentArrivalExceptionRepository(db),
-		scheduleRepo.NewStudentPickupScheduleRepository(db),
-		scheduleRepo.NewStudentPickupExceptionRepository(db),
-		activeRepo.NewVisitRepository(db),
-		usersRepo.NewStudentRepository(db),
-		nil, // userContextService — test path relies on admin perms
-		nil, // settingsService — CanReadStudent falls through to group-supervisor check
-		nil, // logger
-		db,
-	)
+	res := NewResource(Dependencies{
+		InstanceStudentRepo:  scheduleRepo.NewInstanceStudentRepository(db),
+		ActivityInstanceRepo: scheduleRepo.NewActivityInstanceRepository(db),
+		ArrivalScheduleRepo:  scheduleRepo.NewStudentArrivalScheduleRepository(db),
+		ArrivalExceptionRepo: scheduleRepo.NewStudentArrivalExceptionRepository(db),
+		PickupScheduleRepo:   scheduleRepo.NewStudentPickupScheduleRepository(db),
+		PickupExceptionRepo:  scheduleRepo.NewStudentPickupExceptionRepository(db),
+		VisitRepo:            activeRepo.NewVisitRepository(db),
+		StudentRepo:          usersRepo.NewStudentRepository(db),
+		// UserContextService + SettingsService intentionally nil:
+		// admin-perm path short-circuits CanReadStudent; the 403 test relies on
+		// the fallthrough returning false when userCtx is nil.
+		DB: db,
+	})
 
 	return &studentDaySetup{
 		res:        res,
@@ -482,4 +478,36 @@ func TestGetStudentWeek_MissingParams_Returns400(t *testing.T) {
 	w := doGet(t, router, fmt.Sprintf("/student/%d/week?from=2026-04-22", s.studentID))
 	require.Equal(t, http.StatusBadRequest, w.Code)
 	assert.Contains(t, w.Body.String(), "from and to are required")
+}
+
+// queryCounterHook counts every SELECT the handler issues during a /week
+// call. Exists purely to regression-guard the N+1 fix: /week over any valid
+// range must stay at or below the 7-query ceiling.
+type queryCounterHook struct{ n int64 }
+
+func (h *queryCounterHook) BeforeQuery(ctx context.Context, _ *bun.QueryEvent) context.Context {
+	h.n++
+	return ctx
+}
+func (h *queryCounterHook) AfterQuery(context.Context, *bun.QueryEvent) {}
+
+// TestGetStudentWeek_QueryBudget_BatchedNotNPlusOne locks in the N+1 fix:
+// a 14-day /week must fire at most 7 DB queries (enrolled + instances +
+// visits + 2 schedules + 2 exceptions). Previously this was ~98.
+func TestGetStudentWeek_QueryBudget_BatchedNotNPlusOne(t *testing.T) {
+	s := buildStudentDaySetup(t)
+
+	hook := &queryCounterHook{}
+	s.db.AddQueryHook(hook)
+
+	router := adminRouter(s.ctx, s.res)
+	w := doGet(t, router, fmt.Sprintf("/student/%d/week?from=2026-04-01&to=2026-04-14", s.studentID))
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+
+	// FindByID (student resolution) + up to 7 preload queries = 8. Allow a
+	// little headroom for implicit bun/pg metadata queries; assert we're
+	// far below the pre-fix 14*7=98 regime.
+	assert.LessOrEqual(t, hook.n, int64(12),
+		"14-day /week must stay under the batched ceiling, got %d", hook.n)
+	t.Logf("14-day /week fired %d queries", hook.n)
 }

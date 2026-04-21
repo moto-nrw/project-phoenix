@@ -3,7 +3,6 @@ package timetable
 import (
 	"time"
 
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -79,7 +78,7 @@ type StudentWeekResponse struct {
 // wire shape. The attendance row is authoritative — status/substatus/note/
 // checked_in_at come from it directly. is_unplanned is always false here
 // (enrolled = has an instance_students row).
-func mapEnrolledInstance(row *scheduleRepo.ScheduledInstanceRow) InstanceDayResponse {
+func mapEnrolledInstance(row *scheduleModel.ScheduledInstanceRow) InstanceDayResponse {
 	att := row.Attendance
 	resp := InstanceDayResponse{
 		ID:            row.Instance.ID,
