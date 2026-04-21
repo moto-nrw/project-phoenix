@@ -22,9 +22,10 @@ type DataDeletion struct {
 
 // DeletionType constants
 const (
-	DeletionTypeVisitRetention = "visit_retention"
-	DeletionTypeManual         = "manual"
-	DeletionTypeGDPRRequest    = "gdpr_request"
+	DeletionTypeVisitRetention     = "visit_retention"
+	DeletionTypeManual             = "manual"
+	DeletionTypeGDPRRequest        = "gdpr_request"
+	DeletionTypeTimetableRetention = "timetable_retention"
 )
 
 // TableName returns the database table name
@@ -44,7 +45,7 @@ func (dd *DataDeletion) Validate() error {
 
 	// Validate deletion type
 	switch dd.DeletionType {
-	case DeletionTypeVisitRetention, DeletionTypeManual, DeletionTypeGDPRRequest:
+	case DeletionTypeVisitRetention, DeletionTypeManual, DeletionTypeGDPRRequest, DeletionTypeTimetableRetention:
 		// Valid types
 	default:
 		return errors.New("invalid deletion type")
