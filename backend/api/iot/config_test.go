@@ -116,6 +116,43 @@ func TestGetDeviceConfig_AllDefaults(t *testing.T) {
 	feedback, ok := data["feedback"].(map[string]any)
 	require.True(t, ok, "data should have feedback field")
 	assert.Equal(t, true, feedback["enabled"])
+
+	// Default presence_mode is "detailed" (backwards-compatible for tenants
+	// that never configured the setting).
+	assert.Equal(t, "detailed", data["presence_mode"])
+}
+
+func TestGetDeviceConfig_PresenceModeBinary(t *testing.T) {
+	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
+
+	rs := &Resource{
+		SettingsService: &configMockSettings{
+			boolValues: map[string]bool{
+				"checkout.raumwechsel_enabled": false, // typically off in binary (no rooms)
+				"checkout.schulhof_enabled":    true,  // binary + schulhof → 3-button kiosk
+				"checkout.wc_enabled":          false, // WC is visit-only; hidden in binary
+				"feedback.enabled":             false,
+			},
+			stringValues: map[string]string{
+				"operations.presence_mode": "binary",
+			},
+		},
+	}
+
+	req := httptest.NewRequest("GET", "/api/iot/config", nil)
+	ctx := context.WithValue(req.Context(), device.CtxDevice, &iot.Device{TenantModel: base.TenantModel{TenantID: 1}})
+	req = req.WithContext(ctx)
+	w := httptest.NewRecorder()
+
+	rs.getDeviceConfig(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var response map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+
+	data := response["data"].(map[string]any)
+	assert.Equal(t, "binary", data["presence_mode"], "binary-mode tenants must advertise binary so the kiosk branches its UX")
 }
 
 func TestGetDeviceConfig_ButtonsDisabled(t *testing.T) {

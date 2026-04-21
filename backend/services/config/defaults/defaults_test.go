@@ -54,6 +54,9 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"timetable.overdue_threshold_minutes",
 		"timetable.show_expected_children_count",
 		"gdpr.timetable_retention_days",
+		// Presence-mode work package: tenant presence tracking model + who can check-in via web.
+		"operations.presence_mode",
+		"attendance.web_checkin_access",
 	}
 
 	for _, key := range expectedKeys {
@@ -68,6 +71,31 @@ func TestAllSettingsRegistered(t *testing.T) {
 	// settings == 37 minimum. The `>=` is intentional so later work packages can
 	// add more settings without retrofitting this assertion.
 	assert.GreaterOrEqual(t, len(all), 37, "at least 37 settings should be registered (28 existing + 7 timetable + 2 clear-mode)")
+}
+
+func TestPresenceModeSetting(t *testing.T) {
+	def := config.GetDefinition(config.KeyPresenceMode)
+	require.NotNil(t, def, "operations.presence_mode should be registered")
+	assert.Equal(t, config.FieldSelect, def.Type)
+	assert.Equal(t, config.PresenceModeDetailed, def.Default, "default must be detailed for backwards compatibility")
+	assert.Equal(t, config.AccessOperatorOnly, def.AccessPolicy, "presence_mode is operator-only — cascading impact too large for tenant admins")
+	assert.Equal(t, "operations", def.Tab)
+	require.NotNil(t, def.Options)
+	require.Len(t, def.Options.Static, 2)
+	values := []any{def.Options.Static[0].Value, def.Options.Static[1].Value}
+	assert.Contains(t, values, config.PresenceModeDetailed)
+	assert.Contains(t, values, config.PresenceModeBinary)
+}
+
+func TestWebCheckinAccessSetting(t *testing.T) {
+	def := config.GetDefinition(config.KeyWebCheckinAccess)
+	require.NotNil(t, def, "attendance.web_checkin_access should be registered")
+	assert.Equal(t, config.FieldSelect, def.Type)
+	assert.Equal(t, config.WebCheckinAccessGroupSupervisors, def.Default, "default must be the restrictive option (group supervisors only)")
+	assert.Equal(t, config.AccessShared, def.AccessPolicy, "web_checkin_access is a tenant-admin decision, not operator-only")
+	assert.Equal(t, "operations", def.Tab)
+	require.NotNil(t, def.Options)
+	require.Len(t, def.Options.Static, 2)
 }
 
 func TestTimetableSettings_Types(t *testing.T) {

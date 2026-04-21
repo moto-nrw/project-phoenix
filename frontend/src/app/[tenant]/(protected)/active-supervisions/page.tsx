@@ -14,6 +14,7 @@ import { redirect } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { ForbiddenPage } from "~/components/ui/forbidden-page";
+import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { Alert } from "~/components/ui/alert";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
@@ -1692,15 +1693,19 @@ function ActiveSupervisionGate({
   return <ForbiddenPage />;
 }
 
-// Main component with Suspense wrapper
+// Main component with Suspense wrapper. BinaryModeGuard runs first so
+// binary-mode tenants get a 404 before the supervision gate tries to load
+// data that depends on detailed-mode room visits.
 export default function MeinRaumPage() {
   return (
-    <Suspense fallback={<Loading fullPage={false} />}>
-      <ActiveSupervisionGate>
-        <SSEErrorBoundary>
-          <MeinRaumPageContent />
-        </SSEErrorBoundary>
-      </ActiveSupervisionGate>
-    </Suspense>
+    <BinaryModeGuard>
+      <Suspense fallback={<Loading fullPage={false} />}>
+        <ActiveSupervisionGate>
+          <SSEErrorBoundary>
+            <MeinRaumPageContent />
+          </SSEErrorBoundary>
+        </ActiveSupervisionGate>
+      </Suspense>
+    </BinaryModeGuard>
   );
 }

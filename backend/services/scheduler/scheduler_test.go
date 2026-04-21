@@ -1179,6 +1179,7 @@ func (m *mockActiveService) GetTrackingIndicators(_ context.Context, _ []int64, 
 	return nil, nil
 }
 func (m *mockActiveService) SetSettingsService(_ activeService.SettingsResolver) {}
+func (m *mockActiveService) GetPresenceMode(_ context.Context) string            { return "detailed" }
 
 // =============================================================================
 // Mock Cleanup Service for Execute Tests

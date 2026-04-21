@@ -21,6 +21,46 @@ import (
 // AccessAdminOnly setting (e.g. the OGS device PIN). Surfaced as HTTP 403.
 const errAdminOnlyForOperator = "this setting is admin-only and cannot be modified by operators"
 
+// errPresenceModeSwitchBlocked is shown to the operator when they try to flip
+// operations.presence_mode while students are still checked in for the day.
+// German string matches the plan's agreed copy — the settings UI surfaces the
+// backend error message verbatim.
+const errPresenceModeSwitchBlocked = "Moduswechsel während aktiver Anwesenheit nicht möglich. Bitte zunächst Tagesabschluss durchführen."
+
+// enforcePresenceModeSwitchGuard rejects an in-progress write to
+// operations.presence_mode when any student is currently checked in for the
+// tenant. Runs inside the same tenant transaction as the write itself so RLS
+// scopes the attendance query automatically. Callers may bypass the guard
+// with `?force=true` for operational recovery.
+//
+// Why guard only the switch, not every write: the cascading impact of
+// flipping presence mode mid-day (stale open visits, SSE events mis-keyed,
+// device UX inconsistent with the tenant it's authenticated for) is far
+// larger than any other operator setting. Other keys don't need this.
+func enforcePresenceModeSwitchGuard(ctx context.Context, tx bun.Tx, key string, force bool) error {
+	if key != configModel.KeyPresenceMode {
+		return nil
+	}
+	if force {
+		return nil
+	}
+	var exists bool
+	err := tx.NewRaw(`
+		SELECT EXISTS(
+			SELECT 1 FROM active.attendance
+			WHERE date = CURRENT_DATE
+			  AND check_out_time IS NULL
+		)
+	`).Scan(ctx, &exists)
+	if err != nil {
+		return fmt.Errorf("failed to check active attendance before mode switch: %w", err)
+	}
+	if exists {
+		return errors.New(errPresenceModeSwitchBlocked)
+	}
+	return nil
+}
+
 // guardOperatorWrite blocks the operator from set/reset/reveal on AccessAdminOnly settings.
 // Returns true when the handler should abort (response has already been written).
 func guardOperatorWrite(w http.ResponseWriter, r *http.Request, key string) bool {
@@ -106,8 +146,15 @@ func (rs *SettingsResource) SetSchoolSettingValue(w http.ResponseWriter, r *http
 
 	claims := jwt.ClaimsFromCtx(r.Context())
 	changedBy := int64(claims.ID)
+	// ?force=true lets operators bypass the presence-mode switch guard when
+	// doing maintenance recovery (e.g. stuck attendance rows blocking the
+	// switch). Everything else ignores the flag.
+	force := r.URL.Query().Get("force") == "true"
 
-	err := tenant.WithTenantTx(r.Context(), rs.db, schoolID, func(ctx context.Context, _ bun.Tx) error {
+	err := tenant.WithTenantTx(r.Context(), rs.db, schoolID, func(ctx context.Context, tx bun.Tx) error {
+		if err := enforcePresenceModeSwitchGuard(ctx, tx, key, force); err != nil {
+			return err
+		}
 		if err := rs.settingsService.SetValue(ctx, key, req.Value, &changedBy, nil); err != nil {
 			return err
 		}
@@ -117,6 +164,12 @@ func (rs *SettingsResource) SetSchoolSettingValue(w http.ResponseWriter, r *http
 		return nil
 	})
 	if err != nil {
+		// Dedicated 409 path for the mode-switch block so the frontend can
+		// surface the "daily end required" copy without heuristics.
+		if err.Error() == errPresenceModeSwitchBlocked {
+			render.Render(w, r, ErrConflict(errPresenceModeSwitchBlocked)) //nolint:errcheck
+			return
+		}
 		renderOperatorSettingsError(w, r, err)
 		return
 	}

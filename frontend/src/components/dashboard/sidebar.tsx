@@ -9,6 +9,7 @@ import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
 import { useSession } from "next-auth/react";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { useShellAuth } from "~/lib/shell-auth-context";
+import { usePresenceMode } from "~/lib/hooks/use-presence-mode";
 import { hasRole, isCaregiver } from "~/lib/auth-utils";
 import { operatorPath } from "~/lib/operator-url";
 import { useSidebarAccordion } from "~/lib/hooks/use-sidebar-accordion";
@@ -262,10 +263,19 @@ function SidebarContent({ className = "" }: SidebarProps) {
 
   const userIsAdmin = hasRole(session, "admin");
   const userIsCaregiver = isCaregiver(session);
+  const presenceMode = usePresenceMode();
+  const isBinaryMode = presenceMode === "binary";
+
+  // Nav items hidden in binary-mode tenants. Rooms and Activities are room/visit
+  // concepts with no operational meaning when the tenant only tracks
+  // in-school/out-of-school on active.attendance. The Aktuelle-Aufsicht
+  // accordion is gated separately below (it's not in NAV_ITEMS).
+  const BINARY_HIDDEN_HREFS = new Set<string>(["/rooms", "/activities"]);
 
   // Filter flat navigation items based on permissions
   const filteredNavItems = NAV_ITEMS.filter((item) => {
     if (item.hideForAdmin && userIsAdmin && !userIsCaregiver) return false;
+    if (isBinaryMode && BINARY_HIDDEN_HREFS.has(item.href)) return false;
     if (item.alwaysShow) return true;
     if (item.requiresAdmin && !userIsAdmin) return false;
     return true;
@@ -649,8 +659,9 @@ function SidebarContent({ className = "" }: SidebarProps) {
             </SidebarAccordionSection>
           )}
 
-          {/* Aktuelle Aufsicht accordion (staff only) */}
-          {showStaffAccordions && (
+          {/* Aktuelle Aufsicht accordion (staff only; hidden in binary mode
+              because room-level supervision has no meaning without visits) */}
+          {showStaffAccordions && !isBinaryMode && (
             <SidebarAccordionSection
               icon="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
               label={

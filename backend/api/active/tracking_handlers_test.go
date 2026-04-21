@@ -86,6 +86,9 @@ func (m *trackingMockActiveService) GetTrackingIndicators(ctx context.Context, s
 	return nil, nil
 }
 func (m *trackingMockActiveService) SetSettingsService(_ activeSvc.SettingsResolver) {}
+func (m *trackingMockActiveService) GetPresenceMode(_ context.Context) string {
+	return "detailed"
+}
 
 // Stub out the rest of the Service interface:
 func (m *trackingMockActiveService) GetAllActiveSupervisions(_ context.Context) ([]*activeModel.GroupSupervisor, error) {

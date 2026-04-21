@@ -118,6 +118,12 @@ type Service interface {
 	// Each student gets a []bool aligned with the labels slice.
 	GetTrackingIndicators(ctx context.Context, studentIDs []int64, labels []string) (map[int64][]bool, error)
 
+	// GetPresenceMode resolves the tenant's presence mode ("detailed" | "binary").
+	// Fails safe to "detailed" when the settings resolver is nil or the lookup
+	// errors. Use this instead of calling the settings service directly so every
+	// caller gets consistent fallback behavior.
+	GetPresenceMode(ctx context.Context) string
+
 	// Injects the tenant-scoped settings resolver (optional).
 	// Called by the factory after the settings service is constructed.
 	SetSettingsService(resolver SettingsResolver)
@@ -278,11 +284,19 @@ type CleanupPreview struct {
 
 // AttendanceStatus represents a student's current attendance status for the day
 type AttendanceStatus struct {
-	StudentID    int64      `json:"student_id"`
-	Status       string     `json:"status"` // "not_checked_in", "checked_in", "checked_out"
+	StudentID int64 `json:"student_id"`
+	// Status is derived from the attendance row's timestamps:
+	//   "not_checked_in" — no attendance row today
+	//   "checked_in"     — row exists, CheckOutTime nil, YardSince nil (in the building)
+	//   "on_yard"        — row exists, CheckOutTime nil, YardSince non-nil (on premises, outside the building)
+	//   "checked_out"    — CheckOutTime non-nil (formally left school)
+	Status       string     `json:"status"`
 	Date         time.Time  `json:"date"`
 	CheckInTime  *time.Time `json:"check_in_time"`
 	CheckOutTime *time.Time `json:"check_out_time"`
+	// YardSince, when non-nil, marks the moment the student moved to the
+	// schoolyard without checking out. Only meaningful while Status == "on_yard".
+	YardSince    *time.Time `json:"yard_since,omitempty"`
 	CheckedInBy  string     `json:"checked_in_by"`  // Formatted as "FirstName LastName"
 	CheckedOutBy string     `json:"checked_out_by"` // Formatted as "FirstName LastName"
 }

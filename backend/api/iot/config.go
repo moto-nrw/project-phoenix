@@ -9,6 +9,7 @@ import (
 	checkinAPI "github.com/moto-nrw/project-phoenix/api/iot/checkin"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 )
 
 // deviceConfigCheckout holds checkout button visibility settings.
@@ -25,9 +26,14 @@ type deviceConfigFeedback struct {
 }
 
 // deviceConfigResponse is the payload for GET /api/iot/config.
+// PresenceMode tells the kiosk whether the tenant runs the detailed flow
+// (room selection, visit tracking) or the binary flow (attendance only —
+// simpler single-tap door kiosk). Old kiosk builds that don't read the field
+// default to detailed behavior, so the contract is backwards-compatible.
 type deviceConfigResponse struct {
-	Checkout deviceConfigCheckout `json:"checkout"`
-	Feedback deviceConfigFeedback `json:"feedback"`
+	Checkout     deviceConfigCheckout `json:"checkout"`
+	Feedback     deviceConfigFeedback `json:"feedback"`
+	PresenceMode string               `json:"presence_mode"`
 }
 
 // getDeviceConfig returns device-relevant settings for the authenticated device's school.
@@ -70,6 +76,11 @@ func (rs *Resource) getDeviceConfig(w http.ResponseWriter, r *http.Request) {
 		dailyCheckoutTime = &rawTime
 	}
 
+	// Resolve presence mode. Device auth runs before tenant middleware sets
+	// the PostgreSQL tenant role, so we use the ForTenant variant which opens
+	// its own tenant transaction.
+	presenceMode := configSvc.ResolvePresenceModeForTenant(r.Context(), rs.SettingsService, deviceCtx.TenantID, rs.getLogger())
+
 	response := deviceConfigResponse{
 		Checkout: deviceConfigCheckout{
 			RaumwechselEnabled: raumwechsel,
@@ -80,6 +91,7 @@ func (rs *Resource) getDeviceConfig(w http.ResponseWriter, r *http.Request) {
 		Feedback: deviceConfigFeedback{
 			Enabled: feedbackEnabled,
 		},
+		PresenceMode: presenceMode,
 	}
 
 	common.Respond(w, r, http.StatusOK, response, "Device configuration retrieved")

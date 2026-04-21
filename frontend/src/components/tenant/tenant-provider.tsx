@@ -10,7 +10,12 @@ interface TenantContextValue {
   tenant: TenantInfo | null;
 }
 
-const TenantContext = createContext<TenantContextValue | null>(null);
+/**
+ * Exported so sibling hooks (e.g. `usePresenceMode`) can subscribe to the
+ * same context without routing through `useTenant()` — which throws outside
+ * the provider. The hooks return safe defaults when the context is missing.
+ */
+export const TenantContext = createContext<TenantContextValue | null>(null);
 
 /**
  * Provides tenant context to all child components within the [tenant] route segment.

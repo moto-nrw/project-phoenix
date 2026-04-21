@@ -21,6 +21,7 @@ import {
   switchTenant,
   performTenantSwitch,
   loginImageSrc,
+  normalizePresenceMode,
 } from "./tenant-api";
 
 // ============================================================================
@@ -42,6 +43,30 @@ describe("tenant-api", () => {
   // --------------------------------------------------------------------------
   // loginImageSrc (pure helper, no fetch)
   // --------------------------------------------------------------------------
+
+  describe("normalizePresenceMode", () => {
+    it("returns 'binary' for exact match", () => {
+      expect(normalizePresenceMode("binary")).toBe("binary");
+    });
+
+    it("returns 'detailed' for exact match", () => {
+      expect(normalizePresenceMode("detailed")).toBe("detailed");
+    });
+
+    it("returns 'detailed' for unknown strings (safe default)", () => {
+      expect(normalizePresenceMode("futuristic")).toBe("detailed");
+    });
+
+    it("returns 'detailed' for undefined/null", () => {
+      expect(normalizePresenceMode(undefined)).toBe("detailed");
+      expect(normalizePresenceMode(null)).toBe("detailed");
+    });
+
+    it("returns 'detailed' for non-string types (defensive)", () => {
+      expect(normalizePresenceMode(42)).toBe("detailed");
+      expect(normalizePresenceMode({})).toBe("detailed");
+    });
+  });
 
   describe("loginImageSrc", () => {
     it("extracts filename from stored path", () => {
@@ -104,6 +129,9 @@ describe("tenant-api", () => {
         organizationId: 10,
         organizationName: "Org A",
         settings: { primaryColor: "#ff0000" },
+        // Missing presence_mode on a backend response defaults to "detailed"
+        // — matches backend's own safe fallback.
+        presenceMode: "detailed",
       });
     });
 
@@ -123,6 +151,54 @@ describe("tenant-api", () => {
       const result = await resolveTenant("demo-school");
 
       expect(result).toBeNull();
+    });
+
+    it("passes through presenceMode=binary when the backend advertises it", async () => {
+      const backendData = {
+        status: "success",
+        data: {
+          tenant_id: 2,
+          slug: "binary-school",
+          name: "Binary School",
+          subdomain: "binary",
+          organization_id: 11,
+          organization_name: "Org B",
+          settings: {},
+          presence_mode: "binary",
+        },
+      };
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        new Response(JSON.stringify(backendData), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+      const result = await resolveTenant("binary-school");
+      expect(result?.presenceMode).toBe("binary");
+    });
+
+    it("defaults unknown presence_mode values to detailed", async () => {
+      const backendData = {
+        status: "success",
+        data: {
+          tenant_id: 3,
+          slug: "weird-school",
+          name: "Weird",
+          subdomain: "weird",
+          organization_id: 12,
+          organization_name: "Org C",
+          settings: {},
+          presence_mode: "futuristic", // unknown — normalize to "detailed"
+        },
+      };
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        new Response(JSON.stringify(backendData), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+      const result = await resolveTenant("weird-school");
+      expect(result?.presenceMode).toBe("detailed");
     });
 
     it("defaults settings to empty object when not provided", async () => {
@@ -196,6 +272,9 @@ describe("tenant-api", () => {
         organizationId: 0,
         organizationName: "Org Alpha",
         settings: {},
+        // List endpoints don't carry per-tenant presence mode; consumers
+        // call resolveTenant() once the user picks a tenant.
+        presenceMode: "detailed",
       });
     });
 
@@ -311,6 +390,9 @@ describe("tenant-api", () => {
         organizationId: 10,
         organizationName: "Org Alpha",
         settings: {},
+        // account-tenants is pre-switch listing; presenceMode is re-resolved
+        // when the new tenant's layout mounts and calls resolveTenant.
+        presenceMode: "detailed",
       });
     });
 

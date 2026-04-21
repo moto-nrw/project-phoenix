@@ -25,6 +25,7 @@ const mockTenant: TenantInfo = {
   organizationId: 10,
   organizationName: "Org A",
   settings: {},
+  presenceMode: "detailed",
 };
 
 // ============================================================================

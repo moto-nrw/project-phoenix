@@ -18,6 +18,13 @@ type Attendance struct {
 	CheckedInBy  int64      `bun:"checked_in_by,notnull" json:"checked_in_by"`
 	CheckedOutBy *int64     `bun:"checked_out_by" json:"checked_out_by,omitempty"`
 	DeviceID     int64      `bun:"device_id,notnull" json:"device_id"`
+	YardSince    *time.Time `bun:"yard_since" json:"yard_since,omitempty"`
+}
+
+// IsOnYard returns true if the student is currently marked as being on the school yard
+// (still on premises, outside the building). Only meaningful while IsCheckedIn is also true.
+func (a *Attendance) IsOnYard() bool {
+	return a.YardSince != nil && a.CheckOutTime == nil
 }
 
 // BeforeAppendModel is commented out to let the repository control the table expression

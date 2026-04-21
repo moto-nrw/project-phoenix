@@ -44,17 +44,28 @@ func (s *service) GetStudentsAttendanceStatuses(ctx context.Context, studentIDs 
 			status.Date = attendance.Date
 			status.CheckInTime = &attendance.CheckInTime
 			status.CheckOutTime = attendance.CheckOutTime
-			if attendance.CheckOutTime != nil {
-				status.Status = "checked_out"
-			} else {
-				status.Status = "checked_in"
-			}
+			status.YardSince = attendance.YardSince
+			status.Status = deriveAttendanceStatus(attendance)
 		}
 
 		statuses[studentID] = status
 	}
 
 	return statuses, nil
+}
+
+// deriveAttendanceStatus turns the attendance row's timestamp combination into
+// one of "checked_out", "on_yard", or "checked_in". Precedence: a checkout
+// time always wins (the student has formally left school), then yard_since
+// (on premises but outside the building), else the default checked_in.
+func deriveAttendanceStatus(a *active.Attendance) string {
+	if a.CheckOutTime != nil {
+		return "checked_out"
+	}
+	if a.YardSince != nil {
+		return "on_yard"
+	}
+	return "checked_in"
 }
 
 // GetStudentAttendanceStatus gets today's latest attendance record and determines status
@@ -69,17 +80,13 @@ func (s *service) GetStudentAttendanceStatus(ctx context.Context, studentID int6
 		}, nil
 	}
 
-	status := "checked_in"
-	if attendance.CheckOutTime != nil {
-		status = "checked_out"
-	}
-
 	result := &AttendanceStatus{
 		StudentID:    studentID,
-		Status:       status,
+		Status:       deriveAttendanceStatus(attendance),
 		Date:         attendance.Date,
 		CheckInTime:  &attendance.CheckInTime,
 		CheckOutTime: attendance.CheckOutTime,
+		YardSince:    attendance.YardSince,
 	}
 
 	s.populateAttendanceStaffNames(ctx, result, attendance)
@@ -130,6 +137,9 @@ func (s *service) ToggleStudentAttendance(ctx context.Context, studentID, staffI
 	// which round-trips correctly through PostgreSQL DATE columns (PG session is UTC).
 	today := timezone.TodayUTC()
 
+	// "on_yard" is a sub-state of "checked_in" (still on premises) — toggling
+	// from either should perform a checkout. Only "not_checked_in" and
+	// "checked_out" start a fresh check-in.
 	if currentStatus.Status == "not_checked_in" || currentStatus.Status == "checked_out" {
 		return s.performCheckIn(ctx, studentID, authorizedStaffID, deviceID, now, today)
 	}
@@ -250,6 +260,8 @@ func (s *service) performCheckOut(ctx context.Context, studentID, staffID int64,
 	}
 
 	attendance.CheckOutTime = &now
+	// Clear any yard sub-state: the student has formally left the premises.
+	attendance.YardSince = nil
 	if staffID > 0 {
 		attendance.CheckedOutBy = &staffID
 	}
