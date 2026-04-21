@@ -462,6 +462,33 @@ func TestGetStudentWeek_RangeExceedsLimit_Returns400(t *testing.T) {
 		"body=%s", w.Body.String())
 }
 
+// Spring DST: 2026-03-29 is the Berlin spring-forward day (23h long).
+// A 15-day request spanning it must still be rejected by the cap — a naive
+// to.Sub(from).Hours()/24 would undercount by the missing hour and let it
+// through.
+func TestGetStudentWeek_SpringDST_15DayRangeStillRejected(t *testing.T) {
+	s := buildStudentDaySetup(t)
+	router := adminRouter(s.ctx, s.res)
+
+	w := doGet(t, router, fmt.Sprintf("/student/%d/week?from=2026-03-22&to=2026-04-05", s.studentID))
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "date range exceeds maximum of 14 days")
+}
+
+// Spring DST: the same span minus one day (14 inclusive days crossing the
+// transition) must pass and return one entry per day.
+func TestGetStudentWeek_SpringDST_14DayRangeAtLimit_ReturnsOK(t *testing.T) {
+	s := buildStudentDaySetup(t)
+	router := adminRouter(s.ctx, s.res)
+
+	w := doGet(t, router, fmt.Sprintf("/student/%d/week?from=2026-03-23&to=2026-04-05", s.studentID))
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+
+	var got StudentWeekResponse
+	decodeEnvelope(t, w, &got)
+	assert.Len(t, got.Days, 14)
+}
+
 func TestGetStudentWeek_FromAfterTo_Returns400(t *testing.T) {
 	s := buildStudentDaySetup(t)
 	router := adminRouter(s.ctx, s.res)

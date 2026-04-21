@@ -48,6 +48,17 @@ func isoWeekday(t time.Time) int {
 	return int((int(t.In(timezone.Berlin).Weekday())+6)%7 + 1)
 }
 
+// inclusiveDayCount returns the number of Berlin-local days in the inclusive
+// [from, to] range. Anchors both ends to UTC midnight of the same Berlin date
+// via timezone.DateOfUTC so DST transitions (23h/25h days) don't skew the
+// count — a plain to.Sub(from).Hours()/24 undercounts in spring and overcounts
+// in autumn.
+func inclusiveDayCount(from, to time.Time) int {
+	fromUTC := timezone.DateOfUTC(from)
+	toUTC := timezone.DateOfUTC(to)
+	return int(toUTC.Sub(fromUTC).Hours()/24) + 1
+}
+
 // dateKey formats a time as YYYY-MM-DD for use as a map key.
 func dateKey(t time.Time) string { return t.Format(dateLayout) }
 
@@ -124,7 +135,7 @@ func (rs *Resource) getStudentWeek(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("'from' must be before or equal to 'to'")))
 		return
 	}
-	rangeDays := int(to.Sub(from).Hours()/24) + 1
+	rangeDays := inclusiveDayCount(from, to)
 	if rangeDays > maxWeekRangeDays {
 		common.RenderError(w, r, common.ErrorInvalidRequest(
 			fmt.Errorf("date range exceeds maximum of %d days", maxWeekRangeDays)))
@@ -354,7 +365,7 @@ func (rs *Resource) buildStudentDays(ctx context.Context, studentID int64, from,
 		return nil, err
 	}
 
-	dayCount := int(to.Sub(from).Hours()/24) + 1
+	dayCount := inclusiveDayCount(from, to)
 	days := make([]StudentDayResponse, 0, dayCount)
 	for d := from; !d.After(to); d = d.AddDate(0, 0, 1) {
 		day := buildStudentDayFromPreload(pre, studentID, d)
