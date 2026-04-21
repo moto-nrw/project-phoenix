@@ -530,7 +530,7 @@ Two tracks: **all backend first, frontend after.** Each item is a **Work Package
 - [ ] **WP-B11** — Student day API (aggregates arrival + instances + pickup)
 - [ ] **WP-B12** — Gap detection endpoint + substitute endpoint
 - [ ] **WP-B13** — Exception conflict warnings (arrival ↔ timetable)
-- [ ] **WP-B14** — GDPR cleanup job for timetable data
+- [x] **WP-B14** — GDPR cleanup job for timetable data → GitHub #1298
 
 #### B4 — Backend roadmap (after MVP)
 
@@ -573,7 +573,7 @@ Two tracks: **all backend first, frontend after.** Each item is a **Work Package
 
 ### Recommended next
 
-**WP-B14** — GDPR cleanup job for timetable data. Prioritized over WP-B11 (aggregation) and WP-B13 (exception conflicts) because WP-B10 just started writing real student attendance data into `instance_students` (including a free-text `note` up to 500 chars that can hold sensitive text). The retention setting `gdpr.timetable_retention_days` (default 365) was registered in WP-B7 but has no consumer — shipping attendance data without a matching cleanup job is the wrong ordering for compliance. B14 is compact: one scheduler job reusing the `forEachTenantSettings` + `HasTenantOverride → Resolve → default` helpers from B8/B9, deleting `activity_instances` + `instance_staff` + `instance_students` + `activity_exceptions` rows older than the retention window per tenant. Zero cross-repo risk, no frontend coupling. B11 and B13 can run in parallel after B14 lands.
+**WP-B13** — exception conflict warnings (arrival ↔ timetable). The only WP that WP-B10's attendance sync directly unblocks: compare `activity_exceptions` (cancelled/modified instances) against `arrival_schedules` exceptions and surface mismatches to admins before they become day-of surprises ("the instance is cancelled but 12 students are still scheduled to arrive for it"). Read-only API surface, no IoT boundary touch. Two alternatives now run fully in parallel: **WP-B11** (student day API — read-only aggregator for the upcoming frontend, good handoff for a different contributor) and **WP-B12** (gap detection + substitute endpoint — operational tool for admin UIs). Any of the three is defensible; B13 is recommended because it's the most user-impactful continuation of the B10 thread.
 
 ---
 
