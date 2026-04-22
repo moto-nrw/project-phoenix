@@ -31,6 +31,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -288,15 +289,17 @@ func (s *scenario) createTimeframeWithTimes(description, startHHMM, endHHMM stri
 }
 
 // parseHHMMLocal builds a time.Time at today's date with the given wall-clock
-// time in the machine's local timezone (Berlin on the dev box). Use this for
-// TIMESTAMPTZ columns where the wall-clock hour must round-trip through the
-// driver unchanged.
+// time pinned to Europe/Berlin. We cannot use `time.Local` here because the
+// CI runner's Local is UTC while the dev box's Local is Europe/Berlin — the
+// TIMESTAMPTZ column round-trips the value through Postgres's session TZ
+// (Europe/Berlin), so inserting in UTC yields a +2h shift on read. Pinning
+// the input to Europe/Berlin keeps the wall-clock stable across both envs.
 func parseHHMMLocal(t *testing.T, hhmm string) time.Time {
 	t.Helper()
 	parsed, err := time.Parse("15:04", hhmm)
 	require.NoError(t, err, "invalid HH:MM literal %q", hhmm)
-	now := time.Now()
-	return time.Date(now.Year(), now.Month(), now.Day(), parsed.Hour(), parsed.Minute(), 0, 0, now.Location())
+	now := time.Now().In(timezone.Berlin)
+	return time.Date(now.Year(), now.Month(), now.Day(), parsed.Hour(), parsed.Minute(), 0, 0, timezone.Berlin)
 }
 
 // templateSpec describes a weekly template to materialize later.
