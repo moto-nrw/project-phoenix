@@ -1,0 +1,55 @@
+package operator
+
+import (
+	"net/http"
+
+	"github.com/moto-nrw/project-phoenix/api/common"
+)
+
+// GetProvisioningStats returns platform-wide aggregate counts for the operator
+// overview KPI strip. GET /api/operator/stats.
+func (rs *ProvisioningResource) GetProvisioningStats(w http.ResponseWriter, r *http.Request) {
+	stats, err := rs.service.GetProvisioningStats(r.Context())
+	if err != nil {
+		common.RenderError(w, r, ProvisioningErrorRenderer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, stats, "Provisioning stats retrieved successfully")
+}
+
+// ListOrganizationSummaries returns all organizations with per-row counts for
+// the Träger overview table. GET /api/operator/organizations/summaries.
+func (rs *ProvisioningResource) ListOrganizationSummaries(w http.ResponseWriter, r *http.Request) {
+	summaries, err := rs.service.ListOrganizationSummaries(r.Context())
+	if err != nil {
+		common.RenderError(w, r, ProvisioningErrorRenderer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, summaries, "Organization summaries retrieved successfully")
+}
+
+// ListSchoolSummaries returns all schools (global scope) with per-row counts
+// for the global Schulen table. GET /api/operator/schools/summaries.
+func (rs *ProvisioningResource) ListSchoolSummaries(w http.ResponseWriter, r *http.Request) {
+	summaries, err := rs.service.ListSchoolSummaries(r.Context())
+	if err != nil {
+		common.RenderError(w, r, ProvisioningErrorRenderer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, summaries, "School summaries retrieved successfully")
+}
+
+// ListOrganizationSchoolSummaries returns schools under a specific organization
+// with per-row counts. GET /api/operator/organizations/{id}/schools.
+func (rs *ProvisioningResource) ListOrganizationSchoolSummaries(w http.ResponseWriter, r *http.Request) {
+	orgID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid organization ID")
+	if !ok {
+		return
+	}
+	summaries, err := rs.service.ListOrganizationSchoolSummaries(r.Context(), orgID)
+	if err != nil {
+		common.RenderError(w, r, ProvisioningErrorRenderer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, summaries, "Organization school summaries retrieved successfully")
+}

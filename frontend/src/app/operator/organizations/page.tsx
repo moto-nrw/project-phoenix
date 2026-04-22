@@ -4,17 +4,21 @@ import { useCallback, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
 import useSWR from "swr";
 import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import {
   operatorProvisioningService,
   revalidateTenantCache,
 } from "~/lib/operator/provisioning-api";
-import type { Organization } from "~/lib/operator/provisioning-helpers";
-import { getRelativeTime } from "~/lib/format-utils";
+import type {
+  Organization,
+  OrganizationSummary,
+} from "~/lib/operator/provisioning-helpers";
 import { createLogger } from "~/lib/logger";
+import { DataTable, DataTableStatusBadge } from "~/components/ui/data-table";
+import type { DataTableColumn } from "~/components/ui/data-table";
 import {
-  StatusBadge,
   EmptyState,
   PlusIcon,
   CardSkeletons,
@@ -30,10 +34,28 @@ import {
 
 const logger = createLogger({ component: "OperatorOrganizationsPage" });
 
+function numberFormat(value: number): string {
+  return new Intl.NumberFormat("de-DE").format(value);
+}
+
+function KpiCard({ label, value }: Readonly<{ label: string; value: number }>) {
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-sm">
+      <div className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
+        {label}
+      </div>
+      <div className="mt-1 text-3xl font-bold text-gray-900">
+        {numberFormat(value)}
+      </div>
+    </div>
+  );
+}
+
 export default function OperatorOrganizationsPage() {
   const { status } = useSession();
   const isAuthenticated = status === "authenticated";
   useSetBreadcrumb({ pageTitle: "Träger" });
+  const router = useRouter();
 
   const [createOrgOpen, setCreateOrgOpen] = useState(false);
   const [editOrgOpen, setEditOrgOpen] = useState(false);
@@ -45,8 +67,8 @@ export default function OperatorOrganizationsPage() {
     isLoading: orgsLoading,
     mutate: mutateOrgs,
   } = useSWR(
-    isAuthenticated ? "operator-organizations" : null,
-    () => operatorProvisioningService.listOrganizations(),
+    isAuthenticated ? "operator-organization-summaries" : null,
+    () => operatorProvisioningService.listOrganizationSummaries(),
     {
       keepPreviousData: true,
       revalidateOnFocus: false,
@@ -54,12 +76,9 @@ export default function OperatorOrganizationsPage() {
     },
   );
 
-  // Schools are needed to cascade tenant cache revalidation when toggling
-  // an organization's active state, and to block deletion when an org still
-  // owns active schools.
-  const { data: schools, mutate: mutateSchools } = useSWR(
-    isAuthenticated ? "operator-schools" : null,
-    () => operatorProvisioningService.listSchools(),
+  const { data: stats, mutate: mutateStats } = useSWR(
+    isAuthenticated ? "operator-provisioning-stats" : null,
+    () => operatorProvisioningService.getStats(),
     {
       keepPreviousData: true,
       revalidateOnFocus: false,
@@ -67,13 +86,17 @@ export default function OperatorOrganizationsPage() {
     },
   );
 
-  const openEditOrg = useCallback((org: Organization) => {
+  const openEditOrg = useCallback((org: OrganizationSummary) => {
     setEditOrgTarget(org);
     setEditOrgOpen(true);
   }, []);
 
+  const refreshAll = useCallback(async () => {
+    await Promise.all([mutateOrgs(), mutateStats()]);
+  }, [mutateOrgs, mutateStats]);
+
   const handleToggleOrgActive = useCallback(
-    async (org: Organization) => {
+    async (org: OrganizationSummary) => {
       setOrgToggleError("");
       try {
         await operatorProvisioningService.updateOrganization(org.id, {
@@ -81,11 +104,8 @@ export default function OperatorOrganizationsPage() {
           slug: org.slug,
           active: !org.active,
         });
-        await mutateOrgs();
-        const orgSchoolSlugs = (schools ?? [])
-          .filter((s) => s.organizationId === org.id)
-          .map((s) => s.subdomain);
-        await revalidateTenantCache(orgSchoolSlugs);
+        await refreshAll();
+        await revalidateTenantCache([]);
       } catch (error) {
         setOrgToggleError(
           "Fehler beim Ändern des Status. Bitte versuchen Sie es erneut.",
@@ -95,7 +115,7 @@ export default function OperatorOrganizationsPage() {
         });
       }
     },
-    [mutateOrgs, schools],
+    [refreshAll],
   );
 
   const activeOrganizations = useMemo(
@@ -108,12 +128,7 @@ export default function OperatorOrganizationsPage() {
     [organizations],
   );
 
-  const activeSchools = useMemo(
-    () => schools?.filter((s) => s.deletedAt == null) ?? [],
-    [schools],
-  );
-
-  const orgDelete = useSoftDeletable<Organization>({
+  const orgDelete = useSoftDeletable<OrganizationSummary>({
     softDeleteFn: operatorProvisioningService.softDeleteOrganization,
     restoreFn: operatorProvisioningService.restoreOrganization,
     mutateList: mutateOrgs,
@@ -127,10 +142,10 @@ export default function OperatorOrganizationsPage() {
   });
 
   const orgDeleteTargetHasSchools = useMemo(() => {
-    const orgId = orgDelete.deleteTarget?.id;
-    if (!orgId) return false;
-    return activeSchools.some((s) => s.organizationId === orgId);
-  }, [orgDelete.deleteTarget, activeSchools]);
+    const target = orgDelete.deleteTarget;
+    if (!target) return false;
+    return target.schulenCount > 0;
+  }, [orgDelete.deleteTarget]);
 
   const tabs = useMemo(
     () => ({
@@ -168,6 +183,100 @@ export default function OperatorOrganizationsPage() {
     </button>
   );
 
+  const columns: DataTableColumn<OrganizationSummary>[] = useMemo(
+    () => [
+      {
+        key: "name",
+        header: "Träger",
+        render: (row) => (
+          <div>
+            <div className="font-semibold text-gray-900">{row.name}</div>
+            <div className="font-mono text-xs text-gray-500">{row.slug}</div>
+          </div>
+        ),
+      },
+      {
+        key: "schulen",
+        header: "Schulen",
+        align: "right",
+        render: (row) => numberFormat(row.schulenCount),
+      },
+      {
+        key: "konten",
+        header: "Konten",
+        align: "right",
+        render: (row) => numberFormat(row.kontenCount),
+      },
+      {
+        key: "geraete",
+        header: "Geräte",
+        align: "right",
+        render: (row) => numberFormat(row.geraeteCount),
+      },
+      {
+        key: "personen",
+        header: "Personen",
+        align: "right",
+        render: (row) => numberFormat(row.personenCount),
+      },
+      {
+        key: "status",
+        header: "Status",
+        render: (row) => (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              void handleToggleOrgActive(row);
+            }}
+            className="cursor-pointer"
+            title={row.active ? "Deaktivieren" : "Aktivieren"}
+            aria-label={row.active ? "Deaktivieren" : "Aktivieren"}
+          >
+            <DataTableStatusBadge active={row.active} />
+          </button>
+        ),
+      },
+      {
+        key: "actions",
+        header: "",
+        align: "right",
+        render: (row) => (
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                openEditOrg(row);
+              }}
+              className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200"
+            >
+              Bearbeiten
+            </button>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                orgDelete.setDeleteTarget(row);
+              }}
+              className="rounded-lg bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-100"
+            >
+              Löschen
+            </button>
+          </div>
+        ),
+      },
+    ],
+    [handleToggleOrgActive, openEditOrg, orgDelete],
+  );
+
+  const handleRowClick = useCallback(
+    (row: OrganizationSummary) => {
+      router.push(`/operator/organizations/${encodeURIComponent(row.slug)}`);
+    },
+    [router],
+  );
+
   return (
     <div className="-mt-1.5 w-full">
       <PageHeaderWithSearch
@@ -177,10 +286,19 @@ export default function OperatorOrganizationsPage() {
         mobileActionButton={mobileActionButton}
       />
 
+      {stats ? (
+        <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+          <KpiCard label="Träger" value={stats.traegerCount} />
+          <KpiCard label="Schulen" value={stats.schulenCount} />
+          <KpiCard label="Konten" value={stats.kontenCount} />
+          <KpiCard label="Geräte" value={stats.geraeteCount} />
+        </div>
+      ) : null}
+
       {orgsLoading && <CardSkeletons />}
 
       {!orgsLoading && (
-        <>
+        <div className="mt-6">
           {deletedOrganizations.length > 0 && (
             <div className="mb-4 flex justify-end">
               <button
@@ -209,35 +327,26 @@ export default function OperatorOrganizationsPage() {
                 />
               ))}
             </div>
+          ) : activeOrganizations.length === 0 ? (
+            <EmptyState
+              title="Keine Träger"
+              description="Erstellen Sie einen neuen Träger, um Schulen zu verwalten."
+              buttonLabel="Neuer Träger"
+              onAction={() => setCreateOrgOpen(true)}
+            />
           ) : (
-            <>
-              {activeOrganizations.length === 0 && (
-                <EmptyState
-                  title="Keine Träger"
-                  description="Erstellen Sie einen neuen Träger, um Schulen zu verwalten."
-                  buttonLabel="Neuer Träger"
-                  onAction={() => setCreateOrgOpen(true)}
-                />
-              )}
-              {activeOrganizations.length > 0 && (
-                <div className="mt-4 space-y-4">
-                  {activeOrganizations.map((org) => (
-                    <OrganizationCard
-                      key={org.id}
-                      organization={org}
-                      onEdit={openEditOrg}
-                      onToggleActive={handleToggleOrgActive}
-                      onDelete={orgDelete.setDeleteTarget}
-                    />
-                  ))}
-                </div>
-              )}
-            </>
+            <DataTable
+              columns={columns}
+              rows={activeOrganizations}
+              getRowKey={(row) => row.id}
+              onRowClick={handleRowClick}
+            />
           )}
+
           {orgToggleError && (
             <p className="mt-2 text-sm text-red-600">{orgToggleError}</p>
           )}
-        </>
+        </div>
       )}
 
       {orgDelete.deleteTarget && (
@@ -279,7 +388,7 @@ export default function OperatorOrganizationsPage() {
       <CreateOrganizationModal
         isOpen={createOrgOpen}
         onClose={() => setCreateOrgOpen(false)}
-        onCreated={() => mutateOrgs().then(() => undefined)}
+        onCreated={() => refreshAll().then(() => undefined)}
       />
       <EditOrganizationModal
         isOpen={editOrgOpen}
@@ -288,67 +397,8 @@ export default function OperatorOrganizationsPage() {
           setEditOrgTarget(null);
         }}
         organization={editOrgTarget}
-        onUpdated={async () => {
-          await Promise.all([mutateOrgs(), mutateSchools()]);
-        }}
+        onUpdated={() => refreshAll()}
       />
-    </div>
-  );
-}
-
-function OrganizationCard({
-  organization,
-  onEdit,
-  onToggleActive,
-  onDelete,
-}: {
-  readonly organization: Organization;
-  readonly onEdit: (org: Organization) => void;
-  readonly onToggleActive: (org: Organization) => Promise<void>;
-  readonly onDelete: (org: Organization) => void;
-}) {
-  return (
-    <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150">
-      <div className="flex items-start justify-between">
-        <div>
-          <h3 className="text-base font-semibold text-gray-900">
-            {organization.name}
-          </h3>
-          <p className="mt-0.5 font-mono text-sm text-gray-500">
-            {organization.slug}
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => void onToggleActive(organization)}
-          className="cursor-pointer"
-          title={organization.active ? "Deaktivieren" : "Aktivieren"}
-          aria-label={organization.active ? "Deaktivieren" : "Aktivieren"}
-        >
-          <StatusBadge active={organization.active} />
-        </button>
-      </div>
-      <div className="mt-3 flex items-center justify-between">
-        <p className="text-xs text-gray-400">
-          Erstellt {getRelativeTime(organization.createdAt)}
-        </p>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => onEdit(organization)}
-            className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200"
-          >
-            Bearbeiten
-          </button>
-          <button
-            type="button"
-            onClick={() => onDelete(organization)}
-            className="rounded-lg bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-100"
-          >
-            Löschen
-          </button>
-        </div>
-      </div>
     </div>
   );
 }

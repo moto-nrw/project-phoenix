@@ -1,5 +1,125 @@
 // Backend response types (snake_case, int64 ids)
 
+export interface BackendProvisioningStats {
+  traeger_count: number;
+  schulen_count: number;
+  konten_count: number;
+  geraete_count: number;
+}
+
+export interface ProvisioningStats {
+  traegerCount: number;
+  schulenCount: number;
+  kontenCount: number;
+  geraeteCount: number;
+}
+
+export function mapProvisioningStats(
+  data: BackendProvisioningStats,
+): ProvisioningStats {
+  return {
+    traegerCount: data.traeger_count,
+    schulenCount: data.schulen_count,
+    kontenCount: data.konten_count,
+    geraeteCount: data.geraete_count,
+  };
+}
+
+export interface BackendOrganizationSummary extends BackendOrganization {
+  schulen_count: number;
+  konten_count: number;
+  geraete_count: number;
+  personen_count: number;
+}
+
+export interface OrganizationSummary extends Organization {
+  schulenCount: number;
+  kontenCount: number;
+  geraeteCount: number;
+  personenCount: number;
+}
+
+export function mapOrganizationSummary(
+  data: BackendOrganizationSummary,
+): OrganizationSummary {
+  return {
+    ...mapOrganization(data),
+    schulenCount: data.schulen_count,
+    kontenCount: data.konten_count,
+    geraeteCount: data.geraete_count,
+    personenCount: data.personen_count,
+  };
+}
+
+export interface BackendSchoolSummary {
+  id: number;
+  organization_id: number;
+  organization_name: string;
+  name: string;
+  slug: string;
+  subdomain: string;
+  active: boolean;
+  hidden: boolean;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+  address: string;
+  city: string;
+  zip: string;
+  phone: string;
+  email: string;
+  settings: string | null;
+  konten_count: number;
+  geraete_count: number;
+  personen_count: number;
+}
+
+export interface SchoolSummary {
+  id: string;
+  organizationId: string;
+  organizationName: string;
+  name: string;
+  slug: string;
+  subdomain: string;
+  active: boolean;
+  hidden: boolean;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+  address: string;
+  city: string;
+  zip: string;
+  phone: string;
+  email: string;
+  kontenCount: number;
+  geraeteCount: number;
+  personenCount: number;
+}
+
+export function mapSchoolSummary(data: BackendSchoolSummary): SchoolSummary {
+  return {
+    id: data.id.toString(),
+    organizationId: data.organization_id.toString(),
+    organizationName: data.organization_name,
+    name: data.name,
+    slug: data.slug,
+    subdomain: data.subdomain,
+    active: data.active,
+    hidden: data.hidden,
+    createdAt: data.created_at,
+    updatedAt: data.updated_at,
+    deletedAt: data.deleted_at ?? null,
+    address: data.address,
+    city: data.city,
+    zip: data.zip,
+    phone: data.phone,
+    email: data.email,
+    kontenCount: data.konten_count,
+    geraeteCount: data.geraete_count,
+    personenCount: data.personen_count,
+  };
+}
+
 export interface BackendOrganization {
   id: number;
   name: string;

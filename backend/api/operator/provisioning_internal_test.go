@@ -187,6 +187,18 @@ func (m *mockProvisioningService) SoftDeletePerson(ctx context.Context, personID
 	}
 	return nil
 }
+func (m *mockProvisioningService) GetProvisioningStats(ctx context.Context) (*platformSvc.ProvisioningStats, error) {
+	return nil, nil
+}
+func (m *mockProvisioningService) ListOrganizationSummaries(ctx context.Context) ([]*platformSvc.OrganizationSummary, error) {
+	return nil, nil
+}
+func (m *mockProvisioningService) ListSchoolSummaries(ctx context.Context) ([]*platformSvc.SchoolSummary, error) {
+	return nil, nil
+}
+func (m *mockProvisioningService) ListOrganizationSchoolSummaries(ctx context.Context, organizationID int64) ([]*platformSvc.SchoolSummary, error) {
+	return nil, nil
+}
 
 type mockCaregiverCapabilityService struct {
 	getFn     func(context.Context, int64) (*userModels.CaregiverCapabilityState, error)

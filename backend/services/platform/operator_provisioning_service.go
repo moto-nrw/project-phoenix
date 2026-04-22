@@ -86,6 +86,10 @@ type OperatorProvisioningService interface {
 	DeleteDevice(ctx context.Context, id int64, operatorID int64, clientIP net.IP) error
 	ListSchoolPersons(ctx context.Context, schoolID int64) ([]OperatorPersonInfo, error)
 	SoftDeletePerson(ctx context.Context, personID int64, operatorID int64, clientIP net.IP) error
+	GetProvisioningStats(ctx context.Context) (*ProvisioningStats, error)
+	ListOrganizationSummaries(ctx context.Context) ([]*OrganizationSummary, error)
+	ListSchoolSummaries(ctx context.Context) ([]*SchoolSummary, error)
+	ListOrganizationSchoolSummaries(ctx context.Context, organizationID int64) ([]*SchoolSummary, error)
 }
 
 // OperatorPersonInfo holds person information with school/org context for operator views.
