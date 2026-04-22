@@ -23,9 +23,9 @@ const errAdminOnlyForOperator = "this setting is admin-only and cannot be modifi
 
 // errPresenceModeSwitchBlocked is shown to the operator when they try to flip
 // operations.presence_mode while students are still checked in for the day.
-// German string matches the plan's agreed copy — the settings UI surfaces the
-// backend error message verbatim.
-const errPresenceModeSwitchBlocked = "Moduswechsel während aktiver Anwesenheit nicht möglich. Bitte zunächst Tagesabschluss durchführen."
+// German copy intentionally omits trailing punctuation to satisfy staticcheck
+// ST1005 — the settings UI joins this into a longer sentence anyway.
+const errPresenceModeSwitchBlocked = "Moduswechsel während aktiver Anwesenheit nicht möglich — bitte zunächst Tagesabschluss durchführen"
 
 // enforcePresenceModeSwitchGuard rejects an in-progress write to
 // operations.presence_mode when any student is currently checked in for the

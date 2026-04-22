@@ -34,12 +34,14 @@ func init() {
 func addUsersCheckinPermissionUp(ctx context.Context, db *bun.DB) error {
 	fmt.Println("Migration 1.15.40: Adding users:checkin permission and granting to user role...")
 
-	// Insert the permission. Admin wildcards (admin:*) already match any
-	// permission, so no role grant is needed for admin roles — only non-admin
-	// roles require explicit grants.
+	// Insert the permission. auth.permissions requires resource+action (see
+	// 001000005_auth_permissions.go) and has a unique index on (resource, action)
+	// alongside the name index — both conflicts map to the same "already exists"
+	// case. Admin wildcards (admin:*) match any permission, so no admin grant
+	// is needed; non-admin roles require an explicit grant below.
 	_, err := db.NewRaw(`
-		INSERT INTO auth.permissions (name, description)
-		VALUES ('users:checkin', 'Check students in and out of school via the web UI')
+		INSERT INTO auth.permissions (name, description, resource, action, is_system)
+		VALUES ('users:checkin', 'Check students in and out of school via the web UI', 'users', 'checkin', TRUE)
 		ON CONFLICT (name) DO NOTHING;
 	`).Exec(ctx)
 	if err != nil {

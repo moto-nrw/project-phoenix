@@ -5,11 +5,13 @@ import { Suspense, useCallback, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
-import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
+import {
+  usePresenceMode,
+  useTenantSlugSafe,
+} from "~/components/tenant/tenant-provider";
 import { useSession } from "next-auth/react";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { useShellAuth } from "~/lib/shell-auth-context";
-import { usePresenceMode } from "~/lib/hooks/use-presence-mode";
 import { hasRole, isCaregiver } from "~/lib/auth-utils";
 import { operatorPath } from "~/lib/operator-url";
 import { useSidebarAccordion } from "~/lib/hooks/use-sidebar-accordion";
