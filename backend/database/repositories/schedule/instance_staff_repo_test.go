@@ -344,3 +344,58 @@ func TestInstanceStaffRepository_ErrorBranches(t *testing.T) {
 		assert.Equal(t, "delete by instance id", dbErr.Op)
 	})
 }
+
+func TestInstanceStaffRepository_CountNonAbsentByInstanceIDs(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewInstanceStaffRepository(db)
+
+	t.Run("EmptySlice returns empty map without touching DB", func(t *testing.T) {
+		m, err := repo.CountNonAbsentByInstanceIDs(ctx, []int64{})
+		require.NoError(t, err)
+		assert.Empty(t, m)
+	})
+
+	date := time.Date(2026, 9, 20, 0, 0, 0, 0, time.UTC)
+	instA, cleanupA := createInstanceFixture(t, db, "cnt-a", date)
+	defer cleanupA()
+	instB, cleanupB := createInstanceFixture(t, db, "cnt-b", date)
+	defer cleanupB()
+	instEmpty, cleanupEmpty := createInstanceFixture(t, db, "cnt-empty", date)
+	defer cleanupEmpty()
+
+	suffix := time.Now().UnixNano()
+	staff1 := testpkg.CreateTestStaff(t, db, "Cnt", fmt.Sprintf("S1-%d", suffix))
+	staff2 := testpkg.CreateTestStaff(t, db, "Cnt", fmt.Sprintf("S2-%d", suffix))
+	staff3 := testpkg.CreateTestStaff(t, db, "Cnt", fmt.Sprintf("S3-%d", suffix))
+	defer testpkg.CleanupActivityFixtures(t, db, staff1.ID, staff2.ID, staff3.ID)
+
+	// instA: 2 non-absent, 1 absent → expect 2
+	rowA1 := testpkg.CreateTestInstanceStaff(t, db, instA.ID, staff1.ID, testpkg.InstanceStaffOpts{})
+	rowA2 := testpkg.CreateTestInstanceStaff(t, db, instA.ID, staff2.ID, testpkg.InstanceStaffOpts{})
+	rowA3 := testpkg.CreateTestInstanceStaff(t, db, instA.ID, staff3.ID, testpkg.InstanceStaffOpts{IsAbsent: true})
+
+	// instB: 1 non-absent → expect 1
+	rowB1 := testpkg.CreateTestInstanceStaff(t, db, instB.ID, staff1.ID, testpkg.InstanceStaffOpts{})
+
+	// instEmpty: nothing assigned → must NOT appear in map
+	defer testpkg.CleanupInstanceStaffFixtures(t, db, rowA1.ID, rowA2.ID, rowA3.ID, rowB1.ID)
+
+	t.Run("GroupsByInstance", func(t *testing.T) {
+		m, err := repo.CountNonAbsentByInstanceIDs(ctx, []int64{instA.ID, instB.ID, instEmpty.ID})
+		require.NoError(t, err)
+		assert.Equal(t, 2, m[instA.ID])
+		assert.Equal(t, 1, m[instB.ID])
+		_, present := m[instEmpty.ID]
+		assert.False(t, present, "empty instance must not appear in map")
+	})
+
+	t.Run("TenantIsolation excludes other tenant rows", func(t *testing.T) {
+		otherTenantCtx := testpkg.TenantContext(999)
+		m, err := repo.CountNonAbsentByInstanceIDs(otherTenantCtx, []int64{instA.ID, instB.ID})
+		require.NoError(t, err)
+		assert.Empty(t, m)
+	})
+}

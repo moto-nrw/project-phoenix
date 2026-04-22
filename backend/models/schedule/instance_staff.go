@@ -77,6 +77,12 @@ type InstanceStaffRepository interface {
 	// substitute flow (E6) and gap detection.
 	FindByStaffAndDate(ctx context.Context, staffID int64, date time.Time) ([]*InstanceStaff, error)
 
+	// CountNonAbsentByInstanceIDs returns, for each instance id, the number of
+	// instance_staff rows with is_absent=false. Single GROUP BY query; callers
+	// must treat absent instance ids in the returned map as zero. Empty input
+	// returns an empty map without hitting the DB.
+	CountNonAbsentByInstanceIDs(ctx context.Context, instanceIDs []int64) (map[int64]int, error)
+
 	// DeleteByInstanceID removes all staff assignments for an instance. The
 	// CASCADE on the FK also does this on instance deletion; this method exists
 	// for the "re-plan week" flow where the instance is kept but repopulated.

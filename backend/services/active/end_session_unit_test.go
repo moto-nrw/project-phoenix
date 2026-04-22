@@ -344,6 +344,10 @@ func (m *mockGroupSupervisorRepository) EndSupervisionsByActiveGroupIDs(ctx cont
 	return 0, nil
 }
 
+func (m *mockGroupSupervisorRepository) EndByActiveGroupAndStaffID(ctx context.Context, activeGroupID, staffID int64) (int, error) {
+	return 0, nil
+}
+
 func (m *mockGroupSupervisorRepository) FindAllActive(ctx context.Context) ([]*active.GroupSupervisor, error) {
 	if m.findAllActiveFunc != nil {
 		return m.findAllActiveFunc(ctx)

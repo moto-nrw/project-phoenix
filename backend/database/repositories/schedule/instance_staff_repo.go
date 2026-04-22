@@ -153,6 +153,45 @@ func (r *InstanceStaffRepository) FindByStaffAndDate(ctx context.Context, staffI
 	return rows, nil
 }
 
+// CountNonAbsentByInstanceIDs groups instance_staff by instance_id and returns
+// the count of rows with is_absent=false per instance. One query with GROUP BY.
+// Instances with zero non-absent rows do not appear in the returned map —
+// callers must treat missing keys as zero.
+func (r *InstanceStaffRepository) CountNonAbsentByInstanceIDs(ctx context.Context, instanceIDs []int64) (map[int64]int, error) {
+	if len(instanceIDs) == 0 {
+		return map[int64]int{}, nil
+	}
+
+	var rows []struct {
+		InstanceID int64 `bun:"instance_id"`
+		Cnt        int   `bun:"cnt"`
+	}
+	query := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(modelTblInstanceStaff).
+		ColumnExpr(`"instance_staff".instance_id AS instance_id`).
+		ColumnExpr(`COUNT(*)::int AS cnt`).
+		Where(`"instance_staff".instance_id IN (?)`, bun.In(instanceIDs)).
+		Where(`"instance_staff".is_absent = ?`, false).
+		GroupExpr(`"instance_staff".instance_id`)
+
+	if where, val, ok := base.TenantWhere(ctx, aliasInstanceStaff); ok {
+		query = query.Where(where, val)
+	}
+
+	if err := query.Scan(ctx, &rows); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "count non-absent by instance ids",
+			Err: err,
+		}
+	}
+
+	out := make(map[int64]int, len(rows))
+	for _, row := range rows {
+		out[row.InstanceID] = row.Cnt
+	}
+	return out, nil
+}
+
 // DeleteByInstanceID removes all staff assignments for an instance. Used when
 // re-materializing an instance without deleting the parent row.
 func (r *InstanceStaffRepository) DeleteByInstanceID(ctx context.Context, instanceID int64) error {
