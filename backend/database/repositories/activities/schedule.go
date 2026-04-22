@@ -7,22 +7,12 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
-
-// extractTimeOfDay mirrors the helper used by the materialization service for
-// the same column. schedule.timeframes.start_time is TIMESTAMPTZ, so a naive
-// Go-side read converts the UTC instant to the driver's local zone and the
-// wall-clock Hour/Minute the admin configured ("14:00") no longer matches
-// time.Time.Hour() on the receiving side. This rebuilds the value at
-// year 0001 UTC using the original wall-clock components so downstream
-// consumers can format/compare HH:MM consistently regardless of server tz.
-func extractTimeOfDay(t time.Time) time.Time {
-	return time.Date(1, 1, 1, t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), time.UTC)
-}
 
 // Table name constants (S1192 - avoid duplicate string literals)
 const (
@@ -156,7 +146,7 @@ func (r *ScheduleRepository) FindTemplateStartTimesByGroupIDs(ctx context.Contex
 		out = append(out, &activities.TemplateStartTime{
 			ActivityGroupID: gid,
 			Weekday:         wd,
-			StartTime:       extractTimeOfDay(raw),
+			StartTime:       timezone.WallClock(raw),
 		})
 	}
 	if err := rows.Err(); err != nil {

@@ -499,7 +499,15 @@ func (rs *Resource) buildConflicts(
 	arrivalPre *arrivalPreload,
 	templatePre *templatePreload,
 ) []ConflictEntry {
-	out := make([]ConflictEntry, 0)
+	// Upper bound: every affected (instance, exception) pair contributes
+	// at most one warning per expected student. Count them up-front so the
+	// slice grows at most once for realistic workloads (cancellations often
+	// surface 20-30 students per instance).
+	maxWarnings := 0
+	for _, a := range affected {
+		maxWarnings += len(expectedByInstance[a.instance.ID])
+	}
+	out := make([]ConflictEntry, 0, maxWarnings)
 	for _, a := range affected {
 		stus, ok := expectedByInstance[a.instance.ID]
 		if !ok {
@@ -566,10 +574,10 @@ func (rs *Resource) conflictForStudent(
 		// values, but bun deserialises them with different year anchors
 		// (0000 vs 2000 depending on the column). Comparing via .After()
 		// without normalisation would be driven by the year difference, not
-		// the wall-clock. extractTimeOfDay on both sides pins both to
+		// the wall-clock. timezone.WallClock on both sides pins both to
 		// year 0001 UTC so the comparison is purely HH:MM:SS.
-		modifiedStart := extractTimeOfDay(*a.exception.StartTime)
-		arrivalNorm := extractTimeOfDay(arrivalTime)
+		modifiedStart := timezone.WallClock(*a.exception.StartTime)
+		arrivalNorm := timezone.WallClock(arrivalTime)
 
 		// Only emit when the student's arrival is strictly after the new
 		// start — equal means the student arrives exactly at the start,
@@ -599,14 +607,4 @@ func (rs *Resource) conflictForStudent(
 		slog.String("exception_type", a.exception.ExceptionType),
 	)
 	return ConflictEntry{}, false
-}
-
-// extractTimeOfDay mirrors the helper in services/schedule and the
-// activities repo. activity_exceptions.start_time is a plain TIME column,
-// but Go's time.Time still reads it with a Location — calling .Format
-// directly can therefore shift the wall-clock. Rebuild at year 0001 UTC
-// using the time's own Hour/Minute/Second so the "HH:MM" formatting is
-// stable regardless of server timezone.
-func extractTimeOfDay(t time.Time) time.Time {
-	return time.Date(1, 1, 1, t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), time.UTC)
 }

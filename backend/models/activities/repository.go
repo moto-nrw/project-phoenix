@@ -56,7 +56,9 @@ type GroupRepository interface {
 //
 // Multiple rows may share the same (ActivityGroupID, Weekday) when a template
 // has several schedules on the same weekday (e.g. morning + afternoon slots).
-// The caller is responsible for disambiguating or flagging ambiguity.
+// The caller is responsible for disambiguating or flagging ambiguity. Rows
+// are returned sorted by (ActivityGroupID ASC, Weekday ASC, StartTime ASC),
+// so the earliest slot comes first when multiple exist for a given key.
 type TemplateStartTime struct {
 	ActivityGroupID int64     `bun:"activity_group_id"`
 	Weekday         int       `bun:"weekday"`

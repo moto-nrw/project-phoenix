@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"sort"
 	"testing"
 	"time"
 
@@ -214,7 +213,7 @@ func createTestActivitySchedule(
 
 // createTestTimeframeRow inserts a schedule.timeframes row at the given
 // Berlin-local wall-clock. Mirrors the production flow so the repo's
-// extractTimeOfDay round-trip preserves HH:MM.
+// timezone.WallClock round-trip preserves HH:MM.
 func createTestTimeframeRow(t *testing.T, db *bun.DB, startHHMM, endHHMM string) *schedule.Timeframe {
 	t.Helper()
 	start := parseBerlinHHMM(t, startHHMM)
@@ -871,33 +870,10 @@ func TestExceptionConflicts_SortOrder(t *testing.T) {
 	got := decodeConflicts(t, w)
 	require.Len(t, got.Conflicts, 4)
 
-	// Determine the expected (group, student) sort order independently.
-	expected := []struct {
-		gid int64
-		sid int64
-	}{
-		{groupA.ID, stu1.ID},
-		{groupA.ID, stu2.ID},
-		{groupB.ID, stu1.ID},
-		{groupB.ID, stu2.ID},
-	}
-	// Since groupA/groupB ordering depends on DB-assigned IDs, sort expected
-	// once so the comparison is deterministic regardless of which group was
-	// created first.
-	sort.SliceStable(expected, func(i, j int) bool {
-		if expected[i].gid != expected[j].gid {
-			return expected[i].gid < expected[j].gid
-		}
-		return expected[i].sid < expected[j].sid
-	})
-	// Pair-wise verify ordering.
-	sort.SliceStable(expected, func(i, j int) bool {
-		if expected[i].gid != expected[j].gid {
-			return expected[i].gid < expected[j].gid
-		}
-		return expected[i].sid < expected[j].sid
-	})
-
+	// Verify pairwise ordering against the documented rule: date ASC,
+	// activity_group_id ASC, student_id ASC. Because groupA/groupB IDs are
+	// DB-assigned, we check the invariant directly rather than comparing to
+	// a pre-sorted expectations slice.
 	for i := range got.Conflicts {
 		if i > 0 {
 			prev, cur := got.Conflicts[i-1], got.Conflicts[i]
