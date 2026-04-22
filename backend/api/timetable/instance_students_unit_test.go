@@ -73,6 +73,9 @@ func (f *fakeRepo) List(context.Context, *modelsBase.QueryOptions) ([]*schedule.
 func (f *fakeRepo) FindByInstanceID(context.Context, int64) ([]*schedule.InstanceStudent, error) {
 	panic("unused")
 }
+func (f *fakeRepo) FindExpectedByInstanceIDs(context.Context, []int64) ([]*schedule.InstanceStudent, error) {
+	panic("unused")
+}
 func (f *fakeRepo) FindByStudentAndDateRange(context.Context, int64, time.Time, time.Time) ([]*schedule.InstanceStudent, error) {
 	panic("unused")
 }

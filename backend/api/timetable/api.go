@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -39,6 +40,8 @@ type Resource struct {
 	personService          userSvc.PersonService
 	instanceStudentRepo    schedule.InstanceStudentRepository
 	activityInstanceRepo   schedule.ActivityInstanceRepository
+	activityExceptionRepo  schedule.ActivityExceptionRepository
+	activityScheduleRepo   activities.ScheduleRepository
 	instanceStaffRepo      schedule.InstanceStaffRepository
 	supervisorRepo         active.GroupSupervisorRepository
 	arrivalScheduleRepo    schedule.StudentArrivalScheduleRepository
@@ -66,6 +69,8 @@ type Dependencies struct {
 	PersonService          userSvc.PersonService
 	InstanceStudentRepo    schedule.InstanceStudentRepository
 	ActivityInstanceRepo   schedule.ActivityInstanceRepository
+	ActivityExceptionRepo  schedule.ActivityExceptionRepository
+	ActivityScheduleRepo   activities.ScheduleRepository
 	InstanceStaffRepo      schedule.InstanceStaffRepository
 	SupervisorRepo         active.GroupSupervisorRepository
 	ArrivalScheduleRepo    schedule.StudentArrivalScheduleRepository
@@ -93,6 +98,8 @@ func NewResource(deps Dependencies) *Resource {
 		personService:          deps.PersonService,
 		instanceStudentRepo:    deps.InstanceStudentRepo,
 		activityInstanceRepo:   deps.ActivityInstanceRepo,
+		activityExceptionRepo:  deps.ActivityExceptionRepo,
+		activityScheduleRepo:   deps.ActivityScheduleRepo,
 		instanceStaffRepo:      deps.InstanceStaffRepo,
 		supervisorRepo:         deps.SupervisorRepo,
 		arrivalScheduleRepo:    deps.ArrivalScheduleRepo,
@@ -175,6 +182,10 @@ func (rs *Resource) Router() chi.Router {
 			Get("/gaps", rs.getGaps)
 		r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
 			Post("/substitute", rs.substitute)
+
+		// WP-B13: exception-conflict warnings (planning-only, read-only).
+		r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+			Get("/exception-conflicts", rs.getExceptionConflicts)
 	})
 
 	return r

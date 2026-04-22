@@ -1,5 +1,6 @@
 // Package timetable — shared date-parsing helpers. Used by WP-B11 (student
-// day/week) and WP-B12 (gaps, substitute) handlers.
+// day/week), WP-B12 (gaps, substitute), and WP-B13 (exception conflicts)
+// handlers.
 package timetable
 
 import (
@@ -15,4 +16,15 @@ import (
 // that entirely.
 func berlinDate(input string) (time.Time, error) {
 	return time.ParseInLocation(dateLayout, input, timezone.Berlin)
+}
+
+// inclusiveDayCount returns the number of Berlin-local days in the inclusive
+// [from, to] range. Anchors both ends to UTC midnight of the same Berlin date
+// via timezone.DateOfUTC so DST transitions (23h/25h days) don't skew the
+// count — a plain to.Sub(from).Hours()/24 undercounts in spring and overcounts
+// in autumn.
+func inclusiveDayCount(from, to time.Time) int {
+	fromUTC := timezone.DateOfUTC(from)
+	toUTC := timezone.DateOfUTC(to)
+	return int(toUTC.Sub(fromUTC).Hours()/24) + 1
 }
