@@ -528,9 +528,10 @@ Two tracks: **all backend first, frontend after.** Each item is a **Work Package
 
 #### B3 — Aggregation + Ops
 
-- [ ] **WP-B11** — Student day API (aggregates arrival + instances + pickup).
-  - **Bundled follow-up from B10 (plan §6.2):** `Complete()` in `backend/services/schedule/instance_service.go:229` currently does not mark remaining `expected` students as `absent`; same for `Cancel()` when transitioning from `active`. Add a single `UPDATE instance_students SET status='absent' WHERE instance_id=? AND status='expected'` inside the existing transaction. Small (<50 LOC + 2 tests). Must ship with or before B11 so the aggregator sees consistent data.
-  - **Spontaneous-visitor handling (§4.1):** join `instance_students` with `active.visits` on `active_group_id`; students in `active.visits` absent from `instance_students` surface as `is_unplanned: true`. Read-only, no schema change.
+- [x] **WP-B11** — Student day API (aggregates arrival + instances + pickup) → GitHub #1300
+  - **Bundled B10 fix (plan §6.2):** `Complete()` now flips remaining `expected` students to `absent` inside the tenant tx. `Cancel()` intentionally untouched, since a cancelled instance never ran, so "absent" would be a false claim.
+  - **Spontaneous-visitor handling (§4.1):** `active.visits` joined to `instance_students` via `active_group_id`; unplanned attendance surfaces as `is_unplanned: true` for active/completed instances only.
+  - **Follow-ups solved in the same PR:** /week batched into single-range queries (no per-day N+1), `ScheduledInstanceRow` migrated to `models/schedule/`, enrolled+visit dedup test added, DST-safe inclusive day count, `CanReadStudent` extracted to `auth/authorize/`.
 - [ ] **WP-B12** — Gap detection endpoint (`COUNT(instance_staff WHERE NOT is_absent) < 1` — §4.7) + substitute endpoint
 - [ ] **WP-B13** — Exception conflict warnings (arrival ↔ timetable)
 - [x] **WP-B14** — GDPR cleanup job for timetable data → GitHub #1298
@@ -576,13 +577,11 @@ Two tracks: **all backend first, frontend after.** Each item is a **Work Package
 
 ### Recommended next
 
-**WP-B11** — Student day API (arrival + instances + pickup aggregator), bundled with the B10 Mark-as-Absent follow-up. Three reasons over B12/B13:
+**WP-B12** — Gap detection + substitute endpoint. With B11 shipped, the read-side of the instance layer is complete. B12 is the first write-side operational tool that admins actually need for day-of staffing decisions: the gap query surfaces instances without assigned staff, and the substitute endpoint closes them in one call (mark original `is_absent=true`, create new row with `is_substitute=true`, both in the same tx).
 
-1. **Closes a correctness gap.** The bundled `Complete()` absence-marking fix (plan §6.2) is semantically necessary before any frontend reads `instance_students` — otherwise the staff UI will show children as `expected` after their instance has ended.
-2. **Unblocks the F-track.** B11 is the clean read-only API that F3/F4/F9 (staff "My Day", instance detail, student day view) consume directly. Shipping it now means the frontend track can begin in parallel without waiting for B12/B13.
-3. **Resolves §4.1 in code, not paper.** The spontaneous-visitor decision (Option C — join `active.visits` with `instance_students` at read time) is a read-side concern. B11 is the first endpoint where the shape gets exercised.
+Why B12 over B13: gap detection is the more business-critical operational signal (a missing activity block directly impacts children), whereas B13 (exception conflict warnings) is a nice-to-have alerting layer. B12 also has a clearer contract, as the §4.7 decision (`COUNT(instance_staff WHERE NOT is_absent) < 1` for the MVP predicate) is already settled.
 
-B12 (gap detection + substitute) and B13 (exception conflict warnings) remain fully parallelizable and can be picked up by a different contributor or as the next WP after B11. No cross-blocks.
+**Alternative, fully parallelizable:** WP-B13 (exception conflict warnings, arrival ↔ timetable) remains unblocked and can be picked up by a different contributor. After B12 and B13 ship, the backend MVP is closed and the F-track can begin in earnest.
 
 ---
 
