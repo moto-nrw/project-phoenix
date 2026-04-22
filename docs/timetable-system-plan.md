@@ -532,7 +532,13 @@ Two tracks: **all backend first, frontend after.** Each item is a **Work Package
   - **Bundled B10 fix (plan §6.2):** `Complete()` now flips remaining `expected` students to `absent` inside the tenant tx. `Cancel()` intentionally untouched, since a cancelled instance never ran, so "absent" would be a false claim.
   - **Spontaneous-visitor handling (§4.1):** `active.visits` joined to `instance_students` via `active_group_id`; unplanned attendance surfaces as `is_unplanned: true` for active/completed instances only.
   - **Follow-ups solved in the same PR:** /week batched into single-range queries (no per-day N+1), `ScheduledInstanceRow` migrated to `models/schedule/`, enrolled+visit dedup test added, DST-safe inclusive day count, `CanReadStudent` extracted to `auth/authorize/`.
-- [ ] **WP-B12** — Gap detection endpoint (`COUNT(instance_staff WHERE NOT is_absent) < 1` — §4.7) + substitute endpoint
+- [x] **WP-B12**: Gap detection endpoint + substitute endpoint → GitHub #1303
+  - **Gaps:** `GET /api/timetable/gaps?date=...&date_to=...` (max 14 Tage, heute plus Zukunft). Instanzen mit `status IN (planned, active)` und `COUNT(instance_staff WHERE is_absent=false) = 0`. Bulk-Query mit GROUP BY, kein N+1.
+  - **Substitute:** `POST /api/timetable/substitute { absent_staff_id, substitute_staff_id, date }`. Für jede instance_staff-Row am Datum: Original auf is_absent=true, neue Row mit is_substitute=true (room_id geerbt, is_primary=false). Für active Instanzen zusätzlich `active.group_supervisors` synchronisiert.
+  - **Atomarität:** Dry-Run-First-Pattern (Phase A klassifiziert ohne Writes, Phase B schreibt erst wenn alle Checks bestanden). Löst den 409-bei-4xx-Tx-Middleware-Fall, bei dem partielle Writes sonst committed würden.
+  - **Idempotent:** drei stabile Action-Strings: `substituted`, `already_substituted`, `already_on_instance` (Substitute war bereits Co-Betreuer, existing Row bleibt unverändert).
+  - **Soft-Warnings:** `substitute_time_conflict` bei Zeit-Überschneidung mit anderen Einsätzen des Substitutes am selben Tag. Blockiert nicht.
+  - **Coverage-Note:** SonarQube meldete 79.3% auf New Code (knapp unter 80%-Gate). Kein Merge-Block, aber werterhöhende Tests (besonders für den Active-Path in substitute.go) wären ein guter Nachzieher.
 - [ ] **WP-B13** — Exception conflict warnings (arrival ↔ timetable)
 - [x] **WP-B14** — GDPR cleanup job for timetable data → GitHub #1298
 
@@ -577,11 +583,13 @@ Two tracks: **all backend first, frontend after.** Each item is a **Work Package
 
 ### Recommended next
 
-**WP-B12** — Gap detection + substitute endpoint. With B11 shipped, the read-side of the instance layer is complete. B12 is the first write-side operational tool that admins actually need for day-of staffing decisions: the gap query surfaces instances without assigned staff, and the substitute endpoint closes them in one call (mark original `is_absent=true`, create new row with `is_substitute=true`, both in the same tx).
+**WP-B13**: Exception conflict warnings (arrival ↔ timetable). Letzter offener Backend-MVP-Punkt. Read-only API, kein Schema-Change, kein IoT-Berührungspunkt. Mit B13 gemergt ist der Backend-Track geschlossen und der F-Track kann starten.
 
-Why B12 over B13: gap detection is the more business-critical operational signal (a missing activity block directly impacts children), whereas B13 (exception conflict warnings) is a nice-to-have alerting layer. B12 also has a clearer contract, as the §4.7 decision (`COUNT(instance_staff WHERE NOT is_absent) < 1` for the MVP predicate) is already settled.
+Use-Case: Admin sieht morgens im Dashboard, dass Lernzeit 3a heute gecancelt ist (activity_exception mit exception_type='cancelled'), aber 12 Schüler haben für diese Zeit eine arrival_schedule/exception. Das Endpoint liefert diese Mismatches als Liste, damit Admins vor der Ankunft Informationen an Eltern senden können.
 
-**Alternative, fully parallelizable:** WP-B13 (exception conflict warnings, arrival ↔ timetable) remains unblocked and can be picked up by a different contributor. After B12 and B13 ship, the backend MVP is closed and the F-track can begin in earnest.
+Scope: vergleicht `activity_exceptions` (cancelled/modified Instanzen) gegen `student_arrival_schedules` und `student_arrival_exceptions`. Warnung-Typen: `cancelled_instance_with_scheduled_arrivals` (Kinder kommen für gestrichene Aktivität), `modified_instance_time_mismatch` (Aktivität verschoben, Schüler würde zu alter Zeit kommen).
+
+Alternativ, falls ein anderer Contributor später übernimmt: B15 (Staff-Absence-Entity) oder B16 (Ferienbetreuung) wären die nächsten Backend-Items nach MVP. Keine cross-blocks zu B13.
 
 ---
 
