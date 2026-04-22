@@ -12,6 +12,8 @@ import type {
   SchoolSummary,
 } from "~/lib/operator/provisioning-helpers";
 import { EntityHeaderCard } from "~/components/operator/entity-header-card";
+import { AccountsTable } from "~/components/operator/accounts-table";
+import { DevicesTable } from "~/components/operator/devices-table";
 import { DataTable, DataTableStatusBadge } from "~/components/ui/data-table";
 import type { DataTableColumn } from "~/components/ui/data-table";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
@@ -66,6 +68,28 @@ export default function OperatorOrganizationDetailPage({ params }: PageProps) {
       : null,
     () =>
       operatorProvisioningService.listOrganizationSchools(
+        organization?.id ?? "",
+      ),
+    { revalidateOnFocus: false, dedupingInterval: 5000 },
+  );
+
+  const accountsActive =
+    activeTab === "konten" && isAuthenticated && organization != null;
+  const { data: orgAccounts, isLoading: accountsLoading } = useSWR(
+    accountsActive ? ["operator-org-accounts-", organization?.id] : null,
+    () =>
+      operatorProvisioningService.listOrganizationAccounts(
+        organization?.id ?? "",
+      ),
+    { revalidateOnFocus: false, dedupingInterval: 5000 },
+  );
+
+  const devicesActive =
+    activeTab === "geraete" && isAuthenticated && organization != null;
+  const { data: orgDevices, isLoading: devicesLoading } = useSWR(
+    devicesActive ? ["operator-org-devices-", organization?.id] : null,
+    () =>
+      operatorProvisioningService.listOrganizationDevices(
         organization?.id ?? "",
       ),
     { revalidateOnFocus: false, dedupingInterval: 5000 },
@@ -202,21 +226,43 @@ export default function OperatorOrganizationDetailPage({ params }: PageProps) {
             )}
           </TabsPrimitive.Content>
 
-          {(
-            [
-              "konten",
-              "geraete",
-              "personen",
-              "feedback",
-              "ankuendigungen",
-            ] as const
-          ).map((tabId) => (
-            <TabsPrimitive.Content key={tabId} value={tabId} className="mt-4">
-              <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
-                Wird in einem folgenden Schritt gefiltert angezeigt.
+          <TabsPrimitive.Content value="konten" className="mt-4">
+            {accountsLoading ? (
+              <div className="py-10 text-center text-gray-500">
+                Wird geladen…
               </div>
-            </TabsPrimitive.Content>
-          ))}
+            ) : orgAccounts && orgAccounts.length > 0 ? (
+              <AccountsTable accounts={orgAccounts} showSchool />
+            ) : (
+              <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
+                Keine Konten für diesen Träger.
+              </div>
+            )}
+          </TabsPrimitive.Content>
+
+          <TabsPrimitive.Content value="geraete" className="mt-4">
+            {devicesLoading ? (
+              <div className="py-10 text-center text-gray-500">
+                Wird geladen…
+              </div>
+            ) : orgDevices && orgDevices.length > 0 ? (
+              <DevicesTable devices={orgDevices} showSchool />
+            ) : (
+              <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
+                Keine Geräte für diesen Träger.
+              </div>
+            )}
+          </TabsPrimitive.Content>
+
+          {(["personen", "feedback", "ankuendigungen"] as const).map(
+            (tabId) => (
+              <TabsPrimitive.Content key={tabId} value={tabId} className="mt-4">
+                <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
+                  Wird in einem folgenden Schritt gefiltert angezeigt.
+                </div>
+              </TabsPrimitive.Content>
+            ),
+          )}
         </Tabs>
       </div>
     </div>

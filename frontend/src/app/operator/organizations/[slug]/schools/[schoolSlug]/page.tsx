@@ -11,6 +11,8 @@ import type {
   SchoolSummary,
 } from "~/lib/operator/provisioning-helpers";
 import { EntityHeaderCard } from "~/components/operator/entity-header-card";
+import { AccountsTable } from "~/components/operator/accounts-table";
+import { DevicesTable } from "~/components/operator/devices-table";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
@@ -70,6 +72,43 @@ export default function OperatorSchoolDetailPage({ params }: PageProps) {
   );
 
   useSetBreadcrumb({ pageTitle: school?.name ?? "Schule" });
+
+  const accountsActive =
+    activeTab === "konten" && isAuthenticated && school != null;
+  const { data: schoolAccounts, isLoading: accountsLoading } = useSWR(
+    accountsActive ? ["operator-school-accounts-", school?.id] : null,
+    () => operatorProvisioningService.listSchoolAccounts(school?.id ?? ""),
+    { revalidateOnFocus: false, dedupingInterval: 5000 },
+  );
+
+  const devicesActive =
+    activeTab === "geraete" && isAuthenticated && school != null;
+  const { data: schoolDevices, isLoading: devicesLoading } = useSWR(
+    devicesActive ? ["operator-school-devices-", school?.id] : null,
+    () => operatorProvisioningService.listSchoolDevices(school?.id ?? ""),
+    { revalidateOnFocus: false, dedupingInterval: 5000 },
+  );
+
+  const selectedSchoolForTable = useMemo(() => {
+    if (!school) return null;
+    return {
+      id: school.id,
+      organizationId: school.organizationId,
+      name: school.name,
+      slug: school.slug,
+      subdomain: school.subdomain,
+      address: school.address,
+      city: school.city,
+      zip: school.zip,
+      phone: school.phone,
+      email: school.email,
+      active: school.active,
+      hidden: school.hidden,
+      deletedAt: school.deletedAt,
+      createdAt: school.createdAt,
+      updatedAt: school.updatedAt,
+    };
+  }, [school]);
 
   if ((!organizations || schoolsLoading) && !school) {
     return (
@@ -156,13 +195,46 @@ export default function OperatorSchoolDetailPage({ params }: PageProps) {
             ))}
           </TabsList>
 
-          {TAB_ITEMS.map((tab) => (
-            <TabsPrimitive.Content key={tab.id} value={tab.id} className="mt-4">
-              <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
-                Wird in einem folgenden Schritt gefiltert angezeigt.
+          <TabsPrimitive.Content value="konten" className="mt-4">
+            {accountsLoading ? (
+              <div className="py-10 text-center text-gray-500">
+                Wird geladen…
               </div>
-            </TabsPrimitive.Content>
-          ))}
+            ) : schoolAccounts && schoolAccounts.length > 0 ? (
+              <AccountsTable
+                accounts={schoolAccounts}
+                selectedSchool={selectedSchoolForTable}
+              />
+            ) : (
+              <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
+                Keine Konten für diese Schule.
+              </div>
+            )}
+          </TabsPrimitive.Content>
+
+          <TabsPrimitive.Content value="geraete" className="mt-4">
+            {devicesLoading ? (
+              <div className="py-10 text-center text-gray-500">
+                Wird geladen…
+              </div>
+            ) : schoolDevices && schoolDevices.length > 0 ? (
+              <DevicesTable devices={schoolDevices} />
+            ) : (
+              <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
+                Keine Geräte für diese Schule.
+              </div>
+            )}
+          </TabsPrimitive.Content>
+
+          {(["personen", "feedback", "ankuendigungen"] as const).map(
+            (tabId) => (
+              <TabsPrimitive.Content key={tabId} value={tabId} className="mt-4">
+                <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
+                  Wird in einem folgenden Schritt gefiltert angezeigt.
+                </div>
+              </TabsPrimitive.Content>
+            ),
+          )}
         </Tabs>
       </div>
     </div>

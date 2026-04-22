@@ -12,12 +12,15 @@ import {
   operatorProvisioningService,
   revalidateTenantCache,
 } from "~/lib/operator/provisioning-api";
-import type { School } from "~/lib/operator/provisioning-helpers";
-import { getRelativeTime } from "~/lib/format-utils";
+import type {
+  School,
+  SchoolSummary,
+} from "~/lib/operator/provisioning-helpers";
 import { createLogger } from "~/lib/logger";
 import { operatorPath } from "~/lib/operator-url";
+import { DataTable, DataTableStatusBadge } from "~/components/ui/data-table";
+import type { DataTableColumn } from "~/components/ui/data-table";
 import {
-  StatusBadge,
   EmptyState,
   PlusIcon,
   CardSkeletons,
@@ -40,6 +43,17 @@ const ACCOUNT_SWR_PREFIXES = [
   "operator-school-accounts-",
   "operator-org-accounts-",
 ];
+
+function numberFormat(value: number): string {
+  return new Intl.NumberFormat("de-DE").format(value);
+}
+
+function findSchoolById(
+  schools: readonly School[] | undefined,
+  id: string,
+): School | undefined {
+  return schools?.find((s) => s.id === id);
+}
 
 export default function OperatorSchoolsPage() {
   const { status } = useSession();
@@ -72,11 +86,24 @@ export default function OperatorSchoolsPage() {
     },
   );
 
+  // School summaries drive the table + counts; the raw listSchools() is kept
+  // separately because modals (edit, soft-delete, restore, toggle active)
+  // operate on the full School type.
   const {
-    data: schools,
-    isLoading: schoolsLoading,
-    mutate: mutateSchools,
+    data: schoolSummaries,
+    isLoading: summariesLoading,
+    mutate: mutateSummaries,
   } = useSWR(
+    isAuthenticated ? "operator-school-summaries" : null,
+    () => operatorProvisioningService.listSchoolSummaries(),
+    {
+      keepPreviousData: true,
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
+    },
+  );
+
+  const { data: schools, mutate: mutateSchools } = useSWR(
     isAuthenticated ? "operator-schools" : null,
     () => operatorProvisioningService.listSchools(),
     {
@@ -86,19 +113,23 @@ export default function OperatorSchoolsPage() {
     },
   );
 
+  const refreshAll = useCallback(async () => {
+    await Promise.all([mutateSummaries(), mutateSchools()]);
+  }, [mutateSummaries, mutateSchools]);
+
   const activeOrganizations = useMemo(
     () => organizations?.filter((o) => o.deletedAt == null) ?? [],
     [organizations],
   );
 
-  const activeSchools = useMemo(
-    () => schools?.filter((s) => s.deletedAt == null) ?? [],
-    [schools],
+  const activeSummaries = useMemo(
+    () => schoolSummaries?.filter((s) => s.deletedAt == null) ?? [],
+    [schoolSummaries],
   );
 
-  const deletedSchools = useMemo(
-    () => schools?.filter((s) => s.deletedAt != null) ?? [],
-    [schools],
+  const deletedSummaries = useMemo(
+    () => schoolSummaries?.filter((s) => s.deletedAt != null) ?? [],
+    [schoolSummaries],
   );
 
   const deletedOrgIds = useMemo(
@@ -111,6 +142,14 @@ export default function OperatorSchoolsPage() {
     [organizations],
   );
 
+  const orgSlugById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const org of organizations ?? []) {
+      map.set(org.id, org.slug);
+    }
+    return map;
+  }, [organizations]);
+
   const refreshAccounts = useCallback(() => {
     return globalMutate(
       (key: unknown) =>
@@ -119,27 +158,32 @@ export default function OperatorSchoolsPage() {
     );
   }, [globalMutate]);
 
-  const openEditSchool = useCallback((school: School) => {
-    setEditSchoolTarget(school);
-    setEditSchoolOpen(true);
-  }, []);
+  const openEditSchool = useCallback(
+    (summary: SchoolSummary) => {
+      const target = findSchoolById(schools, summary.id);
+      if (!target) return;
+      setEditSchoolTarget(target);
+      setEditSchoolOpen(true);
+    },
+    [schools],
+  );
 
-  const openInviteAdmin = useCallback((school: School) => {
-    setInviteSchoolId(school.id);
-    setInviteSchoolName(school.name);
+  const openInviteAdmin = useCallback((summary: SchoolSummary) => {
+    setInviteSchoolId(summary.id);
+    setInviteSchoolName(summary.name);
     setInviteOpen(true);
   }, []);
 
-  const openCreateAccount = useCallback((school: School) => {
-    setCreateAccountSchoolId(school.id);
-    setCreateAccountSchoolName(school.name);
+  const openCreateAccount = useCallback((summary: SchoolSummary) => {
+    setCreateAccountSchoolId(summary.id);
+    setCreateAccountSchoolName(summary.name);
     setCreateAccountOpen(true);
   }, []);
 
   const openSchoolAccounts = useCallback(
-    (school: School) => {
+    (summary: SchoolSummary) => {
       const target = operatorPath(
-        `/operator/accounts?orgId=${encodeURIComponent(school.organizationId)}&schoolId=${encodeURIComponent(school.id)}`,
+        `/operator/accounts?orgId=${encodeURIComponent(summary.organizationId)}&schoolId=${encodeURIComponent(summary.id)}`,
       );
       router.push(target);
     },
@@ -147,11 +191,11 @@ export default function OperatorSchoolsPage() {
   );
 
   const handleToggleSchoolActive = useCallback(
-    async (school: School) => {
+    async (summary: SchoolSummary) => {
       setSchoolToggleError("");
       try {
         const freshSchools = await mutateSchools();
-        const fresh = freshSchools?.find((s) => s.id === school.id);
+        const fresh = freshSchools?.find((s) => s.id === summary.id);
         if (!fresh) return;
 
         await operatorProvisioningService.updateSchool(fresh.id, {
@@ -167,7 +211,7 @@ export default function OperatorSchoolsPage() {
           active: !fresh.active,
           hidden: fresh.hidden,
         });
-        await mutateSchools();
+        await refreshAll();
         await revalidateTenantCache([fresh.subdomain]);
       } catch (error) {
         setSchoolToggleError(
@@ -178,7 +222,7 @@ export default function OperatorSchoolsPage() {
         });
       }
     },
-    [mutateSchools],
+    [mutateSchools, refreshAll],
   );
 
   const schoolDelete = useSoftDeletable<School>({
@@ -194,11 +238,31 @@ export default function OperatorSchoolsPage() {
     logEventPrefix: "school",
     onAfterSoftDelete: async (target) => {
       await revalidateTenantCache([target.subdomain]);
+      await mutateSummaries();
     },
     onAfterRestore: async (target) => {
       await revalidateTenantCache([target.subdomain]);
+      await mutateSummaries();
     },
   });
+
+  const requestDelete = useCallback(
+    (summary: SchoolSummary) => {
+      const target = findSchoolById(schools, summary.id);
+      if (!target) return;
+      schoolDelete.setDeleteTarget(target);
+    },
+    [schools, schoolDelete],
+  );
+
+  const requestRestore = useCallback(
+    (summary: SchoolSummary) => {
+      const target = findSchoolById(schools, summary.id);
+      if (!target) return;
+      schoolDelete.setRestoreTarget(target);
+    },
+    [schools, schoolDelete],
+  );
 
   const schoolRestoreParentDeleted = useMemo(() => {
     const target = schoolDelete.restoreTarget;
@@ -209,11 +273,13 @@ export default function OperatorSchoolsPage() {
 
   const tabs = useMemo(
     () => ({
-      items: [{ id: "schools", label: "Schulen", count: schools?.length }],
+      items: [
+        { id: "schools", label: "Schulen", count: schoolSummaries?.length },
+      ],
       activeTab: "schools",
       onTabChange: () => undefined,
     }),
-    [schools?.length],
+    [schoolSummaries?.length],
   );
 
   const actionButton = (
@@ -237,6 +303,147 @@ export default function OperatorSchoolsPage() {
     </button>
   );
 
+  const handleRowClick = useCallback(
+    (row: SchoolSummary) => {
+      const orgSlug = orgSlugById.get(row.organizationId);
+      if (!orgSlug) return;
+      router.push(
+        `/operator/organizations/${encodeURIComponent(orgSlug)}/schools/${encodeURIComponent(row.slug)}`,
+      );
+    },
+    [orgSlugById, router],
+  );
+
+  const columns: DataTableColumn<SchoolSummary>[] = useMemo(
+    () => [
+      {
+        key: "name",
+        header: "Schule",
+        render: (row) => (
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-gray-900">{row.name}</span>
+              {row.hidden && (
+                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                  Verborgen
+                </span>
+              )}
+            </div>
+            <div className="font-mono text-xs text-gray-500">
+              {row.subdomain}
+            </div>
+          </div>
+        ),
+      },
+      {
+        key: "traeger",
+        header: "Träger",
+        render: (row) => (
+          <span className="text-gray-700">{row.organizationName}</span>
+        ),
+      },
+      {
+        key: "konten",
+        header: "Konten",
+        align: "right",
+        render: (row) => numberFormat(row.kontenCount),
+      },
+      {
+        key: "geraete",
+        header: "Geräte",
+        align: "right",
+        render: (row) => numberFormat(row.geraeteCount),
+      },
+      {
+        key: "personen",
+        header: "Personen",
+        align: "right",
+        render: (row) => numberFormat(row.personenCount),
+      },
+      {
+        key: "status",
+        header: "Status",
+        render: (row) => (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              void handleToggleSchoolActive(row);
+            }}
+            className="cursor-pointer"
+            title={row.active ? "Deaktivieren" : "Aktivieren"}
+            aria-label={row.active ? "Deaktivieren" : "Aktivieren"}
+          >
+            <DataTableStatusBadge active={row.active} />
+          </button>
+        ),
+      },
+      {
+        key: "actions",
+        header: "Aktionen",
+        align: "right",
+        render: (row) => (
+          <div
+            className="flex flex-wrap justify-end gap-1.5"
+            onClick={(event) => event.stopPropagation()}
+            onKeyDown={(event) => event.stopPropagation()}
+            role="presentation"
+          >
+            <button
+              type="button"
+              onClick={() => openSchoolAccounts(row)}
+              className="rounded-lg bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200"
+            >
+              Konten
+            </button>
+            <button
+              type="button"
+              onClick={() => openEditSchool(row)}
+              className="rounded-lg bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200"
+            >
+              Bearbeiten
+            </button>
+            <button
+              type="button"
+              onClick={() => openCreateAccount(row)}
+              className="rounded-lg bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200"
+            >
+              Konto erstellen
+            </button>
+            <button
+              type="button"
+              onClick={() => openInviteAdmin(row)}
+              className="rounded-lg bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200"
+            >
+              Admin einladen
+            </button>
+            <Link
+              href={`/operator/schools/${row.id}/settings`}
+              className="rounded-lg bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200"
+            >
+              Einstellungen
+            </Link>
+            <button
+              type="button"
+              onClick={() => requestDelete(row)}
+              className="rounded-lg bg-red-50 px-2.5 py-1 text-xs font-medium text-red-600 transition-colors hover:bg-red-100"
+            >
+              Löschen
+            </button>
+          </div>
+        ),
+      },
+    ],
+    [
+      handleToggleSchoolActive,
+      openEditSchool,
+      openCreateAccount,
+      openInviteAdmin,
+      openSchoolAccounts,
+      requestDelete,
+    ],
+  );
+
   return (
     <div className="-mt-1.5 w-full">
       <PageHeaderWithSearch
@@ -246,11 +453,11 @@ export default function OperatorSchoolsPage() {
         mobileActionButton={mobileActionButton}
       />
 
-      {schoolsLoading && <CardSkeletons />}
+      {summariesLoading && <CardSkeletons />}
 
-      {!schoolsLoading && (
-        <>
-          {deletedSchools.length > 0 && (
+      {!summariesLoading && (
+        <div className="mt-6">
+          {deletedSummaries.length > 0 && (
             <div className="mb-4 flex justify-end">
               <button
                 type="button"
@@ -263,25 +470,25 @@ export default function OperatorSchoolsPage() {
                     : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                 }`}
               >
-                Papierkorb ({deletedSchools.length})
+                Papierkorb ({deletedSummaries.length})
               </button>
             </div>
           )}
 
           {schoolDelete.showTrash ? (
             <div className="mt-4 space-y-4">
-              {deletedSchools.map((school) => {
-                const parentOrgDeleted =
-                  school.organization?.deletedAt != null ||
-                  deletedOrgIds.has(school.organizationId);
+              {deletedSummaries.map((summary) => {
+                const parentOrgDeleted = deletedOrgIds.has(
+                  summary.organizationId,
+                );
                 return (
                   <DeletedEntityCard
-                    key={school.id}
-                    name={school.name}
-                    subtitle={school.subdomain}
-                    extraSubtitle={school.organization?.name}
-                    deletedAt={school.deletedAt}
-                    onRestore={() => schoolDelete.setRestoreTarget(school)}
+                    key={summary.id}
+                    name={summary.name}
+                    subtitle={summary.subdomain}
+                    extraSubtitle={summary.organizationName}
+                    deletedAt={summary.deletedAt}
+                    onRestore={() => requestRestore(summary)}
                     restoreDisabled={parentOrgDeleted}
                     restoreDisabledReason={
                       parentOrgDeleted
@@ -292,34 +499,22 @@ export default function OperatorSchoolsPage() {
                 );
               })}
             </div>
+          ) : activeSummaries.length === 0 ? (
+            <EmptyState
+              title="Keine Schulen"
+              description="Erstellen Sie eine neue Schule unter einem Träger."
+              buttonLabel="Neue Schule"
+              onAction={() => setCreateSchoolOpen(true)}
+            />
           ) : (
-            <>
-              {activeSchools.length === 0 && (
-                <EmptyState
-                  title="Keine Schulen"
-                  description="Erstellen Sie eine neue Schule unter einem Träger."
-                  buttonLabel="Neue Schule"
-                  onAction={() => setCreateSchoolOpen(true)}
-                />
-              )}
-              {activeSchools.length > 0 && (
-                <div className="mt-4 space-y-4">
-                  {activeSchools.map((school) => (
-                    <SchoolCard
-                      key={school.id}
-                      school={school}
-                      onEdit={openEditSchool}
-                      onToggleActive={handleToggleSchoolActive}
-                      onInviteAdmin={openInviteAdmin}
-                      onCreateAccount={openCreateAccount}
-                      onViewAccounts={openSchoolAccounts}
-                      onDelete={schoolDelete.setDeleteTarget}
-                    />
-                  ))}
-                </div>
-              )}
-            </>
+            <DataTable
+              columns={columns}
+              rows={activeSummaries}
+              getRowKey={(row) => row.id}
+              onRowClick={handleRowClick}
+            />
           )}
+
           {schoolToggleError && (
             <p className="mt-2 text-sm text-red-600">{schoolToggleError}</p>
           )}
@@ -359,14 +554,14 @@ export default function OperatorSchoolsPage() {
             confirmDisabled={schoolRestoreParentDeleted}
             confirmDisabledReason="Der Träger dieser Schule ist gelöscht. Bitte zuerst den Träger wiederherstellen."
           />
-        </>
+        </div>
       )}
 
       <CreateSchoolModal
         isOpen={createSchoolOpen}
         onClose={() => setCreateSchoolOpen(false)}
         organizations={activeOrganizations}
-        onCreated={() => mutateSchools().then(() => undefined)}
+        onCreated={() => refreshAll().then(() => undefined)}
       />
       <EditSchoolModal
         isOpen={editSchoolOpen}
@@ -377,7 +572,7 @@ export default function OperatorSchoolsPage() {
         school={editSchoolTarget}
         organizations={activeOrganizations}
         onUpdated={async () => {
-          await Promise.all([mutateSchools(), mutateOrgs()]);
+          await Promise.all([refreshAll(), mutateOrgs()]);
         }}
       />
       <InviteAdminModal
@@ -395,116 +590,6 @@ export default function OperatorSchoolsPage() {
           void refreshAccounts();
         }}
       />
-    </div>
-  );
-}
-
-function SchoolCard({
-  school,
-  onEdit,
-  onToggleActive,
-  onInviteAdmin,
-  onCreateAccount,
-  onViewAccounts,
-  onDelete,
-}: {
-  readonly school: School;
-  readonly onEdit: (school: School) => void;
-  readonly onToggleActive: (school: School) => Promise<void>;
-  readonly onInviteAdmin: (school: School) => void;
-  readonly onCreateAccount: (school: School) => void;
-  readonly onViewAccounts: (school: School) => void;
-  readonly onDelete: (school: School) => void;
-}) {
-  return (
-    <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150">
-      <div className="flex items-start justify-between">
-        <div className="min-w-0 flex-1">
-          <h3 className="text-base font-semibold text-gray-900">
-            {school.name}
-          </h3>
-          <div className="mt-0.5 flex items-center gap-2 text-sm text-gray-500">
-            <span className="font-mono">{school.subdomain}</span>
-            {school.organization && (
-              <>
-                <span className="text-gray-300">·</span>
-                <span>{school.organization.name}</span>
-              </>
-            )}
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {school.hidden && (
-            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
-              Verborgen
-            </span>
-          )}
-          <button
-            type="button"
-            onClick={() => void onToggleActive(school)}
-            className="cursor-pointer"
-            title={school.active ? "Deaktivieren" : "Aktivieren"}
-            aria-label={school.active ? "Deaktivieren" : "Aktivieren"}
-          >
-            <StatusBadge active={school.active} />
-          </button>
-        </div>
-      </div>
-
-      {(school.address || school.city) && (
-        <p className="mt-2 text-xs text-gray-400">
-          {[school.address, school.zip, school.city].filter(Boolean).join(", ")}
-        </p>
-      )}
-
-      <div className="mt-3 flex items-center justify-between">
-        <p className="text-xs text-gray-400">
-          Erstellt {getRelativeTime(school.createdAt)}
-        </p>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => onViewAccounts(school)}
-            className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200"
-          >
-            Konten
-          </button>
-          <button
-            type="button"
-            onClick={() => onEdit(school)}
-            className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200"
-          >
-            Bearbeiten
-          </button>
-          <button
-            type="button"
-            onClick={() => onCreateAccount(school)}
-            className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200"
-          >
-            Konto erstellen
-          </button>
-          <button
-            type="button"
-            onClick={() => onInviteAdmin(school)}
-            className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200"
-          >
-            Admin einladen
-          </button>
-          <Link
-            href={`/operator/schools/${school.id}/settings`}
-            className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200"
-          >
-            Einstellungen
-          </Link>
-          <button
-            type="button"
-            onClick={() => onDelete(school)}
-            className="rounded-lg bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-100"
-          >
-            Löschen
-          </button>
-        </div>
-      </div>
     </div>
   );
 }
