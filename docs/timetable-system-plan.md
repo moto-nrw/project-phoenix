@@ -539,7 +539,13 @@ Two tracks: **all backend first, frontend after.** Each item is a **Work Package
   - **Idempotent:** drei stabile Action-Strings: `substituted`, `already_substituted`, `already_on_instance` (Substitute war bereits Co-Betreuer, existing Row bleibt unverändert).
   - **Soft-Warnings:** `substitute_time_conflict` bei Zeit-Überschneidung mit anderen Einsätzen des Substitutes am selben Tag. Blockiert nicht.
   - **Coverage-Note:** SonarQube meldete 79.3% auf New Code (knapp unter 80%-Gate). Kein Merge-Block, aber werterhöhende Tests (besonders für den Active-Path in substitute.go) wären ein guter Nachzieher.
-- [ ] **WP-B13** — Exception conflict warnings (arrival ↔ timetable)
+- [x] **WP-B13**: Exception conflict warnings (arrival ↔ timetable) → GitHub #1304
+  - **Endpoint:** `GET /api/timetable/exception-conflicts?date=...&date_to=...` (max 14 Tage, heute plus Zukunft, SchedulesRead).
+  - **Warning-Typen:** `cancelled_instance_with_scheduled_arrivals` (Admin sieht welche Kinder zu einer gecancelten Aktivitaet kommen), `modified_instance_time_mismatch` (Aktivitaet verschoben, Schueler wuerde den Anfang verpassen).
+  - **Modified-Semantik:** Warning nur wenn `exception.start_time` != NULL und die resolved Arrival-Zeit des Schuelers VOR der neuen Activity-start_time liegt. Room-only-Aenderungen werden nicht geflaggt.
+  - **Daten-Inkonsistenz:** Wenn arrival_exception mit `expected_arrival=nil` (Kind kommt nicht) existiert, wird der Schueler fuer beide Warning-Typen skipped. Admin bekommt keine False-Positives.
+  - **Query-Strategie:** Fixed anzahl Bulk-Queries (FindByDateRange + Instance-Range + FindExpectedByInstanceIDs + arrival batches + template-time batch). Kein N+1.
+  - **Bundled Refactor:** `inclusiveDayCount` nach `internal/timezone/` extrahiert, wird jetzt von /week (B11), /gaps (B12) und /exception-conflicts (B13) geteilt.
 - [x] **WP-B14** — GDPR cleanup job for timetable data → GitHub #1298
 
 #### B4 — Backend roadmap (after MVP)
@@ -583,13 +589,13 @@ Two tracks: **all backend first, frontend after.** Each item is a **Work Package
 
 ### Recommended next
 
-**WP-B13**: Exception conflict warnings (arrival ↔ timetable). Letzter offener Backend-MVP-Punkt. Read-only API, kein Schema-Change, kein IoT-Berührungspunkt. Mit B13 gemergt ist der Backend-Track geschlossen und der F-Track kann starten.
+**Backend-MVP ist geschlossen.** B1 bis B14 sind shipped. B15 (Staff-Absence-Entity) und B16 (Ferienbetreuung) bleiben als post-MVP Roadmap-Items, nicht blockierend.
 
-Use-Case: Admin sieht morgens im Dashboard, dass Lernzeit 3a heute gecancelt ist (activity_exception mit exception_type='cancelled'), aber 12 Schüler haben für diese Zeit eine arrival_schedule/exception. Das Endpoint liefert diese Mismatches als Liste, damit Admins vor der Ankunft Informationen an Eltern senden können.
+**F-Track kann starten.** Der logische Einstieg ist **WP-F1** (Arrival Schedule Editor): die zugrundeliegende API (B1/B2) ist seit Februar shipped, der Scope ist klein (Listen-View fuer Klassen, Individual-Override-Form, Exceptions-Panel), und es produziert einen sichtbaren Mehrwert fuer Admins ohne dass parallel andere F-WPs laufen muessen.
 
-Scope: vergleicht `activity_exceptions` (cancelled/modified Instanzen) gegen `student_arrival_schedules` und `student_arrival_exceptions`. Warnung-Typen: `cancelled_instance_with_scheduled_arrivals` (Kinder kommen für gestrichene Aktivität), `modified_instance_time_mismatch` (Aktivität verschoben, Schüler würde zu alter Zeit kommen).
+Danach werden F2 (Weekly Planner, konsumiert B5/B8/B9), F3 (Staff My Day, konsumiert B11), und F4 (Instance Detail, konsumiert B10/B11) parallelisierbar. F7 (SSE fuer Overdue) und F10 (Automatic Auto-Start) kommen zuletzt.
 
-Alternativ, falls ein anderer Contributor später übernimmt: B15 (Staff-Absence-Entity) oder B16 (Ferienbetreuung) wären die nächsten Backend-Items nach MVP. Keine cross-blocks zu B13.
+**Alternative Backend-Arbeit** falls jemand auf dem Backend bleiben will: B15 ist die logische Fortsetzung von B12 (Staff-Absence als persistente Entity statt Ad-hoc-Flag). B16 kann parallel zu F-Track laufen, wenn die Schule Ferienbetreuung konkret anfragt.
 
 ---
 
