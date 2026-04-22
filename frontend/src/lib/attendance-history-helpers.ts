@@ -24,7 +24,9 @@ export interface BackendAttendanceRecord {
   duration_minutes?: number | null;
   checked_in_by: number;
   checked_out_by?: number | null;
-  device_id: number;
+  // Nullable as of backend migration 1.15.41: web-originated school
+  // check-ins have no kiosk and emit `"device_id": null`.
+  device_id?: number | null;
 }
 
 export interface BackendAttendanceVisit {
@@ -58,7 +60,8 @@ export interface AttendanceRecord {
   durationMinutes: number | null;
   checkedInBy: number;
   checkedOutBy: number | null;
-  deviceId: number;
+  /** null for web-originated check-ins (no kiosk involved). */
+  deviceId: number | null;
 }
 
 export interface AttendanceVisit {
@@ -105,7 +108,7 @@ function mapAttendanceRecord(rec: BackendAttendanceRecord): AttendanceRecord {
     durationMinutes: rec.duration_minutes ?? null,
     checkedInBy: rec.checked_in_by,
     checkedOutBy: rec.checked_out_by ?? null,
-    deviceId: rec.device_id,
+    deviceId: rec.device_id ?? null,
   };
 }
 
