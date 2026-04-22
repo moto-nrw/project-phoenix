@@ -1477,7 +1477,9 @@ describe("Sidebar", () => {
         isLoadingGroups: false,
         isLoadingSupervision: false,
         adminOverviewEnabled: false,
-        supervisedRooms: [{ id: "r1", name: "Raum A", isSchulhof: false }],
+        supervisedRooms: [
+          { id: "r1", name: "Raum A", groupId: "g1", isSchulhof: false },
+        ],
         groups: [{ id: 1, name: "1a" }],
         refresh: vi.fn(),
       });
