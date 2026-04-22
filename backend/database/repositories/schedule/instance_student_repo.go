@@ -129,6 +129,36 @@ func (r *InstanceStudentRepository) FindByInstanceID(ctx context.Context, instan
 	return rows, nil
 }
 
+// FindExpectedByInstanceIDs returns every instance_students row with
+// status='expected' for any of the given instance IDs. Tenant-scoped.
+// Empty input returns an empty slice without hitting the DB, matching the
+// sibling bulk helpers (see CountNonAbsentByInstanceIDs in instance_staff_repo).
+func (r *InstanceStudentRepository) FindExpectedByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*schedule.InstanceStudent, error) {
+	if len(instanceIDs) == 0 {
+		return []*schedule.InstanceStudent{}, nil
+	}
+	var rows []*schedule.InstanceStudent
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&rows).
+		ModelTableExpr(modelTblInstanceStudent).
+		Where(`"instance_student".instance_id IN (?)`, bun.In(instanceIDs)).
+		Where(`"instance_student".status = ?`, schedule.AttendanceStatusExpected).
+		OrderExpr(`"instance_student".instance_id ASC, "instance_student".student_id ASC`)
+
+	if where, val, ok := base.TenantWhere(ctx, aliasInstanceStudent); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find expected by instance ids",
+			Err: err,
+		}
+	}
+	return rows, nil
+}
+
 // FindByStudentAndDateRange returns attendance rows for a student across all
 // instances whose date falls within the inclusive range.
 func (r *InstanceStudentRepository) FindByStudentAndDateRange(ctx context.Context, studentID int64, from, to time.Time) ([]*schedule.InstanceStudent, error) {

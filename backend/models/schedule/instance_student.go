@@ -151,6 +151,14 @@ type InstanceStudentRepository interface {
 	// FindByInstanceID returns all attendance rows for an instance.
 	FindByInstanceID(ctx context.Context, instanceID int64) ([]*InstanceStudent, error)
 
+	// FindExpectedByInstanceIDs returns every instance_students row with
+	// status='expected' for any of the given instance IDs, tenant-scoped.
+	// Returns an empty slice (not nil) when instanceIDs is empty. Used by
+	// the WP-B13 exception-conflict endpoint to resolve which students are
+	// still flagged as expected on instances that have a cancellation or
+	// modification exception attached.
+	FindExpectedByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*InstanceStudent, error)
+
 	// FindByStudentAndDateRange returns attendance rows for a student across
 	// all instances whose date falls in the inclusive range. Used by the
 	// per-student day view (aggregation layer).

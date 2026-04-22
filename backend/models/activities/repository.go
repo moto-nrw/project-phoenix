@@ -49,6 +49,20 @@ type GroupRepository interface {
 	FindAllTemplates(ctx context.Context) ([]*Group, error)
 }
 
+// TemplateStartTime is a (activity_group_id, weekday) → timeframe.start_time
+// lookup row returned by ScheduleRepository.FindTemplateStartTimesByGroupIDs.
+// Used by the WP-B13 exception-conflict endpoint to resolve the "original"
+// start_time for modified exceptions.
+//
+// Multiple rows may share the same (ActivityGroupID, Weekday) when a template
+// has several schedules on the same weekday (e.g. morning + afternoon slots).
+// The caller is responsible for disambiguating or flagging ambiguity.
+type TemplateStartTime struct {
+	ActivityGroupID int64     `bun:"activity_group_id"`
+	Weekday         int       `bun:"weekday"`
+	StartTime       time.Time `bun:"start_time"`
+}
+
 // ScheduleRepository defines operations for managing activity schedules
 type ScheduleRepository interface {
 	base.Repository[*Schedule]
@@ -61,6 +75,14 @@ type ScheduleRepository interface {
 
 	// FindByTimeframeID finds all schedules for a specific timeframe
 	FindByTimeframeID(ctx context.Context, timeframeID int64) ([]*Schedule, error)
+
+	// FindTemplateStartTimesByGroupIDs returns (activity_group_id, weekday,
+	// timeframe.start_time) tuples for the given group IDs. Joins
+	// activities.schedules to schedule.timeframes and filters out rows
+	// without a linked timeframe. Both tables are tenant-scoped in the
+	// WHERE clause as defense-in-depth alongside RLS. Returns an empty
+	// slice when groupIDs is empty.
+	FindTemplateStartTimesByGroupIDs(ctx context.Context, groupIDs []int64) ([]*TemplateStartTime, error)
 }
 
 // SupervisorPlannedRepository defines operations for managing activity supervisors

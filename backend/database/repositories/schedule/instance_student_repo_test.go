@@ -642,3 +642,118 @@ func TestInstanceStudentRepository_DeleteByInstanceID(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, rows)
 }
+
+// ---------------------------------------------------------------------------
+// FindExpectedByInstanceIDs (WP-B13)
+// ---------------------------------------------------------------------------
+
+func TestInstanceStudentRepository_FindExpectedByInstanceIDs_FiltersStatus(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewInstanceStudentRepository(db)
+
+	inst1, cleanup1 := createInstanceFixture(t, db, "b13-a", time.Date(2026, 9, 21, 0, 0, 0, 0, time.UTC))
+	defer cleanup1()
+	inst2, cleanup2 := createInstanceFixture(t, db, "b13-b", time.Date(2026, 9, 22, 0, 0, 0, 0, time.UTC))
+	defer cleanup2()
+
+	unique := time.Now().UnixNano()
+	expectedStudent := testpkg.CreateTestStudent(t, db, "Exp", fmt.Sprintf("B13-%d", unique), "3a")
+	presentStudent := testpkg.CreateTestStudent(t, db, "Pres", fmt.Sprintf("B13-%d", unique+1), "3a")
+	absentStudent := testpkg.CreateTestStudent(t, db, "Abs", fmt.Sprintf("B13-%d", unique+2), "3a")
+	otherStudent := testpkg.CreateTestStudent(t, db, "Other", fmt.Sprintf("B13-%d", unique+3), "3a")
+	defer testpkg.CleanupActivityFixtures(t, db,
+		expectedStudent.ID, presentStudent.ID, absentStudent.ID, otherStudent.ID)
+
+	expectedRow := &scheduleModels.InstanceStudent{
+		InstanceID: inst1.ID,
+		StudentID:  expectedStudent.ID,
+		Status:     scheduleModels.AttendanceStatusExpected,
+	}
+	expectedRow.SetTenantID(1)
+	require.NoError(t, repo.Create(ctx, expectedRow))
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", expectedRow.ID)
+
+	presentRow := &scheduleModels.InstanceStudent{
+		InstanceID: inst1.ID,
+		StudentID:  presentStudent.ID,
+		Status:     scheduleModels.AttendanceStatusPresent,
+	}
+	presentRow.SetTenantID(1)
+	require.NoError(t, repo.Create(ctx, presentRow))
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", presentRow.ID)
+
+	absentRow := &scheduleModels.InstanceStudent{
+		InstanceID: inst1.ID,
+		StudentID:  absentStudent.ID,
+		Status:     scheduleModels.AttendanceStatusAbsent,
+	}
+	absentRow.SetTenantID(1)
+	require.NoError(t, repo.Create(ctx, absentRow))
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", absentRow.ID)
+
+	otherExpected := &scheduleModels.InstanceStudent{
+		InstanceID: inst2.ID,
+		StudentID:  otherStudent.ID,
+		Status:     scheduleModels.AttendanceStatusExpected,
+	}
+	otherExpected.SetTenantID(1)
+	require.NoError(t, repo.Create(ctx, otherExpected))
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", otherExpected.ID)
+
+	t.Run("returns only status=expected for given instance IDs", func(t *testing.T) {
+		rows, err := repo.FindExpectedByInstanceIDs(ctx, []int64{inst1.ID, inst2.ID})
+		require.NoError(t, err)
+		ids := make(map[int64]bool, len(rows))
+		for _, r := range rows {
+			ids[r.ID] = true
+			assert.Equal(t, scheduleModels.AttendanceStatusExpected, r.Status)
+		}
+		assert.True(t, ids[expectedRow.ID], "missed expected-status row for inst1")
+		assert.True(t, ids[otherExpected.ID], "missed expected-status row for inst2")
+		assert.False(t, ids[presentRow.ID], "should not include present-status row")
+		assert.False(t, ids[absentRow.ID], "should not include absent-status row")
+	})
+
+	t.Run("empty input returns empty slice without DB roundtrip", func(t *testing.T) {
+		rows, err := repo.FindExpectedByInstanceIDs(ctx, nil)
+		require.NoError(t, err)
+		assert.Empty(t, rows)
+	})
+
+	t.Run("unknown instance id returns empty", func(t *testing.T) {
+		rows, err := repo.FindExpectedByInstanceIDs(ctx, []int64{int64(0)})
+		require.NoError(t, err)
+		assert.Empty(t, rows)
+	})
+}
+
+func TestInstanceStudentRepository_FindExpectedByInstanceIDs_TenantScoped(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := scheduleRepo.NewInstanceStudentRepository(db)
+
+	inst, cleanupInst := createInstanceFixture(t, db, "b13-iso", time.Date(2026, 9, 23, 0, 0, 0, 0, time.UTC))
+	defer cleanupInst()
+
+	student := testpkg.CreateTestStudent(t, db, "Iso", fmt.Sprintf("B13-iso-%d", time.Now().UnixNano()), "3a")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+	row := &scheduleModels.InstanceStudent{
+		InstanceID: inst.ID,
+		StudentID:  student.ID,
+		Status:     scheduleModels.AttendanceStatusExpected,
+	}
+	row.SetTenantID(1)
+	require.NoError(t, repo.Create(testpkg.TenantContext(1), row))
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
+
+	// Same instance ID, different tenant context → row must be invisible.
+	otherTenantCtx := testpkg.TenantContext(2)
+	rows, err := repo.FindExpectedByInstanceIDs(otherTenantCtx, []int64{inst.ID})
+	require.NoError(t, err)
+	assert.Empty(t, rows, "row from tenant 1 must not leak to tenant 2")
+}

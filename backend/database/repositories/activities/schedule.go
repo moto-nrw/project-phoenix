@@ -4,6 +4,7 @@ package activities
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/activities"
@@ -11,6 +12,17 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
+
+// extractTimeOfDay mirrors the helper used by the materialization service for
+// the same column. schedule.timeframes.start_time is TIMESTAMPTZ, so a naive
+// Go-side read converts the UTC instant to the driver's local zone and the
+// wall-clock Hour/Minute the admin configured ("14:00") no longer matches
+// time.Time.Hour() on the receiving side. This rebuilds the value at
+// year 0001 UTC using the original wall-clock components so downstream
+// consumers can format/compare HH:MM consistently regardless of server tz.
+func extractTimeOfDay(t time.Time) time.Time {
+	return time.Date(1, 1, 1, t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), time.UTC)
+}
 
 // Table name constants (S1192 - avoid duplicate string literals)
 const (
@@ -88,6 +100,72 @@ func (r *ScheduleRepository) FindByWeekday(ctx context.Context, weekday string) 
 	}
 
 	return schedules, nil
+}
+
+// FindTemplateStartTimesByGroupIDs returns (activity_group_id, weekday,
+// timeframe.start_time) tuples for the given group IDs. Joins
+// activities.schedules to schedule.timeframes and skips rows without a
+// linked timeframe. Both tables are tenant-scoped in the WHERE clause as
+// defense-in-depth alongside RLS. Returns an empty slice on empty input.
+//
+// The caller (WP-B13 conflict-warning handler) indexes the result by
+// (ActivityGroupID, Weekday) and flags ambiguity when a template has more
+// than one schedule on the same weekday.
+func (r *ScheduleRepository) FindTemplateStartTimesByGroupIDs(ctx context.Context, groupIDs []int64) ([]*activities.TemplateStartTime, error) {
+	if len(groupIDs) == 0 {
+		return []*activities.TemplateStartTime{}, nil
+	}
+
+	// TemplateStartTime is a plain DTO and Bun's ORM layer struggles to
+	// build a valid FROM clause without a registered model, so this query
+	// uses a raw SQL statement and manual row scanning. The belt-and-
+	// suspenders tenant filter (RLS + explicit WHERE) is kept intact.
+	q := `
+		SELECT s.activity_group_id, s.weekday, t.start_time
+		FROM activities.schedules AS s
+		INNER JOIN schedule.timeframes AS t ON t.id = s.timeframe_id
+		WHERE s.activity_group_id IN (?)
+		  AND s.timeframe_id IS NOT NULL`
+	args := []any{bun.In(groupIDs)}
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		q += ` AND s.tenant_id = ? AND t.tenant_id = ?`
+		args = append(args, tenantID, tenantID)
+	}
+	q += ` ORDER BY s.activity_group_id ASC, s.weekday ASC, t.start_time ASC`
+
+	rows, err := base.GetDB(ctx, r.db).QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find template start times by group ids",
+			Err: err,
+		}
+	}
+	defer func() { _ = rows.Close() }()
+
+	out := make([]*activities.TemplateStartTime, 0)
+	for rows.Next() {
+		var gid int64
+		var wd int
+		var raw time.Time
+		if err := rows.Scan(&gid, &wd, &raw); err != nil {
+			return nil, &modelBase.DatabaseError{
+				Op:  "find template start times by group ids: scan",
+				Err: err,
+			}
+		}
+		out = append(out, &activities.TemplateStartTime{
+			ActivityGroupID: gid,
+			Weekday:         wd,
+			StartTime:       extractTimeOfDay(raw),
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find template start times by group ids: rows",
+			Err: err,
+		}
+	}
+	return out, nil
 }
 
 // FindByTimeframeID finds all schedules for a specific timeframe
