@@ -161,11 +161,11 @@ func (rs *Resource) getGaps(w http.ResponseWriter, r *http.Request) {
 			EndTime:    inst.EndTime.Format("15:04"),
 			RoomID:     inst.RoomID,
 			Status:     inst.Status,
-			// AssignedStaffCount is always 0 here by construction: we only
-			// reach this branch when nonAbsentCounts[inst.ID] == 0. The
-			// field exists so clients can rely on a stable schema; the
-			// invariant is worth the byte.
-			AssignedStaffCount: 0,
+			// AssignedStaffCount is the total instance_staff count — present
+			// and absent combined. Matches the PR #1303 contract: an instance
+			// with two staff, both is_absent=true, reports assigned=2,absent=2
+			// so admins see "staff were planned, nobody's covering today".
+			AssignedStaffCount: len(rows),
 			AbsentStaffCount:   absentCount,
 		})
 	}

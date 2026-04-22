@@ -164,7 +164,7 @@ func TestGaps_AllStaffAbsent_IsAGap(t *testing.T) {
 	got := decodeGaps(t, w)
 	require.Len(t, got.Gaps, 1)
 	assert.Equal(t, 2, got.Gaps[0].AbsentStaffCount)
-	assert.Equal(t, 0, got.Gaps[0].AssignedStaffCount)
+	assert.Equal(t, 2, got.Gaps[0].AssignedStaffCount)
 }
 
 func TestGaps_NonAbsentStaff_NotAGap(t *testing.T) {
