@@ -167,6 +167,21 @@ describe("proxy", () => {
       expect(rewrite).toContain("/operator/provisioning");
     });
 
+    it.each([
+      "/organizations",
+      "/schools",
+      "/accounts",
+      "/devices",
+      "/persons",
+    ])("rewrites %s to /operator%s", (path) => {
+      const res = proxy(
+        makeRequest(`http://${OPERATOR_HOSTNAME}${path}`, OPERATOR_HOSTNAME),
+      );
+
+      const rewrite = res.headers.get("x-middleware-rewrite");
+      expect(rewrite).toContain(`/operator${path}`);
+    });
+
     it("passes through /_next routes", () => {
       const res = proxy(
         makeRequest(
