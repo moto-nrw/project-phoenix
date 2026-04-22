@@ -261,6 +261,7 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 		"SetupAPITest",
 		"setupAPITest",
 		"setupTestContext", // Indirect setup via shared helper (calls SetupAPITest)
+		"newScenario",      // E2E timetable flows — shared_setup.go wraps SetupAPITest
 	}
 
 	// Patterns indicating mock-based testing (legitimate alternative)
