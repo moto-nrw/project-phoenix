@@ -1,8 +1,10 @@
 package config_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"testing"
 
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -55,4 +57,34 @@ func TestIsBinaryMode(t *testing.T) {
 	assert.False(t, configSvc.IsBinaryMode(configModel.PresenceModeDetailed))
 	assert.False(t, configSvc.IsBinaryMode(""))
 	assert.False(t, configSvc.IsBinaryMode("unknown"))
+}
+
+// The two tests below exercise the `logger != nil` branches inside the
+// resolver's error-logging paths. Earlier tests passed nil for simplicity,
+// leaving those branches uncovered; these use a real logger writing to a
+// buffer so we can also assert the warning message is emitted with the
+// expected key/value shape.
+
+func TestResolvePresenceMode_ErrorWithLogger_LogsWarning(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelWarn}))
+	svc := &fakeSettingsService{strErr: errors.New("db gone")}
+
+	mode := configSvc.ResolvePresenceMode(context.Background(), svc, logger)
+
+	assert.Equal(t, configModel.PresenceModeDetailed, mode, "still falls back to detailed")
+	assert.Contains(t, buf.String(), "presence_mode resolve failed")
+	assert.Contains(t, buf.String(), "db gone")
+}
+
+func TestResolvePresenceModeForTenant_ErrorWithLogger_LogsWarning(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelWarn}))
+	svc := &fakeSettingsService{strErr: errors.New("tenant 42 not found")}
+
+	mode := configSvc.ResolvePresenceModeForTenant(context.Background(), svc, 42, logger)
+
+	assert.Equal(t, configModel.PresenceModeDetailed, mode)
+	assert.Contains(t, buf.String(), "presence_mode resolve failed")
+	assert.Contains(t, buf.String(), "tenant_id=42", "tenant ID must appear as a structured field")
 }

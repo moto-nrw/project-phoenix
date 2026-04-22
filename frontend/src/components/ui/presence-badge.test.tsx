@@ -106,6 +106,96 @@ describe("PresenceBadge", () => {
     // that the "seit" prefix is present.
     expect(screen.getByText(/^seit /)).toBeInTheDocument();
   });
+
+  it("renders the simple variant without a pulse dot", () => {
+    const { container } = render(
+      <PresenceBadge
+        student={{ current_location: "Anwesend" }}
+        variant="simple"
+      />,
+    );
+    // Simple variant has no dot/glow — just the label pill.
+    expect(screen.getByText("Anwesend")).toBeInTheDocument();
+    // eslint-disable-next-line testing-library/no-node-access
+    expect(container.querySelector(".animate-pulse")).toBeNull();
+  });
+
+  it("renders the small size with the sm class shape", () => {
+    const { container } = render(
+      <PresenceBadge student={{ current_location: "Anwesend" }} size="sm" />,
+    );
+    // eslint-disable-next-line testing-library/no-node-access
+    const pill = container.querySelector("[data-presence-state]");
+    expect(pill?.className).toMatch(/text-\[11px\]/);
+  });
+
+  it("renders the large size with the lg class shape", () => {
+    const { container } = render(
+      <PresenceBadge student={{ current_location: "Anwesend" }} size="lg" />,
+    );
+    // eslint-disable-next-line testing-library/no-node-access
+    const pill = container.querySelector("[data-presence-state]");
+    expect(pill?.className).toMatch(/text-sm/);
+  });
+
+  it("prefers sick-since timestamp over location_since when both are set", () => {
+    render(
+      <PresenceBadge
+        student={{
+          current_location: "Zuhause",
+          sick: true,
+          sick_since: "2026-04-21T10:00:00Z",
+          location_since: "2026-04-21T06:00:00Z",
+        }}
+        showLocationSince
+      />,
+    );
+    // Replace mode: "Krank" label, and the "seit" line is derived from
+    // sick_since (not the earlier location_since).
+    expect(screen.getByText("Krank")).toBeInTheDocument();
+    expect(screen.getByText(/^seit /)).toBeInTheDocument();
+  });
+
+  it("prefers excused-since timestamp over location_since when both are set", () => {
+    render(
+      <PresenceBadge
+        student={{
+          current_location: "Zuhause",
+          excused: true,
+          excused_since: "2026-04-21T11:00:00Z",
+          location_since: "2026-04-21T06:00:00Z",
+        }}
+        showLocationSince
+      />,
+    );
+    expect(screen.getByText("Entschuldigt")).toBeInTheDocument();
+    expect(screen.getByText(/^seit /)).toBeInTheDocument();
+  });
+
+  it("renders an Entschuldigt overlay when excused student is present", () => {
+    render(
+      <PresenceBadge
+        student={{ current_location: "Anwesend", excused: true }}
+      />,
+    );
+    expect(screen.getByText("Anwesend")).toBeInTheDocument();
+    expect(screen.getByText("Entschuldigt")).toBeInTheDocument();
+    // eslint-disable-next-line testing-library/no-node-access
+    expect(document.querySelector("[data-excused-indicator]")).not.toBeNull();
+  });
+
+  it("prioritises sick over excused when both flags are set (defensive)", () => {
+    // Backend enforces mutual exclusion, but if a race sets both the badge
+    // must still render a single replace label — sick wins, excused is
+    // suppressed.
+    render(
+      <PresenceBadge
+        student={{ current_location: "Zuhause", sick: true, excused: true }}
+      />,
+    );
+    expect(screen.getByText("Krank")).toBeInTheDocument();
+    expect(screen.queryByText("Entschuldigt")).not.toBeInTheDocument();
+  });
 });
 
 /**

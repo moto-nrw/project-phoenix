@@ -207,3 +207,42 @@ func TestAttendance_Fields(t *testing.T) {
 func timePtr(t time.Time) *time.Time {
 	return &t
 }
+
+func TestAttendance_IsOnYard(t *testing.T) {
+	now := time.Now()
+	yard := now.Add(-10 * time.Minute)
+	checkout := now
+
+	tests := []struct {
+		name string
+		att  Attendance
+		want bool
+	}{
+		{
+			name: "in building only (no yard, no checkout)",
+			att:  Attendance{YardSince: nil, CheckOutTime: nil},
+			want: false,
+		},
+		{
+			name: "on yard (yard set, no checkout)",
+			att:  Attendance{YardSince: &yard, CheckOutTime: nil},
+			want: true,
+		},
+		{
+			name: "checked out wins over yard — student has left premises",
+			att:  Attendance{YardSince: &yard, CheckOutTime: &checkout},
+			want: false,
+		},
+		{
+			name: "checked out with no yard history",
+			att:  Attendance{YardSince: nil, CheckOutTime: &checkout},
+			want: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, tc.att.IsOnYard())
+		})
+	}
+}
