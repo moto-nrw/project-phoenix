@@ -170,7 +170,7 @@ func (r *InstanceStaffRepository) CountNonAbsentByInstanceIDs(ctx context.Contex
 		TableExpr(modelTblInstanceStaff).
 		ColumnExpr(`"instance_staff".instance_id AS instance_id`).
 		ColumnExpr(`COUNT(*)::int AS cnt`).
-		Where(`"instance_staff".instance_id IN (?)`, bun.In(instanceIDs)).
+		Where(`"instance_staff".instance_id IN (?)`, bun.List(instanceIDs)).
 		Where(`"instance_staff".is_absent = ?`, false).
 		GroupExpr(`"instance_staff".instance_id`)
 
