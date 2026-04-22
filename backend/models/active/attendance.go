@@ -17,8 +17,10 @@ type Attendance struct {
 	CheckOutTime *time.Time `bun:"check_out_time" json:"check_out_time,omitempty"`
 	CheckedInBy  int64      `bun:"checked_in_by,notnull" json:"checked_in_by"`
 	CheckedOutBy *int64     `bun:"checked_out_by" json:"checked_out_by,omitempty"`
-	DeviceID     int64      `bun:"device_id,notnull" json:"device_id"`
-	YardSince    *time.Time `bun:"yard_since" json:"yard_since,omitempty"`
+	// DeviceID is NULL for web-originated school check-ins (no kiosk
+	// involved). IoT kiosk flows still populate it. See migration 1.15.41.
+	DeviceID  *int64     `bun:"device_id" json:"device_id,omitempty"`
+	YardSince *time.Time `bun:"yard_since" json:"yard_since,omitempty"`
 }
 
 // IsOnYard returns true if the student is currently marked as being on the school yard

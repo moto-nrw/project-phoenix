@@ -88,13 +88,15 @@ func TestAttendance_IsCheckedIn_ZeroValue(t *testing.T) {
 func TestAttendance_CompleteLifecycle(t *testing.T) {
 	now := time.Now()
 
-	// Create attendance record (check-in)
+	// Create attendance record (check-in). DeviceID is *int64 as of
+	// migration 1.15.41 (nullable for web check-ins).
+	deviceID := int64(100)
 	attendance := &Attendance{
 		StudentID:    42,
 		Date:         now,
 		CheckInTime:  now,
 		CheckedInBy:  1,
-		DeviceID:     100,
+		DeviceID:     &deviceID,
 		CheckOutTime: nil,
 		CheckedOutBy: nil,
 	}
@@ -170,6 +172,7 @@ func TestAttendance_Fields(t *testing.T) {
 	now := time.Now()
 	checkoutTime := now.Add(2 * time.Hour)
 	checkedOutBy := int64(99)
+	deviceID200 := int64(200)
 
 	attendance := &Attendance{
 		StudentID:    42,
@@ -178,7 +181,7 @@ func TestAttendance_Fields(t *testing.T) {
 		CheckOutTime: &checkoutTime,
 		CheckedInBy:  10,
 		CheckedOutBy: &checkedOutBy,
-		DeviceID:     200,
+		DeviceID:     &deviceID200,
 	}
 	attendance.ID = 1
 	attendance.CreatedAt = now
@@ -194,7 +197,8 @@ func TestAttendance_Fields(t *testing.T) {
 	assert.Equal(t, int64(10), attendance.CheckedInBy)
 	assert.NotNil(t, attendance.CheckedOutBy)
 	assert.Equal(t, int64(99), *attendance.CheckedOutBy)
-	assert.Equal(t, int64(200), attendance.DeviceID)
+	assert.NotNil(t, attendance.DeviceID)
+	assert.Equal(t, int64(200), *attendance.DeviceID)
 	assert.Equal(t, now, attendance.CreatedAt)
 	assert.Equal(t, checkoutTime, attendance.UpdatedAt)
 }

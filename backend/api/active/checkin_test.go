@@ -17,6 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/spf13/viper"
@@ -170,14 +171,15 @@ func TestAttendance_Fields(t *testing.T) {
 			Date:        today,
 			CheckInTime: now,
 			CheckedInBy: 456,
-			DeviceID:    789,
+			DeviceID:    base.Int64Ptr(789),
 		}
 
 		assert.Equal(t, int64(123), attendance.StudentID)
 		assert.Equal(t, today, attendance.Date)
 		assert.Equal(t, now, attendance.CheckInTime)
 		assert.Equal(t, int64(456), attendance.CheckedInBy)
-		assert.Equal(t, int64(789), attendance.DeviceID)
+		require.NotNil(t, attendance.DeviceID)
+		assert.Equal(t, int64(789), *attendance.DeviceID)
 		assert.Nil(t, attendance.CheckOutTime)
 		assert.Nil(t, attendance.CheckedOutBy)
 	})
@@ -192,7 +194,7 @@ func TestAttendance_Fields(t *testing.T) {
 			Date:         timezone.Today(),
 			CheckInTime:  now,
 			CheckedInBy:  456,
-			DeviceID:     111,
+			DeviceID:     base.Int64Ptr(111),
 			CheckOutTime: &checkoutTime,
 			CheckedOutBy: &checkedOutBy,
 		}

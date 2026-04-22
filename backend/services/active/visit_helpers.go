@@ -74,7 +74,9 @@ func (s *service) createAttendanceRecord(ctx context.Context, visit *active.Visi
 		Date:        visitDate,
 		CheckInTime: visit.EntryTime,
 		CheckedInBy: resolvedStaffID,
-		DeviceID:    resolvedDeviceID,
+	}
+	if resolvedDeviceID != 0 {
+		attendance.DeviceID = &resolvedDeviceID
 	}
 
 	attendance.SetTenantID(tenant.FromContext(ctx))

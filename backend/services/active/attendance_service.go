@@ -229,14 +229,19 @@ func (s *service) checkRoomSupervisorAccess(ctx context.Context, studentID, staf
 	return false, nil
 }
 
-// performCheckIn creates a new attendance record for check-in
+// performCheckIn creates a new attendance record for check-in.
+// deviceID == 0 marks a web-originated check-in with no kiosk involved;
+// the column is nullable as of migration 1.15.41 so those rows write NULL
+// instead of a bogus FK reference.
 func (s *service) performCheckIn(ctx context.Context, studentID, staffID, deviceID int64, now, today time.Time) (*AttendanceResult, error) {
 	attendance := &active.Attendance{
 		StudentID:   studentID,
 		Date:        today,
 		CheckInTime: now,
 		CheckedInBy: staffID,
-		DeviceID:    deviceID,
+	}
+	if deviceID != 0 {
+		attendance.DeviceID = &deviceID
 	}
 
 	attendance.SetTenantID(tenant.FromContext(ctx))

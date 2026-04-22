@@ -327,7 +327,12 @@ func CreateTestAttendance(tb testing.TB, db *bun.DB, studentID, staffID, deviceI
 		CheckInTime:  checkInTime,
 		CheckOutTime: checkOutTime,
 		CheckedInBy:  staffID,
-		DeviceID:     deviceID,
+	}
+	// DeviceID is nullable as of migration 1.15.41; preserve the fixture
+	// contract (existing callers pass a non-zero deviceID) while allowing
+	// callers that want a NULL device to pass 0.
+	if deviceID != 0 {
+		attendance.DeviceID = &deviceID
 	}
 	attendance.SetTenantID(1)
 
