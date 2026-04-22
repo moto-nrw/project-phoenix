@@ -126,7 +126,7 @@ func (r *ScheduleRepository) FindTemplateStartTimesByGroupIDs(ctx context.Contex
 		INNER JOIN schedule.timeframes AS t ON t.id = s.timeframe_id
 		WHERE s.activity_group_id IN (?)
 		  AND s.timeframe_id IS NOT NULL`
-	args := []any{bun.In(groupIDs)}
+	args := []any{bun.List(groupIDs)}
 	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
 		q += ` AND s.tenant_id = ? AND t.tenant_id = ?`
 		args = append(args, tenantID, tenantID)

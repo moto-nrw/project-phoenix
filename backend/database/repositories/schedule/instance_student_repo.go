@@ -141,7 +141,7 @@ func (r *InstanceStudentRepository) FindExpectedByInstanceIDs(ctx context.Contex
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&rows).
 		ModelTableExpr(modelTblInstanceStudent).
-		Where(`"instance_student".instance_id IN (?)`, bun.In(instanceIDs)).
+		Where(`"instance_student".instance_id IN (?)`, bun.List(instanceIDs)).
 		Where(`"instance_student".status = ?`, schedule.AttendanceStatusExpected).
 		OrderExpr(`"instance_student".instance_id ASC, "instance_student".student_id ASC`)
 
