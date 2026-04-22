@@ -139,6 +139,14 @@ func (f *fakeInstanceStudentRepo) UpdateAttendanceFields(context.Context, int64,
 	panic("unused")
 }
 
+func (f *fakeInstanceStudentRepo) BulkUpdateStatus(context.Context, int64, string, string) (int, error) {
+	panic("unused")
+}
+
+func (f *fakeInstanceStudentRepo) FindInstancesWithAttendanceByStudentAndDateRange(context.Context, int64, time.Time, time.Time) ([]*scheduleModel.ScheduledInstanceRow, error) {
+	panic("unused")
+}
+
 // -----------------------------------------------------------------------------
 // Helpers
 // -----------------------------------------------------------------------------

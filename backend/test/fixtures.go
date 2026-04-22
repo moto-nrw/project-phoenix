@@ -2488,3 +2488,250 @@ func CleanupTenantTestData(tb testing.TB, db *bun.DB, tenantIDs ...int64) {
 		}
 	}
 }
+
+// ============================================================================
+// WP-B11 fixtures: timetable student day/week
+// ============================================================================
+
+// parseTimeHHMM turns "HH:MM" into a time.Time anchored on 2000-01-01 (so
+// only the clock components matter for the TIME column). Invalid input fails
+// the test loudly.
+func parseTimeHHMM(tb testing.TB, hhmm string) time.Time {
+	tb.Helper()
+	t, err := time.Parse("15:04", hhmm)
+	require.NoError(tb, err, "invalid HH:MM literal %q", hhmm)
+	return time.Date(2000, 1, 1, t.Hour(), t.Minute(), 0, 0, time.UTC)
+}
+
+// CreateTestArrivalSchedule inserts a weekly arrival schedule for a student.
+// staffID must reference users.staff(id) — the schema's created_by FK.
+func CreateTestArrivalSchedule(tb testing.TB, db *bun.DB, studentID int64, weekday int, staffID int64, arrivalHHMM string) *schedule.StudentArrivalSchedule {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	row := &schedule.StudentArrivalSchedule{
+		StudentID:       studentID,
+		Weekday:         weekday,
+		ExpectedArrival: parseTimeHHMM(tb, arrivalHHMM),
+		CreatedBy:       staffID,
+	}
+	row.SetTenantID(1)
+
+	_, err := db.NewInsert().
+		Model(row).
+		ModelTableExpr(`schedule.student_arrival_schedules`).
+		Exec(ctx)
+	require.NoError(tb, err, "Failed to create test arrival schedule")
+	return row
+}
+
+// CreateTestArrivalException inserts a date-specific arrival exception.
+// Pass arrivalHHMM="" to signal absence on that date (ExpectedArrival=NULL).
+func CreateTestArrivalException(tb testing.TB, db *bun.DB, studentID int64, date time.Time, staffID int64, arrivalHHMM, reason string) *schedule.StudentArrivalException {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	row := &schedule.StudentArrivalException{
+		StudentID:     studentID,
+		ExceptionDate: timezone.DateOfUTC(date),
+		CreatedBy:     staffID,
+	}
+	if arrivalHHMM != "" {
+		t := parseTimeHHMM(tb, arrivalHHMM)
+		row.ExpectedArrival = &t
+	}
+	if reason != "" {
+		row.Reason = &reason
+	}
+	row.SetTenantID(1)
+
+	_, err := db.NewInsert().
+		Model(row).
+		ModelTableExpr(`schedule.student_arrival_exceptions`).
+		Exec(ctx)
+	require.NoError(tb, err, "Failed to create test arrival exception")
+	return row
+}
+
+// CreateTestPickupSchedule inserts a weekly pickup schedule for a student.
+func CreateTestPickupSchedule(tb testing.TB, db *bun.DB, studentID int64, weekday int, staffID int64, pickupHHMM string) *schedule.StudentPickupSchedule {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	row := &schedule.StudentPickupSchedule{
+		StudentID:  studentID,
+		Weekday:    weekday,
+		PickupTime: parseTimeHHMM(tb, pickupHHMM),
+		CreatedBy:  staffID,
+	}
+	row.SetTenantID(1)
+
+	_, err := db.NewInsert().
+		Model(row).
+		ModelTableExpr(`schedule.student_pickup_schedules`).
+		Exec(ctx)
+	require.NoError(tb, err, "Failed to create test pickup schedule")
+	return row
+}
+
+// CreateTestPickupException inserts a date-specific pickup exception.
+// Pass pickupHHMM="" for absence (PickupTime=NULL).
+func CreateTestPickupException(tb testing.TB, db *bun.DB, studentID int64, date time.Time, staffID int64, pickupHHMM, reason string) *schedule.StudentPickupException {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	row := &schedule.StudentPickupException{
+		StudentID:     studentID,
+		ExceptionDate: timezone.DateOfUTC(date),
+		CreatedBy:     staffID,
+	}
+	if pickupHHMM != "" {
+		t := parseTimeHHMM(tb, pickupHHMM)
+		row.PickupTime = &t
+	}
+	if reason != "" {
+		row.Reason = &reason
+	}
+	row.SetTenantID(1)
+
+	_, err := db.NewInsert().
+		Model(row).
+		ModelTableExpr(`schedule.student_pickup_exceptions`).
+		Exec(ctx)
+	require.NoError(tb, err, "Failed to create test pickup exception")
+	return row
+}
+
+// ActivityInstanceOpts lets tests tweak non-default instance fields without
+// bloating the basic helper signature.
+type ActivityInstanceOpts struct {
+	Status          string // defaults to InstanceStatusPlanned
+	ActivityGroupID *int64 // nil = spontaneous instance
+	ActiveGroupID   *int64 // set for active/completed instances
+	StartHHMM       string // defaults to "14:00"
+	EndHHMM         string // defaults to "15:00"
+	Title           string // defaults to "Test Instance"
+	IsSpontaneous   bool
+}
+
+// CreateTestActivityInstance inserts a schedule.activity_instances row.
+// Activity group / active group / status default to a planned template-backed
+// instance; override via opts for lifecycle-edge tests.
+func CreateTestActivityInstance(tb testing.TB, db *bun.DB, date time.Time, roomID int64, opts ActivityInstanceOpts) *schedule.ActivityInstance {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	status := opts.Status
+	if status == "" {
+		status = schedule.InstanceStatusPlanned
+	}
+	startHHMM := opts.StartHHMM
+	if startHHMM == "" {
+		startHHMM = "14:00"
+	}
+	endHHMM := opts.EndHHMM
+	if endHHMM == "" {
+		endHHMM = "15:00"
+	}
+	title := opts.Title
+	if title == "" {
+		title = fmt.Sprintf("Test Instance %d", time.Now().UnixNano())
+	}
+
+	row := &schedule.ActivityInstance{
+		Date:            timezone.DateOfUTC(date),
+		ActivityGroupID: opts.ActivityGroupID,
+		ActiveGroupID:   opts.ActiveGroupID,
+		Title:           title,
+		StartTime:       parseTimeHHMM(tb, startHHMM),
+		EndTime:         parseTimeHHMM(tb, endHHMM),
+		RoomID:          roomID,
+		Status:          status,
+		IsSpontaneous:   opts.IsSpontaneous,
+	}
+	row.SetTenantID(1)
+
+	_, err := db.NewInsert().
+		Model(row).
+		ModelTableExpr(`schedule.activity_instances`).
+		Exec(ctx)
+	require.NoError(tb, err, "Failed to create test activity instance")
+	return row
+}
+
+// CreateTestInstanceStudent inserts one instance_students row. Status defaults
+// to AttendanceStatusExpected when empty.
+func CreateTestInstanceStudent(tb testing.TB, db *bun.DB, instanceID, studentID int64, status string) *schedule.InstanceStudent {
+	tb.Helper()
+
+	if status == "" {
+		status = schedule.AttendanceStatusExpected
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	row := &schedule.InstanceStudent{
+		InstanceID: instanceID,
+		StudentID:  studentID,
+		Status:     status,
+	}
+	row.SetTenantID(1)
+
+	_, err := db.NewInsert().
+		Model(row).
+		ModelTableExpr(`schedule.instance_students`).
+		Exec(ctx)
+	require.NoError(tb, err, "Failed to create test instance student")
+	return row
+}
+
+// CleanupScheduleFixturesB11 drops arrival/pickup/instance fixtures by ID.
+// Table cleanup order matters: instance_students before activity_instances
+// (FK), arrival/pickup exceptions before their student rows. Callers can
+// pass zero IDs (skipped silently).
+func CleanupScheduleFixturesB11(
+	tb testing.TB, db *bun.DB,
+	arrivalScheduleIDs, arrivalExceptionIDs, pickupScheduleIDs, pickupExceptionIDs []int64,
+	instanceStudentIDs, activityInstanceIDs []int64,
+) {
+	tb.Helper()
+
+	nonzero := func(ids []int64) []int64 {
+		out := make([]int64, 0, len(ids))
+		for _, id := range ids {
+			if id > 0 {
+				out = append(out, id)
+			}
+		}
+		return out
+	}
+
+	byTable := []struct {
+		table string
+		ids   []int64
+	}{
+		{"schedule.instance_students", nonzero(instanceStudentIDs)},
+		{"schedule.activity_instances", nonzero(activityInstanceIDs)},
+		{"schedule.student_arrival_exceptions", nonzero(arrivalExceptionIDs)},
+		{"schedule.student_arrival_schedules", nonzero(arrivalScheduleIDs)},
+		{"schedule.student_pickup_exceptions", nonzero(pickupExceptionIDs)},
+		{"schedule.student_pickup_schedules", nonzero(pickupScheduleIDs)},
+	}
+	for _, g := range byTable {
+		if len(g.ids) == 0 {
+			continue
+		}
+		CleanupTableRecords(tb, db, g.table, g.ids...)
+	}
+}

@@ -274,6 +274,39 @@ func (r *InstanceStudentRepository) UpdateAttendanceFields(
 	return nil
 }
 
+// BulkUpdateStatus flips every attendance row for instanceID whose current
+// status equals fromStatus to toStatus. Returns the number of rows changed.
+//
+// Used by instance Complete() to mark remaining expected students as absent.
+// The fromStatus predicate keeps the update idempotent and free of clobber:
+// rows already moved past 'expected' (present via checkin, absent via PATCH)
+// stay put.
+func (r *InstanceStudentRepository) BulkUpdateStatus(
+	ctx context.Context, instanceID int64, fromStatus, toStatus string,
+) (int, error) {
+	q := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*schedule.InstanceStudent)(nil)).
+		ModelTableExpr(modelTblInstanceStudent).
+		Set(`status = ?`, toStatus).
+		Set(`updated_at = ?`, time.Now().UTC()).
+		Where(`"instance_student".instance_id = ?`, instanceID).
+		Where(`"instance_student".status = ?`, fromStatus)
+
+	if where, val, ok := base.TenantWhere(ctx, aliasInstanceStudent); ok {
+		q = q.Where(where, val)
+	}
+
+	res, err := q.Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "bulk update status",
+			Err: err,
+		}
+	}
+	n, _ := res.RowsAffected()
+	return int(n), nil
+}
+
 // DeleteByInstanceID removes all attendance rows for an instance.
 func (r *InstanceStudentRepository) DeleteByInstanceID(ctx context.Context, instanceID int64) error {
 	query := base.GetDB(ctx, r.db).NewDelete().

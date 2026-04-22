@@ -85,6 +85,12 @@ type VisitRepository interface {
 	// student whose entry_time falls within [start, end], ordered by entry_time desc.
 	FindByStudentAndTimeRange(ctx context.Context, studentID int64, start, end time.Time) ([]*Visit, error)
 
+	// FindByStudentAndActiveGroupIDs returns visits for the student whose
+	// active_group_id is in the given list. Used by the timetable per-student
+	// day view to detect unplanned attendance in a single batch query.
+	// Returns an empty slice (no DB call) when the id list is empty.
+	FindByStudentAndActiveGroupIDs(ctx context.Context, studentID int64, activeGroupIDs []int64) ([]*Visit, error)
+
 	// EndVisit marks a visit as ended at the current time
 	EndVisit(ctx context.Context, id int64) error
 

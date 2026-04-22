@@ -189,6 +189,10 @@ func (m *mockVisitRepository) FindByStudentAndTimeRange(ctx context.Context, stu
 	return nil, nil
 }
 
+func (m *mockVisitRepository) FindByStudentAndActiveGroupIDs(ctx context.Context, studentID int64, activeGroupIDs []int64) ([]*active.Visit, error) {
+	return nil, nil
+}
+
 func (m *mockVisitRepository) EndVisit(ctx context.Context, id int64) error {
 	if m.endVisitFunc != nil {
 		return m.endVisitFunc(ctx, id)

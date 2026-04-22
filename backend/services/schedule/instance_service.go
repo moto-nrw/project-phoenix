@@ -241,6 +241,16 @@ func (s *instanceService) Complete(ctx context.Context, instanceID int64) (*sche
 		return nil, &ScheduleError{Op: "complete instance", Err: fmt.Errorf("active instance %d has no active_group_id", instance.ID)}
 	}
 
+	// Mark any remaining expected students as absent before ending the active
+	// group. Runs inside the caller's tenant tx — if EndActivitySession or
+	// updateLifecycleColumns fail below, the bulk update rolls back too, so
+	// the instance never leaves the tx in a half-finished state.
+	if _, err := s.deps.InstanceStudents.BulkUpdateStatus(
+		ctx, instance.ID, scheduleModel.AttendanceStatusExpected, scheduleModel.AttendanceStatusAbsent,
+	); err != nil {
+		return nil, &ScheduleError{Op: "complete instance: mark absent", Err: err}
+	}
+
 	if err := s.deps.ActiveService.EndActivitySession(ctx, *instance.ActiveGroupID); err != nil {
 		return nil, &ScheduleError{Op: "complete instance: end active.group", Err: err}
 	}
