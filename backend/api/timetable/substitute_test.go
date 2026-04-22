@@ -185,6 +185,23 @@ func TestSubstitute_InvalidJSON_Rejected(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
+func TestSubstitute_PastDate_Rejected(t *testing.T) {
+	s := buildSubSetup(t)
+	defer s.cleanupFn()
+	router := subRouter(s.ctx, s.res)
+
+	// Yesterday (Berlin-local). Matches /gaps policy: mutating is_absent flags
+	// on completed instances would rewrite history.
+	past := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
+	w := doSub(t, router, map[string]any{
+		"absent_staff_id":     s.absent,
+		"substitute_staff_id": s.substitu,
+		"date":                past,
+	})
+	assert.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
+	assert.Contains(t, w.Body.String(), "today or a future date")
+}
+
 func TestSubstitute_StaffNotFound(t *testing.T) {
 	s := buildSubSetup(t)
 	defer s.cleanupFn()
@@ -375,6 +392,8 @@ func TestSubstitute_Conflict_OtherSubstitute_Exists_AtomicNoWrites(t *testing.T)
 		"date":                dateStr,
 	})
 	require.Equal(t, http.StatusConflict, w.Code, "body=%s", w.Body.String())
+	assert.Contains(t, w.Body.String(), `"code":"substitute_conflict"`,
+		"frontend relies on the stable conflict code, not the German message")
 
 	// ATOMICITY CHECK — this is the WP-B12 Dry-Run-First contract.
 	// Instances Early and Mid must NOT have been written to, even though

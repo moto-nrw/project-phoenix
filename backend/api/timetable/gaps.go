@@ -129,9 +129,11 @@ func (rs *Resource) getGaps(w http.ResponseWriter, r *http.Request) {
 	// Absent-staff count is needed per-instance for the response. An instance
 	// marked as a gap (non_absent == 0) still carries information: were there
 	// staff assigned but all sick? That signal helps admins triage.
-	// One query per gap instance is acceptable — gaps are rare and this list
-	// is typically short. If this becomes a hot path, batch via a second
-	// GROUP-BY on is_absent=true.
+	//
+	// NOTE (N+1): one FindByInstanceID per gap. Acceptable today because the
+	// gap list is short by definition (most instances have staff). If this
+	// grows into a hot path, replace with a second GROUP-BY on
+	// is_absent=true, batched across candidateIDs.
 	gaps := make([]GapInstance, 0)
 	for _, inst := range candidates {
 		if nonAbsentCounts[inst.ID] > 0 {
@@ -152,13 +154,17 @@ func (rs *Resource) getGaps(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		gaps = append(gaps, GapInstance{
-			InstanceID:         inst.ID,
-			Date:               inst.Date.Format(dateLayout),
-			Title:              inst.Title,
-			StartTime:          inst.StartTime.Format("15:04"),
-			EndTime:            inst.EndTime.Format("15:04"),
-			RoomID:             inst.RoomID,
-			Status:             inst.Status,
+			InstanceID: inst.ID,
+			Date:       inst.Date.Format(dateLayout),
+			Title:      inst.Title,
+			StartTime:  inst.StartTime.Format("15:04"),
+			EndTime:    inst.EndTime.Format("15:04"),
+			RoomID:     inst.RoomID,
+			Status:     inst.Status,
+			// AssignedStaffCount is always 0 here by construction: we only
+			// reach this branch when nonAbsentCounts[inst.ID] == 0. The
+			// field exists so clients can rely on a stable schema; the
+			// invariant is worth the byte.
 			AssignedStaffCount: 0,
 			AbsentStaffCount:   absentCount,
 		})

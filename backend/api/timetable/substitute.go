@@ -70,8 +70,9 @@ type SubstituteResponse struct {
 }
 
 // plannedOp holds one classified target instance and the decision of what
-// Phase B should do with it. origRow is nil only when a defensive panic path
-// is needed — in the normal flow it is always set.
+// Phase B should do with it. Both pointer fields are always populated —
+// Phase A pushes an op only after successfully loading the instance and
+// classifying the origRow.
 type plannedOp struct {
 	instance *scheduleModel.ActivityInstance
 	origRow  *scheduleModel.InstanceStaff
@@ -103,6 +104,17 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 	date, err := berlinDate(req.Date)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid date format, expected YYYY-MM-DD")))
+		return
+	}
+
+	// Past dates are rejected. /substitute is a planner tool for "today's staff
+	// is out" scenarios; mutating is_absent flags on completed instances would
+	// rewrite history. Matches the /gaps policy. Post-hoc correction (if ever
+	// required) belongs behind a distinct endpoint or an explicit flag, not
+	// this fast-path.
+	todayBerlin := timezone.DateOfUTC(time.Now())
+	if timezone.DateOfUTC(date).Before(todayBerlin) {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("'date' must be today or a future date")))
 		return
 	}
 
@@ -171,7 +183,6 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 	// PHASE A — Dry-Run: classify every row, no writes.
 	// ======================================================================
 	plan := make([]plannedOp, 0, len(origRows))
-	instancesByID := make(map[int64]*scheduleModel.ActivityInstance, len(origRows))
 
 	for _, orig := range origRows {
 		instance, err := rs.activityInstanceRepo.FindByID(ctx, orig.InstanceID)
@@ -186,7 +197,6 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 				fmt.Errorf("instance_staff %d references missing instance %d", orig.ID, orig.InstanceID)))
 			return
 		}
-		instancesByID[instance.ID] = instance
 
 		// All rows of this instance — needed to detect existing substitutes
 		// and co-supervisor cases.
@@ -200,10 +210,13 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 		if !ok {
 			// Phase A aborts the whole request — no writes have happened yet,
 			// so even though the tenant middleware will commit the (empty)
-			// tx, no DB state changed.
-			common.RenderError(w, r, common.ErrorConflictMessage(
-				fmt.Sprintf("instance %d has a different substitute already assigned (staff_id=%d). Remove the existing substitute first.",
-					instance.ID, conflictOtherStaff)))
+			// tx, no DB state changed. The stable code lets the frontend
+			// render the conflict without parsing the German message.
+			common.RenderError(w, r, common.ErrorConflictWithCode(
+				fmt.Errorf("instance %d has a different substitute already assigned (staff_id=%d); remove the existing substitute first",
+					instance.ID, conflictOtherStaff),
+				"substitute_conflict",
+			))
 			return
 		}
 
@@ -434,6 +447,10 @@ func (rs *Resource) buildSubstituteTimeConflicts(
 			// safe to compare the substitute's existing foreign assignments.
 			continue
 		}
+		// already_on_instance is intentionally included: no new substitute
+		// row is created, but the co-supervisor's pre-existing overlaps with
+		// other same-day assignments remain relevant information for the
+		// admin. Pruning them would hide a truthful signal.
 		targets = append(targets, toConflictInstance(op.instance))
 	}
 	return scheduleSvc.DetectSubstituteTimeConflicts(targets, foreigns), nil
@@ -454,6 +471,13 @@ func toConflictInstance(inst *scheduleModel.ActivityInstance) scheduleSvc.Substi
 // broadcastSubstituteEvents fires one activity_update per affected active
 // group. Fire-and-forget: errors are logged, never bubble up. Consistent
 // with WP-B9's broadcastInstanceEvent pattern (inside the tenant tx).
+//
+// Timing caveat (same as B9): the broadcast happens BEFORE TenantTxMiddleware
+// commits. In the narrow window where a late middleware panic or render
+// failure aborts the response after broadcast, subscribers would see an
+// activity_update for DB state that was never committed. We accept that
+// trade-off because plumbing a post-commit hook through the middleware stack
+// is disproportionate for a fire-and-forget UI notification.
 func (rs *Resource) broadcastSubstituteEvents(
 	ctx context.Context,
 	touched map[int64]*scheduleModel.ActivityInstance,
