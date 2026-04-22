@@ -23,9 +23,10 @@ const errAdminOnlyForOperator = "this setting is admin-only and cannot be modifi
 
 // errPresenceModeSwitchBlocked is shown to the operator when they try to flip
 // operations.presence_mode while students are still checked in for the day.
-// German copy intentionally omits trailing punctuation to satisfy staticcheck
-// ST1005 — the settings UI joins this into a longer sentence anyway.
-const errPresenceModeSwitchBlocked = "Moduswechsel während aktiver Anwesenheit nicht möglich — bitte zunächst Tagesabschluss durchführen"
+// German copy; staticcheck ST1005 (capitalization / trailing punctuation) is
+// waived at the callsite with a nolint directive, matching the convention in
+// api/groups for German user-facing errors.
+const errPresenceModeSwitchBlocked = "Moduswechsel während aktiver Anwesenheit nicht möglich. Bitte zunächst Tagesabschluss durchführen."
 
 // enforcePresenceModeSwitchGuard rejects an in-progress write to
 // operations.presence_mode when any student is currently checked in for the
@@ -56,6 +57,7 @@ func enforcePresenceModeSwitchGuard(ctx context.Context, tx bun.Tx, key string, 
 		return fmt.Errorf("failed to check active attendance before mode switch: %w", err)
 	}
 	if exists {
+		//nolint:staticcheck // ST1005: German user-facing message
 		return errors.New(errPresenceModeSwitchBlocked)
 	}
 	return nil
