@@ -1108,3 +1108,84 @@ func TestGroupSupervisorRepository_FindAllActive(t *testing.T) {
 // but are not exposed in the GroupSupervisorRepository interface, so they
 // cannot be tested through the interface. These methods are unused in the
 // codebase and account for the 6 uncovered lines (62.5% → ~68% coverage).
+
+func TestGroupSupervisorRepository_EndByActiveGroupAndStaffID(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).GroupSupervisor
+	ctx := testpkg.TenantContext(1)
+	data := createSupervisorTestData(t, db)
+	defer cleanupSupervisorTestData(t, db, data)
+
+	createSup := func(t *testing.T, staffID int64) *active.GroupSupervisor {
+		sup := &active.GroupSupervisor{
+			GroupID:   data.ActiveGroup.ID,
+			StaffID:   staffID,
+			StartDate: timezone.DateOfUTC(time.Now()),
+			Role:      "supervisor",
+		}
+		require.NoError(t, repo.Create(ctx, sup))
+		return sup
+	}
+
+	t.Run("EndsActiveRowForMatchingPair", func(t *testing.T) {
+		sup := createSup(t, data.Staff1.ID)
+		defer testpkg.CleanupTableRecords(t, db, "active.group_supervisors", sup.ID)
+
+		n, err := repo.EndByActiveGroupAndStaffID(ctx, data.ActiveGroup.ID, data.Staff1.ID)
+		require.NoError(t, err)
+		assert.Equal(t, 1, n)
+
+		// Verify end_date is now set.
+		reloaded, err := repo.FindByID(ctx, sup.ID)
+		require.NoError(t, err)
+		assert.NotNil(t, reloaded.EndDate)
+	})
+
+	t.Run("Idempotent_ZeroRowsOnAlreadyEnded", func(t *testing.T) {
+		sup := createSup(t, data.Staff1.ID)
+		defer testpkg.CleanupTableRecords(t, db, "active.group_supervisors", sup.ID)
+
+		// First call ends it.
+		n1, err := repo.EndByActiveGroupAndStaffID(ctx, data.ActiveGroup.ID, data.Staff1.ID)
+		require.NoError(t, err)
+		assert.Equal(t, 1, n1)
+
+		// Second call is idempotent: zero rows, no error.
+		n2, err := repo.EndByActiveGroupAndStaffID(ctx, data.ActiveGroup.ID, data.Staff1.ID)
+		require.NoError(t, err)
+		assert.Equal(t, 0, n2)
+	})
+
+	t.Run("LeavesOtherStaffUntouched", func(t *testing.T) {
+		sup1 := createSup(t, data.Staff1.ID)
+		sup2 := createSup(t, data.Staff2.ID)
+		defer testpkg.CleanupTableRecords(t, db, "active.group_supervisors", sup1.ID, sup2.ID)
+
+		n, err := repo.EndByActiveGroupAndStaffID(ctx, data.ActiveGroup.ID, data.Staff1.ID)
+		require.NoError(t, err)
+		assert.Equal(t, 1, n)
+
+		// Staff2 must remain active.
+		reloaded, err := repo.FindByID(ctx, sup2.ID)
+		require.NoError(t, err)
+		assert.Nil(t, reloaded.EndDate, "other staff's supervision must remain open")
+	})
+
+	t.Run("TenantIsolation_DoesNotTouchOtherTenantRow", func(t *testing.T) {
+		sup := createSup(t, data.Staff1.ID)
+		defer testpkg.CleanupTableRecords(t, db, "active.group_supervisors", sup.ID)
+
+		// Call from a different tenant context: must match zero rows.
+		otherTenantCtx := tenant.WithTenantID(context.Background(), 999)
+		n, err := repo.EndByActiveGroupAndStaffID(otherTenantCtx, data.ActiveGroup.ID, data.Staff1.ID)
+		require.NoError(t, err)
+		assert.Equal(t, 0, n)
+
+		// Confirm the original row is still open from the correct tenant.
+		reloaded, err := repo.FindByID(ctx, sup.ID)
+		require.NoError(t, err)
+		assert.Nil(t, reloaded.EndDate)
+	})
+}

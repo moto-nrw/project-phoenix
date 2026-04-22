@@ -34,15 +34,6 @@ import (
 // rejected at 400 — the frontend has no use case for a longer horizon today.
 const maxWeekRangeDays = 14
 
-// berlinDate parses a YYYY-MM-DD input anchored in Berlin timezone. The
-// distinction matters for the 00:00–02:00 CET/UTC gap: a UTC-anchored parse
-// of "2026-04-22" would be midnight UTC (02:00 Berlin), and a Berlin-DateOf
-// round-trip would land on the previous day. Using ParseInLocation sidesteps
-// that entirely.
-func berlinDate(input string) (time.Time, error) {
-	return time.ParseInLocation(dateLayout, input, timezone.Berlin)
-}
-
 // isoWeekday returns 1..7 (Mon..Sun) for the Berlin-local weekday of t.
 func isoWeekday(t time.Time) int {
 	return int((int(t.In(timezone.Berlin).Weekday())+6)%7 + 1)

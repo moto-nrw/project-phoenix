@@ -2696,6 +2696,57 @@ func CreateTestInstanceStudent(tb testing.TB, db *bun.DB, instanceID, studentID 
 	return row
 }
 
+// InstanceStaffOpts controls optional fields for CreateTestInstanceStaff.
+type InstanceStaffOpts struct {
+	RoomID       *int64
+	IsPrimary    bool
+	IsSubstitute bool
+	IsAbsent     bool
+}
+
+// CreateTestInstanceStaff inserts one schedule.instance_staff row. Defaults
+// yield a non-primary, non-substitute, non-absent assignment in the instance's
+// main room.
+func CreateTestInstanceStaff(tb testing.TB, db *bun.DB, instanceID, staffID int64, opts InstanceStaffOpts) *schedule.InstanceStaff {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	row := &schedule.InstanceStaff{
+		InstanceID:   instanceID,
+		StaffID:      staffID,
+		RoomID:       opts.RoomID,
+		IsPrimary:    opts.IsPrimary,
+		IsSubstitute: opts.IsSubstitute,
+		IsAbsent:     opts.IsAbsent,
+	}
+	row.SetTenantID(1)
+
+	_, err := db.NewInsert().
+		Model(row).
+		ModelTableExpr(`schedule.instance_staff`).
+		Exec(ctx)
+	require.NoError(tb, err, "Failed to create test instance staff")
+	return row
+}
+
+// CleanupInstanceStaffFixtures removes instance_staff rows by ID. Callers may
+// pass zero IDs (skipped silently).
+func CleanupInstanceStaffFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
+	tb.Helper()
+	nonzero := make([]int64, 0, len(ids))
+	for _, id := range ids {
+		if id > 0 {
+			nonzero = append(nonzero, id)
+		}
+	}
+	if len(nonzero) == 0 {
+		return
+	}
+	CleanupTableRecords(tb, db, "schedule.instance_staff", nonzero...)
+}
+
 // CleanupScheduleFixturesB11 drops arrival/pickup/instance fixtures by ID.
 // Table cleanup order matters: instance_students before activity_instances
 // (FK), arrival/pickup exceptions before their student rows. Callers can

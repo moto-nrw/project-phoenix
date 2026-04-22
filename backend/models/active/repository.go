@@ -168,6 +168,14 @@ type GroupSupervisorRepository interface {
 	// Returns the number of supervisions that were ended
 	EndAllActiveByStaffID(ctx context.Context, staffID int64) (int, error)
 
+	// EndByActiveGroupAndStaffID ends active supervisions for a specific
+	// (active_group_id, staff_id) pair. Sets end_date=now() on all matching
+	// rows with end_date IS NULL. Used by the substitute flow to remove the
+	// absent staff's active supervisorship for a single active group without
+	// touching their supervisions elsewhere. Idempotent: zero rows matched
+	// is not an error (staff already ended or never supervised this group).
+	EndByActiveGroupAndStaffID(ctx context.Context, activeGroupID, staffID int64) (int, error)
+
 	// CreateBulk inserts multiple supervisors in a single query.
 	// All supervisors must have valid fields and tenant IDs set before calling.
 	CreateBulk(ctx context.Context, supervisors []*GroupSupervisor) error

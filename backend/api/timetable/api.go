@@ -16,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	usercontextSvc "github.com/moto-nrw/project-phoenix/services/usercontext"
@@ -38,14 +39,18 @@ type Resource struct {
 	personService          userSvc.PersonService
 	instanceStudentRepo    schedule.InstanceStudentRepository
 	activityInstanceRepo   schedule.ActivityInstanceRepository
+	instanceStaffRepo      schedule.InstanceStaffRepository
+	supervisorRepo         active.GroupSupervisorRepository
 	arrivalScheduleRepo    schedule.StudentArrivalScheduleRepository
 	arrivalExceptionRepo   schedule.StudentArrivalExceptionRepository
 	pickupScheduleRepo     schedule.StudentPickupScheduleRepository
 	pickupExceptionRepo    schedule.StudentPickupExceptionRepository
 	visitRepo              active.VisitRepository
 	studentRepo            users.StudentRepository
+	staffRepo              users.StaffRepository
 	userContextService     usercontextSvc.UserContextService
 	settingsService        configSvc.SettingsService
+	broadcaster            realtime.Broadcaster
 	logger                 *slog.Logger
 	db                     *bun.DB
 }
@@ -61,14 +66,18 @@ type Dependencies struct {
 	PersonService          userSvc.PersonService
 	InstanceStudentRepo    schedule.InstanceStudentRepository
 	ActivityInstanceRepo   schedule.ActivityInstanceRepository
+	InstanceStaffRepo      schedule.InstanceStaffRepository
+	SupervisorRepo         active.GroupSupervisorRepository
 	ArrivalScheduleRepo    schedule.StudentArrivalScheduleRepository
 	ArrivalExceptionRepo   schedule.StudentArrivalExceptionRepository
 	PickupScheduleRepo     schedule.StudentPickupScheduleRepository
 	PickupExceptionRepo    schedule.StudentPickupExceptionRepository
 	VisitRepo              active.VisitRepository
 	StudentRepo            users.StudentRepository
+	StaffRepo              users.StaffRepository
 	UserContextService     usercontextSvc.UserContextService
 	SettingsService        configSvc.SettingsService
+	Broadcaster            realtime.Broadcaster
 	Logger                 *slog.Logger
 	DB                     *bun.DB
 }
@@ -84,14 +93,18 @@ func NewResource(deps Dependencies) *Resource {
 		personService:          deps.PersonService,
 		instanceStudentRepo:    deps.InstanceStudentRepo,
 		activityInstanceRepo:   deps.ActivityInstanceRepo,
+		instanceStaffRepo:      deps.InstanceStaffRepo,
+		supervisorRepo:         deps.SupervisorRepo,
 		arrivalScheduleRepo:    deps.ArrivalScheduleRepo,
 		arrivalExceptionRepo:   deps.ArrivalExceptionRepo,
 		pickupScheduleRepo:     deps.PickupScheduleRepo,
 		pickupExceptionRepo:    deps.PickupExceptionRepo,
 		visitRepo:              deps.VisitRepo,
 		studentRepo:            deps.StudentRepo,
+		staffRepo:              deps.StaffRepo,
 		userContextService:     deps.UserContextService,
 		settingsService:        deps.SettingsService,
+		broadcaster:            deps.Broadcaster,
 		logger:                 deps.Logger,
 		db:                     deps.DB,
 	}
@@ -155,6 +168,13 @@ func (rs *Resource) Router() chi.Router {
 			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
 				Get("/week", rs.getStudentWeek)
 		})
+
+		// WP-B12: gap detection + one-click substitute. Gaps is SchedulesRead
+		// (information view), substitute is SchedulesManage (mutation).
+		r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+			Get("/gaps", rs.getGaps)
+		r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
+			Post("/substitute", rs.substitute)
 	})
 
 	return r
