@@ -292,26 +292,22 @@ function buildTabs({
       ),
     },
     {
-      id: "arrival",
-      label: "Ankunft",
+      id: "betreuungszeiten",
+      label: "Betreuungszeiten",
       content: (
-        <ArrivalScheduleManager
-          key={studentId}
-          studentId={studentId}
-          onUpdate={onArrivalDataChanged}
-        />
-      ),
-    },
-    {
-      id: "pickup",
-      label: "Abholung",
-      content: (
-        <StudentAbholungTab
-          studentId={studentId}
-          isSick={student.sick}
-          isExcused={student.excused}
-          onUpdate={onArrivalDataChanged}
-        />
+        <div className="space-y-6">
+          <ArrivalScheduleManager
+            key={studentId}
+            studentId={studentId}
+            onUpdate={onArrivalDataChanged}
+          />
+          <StudentAbholungTab
+            studentId={studentId}
+            isSick={student.sick}
+            isExcused={student.excused}
+            onUpdate={onArrivalDataChanged}
+          />
+        </div>
       ),
     },
     {
