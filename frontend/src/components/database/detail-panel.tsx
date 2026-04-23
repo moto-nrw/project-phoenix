@@ -34,16 +34,18 @@ export function DetailPanel({
         onValueChange={onTabChange}
         className="flex min-h-0 flex-1 flex-col"
       >
-        <TabsList
-          variant="line"
-          className="justify-start border-b border-gray-200 px-6 pt-4"
-        >
-          {tabs.map((tab) => (
-            <TabsTrigger key={tab.id} value={tab.id} disabled={tab.disabled}>
-              {tab.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+        <div className="overflow-x-auto border-b border-gray-200">
+          <TabsList
+            variant="line"
+            className="w-max justify-start border-b-0 px-6 pt-4"
+          >
+            {tabs.map((tab) => (
+              <TabsTrigger key={tab.id} value={tab.id} disabled={tab.disabled}>
+                {tab.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </div>
         <div className="min-h-0 flex-1 overflow-auto">
           {tabs.map((tab) => (
             <TabsContent
