@@ -339,39 +339,28 @@ function SidebarContent({ className = "" }: SidebarProps) {
     return "/students/search";
   };
 
-  // Operator drill-in tabs encode their active tab in `?tab=`. The sidebar
-  // mirrors that so the user always sees a "you are here" indicator that
-  // matches the resource shown in the main panel.
-  // Träger drill-in:    /operator/organizations/{slug}            → default tab "schulen"
-  // School drill-in:    /operator/organizations/{slug}/schools/{schoolSlug} → default tab "konten"
-  // Tab → sidebar href map below.
-  const OPERATOR_TAB_TO_HREF: Record<string, string> = {
-    schulen: "/operator/schools",
-    konten: "/operator/accounts",
-    geraete: "/operator/devices",
-    personen: "/operator/persons",
-    feedback: "/operator/suggestions",
-    ankuendigungen: "/operator/announcements",
-  };
+  // Operator drill-in highlight: hierarchy-based, not tab-based.
+  // The sidebar reflects WHERE in the tree the user is, not which tab they
+  // happen to have open. Tabs scope a view; they don't change the section.
+  //
+  // - Anywhere under /organizations or /organizations/{slug}      → Träger
+  // - Anywhere under /organizations/{slug}/schools/{schoolSlug}   → Schulen
+  //
+  // Pathname may include or omit the /operator prefix depending on host
+  // (operator subdomain strips it via operatorPath; tenant subdomains keep
+  // it). Both forms are matched.
+  const ORG_AREA_RE = /^(?:\/operator)?\/organizations(\/|$)/;
+  const SCHOOL_DRILLIN_RE =
+    /^(?:\/operator)?\/organizations\/[^/]+\/schools\/[^/]+/;
 
   const getOperatorDrillInActiveHref = (): string | null => {
-    // On the operator subdomain, operatorPath() strips "/operator" from URLs,
-    // so pathname is "/organizations/{slug}" rather than the full route. Match
-    // either form so this works on both the operator subdomain (clean URLs)
-    // and tenant subdomains (legacy /operator/* URLs).
-    const drillInMatch =
-      /^(?:\/operator)?\/organizations\/[^/]+(\/schools\/[^/]+)?$/.exec(
-        pathname,
-      );
-    if (!drillInMatch) return null;
-    const isSchoolDrillIn = drillInMatch[1] !== undefined;
-    const tab =
-      searchParams.get("tab") ?? (isSchoolDrillIn ? "konten" : "schulen");
-    const baseHref = OPERATOR_TAB_TO_HREF[tab];
-    if (!baseHref) return null;
-    // Resolve through operatorPath so the returned href matches the form the
-    // sidebar Link components actually use (stripped on operator subdomain).
-    return operatorPath(baseHref);
+    if (SCHOOL_DRILLIN_RE.test(pathname)) {
+      return operatorPath("/operator/schools");
+    }
+    if (ORG_AREA_RE.test(pathname)) {
+      return operatorPath("/operator/organizations");
+    }
+    return null;
   };
 
   // Check if a navigation link should be highlighted as active
