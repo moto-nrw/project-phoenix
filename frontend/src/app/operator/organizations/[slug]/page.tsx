@@ -1,10 +1,10 @@
 "use client";
 
-import { use, useCallback, useMemo, useState } from "react";
+import { use, useCallback, useMemo } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
 import useSWR from "swr";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import type {
@@ -43,12 +43,33 @@ interface PageProps {
   readonly params: Promise<{ slug: string }>;
 }
 
+function isTabId(value: string | null | undefined): value is TabId {
+  return TAB_ITEMS.some((t) => t.id === value);
+}
+
 export default function OperatorOrganizationDetailPage({ params }: PageProps) {
   const { slug } = use(params);
   const { status } = useSession();
   const isAuthenticated = status === "authenticated";
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<TabId>("schulen");
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const activeTab: TabId = isTabId(tabParam) ? tabParam : "schulen";
+
+  const setActiveTab = useCallback(
+    (next: TabId) => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (next === "schulen") {
+        params.delete("tab");
+      } else {
+        params.set("tab", next);
+      }
+      const qs = params.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [pathname, router, searchParams],
+  );
 
   const { data: organizations, isLoading } = useSWR(
     isAuthenticated ? "operator-organization-summaries" : null,
@@ -228,7 +249,9 @@ export default function OperatorOrganizationDetailPage({ params }: PageProps) {
       <div className="mt-6">
         <Tabs
           value={activeTab}
-          onValueChange={(value) => setActiveTab(value as TabId)}
+          onValueChange={(value) => {
+            if (isTabId(value)) setActiveTab(value);
+          }}
         >
           <TabsList variant="line">
             {TAB_ITEMS.map((tab) => (

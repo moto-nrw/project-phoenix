@@ -339,6 +339,31 @@ function SidebarContent({ className = "" }: SidebarProps) {
     return "/students/search";
   };
 
+  // Operator drill-in tabs encode their active tab in `?tab=`. The sidebar
+  // mirrors that so the user always sees a "you are here" indicator that
+  // matches the resource shown in the main panel.
+  // Träger drill-in:    /operator/organizations/{slug}            → default tab "schulen"
+  // School drill-in:    /operator/organizations/{slug}/schools/{schoolSlug} → default tab "konten"
+  // Tab → sidebar href map below.
+  const OPERATOR_TAB_TO_HREF: Record<string, string> = {
+    schulen: "/operator/schools",
+    konten: "/operator/accounts",
+    geraete: "/operator/devices",
+    personen: "/operator/persons",
+    feedback: "/operator/suggestions",
+    ankuendigungen: "/operator/announcements",
+  };
+
+  const getOperatorDrillInActiveHref = (): string | null => {
+    const drillInMatch =
+      /^\/operator\/organizations\/[^/]+(\/schools\/[^/]+)?$/.exec(pathname);
+    if (!drillInMatch) return null;
+    const isSchoolDrillIn = drillInMatch[1] !== undefined;
+    const tab =
+      searchParams.get("tab") ?? (isSchoolDrillIn ? "konten" : "schulen");
+    return OPERATOR_TAB_TO_HREF[tab] ?? null;
+  };
+
   // Check if a navigation link should be highlighted as active
   const isActiveLink = (href: string) => {
     const isStudentDetailPage =
@@ -346,6 +371,10 @@ function SidebarContent({ className = "" }: SidebarProps) {
     if (isStudentDetailPage) {
       const from = searchParams.get("from");
       return getStudentDetailActiveHref(from) === href;
+    }
+    const operatorDrillInHref = getOperatorDrillInActiveHref();
+    if (operatorDrillInHref) {
+      return href === operatorDrillInHref;
     }
     if (href === "/dashboard") return pathname === "/dashboard";
     return pathname.startsWith(href);
