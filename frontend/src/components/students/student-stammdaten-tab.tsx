@@ -115,24 +115,6 @@ export function StudentStammdatenTab({
         }}
       />
 
-      <div className="rounded-xl border border-purple-100 bg-purple-50/40 p-4">
-        <h3 className="text-sm font-semibold text-gray-900">
-          Erziehungsberechtigte verwalten
-        </h3>
-        <p className="mt-1 text-xs text-gray-600">
-          Die umfangreiche Verwaltung (Adressen, Abholberechtigungen,
-          Notfallkontakte) liegt auf der Schülerdetailseite.
-        </p>
-        <a
-          href={`/students/${student.id}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-2 inline-flex items-center gap-1 rounded-md bg-purple-100 px-3 py-1.5 text-xs font-semibold text-purple-700 hover:bg-purple-200"
-        >
-          Zur Schülerdetailseite →
-        </a>
-      </div>
-
       <StudentCommonFormSections
         formData={formData}
         errors={errors}

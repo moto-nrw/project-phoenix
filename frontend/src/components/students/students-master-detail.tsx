@@ -23,6 +23,7 @@ import { StudentAbholungTab } from "./student-abholung-tab";
 import { StudentArrivalEditor } from "./student-arrival-editor";
 import { StudentAusnahmenTab } from "./student-ausnahmen-tab";
 import { StudentDetailHeader } from "./student-detail-header";
+import { StudentGuardiansTab } from "./student-guardians-tab";
 import { StudentHistorieTab } from "./student-historie-tab";
 import { StudentListItem } from "./student-list-item";
 import { StudentStammdatenTab } from "./student-stammdaten-tab";
@@ -278,6 +279,16 @@ function buildTabs({
           student={student}
           groups={groups}
           onSave={(data) => onUpdateStudent(studentId, data)}
+        />
+      ),
+    },
+    {
+      id: "guardians",
+      label: "Erziehungsberechtigte",
+      content: (
+        <StudentGuardiansTab
+          student={student}
+          onChanged={onArrivalDataChanged}
         />
       ),
     },
