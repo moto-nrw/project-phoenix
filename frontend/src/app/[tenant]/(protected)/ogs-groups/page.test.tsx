@@ -273,6 +273,33 @@ vi.mock("~/components/students/student-card", () => ({
       </div>
     );
   },
+  ArrivalTimeRow: ({
+    arrivalTime,
+    isException,
+    isAbsent,
+    notes,
+    isHome,
+  }: {
+    arrivalTime?: string;
+    isException: boolean;
+    isAbsent: boolean;
+    notes?: string;
+    isHome: boolean;
+    now: Date;
+  }) => (
+    <div
+      data-testid="arrival-time-row"
+      data-arrival-time={arrivalTime ?? ""}
+      data-is-exception={String(isException)}
+      data-is-absent={String(isAbsent)}
+      data-is-home={String(isHome)}
+    >
+      {isAbsent && <>Kommt heute nicht</>}
+      {!isAbsent && arrivalTime && <>Ankunftszeit: {arrivalTime} Uhr</>}
+      {!isAbsent && !arrivalTime && <>Ankunftszeit: —</>}
+      {notes && <span>({notes})</span>}
+    </div>
+  ),
 }));
 
 // Mock pickup schedule API
@@ -292,6 +319,10 @@ vi.mock("~/lib/pickup-schedule-api", () => ({
   fetchBulkPickupTimes: (
     ...args: Parameters<typeof mockFetchBulkPickupTimes>
   ) => mockFetchBulkPickupTimes(...args),
+}));
+
+vi.mock("~/lib/student-arrival-api", () => ({
+  fetchBulkArrivalTimes: vi.fn(() => Promise.resolve(new Map())),
 }));
 
 // Mock lucide-react icons

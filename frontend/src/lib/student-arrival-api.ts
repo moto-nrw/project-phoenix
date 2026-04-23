@@ -263,3 +263,83 @@ export async function deleteArrivalNote(
     );
   }
 }
+
+interface BulkArrivalDayNoteResponse {
+  id: number;
+  content: string;
+}
+
+export interface BulkArrivalDayNote {
+  id: string;
+  content: string;
+}
+
+interface BulkArrivalTimeResponse {
+  student_id: number;
+  date: string;
+  weekday_name: string;
+  expected_arrival?: string;
+  is_exception: boolean;
+  day_notes?: BulkArrivalDayNoteResponse[];
+  notes?: string;
+}
+
+export interface BulkArrivalTime {
+  studentId: string;
+  date: string;
+  weekdayName: string;
+  expectedArrival?: string;
+  isException: boolean;
+  dayNotes: BulkArrivalDayNote[];
+  notes?: string;
+}
+
+function mapBulkArrivalTimeResponse(
+  data: BulkArrivalTimeResponse,
+): BulkArrivalTime {
+  return {
+    studentId: data.student_id.toString(),
+    date: data.date,
+    weekdayName: data.weekday_name,
+    expectedArrival: data.expected_arrival,
+    isException: data.is_exception,
+    dayNotes: (data.day_notes ?? []).map((n) => ({
+      id: n.id.toString(),
+      content: n.content,
+    })),
+    notes: data.notes,
+  };
+}
+
+/**
+ * Fetch effective arrival times for multiple students on a given date.
+ * Uses bulk backend endpoint (O(3) queries instead of O(N)).
+ */
+export async function fetchBulkArrivalTimes(
+  studentIds: string[],
+  date?: string,
+): Promise<Map<string, BulkArrivalTime>> {
+  if (studentIds.length === 0) {
+    return new Map();
+  }
+
+  const response = await fetch("/api/students/arrival-times/bulk", {
+    method: "POST",
+    headers: await authHeaders(),
+    credentials: "include",
+    body: JSON.stringify({
+      student_ids: studentIds.map((id) => Number.parseInt(id, 10)),
+      date,
+    }),
+  });
+
+  const data = await parseResponse<BulkArrivalTimeResponse[]>(response);
+
+  const arrivalTimesMap = new Map<string, BulkArrivalTime>();
+  for (const item of data) {
+    const mapped = mapBulkArrivalTimeResponse(item);
+    arrivalTimesMap.set(mapped.studentId, mapped);
+  }
+
+  return arrivalTimesMap;
+}

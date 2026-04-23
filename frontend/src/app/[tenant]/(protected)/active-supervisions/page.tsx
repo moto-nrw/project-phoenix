@@ -28,9 +28,12 @@ import {
   SchoolClassIcon,
   GroupIcon,
   PickupTimeRow,
+  ArrivalTimeRow,
 } from "~/components/students/student-card";
 import { fetchBulkPickupTimes } from "~/lib/pickup-schedule-api";
 import type { BulkPickupTime } from "~/lib/pickup-schedule-api";
+import { fetchBulkArrivalTimes } from "~/lib/student-arrival-api";
+import type { BulkArrivalTime } from "~/lib/student-arrival-api";
 import { isHomeLocation } from "~/lib/location-helper";
 import { useMinuteClock, combinePickupNotes } from "~/lib/pickup-helpers";
 import { createLogger } from "~/lib/logger";
@@ -979,6 +982,17 @@ function MeinRaumPageContent() {
     { keepPreviousData: true, revalidateOnFocus: false },
   );
 
+  // Arrival times: fetch when student list or date changes
+  const { data: arrivalTimesRaw } = useSWRAuth<Map<string, BulkArrivalTime>>(
+    trackingStudentIds.length > 0 && currentRoomId
+      ? `arrival-supervisions-${todayKey}-${trackingStudentIds.join(",")}`
+      : null,
+    async () => fetchBulkArrivalTimes(trackingStudentIds),
+    { keepPreviousData: true, revalidateOnFocus: false },
+  );
+  const arrivalTimesData: Map<string, BulkArrivalTime> | undefined =
+    arrivalTimesRaw instanceof Map ? arrivalTimesRaw : undefined;
+
   // Handle dashboard error
   useEffect(() => {
     if (dashboardError) {
@@ -1291,6 +1305,10 @@ function MeinRaumPageContent() {
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
             {filteredStudents.map((student) => {
               const studentPickup = pickupTimesData?.get(student.id.toString());
+              const studentArrival = arrivalTimesData?.get(
+                student.id.toString(),
+              );
+              const isHome = isHomeLocation(student.current_location);
 
               return (
                 <StudentCard
@@ -1306,7 +1324,13 @@ function MeinRaumPageContent() {
                   }
                   locationBadge={
                     <LocationBadge
-                      student={student}
+                      student={{
+                        ...student,
+                        not_arrival_today:
+                          (studentArrival?.isException ?? false) &&
+                          !studentArrival?.expectedArrival,
+                        not_arrival_reason: studentArrival?.notes ?? null,
+                      }}
                       displayMode="contextAware"
                       userGroups={myGroupIds}
                       groupRooms={myGroupRooms}
@@ -1326,6 +1350,24 @@ function MeinRaumPageContent() {
                           Gruppe: {student.group_name}
                         </StudentInfoRow>
                       )}
+                      <ArrivalTimeRow
+                        arrivalTime={studentArrival?.expectedArrival}
+                        isException={studentArrival?.isException ?? false}
+                        isAbsent={
+                          (studentArrival?.isException ?? false) &&
+                          !studentArrival?.expectedArrival
+                        }
+                        notes={
+                          studentArrival
+                            ? combinePickupNotes(
+                                studentArrival.notes,
+                                studentArrival.dayNotes,
+                              )
+                            : undefined
+                        }
+                        isHome={isHome}
+                        now={now}
+                      />
                       <PickupTimeRow
                         pickupTime={studentPickup?.pickupTime}
                         isException={studentPickup?.isException ?? false}
@@ -1337,7 +1379,7 @@ function MeinRaumPageContent() {
                               )
                             : undefined
                         }
-                        isHome={isHomeLocation(student.current_location)}
+                        isHome={isHome}
                         now={now}
                       />
                     </>

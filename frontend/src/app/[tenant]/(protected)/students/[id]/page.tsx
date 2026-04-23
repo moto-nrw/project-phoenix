@@ -37,8 +37,14 @@ import { createLogger } from "~/lib/logger";
 const logger = createLogger({ component: "StudentDetailPage" });
 import StudentGuardianManager from "~/components/guardians/student-guardian-manager";
 import PickupScheduleManager from "~/components/students/pickup-schedule-manager";
+import { ArrivalScheduleManager } from "~/components/students/arrival-schedule-manager";
 import { fetchStudentPickupData } from "~/lib/pickup-schedule-api";
 import { getDayData, formatPickupTime } from "~/lib/pickup-schedule-helpers";
+import { fetchArrivalData } from "~/lib/student-arrival-api";
+import {
+  getDayData as getArrivalDayData,
+  formatArrivalTime,
+} from "~/lib/arrival-schedule-helpers";
 
 // =============================================================================
 // MAIN COMPONENT
@@ -135,6 +141,14 @@ export default function StudentDetailPage() {
     isException?: boolean;
   }>({});
 
+  // Today's arrival info (for header display)
+  const [todayArrival, setTodayArrival] = useState<{
+    time?: string;
+    note?: string;
+    isException?: boolean;
+    isAbsent?: boolean;
+  }>({});
+
   // Load active groups when check-in modal opens
   useEffect(() => {
     if (!showConfirmCheckin) {
@@ -200,6 +214,51 @@ export default function StudentDetailPage() {
     };
 
     void loadTodayPickup();
+  }, [hasFullAccess, studentId, student?.sick, student?.excused]);
+
+  // Load today's arrival time for header (requires read access to student data)
+  useEffect(() => {
+    if (!hasFullAccess || !studentId) {
+      setTodayArrival({});
+      return;
+    }
+
+    const loadTodayArrival = async () => {
+      try {
+        const data = await fetchArrivalData(studentId);
+        const today = new Date();
+
+        const dayData = getArrivalDayData(
+          today,
+          data.schedules,
+          data.exceptions,
+          data.notes,
+          student?.sick ?? false,
+          student?.excused ?? false,
+        );
+
+        if (dayData.isAbsent) {
+          setTodayArrival({
+            note: dayData.effectiveReason,
+            isException: dayData.isException,
+            isAbsent: true,
+          });
+        } else if (dayData.effectiveTime) {
+          setTodayArrival({
+            time: formatArrivalTime(dayData.effectiveTime),
+            note: dayData.effectiveReason,
+            isException: dayData.isException,
+            isAbsent: false,
+          });
+        } else {
+          setTodayArrival({});
+        }
+      } catch {
+        setTodayArrival({});
+      }
+    };
+
+    void loadTodayArrival();
   }, [hasFullAccess, studentId, student?.sick, student?.excused]);
 
   // Show loading state
@@ -500,6 +559,10 @@ export default function StudentDetailPage() {
           todayPickupTime={todayPickup.time}
           todayPickupNote={todayPickup.note}
           isPickupException={todayPickup.isException}
+          todayArrivalTime={todayArrival.time}
+          todayArrivalNote={todayArrival.note}
+          isArrivalException={todayArrival.isException}
+          isArrivalAbsent={todayArrival.isAbsent}
         />
 
         {hasFullAccess ? (
@@ -804,6 +867,12 @@ function FullAccessView({
       )}
 
       <div className="space-y-4 sm:space-y-6">
+        <ArrivalScheduleManager
+          studentId={studentId}
+          readOnly={!hasWriteAccess}
+          onUpdate={hasWriteAccess ? onRefreshData : undefined}
+        />
+
         <PickupScheduleManager
           studentId={studentId}
           readOnly={!hasWriteAccess}

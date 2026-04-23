@@ -106,6 +106,8 @@ export interface ArrivalDayData {
   date: Date;
   weekday: number;
   isToday: boolean;
+  showSick: boolean;
+  showExcused: boolean;
   exception: ArrivalException | undefined;
   baseSchedule: ArrivalSchedule | undefined;
   effectiveTime: string | undefined;
@@ -120,6 +122,8 @@ export function getDayData(
   schedules: ArrivalSchedule[],
   exceptions: ArrivalException[],
   notes: ArrivalNote[] = [],
+  isSickToday = false,
+  isExcusedToday = false,
 ): ArrivalDayData {
   const weekday = getWeekdayFromDate(date);
   const dateStr = formatDateISO(date);
@@ -130,6 +134,8 @@ export function getDayData(
       date,
       weekday: 0,
       isToday: isSameDay(date, today),
+      showSick: false,
+      showExcused: false,
       exception: undefined,
       baseSchedule: undefined,
       effectiveTime: undefined,
@@ -143,11 +149,23 @@ export function getDayData(
   const exception = exceptions.find((e) => e.exception_date === dateStr);
   const baseSchedule = schedules.find((s) => s.weekday === weekday);
   const isToday = isSameDay(date, today);
+  const showSick = isToday && isSickToday;
+  const showExcused = isToday && !showSick && isExcusedToday;
 
   let effectiveTime: string | undefined;
   let isAbsent = false;
+  let effectiveReason: string | undefined =
+    exception?.reason ?? baseSchedule?.notes ?? undefined;
 
-  if (exception) {
+  if (showSick) {
+    effectiveTime = undefined;
+    isAbsent = true;
+    effectiveReason = "Krank";
+  } else if (showExcused) {
+    effectiveTime = undefined;
+    isAbsent = true;
+    effectiveReason = "Entschuldigt";
+  } else if (exception) {
     if (exception.expected_arrival) {
       effectiveTime = formatArrivalTime(exception.expected_arrival);
     } else {
@@ -164,12 +182,45 @@ export function getDayData(
     date,
     weekday,
     isToday,
+    showSick,
+    showExcused,
     exception,
     baseSchedule,
     effectiveTime,
-    effectiveReason: exception?.reason ?? baseSchedule?.notes ?? undefined,
+    effectiveReason,
     isException: !!exception,
     isAbsent,
     notes: dayNotes,
   };
+}
+
+export type ArrivalUrgency = "overdue" | "soon" | "normal" | "none";
+
+const ARRIVAL_URGENCY_SOON_MINUTES = 30;
+
+/**
+ * Calculate urgency for an expected arrival time.
+ *
+ * Unlike pickup urgency, the meaning is inverted with respect to `isHome`:
+ * arrival matters only while the student is still at home. Once `isHome`
+ * is false (student already in the building), arrival is "done" → "none".
+ */
+export function getArrivalUrgency(
+  arrivalTimeStr: string | undefined,
+  now: Date,
+  isHome: boolean,
+): ArrivalUrgency {
+  if (!arrivalTimeStr) return "none";
+  if (!isHome) return "none";
+
+  const [hours, minutes] = arrivalTimeStr.split(":").map(Number);
+  const arrivalDate = new Date(now);
+  arrivalDate.setHours(hours ?? 0, minutes ?? 0, 0, 0);
+
+  const diffMs = arrivalDate.getTime() - now.getTime();
+  const diffMinutes = diffMs / 60000;
+
+  if (diffMinutes < 0) return "overdue";
+  if (diffMinutes <= ARRIVAL_URGENCY_SOON_MINUTES) return "soon";
+  return "normal";
 }

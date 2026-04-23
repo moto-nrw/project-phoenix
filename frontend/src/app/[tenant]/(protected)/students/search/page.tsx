@@ -23,14 +23,18 @@ import {
   SCHOOL_YEAR_FILTER_OPTIONS,
   getSchoolYear,
 } from "~/lib/student-helpers";
-import { useMinuteClock } from "~/lib/pickup-helpers";
+import { useMinuteClock, combinePickupNotes } from "~/lib/pickup-helpers";
 import {
   StudentCard,
   SchoolClassIcon,
   GroupIcon,
   StudentInfoRow,
   PickupTimeRow,
+  ArrivalTimeRow,
 } from "~/components/students/student-card";
+import { fetchBulkArrivalTimes } from "~/lib/student-arrival-api";
+import type { BulkArrivalTime } from "~/lib/student-arrival-api";
+import { getArrivalUrgency } from "~/lib/arrival-schedule-helpers";
 import { useSWRAuth, useImmutableSWR } from "~/lib/swr";
 import { activeService } from "~/lib/active-api";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
@@ -80,6 +84,7 @@ function SearchPageContent() {
   );
   const [pickupTimeFilter, setPickupTimeFilter] = useState("all");
   const [trackingFilter, setTrackingFilter] = useState<TrackingFilter>("all");
+  const [sortMode, setSortMode] = useState<"default" | "arrival">("default");
 
   // Current time for pickup urgency calculation (updates every minute)
   const now = useMinuteClock();
@@ -161,6 +166,18 @@ function SearchPageContent() {
     { keepPreviousData: true, revalidateOnFocus: false },
   );
 
+  // Arrival times: fetch when student list changes
+  const { data: arrivalTimesRaw } = useSWRAuth<Map<string, BulkArrivalTime>>(
+    trackingStudentIds.length > 0
+      ? `arrival-search-${debouncedSearchTerm}-${selectedGroup}`
+      : null,
+    async () => fetchBulkArrivalTimes(trackingStudentIds.map(String)),
+    { keepPreviousData: true, revalidateOnFocus: false },
+  );
+  // Defensive: SWR test mocks may return non-Map values
+  const arrivalTimesData: Map<string, BulkArrivalTime> | undefined =
+    arrivalTimesRaw instanceof Map ? arrivalTimesRaw : undefined;
+
   // Reset tracking filter if labels vanish or the selected label index becomes stale.
   // Without this, the active-filter chip (guarded by trackingData.labels) can hide
   // while trackingFilter remains set, leaving an invisible filter applied.
@@ -237,6 +254,17 @@ function SearchPageContent() {
         ],
       },
       {
+        id: "sort",
+        label: "Sortierung",
+        type: "buttons",
+        value: sortMode,
+        onChange: (value) => setSortMode(value as "default" | "arrival"),
+        options: [
+          { value: "default", label: "Alphabetisch" },
+          { value: "arrival", label: "Nächste Ankunft" },
+        ],
+      },
+      {
         id: "attendance",
         label: "Anwesenheit",
         type: "dropdown",
@@ -300,6 +328,7 @@ function SearchPageContent() {
       trackingLabels,
       groups,
       studentsData,
+      sortMode,
     ],
   );
 
@@ -382,7 +411,7 @@ function SearchPageContent() {
   ]);
 
   // Apply additional client-side filtering for attendance statuses and year
-  const filteredStudents = students.filter((student) => {
+  const filteredStudents: Student[] = students.filter((student) => {
     // Apply attendance filter
     if (attendanceFilter !== "all") {
       const isOnSite =
@@ -443,6 +472,51 @@ function SearchPageContent() {
 
     return true;
   });
+
+  // Apply sort mode (default = backend order; arrival = by arrival urgency + time)
+  const sortedStudents = useMemo(() => {
+    if (sortMode !== "arrival") return filteredStudents;
+
+    const urgencyRank: Record<string, number> = {
+      overdue: 0,
+      soon: 1,
+      normal: 2,
+      none: 3,
+    };
+
+    const compareByName = (a: Student, b: Student) => {
+      const lastCmp = (a.second_name ?? "").localeCompare(
+        b.second_name ?? "",
+        "de",
+      );
+      if (lastCmp !== 0) return lastCmp;
+      return (a.first_name ?? "").localeCompare(b.first_name ?? "", "de");
+    };
+
+    return [...filteredStudents].sort((a, b) => {
+      const aHome = isHomeLocation(a.current_location);
+      const bHome = isHomeLocation(b.current_location);
+
+      if (!aHome && bHome) return 1;
+      if (aHome && !bHome) return -1;
+
+      const timeA = arrivalTimesData?.get(a.id.toString())?.expectedArrival;
+      const timeB = arrivalTimesData?.get(b.id.toString())?.expectedArrival;
+      const urgencyA = getArrivalUrgency(timeA, now, aHome);
+      const urgencyB = getArrivalUrgency(timeB, now, bHome);
+      const rankA = urgencyRank[urgencyA] ?? 3;
+      const rankB = urgencyRank[urgencyB] ?? 3;
+
+      if (rankA !== rankB) return rankA - rankB;
+
+      if (timeA && timeB) {
+        const timeCmp = timeA.localeCompare(timeB);
+        if (timeCmp !== 0) return timeCmp;
+      }
+
+      return compareByName(a, b);
+    });
+  }, [filteredStudents, sortMode, arrivalTimesData, now]);
 
   // Fix P2: Show loading during initialization (prevents empty state flash)
   // Note: With required: true, unauthenticated users are auto-redirected to login
@@ -566,58 +640,93 @@ function SearchPageContent() {
         return (
           <div>
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
-              {filteredStudents.map((student) => (
-                <StudentCard
-                  key={student.id}
-                  studentId={student.id}
-                  firstName={student.first_name}
-                  lastName={student.second_name}
-                  onClick={() =>
-                    router.push(`/students/${student.id}?from=/students/search`)
-                  }
-                  locationBadge={
-                    <LocationBadge
-                      student={student}
-                      displayMode="contextAware"
-                      userGroups={myGroups}
-                      groupRooms={myGroupRooms}
-                      supervisedRooms={mySupervisedRooms}
-                      variant="modern"
-                      size="md"
-                    />
-                  }
-                  extraContent={
-                    <>
-                      <StudentInfoRow icon={<SchoolClassIcon />}>
-                        Klasse {student.school_class}
-                      </StudentInfoRow>
-                      {student.group_name && (
-                        <StudentInfoRow icon={<GroupIcon />}>
-                          Gruppe: {student.group_name}
-                        </StudentInfoRow>
-                      )}
-                      {student.has_full_access !== false && (
-                        <PickupTimeRow
-                          pickupTime={student.pickup_time ?? undefined}
-                          isException={student.pickup_is_exception ?? false}
-                          notes={student.pickup_notes}
-                          isHome={isHomeLocation(student.current_location)}
-                          now={now}
-                        />
-                      )}
-                    </>
-                  }
-                  trackingIndicators={
-                    trackingData?.labels?.length &&
-                    student.has_full_access !== false ? (
-                      <TrackingIndicators
-                        labels={trackingData.labels}
-                        results={trackingData.results[student.id] ?? []}
+              {sortedStudents.map((student) => {
+                const studentArrival = arrivalTimesData?.get(
+                  student.id.toString(),
+                );
+                const isHome = isHomeLocation(student.current_location);
+
+                return (
+                  <StudentCard
+                    key={student.id}
+                    studentId={student.id}
+                    firstName={student.first_name}
+                    lastName={student.second_name}
+                    onClick={() =>
+                      router.push(
+                        `/students/${student.id}?from=/students/search`,
+                      )
+                    }
+                    locationBadge={
+                      <LocationBadge
+                        student={{
+                          ...student,
+                          not_arrival_today:
+                            (studentArrival?.isException ?? false) &&
+                            !studentArrival?.expectedArrival,
+                          not_arrival_reason: studentArrival?.notes ?? null,
+                        }}
+                        displayMode="contextAware"
+                        userGroups={myGroups}
+                        groupRooms={myGroupRooms}
+                        supervisedRooms={mySupervisedRooms}
+                        variant="modern"
+                        size="md"
                       />
-                    ) : undefined
-                  }
-                />
-              ))}
+                    }
+                    extraContent={
+                      <>
+                        <StudentInfoRow icon={<SchoolClassIcon />}>
+                          Klasse {student.school_class}
+                        </StudentInfoRow>
+                        {student.group_name && (
+                          <StudentInfoRow icon={<GroupIcon />}>
+                            Gruppe: {student.group_name}
+                          </StudentInfoRow>
+                        )}
+                        {student.has_full_access !== false && (
+                          <>
+                            <ArrivalTimeRow
+                              arrivalTime={studentArrival?.expectedArrival}
+                              isException={studentArrival?.isException ?? false}
+                              isAbsent={
+                                (studentArrival?.isException ?? false) &&
+                                !studentArrival?.expectedArrival
+                              }
+                              notes={
+                                studentArrival
+                                  ? combinePickupNotes(
+                                      studentArrival.notes,
+                                      studentArrival.dayNotes,
+                                    )
+                                  : undefined
+                              }
+                              isHome={isHome}
+                              now={now}
+                            />
+                            <PickupTimeRow
+                              pickupTime={student.pickup_time ?? undefined}
+                              isException={student.pickup_is_exception ?? false}
+                              notes={student.pickup_notes}
+                              isHome={isHome}
+                              now={now}
+                            />
+                          </>
+                        )}
+                      </>
+                    }
+                    trackingIndicators={
+                      trackingData?.labels?.length &&
+                      student.has_full_access !== false ? (
+                        <TrackingIndicators
+                          labels={trackingData.labels}
+                          results={trackingData.results[student.id] ?? []}
+                        />
+                      ) : undefined
+                    }
+                  />
+                );
+              })}
             </div>
           </div>
         );
