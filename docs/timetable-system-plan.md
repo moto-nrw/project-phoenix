@@ -13,6 +13,7 @@
 - **2026-04-14 (Iteration 3):** Architecture session (E11–E14). Replaced class_timetable with per-student arrival schedules. Clean milestone vs. activity separation. Three independent data systems (arrival, timetable, pickup). Implicit care contract. Industry research validating design against 6 open-source SIS + 5 commercial products.
 - **2026-04-15 (Iteration 4):** Team feedback from Christian and Flo (E15–E22). Calendar periods. A/B weeks. Enrollment validity. Three-field attendance model. Auto-start levels. Gap detection. Mensa rotation solved. Holiday care compatibility.
 - **2026-04-21 (Iteration 5):** Post-B10 review. Open questions §4.1/§4.7/§4.8 resolved. B10 gap identified: `Complete()` must mark remaining `expected` students as `absent` (plan §6.2) — follow-up bundled with WP-B11.
+- **2026-04-23 (Iteration 6):** E2E-Sweep-Findings nachgezogen. §6.1 praezisiert die Evaluation-Reihenfolge (Exception schlaegt existing-row-Dedupe, E2E-B1). §10 ergaenzt Query-Budget-Semantik (Handler-Ebene vs. End-to-End, E2E-C2). Siehe `backend/test/e2e/timetable/E2E_FINDINGS.md`.
 
 ---
 
@@ -402,6 +403,8 @@ Weekly (configurable day, default Friday):
 | `completed` | No change — historical data preserved |
 | `cancelled` | No change — stays cancelled |
 
+**Evaluation order per candidate** (wichtig, sonst uneindeutig): fuer jeden materialization-Kandidaten wird zuerst die Exception-Tabelle geprueft, erst danach die Dedupe gegen existierende Instanzen. Folge: eine `cancelled` oder `modified` Exception gewinnt immer ueber eine bereits existierende `planned` Row. Ein re-materialize ueber einen gecancelten Termin fuehrt zu `skipped_exception`, nicht `skipped_existing`. Das schuetzt vor dem Fall, dass ein versehentlicher Re-Materialize eine absichtlich gecancelte Aktivitaet wieder auferweckt. (E2E-B1, Flow B Schritt 3.)
+
 **A/B week resolution:**
 
 ```go
@@ -644,6 +647,7 @@ Danach werden F2 (Weekly Planner, konsumiert B5/B8/B9), F3 (Staff My Day, konsum
 - **`enrollment_date` → `valid_from` rename** — existing code using `enrollment_date` must be updated. Search for the field name across backend.
 - **Calendar period auto-creation** — the default period is created lazily on first timetable access. Tests must account for this (or pre-create a period in fixtures).
 - **No production requests from Claude** — local dev / staging only.
+- **Query-Budget-Semantik** — PR-Beschreibungen wie "≤ 2 queries", "≤ 22 queries" beziehen sich auf Handler-Queries, nicht End-to-End. Die `TenantTxMiddleware` addiert 4 bis 5 Queries pro Request (`SET LOCAL ROLE`, `SELECT set_config(...)`, BEGIN/COMMIT). Beim Messen in Isolation muss dieser Overhead abgezogen werden; beim Setzen von SLO-Targets ist die End-to-End-Zahl relevant. (E2E-C2.)
 
 ---
 
