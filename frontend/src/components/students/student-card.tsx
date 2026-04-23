@@ -274,12 +274,12 @@ export function renderPickupIcon(urgency: PickupUrgency): ReactNode {
 }
 
 /** Icon for arrival time display */
-export function ArrivalTimeIcon() {
+function ArrivalTimeIcon() {
   return <LogIn className="h-3.5 w-3.5 text-gray-400" />;
 }
 
 /** Renders the appropriate arrival icon based on urgency level */
-export function renderArrivalIcon(urgency: ArrivalUrgency): ReactNode {
+function renderArrivalIcon(urgency: ArrivalUrgency): ReactNode {
   if (urgency === "overdue") {
     return <AlertTriangle className="h-3.5 w-3.5 text-red-500" />;
   }
