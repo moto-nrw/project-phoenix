@@ -19,9 +19,8 @@ import {
 } from "~/components/database/detail-panel";
 import { EmptyDetailState } from "~/components/database/empty-detail-state";
 import { ClassBulkArrivalModal } from "./class-bulk-arrival-modal";
+import { ArrivalScheduleManager } from "./arrival-schedule-manager";
 import { StudentAbholungTab } from "./student-abholung-tab";
-import { StudentArrivalEditor } from "./student-arrival-editor";
-import { StudentAusnahmenTab } from "./student-ausnahmen-tab";
 import { StudentDetailHeader } from "./student-detail-header";
 import { StudentGuardiansTab } from "./student-guardians-tab";
 import { StudentHistorieTab } from "./student-historie-tab";
@@ -296,17 +295,11 @@ function buildTabs({
       id: "arrival",
       label: "Ankunft",
       content: (
-        <div className="space-y-8">
-          <StudentArrivalEditor
-            studentId={studentId}
-            onSaved={onArrivalDataChanged}
-          />
-          <div className="border-t border-gray-200" />
-          <StudentAusnahmenTab
-            studentId={studentId}
-            onChanged={onArrivalDataChanged}
-          />
-        </div>
+        <ArrivalScheduleManager
+          key={studentId}
+          studentId={studentId}
+          onUpdate={onArrivalDataChanged}
+        />
       ),
     },
     {

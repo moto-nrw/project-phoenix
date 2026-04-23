@@ -206,3 +206,60 @@ export async function deleteArrivalException(
     );
   }
 }
+
+export interface ArrivalNoteInput {
+  note_date: string;
+  content: string;
+}
+
+export async function createArrivalNote(
+  studentId: string,
+  input: ArrivalNoteInput,
+): Promise<ArrivalNote> {
+  const response = await fetch(`/api/students/${studentId}/arrival-notes`, {
+    method: "POST",
+    headers: await authHeaders(),
+    credentials: "include",
+    body: JSON.stringify(input),
+  });
+  return parseResponse<ArrivalNote>(response);
+}
+
+export async function updateArrivalNote(
+  studentId: string,
+  noteId: number,
+  input: ArrivalNoteInput,
+): Promise<ArrivalNote> {
+  const response = await fetch(
+    `/api/students/${studentId}/arrival-notes/${noteId}`,
+    {
+      method: "PUT",
+      headers: await authHeaders(),
+      credentials: "include",
+      body: JSON.stringify(input),
+    },
+  );
+  return parseResponse<ArrivalNote>(response);
+}
+
+export async function deleteArrivalNote(
+  studentId: string,
+  noteId: number,
+): Promise<void> {
+  const response = await fetch(
+    `/api/students/${studentId}/arrival-notes/${noteId}`,
+    {
+      method: "DELETE",
+      headers: await authHeaders(),
+      credentials: "include",
+    },
+  );
+  if (!response.ok && response.status !== 204) {
+    const text = await response.text().catch(() => "");
+    throw new Error(
+      text
+        ? `Request failed (${response.status}): ${text}`
+        : `Request failed (${response.status})`,
+    );
+  }
+}
