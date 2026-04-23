@@ -13,7 +13,9 @@ vi.mock("next-auth/react", () => ({
 // Mock next/navigation
 vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
-  useRouter: vi.fn(() => ({ push: vi.fn() })),
+  useRouter: vi.fn(() => ({ push: vi.fn(), replace: vi.fn() })),
+  usePathname: vi.fn(() => "/tenant/database/students"),
+  useSearchParams: vi.fn(() => new URLSearchParams()),
 }));
 
 // Mock SWR hooks
