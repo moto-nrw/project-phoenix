@@ -296,10 +296,17 @@ function buildTabs({
       id: "arrival",
       label: "Ankunft",
       content: (
-        <StudentArrivalEditor
-          studentId={studentId}
-          onSaved={onArrivalDataChanged}
-        />
+        <div className="space-y-8">
+          <StudentArrivalEditor
+            studentId={studentId}
+            onSaved={onArrivalDataChanged}
+          />
+          <div className="border-t border-gray-200" />
+          <StudentAusnahmenTab
+            studentId={studentId}
+            onChanged={onArrivalDataChanged}
+          />
+        </div>
       ),
     },
     {
@@ -311,16 +318,6 @@ function buildTabs({
           isSick={student.sick}
           isExcused={student.excused}
           onUpdate={onArrivalDataChanged}
-        />
-      ),
-    },
-    {
-      id: "exceptions",
-      label: "Ausnahmen",
-      content: (
-        <StudentAusnahmenTab
-          studentId={studentId}
-          onChanged={onArrivalDataChanged}
         />
       ),
     },
