@@ -145,3 +145,64 @@ export async function bulkUpsertArrivalByClass(
   });
   return parseResponse<unknown>(response);
 }
+
+export interface ArrivalExceptionInput {
+  exception_date: string;
+  expected_arrival: string | null;
+  reason?: string | null;
+}
+
+export async function createArrivalException(
+  studentId: string,
+  input: ArrivalExceptionInput,
+): Promise<ArrivalException> {
+  const response = await fetch(
+    `/api/students/${studentId}/arrival-exceptions`,
+    {
+      method: "POST",
+      headers: await authHeaders(),
+      credentials: "include",
+      body: JSON.stringify(input),
+    },
+  );
+  return parseResponse<ArrivalException>(response);
+}
+
+export async function updateArrivalException(
+  studentId: string,
+  exceptionId: number,
+  input: ArrivalExceptionInput,
+): Promise<ArrivalException> {
+  const response = await fetch(
+    `/api/students/${studentId}/arrival-exceptions/${exceptionId}`,
+    {
+      method: "PUT",
+      headers: await authHeaders(),
+      credentials: "include",
+      body: JSON.stringify(input),
+    },
+  );
+  return parseResponse<ArrivalException>(response);
+}
+
+export async function deleteArrivalException(
+  studentId: string,
+  exceptionId: number,
+): Promise<void> {
+  const response = await fetch(
+    `/api/students/${studentId}/arrival-exceptions/${exceptionId}`,
+    {
+      method: "DELETE",
+      headers: await authHeaders(),
+      credentials: "include",
+    },
+  );
+  if (!response.ok && response.status !== 204) {
+    const text = await response.text().catch(() => "");
+    throw new Error(
+      text
+        ? `Request failed (${response.status}): ${text}`
+        : `Request failed (${response.status})`,
+    );
+  }
+}

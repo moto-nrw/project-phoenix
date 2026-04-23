@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarClock, Pencil } from "lucide-react";
+import { CalendarClock } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -19,9 +19,13 @@ import {
 } from "~/components/database/detail-panel";
 import { EmptyDetailState } from "~/components/database/empty-detail-state";
 import { ClassBulkArrivalModal } from "./class-bulk-arrival-modal";
+import { StudentAbholungTab } from "./student-abholung-tab";
 import { StudentArrivalEditor } from "./student-arrival-editor";
+import { StudentAusnahmenTab } from "./student-ausnahmen-tab";
 import { StudentDetailHeader } from "./student-detail-header";
+import { StudentHistorieTab } from "./student-historie-tab";
 import { StudentListItem } from "./student-list-item";
+import { StudentStammdatenTab } from "./student-stammdaten-tab";
 import type { GroupingMode } from "./students-grouping-toggle";
 import type { Student } from "~/lib/api";
 
@@ -33,6 +37,8 @@ interface StudentsMasterDetailProps {
   studentsWithArrival: Set<string>;
   arrivalSummaryById: Map<string, string>;
   onArrivalDataChanged: () => void;
+  groups: Array<{ value: string; label: string }>;
+  onUpdateStudent: (studentId: string, data: Partial<Student>) => Promise<void>;
   detailActions?: ReactNode;
 }
 
@@ -64,6 +70,8 @@ export function StudentsMasterDetail({
   studentsWithArrival,
   arrivalSummaryById,
   onArrivalDataChanged,
+  groups,
+  onUpdateStudent,
   detailActions,
 }: StudentsMasterDetailProps) {
   const [activeTab, setActiveTab] = useState<string>("arrival");
@@ -75,7 +83,7 @@ export function StudentsMasterDetail({
     }
   }, [selectedId]);
 
-  const groups: GroupDefinition<Student>[] = useMemo(() => {
+  const groupDefinitions: GroupDefinition<Student>[] = useMemo(() => {
     const buckets = new Map<string, Student[]>();
     for (const student of students) {
       const key = groupValueFor(student, grouping);
@@ -179,7 +187,7 @@ export function StudentsMasterDetail({
 
   const listNode = (
     <GroupedList
-      groups={groups}
+      groups={groupDefinitions}
       renderItem={renderItem}
       keyFor={keyForStudent}
       emptyState={
@@ -203,7 +211,12 @@ export function StudentsMasterDetail({
           actions={detailActions}
         />
       }
-      tabs={buildTabs(selectedStudent.id, onArrivalDataChanged)}
+      tabs={buildTabs({
+        student: selectedStudent,
+        groups,
+        onArrivalDataChanged,
+        onUpdateStudent,
+      })}
       activeTab={activeTab}
       onTabChange={setActiveTab}
     />
@@ -242,15 +255,31 @@ export function StudentsMasterDetail({
   );
 }
 
-function buildTabs(
-  studentId: string,
-  onArrivalDataChanged: () => void,
-): DetailTab[] {
+interface BuildTabsArgs {
+  student: Student;
+  groups: Array<{ value: string; label: string }>;
+  onArrivalDataChanged: () => void;
+  onUpdateStudent: (studentId: string, data: Partial<Student>) => Promise<void>;
+}
+
+function buildTabs({
+  student,
+  groups,
+  onArrivalDataChanged,
+  onUpdateStudent,
+}: BuildTabsArgs): DetailTab[] {
+  const studentId = student.id;
   return [
     {
       id: "master-data",
       label: "Stammdaten",
-      content: <StammdatenStub />,
+      content: (
+        <StudentStammdatenTab
+          student={student}
+          groups={groups}
+          onSave={(data) => onUpdateStudent(studentId, data)}
+        />
+      ),
     },
     {
       id: "arrival",
@@ -265,35 +294,29 @@ function buildTabs(
     {
       id: "pickup",
       label: "Abholung",
-      content: <PlaceholderTab label="Abholung" />,
+      content: (
+        <StudentAbholungTab
+          studentId={studentId}
+          isSick={student.sick}
+          isExcused={student.excused}
+          onUpdate={onArrivalDataChanged}
+        />
+      ),
     },
     {
       id: "exceptions",
       label: "Ausnahmen",
-      content: <PlaceholderTab label="Ausnahmen" />,
+      content: (
+        <StudentAusnahmenTab
+          studentId={studentId}
+          onChanged={onArrivalDataChanged}
+        />
+      ),
     },
     {
       id: "history",
       label: "Historie",
-      content: <PlaceholderTab label="Historie" />,
+      content: <StudentHistorieTab studentId={studentId} />,
     },
   ];
-}
-
-function StammdatenStub() {
-  return (
-    <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
-      <Pencil className="h-4 w-4 text-gray-500" aria-hidden />
-      Stammdaten-Bearbeitung kommt in einem späteren Schritt. Der bestehende
-      Bearbeiten-Flow bleibt bis dahin aktiv.
-    </div>
-  );
-}
-
-function PlaceholderTab({ label }: { label: string }) {
-  return (
-    <div className="rounded-lg border border-dashed border-gray-200 p-8 text-center text-sm text-gray-500">
-      {label} folgt in einem späteren Release.
-    </div>
-  );
 }

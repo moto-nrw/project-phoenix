@@ -9,7 +9,7 @@ import {
 } from "next/navigation";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { Pencil, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type {
@@ -19,7 +19,6 @@ import type {
 import { useIsMobile } from "~/hooks/useIsMobile";
 import { useToast } from "~/contexts/ToastContext";
 import { StudentCreateModal } from "@/components/students/student-create-modal";
-import { StudentEditModal } from "@/components/students/student-edit-modal";
 import { StudentsMasterDetail } from "@/components/students/students-master-detail";
 import {
   StudentsGroupingToggle,
@@ -84,7 +83,6 @@ export default function StudentsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [groupFilter, setGroupFilter] = useState("all");
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
   const [arrivalRevision, setArrivalRevision] = useState(0);
   const isMobile = useIsMobile();
 
@@ -248,23 +246,22 @@ export default function StudentsPage() {
   );
 
   const handleUpdateStudent = useCallback(
-    async (studentData: Partial<Student>) => {
-      if (!selectedStudent) return;
+    async (studentId: string, studentData: Partial<Student>) => {
       try {
         if (studentsConfig.form.transformBeforeSubmit) {
           studentData = studentsConfig.form.transformBeforeSubmit(studentData);
         }
-        await service.update(selectedStudent.id, studentData);
+        await service.update(studentId, studentData);
         if (!isMountedRef.current) return;
-        const displayName = studentsConfig.list.item.title(selectedStudent);
         toastSuccess(
           getDbOperationMessage(
             "update",
             studentsConfig.name.singular,
-            displayName,
+            studentData.first_name && studentData.second_name
+              ? `${studentData.first_name} ${studentData.second_name}`
+              : studentsConfig.name.singular,
           ),
         );
-        setShowEditModal(false);
         await tenantMutate("database-students-list");
       } catch (err) {
         logger.error("failed to update student", {
@@ -273,7 +270,7 @@ export default function StudentsPage() {
         throw err;
       }
     },
-    [selectedStudent, service, tenantMutate, toastSuccess],
+    [service, tenantMutate, toastSuccess],
   );
 
   const handleDeleteStudent = useCallback(async () => {
@@ -331,24 +328,14 @@ export default function StudentsPage() {
   const canShowDetail = !loading && filteredStudents.length > 0;
 
   const detailActions = selectedStudent ? (
-    <div className="flex items-center gap-2">
-      <button
-        type="button"
-        onClick={() => setShowEditModal(true)}
-        className="flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
-      >
-        <Pencil className="h-3.5 w-3.5" aria-hidden />
-        Bearbeiten
-      </button>
-      <button
-        type="button"
-        onClick={handleDeleteClick}
-        className="flex items-center gap-1.5 rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-100"
-      >
-        <Trash2 className="h-3.5 w-3.5" aria-hidden />
-        Löschen
-      </button>
-    </div>
+    <button
+      type="button"
+      onClick={handleDeleteClick}
+      className="flex items-center gap-1.5 rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-100"
+    >
+      <Trash2 className="h-3.5 w-3.5" aria-hidden />
+      Löschen
+    </button>
   ) : null;
 
   return (
@@ -418,6 +405,8 @@ export default function StudentsPage() {
             studentsWithArrival={studentsWithArrival}
             arrivalSummaryById={arrivalSummaryById}
             onArrivalDataChanged={handleArrivalChanged}
+            groups={allGroups}
+            onUpdateStudent={handleUpdateStudent}
             detailActions={detailActions}
           />
         </div>
@@ -463,14 +452,6 @@ export default function StudentsPage() {
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         onCreate={handleCreateStudent}
-        groups={allGroups}
-      />
-
-      <StudentEditModal
-        isOpen={showEditModal}
-        onClose={() => setShowEditModal(false)}
-        student={selectedStudent}
-        onSave={handleUpdateStudent}
         groups={allGroups}
       />
 
