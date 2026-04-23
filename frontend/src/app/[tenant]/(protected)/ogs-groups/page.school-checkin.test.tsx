@@ -44,6 +44,16 @@ vi.mock("~/lib/hooks/use-school-checkin-mode", () => ({
   },
 }));
 
+// Page gates the toggle on binary mode; the global tenant-provider mock
+// (src/test/setup.ts) defaults to "detailed", which would hide the button
+// and make every assertion here fail. Override to "binary".
+vi.mock("~/components/tenant/tenant-provider", () => ({
+  useTenant: vi.fn(() => ({ tenantSlug: "test-tenant", tenant: null })),
+  useTenantSlugSafe: vi.fn(() => "test-tenant"),
+  usePresenceMode: vi.fn(() => "binary"),
+  TenantProvider: ({ children }: { children: React.ReactNode }) => children,
+}));
+
 vi.mock("~/components/students/school-checkin-toggle", () => ({
   SchoolCheckinToggle: (props: {
     isActive: boolean;

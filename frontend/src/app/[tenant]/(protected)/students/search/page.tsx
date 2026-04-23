@@ -39,6 +39,7 @@ import {
   deriveCheckinState,
   useSchoolCheckinMode,
 } from "~/lib/hooks/use-school-checkin-mode";
+import { usePresenceMode } from "~/components/tenant/tenant-provider";
 import { useSWRAuth, useImmutableSWR } from "~/lib/swr";
 import { activeService } from "~/lib/active-api";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
@@ -94,6 +95,12 @@ function SearchPageContent() {
 
   // Page-level school check-in/out mode. When active, clicking a card toggles
   // the student's attendance instead of navigating to the detail page.
+  //
+  // Only exposed in binary-mode tenants — detailed-mode schools check
+  // students in via the RFID kiosk and a parallel web button would create
+  // confusing divergent state.
+  const presenceMode = usePresenceMode();
+  const isBinaryMode = presenceMode === "binary";
   const schoolCheckin = useSchoolCheckinMode();
 
   // Debounce search term for SWR key (prevents excessive API calls while typing)
@@ -410,18 +417,22 @@ function SearchPageContent() {
       <PageHeaderWithSearch
         title="Suche"
         actionButton={
-          <SchoolCheckinToggle
-            isActive={schoolCheckin.isActive}
-            onToggle={schoolCheckin.toggleActive}
-            pendingCount={schoolCheckin.pendingIds.size}
-          />
+          isBinaryMode ? (
+            <SchoolCheckinToggle
+              isActive={schoolCheckin.isActive}
+              onToggle={schoolCheckin.toggleActive}
+              pendingCount={schoolCheckin.pendingIds.size}
+            />
+          ) : undefined
         }
         mobileActionButton={
-          <SchoolCheckinToggleMobile
-            isActive={schoolCheckin.isActive}
-            onToggle={schoolCheckin.toggleActive}
-            pendingCount={schoolCheckin.pendingIds.size}
-          />
+          isBinaryMode ? (
+            <SchoolCheckinToggleMobile
+              isActive={schoolCheckin.isActive}
+              onToggle={schoolCheckin.toggleActive}
+              pendingCount={schoolCheckin.pendingIds.size}
+            />
+          ) : undefined
         }
         badge={{
           icon: (
@@ -549,7 +560,7 @@ function SearchPageContent() {
                         `/students/${student.id}?from=/students/search`,
                       )
                     }
-                    checkinMode={schoolCheckin.isActive}
+                    checkinMode={isBinaryMode && schoolCheckin.isActive}
                     checkinState={checkinState}
                     isCheckinPending={schoolCheckin.pendingIds.has(
                       studentIdStr,

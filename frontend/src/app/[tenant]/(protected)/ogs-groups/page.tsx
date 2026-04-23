@@ -56,6 +56,7 @@ import {
   deriveCheckinState,
   useSchoolCheckinMode,
 } from "~/lib/hooks/use-school-checkin-mode";
+import { usePresenceMode } from "~/components/tenant/tenant-provider";
 import { fetchBulkPickupTimes } from "~/lib/pickup-schedule-api";
 import type { BulkPickupTime } from "~/lib/pickup-schedule-api";
 import { activeService } from "~/lib/active-api";
@@ -147,6 +148,14 @@ function OGSGroupPageContent() {
 
   const { success: showSuccessToast } = useToast();
   const { userContext } = useUserContext();
+
+  // Only binary-mode tenants expose the web check-in toggle; in detailed
+  // mode the kiosk owns check-in/out and a parallel web button would
+  // confuse users. We gate both the header toggle and the card's
+  // check-in mode on this flag — when false the page behaves exactly as
+  // it did before this feature landed.
+  const presenceMode = usePresenceMode();
+  const isBinaryMode = presenceMode === "binary";
 
   // Page-level school check-in/out mode. Toggle lives in the header; when
   // isActive, clicking a card toggles that student's attendance instead of
@@ -1002,13 +1011,13 @@ function OGSGroupPageContent() {
   const renderDesktopActionButton = () => {
     if (isMobile || !currentGroup) return undefined;
 
-    const checkinButton = (
+    const checkinButton = isBinaryMode ? (
       <SchoolCheckinToggle
         isActive={schoolCheckin.isActive}
         onToggle={schoolCheckin.toggleActive}
         pendingCount={schoolCheckin.pendingIds.size}
       />
-    );
+    ) : null;
 
     if (currentGroup.viaSubstitution) {
       return (
@@ -1070,13 +1079,13 @@ function OGSGroupPageContent() {
   const renderMobileActionButton = () => {
     if (!isMobile || !currentGroup) return undefined;
 
-    const checkinButton = (
+    const checkinButton = isBinaryMode ? (
       <SchoolCheckinToggleMobile
         isActive={schoolCheckin.isActive}
         onToggle={schoolCheckin.toggleActive}
         pendingCount={schoolCheckin.pendingIds.size}
       />
-    );
+    ) : null;
 
     if (currentGroup.viaSubstitution) {
       return (
@@ -1194,7 +1203,7 @@ function OGSGroupPageContent() {
                   onClick={() =>
                     router.push(`/students/${student.id}?from=/ogs-groups`)
                   }
-                  checkinMode={schoolCheckin.isActive}
+                  checkinMode={isBinaryMode && schoolCheckin.isActive}
                   checkinState={checkinState}
                   isCheckinPending={schoolCheckin.pendingIds.has(studentIdStr)}
                   onCheckinClick={() =>

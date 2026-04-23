@@ -38,6 +38,15 @@ vi.mock("~/lib/hooks/use-school-checkin-mode", () => ({
   },
 }));
 
+// Page gates the toggle on binary mode; override the global mock
+// (src/test/setup.ts defaults to "detailed") so the button renders.
+vi.mock("~/components/tenant/tenant-provider", () => ({
+  useTenant: vi.fn(() => ({ tenantSlug: "test-tenant", tenant: null })),
+  useTenantSlugSafe: vi.fn(() => "test-tenant"),
+  usePresenceMode: vi.fn(() => "binary"),
+  TenantProvider: ({ children }: { children: React.ReactNode }) => children,
+}));
+
 vi.mock("~/components/students/school-checkin-toggle", () => ({
   SchoolCheckinToggle: (props: {
     isActive: boolean;
