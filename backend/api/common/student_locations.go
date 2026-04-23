@@ -176,7 +176,7 @@ func (s *StudentLocationSnapshot) ResolveStudentLocationWithTime(studentID int64
 	// label the resolver produces in this mode, and only when a yard timestamp
 	// is actually set on the attendance row.
 	if s.Mode == PresenceModeBinary {
-		return resolveBinaryLocation(status, hasFullAccess)
+		return ResolveBinaryLocation(status, hasFullAccess)
 	}
 
 	// If checked out, return "Abwesend" with checkout time (for hasFullAccess users)
@@ -218,11 +218,15 @@ func (s *StudentLocationSnapshot) ResolveStudentLocationWithTime(studentID int64
 	return StudentLocationInfo{Location: "Unterwegs"}
 }
 
-// resolveBinaryLocation maps an attendance row's derived status to a simple
+// ResolveBinaryLocation maps an attendance row's derived status to a simple
 // label for binary-mode tenants. The Since field carries the most relevant
 // timestamp for the current state (check-in, yard transition, or check-out),
 // gated on hasFullAccess for parity with detailed-mode privacy semantics.
-func resolveBinaryLocation(status *activeService.AttendanceStatus, hasFullAccess bool) StudentLocationInfo {
+//
+// Exported so the detail-endpoint helper (api/students/response_helpers.go)
+// can short-circuit identically — the per-student path used to fall through
+// to "Unterwegs" for binary-mode tenants.
+func ResolveBinaryLocation(status *activeService.AttendanceStatus, hasFullAccess bool) StudentLocationInfo {
 	switch status.Status {
 	case "on_yard":
 		info := StudentLocationInfo{Location: "Schulhof"}

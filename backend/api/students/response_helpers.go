@@ -151,11 +151,20 @@ func absentInfo(hasFullAccess bool, checkOutTime *time.Time) common.StudentLocat
 	return common.StudentLocationInfo{Location: "Abwesend"}
 }
 
-// resolveStudentLocationWithTime determines a student's current location with timestamp
+// resolveStudentLocationWithTime determines a student's current location with timestamp.
+//
+// Binary-mode tenants short-circuit to ResolveBinaryLocation — web check-ins
+// write only attendance (no room visit), so falling through to
+// presentOrTransit() would always yield "Unterwegs", contradicting the
+// simplified Anwesend/Schulhof/Abwesend UX binary mode promises.
 func resolveStudentLocationWithTime(ctx context.Context, studentID int64, hasFullAccess bool, activeService activeService.Service) common.StudentLocationInfo {
 	attendanceStatus, err := activeService.GetStudentAttendanceStatus(ctx, studentID)
 	if err != nil || attendanceStatus == nil {
 		return common.StudentLocationInfo{Location: "Abwesend"}
+	}
+
+	if activeService.GetPresenceMode(ctx) == common.PresenceModeBinary {
+		return common.ResolveBinaryLocation(attendanceStatus, hasFullAccess)
 	}
 
 	// Handle non-checked-in states (checked_out or other)
