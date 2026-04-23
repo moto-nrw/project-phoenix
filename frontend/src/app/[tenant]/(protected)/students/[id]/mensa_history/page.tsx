@@ -344,7 +344,7 @@ export default function StudentMensaHistoryPage() {
           <div>
             <h1 className="text-3xl font-bold">{student.name}</h1>
             <div className="mt-1 flex items-center">
-              <span className="opacity-90">Klasse {student.school_class}</span>
+              <span className="opacity-90">{student.school_class}</span>
               <span
                 className={`ml-2 inline-block h-3 w-3 rounded-full ${yearColor}`}
                 title={`Jahrgang ${year}`}

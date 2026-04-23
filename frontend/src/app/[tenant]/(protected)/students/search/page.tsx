@@ -677,7 +677,7 @@ function SearchPageContent() {
                     extraContent={
                       <>
                         <StudentInfoRow icon={<SchoolClassIcon />}>
-                          Klasse {student.school_class}
+                          {student.school_class}
                         </StudentInfoRow>
                         {student.group_name && (
                           <StudentInfoRow icon={<GroupIcon />}>

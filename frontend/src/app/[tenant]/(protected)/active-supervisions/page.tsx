@@ -1342,7 +1342,7 @@ function MeinRaumPageContent() {
                     <>
                       {student.school_class && (
                         <StudentInfoRow icon={<SchoolClassIcon />}>
-                          Klasse {student.school_class}
+                          {student.school_class}
                         </StudentInfoRow>
                       )}
                       {student.group_name && (

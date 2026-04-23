@@ -30,7 +30,7 @@ export function StudentDetailHeader({
 }: StudentDetailHeaderProps) {
   const metaParts: string[] = [];
   if (student.school_class) {
-    metaParts.push(`Klasse ${student.school_class}`);
+    metaParts.push(student.school_class);
   }
   if (student.group_name) {
     metaParts.push(student.group_name);

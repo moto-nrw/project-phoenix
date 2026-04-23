@@ -117,10 +117,7 @@ export function StudentsMasterDetail({
         ) : null;
       return {
         id,
-        title:
-          grouping === "class" && id !== UNKNOWN_CLASS_LABEL
-            ? `Klasse ${id}`
-            : id,
+        title: id,
         items,
         variant,
         countSuffix,

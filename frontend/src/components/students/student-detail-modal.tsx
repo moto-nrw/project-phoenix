@@ -151,7 +151,7 @@ export function StudentDetailModal({
             </h2>
             {student.school_class && (
               <p className="mt-0.5 text-xs text-gray-500 md:text-sm">
-                Klasse {student.school_class}
+                {student.school_class}
               </p>
             )}
           </div>
