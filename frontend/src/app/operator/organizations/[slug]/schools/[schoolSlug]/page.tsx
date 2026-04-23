@@ -13,6 +13,7 @@ import type {
 import { EntityHeaderCard } from "~/components/operator/entity-header-card";
 import { AccountsTable } from "~/components/operator/accounts-table";
 import { DevicesTable } from "~/components/operator/devices-table";
+import { PersonsTable } from "~/components/operator/persons-table";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
@@ -86,6 +87,14 @@ export default function OperatorSchoolDetailPage({ params }: PageProps) {
   const { data: schoolDevices, isLoading: devicesLoading } = useSWR(
     devicesActive ? ["operator-school-devices-", school?.id] : null,
     () => operatorProvisioningService.listSchoolDevices(school?.id ?? ""),
+    { revalidateOnFocus: false, dedupingInterval: 5000 },
+  );
+
+  const personsActive =
+    activeTab === "personen" && isAuthenticated && school != null;
+  const { data: schoolPersons, isLoading: personsLoading } = useSWR(
+    personsActive ? ["operator-school-persons-", school?.id] : null,
+    () => operatorProvisioningService.listSchoolPersons(school?.id ?? ""),
     { revalidateOnFocus: false, dedupingInterval: 5000 },
   );
 
@@ -226,15 +235,27 @@ export default function OperatorSchoolDetailPage({ params }: PageProps) {
             )}
           </TabsPrimitive.Content>
 
-          {(["personen", "feedback", "ankuendigungen"] as const).map(
-            (tabId) => (
-              <TabsPrimitive.Content key={tabId} value={tabId} className="mt-4">
-                <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
-                  Wird in einem folgenden Schritt gefiltert angezeigt.
-                </div>
-              </TabsPrimitive.Content>
-            ),
-          )}
+          <TabsPrimitive.Content value="personen" className="mt-4">
+            {personsLoading ? (
+              <div className="py-10 text-center text-gray-500">
+                Wird geladen…
+              </div>
+            ) : schoolPersons && schoolPersons.length > 0 ? (
+              <PersonsTable persons={schoolPersons} />
+            ) : (
+              <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
+                Keine Personen für diese Schule.
+              </div>
+            )}
+          </TabsPrimitive.Content>
+
+          {(["feedback", "ankuendigungen"] as const).map((tabId) => (
+            <TabsPrimitive.Content key={tabId} value={tabId} className="mt-4">
+              <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
+                Wird in einem folgenden Schritt gefiltert angezeigt.
+              </div>
+            </TabsPrimitive.Content>
+          ))}
         </Tabs>
       </div>
     </div>

@@ -14,6 +14,7 @@ import type {
 import { EntityHeaderCard } from "~/components/operator/entity-header-card";
 import { AccountsTable } from "~/components/operator/accounts-table";
 import { DevicesTable } from "~/components/operator/devices-table";
+import { PersonsTable } from "~/components/operator/persons-table";
 import { DataTable, DataTableStatusBadge } from "~/components/ui/data-table";
 import type { DataTableColumn } from "~/components/ui/data-table";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
@@ -92,6 +93,34 @@ export default function OperatorOrganizationDetailPage({ params }: PageProps) {
       operatorProvisioningService.listOrganizationDevices(
         organization?.id ?? "",
       ),
+    { revalidateOnFocus: false, dedupingInterval: 5000 },
+  );
+
+  // Personen are not exposed via an org-scoped endpoint, so fan out across
+  // the org's schools and concatenate. Each result already carries
+  // schoolName, so the table can render the Schule column directly.
+  const personsActive =
+    activeTab === "personen" &&
+    isAuthenticated &&
+    organization != null &&
+    schools != null;
+  const personsKey = personsActive
+    ? [
+        "operator-org-persons-",
+        organization?.id,
+        schools?.map((s) => s.id).join(","),
+      ]
+    : null;
+  const { data: orgPersons, isLoading: personsLoading } = useSWR(
+    personsKey,
+    async () => {
+      const lists = await Promise.all(
+        (schools ?? []).map((s) =>
+          operatorProvisioningService.listSchoolPersons(s.id),
+        ),
+      );
+      return lists.flat();
+    },
     { revalidateOnFocus: false, dedupingInterval: 5000 },
   );
 
@@ -254,15 +283,27 @@ export default function OperatorOrganizationDetailPage({ params }: PageProps) {
             )}
           </TabsPrimitive.Content>
 
-          {(["personen", "feedback", "ankuendigungen"] as const).map(
-            (tabId) => (
-              <TabsPrimitive.Content key={tabId} value={tabId} className="mt-4">
-                <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
-                  Wird in einem folgenden Schritt gefiltert angezeigt.
-                </div>
-              </TabsPrimitive.Content>
-            ),
-          )}
+          <TabsPrimitive.Content value="personen" className="mt-4">
+            {personsLoading ? (
+              <div className="py-10 text-center text-gray-500">
+                Wird geladen…
+              </div>
+            ) : orgPersons && orgPersons.length > 0 ? (
+              <PersonsTable persons={orgPersons} showSchool />
+            ) : (
+              <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
+                Keine Personen für diesen Träger.
+              </div>
+            )}
+          </TabsPrimitive.Content>
+
+          {(["feedback", "ankuendigungen"] as const).map((tabId) => (
+            <TabsPrimitive.Content key={tabId} value={tabId} className="mt-4">
+              <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
+                Wird in einem folgenden Schritt gefiltert angezeigt.
+              </div>
+            </TabsPrimitive.Content>
+          ))}
         </Tabs>
       </div>
     </div>
