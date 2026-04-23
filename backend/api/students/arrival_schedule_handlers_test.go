@@ -823,7 +823,7 @@ func TestBulkUpsertArrivalSchedules(t *testing.T) {
 		body := map[string]any{
 			"school_class": "",
 			"schedules": []map[string]any{
-				{"weekday": 1, "arrival_time": "08:00"},
+				{"weekday": 1, "expected_arrival": "08:00"},
 			},
 		}
 		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
@@ -847,7 +847,7 @@ func TestBulkUpsertArrivalSchedules(t *testing.T) {
 		body := map[string]any{
 			"school_class": "1a",
 			"schedules": []map[string]any{
-				{"weekday": 7, "arrival_time": "08:00"},
+				{"weekday": 7, "expected_arrival": "08:00"},
 			},
 		}
 		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
@@ -866,8 +866,8 @@ func TestBulkUpsertArrivalSchedules(t *testing.T) {
 		body := map[string]any{
 			"school_class": "BAR1",
 			"schedules": []map[string]any{
-				{"weekday": 1, "arrival_time": "07:45"},
-				{"weekday": 3, "arrival_time": "08:15"},
+				{"weekday": 1, "expected_arrival": "07:45"},
+				{"weekday": 3, "expected_arrival": "08:15"},
 			},
 		}
 		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)

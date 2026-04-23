@@ -11,6 +11,7 @@ import {
   type ArrivalScheduleInput,
   WEEKDAYS,
   bulkUpsertArrivalByClass,
+  fetchArrivalData,
 } from "~/lib/student-arrival-api";
 import { cn } from "~/lib/utils";
 
@@ -21,7 +22,6 @@ interface ClassBulkArrivalModalProps {
   onClose: () => void;
   schoolClass: string;
   studentsInClass: Student[];
-  studentsWithArrival: Set<string>;
   onSuccess?: () => void;
 }
 
@@ -45,26 +45,41 @@ export function ClassBulkArrivalModal({
   onClose,
   schoolClass,
   studentsInClass,
-  studentsWithArrival,
   onSuccess,
 }: ClassBulkArrivalModalProps) {
   const { success: toastSuccess, error: toastError } = useToast();
   const [draft, setDraft] = useState<DraftState>(initialDraft);
   const [saving, setSaving] = useState(false);
+  const [collisionCount, setCollisionCount] = useState<number | null>(null);
 
   useEffect(() => {
-    if (isOpen) {
-      setDraft(initialDraft());
-    }
-  }, [isOpen]);
+    if (!isOpen) return;
+    setDraft(initialDraft());
+    setCollisionCount(null);
 
-  const collisionCount = useMemo(
-    () =>
-      studentsInClass.filter((student) =>
-        studentsWithArrival.has(String(student.id)),
-      ).length,
-    [studentsInClass, studentsWithArrival],
-  );
+    let cancelled = false;
+    const ids = studentsInClass.map((student) => String(student.id));
+    Promise.all(
+      ids.map((id) =>
+        fetchArrivalData(id)
+          .then((data) => data.schedules.length > 0)
+          .catch((err) => {
+            logger.warn("arrival_status_fetch_failed", {
+              student_id: id,
+              error: err instanceof Error ? err.message : String(err),
+            });
+            return false;
+          }),
+      ),
+    ).then((results) => {
+      if (cancelled) return;
+      setCollisionCount(results.filter(Boolean).length);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, studentsInClass]);
 
   const hasAnyTime = useMemo(
     () => Object.values(draft).some((value) => value.trim() !== ""),
@@ -141,7 +156,7 @@ export function ClassBulkArrivalModal({
           Setzt die Ankunftszeit für alle {studentsInClass.length} Schüler der
           Klasse {schoolClass}. Leere Felder bleiben unverändert.
         </p>
-        {collisionCount > 0 ? (
+        {collisionCount !== null && collisionCount > 0 ? (
           <div className="flex items-start gap-2 rounded-lg border border-[#F78C10] bg-[#FFF8ED] p-3 text-sm">
             <AlertTriangle
               className="mt-0.5 h-4 w-4 shrink-0 text-[#F78C10]"

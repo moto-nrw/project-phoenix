@@ -173,10 +173,10 @@ func (r *BulkUpsertArrivalScheduleRequest) Bind(_ *http.Request) error {
 		}
 		seenWeekdays[s.Weekday] = true
 		if s.ArrivalTime == "" {
-			return fmt.Errorf("schedule %d: arrival_time is required", i)
+			return fmt.Errorf("schedule %d: expected_arrival is required", i)
 		}
 		if _, err := time.Parse("15:04", s.ArrivalTime); err != nil {
-			return fmt.Errorf("schedule %d: invalid arrival_time format, expected HH:MM", i)
+			return fmt.Errorf("schedule %d: invalid expected_arrival format, expected HH:MM", i)
 		}
 	}
 	return nil

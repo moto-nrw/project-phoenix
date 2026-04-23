@@ -1,10 +1,11 @@
 "use client";
 
-import { CalendarClock } from "lucide-react";
+import { CalendarClock, MoreVertical } from "lucide-react";
 import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -115,22 +116,10 @@ export function StudentsMasterDetail({
         missing.length > 0 ? `· ${missing.length} offen` : undefined;
       const bulkAction =
         grouping === "class" && id !== UNKNOWN_CLASS_LABEL ? (
-          <button
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-              setBulkClass(id);
-            }}
-            aria-label={`Ankunftszeiten für Klasse ${id} setzen`}
-            className={
-              variant === "warning"
-                ? "flex items-center gap-1.5 rounded-md bg-[#F78C10] px-2 py-1 text-xs font-semibold text-white hover:bg-[#E37C00]"
-                : "flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50"
-            }
-          >
-            <CalendarClock className="h-3 w-3" aria-hidden />
-            Bulk
-          </button>
+          <ClassActionsMenu
+            schoolClass={id}
+            onEditArrival={() => setBulkClass(id)}
+          />
         ) : null;
       return {
         id,
@@ -247,7 +236,6 @@ export function StudentsMasterDetail({
           onClose={handleBulkClose}
           schoolClass={bulkClass}
           studentsInClass={studentsByClass.get(bulkClass) ?? []}
-          studentsWithArrival={studentsWithArrival}
           onSuccess={handleBulkSuccess}
         />
       ) : null}
@@ -316,4 +304,66 @@ function buildTabs({
       content: <StudentHistorieTab studentId={studentId} />,
     },
   ];
+}
+
+interface ClassActionsMenuProps {
+  schoolClass: string;
+  onEditArrival: () => void;
+}
+
+function ClassActionsMenu({
+  schoolClass,
+  onEditArrival,
+}: ClassActionsMenuProps) {
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
+
+  return (
+    <div className="relative" ref={menuRef}>
+      <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          setOpen((prev) => !prev);
+        }}
+        aria-label={`Aktionen für Klasse ${schoolClass}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className="flex h-7 w-7 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-700"
+      >
+        <MoreVertical className="h-4 w-4" aria-hidden />
+      </button>
+      {open ? (
+        <div
+          role="menu"
+          className="absolute top-full right-0 z-50 mt-1 w-56 rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
+        >
+          <button
+            type="button"
+            role="menuitem"
+            onClick={(event) => {
+              event.stopPropagation();
+              setOpen(false);
+              onEditArrival();
+            }}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+          >
+            <CalendarClock className="h-4 w-4 text-gray-500" aria-hidden />
+            Ankunftszeit bearbeiten
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
 }
