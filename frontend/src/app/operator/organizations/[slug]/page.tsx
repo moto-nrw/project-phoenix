@@ -98,7 +98,7 @@ export default function OperatorOrganizationDetailPage({ params }: PageProps) {
   const accountsActive =
     activeTab === "konten" && isAuthenticated && organization != null;
   const { data: orgAccounts, isLoading: accountsLoading } = useSWR(
-    accountsActive ? ["operator-org-accounts-", organization?.id] : null,
+    accountsActive ? ["operator-org-accounts", organization?.id] : null,
     () =>
       operatorProvisioningService.listOrganizationAccounts(
         organization?.id ?? "",
@@ -109,7 +109,7 @@ export default function OperatorOrganizationDetailPage({ params }: PageProps) {
   const devicesActive =
     activeTab === "geraete" && isAuthenticated && organization != null;
   const { data: orgDevices, isLoading: devicesLoading } = useSWR(
-    devicesActive ? ["operator-org-devices-", organization?.id] : null,
+    devicesActive ? ["operator-org-devices", organization?.id] : null,
     () =>
       operatorProvisioningService.listOrganizationDevices(
         organization?.id ?? "",
@@ -117,31 +117,14 @@ export default function OperatorOrganizationDetailPage({ params }: PageProps) {
     { revalidateOnFocus: false, dedupingInterval: 5000 },
   );
 
-  // Personen are not exposed via an org-scoped endpoint, so fan out across
-  // the org's schools and concatenate. Each result already carries
-  // schoolName, so the table can render the Schule column directly.
   const personsActive =
-    activeTab === "personen" &&
-    isAuthenticated &&
-    organization != null &&
-    schools != null;
-  const personsKey = personsActive
-    ? [
-        "operator-org-persons-",
-        organization?.id,
-        schools?.map((s) => s.id).join(","),
-      ]
-    : null;
+    activeTab === "personen" && isAuthenticated && organization != null;
   const { data: orgPersons, isLoading: personsLoading } = useSWR(
-    personsKey,
-    async () => {
-      const lists = await Promise.all(
-        (schools ?? []).map((s) =>
-          operatorProvisioningService.listSchoolPersons(s.id),
-        ),
-      );
-      return lists.flat();
-    },
+    personsActive ? ["operator-org-persons", organization?.id] : null,
+    () =>
+      operatorProvisioningService.listOrganizationPersons(
+        organization?.id ?? "",
+      ),
     { revalidateOnFocus: false, dedupingInterval: 5000 },
   );
 

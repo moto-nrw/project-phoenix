@@ -56,6 +56,11 @@ type mockProvisioningService struct {
 	deleteDeviceFn            func(context.Context, int64, int64, net.IP) error
 	listSchoolPersonsFn       func(context.Context, int64) ([]platformSvc.OperatorPersonInfo, error)
 	softDeletePersonFn        func(context.Context, int64, int64, net.IP) error
+	getProvisioningStatsFn    func(context.Context) (*platformSvc.ProvisioningStats, error)
+	listOrgSummariesFn        func(context.Context) ([]*platformSvc.OrganizationSummary, error)
+	listSchoolSummariesFn     func(context.Context) ([]*platformSvc.SchoolSummary, error)
+	listOrgSchoolSummariesFn  func(context.Context, int64) ([]*platformSvc.SchoolSummary, error)
+	listOrgPersonsFn          func(context.Context, int64) ([]platformSvc.OperatorPersonInfo, error)
 }
 
 func (m *mockProvisioningService) CreateOrganization(ctx context.Context, org *platformModels.Organization, operatorID int64, clientIP net.IP) (*platformModels.Organization, error) {
@@ -188,15 +193,33 @@ func (m *mockProvisioningService) SoftDeletePerson(ctx context.Context, personID
 	return nil
 }
 func (m *mockProvisioningService) GetProvisioningStats(ctx context.Context) (*platformSvc.ProvisioningStats, error) {
+	if m.getProvisioningStatsFn != nil {
+		return m.getProvisioningStatsFn(ctx)
+	}
 	return nil, nil
 }
 func (m *mockProvisioningService) ListOrganizationSummaries(ctx context.Context) ([]*platformSvc.OrganizationSummary, error) {
+	if m.listOrgSummariesFn != nil {
+		return m.listOrgSummariesFn(ctx)
+	}
 	return nil, nil
 }
 func (m *mockProvisioningService) ListSchoolSummaries(ctx context.Context) ([]*platformSvc.SchoolSummary, error) {
+	if m.listSchoolSummariesFn != nil {
+		return m.listSchoolSummariesFn(ctx)
+	}
 	return nil, nil
 }
 func (m *mockProvisioningService) ListOrganizationSchoolSummaries(ctx context.Context, organizationID int64) ([]*platformSvc.SchoolSummary, error) {
+	if m.listOrgSchoolSummariesFn != nil {
+		return m.listOrgSchoolSummariesFn(ctx, organizationID)
+	}
+	return nil, nil
+}
+func (m *mockProvisioningService) ListOrganizationPersons(ctx context.Context, organizationID int64) ([]platformSvc.OperatorPersonInfo, error) {
+	if m.listOrgPersonsFn != nil {
+		return m.listOrgPersonsFn(ctx, organizationID)
+	}
 	return nil, nil
 }
 

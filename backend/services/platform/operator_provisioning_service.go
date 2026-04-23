@@ -90,6 +90,7 @@ type OperatorProvisioningService interface {
 	ListOrganizationSummaries(ctx context.Context) ([]*OrganizationSummary, error)
 	ListSchoolSummaries(ctx context.Context) ([]*SchoolSummary, error)
 	ListOrganizationSchoolSummaries(ctx context.Context, organizationID int64) ([]*SchoolSummary, error)
+	ListOrganizationPersons(ctx context.Context, organizationID int64) ([]OperatorPersonInfo, error)
 }
 
 // OperatorPersonInfo holds person information with school/org context for operator views.

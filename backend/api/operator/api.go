@@ -167,6 +167,7 @@ func (rs *Resource) Router() chi.Router {
 			r.Get("/{id}/accounts", rs.provisioningResource.ListOrganizationAccounts)
 			r.Get("/{id}/devices", rs.provisioningResource.ListOrganizationDevices)
 			r.Get("/{id}/schools", rs.provisioningResource.ListOrganizationSchoolSummaries)
+			r.Get("/{id}/persons", rs.provisioningResource.ListOrganizationPersons)
 		})
 
 		r.Route("/schools", func(r chi.Router) {

@@ -234,6 +234,33 @@ func (s *operatorProvisioningService) ListOrganizationSchoolSummaries(ctx contex
 	return result, nil
 }
 
+// ListOrganizationPersons returns all persons across every school belonging to
+// the given organization, with school/org context on each row. Returns
+// OrganizationNotFoundError if the org does not exist. Replaces the former
+// client-side fan-out that issued one request per school.
+func (s *operatorProvisioningService) ListOrganizationPersons(ctx context.Context, organizationID int64) ([]OperatorPersonInfo, error) {
+	var result []OperatorPersonInfo
+	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
+		org, findErr := s.organizationRepo.FindByID(adminCtx, organizationID)
+		if findErr != nil {
+			return findErr
+		}
+		if org == nil {
+			return &OrganizationNotFoundError{OrganizationID: organizationID}
+		}
+		db := s.pickDB(adminCtx)
+		q := operatorPersonQuery + ` AND "s".organization_id = ? AND "s".deleted_at IS NULL ORDER BY "p".last_name, "p".first_name`
+		if scanErr := db.NewRaw(q, organizationID).Scan(adminCtx, &result); scanErr != nil {
+			return scanErr
+		}
+		if result == nil {
+			result = []OperatorPersonInfo{}
+		}
+		return nil
+	})
+	return result, err
+}
+
 // pickDB returns the active transaction from context if present, otherwise the
 // service's default DB handle. Mirrors the pattern in queryDevices.
 func (s *operatorProvisioningService) pickDB(ctx context.Context) bun.IDB {

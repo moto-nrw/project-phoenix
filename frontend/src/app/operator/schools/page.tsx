@@ -48,11 +48,27 @@ function numberFormat(value: number): string {
   return new Intl.NumberFormat("de-DE").format(value);
 }
 
-function findSchoolById(
-  schools: readonly School[] | undefined,
-  id: string,
-): School | undefined {
-  return schools?.find((s) => s.id === id);
+// The summaries endpoint returns every field the School modals/soft-delete
+// flow need, so we derive a `School` from a `SchoolSummary` rather than
+// round-tripping an extra listSchools() call.
+function summaryToSchool(summary: SchoolSummary): School {
+  return {
+    id: summary.id,
+    organizationId: summary.organizationId,
+    name: summary.name,
+    slug: summary.slug,
+    subdomain: summary.subdomain,
+    address: summary.address,
+    city: summary.city,
+    zip: summary.zip,
+    phone: summary.phone,
+    email: summary.email,
+    active: summary.active,
+    hidden: summary.hidden,
+    deletedAt: summary.deletedAt,
+    createdAt: summary.createdAt,
+    updatedAt: summary.updatedAt,
+  };
 }
 
 export default function OperatorSchoolsPage() {
@@ -86,9 +102,6 @@ export default function OperatorSchoolsPage() {
     },
   );
 
-  // School summaries drive the table + counts; the raw listSchools() is kept
-  // separately because modals (edit, soft-delete, restore, toggle active)
-  // operate on the full School type.
   const {
     data: schoolSummaries,
     isLoading: summariesLoading,
@@ -103,19 +116,9 @@ export default function OperatorSchoolsPage() {
     },
   );
 
-  const { data: schools, mutate: mutateSchools } = useSWR(
-    isAuthenticated ? "operator-schools" : null,
-    () => operatorProvisioningService.listSchools(),
-    {
-      keepPreviousData: true,
-      revalidateOnFocus: false,
-      dedupingInterval: 5000,
-    },
-  );
-
   const refreshAll = useCallback(async () => {
-    await Promise.all([mutateSummaries(), mutateSchools()]);
-  }, [mutateSummaries, mutateSchools]);
+    await mutateSummaries();
+  }, [mutateSummaries]);
 
   const activeOrganizations = useMemo(
     () => organizations?.filter((o) => o.deletedAt == null) ?? [],
@@ -158,15 +161,10 @@ export default function OperatorSchoolsPage() {
     );
   }, [globalMutate]);
 
-  const openEditSchool = useCallback(
-    (summary: SchoolSummary) => {
-      const target = findSchoolById(schools, summary.id);
-      if (!target) return;
-      setEditSchoolTarget(target);
-      setEditSchoolOpen(true);
-    },
-    [schools],
-  );
+  const openEditSchool = useCallback((summary: SchoolSummary) => {
+    setEditSchoolTarget(summaryToSchool(summary));
+    setEditSchoolOpen(true);
+  }, []);
 
   const openInviteAdmin = useCallback((summary: SchoolSummary) => {
     setInviteSchoolId(summary.id);
@@ -194,25 +192,24 @@ export default function OperatorSchoolsPage() {
     async (summary: SchoolSummary) => {
       setSchoolToggleError("");
       try {
-        const freshSchools = await mutateSchools();
-        const fresh = freshSchools?.find((s) => s.id === summary.id);
-        if (!fresh) return;
+        const fresh = await mutateSummaries();
+        const current = fresh?.find((s) => s.id === summary.id) ?? summary;
 
-        await operatorProvisioningService.updateSchool(fresh.id, {
-          organization_id: parseInt(fresh.organizationId, 10),
-          name: fresh.name,
-          slug: fresh.slug,
-          subdomain: fresh.subdomain,
-          address: fresh.address ?? "",
-          city: fresh.city ?? "",
-          zip: fresh.zip ?? "",
-          phone: fresh.phone ?? "",
-          email: fresh.email ?? "",
-          active: !fresh.active,
-          hidden: fresh.hidden,
+        await operatorProvisioningService.updateSchool(current.id, {
+          organization_id: parseInt(current.organizationId, 10),
+          name: current.name,
+          slug: current.slug,
+          subdomain: current.subdomain,
+          address: current.address,
+          city: current.city,
+          zip: current.zip,
+          phone: current.phone,
+          email: current.email,
+          active: !current.active,
+          hidden: current.hidden,
         });
         await refreshAll();
-        await revalidateTenantCache([fresh.subdomain]);
+        await revalidateTenantCache([current.subdomain]);
       } catch (error) {
         setSchoolToggleError(
           "Fehler beim Ändern des Status. Bitte versuchen Sie es erneut.",
@@ -222,13 +219,13 @@ export default function OperatorSchoolsPage() {
         });
       }
     },
-    [mutateSchools, refreshAll],
+    [mutateSummaries, refreshAll],
   );
 
-  const schoolDelete = useSoftDeletable<School>({
+  const schoolDelete = useSoftDeletable<SchoolSummary>({
     softDeleteFn: operatorProvisioningService.softDeleteSchool,
     restoreFn: operatorProvisioningService.restoreSchool,
-    mutateList: mutateSchools,
+    mutateList: mutateSummaries,
     errorMessages: {
       softDelete:
         "Fehler beim Löschen der Schule. Bitte versuchen Sie es erneut.",
@@ -238,36 +235,29 @@ export default function OperatorSchoolsPage() {
     logEventPrefix: "school",
     onAfterSoftDelete: async (target) => {
       await revalidateTenantCache([target.subdomain]);
-      await mutateSummaries();
     },
     onAfterRestore: async (target) => {
       await revalidateTenantCache([target.subdomain]);
-      await mutateSummaries();
     },
   });
 
   const requestDelete = useCallback(
     (summary: SchoolSummary) => {
-      const target = findSchoolById(schools, summary.id);
-      if (!target) return;
-      schoolDelete.setDeleteTarget(target);
+      schoolDelete.setDeleteTarget(summary);
     },
-    [schools, schoolDelete],
+    [schoolDelete],
   );
 
   const requestRestore = useCallback(
     (summary: SchoolSummary) => {
-      const target = findSchoolById(schools, summary.id);
-      if (!target) return;
-      schoolDelete.setRestoreTarget(target);
+      schoolDelete.setRestoreTarget(summary);
     },
-    [schools, schoolDelete],
+    [schoolDelete],
   );
 
   const schoolRestoreParentDeleted = useMemo(() => {
     const target = schoolDelete.restoreTarget;
     if (!target) return false;
-    if (target.organization?.deletedAt != null) return true;
     return deletedOrgIds.has(target.organizationId);
   }, [schoolDelete.restoreTarget, deletedOrgIds]);
 

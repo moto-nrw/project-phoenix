@@ -105,7 +105,13 @@ export default function OperatorOrganizationsPage() {
           active: !org.active,
         });
         await refreshAll();
-        await revalidateTenantCache([]);
+        // Cascade tenant-resolve cache invalidation to each child school:
+        // the org's active flag can affect how child tenants resolve, so stale
+        // cached resolutions must be busted. Fetching subdomains via the new
+        // summaries endpoint avoids the previous full listSchools() payload.
+        const orgSchools =
+          await operatorProvisioningService.listOrganizationSchools(org.id);
+        await revalidateTenantCache(orgSchools.map((s) => s.subdomain));
       } catch (error) {
         setOrgToggleError(
           "Fehler beim Ändern des Status. Bitte versuchen Sie es erneut.",

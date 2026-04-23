@@ -100,7 +100,7 @@ export default function OperatorSchoolDetailPage({ params }: PageProps) {
   const accountsActive =
     activeTab === "konten" && isAuthenticated && school != null;
   const { data: schoolAccounts, isLoading: accountsLoading } = useSWR(
-    accountsActive ? ["operator-school-accounts-", school?.id] : null,
+    accountsActive ? ["operator-school-accounts", school?.id] : null,
     () => operatorProvisioningService.listSchoolAccounts(school?.id ?? ""),
     { revalidateOnFocus: false, dedupingInterval: 5000 },
   );
@@ -108,7 +108,7 @@ export default function OperatorSchoolDetailPage({ params }: PageProps) {
   const devicesActive =
     activeTab === "geraete" && isAuthenticated && school != null;
   const { data: schoolDevices, isLoading: devicesLoading } = useSWR(
-    devicesActive ? ["operator-school-devices-", school?.id] : null,
+    devicesActive ? ["operator-school-devices", school?.id] : null,
     () => operatorProvisioningService.listSchoolDevices(school?.id ?? ""),
     { revalidateOnFocus: false, dedupingInterval: 5000 },
   );
@@ -116,7 +116,7 @@ export default function OperatorSchoolDetailPage({ params }: PageProps) {
   const personsActive =
     activeTab === "personen" && isAuthenticated && school != null;
   const { data: schoolPersons, isLoading: personsLoading } = useSWR(
-    personsActive ? ["operator-school-persons-", school?.id] : null,
+    personsActive ? ["operator-school-persons", school?.id] : null,
     () => operatorProvisioningService.listSchoolPersons(school?.id ?? ""),
     { revalidateOnFocus: false, dedupingInterval: 5000 },
   );

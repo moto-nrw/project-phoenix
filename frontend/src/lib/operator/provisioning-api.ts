@@ -220,6 +220,15 @@ class OperatorProvisioningService {
     return data.map(mapOperatorPerson);
   }
 
+  async listOrganizationPersons(
+    organizationId: string,
+  ): Promise<OperatorPerson[]> {
+    const data = await operatorFetch<BackendOperatorPerson[]>(
+      `/api/operator/provisioning/organizations/${encodeURIComponent(organizationId)}/persons`,
+    );
+    return data.map(mapOperatorPerson);
+  }
+
   async softDeletePerson(personId: string): Promise<void> {
     await operatorFetch<null>(
       `/api/operator/provisioning/persons/${encodeURIComponent(personId)}`,

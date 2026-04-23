@@ -2,6 +2,8 @@
 
 import type { ReactNode } from "react";
 
+import { LOCATION_COLORS } from "~/lib/location-helper";
+
 export interface DataTableColumn<T> {
   key: string;
   header: string;
@@ -153,15 +155,13 @@ interface DataTableStatusBadgeProps {
   inactiveLabel?: string;
 }
 
-// MOTO brand hex codes: green from LOCATION_COLORS.GROUP_ROOM, red from LOCATION_COLORS.HOME.
-// See frontend/src/lib/location-helper.ts
 export function DataTableStatusBadge({
   active,
   activeLabel = "Aktiv",
   inactiveLabel = "Inaktiv",
 }: Readonly<DataTableStatusBadgeProps>) {
   const label = active ? activeLabel : inactiveLabel;
-  const color = active ? "#83CD2D" : "#FF3130";
+  const color = active ? LOCATION_COLORS.GROUP_ROOM : LOCATION_COLORS.HOME;
   return (
     <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-50 px-3 py-1 text-xs font-medium">
       <span
