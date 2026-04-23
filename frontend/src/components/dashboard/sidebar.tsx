@@ -355,13 +355,23 @@ function SidebarContent({ className = "" }: SidebarProps) {
   };
 
   const getOperatorDrillInActiveHref = (): string | null => {
+    // On the operator subdomain, operatorPath() strips "/operator" from URLs,
+    // so pathname is "/organizations/{slug}" rather than the full route. Match
+    // either form so this works on both the operator subdomain (clean URLs)
+    // and tenant subdomains (legacy /operator/* URLs).
     const drillInMatch =
-      /^\/operator\/organizations\/[^/]+(\/schools\/[^/]+)?$/.exec(pathname);
+      /^(?:\/operator)?\/organizations\/[^/]+(\/schools\/[^/]+)?$/.exec(
+        pathname,
+      );
     if (!drillInMatch) return null;
     const isSchoolDrillIn = drillInMatch[1] !== undefined;
     const tab =
       searchParams.get("tab") ?? (isSchoolDrillIn ? "konten" : "schulen");
-    return OPERATOR_TAB_TO_HREF[tab] ?? null;
+    const baseHref = OPERATOR_TAB_TO_HREF[tab];
+    if (!baseHref) return null;
+    // Resolve through operatorPath so the returned href matches the form the
+    // sidebar Link components actually use (stripped on operator subdomain).
+    return operatorPath(baseHref);
   };
 
   // Check if a navigation link should be highlighted as active
