@@ -5,18 +5,7 @@ import type { ReactNode } from "react";
 import { Clock, AlertTriangle, Loader2 } from "lucide-react";
 import { getPickupUrgency, type PickupUrgency } from "~/lib/pickup-helpers";
 import { LOCATION_COLORS } from "~/lib/location-helper";
-
-/**
- * Presence state shown in check-in mode. Maps 1:1 onto the brand color
- * palette (green / orange / red) plus an "unknown" sentinel for students
- * with no resolvable location data. Kept narrow so callers derive it once
- * via deriveCheckinState rather than reimplementing the mapping.
- */
-export type StudentCheckinState =
-  | "anwesend"
-  | "schulhof"
-  | "abwesend"
-  | "unknown";
+import type { StudentCheckinState } from "~/lib/hooks/use-school-checkin-mode";
 
 interface StudentCardProps {
   /** Unique student ID */

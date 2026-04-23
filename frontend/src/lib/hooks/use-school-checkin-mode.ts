@@ -2,7 +2,6 @@
 
 import { useCallback, useState } from "react";
 import { mutate as globalMutate } from "swr";
-import type { StudentCheckinState } from "~/components/students/student-card";
 import { useToast } from "~/contexts/ToastContext";
 import { isHomeLocation, isSchoolyardLocation } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
@@ -10,6 +9,19 @@ import {
   schoolCheckinStudent,
   type SchoolCheckinAction,
 } from "~/lib/student-api";
+
+/**
+ * Presence state shown in check-in mode. Maps 1:1 onto the brand color
+ * palette (green / orange / red) plus an "unknown" sentinel for students
+ * whose location can't be resolved. Defined here (the hook is the state's
+ * source of truth via deriveCheckinState) and re-exported from
+ * StudentCard for prop-type ergonomics.
+ */
+export type StudentCheckinState =
+  | "anwesend"
+  | "schulhof"
+  | "abwesend"
+  | "unknown";
 
 const logger = createLogger({ component: "useSchoolCheckinMode" });
 
