@@ -150,7 +150,7 @@ export function StudentHistorieTab({ studentId }: StudentHistorieTabProps) {
         </h3>
         <p className="mt-1 text-xs text-gray-600">
           Die Anwesenheits-Historie ist für diese Einrichtung nicht
-          freigeschaltet. Admin kann sie in den Einstellungen unter GDPR
+          freigeschaltet. Admin kann sie in den Einstellungen unter Datenschutz
           aktivieren.
         </p>
       </div>
