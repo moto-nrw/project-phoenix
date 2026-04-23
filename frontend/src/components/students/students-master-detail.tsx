@@ -78,12 +78,6 @@ export function StudentsMasterDetail({
   const [activeTab, setActiveTab] = useState<string>("master-data");
   const [bulkClass, setBulkClass] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (selectedId) {
-      setActiveTab("master-data");
-    }
-  }, [selectedId]);
-
   const groupDefinitions: GroupDefinition<Student>[] = useMemo(() => {
     const buckets = new Map<string, Student[]>();
     for (const student of students) {
