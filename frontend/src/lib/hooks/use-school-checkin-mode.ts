@@ -1,0 +1,135 @@
+"use client";
+
+import { useCallback, useState } from "react";
+import { mutate as globalMutate } from "swr";
+import type { StudentCheckinState } from "~/components/students/student-card";
+import { useToast } from "~/contexts/ToastContext";
+import {
+  isHomeLocation,
+  isPresentLocation,
+  isSchoolyardLocation,
+} from "~/lib/location-helper";
+import { createLogger } from "~/lib/logger";
+import {
+  schoolCheckinStudent,
+  type SchoolCheckinAction,
+} from "~/lib/student-api";
+
+const logger = createLogger({ component: "useSchoolCheckinMode" });
+
+/**
+ * Maps a student's current_location string to the narrow StudentCheckinState
+ * union that StudentCard uses to tint its card in check-in mode.
+ *
+ * Anything not explicitly "present", "on yard", or "home" falls through to
+ * "unknown" so the UI stays safe when the backend sends an unexpected label.
+ */
+export function deriveCheckinState(
+  currentLocation?: string | null,
+): StudentCheckinState {
+  if (isPresentLocation(currentLocation)) return "anwesend";
+  if (isSchoolyardLocation(currentLocation)) return "schulhof";
+  if (isHomeLocation(currentLocation)) return "abwesend";
+  return "unknown";
+}
+
+/**
+ * Maps a current state to the API action that toggles it. "anwesend" or
+ * "schulhof" means the student is in school → checkout. "abwesend" or
+ * "unknown" means not in school → check in.
+ */
+function actionForState(state: StudentCheckinState): SchoolCheckinAction {
+  return state === "anwesend" || state === "schulhof" ? "out" : "in";
+}
+
+export interface UseSchoolCheckinModeResult {
+  /** Whether the page is currently in check-in/out mode. */
+  isActive: boolean;
+  /** Flip between active and inactive. */
+  toggleActive: () => void;
+  /** Set mode off (used when navigating away or on unrecoverable errors). */
+  deactivate: () => void;
+  /** Set of student IDs whose API call is still in flight. */
+  pendingIds: ReadonlySet<string>;
+  /**
+   * Toggle a student's attendance. Resolves the next action from their
+   * current StudentCheckinState, calls the school-checkin endpoint, and
+   * invalidates the SWR caches that surface presence data.
+   */
+  toggle: (
+    studentId: string,
+    currentState: StudentCheckinState,
+  ) => Promise<void>;
+}
+
+/**
+ * Manages the page-level "Schüler An- & Abmelden" toggle plus the
+ * per-student API call fan-out. Keeps StudentCard dumb: the page holds
+ * isActive and the pendingIds set, the card just renders what it's told.
+ *
+ * Cache invalidation mirrors use-global-sse: any key containing
+ * ogs-students-, search-students-, or tracking-* gets revalidated so that
+ * the card's locationBadge and pendingIds converge with the backend truth.
+ */
+export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
+  const [isActive, setIsActive] = useState(false);
+  const [pendingIds, setPendingIds] = useState<Set<string>>(() => new Set());
+  const toast = useToast();
+
+  const toggleActive = useCallback(() => {
+    setIsActive((prev) => !prev);
+  }, []);
+
+  const deactivate = useCallback(() => {
+    setIsActive(false);
+  }, []);
+
+  const toggle = useCallback(
+    async (studentId: string, currentState: StudentCheckinState) => {
+      if (pendingIds.has(studentId)) return;
+
+      setPendingIds((prev) => {
+        const next = new Set(prev);
+        next.add(studentId);
+        return next;
+      });
+
+      const action = actionForState(currentState);
+
+      try {
+        await schoolCheckinStudent(studentId, action);
+
+        await globalMutate(
+          (key) =>
+            typeof key === "string" &&
+            (key.includes("ogs-students-") ||
+              key.includes("search-students-") ||
+              key.includes("tracking-supervisions-") ||
+              key.includes("tracking-indicators-") ||
+              key.includes(`student-detail-${studentId}`)),
+        );
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        logger.error("school_checkin_toggle_failed", {
+          student_id: studentId,
+          action,
+          error: message,
+        });
+        toast.error(
+          action === "in"
+            ? "Anmelden fehlgeschlagen. Bitte erneut versuchen."
+            : "Abmelden fehlgeschlagen. Bitte erneut versuchen.",
+        );
+      } finally {
+        setPendingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(studentId);
+          return next;
+        });
+      }
+    },
+    [pendingIds, toast],
+  );
+
+  return { isActive, toggleActive, deactivate, pendingIds, toggle };
+}

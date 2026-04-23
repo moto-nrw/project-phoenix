@@ -31,6 +31,14 @@ import {
   StudentInfoRow,
   PickupTimeRow,
 } from "~/components/students/student-card";
+import {
+  SchoolCheckinToggle,
+  SchoolCheckinToggleMobile,
+} from "~/components/students/school-checkin-toggle";
+import {
+  deriveCheckinState,
+  useSchoolCheckinMode,
+} from "~/lib/hooks/use-school-checkin-mode";
 import { useSWRAuth, useImmutableSWR } from "~/lib/swr";
 import { activeService } from "~/lib/active-api";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
@@ -83,6 +91,10 @@ function SearchPageContent() {
   const myGroups = userContext?.educationalGroupIds ?? [];
   const myGroupRooms = userContext?.educationalGroupRoomNames ?? [];
   const mySupervisedRooms = userContext?.supervisedRoomNames ?? [];
+
+  // Page-level school check-in/out mode. When active, clicking a card toggles
+  // the student's attendance instead of navigating to the detail page.
+  const schoolCheckin = useSchoolCheckinMode();
 
   // Debounce search term for SWR key (prevents excessive API calls while typing)
   useEffect(() => {
@@ -397,6 +409,20 @@ function SearchPageContent() {
       {/* PageHeaderWithSearch - With Suche title */}
       <PageHeaderWithSearch
         title="Suche"
+        actionButton={
+          <SchoolCheckinToggle
+            isActive={schoolCheckin.isActive}
+            onToggle={schoolCheckin.toggleActive}
+            pendingCount={schoolCheckin.pendingIds.size}
+          />
+        }
+        mobileActionButton={
+          <SchoolCheckinToggleMobile
+            isActive={schoolCheckin.isActive}
+            onToggle={schoolCheckin.toggleActive}
+            pendingCount={schoolCheckin.pendingIds.size}
+          />
+        }
         badge={{
           icon: (
             <svg
@@ -507,58 +533,74 @@ function SearchPageContent() {
         return (
           <div>
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
-              {filteredStudents.map((student) => (
-                <StudentCard
-                  key={student.id}
-                  studentId={student.id}
-                  firstName={student.first_name}
-                  lastName={student.second_name}
-                  onClick={() =>
-                    router.push(`/students/${student.id}?from=/students/search`)
-                  }
-                  locationBadge={
-                    <LocationBadge
-                      student={student}
-                      displayMode="contextAware"
-                      userGroups={myGroups}
-                      groupRooms={myGroupRooms}
-                      supervisedRooms={mySupervisedRooms}
-                      variant="modern"
-                      size="md"
-                    />
-                  }
-                  extraContent={
-                    <>
-                      <StudentInfoRow icon={<SchoolClassIcon />}>
-                        Klasse {student.school_class}
-                      </StudentInfoRow>
-                      {student.group_name && (
-                        <StudentInfoRow icon={<GroupIcon />}>
-                          Gruppe: {student.group_name}
-                        </StudentInfoRow>
-                      )}
-                      {student.has_full_access !== false && (
-                        <PickupTimeRow
-                          pickupTime={student.pickup_time ?? undefined}
-                          isException={student.pickup_is_exception ?? false}
-                          notes={student.pickup_notes}
-                          isHome={isHomeLocation(student.current_location)}
-                          now={now}
-                        />
-                      )}
-                    </>
-                  }
-                  trackingIndicators={
-                    trackingData?.labels?.length &&
-                    student.has_full_access !== false ? (
-                      <TrackingIndicators
-                        labels={trackingData.labels}
-                        results={trackingData.results[student.id] ?? []}
+              {filteredStudents.map((student) => {
+                const checkinState = deriveCheckinState(
+                  student.current_location,
+                );
+                const studentIdStr = student.id.toString();
+                return (
+                  <StudentCard
+                    key={student.id}
+                    studentId={student.id}
+                    firstName={student.first_name}
+                    lastName={student.second_name}
+                    onClick={() =>
+                      router.push(
+                        `/students/${student.id}?from=/students/search`,
+                      )
+                    }
+                    checkinMode={schoolCheckin.isActive}
+                    checkinState={checkinState}
+                    isCheckinPending={schoolCheckin.pendingIds.has(
+                      studentIdStr,
+                    )}
+                    onCheckinClick={() =>
+                      void schoolCheckin.toggle(studentIdStr, checkinState)
+                    }
+                    locationBadge={
+                      <LocationBadge
+                        student={student}
+                        displayMode="contextAware"
+                        userGroups={myGroups}
+                        groupRooms={myGroupRooms}
+                        supervisedRooms={mySupervisedRooms}
+                        variant="modern"
+                        size="md"
                       />
-                    ) : undefined
-                  }
-                />
-              ))}
+                    }
+                    extraContent={
+                      <>
+                        <StudentInfoRow icon={<SchoolClassIcon />}>
+                          Klasse {student.school_class}
+                        </StudentInfoRow>
+                        {student.group_name && (
+                          <StudentInfoRow icon={<GroupIcon />}>
+                            Gruppe: {student.group_name}
+                          </StudentInfoRow>
+                        )}
+                        {student.has_full_access !== false && (
+                          <PickupTimeRow
+                            pickupTime={student.pickup_time ?? undefined}
+                            isException={student.pickup_is_exception ?? false}
+                            notes={student.pickup_notes}
+                            isHome={isHomeLocation(student.current_location)}
+                            now={now}
+                          />
+                        )}
+                      </>
+                    }
+                    trackingIndicators={
+                      trackingData?.labels?.length &&
+                      student.has_full_access !== false ? (
+                        <TrackingIndicators
+                          labels={trackingData.labels}
+                          results={trackingData.results[student.id] ?? []}
+                        />
+                      ) : undefined
+                    }
+                  />
+                );
+              })}
             </div>
           </div>
         );

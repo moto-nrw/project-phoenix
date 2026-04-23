@@ -48,6 +48,14 @@ import { Loading } from "~/components/ui/loading";
 import { LocationBadge } from "@/components/ui/location-badge";
 import { EmptyStudentResults } from "~/components/ui/empty-student-results";
 import { StudentCard, PickupTimeRow } from "~/components/students/student-card";
+import {
+  SchoolCheckinToggle,
+  SchoolCheckinToggleMobile,
+} from "~/components/students/school-checkin-toggle";
+import {
+  deriveCheckinState,
+  useSchoolCheckinMode,
+} from "~/lib/hooks/use-school-checkin-mode";
 import { fetchBulkPickupTimes } from "~/lib/pickup-schedule-api";
 import type { BulkPickupTime } from "~/lib/pickup-schedule-api";
 import { activeService } from "~/lib/active-api";
@@ -139,6 +147,11 @@ function OGSGroupPageContent() {
 
   const { success: showSuccessToast } = useToast();
   const { userContext } = useUserContext();
+
+  // Page-level school check-in/out mode. Toggle lives in the header; when
+  // isActive, clicking a card toggles that student's attendance instead of
+  // navigating to the detail page.
+  const schoolCheckin = useSchoolCheckinMode();
 
   // Check if user has access to OGS groups
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
@@ -988,15 +1001,54 @@ function OGSGroupPageContent() {
   // Render helper for desktop action button
   const renderDesktopActionButton = () => {
     if (isMobile || !currentGroup) return undefined;
+
+    const checkinButton = (
+      <SchoolCheckinToggle
+        isActive={schoolCheckin.isActive}
+        onToggle={schoolCheckin.toggleActive}
+        pendingCount={schoolCheckin.pendingIds.size}
+      />
+    );
+
     if (currentGroup.viaSubstitution) {
       return (
-        <div className="flex h-10 items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-4">
+        <div className="flex items-center gap-2">
+          {checkinButton}
+          <div className="flex h-10 items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-4">
+            <svg
+              className="h-5 w-5 text-orange-600"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2.5}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+              />
+            </svg>
+            <span className="text-sm font-medium text-orange-900">
+              In Vertretung
+            </span>
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div className="flex items-center gap-2">
+        {checkinButton}
+        <button
+          onClick={() => setShowTransferModal(true)}
+          className="flex h-10 items-center gap-2 rounded-full border border-[#83CD2D] bg-white px-4 text-[#4a7a15] transition-colors duration-150 hover:bg-[#f0f9e4] active:bg-[#e4f3d3]"
+          aria-label="Gruppe übergeben"
+        >
           <svg
-            className="h-5 w-5 text-orange-600"
+            className="h-4 w-4"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
-            strokeWidth={2.5}
+            strokeWidth={2}
           >
             <path
               strokeLinecap="round"
@@ -1004,55 +1056,67 @@ function OGSGroupPageContent() {
               d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
             />
           </svg>
-          <span className="text-sm font-medium text-orange-900">
-            In Vertretung
+          <span className="text-sm font-medium">
+            {activeTransfers.length > 0
+              ? `Gruppe übergeben (${activeTransfers.length})`
+              : "Gruppe übergeben"}
           </span>
-        </div>
-      );
-    }
-    return (
-      <button
-        onClick={() => setShowTransferModal(true)}
-        className="flex h-10 items-center gap-2 rounded-full border border-[#83CD2D] bg-white px-4 text-[#4a7a15] transition-colors duration-150 hover:bg-[#f0f9e4] active:bg-[#e4f3d3]"
-        aria-label="Gruppe übergeben"
-      >
-        <svg
-          className="h-4 w-4"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-          />
-        </svg>
-        <span className="text-sm font-medium">
-          {activeTransfers.length > 0
-            ? `Gruppe übergeben (${activeTransfers.length})`
-            : "Gruppe übergeben"}
-        </span>
-      </button>
+        </button>
+      </div>
     );
   };
 
   // Render helper for mobile action button
   const renderMobileActionButton = () => {
     if (!isMobile || !currentGroup) return undefined;
+
+    const checkinButton = (
+      <SchoolCheckinToggleMobile
+        isActive={schoolCheckin.isActive}
+        onToggle={schoolCheckin.toggleActive}
+        pendingCount={schoolCheckin.pendingIds.size}
+      />
+    );
+
     if (currentGroup.viaSubstitution) {
       return (
-        <div
-          className="flex h-8 w-8 items-center justify-center rounded-full border border-orange-200 bg-orange-50"
-          title="In Vertretung"
+        <div className="flex items-center gap-2">
+          {checkinButton}
+          <div
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-orange-200 bg-orange-50"
+            title="In Vertretung"
+          >
+            <svg
+              className="h-4 w-4 text-orange-600"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2.5}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+              />
+            </svg>
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div className="flex items-center gap-2">
+        {checkinButton}
+        <button
+          onClick={() => setShowTransferModal(true)}
+          className="relative flex h-8 w-8 items-center justify-center rounded-full border border-[#83CD2D] bg-white text-[#4a7a15] transition-colors duration-150 active:bg-[#e4f3d3]"
+          aria-label="Gruppe übergeben"
         >
           <svg
-            className="h-4 w-4 text-orange-600"
+            className="h-4 w-4"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
-            strokeWidth={2.5}
+            strokeWidth={2}
           >
             <path
               strokeLinecap="round"
@@ -1060,34 +1124,13 @@ function OGSGroupPageContent() {
               d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
             />
           </svg>
-        </div>
-      );
-    }
-    return (
-      <button
-        onClick={() => setShowTransferModal(true)}
-        className="relative flex h-8 w-8 items-center justify-center rounded-full border border-[#83CD2D] bg-white text-[#4a7a15] transition-colors duration-150 active:bg-[#e4f3d3]"
-        aria-label="Gruppe übergeben"
-      >
-        <svg
-          className="h-4 w-4"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-          />
-        </svg>
-        {activeTransfers.length > 0 && (
-          <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full border border-[#83CD2D] bg-white text-[10px] font-bold text-[#4a7a15]">
-            {activeTransfers.length}
-          </span>
-        )}
-      </button>
+          {activeTransfers.length > 0 && (
+            <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full border border-[#83CD2D] bg-white text-[10px] font-bold text-[#4a7a15]">
+              {activeTransfers.length}
+            </span>
+          )}
+        </button>
+      </div>
     );
   };
 
@@ -1139,6 +1182,8 @@ function OGSGroupPageContent() {
               const cardGradient = getCardGradient(student);
               const studentPickup = pickupTimes.get(student.id.toString());
 
+              const checkinState = deriveCheckinState(student.current_location);
+              const studentIdStr = student.id.toString();
               return (
                 <StudentCard
                   key={student.id}
@@ -1148,6 +1193,12 @@ function OGSGroupPageContent() {
                   gradient={cardGradient}
                   onClick={() =>
                     router.push(`/students/${student.id}?from=/ogs-groups`)
+                  }
+                  checkinMode={schoolCheckin.isActive}
+                  checkinState={checkinState}
+                  isCheckinPending={schoolCheckin.pendingIds.has(studentIdStr)}
+                  onCheckinClick={() =>
+                    void schoolCheckin.toggle(studentIdStr, checkinState)
                   }
                   locationBadge={
                     <LocationBadge
