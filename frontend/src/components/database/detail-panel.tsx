@@ -36,7 +36,7 @@ export function DetailPanel({
       >
         <TabsList
           variant="line"
-          className="justify-start border-b border-gray-200 px-6"
+          className="justify-start border-b border-gray-200 px-6 pt-4"
         >
           {tabs.map((tab) => (
             <TabsTrigger key={tab.id} value={tab.id} disabled={tab.disabled}>

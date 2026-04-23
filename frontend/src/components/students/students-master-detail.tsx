@@ -74,12 +74,12 @@ export function StudentsMasterDetail({
   onUpdateStudent,
   detailActions,
 }: StudentsMasterDetailProps) {
-  const [activeTab, setActiveTab] = useState<string>("arrival");
+  const [activeTab, setActiveTab] = useState<string>("master-data");
   const [bulkClass, setBulkClass] = useState<string | null>(null);
 
   useEffect(() => {
     if (selectedId) {
-      setActiveTab("arrival");
+      setActiveTab("master-data");
     }
   }, [selectedId]);
 
