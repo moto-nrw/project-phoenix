@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 
 import { DataTableStatusBadge } from "~/components/ui/data-table";
 
-export interface EntityHeaderStat {
+interface EntityHeaderStat {
   label: string;
   value: ReactNode;
 }
