@@ -313,6 +313,42 @@ vi.mock("lucide-react", () => ({
       alert
     </span>
   ),
+  Loader2: ({ className }: { className?: string }) => (
+    <span data-testid="lucide-loader2" className={className}>
+      loader
+    </span>
+  ),
+  UserCheck: ({ className }: { className?: string }) => (
+    <span data-testid="lucide-user-check" className={className}>
+      user-check
+    </span>
+  ),
+  UserX: ({ className }: { className?: string }) => (
+    <span data-testid="lucide-user-x" className={className}>
+      user-x
+    </span>
+  ),
+}));
+
+// Mock school-checkin-toggle so the existing tests don't need to care
+// about the new header button — page.school-checkin.test.tsx exercises it.
+vi.mock("~/components/students/school-checkin-toggle", () => ({
+  SchoolCheckinToggle: () => <div data-testid="school-checkin-toggle" />,
+  SchoolCheckinToggleMobile: () => (
+    <div data-testid="school-checkin-toggle-mobile" />
+  ),
+}));
+
+// Mock the school-checkin hook so tests don't need to wire useToast/SWR up.
+vi.mock("~/lib/hooks/use-school-checkin-mode", () => ({
+  useSchoolCheckinMode: () => ({
+    isActive: false,
+    toggleActive: vi.fn(),
+    deactivate: vi.fn(),
+    pendingIds: new Set<string>(),
+    toggle: vi.fn(),
+  }),
+  deriveCheckinState: () => "unknown",
 }));
 
 // Mock useUserContext
