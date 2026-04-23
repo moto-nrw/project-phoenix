@@ -128,7 +128,10 @@ function AccountRowWithAction({
 }>) {
   const capability = getAccountCapabilityMeta(account);
   const canManageCaregiver =
-    account.accountId !== "0" && account.status !== "invited";
+    account.accountId !== "0" &&
+    account.status !== "invited" &&
+    onManageCaregiver != null &&
+    schoolContext != null;
 
   return (
     <>

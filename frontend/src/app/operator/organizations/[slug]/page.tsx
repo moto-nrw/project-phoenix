@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useCallback, useMemo } from "react";
+import { use, useCallback, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
 import useSWR from "swr";
 import Link from "next/link";
@@ -8,7 +8,9 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import type {
+  OrgAccount,
   OrganizationSummary,
+  SchoolAccount,
   SchoolSummary,
 } from "~/lib/operator/provisioning-helpers";
 import { EntityHeaderCard } from "~/components/operator/entity-header-card";
@@ -19,6 +21,7 @@ import { DataTable, DataTableStatusBadge } from "~/components/ui/data-table";
 import type { DataTableColumn } from "~/components/ui/data-table";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
+import { CaregiverCapabilityModal } from "~/components/teachers";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { createLogger } from "~/lib/logger";
 
@@ -56,6 +59,13 @@ export default function OperatorOrganizationDetailPage({ params }: PageProps) {
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");
   const activeTab: TabId = isTabId(tabParam) ? tabParam : "schulen";
+  const [caregiverAccount, setCaregiverAccount] = useState<
+    SchoolAccount | OrgAccount | null
+  >(null);
+  const [caregiverSchoolContext, setCaregiverSchoolContext] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
 
   const setActiveTab = useCallback(
     (next: TabId) => {
@@ -97,7 +107,11 @@ export default function OperatorOrganizationDetailPage({ params }: PageProps) {
 
   const accountsActive =
     activeTab === "konten" && isAuthenticated && organization != null;
-  const { data: orgAccounts, isLoading: accountsLoading } = useSWR(
+  const {
+    data: orgAccounts,
+    isLoading: accountsLoading,
+    mutate: mutateOrgAccounts,
+  } = useSWR(
     accountsActive ? ["operator-org-accounts", organization?.id] : null,
     () =>
       operatorProvisioningService.listOrganizationAccounts(
@@ -135,6 +149,17 @@ export default function OperatorOrganizationDetailPage({ params }: PageProps) {
       );
     },
     [router, slug],
+  );
+
+  const openCaregiverModal = useCallback(
+    (
+      account: SchoolAccount | OrgAccount,
+      schoolContext: { id: string; name: string } | null,
+    ) => {
+      setCaregiverAccount(account);
+      setCaregiverSchoolContext(schoolContext);
+    },
+    [],
   );
 
   const schoolColumns: DataTableColumn<SchoolSummary>[] = useMemo(
@@ -267,7 +292,11 @@ export default function OperatorOrganizationDetailPage({ params }: PageProps) {
                 Wird geladen…
               </div>
             ) : orgAccounts && orgAccounts.length > 0 ? (
-              <AccountsTable accounts={orgAccounts} showSchool />
+              <AccountsTable
+                accounts={orgAccounts}
+                showSchool
+                onManageCaregiver={openCaregiverModal}
+              />
             ) : (
               <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
                 Keine Konten für diesen Träger.
@@ -312,6 +341,24 @@ export default function OperatorOrganizationDetailPage({ params }: PageProps) {
           ))}
         </Tabs>
       </div>
+
+      {caregiverAccount && caregiverSchoolContext ? (
+        <CaregiverCapabilityModal
+          isOpen={true}
+          onClose={() => {
+            setCaregiverAccount(null);
+            setCaregiverSchoolContext(null);
+          }}
+          scope="operator"
+          accountId={caregiverAccount.accountId}
+          accountLabel={`${caregiverAccount.firstName} ${caregiverAccount.lastName}`.trim()}
+          schoolId={caregiverSchoolContext.id}
+          schoolName={caregiverSchoolContext.name}
+          onUpdated={async () => {
+            await mutateOrgAccounts();
+          }}
+        />
+      ) : null}
     </div>
   );
 }

@@ -222,7 +222,7 @@ func (s *operatorProvisioningService) ListOrganizationSchoolSummaries(ctx contex
 			return &OrganizationNotFoundError{OrganizationID: organizationID}
 		}
 		db := s.pickDB(adminCtx)
-		q := schoolSummariesQueryBase + ` WHERE "s".organization_id = ? ORDER BY "s".name ASC`
+		q := schoolSummariesQueryBase + ` WHERE "s".organization_id = ? AND "s".deleted_at IS NULL ORDER BY "s".name ASC`
 		return db.NewRaw(q, organizationID).Scan(adminCtx, &result)
 	})
 	if err != nil {

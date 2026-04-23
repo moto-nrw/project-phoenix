@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useCallback, useMemo } from "react";
+import { use, useCallback, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
 import useSWR from "swr";
 import Link from "next/link";
@@ -8,7 +8,9 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import type {
+  OrgAccount,
   OrganizationSummary,
+  SchoolAccount,
   SchoolSummary,
 } from "~/lib/operator/provisioning-helpers";
 import { EntityHeaderCard } from "~/components/operator/entity-header-card";
@@ -17,6 +19,7 @@ import { DevicesTable } from "~/components/operator/devices-table";
 import { PersonsTable } from "~/components/operator/persons-table";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
+import { CaregiverCapabilityModal } from "~/components/teachers";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { createLogger } from "~/lib/logger";
 
@@ -53,6 +56,13 @@ export default function OperatorSchoolDetailPage({ params }: PageProps) {
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");
   const activeTab: TabId = isTabId(tabParam) ? tabParam : "konten";
+  const [caregiverAccount, setCaregiverAccount] = useState<
+    SchoolAccount | OrgAccount | null
+  >(null);
+  const [caregiverSchoolContext, setCaregiverSchoolContext] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
 
   const setActiveTab = useCallback(
     (next: TabId) => {
@@ -99,7 +109,11 @@ export default function OperatorSchoolDetailPage({ params }: PageProps) {
 
   const accountsActive =
     activeTab === "konten" && isAuthenticated && school != null;
-  const { data: schoolAccounts, isLoading: accountsLoading } = useSWR(
+  const {
+    data: schoolAccounts,
+    isLoading: accountsLoading,
+    mutate: mutateSchoolAccounts,
+  } = useSWR(
     accountsActive ? ["operator-school-accounts", school?.id] : null,
     () => operatorProvisioningService.listSchoolAccounts(school?.id ?? ""),
     { revalidateOnFocus: false, dedupingInterval: 5000 },
@@ -141,6 +155,17 @@ export default function OperatorSchoolDetailPage({ params }: PageProps) {
       updatedAt: school.updatedAt,
     };
   }, [school]);
+
+  const openCaregiverModal = useCallback(
+    (
+      account: SchoolAccount | OrgAccount,
+      schoolContext: { id: string; name: string } | null,
+    ) => {
+      setCaregiverAccount(account);
+      setCaregiverSchoolContext(schoolContext);
+    },
+    [],
+  );
 
   if ((!organizations || schoolsLoading) && !school) {
     return (
@@ -238,6 +263,7 @@ export default function OperatorSchoolDetailPage({ params }: PageProps) {
               <AccountsTable
                 accounts={schoolAccounts}
                 selectedSchool={selectedSchoolForTable}
+                onManageCaregiver={openCaregiverModal}
               />
             ) : (
               <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
@@ -283,6 +309,24 @@ export default function OperatorSchoolDetailPage({ params }: PageProps) {
           ))}
         </Tabs>
       </div>
+
+      {caregiverAccount && caregiverSchoolContext ? (
+        <CaregiverCapabilityModal
+          isOpen={true}
+          onClose={() => {
+            setCaregiverAccount(null);
+            setCaregiverSchoolContext(null);
+          }}
+          scope="operator"
+          accountId={caregiverAccount.accountId}
+          accountLabel={`${caregiverAccount.firstName} ${caregiverAccount.lastName}`.trim()}
+          schoolId={caregiverSchoolContext.id}
+          schoolName={caregiverSchoolContext.name}
+          onUpdated={async () => {
+            await mutateSchoolAccounts();
+          }}
+        />
+      ) : null}
     </div>
   );
 }
