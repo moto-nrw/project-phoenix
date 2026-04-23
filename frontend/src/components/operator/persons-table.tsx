@@ -8,6 +8,7 @@ import type { DataTableColumn } from "~/components/ui/data-table";
 interface PersonsTableProps {
   persons: OperatorPerson[];
   showSchool?: boolean;
+  onDelete?: (person: OperatorPerson) => void;
 }
 
 function PersonTags({ person }: Readonly<{ person: OperatorPerson }>) {
@@ -38,6 +39,7 @@ function PersonTags({ person }: Readonly<{ person: OperatorPerson }>) {
 export function PersonsTable({
   persons,
   showSchool = false,
+  onDelete,
 }: Readonly<PersonsTableProps>) {
   const sorted = useMemo(
     () =>
@@ -87,8 +89,32 @@ export function PersonsTable({
           ),
       },
     );
+    if (onDelete) {
+      cols.push({
+        key: "actions",
+        header: "Aktionen",
+        align: "right",
+        render: (row) => (
+          <div
+            className="flex justify-end"
+            onClick={(event) => event.stopPropagation()}
+            onKeyDown={(event) => event.stopPropagation()}
+            role="presentation"
+          >
+            <button
+              type="button"
+              onClick={() => onDelete(row)}
+              className="rounded-lg border border-red-200 px-2 py-1 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 hover:text-red-700"
+              title="Person löschen"
+            >
+              Löschen
+            </button>
+          </div>
+        ),
+      });
+    }
     return cols;
-  }, [showSchool]);
+  }, [onDelete, showSchool]);
 
   return (
     <DataTable
