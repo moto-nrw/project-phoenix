@@ -4,11 +4,7 @@ import { useCallback, useState } from "react";
 import { mutate as globalMutate } from "swr";
 import type { StudentCheckinState } from "~/components/students/student-card";
 import { useToast } from "~/contexts/ToastContext";
-import {
-  isHomeLocation,
-  isPresentLocation,
-  isSchoolyardLocation,
-} from "~/lib/location-helper";
+import { isHomeLocation, isSchoolyardLocation } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
 import {
   schoolCheckinStudent,
@@ -21,16 +17,25 @@ const logger = createLogger({ component: "useSchoolCheckinMode" });
  * Maps a student's current_location string to the narrow StudentCheckinState
  * union that StudentCard uses to tint its card in check-in mode.
  *
- * Anything not explicitly "present", "on yard", or "home" falls through to
- * "unknown" so the UI stays safe when the backend sends an unexpected label.
+ * Mirrors PresenceBadge.derivePresenceState so the card tint always agrees
+ * with the badge on the same card:
+ *   - empty / null / "Zuhause" → abwesend (red)
+ *   - "Schulhof"              → schulhof (orange)
+ *   - anything else incl.
+ *     "Anwesend", "Unterwegs",
+ *     room names               → anwesend (green)
+ *
+ * "Unterwegs" in particular is a detailed-mode transient state — the
+ * student is checked in to the building but between rooms. They are
+ * already present, so toggling them must fire checkout ("out"), which
+ * this mapping guarantees via actionForState.
  */
 export function deriveCheckinState(
   currentLocation?: string | null,
 ): StudentCheckinState {
-  if (isPresentLocation(currentLocation)) return "anwesend";
+  if (!currentLocation || isHomeLocation(currentLocation)) return "abwesend";
   if (isSchoolyardLocation(currentLocation)) return "schulhof";
-  if (isHomeLocation(currentLocation)) return "abwesend";
-  return "unknown";
+  return "anwesend";
 }
 
 /**

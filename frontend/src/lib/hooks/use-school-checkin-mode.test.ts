@@ -41,16 +41,19 @@ describe("deriveCheckinState", () => {
     expect(deriveCheckinState("Schulhof")).toBe("schulhof");
   });
 
-  it("maps Zuhause / Abwesend to abwesend", () => {
+  it("maps Zuhause / Abwesend / empty to abwesend", () => {
     expect(deriveCheckinState("Zuhause")).toBe("abwesend");
     expect(deriveCheckinState("Abwesend")).toBe("abwesend");
+    expect(deriveCheckinState("")).toBe("abwesend");
+    expect(deriveCheckinState(null)).toBe("abwesend");
+    expect(deriveCheckinState(undefined)).toBe("abwesend");
   });
 
-  it("falls back to unknown for unexpected values", () => {
-    expect(deriveCheckinState("")).toBe("unknown");
-    expect(deriveCheckinState(null)).toBe("unknown");
-    expect(deriveCheckinState(undefined)).toBe("unknown");
-    expect(deriveCheckinState("Unterwegs")).toBe("unknown");
+  it("maps Unterwegs and room names to anwesend (present in building)", () => {
+    // "Unterwegs" = between rooms but still checked in. Toggling must
+    // fire checkout — this mapping ensures action='out' via actionForState.
+    expect(deriveCheckinState("Unterwegs")).toBe("anwesend");
+    expect(deriveCheckinState("Raum 101")).toBe("anwesend");
   });
 });
 

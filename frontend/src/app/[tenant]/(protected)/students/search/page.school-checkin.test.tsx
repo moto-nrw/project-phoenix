@@ -152,6 +152,10 @@ vi.mock("@/components/ui/location-badge", () => ({
   LocationBadge: () => <span />,
 }));
 
+vi.mock("@/components/ui/student-presence-badge", () => ({
+  StudentPresenceBadge: () => <span />,
+}));
+
 vi.mock("~/lib/location-helper", () => ({
   isHomeLocation: (l?: string) => l === "Zuhause",
   isPresentLocation: (l?: string) => !!l && l !== "Zuhause" && l !== "Schulhof",

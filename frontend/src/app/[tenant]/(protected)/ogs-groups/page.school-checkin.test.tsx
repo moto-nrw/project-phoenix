@@ -218,6 +218,10 @@ vi.mock("@/components/ui/location-badge", () => ({
   LocationBadge: () => <span />,
 }));
 
+vi.mock("@/components/ui/student-presence-badge", () => ({
+  StudentPresenceBadge: () => <span />,
+}));
+
 vi.mock("~/components/sse/SSEErrorBoundary", () => ({
   SSEErrorBoundary: ({ children }: { children: React.ReactNode }) => (
     <>{children}</>

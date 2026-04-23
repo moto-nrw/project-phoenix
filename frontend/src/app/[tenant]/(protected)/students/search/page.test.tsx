@@ -118,7 +118,17 @@ vi.mock("~/components/ui/page-header", () => ({
   ),
 }));
 
-// Mock LocationBadge
+// Mock StudentPresenceBadge — wrapper the page now renders instead of
+// the bare LocationBadge, so binary-mode tenants can hide detailed labels.
+vi.mock("@/components/ui/student-presence-badge", () => ({
+  StudentPresenceBadge: ({
+    student,
+  }: {
+    student: { current_location: string };
+  }) => <span data-testid="location-badge">{student.current_location}</span>,
+}));
+
+// Mock LocationBadge (still referenced transitively by any non-mocked paths)
 vi.mock("@/components/ui/location-badge", () => ({
   LocationBadge: ({ student }: { student: { current_location: string } }) => (
     <span data-testid="location-badge">{student.current_location}</span>

@@ -12,7 +12,7 @@ import { studentService, groupService } from "~/lib/api";
 import type { Student, Group } from "~/lib/api";
 import { useUserContext } from "~/lib/hooks/use-user-context";
 import { Loading } from "~/components/ui/loading";
-import { LocationBadge } from "@/components/ui/location-badge";
+import { StudentPresenceBadge } from "@/components/ui/student-presence-badge";
 import {
   isHomeLocation,
   isPresentLocation,
@@ -558,7 +558,7 @@ function SearchPageContent() {
                       void schoolCheckin.toggle(studentIdStr, checkinState)
                     }
                     locationBadge={
-                      <LocationBadge
+                      <StudentPresenceBadge
                         student={student}
                         displayMode="contextAware"
                         userGroups={myGroups}

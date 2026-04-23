@@ -202,9 +202,16 @@ vi.mock("~/lib/group-transfer-api", () => ({
   },
 }));
 
-// Mock LocationBadge
+// Mock LocationBadge (kept even though page now imports StudentPresenceBadge,
+// so co-tests that transitively render LocationBadge don't explode).
 vi.mock("@/components/ui/location-badge", () => ({
   LocationBadge: () => <div data-testid="location-badge">Location</div>,
+}));
+
+// Mock StudentPresenceBadge — page-level wrapper that picks Location vs
+// PresenceBadge based on tenant presence mode.
+vi.mock("@/components/ui/student-presence-badge", () => ({
+  StudentPresenceBadge: () => <div data-testid="location-badge">Presence</div>,
 }));
 
 // Mock EmptyStudentResults

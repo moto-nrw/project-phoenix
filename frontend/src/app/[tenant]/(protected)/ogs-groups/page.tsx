@@ -45,7 +45,7 @@ import { useSWRAuth } from "~/lib/swr";
 import { useUserContext } from "~/lib/hooks/use-user-context";
 
 import { Loading } from "~/components/ui/loading";
-import { LocationBadge } from "@/components/ui/location-badge";
+import { StudentPresenceBadge } from "@/components/ui/student-presence-badge";
 import { EmptyStudentResults } from "~/components/ui/empty-student-results";
 import { StudentCard, PickupTimeRow } from "~/components/students/student-card";
 import {
@@ -1201,7 +1201,7 @@ function OGSGroupPageContent() {
                     void schoolCheckin.toggle(studentIdStr, checkinState)
                   }
                   locationBadge={
-                    <LocationBadge
+                    <StudentPresenceBadge
                       student={student}
                       displayMode="roomName"
                       isGroupRoom={inGroupRoom}
