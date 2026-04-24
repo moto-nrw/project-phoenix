@@ -7,15 +7,8 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
-import {
-  operatorProvisioningService,
-  revalidateTenantCache,
-} from "~/lib/operator/provisioning-api";
-import type {
-  Organization,
-  OrganizationSummary,
-} from "~/lib/operator/provisioning-helpers";
-import { createLogger } from "~/lib/logger";
+import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
+import type { OrganizationSummary } from "~/lib/operator/provisioning-helpers";
 import { DataTable, DataTableStatusBadge } from "~/components/ui/data-table";
 import type { DataTableColumn } from "~/components/ui/data-table";
 import {
@@ -24,15 +17,12 @@ import {
   CardSkeletons,
 } from "../provisioning/provisioning-shared";
 import { CreateOrganizationModal } from "../provisioning/create-organization-modal";
-import { EditOrganizationModal } from "../provisioning/edit-organization-modal";
 import {
   useSoftDeletable,
   DeletedEntityCard,
   SoftDeleteConfirmationModal,
   RestoreConfirmationModal,
 } from "../provisioning/soft-delete-shared";
-
-const logger = createLogger({ component: "OperatorOrganizationsPage" });
 
 function numberFormat(value: number): string {
   return new Intl.NumberFormat("de-DE").format(value);
@@ -58,9 +48,6 @@ export default function OperatorOrganizationsPage() {
   const router = useRouter();
 
   const [createOrgOpen, setCreateOrgOpen] = useState(false);
-  const [editOrgOpen, setEditOrgOpen] = useState(false);
-  const [editOrgTarget, setEditOrgTarget] = useState<Organization | null>(null);
-  const [orgToggleError, setOrgToggleError] = useState("");
 
   const {
     data: organizations,
@@ -86,43 +73,9 @@ export default function OperatorOrganizationsPage() {
     },
   );
 
-  const openEditOrg = useCallback((org: OrganizationSummary) => {
-    setEditOrgTarget(org);
-    setEditOrgOpen(true);
-  }, []);
-
   const refreshAll = useCallback(async () => {
     await Promise.all([mutateOrgs(), mutateStats()]);
   }, [mutateOrgs, mutateStats]);
-
-  const handleToggleOrgActive = useCallback(
-    async (org: OrganizationSummary) => {
-      setOrgToggleError("");
-      try {
-        await operatorProvisioningService.updateOrganization(org.id, {
-          name: org.name,
-          slug: org.slug,
-          active: !org.active,
-        });
-        await refreshAll();
-        // Cascade tenant-resolve cache invalidation to each child school:
-        // the org's active flag can affect how child tenants resolve, so stale
-        // cached resolutions must be busted. Fetching subdomains via the new
-        // summaries endpoint avoids the previous full listSchools() payload.
-        const orgSchools =
-          await operatorProvisioningService.listOrganizationSchools(org.id);
-        await revalidateTenantCache(orgSchools.map((s) => s.subdomain));
-      } catch (error) {
-        setOrgToggleError(
-          "Fehler beim Ändern des Status. Bitte versuchen Sie es erneut.",
-        );
-        logger.error("organization_toggle_active_failed", {
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-    },
-    [refreshAll],
-  );
 
   const activeOrganizations = useMemo(
     () => organizations?.filter((o) => o.deletedAt == null) ?? [],
@@ -228,52 +181,10 @@ export default function OperatorOrganizationsPage() {
       {
         key: "status",
         header: "Status",
-        render: (row) => (
-          <button
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-              void handleToggleOrgActive(row);
-            }}
-            className="cursor-pointer"
-            title={row.active ? "Deaktivieren" : "Aktivieren"}
-            aria-label={row.active ? "Deaktivieren" : "Aktivieren"}
-          >
-            <DataTableStatusBadge active={row.active} />
-          </button>
-        ),
-      },
-      {
-        key: "actions",
-        header: "",
-        align: "right",
-        render: (row) => (
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                openEditOrg(row);
-              }}
-              className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200"
-            >
-              Bearbeiten
-            </button>
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                orgDelete.setDeleteTarget(row);
-              }}
-              className="rounded-lg bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-100"
-            >
-              Löschen
-            </button>
-          </div>
-        ),
+        render: (row) => <DataTableStatusBadge active={row.active} />,
       },
     ],
-    [handleToggleOrgActive, openEditOrg, orgDelete],
+    [],
   );
 
   const handleRowClick = useCallback(
@@ -348,10 +259,6 @@ export default function OperatorOrganizationsPage() {
               onRowClick={handleRowClick}
             />
           )}
-
-          {orgToggleError && (
-            <p className="mt-2 text-sm text-red-600">{orgToggleError}</p>
-          )}
         </div>
       )}
 
@@ -395,15 +302,6 @@ export default function OperatorOrganizationsPage() {
         isOpen={createOrgOpen}
         onClose={() => setCreateOrgOpen(false)}
         onCreated={() => refreshAll().then(() => undefined)}
-      />
-      <EditOrganizationModal
-        isOpen={editOrgOpen}
-        onClose={() => {
-          setEditOrgOpen(false);
-          setEditOrgTarget(null);
-        }}
-        organization={editOrgTarget}
-        onUpdated={() => refreshAll()}
       />
     </div>
   );

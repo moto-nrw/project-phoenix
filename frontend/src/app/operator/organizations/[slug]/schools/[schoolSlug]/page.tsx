@@ -83,8 +83,6 @@ const TAB_ITEMS = [
   { id: "konten", label: "Konten" },
   { id: "geraete", label: "Geräte" },
   { id: "personen", label: "Personen" },
-  { id: "feedback", label: "Feedback" },
-  { id: "ankuendigungen", label: "Ankündigungen" },
 ] as const;
 
 type TabId = (typeof TAB_ITEMS)[number]["id"];
@@ -401,6 +399,45 @@ export default function OperatorSchoolDetailPage({ params }: PageProps) {
     [handleToggleSchoolActive, school, schoolDelete],
   );
 
+  const tabActions = useMemo(() => {
+    if (activeTab === "konten") {
+      return (
+        <>
+          <button
+            type="button"
+            onClick={() => setCreateAccountOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-gray-800"
+          >
+            <PlusIcon />
+            Konto erstellen
+          </button>
+          <button
+            type="button"
+            onClick={() => setInviteOpen(true)}
+            className="rounded-lg bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200"
+          >
+            Admin einladen
+          </button>
+        </>
+      );
+    }
+
+    if (activeTab === "geraete") {
+      return (
+        <button
+          type="button"
+          onClick={() => setCreateDeviceOpen(true)}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-gray-800"
+        >
+          <PlusIcon />
+          Neues Gerät
+        </button>
+      );
+    }
+
+    return null;
+  }, [activeTab]);
+
   if ((!organizations || schoolsLoading) && !school) {
     return (
       <div className="w-full py-10 text-center text-gray-500">
@@ -492,33 +529,22 @@ export default function OperatorSchoolDetailPage({ params }: PageProps) {
             if (isTabId(value)) setActiveTab(value);
           }}
         >
-          <TabsList variant="line">
-            {TAB_ITEMS.map((tab) => (
-              <TabsTrigger key={tab.id} value={tab.id}>
-                {tab.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <TabsList variant="line">
+              {TAB_ITEMS.map((tab) => (
+                <TabsTrigger key={tab.id} value={tab.id}>
+                  {tab.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+            {tabActions ? (
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                {tabActions}
+              </div>
+            ) : null}
+          </div>
 
           <TabsPrimitive.Content value="konten" className="mt-4">
-            <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setCreateAccountOpen(true)}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-gray-800"
-              >
-                <PlusIcon />
-                Konto erstellen
-              </button>
-              <button
-                type="button"
-                onClick={() => setInviteOpen(true)}
-                className="rounded-lg bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200"
-              >
-                Admin einladen
-              </button>
-            </div>
-
             {accountsLoading ? (
               <div className="py-10 text-center text-gray-500">
                 Wird geladen…
@@ -537,18 +563,6 @@ export default function OperatorSchoolDetailPage({ params }: PageProps) {
           </TabsPrimitive.Content>
 
           <TabsPrimitive.Content value="geraete" className="mt-4">
-            <div className="mb-4 flex items-center justify-between">
-              <div />
-              <button
-                type="button"
-                onClick={() => setCreateDeviceOpen(true)}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-gray-800"
-              >
-                <PlusIcon />
-                Neues Gerät
-              </button>
-            </div>
-
             {devicesLoading ? (
               <div className="py-10 text-center text-gray-500">
                 Wird geladen…
@@ -582,14 +596,6 @@ export default function OperatorSchoolDetailPage({ params }: PageProps) {
               </div>
             )}
           </TabsPrimitive.Content>
-
-          {(["feedback", "ankuendigungen"] as const).map((tabId) => (
-            <TabsPrimitive.Content key={tabId} value={tabId} className="mt-4">
-              <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
-                Wird in einem folgenden Schritt gefiltert angezeigt.
-              </div>
-            </TabsPrimitive.Content>
-          ))}
         </Tabs>
       </div>
 

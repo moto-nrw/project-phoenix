@@ -2,7 +2,7 @@
 
 import { use, useCallback, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
-import useSWR, { useSWRConfig } from "swr";
+import useSWR from "swr";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -30,7 +30,6 @@ import * as TabsPrimitive from "@radix-ui/react-tabs";
 import { CaregiverCapabilityModal } from "~/components/teachers";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { createLogger } from "~/lib/logger";
-import { operatorPath } from "~/lib/operator-url";
 import {
   CardSkeletons,
   EmptyState,
@@ -38,9 +37,6 @@ import {
 } from "~/app/operator/provisioning/provisioning-shared";
 import { CreateSchoolModal } from "~/app/operator/provisioning/create-school-modal";
 import { EditOrganizationModal } from "~/app/operator/provisioning/edit-organization-modal";
-import { EditSchoolModal } from "~/app/operator/provisioning/edit-school-modal";
-import { InviteAdminModal } from "~/app/operator/provisioning/invite-admin-modal";
-import { CreateAccountModal } from "~/app/operator/provisioning/create-account-modal";
 import { CreateDeviceModal } from "~/app/operator/provisioning/create-device-modal";
 import { SetApiKeyModal } from "~/app/operator/provisioning/set-api-key-modal";
 import {
@@ -51,12 +47,6 @@ import {
 } from "~/app/operator/provisioning/soft-delete-shared";
 
 const logger = createLogger({ component: "OperatorOrganizationDetailPage" });
-
-const ACCOUNT_SWR_PREFIXES = [
-  "operator-all-accounts",
-  "operator-school-accounts-",
-  "operator-org-accounts-",
-];
 
 function numberFormat(value: number): string {
   return new Intl.NumberFormat("de-DE").format(value);
@@ -99,8 +89,6 @@ const TAB_ITEMS = [
   { id: "konten", label: "Konten" },
   { id: "geraete", label: "Geräte" },
   { id: "personen", label: "Personen" },
-  { id: "feedback", label: "Feedback" },
-  { id: "ankuendigungen", label: "Ankündigungen" },
 ] as const;
 
 type TabId = (typeof TAB_ITEMS)[number]["id"];
@@ -132,17 +120,6 @@ export default function OperatorOrganizationDetailPage({ params }: PageProps) {
   const [editOrgOpen, setEditOrgOpen] = useState(false);
   const [orgToggleError, setOrgToggleError] = useState("");
   const [createSchoolOpen, setCreateSchoolOpen] = useState(false);
-  const [editSchoolOpen, setEditSchoolOpen] = useState(false);
-  const [editSchoolTarget, setEditSchoolTarget] = useState<School | null>(null);
-  const [inviteOpen, setInviteOpen] = useState(false);
-  const [inviteSchoolId, setInviteSchoolId] = useState<string | null>(null);
-  const [inviteSchoolName, setInviteSchoolName] = useState("");
-  const [createAccountOpen, setCreateAccountOpen] = useState(false);
-  const [createAccountSchoolId, setCreateAccountSchoolId] = useState<
-    string | null
-  >(null);
-  const [createAccountSchoolName, setCreateAccountSchoolName] = useState("");
-  const [schoolToggleError, setSchoolToggleError] = useState("");
   const [createDeviceOpen, setCreateDeviceOpen] = useState(false);
   const [setKeyDevice, setSetKeyDevice] = useState<OperatorDevice | null>(null);
   const [deleteDevice, setDeleteDeviceRaw] = useState<OperatorDevice | null>(
@@ -157,16 +134,6 @@ export default function OperatorOrganizationDetailPage({ params }: PageProps) {
     setDeleteConfirmed(false);
     setDeleteError("");
   }, []);
-
-  const { mutate: globalMutate } = useSWRConfig();
-
-  const refreshAccounts = useCallback(() => {
-    return globalMutate(
-      (key: unknown) =>
-        typeof key === "string" &&
-        ACCOUNT_SWR_PREFIXES.some((p) => key.startsWith(p)),
-    );
-  }, [globalMutate]);
 
   const currentTabSearch = activeTab === "schulen" ? "" : `?tab=${activeTab}`;
 
@@ -359,68 +326,6 @@ export default function OperatorOrganizationDetailPage({ params }: PageProps) {
     orgDelete.deleteTarget?.schulenCount != null &&
     orgDelete.deleteTarget.schulenCount > 0;
 
-  const openEditSchool = useCallback((summary: SchoolSummary) => {
-    setEditSchoolTarget(summaryToSchool(summary));
-    setEditSchoolOpen(true);
-  }, []);
-
-  const openInviteAdmin = useCallback((summary: SchoolSummary) => {
-    setInviteSchoolId(summary.id);
-    setInviteSchoolName(summary.name);
-    setInviteOpen(true);
-  }, []);
-
-  const openCreateAccount = useCallback((summary: SchoolSummary) => {
-    setCreateAccountSchoolId(summary.id);
-    setCreateAccountSchoolName(summary.name);
-    setCreateAccountOpen(true);
-  }, []);
-
-  const openSchoolAccounts = useCallback(
-    (summary: SchoolSummary) => {
-      const target = operatorPath(
-        `/operator/accounts?orgId=${encodeURIComponent(summary.organizationId)}&schoolId=${encodeURIComponent(summary.id)}`,
-      );
-      router.push(target);
-    },
-    [router],
-  );
-
-  const handleToggleSchoolActive = useCallback(
-    async (summary: SchoolSummary) => {
-      setSchoolToggleError("");
-      try {
-        const fresh = await mutateSchoolSummaries();
-        const current =
-          fresh?.find((item) => item.id === summary.id) ?? summary;
-
-        await operatorProvisioningService.updateSchool(current.id, {
-          organization_id: parseInt(current.organizationId, 10),
-          name: current.name,
-          slug: current.slug,
-          subdomain: current.subdomain,
-          address: current.address,
-          city: current.city,
-          zip: current.zip,
-          phone: current.phone,
-          email: current.email,
-          active: !current.active,
-          hidden: current.hidden,
-        });
-        await refreshOrganizationDrillIn();
-        await revalidateTenantCache([current.subdomain]);
-      } catch (error) {
-        setSchoolToggleError(
-          "Fehler beim Ändern des Status. Bitte versuchen Sie es erneut.",
-        );
-        logger.error("school_toggle_active_failed", {
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-    },
-    [mutateSchoolSummaries, refreshOrganizationDrillIn],
-  );
-
   const schoolDelete = useSoftDeletable<SchoolSummary>({
     softDeleteFn: operatorProvisioningService.softDeleteSchool,
     restoreFn: operatorProvisioningService.restoreSchool,
@@ -439,13 +344,6 @@ export default function OperatorOrganizationDetailPage({ params }: PageProps) {
       await revalidateTenantCache([target.subdomain]);
     },
   });
-
-  const requestDeleteSchool = useCallback(
-    (summary: SchoolSummary) => {
-      schoolDelete.setDeleteTarget(summary);
-    },
-    [schoolDelete],
-  );
 
   const requestRestoreSchool = useCallback(
     (summary: SchoolSummary) => {
@@ -559,91 +457,46 @@ export default function OperatorOrganizationDetailPage({ params }: PageProps) {
       {
         key: "status",
         header: "Status",
-        render: (row) => (
-          <button
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-              void handleToggleSchoolActive(row);
-            }}
-            className="cursor-pointer"
-            title={row.active ? "Deaktivieren" : "Aktivieren"}
-            aria-label={row.active ? "Deaktivieren" : "Aktivieren"}
-          >
-            <DataTableStatusBadge active={row.active} />
-          </button>
-        ),
-      },
-      {
-        key: "actions",
-        header: "Aktionen",
-        align: "right",
-        render: (row) => (
-          <div
-            className="flex flex-wrap justify-end gap-1.5"
-            onClick={(event) => event.stopPropagation()}
-            onKeyDown={(event) => event.stopPropagation()}
-            role="presentation"
-          >
-            <button
-              type="button"
-              onClick={() => openSchoolAccounts(row)}
-              className="rounded-lg bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200"
-            >
-              Konten
-            </button>
-            <button
-              type="button"
-              onClick={() => openEditSchool(row)}
-              className="rounded-lg bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200"
-            >
-              Bearbeiten
-            </button>
-            <button
-              type="button"
-              onClick={() => openCreateAccount(row)}
-              className="rounded-lg bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200"
-            >
-              Konto erstellen
-            </button>
-            <button
-              type="button"
-              onClick={() => openInviteAdmin(row)}
-              className="rounded-lg bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200"
-            >
-              Admin einladen
-            </button>
-            <Link
-              href={`/operator/schools/${row.id}/settings`}
-              className="rounded-lg bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200"
-            >
-              Einstellungen
-            </Link>
-            <button
-              type="button"
-              onClick={() => requestDeleteSchool(row)}
-              className="rounded-lg bg-red-50 px-2.5 py-1 text-xs font-medium text-red-600 transition-colors hover:bg-red-100"
-            >
-              Löschen
-            </button>
-          </div>
-        ),
+        render: (row) => <DataTableStatusBadge active={row.active} />,
       },
     ],
-    [
-      handleToggleSchoolActive,
-      openCreateAccount,
-      openEditSchool,
-      openInviteAdmin,
-      openSchoolAccounts,
-      requestDeleteSchool,
-    ],
+    [],
   );
 
   const organizationSchoolsForDeviceModal = useMemo(
     () => activeSchools.map(summaryToSchool),
     [activeSchools],
   );
+
+  const tabActions = useMemo(() => {
+    if (activeTab === "schulen") {
+      return (
+        <button
+          type="button"
+          onClick={() => setCreateSchoolOpen(true)}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-gray-800"
+        >
+          <PlusIcon />
+          Neue Schule
+        </button>
+      );
+    }
+
+    if (activeTab === "geraete") {
+      return (
+        <button
+          type="button"
+          onClick={() => setCreateDeviceOpen(true)}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-gray-800"
+        >
+          <PlusIcon />
+          Neues Gerät
+        </button>
+      );
+    }
+
+    return null;
+  }, [activeTab]);
 
   if (isLoading && !organization) {
     return (
@@ -697,15 +550,8 @@ export default function OperatorOrganizationDetailPage({ params }: PageProps) {
         ]}
       />
 
-      {(orgToggleError || schoolToggleError) && (
-        <div className="mt-3 space-y-1">
-          {orgToggleError && (
-            <p className="text-sm text-red-600">{orgToggleError}</p>
-          )}
-          {schoolToggleError && (
-            <p className="text-sm text-red-600">{schoolToggleError}</p>
-          )}
-        </div>
+      {orgToggleError && (
+        <p className="mt-3 text-sm text-red-600">{orgToggleError}</p>
       )}
 
       <div className="mt-6">
@@ -715,27 +561,22 @@ export default function OperatorOrganizationDetailPage({ params }: PageProps) {
             if (isTabId(value)) setActiveTab(value);
           }}
         >
-          <TabsList variant="line">
-            {TAB_ITEMS.map((tab) => (
-              <TabsTrigger key={tab.id} value={tab.id}>
-                {tab.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <TabsList variant="line">
+              {TAB_ITEMS.map((tab) => (
+                <TabsTrigger key={tab.id} value={tab.id}>
+                  {tab.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+            {tabActions ? (
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                {tabActions}
+              </div>
+            ) : null}
+          </div>
 
           <TabsPrimitive.Content value="schulen" className="mt-4">
-            <div className="mb-4 flex items-center justify-between">
-              <div />
-              <button
-                type="button"
-                onClick={() => setCreateSchoolOpen(true)}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-gray-800"
-              >
-                <PlusIcon />
-                Neue Schule
-              </button>
-            </div>
-
             {deletedSchools.length > 0 && (
               <div className="mb-4 flex justify-end">
                 <button
@@ -788,7 +629,6 @@ export default function OperatorOrganizationDetailPage({ params }: PageProps) {
                 rows={activeSchools}
                 getRowKey={(row) => row.id}
                 onRowClick={handleSchoolClick}
-                caption={`${activeSchools.length} Schulen · gefiltert auf ${organization.name}`}
               />
             )}
           </TabsPrimitive.Content>
@@ -812,18 +652,6 @@ export default function OperatorOrganizationDetailPage({ params }: PageProps) {
           </TabsPrimitive.Content>
 
           <TabsPrimitive.Content value="geraete" className="mt-4">
-            <div className="mb-4 flex items-center justify-between">
-              <div />
-              <button
-                type="button"
-                onClick={() => setCreateDeviceOpen(true)}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-gray-800"
-              >
-                <PlusIcon />
-                Neues Gerät
-              </button>
-            </div>
-
             {devicesLoading ? (
               <div className="py-10 text-center text-gray-500">
                 Wird geladen…
@@ -855,14 +683,6 @@ export default function OperatorOrganizationDetailPage({ params }: PageProps) {
               </div>
             )}
           </TabsPrimitive.Content>
-
-          {(["feedback", "ankuendigungen"] as const).map((tabId) => (
-            <TabsPrimitive.Content key={tabId} value={tabId} className="mt-4">
-              <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
-                Wird in einem folgenden Schritt gefiltert angezeigt.
-              </div>
-            </TabsPrimitive.Content>
-          ))}
         </Tabs>
       </div>
 
@@ -907,28 +727,6 @@ export default function OperatorOrganizationDetailPage({ params }: PageProps) {
         />
       )}
 
-      {schoolDelete.deleteTarget && (
-        <SoftDeleteConfirmationModal
-          target={schoolDelete.deleteTarget}
-          entityLabel="Schule"
-          entityArticleAccusative="die Schule"
-          nameLabel="Geben Sie den Schulnamen ein:"
-          warningTitle="Folgende Aktionen werden ausgeführt:"
-          warningBullets={[
-            "Die Schule wird deaktiviert",
-            "Alle Zugänge dieser Schule werden gesperrt",
-            "Die Schule kann später wiederhergestellt werden",
-          ]}
-          inputId="delete-school-confirm-org-detail"
-          confirmInput={schoolDelete.deleteConfirmInput}
-          onConfirmInputChange={schoolDelete.setDeleteConfirmInput}
-          errorMessage={schoolDelete.softDeleteError}
-          isProcessing={schoolDelete.isProcessing}
-          onCancel={() => schoolDelete.setDeleteTarget(null)}
-          onConfirm={() => void schoolDelete.handleSoftDelete()}
-        />
-      )}
-
       <RestoreConfirmationModal
         target={schoolDelete.restoreTarget}
         setTarget={schoolDelete.setRestoreTarget}
@@ -965,42 +763,6 @@ export default function OperatorOrganizationDetailPage({ params }: PageProps) {
             );
           }
         }}
-      />
-
-      <EditSchoolModal
-        isOpen={editSchoolOpen}
-        onClose={() => {
-          setEditSchoolOpen(false);
-          setEditSchoolTarget(null);
-        }}
-        school={editSchoolTarget}
-        organizations={activeOrganizations}
-        onUpdated={() => refreshOrganizationDrillIn()}
-      />
-
-      <CreateAccountModal
-        isOpen={createAccountOpen}
-        onClose={() => {
-          setCreateAccountOpen(false);
-          setCreateAccountSchoolId(null);
-          setCreateAccountSchoolName("");
-        }}
-        schoolId={createAccountSchoolId}
-        schoolName={createAccountSchoolName}
-        onCreated={() => {
-          void Promise.all([refreshAccounts(), refreshOrganizationDrillIn()]);
-        }}
-      />
-
-      <InviteAdminModal
-        isOpen={inviteOpen}
-        onClose={() => {
-          setInviteOpen(false);
-          setInviteSchoolId(null);
-          setInviteSchoolName("");
-        }}
-        schoolId={inviteSchoolId}
-        schoolName={inviteSchoolName}
       />
 
       <CreateDeviceModal
