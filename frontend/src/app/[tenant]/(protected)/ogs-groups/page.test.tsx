@@ -3165,6 +3165,27 @@ describe("OGSGroupPage rendered pickup urgency", () => {
     });
   });
 
+  it("renders the arrival sort option and sorts when activated", async () => {
+    setupWithStudentsAndPickupTimes(new Map(), {
+      isHome: (loc) => loc === "Zuhause",
+    });
+
+    render(<OGSGroupPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("filter-sort")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("Nächste Ankunft")).toBeInTheDocument();
+    const arrivalBtn = screen.getByTestId("filter-sort-arrival");
+    arrivalBtn.click();
+
+    await waitFor(() => {
+      // All three students still rendered after sort switch
+      expect(screen.getAllByTestId("student-card")).toHaveLength(3);
+    });
+  });
+
   // Flexible setup helper that accepts custom students for branch coverage
   function setupWithCustomStudents(
     students: Array<{

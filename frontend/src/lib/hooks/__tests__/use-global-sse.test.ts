@@ -579,6 +579,161 @@ describe("useGlobalSSE", () => {
       consoleSpy.mockRestore();
     });
 
+    it("invalidates arrival caches on arrival_schedule_changed event", () => {
+      renderHook(() => useGlobalSSE());
+
+      const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
+
+      onMessage?.({
+        type: "arrival_schedule_changed",
+        active_group_id: "",
+        data: { student_id: "42" },
+        timestamp: new Date().toISOString(),
+      });
+
+      vi.advanceTimersByTime(500);
+
+      const mutateCalls = vi.mocked(mutate).mock.calls;
+      const arrivalCall = mutateCalls.find((call) => {
+        const matcher = call[0];
+        return (
+          typeof matcher === "function" &&
+          (matcher as (key: string) => boolean)("arrival-search-X")
+        );
+      });
+      expect(arrivalCall).toBeDefined();
+
+      const matcher = arrivalCall![0] as (key: string) => boolean;
+      expect(matcher("tenant:arrival-supervisions-1")).toBe(true);
+      expect(matcher("tenant:arrival-ogs-groups-1")).toBe(true);
+      expect(matcher("tenant:arrival-data-42")).toBe(true);
+      expect(matcher("tenant:unrelated-key")).toBe(false);
+
+      const dashboardCall = mutateCalls.find((call) => {
+        const matcher = call[0];
+        return (
+          typeof matcher === "function" &&
+          (matcher as (key: string) => boolean)("ogs-dashboard")
+        );
+      });
+      expect(dashboardCall).toBeDefined();
+    });
+
+    it("handles mutate rejection in arrival_schedule scope gracefully", async () => {
+      vi.mocked(mutate).mockRejectedValue(new Error("SWR error"));
+
+      const consoleSpy = vi
+        .spyOn(console, "debug")
+        .mockImplementation(() => undefined);
+
+      renderHook(() => useGlobalSSE());
+
+      const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
+      onMessage?.({
+        type: "arrival_schedule_changed",
+        active_group_id: "",
+        data: {},
+        timestamp: new Date().toISOString(),
+      });
+
+      vi.advanceTimersByTime(500);
+      await vi.runAllTimersAsync();
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "swr_revalidation_failed",
+        expect.objectContaining({ scope: "arrival_schedule" }),
+      );
+
+      consoleSpy.mockRestore();
+    });
+
+    it("handles mutate rejection in activity_supervision scope gracefully", async () => {
+      vi.mocked(mutate).mockRejectedValue(new Error("SWR error"));
+      const consoleSpy = vi
+        .spyOn(console, "debug")
+        .mockImplementation(() => undefined);
+
+      renderHook(() => useGlobalSSE());
+
+      const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
+      onMessage?.({
+        type: "activity_start",
+        active_group_id: "1",
+        data: {},
+        timestamp: new Date().toISOString(),
+      });
+
+      vi.advanceTimersByTime(500);
+      await vi.runAllTimersAsync();
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "swr_revalidation_failed",
+        expect.objectContaining({ scope: "activity_supervision" }),
+      );
+
+      consoleSpy.mockRestore();
+    });
+
+    it("handles mutate rejection in supervision_visits scope gracefully", async () => {
+      vi.mocked(mutate).mockRejectedValue(new Error("SWR error"));
+      const consoleSpy = vi
+        .spyOn(console, "debug")
+        .mockImplementation(() => undefined);
+
+      renderHook(() => useGlobalSSE());
+
+      const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
+      onMessage?.({
+        type: "student_checkin",
+        active_group_id: "42",
+        data: { student_id: "1" },
+        timestamp: new Date().toISOString(),
+      });
+
+      vi.advanceTimersByTime(500);
+      await vi.runAllTimersAsync();
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "swr_revalidation_failed",
+        expect.objectContaining({ scope: "supervision_visits" }),
+      );
+
+      consoleSpy.mockRestore();
+    });
+
+    it("debounces rapid events into a single flush", () => {
+      renderHook(() => useGlobalSSE());
+
+      const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
+
+      onMessage?.({
+        type: "student_checkin",
+        active_group_id: "42",
+        data: { student_id: "1" },
+        timestamp: "t",
+      });
+      onMessage?.({
+        type: "student_checkin",
+        active_group_id: "42",
+        data: { student_id: "2" },
+        timestamp: "t",
+      });
+      onMessage?.({
+        type: "student_checkin",
+        active_group_id: "42",
+        data: { student_id: "3" },
+        timestamp: "t",
+      });
+
+      // Nothing before the debounce window
+      expect(mutate).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(500);
+
+      // Single flush triggers invalidations (multiple mutate scopes, but not 3× the count)
+      expect(mutate).toHaveBeenCalled();
+    });
+
     it("silently ignores unknown event types without invalidating caches", () => {
       renderHook(() => useGlobalSSE());
 

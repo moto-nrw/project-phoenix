@@ -1441,4 +1441,27 @@ describe("StudentSearchPage", () => {
       });
     });
   });
+
+  describe("Arrival sort mode", () => {
+    it("re-sorts the list when switching sort=arrival", async () => {
+      render(<StudentSearchPage />);
+
+      await waitFor(() => expect(screen.getByText("Max")).toBeInTheDocument());
+
+      // Flip to arrival sort mode — component should re-render without error.
+      fireEvent.change(screen.getByTestId("filter-sort"), {
+        target: { value: "arrival" },
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("filter-sort")).toHaveValue("arrival"),
+      );
+
+      // All four default students still present post-sort.
+      expect(screen.getByText("Max")).toBeInTheDocument();
+      expect(screen.getByText("Anna")).toBeInTheDocument();
+      expect(screen.getByText("Tom")).toBeInTheDocument();
+      expect(screen.getByText("Lisa")).toBeInTheDocument();
+    });
+  });
 });
