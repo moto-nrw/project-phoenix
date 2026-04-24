@@ -18,10 +18,9 @@ export const PUT = createPutHandler(async (_request, body, token, params) => {
 export const DELETE = createDeleteHandler(async (_request, token, params) => {
   const { id, noteId } = params;
 
-  const response = await apiDelete(
+  await apiDelete(
     `/api/students/${String(id)}/arrival-notes/${String(noteId)}`,
     token,
   );
-  // @ts-expect-error - API helper returns unknown type
-  return response.data;
+  return null;
 });
