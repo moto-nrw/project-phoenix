@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useIsMobile } from "~/hooks/useIsMobile";
 import { cn } from "~/lib/utils";
 import {
@@ -18,6 +18,8 @@ interface MasterDetailLayoutProps {
   listWidth?: number;
   mobileDrawerTitle?: string;
   className?: string;
+  /** Breathing room below the split view (e.g. to clear surrounding padding). */
+  bottomOffset?: number;
 }
 
 export function MasterDetailLayout({
@@ -28,12 +30,39 @@ export function MasterDetailLayout({
   listWidth = 440,
   mobileDrawerTitle = "Details",
   className,
+  bottomOffset = 32,
 }: MasterDetailLayoutProps) {
   const isMobile = useIsMobile();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState<string>("100dvh");
+
+  useEffect(() => {
+    const node = containerRef.current;
+    if (!node) return;
+
+    const measure = () => {
+      const top = Math.max(0, Math.round(node.getBoundingClientRect().top));
+      const next = `calc(100dvh - ${top + bottomOffset}px)`;
+      setHeight((prev) => (prev === next ? prev : next));
+    };
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(document.documentElement);
+    window.addEventListener("resize", measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [bottomOffset]);
 
   if (isMobile) {
     return (
-      <div className={cn("flex h-full w-full flex-col", className)}>
+      <div
+        ref={containerRef}
+        style={{ height }}
+        className={cn("flex w-full flex-col", className)}
+      >
         <div className="min-h-0 flex-1 overflow-auto">{list}</div>
         <Drawer
           open={selectedId !== null}
@@ -53,7 +82,11 @@ export function MasterDetailLayout({
   }
 
   return (
-    <div className={cn("flex h-full w-full gap-4", className)}>
+    <div
+      ref={containerRef}
+      style={{ height }}
+      className={cn("flex w-full gap-4", className)}
+    >
       <div
         className="shrink-0 overflow-hidden rounded-xl border border-gray-200 bg-white"
         style={{ width: listWidth }}
