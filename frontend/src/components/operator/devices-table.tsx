@@ -9,64 +9,10 @@ import {
   formatLastSeen,
 } from "~/lib/iot-helpers";
 import { createLogger } from "~/lib/logger";
-import {
-  SortableHeader,
-  useSort,
-  type SortState,
-} from "~/app/operator/provisioning/provisioning-tables-shared";
+import { DataTable } from "~/components/ui/data-table";
+import type { DataTableColumn } from "~/components/ui/data-table";
 
 const logger = createLogger({ component: "DevicesTable" });
-
-type DeviceSortKey =
-  | "schoolName"
-  | "deviceId"
-  | "deviceType"
-  | "name"
-  | "status"
-  | "lastSeen"
-  | "apiKey";
-
-function sortDevices(
-  devices: readonly OperatorDevice[],
-  sort: SortState<DeviceSortKey>,
-): OperatorDevice[] {
-  const dir = sort.direction === "asc" ? 1 : -1;
-  return [...devices].sort((a, b) => {
-    let av: string;
-    let bv: string;
-    switch (sort.key) {
-      case "schoolName":
-        av = a.schoolName.toLowerCase();
-        bv = b.schoolName.toLowerCase();
-        break;
-      case "deviceId":
-        av = a.deviceId.toLowerCase();
-        bv = b.deviceId.toLowerCase();
-        break;
-      case "deviceType":
-        av = a.deviceType.toLowerCase();
-        bv = b.deviceType.toLowerCase();
-        break;
-      case "name":
-        av = (a.name || "").toLowerCase();
-        bv = (b.name || "").toLowerCase();
-        break;
-      case "status":
-        av = a.status.toLowerCase();
-        bv = b.status.toLowerCase();
-        break;
-      case "lastSeen":
-        av = a.lastSeen ?? "";
-        bv = b.lastSeen ?? "";
-        break;
-      case "apiKey":
-        av = a.maskedApiKey.toLowerCase();
-        bv = b.maskedApiKey.toLowerCase();
-        break;
-    }
-    return av < bv ? -dir : av > bv ? dir : 0;
-  });
-}
 
 function DeviceStatusBadge({
   status,
@@ -146,10 +92,6 @@ export function DevicesTable({
   onSetKey,
   onDelete,
 }: Readonly<DevicesTableProps>) {
-  const { sort, toggle } = useSort<DeviceSortKey>(
-    showSchool ? "schoolName" : "deviceId",
-  );
-  const sorted = useMemo(() => sortDevices(devices, sort), [devices, sort]);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const handleCopyApiKey = useCallback(async (device: OperatorDevice) => {
@@ -165,142 +107,129 @@ export function DevicesTable({
     }
   }, []);
 
-  return (
-    <div className="overflow-x-auto rounded-2xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md">
-      <table className="w-full text-left text-sm">
-        <thead>
-          <tr className="border-b border-gray-100 text-xs font-medium text-gray-500">
-            {showSchool && (
-              <SortableHeader
-                label="Schule"
-                sortKey="schoolName"
-                sort={sort}
-                onToggle={toggle}
-              />
-            )}
-            <SortableHeader
-              label="Geräte-ID"
-              sortKey="deviceId"
-              sort={sort}
-              onToggle={toggle}
-            />
-            <SortableHeader
-              label="Name"
-              sortKey="name"
-              sort={sort}
-              onToggle={toggle}
-            />
-            <SortableHeader
-              label="Typ"
-              sortKey="deviceType"
-              sort={sort}
-              onToggle={toggle}
-            />
-            <SortableHeader
-              label="Status"
-              sortKey="status"
-              sort={sort}
-              onToggle={toggle}
-            />
-            <SortableHeader
-              label="Zuletzt online"
-              sortKey="lastSeen"
-              sort={sort}
-              onToggle={toggle}
-            />
-            <SortableHeader
-              label="API-Key"
-              sortKey="apiKey"
-              sort={sort}
-              onToggle={toggle}
-            />
-            {(onSetKey || onDelete) && (
-              <th className="px-5 py-3 text-xs font-medium text-gray-500">
-                Aktionen
-              </th>
-            )}
-          </tr>
-        </thead>
-        <tbody>
-          {sorted.map((device) => (
-            <tr
-              key={device.id}
-              className="border-b border-gray-50 last:border-0"
+  const columns = useMemo<DataTableColumn<OperatorDevice>[]>(() => {
+    const cols: DataTableColumn<OperatorDevice>[] = [];
+
+    if (showSchool) {
+      cols.push({
+        key: "schoolName",
+        header: "Schule",
+        render: (row) => row.schoolName,
+        sortValue: (row) => row.schoolName.toLowerCase(),
+        className: "text-gray-600",
+      });
+    }
+
+    cols.push(
+      {
+        key: "deviceId",
+        header: "Geräte-ID",
+        render: (row) => row.deviceId,
+        sortValue: (row) => row.deviceId.toLowerCase(),
+        className: "font-mono text-xs font-medium text-gray-900",
+      },
+      {
+        key: "name",
+        header: "Name",
+        render: (row) => row.name || "—",
+        sortValue: (row) => (row.name || "").toLowerCase(),
+        className: "text-gray-600",
+      },
+      {
+        key: "deviceType",
+        header: "Typ",
+        render: (row) => (
+          <span className="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
+            {getDeviceTypeDisplayName(row.deviceType)}
+          </span>
+        ),
+        sortValue: (row) => row.deviceType.toLowerCase(),
+      },
+      {
+        key: "status",
+        header: "Status",
+        render: (row) => (
+          <DeviceStatusBadge status={row.status} isOnline={row.isOnline} />
+        ),
+        sortValue: (row) => row.status.toLowerCase(),
+      },
+      {
+        key: "lastSeen",
+        header: "Zuletzt online",
+        render: (row) =>
+          row.lastSeen ? (
+            <span title={formatLastSeen(row.lastSeen)}>
+              {getRelativeTime(row.lastSeen)}
+            </span>
+          ) : (
+            <span className="text-gray-400">Nie</span>
+          ),
+        sortValue: (row) => row.lastSeen ?? "",
+        className: "text-gray-600",
+      },
+      {
+        key: "apiKey",
+        header: "API-Key",
+        render: (row) =>
+          row.maskedApiKey ? (
+            <button
+              type="button"
+              onClick={() => void handleCopyApiKey(row)}
+              className="group flex items-center gap-1.5 font-mono text-xs text-gray-500 transition-colors hover:text-gray-900"
+              title="API-Key kopieren"
             >
-              {showSchool && (
-                <td className="px-5 py-3 text-gray-600">{device.schoolName}</td>
-              )}
-              <td className="px-5 py-3 font-mono text-xs font-medium text-gray-900">
-                {device.deviceId}
-              </td>
-              <td className="px-5 py-3 text-gray-600">{device.name || "—"}</td>
-              <td className="px-5 py-3">
-                <span className="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
-                  {getDeviceTypeDisplayName(device.deviceType)}
-                </span>
-              </td>
-              <td className="px-5 py-3">
-                <DeviceStatusBadge
-                  status={device.status}
-                  isOnline={device.isOnline}
-                />
-              </td>
-              <td className="px-5 py-3 text-gray-600">
-                {device.lastSeen ? (
-                  <span title={formatLastSeen(device.lastSeen)}>
-                    {getRelativeTime(device.lastSeen)}
-                  </span>
-                ) : (
-                  <span className="text-gray-400">Nie</span>
-                )}
-              </td>
-              <td className="px-5 py-3">
-                {device.maskedApiKey ? (
-                  <button
-                    type="button"
-                    onClick={() => void handleCopyApiKey(device)}
-                    className="group flex items-center gap-1.5 font-mono text-xs text-gray-500 transition-colors hover:text-gray-900"
-                    title="API-Key kopieren"
-                  >
-                    <span>{device.maskedApiKey}</span>
-                    <span className="text-gray-300 transition-colors group-hover:text-gray-600">
-                      {copiedId === device.id ? <CheckIcon /> : <CopyIcon />}
-                    </span>
-                  </button>
-                ) : (
-                  <span className="text-gray-400">—</span>
-                )}
-              </td>
-              {(onSetKey || onDelete) && (
-                <td className="px-5 py-3">
-                  <div className="flex items-center gap-2">
-                    {onSetKey && (
-                      <button
-                        type="button"
-                        onClick={() => onSetKey(device)}
-                        className="rounded-lg border border-gray-200 px-2 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900"
-                        title="API-Key ändern"
-                      >
-                        Key ändern
-                      </button>
-                    )}
-                    {onDelete && (
-                      <button
-                        type="button"
-                        onClick={() => onDelete(device)}
-                        className="rounded-lg border border-red-200 px-2 py-1 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 hover:text-red-700"
-                        title="Gerät löschen"
-                      >
-                        Löschen
-                      </button>
-                    )}
-                  </div>
-                </td>
-              )}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+              <span>{row.maskedApiKey}</span>
+              <span className="text-gray-300 transition-colors group-hover:text-gray-600">
+                {copiedId === row.id ? <CheckIcon /> : <CopyIcon />}
+              </span>
+            </button>
+          ) : (
+            <span className="text-gray-400">—</span>
+          ),
+        sortValue: (row) => row.maskedApiKey.toLowerCase(),
+      },
+    );
+
+    if (onSetKey || onDelete) {
+      cols.push({
+        key: "actions",
+        header: "Aktionen",
+        render: (row) => (
+          <div className="flex items-center gap-2">
+            {onSetKey && (
+              <button
+                type="button"
+                onClick={() => onSetKey(row)}
+                className="rounded-lg border border-gray-200 px-2 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900"
+                title="API-Key ändern"
+              >
+                Key ändern
+              </button>
+            )}
+            {onDelete && (
+              <button
+                type="button"
+                onClick={() => onDelete(row)}
+                className="rounded-lg border border-red-200 px-2 py-1 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 hover:text-red-700"
+                title="Gerät löschen"
+              >
+                Löschen
+              </button>
+            )}
+          </div>
+        ),
+      });
+    }
+
+    return cols;
+  }, [showSchool, onSetKey, onDelete, copiedId, handleCopyApiKey]);
+
+  return (
+    <DataTable
+      columns={columns}
+      rows={devices}
+      getRowKey={(row) => row.id}
+      defaultSortKey={showSchool ? "schoolName" : "deviceId"}
+    />
   );
 }

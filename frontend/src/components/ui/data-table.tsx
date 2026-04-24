@@ -1,8 +1,10 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 
 import { LOCATION_COLORS } from "~/lib/location-helper";
+
+export type SortDirection = "asc" | "desc";
 
 export interface DataTableColumn<T> {
   key: string;
@@ -11,6 +13,7 @@ export interface DataTableColumn<T> {
   align?: "left" | "right" | "center";
   className?: string;
   headerClassName?: string;
+  sortValue?: (row: T) => string | number;
 }
 
 interface DataTableProps<T> {
@@ -23,6 +26,8 @@ interface DataTableProps<T> {
   caption?: string;
   isLoading?: boolean;
   rowClassName?: (row: T) => string;
+  defaultSortKey?: string;
+  defaultSortDirection?: SortDirection;
 }
 
 const alignClass: Record<
@@ -44,8 +49,42 @@ export function DataTable<T>({
   caption,
   isLoading,
   rowClassName,
+  defaultSortKey,
+  defaultSortDirection = "asc",
 }: Readonly<DataTableProps<T>>) {
   const clickable = Boolean(onRowClick);
+
+  const [sort, setSort] = useState<{
+    key: string;
+    direction: SortDirection;
+  } | null>(
+    defaultSortKey
+      ? { key: defaultSortKey, direction: defaultSortDirection }
+      : null,
+  );
+
+  const toggleSort = useCallback((key: string) => {
+    setSort((prev) =>
+      prev?.key === key
+        ? { key, direction: prev.direction === "asc" ? "desc" : "asc" }
+        : { key, direction: "asc" },
+    );
+  }, []);
+
+  const sortedRows = useMemo(() => {
+    if (!sort) return rows;
+    const col = columns.find((c) => c.key === sort.key);
+    if (!col?.sortValue) return rows;
+    const getValue = col.sortValue;
+    const dir = sort.direction === "asc" ? 1 : -1;
+    return [...rows].sort((a, b) => {
+      const av = getValue(a);
+      const bv = getValue(b);
+      if (av < bv) return -dir;
+      if (av > bv) return dir;
+      return 0;
+    });
+  }, [rows, sort, columns]);
 
   return (
     <div className="w-full">
@@ -62,19 +101,38 @@ export function DataTable<T>({
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
-        <table className="w-full border-collapse text-sm">
+      <div className="overflow-x-auto rounded-2xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md">
+        <table className="w-full border-collapse text-left text-sm">
           <thead>
-            <tr className="border-b border-gray-200 bg-gray-50">
+            <tr className="border-b border-gray-100 text-xs font-medium text-gray-500">
               {columns.map((col) => {
                 const align = alignClass[col.align ?? "left"];
+                const sortable = Boolean(col.sortValue);
+                const active = sort?.key === col.key;
+                if (!sortable) {
+                  return (
+                    <th
+                      key={col.key}
+                      scope="col"
+                      className={`px-5 py-3 ${align} ${col.headerClassName ?? ""}`}
+                    >
+                      {col.header}
+                    </th>
+                  );
+                }
                 return (
                   <th
                     key={col.key}
                     scope="col"
-                    className={`px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase ${align} ${col.headerClassName ?? ""}`}
+                    className={`cursor-pointer px-5 py-3 transition-colors select-none hover:text-gray-700 ${align} ${col.headerClassName ?? ""}`}
+                    onClick={() => toggleSort(col.key)}
                   >
                     {col.header}
+                    <span
+                      className={`ml-1 inline-block ${active ? "text-gray-700" : "text-gray-300"}`}
+                    >
+                      {active ? (sort?.direction === "asc" ? "↑" : "↓") : "↕"}
+                    </span>
                   </th>
                 );
               })}
@@ -85,25 +143,25 @@ export function DataTable<T>({
               <tr>
                 <td
                   colSpan={columns.length}
-                  className="px-4 py-10 text-center text-sm text-gray-500"
+                  className="px-5 py-10 text-center text-sm text-gray-500"
                 >
                   Wird geladen…
                 </td>
               </tr>
-            ) : rows.length === 0 ? (
+            ) : sortedRows.length === 0 ? (
               <tr>
                 <td
                   colSpan={columns.length}
-                  className="px-4 py-10 text-center text-sm text-gray-500"
+                  className="px-5 py-10 text-center text-sm text-gray-500"
                 >
                   {emptyState ?? "Keine Einträge vorhanden."}
                 </td>
               </tr>
             ) : (
-              rows.map((row) => {
+              sortedRows.map((row) => {
                 const rowKey = getRowKey(row);
                 const rowClasses = [
-                  "border-b border-gray-100 last:border-b-0 transition-colors",
+                  "border-b border-gray-50 last:border-0 transition-colors",
                   clickable ? "cursor-pointer hover:bg-gray-50" : "",
                   rowClassName ? rowClassName(row) : "",
                 ]
@@ -135,7 +193,7 @@ export function DataTable<T>({
                       return (
                         <td
                           key={col.key}
-                          className={`px-4 py-3 align-middle text-gray-900 ${align} ${col.className ?? ""}`}
+                          className={`px-5 py-3 align-middle text-gray-900 ${align} ${col.className ?? ""}`}
                         >
                           {col.render(row)}
                         </td>

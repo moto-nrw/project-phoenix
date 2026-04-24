@@ -153,35 +153,41 @@ export default function OperatorOrganizationsPage() {
             <div className="font-mono text-xs text-gray-500">{row.slug}</div>
           </div>
         ),
+        sortValue: (row) => row.name.toLowerCase(),
       },
       {
         key: "schulen",
         header: "Schulen",
         align: "right",
         render: (row) => numberFormat(row.schulenCount),
+        sortValue: (row) => row.schulenCount,
       },
       {
         key: "konten",
         header: "Konten",
         align: "right",
         render: (row) => numberFormat(row.kontenCount),
+        sortValue: (row) => row.kontenCount,
       },
       {
         key: "geraete",
         header: "Geräte",
         align: "right",
         render: (row) => numberFormat(row.geraeteCount),
+        sortValue: (row) => row.geraeteCount,
       },
       {
         key: "personen",
         header: "Personen",
         align: "right",
         render: (row) => numberFormat(row.personenCount),
+        sortValue: (row) => row.personenCount,
       },
       {
         key: "status",
         header: "Status",
         render: (row) => <DataTableStatusBadge active={row.active} />,
+        sortValue: (row) => (row.active ? 0 : 1),
       },
     ],
     [],
@@ -257,6 +263,7 @@ export default function OperatorOrganizationsPage() {
               rows={activeOrganizations}
               getRowKey={(row) => row.id}
               onRowClick={handleRowClick}
+              defaultSortKey="name"
             />
           )}
         </div>

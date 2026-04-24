@@ -36,21 +36,19 @@ function PersonTags({ person }: Readonly<{ person: OperatorPerson }>) {
   );
 }
 
+function getPersonTagSortValue(person: OperatorPerson): string {
+  const tags: string[] = [];
+  if (person.isStaff) tags.push("mitarbeiter");
+  if (person.isStudent) tags.push("schüler");
+  if (person.hasRfidCard) tags.push("rfid");
+  return tags.join(",");
+}
+
 export function PersonsTable({
   persons,
   showSchool = false,
   onDelete,
 }: Readonly<PersonsTableProps>) {
-  const sorted = useMemo(
-    () =>
-      [...persons].sort((a, b) => {
-        const aKey = `${a.lastName} ${a.firstName}`.toLowerCase();
-        const bKey = `${b.lastName} ${b.firstName}`.toLowerCase();
-        return aKey < bKey ? -1 : aKey > bKey ? 1 : 0;
-      }),
-    [persons],
-  );
-
   const columns: DataTableColumn<OperatorPerson>[] = useMemo(() => {
     const cols: DataTableColumn<OperatorPerson>[] = [
       {
@@ -61,6 +59,8 @@ export function PersonsTable({
             {row.firstName} {row.lastName}
           </span>
         ),
+        sortValue: (row) =>
+          `${row.lastName} ${row.firstName}`.trim().toLowerCase(),
       },
     ];
     if (showSchool) {
@@ -70,6 +70,7 @@ export function PersonsTable({
         render: (row) => (
           <span className="text-gray-700">{row.schoolName}</span>
         ),
+        sortValue: (row) => row.schoolName.toLowerCase(),
       });
     }
     cols.push(
@@ -77,6 +78,7 @@ export function PersonsTable({
         key: "tags",
         header: "Merkmale",
         render: (row) => <PersonTags person={row} />,
+        sortValue: getPersonTagSortValue,
       },
       {
         key: "email",
@@ -87,6 +89,7 @@ export function PersonsTable({
           ) : (
             <span className="text-xs text-gray-400">—</span>
           ),
+        sortValue: (row) => (row.accountEmail ?? "").toLowerCase(),
       },
     );
     if (onDelete) {
@@ -119,9 +122,10 @@ export function PersonsTable({
   return (
     <DataTable
       columns={columns}
-      rows={sorted}
+      rows={persons}
       getRowKey={(row) => row.id}
       emptyState="Keine Personen vorhanden."
+      defaultSortKey="name"
     />
   );
 }

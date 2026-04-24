@@ -435,29 +435,34 @@ export default function OperatorOrganizationDetailPage({ params }: PageProps) {
             </div>
           </div>
         ),
+        sortValue: (row) => row.name.toLowerCase(),
       },
       {
         key: "konten",
         header: "Konten",
         align: "right",
         render: (row) => numberFormat(row.kontenCount),
+        sortValue: (row) => row.kontenCount,
       },
       {
         key: "geraete",
         header: "Geräte",
         align: "right",
         render: (row) => numberFormat(row.geraeteCount),
+        sortValue: (row) => row.geraeteCount,
       },
       {
         key: "personen",
         header: "Personen",
         align: "right",
         render: (row) => numberFormat(row.personenCount),
+        sortValue: (row) => row.personenCount,
       },
       {
         key: "status",
         header: "Status",
         render: (row) => <DataTableStatusBadge active={row.active} />,
+        sortValue: (row) => (row.active ? 0 : 1),
       },
     ],
     [],
@@ -629,6 +634,7 @@ export default function OperatorOrganizationDetailPage({ params }: PageProps) {
                 rows={activeSchools}
                 getRowKey={(row) => row.id}
                 onRowClick={handleSchoolClick}
+                defaultSortKey="name"
               />
             )}
           </TabsPrimitive.Content>

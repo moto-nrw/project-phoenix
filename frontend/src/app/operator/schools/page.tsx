@@ -195,6 +195,7 @@ export default function OperatorSchoolsPage() {
             </div>
           </div>
         ),
+        sortValue: (row) => row.name.toLowerCase(),
       },
       {
         key: "traeger",
@@ -202,29 +203,34 @@ export default function OperatorSchoolsPage() {
         render: (row) => (
           <span className="text-gray-700">{row.organizationName}</span>
         ),
+        sortValue: (row) => row.organizationName.toLowerCase(),
       },
       {
         key: "konten",
         header: "Konten",
         align: "right",
         render: (row) => numberFormat(row.kontenCount),
+        sortValue: (row) => row.kontenCount,
       },
       {
         key: "geraete",
         header: "Geräte",
         align: "right",
         render: (row) => numberFormat(row.geraeteCount),
+        sortValue: (row) => row.geraeteCount,
       },
       {
         key: "personen",
         header: "Personen",
         align: "right",
         render: (row) => numberFormat(row.personenCount),
+        sortValue: (row) => row.personenCount,
       },
       {
         key: "status",
         header: "Status",
         render: (row) => <DataTableStatusBadge active={row.active} />,
+        sortValue: (row) => (row.active ? 0 : 1),
       },
     ],
     [],
@@ -298,6 +304,7 @@ export default function OperatorSchoolsPage() {
               rows={activeSummaries}
               getRowKey={(row) => row.id}
               onRowClick={handleRowClick}
+              defaultSortKey="name"
             />
           )}
 
