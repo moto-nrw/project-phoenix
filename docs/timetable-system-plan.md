@@ -14,6 +14,8 @@
 - **2026-04-15 (Iteration 4):** Team feedback from Christian and Flo (E15–E22). Calendar periods. A/B weeks. Enrollment validity. Three-field attendance model. Auto-start levels. Gap detection. Mensa rotation solved. Holiday care compatibility.
 - **2026-04-21 (Iteration 5):** Post-B10 review. Open questions §4.1/§4.7/§4.8 resolved. B10 gap identified: `Complete()` must mark remaining `expected` students as `absent` (plan §6.2) — follow-up bundled with WP-B11.
 - **2026-04-23 (Iteration 6):** E2E-Sweep-Findings nachgezogen. §6.1 praezisiert die Evaluation-Reihenfolge (Exception schlaegt existing-row-Dedupe, E2E-B1). §10 ergaenzt Query-Budget-Semantik (Handler-Ebene vs. End-to-End, E2E-C2). Siehe `backend/test/e2e/timetable/E2E_FINDINGS.md`.
+- **2026-04-24 (Iteration 7):** F-Track gestartet. WP-F1 (Arrival Schedule Editor) shipped via #1306, gebuendelt mit Master-Detail-Refactor der Database-Studenten-Page und B1/B2-Polish (Listen-Enrichment via `include_arrival_times`, neue SSE-Events `student_updated` + `arrival_schedule_changed`, LocationBadge-Status "Kommt heute nicht", Bulk-DTO-Fix `arrival_time` → `expected_arrival`). Naechster Einstieg: F2/F3/F4 parallelisierbar.
+- **2026-04-24 (Iteration 7, Klarstellung):** SSE-Backend-Emission fuer `instance_started/completed/cancelled/overdue` wurde bereits in B9 (#1294) mitgeliefert (in `instance_service.go` und `scheduler.go::runOverdueForTenant`). F7 reduziert sich damit auf reines Frontend-Wiring (sse-types + use-sse-Handler + Badge-Bindung) — kein neuer Backend-Code noetig.
 
 ---
 
@@ -527,6 +529,7 @@ Two tracks: **all backend first, frontend after.** Each item is a **Work Package
 - [x] **WP-B7** — Timetable settings (7 entries) registered in config system → GitHub #1286
 - [x] **WP-B8** — Materialization service + scheduler job (A/B week + validity filtering) + manual endpoint → GitHub #1293
 - [x] **WP-B9** — Instance lifecycle: start (→ `active.group` bridge), complete, cancel + conflict detection service → GitHub #1294
+  - **Bundled SSE-Emission (Backend-Teil von F7):** B9 emittiert die vier Instance-Events `EventInstanceStarted` / `EventInstanceCompleted` / `EventInstanceCancelled` (aus `instance_service.go`) und `EventInstanceOverdue` (aus `scheduler.go::runOverdueForTenant`, einmal pro planned-Instance nach Ueberschreiten von `timetable.overdue_threshold_minutes`, deduped pro Instance/Tag). Frontend-Wiring fehlt noch (siehe F7).
 - [x] **WP-B10** — Attendance sync (E4) + three-field attendance model (E18: status / substatus / note) → GitHub #1295
 
 #### B3 — Aggregation + Ops
@@ -560,7 +563,13 @@ Two tracks: **all backend first, frontend after.** Each item is a **Work Package
 
 #### F1 — Arrival admin
 
-- [ ] **WP-F1** — Arrival schedule editor (class-based bulk + individual override)
+- [x] **WP-F1** — Arrival schedule editor (class-based bulk + individual override) → GitHub #1306
+  - **Per-Student-Manager:** `ArrivalScheduleManager` + `ArrivalDayEditModal` + `ArrivalScheduleFormModal` (Mo–Fr-Wochengrid mit Wochennavigation, Day-Edit fuer Exception/Notes, Bulk-Wochen-Edit). Eingebettet im Studenten-Detail-Tab "Betreuungszeiten" zusammen mit `PickupScheduleManager`. Read-only-Mode wenn `has_full_access=false`.
+  - **Class Bulk:** `ClassBulkArrivalModal` ueber Kebab-Menue auf Klassen-Gruppen-Rows (statt prominentem Button). Holt echte Per-Student-Schedules beim Open, um die Kollisionszahl korrekt zu berechnen — die alte v1-Annahme "alle Schueler haben bereits Arrival" produzierte falsche Warnungen.
+  - **Proxy + Client:** Next.js-Proxy-Routen unter `/api/students/[id]/arrival-{schedules,exceptions,notes}` und `/api/students/arrival-{schedules,times}/bulk`. API-Client + Helpers in `lib/student-arrival-api.ts` und `lib/arrival-schedule-helpers.ts` mit deutschen Fehler-Mappings.
+  - **Begleitende B1/B2-Polish (kein neues WP):** `GET /students?include_arrival_times=true` reichert Listen mit heutiger Arrival-Time + Exception-Flag + zusammengefuehrten Notes an, sodass OGS-Groups, Active-Supervisions, Search und Detail keinen parallelen Bulk-Fetch mehr brauchen. Bulk-Endpoint-DTO `arrival_time` → `expected_arrival` korrigiert (Handler/Service/Test). Neue SSE-Events `student_updated` und `arrival_schedule_changed` aus dem Students-Resource. `date_params.go`-Helper formatiert Berlin-Kalendertage und paart mit `?::date` in Pickup/Arrival-Queries (loest TZ-Drift unter DB-Session-Timezone).
+  - **LocationBadge:** Neuer State "Kommt heute nicht" ersetzt das Home-Badge wenn `arrival_exception` mit `expected_arrival=NULL` fuer heute existiert. Sortierung nach Ankunftszeit in OGS-Groups + Student-Search ergaenzt.
+  - **Out-of-scope-Bundled (nicht im F-Plan, aber im selben PR):** Master-Detail-Refactor der Database-Studenten-Page (`MasterDetailLayout`, `GroupedList`, `GroupHeader`, `DetailPanel`, `EmptyDetailState`) als wiederverwendbare Primitiven fuer kommende Database-Refactors (Groups, Rooms). Ersetzt das alte Modal-Editor-Muster durch tabbed Detail-Panel mit URL-Sync (`?student=ID&groupBy=class|group|none`). Tab-Strip horizontal scrollbar fuer Viewports < 640px. Redundantes "Klasse "-Prefix in Listen entfernt (Backend liefert bereits "Klasse 1a").
 
 #### F2 — Admin planner + Staff daily UI
 
@@ -572,7 +581,7 @@ Two tracks: **all backend first, frontend after.** Each item is a **Work Package
 #### F3 — Rollover + live updates
 
 - [ ] **WP-F6** — Semester rollover UI + enrollment validity management
-- [ ] **WP-F7** — SSE events for overdue instances (E19 level 2)
+- [ ] **WP-F7** — SSE events for overdue instances (E19 level 2) — **nur Frontend-Wiring offen.** Backend-Emission ist via WP-B9 (#1294) shipped: `EventInstanceOverdue` aus dem Scheduler plus `EventInstanceStarted/Completed/Cancelled` aus `instance_service.go`. Offen: `frontend/src/lib/sse-types.ts` um die vier Instance-Event-Typen erweitern, `use-sse.ts` Handler ergaenzen, "Ueberfaellig"-Badge in der F3-My-Day-Card binden.
 
 #### F4 — Frontend roadmap
 
@@ -594,9 +603,13 @@ Two tracks: **all backend first, frontend after.** Each item is a **Work Package
 
 **Backend-MVP ist geschlossen.** B1 bis B14 sind shipped. B15 (Staff-Absence-Entity) und B16 (Ferienbetreuung) bleiben als post-MVP Roadmap-Items, nicht blockierend.
 
-**F-Track kann starten.** Der logische Einstieg ist **WP-F1** (Arrival Schedule Editor): die zugrundeliegende API (B1/B2) ist seit Februar shipped, der Scope ist klein (Listen-View fuer Klassen, Individual-Override-Form, Exceptions-Panel), und es produziert einen sichtbaren Mehrwert fuer Admins ohne dass parallel andere F-WPs laufen muessen.
+**F-Track ist gestartet.** WP-F1 (Arrival Schedule Editor) ist via #1306 shipped. Damit ist der erste sichtbare Admin-Mehrwert live und das Master-Detail-Layout-Pattern als wiederverwendbare Primitive etabliert.
 
-Danach werden F2 (Weekly Planner, konsumiert B5/B8/B9), F3 (Staff My Day, konsumiert B11), und F4 (Instance Detail, konsumiert B10/B11) parallelisierbar. F7 (SSE fuer Overdue) und F10 (Automatic Auto-Start) kommen zuletzt.
+**Naechste F-WPs sind parallelisierbar:** F2 (Admin Weekly Planner, konsumiert B5/B8/B9), F3 (Staff "My Day", konsumiert B11), F4 (Instance Detail mit Check-in-Liste, konsumiert B10/B11). Logische Reihenfolge fuer ersten Aufschlag: **F2 zuerst** (Admin sieht den materialisierten Plan, validiert B8/B9), dann **F3 + F4 zusammen** (Staff-Workflow End-to-End: My Day → Instance Detail → Check-in). F5 (Spontane Aktivitaet) kann parallel zu F4 laufen, weil dieselben Detail-Komponenten verwendet werden.
+
+**F7 ist ein Quick-Win nach F3:** Die Backend-SSE-Emission fuer `instance_started/completed/cancelled/overdue` ist via B9 bereits live. Sobald F3 die My-Day-Card hat, ist F7 nur noch ein Frontend-Wiring (sse-types + use-sse-Handler + Badge-Bindung) — kein neuer Backend-Code noetig.
+
+**F10 (Automatic Auto-Start)** kommt zuletzt, weil es die Scheduler-Erweiterung um automatisches `active.group`-Anlegen voraussetzt (E19 Level 3) und auf der UI-Indikator-Schicht aus F3 aufbaut.
 
 **Alternative Backend-Arbeit** falls jemand auf dem Backend bleiben will: B15 ist die logische Fortsetzung von B12 (Staff-Absence als persistente Entity statt Ad-hoc-Flag). B16 kann parallel zu F-Track laufen, wenn die Schule Ferienbetreuung konkret anfragt.
 
