@@ -160,6 +160,11 @@ vi.mock("~/lib/pickup-schedule-api", () => ({
   fetchBulkPickupTimes: vi.fn(() => Promise.resolve(new Map())),
 }));
 
+// Mock student-arrival-api
+vi.mock("~/lib/student-arrival-api", () => ({
+  fetchBulkArrivalTimes: vi.fn(() => Promise.resolve(new Map())),
+}));
+
 // Mock StudentCard components
 vi.mock("~/components/students/student-card", () => ({
   StudentCard: ({
@@ -199,6 +204,33 @@ vi.mock("~/components/students/student-card", () => ({
       {pickupTime && <>Abholzeit: {pickupTime} Uhr</>}
       {!pickupTime && isException && (notes || "Abwesend")}
       {!pickupTime && !isException && <>Abholzeit: —</>}
+      {notes && <span>({notes})</span>}
+    </div>
+  ),
+  ArrivalTimeRow: ({
+    arrivalTime,
+    isException,
+    isAbsent,
+    notes,
+    isHome,
+  }: {
+    arrivalTime?: string;
+    isException: boolean;
+    isAbsent: boolean;
+    notes?: string;
+    isHome: boolean;
+    now: Date;
+  }) => (
+    <div
+      data-testid="arrival-time-row"
+      data-arrival-time={arrivalTime ?? ""}
+      data-is-exception={String(isException)}
+      data-is-absent={String(isAbsent)}
+      data-is-home={String(isHome)}
+    >
+      {isAbsent && <>Kommt heute nicht</>}
+      {!isAbsent && arrivalTime && <>Ankunftszeit: {arrivalTime} Uhr</>}
+      {!isAbsent && !arrivalTime && <>Ankunftszeit: —</>}
       {notes && <span>({notes})</span>}
     </div>
   ),

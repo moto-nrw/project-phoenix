@@ -2,8 +2,12 @@
 // Shared student card component used across OGS groups and active supervisions pages
 
 import type { ReactNode } from "react";
-import { Clock, AlertTriangle } from "lucide-react";
+import { Clock, AlertTriangle, LogIn } from "lucide-react";
 import { getPickupUrgency, type PickupUrgency } from "~/lib/pickup-helpers";
+import {
+  getArrivalUrgency,
+  type ArrivalUrgency,
+} from "~/lib/arrival-schedule-helpers";
 
 interface StudentCardProps {
   /** Unique student ID */
@@ -267,4 +271,67 @@ export function renderPickupIcon(urgency: PickupUrgency): ReactNode {
   }
   // normal / none — default gray clock
   return <PickupTimeIcon />;
+}
+
+/** Icon for arrival time display */
+function ArrivalTimeIcon() {
+  return <LogIn className="h-3.5 w-3.5 text-gray-400" />;
+}
+
+/** Renders the appropriate arrival icon based on urgency level */
+function renderArrivalIcon(urgency: ArrivalUrgency): ReactNode {
+  if (urgency === "overdue") {
+    return <AlertTriangle className="h-3.5 w-3.5 text-red-500" />;
+  }
+  if (urgency === "soon") {
+    return <LogIn className="h-3.5 w-3.5 animate-pulse text-orange-500" />;
+  }
+  return <ArrivalTimeIcon />;
+}
+
+/**
+ * Shared arrival time display row, mirror of PickupTimeRow:
+ *   1. isAbsent → "Kommt heute nicht" (with reason if provided)
+ *   2. Has arrivalTime → show time with urgency/exception icon
+ *   3. Neither → show "Ankunftszeit: —" fallback
+ */
+export function ArrivalTimeRow({
+  arrivalTime,
+  isException,
+  isAbsent,
+  notes,
+  isHome,
+  now,
+}: Readonly<{
+  arrivalTime?: string;
+  isException: boolean;
+  isAbsent: boolean;
+  notes?: string;
+  isHome: boolean;
+  now: Date;
+}>) {
+  if (isAbsent) {
+    return (
+      <StudentInfoRow icon={<ExceptionIcon />}>
+        {notes ? `Kommt heute nicht (${notes})` : "Kommt heute nicht"}
+      </StudentInfoRow>
+    );
+  }
+
+  const urgency = getArrivalUrgency(arrivalTime, now, isHome);
+
+  if (arrivalTime) {
+    return (
+      <StudentInfoRow
+        icon={isException ? <ExceptionIcon /> : renderArrivalIcon(urgency)}
+      >
+        Ankunftszeit: {arrivalTime} Uhr
+        {notes && <span className="ml-1 text-gray-500">({notes})</span>}
+      </StudentInfoRow>
+    );
+  }
+
+  return (
+    <StudentInfoRow icon={<ArrivalTimeIcon />}>Ankunftszeit: —</StudentInfoRow>
+  );
 }

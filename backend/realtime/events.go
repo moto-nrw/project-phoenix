@@ -12,6 +12,7 @@ const (
 	// Student movement events
 	EventStudentCheckIn  EventType = "student_checkin"
 	EventStudentCheckOut EventType = "student_checkout"
+	EventStudentUpdated  EventType = "student_updated"
 
 	// Activity session lifecycle events
 	EventActivityStart  EventType = "activity_start"
@@ -29,6 +30,10 @@ const (
 
 	// Global refresh event — tells all clients to re-fetch dashboard counts
 	EventDashboardCountsChanged EventType = "dashboard_counts_changed"
+
+	// Arrival schedule events affect derived "not arriving today" badges and
+	// bulk arrival-time lookups across student list/detail pages.
+	EventArrivalScheduleChanged EventType = "arrival_schedule_changed"
 )
 
 // Event represents a Server-Sent Event that will be broadcast to clients

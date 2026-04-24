@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/uptrace/bun"
@@ -292,13 +291,13 @@ func (r *StudentArrivalExceptionRepository) FindByStudentID(ctx context.Context,
 // FindUpcomingByStudentID finds upcoming arrival exceptions for a student (from today onwards)
 func (r *StudentArrivalExceptionRepository) FindUpcomingByStudentID(ctx context.Context, studentID int64) ([]*schedule.StudentArrivalException, error) {
 	var exceptions []*schedule.StudentArrivalException
-	today := timezone.Today()
+	today := dateParam(time.Now())
 
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&exceptions).
 		ModelTableExpr(`schedule.student_arrival_exceptions AS "student_arrival_exception"`).
 		Where(`"student_arrival_exception".student_id = ?`, studentID).
-		Where(`"student_arrival_exception".exception_date >= ?`, today).
+		Where(`"student_arrival_exception".exception_date >= ?::date`, today).
 		Order("exception_date ASC")
 
 	if where, val, ok := base.TenantWhere(ctx, "student_arrival_exception"); ok {
@@ -319,13 +318,13 @@ func (r *StudentArrivalExceptionRepository) FindUpcomingByStudentID(ctx context.
 // FindByStudentIDAndDate finds an arrival exception for a specific student and date
 func (r *StudentArrivalExceptionRepository) FindByStudentIDAndDate(ctx context.Context, studentID int64, date time.Time) (*schedule.StudentArrivalException, error) {
 	var exception schedule.StudentArrivalException
-	dateOnly := timezone.DateOfUTC(date)
+	dateOnly := dateParam(date)
 
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&exception).
 		ModelTableExpr(`schedule.student_arrival_exceptions AS "student_arrival_exception"`).
 		Where(`"student_arrival_exception".student_id = ?`, studentID).
-		Where(`"student_arrival_exception".exception_date = ?`, dateOnly)
+		Where(`"student_arrival_exception".exception_date = ?::date`, dateOnly)
 
 	if where, val, ok := base.TenantWhere(ctx, "student_arrival_exception"); ok {
 		query = query.Where(where, val)
@@ -351,14 +350,14 @@ func (r *StudentArrivalExceptionRepository) FindByStudentIDsAndDate(ctx context.
 		return []*schedule.StudentArrivalException{}, nil
 	}
 
-	dateOnly := timezone.DateOfUTC(date)
+	dateOnly := dateParam(date)
 	var exceptions []*schedule.StudentArrivalException
 
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&exceptions).
 		ModelTableExpr(`schedule.student_arrival_exceptions AS "student_arrival_exception"`).
 		Where(`"student_arrival_exception".student_id IN (?)`, bun.List(studentIDs)).
-		Where(`"student_arrival_exception".exception_date = ?`, dateOnly)
+		Where(`"student_arrival_exception".exception_date = ?::date`, dateOnly)
 
 	if where, val, ok := base.TenantWhere(ctx, "student_arrival_exception"); ok {
 		query = query.Where(where, val)
@@ -380,16 +379,16 @@ func (r *StudentArrivalExceptionRepository) FindByStudentIDsAndDate(ctx context.
 func (r *StudentArrivalExceptionRepository) FindByStudentIDAndDateRange(
 	ctx context.Context, studentID int64, from, to time.Time,
 ) ([]*schedule.StudentArrivalException, error) {
-	fromDate := timezone.DateOfUTC(from)
-	toDate := timezone.DateOfUTC(to)
+	fromDate := dateParam(from)
+	toDate := dateParam(to)
 
 	var exceptions []*schedule.StudentArrivalException
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&exceptions).
 		ModelTableExpr(`schedule.student_arrival_exceptions AS "student_arrival_exception"`).
 		Where(`"student_arrival_exception".student_id = ?`, studentID).
-		Where(`"student_arrival_exception".exception_date >= ?`, fromDate).
-		Where(`"student_arrival_exception".exception_date <= ?`, toDate).
+		Where(`"student_arrival_exception".exception_date >= ?::date`, fromDate).
+		Where(`"student_arrival_exception".exception_date <= ?::date`, toDate).
 		Order("exception_date ASC")
 
 	if where, val, ok := base.TenantWhere(ctx, "student_arrival_exception"); ok {
@@ -432,7 +431,7 @@ func (r *StudentArrivalExceptionRepository) DeletePastExceptions(ctx context.Con
 	delQuery := base.GetDB(ctx, r.db).NewDelete().
 		Model((*schedule.StudentArrivalException)(nil)).
 		ModelTableExpr(`schedule.student_arrival_exceptions AS "student_arrival_exception"`).
-		Where(`"student_arrival_exception".exception_date < ?`, beforeDate)
+		Where(`"student_arrival_exception".exception_date < ?::date`, dateParam(beforeDate))
 
 	if where, val, ok := base.TenantWhere(ctx, "student_arrival_exception"); ok {
 		delQuery = delQuery.Where(where, val)
@@ -572,14 +571,14 @@ func (r *StudentArrivalNoteRepository) FindByStudentID(ctx context.Context, stud
 
 // FindByStudentIDAndDate finds all arrival notes for a student on a specific date
 func (r *StudentArrivalNoteRepository) FindByStudentIDAndDate(ctx context.Context, studentID int64, date time.Time) ([]*schedule.StudentArrivalNote, error) {
-	dateOnly := timezone.DateOfUTC(date)
+	dateOnly := dateParam(date)
 	var notes []*schedule.StudentArrivalNote
 
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&notes).
 		ModelTableExpr(`schedule.student_arrival_notes AS "student_arrival_note"`).
 		Where(`"student_arrival_note".student_id = ?`, studentID).
-		Where(`"student_arrival_note".note_date = ?`, dateOnly).
+		Where(`"student_arrival_note".note_date = ?::date`, dateOnly).
 		Order(orderCreatedAtASC)
 
 	if where, val, ok := base.TenantWhere(ctx, "student_arrival_note"); ok {
@@ -603,14 +602,14 @@ func (r *StudentArrivalNoteRepository) FindByStudentIDsAndDate(ctx context.Conte
 		return []*schedule.StudentArrivalNote{}, nil
 	}
 
-	dateOnly := timezone.DateOfUTC(date)
+	dateOnly := dateParam(date)
 	var notes []*schedule.StudentArrivalNote
 
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&notes).
 		ModelTableExpr(`schedule.student_arrival_notes AS "student_arrival_note"`).
 		Where(`"student_arrival_note".student_id IN (?)`, bun.List(studentIDs)).
-		Where(`"student_arrival_note".note_date = ?`, dateOnly).
+		Where(`"student_arrival_note".note_date = ?::date`, dateOnly).
 		Order(orderCreatedAtASC)
 
 	if where, val, ok := base.TenantWhere(ctx, "student_arrival_note"); ok {
@@ -655,7 +654,7 @@ func (r *StudentArrivalNoteRepository) DeletePastNotes(ctx context.Context, befo
 	delQuery := base.GetDB(ctx, r.db).NewDelete().
 		Model((*schedule.StudentArrivalNote)(nil)).
 		ModelTableExpr(`schedule.student_arrival_notes AS "student_arrival_note"`).
-		Where(`"student_arrival_note".note_date < ?`, beforeDate)
+		Where(`"student_arrival_note".note_date < ?::date`, dateParam(beforeDate))
 
 	if where, val, ok := base.TenantWhere(ctx, "student_arrival_note"); ok {
 		delQuery = delQuery.Where(where, val)

@@ -146,10 +146,12 @@ export function useSSE(
         const eventTypes = [
           "student_checkin",
           "student_checkout",
+          "student_updated",
           "activity_start",
           "activity_end",
           "activity_update",
           "dashboard_counts_changed",
+          "arrival_schedule_changed",
         ];
 
         for (const eventType of eventTypes) {

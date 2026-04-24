@@ -282,6 +282,10 @@ interface StudentHeaderProps {
   todayPickupTime?: string;
   todayPickupNote?: string;
   isPickupException?: boolean;
+  todayArrivalTime?: string;
+  todayArrivalNote?: string;
+  isArrivalException?: boolean;
+  isArrivalAbsent?: boolean;
 }
 
 export function StudentDetailHeader({
@@ -292,6 +296,10 @@ export function StudentDetailHeader({
   todayPickupTime,
   todayPickupNote,
   isPickupException,
+  todayArrivalTime,
+  todayArrivalNote,
+  isArrivalException,
+  isArrivalAbsent,
 }: Readonly<StudentHeaderProps>) {
   const badgeStudent = {
     current_location: student.current_location,
@@ -303,6 +311,8 @@ export function StudentDetailHeader({
     excused: student.excused,
     excused_since: student.excused_since,
     has_full_access: student.has_full_access,
+    not_arrival_today: isArrivalAbsent ?? false,
+    not_arrival_reason: todayArrivalNote ?? null,
   };
 
   return (
@@ -316,6 +326,28 @@ export function StudentDetailHeader({
             <div className="mt-2 flex items-center gap-2 text-sm text-gray-600">
               <GroupIcon className="h-4 w-4 text-gray-400" />
               <span className="truncate">{student.group_name}</span>
+            </div>
+          )}
+          {!isArrivalAbsent && todayArrivalTime && (
+            <div className="mt-1.5 flex items-center gap-2 text-sm text-gray-600">
+              <ClockIcon className="h-4 w-4 text-gray-400" />
+              <span>
+                Heutige Ankunft:{" "}
+                <span className="font-medium text-gray-900">
+                  {todayArrivalTime}
+                </span>
+                {todayArrivalNote && (
+                  <span className="ml-1 text-gray-500">
+                    ({todayArrivalNote})
+                  </span>
+                )}
+                {isArrivalException && (
+                  <span
+                    className="ml-1.5 inline-flex h-2 w-2 rounded-full bg-orange-400"
+                    title="Ausnahme"
+                  />
+                )}
+              </span>
             </div>
           )}
           {todayPickupTime && (

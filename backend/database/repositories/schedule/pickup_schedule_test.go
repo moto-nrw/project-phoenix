@@ -1,16 +1,19 @@
 package schedule_test
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
 
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 // strPtr returns a pointer to the given string
@@ -559,7 +562,16 @@ func TestStudentPickupExceptionRepository_FindByStudentIDsAndDate(t *testing.T) 
 	t.Run("finds exceptions for multiple students on same date", func(t *testing.T) {
 		student1 := testpkg.CreateTestStudent(t, db, "Student", "One", "1a")
 		student2 := testpkg.CreateTestStudent(t, db, "Student", "Two", "1b")
-		defer testpkg.CleanupActivityFixtures(t, db, student1.ID, student2.ID)
+		staff := testpkg.CreateTestStaff(t, db, "PickupStaff", "BulkLookup")
+		exceptionIDs := make([]int64, 0, 2)
+		defer func() {
+			testpkg.CleanupScheduleFixturesB11(t, db, nil, nil, nil, exceptionIDs, nil, nil)
+			testpkg.CleanupActivityFixtures(t, db,
+				student1.ID, student1.PersonID,
+				student2.ID, student2.PersonID,
+				staff.ID, staff.PersonID,
+			)
+		}()
 
 		// Use Berlin timezone for consistent date handling
 		exceptionDate := time.Date(2024, 4, 10, 12, 0, 0, 0, timezone.Berlin)
@@ -569,10 +581,11 @@ func TestStudentPickupExceptionRepository_FindByStudentIDsAndDate(t *testing.T) 
 				StudentID:     studentID,
 				ExceptionDate: exceptionDate,
 				Reason:        strPtr("Group exception"),
-				CreatedBy:     1,
+				CreatedBy:     staff.ID,
 			}
 			err := repo.Create(ctx, exception)
 			require.NoError(t, err)
+			exceptionIDs = append(exceptionIDs, exception.ID)
 		}
 
 		results, err := repo.FindByStudentIDsAndDate(ctx, []int64{student1.ID, student2.ID}, exceptionDate)
@@ -587,6 +600,64 @@ func TestStudentPickupExceptionRepository_FindByStudentIDsAndDate(t *testing.T) 
 		require.NoError(t, err)
 		assert.Empty(t, results)
 	})
+}
+
+func TestStudentPickupExceptionRepository_FindByStudentIDsAndDate_MatchesDateInBerlinSession(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := scheduleRepo.NewStudentPickupExceptionRepository(db)
+	ctx := testpkg.TenantContext(1)
+	student := testpkg.CreateTestStudent(t, db, "PickupStudent", "BerlinTZ", "1a")
+	staff := testpkg.CreateTestStaff(t, db, "PickupStaff", "BerlinTZ")
+	var exceptionID int64
+	defer func() {
+		testpkg.CleanupScheduleFixturesB11(t, db, nil, nil, nil, []int64{exceptionID}, nil, nil)
+		testpkg.CleanupActivityFixtures(t, db, student.ID, student.PersonID, staff.ID, staff.PersonID)
+	}()
+
+	err := db.RunInTx(ctx, nil, func(_ context.Context, tx bun.Tx) error {
+		txCtx := modelBase.ContextWithTx(ctx, &tx)
+		_, err := tx.NewRaw(`SET LOCAL timezone = 'Europe/Berlin'`).Exec(txCtx)
+		if err != nil {
+			return err
+		}
+
+		exception := &scheduleModels.StudentPickupException{
+			StudentID:     student.ID,
+			ExceptionDate: time.Date(2026, 4, 24, 12, 0, 0, 0, timezone.Berlin),
+			Reason:        strPtr("Berlin session regression"),
+			CreatedBy:     staff.ID,
+		}
+		if err := repo.Create(txCtx, exception); err != nil {
+			return err
+		}
+		exceptionID = exception.ID
+
+		queryDate := time.Date(2026, 4, 24, 0, 0, 0, 0, time.UTC)
+		results, err := repo.FindByStudentIDsAndDate(txCtx, []int64{student.ID}, queryDate)
+		if err != nil {
+			return err
+		}
+		if len(results) != 1 {
+			return fmt.Errorf("expected one exception for query date, got %d", len(results))
+		}
+		if results[0].ID != exception.ID {
+			return fmt.Errorf("expected exception ID %d, got %d", exception.ID, results[0].ID)
+		}
+
+		previousDay := time.Date(2026, 4, 23, 0, 0, 0, 0, time.UTC)
+		results, err = repo.FindByStudentIDsAndDate(txCtx, []int64{student.ID}, previousDay)
+		if err != nil {
+			return err
+		}
+		if len(results) != 0 {
+			return fmt.Errorf("expected no exception for previous day, got %d", len(results))
+		}
+
+		return nil
+	})
+	require.NoError(t, err)
 }
 
 func TestStudentPickupExceptionRepository_FindByID(t *testing.T) {
